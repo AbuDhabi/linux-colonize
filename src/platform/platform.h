@@ -17,6 +17,7 @@ typedef enum ColonizeKey {
   COLONIZE_KEY_S,
   COLONIZE_KEY_L,
   COLONIZE_KEY_Q,
+  COLONIZE_KEY_P,
   COLONIZE_KEY_TILDE
 } ColonizeKey;
 

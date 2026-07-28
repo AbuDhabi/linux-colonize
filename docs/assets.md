@@ -158,6 +158,10 @@ Forests on other rows, roads, resources, fog, and coast overlays are not drawn f
 
 Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
 
+### Colonizopedia terrain preview
+
+Press **P** from the menu or map to open a terrain Colonizopedia page (`PEDIA.TXT` `@TERRAIN0`–`@TERRAIN28`). Left/Right cycles types; Esc or P exits. Each page shows a 3×3 sample of the TERRAIN/PHYS0 composite plus the title and body text.
+
 | Extension | Typical use |
 |-----------|-------------|
 | `.PIK` | Packed pictures / backgrounds |

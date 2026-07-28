@@ -10,6 +10,7 @@
 #include "core/ff.h"
 #include "core/font.h"
 #include "core/map.h"
+#include "core/pedia.h"
 #include "core/pik.h"
 #include "core/savegame.h"
 #include "core/ss.h"
@@ -30,6 +31,10 @@ struct ColonizeGameState {
   bool palette_ok;
   ColonizePalette palette;
   ColonizeMsgCatalog messages;
+  ColonizeMsgCatalog pedia;
+  bool pedia_ok;
+  bool in_pedia;
+  int pedia_terrain_index;
   ColonizePikImage menu_bg;
   bool menu_bg_ok;
   ColonizeSpriteSheet terrain;
@@ -65,6 +70,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_S: return "S";
     case COLONIZE_KEY_L: return "L";
     case COLONIZE_KEY_Q: return "Q";
+    case COLONIZE_KEY_P: return "P";
     case COLONIZE_KEY_TILDE: return "TILDE";
     default: return "NONE";
   }
@@ -193,6 +199,120 @@ static int debug_atlas_max_scroll(const ColonizeGameState* game) {
   return max_row;
 }
 
+static const char* render_mode_name(const ColonizeGameState* game) {
+  if (game->in_pedia) {
+    return "pedia";
+  }
+  if (game->in_debug_atlas) {
+    return "debug-atlas";
+  }
+  if (game->in_menu) {
+    return "menu";
+  }
+  return "map";
+}
+
+static void blit_pedia_preview_tile(
+  const ColonizeGameState* game,
+  const PediaTerrainPreview* preview,
+  ColonizeFramebuffer8* framebuffer,
+  int pixel_x,
+  int pixel_y
+) {
+  if (!preview) {
+    return;
+  }
+  if (game->terrain_ok && preview->terrain_sprite >= 0) {
+    ss_blit_sprite(&game->terrain, preview->terrain_sprite, framebuffer, pixel_x, pixel_y);
+  }
+  if (game->phys0_ok) {
+    for (int i = 0; i < preview->phys0_count; ++i) {
+      ss_blit_sprite(&game->phys0, preview->phys0_sprites[i], framebuffer, pixel_x, pixel_y);
+    }
+  }
+}
+
+static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
+  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
+  const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+
+  PediaTerrainPage page;
+  pedia_terrain_page(game->pedia_ok ? &game->pedia : NULL, game->pedia_terrain_index, &page);
+
+  char hud[96];
+  snprintf(
+    hud,
+    sizeof(hud),
+    "Colonizopedia  %d/%d  L/R change  Esc exit",
+    game->pedia_terrain_index,
+    PEDIA_TERRAIN_COUNT - 1
+  );
+  font_draw_text(font, framebuffer, 2, 2, hud, 15);
+
+  const int tile = 16;
+  const int grid = 3;
+  const int preview_x = 16;
+  const int preview_y = 20;
+  for (int gy = 0; gy < grid; ++gy) {
+    for (int gx = 0; gx < grid; ++gx) {
+      const int px = preview_x + gx * tile;
+      const int py = preview_y + gy * tile;
+      for (int y = 0; y < tile; ++y) {
+        for (int x = 0; x < tile; ++x) {
+          const int dx = px + x;
+          const int dy = py + y;
+          if (dx < 0 || dy < 0 || dx >= framebuffer->width || dy >= framebuffer->height) {
+            continue;
+          }
+          framebuffer->pixels[dy * framebuffer->width + dx] =
+            (uint8_t)(((x / 4) ^ (y / 4)) & 1 ? 8 : 0);
+        }
+      }
+      blit_pedia_preview_tile(game, &page.preview, framebuffer, px, py);
+    }
+  }
+
+  char sprite_info[96];
+  if (page.preview.phys0_count > 0) {
+    snprintf(
+      sprite_info,
+      sizeof(sprite_info),
+      "TERRAIN %d + PHYS",
+      page.preview.terrain_sprite
+    );
+    size_t used = strlen(sprite_info);
+    for (int i = 0; i < page.preview.phys0_count && used + 8 < sizeof(sprite_info); ++i) {
+      used += (size_t)snprintf(
+        sprite_info + used,
+        sizeof(sprite_info) - used,
+        "%s%d",
+        i == 0 ? " " : "+",
+        page.preview.phys0_sprites[i]
+      );
+    }
+  } else {
+    snprintf(sprite_info, sizeof(sprite_info), "TERRAIN %d", page.preview.terrain_sprite);
+  }
+  font_draw_text(font, framebuffer, preview_x, preview_y + grid * tile + 4, sprite_info, 14);
+
+  const int text_x = preview_x + grid * tile + 12;
+  font_draw_text(font, framebuffer, text_x, 20, page.title, 14);
+
+  const int line_step = font ? (font->max_height + 2) : 10;
+  int text_y = 20 + line_step + 4;
+  for (int i = 0; i < page.body_line_count; ++i) {
+    font_draw_text(font, framebuffer, text_x, text_y, page.body[i], 15);
+    text_y += line_step;
+    if (text_y > framebuffer->height - 16) {
+      break;
+    }
+  }
+
+  if (!game->pedia_ok) {
+    font_draw_text(font, framebuffer, text_x, text_y + 4, "(PEDIA.TXT not loaded)", 12);
+  }
+}
+
 static void fill_fallback_palette(ColonizePalette* palette) {
   for (int i = 0; i < 256; ++i) {
     palette->rgb[i][0] = (uint8_t)i;
@@ -215,6 +335,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->in_menu = true;
 
   assets_msg_init(&game->messages);
+  assets_msg_init(&game->pedia);
 
   if (!assets_resolve_data_dir(config->data_dir, game->resolved_data_dir, sizeof(game->resolved_data_dir))) {
     /* Keep resolved path even if missing so errors remain actionable. */
@@ -246,6 +367,16 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
   load_begin_menu(game);
+
+  char pedia_txt[512];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "PEDIA.TXT", pedia_txt, sizeof(pedia_txt))) {
+    if (assets_msg_load_file(&game->pedia, pedia_txt)) {
+      game->pedia_ok = true;
+      diag_info("Loaded Colonizopedia text from PEDIA.TXT");
+    } else {
+      diag_warn("Failed to parse PEDIA.TXT");
+    }
+  }
 
   game->menu_bg_ok = false;
   char pik_path[512];
@@ -356,6 +487,7 @@ void game_destroy(ColonizeGameState* game) {
   ff_free(&game->menu_font);
   map_free(&game->world_map);
   assets_msg_free(&game->messages);
+  assets_msg_free(&game->pedia);
   dos_compat_shutdown();
   free(game);
 }
@@ -391,7 +523,11 @@ static void activate_menu_selection(ColonizeGameState* game) {
 
   /* Start / customize / America / New World -> enter map view. */
   game->in_menu = false;
-  snprintf(game->status, sizeof(game->status), "Map view - arrows move, Space end turn, S/L save/load");
+  snprintf(
+    game->status,
+    sizeof(game->status),
+    "Map view - arrows move, Space end turn, P pedia, S/L save/load"
+  );
 }
 
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
@@ -407,10 +543,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   (void)dos_compat_tick_count();
 
   if (input->last_key != COLONIZE_KEY_NONE) {
-    diag_info("Key pressed: %s (menu=%s debug=%s turn=%u cursor=%d,%d)",
+    diag_info("Key pressed: %s (menu=%s debug=%s pedia=%s turn=%u cursor=%d,%d)",
       key_name(input->last_key),
       game->in_menu ? "yes" : "no",
       game->in_debug_atlas ? "yes" : "no",
+      game->in_pedia ? "yes" : "no",
       game->turn_number,
       game->map_cursor_x,
       game->map_cursor_y);
@@ -418,6 +555,27 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_Q) {
     return false;
+  }
+
+  if (game->in_pedia) {
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_P) {
+      game->in_pedia = false;
+      diag_info("Left Colonizopedia.");
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_UP) {
+      if (game->pedia_terrain_index > 0) {
+        game->pedia_terrain_index--;
+      } else {
+        game->pedia_terrain_index = PEDIA_TERRAIN_COUNT - 1;
+      }
+    } else if (input->last_key == COLONIZE_KEY_RIGHT || input->last_key == COLONIZE_KEY_DOWN) {
+      game->pedia_terrain_index++;
+      if (game->pedia_terrain_index >= PEDIA_TERRAIN_COUNT) {
+        game->pedia_terrain_index = 0;
+      }
+    }
+    return true;
   }
 
   if (game->in_debug_atlas) {
@@ -458,6 +616,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game->debug_atlas_sheet = 0;
     game->debug_atlas_scroll = 0;
     diag_info("Entered sprite atlas debug screen.");
+    return true;
+  }
+
+  if (input->last_key == COLONIZE_KEY_P) {
+    game->in_pedia = true;
+    game->pedia_terrain_index = 0;
+    diag_info("Entered Colonizopedia terrain preview.");
     return true;
   }
 
@@ -568,18 +733,23 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
-  *palette = (game->in_menu && !game->in_debug_atlas)
+  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia)
     ? game->palette
     : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
       "Render mode=%s framebuffer=%dx%d palette=%s",
-      game->in_debug_atlas ? "debug-atlas" : (game->in_menu ? "menu" : "map"),
+      render_mode_name(game),
       framebuffer->width,
       framebuffer->height,
       game->palette_ok ? "VICEROY.PAL" : "fallback"
     );
+  }
+
+  if (game->in_pedia) {
+    render_pedia_screen(game, framebuffer);
+    goto render_log_sample;
   }
 
   if (game->in_debug_atlas) {
@@ -798,7 +968,7 @@ render_log_sample:
     diag_info(
       "Framebuffer sample frame=%u mode=%s idx0=%u idx_center=%u turn=%u cursor=%d,%d",
       render_log_counter,
-      game->in_debug_atlas ? "debug-atlas" : (game->in_menu ? "menu" : "map"),
+      render_mode_name(game),
       framebuffer->pixels[0],
       framebuffer->pixels[idx_center],
       game->turn_number,
