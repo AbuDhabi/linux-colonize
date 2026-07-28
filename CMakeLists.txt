@@ -35,6 +35,7 @@ add_library(colonize_core STATIC
   src/core/pik.c
   src/core/ss.c
   src/core/savegame.c
+  src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
@@ -127,6 +128,17 @@ target_include_directories(smoke_map PRIVATE
 )
 
 add_test(NAME smoke_map COMMAND smoke_map WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_viceroy_tables
+  tests/smoke/test_viceroy_tables.c
+  src/data/viceroy_tables.c
+)
+
+target_include_directories(smoke_viceroy_tables PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_viceroy_tables COMMAND smoke_viceroy_tables)
 
 add_executable(smoke_ff
   tests/smoke/test_ff.c

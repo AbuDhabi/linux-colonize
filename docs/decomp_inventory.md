@@ -73,3 +73,5 @@ port I/O in the native build.
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - `viceroy.c` itself is not yet compiled into the binary; DOS typedef stubs live in
   `src/platform/dos_compat/dos_types.h` for incremental extraction
+- Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
+  (see `docs/viceroy_tables.md`)

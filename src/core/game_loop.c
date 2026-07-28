@@ -712,15 +712,13 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     for (int sy = 0; sy < view_rows; ++sy) {
       for (int sx = 0; sx < view_cols; ++sx) {
         int base_sprite;
-        uint8_t terrain = 0;
         if (game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
           if (mx < 0 || my < 0 || mx >= game->world_map.width || my >= game->world_map.height) {
             continue;
           }
-          terrain = map_get_terrain(&game->world_map, mx, my);
-          base_sprite = map_terrain_base_sprite(terrain);
+          base_sprite = map_terrain_sprite_at(&game->world_map, mx, my);
         } else {
           base_sprite = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
         }
@@ -732,6 +730,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         if (game->phys0_ok && game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
+          const int forest_sprite = map_phys0_forest_sprite_at(&game->world_map, mx, my);
+          if (forest_sprite >= 0) {
+            blit_map_sprite(&game->phys0, forest_sprite, framebuffer, sx, sy, tile_w, tile_h);
+          }
           const int overlay_layers = map_phys0_overlay_count(&game->world_map, mx, my);
           for (int layer = 0; layer < overlay_layers; ++layer) {
             const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);

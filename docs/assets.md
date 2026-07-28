@@ -130,19 +130,33 @@ Map indices 24/25/26 map to arctic/ocean/high-seas sprites. Indices 12–23 reus
 
 ### Map overlay compositing
 
-The Linux port draws cleared terrain from `TERRAIN.SS`, then composites `.MP` feature overlays from `PHYS0.SS` using cardinal neighbor connectivity (N=1, E=2, S=4, W=8):
+The Linux port draws cleared terrain from `TERRAIN.SS` (using FreeCol-style decoding of bits 0–4), then composites `.MP` overlays from `PHYS0.SS`.
 
-| Overlay (bits 5–7) | PHYS0 range | Notes |
-|--------------------|---------------|-------|
+**Terrain byte decode (layer 1):**
+
+- Bits 0–2: cleared land type 0–7
+- Bit 3 only (`0x08`…): forest terrain index `8 + (bits 0–2)` → TERRAIN sprite 8 for now
+- Bit 4 only (`0x10`…): cleared base type in bits 0–2 (overlay bit 4 is not part of the terrain index)
+- Index 24/25/26 → arctic / ocean / high seas sprites 9/10/11
+- Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest sprite 65
+
+**Overlay rules (bits 5–7):**
+
+| Overlay | PHYS0 range | Notes |
+|---------|-------------|-------|
 | 0, 4 | (none) | — |
-| 1 hill | 48–63 | `48 + (mask % 16)` |
+| 1 hill | 48–63 | Unless bit 4 is set → mountain (below) |
 | 2 minor river | 17–31 | `17 + (mask % 15)` |
-| 3 hill + minor river | hill then river | Two layers |
-| 5 mountain | 32–47 | `32 + (mask % 16)` |
+| 3 hill + minor river | mountain or hill, then river | Bit 4 selects mountain vs hill |
+| 5 mountain | 32–47 | Isolated tile uses sprite **36** |
 | 6 major river | 1–15 | `1 + (mask % 15)` |
-| 7 mountain + major river | mountain then river | Two layers |
+| 7 mountain + major river | mountain then river | — |
 
-Forests (64–79), roads, resources, fog, and coast overlays are not drawn from static `.MP` data yet.
+When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses mountain art (e.g. AMER2 `(1,1)` → PHYS0 36 on tundra).
+
+Forests on other rows, roads, resources, fog, and coast overlays are not drawn from static `.MP` data yet.
+
+Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
 
 | Extension | Typical use |
 |-----------|-------------|

@@ -7,17 +7,11 @@
 #include "platform/diagnostics.h"
 
 /*
- * Terrain byte layout (FreeCol / original .MP format):
- *   bits 0-4: terrain index 0-26
- *   bits 5-7: overlay (0=none, 1=hill, 2=minor river, 5=mountain, 6=major river, ...)
- *
- * PHYS0.SS sprite ranges (from in-game atlas, ~ key debug screen):
- *   1-15   major rivers      17-31  minor rivers
- *   32-47  mountains         48-63  hills
- *   64-79  mixed forests     80-88  roads
- *   89+    resources, fog, ocean/coast overlays, etc.
- *
- * TERRAIN.SS: sprites 0-11 = tundra … high seas (see docs/assets.md).
+ * .MP terrain byte (FreeCol ColonizationMapLoader):
+ *   bits 0-2: cleared land type 0-7
+ *   bit 3 (8): forest flag (with bits 0-2 -> forest terrain index 8-15)
+ *   bit 4 (16): hill/mountain base flag (with bits 0-2)
+ *   bits 5-7: hill / river / mountain overlays
  */
 
 #define PHYS0_MAJOR_RIVER_FIRST 1
@@ -28,13 +22,84 @@
 #define PHYS0_MOUNTAIN_COUNT 16
 #define PHYS0_HILL_FIRST 48
 #define PHYS0_HILL_COUNT 16
+#define PHYS0_MOUNTAIN_ISOLATED 36
+#define PHYS0_TUNDRA_FOREST 65
+#define PHYS0_BOREAL_TRANSITION 40
+#define PHYS0_TROPICAL_TIMBER 99
 
-#define TERRAIN_SPRITE_ARCTIC 9
-#define TERRAIN_SPRITE_OCEAN 10
-#define TERRAIN_SPRITE_HIGH_SEAS 11
+#define MAP_TUNDRA_ROW 0
+#define MAP_SCRUB_FOREST_INDEX 9
 
-static bool overlay_is_hill(uint8_t overlay) {
-  return overlay == 1 || overlay == 3;
+static int map_decode_terrain_index(uint8_t terrain_byte) {
+  const int low3 = (int)(terrain_byte & 7u);
+  const int forest_bits = (int)(terrain_byte & 0x18u);
+
+  if (forest_bits == 0x10) {
+    return low3;
+  }
+  if (forest_bits == 0x08) {
+    return 8 + low3;
+  }
+  return (int)(terrain_byte & 0x1fu);
+}
+
+static bool map_has_bit3_forest(uint8_t terrain_byte) {
+  return (terrain_byte & 0x18u) == 0x08u;
+}
+
+static int map_bit3_forest_index(uint8_t terrain_byte) {
+  return 8 + (int)(terrain_byte & 7u);
+}
+
+static int map_terrain_index_to_sprite(int terrain_index) {
+  if (terrain_index >= 0 && terrain_index <= 7) {
+    return terrain_index;
+  }
+  if (terrain_index >= 8 && terrain_index <= 23) {
+    return 8;
+  }
+  if (terrain_index == 24) {
+    return 9;
+  }
+  if (terrain_index == 25) {
+    return 10;
+  }
+  if (terrain_index == 26) {
+    return 11;
+  }
+  return 0;
+}
+
+static int map_cleared_base_sprite(uint8_t terrain_byte) {
+  const int low3 = (int)(terrain_byte & 7u);
+  if (low3 == 0) {
+    return 4;
+  }
+  return low3;
+}
+
+static bool map_is_ocean_index(int terrain_index) {
+  return terrain_index == 25 || terrain_index == 26;
+}
+
+static bool overlay_is_hill(uint8_t overlay, uint8_t terrain_byte) {
+  if (overlay != 1 && overlay != 3) {
+    return false;
+  }
+  if ((terrain_byte & 0x10u) != 0) {
+    return (terrain_byte & 7u) != 0;
+  }
+  return true;
+}
+
+static bool overlay_is_mountain(uint8_t overlay, uint8_t terrain_byte) {
+  if (overlay == 5 || overlay == 7) {
+    return true;
+  }
+  if ((overlay == 1 || overlay == 3) && (terrain_byte & 0x10u) != 0 && (terrain_byte & 7u) == 0) {
+    return true;
+  }
+  return false;
 }
 
 static bool overlay_is_minor_river(uint8_t overlay) {
@@ -45,19 +110,30 @@ static bool overlay_is_major_river(uint8_t overlay) {
   return overlay == 6 || overlay == 7;
 }
 
-static bool overlay_is_mountain(uint8_t overlay) {
-  return overlay == 5 || overlay == 7;
-}
+static bool map_hill_related_tile_dir(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  const uint8_t overlay = (uint8_t)(tile_byte >> 5);
 
-static uint8_t map_overlay_at(const ColonizeWorldMap* map, int x, int y) {
-  return map_terrain_overlay(map_get_terrain(map, x, y));
+  if (overlay_is_hill(overlay, tile_byte)) {
+    /* Hill chains extend south and east (AMER2 24,19). */
+    return dir == 1 || dir == 2;
+  }
+
+  if ((tile_byte & 0x10u) != 0 && (tile_byte & 7u) == (self_byte & 7u) && overlay == 0) {
+    const int terrain_index = map_decode_terrain_index(tile_byte);
+    if (!map_is_ocean_index(terrain_index) && terrain_index < 24) {
+      /* Cleared ridge tiles connect west and east (AMER2 24,20). */
+      return dir == 1 || dir == 3;
+    }
+  }
+  return false;
 }
 
 static uint8_t map_cardinal_mask(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  bool (*matches)(uint8_t overlay)
+  bool (*matches)(uint8_t tile_byte, uint8_t self_byte, int dir),
+  uint8_t self_byte
 ) {
   uint8_t mask = 0;
   static const int dx[4] = {0, 1, 0, -1};
@@ -68,15 +144,56 @@ static uint8_t map_cardinal_mask(
     if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
       continue;
     }
-    if (matches(map_overlay_at(map, nx, ny))) {
+    const uint8_t neighbor = map_get_terrain(map, nx, ny);
+    if (matches(neighbor, self_byte, dir)) {
       mask |= (uint8_t)(1u << dir);
     }
   }
   return mask;
 }
 
+static bool hill_neighbor_dir(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  return map_hill_related_tile_dir(tile_byte, self_byte, dir);
+}
+
+static bool mountain_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  (void)self_byte;
+  (void)dir;
+  return overlay_is_mountain((uint8_t)(tile_byte >> 5), tile_byte);
+}
+
+static bool minor_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  (void)self_byte;
+  (void)dir;
+  return overlay_is_minor_river((uint8_t)(tile_byte >> 5));
+}
+
+static bool major_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  (void)self_byte;
+  (void)dir;
+  return overlay_is_major_river((uint8_t)(tile_byte >> 5));
+}
+
 static int phys0_connectivity_sprite(int first, int count, uint8_t mask) {
   return first + (int)(mask % (uint8_t)count);
+}
+
+static int phys0_mountain_sprite(uint8_t mask) {
+  if (mask == 0) {
+    return PHYS0_MOUNTAIN_ISOLATED;
+  }
+  return phys0_connectivity_sprite(PHYS0_MOUNTAIN_FIRST, PHYS0_MOUNTAIN_COUNT, mask);
+}
+
+static int phys0_bit3_overlay_sprite(int forest_index) {
+  switch (forest_index) {
+    case 8:
+      return PHYS0_BOREAL_TRANSITION;
+    case 13:
+      return PHYS0_TROPICAL_TIMBER;
+    default:
+      return -1;
+  }
 }
 
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size) {
@@ -172,34 +289,70 @@ uint8_t map_terrain_overlay(uint8_t terrain_byte) {
 }
 
 int map_terrain_base_sprite(uint8_t terrain_byte) {
-  const int terrain = terrain_byte & 0x1f;
-  if (terrain <= 11) {
-    return terrain;
+  return map_terrain_index_to_sprite(map_decode_terrain_index(terrain_byte));
+}
+
+int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map) {
+    return 0;
   }
-  if (terrain == 24) {
-    return TERRAIN_SPRITE_ARCTIC;
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const int terrain_index = map_decode_terrain_index(terrain_byte);
+
+  if (y == MAP_TUNDRA_ROW && !map_is_ocean_index(terrain_index) && terrain_index < 25) {
+    return 0;
   }
-  if (terrain == 25) {
-    return TERRAIN_SPRITE_OCEAN;
+
+  if (map_has_bit3_forest(terrain_byte)) {
+    const int forest_index = map_bit3_forest_index(terrain_byte);
+    if (forest_index == MAP_SCRUB_FOREST_INDEX) {
+      return 8;
+    }
+    if (phys0_bit3_overlay_sprite(forest_index) >= 0) {
+      return map_cleared_base_sprite(terrain_byte);
+    }
   }
-  if (terrain == 26) {
-    return TERRAIN_SPRITE_HIGH_SEAS;
+
+  return map_terrain_index_to_sprite(terrain_index);
+}
+
+int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map) {
+    return -1;
   }
-  /* Land indices 12-23 reuse base land sprites until forest/cleared variants are modeled. */
-  return terrain % 12;
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const uint8_t overlay = map_terrain_overlay(terrain_byte);
+  const int terrain_index = map_decode_terrain_index(terrain_byte);
+
+  if (map_is_ocean_index(terrain_index)) {
+    return -1;
+  }
+  if (overlay != 0 && overlay != 4) {
+    return -1;
+  }
+
+  if (map_has_bit3_forest(terrain_byte)) {
+    return phys0_bit3_overlay_sprite(map_bit3_forest_index(terrain_byte));
+  }
+
+  if (y == MAP_TUNDRA_ROW) {
+    return PHYS0_TUNDRA_FOREST;
+  }
+  return -1;
 }
 
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
   if (!map) {
     return 0;
   }
-  const uint8_t overlay = map_overlay_at(map, x, y);
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const uint8_t overlay = map_terrain_overlay(terrain_byte);
   if (overlay == 0 || overlay == 4) {
     return 0;
   }
 
   int count = 0;
-  if (overlay_is_hill(overlay) || overlay_is_mountain(overlay)) {
+  if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
     ++count;
   }
   if (overlay_is_minor_river(overlay) || overlay_is_major_river(overlay)) {
@@ -213,19 +366,20 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
     return -1;
   }
 
-  const uint8_t overlay = map_overlay_at(map, x, y);
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const uint8_t overlay = map_terrain_overlay(terrain_byte);
   if (overlay == 0 || overlay == 4) {
     return -1;
   }
 
   int feature_layer = 0;
-  if (overlay_is_hill(overlay) || overlay_is_mountain(overlay)) {
+  if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
     if (layer == feature_layer) {
-      const uint8_t mask = overlay_is_mountain(overlay)
-        ? map_cardinal_mask(map, x, y, overlay_is_mountain)
-        : map_cardinal_mask(map, x, y, overlay_is_hill);
-      if (overlay_is_mountain(overlay)) {
-        return phys0_connectivity_sprite(PHYS0_MOUNTAIN_FIRST, PHYS0_MOUNTAIN_COUNT, mask);
+      const uint8_t mask = overlay_is_mountain(overlay, terrain_byte)
+        ? map_cardinal_mask(map, x, y, mountain_neighbor, terrain_byte)
+        : map_cardinal_mask(map, x, y, hill_neighbor_dir, terrain_byte);
+      if (overlay_is_mountain(overlay, terrain_byte)) {
+        return phys0_mountain_sprite(mask);
       }
       return phys0_connectivity_sprite(PHYS0_HILL_FIRST, PHYS0_HILL_COUNT, mask);
     }
@@ -235,10 +389,10 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
   if (overlay_is_minor_river(overlay) || overlay_is_major_river(overlay)) {
     if (layer == feature_layer) {
       if (overlay_is_major_river(overlay)) {
-        const uint8_t mask = map_cardinal_mask(map, x, y, overlay_is_major_river);
+        const uint8_t mask = map_cardinal_mask(map, x, y, major_river_neighbor, terrain_byte);
         return phys0_connectivity_sprite(PHYS0_MAJOR_RIVER_FIRST, PHYS0_MAJOR_RIVER_COUNT, mask);
       }
-      const uint8_t mask = map_cardinal_mask(map, x, y, overlay_is_minor_river);
+      const uint8_t mask = map_cardinal_mask(map, x, y, minor_river_neighbor, terrain_byte);
       return phys0_connectivity_sprite(PHYS0_MINOR_RIVER_FIRST, PHYS0_MINOR_RIVER_COUNT, mask);
     }
   }
@@ -251,11 +405,7 @@ int map_phys0_overlay_sprite(const ColonizeWorldMap* map, int x, int y) {
 }
 
 int map_phys0_forest_sprite(const ColonizeWorldMap* map, int x, int y) {
-  (void)map;
-  (void)x;
-  (void)y;
-  /* Mixed forest overlays use PHYS0 sprites 64-79; needs runtime tile state. */
-  return -1;
+  return map_phys0_forest_sprite_at(map, x, y);
 }
 
 int map_phys0_feature_sprite(const ColonizeWorldMap* map, int x, int y) {
