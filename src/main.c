@@ -5,6 +5,7 @@
 
 #include "core/game_loop.h"
 #include "core/savegame.h"
+#include "platform/diagnostics.h"
 #include "platform/platform.h"
 
 typedef struct CliConfig {
@@ -52,10 +53,26 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
 }
 
 int main(int argc, char** argv) {
+  if (!diag_init(argc, argv)) {
+    fprintf(stderr, "Warning: diagnostics log unavailable; continuing without file logging.\n");
+  }
+
   CliConfig cli = cli_defaults();
   if (!parse_args(argc, argv, &cli)) {
+    diag_shutdown();
     return 2;
   }
+
+  diag_info("CLI data_dir=%s", cli.data_dir);
+  diag_info("CLI save_dir=%s", cli.save_dir);
+  diag_info("CLI windowed=%s scale=%d nosound=%s",
+    cli.windowed ? "yes" : "no",
+    cli.window_scale,
+    cli.no_sound ? "yes" : "no");
+  diag_info(
+    "NOTE: Current graphics are placeholder scaffolding (diagonal-line test pattern), "
+    "not decoded Colonization assets from viceroy.c yet."
+  );
 
   ColonizePlatformConfig platform_cfg = {
     .data_dir = cli.data_dir,
@@ -66,7 +83,10 @@ int main(int argc, char** argv) {
 
   ColonizePlatform* platform = platform_create(&platform_cfg);
   if (!platform) {
+    diag_error("Failed to initialize SDL2 platform runtime.");
     fprintf(stderr, "Failed to initialize SDL2 platform runtime.\n");
+    fprintf(stderr, "See diagnostics log: %s\n", diag_log_path());
+    diag_shutdown();
     return 1;
   }
 
@@ -78,9 +98,14 @@ int main(int argc, char** argv) {
   ColonizeGameState* game = game_create(&game_cfg);
   if (!game) {
     platform_destroy(platform);
+    diag_error("Failed to initialize game state.");
     fprintf(stderr, "Failed to initialize game state.\n");
+    fprintf(stderr, "See diagnostics log: %s\n", diag_log_path());
+    diag_shutdown();
     return 1;
   }
+
+  diag_info("Diagnostics log path (for bug reports): %s", diag_log_path());
 
   uint8_t framebuffer_pixels[320 * 200];
   ColonizeFramebuffer8 framebuffer = {
@@ -119,5 +144,6 @@ int main(int argc, char** argv) {
 
   game_destroy(game);
   platform_destroy(platform);
+  diag_shutdown();
   return 0;
 }

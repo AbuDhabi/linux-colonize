@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "platform/diagnostics.h"
 #include "platform/platform.h"
 
 struct ColonizePlatform {
@@ -41,8 +42,10 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   }
 
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
+    diag_error("SDL_Init failed: %s", SDL_GetError());
     return NULL;
   }
+  diag_info("SDL version=%d.%d.%d", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 
   uint32_t flags = 0;
   if (!(config && config->windowed)) {
@@ -66,14 +69,25 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
     flags
   );
   if (!platform->window) {
+    diag_error("SDL_CreateWindow failed: %s", SDL_GetError());
     platform_destroy(platform);
     return NULL;
   }
 
   platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   if (!platform->renderer) {
+    diag_error("SDL_CreateRenderer failed: %s", SDL_GetError());
     platform_destroy(platform);
     return NULL;
+  }
+
+  SDL_RendererInfo renderer_info;
+  if (SDL_GetRendererInfo(platform->renderer, &renderer_info) == 0) {
+    diag_info("SDL renderer=%s flags=0x%x max_texture=%dx%d",
+      renderer_info.name ? renderer_info.name : "(unknown)",
+      renderer_info.flags,
+      renderer_info.max_texture_width,
+      renderer_info.max_texture_height);
   }
 
   platform->texture = SDL_CreateTexture(
@@ -84,16 +98,30 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
     height
   );
   if (!platform->texture) {
+    diag_error("SDL_CreateTexture failed: %s", SDL_GetError());
     platform_destroy(platform);
     return NULL;
+  }
+
+  Uint32 tex_format = 0;
+  int tex_w = 0;
+  int tex_h = 0;
+  if (SDL_QueryTexture(platform->texture, &tex_format, NULL, &tex_w, &tex_h) == 0) {
+    diag_info("SDL texture format=0x%x size=%dx%d logical_framebuffer=%dx%d scale=%d windowed=%s",
+      tex_format, tex_w, tex_h, width, height, scale,
+      (config && config->windowed) ? "yes" : "no");
   }
 
   platform->rgba_buffer = calloc((size_t)width * (size_t)height, sizeof(uint32_t));
   if (!platform->rgba_buffer) {
+    diag_error("Failed to allocate RGBA buffer (%dx%d)", width, height);
     platform_destroy(platform);
     return NULL;
   }
 
+  if (config && config->data_dir) {
+    diag_info("Platform data_dir=%s", config->data_dir);
+  }
   return platform;
 }
 
@@ -152,7 +180,9 @@ bool platform_present(
   const ColonizeFramebuffer8* framebuffer,
   const ColonizePalette* palette
 ) {
+  static uint32_t present_counter = 0;
   if (!platform || !framebuffer || !palette) {
+    diag_error("platform_present called with null argument(s)");
     return false;
   }
 
@@ -169,6 +199,19 @@ bool platform_present(
   SDL_RenderClear(platform->renderer);
   SDL_RenderCopy(platform->renderer, platform->texture, NULL, NULL);
   SDL_RenderPresent(platform->renderer);
+
+  present_counter++;
+  if (present_counter == 1 || present_counter == 120) {
+    diag_info(
+      "Present frame=%u fb=%dx%d sample_index=%u sample_rgba=0x%08x pitch=%d",
+      present_counter,
+      framebuffer->width,
+      framebuffer->height,
+      framebuffer->pixels[0],
+      platform->rgba_buffer[0],
+      framebuffer->width * (int)sizeof(uint32_t)
+    );
+  }
   return true;
 }
 

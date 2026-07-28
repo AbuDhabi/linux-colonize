@@ -29,6 +29,7 @@ add_library(colonize_core STATIC
   src/core/game_loop.c
   src/core/assets.c
   src/core/savegame.c
+  src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -73,6 +74,7 @@ enable_testing()
 add_executable(smoke_savegame
   tests/smoke/test_savegame.c
   src/core/savegame.c
+  src/platform/diagnostics.c
 )
 
 target_include_directories(smoke_savegame PRIVATE
@@ -84,6 +86,7 @@ add_test(NAME smoke_savegame COMMAND smoke_savegame)
 add_executable(smoke_savegame_incompatible
   tests/smoke/test_savegame_incompatible.c
   src/core/savegame.c
+  src/platform/diagnostics.c
 )
 
 target_include_directories(smoke_savegame_incompatible PRIVATE
@@ -97,6 +100,7 @@ add_executable(smoke_game_flow
   src/core/game_loop.c
   src/core/assets.c
   src/core/savegame.c
+  src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
 

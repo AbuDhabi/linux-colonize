@@ -5,34 +5,44 @@
 #include <sys/stat.h>
 
 #include "core/savegame.h"
+#include "platform/diagnostics.h"
 
 #define COLONIZE_SAVE_MAGIC 0x5a4c4f43u
 #define COLONIZE_SAVE_VERSION 1u
 
-static const char* safe_getenv(const char* name) {
-  const char* value = getenv(name);
-  return (value && value[0] != '\0') ? value : NULL;
-}
-
 const char* savegame_default_dir(void) {
   static char save_dir[512];
-  const char* xdg = safe_getenv("XDG_DATA_HOME");
-  const char* home = safe_getenv("HOME");
-  if (xdg) {
-    snprintf(save_dir, sizeof(save_dir), "%s/colonize-linux/saves", xdg);
-  } else if (home) {
-    snprintf(save_dir, sizeof(save_dir), "%s/.local/share/colonize-linux/saves", home);
+  const char* exe_dir = diag_exe_dir();
+  if (exe_dir && exe_dir[0] != '\0') {
+    snprintf(save_dir, sizeof(save_dir), "%s/saves", exe_dir);
   } else {
     snprintf(save_dir, sizeof(save_dir), "./saves");
   }
+  diag_info("Default save directory resolved to: %s", save_dir);
   return save_dir;
 }
 
 static bool ensure_dir(const char* path, char* err_buf, size_t err_buf_size) {
-  if (mkdir(path, 0755) == 0 || errno == EEXIST) {
+  struct stat st;
+  if (stat(path, &st) == 0) {
+    if (S_ISDIR(st.st_mode)) {
+      diag_info("Save directory exists: %s", path);
+      return true;
+    }
+    snprintf(err_buf, err_buf_size, "Save path exists but is not a directory: %s", path);
+    diag_error("%s", err_buf);
+    return false;
+  }
+  diag_info("Creating save directory: %s", path);
+  if (mkdir(path, 0755) == 0) {
+    diag_info("Created save directory: %s", path);
+    return true;
+  }
+  if (errno == EEXIST) {
     return true;
   }
   snprintf(err_buf, err_buf_size, "Failed to create directory %s: %s", path, strerror(errno));
+  diag_error("%s", err_buf);
   return false;
 }
 
@@ -57,9 +67,12 @@ bool savegame_write(
 
   char path[640];
   path_for_slot(path, sizeof(path), save_dir, slot_name);
+  diag_info("savegame_write path=%s turn=%u map_seed=%u random_seed=%u",
+    path, payload->turn_number, payload->map_seed, payload->random_seed);
   FILE* f = fopen(path, "wb");
   if (!f) {
     snprintf(err_buf, err_buf_size, "Failed to open %s for write: %s", path, strerror(errno));
+    diag_error("%s", err_buf);
     return false;
   }
 
@@ -70,11 +83,17 @@ bool savegame_write(
   };
 
   bool ok = fwrite(&header, sizeof(header), 1, f) == 1 && fwrite(payload, sizeof(*payload), 1, f) == 1;
-  fclose(f);
-  if (!ok) {
-    snprintf(err_buf, err_buf_size, "Failed to write savegame %s.", path);
+  if (fclose(f) != 0) {
+    snprintf(err_buf, err_buf_size, "Failed to close savegame %s: %s", path, strerror(errno));
+    diag_error("%s", err_buf);
     return false;
   }
+  if (!ok) {
+    snprintf(err_buf, err_buf_size, "Failed to write savegame %s.", path);
+    diag_error("%s", err_buf);
+    return false;
+  }
+  diag_info("savegame_write succeeded: %s (%zu bytes payload)", path, sizeof(*payload));
   if (err_buf && err_buf_size > 0) {
     err_buf[0] = '\0';
   }
@@ -95,9 +114,11 @@ bool savegame_read(
 
   char path[640];
   path_for_slot(path, sizeof(path), save_dir, slot_name);
+  diag_info("savegame_read path=%s", path);
   FILE* f = fopen(path, "rb");
   if (!f) {
     snprintf(err_buf, err_buf_size, "Failed to open %s for read: %s", path, strerror(errno));
+    diag_error("%s", err_buf);
     return false;
   }
 
@@ -110,14 +131,19 @@ bool savegame_read(
   if (header.magic != COLONIZE_SAVE_MAGIC || header.version != COLONIZE_SAVE_VERSION || header.payload_size != sizeof(*out_payload)) {
     fclose(f);
     snprintf(err_buf, err_buf_size, "Incompatible savegame format in %s.", path);
+    diag_error("%s (magic=0x%x version=%u payload_size=%u expected_payload=%zu)",
+      err_buf, header.magic, header.version, header.payload_size, sizeof(*out_payload));
     return false;
   }
   if (fread(out_payload, sizeof(*out_payload), 1, f) != 1) {
     fclose(f);
     snprintf(err_buf, err_buf_size, "Failed to read savegame payload %s.", path);
+    diag_error("%s", err_buf);
     return false;
   }
   fclose(f);
+  diag_info("savegame_read succeeded: turn=%u map_seed=%u random_seed=%u",
+    out_payload->turn_number, out_payload->map_seed, out_payload->random_seed);
   if (err_buf && err_buf_size > 0) {
     err_buf[0] = '\0';
   }
