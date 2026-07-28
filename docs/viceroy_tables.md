@@ -73,8 +73,9 @@ Small base-index tables immediately after the river transition table:
 ### `connectivity_transition` (21 bytes)
 
 Likely related to the **112–139** 8×8 coastline fragment band (animation / edge variants).
-Not currently wired into the Linux map compositor — coastal ocean uses PHYS0 **150–153**
-2×2 corner stacking instead (see [assets.md](assets.md)).
+Diagonal checkerboard coasts use PHYS0 **128–131** directly; full corners use **150–153**.
+`connectivity_transition` itself is not currently indexed by the Linux map compositor
+(see [assets.md](assets.md)).
 
 ### Linux compositor usage
 

@@ -138,6 +138,11 @@ int main(void) {
     {8, 2, 10, 1, {152}},  /* SW only */
     {1, 3, 10, 1, {151}},  /* NE only */
     {18, 2, 10, 1, {150}}, /* NW only */
+    /* Diagonal checkerboard 2×2 (two diagonal land, far corner sea) → 128–131. */
+    {33, 6, 10, 1, {130}}, /* SE diagonal */
+    {9, 25, 10, 1, {131}}, /* SW diagonal */
+    {8, 26, 10, 1, {129}}, /* NE diagonal */
+    {34, 7, 10, 1, {128}}, /* NW diagonal */
     /* Regression anchors from earlier passes. */
     {9, 26, 1, 1, {48}},
     {16, 3, 0, 1, {23}},

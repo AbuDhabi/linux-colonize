@@ -27,6 +27,15 @@ int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int layer);
+/* Pixel offset within the 16×16 tile for 8×8 coast fragments; 0,0 for full tiles. */
+void map_phys0_overlay_offset_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int layer,
+  int* out_ox,
+  int* out_oy
+);
 int map_phys0_overlay_sprite(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_feature_sprite(const ColonizeWorldMap* map, int x, int y);

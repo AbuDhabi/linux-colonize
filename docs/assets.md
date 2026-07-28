@@ -123,7 +123,9 @@ Map indices 24/25/26 map to arctic/ocean/high-seas sprites. Indices 12–23 reus
 | 100 | Empty |
 | 101–103 | Silver, ore (hill), rumours |
 | 104–111 | Fog-of-war edges (approx.) |
-| 112–139 | Coastline 8×8 fragments (not yet placed on map) |
+| 112–127 | Coastline 8×8 fragments (edge variants; not yet placed) |
+| 128–131 | Coastline 8×8 diagonal (checkerboard 2×2) |
+| 132–139 | Coastline 8×8 fragments (not yet placed) |
 | 140–147 | Coastline 16×16 animation frames (approx.) |
 | 148 | Ocean overlay |
 | 149 | Plowed |
@@ -160,14 +162,14 @@ Forests on other rows, roads, resources, and fog overlays are not drawn from sta
 **Coastal ocean:** for each of the four 2×2 neighborhoods around an ocean/high-seas tile,
 if this tile is the only sea (the other three cells are land), draw the matching PHYS0 corner:
 
-| Corner | PHYS0 |
-|--------|-------|
-| SE | 153 |
-| SW | 152 |
-| NE | 151 |
-| NW | 150 |
+**Coastal ocean:** for each of the four 2×2 neighborhoods around an ocean/high-seas tile:
 
-(Sheet artwork sits opposite the land corner — equivalent to flipping each piece on both axes.) Corners stack. AMER2 `(6,14)` → **153+152+151+150**. Single-corner examples: `(23,2)`→153, `(8,2)`→152, `(1,3)`→151, `(18,2)`→150. The 8×8 coastline band (112–139) is not drawn yet.
+| Pattern | PHYS0 | Size |
+|---------|-------|------|
+| Only sea in 2×2 (3 land) SE/SW/NE/NW | 153 / 152 / 151 / 150 | 16×16 |
+| Diagonal checkerboard (2 land on anti-diagonal, far corner sea) SE/SW/NE/NW | 130 / 131 / 129 / 128 | 8×8 in that quadrant |
+
+(Sheet artwork sits opposite the land corner — equivalent to flipping each piece on both axes.) Corners stack. AMER2 `(6,14)` → **153+152+151+150**. Diagonal examples: `(33,6)`→130, `(9,25)`→131, `(8,26)`→129, `(34,7)`→128. Other 8×8 coastline bands are not drawn yet.
 
 Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
 

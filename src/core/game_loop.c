@@ -141,6 +141,31 @@ static void load_begin_menu(ColonizeGameState* game) {
   }
 }
 
+static void blit_map_sprite_offset(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int screen_tile_x,
+  int screen_tile_y,
+  int tile_w,
+  int tile_h,
+  int pixel_ox,
+  int pixel_oy
+) {
+  (void)tile_w;
+  (void)tile_h;
+  if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* tile = &sheet->sprites[sprite_index];
+  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
+    return;
+  }
+  const int ox = screen_tile_x * tile_w + pixel_ox;
+  const int oy = screen_tile_y * tile_h + pixel_oy;
+  ss_blit_sprite(sheet, sprite_index, framebuffer, ox, oy);
+}
+
 static void blit_map_sprite(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
@@ -157,9 +182,11 @@ static void blit_map_sprite(
   if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
     return;
   }
-  const int ox = screen_tile_x * tile_w + (tile_w - tile->width) / 2;
-  const int oy = screen_tile_y * tile_h + (tile_h - tile->height) / 2;
-  ss_blit_sprite(sheet, sprite_index, framebuffer, ox, oy);
+  const int cox = (tile_w - tile->width) / 2;
+  const int coy = (tile_h - tile->height) / 2;
+  blit_map_sprite_offset(
+    sheet, sprite_index, framebuffer, screen_tile_x, screen_tile_y, tile_w, tile_h, cox, coy
+  );
 }
 
 static const ColonizeSpriteSheet* debug_atlas_sheet(const ColonizeGameState* game) {
@@ -908,7 +935,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           for (int layer = 0; layer < overlay_layers; ++layer) {
             const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
             if (overlay_sprite >= 0) {
-              blit_map_sprite(&game->phys0, overlay_sprite, framebuffer, sx, sy, tile_w, tile_h);
+              int ox = 0;
+              int oy = 0;
+              map_phys0_overlay_offset_at(&game->world_map, mx, my, layer, &ox, &oy);
+              blit_map_sprite_offset(
+                &game->phys0, overlay_sprite, framebuffer, sx, sy, tile_w, tile_h, ox, oy
+              );
             }
           }
         }
