@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/europe.h"
 #include "core/ff.h"
 #include "core/font.h"
 #include "core/map.h"
@@ -35,6 +36,9 @@ struct ColonizeGameState {
   bool pedia_ok;
   bool in_pedia;
   int pedia_terrain_index;
+  EuropeScreen europe;
+  bool europe_ok;
+  bool in_europe;
   ColonizePikImage menu_bg;
   bool menu_bg_ok;
   ColonizeSpriteSheet terrain;
@@ -71,6 +75,11 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_L: return "L";
     case COLONIZE_KEY_Q: return "Q";
     case COLONIZE_KEY_P: return "P";
+    case COLONIZE_KEY_E: return "E";
+    case COLONIZE_KEY_R: return "R";
+    case COLONIZE_KEY_T: return "T";
+    case COLONIZE_KEY_LEFTBRACKET: return "[";
+    case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
     default: return "NONE";
   }
@@ -230,6 +239,9 @@ static const char* render_mode_name(const ColonizeGameState* game) {
   if (game->in_pedia) {
     return "pedia";
   }
+  if (game->in_europe) {
+    return "europe";
+  }
   if (game->in_debug_atlas) {
     return "debug-atlas";
   }
@@ -337,6 +349,67 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
 
   if (!game->pedia_ok) {
     font_draw_text(font, framebuffer, text_x, text_y + 4, "(PEDIA.TXT not loaded)", 12);
+  }
+}
+
+static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
+  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
+  const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+  const EuropeScreen* eu = &game->europe;
+
+  if (game->europe_ok && eu->background_ok) {
+    pik_blit(&eu->background, framebuffer, 0, 0);
+  }
+
+  char line[96];
+  snprintf(
+    line,
+    sizeof(line),
+    "Europe — %s, %s",
+    eu->port_city,
+    eu->nation_name
+  );
+  font_draw_text(font, framebuffer, 4, 2, line, 15);
+
+  snprintf(line, sizeof(line), "Gold %d$   Tax %d%%   Ships %d", eu->gold, eu->tax_percent, eu->harbor_ships);
+  font_draw_text(font, framebuffer, 4, 12, line, 14);
+
+  font_draw_text(font, framebuffer, 4, 28, "Docks", 14);
+  int y = 38;
+  if (eu->dock_count == 0) {
+    font_draw_text(font, framebuffer, 8, y, "(empty)", 12);
+    y += 10;
+  } else {
+    for (int i = 0; i < eu->dock_count; ++i) {
+      snprintf(line, sizeof(line), "%d. %s", i + 1, eu->dock[i].name);
+      font_draw_text(font, framebuffer, 8, y, line, 15);
+      y += 9;
+      if (y > 100) {
+        break;
+      }
+    }
+  }
+
+  font_draw_text(font, framebuffer, 170, 28, "Market (bid/ask)", 14);
+  y = 38;
+  const int market_rows = eu->cargo_count > 12 ? 12 : eu->cargo_count;
+  for (int i = 0; i < market_rows; ++i) {
+    snprintf(
+      line,
+      sizeof(line),
+      "%-11s %3d/%3d",
+      eu->cargo[i].name,
+      eu->cargo[i].bid,
+      eu->cargo[i].ask
+    );
+    font_draw_text(font, framebuffer, 170, y, line, 15);
+    y += 9;
+  }
+
+  font_draw_text(font, framebuffer, 4, 168, eu->status, 14);
+  font_draw_text(font, framebuffer, 4, 180, "R Recruit  T Train  ] +1000$  [ tax-  Esc map", 12);
+  if (!game->europe_ok) {
+    font_draw_text(font, framebuffer, 4, 100, "EUROPE.PIK / NAMES.TXT failed to load", 12);
   }
 }
 
@@ -497,6 +570,14 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
 
+  char europe_err[256];
+  if (europe_load(&game->europe, game->resolved_data_dir, europe_err, sizeof(europe_err))) {
+    game->europe_ok = true;
+  } else {
+    game->europe_ok = false;
+    diag_warn("Failed to load Europe screen: %s", europe_err);
+  }
+
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
   dos_compat_set_tick_rate_hz(18);
@@ -508,6 +589,7 @@ void game_destroy(ColonizeGameState* game) {
     return;
   }
   pik_free(&game->menu_bg);
+  europe_free(&game->europe);
   ss_free(&game->terrain);
   ss_free(&game->phys0);
   ss_free(&game->cursor);
@@ -553,7 +635,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   snprintf(
     game->status,
     sizeof(game->status),
-    "Map view - arrows move, Space end turn, P pedia, S/L save/load"
+    "Map view - arrows move, E Europe, P pedia, Space end turn, S/L save/load"
   );
 }
 
@@ -570,18 +652,39 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   (void)dos_compat_tick_count();
 
   if (input->last_key != COLONIZE_KEY_NONE) {
-    diag_info("Key pressed: %s (menu=%s debug=%s pedia=%s turn=%u cursor=%d,%d)",
+    diag_info(
+      "Key pressed: %s (menu=%s debug=%s pedia=%s europe=%s turn=%u cursor=%d,%d)",
       key_name(input->last_key),
       game->in_menu ? "yes" : "no",
       game->in_debug_atlas ? "yes" : "no",
       game->in_pedia ? "yes" : "no",
+      game->in_europe ? "yes" : "no",
       game->turn_number,
       game->map_cursor_x,
-      game->map_cursor_y);
+      game->map_cursor_y
+    );
   }
 
   if (input->last_key == COLONIZE_KEY_Q) {
     return false;
+  }
+
+  if (game->in_europe) {
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_E) {
+      game->in_europe = false;
+      diag_info("Left Europe screen.");
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_R) {
+      europe_recruit(&game->europe);
+    } else if (input->last_key == COLONIZE_KEY_T) {
+      europe_train_stub(&game->europe);
+    } else if (input->last_key == COLONIZE_KEY_RIGHTBRACKET) {
+      europe_cheat_add_gold(&game->europe, 1000);
+    } else if (input->last_key == COLONIZE_KEY_LEFTBRACKET) {
+      europe_cheat_adjust_tax(&game->europe, -1);
+    }
+    return true;
   }
 
   if (game->in_pedia) {
@@ -648,8 +751,21 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_P) {
     game->in_pedia = true;
+    game->in_europe = false;
     game->pedia_terrain_index = 0;
     diag_info("Entered Colonizopedia terrain preview.");
+    return true;
+  }
+
+  if (input->last_key == COLONIZE_KEY_E && !game->in_menu) {
+    game->in_europe = true;
+    game->in_pedia = false;
+    snprintf(
+      game->europe.status,
+      sizeof(game->europe.status),
+      "Home port ready. Recruit / Train / Esc."
+    );
+    diag_info("Entered Europe screen.");
     return true;
   }
 
@@ -760,9 +876,11 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
-  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia)
+  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe)
     ? game->palette
-    : (game->map_palette_ok ? game->map_palette : game->palette);
+    : (game->in_europe && game->europe_ok && game->europe.background.has_palette)
+      ? game->europe.background.palette
+      : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
@@ -772,6 +890,11 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       framebuffer->height,
       game->palette_ok ? "VICEROY.PAL" : "fallback"
     );
+  }
+
+  if (game->in_europe) {
+    render_europe_screen(game, framebuffer);
+    goto render_log_sample;
   }
 
   if (game->in_pedia) {

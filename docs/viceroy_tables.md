@@ -81,10 +81,10 @@ Diagonal checkerboard coasts use PHYS0 **128–131** directly; full corners use 
 
 | Table | Wired? | Notes |
 |-------|--------|-------|
-| `connectivity_transition` | no | Candidate for 8×8 coastline fragments |
+| `connectivity_transition` | no | Candidate for 8×8 coastline; deferred with FUN_281f recovery |
 | `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
-| `river_transition` | no | Indexed by runtime `0x314c`, not connectivity mask |
-| `feature_sprite_bases_a` | no | No map-compositor xref yet |
+| `river_transition` | no | Indexed by runtime `0x314c` in UI paths; not map connectivity |
+| `feature_sprite_bases_a` | no | Deferred with map compositor |
 | `terrain_meta` class | pedia | Mountains/hills class flags |
 
 ## References in `viceroy.c`

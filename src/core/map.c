@@ -14,9 +14,9 @@
  *   bit 4 (16): hill/mountain base flag (with bits 0-2)
  *   bits 5-7: hill / river / mountain overlays
  *
- * PHYS0 feature selection uses extracted VICEROY.EXE tables where verified
- * (see docs/viceroy_tables.md). Rivers/hills still use range + mask% until a
- * map-compositor xref replaces them.
+ * PHYS0 selection is fixture-driven / partially table-backed for bring-up.
+ * TODO(later): replace heuristics by recovering DOS compositor FUN_281f_*
+ * (stubs in viceroy.c) — see docs/decomp_inventory.md “Deferred: map compositor”.
  */
 
 #define PHYS0_MAJOR_RIVER_FIRST 1
@@ -220,6 +220,7 @@ typedef struct CoastOverlay {
  *   Full corner (3 land): PHYS0 150–153 (16×16), sheet art 180°-opposed
  *   Diagonal checkerboard (2 diagonal land + far corner sea): PHYS0 128–131 (8×8)
  * Multiple corners stack. 8×8 pieces blit into the matching tile quadrant.
+ * Remaining coast bands / DOS compositor: deferred (docs/decomp_inventory.md).
  */
 static int map_phys0_coast_collect(const ColonizeWorldMap* map, int x, int y, CoastOverlay* out, int max_out) {
   const uint8_t terrain_byte = map_get_terrain(map, x, y);

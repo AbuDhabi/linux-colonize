@@ -75,3 +75,26 @@ port I/O in the native build.
   `src/platform/dos_compat/dos_types.h` for incremental extraction
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
   (see `docs/viceroy_tables.md`)
+- World map view: terrain + partial PHYS0 overlays (coasts, some forests/hills/rivers) —
+  good enough for bring-up; see **Deferred: map compositor** below
+- Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
+  (press **E** from the map; see `src/core/europe.c`)
+
+## Deferred: map compositor
+
+Map rendering is intentionally parked. The Linux path in `src/core/map.c` is
+fixture-driven and incomplete (missing coast edge bands 112–127 / 132–139,
+animation 140–147, generalized forests, roads/resources/fog, accurate river/hill
+connectivity).
+
+The real DOS TERRAIN/PHYS0 compositor lives in **`FUN_281f_*`** (called from
+`FUN_1984_010a`), but those functions are **not recovered** in `viceroy.c` —
+they stub to `halt_baddata()` (failed Ghidra overlay/reloc for segment `0x281f`).
+
+When revisiting map fidelity, prefer recovering that segment (or DOSBox-break on
+PHYS0 blit with sprite IDs 112–153) over further fixture heuristics. Related
+tables (`0x5599`, `0x54de`, `0x5234`, …) need re-validation against that code;
+some docs historically conflated unit fields (`0x3146` stride `0x1c`) with map tiles.
+
+Until then: keep existing smoke fixtures green; do not expand coast heuristics
+unless a user-reported tile is clearly wrong for playability.

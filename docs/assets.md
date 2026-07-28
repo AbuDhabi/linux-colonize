@@ -159,23 +159,33 @@ When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses moun
 
 Forests on other rows, roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
-**Coastal ocean:** for each of the four 2×2 neighborhoods around an ocean/high-seas tile,
-if this tile is the only sea (the other three cells are land), draw the matching PHYS0 corner:
-
-**Coastal ocean:** for each of the four 2×2 neighborhoods around an ocean/high-seas tile:
+**Coastal ocean** (fixture-backed bring-up; not yet matched to recovered DOS compositor code):
 
 | Pattern | PHYS0 | Size |
 |---------|-------|------|
 | Only sea in 2×2 (3 land) SE/SW/NE/NW | 153 / 152 / 151 / 150 | 16×16 |
 | Diagonal checkerboard (2 land on anti-diagonal, far corner sea) SE/SW/NE/NW | 130 / 131 / 129 / 128 | 8×8 in that quadrant |
 
-(Sheet artwork sits opposite the land corner — equivalent to flipping each piece on both axes.) Corners stack. AMER2 `(6,14)` → **153+152+151+150**. Diagonal examples: `(33,6)`→130, `(9,25)`→131, `(8,26)`→129, `(34,7)`→128. Other 8×8 coastline bands are not drawn yet.
+(Sheet artwork sits opposite the land corner — equivalent to flipping each piece on both axes.) Corners stack. AMER2 `(6,14)` → **153+152+151+150**. Diagonal examples: `(33,6)`→130, `(9,25)`→131, `(8,26)`→129, `(34,7)`→128. Other 8×8 coastline bands (112–127, 132–139) and animation frames (140–147) are not drawn yet.
 
-Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
+Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md). **Deferred work** on recovering the real DOS compositor is tracked in [decomp_inventory.md](decomp_inventory.md).
 
 ### Colonizopedia terrain preview
 
 Press **P** from the menu or map to open a terrain Colonizopedia page (`PEDIA.TXT` `@TERRAIN0`–`@TERRAIN28`). Left/Right cycles types; Esc or P exits. Each page shows a 3×3 sample of the TERRAIN/PHYS0 composite plus the title and body text.
+
+### Europe (home port) bring-up
+
+Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map.
+
+| Key | Action |
+|-----|--------|
+| R | Recruit cheapest `@CLASS` immigrant onto the docks |
+| T | Train (stub) |
+| `]` | Cheat: +1000 gold |
+| `[` | Cheat: −1% tax |
+
+Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Ship cargo holds, drag-trade, and sailing to the New World are not implemented yet.
 
 | Extension | Typical use |
 |-----------|-------------|
