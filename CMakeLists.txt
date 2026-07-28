@@ -123,6 +123,7 @@ add_executable(smoke_game_flow
 add_executable(smoke_map
   tests/smoke/test_map.c
   src/core/map.c
+  src/data/viceroy_tables.c
   src/platform/diagnostics.c
 )
 

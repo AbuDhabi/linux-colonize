@@ -72,7 +72,19 @@ Small base-index tables immediately after the river transition table:
 
 ### `connectivity_transition` (21 bytes)
 
-Cardinal-neighbor mask → transition index for coastline / edge art (sprites roughly **112–147** in PHYS0).
+Likely related to the **112–139** 8×8 coastline fragment band (animation / edge variants).
+Not currently wired into the Linux map compositor — coastal ocean uses PHYS0 **150–153**
+2×2 corner stacking instead (see [assets.md](assets.md)).
+
+### Linux compositor usage
+
+| Table | Wired? | Notes |
+|-------|--------|-------|
+| `connectivity_transition` | no | Candidate for 8×8 coastline fragments |
+| `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
+| `river_transition` | no | Indexed by runtime `0x314c`, not connectivity mask |
+| `feature_sprite_bases_a` | no | No map-compositor xref yet |
+| `terrain_meta` class | pedia | Mountains/hills class flags |
 
 ## References in `viceroy.c`
 

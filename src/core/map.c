@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "data/viceroy_tables.h"
 #include "platform/diagnostics.h"
 
 /*
@@ -12,6 +13,10 @@
  *   bit 3 (8): forest flag (with bits 0-2 -> forest terrain index 8-15)
  *   bit 4 (16): hill/mountain base flag (with bits 0-2)
  *   bits 5-7: hill / river / mountain overlays
+ *
+ * PHYS0 feature selection uses extracted VICEROY.EXE tables where verified
+ * (see docs/viceroy_tables.md). Rivers/hills still use range + mask% until a
+ * map-compositor xref replaces them.
  */
 
 #define PHYS0_MAJOR_RIVER_FIRST 1
@@ -23,12 +28,18 @@
 #define PHYS0_HILL_FIRST 48
 #define PHYS0_HILL_COUNT 16
 #define PHYS0_MOUNTAIN_ISOLATED 36
-#define PHYS0_TUNDRA_FOREST 65
 #define PHYS0_BOREAL_TRANSITION 40
 #define PHYS0_TROPICAL_TIMBER 99
+/* Sheet art is opposite the land corner (180° / flip H+V vs NE/NW/SE/SW mass). */
+#define PHYS0_COAST_SE 153
+#define PHYS0_COAST_SW 152
+#define PHYS0_COAST_NE 151
+#define PHYS0_COAST_NW 150
 
 #define MAP_TUNDRA_ROW 0
 #define MAP_SCRUB_FOREST_INDEX 9
+#define MAP_OCEAN_INDEX 25
+#define MAP_HIGH_SEAS_INDEX 26
 
 static int map_decode_terrain_index(uint8_t terrain_byte) {
   const int low3 = (int)(terrain_byte & 7u);
@@ -79,7 +90,11 @@ static int map_cleared_base_sprite(uint8_t terrain_byte) {
 }
 
 static bool map_is_ocean_index(int terrain_index) {
-  return terrain_index == 25 || terrain_index == 26;
+  return terrain_index == MAP_OCEAN_INDEX || terrain_index == MAP_HIGH_SEAS_INDEX;
+}
+
+static bool map_is_land_for_coast(int terrain_index) {
+  return !map_is_ocean_index(terrain_index);
 }
 
 static bool overlay_is_hill(uint8_t overlay, uint8_t terrain_byte) {
@@ -172,6 +187,85 @@ static bool major_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) 
   (void)self_byte;
   (void)dir;
   return overlay_is_major_river((uint8_t)(tile_byte >> 5));
+}
+
+static bool map_is_land_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false; /* off-map counts as water, not land */
+  }
+  return map_is_land_for_coast(map_decode_terrain_index(map_get_terrain(map, x, y)));
+}
+
+/*
+ * Coastal ocean uses PHYS0 150–153 for 2×2 corners where this tile is the only
+ * sea: the other three cells in that corner's neighborhood are land.
+ *   SE → 153, SW → 152, NE → 151, NW → 150  (sheet art is 180°-opposed)
+ * Multiple corners stack (e.g. AMER2 (6,14) draws all four).
+ * The 112–139 8×8 coastline band is not wired yet (needs quadrant placement).
+ */
+static int map_phys0_coast_corner_count(const ColonizeWorldMap* map, int x, int y) {
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+    return 0;
+  }
+  int count = 0;
+  if (map_is_land_at(map, x + 1, y) && map_is_land_at(map, x, y + 1) &&
+      map_is_land_at(map, x + 1, y + 1)) {
+    ++count;
+  }
+  if (map_is_land_at(map, x - 1, y) && map_is_land_at(map, x, y + 1) &&
+      map_is_land_at(map, x - 1, y + 1)) {
+    ++count;
+  }
+  if (map_is_land_at(map, x + 1, y) && map_is_land_at(map, x, y - 1) &&
+      map_is_land_at(map, x + 1, y - 1)) {
+    ++count;
+  }
+  if (map_is_land_at(map, x - 1, y) && map_is_land_at(map, x, y - 1) &&
+      map_is_land_at(map, x - 1, y - 1)) {
+    ++count;
+  }
+  return count;
+}
+
+static int map_phys0_coast_corner_sprite_at(const ColonizeWorldMap* map, int x, int y, int layer) {
+  if (layer < 0) {
+    return -1;
+  }
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+    return -1;
+  }
+
+  int index = 0;
+  if (map_is_land_at(map, x + 1, y) && map_is_land_at(map, x, y + 1) &&
+      map_is_land_at(map, x + 1, y + 1)) {
+    if (index == layer) {
+      return PHYS0_COAST_SE;
+    }
+    ++index;
+  }
+  if (map_is_land_at(map, x - 1, y) && map_is_land_at(map, x, y + 1) &&
+      map_is_land_at(map, x - 1, y + 1)) {
+    if (index == layer) {
+      return PHYS0_COAST_SW;
+    }
+    ++index;
+  }
+  if (map_is_land_at(map, x + 1, y) && map_is_land_at(map, x, y - 1) &&
+      map_is_land_at(map, x + 1, y - 1)) {
+    if (index == layer) {
+      return PHYS0_COAST_NE;
+    }
+    ++index;
+  }
+  if (map_is_land_at(map, x - 1, y) && map_is_land_at(map, x, y - 1) &&
+      map_is_land_at(map, x - 1, y - 1)) {
+    if (index == layer) {
+      return PHYS0_COAST_NW;
+    }
+  }
+  return -1;
 }
 
 static int phys0_connectivity_sprite(int first, int count, uint8_t mask) {
@@ -336,7 +430,7 @@ int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y) {
   }
 
   if (y == MAP_TUNDRA_ROW) {
-    return PHYS0_TUNDRA_FOREST;
+    return (int)viceroy_feature_sprite_bases_b[3]; /* 65 mixed-forest / tundra canopy */
   }
   return -1;
 }
@@ -347,11 +441,12 @@ int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t overlay = map_terrain_overlay(terrain_byte);
+  int count = map_phys0_coast_corner_count(map, x, y);
+
   if (overlay == 0 || overlay == 4) {
-    return 0;
+    return count;
   }
 
-  int count = 0;
   if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
     ++count;
   }
@@ -368,11 +463,16 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
 
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t overlay = map_terrain_overlay(terrain_byte);
+  const int coast_layers = map_phys0_coast_corner_count(map, x, y);
+  if (layer < coast_layers) {
+    return map_phys0_coast_corner_sprite_at(map, x, y, layer);
+  }
+  int feature_layer = coast_layers;
+
   if (overlay == 0 || overlay == 4) {
     return -1;
   }
 
-  int feature_layer = 0;
   if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
     if (layer == feature_layer) {
       const uint8_t mask = overlay_is_mountain(overlay, terrain_byte)

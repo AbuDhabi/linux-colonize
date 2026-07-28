@@ -1,13 +1,17 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "core/map.h"
 #include "platform/diagnostics.h"
+
+#define MAP_FIXTURE_PHYS0_MAX 4
 
 typedef struct MapTileExpectation {
   int x;
   int y;
   int terrain_sprite;
-  int phys0_sprite; /* -1 = no phys0 overlay expected */
+  int phys0_count; /* 0 = none; >0 = exact overlay list in phys0_sprites */
+  int phys0_sprites[MAP_FIXTURE_PHYS0_MAX];
 } MapTileExpectation;
 
 static int check_tile(
@@ -32,38 +36,63 @@ static int check_tile(
   }
 
   const int forest_sprite = map_phys0_forest_sprite_at(map, expect->x, expect->y);
-  const int feature_sprite = map_phys0_overlay_sprite(map, expect->x, expect->y);
-  const int phys0_sprite = forest_sprite >= 0 ? forest_sprite : feature_sprite;
+  const int overlay_count = map_phys0_overlay_count(map, expect->x, expect->y);
+  int overlays[MAP_FIXTURE_PHYS0_MAX];
+  int got_count = 0;
+  if (forest_sprite >= 0) {
+    overlays[got_count++] = forest_sprite;
+  }
+  for (int layer = 0; layer < overlay_count && got_count < MAP_FIXTURE_PHYS0_MAX; ++layer) {
+    const int sprite = map_phys0_overlay_sprite_at(map, expect->x, expect->y, layer);
+    if (sprite >= 0) {
+      overlays[got_count++] = sprite;
+    }
+  }
 
-  if (expect->phys0_sprite < 0) {
-    if (forest_sprite >= 0 || feature_sprite >= 0) {
+  if (expect->phys0_count == 0) {
+    if (got_count != 0) {
       snprintf(
         err,
         err_size,
-        "(%d,%d) expected no phys0 overlay, got forest=%d feature=%d",
+        "(%d,%d) expected no phys0 overlay, got %d sprite(s) (first=%d)",
         expect->x,
         expect->y,
-        forest_sprite,
-        feature_sprite
+        got_count,
+        overlays[0]
       );
       return 1;
     }
     return 0;
   }
 
-  if (phys0_sprite != expect->phys0_sprite) {
+  if (got_count != expect->phys0_count) {
     snprintf(
       err,
       err_size,
-      "(%d,%d) phys0 sprite expected %d got %d (forest=%d feature=%d)",
+      "(%d,%d) phys0 count expected %d got %d (first got=%d)",
       expect->x,
       expect->y,
-      expect->phys0_sprite,
-      phys0_sprite,
-      forest_sprite,
-      feature_sprite
+      expect->phys0_count,
+      got_count,
+      got_count > 0 ? overlays[0] : -1
     );
     return 1;
+  }
+
+  for (int i = 0; i < expect->phys0_count; ++i) {
+    if (overlays[i] != expect->phys0_sprites[i]) {
+      snprintf(
+        err,
+        err_size,
+        "(%d,%d) phys0[%d] expected %d got %d",
+        expect->x,
+        expect->y,
+        i,
+        expect->phys0_sprites[i],
+        overlays[i]
+      );
+      return 1;
+    }
   }
   return 0;
 }
@@ -94,18 +123,24 @@ int main(void) {
 
   static const MapTileExpectation amer2_fixtures[] = {
     /* User-reported fixtures for iterative map rendering. */
-    {1, 1, 0, 36},
-    {2, 11, 4, 36},
-    {5, 21, 1, 48},
-    {4, 20, 8, -1},
-    {1, 0, 0, 65},
-    {1, 2, 4, 40},
-    {4, 18, 5, 99},
-    {24, 19, 4, 52},
-    {24, 20, 4, 56},
+    {1, 1, 0, 1, {36}},
+    {2, 11, 4, 1, {36}},
+    {5, 21, 1, 1, {48}},
+    {4, 20, 8, 0, {0}},
+    {1, 0, 0, 1, {65}},
+    {1, 2, 4, 1, {40}},
+    {4, 18, 5, 1, {99}},
+    {24, 19, 4, 1, {52}},
+    {24, 20, 4, 1, {56}},
+    /* Coast corners: only-sea in each 2×2 → PHYS (sheet art is 180°-opposed). */
+    {6, 14, 10, 4, {153, 152, 151, 150}},
+    {23, 2, 10, 1, {153}}, /* SE only */
+    {8, 2, 10, 1, {152}},  /* SW only */
+    {1, 3, 10, 1, {151}},  /* NE only */
+    {18, 2, 10, 1, {150}}, /* NW only */
     /* Regression anchors from earlier passes. */
-    {9, 26, 1, 48},
-    {16, 3, 0, 23},
+    {9, 26, 1, 1, {48}},
+    {16, 3, 0, 1, {23}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]); ++i) {

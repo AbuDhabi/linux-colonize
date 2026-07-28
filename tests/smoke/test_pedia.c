@@ -8,7 +8,8 @@
 static int expect_preview(
   int index,
   int terrain_sprite,
-  int phys0_sprite,
+  int phys0_count,
+  const int* phys0_sprites,
   char* err,
   size_t err_size
 ) {
@@ -25,24 +26,37 @@ static int expect_preview(
     );
     return 1;
   }
-  if (phys0_sprite < 0) {
+  if (phys0_count <= 0) {
     if (preview.phys0_count != 0) {
       snprintf(err, err_size, "TERRAIN%d expected no PHYS0, got %d", index, preview.phys0_sprites[0]);
       return 1;
     }
     return 0;
   }
-  if (preview.phys0_count < 1 || preview.phys0_sprites[0] != phys0_sprite) {
+  if (preview.phys0_count != phys0_count) {
     snprintf(
       err,
       err_size,
-      "TERRAIN%d PHYS0 expected %d got count=%d first=%d",
+      "TERRAIN%d PHYS0 count expected %d got %d",
       index,
-      phys0_sprite,
-      preview.phys0_count,
-      preview.phys0_count > 0 ? preview.phys0_sprites[0] : -1
+      phys0_count,
+      preview.phys0_count
     );
     return 1;
+  }
+  for (int i = 0; i < phys0_count; ++i) {
+    if (preview.phys0_sprites[i] != phys0_sprites[i]) {
+      snprintf(
+        err,
+        err_size,
+        "TERRAIN%d PHYS0[%d] expected %d got %d",
+        index,
+        i,
+        phys0_sprites[i],
+        preview.phys0_sprites[i]
+      );
+      return 1;
+    }
   }
   return 0;
 }
@@ -50,15 +64,21 @@ static int expect_preview(
 int main(void) {
   diag_init(0, NULL);
 
+  static const int coast_phys0[] = {153, 152, 151, 150};
+  static const int forest8[] = {40};
+  static const int forest13[] = {99};
+  static const int mountain[] = {36};
+  static const int hills[] = {48};
+
   char err[256];
-  if (expect_preview(0, 0, -1, err, sizeof(err)) != 0 ||
-      expect_preview(4, 4, -1, err, sizeof(err)) != 0 ||
-      expect_preview(8, 4, 40, err, sizeof(err)) != 0 ||
-      expect_preview(9, 8, -1, err, sizeof(err)) != 0 ||
-      expect_preview(13, 5, 99, err, sizeof(err)) != 0 ||
-      expect_preview(25, 10, -1, err, sizeof(err)) != 0 ||
-      expect_preview(27, 4, 36, err, sizeof(err)) != 0 ||
-      expect_preview(28, 4, 48, err, sizeof(err)) != 0) {
+  if (expect_preview(0, 0, 0, NULL, err, sizeof(err)) != 0 ||
+      expect_preview(4, 4, 0, NULL, err, sizeof(err)) != 0 ||
+      expect_preview(8, 4, 1, forest8, err, sizeof(err)) != 0 ||
+      expect_preview(9, 8, 0, NULL, err, sizeof(err)) != 0 ||
+      expect_preview(13, 5, 1, forest13, err, sizeof(err)) != 0 ||
+      expect_preview(25, 10, 4, coast_phys0, err, sizeof(err)) != 0 ||
+      expect_preview(27, 4, 1, mountain, err, sizeof(err)) != 0 ||
+      expect_preview(28, 4, 1, hills, err, sizeof(err)) != 0) {
     fprintf(stderr, "%s\n", err);
     return 1;
   }
