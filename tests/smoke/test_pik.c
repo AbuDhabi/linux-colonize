@@ -8,7 +8,7 @@ int main(void) {
 
   ColonizePikImage image;
   char err[256];
-  const char* path = "COLONIZE/CCBKGD.PIK";
+  const char* path = "COLONIZE/OPENMENU.PIK";
   if (!pik_load(path, &image, err, sizeof(err))) {
     fprintf(stderr, "pik_load failed: %s\n", err);
     diag_shutdown();

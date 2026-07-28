@@ -127,7 +127,9 @@ add_executable(smoke_pik
   tests/smoke/test_pik.c
   src/core/madspack.c
   src/core/pik.c
+  src/core/assets.c
   src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_pik PRIVATE

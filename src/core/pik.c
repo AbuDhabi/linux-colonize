@@ -4,15 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/madspack.h"
 #include "platform/diagnostics.h"
-
-static uint8_t vga6_to8(uint8_t v) {
-  if (v > 63) {
-    return v;
-  }
-  return (uint8_t)((v << 2) | (v >> 4));
-}
 
 static uint16_t read_u16(const uint8_t* p) {
   return (uint16_t)(p[0] | (p[1] << 8));
@@ -69,13 +63,8 @@ bool pik_load(const char* path, ColonizePikImage* out_image, char* err, size_t e
   out_image->height = height;
   out_image->pixels = copy;
 
-  if (pack.section_count >= 3 && pack.sections[2].data_size >= 1024) {
-    const uint8_t* raw = pack.sections[2].data;
-    for (int i = 0; i < 256; ++i) {
-      out_image->palette.rgb[i][0] = vga6_to8(raw[i * 4 + 0]);
-      out_image->palette.rgb[i][1] = vga6_to8(raw[i * 4 + 1]);
-      out_image->palette.rgb[i][2] = vga6_to8(raw[i * 4 + 2]);
-    }
+  if (pack.section_count >= 3 && pack.sections[2].data_size >= 768) {
+    assets_palette_from_col768(pack.sections[2].data, pack.sections[2].data_size, &out_image->palette);
     out_image->has_palette = true;
   }
 

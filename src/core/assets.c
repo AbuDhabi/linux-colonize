@@ -175,6 +175,28 @@ bool assets_detect_madspack(const char* path, char* info, size_t info_size) {
   return true;
 }
 
+void assets_palette_from_col768(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette) {
+  if (!raw || !out_palette || raw_size < 768) {
+    return;
+  }
+  for (int i = 0; i < 256; ++i) {
+    out_palette->rgb[i][0] = vga6_to8(raw[i * 3 + 0]);
+    out_palette->rgb[i][1] = vga6_to8(raw[i * 3 + 1]);
+    out_palette->rgb[i][2] = vga6_to8(raw[i * 3 + 2]);
+  }
+}
+
+void assets_palette_from_viceroy1024(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette) {
+  if (!raw || !out_palette || raw_size < 1024) {
+    return;
+  }
+  for (int i = 0; i < 256; ++i) {
+    out_palette->rgb[i][0] = vga6_to8(raw[i * 4 + 0]);
+    out_palette->rgb[i][1] = vga6_to8(raw[i * 4 + 1]);
+    out_palette->rgb[i][2] = vga6_to8(raw[i * 4 + 2]);
+  }
+}
+
 bool assets_load_palette(const char* data_dir, ColonizePalette* out_palette) {
   if (!data_dir || !out_palette) {
     return false;
@@ -200,11 +222,7 @@ bool assets_load_palette(const char* data_dir, ColonizePalette* out_palette) {
     return false;
   }
 
-  for (int i = 0; i < 256; ++i) {
-    out_palette->rgb[i][0] = vga6_to8(raw[i * 4 + 0]);
-    out_palette->rgb[i][1] = vga6_to8(raw[i * 4 + 1]);
-    out_palette->rgb[i][2] = vga6_to8(raw[i * 4 + 2]);
-  }
+  assets_palette_from_viceroy1024(raw, sizeof(raw), out_palette);
   diag_info("Loaded VICEROY.PAL (%s)", path);
   return true;
 }

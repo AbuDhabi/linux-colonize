@@ -173,16 +173,16 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->menu_bg_ok = false;
   char pik_path[512];
   char pik_err[256];
-  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "CCBKGD.PIK", pik_path, sizeof(pik_path))) {
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "OPENMENU.PIK", pik_path, sizeof(pik_path))) {
     if (pik_load(pik_path, &game->menu_bg, pik_err, sizeof(pik_err))) {
       game->menu_bg_ok = true;
       if (game->menu_bg.has_palette) {
         game->palette = game->menu_bg.palette;
         game->palette_ok = true;
-        diag_info("Using palette embedded in CCBKGD.PIK for menu.");
+        diag_info("Using palette embedded in OPENMENU.PIK for menu.");
       }
     } else {
-      diag_warn("Failed to load menu background CCBKGD.PIK: %s", pik_err);
+      diag_warn("Failed to load menu background OPENMENU.PIK: %s", pik_err);
     }
   }
 
@@ -391,9 +391,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   if (game->in_menu) {
     if (game->menu_bg_ok) {
       memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
-      int ox = (framebuffer->width - game->menu_bg.width) / 2;
-      int oy = (framebuffer->height - game->menu_bg.height) / 2;
-      pik_blit(&game->menu_bg, framebuffer, ox, oy);
+      pik_blit(&game->menu_bg, framebuffer, 0, 0);
     } else {
       memset(framebuffer->pixels, 1, (size_t)framebuffer->width * (size_t)framebuffer->height);
       for (int y = 20; y < 180; ++y) {

@@ -30,6 +30,8 @@ bool assets_validate_required_files(const char* data_dir, char* err_buf, size_t 
 void assets_log_inventory(const char* data_dir);
 
 bool assets_load_palette(const char* data_dir, ColonizePalette* out_palette);
+void assets_palette_from_col768(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette);
+void assets_palette_from_viceroy1024(const uint8_t* raw, size_t raw_size, ColonizePalette* out_palette);
 bool assets_detect_madspack(const char* path, char* info, size_t info_size);
 
 void assets_msg_init(ColonizeMsgCatalog* catalog);

@@ -49,9 +49,9 @@ Colonization `.PIK` layout (after MADSPACK explode):
 |---------|---------|
 | 0 | Header: height, width, unk, unk (u16 each) |
 | 1 | Indexed 8-bit pixels (`width * height`) |
-| 2 | Optional VGA palette (1024 bytes) |
+| 2 | Optional VGA palette (768 bytes = 256×RGB, 6-bit DAC values) |
 
-The Linux port now decompresses MADSPACK/FAB and can blit `.PIK` images (menu uses `CCBKGD.PIK` when present).
+The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
 
 | Extension | Typical use |
 |-----------|-------------|
