@@ -1,0 +1,68 @@
+# Decompiled Surface Inventory
+
+This repository currently has a single large decompiled source file: `viceroy.c`.
+The decompilation is not directly buildable with a modern Linux compiler and
+contains DOS memory-model and runtime artifacts that require adaptation.
+
+## High-Level Metrics
+
+- Approximate decompiled functions with `__cdecl16far`: 397
+- Common synthetic symbols:
+  - Globals: `DAT_xxxx_xxxx`
+  - Labels: `LAB_xxxx_xxxx`
+  - Switch labels: `caseD_*`
+
+## Function Clusters by Segment Prefix
+
+The segment prefix in function names (`FUN_ssss_oooo`) provides a practical
+first-pass clustering mechanism:
+
+- `FUN_15eb_*`: high-density logic cluster
+- `FUN_1d1d_*`: high-density logic + platform-adjacent routines
+- `FUN_1427_*`: mid-size cluster
+- `FUN_104b_*`, `FUN_1009_*`: smaller utility/control-flow clusters
+
+This clustering should be preserved in initial source splitting to reduce risk.
+
+## DOS/Hardware-Coupled Surfaces
+
+Observed direct I/O and hardware assumptions in `viceroy.c`:
+
+- VGA DAC and retrace interaction:
+  - `out(0x3c8, ...)`
+  - `out(..., 0x3c9)`
+  - `in(0x3da)`
+- PIT timer programming:
+  - `out(0x43, 0x36)`
+  - `out(0x40, ...)`
+- Conventional VGA memory segment assumptions:
+  - references involving `0xa000`
+- BIOS tick/global data style references:
+  - patterns around `DAT_0000_046c` and low-memory globals
+
+These routines belong behind a Linux platform API and must not remain as raw
+port I/O in the native build.
+
+## Proposed Boundary: Core vs Platform
+
+### Core Candidate (kept behavior-first)
+
+- Game state updates
+- Turn progression and simulation
+- Economic/unit/map logic
+- Scenario/rules logic
+
+### Platform Candidate (replace with SDL2/Linux services)
+
+- Palette and framebuffer presentation
+- Keyboard/mouse polling and event translation
+- Time/tick services
+- File path, save location, and case normalization
+- Audio output
+
+## Bring-Up Strategy Notes
+
+- Do not refactor gameplay logic first.
+- Introduce wrappers matching expected legacy behavior.
+- Route every platform call through explicit interfaces so unresolved behavior
+  can be logged and implemented incrementally.
