@@ -16,7 +16,8 @@ typedef enum ColonizeKey {
   COLONIZE_KEY_RIGHT,
   COLONIZE_KEY_S,
   COLONIZE_KEY_L,
-  COLONIZE_KEY_Q
+  COLONIZE_KEY_Q,
+  COLONIZE_KEY_TILDE
 } ColonizeKey;
 
 typedef struct ColonizeInputState {

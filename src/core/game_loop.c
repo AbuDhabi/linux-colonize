@@ -33,8 +33,10 @@ struct ColonizeGameState {
   ColonizePikImage menu_bg;
   bool menu_bg_ok;
   ColonizeSpriteSheet terrain;
+  ColonizeSpriteSheet phys0;
   ColonizeSpriteSheet cursor;
   bool terrain_ok;
+  bool phys0_ok;
   bool cursor_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
@@ -42,6 +44,9 @@ struct ColonizeGameState {
   bool world_map_ok;
   ColonizePalette map_palette;
   bool map_palette_ok;
+  bool in_debug_atlas;
+  int debug_atlas_sheet; /* 0=PHYS0, 1=TERRAIN */
+  int debug_atlas_scroll;
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
   int menu_option_count;
   int menu_selection;
@@ -60,6 +65,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_S: return "S";
     case COLONIZE_KEY_L: return "L";
     case COLONIZE_KEY_Q: return "Q";
+    case COLONIZE_KEY_TILDE: return "TILDE";
     default: return "NONE";
   }
 }
@@ -127,6 +133,64 @@ static void load_begin_menu(ColonizeGameState* game) {
   for (int i = 0; i < game->menu_option_count; ++i) {
     diag_info("  menu[%d]=%s", i, game->menu_options[i]);
   }
+}
+
+static void blit_map_sprite(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int screen_tile_x,
+  int screen_tile_y,
+  int tile_w,
+  int tile_h
+) {
+  if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* tile = &sheet->sprites[sprite_index];
+  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
+    return;
+  }
+  const int ox = screen_tile_x * tile_w + (tile_w - tile->width) / 2;
+  const int oy = screen_tile_y * tile_h + (tile_h - tile->height) / 2;
+  ss_blit_sprite(sheet, sprite_index, framebuffer, ox, oy);
+}
+
+static const ColonizeSpriteSheet* debug_atlas_sheet(const ColonizeGameState* game) {
+  if (game->debug_atlas_sheet == 1) {
+    return game->terrain_ok ? &game->terrain : NULL;
+  }
+  return game->phys0_ok ? &game->phys0 : NULL;
+}
+
+static const char* debug_atlas_sheet_name(const ColonizeGameState* game) {
+  return game->debug_atlas_sheet == 1 ? "TERRAIN" : "PHYS0";
+}
+
+static void debug_atlas_layout(int* out_cols, int* out_rows, int* out_cell_w, int* out_cell_h) {
+  *out_cell_w = 20;
+  *out_cell_h = 26;
+  *out_cols = 320 / *out_cell_w;
+  *out_rows = (200 - 12) / *out_cell_h;
+}
+
+static int debug_atlas_max_scroll(const ColonizeGameState* game) {
+  const ColonizeSpriteSheet* sheet = debug_atlas_sheet(game);
+  if (!sheet || sheet->sprite_count <= 0) {
+    return 0;
+  }
+  int cols = 0;
+  int rows = 0;
+  int cell_w = 0;
+  int cell_h = 0;
+  debug_atlas_layout(&cols, &rows, &cell_w, &cell_h);
+  const int visible = cols * rows;
+  if (sheet->sprite_count <= visible) {
+    return 0;
+  }
+  const int last_start = sheet->sprite_count - visible;
+  const int max_row = (last_start + cols - 1) / cols;
+  return max_row;
 }
 
 static void fill_fallback_palette(ColonizePalette* palette) {
@@ -224,6 +288,14 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_warn("Failed to load TERRAIN.SS: %s", ss_err);
     }
   }
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "PHYS0.SS", ss_path, sizeof(ss_path))) {
+    if (ss_load(ss_path, &game->phys0, ss_err, sizeof(ss_err))) {
+      game->phys0_ok = true;
+      diag_info("Loaded PHYS0 overlay sheet with %d sprites", game->phys0.sprite_count);
+    } else {
+      diag_warn("Failed to load PHYS0.SS: %s", ss_err);
+    }
+  }
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "CURSOR.SS", ss_path, sizeof(ss_path))) {
     if (ss_load(ss_path, &game->cursor, ss_err, sizeof(ss_err))) {
       game->cursor_ok = true;
@@ -279,6 +351,7 @@ void game_destroy(ColonizeGameState* game) {
   }
   pik_free(&game->menu_bg);
   ss_free(&game->terrain);
+  ss_free(&game->phys0);
   ss_free(&game->cursor);
   ff_free(&game->menu_font);
   map_free(&game->world_map);
@@ -334,9 +407,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   (void)dos_compat_tick_count();
 
   if (input->last_key != COLONIZE_KEY_NONE) {
-    diag_info("Key pressed: %s (menu=%s turn=%u cursor=%d,%d)",
+    diag_info("Key pressed: %s (menu=%s debug=%s turn=%u cursor=%d,%d)",
       key_name(input->last_key),
       game->in_menu ? "yes" : "no",
+      game->in_debug_atlas ? "yes" : "no",
       game->turn_number,
       game->map_cursor_x,
       game->map_cursor_y);
@@ -344,6 +418,47 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_Q) {
     return false;
+  }
+
+  if (game->in_debug_atlas) {
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_TILDE) {
+      game->in_debug_atlas = false;
+      diag_info("Left sprite atlas debug screen.");
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_RIGHT) {
+      game->debug_atlas_sheet = game->debug_atlas_sheet == 0 ? 1 : 0;
+      game->debug_atlas_scroll = 0;
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_UP && game->debug_atlas_scroll > 0) {
+      game->debug_atlas_scroll--;
+    } else if (input->last_key == COLONIZE_KEY_DOWN) {
+      const int max_scroll = debug_atlas_max_scroll(game);
+      if (game->debug_atlas_scroll < max_scroll) {
+        game->debug_atlas_scroll++;
+      }
+    } else if (input->last_key == COLONIZE_KEY_SPACE || input->last_key == COLONIZE_KEY_ENTER) {
+      int cols = 0;
+      int rows = 0;
+      int cell_w = 0;
+      int cell_h = 0;
+      debug_atlas_layout(&cols, &rows, &cell_w, &cell_h);
+      const int max_scroll = debug_atlas_max_scroll(game);
+      game->debug_atlas_scroll += rows;
+      if (game->debug_atlas_scroll > max_scroll) {
+        game->debug_atlas_scroll = max_scroll;
+      }
+    }
+    return true;
+  }
+
+  if (input->last_key == COLONIZE_KEY_TILDE) {
+    game->in_debug_atlas = true;
+    game->debug_atlas_sheet = 0;
+    game->debug_atlas_scroll = 0;
+    diag_info("Entered sprite atlas debug screen.");
+    return true;
   }
 
   if (game->in_menu) {
@@ -453,16 +568,77 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
-  *palette = game->in_menu ? game->palette : (game->map_palette_ok ? game->map_palette : game->palette);
+  *palette = (game->in_menu && !game->in_debug_atlas)
+    ? game->palette
+    : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
       "Render mode=%s framebuffer=%dx%d palette=%s",
-      game->in_menu ? "menu" : "map",
+      game->in_debug_atlas ? "debug-atlas" : (game->in_menu ? "menu" : "map"),
       framebuffer->width,
       framebuffer->height,
       game->palette_ok ? "VICEROY.PAL" : "fallback"
     );
+  }
+
+  if (game->in_debug_atlas) {
+    memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
+    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+    const ColonizeSpriteSheet* sheet = debug_atlas_sheet(game);
+    int cols = 0;
+    int rows = 0;
+    int cell_w = 0;
+    int cell_h = 0;
+    debug_atlas_layout(&cols, &rows, &cell_w, &cell_h);
+    const int first = game->debug_atlas_scroll * cols;
+    const int count = sheet ? sheet->sprite_count : 0;
+    const int last = count > 0 ? (first + cols * rows - 1) : -1;
+    const int shown_last = last >= count ? count - 1 : last;
+
+    char hud[96];
+    snprintf(
+      hud,
+      sizeof(hud),
+      "%s %d-%d/%d  L/R sheet Up/Dn scroll Esc",
+      debug_atlas_sheet_name(game),
+      count > 0 ? first : 0,
+      shown_last >= 0 ? shown_last : 0,
+      count
+    );
+    font_draw_text(font, framebuffer, 2, 1, hud, 15);
+
+    if (sheet) {
+      for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < cols; ++col) {
+          const int idx = first + row * cols + col;
+          if (idx < 0 || idx >= sheet->sprite_count) {
+            continue;
+          }
+          const int ox = col * cell_w + 2;
+          const int oy = 12 + row * cell_h;
+          /* Checkerboard behind transparent pixels so empty sprites are visible. */
+          for (int py = 0; py < 16; ++py) {
+            for (int px = 0; px < 16; ++px) {
+              const int dx = ox + px;
+              const int dy = oy + py;
+              if (dx < 0 || dy < 0 || dx >= framebuffer->width || dy >= framebuffer->height) {
+                continue;
+              }
+              framebuffer->pixels[dy * framebuffer->width + dx] =
+                (uint8_t)(((px / 4) ^ (py / 4)) & 1 ? 8 : 0);
+            }
+          }
+          ss_blit_sprite(sheet, idx, framebuffer, ox, oy);
+          char label[12];
+          snprintf(label, sizeof(label), "%d", idx);
+          font_draw_text(font, framebuffer, ox, oy + 17, label, 14);
+        }
+      }
+    } else {
+      font_draw_text(font, framebuffer, 40, 90, "Sheet not loaded", 12);
+    }
+    goto render_log_sample;
   }
 
   if (game->in_menu) {
@@ -535,25 +711,35 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   if (game->terrain_ok && game->terrain.sprite_count > 0) {
     for (int sy = 0; sy < view_rows; ++sy) {
       for (int sx = 0; sx < view_cols; ++sx) {
-        int sprite_index;
+        int base_sprite;
+        uint8_t terrain = 0;
         if (game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
           if (mx < 0 || my < 0 || mx >= game->world_map.width || my >= game->world_map.height) {
             continue;
           }
-          const uint8_t terrain = map_get_terrain(&game->world_map, mx, my);
-          sprite_index = map_terrain_sprite(terrain);
+          terrain = map_get_terrain(&game->world_map, mx, my);
+          base_sprite = map_terrain_base_sprite(terrain);
         } else {
-          sprite_index = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
+          base_sprite = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
         }
-        if (sprite_index < 0 || sprite_index >= game->terrain.sprite_count) {
-          sprite_index = 0;
+        if (base_sprite < 0 || base_sprite >= game->terrain.sprite_count) {
+          base_sprite = 0;
         }
-        const ColonizeSprite* tile = &game->terrain.sprites[sprite_index];
-        const int ox = sx * tile_w + (tile_w - tile->width) / 2;
-        const int oy = sy * tile_h + (tile_h - tile->height) / 2;
-        ss_blit_sprite(&game->terrain, sprite_index, framebuffer, ox, oy);
+        blit_map_sprite(&game->terrain, base_sprite, framebuffer, sx, sy, tile_w, tile_h);
+
+        if (game->phys0_ok && game->world_map_ok) {
+          const int mx = view_x + sx;
+          const int my = view_y + sy;
+          const int overlay_layers = map_phys0_overlay_count(&game->world_map, mx, my);
+          for (int layer = 0; layer < overlay_layers; ++layer) {
+            const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
+            if (overlay_sprite >= 0) {
+              blit_map_sprite(&game->phys0, overlay_sprite, framebuffer, sx, sy, tile_w, tile_h);
+            }
+          }
+        }
       }
     }
   } else {
@@ -588,11 +774,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     snprintf(
       hud,
       sizeof(hud),
-      "Turn %u  (%d,%d) t=0x%02x  Esc=menu",
+      "Turn %u  (%d,%d) t=0x%02x o=%u  Esc=menu",
       game->turn_number,
       game->map_cursor_x,
       game->map_cursor_y,
-      terrain
+      terrain,
+      map_terrain_overlay(terrain)
     );
   } else {
     snprintf(hud, sizeof(hud), "Turn %u  Esc=menu", game->turn_number);
@@ -609,7 +796,7 @@ render_log_sample:
     diag_info(
       "Framebuffer sample frame=%u mode=%s idx0=%u idx_center=%u turn=%u cursor=%d,%d",
       render_log_counter,
-      game->in_menu ? "menu" : "map",
+      game->in_debug_atlas ? "debug-atlas" : (game->in_menu ? "menu" : "map"),
       framebuffer->pixels[0],
       framebuffer->pixels[idx_center],
       game->turn_number,

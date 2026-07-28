@@ -27,6 +27,26 @@ int main(void) {
     fprintf(stderr, "cursor[%d]=%dx%d\n", i, cursor.sprites[i].width, cursor.sprites[i].height);
   }
 
+  ColonizeSpriteSheet phys0;
+  if (!ss_load("COLONIZE/PHYS0.SS", &phys0, err, sizeof(err))) {
+    fprintf(stderr, "phys0 load failed: %s\n", err);
+    ss_free(&cursor);
+    ss_free(&terrain);
+    return 1;
+  }
+  if (phys0.sprite_count < 107) {
+    fprintf(stderr, "phys0 expected >=107 sprites, got %d\n", phys0.sprite_count);
+    ss_free(&phys0);
+    ss_free(&cursor);
+    ss_free(&terrain);
+    return 1;
+  }
+  fprintf(stderr, "phys0 sprites=%d overlay101=%dx%d\n",
+    phys0.sprite_count,
+    phys0.sprites[101].width,
+    phys0.sprites[101].height);
+
+  ss_free(&phys0);
   ss_free(&cursor);
   ss_free(&terrain);
   diag_shutdown();

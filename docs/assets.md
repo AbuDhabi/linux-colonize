@@ -86,7 +86,63 @@ Each terrain byte:
 - bits 0–4: terrain index 0–26 (tundra … high seas; see FreeCol `ColonizationMapLoader`)
 - bits 5–7: overlay (0=none, 1=hill, 2=minor river, 5=mountain, 6=major river, …)
 
-The Linux port maps terrain indices to `TERRAIN.SS` sprites (12 base tiles). Hill/river/mountain overlays from `PHYS0.SS` are not yet drawn.
+### TERRAIN.SS sprite index (`terrain & 0x1f`)
+
+| Sprite | Terrain type |
+|--------|----------------|
+| 0 | Tundra |
+| 1 | Desert |
+| 2 | Plains |
+| 3 | Prairie (cotton) |
+| 4 | Grassland (tobacco) |
+| 5 | Savannah (sugar) |
+| 6 | Marsh |
+| 7 | Swamp |
+| 8 | Scrub forest |
+| 9 | Arctic |
+| 10 | Ocean |
+| 11 | High seas |
+
+Map indices 24/25/26 map to arctic/ocean/high-seas sprites. Indices 12–23 reuse land sprites modulo 12 until cleared/forested variants are modeled.
+
+### PHYS0.SS sprite atlas (press `` ` `` in-game)
+
+| Sprites | Content |
+|---------|---------|
+| 0, 16 | Blank |
+| 1–15 | Major rivers |
+| 17–31 | Minor rivers |
+| 32–47 | Mountains |
+| 48–63 | Hills |
+| 64–79 | Mixed forests |
+| 80–88 | Roads |
+| 89 | Depleted silver |
+| 90 | Oasis |
+| 91–95 | Wheat, cotton, tobacco, sugar, ore (flat) |
+| 96–99 | Fish, beaver, deer, timber |
+| 100 | Empty |
+| 101–103 | Silver, ore (hill), rumours |
+| 104–111 | Fog-of-war edges (approx.) |
+| 112–147 | Coastline animation (approx.) |
+| 148 | Ocean overlay |
+| 149 | Plowed |
+| 150–153 | Coastal ocean |
+
+### Map overlay compositing
+
+The Linux port draws cleared terrain from `TERRAIN.SS`, then composites `.MP` feature overlays from `PHYS0.SS` using cardinal neighbor connectivity (N=1, E=2, S=4, W=8):
+
+| Overlay (bits 5–7) | PHYS0 range | Notes |
+|--------------------|---------------|-------|
+| 0, 4 | (none) | — |
+| 1 hill | 48–63 | `48 + (mask % 16)` |
+| 2 minor river | 17–31 | `17 + (mask % 15)` |
+| 3 hill + minor river | hill then river | Two layers |
+| 5 mountain | 32–47 | `32 + (mask % 16)` |
+| 6 major river | 1–15 | `1 + (mask % 15)` |
+| 7 mountain + major river | mountain then river | Two layers |
+
+Forests (64–79), roads, resources, fog, and coast overlays are not drawn from static `.MP` data yet.
 
 | Extension | Typical use |
 |-----------|-------------|
