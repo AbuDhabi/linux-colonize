@@ -87,14 +87,34 @@ fixture-driven and incomplete (missing coast edge bands 112–127 / 132–139,
 animation 140–147, generalized forests, roads/resources/fog, accurate river/hill
 connectivity).
 
-The real DOS TERRAIN/PHYS0 compositor lives in **`FUN_281f_*`** (called from
-`FUN_1984_010a`), but those functions are **not recovered** in `viceroy.c` —
-they stub to `halt_baddata()` (failed Ghidra overlay/reloc for segment `0x281f`).
+The real DOS TERRAIN/PHYS0 compositor is reached via **`FUN_281f_*`** (e.g.
+`FUN_281f_0e38` from `FUN_1984_010a`). In both `viceroy.c` and the Ghidra listing
+`viceroy.asm`, those entry points are **not the compositor** — they are
+**RTLink overlay thunks**:
 
-When revisiting map fidelity, prefer recovering that segment (or DOSBox-break on
-PHYS0 blit with sprite IDs 112–153) over further fixture heuristics. Related
-tables (`0x5599`, `0x54de`, `0x5234`, …) need re-validation against that code;
-some docs historically conflated unit fields (`0x3146` stride `0x1c`) with map tiles.
+```text
+FUN_281f_0e38:
+  CALLF  FUN_210d_0dab     ; overlay / "smart vectoring" loader
+  JMPF   LAB_0000_0360     ; target inside a loaded overlay page
+```
+
+`FUN_210d_0dab` is the RTLink vector manager (`VICEROY.EXE` contains the
+`RTLink` / `call to Vector … in Page …` strings). Segment `CODE_99` / `0x281f`
+in the listing is mostly those stubs plus undecoded `??` bytes — the page that
+holds the real blit/PHYS0 logic was never loaded into the Ghidra database used
+for the export. DS tables such as `0x5599` also appear as `??` in the DATA
+section of the listing (BSS / runtime-initialized).
+
+**When revisiting map fidelity**, prefer one of:
+
+1. Load VICEROY’s RTLink overlay pages into Ghidra (or dump them after a DOSBox
+   run once the map view has been opened), then decompile the real bodies behind
+   the `JMPF LAB_0000_*` targets.
+2. DOSBox-break on PHYS0 blit with sprite IDs 112–153 and backtrace into the
+   loaded overlay.
 
 Until then: keep existing smoke fixtures green; do not expand coast heuristics
-unless a user-reported tile is clearly wrong for playability.
+unless a user-reported tile is clearly wrong for playability. Related static
+tables extracted from the EXE (`0x5599`, `0x54de`, …) still need validation
+against recovered overlay code.
+
