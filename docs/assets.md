@@ -53,6 +53,8 @@ Colonization `.PIK` layout (after MADSPACK explode):
 
 The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
 
+`.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`.
+
 | Extension | Typical use |
 |-----------|-------------|
 | `.PIK` | Packed pictures / backgrounds |

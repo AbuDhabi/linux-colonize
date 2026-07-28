@@ -10,6 +10,7 @@
 #include "core/font.h"
 #include "core/pik.h"
 #include "core/savegame.h"
+#include "core/ss.h"
 #include "platform/diagnostics.h"
 
 #define MENU_MAX_OPTIONS 12
@@ -29,6 +30,12 @@ struct ColonizeGameState {
   ColonizeMsgCatalog messages;
   ColonizePikImage menu_bg;
   bool menu_bg_ok;
+  ColonizeSpriteSheet terrain;
+  ColonizeSpriteSheet cursor;
+  bool terrain_ok;
+  bool cursor_ok;
+  ColonizePalette map_palette;
+  bool map_palette_ok;
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
   int menu_option_count;
   int menu_selection;
@@ -197,6 +204,29 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
 
+  char ss_path[512];
+  char ss_err[256];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "TERRAIN.SS", ss_path, sizeof(ss_path))) {
+    if (ss_load(ss_path, &game->terrain, ss_err, sizeof(ss_err))) {
+      game->terrain_ok = true;
+      if (game->terrain.has_palette) {
+        game->map_palette = game->terrain.palette;
+        game->map_palette_ok = true;
+      }
+      diag_info("Loaded terrain sheet with %d sprites", game->terrain.sprite_count);
+    } else {
+      diag_warn("Failed to load TERRAIN.SS: %s", ss_err);
+    }
+  }
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "CURSOR.SS", ss_path, sizeof(ss_path))) {
+    if (ss_load(ss_path, &game->cursor, ss_err, sizeof(ss_err))) {
+      game->cursor_ok = true;
+      diag_info("Loaded cursor sheet with %d sprites", game->cursor.sprite_count);
+    } else {
+      diag_warn("Failed to load CURSOR.SS: %s", ss_err);
+    }
+  }
+
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
   dos_compat_set_tick_rate_hz(18);
@@ -208,6 +238,8 @@ void game_destroy(ColonizeGameState* game) {
     return;
   }
   pik_free(&game->menu_bg);
+  ss_free(&game->terrain);
+  ss_free(&game->cursor);
   assets_msg_free(&game->messages);
   dos_compat_shutdown();
   free(game);
@@ -376,7 +408,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
-  *palette = game->palette;
+  *palette = game->in_menu ? game->palette : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
@@ -422,30 +454,44 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     goto render_log_sample;
   }
 
-  /* Map placeholder: terrain-ish noise using loaded palette indices. */
-  for (int y = 0; y < framebuffer->height; ++y) {
-    for (int x = 0; x < framebuffer->width; ++x) {
-      const int idx = y * framebuffer->width + x;
-      uint8_t base = (uint8_t)(((x / 8) ^ (y / 8) ^ (int)game->turn_number) & 0x0f);
-      framebuffer->pixels[idx] = (uint8_t)(16 + ((base + game->map_seed) & 0x0f));
-    }
-  }
+  /* Map view: tile terrain sprites and cursor overlay. */
+  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
   const int tile_w = framebuffer->width / 16;
   const int tile_h = framebuffer->height / 16;
-  for (int gy = 0; gy < 16; ++gy) {
-    for (int gx = 0; gx < 16; ++gx) {
-      const bool is_cursor = (gx == game->map_cursor_x && gy == game->map_cursor_y);
-      int start_x = gx * tile_w;
-      int start_y = gy * tile_h;
-      for (int y = start_y; y < start_y + tile_h; ++y) {
-        for (int x = start_x; x < start_x + tile_w; ++x) {
-          int idx = y * framebuffer->width + x;
-          if (is_cursor) {
-            framebuffer->pixels[idx] = 14;
-          } else if (x == start_x || y == start_y) {
-            framebuffer->pixels[idx] = 0;
-          }
+
+  if (game->terrain_ok && game->terrain.sprite_count > 0) {
+    for (int gy = 0; gy < 16; ++gy) {
+      for (int gx = 0; gx < 16; ++gx) {
+        int sprite_index = (gx + gy + (int)game->map_seed) % game->terrain.sprite_count;
+        if (sprite_index < 0) {
+          sprite_index = 0;
+        }
+        const ColonizeSprite* tile = &game->terrain.sprites[sprite_index];
+        int ox = gx * tile_w + (tile_w - tile->width) / 2;
+        int oy = gy * tile_h + (tile_h - tile->height) / 2;
+        ss_blit_sprite(&game->terrain, sprite_index, framebuffer, ox, oy);
+      }
+    }
+  } else {
+    for (int y = 0; y < framebuffer->height; ++y) {
+      for (int x = 0; x < framebuffer->width; ++x) {
+        const int idx = y * framebuffer->width + x;
+        uint8_t base = (uint8_t)(((x / 8) ^ (y / 8) ^ (int)game->turn_number) & 0x0f);
+        framebuffer->pixels[idx] = (uint8_t)(16 + ((base + game->map_seed) & 0x0f));
+      }
+    }
+  }
+
+  if (game->cursor_ok && game->cursor.sprite_count > 0) {
+    int cx = game->map_cursor_x * tile_w;
+    int cy = game->map_cursor_y * tile_h;
+    ss_blit_sprite(&game->cursor, 0, framebuffer, cx, cy);
+  } else {
+    for (int y = game->map_cursor_y * tile_h; y < (game->map_cursor_y + 1) * tile_h; ++y) {
+      for (int x = game->map_cursor_x * tile_w; x < (game->map_cursor_x + 1) * tile_w; ++x) {
+        if (x >= 0 && x < framebuffer->width && y >= 0 && y < framebuffer->height) {
+          framebuffer->pixels[y * framebuffer->width + x] = 14;
         }
       }
     }
