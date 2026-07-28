@@ -28,6 +28,9 @@ endif()
 add_library(colonize_core STATIC
   src/core/game_loop.c
   src/core/assets.c
+  src/core/font.c
+  src/core/madspack.c
+  src/core/pik.c
   src/core/savegame.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -99,10 +102,39 @@ add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
   src/core/game_loop.c
   src/core/assets.c
+  src/core/font.c
+  src/core/madspack.c
+  src/core/pik.c
   src/core/savegame.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
+
+add_executable(smoke_assets
+  tests/smoke/test_assets.c
+  src/core/assets.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_assets PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_assets COMMAND smoke_assets)
+
+add_executable(smoke_pik
+  tests/smoke/test_pik.c
+  src/core/madspack.c
+  src/core/pik.c
+  src/platform/diagnostics.c
+)
+
+target_include_directories(smoke_pik PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_pik COMMAND smoke_pik WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 target_include_directories(smoke_game_flow PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src

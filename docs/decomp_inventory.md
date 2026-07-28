@@ -66,3 +66,10 @@ port I/O in the native build.
 - Introduce wrappers matching expected legacy behavior.
 - Route every platform call through explicit interfaces so unresolved behavior
   can be logged and implemented incrementally.
+
+## Current Linux Bring-Up Status
+
+- SDL2 shell, diagnostics log, save/load POC: done
+- `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
+- `viceroy.c` itself is not yet compiled into the binary; DOS typedef stubs live in
+  `src/platform/dos_compat/dos_types.h` for incremental extraction

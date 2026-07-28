@@ -70,8 +70,8 @@ int main(int argc, char** argv) {
     cli.window_scale,
     cli.no_sound ? "yes" : "no");
   diag_info(
-    "NOTE: Current graphics are placeholder scaffolding (diagonal-line test pattern), "
-    "not decoded Colonization assets from viceroy.c yet."
+    "NOTE: UI now uses GAME.TXT @BEGINMENU + VICEROY.PAL. "
+    "Map/menu art from MADSPACK .PIK/.SS is not decoded yet; map view is still a placeholder."
   );
 
   ColonizePlatformConfig platform_cfg = {

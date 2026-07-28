@@ -15,6 +15,8 @@ struct ColonizePlatform {
   uint32_t* rgba_buffer;
   int width;
   int height;
+  bool audio_enabled;
+  SDL_AudioDeviceID audio_device;
 };
 
 static ColonizeKey map_key(SDL_Keycode key) {
@@ -41,11 +43,23 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
     scale = config->window_scale;
   }
 
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
+  uint32_t sdl_flags = SDL_INIT_VIDEO | SDL_INIT_TIMER;
+  bool want_audio = !(config && config->no_sound);
+#if defined(COLONIZE_ENABLE_AUDIO)
+  if (want_audio) {
+    sdl_flags |= SDL_INIT_AUDIO;
+  }
+#else
+  want_audio = false;
+#endif
+
+  if (SDL_Init(sdl_flags) != 0) {
     diag_error("SDL_Init failed: %s", SDL_GetError());
     return NULL;
   }
-  diag_info("SDL version=%d.%d.%d", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
+  diag_info("SDL version=%d.%d.%d audio_requested=%s",
+    SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL,
+    want_audio ? "yes" : "no");
 
   uint32_t flags = 0;
   if (!(config && config->windowed)) {
@@ -75,6 +89,10 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   }
 
   platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (!platform->renderer) {
+    diag_warn("Accelerated renderer failed (%s); trying software.", SDL_GetError());
+    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_SOFTWARE);
+  }
   if (!platform->renderer) {
     diag_error("SDL_CreateRenderer failed: %s", SDL_GetError());
     platform_destroy(platform);
@@ -122,12 +140,40 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   if (config && config->data_dir) {
     diag_info("Platform data_dir=%s", config->data_dir);
   }
+
+  platform->audio_enabled = false;
+  platform->audio_device = 0;
+  if (want_audio) {
+    SDL_AudioSpec want;
+    SDL_AudioSpec have;
+    SDL_zero(want);
+    want.freq = 22050;
+    want.format = AUDIO_S16SYS;
+    want.channels = 1;
+    want.samples = 512;
+    platform->audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (platform->audio_device == 0) {
+      diag_warn("SDL audio device unavailable (%s); continuing silent.", SDL_GetError());
+    } else {
+      platform->audio_enabled = true;
+      diag_info("SDL audio opened: freq=%d channels=%d format=0x%x (mixer playback not wired yet)",
+        have.freq, have.channels, have.format);
+      SDL_PauseAudioDevice(platform->audio_device, 1);
+    }
+  } else {
+    diag_info("Audio disabled (--nosound or build without COLONIZE_ENABLE_AUDIO).");
+  }
+
   return platform;
 }
 
 void platform_destroy(ColonizePlatform* platform) {
   if (!platform) {
     return;
+  }
+  if (platform->audio_device != 0) {
+    SDL_CloseAudioDevice(platform->audio_device);
+    platform->audio_device = 0;
   }
   free(platform->rgba_buffer);
   if (platform->texture) {
