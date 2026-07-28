@@ -55,6 +55,39 @@ The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu 
 
 `.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`.
 
+`.FF` fonts (e.g. `FONTSMAL.FF`, `FONTTINY.FF`) are single-section MADSPACK files. After decompression:
+
+| Offset | Size | Content |
+|--------|------|---------|
+| 0 | 1 | `max_height` |
+| 1 | 1 | `max_width` |
+| 2 | 128 | glyph widths for code points 1–127 |
+| 130 | 256 | glyph offsets (u16 for code points 1–127, plus padding) |
+| 386 | ... | 2-bit-per-pixel glyph data (4 pixels per byte) |
+
+Palette indices used by glyphs: `0` = transparent, `1` = `0x0F`, `2` = `0x07`, `3` = `0x08`.
+
+## World Map (`.MP`)
+
+Colonization scenario maps (e.g. `AMER2.MP`) are raw binary files:
+
+| Offset | Size | Content |
+|--------|------|---------|
+| 0 | 1 | map width |
+| 1 | 1 | unknown (always 0) |
+| 2 | 1 | map height |
+| 3 | 3 | unknown header padding |
+| 6 | W×H | terrain layer |
+| 6+W×H | W×H | layer 2 (unused in shipped maps) |
+| 6+2×W×H | W×H | layer 3 (fog / visibility in-game) |
+
+Each terrain byte:
+
+- bits 0–4: terrain index 0–26 (tundra … high seas; see FreeCol `ColonizationMapLoader`)
+- bits 5–7: overlay (0=none, 1=hill, 2=minor river, 5=mountain, 6=major river, …)
+
+The Linux port maps terrain indices to `TERRAIN.SS` sprites (12 base tiles). Hill/river/mountain overlays from `PHYS0.SS` are not yet drawn.
+
 | Extension | Typical use |
 |-----------|-------------|
 | `.PIK` | Packed pictures / backgrounds |

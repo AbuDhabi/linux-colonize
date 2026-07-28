@@ -101,6 +101,9 @@ static const uint8_t FONT5X7[95][5] = {
   {0x10,0x08,0x08,0x10,0x08}
 };
 
+/* Original game font uses three green shades; index 0 is transparent. */
+static const uint8_t FF_COLOR_MAP[4] = {0, 0x0F, 0x07, 0x08};
+
 static void put_pixel(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
   if (!fb || !fb->pixels || x < 0 || y < 0 || x >= fb->width || y >= fb->height) {
     return;
@@ -108,7 +111,70 @@ static void put_pixel(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
   fb->pixels[y * fb->width + x] = color;
 }
 
+static void draw_ff_glyph(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  unsigned char ch,
+  uint8_t color
+) {
+  if (ch >= 128 || font->char_widths[ch] == 0) {
+    return;
+  }
+
+  const int width = font->char_widths[ch];
+  const int height = font->max_height;
+  size_t pos = font->char_offsets[ch];
+  if (pos >= font->section_size) {
+    return;
+  }
+
+  for (int row = 0; row < height; ++row) {
+    int col = 0;
+    while (col < width) {
+      if (pos >= font->section_size) {
+        return;
+      }
+      const uint8_t byte = font->section_data[pos++];
+      for (int shift = 6; shift >= 0; shift -= 2) {
+        const uint8_t shade = (uint8_t)((byte >> shift) & 0x03u);
+        if (shade != 0) {
+          const uint8_t pixel = (color == 15 || color == 7) ? FF_COLOR_MAP[shade] : color;
+          put_pixel(framebuffer, x + col, y + row, pixel);
+        }
+        col += 1;
+        if (col >= width) {
+          break;
+        }
+      }
+    }
+  }
+}
+
+static void draw_builtin_glyph(
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  unsigned char ch,
+  uint8_t color
+) {
+  if (ch < 32 || ch > 126) {
+    ch = '?';
+  }
+  const uint8_t* glyph = FONT5X7[ch - 32];
+  for (int col = 0; col < 5; ++col) {
+    uint8_t bits = glyph[col];
+    for (int row = 0; row < 7; ++row) {
+      if (bits & (1u << row)) {
+        put_pixel(framebuffer, x + col, y + row, color);
+      }
+    }
+  }
+}
+
 void font_draw_text(
+  const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
   int x,
   int y,
@@ -118,26 +184,27 @@ void font_draw_text(
   if (!framebuffer || !text) {
     return;
   }
+
+  const int line_step = font ? (font->max_height + 2) : 8;
   int cx = x;
   for (const char* p = text; *p; ++p) {
     unsigned char ch = (unsigned char)*p;
     if (ch == '\n') {
-      y += 8;
+      y += line_step;
       cx = x;
       continue;
     }
+
+    if (font && font->section_data && ch < 128) {
+      draw_ff_glyph(font, framebuffer, cx, y, ch, color);
+      cx += font->char_widths[ch];
+      continue;
+    }
+
     if (ch < 32 || ch > 126) {
       ch = '?';
     }
-    const uint8_t* glyph = FONT5X7[ch - 32];
-    for (int col = 0; col < 5; ++col) {
-      uint8_t bits = glyph[col];
-      for (int row = 0; row < 7; ++row) {
-        if (bits & (1u << row)) {
-          put_pixel(framebuffer, cx + col, y + row, color);
-        }
-      }
-    }
+    draw_builtin_glyph(framebuffer, cx, y, ch, color);
     cx += 6;
   }
 }

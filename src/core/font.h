@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
+#include "core/ff.h"
 #include "platform/platform.h"
 
 void font_draw_text(
+  const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
   int x,
   int y,

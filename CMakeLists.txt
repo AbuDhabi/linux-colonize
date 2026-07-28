@@ -29,6 +29,8 @@ add_library(colonize_core STATIC
   src/core/game_loop.c
   src/core/assets.c
   src/core/font.c
+  src/core/ff.c
+  src/core/map.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -104,6 +106,8 @@ add_executable(smoke_game_flow
   src/core/game_loop.c
   src/core/assets.c
   src/core/font.c
+  src/core/ff.c
+  src/core/map.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -111,6 +115,31 @@ add_executable(smoke_game_flow
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
+
+add_executable(smoke_map
+  tests/smoke/test_map.c
+  src/core/map.c
+  src/platform/diagnostics.c
+)
+
+target_include_directories(smoke_map PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_map COMMAND smoke_map WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_ff
+  tests/smoke/test_ff.c
+  src/core/ff.c
+  src/core/madspack.c
+  src/platform/diagnostics.c
+)
+
+target_include_directories(smoke_ff PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_ff COMMAND smoke_ff WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_ss
   tests/smoke/test_ss.c

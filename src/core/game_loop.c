@@ -7,7 +7,9 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/ff.h"
 #include "core/font.h"
+#include "core/map.h"
 #include "core/pik.h"
 #include "core/savegame.h"
 #include "core/ss.h"
@@ -34,6 +36,10 @@ struct ColonizeGameState {
   ColonizeSpriteSheet cursor;
   bool terrain_ok;
   bool cursor_ok;
+  ColonizeFont menu_font;
+  bool menu_font_ok;
+  ColonizeWorldMap world_map;
+  bool world_map_ok;
   ColonizePalette map_palette;
   bool map_palette_ok;
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
@@ -140,8 +146,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->config = *config;
   game->turn_number = 1;
   game->map_seed = 73;
-  game->map_cursor_x = 8;
-  game->map_cursor_y = 8;
+  game->map_cursor_x = 29;
+  game->map_cursor_y = 36;
   game->in_menu = true;
 
   assets_msg_init(&game->messages);
@@ -227,6 +233,40 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
 
+  char ff_path[512];
+  char ff_err[256];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "FONTSMAL.FF", ff_path, sizeof(ff_path))) {
+    if (ff_load(ff_path, &game->menu_font, ff_err, sizeof(ff_err))) {
+      game->menu_font_ok = true;
+      diag_info(
+        "Loaded menu font FONTSMAL.FF (%ux%u)",
+        game->menu_font.max_width,
+        game->menu_font.max_height
+      );
+    } else {
+      diag_warn("Failed to load FONTSMAL.FF: %s", ff_err);
+    }
+  }
+
+  char mp_path[512];
+  char mp_err[256];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "AMER2.MP", mp_path, sizeof(mp_path))) {
+    if (map_load_mp(mp_path, &game->world_map, mp_err, sizeof(mp_err))) {
+      game->world_map_ok = true;
+      game->map_cursor_x = game->world_map.width / 2;
+      game->map_cursor_y = game->world_map.height / 2;
+      diag_info(
+        "Loaded world map AMER2.MP (%ux%u), cursor at %d,%d",
+        game->world_map.width,
+        game->world_map.height,
+        game->map_cursor_x,
+        game->map_cursor_y
+      );
+    } else {
+      diag_warn("Failed to load AMER2.MP: %s", mp_err);
+    }
+  }
+
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
   dos_compat_set_tick_rate_hz(18);
@@ -240,6 +280,8 @@ void game_destroy(ColonizeGameState* game) {
   pik_free(&game->menu_bg);
   ss_free(&game->terrain);
   ss_free(&game->cursor);
+  ff_free(&game->menu_font);
+  map_free(&game->world_map);
   assets_msg_free(&game->messages);
   dos_compat_shutdown();
   free(game);
@@ -341,13 +383,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     diag_info("Advanced turn to %u", game->turn_number);
   }
 
+  const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 1 : 15;
+  const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 1 : 15;
+
   if (input->last_key == COLONIZE_KEY_UP && game->map_cursor_y > 0) {
     game->map_cursor_y--;
-  } else if (input->last_key == COLONIZE_KEY_DOWN && game->map_cursor_y < 15) {
+  } else if (input->last_key == COLONIZE_KEY_DOWN && game->map_cursor_y < map_max_y) {
     game->map_cursor_y++;
   } else if (input->last_key == COLONIZE_KEY_LEFT && game->map_cursor_x > 0) {
     game->map_cursor_x--;
-  } else if (input->last_key == COLONIZE_KEY_RIGHT && game->map_cursor_x < 15) {
+  } else if (input->last_key == COLONIZE_KEY_RIGHT && game->map_cursor_x < map_max_x) {
     game->map_cursor_x++;
   }
 
@@ -432,44 +477,82 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         }
       }
     }
-    font_draw_text(framebuffer, 70, 8, "COLONIZATION", 15);
-    font_draw_text(framebuffer, 52, 18, "Linux bring-up shell", 7);
+    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+    const int line_step = font ? (font->max_height + 4) : 12;
+    const int option_x = 48;
+    int option_y = font ? 52 : 40;
 
     for (int i = 0; i < game->menu_option_count; ++i) {
-      int y = 40 + i * 12;
+      int y = option_y + i * line_step;
       uint8_t color = (i == game->menu_selection) ? 14 : 15;
       if (i == game->menu_selection) {
+        const int bar_h = font ? font->max_height : 8;
         for (int x = 40; x < 280; ++x) {
           if (y >= 0 && y < framebuffer->height) {
             framebuffer->pixels[y * framebuffer->width + x] = 4;
           }
-          if (y + 8 >= 0 && y + 8 < framebuffer->height) {
-            framebuffer->pixels[(y + 8) * framebuffer->width + x] = 4;
+          if (y + bar_h >= 0 && y + bar_h < framebuffer->height) {
+            framebuffer->pixels[(y + bar_h) * framebuffer->width + x] = 4;
           }
         }
       }
-      font_draw_text(framebuffer, 48, y, game->menu_options[i], color);
+      font_draw_text(font, framebuffer, option_x, y, game->menu_options[i], color);
     }
-    font_draw_text(framebuffer, 36, 188, "Up/Down select  Enter start  Q quit", 15);
+    font_draw_text(font, framebuffer, 36, 188, "Up/Down select  Enter start  Q quit", 15);
     goto render_log_sample;
   }
 
-  /* Map view: tile terrain sprites and cursor overlay. */
+  /* Map view: scrollable world map with terrain sprites and cursor overlay. */
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
-  const int tile_w = framebuffer->width / 16;
-  const int tile_h = framebuffer->height / 16;
+  const int tile_w = 16;
+  const int tile_h = 16;
+  const int view_cols = framebuffer->width / tile_w;
+  const int view_rows = framebuffer->height / tile_h;
+
+  int view_x = game->map_cursor_x - view_cols / 2;
+  int view_y = game->map_cursor_y - view_rows / 2;
+  if (game->world_map_ok) {
+    const int max_view_x = (int)game->world_map.width - view_cols;
+    const int max_view_y = (int)game->world_map.height - view_rows;
+    if (view_x < 0) {
+      view_x = 0;
+    }
+    if (view_y < 0) {
+      view_y = 0;
+    }
+    if (max_view_x > 0 && view_x > max_view_x) {
+      view_x = max_view_x;
+    }
+    if (max_view_y > 0 && view_y > max_view_y) {
+      view_y = max_view_y;
+    }
+  } else {
+    view_x = 0;
+    view_y = 0;
+  }
 
   if (game->terrain_ok && game->terrain.sprite_count > 0) {
-    for (int gy = 0; gy < 16; ++gy) {
-      for (int gx = 0; gx < 16; ++gx) {
-        int sprite_index = (gx + gy + (int)game->map_seed) % game->terrain.sprite_count;
-        if (sprite_index < 0) {
+    for (int sy = 0; sy < view_rows; ++sy) {
+      for (int sx = 0; sx < view_cols; ++sx) {
+        int sprite_index;
+        if (game->world_map_ok) {
+          const int mx = view_x + sx;
+          const int my = view_y + sy;
+          if (mx < 0 || my < 0 || mx >= game->world_map.width || my >= game->world_map.height) {
+            continue;
+          }
+          const uint8_t terrain = map_get_terrain(&game->world_map, mx, my);
+          sprite_index = map_terrain_sprite(terrain);
+        } else {
+          sprite_index = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
+        }
+        if (sprite_index < 0 || sprite_index >= game->terrain.sprite_count) {
           sprite_index = 0;
         }
         const ColonizeSprite* tile = &game->terrain.sprites[sprite_index];
-        int ox = gx * tile_w + (tile_w - tile->width) / 2;
-        int oy = gy * tile_h + (tile_h - tile->height) / 2;
+        const int ox = sx * tile_w + (tile_w - tile->width) / 2;
+        const int oy = sy * tile_h + (tile_h - tile->height) / 2;
         ss_blit_sprite(&game->terrain, sprite_index, framebuffer, ox, oy);
       }
     }
@@ -484,12 +567,14 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   }
 
   if (game->cursor_ok && game->cursor.sprite_count > 0) {
-    int cx = game->map_cursor_x * tile_w;
-    int cy = game->map_cursor_y * tile_h;
+    const int cx = (game->map_cursor_x - view_x) * tile_w;
+    const int cy = (game->map_cursor_y - view_y) * tile_h;
     ss_blit_sprite(&game->cursor, 0, framebuffer, cx, cy);
   } else {
-    for (int y = game->map_cursor_y * tile_h; y < (game->map_cursor_y + 1) * tile_h; ++y) {
-      for (int x = game->map_cursor_x * tile_w; x < (game->map_cursor_x + 1) * tile_w; ++x) {
+    const int cx0 = (game->map_cursor_x - view_x) * tile_w;
+    const int cy0 = (game->map_cursor_y - view_y) * tile_h;
+    for (int y = cy0; y < cy0 + tile_h; ++y) {
+      for (int x = cx0; x < cx0 + tile_w; ++x) {
         if (x >= 0 && x < framebuffer->width && y >= 0 && y < framebuffer->height) {
           framebuffer->pixels[y * framebuffer->width + x] = 14;
         }
@@ -497,9 +582,23 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     }
   }
 
-  char hud[64];
-  snprintf(hud, sizeof(hud), "Turn %u  Esc=menu", game->turn_number);
-  font_draw_text(framebuffer, 4, 4, hud, 15);
+  char hud[96];
+  if (game->world_map_ok) {
+    const uint8_t terrain = map_get_terrain(&game->world_map, game->map_cursor_x, game->map_cursor_y);
+    snprintf(
+      hud,
+      sizeof(hud),
+      "Turn %u  (%d,%d) t=0x%02x  Esc=menu",
+      game->turn_number,
+      game->map_cursor_x,
+      game->map_cursor_y,
+      terrain
+    );
+  } else {
+    snprintf(hud, sizeof(hud), "Turn %u  Esc=menu", game->turn_number);
+  }
+  const ColonizeFont* hud_font = game->menu_font_ok ? &game->menu_font : NULL;
+  font_draw_text(hud_font, framebuffer, 4, 4, hud, 15);
 
 render_log_sample:
   render_log_counter++;
