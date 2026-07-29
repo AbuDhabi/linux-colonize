@@ -132,17 +132,27 @@ int main(void) {
     {4, 18, 5, 1, {99}},
     {24, 19, 4, 1, {52}},
     {24, 20, 4, 1, {56}},
-    /* Coast corners: only-sea in each 2×2 → PHYS (sheet art is 180°-opposed). */
-    {6, 14, 10, 4, {153, 152, 151, 150}},
-    {23, 2, 10, 1, {153}}, /* SE only */
-    {8, 2, 10, 1, {152}},  /* SW only */
-    {1, 3, 10, 1, {151}},  /* NE only */
-    {18, 2, 10, 1, {150}}, /* NW only */
-    /* Diagonal checkerboard 2×2 (two diagonal land, far corner sea) → 128–131. */
-    {33, 6, 10, 1, {130}}, /* SE diagonal */
-    {9, 25, 10, 1, {131}}, /* SW diagonal */
-    {8, 26, 10, 1, {129}}, /* NE diagonal */
-    {34, 7, 10, 1, {128}}, /* NW diagonal */
+    /* 4-quadrant 8x8 coast system (sprites 108-139, groups of 8 per quadrant).
+     * Each ocean tile gets up to 4 quadrant overlays (NW=108, NE=116, SW=124, SE=132).
+     * 3-bit variant: bit0=first-cardinal-land, bit1=second-cardinal-land, bit2=diag-land. */
+    /* (6,14): ocean with land on all 4 cardinal sides -> all quadrants fully set. */
+    {6, 14, 10, 4, {115, 123, 131, 139}},
+    /* (23,2): ocean with land only to the E -> NE+SW+SE quadrants. */
+    {23, 2, 10, 3, {118, 125, 139}},
+    /* (8,2): ocean with land only to the W -> NW+NE+SW+SE quadrants. */
+    {8, 2, 10, 4, {114, 120, 131, 138}},
+    /* (1,3): ocean with land only to the N -> NW+NE+SE quadrants. */
+    {1, 3, 10, 3, {109, 123, 133}},
+    /* (18,2): ocean with land only to the W+NW -> NW+NE+SW quadrants. */
+    {18, 2, 10, 3, {115, 117, 130}},
+    /* (33,6): ocean with diagonal land to SE -> all 4 quadrants. */
+    {33, 6, 10, 4, {112, 118, 125, 135}},
+    /* (9,25): ocean with diagonal land to SW -> all 4 quadrants. */
+    {9, 25, 10, 4, {110, 120, 127, 134}},
+    /* (8,26): ocean with diagonal land to NE -> NW+NE+SE quadrants. */
+    {8, 26, 10, 3, {113, 119, 133}},
+    /* (34,7): ocean with diagonal land to NW -> NW+NE+SW+SE quadrants. */
+    {34, 7, 10, 4, {111, 121, 126, 136}},
     /* Regression anchors from earlier passes. */
     {9, 26, 1, 1, {48}},
     {16, 3, 0, 1, {23}},

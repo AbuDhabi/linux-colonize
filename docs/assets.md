@@ -159,16 +159,18 @@ When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses moun
 
 Forests on other rows, roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
-**Coastal ocean** (fixture-backed bring-up; still not matched to a recovered DOS PHYS0 compositor — unpacked exports recovered viewport orchestration only; see [decomp_inventory.md](decomp_inventory.md)):
+**Coastal ocean — parked (cosmetic).** The port draws a **best-effort** 4-quadrant 8×8 heuristic on ocean tiles (sprites 108–139, see `map_phys0_coast_collect()` in `src/core/map.c`). It does **not** match the DOS game; iteration is stopped until map fidelity is prioritized. Research notes, save-state buffer addresses, and a resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**).
 
-| Pattern | PHYS0 | Size |
-|---------|-------|------|
-| Only sea in 2×2 (3 land) SE/SW/NE/NW | 153 / 152 / 151 / 150 | 16×16 |
-| Diagonal checkerboard (2 land on anti-diagonal, far corner sea) SE/SW/NE/NW | 130 / 131 / 129 / 128 | 8×8 in that quadrant |
+Prior documented models (also wrong / superseded):
 
-(Sheet artwork sits opposite the land corner — equivalent to flipping each piece on both axes.) Corners stack. AMER2 `(6,14)` → **153+152+151+150**. Diagonal examples: `(33,6)`→130, `(9,25)`→131, `(8,26)`→129, `(34,7)`→128. Other 8×8 coastline bands (112–127, 132–139) and animation frames (140–147) are not drawn yet.
+| Model | PHYS0 | Status |
+|-------|-------|--------|
+| 2×2 full/diagonal corners | 150–153 (16×16), 128–131 (8×8) | Removed from code; do not revive without DOS proof |
+| 4-quadrant neighbour mask | 108–139 (8×8) | **Current code**; smoke-tested only |
 
-Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md). **Deferred work** on recovering the real DOS compositor is tracked in [decomp_inventory.md](decomp_inventory.md).
+Land-side shore (140–153), animation frames (140–147), and per-tile texture variation from DOS RAM buffers are not drawn.
+
+Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
 
 ### Colonizopedia terrain preview
 

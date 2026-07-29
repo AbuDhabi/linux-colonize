@@ -83,65 +83,55 @@ port I/O in the native build.
   DOS typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
   (see `docs/viceroy_tables.md`)
-- World map view: terrain + partial PHYS0 overlays (coasts, some forests/hills/rivers) —
-  good enough for bring-up; see **Deferred: map compositor** below (unpacked decomp
-  recovered viewport code, not PHYS0 sprite selection)
+- World map view: terrain + PHYS0 overlays (forests, hills, rivers) — playable bring-up
+- **Coastlines: parked** — best-effort 4-quadrant heuristic in `src/core/map.c`; visibly wrong, cosmetic only (see **Parked: coastlines** below)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + select/move + deploy dock immigrants (press **D**; see `src/core/units.c`)
 
-## Deferred: map compositor
+## Parked: coastlines
 
-Map rendering is intentionally parked. The Linux path in `src/core/map.c` is
-fixture-driven and incomplete (missing coast edge bands 112–127 / 132–139,
-animation 140–147, generalized forests, roads/resources/fog, accurate river/hill
-connectivity).
+**Decision (2026-07):** Stop iterating on shoreline art. Wrong coast rendering does not block gameplay (units, colonies, Europe, turn flow). Revisit only when map fidelity is explicitly prioritized.
 
-### Call chain (packed vs unpacked)
+### What the Linux port does today
 
-World-map refresh still enters through **`FUN_281f_*`** stubs (e.g.
-`FUN_281f_0e38` from `FUN_1984_010a`). Those symbols remain thin RTLink
-thunks via `FUN_210d_0dab` / `FUN_210d_0d91` (“smart vectoring”; `VICEROY.EXE`
-contains the `RTLink` / `call to Vector … in Page …` strings).
+`map_phys0_coast_collect()` in `src/core/map.c` blits up to four 8×8 `PHYS0.SS` fragments (sprites 108–139) on **ocean** tiles only, one per tile quadrant (NW/NE/SW/SE), using a 3-bit land-neighbour mask per quadrant. Smoke fixtures in `tests/smoke/test_map.c` lock this behaviour. **Do not treat those fixtures as ground truth for DOS fidelity** — they document the current heuristic, not the original game.
 
-In the **packed** exports (`viceroy.c` / `viceroy.asm`), the far jump targets
-inside overlay pages were never loaded — segment `CODE_99` / `0x281f` is mostly
-stubs and `??` bytes.
+Land-side shore sprites (140–153) are not drawn. Texture-variation overlays from the DOS precomputed buffers are not implemented.
 
-In the **unpacked** exports, those thunks resolve to real overlay functions:
+### Research already done (keep when resuming)
 
-| Symbol | Role (as recovered) |
-|--------|---------------------|
-| `FUN_6a9f_0360` | Viewport clip + refresh orchestrator (~56×39 tiles) |
-| `FUN_6a9f_0118` | Per-tile loop: read map layers (`FUN_137f_*` via thunks), write **one display byte** per cell using tables `0xa576` / `0x848` |
-| `FUN_6b22_04bc` | Unit markers over the viewport |
-| `FUN_137f_*` | Map-cell address / layer getters (real bodies) |
-| `FUN_157e_004a` | Unit art: `0x5235` / `0x5236` × 8 → sprite index (not terrain coasts) |
+Full 640 KB conventional RAM from DOSBox-X save state (`dosbox_save_state_2/Memory`; header skip `0x88` bytes before linear RAM):
 
-So unpacking recovered **map viewport orchestration**, not the TERRAIN.SS /
-PHYS0.SS **sprite compositor**.
+| Linear addr | Size | Contents |
+|-------------|------|----------|
+| `0x0324d0` | `map_w × map_h` | Per-tile byte → `PHYS0.SS` sprite index (overlay / variation) |
+| `0x0328f0` | `map_w × map_h` | Second per-tile `PHYS0` index buffer (texture variation; not coast direction) |
 
-### What is still missing
+Findings from correlating AMER2.MP terrain with those buffers:
 
-- No decompiled neighbor-mask → PHYS0 index path for coasts **112–153**
-  (or forests / hills / rivers as drawn on the world map).
-- DS table `0x5599` (`connectivity_transition`) still absent from the C export
-  (BSS / runtime-initialized in the packed DATA listing).
-- `0x54de` (`river_transition`) appears in unit/UI-ish paths (e.g. around
-  `FUN_112b_010e`), not in `FUN_6a9f_0118`.
-- `FUN_6a9f_0118` fills an attribute/color tile buffer; the leaf that blits
-  TERRAIN/PHYS0 sprites from those (or related) values is not yet identified.
+- Values `0x80`–`0x8A` (sprites 128–138) appear on **both** coast and interior tiles with **no** stable mapping to a 4-neighbour ocean mask — they behave like **random texture variation**, not directional coast indices.
+- Open ocean often uses `0x3c`–`0x3e` (sprites 60–62) or `0x00` / `0x44` (no overlay / sprite 68).
+- Sprite 149 (`0x95`) appears at river mouths; not wired in the port.
+- Unpacked decomp recovered viewport orchestration (`FUN_6a9f_0360`, `FUN_6a9f_0118`), not the leaf that picks coast sprites. RTLink thunks `FUN_210d_0dab` / `FUN_210d_0d91` still gate overlay pages.
 
-### When revisiting map fidelity
+`PHYS0.SS` layout (154 sprites): 108–139 = 8×8; 140–153 = 16×16. See [assets.md](assets.md).
 
-1. Work from **`viceroy_unpacked.*`**, starting at `FUN_6a9f_0360` /
-   `FUN_6a9f_0118`, and find who consumes the per-tile buffer (or who calls
-   SS blit with PHYS0 indices).
-2. DOSBox-break on PHYS0 blit with sprite IDs 112–153 and backtrace into the
-   loaded image — still the most direct way to name the leaf compositor.
+Static table `connectivity_transition` at EXE offset `0x5599` (`src/data/viceroy_tables.*`) is a candidate for coast variant selection but was **not** validated against live output. Prior 2×2-corner model (150–153 / 128–131) was replaced by the quadrant heuristic and also looked wrong in-game.
 
-Until then: keep existing smoke fixtures green; do not expand coast heuristics
-unless a user-reported tile is clearly wrong for playability. Static tables in
-`src/data/viceroy_tables.*` still need validation against that leaf once found.
+### Checklist when resuming coast work
+
+1. **Ground truth** — Side-by-side DOSBox-X vs Linux screenshot at the same AMER2 view (e.g. cursor ~39,10); note specific wrong tiles.
+2. **Breakpoints** — In DOSBox-X, break on blit/write when sprite index ∈ [108,153] and backtrace through loaded overlay (not packed `viceroy.c` stubs). User reports breakpoints were unreliable; save-state RAM diff may be easier.
+3. **Buffer consumer** — Find code that **writes** `0x0324d0` / `0x0328f0` (search for stores into those regions, or follow `FUN_6a9f_0118` consumers).
+4. **Validate tables** — Compare `connectivity_transition` and overlay nibble paths against live buffer bytes on coast tiles only (filter tiles where land/ocean neighbours differ).
+5. **Land-side art** — Add 140–153 (and quadrant placement rules) once ocean-side rules are confirmed.
+6. **Tests** — Replace or supplement `tests/smoke/test_map.c` coast fixtures with captures from DOS reference buffers, not hand-derived quadrant math.
+
+### Other map compositor gaps (unchanged priority)
+
+- Texture variation overlays (per-tile random `PHYS0` variants from DOS buffers)
+- Roads, resources, fog-of-war
+- River/hill connectivity vs `viceroy_tables` (partially heuristic today)
 

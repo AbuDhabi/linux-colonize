@@ -14,9 +14,9 @@
  *   bit 4 (16): hill/mountain base flag (with bits 0-2)
  *   bits 5-7: hill / river / mountain overlays
  *
- * PHYS0 selection is fixture-driven / partially table-backed for bring-up.
- * TODO(later): replace heuristics by recovering DOS compositor FUN_281f_*
- * (stubs in viceroy.c) — see docs/decomp_inventory.md “Deferred: map compositor”.
+ * Coastlines: best-effort 4-quadrant PHYS0 overlays on ocean tiles only.
+ * PARKED — wrong vs DOS, cosmetic only. Do not extend without DOS ground truth.
+ * See docs/decomp_inventory.md "Parked: coastlines".
  */
 
 #define PHYS0_MAJOR_RIVER_FIRST 1
@@ -30,17 +30,13 @@
 #define PHYS0_MOUNTAIN_ISOLATED 36
 #define PHYS0_BOREAL_TRANSITION 40
 #define PHYS0_TROPICAL_TIMBER 99
-/* Sheet art is opposite the land corner (180° / flip H+V vs NE/NW/SE/SW mass). */
-#define PHYS0_COAST_SE 153
-#define PHYS0_COAST_SW 152
-#define PHYS0_COAST_NE 151
-#define PHYS0_COAST_NW 150
-/* 8×8 diagonal (checkerboard) fragments — same 180° opposition as 150–153. */
-#define PHYS0_COAST_DIAG_SE 130
-#define PHYS0_COAST_DIAG_SW 131
-#define PHYS0_COAST_DIAG_NE 129
-#define PHYS0_COAST_DIAG_NW 128
-#define PHYS0_COAST_QUAD 8
+/* 4-quadrant 8x8 coast fragments — PARKED heuristic; see docs/decomp_inventory.md */
+#define PHYS0_COAST_NW_BASE 108
+#define PHYS0_COAST_NE_BASE 116
+#define PHYS0_COAST_SW_BASE 124
+#define PHYS0_COAST_SE_BASE 132
+#define PHYS0_COAST_QUAD_PX 8  /* pixels per quadrant side */
+#define COAST_QUADS 4
 
 #define MAP_TUNDRA_ROW 0
 #define MAP_SCRUB_FOREST_INDEX 9
@@ -224,11 +220,11 @@ typedef struct CoastOverlay {
 } CoastOverlay;
 
 /*
- * Coastal ocean overlays from 2×2 neighborhoods (this tile is the sea cell):
- *   Full corner (3 land): PHYS0 150–153 (16×16), sheet art 180°-opposed
- *   Diagonal checkerboard (2 diagonal land + far corner sea): PHYS0 128–131 (8×8)
- * Multiple corners stack. 8×8 pieces blit into the matching tile quadrant.
- * Remaining coast bands / DOS compositor: deferred (docs/decomp_inventory.md).
+ * 4-quadrant coast system (derived from live VICEROY.EXE RAM analysis):
+ * PHYS0 sprites 108-139 are 8x8 coast fragments.
+ * For each ocean tile, up to 4 quadrant overlays are emitted.
+ * Each quadrant variant = 3-bit mask of which relevant neighbours are land.
+ * Variant 0 = no art needed for that quadrant.
  */
 static int map_phys0_coast_collect(const ColonizeWorldMap* map, int x, int y, CoastOverlay* out, int max_out) {
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
@@ -236,71 +232,57 @@ static int map_phys0_coast_collect(const ColonizeWorldMap* map, int x, int y, Co
     return 0;
   }
 
-  int count = 0;
-  const int land_e = map_is_land_at(map, x + 1, y) ? 1 : 0;
-  const int land_w = map_is_land_at(map, x - 1, y) ? 1 : 0;
-  const int land_s = map_is_land_at(map, x, y + 1) ? 1 : 0;
-  const int land_n = map_is_land_at(map, x, y - 1) ? 1 : 0;
+  const int n  = map_is_land_at(map, x,     y - 1) ? 1 : 0;
+  const int e  = map_is_land_at(map, x + 1, y)     ? 1 : 0;
+  const int s  = map_is_land_at(map, x,     y + 1) ? 1 : 0;
+  const int w  = map_is_land_at(map, x - 1, y)     ? 1 : 0;
+  const int nw = map_is_land_at(map, x - 1, y - 1) ? 1 : 0;
+  const int ne = map_is_land_at(map, x + 1, y - 1) ? 1 : 0;
+  const int sw = map_is_land_at(map, x - 1, y + 1) ? 1 : 0;
+  const int se = map_is_land_at(map, x + 1, y + 1) ? 1 : 0;
 
-  /* SE */
-  if (land_e && land_s) {
-    if (map_is_land_at(map, x + 1, y + 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_SE, 0, 0};
-      }
-    } else if (map_is_water_at(map, x + 1, y + 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_DIAG_SE, PHYS0_COAST_QUAD, PHYS0_COAST_QUAD};
-      }
+  int count = 0;
+
+  /* NW quadrant: bit0=N, bit1=W, bit2=NW */
+  {
+    const int v = n | (w << 1) | (nw << 2);
+    if (v && count < max_out) {
+      out[count++] = (CoastOverlay){PHYS0_COAST_NW_BASE + v, 0, 0};
     }
   }
-  /* SW */
-  if (land_w && land_s) {
-    if (map_is_land_at(map, x - 1, y + 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_SW, 0, 0};
-      }
-    } else if (map_is_water_at(map, x - 1, y + 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_DIAG_SW, 0, PHYS0_COAST_QUAD};
-      }
+  /* NE quadrant: bit0=N, bit1=E, bit2=NE */
+  {
+    const int v = n | (e << 1) | (ne << 2);
+    if (v && count < max_out) {
+      out[count++] = (CoastOverlay){PHYS0_COAST_NE_BASE + v, PHYS0_COAST_QUAD_PX, 0};
     }
   }
-  /* NE */
-  if (land_e && land_n) {
-    if (map_is_land_at(map, x + 1, y - 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_NE, 0, 0};
-      }
-    } else if (map_is_water_at(map, x + 1, y - 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_DIAG_NE, PHYS0_COAST_QUAD, 0};
-      }
+  /* SW quadrant: bit0=S, bit1=W, bit2=SW */
+  {
+    const int v = s | (w << 1) | (sw << 2);
+    if (v && count < max_out) {
+      out[count++] = (CoastOverlay){PHYS0_COAST_SW_BASE + v, 0, PHYS0_COAST_QUAD_PX};
     }
   }
-  /* NW */
-  if (land_w && land_n) {
-    if (map_is_land_at(map, x - 1, y - 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_NW, 0, 0};
-      }
-    } else if (map_is_water_at(map, x - 1, y - 1)) {
-      if (count < max_out) {
-        out[count++] = (CoastOverlay){PHYS0_COAST_DIAG_NW, 0, 0};
-      }
+  /* SE quadrant: bit0=E, bit1=S, bit2=SE */
+  {
+    const int v = e | (s << 1) | (se << 2);
+    if (v && count < max_out) {
+      out[count++] = (CoastOverlay){PHYS0_COAST_SE_BASE + v, PHYS0_COAST_QUAD_PX, PHYS0_COAST_QUAD_PX};
     }
   }
+
   return count;
 }
 
 static int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y) {
-  CoastOverlay unused[4];
-  return map_phys0_coast_collect(map, x, y, unused, 4);
+  CoastOverlay unused[COAST_QUADS];
+  return map_phys0_coast_collect(map, x, y, unused, COAST_QUADS);
 }
 
 static CoastOverlay map_phys0_coast_layer_at(const ColonizeWorldMap* map, int x, int y, int layer) {
-  CoastOverlay layers[4];
-  const int count = map_phys0_coast_collect(map, x, y, layers, 4);
+  CoastOverlay layers[COAST_QUADS];
+  const int count = map_phys0_coast_collect(map, x, y, layers, COAST_QUADS);
   if (layer < 0 || layer >= count) {
     return (CoastOverlay){-1, 0, 0};
   }

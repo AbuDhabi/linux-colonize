@@ -72,16 +72,14 @@ Small base-index tables immediately after the river transition table:
 
 ### `connectivity_transition` (21 bytes)
 
-Likely related to the **112–139** 8×8 coastline fragment band (animation / edge variants).
-Diagonal checkerboard coasts use PHYS0 **128–131** directly; full corners use **150–153**.
-`connectivity_transition` itself is not currently indexed by the Linux map compositor
-(see [assets.md](assets.md)).
+Candidate for coastline / connectivity variant selection (sprites in the 112–139 band).
+**Not wired** in the Linux port; coast work is **parked** — see [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**). Live RAM analysis showed per-tile `PHYS0` buffer bytes do not map cleanly to a simple neighbour mask; validate this table against DOS output before indexing it from `map.c`.
 
 ### Linux compositor usage
 
 | Table | Wired? | Notes |
 |-------|--------|-------|
-| `connectivity_transition` | no | Candidate for 8×8 coastline; not seen in unpacked map viewport path |
+| `connectivity_transition` | no | Coast parked; candidate table — needs DOS validation |
 | `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
 | `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |
 | `feature_sprite_bases_a` | no | Deferred with map compositor |
