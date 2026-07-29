@@ -81,15 +81,22 @@ Diagonal checkerboard coasts use PHYS0 **128–131** directly; full corners use 
 
 | Table | Wired? | Notes |
 |-------|--------|-------|
-| `connectivity_transition` | no | Candidate for 8×8 coastline; deferred with FUN_281f recovery |
+| `connectivity_transition` | no | Candidate for 8×8 coastline; not seen in unpacked map viewport path |
 | `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
-| `river_transition` | no | Indexed by runtime `0x314c` in UI paths; not map connectivity |
+| `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |
 | `feature_sprite_bases_a` | no | Deferred with map compositor |
 | `terrain_meta` class | pedia | Mountains/hills class flags |
 
-## References in `viceroy.c`
+## References in decomp exports
 
-- `FUN_157e_*` — reads `0x5235` / `0x5236`, multiplies by 8 for PHYS0 sprite index
+Prefer `viceroy_unpacked.c` for overlay-resident code; packed `viceroy.c` lacks
+`FUN_6a9f_*` / `FUN_6b22_*`. See [decomp_inventory.md](decomp_inventory.md).
+
+- `FUN_157e_*` — reads `0x5235` / `0x5236`, multiplies by 8 for **unit** PHYS0
+  sprite index (not world-map coast composition)
+- `FUN_112b_010e` (and similar) — `0x54de` river table with unit records
 - case `0x10` — `0x54de` river table, `0x543f` terrain class checks
 - `FUN_1427_065a` — reads `0x5234` / `0x5237` for layer counts
-- `FUN_15eb_06d2` — Colonizopedia mini-map uses the same compositor as the world map
+- `FUN_6a9f_0118` — map viewport tile loop uses `0xa576` / `0x848`, not these
+  PHYS0 coast tables
+- `FUN_15eb_06d2` — Colonizopedia mini-map shares world-map drawing entry points

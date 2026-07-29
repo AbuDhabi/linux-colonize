@@ -159,7 +159,7 @@ When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses moun
 
 Forests on other rows, roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
-**Coastal ocean** (fixture-backed bring-up; not yet matched to recovered DOS compositor code):
+**Coastal ocean** (fixture-backed bring-up; still not matched to a recovered DOS PHYS0 compositor — unpacked exports recovered viewport orchestration only; see [decomp_inventory.md](decomp_inventory.md)):
 
 | Pattern | PHYS0 | Size |
 |---------|-------|------|
