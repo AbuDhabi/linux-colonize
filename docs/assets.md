@@ -195,9 +195,10 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 |-----|--------|
 | Enter | Select unit under cursor, or move selected unit to cursor (1 tile, costs movement) |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
+| B | Found a colony on the cursor tile using the unit there (unit is consumed) |
 | Space | End turn (refreshes unit movement points) |
 
-A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game. Europe still keeps dock immigrants until deployed with **D**.
+A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game. Europe still keeps dock immigrants until deployed with **D**. Press **B** with a unit on a land tile to found a colony (unit is consumed; name comes from `COLONY.TXT @ENGLISH`).
 
 | Extension | Typical use |
 |-----------|-------------|

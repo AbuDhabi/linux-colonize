@@ -15,6 +15,7 @@
 #include "core/pik.h"
 #include "core/savegame.h"
 #include "core/ss.h"
+#include "core/colony.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -56,6 +57,8 @@ struct ColonizeGameState {
   bool names_ok;
   ColonizeUnitPool units;
   bool units_ok;
+  ColonizeColonyPool colonies;
+  bool colonies_ok;
   ColonizeWorldMap world_map;
   bool world_map_ok;
   ColonizePalette map_palette;
@@ -86,6 +89,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_R: return "R";
     case COLONIZE_KEY_T: return "T";
     case COLONIZE_KEY_D: return "D";
+    case COLONIZE_KEY_B: return "B";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -446,6 +450,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   assets_msg_init(&game->pedia);
   assets_msg_init(&game->names);
   units_reset(&game->units);
+  colonies_init(&game->colonies);
 
   if (!assets_resolve_data_dir(config->data_dir, game->resolved_data_dir, sizeof(game->resolved_data_dir))) {
     /* Keep resolved path even if missing so errors remain actionable. */
@@ -486,6 +491,11 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     } else {
       diag_warn("Failed to parse NAMES.TXT");
     }
+  }
+
+  char colony_txt[512];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "COLONY.TXT", colony_txt, sizeof(colony_txt))) {
+    game->colonies_ok = colonies_load_names(&game->colonies, colony_txt);
   }
 
   char pedia_txt[512];
@@ -669,7 +679,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   snprintf(
     game->status,
     sizeof(game->status),
-    "Map: arrows cursor, Enter select/move, D deploy immigrant, E Europe"
+    "Map: arrows cursor, Enter select/move, B found colony, D deploy, E Europe"
   );
 }
 
@@ -900,6 +910,42 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           game->map_cursor_x,
           game->map_cursor_y
         );
+      }
+    }
+  }
+
+  /* B: found a colony using the selected Pioneer (or any unit at cursor). */
+  if (input->last_key == COLONIZE_KEY_B && game->world_map_ok) {
+    const int cx = game->map_cursor_x;
+    const int cy = game->map_cursor_y;
+    if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
+      set_status(game, "Cannot found colony here", NULL);
+    } else {
+      /* A founding unit must be present at the cursor. */
+      const int uid = units_id_at(&game->units, cx, cy);
+      if (uid < 0) {
+        set_status(game, "No unit at cursor to found colony", NULL);
+      } else {
+        const int cid = colonies_found(&game->colonies, &game->world_map, cx, cy);
+        if (cid >= 0) {
+          const ColonizeColony* col = colonies_get(&game->colonies, cid);
+          /* Remove the founding unit (consumed by construction). */
+          ColonizeUnit* founder = units_get(&game->units, uid);
+          if (founder) {
+            founder->active = false;
+            if (game->units.selected_id == uid) {
+              game->units.selected_id = -1;
+            }
+          }
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "Founded %s at (%d,%d)",
+            col ? col->name : "colony",
+            cx,
+            cy
+          );
+        }
       }
     }
   }
@@ -1179,6 +1225,21 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       &game->units,
       &game->unit_icons,
       framebuffer,
+      view_x,
+      view_y,
+      view_cols,
+      view_rows,
+      tile_w,
+      tile_h
+    );
+  }
+
+  if (game->colonies_ok || game->colonies.colony_count > 0) {
+    colonies_render_on_map(
+      &game->colonies,
+      game->unit_icons_ok ? &game->unit_icons : NULL,
+      framebuffer,
+      game->menu_font_ok ? &game->menu_font : NULL,
       view_x,
       view_y,
       view_cols,
