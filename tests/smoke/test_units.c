@@ -171,6 +171,206 @@ int main(void) {
     return 1;
   }
 
+  /* Respawn a caravel next to the pioneer and exercise boarding. */
+  int unload_x = land_x;
+  int unload_y = land_y;
+  {
+    int bx = -1;
+    int by = -1;
+    if (!units_find_water_tile(&pool, &map, starter->x, starter->y, -1, &bx, &by)) {
+      fprintf(stderr, "no water for boarding test\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Prefer an adjacent water tile so board adjacency succeeds. */
+    bool adjacent = false;
+    for (int dy = -1; dy <= 1 && !adjacent; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const int tx = starter->x + dx;
+        const int ty = starter->y + dy;
+        if (map_tile_is_water(&map, tx, ty) && units_id_at(&pool, tx, ty) < 0) {
+          bx = tx;
+          by = ty;
+          adjacent = true;
+          break;
+        }
+      }
+    }
+    if (!adjacent) {
+      fprintf(stderr, "no adjacent water tile for boarding\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ship_id = units_spawn(&pool, caravel, bx, by);
+    if (ship_id < 0) {
+      fprintf(stderr, "respawn caravel failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int land_id = starter->id;
+    const int land_tile_x = starter->x;
+    const int land_tile_y = starter->y;
+    if (!units_board(&pool, land_id, ship_id)) {
+      fprintf(stderr, "board failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* boarded = units_get(&pool, land_id);
+    ColonizeUnit* carrier = units_get(&pool, ship_id);
+    if (!boarded || !carrier || boarded->aboard_ship_id != ship_id ||
+        carrier->cargo_count != 1 || units_id_at(&pool, land_tile_x, land_tile_y) >= 0) {
+      fprintf(stderr, "board state incorrect\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (units_try_move(&pool, land_id, &map, land_tile_x, land_tile_y)) {
+      fprintf(stderr, "boarded unit should not move on map\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    int cargo_types[COLONIZE_UNIT_CARGO_MAX];
+    int cargo_count = 0;
+    int exported_type = -1;
+    char exported_name[32];
+    const int count_before_sail = pool.unit_count;
+    if (!units_despawn_ship_with_cargo(
+          &pool,
+          ship_id,
+          &exported_type,
+          exported_name,
+          sizeof(exported_name),
+          cargo_types,
+          &cargo_count,
+          COLONIZE_UNIT_CARGO_MAX
+        )) {
+      fprintf(stderr, "despawn_ship_with_cargo failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (exported_type != caravel || cargo_count != 1 || cargo_types[0] != pioneer ||
+        pool.unit_count != count_before_sail - 2 || units_get(&pool, land_id) != NULL) {
+      fprintf(
+        stderr,
+        "sail cargo export wrong (type=%d cargo=%d units=%d)\n",
+        exported_type,
+        cargo_count,
+        pool.unit_count
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    int hx = 0;
+    int hy = 0;
+    if (!units_find_high_seas_tile(&pool, &map, 39, 10, &hx, &hy)) {
+      fprintf(stderr, "no high seas for cargo respawn\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int returned = units_spawn_ship_with_cargo(
+      &pool, caravel, hx, hy, cargo_types, cargo_count
+    );
+    if (returned < 0) {
+      fprintf(stderr, "spawn_ship_with_cargo failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* returned_ship = units_get(&pool, returned);
+    if (!returned_ship || returned_ship->cargo_count != 1) {
+      fprintf(stderr, "returned ship missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int pax_id = returned_ship->cargo_ids[0];
+    ColonizeUnit* pax = units_get(&pool, pax_id);
+    if (!pax || pax->aboard_ship_id != returned || pax->type_index != pioneer ||
+        units_is_on_map(pax)) {
+      fprintf(stderr, "returned passenger state wrong\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* Find adjacent land for unload. */
+    int ux = -1;
+    int uy = -1;
+    for (int dy = -1; dy <= 1 && ux < 0; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const int tx = returned_ship->x + dx;
+        const int ty = returned_ship->y + dy;
+        if (units_can_enter(&pool, pioneer, &map, tx, ty, -1)) {
+          ux = tx;
+          uy = ty;
+          break;
+        }
+      }
+    }
+    if (ux < 0) {
+      /* High-seas tile may not touch land — move ship toward land first. */
+      int near_x = land_tile_x;
+      int near_y = land_tile_y;
+      if (!units_find_water_tile(&pool, &map, land_tile_x, land_tile_y, returned, &near_x, &near_y)) {
+        fprintf(stderr, "cannot berth for unload\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      returned_ship->x = near_x;
+      returned_ship->y = near_y;
+      pax->x = near_x;
+      pax->y = near_y;
+      for (int dy = -1; dy <= 1 && ux < 0; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          const int tx = near_x + dx;
+          const int ty = near_y + dy;
+          if (units_can_enter(&pool, pioneer, &map, tx, ty, -1)) {
+            ux = tx;
+            uy = ty;
+            break;
+          }
+        }
+      }
+    }
+    if (ux < 0 || !units_unload(&pool, returned, &map, ux, uy)) {
+      fprintf(stderr, "unload failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pax = units_get(&pool, pax_id);
+    if (!pax || pax->aboard_ship_id >= 0 || pax->x != ux || pax->y != uy ||
+        units_id_at(&pool, ux, uy) != pax_id) {
+      fprintf(stderr, "unload state incorrect\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    unload_x = ux;
+    unload_y = uy;
+    ship_id = returned;
+  }
+
   ColonizeSpriteSheet icons;
   char ss_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "ICONS.SS", ss_path, sizeof(ss_path)) ||
@@ -201,8 +401,8 @@ int main(void) {
     stderr,
     "units tests ok (types=%d pioneer@%d,%d caravel_icon=%d edge=%d,%d)\n",
     pool.type_count,
-    starter->x,
-    starter->y,
+    unload_x,
+    unload_y,
     ship_icon,
     edge_x,
     edge_y

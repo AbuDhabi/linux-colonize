@@ -84,33 +84,49 @@ int main(void) {
     europe_free(&eu);
     return 1;
   }
-  if (!europe_harbor_push(&eu, 14, "Caravel") || eu.harbor_ships != 1) {
+  if (!europe_harbor_push(&eu, 14, "Caravel", NULL, 0) || eu.harbor_ships != 1) {
     fprintf(stderr, "harbor_push failed\n");
     europe_free(&eu);
     return 1;
   }
-  if (!europe_harbor_push(&eu, 15, "Merchantman") || eu.harbor_ships != 2) {
+  int pax_types[2] = {3, 1};
+  if (!europe_harbor_push(&eu, 15, "Merchantman", pax_types, 2) || eu.harbor_ships != 2) {
     fprintf(stderr, "second harbor_push failed\n");
+    europe_free(&eu);
+    return 1;
+  }
+  if (eu.harbor[1].cargo_count != 2 || eu.harbor[1].cargo_types[0] != 3) {
+    fprintf(stderr, "harbor cargo not stored\n");
     europe_free(&eu);
     return 1;
   }
   int type_index = -1;
   char ship_name[32];
-  if (!europe_harbor_pop(&eu, &type_index, ship_name, sizeof(ship_name)) ||
-      type_index != 14 || strcmp(ship_name, "Caravel") != 0 || eu.harbor_ships != 1) {
+  int out_cargo[EUROPE_SHIP_CARGO_MAX];
+  int out_count = -1;
+  if (!europe_harbor_pop(
+        &eu, &type_index, ship_name, sizeof(ship_name), out_cargo, &out_count, EUROPE_SHIP_CARGO_MAX
+      ) ||
+      type_index != 14 || strcmp(ship_name, "Caravel") != 0 || eu.harbor_ships != 1 ||
+      out_count != 0) {
     fprintf(
       stderr,
-      "harbor_pop FIFO failed (type=%d name='%s' count=%d)\n",
+      "harbor_pop FIFO failed (type=%d name='%s' count=%d cargo=%d)\n",
       type_index,
       ship_name,
-      eu.harbor_ships
+      eu.harbor_ships,
+      out_count
     );
     europe_free(&eu);
     return 1;
   }
-  if (!europe_harbor_pop(&eu, &type_index, ship_name, sizeof(ship_name)) ||
-      type_index != 15 || strcmp(ship_name, "Merchantman") != 0 || eu.harbor_ships != 0) {
-    fprintf(stderr, "second harbor_pop failed\n");
+  out_count = -1;
+  if (!europe_harbor_pop(
+        &eu, &type_index, ship_name, sizeof(ship_name), out_cargo, &out_count, EUROPE_SHIP_CARGO_MAX
+      ) ||
+      type_index != 15 || strcmp(ship_name, "Merchantman") != 0 || eu.harbor_ships != 0 ||
+      out_count != 2 || out_cargo[0] != 3 || out_cargo[1] != 1) {
+    fprintf(stderr, "second harbor_pop failed (cargo=%d)\n", out_count);
     europe_free(&eu);
     return 1;
   }

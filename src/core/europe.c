@@ -258,7 +258,13 @@ bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name
   return true;
 }
 
-bool europe_harbor_push(EuropeScreen* eu, int type_index, const char* name) {
+bool europe_harbor_push(
+  EuropeScreen* eu,
+  int type_index,
+  const char* name,
+  const int* cargo_types,
+  int cargo_count
+) {
   if (!eu || type_index < 0) {
     return false;
   }
@@ -269,11 +275,38 @@ bool europe_harbor_push(EuropeScreen* eu, int type_index, const char* name) {
   EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
   slot->type_index = type_index;
   snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Ship");
-  snprintf(eu->status, sizeof(eu->status), "%s arrived in harbor.", slot->name);
+  slot->cargo_count = 0;
+  memset(slot->cargo_types, 0, sizeof(slot->cargo_types));
+  if (cargo_types && cargo_count > 0) {
+    const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
+    for (int i = 0; i < n; ++i) {
+      slot->cargo_types[i] = cargo_types[i];
+    }
+    slot->cargo_count = n;
+  }
+  if (slot->cargo_count > 0) {
+    snprintf(
+      eu->status,
+      sizeof(eu->status),
+      "%s arrived in harbor (+%d aboard).",
+      slot->name,
+      slot->cargo_count
+    );
+  } else {
+    snprintf(eu->status, sizeof(eu->status), "%s arrived in harbor.", slot->name);
+  }
   return true;
 }
 
-bool europe_harbor_pop(EuropeScreen* eu, int* out_type_index, char* out_name, size_t out_name_size) {
+bool europe_harbor_pop(
+  EuropeScreen* eu,
+  int* out_type_index,
+  char* out_name,
+  size_t out_name_size,
+  int* out_cargo_types,
+  int* out_cargo_count,
+  int cargo_max
+) {
   if (!eu || eu->harbor_ships <= 0) {
     return false;
   }
@@ -283,12 +316,24 @@ bool europe_harbor_pop(EuropeScreen* eu, int* out_type_index, char* out_name, si
   if (out_name && out_name_size > 0) {
     snprintf(out_name, out_name_size, "%s", eu->harbor[0].name);
   }
+  if (out_cargo_count) {
+    *out_cargo_count = 0;
+  }
+  if (out_cargo_types && out_cargo_count && cargo_max > 0) {
+    const int n =
+      eu->harbor[0].cargo_count > cargo_max ? cargo_max : eu->harbor[0].cargo_count;
+    for (int i = 0; i < n; ++i) {
+      out_cargo_types[i] = eu->harbor[0].cargo_types[i];
+    }
+    *out_cargo_count = n;
+  }
   for (int i = 1; i < eu->harbor_ships; ++i) {
     eu->harbor[i - 1] = eu->harbor[i];
   }
   eu->harbor_ships--;
   eu->harbor[eu->harbor_ships].type_index = -1;
   eu->harbor[eu->harbor_ships].name[0] = '\0';
+  eu->harbor[eu->harbor_ships].cargo_count = 0;
   return true;
 }
 

@@ -91,7 +91,8 @@ port I/O in the native build.
   (press **C** on a colony tile; see `src/core/colony_screen.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
-  sail ship to/from Europe (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`)
+  board/unload (**O**/**U**), sail ship to/from Europe with passengers
+  (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`)
 
 ## Parked: coastlines and estuaries
 

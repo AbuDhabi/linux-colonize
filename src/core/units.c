@@ -152,9 +152,28 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   slot->y = y;
   slot->moves_left = type->movement;
   slot->active = true;
+  slot->aboard_ship_id = -1;
+  slot->cargo_count = 0;
+  memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
+}
+
+bool units_is_on_map(const ColonizeUnit* unit) {
+  return unit && unit->active && unit->aboard_ship_id < 0;
+}
+
+static void units_clear_slot(ColonizeUnit* unit) {
+  unit->active = false;
+  unit->id = -1;
+  unit->type_index = -1;
+  unit->x = 0;
+  unit->y = 0;
+  unit->moves_left = 0;
+  unit->aboard_ship_id = -1;
+  unit->cargo_count = 0;
+  memset(unit->cargo_ids, 0, sizeof(unit->cargo_ids));
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -162,12 +181,37 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   if (!unit) {
     return false;
   }
-  unit->active = false;
-  unit->id = -1;
-  unit->type_index = -1;
-  unit->x = 0;
-  unit->y = 0;
-  unit->moves_left = 0;
+  /* Passengers ride with the ship — despawn them if this is a carrier. */
+  if (unit->cargo_count > 0) {
+    for (int i = 0; i < unit->cargo_count; ++i) {
+      ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
+      if (pax) {
+        units_clear_slot(pax);
+        if (pool->unit_count > 0) {
+          pool->unit_count--;
+        }
+        if (pool->selected_id == unit->cargo_ids[i]) {
+          pool->selected_id = -1;
+        }
+      }
+    }
+  }
+  /* If this unit is aboard a ship, remove it from that ship's hold. */
+  if (unit->aboard_ship_id >= 0) {
+    ColonizeUnit* ship = units_get(pool, unit->aboard_ship_id);
+    if (ship) {
+      for (int i = 0; i < ship->cargo_count; ++i) {
+        if (ship->cargo_ids[i] == unit_id) {
+          for (int j = i + 1; j < ship->cargo_count; ++j) {
+            ship->cargo_ids[j - 1] = ship->cargo_ids[j];
+          }
+          ship->cargo_count--;
+          break;
+        }
+      }
+    }
+  }
+  units_clear_slot(unit);
   if (pool->unit_count > 0) {
     pool->unit_count--;
   }
@@ -196,7 +240,7 @@ int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
   }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (u->active && u->x == x && u->y == y) {
+    if (units_is_on_map(u) && u->x == x && u->y == y) {
       return u->id;
     }
   }
@@ -274,6 +318,9 @@ bool units_try_move(
   if (!unit || !map) {
     return false;
   }
+  if (unit->aboard_ship_id >= 0) {
+    return false;
+  }
   if (unit->moves_left <= 0) {
     return false;
   }
@@ -291,7 +338,212 @@ bool units_try_move(
   unit->x = dest_x;
   unit->y = dest_y;
   unit->moves_left--;
+  /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
+  for (int i = 0; i < unit->cargo_count; ++i) {
+    ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
+    if (pax) {
+      pax->x = dest_x;
+      pax->y = dest_y;
+    }
+  }
   return true;
+}
+
+static bool units_adjacent(int ax, int ay, int bx, int by) {
+  const int dx = ax - bx;
+  const int dy = ay - by;
+  if (dx == 0 && dy == 0) {
+    return false;
+  }
+  return dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1;
+}
+
+int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!ship || !units_is_sea(pool, ship_id)) {
+    return 0;
+  }
+  const ColonizeUnitType* type = units_type(pool, ship->type_index);
+  if (!type || type->cargo <= 0) {
+    return 0;
+  }
+  return type->cargo > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX : type->cargo;
+}
+
+bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
+  ColonizeUnit* land = units_get(pool, land_unit_id);
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!land || !ship) {
+    return false;
+  }
+  if (units_is_sea(pool, land_unit_id) || !units_is_sea(pool, ship_id)) {
+    return false;
+  }
+  if (land->aboard_ship_id >= 0 || ship->aboard_ship_id >= 0) {
+    return false;
+  }
+  const int cap = units_ship_capacity(pool, ship_id);
+  if (cap <= 0 || ship->cargo_count >= cap) {
+    return false;
+  }
+  if (!units_adjacent(land->x, land->y, ship->x, ship->y)) {
+    return false;
+  }
+  land->aboard_ship_id = ship_id;
+  land->x = ship->x;
+  land->y = ship->y;
+  land->moves_left = 0;
+  ship->cargo_ids[ship->cargo_count++] = land_unit_id;
+  if (pool->selected_id == land_unit_id) {
+    pool->selected_id = ship_id;
+  }
+  diag_info("Unit %d boarded ship %d (cargo %d/%d)", land_unit_id, ship_id, ship->cargo_count, cap);
+  return true;
+}
+
+bool units_unload(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y
+) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship || !map || !units_is_sea(pool, ship_id) || ship->cargo_count <= 0) {
+    return false;
+  }
+  if (!units_adjacent(ship->x, ship->y, dest_x, dest_y)) {
+    return false;
+  }
+  const int pax_id = ship->cargo_ids[0];
+  ColonizeUnit* pax = units_get(pool, pax_id);
+  if (!pax) {
+    /* Drop stale cargo slot. */
+    for (int i = 1; i < ship->cargo_count; ++i) {
+      ship->cargo_ids[i - 1] = ship->cargo_ids[i];
+    }
+    ship->cargo_count--;
+    return false;
+  }
+  if (!units_can_enter(pool, pax->type_index, map, dest_x, dest_y, -1)) {
+    return false;
+  }
+  for (int i = 1; i < ship->cargo_count; ++i) {
+    ship->cargo_ids[i - 1] = ship->cargo_ids[i];
+  }
+  ship->cargo_count--;
+  pax->aboard_ship_id = -1;
+  pax->x = dest_x;
+  pax->y = dest_y;
+  const ColonizeUnitType* type = units_type(pool, pax->type_index);
+  pax->moves_left = type ? type->movement : 1;
+  pool->selected_id = pax_id;
+  diag_info("Unloaded unit %d from ship %d to (%d,%d)", pax_id, ship_id, dest_x, dest_y);
+  return true;
+}
+
+int units_export_cargo_types(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_types,
+  int out_max
+) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!ship || !out_types || out_max <= 0) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < ship->cargo_count && n < out_max; ++i) {
+    const ColonizeUnit* pax = units_get_const(pool, ship->cargo_ids[i]);
+    if (pax) {
+      out_types[n++] = pax->type_index;
+    }
+  }
+  return n;
+}
+
+bool units_despawn_ship_with_cargo(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_type_index,
+  char* out_name,
+  size_t out_name_size,
+  int* out_cargo_types,
+  int* out_cargo_count,
+  int cargo_max
+) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship || !units_is_sea(pool, ship_id)) {
+    return false;
+  }
+  if (out_type_index) {
+    *out_type_index = ship->type_index;
+  }
+  if (out_name && out_name_size > 0) {
+    const ColonizeUnitType* type = units_type(pool, ship->type_index);
+    snprintf(out_name, out_name_size, "%s", type ? type->name : "Ship");
+  }
+  if (out_cargo_types && out_cargo_count && cargo_max > 0) {
+    *out_cargo_count = units_export_cargo_types(pool, ship_id, out_cargo_types, cargo_max);
+  } else if (out_cargo_count) {
+    *out_cargo_count = 0;
+  }
+  return units_despawn(pool, ship_id);
+}
+
+static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUnit* ship) {
+  if (!pool || !ship || type_index < 0 || type_index >= pool->type_count) {
+    return -1;
+  }
+  if (ship->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
+    return -1;
+  }
+  ColonizeUnit* slot = units_slot(pool);
+  if (!slot) {
+    return -1;
+  }
+  const ColonizeUnitType* type = &pool->types[type_index];
+  slot->id = pool->next_id++;
+  slot->type_index = type_index;
+  slot->x = ship->x;
+  slot->y = ship->y;
+  slot->moves_left = 0;
+  slot->active = true;
+  slot->aboard_ship_id = ship->id;
+  slot->cargo_count = 0;
+  memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
+  ship->cargo_ids[ship->cargo_count++] = slot->id;
+  pool->unit_count++;
+  return slot->id;
+}
+
+int units_spawn_ship_with_cargo(
+  ColonizeUnitPool* pool,
+  int ship_type_index,
+  int x,
+  int y,
+  const int* cargo_types,
+  int cargo_count
+) {
+  const int ship_id = units_spawn(pool, ship_type_index, x, y);
+  if (ship_id < 0) {
+    return -1;
+  }
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship) {
+    return -1;
+  }
+  const int cap = units_ship_capacity(pool, ship_id);
+  const int n = cargo_count < 0 ? 0 : cargo_count;
+  for (int i = 0; i < n && ship->cargo_count < cap; ++i) {
+    if (!cargo_types) {
+      break;
+    }
+    if (units_spawn_aboard(pool, cargo_types[i], ship) < 0) {
+      break;
+    }
+  }
+  return ship_id;
 }
 
 void units_end_turn(ColonizeUnitPool* pool) {
@@ -533,7 +785,7 @@ void units_render_on_map(
 
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* unit = &pool->units[i];
-    if (!unit->active) {
+    if (!units_is_on_map(unit)) {
       continue;
     }
     const int sx = unit->x - view_x;

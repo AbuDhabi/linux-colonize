@@ -205,7 +205,7 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 | `]` | Cheat: +1000 gold |
 | `[` | Cheat: −1% tax |
 
-Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Ship cargo holds, drag-trade, and buying ships in Europe are not implemented yet. Harbor ships arrive via **H** from the New World map edge and return with **S**.
+Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Commodity cargo holds and drag-trade are not implemented yet. Unit passengers ride in the ship hold (board with **O**, unload with **U**) and persist through Europe harbor sail (**H** / **S**). Buying ships in Europe is not implemented yet.
 
 ### Colony screen bring-up
 
@@ -235,11 +235,13 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 | Enter | Select unit under cursor (if different from current), or move selected unit to empty cursor tile |
 | C | Enter colony screen when cursor is on a colony tile |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
-| H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26) |
+| O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (must be adjacent; hold uses `@UNIT` cargo) |
+| U | Unload oldest passenger from selected ship onto adjacent enterable land under cursor |
+| H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26); passengers stay aboard in harbor |
 | B | Found a colony on the cursor tile using a land unit there (unit is consumed; ships cannot found) |
 | Space | End turn (refreshes unit movement points) |
 
-A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit is consumed; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land.
+A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit is consumed; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
 
 | Extension | Typical use |
 |-----------|-------------|

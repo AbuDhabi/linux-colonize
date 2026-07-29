@@ -11,6 +11,7 @@
 
 #define COLONIZE_UNITS_MAX 64
 #define COLONIZE_UNIT_TYPES_MAX 32
+#define COLONIZE_UNIT_CARGO_MAX 6 /* Man-O-War hold size */
 
 typedef enum ColonizeUnitDomain {
   COLONIZE_UNIT_DOMAIN_LAND = 0,
@@ -34,6 +35,9 @@ typedef struct ColonizeUnit {
   int y;
   int moves_left;
   bool active;
+  int aboard_ship_id; /* -1 = on map; else id of carrying ship */
+  int cargo_ids[COLONIZE_UNIT_CARGO_MAX]; /* passenger unit ids (ships only) */
+  int cargo_count;
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {
@@ -56,6 +60,7 @@ ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
 bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
+bool units_is_on_map(const ColonizeUnit* unit);
 
 bool units_can_enter(
   const ColonizeUnitPool* pool,
@@ -75,7 +80,6 @@ bool units_try_move(
 
 /* True for high-seas / sea-lane tiles (terrain index 26). */
 bool units_on_high_seas(const ColonizeWorldMap* map, int x, int y);
-/* Nearest free water tile for a sea unit (occupant_id excluded when checking occupancy). */
 bool units_find_water_tile(
   const ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
@@ -85,7 +89,6 @@ bool units_find_water_tile(
   int* out_x,
   int* out_y
 );
-/* Free high-seas tile near start; falls back to any free high-seas tile. */
 bool units_find_high_seas_tile(
   const ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
@@ -95,10 +98,48 @@ bool units_find_high_seas_tile(
   int* out_y
 );
 
+/* Board a land unit onto an adjacent ship. Returns false if capacity/adjacency fails. */
+bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/* Unload oldest passenger from ship onto dest (must be enterable land). */
+bool units_unload(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y
+);
+int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id);
+/* Snapshot passenger type indices (for Europe harbor transfer). */
+int units_export_cargo_types(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_types,
+  int out_max
+);
+/* Despawn ship and all passengers; fills cargo type list for harbor. */
+bool units_despawn_ship_with_cargo(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  int* out_type_index,
+  char* out_name,
+  size_t out_name_size,
+  int* out_cargo_types,
+  int* out_cargo_count,
+  int cargo_max
+);
+/* Spawn ship at (x,y) and recreate passengers aboard from type indices. */
+int units_spawn_ship_with_cargo(
+  ColonizeUnitPool* pool,
+  int ship_type_index,
+  int x,
+  int y,
+  const int* cargo_types,
+  int cargo_count
+);
+
 void units_end_turn(ColonizeUnitPool* pool);
 void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map);
 
-/* Spawn a Colonist from a recruited immigrant name (Europe dock). */
 bool units_deploy_colonist(
   ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,

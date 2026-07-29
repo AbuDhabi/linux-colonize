@@ -11,6 +11,7 @@
 #define EUROPE_DOCK_MAX 8
 #define EUROPE_CLASS_MAX 8
 #define EUROPE_HARBOR_MAX 8
+#define EUROPE_SHIP_CARGO_MAX 6 /* matches COLONIZE_UNIT_CARGO_MAX */
 
 typedef struct EuropeCargoQuote {
   char name[32];
@@ -31,6 +32,8 @@ typedef struct EuropeRecruitClass {
 typedef struct EuropeHarborShip {
   int type_index; /* into ColonizeUnitPool types */
   char name[32];
+  int cargo_types[EUROPE_SHIP_CARGO_MAX]; /* passenger unit type indices */
+  int cargo_count;
 } EuropeHarborShip;
 
 /*
@@ -65,10 +68,24 @@ bool europe_recruit(EuropeScreen* eu);
 /* Remove oldest dock immigrant for deployment in the New World. */
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 
-/* Dock a New World ship in the European harbor (FIFO). */
-bool europe_harbor_push(EuropeScreen* eu, int type_index, const char* name);
-/* Undock oldest harbor ship for return to the New World. */
-bool europe_harbor_pop(EuropeScreen* eu, int* out_type_index, char* out_name, size_t out_name_size);
+/* Dock a New World ship in the European harbor (FIFO). cargo_types may be NULL. */
+bool europe_harbor_push(
+  EuropeScreen* eu,
+  int type_index,
+  const char* name,
+  const int* cargo_types,
+  int cargo_count
+);
+/* Undock oldest harbor ship for return to the New World. Cargo outs may be NULL. */
+bool europe_harbor_pop(
+  EuropeScreen* eu,
+  int* out_type_index,
+  char* out_name,
+  size_t out_name_size,
+  int* out_cargo_types,
+  int* out_cargo_count,
+  int cargo_max
+);
 
 /* Train is not implemented yet; sets status text. */
 void europe_train_stub(EuropeScreen* eu);

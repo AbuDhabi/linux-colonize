@@ -97,6 +97,8 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_B: return "B";
     case COLONIZE_KEY_C: return "C";
     case COLONIZE_KEY_H: return "H";
+    case COLONIZE_KEY_O: return "O";
+    case COLONIZE_KEY_U: return "U";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -418,7 +420,18 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     font_draw_text(font, framebuffer, 8, y, "(empty)", 12);
   } else {
     for (int i = 0; i < eu->harbor_ships; ++i) {
-      snprintf(line, sizeof(line), "%d. %s", i + 1, eu->harbor[i].name);
+      if (eu->harbor[i].cargo_count > 0) {
+        snprintf(
+          line,
+          sizeof(line),
+          "%d. %s (+%d)",
+          i + 1,
+          eu->harbor[i].name,
+          eu->harbor[i].cargo_count
+        );
+      } else {
+        snprintf(line, sizeof(line), "%d. %s", i + 1, eu->harbor[i].name);
+      }
       font_draw_text(font, framebuffer, 8, y, line, 15);
       y += 9;
       if (y > 155) {
@@ -792,18 +805,34 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       } else {
         int type_index = -1;
         char ship_name[32];
-        if (!europe_harbor_pop(&game->europe, &type_index, ship_name, sizeof(ship_name))) {
+        int cargo_types[EUROPE_SHIP_CARGO_MAX];
+        int cargo_count = 0;
+        if (!europe_harbor_pop(
+              &game->europe,
+              &type_index,
+              ship_name,
+              sizeof(ship_name),
+              cargo_types,
+              &cargo_count,
+              EUROPE_SHIP_CARGO_MAX
+            )) {
           snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Harbor pop failed.");
         } else {
           int sx = 39;
           int sy = 10;
           if (!units_find_high_seas_tile(&game->units, &game->world_map, sx, sy, &sx, &sy)) {
-            europe_harbor_push(&game->europe, type_index, ship_name);
+            europe_harbor_push(
+              &game->europe, type_index, ship_name, cargo_types, cargo_count
+            );
             snprintf(game->europe.status, sizeof(game->europe.status), "%s", "No free high-seas berth.");
           } else {
-            const int ship_id = units_spawn(&game->units, type_index, sx, sy);
+            const int ship_id = units_spawn_ship_with_cargo(
+              &game->units, type_index, sx, sy, cargo_types, cargo_count
+            );
             if (ship_id < 0) {
-              europe_harbor_push(&game->europe, type_index, ship_name);
+              europe_harbor_push(
+                &game->europe, type_index, ship_name, cargo_types, cargo_count
+              );
               snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Could not place ship.");
             } else {
               game->units.selected_id = ship_id;
@@ -1026,7 +1055,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  /* H: sail selected ship to Europe from high-seas edge. */
+  /* H: sail selected ship to Europe from high seas (passengers ride along). */
   if (input->last_key == COLONIZE_KEY_H && game->world_map_ok && game->units_ok && game->europe_ok) {
     const int sid = game->units.selected_id;
     ColonizeUnit* ship = units_get(&game->units, sid);
@@ -1035,18 +1064,92 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     } else if (!units_on_high_seas(&game->world_map, ship->x, ship->y)) {
       set_status(game, "Ship must be on high seas", NULL);
     } else {
-      const ColonizeUnitType* ut = units_type(&game->units, ship->type_index);
-      const char* ship_name = ut ? ut->name : "Ship";
-      const int type_index = ship->type_index;
-      if (!europe_harbor_push(&game->europe, type_index, ship_name)) {
-        set_status(game, "Europe harbor is full", NULL);
-      } else if (!units_despawn(&game->units, sid)) {
-        europe_harbor_pop(&game->europe, NULL, NULL, 0);
+      const int berth_x = ship->x;
+      const int berth_y = ship->y;
+      int type_index = -1;
+      char ship_name[32];
+      int cargo_types[EUROPE_SHIP_CARGO_MAX];
+      int cargo_count = 0;
+      if (!units_despawn_ship_with_cargo(
+            &game->units,
+            sid,
+            &type_index,
+            ship_name,
+            sizeof(ship_name),
+            cargo_types,
+            &cargo_count,
+            EUROPE_SHIP_CARGO_MAX
+          )) {
         set_status(game, "Failed to sail ship", NULL);
+      } else if (!europe_harbor_push(
+                   &game->europe, type_index, ship_name, cargo_types, cargo_count
+                 )) {
+        /* Harbor full — put the ship back on the map with passengers. */
+        const int restored = units_spawn_ship_with_cargo(
+          &game->units, type_index, berth_x, berth_y, cargo_types, cargo_count
+        );
+        if (restored >= 0) {
+          game->units.selected_id = restored;
+        }
+        set_status(game, "Europe harbor is full", NULL);
       } else {
-        snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
-        diag_info("Sailed %s to Europe harbor", ship_name);
+        if (cargo_count > 0) {
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "%s sailed to Europe (+%d aboard)",
+            ship_name,
+            cargo_count
+          );
+        } else {
+          snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
+        }
+        diag_info("Sailed %s to Europe harbor (cargo=%d)", ship_name, cargo_count);
       }
+    }
+  }
+
+  /* O: board land unit onto adjacent ship (selected land↔cursor ship, or vice versa). */
+  if (input->last_key == COLONIZE_KEY_O && game->world_map_ok && game->units_ok) {
+    const int sid = game->units.selected_id;
+    const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+    int land_id = -1;
+    int ship_id = -1;
+    if (sid >= 0 && at_cursor >= 0) {
+      if (!units_is_sea(&game->units, sid) && units_is_sea(&game->units, at_cursor)) {
+        land_id = sid;
+        ship_id = at_cursor;
+      } else if (units_is_sea(&game->units, sid) && !units_is_sea(&game->units, at_cursor)) {
+        land_id = at_cursor;
+        ship_id = sid;
+      }
+    }
+    if (land_id < 0 || ship_id < 0) {
+      set_status(game, "Select land unit and cursor on adjacent ship (or reverse)", NULL);
+    } else if (!units_board(&game->units, land_id, ship_id)) {
+      set_status(game, "Cannot board (need adjacent ship with free hold)", NULL);
+    } else {
+      const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Boarded ship (hold %d)",
+        ship ? ship->cargo_count : 0
+      );
+    }
+  }
+
+  /* U: unload oldest passenger from selected ship onto cursor land tile. */
+  if (input->last_key == COLONIZE_KEY_U && game->world_map_ok && game->units_ok) {
+    const int sid = game->units.selected_id;
+    if (sid < 0 || !units_is_sea(&game->units, sid)) {
+      set_status(game, "Select a ship to unload", NULL);
+    } else if (!units_unload(
+                 &game->units, sid, &game->world_map, game->map_cursor_x, game->map_cursor_y
+               )) {
+      set_status(game, "Cannot unload (need adjacent free land)", NULL);
+    } else {
+      set_status(game, "Unit unloaded", NULL);
     }
   }
 
@@ -1446,16 +1549,30 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
     if (selected) {
       const ColonizeUnitType* ut = units_type(&game->units, selected->type_index);
-      snprintf(
-        hud,
-        sizeof(hud),
-        "Turn %u  (%d,%d) %s mv=%d  Enter=move D=deploy",
-        game->turn_number,
-        game->map_cursor_x,
-        game->map_cursor_y,
-        ut ? ut->name : "unit",
-        selected->moves_left
-      );
+      if (units_is_sea(&game->units, selected->id) && selected->cargo_count > 0) {
+        snprintf(
+          hud,
+          sizeof(hud),
+          "Turn %u  (%d,%d) %s mv=%d hold=%d  O=board U=unload",
+          game->turn_number,
+          game->map_cursor_x,
+          game->map_cursor_y,
+          ut ? ut->name : "unit",
+          selected->moves_left,
+          selected->cargo_count
+        );
+      } else {
+        snprintf(
+          hud,
+          sizeof(hud),
+          "Turn %u  (%d,%d) %s mv=%d  Enter=move O=board",
+          game->turn_number,
+          game->map_cursor_x,
+          game->map_cursor_y,
+          ut ? ut->name : "unit",
+          selected->moves_left
+        );
+      }
     } else {
       snprintf(
         hud,
