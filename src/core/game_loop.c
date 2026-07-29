@@ -16,6 +16,7 @@
 #include "core/savegame.h"
 #include "core/ss.h"
 #include "core/colony.h"
+#include "core/colony_screen.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -41,6 +42,10 @@ struct ColonizeGameState {
   EuropeScreen europe;
   bool europe_ok;
   bool in_europe;
+  ColonyScreenView colony_screen;
+  bool colony_screen_ok;
+  bool in_colony;
+  int colony_view_id;
   ColonizePikImage menu_bg;
   bool menu_bg_ok;
   ColonizeSpriteSheet terrain;
@@ -90,6 +95,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_T: return "T";
     case COLONIZE_KEY_D: return "D";
     case COLONIZE_KEY_B: return "B";
+    case COLONIZE_KEY_C: return "C";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -253,6 +259,9 @@ static const char* render_mode_name(const ColonizeGameState* game) {
   }
   if (game->in_europe) {
     return "europe";
+  }
+  if (game->in_colony) {
+    return "colony";
   }
   if (game->in_debug_atlas) {
     return "debug-atlas";
@@ -425,6 +434,19 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
   }
 }
 
+static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
+  const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
+  const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+  colony_screen_render(
+    game->colony_screen_ok ? &game->colony_screen : NULL,
+    colony,
+    game->world_map_ok ? &game->world_map : NULL,
+    game->terrain_ok ? &game->terrain : NULL,
+    font,
+    framebuffer
+  );
+}
+
 static void fill_fallback_palette(ColonizePalette* palette) {
   for (int i = 0; i < 256; ++i) {
     palette->rgb[i][0] = (uint8_t)i;
@@ -442,6 +464,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->config = *config;
   game->turn_number = 1;
   game->map_seed = 73;
+  game->colony_view_id = -1;
   game->map_cursor_x = 29;
   game->map_cursor_y = 36;
   game->in_menu = true;
@@ -525,7 +548,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   }
 
   /* Log MADSPACK samples for bring-up. */
-  static const char* packed_samples[] = {"COLONY.PIK", "CCBKGD.PIK", "BUILDING.SS"};
+  static const char* packed_samples[] = {"WOODPANL.PIK", "COLONY.PIK", "BUILDING.SS"};
   for (size_t i = 0; i < sizeof(packed_samples) / sizeof(packed_samples[0]); ++i) {
     char path[512];
     char info[128];
@@ -616,6 +639,14 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     diag_warn("Failed to load Europe screen: %s", europe_err);
   }
 
+  char colony_screen_err[256];
+  if (colony_screen_load(&game->colony_screen, game->resolved_data_dir, colony_screen_err, sizeof(colony_screen_err))) {
+    game->colony_screen_ok = true;
+  } else {
+    game->colony_screen_ok = false;
+    diag_warn("Failed to load colony screen: %s", colony_screen_err);
+  }
+
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
   dos_compat_set_tick_rate_hz(18);
@@ -628,6 +659,7 @@ void game_destroy(ColonizeGameState* game) {
   }
   pik_free(&game->menu_bg);
   europe_free(&game->europe);
+  colony_screen_free(&game->colony_screen);
   ss_free(&game->terrain);
   ss_free(&game->phys0);
   ss_free(&game->cursor);
@@ -679,7 +711,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   snprintf(
     game->status,
     sizeof(game->status),
-    "Map: arrows cursor, Enter select/move, B found colony, D deploy, E Europe"
+    "Map: arrows cursor, Enter select/move, B found colony, C enter colony, D deploy, E Europe"
   );
 }
 
@@ -697,12 +729,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key != COLONIZE_KEY_NONE) {
     diag_info(
-      "Key pressed: %s (menu=%s debug=%s pedia=%s europe=%s turn=%u cursor=%d,%d)",
+      "Key pressed: %s (menu=%s debug=%s pedia=%s europe=%s colony=%s turn=%u cursor=%d,%d)",
       key_name(input->last_key),
       game->in_menu ? "yes" : "no",
       game->in_debug_atlas ? "yes" : "no",
       game->in_pedia ? "yes" : "no",
       game->in_europe ? "yes" : "no",
+      game->in_colony ? "yes" : "no",
       game->turn_number,
       game->map_cursor_x,
       game->map_cursor_y
@@ -711,6 +744,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_Q) {
     return false;
+  }
+
+  if (game->in_colony) {
+    if (input->last_key == COLONIZE_KEY_ESCAPE ||
+        input->last_key == COLONIZE_KEY_C ||
+        input->last_key == COLONIZE_KEY_ENTER) {
+      game->in_colony = false;
+      game->colony_view_id = -1;
+      diag_info("Left colony screen.");
+      return true;
+    }
+    return true;
   }
 
   if (game->in_europe) {
@@ -796,14 +841,41 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (input->last_key == COLONIZE_KEY_P) {
     game->in_pedia = true;
     game->in_europe = false;
+    game->in_colony = false;
     game->pedia_terrain_index = 0;
     diag_info("Entered Colonizopedia terrain preview.");
+    return true;
+  }
+
+  if (input->last_key == COLONIZE_KEY_C && !game->in_menu && game->world_map_ok) {
+    const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
+    if (cid < 0) {
+      set_status(game, "No colony at cursor", NULL);
+    } else {
+      game->in_colony = true;
+      game->in_europe = false;
+      game->in_pedia = false;
+      game->colony_view_id = cid;
+      const ColonizeColony* col = colonies_get(&game->colonies, cid);
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Entered %s",
+        col ? col->name : "colony"
+      );
+      colony_screen_set_status(
+        &game->colony_screen,
+        col ? col->name : "Colony"
+      );
+      diag_info("Entered colony screen (id=%d).", cid);
+    }
     return true;
   }
 
   if (input->last_key == COLONIZE_KEY_E && !game->in_menu) {
     game->in_europe = true;
     game->in_pedia = false;
+    game->in_colony = false;
     snprintf(
       game->europe.status,
       sizeof(game->europe.status),
@@ -914,7 +986,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  /* B: found a colony using the selected Pioneer (or any unit at cursor). */
+  /* B: found a colony using any unit at the cursor (type checks come later). */
   if (input->last_key == COLONIZE_KEY_B && game->world_map_ok) {
     const int cx = game->map_cursor_x;
     const int cy = game->map_cursor_y;
@@ -1017,11 +1089,13 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
-  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe)
+  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe && !game->in_colony)
     ? game->palette
     : (game->in_europe && game->europe_ok && game->europe.background.has_palette)
       ? game->europe.background.palette
-      : (game->map_palette_ok ? game->map_palette : game->palette);
+      : (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette)
+        ? game->colony_screen.frame.palette
+        : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
@@ -1035,6 +1109,11 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
 
   if (game->in_europe) {
     render_europe_screen(game, framebuffer);
+    goto render_log_sample;
+  }
+
+  if (game->in_colony) {
+    render_colony_screen(game, framebuffer);
     goto render_log_sample;
   }
 

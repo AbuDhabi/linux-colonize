@@ -206,6 +206,25 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 
 Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Ship cargo holds, drag-trade, and sailing to the New World are not implemented yet.
 
+### Colony screen bring-up
+
+Press **C** on the map when the cursor is on a founded colony to open the colony screen. The layout matches DOS:
+
+| Layer | Asset | Role |
+|-------|-------|------|
+| Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
+| Building frame | `WOODFRAM.SS` | Recessed viewport for buildings (transparent hole) |
+| Catchment | `TERRAIN.SS` | 3×3 minimap in the right strip (placeholder colors) |
+| Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock / cargo strip (no embedded palette) |
+
+`CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here. Esc, C, or Enter returns to the map.
+
+| Key | Action |
+|-----|--------|
+| Esc / C / Enter | Return to map |
+
+The overlay shows colony name and population. Building sprites (`BUILDING.SS`), production, and cargo slots are not implemented yet.
+
 ### Units (map bring-up)
 
 Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites indexed by the `@UNIT` icon field (e.g. Pioneers → 102).
@@ -213,6 +232,7 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 | Key | Action |
 |-----|--------|
 | Enter | Select unit under cursor, or move selected unit to cursor (1 tile, costs movement) |
+| C | Enter colony screen when cursor is on a colony tile |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
 | B | Found a colony on the cursor tile using the unit there (unit is consumed) |
 | Space | End turn (refreshes unit movement points) |
