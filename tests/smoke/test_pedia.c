@@ -65,15 +65,15 @@ int main(void) {
   diag_init(0, NULL);
 
   static const int coast_phys0[] = {153, 152, 151, 150};
-  static const int forest8[] = {40};
-  static const int forest13[] = {99};
+  static const int forest8[] = {70};
+  static const int forest13[] = {69};
   static const int mountain[] = {36};
   static const int hills[] = {48};
 
   char err[256];
   if (expect_preview(0, 0, 0, NULL, err, sizeof(err)) != 0 ||
       expect_preview(4, 4, 0, NULL, err, sizeof(err)) != 0 ||
-      expect_preview(8, 4, 1, forest8, err, sizeof(err)) != 0 ||
+      expect_preview(8, 0, 1, forest8, err, sizeof(err)) != 0 ||
       expect_preview(9, 8, 0, NULL, err, sizeof(err)) != 0 ||
       expect_preview(13, 5, 1, forest13, err, sizeof(err)) != 0 ||
       expect_preview(25, 10, 4, coast_phys0, err, sizeof(err)) != 0 ||

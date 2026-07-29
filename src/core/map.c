@@ -28,8 +28,7 @@
 #define PHYS0_HILL_FIRST 48
 #define PHYS0_HILL_COUNT 16
 #define PHYS0_MOUNTAIN_ISOLATED 36
-#define PHYS0_BOREAL_TRANSITION 40
-#define PHYS0_TROPICAL_TIMBER 99
+#define PHYS0_TUNDRA_CANOPY viceroy_feature_sprite_bases_b[3] /* 65 */
 /* 4-quadrant 8x8 coast fragments — PARKED heuristic; see docs/decomp_inventory.md */
 #define PHYS0_COAST_NW_BASE 108
 #define PHYS0_COAST_NE_BASE 116
@@ -39,37 +38,37 @@
 #define COAST_QUADS 4
 
 #define MAP_TUNDRA_ROW 0
-#define MAP_SCRUB_FOREST_INDEX 9
 #define MAP_OCEAN_INDEX 25
 #define MAP_HIGH_SEAS_INDEX 26
 
 static int map_decode_terrain_index(uint8_t terrain_byte) {
-  const int low3 = (int)(terrain_byte & 7u);
-  const int forest_bits = (int)(terrain_byte & 0x18u);
-
-  if (forest_bits == 0x10) {
-    return low3;
-  }
-  if (forest_bits == 0x08) {
-    return 8 + low3;
-  }
+  /* FreeCol ColonizationMapLoader: bits 0-4 are terrain index 0-26. */
   return (int)(terrain_byte & 0x1fu);
 }
 
-static bool map_has_bit3_forest(uint8_t terrain_byte) {
-  return (terrain_byte & 0x18u) == 0x08u;
+static bool map_is_forest_index(int terrain_index) {
+  return terrain_index >= 8 && terrain_index <= 23;
 }
 
-static int map_bit3_forest_index(uint8_t terrain_byte) {
-  return 8 + (int)(terrain_byte & 7u);
+static int map_forest_type(int terrain_index) {
+  return terrain_index & 7;
+}
+
+static int map_cleared_base_for_forest_type(int forest_type) {
+  /* PEDIA: forest type N clears to land type N (boreal → tundra). */
+  return forest_type;
 }
 
 static int map_terrain_index_to_sprite(int terrain_index) {
   if (terrain_index >= 0 && terrain_index <= 7) {
     return terrain_index;
   }
-  if (terrain_index >= 8 && terrain_index <= 23) {
-    return 8;
+  if (map_is_forest_index(terrain_index)) {
+    const int forest_type = map_forest_type(terrain_index);
+    if (forest_type == 1) {
+      return 8; /* scrub forest */
+    }
+    return map_cleared_base_for_forest_type(forest_type);
   }
   if (terrain_index == 24) {
     return 9;
@@ -83,12 +82,8 @@ static int map_terrain_index_to_sprite(int terrain_index) {
   return 0;
 }
 
-static int map_cleared_base_sprite(uint8_t terrain_byte) {
-  const int low3 = (int)(terrain_byte & 7u);
-  if (low3 == 0) {
-    return 4;
-  }
-  return low3;
+static int phys0_forest_overlay_sprite(int forest_type) {
+  return viceroy_forest_phys0_sprite(forest_type);
 }
 
 static bool map_is_ocean_index(int terrain_index) {
@@ -300,17 +295,6 @@ static int phys0_mountain_sprite(uint8_t mask) {
   return phys0_connectivity_sprite(PHYS0_MOUNTAIN_FIRST, PHYS0_MOUNTAIN_COUNT, mask);
 }
 
-static int phys0_bit3_overlay_sprite(int forest_index) {
-  switch (forest_index) {
-    case 8:
-      return PHYS0_BOREAL_TRANSITION;
-    case 13:
-      return PHYS0_TROPICAL_TIMBER;
-    default:
-      return -1;
-  }
-}
-
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size) {
   if (!path || !out_map) {
     snprintf(err, err_size, "map_load_mp bad args");
@@ -418,14 +402,12 @@ int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y) {
     return 0;
   }
 
-  if (map_has_bit3_forest(terrain_byte)) {
-    const int forest_index = map_bit3_forest_index(terrain_byte);
-    if (forest_index == MAP_SCRUB_FOREST_INDEX) {
-      return 8;
+  if (map_is_forest_index(terrain_index)) {
+    const int forest_type = map_forest_type(terrain_index);
+    if (forest_type == 1) {
+      return 8; /* scrub: TERRAIN-only */
     }
-    if (phys0_bit3_overlay_sprite(forest_index) >= 0) {
-      return map_cleared_base_sprite(terrain_byte);
-    }
+    return map_cleared_base_for_forest_type(forest_type);
   }
 
   return map_terrain_index_to_sprite(terrain_index);
@@ -446,12 +428,12 @@ int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y) {
     return -1;
   }
 
-  if (map_has_bit3_forest(terrain_byte)) {
-    return phys0_bit3_overlay_sprite(map_bit3_forest_index(terrain_byte));
+  if (map_is_forest_index(terrain_index)) {
+    return phys0_forest_overlay_sprite(map_forest_type(terrain_index));
   }
 
   if (y == MAP_TUNDRA_ROW) {
-    return (int)viceroy_feature_sprite_bases_b[3]; /* 65 mixed-forest / tundra canopy */
+    return (int)PHYS0_TUNDRA_CANOPY;
   }
   return -1;
 }

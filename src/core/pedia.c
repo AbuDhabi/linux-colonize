@@ -6,22 +6,11 @@
 #include "data/viceroy_tables.h"
 
 static int pedia_cleared_base_for_forest(int forest_index) {
-  const int low3 = forest_index & 7;
-  if (low3 == 0) {
-    return 4; /* boreal forest clears to grassland art in AMER2 fixtures */
-  }
-  return low3;
+  return forest_index & 7; /* PEDIA: forest N clears to land N (boreal → tundra) */
 }
 
 static int pedia_forest_phys0(int forest_index) {
-  switch (forest_index & 7) {
-    case 0:
-      return 40; /* boreal transition */
-    case 5:
-      return 99; /* tropical timber */
-    default:
-      return -1;
-  }
+  return viceroy_forest_phys0_sprite(forest_index & 7);
 }
 
 static int pedia_terrain_base_sprite(int terrain_index) {

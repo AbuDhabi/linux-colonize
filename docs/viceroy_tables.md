@@ -81,6 +81,7 @@ Candidate for coastline / connectivity variant selection (sprites in the 112–1
 |-------|--------|-------|
 | `connectivity_transition` | no | Coast parked; candidate table — needs DOS validation |
 | `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
+| `viceroy_forest_phys0_sprite()` | yes | All non-scrub forest PHYS0 overlays (map + pedia) |
 | `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |
 | `feature_sprite_bases_a` | no | Deferred with map compositor |
 | `terrain_meta` class | pedia | Mountains/hills class flags |

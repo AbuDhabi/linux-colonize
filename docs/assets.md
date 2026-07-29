@@ -81,12 +81,15 @@ Colonization scenario maps (e.g. `AMER2.MP`) are raw binary files:
 | 6+W×H | W×H | layer 2 (unused in shipped maps) |
 | 6+2×W×H | W×H | layer 3 (fog / visibility in-game) |
 
-Each terrain byte:
+Each terrain byte (FreeCol `ColonizationMapLoader`):
 
-- bits 0–4: terrain index 0–26 (tundra … high seas; see FreeCol `ColonizationMapLoader`)
+- bits 0–4: terrain index 0–26 (see table below; bit 3 and bit 4 both contribute to the index)
 - bits 5–7: overlay (0=none, 1=hill, 2=minor river, 5=mountain, 6=major river, …)
 
-### TERRAIN.SS sprite index (`terrain & 0x1f`)
+Forest indices 8–15 use bit 3; 16–23 use bit 4 (same eight forest types on cleared land 0–7).
+The Linux port decodes terrain as `byte & 0x1f`.
+
+### TERRAIN.SS sprite index
 
 | Sprite | Terrain type |
 |--------|----------------|
@@ -98,12 +101,12 @@ Each terrain byte:
 | 5 | Savannah (sugar) |
 | 6 | Marsh |
 | 7 | Swamp |
-| 8 | Scrub forest |
+| 8 | Scrub forest (indices 9 and 17 only) |
 | 9 | Arctic |
 | 10 | Ocean |
 | 11 | High seas |
 
-Map indices 24/25/26 map to arctic/ocean/high-seas sprites. Indices 12–23 reuse land sprites modulo 12 until cleared/forested variants are modeled.
+Indices 24/25/26 map to arctic/ocean/high-seas sprites. Other forest indices (8–23 except scrub) use the cleared-land sprite for their forest type (`index & 7`), with a `PHYS0` canopy overlay from the mixed-forest band.
 
 ### PHYS0.SS sprite atlas (press `` ` `` in-game)
 
@@ -135,13 +138,24 @@ Map indices 24/25/26 map to arctic/ocean/high-seas sprites. Indices 12–23 reus
 
 The Linux port draws cleared terrain from `TERRAIN.SS` (using FreeCol-style decoding of bits 0–4), then composites `.MP` overlays from `PHYS0.SS`.
 
-**Terrain byte decode (layer 1):**
+**Terrain byte decode (layer 1):** `terrain_index = byte & 0x1f` (FreeCol). Indices 0–7 are cleared land; 8–23 are forests (type = `index & 7`); 24–26 are arctic/ocean/high seas.
 
-- Bits 0–2: cleared land type 0–7
-- Bit 3 only (`0x08`…): forest terrain index `8 + (bits 0–2)` → TERRAIN sprite 8 for now
-- Bit 4 only (`0x10`…): cleared base type in bits 0–2 (overlay bit 4 is not part of the terrain index)
-- Index 24/25/26 → arctic / ocean / high seas sprites 9/10/11
-- Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest sprite 65
+**Forest TERRAIN/PHYS0 rules:**
+
+| Forest type (`index & 7`) | Example index | TERRAIN sprite | PHYS0 overlay |
+|---------------------------|---------------|----------------|---------------|
+| 0 boreal | 8, 16 | 0 (tundra) | 70 |
+| 1 scrub | 9, 17 | 8 | — |
+| 2 mixed | 10, 18 | cleared type (plains) | 64 |
+| 3 broadleaf | 11, 19 | cleared type (prairie) | 65 |
+| 4 conifer | 12, 20 | cleared type (grassland) | 66 |
+| 5 tropical | 13, 21 | cleared type (savannah) | 69 |
+| 6 wetland | 14, 22 | cleared type (marsh) | 67 |
+| 7 rain | 15, 23 | cleared type (swamp) | 68 |
+
+Mixed/broadleaf/conifer/tropical/wetland/rain overlays use the `PHYS0.SS` mixed-forest band (sprites 64–79); one canonical sprite per type above. Sprite 99 is timber (bonus resource), not forest canopy.
+
+Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest sprite 65.
 
 **Overlay rules (bits 5–7):**
 
@@ -157,7 +171,7 @@ The Linux port draws cleared terrain from `TERRAIN.SS` (using FreeCol-style deco
 
 When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses mountain art (e.g. AMER2 `(1,1)` → PHYS0 36 on tundra).
 
-Forests on other rows, roads, resources, and fog overlays are not drawn from static `.MP` data yet.
+Forests on other rows now draw PHYS0 canopy overlays; roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
 **Coastal ocean — parked (cosmetic).** The port draws a **best-effort** 4-quadrant 8×8 heuristic on ocean tiles (sprites 108–139, see `map_phys0_coast_collect()` in `src/core/map.c`). It does **not** match the DOS game; iteration is stopped until map fidelity is prioritized. Research notes, save-state buffer addresses, and a resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**).
 

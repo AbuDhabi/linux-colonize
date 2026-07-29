@@ -127,9 +127,16 @@ int main(void) {
     {2, 11, 4, 1, {36}},
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
+    {8, 14, 8, 0, {0}},
     {1, 0, 0, 1, {65}},
-    {1, 2, 4, 1, {40}},
-    {4, 18, 5, 1, {99}},
+    {1, 2, 0, 1, {70}},
+    {16, 2, 0, 1, {70}},
+    {4, 18, 5, 1, {69}},
+    {36, 4, 2, 1, {64}},
+    {27, 14, 3, 1, {65}},
+    {3, 3, 4, 1, {66}},
+    {27, 20, 6, 1, {67}},
+    {39, 28, 7, 1, {68}},
     {24, 19, 4, 1, {52}},
     {24, 20, 4, 1, {56}},
     /* 4-quadrant 8x8 coast system (sprites 108-139, groups of 8 per quadrant).
@@ -166,7 +173,44 @@ int main(void) {
     }
   }
 
-  fprintf(stderr, "map tests ok (%zu amer2 fixtures)\n", sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]));
+  /* Scrub forest: only terrain indices 9 and 17 use TERRAIN sprite 8 (no PHYS0). */
+  int scrub_sprite8_tiles = 0;
+  for (int y = 0; y < (int)map.height; ++y) {
+    for (int x = 0; x < (int)map.width; ++x) {
+      const uint8_t byte = map_get_terrain(&map, x, y);
+      const int terrain_index = (int)(byte & 0x1fu);
+      const int terrain_sprite = map_terrain_sprite_at(&map, x, y);
+      if (terrain_sprite != 8) {
+        continue;
+      }
+      ++scrub_sprite8_tiles;
+      if (terrain_index != 9 && terrain_index != 17) {
+        fprintf(
+          stderr,
+          "scrub regression: (%d,%d) sprite 8 but terrain index %d (byte=0x%02x)\n",
+          x,
+          y,
+          terrain_index,
+          byte
+        );
+        map_free(&map);
+        return 1;
+      }
+      if (map_phys0_forest_sprite_at(&map, x, y) >= 0) {
+        fprintf(stderr, "scrub regression: (%d,%d) must not have PHYS0 forest overlay\n", x, y);
+        map_free(&map);
+        return 1;
+      }
+    }
+  }
+  if (scrub_sprite8_tiles != 81) {
+    fprintf(stderr, "scrub regression: expected 81 TERRAIN-8 tiles on AMER2, got %d\n", scrub_sprite8_tiles);
+    map_free(&map);
+    return 1;
+  }
+
+  fprintf(stderr, "map tests ok (%zu amer2 fixtures, %d scrub tiles)\n",
+    sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]), scrub_sprite8_tiles);
 
   map_free(&map);
   diag_shutdown();

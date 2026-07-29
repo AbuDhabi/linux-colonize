@@ -75,4 +75,32 @@ static inline int viceroy_tile_display_sprite_b(int display_type) {
   return (int)viceroy_tile_display[display_type][VICEROY_TILE_DISPLAY_OFF_SPRITE_B] * 8;
 }
 
+/*
+ * PHYS0 canopy for forest terrain (map index & 7). Scrub (1) is TERRAIN-only.
+ * Canopies are PHYS0.SS mixed-forest sprites 64–79 (not mountain 32–47 or
+ * resource 96–99). Sprite 40 is a mountain variant; 99 is timber.
+ */
+static inline int viceroy_forest_phys0_sprite(int forest_type) {
+  switch (forest_type) {
+    case 0:
+      return 70; /* boreal */
+    case 1:
+      return -1;
+    case 2:
+      return 64;
+    case 3:
+      return 65;
+    case 4:
+      return 66;
+    case 5:
+      return 69; /* tropical */
+    case 6:
+      return 67;
+    case 7:
+      return 68;
+    default:
+      return -1;
+  }
+}
+
 #endif
