@@ -336,7 +336,7 @@ static int phys0_river_sprite(bool major, uint8_t minor_mask, uint8_t major_mask
    * unless only one major link and minor neighbours exist — then any_mask (AMER2 21,18).
    */
   static const int minor_by_mask[16] = {
-    -1, 20, 17, 25,
+    -1, 24, 17, 25,
     20, 28, 21, 30,
     18, 26, 19, 27,
     22, 27, 29, 31,

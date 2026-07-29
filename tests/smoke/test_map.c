@@ -252,6 +252,10 @@ int main(void) {
     {17, 24, 3, 1, {28}},
     {17, 25, 8, 1, {25}},
     {18, 25, 5, 1, {19}},
+    /* Minor N-only links (~45,50)–(50,49). */
+    {45, 50, 5, 1, {24}},
+    {48, 46, 5, 1, {24}},
+    {50, 49, 5, 1, {24}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]); ++i) {
