@@ -50,10 +50,12 @@ void units_reset(ColonizeUnitPool* pool);
 
 int units_find_type(const ColonizeUnitPool* pool, const char* name);
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
+bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
+bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
 
 bool units_can_enter(
   const ColonizeUnitPool* pool,
@@ -69,6 +71,28 @@ bool units_try_move(
   const ColonizeWorldMap* map,
   int dest_x,
   int dest_y
+);
+
+/* True for high-seas / sea-lane tiles (terrain index 26). */
+bool units_on_high_seas(const ColonizeWorldMap* map, int x, int y);
+/* Nearest free water tile for a sea unit (occupant_id excluded when checking occupancy). */
+bool units_find_water_tile(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int occupant_id,
+  int* out_x,
+  int* out_y
+);
+/* Free high-seas tile near start; falls back to any free high-seas tile. */
+bool units_find_high_seas_tile(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int* out_x,
+  int* out_y
 );
 
 void units_end_turn(ColonizeUnitPool* pool);

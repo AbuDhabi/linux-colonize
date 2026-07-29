@@ -79,13 +79,50 @@ int main(void) {
     return 1;
   }
 
+  if (eu.harbor_ships != 0) {
+    fprintf(stderr, "starter harbor should be empty, got %d\n", eu.harbor_ships);
+    europe_free(&eu);
+    return 1;
+  }
+  if (!europe_harbor_push(&eu, 14, "Caravel") || eu.harbor_ships != 1) {
+    fprintf(stderr, "harbor_push failed\n");
+    europe_free(&eu);
+    return 1;
+  }
+  if (!europe_harbor_push(&eu, 15, "Merchantman") || eu.harbor_ships != 2) {
+    fprintf(stderr, "second harbor_push failed\n");
+    europe_free(&eu);
+    return 1;
+  }
+  int type_index = -1;
+  char ship_name[32];
+  if (!europe_harbor_pop(&eu, &type_index, ship_name, sizeof(ship_name)) ||
+      type_index != 14 || strcmp(ship_name, "Caravel") != 0 || eu.harbor_ships != 1) {
+    fprintf(
+      stderr,
+      "harbor_pop FIFO failed (type=%d name='%s' count=%d)\n",
+      type_index,
+      ship_name,
+      eu.harbor_ships
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  if (!europe_harbor_pop(&eu, &type_index, ship_name, sizeof(ship_name)) ||
+      type_index != 15 || strcmp(ship_name, "Merchantman") != 0 || eu.harbor_ships != 0) {
+    fprintf(stderr, "second harbor_pop failed\n");
+    europe_free(&eu);
+    return 1;
+  }
+
   fprintf(
     stderr,
-    "europe tests ok (cargo=%d classes=%d gold=%d dock=%d)\n",
+    "europe tests ok (cargo=%d classes=%d gold=%d dock=%d harbor=%d)\n",
     eu.cargo_count,
     eu.class_count,
     eu.gold,
-    eu.dock_count
+    eu.dock_count,
+    eu.harbor_ships
   );
   europe_free(&eu);
   diag_shutdown();

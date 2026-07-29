@@ -10,6 +10,7 @@
 #define EUROPE_CARGO_MAX 16
 #define EUROPE_DOCK_MAX 8
 #define EUROPE_CLASS_MAX 8
+#define EUROPE_HARBOR_MAX 8
 
 typedef struct EuropeCargoQuote {
   char name[32];
@@ -27,10 +28,15 @@ typedef struct EuropeRecruitClass {
   int cost;
 } EuropeRecruitClass;
 
+typedef struct EuropeHarborShip {
+  int type_index; /* into ColonizeUnitPool types */
+  char name[32];
+} EuropeHarborShip;
+
 /*
  * Europe / home-port bring-up state.
- * Full buy/sell drag UI and ship cargo holds come later; this is the screen shell
- * plus market quotes, treasury, tax, and a stub immigrant dock.
+ * Full buy/sell drag UI and cargo holds come later; this is the screen shell
+ * plus market quotes, treasury, tax, immigrant dock, and a simple ship harbor.
  */
 typedef struct EuropeScreen {
   ColonizePikImage background;
@@ -45,7 +51,8 @@ typedef struct EuropeScreen {
   int class_count;
   EuropeDockImmigrant dock[EUROPE_DOCK_MAX];
   int dock_count;
-  int harbor_ships; /* stub count until units exist */
+  EuropeHarborShip harbor[EUROPE_HARBOR_MAX];
+  int harbor_ships;
   char status[96];
 } EuropeScreen;
 
@@ -57,6 +64,12 @@ void europe_reset_campaign(EuropeScreen* eu);
 bool europe_recruit(EuropeScreen* eu);
 /* Remove oldest dock immigrant for deployment in the New World. */
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
+
+/* Dock a New World ship in the European harbor (FIFO). */
+bool europe_harbor_push(EuropeScreen* eu, int type_index, const char* name);
+/* Undock oldest harbor ship for return to the New World. */
+bool europe_harbor_pop(EuropeScreen* eu, int* out_type_index, char* out_name, size_t out_name_size);
+
 /* Train is not implemented yet; sets status text. */
 void europe_train_stub(EuropeScreen* eu);
 void europe_cheat_add_gold(EuropeScreen* eu, int amount);

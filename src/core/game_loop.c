@@ -96,6 +96,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_D: return "D";
     case COLONIZE_KEY_B: return "B";
     case COLONIZE_KEY_C: return "C";
+    case COLONIZE_KEY_H: return "H";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -405,7 +406,22 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       snprintf(line, sizeof(line), "%d. %s", i + 1, eu->dock[i].name);
       font_draw_text(font, framebuffer, 8, y, line, 15);
       y += 9;
-      if (y > 100) {
+      if (y > 88) {
+        break;
+      }
+    }
+  }
+
+  font_draw_text(font, framebuffer, 4, 100, "Harbor", 14);
+  y = 110;
+  if (eu->harbor_ships == 0) {
+    font_draw_text(font, framebuffer, 8, y, "(empty)", 12);
+  } else {
+    for (int i = 0; i < eu->harbor_ships; ++i) {
+      snprintf(line, sizeof(line), "%d. %s", i + 1, eu->harbor[i].name);
+      font_draw_text(font, framebuffer, 8, y, line, 15);
+      y += 9;
+      if (y > 155) {
         break;
       }
     }
@@ -428,7 +444,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
   }
 
   font_draw_text(font, framebuffer, 4, 168, eu->status, 14);
-  font_draw_text(font, framebuffer, 4, 180, "R Recruit  T Train  ] +1000$  [ tax-  Esc map", 12);
+  font_draw_text(font, framebuffer, 4, 180, "R Recruit  T Train  S Sail  ] +1000$  [ tax-  Esc", 12);
   if (!game->europe_ok) {
     font_draw_text(font, framebuffer, 4, 100, "EUROPE.PIK / NAMES.TXT failed to load", 12);
   }
@@ -711,7 +727,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   snprintf(
     game->status,
     sizeof(game->status),
-    "Map: arrows cursor, Enter select/move, B found colony, C enter colony, D deploy, E Europe"
+    "Map: arrows, Enter move, B found, C colony, D deploy, H sail Europe, E Europe"
   );
 }
 
@@ -768,6 +784,45 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       europe_recruit(&game->europe);
     } else if (input->last_key == COLONIZE_KEY_T) {
       europe_train_stub(&game->europe);
+    } else if (input->last_key == COLONIZE_KEY_S) {
+      if (game->europe.harbor_ships <= 0) {
+        snprintf(game->europe.status, sizeof(game->europe.status), "%s", "No ships in harbor.");
+      } else if (!game->world_map_ok || !game->units_ok) {
+        snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Cannot sail: map unavailable.");
+      } else {
+        int type_index = -1;
+        char ship_name[32];
+        if (!europe_harbor_pop(&game->europe, &type_index, ship_name, sizeof(ship_name))) {
+          snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Harbor pop failed.");
+        } else {
+          int sx = 39;
+          int sy = 10;
+          if (!units_find_high_seas_tile(&game->units, &game->world_map, sx, sy, &sx, &sy)) {
+            europe_harbor_push(&game->europe, type_index, ship_name);
+            snprintf(game->europe.status, sizeof(game->europe.status), "%s", "No free high-seas berth.");
+          } else {
+            const int ship_id = units_spawn(&game->units, type_index, sx, sy);
+            if (ship_id < 0) {
+              europe_harbor_push(&game->europe, type_index, ship_name);
+              snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Could not place ship.");
+            } else {
+              game->units.selected_id = ship_id;
+              game->map_cursor_x = sx;
+              game->map_cursor_y = sy;
+              game->in_europe = false;
+              snprintf(
+                game->status,
+                sizeof(game->status),
+                "%s arrived at (%d,%d)",
+                ship_name,
+                sx,
+                sy
+              );
+              diag_info("Sailed %s from Europe to (%d,%d)", ship_name, sx, sy);
+            }
+          }
+        }
+      }
     } else if (input->last_key == COLONIZE_KEY_RIGHTBRACKET) {
       europe_cheat_add_gold(&game->europe, 1000);
     } else if (input->last_key == COLONIZE_KEY_LEFTBRACKET) {
@@ -879,7 +934,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     snprintf(
       game->europe.status,
       sizeof(game->europe.status),
-      "Home port ready. Recruit / Train / Esc."
+      "Home port ready. Recruit / Train / S Sail / Esc."
     );
     diag_info("Entered Europe screen.");
     return true;
@@ -927,7 +982,22 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 1 : 15;
 
   if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok && game->units_ok) {
-    if (game->units.selected_id >= 0) {
+    const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+    if (at_cursor >= 0 && at_cursor != game->units.selected_id) {
+      /* Prefer selecting another unit under the cursor over attempting a move. */
+      game->units.selected_id = at_cursor;
+      const ColonizeUnitType* ut = NULL;
+      const ColonizeUnit* u = units_get_const(&game->units, at_cursor);
+      if (u) {
+        ut = units_type(&game->units, u->type_index);
+      }
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Selected %s",
+        ut ? ut->name : "unit"
+      );
+    } else if (game->units.selected_id >= 0) {
       ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
       if (selected &&
           (selected->x != game->map_cursor_x || selected->y != game->map_cursor_y)) {
@@ -949,12 +1019,34 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           set_status(game, "Move blocked", NULL);
         }
       } else {
-        const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
         game->units.selected_id = at_cursor;
       }
     } else {
-      game->units.selected_id =
-        units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+      game->units.selected_id = at_cursor;
+    }
+  }
+
+  /* H: sail selected ship to Europe from high-seas edge. */
+  if (input->last_key == COLONIZE_KEY_H && game->world_map_ok && game->units_ok && game->europe_ok) {
+    const int sid = game->units.selected_id;
+    ColonizeUnit* ship = units_get(&game->units, sid);
+    if (!ship || !units_is_sea(&game->units, sid)) {
+      set_status(game, "Select a ship to sail to Europe", NULL);
+    } else if (!units_on_high_seas(&game->world_map, ship->x, ship->y)) {
+      set_status(game, "Ship must be on high seas", NULL);
+    } else {
+      const ColonizeUnitType* ut = units_type(&game->units, ship->type_index);
+      const char* ship_name = ut ? ut->name : "Ship";
+      const int type_index = ship->type_index;
+      if (!europe_harbor_push(&game->europe, type_index, ship_name)) {
+        set_status(game, "Europe harbor is full", NULL);
+      } else if (!units_despawn(&game->units, sid)) {
+        europe_harbor_pop(&game->europe, NULL, NULL, 0);
+        set_status(game, "Failed to sail ship", NULL);
+      } else {
+        snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
+        diag_info("Sailed %s to Europe harbor", ship_name);
+      }
     }
   }
 
@@ -986,27 +1078,30 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  /* B: found a colony using any unit at the cursor (type checks come later). */
+  /* B: found a colony using a land unit at the cursor. */
   if (input->last_key == COLONIZE_KEY_B && game->world_map_ok) {
     const int cx = game->map_cursor_x;
     const int cy = game->map_cursor_y;
     if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
       set_status(game, "Cannot found colony here", NULL);
     } else {
-      /* A founding unit must be present at the cursor. */
       const int uid = units_id_at(&game->units, cx, cy);
       if (uid < 0) {
         set_status(game, "No unit at cursor to found colony", NULL);
+      } else if (units_is_sea(&game->units, uid)) {
+        set_status(game, "Ships cannot found colonies", NULL);
       } else {
         const int cid = colonies_found(&game->colonies, &game->world_map, cx, cy);
         if (cid >= 0) {
           const ColonizeColony* col = colonies_get(&game->colonies, cid);
-          /* Remove the founding unit (consumed by construction). */
           ColonizeUnit* founder = units_get(&game->units, uid);
           if (founder) {
             founder->active = false;
             if (game->units.selected_id == uid) {
               game->units.selected_id = -1;
+            }
+            if (game->units.unit_count > 0) {
+              game->units.unit_count--;
             }
           }
           snprintf(

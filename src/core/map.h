@@ -63,5 +63,7 @@ int map_terrain_sprite(uint8_t terrain_byte);
 
 bool map_tile_is_water(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y);
+/* Terrain index 26 — high seas / sea lane (Europe route). */
+bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y);
 
 #endif

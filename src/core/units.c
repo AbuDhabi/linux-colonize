@@ -157,6 +157,39 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   return slot->id;
 }
 
+bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* unit = units_get(pool, unit_id);
+  if (!unit) {
+    return false;
+  }
+  unit->active = false;
+  unit->id = -1;
+  unit->type_index = -1;
+  unit->x = 0;
+  unit->y = 0;
+  unit->moves_left = 0;
+  if (pool->unit_count > 0) {
+    pool->unit_count--;
+  }
+  if (pool->selected_id == unit_id) {
+    pool->selected_id = -1;
+  }
+  return true;
+}
+
+bool units_is_sea(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* unit = units_get_const(pool, unit_id);
+  if (!unit) {
+    return false;
+  }
+  const ColonizeUnitType* type = units_type(pool, unit->type_index);
+  return type && type->domain == COLONIZE_UNIT_DOMAIN_SEA;
+}
+
+bool units_on_high_seas(const ColonizeWorldMap* map, int x, int y) {
+  return map_tile_is_high_seas(map, x, y);
+}
+
 int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
   if (!pool) {
     return -1;
@@ -305,6 +338,91 @@ static bool units_find_land_tile(const ColonizeWorldMap* map, int start_x, int s
   return false;
 }
 
+bool units_find_water_tile(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int occupant_id,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return false;
+  }
+  if (map_tile_is_water(map, start_x, start_y)) {
+    const int other = pool ? units_id_at(pool, start_x, start_y) : -1;
+    if (other < 0 || other == occupant_id) {
+      *out_x = start_x;
+      *out_y = start_y;
+      return true;
+    }
+  }
+  for (int radius = 1; radius < 48; ++radius) {
+    for (int dy = -radius; dy <= radius; ++dy) {
+      for (int dx = -radius; dx <= radius; ++dx) {
+        if (abs(dx) != radius && abs(dy) != radius) {
+          continue;
+        }
+        const int x = start_x + dx;
+        const int y = start_y + dy;
+        if (!map_tile_is_water(map, x, y)) {
+          continue;
+        }
+        const int other = pool ? units_id_at(pool, x, y) : -1;
+        if (other >= 0 && other != occupant_id) {
+          continue;
+        }
+        *out_x = x;
+        *out_y = y;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool units_find_high_seas_tile(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return false;
+  }
+
+  int best_x = -1;
+  int best_y = -1;
+  int best_d = 1 << 30;
+  for (int y = 0; y < (int)map->height; ++y) {
+    for (int x = 0; x < (int)map->width; ++x) {
+      if (!map_tile_is_high_seas(map, x, y)) {
+        continue;
+      }
+      if (pool && units_id_at(pool, x, y) >= 0) {
+        continue;
+      }
+      const int dx = x - start_x;
+      const int dy = y - start_y;
+      const int d = dx * dx + dy * dy;
+      if (d < best_d) {
+        best_d = d;
+        best_x = x;
+        best_y = y;
+      }
+    }
+  }
+  if (best_x < 0) {
+    return false;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return true;
+}
+
 void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map) {
   if (!pool) {
     return;
@@ -321,24 +439,36 @@ void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map) 
   if (pioneer_type < 0 && pool->type_count > 0) {
     pioneer_type = 0;
   }
-  if (pioneer_type < 0) {
-    return;
-  }
 
   /* AMER2 @SCENARIO start tile (39,10) — first player landing site. */
   int x = 39;
   int y = 10;
-  if (!units_find_land_tile(map, x, y, &x, &y)) {
-    x = map->width / 2;
-    y = map->height / 2;
+  int pioneer_id = -1;
+  if (pioneer_type >= 0) {
     if (!units_find_land_tile(map, x, y, &x, &y)) {
-      return;
+      x = map->width / 2;
+      y = map->height / 2;
+      if (!units_find_land_tile(map, x, y, &x, &y)) {
+        x = 39;
+        y = 10;
+      }
+    }
+    pioneer_id = units_spawn(pool, pioneer_type, x, y);
+    if (pioneer_id >= 0) {
+      pool->selected_id = pioneer_id;
     }
   }
 
-  const int id = units_spawn(pool, pioneer_type, x, y);
-  if (id >= 0) {
-    pool->selected_id = id;
+  const int caravel_type = units_find_type(pool, "Caravel");
+  if (caravel_type >= 0) {
+    int sx = x;
+    int sy = y;
+    if (units_find_water_tile(pool, map, x, y, -1, &sx, &sy)) {
+      const int ship_id = units_spawn(pool, caravel_type, sx, sy);
+      if (ship_id >= 0 && pool->selected_id < 0) {
+        pool->selected_id = ship_id;
+      }
+    }
   }
 }
 

@@ -201,10 +201,11 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 |-----|--------|
 | R | Recruit cheapest `@CLASS` immigrant onto the docks |
 | T | Train (stub) |
+| S | Sail oldest harbor ship to the New World (onto a high-seas tile) |
 | `]` | Cheat: +1000 gold |
 | `[` | Cheat: −1% tax |
 
-Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Ship cargo holds, drag-trade, and sailing to the New World are not implemented yet.
+Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Ship cargo holds, drag-trade, and buying ships in Europe are not implemented yet. Harbor ships arrive via **H** from the New World map edge and return with **S**.
 
 ### Colony screen bring-up
 
@@ -231,13 +232,14 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 
 | Key | Action |
 |-----|--------|
-| Enter | Select unit under cursor, or move selected unit to cursor (1 tile, costs movement) |
+| Enter | Select unit under cursor (if different from current), or move selected unit to empty cursor tile |
 | C | Enter colony screen when cursor is on a colony tile |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
-| B | Found a colony on the cursor tile using the unit there (unit is consumed) |
+| H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26) |
+| B | Found a colony on the cursor tile using a land unit there (unit is consumed; ships cannot found) |
 | Space | End turn (refreshes unit movement points) |
 
-A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game. Europe still keeps dock immigrants until deployed with **D**. Press **B** with a unit on a land tile to found a colony (unit is consumed; name comes from `COLONY.TXT @ENGLISH`).
+A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit is consumed; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land.
 
 | Extension | Typical use |
 |-----------|-------------|

@@ -141,6 +141,7 @@ void europe_reset_campaign(EuropeScreen* eu) {
   eu->gold = 1000;
   eu->tax_percent = 0;
   eu->harbor_ships = 0;
+  memset(eu->harbor, 0, sizeof(eu->harbor));
   eu->dock_count = 0;
   memset(eu->dock, 0, sizeof(eu->dock));
   /* Three free colonists already waiting — matches early-game dock feel. */
@@ -150,7 +151,7 @@ void europe_reset_campaign(EuropeScreen* eu) {
     eu->dock[i].present = true;
     eu->dock_count = i + 1;
   }
-  europe_set_status(eu, "Home port ready. Recruit / Train / Esc.");
+  europe_set_status(eu, "Home port ready. Recruit / Train / S Sail / Esc.");
 }
 
 bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size) {
@@ -254,6 +255,40 @@ bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name
   eu->dock_count--;
   eu->dock[eu->dock_count].present = false;
   eu->dock[eu->dock_count].name[0] = '\0';
+  return true;
+}
+
+bool europe_harbor_push(EuropeScreen* eu, int type_index, const char* name) {
+  if (!eu || type_index < 0) {
+    return false;
+  }
+  if (eu->harbor_ships >= EUROPE_HARBOR_MAX) {
+    europe_set_status(eu, "Harbor is full.");
+    return false;
+  }
+  EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
+  slot->type_index = type_index;
+  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Ship");
+  snprintf(eu->status, sizeof(eu->status), "%s arrived in harbor.", slot->name);
+  return true;
+}
+
+bool europe_harbor_pop(EuropeScreen* eu, int* out_type_index, char* out_name, size_t out_name_size) {
+  if (!eu || eu->harbor_ships <= 0) {
+    return false;
+  }
+  if (out_type_index) {
+    *out_type_index = eu->harbor[0].type_index;
+  }
+  if (out_name && out_name_size > 0) {
+    snprintf(out_name, out_name_size, "%s", eu->harbor[0].name);
+  }
+  for (int i = 1; i < eu->harbor_ships; ++i) {
+    eu->harbor[i - 1] = eu->harbor[i];
+  }
+  eu->harbor_ships--;
+  eu->harbor[eu->harbor_ships].type_index = -1;
+  eu->harbor[eu->harbor_ships].name[0] = '\0';
   return true;
 }
 

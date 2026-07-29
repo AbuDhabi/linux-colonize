@@ -316,6 +316,13 @@ bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y) {
   return map_is_land_at(map, x, y);
 }
 
+bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  return map_decode_terrain_index(map_get_terrain(map, x, y)) == MAP_HIGH_SEAS_INDEX;
+}
+
 #if MAP_COAST_OVERLAYS_ENABLED
 typedef struct CoastOverlay {
   int sprite;
