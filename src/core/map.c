@@ -122,6 +122,22 @@ static bool overlay_is_major_river(uint8_t overlay) {
   return overlay == 6 || overlay == 7;
 }
 
+static bool overlay_is_any_river(uint8_t overlay) {
+  return overlay_is_minor_river(overlay) || overlay_is_major_river(overlay);
+}
+
+static bool minor_river_neighbor_only(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  (void)self_byte;
+  (void)dir;
+  return overlay_is_minor_river((uint8_t)(tile_byte >> 5));
+}
+
+static bool any_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
+  (void)self_byte;
+  (void)dir;
+  return overlay_is_any_river((uint8_t)(tile_byte >> 5));
+}
+
 static bool map_hill_related_tile_dir(uint8_t tile_byte, uint8_t self_byte, int dir) {
   const uint8_t overlay = (uint8_t)(tile_byte >> 5);
 
@@ -172,12 +188,6 @@ static bool mountain_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
   (void)self_byte;
   (void)dir;
   return overlay_is_mountain((uint8_t)(tile_byte >> 5), tile_byte);
-}
-
-static bool minor_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
-  (void)self_byte;
-  (void)dir;
-  return overlay_is_minor_river((uint8_t)(tile_byte >> 5));
 }
 
 static bool major_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
@@ -293,23 +303,46 @@ static bool map_has_special_mountain_marker(const ColonizeWorldMap* map, int x, 
   return map_get_layer3(map, x, y) == 0x0eu;
 }
 
-static int phys0_river_sprite(bool major, uint8_t mask) {
+static int river_mask_popcount(uint8_t mask) {
+  int count = 0;
+  for (int bit = 0; bit < 4; ++bit) {
+    if ((mask & (uint8_t)(1u << bit)) != 0) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+static int phys0_river_sprite(bool major, uint8_t minor_mask, uint8_t major_mask, uint8_t any_mask) {
   /*
    * Cardinal connectivity -> PHYS0 river sprite.
    * Bits: N=1, E=2, S=4, W=8.
-   * Derived from AMER2/DOS fixtures; major rivers share the same variants at -16.
+   * Minor tiles use any_mask (minor + major neighbours). Major tiles use major_mask
+   * unless only one major link and minor neighbours exist — then any_mask (AMER2 21,18).
    */
   static const int minor_by_mask[16] = {
     -1, 20, 17, 25,
-    18, 28, 23, 30,
-    21, 24, 19, 26,
+    20, 28, 21, 30,
+    18, 26, 19, 27,
     22, 27, 29, 31,
   };
-  const int sprite = minor_by_mask[mask & 0x0f];
-  if (sprite < 0) {
-    return -1;
+  static const int major_by_mask[16] = {
+    -1, 4, 1, 9,
+    2, 14, 5, 14,
+    2, 10, 3, 11,
+    7, 11, 13, 15,
+  };
+
+  if (!major) {
+    return minor_by_mask[any_mask & 0x0f];
   }
-  return major ? sprite - 16 : sprite;
+  if (river_mask_popcount(major_mask) >= 2) {
+    return major_by_mask[major_mask & 0x0f];
+  }
+  if (minor_mask != 0) {
+    return minor_by_mask[any_mask & 0x0f];
+  }
+  return major_by_mask[major_mask & 0x0f];
 }
 
 static int phys0_mountain_sprite(uint8_t mask) {
@@ -525,12 +558,18 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
 
   if (overlay_is_minor_river(overlay) || overlay_is_major_river(overlay)) {
     if (layer == feature_layer) {
-      if (overlay_is_major_river(overlay)) {
-        const uint8_t mask = map_cardinal_mask(map, x, y, major_river_neighbor, terrain_byte);
-        return phys0_river_sprite(true, mask);
-      }
-      const uint8_t mask = map_cardinal_mask(map, x, y, minor_river_neighbor, terrain_byte);
-      return phys0_river_sprite(false, mask);
+      const uint8_t minor_mask =
+        map_cardinal_mask(map, x, y, minor_river_neighbor_only, terrain_byte);
+      const uint8_t major_mask =
+        map_cardinal_mask(map, x, y, major_river_neighbor, terrain_byte);
+      const uint8_t any_mask =
+        map_cardinal_mask(map, x, y, any_river_neighbor, terrain_byte);
+      return phys0_river_sprite(
+        overlay_is_major_river(overlay),
+        minor_mask,
+        major_mask,
+        any_mask
+      );
     }
   }
 

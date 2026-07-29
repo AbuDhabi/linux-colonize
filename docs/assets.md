@@ -163,10 +163,10 @@ Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest spri
 |---------|-------------|-------|
 | 0, 4 | (none) | — |
 | 1 hill | 48–63 | Unless bit 4 is set → mountain (below) |
-| 2 minor river | 17–31 | `17 + (mask % 15)` |
+| 2 minor river | 17–31 | Cardinal mask (any river neighbours) → sprite |
 | 3 hill + minor river | mountain or hill, then river | Bit 4 selects mountain vs hill |
 | 5 mountain | 32–47 | Isolated tile uses sprite **36** |
-| 6 major river | 1–15 | `1 + (mask % 15)` |
+| 6 major river | 1–15 | Major-neighbour mask, or minor-band at junctions |
 | 7 mountain + major river | mountain then river | — |
 
 When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses mountain art (e.g. AMER2 `(1,1)` → PHYS0 36 on tundra).

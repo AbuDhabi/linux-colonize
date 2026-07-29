@@ -163,7 +163,7 @@ int main(void) {
     {34, 7, 10, 4, {111, 121, 126, 136}},
     /* Regression anchors from earlier passes. */
     {9, 26, 1, 1, {48}},
-    {16, 3, 0, 1, {23}},
+    {16, 3, 0, 1, {21}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]); ++i) {
@@ -233,11 +233,49 @@ int main(void) {
     }
   }
 
+  /* Minor-river segment on AMER2 (~6,19)–(8,16). */
+  static const MapTileExpectation amer2_river_north[] = {
+    {6, 19, 1, 1, {21}},
+    {7, 19, 8, 1, {26}},
+    {7, 18, 1, 1, {28}},
+    {7, 17, 1, 1, {28}},
+    {7, 16, 1, 1, {21}},
+    {8, 16, 8, 1, {18}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_river_north) / sizeof(amer2_river_north[0]); ++i) {
+    if (check_tile(&map, &amer2_river_north[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "river north regression: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+
+  /* Major/minor junction on AMER2 (~21,18)–(22,20), minor fork at (21,20). */
+  static const MapTileExpectation amer2_river_major[] = {
+    {21, 18, 3, 1, {27}},
+    {22, 18, 3, 1, {7}},
+    {21, 20, 3, 1, {19}},
+    {22, 20, 3, 1, {14}},
+    {29, 15, 3, 1, {28}},
+    {29, 14, 2, 1, {20}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_river_major) / sizeof(amer2_river_major[0]); ++i) {
+    if (check_tile(&map, &amer2_river_major[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "river major regression: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+
   fprintf(stderr,
-    "map tests ok (%zu amer2 fixtures, %d scrub tiles, %zu river chain tiles)\n",
+    "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles)\n",
     sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),
     scrub_sprite8_tiles,
-    sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]));
+    sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]),
+    sizeof(amer2_river_north) / sizeof(amer2_river_north[0]),
+    sizeof(amer2_river_major) / sizeof(amer2_river_major[0]));
 
   map_free(&map);
   diag_shutdown();
