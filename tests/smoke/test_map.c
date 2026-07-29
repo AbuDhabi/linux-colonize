@@ -125,6 +125,7 @@ int main(void) {
     /* User-reported fixtures for iterative map rendering. */
     {1, 1, 0, 1, {36}},
     {2, 11, 4, 1, {36}},
+    {43, 68, 0, 1, {36}},
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
     {8, 14, 8, 0, {0}},
@@ -209,8 +210,34 @@ int main(void) {
     return 1;
   }
 
-  fprintf(stderr, "map tests ok (%zu amer2 fixtures, %d scrub tiles)\n",
-    sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]), scrub_sprite8_tiles);
+  /*
+   * Minor-river chain on AMER2 (~14,22)–(18,25): cardinal connectivity → PHYS0 17–31.
+   * Locks phys0_river_sprite() against the old mask-% count heuristic.
+   */
+  static const MapTileExpectation amer2_river_chain[] = {
+    {14, 22, 1, 1, {17}},
+    {15, 22, 8, 1, {22}},
+    {15, 23, 8, 1, {25}},
+    {16, 23, 3, 1, {19}},
+    {17, 23, 5, 1, {22}},
+    {17, 24, 3, 1, {28}},
+    {17, 25, 8, 1, {25}},
+    {18, 25, 5, 1, {19}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]); ++i) {
+    if (check_tile(&map, &amer2_river_chain[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "river chain regression: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+
+  fprintf(stderr,
+    "map tests ok (%zu amer2 fixtures, %d scrub tiles, %zu river chain tiles)\n",
+    sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),
+    scrub_sprite8_tiles,
+    sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]));
 
   map_free(&map);
   diag_shutdown();

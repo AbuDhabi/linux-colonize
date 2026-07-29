@@ -288,6 +288,30 @@ static int phys0_connectivity_sprite(int first, int count, uint8_t mask) {
   return first + (int)(mask % (uint8_t)count);
 }
 
+static bool map_has_special_mountain_marker(const ColonizeWorldMap* map, int x, int y) {
+  /* AMER2 has one arctic tile tagged in layer 3 that DOS draws with mountain art. */
+  return map_get_layer3(map, x, y) == 0x0eu;
+}
+
+static int phys0_river_sprite(bool major, uint8_t mask) {
+  /*
+   * Cardinal connectivity -> PHYS0 river sprite.
+   * Bits: N=1, E=2, S=4, W=8.
+   * Derived from AMER2/DOS fixtures; major rivers share the same variants at -16.
+   */
+  static const int minor_by_mask[16] = {
+    -1, 20, 17, 25,
+    18, 28, 23, 30,
+    21, 24, 19, 26,
+    22, 27, 29, 31,
+  };
+  const int sprite = minor_by_mask[mask & 0x0f];
+  if (sprite < 0) {
+    return -1;
+  }
+  return major ? sprite - 16 : sprite;
+}
+
 static int phys0_mountain_sprite(uint8_t mask) {
   if (mask == 0) {
     return PHYS0_MOUNTAIN_ISOLATED;
@@ -446,6 +470,9 @@ int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
   const uint8_t overlay = map_terrain_overlay(terrain_byte);
   int count = map_phys0_coast_layer_count(map, x, y);
 
+  if (map_has_special_mountain_marker(map, x, y)) {
+    ++count;
+  }
   if (overlay == 0 || overlay == 4) {
     return count;
   }
@@ -472,6 +499,13 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
   }
   int feature_layer = coast_layers;
 
+  if (map_has_special_mountain_marker(map, x, y)) {
+    if (layer == feature_layer) {
+      return PHYS0_MOUNTAIN_ISOLATED;
+    }
+    ++feature_layer;
+  }
+
   if (overlay == 0 || overlay == 4) {
     return -1;
   }
@@ -493,10 +527,10 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
     if (layer == feature_layer) {
       if (overlay_is_major_river(overlay)) {
         const uint8_t mask = map_cardinal_mask(map, x, y, major_river_neighbor, terrain_byte);
-        return phys0_connectivity_sprite(PHYS0_MAJOR_RIVER_FIRST, PHYS0_MAJOR_RIVER_COUNT, mask);
+        return phys0_river_sprite(true, mask);
       }
       const uint8_t mask = map_cardinal_mask(map, x, y, minor_river_neighbor, terrain_byte);
-      return phys0_connectivity_sprite(PHYS0_MINOR_RIVER_FIRST, PHYS0_MINOR_RIVER_COUNT, mask);
+      return phys0_river_sprite(false, mask);
     }
   }
 
