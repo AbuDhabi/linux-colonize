@@ -84,21 +84,27 @@ port I/O in the native build.
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
   (see `docs/viceroy_tables.md`)
 - World map view: terrain + PHYS0 overlays (forests, hills, rivers) — playable bring-up
-- **Coastlines: parked** — heuristic in `src/core/map.c` is **not drawn** (`MAP_COAST_OVERLAYS_ENABLED 0`); cosmetic only (see **Parked: coastlines** below)
+- **Coastlines and estuaries: parked** — not drawn (`MAP_COAST_OVERLAYS_ENABLED 0`, `MAP_ESTUARY_OVERLAYS_ENABLED 0`); cosmetic only (see **Parked: coastlines and estuaries** below)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + select/move + deploy dock immigrants (press **D**; see `src/core/units.c`)
 
-## Parked: coastlines
+## Parked: coastlines and estuaries
 
-**Decision (2026-07):** Stop iterating on shoreline art. Wrong coast rendering does not block gameplay (units, colonies, Europe, turn flow). Revisit only when map fidelity is explicitly prioritized.
+**Decision (2026-07):** Stop iterating on shoreline and river-mouth art. Wrong rendering does not block gameplay (units, colonies, Europe, turn flow). Revisit only when map fidelity is explicitly prioritized.
 
-### What the Linux port does today
+### Coast decoration
 
 Coast decoration is **stubbed off** by default: `MAP_COAST_OVERLAYS_ENABLED` in `src/core/map.h` is `0`, so ocean tiles draw TERRAIN only. The parked implementation `map_phys0_coast_collect()` remains in `src/core/map.c` (compiled when the flag is `1`) and blits up to four 8×8 `PHYS0.SS` fragments (sprites 108–139) on ocean tiles using a 3-bit land-neighbour mask per quadrant. Smoke fixtures in `tests/smoke/test_map.c` (`amer2_coast_fixtures`) compile only with the flag enabled. **Do not treat those fixtures as ground truth for DOS fidelity** — they document the heuristic, not the original game.
 
 Land-side shore sprites (140–153) are not drawn. Texture-variation overlays from the DOS precomputed buffers are not implemented.
+
+### River estuaries (ocean + river overlay)
+
+`.MP` marks river mouths as **ocean (index 25) with river overlay** (bits 5–7 = minor or major). The port does **not** draw PHYS0 on those tiles by default (`MAP_ESTUARY_OVERLAYS_ENABLED 0`). Inland rivers (land tiles) are unchanged.
+
+Parked implementation: `phys0_estuary_sprite()` in `src/core/map.c` (compiled when the flag is `1`). It indexed overlay nibble + land-side river neighbour mask against DOS RAM buffer `0x0328f0` (coast fragments 108–139, sprite 149). Looked wrong in-game; folded into this parking lot with coast work. Fixtures: `amer2_river_estuary` in `tests/smoke/test_map.c` (enabled flag only).
 
 ### Research already done (keep when resuming)
 
@@ -120,9 +126,9 @@ Findings from correlating AMER2.MP terrain with those buffers:
 
 Static table `connectivity_transition` at EXE offset `0x5599` (`src/data/viceroy_tables.*`) is a candidate for coast variant selection but was **not** validated against live output. Prior 2×2-corner model (150–153 / 128–131) was replaced by the quadrant heuristic and also looked wrong in-game.
 
-### Checklist when resuming coast work
+### Checklist when resuming coast / estuary work
 
-0. **Re-enable drawing** — Set `MAP_COAST_OVERLAYS_ENABLED` to `1` in `src/core/map.h` and rebuild; restore/compare `amer2_coast_fixtures` in `tests/smoke/test_map.c`.
+0. **Re-enable drawing** — Set `MAP_COAST_OVERLAYS_ENABLED` and/or `MAP_ESTUARY_OVERLAYS_ENABLED` to `1` in `src/core/map.h`; rebuild and compare smoke fixtures.
 1. **Ground truth** — Side-by-side DOSBox-X vs Linux screenshot at the same AMER2 view (e.g. cursor ~39,10); note specific wrong tiles.
 2. **Breakpoints** — In DOSBox-X, break on blit/write when sprite index ∈ [108,153] and backtrace through loaded overlay (not packed `viceroy.c` stubs). User reports breakpoints were unreliable; save-state RAM diff may be easier.
 3. **Buffer consumer** — Find code that **writes** `0x0324d0` / `0x0328f0` (search for stores into those regions, or follow `FUN_6a9f_0118` consumers).
@@ -134,5 +140,5 @@ Static table `connectivity_transition` at EXE offset `0x5599` (`src/data/viceroy
 
 - Texture variation overlays (per-tile random `PHYS0` variants from DOS buffers)
 - Roads, resources, fog-of-war
-- River/hill connectivity vs `viceroy_tables` (partially heuristic today)
+- River/hill connectivity vs `viceroy_tables` (partially heuristic today; inland rivers only)
 

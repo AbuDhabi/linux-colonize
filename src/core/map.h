@@ -11,10 +11,20 @@
  * Ocean-tile coast decoration (4-quadrant PHYS0 108–139 heuristic).
  * PARKED — wrong vs DOS and disabled by default. Set to 1 to re-enable drawing
  * and the coast smoke fixtures in tests/smoke/test_map.c.
- * See docs/decomp_inventory.md "Parked: coastlines".
+ * See docs/decomp_inventory.md "Parked: coastlines and estuaries".
  */
 #ifndef MAP_COAST_OVERLAYS_ENABLED
 #define MAP_COAST_OVERLAYS_ENABLED 0
+#endif
+
+/*
+ * Ocean-tile river estuaries (terrain 25 + river overlay → PHYS0 mouth art).
+ * PARKED — disabled by default; set to 1 to re-enable phys0_estuary_sprite()
+ * and amer2_river_estuary fixtures in tests/smoke/test_map.c.
+ * See docs/decomp_inventory.md "Parked: coastlines and estuaries".
+ */
+#ifndef MAP_ESTUARY_OVERLAYS_ENABLED
+#define MAP_ESTUARY_OVERLAYS_ENABLED 0
 #endif
 
 typedef struct ColonizeWorldMap {

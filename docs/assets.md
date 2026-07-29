@@ -169,18 +169,21 @@ Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest spri
 | 6 major river | 1–15 | Major-neighbour mask, or minor-band at junctions |
 | 7 mountain + major river | mountain then river | — |
 
+**Ocean estuaries — parked (not drawn).** Terrain index 25 with river overlay (bits 5–7) marks river mouths in `.MP` data; the port draws **TERRAIN only** (`MAP_ESTUARY_OVERLAYS_ENABLED 0`). Parked `phys0_estuary_sprite()` in `src/core/map.c` — see [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines and estuaries**).
+
 When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses mountain art (e.g. AMER2 `(1,1)` → PHYS0 36 on tundra).
 
 Forests on other rows now draw PHYS0 canopy overlays; roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
-**Coastal ocean — parked (cosmetic, not drawn).** `MAP_COAST_OVERLAYS_ENABLED` defaults to `0` in `src/core/map.h`, so the port does **not** blit shore decoration on ocean tiles. The parked 4-quadrant 8×8 heuristic (`map_phys0_coast_collect()` in `src/core/map.c`, sprites 108–139) remains for later recovery; it does **not** match the DOS game. Research notes and resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**).
+**Coastal ocean — parked (cosmetic, not drawn).** `MAP_COAST_OVERLAYS_ENABLED` defaults to `0` in `src/core/map.h`. Research and resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines and estuaries**).
 
 Prior documented models (also wrong / superseded):
 
 | Model | PHYS0 | Status |
 |-------|-------|--------|
 | 2×2 full/diagonal corners | 150–153 (16×16), 128–131 (8×8) | Removed from code; do not revive without DOS proof |
-| 4-quadrant neighbour mask | 108–139 (8×8) | **Parked in code**; disabled via `MAP_COAST_OVERLAYS_ENABLED` |
+| 4-quadrant neighbour mask | 108–139 (8×8) | **Parked**; `MAP_COAST_OVERLAYS_ENABLED` |
+| Estuary lookup (DOS RAM capture) | 108–139, 149 | **Parked**; `MAP_ESTUARY_OVERLAYS_ENABLED` |
 
 Land-side shore (140–153), animation frames (140–147), and per-tile texture variation from DOS RAM buffers are not drawn.
 

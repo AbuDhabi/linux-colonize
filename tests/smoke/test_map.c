@@ -302,13 +302,58 @@ int main(void) {
     }
   }
 
+  /*
+   * River estuaries (ocean + river overlay). Compiled only when
+   * MAP_ESTUARY_OVERLAYS_ENABLED is 1 in core/map.h.
+   */
+#if MAP_ESTUARY_OVERLAYS_ENABLED
+  static const MapTileExpectation amer2_river_estuary[] = {
+    {19, 25, 10, 1, {137}},
+    {22, 23, 10, 1, {135}},
+    {23, 22, 10, 1, {68}},
+    {46, 39, 10, 0, {0}},
+    {13, 8, 10, 1, {149}},
+    {25, 15, 10, 1, {149}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_river_estuary) / sizeof(amer2_river_estuary[0]); ++i) {
+    if (check_tile(&map, &amer2_river_estuary[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "river estuary regression: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+#else
+  /* Estuary PHYS0 stubbed off — ocean+river tiles draw TERRAIN only. */
+  static const MapTileExpectation amer2_estuary_disabled[] = {
+    {19, 25, 10, 0, {0}},
+    {22, 23, 10, 0, {0}},
+    {23, 22, 10, 0, {0}},
+    {46, 39, 10, 0, {0}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_estuary_disabled) / sizeof(amer2_estuary_disabled[0]); ++i) {
+    if (check_tile(&map, &amer2_estuary_disabled[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "estuary disabled regression: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+#endif
+
   fprintf(stderr,
-    "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles)\n",
+    "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles%s)\n",
     sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),
     scrub_sprite8_tiles,
     sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]),
     sizeof(amer2_river_north) / sizeof(amer2_river_north[0]),
-    sizeof(amer2_river_major) / sizeof(amer2_river_major[0]));
+    sizeof(amer2_river_major) / sizeof(amer2_river_major[0]),
+#if MAP_ESTUARY_OVERLAYS_ENABLED
+    ", estuary enabled"
+#else
+    ", estuary parked"
+#endif
+  );
 
   map_free(&map);
   diag_shutdown();

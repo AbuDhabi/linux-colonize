@@ -1196,8 +1196,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
             blit_map_sprite(&game->phys0, forest_sprite, framebuffer, sx, sy, tile_w, tile_h);
           }
           const int overlay_layers = map_phys0_overlay_count(&game->world_map, mx, my);
-          /* Layer 0..n may include hills/rivers/mountains; coast quadrants are
-           * stubbed off when MAP_COAST_OVERLAYS_ENABLED is 0 (see core/map.h). */
+          /* Coast / estuary PHYS0 stubbed when MAP_*_OVERLAYS_ENABLED is 0. */
           for (int layer = 0; layer < overlay_layers; ++layer) {
             const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
             if (overlay_sprite >= 0) {
