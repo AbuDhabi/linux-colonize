@@ -7,6 +7,16 @@
 
 #define COLONIZE_MAP_HEADER_SIZE 6
 
+/*
+ * Ocean-tile coast decoration (4-quadrant PHYS0 108–139 heuristic).
+ * PARKED — wrong vs DOS and disabled by default. Set to 1 to re-enable drawing
+ * and the coast smoke fixtures in tests/smoke/test_map.c.
+ * See docs/decomp_inventory.md "Parked: coastlines".
+ */
+#ifndef MAP_COAST_OVERLAYS_ENABLED
+#define MAP_COAST_OVERLAYS_ENABLED 0
+#endif
+
 typedef struct ColonizeWorldMap {
   uint8_t width;
   uint8_t height;

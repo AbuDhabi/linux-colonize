@@ -140,9 +140,25 @@ int main(void) {
     {39, 28, 7, 1, {68}},
     {24, 19, 4, 1, {52}},
     {24, 20, 4, 1, {56}},
-    /* 4-quadrant 8x8 coast system (sprites 108-139, groups of 8 per quadrant).
-     * Each ocean tile gets up to 4 quadrant overlays (NW=108, NE=116, SW=124, SE=132).
-     * 3-bit variant: bit0=first-cardinal-land, bit1=second-cardinal-land, bit2=diag-land. */
+    /* Regression anchors from earlier passes. */
+    {9, 26, 1, 1, {48}},
+    {16, 3, 0, 1, {21}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]); ++i) {
+    if (check_tile(&map, &amer2_fixtures[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "%s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+
+#if MAP_COAST_OVERLAYS_ENABLED
+  /*
+   * Parked 4-quadrant coast heuristic (sprites 108-139). Compiled only when
+   * MAP_COAST_OVERLAYS_ENABLED is 1 in core/map.h.
+   */
+  static const MapTileExpectation amer2_coast_fixtures[] = {
     /* (6,14): ocean with land on all 4 cardinal sides -> all quadrants fully set. */
     {6, 14, 10, 4, {115, 123, 131, 139}},
     /* (23,2): ocean with land only to the E -> NE+SW+SE quadrants. */
@@ -161,18 +177,31 @@ int main(void) {
     {8, 26, 10, 3, {113, 119, 133}},
     /* (34,7): ocean with diagonal land to NW -> NW+NE+SW+SE quadrants. */
     {34, 7, 10, 4, {111, 121, 126, 136}},
-    /* Regression anchors from earlier passes. */
-    {9, 26, 1, 1, {48}},
-    {16, 3, 0, 1, {21}},
   };
 
-  for (size_t i = 0; i < sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]); ++i) {
-    if (check_tile(&map, &amer2_fixtures[i], err, sizeof(err)) != 0) {
-      fprintf(stderr, "%s\n", err);
+  for (size_t i = 0; i < sizeof(amer2_coast_fixtures) / sizeof(amer2_coast_fixtures[0]); ++i) {
+    if (check_tile(&map, &amer2_coast_fixtures[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "coast regression: %s\n", err);
       map_free(&map);
       return 1;
     }
   }
+#else
+  /* Coast overlays stubbed off — shore tiles should have TERRAIN only. */
+  static const MapTileExpectation amer2_coast_disabled[] = {
+    {6, 14, 10, 0, {0}},
+    {23, 2, 10, 0, {0}},
+    {1, 3, 10, 0, {0}},
+  };
+
+  for (size_t i = 0; i < sizeof(amer2_coast_disabled) / sizeof(amer2_coast_disabled[0]); ++i) {
+    if (check_tile(&map, &amer2_coast_disabled[i], err, sizeof(err)) != 0) {
+      fprintf(stderr, "coast disabled regression: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+  }
+#endif
 
   /* Scrub forest: only terrain indices 9 and 17 use TERRAIN sprite 8 (no PHYS0). */
   int scrub_sprite8_tiles = 0;

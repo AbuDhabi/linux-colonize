@@ -173,14 +173,14 @@ When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses moun
 
 Forests on other rows now draw PHYS0 canopy overlays; roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
-**Coastal ocean — parked (cosmetic).** The port draws a **best-effort** 4-quadrant 8×8 heuristic on ocean tiles (sprites 108–139, see `map_phys0_coast_collect()` in `src/core/map.c`). It does **not** match the DOS game; iteration is stopped until map fidelity is prioritized. Research notes, save-state buffer addresses, and a resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**).
+**Coastal ocean — parked (cosmetic, not drawn).** `MAP_COAST_OVERLAYS_ENABLED` defaults to `0` in `src/core/map.h`, so the port does **not** blit shore decoration on ocean tiles. The parked 4-quadrant 8×8 heuristic (`map_phys0_coast_collect()` in `src/core/map.c`, sprites 108–139) remains for later recovery; it does **not** match the DOS game. Research notes and resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**).
 
 Prior documented models (also wrong / superseded):
 
 | Model | PHYS0 | Status |
 |-------|-------|--------|
 | 2×2 full/diagonal corners | 150–153 (16×16), 128–131 (8×8) | Removed from code; do not revive without DOS proof |
-| 4-quadrant neighbour mask | 108–139 (8×8) | **Current code**; smoke-tested only |
+| 4-quadrant neighbour mask | 108–139 (8×8) | **Parked in code**; disabled via `MAP_COAST_OVERLAYS_ENABLED` |
 
 Land-side shore (140–153), animation frames (140–147), and per-tile texture variation from DOS RAM buffers are not drawn.
 

@@ -15,7 +15,8 @@
  *   bits 5-7: hill / river / mountain overlays
  *
  * Coastlines: best-effort 4-quadrant PHYS0 overlays on ocean tiles only.
- * PARKED — wrong vs DOS, cosmetic only. Do not extend without DOS ground truth.
+ * PARKED — wrong vs DOS, cosmetic only, disabled via MAP_COAST_OVERLAYS_ENABLED.
+ * Implementation kept in map_phys0_coast_collect() for later recovery.
  * See docs/decomp_inventory.md "Parked: coastlines".
  */
 
@@ -29,13 +30,16 @@
 #define PHYS0_HILL_COUNT 16
 #define PHYS0_MOUNTAIN_ISOLATED 36
 #define PHYS0_TUNDRA_CANOPY viceroy_feature_sprite_bases_b[3] /* 65 */
-/* 4-quadrant 8x8 coast fragments — PARKED heuristic; see docs/decomp_inventory.md */
+
+#if MAP_COAST_OVERLAYS_ENABLED
+/* 4-quadrant 8x8 coast fragments — parked heuristic; see docs/decomp_inventory.md */
 #define PHYS0_COAST_NW_BASE 108
 #define PHYS0_COAST_NE_BASE 116
 #define PHYS0_COAST_SW_BASE 124
 #define PHYS0_COAST_SE_BASE 132
 #define PHYS0_COAST_QUAD_PX 8  /* pixels per quadrant side */
 #define COAST_QUADS 4
+#endif
 
 #define MAP_TUNDRA_ROW 0
 #define MAP_OCEAN_INDEX 25
@@ -218,12 +222,15 @@ bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y) {
   return map_is_land_at(map, x, y);
 }
 
+#if MAP_COAST_OVERLAYS_ENABLED
 typedef struct CoastOverlay {
   int sprite;
   int ox;
   int oy;
 } CoastOverlay;
+#endif
 
+#if MAP_COAST_OVERLAYS_ENABLED
 /*
  * 4-quadrant coast system (derived from live VICEROY.EXE RAM analysis):
  * PHYS0 sprites 108-139 are 8x8 coast fragments.
@@ -280,11 +287,6 @@ static int map_phys0_coast_collect(const ColonizeWorldMap* map, int x, int y, Co
   return count;
 }
 
-static int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y) {
-  CoastOverlay unused[COAST_QUADS];
-  return map_phys0_coast_collect(map, x, y, unused, COAST_QUADS);
-}
-
 static CoastOverlay map_phys0_coast_layer_at(const ColonizeWorldMap* map, int x, int y, int layer) {
   CoastOverlay layers[COAST_QUADS];
   const int count = map_phys0_coast_collect(map, x, y, layers, COAST_QUADS);
@@ -292,6 +294,19 @@ static CoastOverlay map_phys0_coast_layer_at(const ColonizeWorldMap* map, int x,
     return (CoastOverlay){-1, 0, 0};
   }
   return layers[layer];
+}
+#endif /* MAP_COAST_OVERLAYS_ENABLED */
+
+static int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y) {
+#if MAP_COAST_OVERLAYS_ENABLED
+  CoastOverlay unused[COAST_QUADS];
+  return map_phys0_coast_collect(map, x, y, unused, COAST_QUADS);
+#else
+  (void)map;
+  (void)x;
+  (void)y;
+  return 0;
+#endif
 }
 
 static int phys0_connectivity_sprite(int first, int count, uint8_t mask) {
@@ -526,11 +541,15 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
 
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t overlay = map_terrain_overlay(terrain_byte);
+#if MAP_COAST_OVERLAYS_ENABLED
   const int coast_layers = map_phys0_coast_layer_count(map, x, y);
   if (layer < coast_layers) {
     return map_phys0_coast_layer_at(map, x, y, layer).sprite;
   }
   int feature_layer = coast_layers;
+#else
+  int feature_layer = 0;
+#endif
 
   if (map_has_special_mountain_marker(map, x, y)) {
     if (layer == feature_layer) {
@@ -593,6 +612,7 @@ void map_phys0_overlay_offset_at(
   if (!map || layer < 0) {
     return;
   }
+#if MAP_COAST_OVERLAYS_ENABLED
   const int coast_layers = map_phys0_coast_layer_count(map, x, y);
   if (layer < coast_layers) {
     const CoastOverlay coast = map_phys0_coast_layer_at(map, x, y, layer);
@@ -603,6 +623,7 @@ void map_phys0_overlay_offset_at(
       *out_oy = coast.oy;
     }
   }
+#endif
 }
 
 int map_phys0_overlay_sprite(const ColonizeWorldMap* map, int x, int y) {
