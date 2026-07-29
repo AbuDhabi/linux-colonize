@@ -1,0 +1,433 @@
+#include "core/units.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "platform/diagnostics.h"
+
+static void units_trim(char* s) {
+  char* start = s;
+  while (*start == ' ' || *start == '\t') {
+    ++start;
+  }
+  if (start != s) {
+    memmove(s, start, strlen(start) + 1);
+  }
+  size_t n = strlen(s);
+  while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r')) {
+    s[--n] = '\0';
+  }
+}
+
+static bool units_parse_int_field(const char** cursor, int* out) {
+  while (**cursor == ' ' || **cursor == '\t' || **cursor == ',') {
+    ++(*cursor);
+  }
+  if (**cursor == '\0') {
+    return false;
+  }
+  char* end = NULL;
+  long v = strtol(*cursor, &end, 10);
+  if (end == *cursor) {
+    return false;
+  }
+  *out = (int)v;
+  *cursor = end;
+  return true;
+}
+
+static ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (!pool->units[i].active) {
+      return &pool->units[i];
+    }
+  }
+  return NULL;
+}
+
+bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
+  if (!pool || !names) {
+    return false;
+  }
+  pool->type_count = 0;
+
+  const ColonizeMsgSection* section = assets_msg_find(names, "UNIT");
+  if (!section) {
+    diag_warn("NAMES.TXT missing @UNIT section.");
+    return false;
+  }
+
+  for (int i = 0; i < section->line_count && pool->type_count < COLONIZE_UNIT_TYPES_MAX; ++i) {
+    char line[COLONIZE_MSG_LINE_LEN];
+    snprintf(line, sizeof(line), "%s", section->lines[i]);
+    if (line[0] == ';' || line[0] == '\0') {
+      continue;
+    }
+    char* semi = strchr(line, ';');
+    if (semi) {
+      *semi = '\0';
+    }
+    char* comma = strchr(line, ',');
+    if (!comma) {
+      continue;
+    }
+    *comma = '\0';
+    units_trim(line);
+
+    const char* p = comma + 1;
+    int icon = 0;
+    int movement = 0;
+    int attack = 0;
+    int defense = 0;
+    int cargo = 0;
+    int size = 0;
+    int cost = 0;
+    int tools = 0;
+    int guns = 0;
+    int hull = 0;
+    if (!units_parse_int_field(&p, &icon) || !units_parse_int_field(&p, &movement) ||
+        !units_parse_int_field(&p, &attack) || !units_parse_int_field(&p, &defense) ||
+        !units_parse_int_field(&p, &cargo) || !units_parse_int_field(&p, &size) ||
+        !units_parse_int_field(&p, &cost) || !units_parse_int_field(&p, &tools) ||
+        !units_parse_int_field(&p, &guns) || !units_parse_int_field(&p, &hull)) {
+      continue;
+    }
+    (void)size;
+    (void)cost;
+    (void)tools;
+    (void)guns;
+
+    ColonizeUnitType* t = &pool->types[pool->type_count++];
+    snprintf(t->name, sizeof(t->name), "%s", line);
+    t->icon_sprite = icon;
+    t->movement = movement > 0 ? movement : 1;
+    t->attack = attack;
+    t->defense = defense;
+    t->cargo = cargo;
+    t->domain = hull > 0 ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
+  }
+
+  diag_info("Loaded %d unit types from NAMES.TXT @UNIT", pool->type_count);
+  return pool->type_count > 0;
+}
+
+void units_reset(ColonizeUnitPool* pool) {
+  if (!pool) {
+    return;
+  }
+  memset(pool->units, 0, sizeof(pool->units));
+  pool->unit_count = 0;
+  pool->selected_id = -1;
+  pool->next_id = 1;
+}
+
+int units_find_type(const ColonizeUnitPool* pool, const char* name) {
+  if (!pool || !name) {
+    return -1;
+  }
+  for (int i = 0; i < pool->type_count; ++i) {
+    if (strcmp(pool->types[i].name, name) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
+  if (!pool || type_index < 0 || type_index >= pool->type_count) {
+    return -1;
+  }
+  if (units_id_at(pool, x, y) >= 0) {
+    return -1;
+  }
+  ColonizeUnit* slot = units_slot(pool);
+  if (!slot) {
+    return -1;
+  }
+  const ColonizeUnitType* type = &pool->types[type_index];
+  slot->id = pool->next_id++;
+  slot->type_index = type_index;
+  slot->x = x;
+  slot->y = y;
+  slot->moves_left = type->movement;
+  slot->active = true;
+  pool->unit_count++;
+  diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
+  return slot->id;
+}
+
+int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
+  if (!pool) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u->active && u->x == x && u->y == y) {
+      return u->id;
+    }
+  }
+  return -1;
+}
+
+ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id) {
+  if (!pool || unit_id < 0) {
+    return NULL;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (u->active && u->id == unit_id) {
+      return u;
+    }
+  }
+  return NULL;
+}
+
+const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id) {
+  if (!pool || unit_id < 0) {
+    return NULL;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u->active && u->id == unit_id) {
+      return u;
+    }
+  }
+  return NULL;
+}
+
+const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index) {
+  if (!pool || type_index < 0 || type_index >= pool->type_count) {
+    return NULL;
+  }
+  return &pool->types[type_index];
+}
+
+bool units_can_enter(
+  const ColonizeUnitPool* pool,
+  int type_index,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int occupant_id
+) {
+  if (!pool || type_index < 0 || type_index >= pool->type_count || !map) {
+    return false;
+  }
+  if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  const int other = units_id_at(pool, x, y);
+  if (other >= 0 && other != occupant_id) {
+    return false;
+  }
+
+  const ColonizeUnitType* type = &pool->types[type_index];
+  const bool water = map_tile_is_water(map, x, y);
+  if (type->domain == COLONIZE_UNIT_DOMAIN_SEA) {
+    return water;
+  }
+  return map_tile_is_land(map, x, y);
+}
+
+bool units_try_move(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y
+) {
+  ColonizeUnit* unit = units_get(pool, unit_id);
+  if (!unit || !map) {
+    return false;
+  }
+  if (unit->moves_left <= 0) {
+    return false;
+  }
+  if (unit->x == dest_x && unit->y == dest_y) {
+    return false;
+  }
+  const int dx = dest_x - unit->x;
+  const int dy = dest_y - unit->y;
+  if (dx < -1 || dx > 1 || dy < -1 || dy > 1 || (dx == 0 && dy == 0)) {
+    return false;
+  }
+  if (!units_can_enter(pool, unit->type_index, map, dest_x, dest_y, unit_id)) {
+    return false;
+  }
+  unit->x = dest_x;
+  unit->y = dest_y;
+  unit->moves_left--;
+  return true;
+}
+
+void units_end_turn(ColonizeUnitPool* pool) {
+  if (!pool) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active) {
+      continue;
+    }
+    const ColonizeUnitType* type = units_type(pool, u->type_index);
+    if (type) {
+      u->moves_left = type->movement;
+    }
+  }
+}
+
+static bool units_find_land_tile(const ColonizeWorldMap* map, int start_x, int start_y, int* out_x, int* out_y) {
+  if (!map || !out_x || !out_y) {
+    return false;
+  }
+  if (map_tile_is_land(map, start_x, start_y)) {
+    *out_x = start_x;
+    *out_y = start_y;
+    return true;
+  }
+  for (int radius = 1; radius < 32; ++radius) {
+    for (int dy = -radius; dy <= radius; ++dy) {
+      for (int dx = -radius; dx <= radius; ++dx) {
+        if (abs(dx) != radius && abs(dy) != radius) {
+          continue;
+        }
+        const int x = start_x + dx;
+        const int y = start_y + dy;
+        if (map_tile_is_land(map, x, y)) {
+          *out_x = x;
+          *out_y = y;
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map) {
+  if (!pool) {
+    return;
+  }
+  units_reset(pool);
+  if (!map) {
+    return;
+  }
+
+  int pioneer_type = units_find_type(pool, "Pioneers");
+  if (pioneer_type < 0) {
+    pioneer_type = units_find_type(pool, "Colonists");
+  }
+  if (pioneer_type < 0 && pool->type_count > 0) {
+    pioneer_type = 0;
+  }
+  if (pioneer_type < 0) {
+    return;
+  }
+
+  /* AMER2 @SCENARIO start tile (39,10) — first player landing site. */
+  int x = 39;
+  int y = 10;
+  if (!units_find_land_tile(map, x, y, &x, &y)) {
+    x = map->width / 2;
+    y = map->height / 2;
+    if (!units_find_land_tile(map, x, y, &x, &y)) {
+      return;
+    }
+  }
+
+  const int id = units_spawn(pool, pioneer_type, x, y);
+  if (id >= 0) {
+    pool->selected_id = id;
+  }
+}
+
+bool units_deploy_colonist(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  const char* immigrant_name
+) {
+  (void)immigrant_name;
+  if (!pool || !map) {
+    return false;
+  }
+  int colonist_type = units_find_type(pool, "Colonists");
+  if (colonist_type < 0) {
+    return false;
+  }
+  if (!units_can_enter(pool, colonist_type, map, x, y, -1)) {
+    return false;
+  }
+  const int id = units_spawn(pool, colonist_type, x, y);
+  if (id < 0) {
+    return false;
+  }
+  pool->selected_id = id;
+  return true;
+}
+
+int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* unit = NULL;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (pool->units[i].active && pool->units[i].id == unit_id) {
+      unit = &pool->units[i];
+      break;
+    }
+  }
+  if (!unit) {
+    return -1;
+  }
+  const ColonizeUnitType* type = units_type(pool, unit->type_index);
+  if (!type) {
+    return -1;
+  }
+  return type->icon_sprite;
+}
+
+void units_render_on_map(
+  const ColonizeUnitPool* pool,
+  const ColonizeSpriteSheet* nation_sheet,
+  ColonizeFramebuffer8* framebuffer,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int tile_w,
+  int tile_h
+) {
+  if (!pool || !nation_sheet || !framebuffer) {
+    return;
+  }
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* unit = &pool->units[i];
+    if (!unit->active) {
+      continue;
+    }
+    const int sx = unit->x - view_x;
+    const int sy = unit->y - view_y;
+    if (sx < 0 || sy < 0 || sx >= view_cols || sy >= view_rows) {
+      continue;
+    }
+
+    const int sprite = units_map_sprite(pool, unit->id);
+    if (sprite < 0 || sprite >= nation_sheet->sprite_count) {
+      continue;
+    }
+
+    const int px = sx * tile_w;
+    const int py = sy * tile_h;
+    if (unit->id == pool->selected_id) {
+      for (int y = py; y < py + tile_h && y < framebuffer->height; ++y) {
+        for (int x = px; x < px + tile_w && x < framebuffer->width; ++x) {
+          if (x == px || x == px + tile_w - 1 || y == py || y == py + tile_h - 1) {
+            framebuffer->pixels[y * framebuffer->width + x] = 14;
+          }
+        }
+      }
+    }
+    ss_blit_sprite(nation_sheet, sprite, framebuffer, px, py);
+  }
+}

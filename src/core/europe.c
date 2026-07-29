@@ -241,6 +241,22 @@ bool europe_recruit(EuropeScreen* eu) {
   return true;
 }
 
+bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size) {
+  if (!eu || eu->dock_count <= 0) {
+    return false;
+  }
+  if (out_name && out_name_size > 0) {
+    snprintf(out_name, out_name_size, "%s", eu->dock[0].name);
+  }
+  for (int i = 1; i < eu->dock_count; ++i) {
+    eu->dock[i - 1] = eu->dock[i];
+  }
+  eu->dock_count--;
+  eu->dock[eu->dock_count].present = false;
+  eu->dock[eu->dock_count].name[0] = '\0';
+  return true;
+}
+
 void europe_train_stub(EuropeScreen* eu) {
   europe_set_status(eu, "Train: not implemented yet.");
 }

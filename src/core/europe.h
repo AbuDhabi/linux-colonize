@@ -55,6 +55,8 @@ void europe_reset_campaign(EuropeScreen* eu);
 
 /* Recruit cheapest available class onto the docks. Returns false if broke/full. */
 bool europe_recruit(EuropeScreen* eu);
+/* Remove oldest dock immigrant for deployment in the New World. */
+bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 /* Train is not implemented yet; sets status text. */
 void europe_train_stub(EuropeScreen* eu);
 void europe_cheat_add_gold(EuropeScreen* eu, int amount);

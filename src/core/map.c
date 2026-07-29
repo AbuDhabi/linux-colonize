@@ -209,6 +209,14 @@ static bool map_is_water_at(const ColonizeWorldMap* map, int x, int y) {
   return map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, x, y)));
 }
 
+bool map_tile_is_water(const ColonizeWorldMap* map, int x, int y) {
+  return map_is_water_at(map, x, y);
+}
+
+bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y) {
+  return map_is_land_at(map, x, y);
+}
+
 typedef struct CoastOverlay {
   int sprite;
   int ox;

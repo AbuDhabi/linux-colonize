@@ -187,6 +187,18 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 
 Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Ship cargo holds, drag-trade, and sailing to the New World are not implemented yet.
 
+### Units (map bring-up)
+
+Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites indexed by the `@UNIT` icon field (e.g. Pioneers → 102).
+
+| Key | Action |
+|-----|--------|
+| Enter | Select unit under cursor, or move selected unit to cursor (1 tile, costs movement) |
+| D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
+| Space | End turn (refreshes unit movement points) |
+
+A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game. Europe still keeps dock immigrants until deployed with **D**.
+
 | Extension | Typical use |
 |-----------|-------------|
 | `.PIK` | Packed pictures / backgrounds |

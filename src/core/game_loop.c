@@ -15,6 +15,7 @@
 #include "core/pik.h"
 #include "core/savegame.h"
 #include "core/ss.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 
 #define MENU_MAX_OPTIONS 12
@@ -44,11 +45,17 @@ struct ColonizeGameState {
   ColonizeSpriteSheet terrain;
   ColonizeSpriteSheet phys0;
   ColonizeSpriteSheet cursor;
+  ColonizeSpriteSheet unit_icons;
   bool terrain_ok;
   bool phys0_ok;
   bool cursor_ok;
+  bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
+  ColonizeMsgCatalog names;
+  bool names_ok;
+  ColonizeUnitPool units;
+  bool units_ok;
   ColonizeWorldMap world_map;
   bool world_map_ok;
   ColonizePalette map_palette;
@@ -78,6 +85,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_E: return "E";
     case COLONIZE_KEY_R: return "R";
     case COLONIZE_KEY_T: return "T";
+    case COLONIZE_KEY_D: return "D";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -436,6 +444,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
 
   assets_msg_init(&game->messages);
   assets_msg_init(&game->pedia);
+  assets_msg_init(&game->names);
+  units_reset(&game->units);
 
   if (!assets_resolve_data_dir(config->data_dir, game->resolved_data_dir, sizeof(game->resolved_data_dir))) {
     /* Keep resolved path even if missing so errors remain actionable. */
@@ -467,6 +477,16 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
   load_begin_menu(game);
+
+  char names_txt[512];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "NAMES.TXT", names_txt, sizeof(names_txt))) {
+    if (assets_msg_load_file(&game->names, names_txt)) {
+      game->names_ok = true;
+      game->units_ok = units_load_types(&game->units, &game->names);
+    } else {
+      diag_warn("Failed to parse NAMES.TXT");
+    }
+  }
 
   char pedia_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "PEDIA.TXT", pedia_txt, sizeof(pedia_txt))) {
@@ -535,6 +555,14 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_warn("Failed to load CURSOR.SS: %s", ss_err);
     }
   }
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "ICONS.SS", ss_path, sizeof(ss_path))) {
+    if (ss_load(ss_path, &game->unit_icons, ss_err, sizeof(ss_err))) {
+      game->unit_icons_ok = true;
+      diag_info("Loaded unit icon sheet with %d sprites", game->unit_icons.sprite_count);
+    } else {
+      diag_warn("Failed to load ICONS.SS: %s", ss_err);
+    }
+  }
 
   char ff_path[512];
   char ff_err[256];
@@ -593,10 +621,12 @@ void game_destroy(ColonizeGameState* game) {
   ss_free(&game->terrain);
   ss_free(&game->phys0);
   ss_free(&game->cursor);
+  ss_free(&game->unit_icons);
   ff_free(&game->menu_font);
   map_free(&game->world_map);
   assets_msg_free(&game->messages);
   assets_msg_free(&game->pedia);
+  assets_msg_free(&game->names);
   dos_compat_shutdown();
   free(game);
 }
@@ -632,10 +662,14 @@ static void activate_menu_selection(ColonizeGameState* game) {
 
   /* Start / customize / America / New World -> enter map view. */
   game->in_menu = false;
+  europe_reset_campaign(&game->europe);
+  if (game->world_map_ok) {
+    units_new_world_start(&game->units, &game->world_map);
+  }
   snprintf(
     game->status,
     sizeof(game->status),
-    "Map view - arrows move, E Europe, P pedia, Space end turn, S/L save/load"
+    "Map: arrows cursor, Enter select/move, D deploy immigrant, E Europe"
   );
 }
 
@@ -801,13 +835,74 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return true;
   }
 
-  if (input->last_key == COLONIZE_KEY_SPACE || input->last_key == COLONIZE_KEY_ENTER) {
+  if (input->last_key == COLONIZE_KEY_SPACE) {
     game->turn_number++;
+    units_end_turn(&game->units);
     diag_info("Advanced turn to %u", game->turn_number);
   }
 
   const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 1 : 15;
   const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 1 : 15;
+
+  if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok && game->units_ok) {
+    if (game->units.selected_id >= 0) {
+      ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
+      if (selected &&
+          (selected->x != game->map_cursor_x || selected->y != game->map_cursor_y)) {
+        if (units_try_move(
+              &game->units,
+              game->units.selected_id,
+              &game->world_map,
+              game->map_cursor_x,
+              game->map_cursor_y
+            )) {
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "Moved unit to (%d,%d)",
+            game->map_cursor_x,
+            game->map_cursor_y
+          );
+        } else {
+          set_status(game, "Move blocked", NULL);
+        }
+      } else {
+        const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+        game->units.selected_id = at_cursor;
+      }
+    } else {
+      game->units.selected_id =
+        units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+    }
+  }
+
+  if (input->last_key == COLONIZE_KEY_D && game->world_map_ok && game->europe_ok) {
+    if (game->europe.dock_count <= 0) {
+      set_status(game, "No immigrants on dock", NULL);
+    } else {
+      const char* immigrant = game->europe.dock[0].name;
+      if (!units_deploy_colonist(
+            &game->units,
+            &game->world_map,
+            game->map_cursor_x,
+            game->map_cursor_y,
+            immigrant
+          )) {
+        set_status(game, "Cannot deploy here", immigrant);
+      } else {
+        char name[40];
+        europe_pop_dock_immigrant(&game->europe, name, sizeof(name));
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "Deployed %s at (%d,%d)",
+          name,
+          game->map_cursor_x,
+          game->map_cursor_y
+        );
+      }
+    }
+  }
 
   if (input->last_key == COLONIZE_KEY_UP && game->map_cursor_y > 0) {
     game->map_cursor_y--;
@@ -1079,6 +1174,20 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     }
   }
 
+  if (game->units_ok && game->unit_icons_ok) {
+    units_render_on_map(
+      &game->units,
+      &game->unit_icons,
+      framebuffer,
+      view_x,
+      view_y,
+      view_cols,
+      view_rows,
+      tile_w,
+      tile_h
+    );
+  }
+
   if (game->cursor_ok && game->cursor.sprite_count > 0) {
     const int cx = (game->map_cursor_x - view_x) * tile_w;
     const int cy = (game->map_cursor_y - view_y) * tile_h;
@@ -1095,19 +1204,33 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     }
   }
 
-  char hud[96];
+  char hud[128];
   if (game->world_map_ok) {
     const uint8_t terrain = map_get_terrain(&game->world_map, game->map_cursor_x, game->map_cursor_y);
-    snprintf(
-      hud,
-      sizeof(hud),
-      "Turn %u  (%d,%d) t=0x%02x o=%u  Esc=menu",
-      game->turn_number,
-      game->map_cursor_x,
-      game->map_cursor_y,
-      terrain,
-      map_terrain_overlay(terrain)
-    );
+    const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
+    if (selected) {
+      const ColonizeUnitType* ut = units_type(&game->units, selected->type_index);
+      snprintf(
+        hud,
+        sizeof(hud),
+        "Turn %u  (%d,%d) %s mv=%d  Enter=move D=deploy",
+        game->turn_number,
+        game->map_cursor_x,
+        game->map_cursor_y,
+        ut ? ut->name : "unit",
+        selected->moves_left
+      );
+    } else {
+      snprintf(
+        hud,
+        sizeof(hud),
+        "Turn %u  (%d,%d) t=0x%02x  Enter=select D=deploy",
+        game->turn_number,
+        game->map_cursor_x,
+        game->map_cursor_y,
+        terrain
+      );
+    }
   } else {
     snprintf(hud, sizeof(hud), "Turn %u  Esc=menu", game->turn_number);
   }

@@ -88,6 +88,8 @@ port I/O in the native build.
   recovered viewport code, not PHYS0 sprite selection)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
+- Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
+  starter Pioneer + select/move + deploy dock immigrants (press **D**; see `src/core/units.c`)
 
 ## Deferred: map compositor
 
