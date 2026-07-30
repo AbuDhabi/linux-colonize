@@ -111,6 +111,43 @@ port I/O in the native build.
 - Colonizopedia: woodcut list screen (`WOODPANL.PIK`) with green entry links in up to
   3 columns, then cargo/unit/terrain/job/building/father/misc articles with
   ICONS / BUILDING / CC-NN / TERRAIN previews
+- Turn progression (`src/core/turn.c`): `@TIMECHANGE` calendar, colony production
+  stub, nation crosses/bells hooks, EN→FR→SP→DU / Indian / King phase stubs,
+  Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
+  turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
+  EOT phases; `@COUNTRY` / `@TRIBES` colors)
+
+## End-of-turn recovery checklist
+
+Ordered pipeline recovered for the Linux port (human-centric; AI actions are stubs):
+
+1. **Human ends turn** — Space / ORDERS → No Orders (`LABELS.TXT` “End of Turn”)
+2. **Advance calendar** — `head.year` / `autumn` / `turn` (`@TIMECHANGE` in `GAME.TXT`):
+   one turn/year until 1600; thereafter Spring then Autumn each year
+3. **Colony production** — food ± (produce 3 / consume 2 per colonist), lumber/ore stubs,
+   hammers toward `building_in_production` (Colony Space cheat = production only;
+   `README.TXT` “free turn”)
+4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
+   founding-father election **not** recovered yet
+5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
+   currently refresh MP only
+6. **Indians** — refresh native unit MP (`nation_id` 4..11); raids deferred
+7. **King** — stub (tax / REF / independence events deferred)
+8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
+
+Evidence:
+
+| Source | Finding |
+|--------|---------|
+| `GAME.TXT` `@TIMECHANGE` | Biannual seasons from 1600 |
+| `original_saves/COLONY00/01.SAV` | turn 0→2 ≈ year 1492→1494 (1 year/turn) |
+| `README.TXT` | Dutch turn ends European order; colony Space = free production |
+| `LABELS.TXT` | “End of Turn” / “Continue turn.” |
+| `NAMES.TXT` `@COUNTRY` / `@TRIBES` | Turn-owner box colors (DS:0x848 / 0x84c) |
+| `FUN_1984_00aa` / `FUN_281f_0590` | 5×3 fill at (0x13b, 0xc5) overlaid on screen |
+| `viceroy_unpacked.asm` | `TIMECHANGE` / `MULTINEXT` / `SEASONS` string table only (no FUN_* XREF yet) |
+
+AI production for non-human Europeans is **skipped** until save-diff evidence says otherwise; human colonies always tick.
 
 ## Parked: coastlines and estuaries
 

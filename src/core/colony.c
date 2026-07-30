@@ -241,6 +241,8 @@ int colonies_found(
   slot->id = pool->next_id++;
   slot->x = x;
   slot->y = y;
+  slot->nation_id = 0;
+  slot->building_in_production = -1;
   slot->active = true;
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool));
   colonies_grant_starters(pool, slot);

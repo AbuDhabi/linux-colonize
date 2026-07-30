@@ -134,6 +134,9 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Activate unit") == 0) {
       return MAP_MENU_ACTION_ACTIVATE_UNIT;
     }
+    if (strcmp(label, "Wait for next unit") == 0) {
+      return MAP_MENU_ACTION_WAIT_UNIT;
+    }
     if (strcmp(label, "Build Colony") == 0) {
       return MAP_MENU_ACTION_BUILD_COLONY;
     }
@@ -231,6 +234,7 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_FIND_COLONY:
     case MAP_MENU_ACTION_CENTER_VIEW:
     case MAP_MENU_ACTION_ACTIVATE_UNIT:
+    case MAP_MENU_ACTION_WAIT_UNIT:
     case MAP_MENU_ACTION_BUILD_COLONY:
     case MAP_MENU_ACTION_JOIN_COLONY:
     case MAP_MENU_ACTION_LOAD_CARGO:
@@ -593,6 +597,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Center View";
     case MAP_MENU_ACTION_ACTIVATE_UNIT:
       return "Activate unit";
+    case MAP_MENU_ACTION_WAIT_UNIT:
+      return "Wait for next unit";
     case MAP_MENU_ACTION_BUILD_COLONY:
       return "Build Colony";
     case MAP_MENU_ACTION_JOIN_COLONY:

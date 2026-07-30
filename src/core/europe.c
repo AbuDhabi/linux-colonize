@@ -140,6 +140,10 @@ void europe_reset_campaign(EuropeScreen* eu) {
   snprintf(eu->nation_name, sizeof(eu->nation_name), "%s", "England");
   eu->gold = 1000;
   eu->tax_percent = 0;
+  eu->current_crosses = 0;
+  eu->needed_crosses = 8;
+  eu->liberty_bells_total = 0;
+  eu->liberty_bells_last_turn = 0;
   eu->harbor_ships = 0;
   memset(eu->harbor, 0, sizeof(eu->harbor));
   eu->dock_count = 0;

@@ -66,6 +66,20 @@ Slot helpers: `savegame_read_col1` / `savegame_write_col1` write
 | `nation[human].gold/tax/prices` | `EuropeScreen` |
 | `head.turn/year/autumn` | `turn_number` / `game_year` / `game_autumn` |
 
+### Fields that tick on end-of-turn
+
+Advanced by `turn_end()` in `src/core/turn.c` (and written back on Save):
+
+| Field | Behavior |
+|-------|----------|
+| `head.turn` / `year` / `autumn` | `@TIMECHANGE` calendar |
+| Colony `stock[]`, `hammers`, `building_in_production` | Simplified production |
+| `nation[human].current_crosses` / `needed_crosses` | Crosses → dock immigrant |
+| `nation[human].liberty_bells_*` | Bells counters (FF election stub) |
+| Unit `moves` (via runtime MP) | Refreshed per nation phase |
+
+Autosave (when `game_options.autosave` is set): slot **9** every turn, slot **8** when entering a decade Spring year.
+
 Save/Load (menu, **S**/**L**, REPORTS path) uses `COLONY00.SAV` in the save directory.
 If missing, Load falls back to `original_saves/COLONY00.SAV` (repo samples).
 

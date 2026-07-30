@@ -177,7 +177,7 @@ int main(void) {
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   colony_screen_render(
-    &view, &pool, sample, &units, &map, &terrain, phys0_ok ? &phys0 : NULL, 1, 1000,
+    &view, &pool, sample, &units, &map, &terrain, phys0_ok ? &phys0 : NULL, 1492, 0, 1000,
     font_ok ? &font : NULL, &fb
   );
 

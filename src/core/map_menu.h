@@ -39,6 +39,7 @@ typedef enum MapMenuAction {
 
   /* ORDERS */
   MAP_MENU_ACTION_ACTIVATE_UNIT,
+  MAP_MENU_ACTION_WAIT_UNIT, /* wait for next unit with moves */
   MAP_MENU_ACTION_BUILD_COLONY,
   MAP_MENU_ACTION_JOIN_COLONY,
   MAP_MENU_ACTION_LOAD_CARGO,

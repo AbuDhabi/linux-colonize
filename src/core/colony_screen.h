@@ -95,7 +95,8 @@ void colony_screen_render(
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
-  uint32_t turn_number,
+  uint16_t game_year,
+  uint16_t game_autumn,
   int gold,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer

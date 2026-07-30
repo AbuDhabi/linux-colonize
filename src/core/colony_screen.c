@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/turn.h"
 #include "platform/diagnostics.h"
+#include "platform/platform.h"
 
 void colony_screen_set_status(ColonyScreenView* view, const char* text) {
   if (!view) {
@@ -268,23 +270,10 @@ static void colony_screen_draw_vline(
   }
 }
 
-static void colony_screen_turn_to_date(uint32_t turn_number, char* out, size_t out_size) {
-  if (!out || out_size == 0) {
-    return;
-  }
-  if (turn_number == 0) {
-    turn_number = 1;
-  }
-  static const char* k_season[] = {"Spring", "Autumn"};
-  const uint32_t idx = turn_number - 1;
-  const uint32_t year = 1492u + (idx / 2u);
-  const char* season = k_season[idx % 2u];
-  snprintf(out, out_size, "%s, %u", season, year);
-}
-
 static void colony_screen_draw_top_bar(
   const ColonizeColony* colony,
-  uint32_t turn_number,
+  uint16_t game_year,
+  uint16_t game_autumn,
   int gold,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
@@ -295,7 +284,7 @@ static void colony_screen_draw_top_bar(
   char line[96];
   const char* name = (colony && colony->name[0]) ? colony->name : "Colony";
   char date[32];
-  colony_screen_turn_to_date(turn_number, date, sizeof(date));
+  turn_format_date(game_year, game_autumn, date, sizeof(date));
   snprintf(line, sizeof(line), "%s", name);
   font_draw_text(font, framebuffer, 4, 2, line, 15);
   snprintf(line, sizeof(line), "%s", date);
@@ -581,7 +570,8 @@ void colony_screen_render(
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
-  uint32_t turn_number,
+  uint16_t game_year,
+  uint16_t game_autumn,
   int gold,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
@@ -595,7 +585,7 @@ void colony_screen_render(
     pik_blit(&view->frame, framebuffer, 0, 0);
   }
 
-  colony_screen_draw_top_bar(colony, turn_number, gold, font, framebuffer);
+  colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);
 
   /* Beige parchment fills the entire upper-left buildings section. */
   colony_screen_fill_parch(view, framebuffer);

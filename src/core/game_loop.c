@@ -22,6 +22,7 @@
 #include "core/reports.h"
 #include "core/savegame.h"
 #include "core/ss.h"
+#include "core/turn.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -95,6 +96,8 @@ struct ColonizeGameState {
   uint16_t game_year;
   uint16_t game_autumn;
   int human_nation;
+  int active_turn_nation; /* whose turn box color (FUN_1984_00aa) */
+  ColonizeTurnProcessor turn_proc;
   ColonizePalette map_palette;
   bool map_palette_ok;
   bool in_debug_atlas;
@@ -313,6 +316,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->game_year = result.year;
   game->game_autumn = result.autumn;
   game->human_nation = result.human_nation;
+  game->active_turn_nation = result.human_nation;
   game->map_cursor_x = result.cursor_x;
   game->map_cursor_y = result.cursor_y;
   game->in_menu = false;
@@ -757,7 +761,8 @@ static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuf
     game->world_map_ok ? &game->world_map : NULL,
     game->terrain_ok ? &game->terrain : NULL,
     game->phys0_ok ? &game->phys0 : NULL,
-    game->turn_number,
+    game->game_year,
+    game->game_autumn,
     game->europe.gold,
     font,
     framebuffer
@@ -788,6 +793,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->game_year = 1492;
   game->game_autumn = 0;
   game->human_nation = 0;
+  game->active_turn_nation = 0;
   game->pedia_category = PEDIA_CAT_TERRAIN;
   game->pedia_index = 0;
   game->pedia_hover_entry = -1;
@@ -1114,6 +1120,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   game->game_year = 1492;
   game->game_autumn = 0;
   game->human_nation = 0;
+  game->active_turn_nation = 0;
   game->turn_number = 0;
   europe_reset_campaign(&game->europe);
   if (game->world_map_ok) {
@@ -1196,6 +1203,81 @@ static void game_center_on_selected_unit(ColonizeGameState* game) {
   set_status(game, "Centered on active unit", NULL);
 }
 
+static void game_apply_turn_autosave(ColonizeGameState* game, const ColonizeTurnResult* result) {
+  if (!game || !result) {
+    return;
+  }
+  char err[256];
+  if (result->request_autosave_decade) {
+    if (!game_save_col1_slot(game, 8, err, sizeof(err))) {
+      diag_warn("Decade autosave failed: %s", err);
+    } else {
+      diag_info("Decade autosave → COLONY08.SAV");
+    }
+  }
+  if (result->request_autosave_turn) {
+    if (!game_save_col1_slot(game, 9, err, sizeof(err))) {
+      diag_warn("Turn autosave failed: %s", err);
+    } else {
+      diag_info("Turn autosave → COLONY09.SAV");
+    }
+  }
+}
+
+static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx) {
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->turn_number = &game->turn_number;
+  ctx->game_year = &game->game_year;
+  ctx->game_autumn = &game->game_autumn;
+  ctx->human_nation = game->human_nation;
+  ctx->active_turn_nation = &game->active_turn_nation;
+  ctx->units = game->units_ok ? &game->units : NULL;
+  ctx->colonies = &game->colonies;
+  ctx->europe = game->europe_ok ? &game->europe : &game->europe;
+  ctx->col1 = game->col1_ok ? &game->col1 : NULL;
+  ctx->col1_ok = game->col1_ok;
+  ctx->status = game->status;
+  ctx->status_size = sizeof(game->status);
+}
+
+static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
+  game_apply_turn_autosave(game, result);
+  const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+  if (sel && sel->active) {
+    game->map_cursor_x = sel->x;
+    game->map_cursor_y = sel->y;
+  }
+}
+
+static void game_do_end_turn(ColonizeGameState* game) {
+  if (!game || turn_processor_active(&game->turn_proc)) {
+    return;
+  }
+  turn_processor_start(&game->turn_proc);
+  /* Run setup immediately so calendar advances on the same input that ends the turn. */
+  ColonizeTurnContext ctx;
+  game_fill_turn_context(game, &ctx);
+  if (!turn_processor_advance(&game->turn_proc, &ctx)) {
+    game_finish_end_turn(game, &game->turn_proc.result);
+  }
+}
+
+static void game_wait_next_unit(ColonizeGameState* game) {
+  if (!game || !game->units_ok) {
+    return;
+  }
+  if (!turn_select_next_unit(&game->units, game->human_nation)) {
+    if (turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok)) {
+      snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
+    } else {
+      game_do_end_turn(game);
+    }
+    return;
+  }
+  game_center_on_selected_unit(game);
+  snprintf(game->status, sizeof(game->status), "%s", "Continue turn.");
+}
+
 /* Returns false if the game should quit. */
 static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
   switch (action) {
@@ -1274,6 +1356,9 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       }
       return true;
     }
+    case MAP_MENU_ACTION_WAIT_UNIT:
+      game_wait_next_unit(game);
+      return true;
     case MAP_MENU_ACTION_BUILD_COLONY: {
       const int cx = game->map_cursor_x;
       const int cy = game->map_cursor_y;
@@ -1294,6 +1379,10 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
             &game->colonies, &game->world_map, cx, cy, type_index, tools, muskets, horses
           );
           if (cid >= 0) {
+            ColonizeColony* neu = colonies_get_mut(&game->colonies, cid);
+            if (neu) {
+              neu->nation_id = game->human_nation;
+            }
             units_despawn(&game->units, uid);
             const ColonizeColony* col = colonies_get(&game->colonies, cid);
             snprintf(
@@ -1405,9 +1494,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       return true;
     }
     case MAP_MENU_ACTION_NO_ORDERS:
-      game->turn_number++;
-      units_end_turn(&game->units);
-      snprintf(game->status, sizeof(game->status), "Turn %u", game->turn_number);
+      game_do_end_turn(game);
       return true;
     case MAP_MENU_ACTION_PEDIA_CARGO:
       game_open_pedia_list(game, PEDIA_CAT_CARGO);
@@ -1478,6 +1565,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   game->elapsed_ms += dt_ms;
   (void)dos_compat_tick_count();
 
+  /* End-of-turn nation phases: advance one slice per frame; block other input. */
+  if (turn_processor_active(&game->turn_proc)) {
+    ColonizeTurnContext ctx;
+    game_fill_turn_context(game, &ctx);
+    if (!turn_processor_advance(&game->turn_proc, &ctx)) {
+      game_finish_end_turn(game, &game->turn_proc.result);
+    }
+    return true;
+  }
+
   if (input->last_key != COLONIZE_KEY_NONE) {
     diag_info(
       "Key pressed: %s (menu=%s debug=%s pedia=%s europe=%s colony=%s report=%s turn=%u cursor=%d,%d)",
@@ -1518,6 +1615,25 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       game->in_colony = false;
       game->colony_view_id = -1;
       diag_info("Left colony screen.");
+      return true;
+    }
+    /* Cheat: Space = free production cycle without advancing world time. */
+    if (input->last_key == COLONIZE_KEY_SPACE) {
+      ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
+      if (colony) {
+        ColonizeTurnResult prod;
+        memset(&prod, 0, sizeof(prod));
+        turn_colony_free_production(&game->colonies, colony, &prod);
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "Colony free turn (food %d, hammers %d)",
+          colony->stock[COLONIZE_CARGO_FOOD],
+          colony->hammers
+        );
+        colony_screen_set_status(&game->colony_screen, game->status);
+        diag_info("Colony free production id=%d", colony->id);
+      }
       return true;
     }
     return true;
@@ -1880,9 +1996,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_SPACE) {
-    game->turn_number++;
-    units_end_turn(&game->units);
-    diag_info("Advanced turn to %u", game->turn_number);
+    game_do_end_turn(game);
+    return true;
   }
 
   const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 1 : 15;
@@ -1922,6 +2037,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             game->map_cursor_x,
             game->map_cursor_y
           );
+          /* Auto end-turn when option is clear and no human moves remain. */
+          if (!turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok) &&
+              turn_human_units_exhausted(&game->units, game->human_nation)) {
+            game_do_end_turn(game);
+            return true;
+          }
         } else {
           set_status(game, "Move blocked", NULL);
         }
@@ -2082,6 +2203,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           &game->colonies, &game->world_map, cx, cy, type_index, tools, muskets, horses
         );
         if (cid >= 0) {
+          ColonizeColony* neu = colonies_get_mut(&game->colonies, cid);
+          if (neu) {
+            neu->nation_id = game->human_nation;
+          }
           units_despawn(&game->units, uid);
           const ColonizeColony* col = colonies_get(&game->colonies, cid);
           snprintf(
@@ -2482,6 +2607,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   }
 
 render_log_sample:
+  if (!game->in_menu && turn_processor_show_indicator(&game->turn_proc)) {
+    turn_draw_owner_indicator(framebuffer, game->active_turn_nation);
+  }
   render_log_counter++;
   if (render_log_counter == 1 || render_log_counter == 60 || render_log_counter == 300) {
     const int cx = framebuffer->width / 2;

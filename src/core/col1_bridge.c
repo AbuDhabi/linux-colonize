@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/turn.h"
 #include "platform/diagnostics.h"
 
 #define COL1_FAIL(err, err_size, ...)           \
@@ -321,7 +322,11 @@ bool col1_bridge_apply(
     dst->x = src->x;
     dst->y = src->y;
     col1_copy_name24(dst->name, sizeof(dst->name), src->name);
+    dst->nation_id = src->nation_id;
     dst->population = src->population;
+    dst->hammers = src->hammers;
+    dst->building_in_production =
+      (src->building_in_production == 0xFF) ? -1 : (int)src->building_in_production;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
       dst->stock[c] = src->stock[c];
     }
@@ -426,6 +431,11 @@ bool col1_bridge_apply(
     const ColonizeCol1Nation* nat = &save->nation[local.human_nation];
     europe->gold = (int)nat->gold;
     europe->tax_percent = nat->tax_rate;
+    europe->current_crosses = nat->current_crosses;
+    europe->needed_crosses =
+      nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
+    europe->liberty_bells_total = nat->liberty_bells_total;
+    europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
     col1_copy_name24(europe->nation_name, sizeof(europe->nation_name),
                      save->player[local.human_nation].country_name);
     for (int i = 0; i < europe->cargo_count && i < COLONIZE_COL1_CARGO_TYPES; ++i) {
@@ -514,6 +524,10 @@ bool col1_bridge_capture(
     ColonizeCol1Nation* nat = &save->nation[human_nation];
     nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
     nat->tax_rate = (uint8_t)(europe->tax_percent < 0 ? 0 : (europe->tax_percent > 99 ? 99 : europe->tax_percent));
+    nat->current_crosses = europe->current_crosses;
+    nat->needed_crosses = europe->needed_crosses > 0 ? europe->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
+    nat->liberty_bells_total = europe->liberty_bells_total;
+    nat->liberty_bells_last_turn = europe->liberty_bells_last_turn;
     for (int i = 0; i < europe->cargo_count && i < COLONIZE_COL1_CARGO_TYPES; ++i) {
       int bid = europe->cargo[i].bid;
       if (bid < 0) {
@@ -551,8 +565,11 @@ bool col1_bridge_capture(
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
       snprintf(dst->name, sizeof(dst->name), "%s", src->name);
-      dst->nation_id = (uint8_t)human_nation;
+      dst->nation_id = (uint8_t)src->nation_id;
       dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
+      dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
+      dst->building_in_production =
+        (uint8_t)(src->building_in_production < 0 ? 0xFF : src->building_in_production);
       for (int p = 0; p < dst->population; ++p) {
         int t = src->colonists[p].unit_type_index;
         if (t < 0) {

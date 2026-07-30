@@ -48,6 +48,11 @@ typedef struct EuropeScreen {
   char nation_name[48];
   int gold;
   int tax_percent;
+  /* Nation-side turn ticks (mirrors Col1 nation blob for the human player). */
+  uint16_t current_crosses;
+  uint16_t needed_crosses;
+  uint16_t liberty_bells_total;
+  uint16_t liberty_bells_last_turn;
   EuropeCargoQuote cargo[EUROPE_CARGO_MAX];
   int cargo_count;
   EuropeRecruitClass classes[EUROPE_CLASS_MAX];

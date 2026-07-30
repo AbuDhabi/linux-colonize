@@ -56,13 +56,16 @@ typedef struct ColonizeColony {
   char name[COLONIZE_COLONY_NAME_MAX];
   int x;
   int y;
+  int nation_id; /* 0..3 European owner */
   int population; /* == colonist_count while active */
   bool active;
   ColonizeColonist colonists[COLONIZE_COLONY_POP_MAX];
   int colonist_count;
   bool has_building[COLONIZE_BUILDING_TYPES_MAX];
-  /* Warehouse stub — production/trade not wired yet. Indexed by COLONIZE_CARGO_*. */
+  /* Warehouse + build queue — production ticks in src/core/turn.c. */
   int stock[COLONIZE_CARGO_COUNT];
+  int hammers;
+  int building_in_production; /* @BUILDING index, or -1 */
 } ColonizeColony;
 
 typedef struct ColonizeColonyPool {
