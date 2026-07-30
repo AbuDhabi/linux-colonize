@@ -37,6 +37,8 @@ typedef struct ColonizeWorldMap {
 } ColonizeWorldMap;
 
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size);
+/* Allocate empty layers (terrain/layer2/layer3 zeroed). Replaces any prior buffers. */
+bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* err, size_t err_size);
 void map_free(ColonizeWorldMap* map);
 
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y);

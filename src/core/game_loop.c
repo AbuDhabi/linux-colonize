@@ -7,6 +7,8 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/col1_bridge.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_screen.h"
 #include "core/debug_atlas.h"
@@ -77,6 +79,11 @@ struct ColonizeGameState {
   bool colonies_ok;
   ColonizeWorldMap world_map;
   bool world_map_ok;
+  ColonizeCol1Save col1;
+  bool col1_ok;
+  uint16_t game_year;
+  uint16_t game_autumn;
+  int human_nation;
   ColonizePalette map_palette;
   bool map_palette_ok;
   bool in_debug_atlas;
@@ -259,6 +266,106 @@ static const char* render_mode_name(const ColonizeGameState* game) {
     return "menu";
   }
   return "map";
+}
+
+static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size) {
+  ColonizeCol1BridgeResult result;
+  europe_reset_campaign(&game->europe);
+  game->europe.harbor_ships = 0;
+  game->europe.dock_count = 0;
+  if (!col1_bridge_apply(
+        loaded,
+        &game->world_map,
+        &game->units,
+        &game->colonies,
+        &game->europe,
+        &result,
+        err,
+        err_size
+      )) {
+    return false;
+  }
+  game->world_map_ok = true;
+  game->turn_number = result.turn_number;
+  game->game_year = result.year;
+  game->game_autumn = result.autumn;
+  game->human_nation = result.human_nation;
+  game->map_cursor_x = result.cursor_x;
+  game->map_cursor_y = result.cursor_y;
+  game->in_menu = false;
+  game->in_europe = false;
+  game->in_colony = false;
+  game->in_pedia = false;
+  game->in_report = false;
+  game->in_debug_atlas = false;
+  game->colony_view_id = -1;
+
+  col1_save_free(&game->col1);
+  game->col1 = *loaded;
+  memset(loaded, 0, sizeof(*loaded));
+  game->col1_ok = true;
+  return true;
+}
+
+static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  ColonizeCol1Save loaded;
+  col1_save_init(&loaded);
+  if (!savegame_read_col1(game->config.save_dir, slot, &loaded, err, err_size)) {
+    /* Developer convenience: fall back to repo original_saves/COLONY00.SAV. */
+    char fallback[640];
+    snprintf(fallback, sizeof(fallback), "original_saves/COLONY%02d.SAV", slot);
+    if (!col1_save_read_file(fallback, &loaded, err, err_size)) {
+      col1_save_free(&loaded);
+      return false;
+    }
+    diag_info("Loaded fallback save %s", fallback);
+  }
+  if (!game_apply_col1_save(game, &loaded, err, err_size)) {
+    col1_save_free(&loaded);
+    return false;
+  }
+  return true;
+}
+
+static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  if (!game->world_map_ok) {
+    snprintf(err, err_size, "no map loaded");
+    return false;
+  }
+  if (!game->col1_ok) {
+    if (!col1_bridge_init_template(
+          &game->col1,
+          game->world_map.width,
+          game->world_map.height,
+          err,
+          err_size
+        )) {
+      return false;
+    }
+    game->col1_ok = true;
+    if (game->game_year == 0) {
+      game->game_year = 1492;
+    }
+  }
+  if (!col1_bridge_capture(
+        &game->col1,
+        &game->world_map,
+        &game->units,
+        &game->colonies,
+        &game->europe,
+        game->game_year,
+        game->game_autumn,
+        game->turn_number,
+        game->human_nation,
+        game->map_cursor_x,
+        game->map_cursor_y,
+        game->units.selected_id,
+        err,
+        err_size
+      )) {
+    return false;
+  }
+  return savegame_write_col1(game->config.save_dir, slot, &game->col1, err, err_size);
 }
 
 static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
@@ -543,6 +650,11 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->map_cursor_x = 29;
   game->map_cursor_y = 36;
   game->in_menu = true;
+  game->game_year = 1492;
+  game->game_autumn = 0;
+  game->human_nation = 0;
+  col1_save_init(&game->col1);
+  game->col1_ok = false;
 
   assets_msg_init(&game->messages);
   assets_msg_init(&game->map_menu_txt);
@@ -779,6 +891,7 @@ void game_destroy(ColonizeGameState* game) {
   ff_free(&game->menu_font);
   ff_free(&game->colony_font);
   map_free(&game->world_map);
+  col1_save_free(&game->col1);
   assets_msg_free(&game->messages);
   assets_msg_free(&game->map_menu_txt);
   map_menu_free(&game->map_menu);
@@ -804,22 +917,30 @@ static void activate_menu_selection(ColonizeGameState* game) {
   }
 
   if (strstr(choice, "LOAD") != NULL || strstr(choice, "Load") != NULL) {
-    ColonizeSavePayload payload;
     char err[256];
-    if (!savegame_read(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+    if (!game_load_col1_slot(game, 0, err, sizeof(err))) {
       set_status(game, "Load failed", err);
       diag_error("Menu load failed: %s", err);
       return;
     }
-    game->turn_number = payload.turn_number;
-    game->map_seed = payload.map_seed;
-    game->in_menu = false;
-    snprintf(game->status, sizeof(game->status), "Loaded slot1 (turn %u)", game->turn_number);
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Loaded COLONY00 (turn %u, year %u)",
+      game->turn_number,
+      game->game_year
+    );
     return;
   }
 
   /* Start / customize / America / New World -> enter map view. */
   game->in_menu = false;
+  col1_save_free(&game->col1);
+  game->col1_ok = false;
+  game->game_year = 1492;
+  game->game_autumn = 0;
+  game->human_nation = 0;
+  game->turn_number = 0;
   europe_reset_campaign(&game->europe);
   if (game->world_map_ok) {
     units_new_world_start(&game->units, &game->world_map);
@@ -910,29 +1031,33 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       set_status(game, "Not implemented yet", NULL);
       return true;
     case MAP_MENU_ACTION_SAVE: {
-      ColonizeSavePayload payload = {
-        .turn_number = game->turn_number,
-        .random_seed = game->elapsed_ms,
-        .map_seed = game->map_seed
-      };
       char err[256];
-      if (!savegame_write(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+      if (!game_save_col1_slot(game, 0, err, sizeof(err))) {
         set_status(game, "Save failed", err);
         return true;
       }
-      snprintf(game->status, sizeof(game->status), "Saved slot1 (turn %u)", game->turn_number);
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Saved COLONY00 (turn %u, year %u)",
+        game->turn_number,
+        game->game_year
+      );
       return true;
     }
     case MAP_MENU_ACTION_LOAD: {
-      ColonizeSavePayload payload;
       char err[256];
-      if (!savegame_read(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+      if (!game_load_col1_slot(game, 0, err, sizeof(err))) {
         set_status(game, "Load failed", err);
         return true;
       }
-      game->turn_number = payload.turn_number;
-      game->map_seed = payload.map_seed;
-      snprintf(game->status, sizeof(game->status), "Loaded slot1 (turn %u)", game->turn_number);
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Loaded COLONY00 (turn %u, year %u)",
+        game->turn_number,
+        game->game_year
+      );
       return true;
     }
     case MAP_MENU_ACTION_RETIRE: {
@@ -1724,40 +1849,53 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_S) {
-    ColonizeSavePayload payload = {
-      .turn_number = game->turn_number,
-      .random_seed = game->elapsed_ms,
-      .map_seed = game->map_seed
-    };
     char err[256];
-    diag_info("Save requested: slot=slot1 save_dir=%s turn=%u",
+    diag_info(
+      "Save requested: slot=COLONY00 save_dir=%s turn=%u",
       game->config.save_dir ? game->config.save_dir : "(null)",
-      game->turn_number);
-    if (!savegame_write(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+      game->turn_number
+    );
+    if (!game_save_col1_slot(game, 0, err, sizeof(err))) {
       set_status(game, "Save failed", err);
       diag_error("Save failed: %s", err);
       return true;
     }
-    snprintf(game->status, sizeof(game->status), "Saved slot1 (turn %u)", game->turn_number);
-    diag_info("Save succeeded for slot1 (turn %u)", game->turn_number);
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Saved COLONY00 (turn %u, year %u)",
+      game->turn_number,
+      game->game_year
+    );
+    diag_info("Save succeeded for COLONY00 (turn %u)", game->turn_number);
     return true;
   }
 
   if (input->last_key == COLONIZE_KEY_L) {
-    ColonizeSavePayload payload;
     char err[256];
-    diag_info("Load requested: slot=slot1 save_dir=%s",
-      game->config.save_dir ? game->config.save_dir : "(null)");
-    if (!savegame_read(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+    diag_info(
+      "Load requested: slot=COLONY00 save_dir=%s",
+      game->config.save_dir ? game->config.save_dir : "(null)"
+    );
+    if (!game_load_col1_slot(game, 0, err, sizeof(err))) {
       set_status(game, "Load failed", err);
       diag_error("Load failed: %s", err);
       return true;
     }
-    game->turn_number = payload.turn_number;
-    game->map_seed = payload.map_seed;
-    snprintf(game->status, sizeof(game->status), "Loaded slot1 (turn %u)", game->turn_number);
-    diag_info("Load succeeded: turn=%u map_seed=%u random_seed=%u",
-      payload.turn_number, payload.map_seed, payload.random_seed);
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Loaded COLONY00 (turn %u, year %u)",
+      game->turn_number,
+      game->game_year
+    );
+    diag_info(
+      "Load succeeded: turn=%u year=%u units=%d colonies=%d",
+      game->turn_number,
+      game->game_year,
+      game->units.unit_count,
+      game->colonies.colony_count
+    );
     return true;
   }
 

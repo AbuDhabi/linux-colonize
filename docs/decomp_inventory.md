@@ -77,7 +77,11 @@ port I/O in the native build.
 
 ## Current Linux Bring-Up Status
 
-- SDL2 shell, diagnostics log, save/load POC: done
+- SDL2 shell, diagnostics log, save/load: original `COLONY##.SAV` structs +
+  byte-identical I/O in `src/core/col1_save.{h,c}`; runtime bridge in
+  `src/core/col1_bridge.c` (see `docs/savegame.md`); verified against
+  `original_saves/COLONY00.SAV` / `COLONY01.SAV`
+
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`viceroy.c`, `viceroy_unpacked.c`) are not compiled into the binary;
   DOS typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction

@@ -9,7 +9,8 @@
 #include "core/map.h"
 #include "core/ss.h"
 
-#define COLONIZE_UNITS_MAX 64
+/* Original COLONY.SAV can hold well over 64 map units (natives + Europeans). */
+#define COLONIZE_UNITS_MAX 256
 #define COLONIZE_UNIT_TYPES_MAX 32
 #define COLONIZE_UNIT_CARGO_MAX 6 /* Man-O-War hold size */
 
@@ -35,6 +36,7 @@ typedef struct ColonizeUnit {
   int y;
   int moves_left;
   bool active;
+  int nation_id; /* 0..3 European, 4..11 native tribes (COL1) */
   int aboard_ship_id; /* -1 = on map; else id of carrying ship */
   int cargo_ids[COLONIZE_UNIT_CARGO_MAX]; /* passenger unit ids (ships only) */
   int cargo_count;
@@ -54,6 +56,8 @@ void units_reset(ColonizeUnitPool* pool);
 
 int units_find_type(const ColonizeUnitPool* pool, const char* name);
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
+/* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
+int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
@@ -109,6 +113,8 @@ bool units_find_high_seas_tile(
 
 /* Board a land unit onto an adjacent ship. Returns false if capacity/adjacency fails. */
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/* Board without adjacency check (COL1 import; passenger already stacked on ship tile). */
+bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
 bool units_unload(
   ColonizeUnitPool* pool,

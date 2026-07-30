@@ -141,6 +141,13 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   if (units_id_at(pool, x, y) >= 0) {
     return -1;
   }
+  return units_spawn_allow_stack(pool, type_index, x, y);
+}
+
+int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y) {
+  if (!pool || type_index < 0 || type_index >= pool->type_count) {
+    return -1;
+  }
   ColonizeUnit* slot = units_slot(pool);
   if (!slot) {
     return -1;
@@ -152,6 +159,7 @@ int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   slot->y = y;
   slot->moves_left = type->movement;
   slot->active = true;
+  slot->nation_id = 0;
   slot->aboard_ship_id = -1;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
@@ -171,6 +179,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->x = 0;
   unit->y = 0;
   unit->moves_left = 0;
+  unit->nation_id = 0;
   unit->aboard_ship_id = -1;
   unit->cargo_count = 0;
   memset(unit->cargo_ids, 0, sizeof(unit->cargo_ids));
@@ -441,6 +450,30 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
   return true;
 }
 
+bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
+  ColonizeUnit* land = units_get(pool, land_unit_id);
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!land || !ship) {
+    return false;
+  }
+  if (units_is_sea(pool, land_unit_id) || !units_is_sea(pool, ship_id)) {
+    return false;
+  }
+  if (land->aboard_ship_id >= 0 || ship->aboard_ship_id >= 0) {
+    return false;
+  }
+  const int cap = units_ship_capacity(pool, ship_id);
+  if (cap <= 0 || ship->cargo_count >= cap) {
+    return false;
+  }
+  land->aboard_ship_id = ship_id;
+  land->x = ship->x;
+  land->y = ship->y;
+  land->moves_left = 0;
+  ship->cargo_ids[ship->cargo_count++] = land_unit_id;
+  return true;
+}
+
 bool units_unload(
   ColonizeUnitPool* pool,
   int ship_id,
@@ -549,6 +582,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->y = ship->y;
   slot->moves_left = 0;
   slot->active = true;
+  slot->nation_id = ship->nation_id;
   slot->aboard_ship_id = ship->id;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));

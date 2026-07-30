@@ -549,6 +549,39 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   return true;
 }
 
+bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* err, size_t err_size) {
+  if (!out_map || width == 0 || height == 0) {
+    if (err && err_size) {
+      snprintf(err, err_size, "map_alloc bad args");
+    }
+    return false;
+  }
+  map_free(out_map);
+  const size_t tile_count = (size_t)width * (size_t)height;
+  uint8_t* terrain = calloc(tile_count, 1);
+  uint8_t* layer2 = calloc(tile_count, 1);
+  uint8_t* layer3 = calloc(tile_count, 1);
+  if (!terrain || !layer2 || !layer3) {
+    free(terrain);
+    free(layer2);
+    free(layer3);
+    if (err && err_size) {
+      snprintf(err, err_size, "oom in map_alloc");
+    }
+    return false;
+  }
+  out_map->width = width;
+  out_map->height = height;
+  out_map->terrain = terrain;
+  out_map->layer2 = layer2;
+  out_map->layer3 = layer3;
+  out_map->tile_count = tile_count;
+  if (err && err_size) {
+    err[0] = '\0';
+  }
+  return true;
+}
+
 void map_free(ColonizeWorldMap* map) {
   if (!map) {
     return;

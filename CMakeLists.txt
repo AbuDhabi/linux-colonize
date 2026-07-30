@@ -43,6 +43,8 @@ add_library(colonize_core STATIC
   src/core/pik.c
   src/core/ss.c
   src/core/savegame.c
+  src/core/col1_save.c
+  src/core/col1_bridge.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -89,6 +91,7 @@ enable_testing()
 add_executable(smoke_savegame
   tests/smoke/test_savegame.c
   src/core/savegame.c
+  src/core/col1_save.c
   src/platform/diagnostics.c
 )
 
@@ -101,6 +104,7 @@ add_test(NAME smoke_savegame COMMAND smoke_savegame)
 add_executable(smoke_savegame_incompatible
   tests/smoke/test_savegame_incompatible.c
   src/core/savegame.c
+  src/core/col1_save.c
   src/platform/diagnostics.c
 )
 
@@ -109,6 +113,31 @@ target_include_directories(smoke_savegame_incompatible PRIVATE
 )
 
 add_test(NAME smoke_savegame_incompatible COMMAND smoke_savegame_incompatible)
+
+add_executable(smoke_col1_save
+  tests/smoke/test_col1_save.c
+  src/core/col1_save.c
+  src/core/col1_bridge.c
+  src/core/map.c
+  src/core/units.c
+  src/core/colony.c
+  src/core/europe.c
+  src/core/assets.c
+  src/core/pik.c
+  src/core/madspack.c
+  src/core/ss.c
+  src/core/font.c
+  src/core/ff.c
+  src/data/viceroy_tables.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_col1_save PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_col1_save COMMAND smoke_col1_save WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
@@ -129,6 +158,8 @@ add_executable(smoke_game_flow
   src/core/pik.c
   src/core/ss.c
   src/core/savegame.c
+  src/core/col1_save.c
+  src/core/col1_bridge.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c

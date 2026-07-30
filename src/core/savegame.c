@@ -50,6 +50,60 @@ static void path_for_slot(char* out, size_t out_size, const char* save_dir, cons
   snprintf(out, out_size, "%s/%s.sav", save_dir, slot_name);
 }
 
+bool savegame_colony_slot_path(
+  const char* save_dir,
+  int slot,
+  char* out_path,
+  size_t out_path_size
+) {
+  if (!save_dir || !out_path || out_path_size == 0 || slot < 0 || slot > 9) {
+    return false;
+  }
+  snprintf(out_path, out_path_size, "%s/COLONY%02d.SAV", save_dir, slot);
+  return true;
+}
+
+bool savegame_write_col1(
+  const char* save_dir,
+  int slot,
+  const ColonizeCol1Save* save,
+  char* err_buf,
+  size_t err_buf_size
+) {
+  if (!save_dir || !save) {
+    snprintf(err_buf, err_buf_size, "Invalid savegame_write_col1 arguments.");
+    return false;
+  }
+  if (!ensure_dir(save_dir, err_buf, err_buf_size)) {
+    return false;
+  }
+  char path[640];
+  if (!savegame_colony_slot_path(save_dir, slot, path, sizeof(path))) {
+    snprintf(err_buf, err_buf_size, "Invalid COLONY slot %d.", slot);
+    return false;
+  }
+  return col1_save_write_file(path, save, err_buf, err_buf_size);
+}
+
+bool savegame_read_col1(
+  const char* save_dir,
+  int slot,
+  ColonizeCol1Save* out_save,
+  char* err_buf,
+  size_t err_buf_size
+) {
+  if (!save_dir || !out_save) {
+    snprintf(err_buf, err_buf_size, "Invalid savegame_read_col1 arguments.");
+    return false;
+  }
+  char path[640];
+  if (!savegame_colony_slot_path(save_dir, slot, path, sizeof(path))) {
+    snprintf(err_buf, err_buf_size, "Invalid COLONY slot %d.", slot);
+    return false;
+  }
+  return col1_save_read_file(path, out_save, err_buf, err_buf_size);
+}
+
 bool savegame_write(
   const char* save_dir,
   const char* slot_name,
