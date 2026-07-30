@@ -45,14 +45,28 @@ int main(void) {
   CHECK(pool.building_type_count > 8, "enough building types");
   const int town_hall = colonies_find_building(&pool, "Town Hall");
   const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+  const int warehouse = colonies_find_building(&pool, "Warehouse");
+  const int stockade = colonies_find_building(&pool, "Stockade");
+  const int docks = colonies_find_building(&pool, "Docks");
   CHECK(town_hall >= 0 && carpenter >= 0, "starter building names resolve");
+  CHECK(warehouse >= 0 && stockade >= 0 && docks >= 0, "fence/docks/warehouse names resolve");
 
   int land_x = -1, land_y = -1;
   for (int y = 0; y < (int)map.height && land_x < 0; ++y) {
     for (int x = 0; x < (int)map.width && land_x < 0; ++x) {
-      if (map_tile_is_land(&map, x, y)) {
+      if (map_tile_is_land(&map, x, y) && !map_tile_is_coastal(&map, x, y)) {
         land_x = x;
         land_y = y;
+      }
+    }
+  }
+  if (land_x < 0) {
+    for (int y = 0; y < (int)map.height && land_x < 0; ++y) {
+      for (int x = 0; x < (int)map.width && land_x < 0; ++x) {
+        if (map_tile_is_land(&map, x, y)) {
+          land_x = x;
+          land_y = y;
+        }
       }
     }
   }
@@ -80,13 +94,38 @@ int main(void) {
   CHECK(empty && empty->population == 0 && empty->colonist_count == 0, "no founder => pop 0");
   CHECK(empty && empty->has_building[town_hall], "starter includes Town Hall");
   CHECK(empty && empty->has_building[carpenter], "starter includes Carpenter's Shop");
+  CHECK(empty && !empty->has_building[stockade], "starter excludes Stockade");
+  CHECK(empty && !empty->has_building[warehouse], "starter excludes Warehouse");
+  if (!map_tile_is_coastal(&map, land_x, land_y)) {
+    CHECK(empty && !empty->has_building[docks], "inland starter excludes Docks");
+  }
   CHECK(empty && empty->stock_food == 200, "starter food stockpile");
 
-  /* Second colony with a founder on a different land tile. */
+  /* Coastal colony gets free Docks. */
+  int coast_x = -1, coast_y = -1;
+  for (int y = 0; y < (int)map.height && coast_x < 0; ++y) {
+    for (int x = 0; x < (int)map.width && coast_x < 0; ++x) {
+      if (map_tile_is_coastal(&map, x, y) && colonies_can_found(&pool, &map, x, y)) {
+        coast_x = x;
+        coast_y = y;
+      }
+    }
+  }
+  if (coast_x >= 0) {
+    const int coast_id = colonies_found(&pool, &map, coast_x, coast_y, -1, 0, 0, 0);
+    CHECK(coast_id >= 0, "found coastal colony");
+    const ColonizeColony* coastal = colonies_get(&pool, coast_id);
+    CHECK(coastal && coastal->has_building[docks], "coastal starter includes Docks");
+    CHECK(coastal && !coastal->has_building[warehouse], "coastal starter excludes Warehouse");
+  } else {
+    printf("OK: skip coastal docks check (no free coastal tile)\n");
+  }
+
+  /* Another colony with a founder on a different land tile. */
   int land2_x = -1, land2_y = -1;
   for (int y = 0; y < (int)map.height && land2_x < 0; ++y) {
     for (int x = 0; x < (int)map.width && land2_x < 0; ++x) {
-      if (map_tile_is_land(&map, x, y) && (x != land_x || y != land_y)) {
+      if (map_tile_is_land(&map, x, y) && colonies_can_found(&pool, &map, x, y)) {
         land2_x = x;
         land2_y = y;
       }

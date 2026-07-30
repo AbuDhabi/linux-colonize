@@ -270,7 +270,19 @@ static void colony_screen_render_minimap(
 /*
  * Approximate collage positions inside the PARCH buildings section.
  * Exact DOS placement is not recovered yet; this is a readable bring-up layout.
+ *
+ * BUILDING.SS notes:
+ *   #16 (Warehouse Expansion slot art) — full pre-stockade fence sprite
+ *   #42–47 — empty-slot tree clumps (large/med/small/dock-sized)
  */
+enum {
+  COLONY_FENCE_SPRITE = 16,
+  COLONY_TREE_LARGE = 42,
+  COLONY_TREE_MED = 43,
+  COLONY_TREE_SMALL = 44,
+  COLONY_TREE_DOCK = 45
+};
+
 static int colony_screen_find_built(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
@@ -286,6 +298,50 @@ static int colony_screen_find_built(
   return idx;
 }
 
+/* Highest present building in an upgrade chain (names ordered low → high). */
+static int colony_screen_best_built(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const char* const* names,
+  size_t name_count
+) {
+  int best = -1;
+  for (size_t i = 0; i < name_count; ++i) {
+    const int idx = colony_screen_find_built(pool, colony, names[i]);
+    if (idx >= 0) {
+      best = idx;
+    }
+  }
+  return best;
+}
+
+static void colony_screen_blit_slot(
+  const ColonyScreenView* view,
+  int sprite_index,
+  int x,
+  int y,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !framebuffer || sprite_index < 0 || sprite_index >= view->buildings.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* spr = &view->buildings.sprites[sprite_index];
+  if (!spr || !spr->pixels || spr->width <= 2 || spr->height <= 2) {
+    return;
+  }
+  ss_blit_sprite(&view->buildings, sprite_index, framebuffer, x, y);
+}
+
+/* Pre-stockade fence: single BUILDING.SS #16 sprite (not multi-part). */
+static void colony_screen_blit_fence(
+  const ColonyScreenView* view,
+  int x,
+  int y,
+  ColonizeFramebuffer8* framebuffer
+) {
+  colony_screen_blit_slot(view, COLONY_FENCE_SPRITE, x, y, framebuffer);
+}
+
 static void colony_screen_blit_buildings(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -297,32 +353,70 @@ static void colony_screen_blit_buildings(
   }
 
   typedef struct BuildingSlot {
-    const char* name;
+    const char* const* chain; /* NULL-terminated upgrade names, or single name */
+    int tree_sprite;          /* BUILDING.SS placeholder when nothing in chain is built */
     int x;
     int y;
   } BuildingSlot;
 
+  static const char* k_stockade[] = {"Stockade", "Fort", "Fortress", NULL};
+  static const char* k_docks[] = {"Docks", "Drydock", "Shipyard", NULL};
+  static const char* k_town_hall[] = {"Town Hall", NULL};
+  static const char* k_carpenter[] = {"Carpenter's Shop", "Lumber Mill", NULL};
+  static const char* k_blacksmith[] = {"Blacksmith's House", "Blacksmith's Shop", "Iron Works", NULL};
+  static const char* k_weaver[] = {"Weaver's House", "Weaver's Shop", "Textile Mill", NULL};
+  static const char* k_tobacco[] = {"Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", NULL};
+  static const char* k_rum[] = {"Rum Distiller's House", "Rum Distillery", "Rum Factory", NULL};
+  static const char* k_fur[] = {"Fur Trader's House", "Fur Trading Post", "Fur Factory", NULL};
+  /* Warehouse Expansion shares BUILDING.SS #16 with the fence graphic — only blit Warehouse. */
+  static const char* k_warehouse[] = {"Warehouse", NULL};
+  static const char* k_church[] = {"Church", "Cathedral", NULL};
+  static const char* k_school[] = {"Schoolhouse", "College", "University", NULL};
+  static const char* k_armory[] = {"Armory", "Magazine", "Arsenal", NULL};
+  static const char* k_press[] = {"Printing Press", "Newspaper", NULL};
+  static const char* k_stable[] = {"Stable", NULL};
+  static const char* k_custom[] = {"Custom House", NULL};
+
   static const BuildingSlot k_slots[] = {
-    {"Town Hall", 8, 8},
-    {"Carpenter's Shop", 70, 8},
-    {"Blacksmith's House", 130, 8},
-    {"Warehouse", 8, 48},
-    {"Weaver's House", 70, 48},
-    {"Tobacconist's House", 130, 48},
-    {"Rum Distiller's House", 8, 80},
-    {"Fur Trader's House", 70, 80},
+    {k_town_hall, COLONY_TREE_LARGE, 70, 4},
+    {k_church, COLONY_TREE_LARGE, 8, 4},
+    {k_school, COLONY_TREE_MED, 130, 8},
+    {k_carpenter, COLONY_TREE_MED, 8, 44},
+    {k_blacksmith, COLONY_TREE_SMALL, 56, 42},
+    {k_weaver, COLONY_TREE_SMALL, 88, 42},
+    {k_tobacco, COLONY_TREE_SMALL, 120, 42},
+    {k_rum, COLONY_TREE_SMALL, 152, 42},
+    {k_fur, COLONY_TREE_SMALL, 56, 72},
+    {k_warehouse, COLONY_TREE_MED, 88, 72},
+    {k_armory, COLONY_TREE_MED, 140, 72},
+    {k_press, COLONY_TREE_SMALL, 8, 72},
+    {k_stable, COLONY_TREE_SMALL, 8, 100},
+    {k_custom, COLONY_TREE_SMALL, 40, 100},
+    {k_docks, COLONY_TREE_DOCK, 116, 80},
   };
 
   for (size_t i = 0; i < sizeof(k_slots) / sizeof(k_slots[0]); ++i) {
-    const int idx = colony_screen_find_built(pool, colony, k_slots[i].name);
-    if (idx < 0 || idx >= view->buildings.sprite_count) {
-      continue;
+    const BuildingSlot* slot = &k_slots[i];
+    size_t n = 0;
+    while (slot->chain && slot->chain[n]) {
+      ++n;
     }
-    const ColonizeSprite* spr = &view->buildings.sprites[idx];
-    if (!spr || spr->width <= 2 || spr->height <= 2) {
-      continue;
+    const int built = colony_screen_best_built(pool, colony, slot->chain, n);
+    if (built >= 0) {
+      colony_screen_blit_slot(view, built, slot->x, slot->y, framebuffer);
+    } else {
+      colony_screen_blit_slot(view, slot->tree_sprite, slot->x, slot->y, framebuffer);
     }
-    ss_blit_sprite(&view->buildings, idx, framebuffer, k_slots[i].x, k_slots[i].y);
+  }
+
+  /* Fortification row: Stockade/Fort/Fortress, else the single #16 fence sprite. */
+  const int fort = colony_screen_best_built(pool, colony, k_stockade, 3);
+  const int fence_y = 108;
+  const int fence_x = 8;
+  if (fort >= 0) {
+    colony_screen_blit_slot(view, fort, fence_x, fence_y, framebuffer);
+  } else {
+    colony_screen_blit_fence(view, fence_x, fence_y, framebuffer);
   }
 }
 

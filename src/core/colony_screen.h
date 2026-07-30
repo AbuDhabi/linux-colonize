@@ -16,7 +16,8 @@
  * DOS colony screen layout (320×200):
  *   WOODPANL.PIK  — full-screen wood chrome (authoritative palette)
  *   PARCH.SS      — beige scrollwork tiled across the upper-left buildings section
- *   BUILDING.SS   — building sprites (indices match NAMES.TXT @BUILDING)
+ *   BUILDING.SS   — building sprites (indices match NAMES.TXT @BUILDING);
+ *                   #16 is the pre-stockade fence; sprites 42–47 are tree clumps
  *   WOODTILE.SS   — wood grain tiled in the square top-right minimap section
  *   TERRAIN+PHYS0 — 3×3 catchment tiles centered in the minimap section
  *   COLONY.PIK    — bottom panel (outside colony / dock / cargo)

@@ -316,6 +316,23 @@ bool map_tile_is_land(const ColonizeWorldMap* map, int x, int y) {
   return map_is_land_at(map, x, y);
 }
 
+bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_tile_is_land(map, x, y)) {
+    return false;
+  }
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+      if (map_tile_is_water(map, x + dx, y + dy)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return false;

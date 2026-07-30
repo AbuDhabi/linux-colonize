@@ -180,22 +180,39 @@ static const char* colonies_next_name(ColonizeColonyPool* pool) {
   return n;
 }
 
-static void colonies_grant_starters(ColonizeColonyPool* pool, ColonizeColony* slot) {
+static void colonies_grant_building(ColonizeColonyPool* pool, ColonizeColony* slot, const char* name) {
+  const int idx = colonies_find_building(pool, name);
+  if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX) {
+    slot->has_building[idx] = true;
+  }
+}
+
+/*
+ * Classic free starters: craft houses + carpenter + town hall.
+ * Warehouse and Stockade are buildable. Docks are free only on coastal tiles.
+ * When Stockade is absent the colony screen draws fence art (BUILDING.SS #16).
+ */
+static void colonies_grant_starters(
+  ColonizeColonyPool* pool,
+  ColonizeColony* slot,
+  const ColonizeWorldMap* map,
+  int x,
+  int y
+) {
   static const char* k_starters[] = {
     "Town Hall",
     "Carpenter's Shop",
     "Blacksmith's House",
-    "Warehouse",
     "Weaver's House",
     "Tobacconist's House",
     "Rum Distiller's House",
     "Fur Trader's House",
   };
   for (size_t i = 0; i < sizeof(k_starters) / sizeof(k_starters[0]); ++i) {
-    const int idx = colonies_find_building(pool, k_starters[i]);
-    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX) {
-      slot->has_building[idx] = true;
-    }
+    colonies_grant_building(pool, slot, k_starters[i]);
+  }
+  if (map_tile_is_coastal(map, x, y)) {
+    colonies_grant_building(pool, slot, "Docks");
   }
 }
 
@@ -234,7 +251,7 @@ int colonies_found(
   slot->y = y;
   slot->active = true;
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool));
-  colonies_grant_starters(pool, slot);
+  colonies_grant_starters(pool, slot, map, x, y);
 
   if (tools > 0) {
     slot->stock_tools += tools;

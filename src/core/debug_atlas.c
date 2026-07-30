@@ -180,20 +180,26 @@ void debug_atlas_prev_file(DebugAtlas* atlas, const char* data_dir, int step) {
   debug_atlas_load(atlas, data_dir, prev);
 }
 
-static int debug_atlas_ss_max_dim(const ColonizeSpriteSheet* sheet) {
-  int m = 0;
-  if (!sheet) {
-    return 0;
-  }
-  for (int i = 0; i < sheet->sprite_count; ++i) {
-    if (sheet->sprites[i].width > m) {
-      m = sheet->sprites[i].width;
+/* Cell sized to the largest sprite so wide art (fence, docks) does not overlap neighbours. */
+static void debug_atlas_ss_cell_size(const ColonizeSpriteSheet* sheet, int* out_w, int* out_h) {
+  int max_w = 16;
+  int max_h = 16;
+  if (sheet) {
+    for (int i = 0; i < sheet->sprite_count; ++i) {
+      if (sheet->sprites[i].width > max_w) {
+        max_w = sheet->sprites[i].width;
+      }
+      if (sheet->sprites[i].height > max_h) {
+        max_h = sheet->sprites[i].height;
+      }
     }
-    if (sheet->sprites[i].height > m) {
-      m = sheet->sprites[i].height;
-    }
   }
-  return m;
+  if (out_w) {
+    *out_w = max_w + 4;
+  }
+  if (out_h) {
+    *out_h = max_h + 10; /* room for index label */
+  }
 }
 
 static bool debug_atlas_ss_single_mode(const ColonizeSpriteSheet* sheet) {
@@ -203,7 +209,10 @@ static bool debug_atlas_ss_single_mode(const ColonizeSpriteSheet* sheet) {
   if (sheet->sprite_count == 1) {
     return true;
   }
-  return debug_atlas_ss_max_dim(sheet) > 40;
+  int cell_w = 0;
+  debug_atlas_ss_cell_size(sheet, &cell_w, NULL);
+  /* Fall back to one-at-a-time when even two columns won't fit. */
+  return cell_w > 160;
 }
 
 static int debug_atlas_max_scroll(const DebugAtlas* atlas) {
@@ -220,10 +229,14 @@ static int debug_atlas_max_scroll(const DebugAtlas* atlas) {
   if (debug_atlas_ss_single_mode(&atlas->ss)) {
     return atlas->ss.sprite_count > 0 ? atlas->ss.sprite_count - 1 : 0;
   }
-  const int cell_w = 20;
-  const int cell_h = 26;
+  int cell_w = 20;
+  int cell_h = 26;
+  debug_atlas_ss_cell_size(&atlas->ss, &cell_w, &cell_h);
   const int cols = 320 / cell_w;
   const int rows = (200 - 14) / cell_h;
+  if (cols < 1 || rows < 1) {
+    return atlas->ss.sprite_count > 0 ? atlas->ss.sprite_count - 1 : 0;
+  }
   const int visible = cols * rows;
   if (atlas->ss.sprite_count <= visible) {
     return 0;
@@ -259,8 +272,10 @@ void debug_atlas_page_down(DebugAtlas* atlas) {
     debug_atlas_scroll_by(atlas, 1);
     return;
   }
-  const int rows = (200 - 14) / 26;
-  debug_atlas_scroll_by(atlas, rows);
+  int cell_h = 26;
+  debug_atlas_ss_cell_size(&atlas->ss, NULL, &cell_h);
+  const int rows = (200 - 14) / cell_h;
+  debug_atlas_scroll_by(atlas, rows > 0 ? rows : 1);
 }
 
 const ColonizePalette* debug_atlas_palette(const DebugAtlas* atlas) {
@@ -393,10 +408,25 @@ void debug_atlas_render(
     return;
   }
 
-  const int cell_w = 20;
-  const int cell_h = 26;
+  const int cell_w_default = 20;
+  const int cell_h_default = 26;
+  int cell_w = cell_w_default;
+  int cell_h = cell_h_default;
+  debug_atlas_ss_cell_size(sheet, &cell_w, &cell_h);
   const int cols = framebuffer->width / cell_w;
   const int rows = (framebuffer->height - 14) / cell_h;
+  if (cols < 1 || rows < 1) {
+    /* Should have taken single-mode; draw first visible sprite centered. */
+    int idx = atlas->scroll;
+    if (idx < 0) {
+      idx = 0;
+    }
+    if (idx >= sheet->sprite_count) {
+      idx = sheet->sprite_count - 1;
+    }
+    ss_blit_sprite(sheet, idx, framebuffer, 4, 14);
+    return;
+  }
   const int first = atlas->scroll * cols;
   const int last = first + cols * rows - 1;
   const int shown_last = last >= sheet->sprite_count ? sheet->sprite_count - 1 : last;
@@ -404,13 +434,15 @@ void debug_atlas_render(
   snprintf(
     hud,
     sizeof(hud),
-    "%s [%d/%d] #%d-%d/%d  L/R file Up/Dn Esc",
+    "%s [%d/%d] #%d-%d/%d cell %dx%d  L/R file Up/Dn Esc",
     name,
     atlas->index + 1,
     atlas->count,
     sheet->sprite_count > 0 ? first : 0,
     shown_last >= 0 ? shown_last : 0,
-    sheet->sprite_count
+    sheet->sprite_count,
+    cell_w,
+    cell_h
   );
   font_draw_text(font, framebuffer, 2, 1, hud, 15);
 
@@ -420,13 +452,16 @@ void debug_atlas_render(
       if (idx < 0 || idx >= sheet->sprite_count) {
         continue;
       }
+      const ColonizeSprite* spr = &sheet->sprites[idx];
+      const int sw = spr && spr->pixels ? spr->width : 16;
+      const int sh = spr && spr->pixels ? spr->height : 16;
       const int ox = col * cell_w + 2;
       const int oy = 14 + row * cell_h;
-      debug_atlas_fill_checker(framebuffer, ox, oy, 16, 16);
+      debug_atlas_fill_checker(framebuffer, ox, oy, sw > 0 ? sw : 16, sh > 0 ? sh : 16);
       ss_blit_sprite(sheet, idx, framebuffer, ox, oy);
       char label[12];
       snprintf(label, sizeof(label), "%d", idx);
-      font_draw_text(font, framebuffer, ox, oy + 17, label, 14);
+      font_draw_text(font, framebuffer, ox, oy + sh + 1, label, 14);
     }
   }
 }

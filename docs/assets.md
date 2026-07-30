@@ -229,14 +229,14 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
 | Building ground | `PARCH.SS` (32×24 tile) | Beige scrollwork tiled across the full upper-left buildings section |
-| Buildings | `BUILDING.SS` | Starter buildings on parchment (indices match `NAMES.TXT @BUILDING`) |
+| Buildings | `BUILDING.SS` | Starter buildings on parchment (indices match `NAMES.TXT @BUILDING`); **#16** is the pre-stockade fence; sprites **42–47** are empty-slot tree clumps |
 | Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill for the square top-right section (equal L/R and T/B margins) |
 | Surroundings | `TERRAIN.SS` + `PHYS0.SS` | 3×3 catchment tiles centered in the WOODTILE section |
 | Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock / cargo strip; also lists colonists + stockpile stub |
 
 `CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here. Esc, C, or Enter returns to the map.
 
-A new colony gets the classic starter set (Town Hall, Carpenter's Shop, Blacksmith's House, Warehouse, and the craft houses). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse stub (Pioneers → 100 tools). Production, build queue, field work, and cargo drag UI are not implemented yet. Building collage positions are approximate.
+A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Coastal colonies also get Docks. Warehouse and Stockade are **not** free. Until Stockade is built, the fortification row shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite). Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the stockpile stub (Pioneers → 100 tools). Production, build queue, field work, and cargo drag UI are not implemented yet. Building collage positions are approximate.
 
 | Key | Action |
 |-----|--------|

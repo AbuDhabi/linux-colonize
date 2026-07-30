@@ -88,7 +88,8 @@ port I/O in the native build.
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
 - Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
-  `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters + `COLONY.PIK` bottom
+  `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters / tree placeholders
+  (sprites 42–47) + `COLONY.PIK` bottom
   panel + population/stockpile stub + centered 3×3 surroundings with PHYS0
   (press **C** on a colony tile; see `src/core/colony_screen.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,

@@ -48,8 +48,8 @@ int main(void) {
     return 1;
   }
 
-  if (!view.buildings_ok || view.buildings.sprite_count < 40) {
-    fprintf(stderr, "BUILDING.SS missing/short after load (count=%d)\n", view.buildings.sprite_count);
+  if (!view.buildings_ok || view.buildings.sprite_count < 48) {
+    fprintf(stderr, "BUILDING.SS missing/short after load (count=%d, need 48 for tree placeholders)\n", view.buildings.sprite_count);
     colony_screen_free(&view);
     return 1;
   }
@@ -176,10 +176,10 @@ int main(void) {
     return 1;
   }
 
-  /* Town Hall sprite is blitted near (8,8) on parchment. */
+  /* Town Hall sprite is blitted near (70,4) on parchment. */
   bool building_pixel = false;
-  for (int y = 8; y < 40 && !building_pixel; ++y) {
-    for (int x = 8; x < 70; ++x) {
+  for (int y = 4; y < 40 && !building_pixel; ++y) {
+    for (int x = 70; x < 120; ++x) {
       if (pixels[y * 320 + x] != 0) {
         building_pixel = true;
         break;
@@ -188,6 +188,74 @@ int main(void) {
   }
   if (!building_pixel) {
     fprintf(stderr, "expected building pixels in Town Hall slot\n");
+    if (phys0_ok) {
+      ss_free(&phys0);
+    }
+    ss_free(&terrain);
+    map_free(&map);
+    assets_msg_free(&names);
+    colony_screen_free(&view);
+    return 1;
+  }
+
+  /* Warehouse is not a starter — empty slot should show a tree clump (BUILDING.SS #43). */
+  const int warehouse = colonies_find_building(&pool, "Warehouse");
+  if (warehouse < 0 || (sample && sample->has_building[warehouse])) {
+    fprintf(stderr, "expected founded colony without Warehouse\n");
+    if (phys0_ok) {
+      ss_free(&phys0);
+    }
+    ss_free(&terrain);
+    map_free(&map);
+    assets_msg_free(&names);
+    colony_screen_free(&view);
+    return 1;
+  }
+  bool tree_pixel = false;
+  for (int y = 72; y < 94 && !tree_pixel; ++y) {
+    for (int x = 88; x < 132; ++x) {
+      if (pixels[y * 320 + x] != 0) {
+        tree_pixel = true;
+        break;
+      }
+    }
+  }
+  if (!tree_pixel) {
+    fprintf(stderr, "expected tree-clump placeholder in Warehouse slot\n");
+    if (phys0_ok) {
+      ss_free(&phys0);
+    }
+    ss_free(&terrain);
+    map_free(&map);
+    assets_msg_free(&names);
+    colony_screen_free(&view);
+    return 1;
+  }
+
+  const int stockade = colonies_find_building(&pool, "Stockade");
+  if (stockade < 0 || (sample && sample->has_building[stockade])) {
+    fprintf(stderr, "expected founded colony without Stockade\n");
+    if (phys0_ok) {
+      ss_free(&phys0);
+    }
+    ss_free(&terrain);
+    map_free(&map);
+    assets_msg_free(&names);
+    colony_screen_free(&view);
+    return 1;
+  }
+  /* Pre-stockade fence is BUILDING.SS #16 along the fortification row. */
+  bool fence_pixel = false;
+  for (int y = 108; y < 126 && !fence_pixel; ++y) {
+    for (int x = 8; x < 80; ++x) {
+      if (pixels[y * 320 + x] != 0) {
+        fence_pixel = true;
+        break;
+      }
+    }
+  }
+  if (!fence_pixel) {
+    fprintf(stderr, "expected fence pixels (BUILDING.SS #16) without Stockade\n");
     if (phys0_ok) {
       ss_free(&phys0);
     }
