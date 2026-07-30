@@ -803,3 +803,25 @@ int map_phys0_feature_sprite(const ColonizeWorldMap* map, int x, int y) {
 int map_terrain_sprite(uint8_t terrain_byte) {
   return map_terrain_base_sprite(terrain_byte);
 }
+
+int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const uint8_t overlay = map_terrain_overlay(terrain_byte);
+  if (overlay_is_mountain(overlay, terrain_byte) || map_has_special_mountain_marker(map, x, y)) {
+    return 27;
+  }
+  if (overlay_is_hill(overlay, terrain_byte)) {
+    return 28;
+  }
+  int index = map_decode_terrain_index(terrain_byte);
+  if (index < 0) {
+    index = 0;
+  }
+  if (index > 26) {
+    index = 26;
+  }
+  return index;
+}

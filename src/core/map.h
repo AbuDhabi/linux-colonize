@@ -68,4 +68,10 @@ bool map_tile_is_coastal(const ColonizeWorldMap* map, int x, int y);
 /* Terrain index 26 — high seas / sea lane (Europe route). */
 bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y);
 
+/*
+ * Colonizopedia terrain index (0–28) for a map tile.
+ * Mountains → 27, hills → 28; otherwise FreeCol bits 0–4 (0–26).
+ */
+int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y);
+
 #endif

@@ -97,7 +97,10 @@ port I/O in the native build.
   board/unload (**O**/**U**), sail ship to/from Europe with passengers
   (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`)
 - Map menu bar: `MENU.TXT` pull-downs with mouse hit-testing (`src/core/map_menu.c`);
-  mouse cursor moves on map click; unimplemented report/trade/pedia entries stubbed
+  mouse cursor moves on map click; unimplemented trade/pedia entries stubbed
+- Report / adviser screens: F2–F10 + REPORTS menu (`src/core/reports.c`);
+  F1 Terrain Information → Colonizopedia at cursor; F8=`REPORT8.PIK`; F10=`WOODPANL.PIK`;
+  `REPORT*.PIK` / `CCBKGD.PIK` / wood backgrounds with live stubs for colony/labor/naval/economy
 
 ## Parked: coastlines and estuaries
 

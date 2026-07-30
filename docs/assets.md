@@ -207,11 +207,30 @@ Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_t
 
 On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map (outside menus) moves the cursor. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
 
-Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), Colonizopedia → Terrain Types. Other entries show “Not implemented yet”.
+Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), Colonizopedia → Terrain Types, **F1** terrain info at cursor, and **REPORTS** F2–F10. Other trade/pedia entries show “Not implemented yet”.
+
+### Report / adviser screens
+
+Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter) returns to the map. **F1 Terrain Information** opens the Colonizopedia entry for the terrain under the map cursor (not a report plate). Backgrounds:
+
+| Key | Report | Background |
+|-----|--------|------------|
+| F1 | Terrain Information | Colonizopedia (cursor tile) |
+| F2 | Religious Adviser | `REPORT2.PIK` |
+| F3 | Continental Congress | `CCBKGD.PIK` |
+| F4 | Labor Adviser | `REPORT4.PIK` |
+| F5 | Economic Adviser | `REPORT5.PIK` |
+| F6 | Colony Adviser | `REPORT6.PIK` |
+| F7 | Naval Adviser | `REPORT7.PIK` |
+| F8 | Foreign Affairs Advisor | `REPORT8.PIK` |
+| F9 | Indian Adviser | `REPORT9.PIK` |
+| F10 | Colonization Score | `WOODPANL.PIK` (full-screen wood) |
+
+Content uses live colony / unit / Europe data where available; foreign powers, Indians, founding fathers, and full scoring remain stubs.
 
 ### Colonizopedia terrain preview
 
-Press **P** from the menu or map to open a terrain Colonizopedia page (`PEDIA.TXT` `@TERRAIN0`–`@TERRAIN28`). Left/Right cycles types; Esc or P exits. Each page shows a 3×3 sample of the TERRAIN/PHYS0 composite plus the title and body text.
+Press **P** from the menu or map, or **F1** / **REPORTS → Terrain Information**, to open a terrain Colonizopedia page (`PEDIA.TXT` `@TERRAIN0`–`@TERRAIN28`). F1 jumps to the type under the cursor; P starts at index 0. Left/Right cycles types; Esc or P exits. Each page shows a 3×3 sample of the TERRAIN/PHYS0 composite plus the title and body text.
 
 ### Europe (home port) bring-up
 

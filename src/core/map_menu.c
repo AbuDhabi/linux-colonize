@@ -162,7 +162,41 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
-  /* REPORTS, TRADE, CUP — screens / features not wired yet. */
+  if (strcmp(section, "REPORTS") == 0) {
+    if (strstr(label, "Terrain Information")) {
+      return MAP_MENU_ACTION_REPORT_TERRAIN;
+    }
+    if (strstr(label, "Religious Adviser")) {
+      return MAP_MENU_ACTION_REPORT_RELIGIOUS;
+    }
+    if (strstr(label, "Continental Congress")) {
+      return MAP_MENU_ACTION_REPORT_CONGRESS;
+    }
+    if (strstr(label, "Labor Adviser")) {
+      return MAP_MENU_ACTION_REPORT_LABOR;
+    }
+    if (strstr(label, "Economic Adviser")) {
+      return MAP_MENU_ACTION_REPORT_ECONOMIC;
+    }
+    if (strstr(label, "Colony Adviser")) {
+      return MAP_MENU_ACTION_REPORT_COLONY;
+    }
+    if (strstr(label, "Naval Adviser")) {
+      return MAP_MENU_ACTION_REPORT_NAVAL;
+    }
+    if (strstr(label, "Foreign Affairs")) {
+      return MAP_MENU_ACTION_REPORT_FOREIGN;
+    }
+    if (strstr(label, "Indian Adviser")) {
+      return MAP_MENU_ACTION_REPORT_INDIAN;
+    }
+    if (strstr(label, "Colonization Score")) {
+      return MAP_MENU_ACTION_REPORT_SCORE;
+    }
+    return MAP_MENU_ACTION_UNIMPLEMENTED;
+  }
+
+  /* TRADE, CUP — screens / features not wired yet. */
   return MAP_MENU_ACTION_UNIMPLEMENTED;
 }
 
@@ -183,6 +217,16 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_RETURN_EUROPE:
     case MAP_MENU_ACTION_NO_ORDERS:
     case MAP_MENU_ACTION_PEDIA_TERRAIN:
+    case MAP_MENU_ACTION_REPORT_TERRAIN:
+    case MAP_MENU_ACTION_REPORT_RELIGIOUS:
+    case MAP_MENU_ACTION_REPORT_CONGRESS:
+    case MAP_MENU_ACTION_REPORT_LABOR:
+    case MAP_MENU_ACTION_REPORT_ECONOMIC:
+    case MAP_MENU_ACTION_REPORT_COLONY:
+    case MAP_MENU_ACTION_REPORT_NAVAL:
+    case MAP_MENU_ACTION_REPORT_FOREIGN:
+    case MAP_MENU_ACTION_REPORT_INDIAN:
+    case MAP_MENU_ACTION_REPORT_SCORE:
       return true;
     default:
       return false;
@@ -528,6 +572,26 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "No Orders";
     case MAP_MENU_ACTION_PEDIA_TERRAIN:
       return "Terrain Types";
+    case MAP_MENU_ACTION_REPORT_TERRAIN:
+      return "Terrain Information";
+    case MAP_MENU_ACTION_REPORT_RELIGIOUS:
+      return "Religious Adviser";
+    case MAP_MENU_ACTION_REPORT_CONGRESS:
+      return "Continental Congress";
+    case MAP_MENU_ACTION_REPORT_LABOR:
+      return "Labor Adviser";
+    case MAP_MENU_ACTION_REPORT_ECONOMIC:
+      return "Economic Adviser";
+    case MAP_MENU_ACTION_REPORT_COLONY:
+      return "Colony Adviser";
+    case MAP_MENU_ACTION_REPORT_NAVAL:
+      return "Naval Adviser";
+    case MAP_MENU_ACTION_REPORT_FOREIGN:
+      return "Foreign Affairs Advisor";
+    case MAP_MENU_ACTION_REPORT_INDIAN:
+      return "Indian Adviser";
+    case MAP_MENU_ACTION_REPORT_SCORE:
+      return "Colonization Score";
     default:
       return "unknown";
   }

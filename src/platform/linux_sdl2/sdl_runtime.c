@@ -44,6 +44,16 @@ static ColonizeKey map_key(SDL_Keycode key) {
     case SDLK_LEFTBRACKET: return COLONIZE_KEY_LEFTBRACKET;
     case SDLK_RIGHTBRACKET: return COLONIZE_KEY_RIGHTBRACKET;
     case SDLK_BACKQUOTE: return COLONIZE_KEY_TILDE;
+    case SDLK_F1: return COLONIZE_KEY_F1;
+    case SDLK_F2: return COLONIZE_KEY_F2;
+    case SDLK_F3: return COLONIZE_KEY_F3;
+    case SDLK_F4: return COLONIZE_KEY_F4;
+    case SDLK_F5: return COLONIZE_KEY_F5;
+    case SDLK_F6: return COLONIZE_KEY_F6;
+    case SDLK_F7: return COLONIZE_KEY_F7;
+    case SDLK_F8: return COLONIZE_KEY_F8;
+    case SDLK_F9: return COLONIZE_KEY_F9;
+    case SDLK_F10: return COLONIZE_KEY_F10;
     default: return COLONIZE_KEY_NONE;
   }
 }

@@ -17,6 +17,7 @@
 #include "core/map_menu.h"
 #include "core/pedia.h"
 #include "core/pik.h"
+#include "core/reports.h"
 #include "core/savegame.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -43,6 +44,10 @@ struct ColonizeGameState {
   bool pedia_ok;
   bool in_pedia;
   int pedia_terrain_index;
+  ColonizeReportsView reports;
+  bool reports_ok;
+  bool in_report;
+  ColonizeReportId report_id;
   EuropeScreen europe;
   bool europe_ok;
   bool in_europe;
@@ -107,6 +112,16 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
+    case COLONIZE_KEY_F1: return "F1";
+    case COLONIZE_KEY_F2: return "F2";
+    case COLONIZE_KEY_F3: return "F3";
+    case COLONIZE_KEY_F4: return "F4";
+    case COLONIZE_KEY_F5: return "F5";
+    case COLONIZE_KEY_F6: return "F6";
+    case COLONIZE_KEY_F7: return "F7";
+    case COLONIZE_KEY_F8: return "F8";
+    case COLONIZE_KEY_F9: return "F9";
+    case COLONIZE_KEY_F10: return "F10";
     default: return "NONE";
   }
 }
@@ -225,6 +240,9 @@ static void blit_map_sprite(
 }
 
 static const char* render_mode_name(const ColonizeGameState* game) {
+  if (game->in_report) {
+    return "report";
+  }
   if (game->in_pedia) {
     return "pedia";
   }
@@ -241,6 +259,59 @@ static const char* render_mode_name(const ColonizeGameState* game) {
     return "menu";
   }
   return "map";
+}
+
+static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
+  if (!game) {
+    return;
+  }
+  game->in_report = true;
+  game->report_id = id;
+  game->in_pedia = false;
+  game->in_europe = false;
+  game->in_colony = false;
+  game->in_debug_atlas = false;
+  snprintf(game->status, sizeof(game->status), "%s", reports_title(id));
+  diag_info("Opened report %s (%s)", reports_title(id), reports_background_name(id));
+}
+
+/* F1 / REPORTS → Terrain Information: Colonizopedia for the tile under the cursor. */
+static void game_open_terrain_pedia_at_cursor(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  int index = 0;
+  if (game->world_map_ok) {
+    index = map_pedia_terrain_index_at(&game->world_map, game->map_cursor_x, game->map_cursor_y);
+  }
+  game->in_pedia = true;
+  game->pedia_terrain_index = index;
+  game->in_report = false;
+  game->in_europe = false;
+  game->in_colony = false;
+  game->in_debug_atlas = false;
+  snprintf(game->status, sizeof(game->status), "Terrain Information");
+  diag_info(
+    "Opened Terrain Information pedia index=%d at cursor (%d,%d)",
+    index,
+    game->map_cursor_x,
+    game->map_cursor_y
+  );
+}
+
+static void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
+  if (!game || key < COLONIZE_KEY_F1 || key > COLONIZE_KEY_F10) {
+    return;
+  }
+  const int fnum = (int)(key - COLONIZE_KEY_F1) + 1;
+  if (fnum == 1) {
+    game_open_terrain_pedia_at_cursor(game);
+    return;
+  }
+  ColonizeReportId id;
+  if (reports_id_from_fkey(fnum, &id)) {
+    game_open_report(game, id);
+  }
 }
 
 static void blit_pedia_preview_tile(
@@ -678,6 +749,15 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     diag_warn("Failed to load colony screen: %s", colony_screen_err);
   }
 
+  char reports_err[256];
+  reports_init(&game->reports);
+  if (reports_load(&game->reports, game->resolved_data_dir, reports_err, sizeof(reports_err))) {
+    game->reports_ok = true;
+  } else {
+    game->reports_ok = false;
+    diag_warn("Failed to load report screens: %s", reports_err);
+  }
+
   diag_info("Game config save_dir=%s", config->save_dir ? config->save_dir : "(null)");
   dos_compat_init();
   dos_compat_set_tick_rate_hz(18);
@@ -691,6 +771,7 @@ void game_destroy(ColonizeGameState* game) {
   pik_free(&game->menu_bg);
   europe_free(&game->europe);
   colony_screen_free(&game->colony_screen);
+  reports_free(&game->reports);
   ss_free(&game->terrain);
   ss_free(&game->phys0);
   ss_free(&game->cursor);
@@ -802,6 +883,7 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
   game->in_colony = true;
   game->in_europe = false;
   game->in_pedia = false;
+  game->in_report = false;
   game->colony_view_id = cid;
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
   snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "colony");
@@ -1030,7 +1112,38 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       game->in_pedia = true;
       game->in_europe = false;
       game->in_colony = false;
+      game->in_report = false;
       game->pedia_terrain_index = 0;
+      return true;
+    case MAP_MENU_ACTION_REPORT_TERRAIN:
+      game_open_terrain_pedia_at_cursor(game);
+      return true;
+    case MAP_MENU_ACTION_REPORT_RELIGIOUS:
+      game_open_report(game, COLONIZE_REPORT_RELIGIOUS);
+      return true;
+    case MAP_MENU_ACTION_REPORT_CONGRESS:
+      game_open_report(game, COLONIZE_REPORT_CONGRESS);
+      return true;
+    case MAP_MENU_ACTION_REPORT_LABOR:
+      game_open_report(game, COLONIZE_REPORT_LABOR);
+      return true;
+    case MAP_MENU_ACTION_REPORT_ECONOMIC:
+      game_open_report(game, COLONIZE_REPORT_ECONOMIC);
+      return true;
+    case MAP_MENU_ACTION_REPORT_COLONY:
+      game_open_report(game, COLONIZE_REPORT_COLONY);
+      return true;
+    case MAP_MENU_ACTION_REPORT_NAVAL:
+      game_open_report(game, COLONIZE_REPORT_NAVAL);
+      return true;
+    case MAP_MENU_ACTION_REPORT_FOREIGN:
+      game_open_report(game, COLONIZE_REPORT_FOREIGN);
+      return true;
+    case MAP_MENU_ACTION_REPORT_INDIAN:
+      game_open_report(game, COLONIZE_REPORT_INDIAN);
+      return true;
+    case MAP_MENU_ACTION_REPORT_SCORE:
+      game_open_report(game, COLONIZE_REPORT_SCORE);
       return true;
     default:
       set_status(game, "Not implemented yet", NULL);
@@ -1052,13 +1165,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key != COLONIZE_KEY_NONE) {
     diag_info(
-      "Key pressed: %s (menu=%s debug=%s pedia=%s europe=%s colony=%s turn=%u cursor=%d,%d)",
+      "Key pressed: %s (menu=%s debug=%s pedia=%s europe=%s colony=%s report=%s turn=%u cursor=%d,%d)",
       key_name(input->last_key),
       game->in_menu ? "yes" : "no",
       game->in_debug_atlas ? "yes" : "no",
       game->in_pedia ? "yes" : "no",
       game->in_europe ? "yes" : "no",
       game->in_colony ? "yes" : "no",
+      game->in_report ? "yes" : "no",
       game->turn_number,
       game->map_cursor_x,
       game->map_cursor_y
@@ -1067,6 +1181,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_Q) {
     return false;
+  }
+
+  if (game->in_report) {
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER) {
+      game->in_report = false;
+      diag_info("Left report screen.");
+      return true;
+    }
+    /* F-keys switch reports (F2–F10) or open terrain pedia (F1). */
+    if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
+      game_handle_report_fkey(game, input->last_key);
+    }
+    return true;
   }
 
   if (game->in_colony) {
@@ -1206,6 +1333,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game->in_pedia = false;
     game->in_europe = false;
     game->in_colony = false;
+    game->in_report = false;
     if (game->debug_atlas.count <= 0) {
       debug_atlas_scan(&game->debug_atlas, game->resolved_data_dir);
     }
@@ -1221,6 +1349,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game->in_pedia = true;
     game->in_europe = false;
     game->in_colony = false;
+    game->in_report = false;
     game->pedia_terrain_index = 0;
     diag_info("Entered Colonizopedia terrain preview.");
     return true;
@@ -1234,6 +1363,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       game->in_colony = true;
       game->in_europe = false;
       game->in_pedia = false;
+      game->in_report = false;
       game->colony_view_id = cid;
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
       snprintf(
@@ -1255,6 +1385,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game->in_europe = true;
     game->in_pedia = false;
     game->in_colony = false;
+    game->in_report = false;
     snprintf(
       game->europe.status,
       sizeof(game->europe.status),
@@ -1291,7 +1422,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   /* Map-screen menu bar (MENU.TXT pull-downs) + mouse map click. */
-  if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas) {
+  if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas &&
+      !game->in_report) {
+    /* F1 terrain pedia at cursor; F2–F10 adviser / report screens. */
+    if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
+      game_handle_report_fkey(game, input->last_key);
+      return true;
+    }
+
     const ColonizeFont* menu_font = game->menu_font_ok ? &game->menu_font : NULL;
     const bool menu_was_open = game->map_menu.open_index >= 0;
     if (input->last_key == COLONIZE_KEY_ESCAPE && menu_was_open) {
@@ -1642,15 +1780,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
-  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe && !game->in_colony)
+  *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe &&
+              !game->in_colony && !game->in_report)
     ? game->palette
     : (game->in_debug_atlas && debug_atlas_palette(&game->debug_atlas))
       ? *debug_atlas_palette(&game->debug_atlas)
-      : (game->in_europe && game->europe_ok && game->europe.background.has_palette)
-        ? game->europe.background.palette
-        : (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette)
-          ? game->colony_screen.frame.palette
-          : (game->map_palette_ok ? game->map_palette : game->palette);
+      : (game->in_report && game->reports_ok && game->reports.background_ok[game->report_id] &&
+         game->reports.backgrounds[game->report_id].has_palette)
+        ? game->reports.backgrounds[game->report_id].palette
+        : (game->in_europe && game->europe_ok && game->europe.background.has_palette)
+          ? game->europe.background.palette
+          : (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette)
+            ? game->colony_screen.frame.palette
+            : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
@@ -1664,6 +1806,24 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
 
   if (game->in_europe) {
     render_europe_screen(game, framebuffer);
+    goto render_log_sample;
+  }
+
+  if (game->in_report) {
+    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+    reports_render(
+      game->reports_ok ? &game->reports : NULL,
+      game->report_id,
+      &game->colonies,
+      game->units_ok ? &game->units : NULL,
+      game->world_map_ok ? &game->world_map : NULL,
+      game->europe_ok ? &game->europe : NULL,
+      game->map_cursor_x,
+      game->map_cursor_y,
+      game->turn_number,
+      font,
+      framebuffer
+    );
     goto render_log_sample;
   }
 
@@ -1895,7 +2055,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   font_draw_text(hud_font, framebuffer, 4, 192, hud, 15);
 
   if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_pedia &&
-      !game->in_debug_atlas) {
+      !game->in_debug_atlas && !game->in_report) {
     map_menu_render((MapMenuBar*)&game->map_menu, hud_font, framebuffer);
   }
 

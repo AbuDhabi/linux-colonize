@@ -47,25 +47,26 @@ int main(void) {
     return 1;
   }
 
+  /* REPORTS items are enabled (open report screens). */
   bool found_save = false;
-  bool found_report_stub = false;
+  bool found_report = false;
   for (int i = 0; i < bar.menus[0].item_count; ++i) {
     if (bar.menus[0].items[i].action == MAP_MENU_ACTION_SAVE && bar.menus[0].items[i].enabled) {
       found_save = true;
     }
   }
   for (int i = 0; i < bar.menus[3].item_count; ++i) {
-    if (!bar.menus[3].items[i].enabled &&
-        bar.menus[3].items[i].action == MAP_MENU_ACTION_UNIMPLEMENTED) {
-      found_report_stub = true;
+    if (bar.menus[3].items[i].action == MAP_MENU_ACTION_REPORT_CONGRESS &&
+        bar.menus[3].items[i].enabled) {
+      found_report = true;
     }
   }
-  if (!found_save || !found_report_stub) {
+  if (!found_save || !found_report) {
     fprintf(
       stderr,
-      "expected enabled Save + stubbed Reports (save=%d stub=%d)\n",
+      "expected enabled Save + Reports Congress (save=%d report=%d)\n",
       found_save ? 1 : 0,
-      found_report_stub ? 1 : 0
+      found_report ? 1 : 0
     );
     map_menu_free(&bar);
     assets_msg_free(&menu_txt);
