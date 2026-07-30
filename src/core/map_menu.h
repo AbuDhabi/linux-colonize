@@ -24,6 +24,7 @@
 typedef enum MapMenuAction {
   MAP_MENU_ACTION_NONE = 0,
   MAP_MENU_ACTION_UNIMPLEMENTED, /* known stub — do not navigate */
+  MAP_MENU_ACTION_SEPARATOR,     /* visual rule in dropdown; not clickable */
 
   /* GAME */
   MAP_MENU_ACTION_SAVE,
@@ -46,7 +47,13 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_NO_ORDERS, /* end turn / space */
 
   /* PEDIA */
+  MAP_MENU_ACTION_PEDIA_CARGO,
+  MAP_MENU_ACTION_PEDIA_UNIT,
   MAP_MENU_ACTION_PEDIA_TERRAIN,
+  MAP_MENU_ACTION_PEDIA_JOB,
+  MAP_MENU_ACTION_PEDIA_BUILDING,
+  MAP_MENU_ACTION_PEDIA_FATHER,
+  MAP_MENU_ACTION_PEDIA_MISC,
 
   /* REPORTS (F1–F10) */
   MAP_MENU_ACTION_REPORT_TERRAIN,
@@ -65,6 +72,7 @@ typedef struct MapMenuItem {
   char label[MAP_MENU_LABEL_LEN];
   MapMenuAction action;
   bool enabled; /* false = grayed; click does nothing useful */
+  bool separator; /* horizontal rule; label ignored */
 } MapMenuItem;
 
 typedef struct MapMenuPulldown {

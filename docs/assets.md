@@ -207,7 +207,7 @@ Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_t
 
 On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. The map viewport starts below that bar (`MAP_MENU_BAR_H`, 9px) so the top tile row is not covered. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map (outside menus) moves the cursor. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
 
-Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), Colonizopedia → Terrain Types, **F1** terrain info at cursor, and **REPORTS** F2–F10. Other trade/pedia entries show “Not implemented yet”.
+Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. Trade menu entries still stub.
 
 ### Report / adviser screens
 
@@ -228,9 +228,23 @@ Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter)
 
 Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. **F10** uses the manual score schedule (citizen quality, congress, gold/1000, rebel sentiment, village-burn penalty, independence multipliers when declare/achieve are tracked).
 
-### Colonizopedia terrain preview
+### Colonizopedia
 
-Press **P** from the menu or map, or **F1** / **REPORTS → Terrain Information**, to open a terrain Colonizopedia page (`PEDIA.TXT` `@TERRAIN0`–`@TERRAIN28`). F1 jumps to the type under the cursor; P starts at index 0. Left/Right cycles types; Esc or P exits. Each page shows a 3×3 sample of the TERRAIN/PHYS0 composite plus the title and body text.
+Open from **COLONIZOPEDIA** on the map menu bar, or press **P** (Cargo Types list). Each category opens an encyclopedia **list** on `WOODPANL.PIK`: white **ENCYCLOPEDIA OF COLONIZATION** header, green clickable entry titles in up to three columns (`FONTTINY.FF`), and **(Exit)** top-right. Click an entry for the article; Esc returns to the list; Esc / (Exit) / P from the list returns to the map. In an article, Left/Right (or Up/Down) cycles entries.
+
+The pull-down has a horizontal rule between Terrain Types and Colonist Skills.
+
+| Menu item | PEDIA.TXT | Preview |
+|-----------|-----------|---------|
+| Cargo Types | `@CARGO0`–`15` | `ICONS.SS` #22–37 |
+| Unit Types | `@UNIT0`–`23` | `ICONS.SS` (`NAMES.TXT` `@UNIT` icon) |
+| Terrain Types | `@TERRAIN0`–`28` | 3×3 TERRAIN/PHYS0 composite |
+| Colonist Skills | `@JOB0`–`27` | related cargo/unit icon |
+| Colony Buildings | `@BUILDING0`–`41` | `BUILDING.SS` |
+| Founding Fathers | `@FATHER0`–`24` | `CC-00.SS`–`CC-24.SS` |
+| Miscellaneous | `@MISCELLANEOUS` titles | text blurbs (no PEDIA bodies in data) |
+
+**F1** / **REPORTS → Terrain Information** jumps straight to the terrain article for the cursor tile (Esc exits to the map).
 
 ### Europe (home port) bring-up
 

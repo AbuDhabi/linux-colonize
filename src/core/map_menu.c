@@ -156,8 +156,29 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
   }
 
   if (strcmp(section, "PEDIA") == 0) {
+    if (strcmp(label, "---") == 0 || strcmp(label, "-") == 0) {
+      return MAP_MENU_ACTION_SEPARATOR;
+    }
+    if (strcmp(label, "Cargo Types") == 0) {
+      return MAP_MENU_ACTION_PEDIA_CARGO;
+    }
+    if (strcmp(label, "Unit Types") == 0) {
+      return MAP_MENU_ACTION_PEDIA_UNIT;
+    }
     if (strcmp(label, "Terrain Types") == 0) {
       return MAP_MENU_ACTION_PEDIA_TERRAIN;
+    }
+    if (strcmp(label, "Colonist Skills") == 0) {
+      return MAP_MENU_ACTION_PEDIA_JOB;
+    }
+    if (strcmp(label, "Colony Buildings") == 0) {
+      return MAP_MENU_ACTION_PEDIA_BUILDING;
+    }
+    if (strcmp(label, "Founding Fathers") == 0) {
+      return MAP_MENU_ACTION_PEDIA_FATHER;
+    }
+    if (strcmp(label, "Miscellaneous") == 0) {
+      return MAP_MENU_ACTION_PEDIA_MISC;
     }
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
@@ -216,7 +237,13 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_UNLOAD_CARGO:
     case MAP_MENU_ACTION_RETURN_EUROPE:
     case MAP_MENU_ACTION_NO_ORDERS:
+    case MAP_MENU_ACTION_PEDIA_CARGO:
+    case MAP_MENU_ACTION_PEDIA_UNIT:
     case MAP_MENU_ACTION_PEDIA_TERRAIN:
+    case MAP_MENU_ACTION_PEDIA_JOB:
+    case MAP_MENU_ACTION_PEDIA_BUILDING:
+    case MAP_MENU_ACTION_PEDIA_FATHER:
+    case MAP_MENU_ACTION_PEDIA_MISC:
     case MAP_MENU_ACTION_REPORT_TERRAIN:
     case MAP_MENU_ACTION_REPORT_RELIGIOUS:
     case MAP_MENU_ACTION_REPORT_CONGRESS:
@@ -284,7 +311,8 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
       MapMenuItem* item = &menu->items[menu->item_count++];
       snprintf(item->label, sizeof(item->label), "%s", label);
       item->action = map_menu_classify(menu->section_name, label);
-      item->enabled = map_menu_action_enabled(item->action);
+      item->separator = (item->action == MAP_MENU_ACTION_SEPARATOR);
+      item->enabled = !item->separator && map_menu_action_enabled(item->action);
     }
     bar->menu_count++;
   }
@@ -476,8 +504,8 @@ MapMenuAction map_menu_handle_input(
       const MapMenuAction action = mi->action;
       bar->open_index = -1;
       bar->hover_item = -1;
-      if (!mi->enabled) {
-        return MAP_MENU_ACTION_UNIMPLEMENTED;
+      if (!mi->enabled || mi->separator || action == MAP_MENU_ACTION_SEPARATOR) {
+        return MAP_MENU_ACTION_NONE;
       }
       return action;
     }
@@ -527,6 +555,11 @@ void map_menu_render(
   const int item_h = map_menu_item_height(font);
   for (int i = 0; i < open->item_count; ++i) {
     const int iy = dy + 2 + i * item_h;
+    if (open->items[i].separator) {
+      const int mid = iy + item_h / 2;
+      map_menu_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_BORDER);
+      continue;
+    }
     if (i == bar->hover_item && open->items[i].enabled) {
       map_menu_fill_rect(framebuffer, dx + 1, iy, dx + dw - 2, iy + item_h - 1, MAP_MENU_COL_HOVER);
     }
@@ -540,6 +573,8 @@ const char* map_menu_action_name(MapMenuAction action) {
   switch (action) {
     case MAP_MENU_ACTION_NONE:
       return "none";
+    case MAP_MENU_ACTION_SEPARATOR:
+      return "separator";
     case MAP_MENU_ACTION_UNIMPLEMENTED:
       return "unimplemented";
     case MAP_MENU_ACTION_SAVE:
@@ -570,8 +605,20 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Return to Europe";
     case MAP_MENU_ACTION_NO_ORDERS:
       return "No Orders";
+    case MAP_MENU_ACTION_PEDIA_CARGO:
+      return "Cargo Types";
+    case MAP_MENU_ACTION_PEDIA_UNIT:
+      return "Unit Types";
     case MAP_MENU_ACTION_PEDIA_TERRAIN:
       return "Terrain Types";
+    case MAP_MENU_ACTION_PEDIA_JOB:
+      return "Colonist Skills";
+    case MAP_MENU_ACTION_PEDIA_BUILDING:
+      return "Colony Buildings";
+    case MAP_MENU_ACTION_PEDIA_FATHER:
+      return "Founding Fathers";
+    case MAP_MENU_ACTION_PEDIA_MISC:
+      return "Miscellaneous";
     case MAP_MENU_ACTION_REPORT_TERRAIN:
       return "Terrain Information";
     case MAP_MENU_ACTION_REPORT_RELIGIOUS:

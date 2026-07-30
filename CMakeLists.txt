@@ -193,6 +193,10 @@ add_executable(smoke_pedia
   tests/smoke/test_pedia.c
   src/core/pedia.c
   src/core/assets.c
+  src/core/pik.c
+  src/core/madspack.c
+  src/core/font.c
+  src/core/ff.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c

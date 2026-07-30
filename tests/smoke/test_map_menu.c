@@ -73,6 +73,50 @@ int main(void) {
     return 1;
   }
 
+  /* COLONIZOPEDIA menu is index 5 — 7 categories + divider after Terrain Types. */
+  if (bar.menus[5].item_count != 8) {
+    fprintf(stderr, "pedia menu expected 8 items (7 + separator) got %d\n", bar.menus[5].item_count);
+    map_menu_free(&bar);
+    assets_msg_free(&menu_txt);
+    return 1;
+  }
+  bool found_sep = false;
+  for (int i = 0; i < bar.menus[5].item_count; ++i) {
+    if (bar.menus[5].items[i].separator) {
+      found_sep = true;
+      if (bar.menus[5].items[i].enabled ||
+          bar.menus[5].items[i].action != MAP_MENU_ACTION_SEPARATOR) {
+        fprintf(stderr, "pedia separator item %d malformed\n", i);
+        map_menu_free(&bar);
+        assets_msg_free(&menu_txt);
+        return 1;
+      }
+      /* Divider sits between Terrain Types and Colonist Skills. */
+      if (i < 1 || strcmp(bar.menus[5].items[i - 1].label, "Terrain Types") != 0 ||
+          i + 1 >= bar.menus[5].item_count ||
+          strcmp(bar.menus[5].items[i + 1].label, "Colonist Skills") != 0) {
+        fprintf(stderr, "pedia separator not between Terrain Types and Colonist Skills\n");
+        map_menu_free(&bar);
+        assets_msg_free(&menu_txt);
+        return 1;
+      }
+      continue;
+    }
+    if (!bar.menus[5].items[i].enabled ||
+        bar.menus[5].items[i].action == MAP_MENU_ACTION_UNIMPLEMENTED) {
+      fprintf(stderr, "pedia item %d still stubbed (%s)\n", i, bar.menus[5].items[i].label);
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+  }
+  if (!found_sep) {
+    fprintf(stderr, "pedia menu missing separator\n");
+    map_menu_free(&bar);
+    assets_msg_free(&menu_txt);
+    return 1;
+  }
+
   ColonizeFont font;
   memset(&font, 0, sizeof(font));
   char err[128];

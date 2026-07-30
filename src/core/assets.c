@@ -257,6 +257,11 @@ static ColonizeMsgSection* msg_add_section(ColonizeMsgCatalog* catalog, const ch
   ColonizeMsgSection* section = &catalog->sections[catalog->section_count++];
   memset(section, 0, sizeof(*section));
   snprintf(section->name, sizeof(section->name), "%s", name);
+  /* PEDIA.TXT has a few tags with trailing spaces (e.g. "@JOB12 "). */
+  size_t n = strlen(section->name);
+  while (n > 0 && (section->name[n - 1] == ' ' || section->name[n - 1] == '\t')) {
+    section->name[--n] = '\0';
+  }
   return section;
 }
 
@@ -290,6 +295,11 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
       if (!is_directive &&
           strcmp(body, "options") != 0 &&
           strcmp(body, "smallfont") != 0) {
+        /* Skip @; comment markers used in PEDIA.TXT / NAMES.TXT. */
+        if (body[0] == ';') {
+          current = NULL;
+          continue;
+        }
         current = msg_add_section(catalog, body);
         if (!current) {
           fclose(f);
