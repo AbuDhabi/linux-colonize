@@ -11,11 +11,17 @@
  * Music data is loaded from GSOUND.COL (General MIDI MicroProse driver). Song
  * IDs 0x20..0x3f are background music; 0x40..0x5c are event music; IDs < 0x10
  * are always forwarded (stop / system).
+ *
+ * Playback is PARKED: heuristic GSOUND→MIDI decode does not match the original
+ * soundtrack yet. Keep the loader/API; set to 1 only when fidelity is revisited.
  */
+#define COLONIZE_SOUND_PLAYBACK_ENABLED 0
 
 #define SOUND_BGM_ID_BASE 0x20
 #define SOUND_EVENT_ID_BASE 0x40
 #define SOUND_TITLE_ID 0x33
+
+bool sound_playback_enabled(void);
 
 typedef struct ColonizeSoundOptions {
   bool background_music;

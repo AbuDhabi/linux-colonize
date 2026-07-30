@@ -19,6 +19,8 @@
 #define SOUND_GSOUND_BGM_TABLE 0x2A6E
 #define SOUND_GSOUND_BGM_BOUND 0x331A
 #define SOUND_GSOUND_IMG_HDR 512
+/* Seconds per F4 duration unit (driver time base). ~4× prior 15 ms guess. */
+#define SOUND_TICK_SECONDS (0.015 / 4.0)
 
 typedef struct SoundMidiEvent {
   uint32_t tick;
@@ -449,28 +451,38 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   }
   memset(&g_sound, 0, sizeof(g_sound));
   pthread_mutex_init(&g_sound.lock, NULL);
-  g_sound.enable_audio = enable_audio;
+  /* Parked playback: never open the synth or feed the SDL callback. */
+  g_sound.enable_audio = enable_audio && COLONIZE_SOUND_PLAYBACK_ENABLED;
   g_sound.opts.background_music = true;
   g_sound.opts.event_music = true;
   g_sound.opts.sound_effects = true;
   g_sound.active_song_id = -1;
   g_sound.bgm_track = 0;
   g_sound.bgm_song_id = -1;
-  /* Sequence timing: F4 durations are coarse ticks ≈ 15ms each at DOS tempo. */
-  g_sound.ticks_per_sample = 1.0 / (0.015 * 44100.0);
+  /*
+   * F4 duration bytes are driver time-base units. Empirically ~3.75 ms/tick
+   * (about 4x faster than a naive 15 ms guess) — still needs DOS validation.
+   */
+  g_sound.ticks_per_sample = 1.0 / (SOUND_TICK_SECONDS * 44100.0);
 
   g_sound.gsound_ok = sound_load_gsound(data_dir ? data_dir : "./COLONIZE");
-  if (enable_audio) {
+  if (g_sound.enable_audio) {
     g_sound.backend_ok = sound_init_fluidsynth();
     if (!g_sound.backend_ok) {
       diag_info("sound: using square-wave fallback renderer");
     }
+  } else if (!COLONIZE_SOUND_PLAYBACK_ENABLED) {
+    diag_info("sound: playback parked (COLONIZE_SOUND_PLAYBACK_ENABLED=0)");
   } else {
     diag_info("sound: audio disabled");
   }
 
   g_sound.inited = true;
   return true;
+}
+
+bool sound_playback_enabled(void) {
+  return COLONIZE_SOUND_PLAYBACK_ENABLED != 0;
 }
 
 void sound_shutdown(void) {
@@ -534,7 +546,7 @@ static void sound_start_song_unlocked(int id) {
 }
 
 void sound_play(int id) {
-  if (!g_sound.inited) {
+  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
     return;
   }
   /* FUN_12d8_000e gating. */
@@ -563,7 +575,7 @@ void sound_play(int id) {
 }
 
 void sound_set_bgm(int track) {
-  if (!g_sound.inited) {
+  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
     return;
   }
   pthread_mutex_lock(&g_sound.lock);
@@ -587,7 +599,7 @@ void sound_stop_bgm(void) {
 }
 
 void sound_service(void) {
-  if (!g_sound.inited) {
+  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
     return;
   }
   pthread_mutex_lock(&g_sound.lock);
@@ -615,7 +627,7 @@ static void sound_advance_unlocked(int frames, int sample_rate) {
   if (!song) {
     return;
   }
-  const double tps = 1.0 / (0.015 * (double)sample_rate);
+  const double tps = 1.0 / (SOUND_TICK_SECONDS * (double)sample_rate);
   const uint32_t start = g_sound.play_tick;
   g_sound.tick_accum += (double)frames * tps;
   const uint32_t advance = (uint32_t)g_sound.tick_accum;
@@ -633,7 +645,7 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
     return;
   }
   memset(dst, 0, (size_t)frames * (size_t)channels * sizeof(int16_t));
-  if (!g_sound.inited || !g_sound.enable_audio) {
+  if (!g_sound.inited || !g_sound.enable_audio || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
     return;
   }
 

@@ -345,10 +345,11 @@ Map BGM track *n* maps to ID `0x20+n` (track 1 → `0x21`).
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
 
-**Playback:** F4-led note streams in `GSOUND.COL` are decoded to MIDI events and rendered with
-**FluidSynth** when available (soundfont from `COLONIZE_SOUNDFONT` or
-`/usr/share/sounds/sf2/*.sf2`). Without FluidSynth, a square-wave fallback is used.
-`--nosound` skips the SDL audio device. `smoke_sound` verifies decode + non-silent PCM.
+**Playback — parked.** Heuristic F4→MIDI decode does not match the original soundtrack
+(`COLONIZE_SOUND_PLAYBACK_ENABLED` is `0` in `src/core/sound.h`). The loader, ID map, and
+API remain for a later fidelity pass. When re-enabled, FluidSynth uses `COLONIZE_SOUNDFONT`
+or `/usr/share/sounds/sf2/*.sf2`; `--nosound` skips the SDL device. `smoke_sound` still
+checks that `GSOUND.COL` songs resolve.
 
 ## Discovery Order
 

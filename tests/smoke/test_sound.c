@@ -40,32 +40,47 @@ int main(void) {
     sound_shutdown();
     return 1;
   }
-  const int n = sound_render_offline_mono(SOUND_TITLE_ID, buf, FRAMES, 44100);
-  if (n < FRAMES / 2) {
-    fprintf(stderr, "offline render too short (%d)\n", n);
-    free(buf);
-    sound_shutdown();
-    return 1;
-  }
 
-  double energy = 0.0;
-  int nonzero = 0;
-  for (int i = 0; i < n; ++i) {
-    const double s = (double)buf[i];
-    energy += s * s;
-    if (buf[i] != 0) {
-      nonzero++;
+  if (COLONIZE_SOUND_PLAYBACK_ENABLED) {
+    const int n = sound_render_offline_mono(SOUND_TITLE_ID, buf, FRAMES, 44100);
+    if (n < FRAMES / 2) {
+      fprintf(stderr, "offline render too short (%d)\n", n);
+      free(buf);
+      sound_shutdown();
+      return 1;
     }
+    double energy = 0.0;
+    int nonzero = 0;
+    for (int i = 0; i < n; ++i) {
+      const double s = (double)buf[i];
+      energy += s * s;
+      if (buf[i] != 0) {
+        nonzero++;
+      }
+    }
+    if (nonzero < 100 || energy < 1.0) {
+      fprintf(stderr, "rendered silence (nonzero=%d energy=%g)\n", nonzero, energy);
+      free(buf);
+      sound_shutdown();
+      return 1;
+    }
+    fprintf(
+      stderr,
+      "sound tests ok songs=%d backend=%s nonzero=%d\n",
+      sound_gsound_song_count(),
+      sound_backend_ok() ? "fluidsynth" : "fallback",
+      nonzero
+    );
+  } else {
+    fprintf(
+      stderr,
+      "sound tests ok songs=%d playback=parked\n",
+      sound_gsound_song_count()
+    );
   }
   free(buf);
 
-  if (nonzero < 100 || energy < 1.0) {
-    fprintf(stderr, "rendered silence (nonzero=%d energy=%g)\n", nonzero, energy);
-    sound_shutdown();
-    return 1;
-  }
-
-  /* Gating: background off suppresses BGM ids. */
+  /* Gating API still callable while parked (no-ops). */
   ColonizeSoundOptions opts = sound_get_options();
   opts.background_music = false;
   sound_set_options(opts);
@@ -73,13 +88,6 @@ int main(void) {
   sound_set_bgm(1);
   sound_service();
 
-  fprintf(
-    stderr,
-    "sound tests ok songs=%d backend=%s nonzero=%d\n",
-    sound_gsound_song_count(),
-    sound_backend_ok() ? "fluidsynth" : "fallback",
-    nonzero
-  );
   sound_shutdown();
   diag_shutdown();
   return 0;

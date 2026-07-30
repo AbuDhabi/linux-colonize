@@ -107,9 +107,12 @@ int main(int argc, char** argv) {
   }
 
   sound_init(cli.data_dir, platform_audio_enabled(platform));
-  /* Title cue after sound backend is ready (game_create may have queued early). */
-  sound_play(SOUND_TITLE_ID);
-  platform_audio_resume(platform);
+  if (sound_playback_enabled()) {
+    sound_play(SOUND_TITLE_ID);
+    platform_audio_resume(platform);
+  } else {
+    diag_info("Music playback parked; SDL audio left paused.");
+  }
 
   diag_info("Diagnostics log path (for bug reports): %s", diag_log_path());
 

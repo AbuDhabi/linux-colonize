@@ -89,6 +89,7 @@ port I/O in the native build.
   (see `docs/viceroy_tables.md`)
 - World map view: terrain + PHYS0 overlays (forests, hills, rivers) — playable bring-up
 - **Coastlines and estuaries: parked** — not drawn (`MAP_COAST_OVERLAYS_ENABLED 0`, `MAP_ESTUARY_OVERLAYS_ENABLED 0`); cosmetic only (see **Parked: coastlines and estuaries** below)
+- **Music playback: parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0` in `src/core/sound.h`; loader kept (see `docs/assets.md`)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
 - Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
@@ -116,9 +117,9 @@ port I/O in the native build.
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
-- Music (`src/core/sound.c`): loads `GSOUND.COL` BGM ids `0x20..0x3f`, plays title
-  `0x33` and map track 1; FluidSynth + system soundfont (or square-wave fallback);
-  gated by Background Music option / `--nosound`; `COLDIG.BIN` SFX still deferred
+- Music (`src/core/sound.c`): **parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0`;
+  `GSOUND.COL` loader/ID map kept; heuristic MIDI playback disabled until fidelity work;
+  `COLDIG.BIN` SFX still deferred
 
 ## End-of-turn recovery checklist
 
