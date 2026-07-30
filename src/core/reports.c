@@ -1132,6 +1132,253 @@ static void reports_render_indian(
   }
 }
 
+/* Unit type → default @JOB index when profession is out of range. */
+static int reports_profession_from_unit_type(int type) {
+  static const int k_map[] = {
+    19, /* Colonists → Free Colonists */
+    21, /* Soldiers */
+    20, /* Pioneers */
+    24, /* Missionaries */
+    23, /* Dragoons */
+    22, /* Scouts */
+    21, /* Regulars → Veteran Soldiers */
+    23, /* Cont. Cav. */
+    23, /* Cavalry */
+    21, /* Cont. Army */
+    -1, /* Treasure */
+    -1, /* Artillery */
+    -1, /* Wagon Train */
+    -1, /* Caravel … ships */
+    -1,
+    -1,
+    -1,
+    -1,
+    -1
+  };
+  if (type < 0 || type >= (int)(sizeof(k_map) / sizeof(k_map[0]))) {
+    return -1;
+  }
+  return k_map[type];
+}
+
+static bool reports_unit_type_is_scored_colonist(int type) {
+  return reports_profession_from_unit_type(type) >= 0;
+}
+
+/* Manual schedule: criminal/servant +1, free/convert +2, skilled +4. */
+static int reports_citizen_points_for_job(int job) {
+  if (job == 25 || job == 26) {
+    return 1; /* Indentured Servants, Petty Criminals */
+  }
+  if (job == 19 || job == 27) {
+    return 2; /* Free Colonists, Indian Converts */
+  }
+  if (job >= 0 && job < k_job_count) {
+    return 4; /* specialists / veterans / teachers / etc. */
+  }
+  return 2;
+}
+
+static int reports_resolve_job(int profession, int unit_type) {
+  if (profession >= 0 && profession < k_job_count) {
+    return profession;
+  }
+  if (unit_type >= 0) {
+    const int fallback = reports_profession_from_unit_type(unit_type);
+    if (fallback >= 0) {
+      return fallback;
+    }
+  }
+  return 19; /* Free Colonists */
+}
+
+static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) {
+  int ff = 0;
+  if (!col1) {
+    return 0;
+  }
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    /* Per-nation ownership: value stores the European nation id that elected them. */
+    if (col1->head.founding_father[i] == (int8_t)human) {
+      ff++;
+    }
+  }
+  if (ff > 0) {
+    return ff;
+  }
+  const uint16_t counted = col1->nation[human].founding_father_count;
+  if (counted > 0 && counted <= COLONIZE_COL1_FF_COUNT) {
+    return (int)counted;
+  }
+  /* Bitmask fallback in nation.founding_fathers[4]. */
+  for (int b = 0; b < 4; ++b) {
+    uint8_t bits = col1->nation[human].founding_fathers[b];
+    while (bits) {
+      ff += bits & 1u;
+      bits >>= 1;
+    }
+  }
+  return ff > (int)COLONIZE_COL1_FF_COUNT ? (int)COLONIZE_COL1_FF_COUNT : ff;
+}
+
+static int reports_rebel_sentiment_pct(const ColonizeCol1Save* col1, int human) {
+  if (!col1) {
+    return 0;
+  }
+  uint64_t weighted = 0;
+  uint64_t pop = 0;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human || c->population == 0) {
+      continue;
+    }
+    weighted += (uint64_t)reports_colony_rebel_pct(c) * (uint64_t)c->population;
+    pop += c->population;
+  }
+  if (pop == 0) {
+    return 0;
+  }
+  int pct = (int)(weighted / pop);
+  if (pct < 0) {
+    pct = 0;
+  }
+  if (pct > 100) {
+    pct = 100;
+  }
+  return pct;
+}
+
+static int reports_foreign_recognition_pct(int prior_nations, bool achieved) {
+  if (!achieved) {
+    return 0;
+  }
+  if (prior_nations <= 0) {
+    return 100;
+  }
+  if (prior_nations == 1) {
+    return 50;
+  }
+  if (prior_nations == 2) {
+    return 25;
+  }
+  return 0;
+}
+
+static int reports_early_revolution_pct(bool declared, int declare_year) {
+  if (!declared || declare_year <= 0 || declare_year >= 1780) {
+    return 0;
+  }
+  return 1780 - declare_year;
+}
+
+void reports_compute_score(
+  ColonizeScoreBreakdown* out,
+  const ColonizeCol1Save* col1,
+  int human_nation,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe
+) {
+  memset(out, 0, sizeof(*out));
+  const int human = reports_clamp_nation(human_nation);
+
+  if (col1) {
+    out->year = (int)col1->head.year;
+    out->difficulty = (int)col1->head.difficulty;
+    if (out->difficulty < 0) {
+      out->difficulty = 0;
+    }
+    if (out->difficulty > 4) {
+      out->difficulty = 4;
+    }
+
+    /* Colony citizens by profession. */
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &col1->colony[i];
+      if (c->nation_id != (uint8_t)human) {
+        continue;
+      }
+      const int pop =
+        c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
+                                                     : (int)c->population;
+      for (int p = 0; p < pop; ++p) {
+        const int job = reports_resolve_job((int)c->profession[p], -1);
+        out->citizens += reports_citizen_points_for_job(job);
+      }
+    }
+
+    /* Map / Europe land colonists (not ships, wagons, artillery, treasure). */
+    for (uint16_t i = 0; i < col1->head.unit_count; ++i) {
+      const ColonizeCol1Unit* u = &col1->unit[i];
+      if ((int)u->nation_id != human) {
+        continue;
+      }
+      if (!reports_unit_type_is_scored_colonist((int)u->type)) {
+        continue;
+      }
+      const int job = reports_resolve_job((int)u->profession, (int)u->type);
+      out->citizens += reports_citizen_points_for_job(job);
+    }
+
+    out->congress = reports_count_ff_for_nation(col1, human) * 5;
+    out->treasury = (int)(col1->nation[human].gold / 1000u);
+    out->rebel_sentiment = reports_rebel_sentiment_pct(col1, human);
+    out->villages_burned = (int)col1->nation[human].villages_burned;
+    out->villages_penalty = -(out->difficulty + 1) * out->villages_burned;
+
+    /*
+     * Independence is not fully simulated yet. Heuristic: AI "withdrawn"
+     * (control==2) means that power achieved independence; human declare
+     * year / achieve flags stay unset until WoI is wired into the save.
+     */
+    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+      if (n == human) {
+        continue;
+      }
+      if (col1->player[n].control == 2) {
+        out->prior_nations++;
+      }
+    }
+    out->independence_declared = false;
+    out->independence_achieved = false;
+    out->declare_year = 0;
+  } else {
+    out->year = 0;
+    out->difficulty = 0;
+    if (colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &colonies->colonies[i];
+        if (!c->active) {
+          continue;
+        }
+        for (int p = 0; p < c->colonist_count; ++p) {
+          if (!c->colonists[p].active) {
+            continue;
+          }
+          /* Runtime pool lacks profession; count as free colonists. */
+          out->citizens += 2;
+        }
+      }
+    }
+    const uint32_t gold = europe ? (uint32_t)europe->gold : 0u;
+    out->treasury = (int)(gold / 1000u);
+  }
+
+  out->early_revolution_pct =
+    reports_early_revolution_pct(out->independence_declared, out->declare_year);
+  out->foreign_recognition_pct =
+    reports_foreign_recognition_pct(out->prior_nations, out->independence_achieved);
+
+  out->base_total = out->citizens + out->congress + out->treasury + out->rebel_sentiment +
+                    out->villages_penalty + out->intervention_bells;
+
+  const int bonus_pct = out->early_revolution_pct + out->foreign_recognition_pct;
+  if (bonus_pct > 0 && out->base_total > 0) {
+    out->total = out->base_total + (out->base_total * bonus_pct) / 100;
+  } else {
+    out->total = out->base_total;
+  }
+}
+
 static void reports_render_score(
   const ColonizeCol1Save* col1,
   int human,
@@ -1145,74 +1392,102 @@ static void reports_render_score(
   char* line,
   size_t line_sz
 ) {
-  int pop = 0;
-  int colony_n = 0;
-  int ff = 0;
-  int villages_burned = 0;
-  uint32_t gold = europe ? (uint32_t)europe->gold : 0;
+  ColonizeScoreBreakdown sc;
+  reports_compute_score(&sc, col1, human, colonies, europe);
 
-  if (col1) {
-    gold = col1->nation[human].gold;
-    villages_burned = col1->nation[human].villages_burned;
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      if (reports_ff_joined(col1->head.founding_father[i])) {
-        ff++;
-      }
-    }
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      if (col1->colony[i].nation_id != (uint8_t)human) {
-        continue;
-      }
-      colony_n++;
-      pop += col1->colony[i].population;
-    }
-    turn_number = col1->head.turn;
-  } else if (colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      if (!colonies->colonies[i].active) {
-        continue;
-      }
-      colony_n++;
-      pop += colonies->colonies[i].population;
-    }
-  }
+  static const char* k_diff[] = {
+    "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+  };
+  const char* diff_name =
+    (sc.difficulty >= 0 && sc.difficulty <= 4) ? k_diff[sc.difficulty] : "?";
 
-  /* Incomplete original scoring: citizens, colonies, gold, FF, villages burned. */
-  const int score = pop * 2 + colony_n * 10 + (int)(gold / 1000u) + ff * 5 + villages_burned * 5;
-  reports_draw_line(font, fb, 8, *y, "Final score (incomplete rules)", 15);
-  *y += step;
   if (col1) {
     snprintf(
       line,
       line_sz,
-      "Year %u   Turn %u",
-      (unsigned)col1->head.year,
-      (unsigned)turn_number
+      "Year %d%s   Turn %u   %s",
+      sc.year,
+      col1->head.autumn ? " Autumn" : " Spring",
+      (unsigned)(turn_number ? turn_number : col1->head.turn),
+      diff_name
     );
   } else {
-    snprintf(line, line_sz, "Turn: %u", turn_number);
+    snprintf(line, line_sz, "Turn %u", (unsigned)turn_number);
   }
+  reports_draw_line(font, fb, 8, *y, line, 14);
+  *y += step + 2;
+
+  snprintf(line, line_sz, "Citizens                %d", sc.citizens);
   reports_draw_line(font, fb, 8, *y, line, 15);
   *y += step;
-  snprintf(line, line_sz, "Citizens: %d", pop);
+  snprintf(line, line_sz, "Continental Congress    %d", sc.congress);
   reports_draw_line(font, fb, 8, *y, line, 15);
   *y += step;
-  snprintf(line, line_sz, "Colonies: %d", colony_n);
+  snprintf(line, line_sz, "Gold                    %d", sc.treasury);
   reports_draw_line(font, fb, 8, *y, line, 15);
   *y += step;
-  snprintf(line, line_sz, "Treasury score: %d  (gold/1000)", (int)(gold / 1000u));
+  snprintf(line, line_sz, "Rebel Sentiment         %d", sc.rebel_sentiment);
   reports_draw_line(font, fb, 8, *y, line, 15);
   *y += step;
-  snprintf(line, line_sz, "Founding Fathers: %d  (+5 each)", ff);
+  snprintf(
+    line,
+    line_sz,
+    "Villages Burned         %d  (%d)",
+    sc.villages_penalty,
+    sc.villages_burned
+  );
   reports_draw_line(font, fb, 8, *y, line, 15);
   *y += step;
-  snprintf(line, line_sz, "Villages Burned: %d", villages_burned);
+  if (sc.intervention_bells != 0) {
+    snprintf(line, line_sz, "Intervention Bells      %d", sc.intervention_bells);
+    reports_draw_line(font, fb, 8, *y, line, 15);
+    *y += step;
+  }
+
+  *y += 2;
+  reports_draw_line(font, fb, 8, *y, "Independence", 15);
+  *y += step;
+  snprintf(
+    line,
+    line_sz,
+    "  Declared              %s",
+    sc.independence_declared ? "Yes" : "No"
+  );
+  reports_draw_line(font, fb, 8, *y, line, 14);
+  *y += step;
+  snprintf(
+    line,
+    line_sz,
+    "  Achieved              %s",
+    sc.independence_achieved ? "Yes" : "No"
+  );
+  reports_draw_line(font, fb, 8, *y, line, 14);
+  *y += step;
+  snprintf(line, line_sz, "  Early Revolution      +%d%%", sc.early_revolution_pct);
+  reports_draw_line(font, fb, 8, *y, line, 14);
+  *y += step;
+  snprintf(
+    line,
+    line_sz,
+    "  Foreign Recognition   +%d%%  (%d prior nations)",
+    sc.foreign_recognition_pct,
+    sc.prior_nations
+  );
+  reports_draw_line(font, fb, 8, *y, line, 14);
+  *y += step + 2;
+
+  snprintf(line, line_sz, "Subtotal                %d", sc.base_total);
   reports_draw_line(font, fb, 8, *y, line, 15);
   *y += step;
-  reports_draw_line(font, fb, 8, *y, "Independence / Foreign Recognition: 0", 14);
-  *y += step;
-  snprintf(line, line_sz, "Total Score: %d", score);
+  snprintf(line, line_sz, "Total Score             %d", sc.total);
   reports_draw_line(font, fb, 8, *y, line, 15);
+
+  if (!sc.independence_achieved) {
+    *y += step + 2;
+    reports_draw_line(
+      font, fb, 8, *y, "Win independence to apply revolution bonuses.", 14
+    );
+  }
 }
 
 void reports_render(

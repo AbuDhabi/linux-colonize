@@ -62,6 +62,39 @@ const char* reports_background_name(ColonizeReportId id);
 /* Map F2–F10 → report id; returns false for F1 / non-report keys. */
 bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
 
+/*
+ * Live Colonization Score (manual / FAQ rules) for F10.
+ * Independence bonuses apply only once declare/achieve are tracked in save;
+ * until then those fields stay 0 and the base total is still shown.
+ */
+typedef struct ColonizeScoreBreakdown {
+  int year;
+  int difficulty; /* 0 Discoverer .. 4 Viceroy */
+  int citizens; /* population score */
+  int congress; /* +5 per founding father */
+  int treasury; /* gold / 1000 */
+  int rebel_sentiment; /* 0..100 */
+  int villages_burned;
+  int villages_penalty; /* negative: -(difficulty+1) * burned */
+  int intervention_bells; /* +1 each after foreign intervention (stub) */
+  int base_total;
+  bool independence_declared;
+  bool independence_achieved;
+  int declare_year; /* 0 if unknown / not declared */
+  int prior_nations; /* European powers that achieved independence first */
+  int early_revolution_pct; /* max(0, 1780 - declare_year) when declared before 1780 */
+  int foreign_recognition_pct; /* 100 / 50 / 25 / 0 from prior_nations when achieved */
+  int total;
+} ColonizeScoreBreakdown;
+
+void reports_compute_score(
+  ColonizeScoreBreakdown* out,
+  const ColonizeCol1Save* col1,
+  int human_nation,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe
+);
+
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,

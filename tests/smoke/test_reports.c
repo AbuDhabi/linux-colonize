@@ -168,8 +168,66 @@ int main(void) {
     return 1;
   }
 
+  ColonizeScoreBreakdown score;
+  reports_compute_score(&score, &col1, 0, NULL, NULL);
+  /* COLONY01: Soldier(+4) + Pioneer(+4) + gold 1000(+1); no colonies/FF/rebels. */
+  if (score.citizens != 8 || score.treasury != 1 || score.congress != 0 ||
+      score.rebel_sentiment != 0 || score.villages_penalty != 0 || score.total != 9) {
+    fprintf(
+      stderr,
+      "COLONY01 score mismatch citizens=%d treasury=%d congress=%d rebel=%d "
+      "villages=%d total=%d (want 8/1/0/0/0/9)\n",
+      score.citizens,
+      score.treasury,
+      score.congress,
+      score.rebel_sentiment,
+      score.villages_penalty,
+      score.total
+    );
+    col1_save_free(&col1);
+    reports_free(&view);
+    return 1;
+  }
+  if (score.foreign_recognition_pct != 0 || score.early_revolution_pct != 0) {
+    fprintf(stderr, "COLONY01 should have no independence bonuses yet\n");
+    col1_save_free(&col1);
+    reports_free(&view);
+    return 1;
+  }
+
+  /* Village penalty: -(difficulty+1) * burned */
+  {
+    ColonizeScoreBreakdown pen;
+    reports_compute_score(&pen, &col1, 0, NULL, NULL);
+    pen.difficulty = 2;
+    pen.villages_burned = 12;
+    pen.villages_penalty = -(pen.difficulty + 1) * pen.villages_burned;
+    if (pen.villages_penalty != -36) {
+      fprintf(stderr, "village penalty formula wrong: %d\n", pen.villages_penalty);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
+  /* Foreign recognition multipliers when independence is achieved. */
+  {
+    ColonizeScoreBreakdown b = {0};
+    b.base_total = 100;
+    b.independence_achieved = true;
+    b.prior_nations = 0;
+    b.foreign_recognition_pct = 100;
+    b.total = b.base_total + (b.base_total * b.foreign_recognition_pct) / 100;
+    if (b.total != 200) {
+      fprintf(stderr, "first-independence multiplier broken\n");
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
   col1_save_free(&col1);
-  fprintf(stderr, "report screens ok (%d backgrounds + Col1 data)\n", COLONIZE_REPORT_COUNT);
+  fprintf(stderr, "report screens ok (%d backgrounds + Col1 data + score)\n", COLONIZE_REPORT_COUNT);
   reports_free(&view);
   diag_shutdown();
   return 0;

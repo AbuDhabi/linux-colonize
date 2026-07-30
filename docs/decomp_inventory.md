@@ -105,7 +105,8 @@ port I/O in the native build.
 - Report / adviser screens: F2–F10 + REPORTS menu (`src/core/reports.c`);
   F1 Terrain Information → Colonizopedia at cursor; F8=`REPORT8.PIK`; F10=`WOODPANL.PIK`;
   F2–F9 filled from Col1 save + runtime pools (crosses, FF, labor, trade, warehouses,
-  ships, rivals, tribes); F10 score still incomplete
+  ships, rivals, tribes); F10 Colonization Score from manual schedule
+  (`reports_compute_score`)
 
 ## Parked: coastlines and estuaries
 
