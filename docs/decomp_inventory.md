@@ -87,7 +87,9 @@ port I/O in the native build.
 - **Coastlines and estuaries: parked** — not drawn (`MAP_COAST_OVERLAYS_ENABLED 0`, `MAP_ESTUARY_OVERLAYS_ENABLED 0`); cosmetic only (see **Parked: coastlines and estuaries** below)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
-- Colony screen bring-up: `WOODPANL.PIK` + `WOODFRAM.SS` + `COLONY.PIK` bottom panel + 3×3 minimap
+- Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
+  `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters + `COLONY.PIK` bottom
+  panel + population/stockpile stub + centered 3×3 surroundings with PHYS0
   (press **C** on a colony tile; see `src/core/colony_screen.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),

@@ -234,6 +234,46 @@ bool units_on_high_seas(const ColonizeWorldMap* map, int x, int y) {
   return map_tile_is_high_seas(map, x, y);
 }
 
+void units_founder_loot(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  int* out_tools,
+  int* out_muskets,
+  int* out_horses
+) {
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  const ColonizeUnit* unit = units_get_const(pool, unit_id);
+  const ColonizeUnitType* type = unit ? units_type(pool, unit->type_index) : NULL;
+  if (type) {
+    /* NAMES.TXT tools/guns fields are build costs, not carried gear.
+       Match classic founding transfers by unit role. */
+    if (strstr(type->name, "Pioneer") != NULL) {
+      tools = 100;
+    } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
+      muskets = 50;
+      horses = 50;
+    } else if (
+      strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
+      strstr(type->name, "Army") != NULL
+    ) {
+      muskets = 50;
+    } else if (strstr(type->name, "Scout") != NULL) {
+      horses = 50;
+    }
+  }
+  if (out_tools) {
+    *out_tools = tools;
+  }
+  if (out_muskets) {
+    *out_muskets = muskets;
+  }
+  if (out_horses) {
+    *out_horses = horses;
+  }
+}
+
 int units_id_at(const ColonizeUnitPool* pool, int x, int y) {
   if (!pool) {
     return -1;

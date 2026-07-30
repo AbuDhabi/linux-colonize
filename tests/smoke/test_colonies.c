@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/map.h"
 #include "platform/diagnostics.h"
@@ -20,7 +21,6 @@ static int failures = 0;
 int main(void) {
   diag_init(0, NULL);
 
-  /* Load map. */
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
   char map_err[256];
@@ -31,17 +31,22 @@ int main(void) {
     return 1;
   }
 
-  /* Init colony pool. */
   ColonizeColonyPool pool;
   colonies_init(&pool);
   CHECK(pool.colony_count == 0, "pool starts empty");
 
-  /* Load names from COLONY.TXT. */
-  const bool names_ok = colonies_load_names(&pool, "COLONIZE/COLONY.TXT");
-  CHECK(names_ok, "load COLONY.TXT names");
+  CHECK(colonies_load_names(&pool, "COLONIZE/COLONY.TXT"), "load COLONY.TXT names");
   CHECK(pool.name_count > 0, "at least one colony name loaded");
 
-  /* Find a land tile. */
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  CHECK(assets_msg_load_file(&names, "COLONIZE/NAMES.TXT"), "load NAMES.TXT");
+  CHECK(colonies_load_buildings(&pool, &names), "load @BUILDING");
+  CHECK(pool.building_type_count > 8, "enough building types");
+  const int town_hall = colonies_find_building(&pool, "Town Hall");
+  const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+  CHECK(town_hall >= 0 && carpenter >= 0, "starter building names resolve");
+
   int land_x = -1, land_y = -1;
   for (int y = 0; y < (int)map.height && land_x < 0; ++y) {
     for (int x = 0; x < (int)map.width && land_x < 0; ++x) {
@@ -53,7 +58,6 @@ int main(void) {
   }
   CHECK(land_x >= 0, "found a land tile");
 
-  /* Cannot found on water. */
   int water_x = -1, water_y = -1;
   for (int y = 0; y < (int)map.height && water_x < 0; ++y) {
     for (int x = 0; x < (int)map.width && water_x < 0; ++x) {
@@ -67,29 +71,48 @@ int main(void) {
     CHECK(!colonies_can_found(&pool, &map, water_x, water_y), "cannot found on water");
   }
 
-  /* Can found on land. */
   CHECK(colonies_can_found(&pool, &map, land_x, land_y), "can found on land tile");
 
-  /* Found a colony. */
-  const int cid = colonies_found(&pool, &map, land_x, land_y);
-  CHECK(cid >= 0, "colonies_found returns valid id");
-  CHECK(pool.colony_count == 1, "pool now has one colony");
+  /* Found without a colonist (type -1) — still gets starter buildings. */
+  const int empty_id = colonies_found(&pool, &map, land_x, land_y, -1, 0, 0, 0);
+  CHECK(empty_id >= 0, "colonies_found without founder");
+  const ColonizeColony* empty = colonies_get(&pool, empty_id);
+  CHECK(empty && empty->population == 0 && empty->colonist_count == 0, "no founder => pop 0");
+  CHECK(empty && empty->has_building[town_hall], "starter includes Town Hall");
+  CHECK(empty && empty->has_building[carpenter], "starter includes Carpenter's Shop");
+  CHECK(empty && empty->stock_food == 200, "starter food stockpile");
 
-  /* Lookup by id. */
+  /* Second colony with a founder on a different land tile. */
+  int land2_x = -1, land2_y = -1;
+  for (int y = 0; y < (int)map.height && land2_x < 0; ++y) {
+    for (int x = 0; x < (int)map.width && land2_x < 0; ++x) {
+      if (map_tile_is_land(&map, x, y) && (x != land_x || y != land_y)) {
+        land2_x = x;
+        land2_y = y;
+      }
+    }
+  }
+  CHECK(land2_x >= 0, "second land tile");
+  const int pioneer_type = 2; /* Pioneers are early in @UNIT; index used only for storage. */
+  const int cid = colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, 100, 0, 0);
+  CHECK(cid >= 0, "colonies_found with founder");
   const ColonizeColony* col = colonies_get(&pool, cid);
   CHECK(col != NULL, "colonies_get returns colony");
   CHECK(col->active, "colony is active");
-  CHECK(col->x == land_x && col->y == land_y, "colony at expected coordinates");
+  CHECK(col->x == land2_x && col->y == land2_y, "colony at expected coordinates");
   CHECK(col->name[0] != '\0', "colony has a name");
-  printf("  colony name: %s at (%d,%d)\n", col->name, col->x, col->y);
+  CHECK(col->population == 1 && col->colonist_count == 1, "founder becomes colonist");
+  CHECK(col->colonists[0].unit_type_index == pioneer_type, "colonist type preserved");
+  CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
+  CHECK(col->stock_tools == 100, "founder tools enter stockpile");
+  printf("  colony name: %s at (%d,%d) pop=%d tools=%d\n",
+         col->name, col->x, col->y, col->population, col->stock_tools);
 
-  /* Cannot found a second colony on the same tile. */
-  CHECK(!colonies_can_found(&pool, &map, land_x, land_y), "cannot found on occupied tile");
+  CHECK(!colonies_can_found(&pool, &map, land2_x, land2_y), "cannot found on occupied tile");
+  CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");
+  CHECK(colonies_id_at(&pool, land2_x + 1, land2_y) < 0, "colonies_id_at returns -1 for empty tile");
 
-  /* id_at lookup. */
-  CHECK(colonies_id_at(&pool, land_x, land_y) == cid, "colonies_id_at returns correct id");
-  CHECK(colonies_id_at(&pool, land_x + 1, land_y) < 0, "colonies_id_at returns -1 for empty tile");
-
+  assets_msg_free(&names);
   map_free(&map);
 
   if (failures == 0) {

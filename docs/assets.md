@@ -108,7 +108,21 @@ The Linux port decodes terrain as `byte & 0x1f`.
 
 Indices 24/25/26 map to arctic/ocean/high-seas sprites. Other forest indices (8–23 except scrub) use the cleared-land sprite for their forest type (`index & 7`), with a `PHYS0` canopy overlay from the mixed-forest band.
 
-### PHYS0.SS sprite atlas (press `` ` `` in-game)
+### Graphic atlas browser (press `` ` `` in-game)
+
+Scans `COLONIZE/` for every `.SS` and `.PIK`, loads one at a time, and shows file name + sprite index.
+
+| Key | Action |
+|-----|--------|
+| Left / Right | Previous / next file |
+| `[` / `]` | Jump −10 / +10 files |
+| Up / Down | Scroll sprite grid, step sprite # (large sheets), or pan tall `.PIK` |
+| Space / Enter | Page down |
+| Esc / `` ` `` | Exit |
+
+Small sprite sheets render as a labeled grid. Large or single-sprite sheets show one sprite centered with `FILE#index WxH`. `.PIK` images use their embedded palette when present.
+
+`PHYS0.SS` contents (for map work):
 
 | Sprites | Content |
 |---------|---------|
@@ -214,17 +228,19 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 | Layer | Asset | Role |
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
-| Building frame | `WOODFRAM.SS` | Recessed viewport for buildings (transparent hole) |
-| Catchment | `TERRAIN.SS` | 3×3 minimap in the right strip (placeholder colors) |
-| Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock / cargo strip (no embedded palette) |
+| Building ground | `PARCH.SS` (32×24 tile) | Beige scrollwork tiled across the full upper-left buildings section |
+| Buildings | `BUILDING.SS` | Starter buildings on parchment (indices match `NAMES.TXT @BUILDING`) |
+| Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill for the square top-right section (equal L/R and T/B margins) |
+| Surroundings | `TERRAIN.SS` + `PHYS0.SS` | 3×3 catchment tiles centered in the WOODTILE section |
+| Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock / cargo strip; also lists colonists + stockpile stub |
 
 `CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here. Esc, C, or Enter returns to the map.
+
+A new colony gets the classic starter set (Town Hall, Carpenter's Shop, Blacksmith's House, Warehouse, and the craft houses). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse stub (Pioneers → 100 tools). Production, build queue, field work, and cargo drag UI are not implemented yet. Building collage positions are approximate.
 
 | Key | Action |
 |-----|--------|
 | Esc / C / Enter | Return to map |
-
-The overlay shows colony name and population. Building sprites (`BUILDING.SS`), production, and cargo slots are not implemented yet.
 
 ### Units (map bring-up)
 
@@ -238,10 +254,10 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 | O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (must be adjacent; hold uses `@UNIT` cargo) |
 | U | Unload oldest passenger from selected ship onto adjacent enterable land under cursor |
 | H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26); passengers stay aboard in harbor |
-| B | Found a colony on the cursor tile using a land unit there (unit is consumed; ships cannot found) |
+| B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |
 | Space | End turn (refreshes unit movement points) |
 
-A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit is consumed; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
+A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
 
 | Extension | Typical use |
 |-----------|-------------|

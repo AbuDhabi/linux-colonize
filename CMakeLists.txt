@@ -34,6 +34,7 @@ add_library(colonize_core STATIC
   src/core/pedia.c
   src/core/europe.c
   src/core/colony_screen.c
+  src/core/debug_atlas.c
   src/core/units.c
   src/core/colony.c
   src/core/madspack.c
@@ -117,6 +118,7 @@ add_executable(smoke_game_flow
   src/core/pedia.c
   src/core/europe.c
   src/core/colony_screen.c
+  src/core/debug_atlas.c
   src/core/units.c
   src/core/colony.c
   src/core/madspack.c
@@ -186,6 +188,8 @@ add_test(NAME smoke_europe COMMAND smoke_europe WORKING_DIRECTORY ${CMAKE_SOURCE
 add_executable(smoke_colony_screen
   tests/smoke/test_colony_screen.c
   src/core/colony_screen.c
+  src/core/colony.c
+  src/core/units.c
   src/core/map.c
   src/core/pik.c
   src/core/ss.c

@@ -62,6 +62,15 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
 bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
 bool units_is_on_map(const ColonizeUnit* unit);
 
+/* Equipment the unit carries into a new colony warehouse when founding. */
+void units_founder_loot(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  int* out_tools,
+  int* out_muskets,
+  int* out_horses
+);
+
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,

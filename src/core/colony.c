@@ -80,6 +80,79 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
   return pool->name_count > 0;
 }
 
+bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog* names) {
+  if (!pool || !names) {
+    return false;
+  }
+  pool->building_type_count = 0;
+
+  const ColonizeMsgSection* section = assets_msg_find(names, "BUILDING");
+  if (!section) {
+    diag_warn("NAMES.TXT missing @BUILDING section.");
+    return false;
+  }
+
+  for (int i = 0; i < section->line_count && pool->building_type_count < COLONIZE_BUILDING_TYPES_MAX; ++i) {
+    char line[COLONIZE_MSG_LINE_LEN];
+    snprintf(line, sizeof(line), "%s", section->lines[i]);
+    if (line[0] == ';' || line[0] == '\0') {
+      continue;
+    }
+    char* semi = strchr(line, ';');
+    if (semi) {
+      *semi = '\0';
+    }
+    char* comma = strchr(line, ',');
+    if (!comma) {
+      continue;
+    }
+    *comma = '\0';
+    colony_trim(line);
+    if (line[0] == '\0') {
+      continue;
+    }
+
+    const char* p = comma + 1;
+    int hammers = 0;
+    int tools_cost = 0;
+    int a = 0;
+    int b = 0;
+    int min_pop = 0;
+    /* name, hammers, tools, ?, ?, min_population — trailing fields optional. */
+    sscanf(p, " %d , %d , %d , %d , %d", &hammers, &tools_cost, &a, &b, &min_pop);
+    (void)a;
+    (void)b;
+
+    ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
+    snprintf(t->name, sizeof(t->name), "%s", line);
+    t->hammers = hammers;
+    t->tools_cost = tools_cost;
+    t->min_population = min_pop;
+  }
+
+  diag_info("Loaded %d building types from NAMES.TXT @BUILDING", pool->building_type_count);
+  return pool->building_type_count > 0;
+}
+
+int colonies_find_building(const ColonizeColonyPool* pool, const char* name) {
+  if (!pool || !name) {
+    return -1;
+  }
+  for (int i = 0; i < pool->building_type_count; ++i) {
+    if (strcmp(pool->building_types[i].name, name) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index) {
+  if (!pool || type_index < 0 || type_index >= pool->building_type_count) {
+    return NULL;
+  }
+  return &pool->building_types[type_index];
+}
+
 bool colonies_can_found(
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -107,11 +180,34 @@ static const char* colonies_next_name(ColonizeColonyPool* pool) {
   return n;
 }
 
+static void colonies_grant_starters(ColonizeColonyPool* pool, ColonizeColony* slot) {
+  static const char* k_starters[] = {
+    "Town Hall",
+    "Carpenter's Shop",
+    "Blacksmith's House",
+    "Warehouse",
+    "Weaver's House",
+    "Tobacconist's House",
+    "Rum Distiller's House",
+    "Fur Trader's House",
+  };
+  for (size_t i = 0; i < sizeof(k_starters) / sizeof(k_starters[0]); ++i) {
+    const int idx = colonies_find_building(pool, k_starters[i]);
+    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX) {
+      slot->has_building[idx] = true;
+    }
+  }
+}
+
 int colonies_found(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
   int x,
-  int y
+  int y,
+  int founder_type_index,
+  int tools,
+  int muskets,
+  int horses
 ) {
   if (!colonies_can_found(pool, map, x, y)) {
     return -1;
@@ -132,19 +228,63 @@ int colonies_found(
     return -1;
   }
 
+  memset(slot, 0, sizeof(*slot));
   slot->id = pool->next_id++;
   slot->x = x;
   slot->y = y;
-  slot->population = 1;
   slot->active = true;
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool));
-  pool->colony_count++;
+  colonies_grant_starters(pool, slot);
 
-  diag_info("Founded colony '%s' at (%d,%d)", slot->name, x, y);
+  if (tools > 0) {
+    slot->stock_tools += tools;
+  }
+  if (muskets > 0) {
+    slot->stock_muskets += muskets;
+  }
+  if (horses > 0) {
+    slot->stock_horses += horses;
+  }
+  /* New colonies start with a little food in the warehouse stub. */
+  slot->stock_food = 200;
+
+  if (founder_type_index >= 0 && slot->colonist_count < COLONIZE_COLONY_POP_MAX) {
+    ColonizeColonist* c = &slot->colonists[slot->colonist_count++];
+    c->active = true;
+    c->unit_type_index = founder_type_index;
+    c->building_type = colonies_find_building(pool, "Town Hall");
+    slot->population = slot->colonist_count;
+  } else {
+    slot->population = 0;
+  }
+
+  pool->colony_count++;
+  diag_info(
+    "Founded colony '%s' at (%d,%d) pop=%d tools=%d muskets=%d horses=%d",
+    slot->name,
+    x,
+    y,
+    slot->population,
+    slot->stock_tools,
+    slot->stock_muskets,
+    slot->stock_horses
+  );
   return slot->id;
 }
 
 const ColonizeColony* colonies_get(const ColonizeColonyPool* pool, int colony_id) {
+  if (!pool || colony_id < 0) {
+    return NULL;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (pool->colonies[i].active && pool->colonies[i].id == colony_id) {
+      return &pool->colonies[i];
+    }
+  }
+  return NULL;
+}
+
+ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id) {
   if (!pool || colony_id < 0) {
     return NULL;
   }
