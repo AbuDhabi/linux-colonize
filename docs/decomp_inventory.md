@@ -66,7 +66,7 @@ port I/O in the native build.
 - Keyboard/mouse polling and event translation
 - Time/tick services
 - File path, save location, and case normalization
-- Audio output
+- Audio output (SDL callback + FluidSynth; see `src/core/sound.c`)
 
 ## Bring-Up Strategy Notes
 
@@ -116,6 +116,9 @@ port I/O in the native build.
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
+- Music (`src/core/sound.c`): loads `GSOUND.COL` BGM ids `0x20..0x3f`, plays title
+  `0x33` and map track 1; FluidSynth + system soundfont (or square-wave fallback);
+  gated by Background Music option / `--nosound`; `COLDIG.BIN` SFX still deferred
 
 ## End-of-turn recovery checklist
 

@@ -7,6 +7,7 @@
 
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "core/sound.h"
 
 struct ColonizePlatform {
   SDL_Window* window;
@@ -17,6 +18,8 @@ struct ColonizePlatform {
   int height;
   bool audio_enabled;
   SDL_AudioDeviceID audio_device;
+  int audio_freq;
+  int audio_channels;
 };
 
 static ColonizeKey map_key(SDL_Keycode key) {
@@ -56,6 +59,17 @@ static ColonizeKey map_key(SDL_Keycode key) {
     case SDLK_F10: return COLONIZE_KEY_F10;
     default: return COLONIZE_KEY_NONE;
   }
+}
+
+static void sdl_audio_callback(void* userdata, Uint8* stream, int len) {
+  ColonizePlatform* platform = (ColonizePlatform*)userdata;
+  if (!platform || !stream || len <= 0) {
+    return;
+  }
+  const int channels = platform->audio_channels > 0 ? platform->audio_channels : 1;
+  const int freq = platform->audio_freq > 0 ? platform->audio_freq : 44100;
+  const int frames = len / ((int)sizeof(int16_t) * channels);
+  sound_render_s16((int16_t*)stream, frames, channels, freq);
 }
 
 ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
@@ -166,21 +180,31 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
 
   platform->audio_enabled = false;
   platform->audio_device = 0;
+  platform->audio_freq = 44100;
+  platform->audio_channels = 2;
   if (want_audio) {
     SDL_AudioSpec want;
     SDL_AudioSpec have;
     SDL_zero(want);
-    want.freq = 22050;
+    want.freq = 44100;
     want.format = AUDIO_S16SYS;
-    want.channels = 1;
-    want.samples = 512;
+    want.channels = 2;
+    want.samples = 1024;
+    want.callback = sdl_audio_callback;
+    want.userdata = platform;
     platform->audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (platform->audio_device == 0) {
       diag_warn("SDL audio device unavailable (%s); continuing silent.", SDL_GetError());
     } else {
       platform->audio_enabled = true;
-      diag_info("SDL audio opened: freq=%d channels=%d format=0x%x (mixer playback not wired yet)",
-        have.freq, have.channels, have.format);
+      platform->audio_freq = have.freq;
+      platform->audio_channels = have.channels;
+      diag_info(
+        "SDL audio opened: freq=%d channels=%d format=0x%x (callback wired)",
+        have.freq,
+        have.channels,
+        have.format
+      );
       SDL_PauseAudioDevice(platform->audio_device, 1);
     }
   } else {
@@ -188,6 +212,18 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
   }
 
   return platform;
+}
+
+void platform_audio_resume(ColonizePlatform* platform) {
+  if (!platform || platform->audio_device == 0 || !platform->audio_enabled) {
+    return;
+  }
+  SDL_PauseAudioDevice(platform->audio_device, 0);
+  diag_info("SDL audio resumed");
+}
+
+bool platform_audio_enabled(const ColonizePlatform* platform) {
+  return platform && platform->audio_enabled;
 }
 
 void platform_destroy(ColonizePlatform* platform) {

@@ -22,6 +22,7 @@
 #include "core/reports.h"
 #include "core/savegame.h"
 #include "core/ss.h"
+#include "core/sound.h"
 #include "core/turn.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -331,6 +332,14 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  {
+    ColonizeSoundOptions opts = sound_get_options();
+    opts.background_music = game->col1.head.tut2.background_music != 0;
+    opts.event_music = game->col1.head.tut2.event_music != 0;
+    opts.sound_effects = game->col1.head.tut2.sound_effects != 0;
+    sound_set_options(opts);
+  }
+  sound_set_bgm(1);
   return true;
 }
 
@@ -1126,6 +1135,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   if (game->world_map_ok) {
     units_new_world_start(&game->units, &game->world_map);
   }
+  sound_set_bgm(1);
   snprintf(
     game->status,
     sizeof(game->status),
@@ -1323,6 +1333,8 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       memset(&empty, 0, sizeof(empty));
       map_menu_handle_input(&game->map_menu, &empty, NULL, true);
       game->in_menu = true;
+      sound_stop_bgm();
+      sound_play(SOUND_TITLE_ID);
       set_status(game, "Retired to main menu", NULL);
       return true;
     }
@@ -1564,6 +1576,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   game->elapsed_ms += dt_ms;
   (void)dos_compat_tick_count();
+  sound_service();
 
   /* End-of-turn nation phases: advance one slice per frame; block other input. */
   if (turn_processor_active(&game->turn_proc)) {
@@ -1991,6 +2004,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
     game->in_menu = true;
+    sound_stop_bgm();
+    sound_play(SOUND_TITLE_ID);
     diag_info("Returned to main menu.");
     return true;
   }

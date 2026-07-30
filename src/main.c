@@ -5,6 +5,7 @@
 
 #include "core/game_loop.h"
 #include "core/savegame.h"
+#include "core/sound.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -105,6 +106,11 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  sound_init(cli.data_dir, platform_audio_enabled(platform));
+  /* Title cue after sound backend is ready (game_create may have queued early). */
+  sound_play(SOUND_TITLE_ID);
+  platform_audio_resume(platform);
+
   diag_info("Diagnostics log path (for bug reports): %s", diag_log_path());
 
   uint8_t framebuffer_pixels[320 * 200];
@@ -143,6 +149,7 @@ int main(int argc, char** argv) {
   }
 
   game_destroy(game);
+  sound_shutdown();
   platform_destroy(platform);
   diag_shutdown();
   return 0;

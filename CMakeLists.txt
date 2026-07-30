@@ -25,6 +25,15 @@ if(NOT SDL2_FOUND)
   endif()
 endif()
 
+find_package(PkgConfig QUIET)
+set(COLONIZE_HAS_FLUIDSYNTH OFF)
+if(PkgConfig_FOUND)
+  pkg_check_modules(FLUIDSYNTH QUIET fluidsynth)
+  if(FLUIDSYNTH_FOUND)
+    set(COLONIZE_HAS_FLUIDSYNTH ON)
+  endif()
+endif()
+
 add_library(colonize_core STATIC
   src/core/game_loop.c
   src/core/assets.c
@@ -40,6 +49,7 @@ add_library(colonize_core STATIC
   src/core/units.c
   src/core/colony.c
   src/core/turn.c
+  src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -60,6 +70,17 @@ target_compile_options(colonize_core PRIVATE
   -Wextra
   -Wpedantic
 )
+
+target_link_libraries(colonize_core PUBLIC m pthread)
+
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(colonize_core PUBLIC ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(colonize_core PUBLIC ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(colonize_core PUBLIC COLONIZE_HAS_FLUIDSYNTH=1)
+  message(STATUS "FluidSynth found — music backend enabled")
+else()
+  message(STATUS "FluidSynth not found — music uses square-wave fallback")
+endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(colonize_core PRIVATE -Wno-unused-parameter)
@@ -157,6 +178,7 @@ add_executable(smoke_game_flow
   src/core/units.c
   src/core/colony.c
   src/core/turn.c
+  src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -412,8 +434,35 @@ target_include_directories(smoke_pik PRIVATE
 
 add_test(NAME smoke_pik COMMAND smoke_pik WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(smoke_sound
+  tests/smoke/test_sound.c
+  src/core/sound.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_sound PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_sound PRIVATE m pthread)
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(smoke_sound PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(smoke_sound PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(smoke_sound PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+endif()
+
+add_test(NAME smoke_sound COMMAND smoke_sound WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 target_include_directories(smoke_game_flow PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(smoke_game_flow PRIVATE m pthread)
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(smoke_game_flow PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(smoke_game_flow PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(smoke_game_flow PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+endif()
 
 add_test(NAME smoke_game_flow COMMAND smoke_game_flow)

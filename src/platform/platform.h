@@ -82,6 +82,10 @@ uint32_t platform_ticks_ms(void);
 void platform_sleep_ms(uint32_t ms);
 void platform_set_window_title(ColonizePlatform* platform, const char* title);
 
+/* Audio: SDL device is opened paused; resume after sound_init. */
+void platform_audio_resume(ColonizePlatform* platform);
+bool platform_audio_enabled(const ColonizePlatform* platform);
+
 /* DOS-compat hooks called by core logic. */
 void dos_compat_init(void);
 void dos_compat_shutdown(void);

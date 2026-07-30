@@ -317,11 +317,38 @@ A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a 
 | `.PIK` | Packed pictures / backgrounds |
 | `.SS` | Sprite sheets / animation frames |
 | `.PAL` | VGA palette (`VICEROY.PAL`, 1024 bytes = 256×RGBA, 6-bit VGA RGB) |
-| `.COL` | Sound / music related blobs |
+| `.COL` | MicroProse sound drivers (`A/G/P/RSOUND.COL`) + `CONFIG.COL` |
 | `.MOV` | Short motion / script tables |
 | `.MP` | Map data |
 | `.DAT` | Tables / path data |
-| `.BIN` | Large binary blobs (e.g. `COLDIG.BIN`) |
+| `.BIN` | Large binary blobs (e.g. `COLDIG.BIN` digital SFX — not yet played) |
+
+## Music / sound
+
+There are **no** standalone `.MID` / `.XMI` song files. Music lives inside the MZ sound
+drivers. The Linux port loads **`GSOUND.COL`** (General MIDI) via [`src/core/sound.c`](../src/core/sound.c):
+
+| Driver | Card letter | Role |
+|--------|-------------|------|
+| `ASOUND.COL` | A | AdLib / OPL |
+| `GSOUND.COL` | G | General MIDI (**used**) |
+| `PSOUND.COL` | P | PAS / SB-family |
+| `RSOUND.COL` | R | Roland / MT-32-style |
+| `CONFIG.COL` | — | 20-byte INSTALL card config |
+| `COLDIG.BIN` | — | Digital SFX (deferred) |
+
+DOS play path: numeric sound IDs through the driver jump table (`FUN_2059_000a`), gated by
+Background / Event / SFX (`FUN_12d8_000e`). IDs `0x20..0x3f` are background music;
+`0x40..0x5c` event music; IDs `< 0x10` are system (stop). Title intro uses **`0x33`**.
+Map BGM track *n* maps to ID `0x20+n` (track 1 → `0x21`).
+
+Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
+Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
+
+**Playback:** F4-led note streams in `GSOUND.COL` are decoded to MIDI events and rendered with
+**FluidSynth** when available (soundfont from `COLONIZE_SOUNDFONT` or
+`/usr/share/sounds/sf2/*.sf2`). Without FluidSynth, a square-wave fallback is used.
+`--nosound` skips the SDL audio device. `smoke_sound` verifies decode + non-silent PCM.
 
 ## Discovery Order
 
