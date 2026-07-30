@@ -132,6 +132,19 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
   remap_sheet_to_palette(&view->buildings, &view->frame.palette);
   view->buildings_ok = true;
 
+  if (!dos_compat_normalize_asset_path(data_dir, "ICONS.SS", ss_path, sizeof(ss_path))) {
+    snprintf(err, err_size, "ICONS.SS path resolve failed");
+    colony_screen_free(view);
+    return false;
+  }
+  if (!ss_load(ss_path, &view->icons, ss_err, sizeof(ss_err))) {
+    snprintf(err, err_size, "ICONS.SS: %s", ss_err);
+    colony_screen_free(view);
+    return false;
+  }
+  remap_sheet_to_palette(&view->icons, &view->frame.palette);
+  view->icons_ok = true;
+
   if (!colony_screen_load_pik(data_dir, "COLONY.PIK", &view->bottom_panel, err, err_size)) {
     colony_screen_free(view);
     return false;
@@ -140,12 +153,13 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
 
   colony_screen_set_status(view, "Colony ready. Esc or C returns to map.");
   diag_info(
-    "Colony screen loaded (WOODPANL %dx%d, PARCH %d, WOODTILE %d, BUILDING %d, COLONY.PIK %dx%d)",
+    "Colony screen loaded (WOODPANL %dx%d, PARCH %d, WOODTILE %d, BUILDING %d, ICONS %d, COLONY.PIK %dx%d)",
     view->frame.width,
     view->frame.height,
     view->parch.sprite_count,
     view->wood_tile.sprite_count,
     view->buildings.sprite_count,
+    view->icons.sprite_count,
     view->bottom_panel.width,
     view->bottom_panel.height
   );
@@ -160,6 +174,7 @@ void colony_screen_free(ColonyScreenView* view) {
   ss_free(&view->parch);
   ss_free(&view->wood_tile);
   ss_free(&view->buildings);
+  ss_free(&view->icons);
   pik_free(&view->bottom_panel);
   memset(view, 0, sizeof(*view));
 }
@@ -214,6 +229,79 @@ static void colony_screen_fill_wood_tile(const ColonyScreenView* view, ColonizeF
     COLONY_MINIMAP_SECTION_H,
     framebuffer
   );
+}
+
+static void colony_screen_draw_hline(ColonizeFramebuffer8* framebuffer, int y, int color) {
+  if (!framebuffer || !framebuffer->pixels || y < 0 || y >= framebuffer->height) {
+    return;
+  }
+  uint8_t c = (uint8_t)color;
+  for (int x = 0; x < framebuffer->width; ++x) {
+    framebuffer->pixels[y * framebuffer->width + x] = c;
+  }
+}
+
+static void colony_screen_draw_vline(
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y0,
+  int y1,
+  int color
+) {
+  if (!framebuffer || !framebuffer->pixels || x < 0 || x >= framebuffer->width) {
+    return;
+  }
+  if (y0 > y1) {
+    const int t = y0;
+    y0 = y1;
+    y1 = t;
+  }
+  if (y0 < 0) {
+    y0 = 0;
+  }
+  if (y1 >= framebuffer->height) {
+    y1 = framebuffer->height - 1;
+  }
+  uint8_t c = (uint8_t)color;
+  for (int y = y0; y <= y1; ++y) {
+    framebuffer->pixels[y * framebuffer->width + x] = c;
+  }
+}
+
+static void colony_screen_turn_to_date(uint32_t turn_number, char* out, size_t out_size) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  if (turn_number == 0) {
+    turn_number = 1;
+  }
+  static const char* k_season[] = {"Spring", "Autumn"};
+  const uint32_t idx = turn_number - 1;
+  const uint32_t year = 1492u + (idx / 2u);
+  const char* season = k_season[idx % 2u];
+  snprintf(out, out_size, "%s, %u", season, year);
+}
+
+static void colony_screen_draw_top_bar(
+  const ColonizeColony* colony,
+  uint32_t turn_number,
+  int gold,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!font || !framebuffer) {
+    return;
+  }
+  char line[96];
+  const char* name = (colony && colony->name[0]) ? colony->name : "Colony";
+  char date[32];
+  colony_screen_turn_to_date(turn_number, date, sizeof(date));
+  snprintf(line, sizeof(line), "%s", name);
+  font_draw_text(font, framebuffer, 4, 2, line, 15);
+  snprintf(line, sizeof(line), "%s", date);
+  font_draw_text(font, framebuffer, 120, 2, line, 15);
+  snprintf(line, sizeof(line), "Gold %d$", gold);
+  font_draw_text(font, framebuffer, 240, 2, line, 15);
 }
 
 static void colony_screen_render_minimap(
@@ -272,15 +360,22 @@ static void colony_screen_render_minimap(
  * Exact DOS placement is not recovered yet; this is a readable bring-up layout.
  *
  * BUILDING.SS notes:
- *   #16 (Warehouse Expansion slot art) — full pre-stockade fence sprite
- *   #42–47 — empty-slot tree clumps (large/med/small/dock-sized)
+ *   #16 — full pre-stockade fence (bottom-right of buildings section)
+ *   #45 — empty coastal placeholder (trees + shore); docks/drydock/shipyard replace it
+ *   #42–44,46–47 — empty-slot tree clumps (large/med/small)
+ *
+ * Classic bottom-right stack: coast/docks (75×48) above fence/stockade (73×18).
  */
 enum {
   COLONY_FENCE_SPRITE = 16,
   COLONY_TREE_LARGE = 42,
   COLONY_TREE_MED = 43,
   COLONY_TREE_SMALL = 44,
-  COLONY_TREE_DOCK = 45
+  COLONY_COAST_PLACEHOLDER = 45,
+  COLONY_FENCE_W = 73,
+  COLONY_FENCE_H = 18,
+  COLONY_COAST_W = 75,
+  COLONY_COAST_H = 48
 };
 
 static int colony_screen_find_built(
@@ -332,20 +427,11 @@ static void colony_screen_blit_slot(
   ss_blit_sprite(&view->buildings, sprite_index, framebuffer, x, y);
 }
 
-/* Pre-stockade fence: single BUILDING.SS #16 sprite (not multi-part). */
-static void colony_screen_blit_fence(
-  const ColonyScreenView* view,
-  int x,
-  int y,
-  ColonizeFramebuffer8* framebuffer
-) {
-  colony_screen_blit_slot(view, COLONY_FENCE_SPRITE, x, y, framebuffer);
-}
-
 static void colony_screen_blit_buildings(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  bool coastal,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !view->buildings_ok || !pool || !colony || !framebuffer) {
@@ -392,9 +478,10 @@ static void colony_screen_blit_buildings(
     {k_press, COLONY_TREE_SMALL, 8, 72},
     {k_stable, COLONY_TREE_SMALL, 8, 100},
     {k_custom, COLONY_TREE_SMALL, 40, 100},
-    {k_docks, COLONY_TREE_DOCK, 116, 80},
   };
 
+  const int slot_ox = COLONY_VIEWPORT_X;
+  const int slot_oy = COLONY_VIEWPORT_Y;
   for (size_t i = 0; i < sizeof(k_slots) / sizeof(k_slots[0]); ++i) {
     const BuildingSlot* slot = &k_slots[i];
     size_t n = 0;
@@ -403,20 +490,86 @@ static void colony_screen_blit_buildings(
     }
     const int built = colony_screen_best_built(pool, colony, slot->chain, n);
     if (built >= 0) {
-      colony_screen_blit_slot(view, built, slot->x, slot->y, framebuffer);
+      colony_screen_blit_slot(view, built, slot_ox + slot->x, slot_oy + slot->y, framebuffer);
     } else {
-      colony_screen_blit_slot(view, slot->tree_sprite, slot->x, slot->y, framebuffer);
+      colony_screen_blit_slot(
+        view,
+        slot->tree_sprite,
+        slot_ox + slot->x,
+        slot_oy + slot->y,
+        framebuffer
+      );
     }
   }
 
-  /* Fortification row: Stockade/Fort/Fortress, else the single #16 fence sprite. */
+  /*
+   * Bottom-right stack (DOS colony collage):
+   *   coast / docks / drydock / shipyard (75×48) above
+   *   fence / stockade / fort / fortress (73×18) below, right-aligned
+   */
+  const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_FENCE_W;
+  const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - COLONY_FENCE_H;
+  const int coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_COAST_W;
+  const int coast_y = fence_y - COLONY_COAST_H;
+
+  const int docks = colony_screen_best_built(pool, colony, k_docks, 3);
+  if (docks >= 0) {
+    colony_screen_blit_slot(view, docks, coast_x, coast_y, framebuffer);
+  } else if (coastal) {
+    colony_screen_blit_slot(view, COLONY_COAST_PLACEHOLDER, coast_x, coast_y, framebuffer);
+  }
+
   const int fort = colony_screen_best_built(pool, colony, k_stockade, 3);
-  const int fence_y = 108;
-  const int fence_x = 8;
   if (fort >= 0) {
     colony_screen_blit_slot(view, fort, fence_x, fence_y, framebuffer);
   } else {
-    colony_screen_blit_fence(view, fence_x, fence_y, framebuffer);
+    colony_screen_blit_slot(view, COLONY_FENCE_SPRITE, fence_x, fence_y, framebuffer);
+  }
+}
+
+static int colony_screen_text_width(const ColonizeFont* font, const char* text) {
+  if (!text) {
+    return 0;
+  }
+  int w = 0;
+  for (const char* p = text; *p; ++p) {
+    const unsigned char ch = (unsigned char)*p;
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
+      w += font->char_widths[ch];
+    } else {
+      w += 6;
+    }
+  }
+  return w;
+}
+
+/* Warehouse strip: icon centered in each COLONY.PIK slot, amount below. */
+static void colony_screen_draw_cargo_strip(
+  const ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!colony || !framebuffer) {
+    return;
+  }
+
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    const int slot_x = COLONY_CARGO_SLOT_X0 + i * COLONY_CARGO_PITCH;
+    const int sprite = COLONY_CARGO_ICON_BASE + i;
+    if (view && view->icons_ok && sprite < view->icons.sprite_count) {
+      const ColonizeSprite* spr = &view->icons.sprites[sprite];
+      const int icon_x = slot_x + (COLONY_CARGO_SLOT_W - spr->width) / 2;
+      ss_blit_sprite(&view->icons, sprite, framebuffer, icon_x, COLONY_CARGO_STRIP_Y);
+    }
+
+    if (font) {
+      char amount[12];
+      snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
+      const int tw = colony_screen_text_width(font, amount);
+      const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
+      font_draw_text(font, framebuffer, tx, COLONY_CARGO_NUM_Y, amount, 15);
+    }
   }
 }
 
@@ -428,6 +581,8 @@ void colony_screen_render(
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
+  uint32_t turn_number,
+  int gold,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -440,9 +595,15 @@ void colony_screen_render(
     pik_blit(&view->frame, framebuffer, 0, 0);
   }
 
+  colony_screen_draw_top_bar(colony, turn_number, gold, font, framebuffer);
+
   /* Beige parchment fills the entire upper-left buildings section. */
   colony_screen_fill_parch(view, framebuffer);
-  colony_screen_blit_buildings(view, pool, colony, framebuffer);
+  {
+    const bool coastal =
+      colony && map && map_tile_is_coastal(map, colony->x, colony->y);
+    colony_screen_blit_buildings(view, pool, colony, coastal, framebuffer);
+  }
 
   /* WOODTILE fill for the square top-right minimap panel, then 3×3 centered. */
   colony_screen_fill_wood_tile(view, framebuffer);
@@ -454,29 +615,29 @@ void colony_screen_render(
     pik_blit(&view->bottom_panel, framebuffer, 0, COLONY_BOTTOM_PANEL_Y);
   }
 
+  /* 1px black separators between top bar, middle sections, and bottom panel. */
+  colony_screen_draw_hline(framebuffer, COLONY_TOP_SEPARATOR_Y, 0);
+  colony_screen_draw_hline(framebuffer, COLONY_BOTTOM_SEPARATOR_Y, 0);
+  colony_screen_draw_vline(
+    framebuffer,
+    COLONY_VIEWPORT_X + COLONY_VIEWPORT_W,
+    COLONY_MIDDLE_Y,
+    COLONY_BOTTOM_SEPARATOR_Y - 1,
+    0
+  );
+
+  if (colony) {
+    colony_screen_draw_cargo_strip(view, colony, font, framebuffer);
+  }
+
   if (colony && font) {
     char line[96];
-    snprintf(line, sizeof(line), "%s", colony->name);
-    font_draw_text(font, framebuffer, 8, 8, line, 15);
-
-    snprintf(line, sizeof(line), "Pop %d", colony->population);
-    font_draw_text(font, framebuffer, 8, 18, line, 14);
-
-    snprintf(
-      line,
-      sizeof(line),
-      "Food %d  Tools %d  Guns %d  Horses %d",
-      colony->stock_food,
-      colony->stock_tools,
-      colony->stock_muskets,
-      colony->stock_horses
-    );
-    font_draw_text(font, framebuffer, 8, COLONY_BOTTOM_PANEL_Y + 4, line, 14);
-
-    int y = COLONY_BOTTOM_PANEL_Y + 16;
+    /* Colonist stub lists above the cargo strip (landscape band of COLONY.PIK). */
+    int y = COLONY_BOTTOM_PANEL_Y + 4;
+    const int cargo_limit = COLONY_CARGO_STRIP_Y - 2;
     font_draw_text(font, framebuffer, 8, y, "Colonists", 15);
     y += 10;
-    for (int i = 0; i < colony->colonist_count && y < COLONY_SCREEN_HEIGHT - 10; ++i) {
+    for (int i = 0; i < colony->colonist_count && y + 8 < cargo_limit; ++i) {
       const ColonizeColonist* c = &colony->colonists[i];
       if (!c->active) {
         continue;
@@ -513,6 +674,9 @@ void colony_screen_render(
     }
     if (!view->wood_tile_ok) {
       font_draw_text(font, framebuffer, 4, 124, "WOODTILE.SS failed to load", 12);
+    }
+    if (!view->icons_ok) {
+      font_draw_text(font, framebuffer, 4, 128, "ICONS.SS failed to load", 12);
     }
     if (!view->bottom_panel_ok) {
       font_draw_text(font, framebuffer, 4, 120, "COLONY.PIK failed to load", 12);

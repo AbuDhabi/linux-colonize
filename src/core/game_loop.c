@@ -59,6 +59,8 @@ struct ColonizeGameState {
   bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
+  ColonizeFont colony_font;
+  bool colony_font_ok;
   ColonizeMsgCatalog names;
   bool names_ok;
   ColonizeUnitPool units;
@@ -428,7 +430,9 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
 
 static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
   const ColonizeColony* colony = colonies_get(&game->colonies, game->colony_view_id);
-  const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+  const ColonizeFont* font = game->colony_font_ok
+    ? &game->colony_font
+    : (game->menu_font_ok ? &game->menu_font : NULL);
   colony_screen_render(
     game->colony_screen_ok ? &game->colony_screen : NULL,
     &game->colonies,
@@ -437,6 +441,8 @@ static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuf
     game->world_map_ok ? &game->world_map : NULL,
     game->terrain_ok ? &game->terrain : NULL,
     game->phys0_ok ? &game->phys0 : NULL,
+    game->turn_number,
+    game->europe.gold,
     font,
     framebuffer
   );
@@ -610,6 +616,18 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_warn("Failed to load FONTSMAL.FF: %s", ff_err);
     }
   }
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "FONTTINY.FF", ff_path, sizeof(ff_path))) {
+    if (ff_load(ff_path, &game->colony_font, ff_err, sizeof(ff_err))) {
+      game->colony_font_ok = true;
+      diag_info(
+        "Loaded colony font FONTTINY.FF (%ux%u)",
+        game->colony_font.max_width,
+        game->colony_font.max_height
+      );
+    } else {
+      diag_warn("Failed to load FONTTINY.FF: %s", ff_err);
+    }
+  }
 
   char mp_path[512];
   char mp_err[256];
@@ -664,6 +682,7 @@ void game_destroy(ColonizeGameState* game) {
   ss_free(&game->cursor);
   ss_free(&game->unit_icons);
   ff_free(&game->menu_font);
+  ff_free(&game->colony_font);
   map_free(&game->world_map);
   assets_msg_free(&game->messages);
   assets_msg_free(&game->pedia);

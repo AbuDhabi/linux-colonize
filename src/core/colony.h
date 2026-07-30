@@ -18,6 +18,25 @@ typedef struct ColonizeFont ColonizeFont;
 #define COLONIZE_BUILDING_TYPES_MAX 48
 #define COLONIZE_COLONY_POP_MAX 32
 
+/* Warehouse cargo order matches NAMES.TXT @CARGO (and ICONS.SS 22..37). */
+#define COLONIZE_CARGO_FOOD 0
+#define COLONIZE_CARGO_SUGAR 1
+#define COLONIZE_CARGO_TOBACCO 2
+#define COLONIZE_CARGO_COTTON 3
+#define COLONIZE_CARGO_FURS 4
+#define COLONIZE_CARGO_LUMBER 5
+#define COLONIZE_CARGO_ORE 6
+#define COLONIZE_CARGO_SILVER 7
+#define COLONIZE_CARGO_HORSES 8
+#define COLONIZE_CARGO_RUM 9
+#define COLONIZE_CARGO_CIGARS 10
+#define COLONIZE_CARGO_CLOTH 11
+#define COLONIZE_CARGO_COATS 12
+#define COLONIZE_CARGO_TRADE_GOODS 13
+#define COLONIZE_CARGO_TOOLS 14
+#define COLONIZE_CARGO_MUSKETS 15
+#define COLONIZE_CARGO_COUNT 16
+
 typedef struct ColonizeBuildingType {
   char name[40];
   int hammers;
@@ -42,11 +61,8 @@ typedef struct ColonizeColony {
   ColonizeColonist colonists[COLONIZE_COLONY_POP_MAX];
   int colonist_count;
   bool has_building[COLONIZE_BUILDING_TYPES_MAX];
-  /* Warehouse stub — production/trade not wired yet. */
-  int stock_food;
-  int stock_tools;
-  int stock_muskets;
-  int stock_horses;
+  /* Warehouse stub — production/trade not wired yet. Indexed by COLONIZE_CARGO_*. */
+  int stock[COLONIZE_CARGO_COUNT];
 } ColonizeColony;
 
 typedef struct ColonizeColonyPool {

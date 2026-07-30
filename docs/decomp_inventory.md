@@ -89,9 +89,9 @@ port I/O in the native build.
   (press **E** from the map; see `src/core/europe.c`)
 - Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
   `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters / tree placeholders
-  (sprites 42–47) + `COLONY.PIK` bottom
-  panel + population/stockpile stub + centered 3×3 surroundings with PHYS0
-  (press **C** on a colony tile; see `src/core/colony_screen.c`)
+  (sprites 42–47) + top bar (name/date/gold) + 1px black separators + `COLONY.PIK` bottom
+  panel + `ICONS.SS` #22–37 cargo strip (icon + amount) + population stub + centered 3×3
+  surroundings with PHYS0 (press **C** on a colony tile; see `src/core/colony_screen.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
   board/unload (**O**/**U**), sail ship to/from Europe with passengers

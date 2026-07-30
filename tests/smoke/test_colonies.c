@@ -96,12 +96,10 @@ int main(void) {
   CHECK(empty && empty->has_building[carpenter], "starter includes Carpenter's Shop");
   CHECK(empty && !empty->has_building[stockade], "starter excludes Stockade");
   CHECK(empty && !empty->has_building[warehouse], "starter excludes Warehouse");
-  if (!map_tile_is_coastal(&map, land_x, land_y)) {
-    CHECK(empty && !empty->has_building[docks], "inland starter excludes Docks");
-  }
-  CHECK(empty && empty->stock_food == 200, "starter food stockpile");
+  CHECK(empty && !empty->has_building[docks], "starter excludes Docks");
+  CHECK(empty && empty->stock[COLONIZE_CARGO_FOOD] == 200, "starter food stockpile");
 
-  /* Coastal colony gets free Docks. */
+  /* Coastal colony still does not get free Docks (upgrade only). */
   int coast_x = -1, coast_y = -1;
   for (int y = 0; y < (int)map.height && coast_x < 0; ++y) {
     for (int x = 0; x < (int)map.width && coast_x < 0; ++x) {
@@ -115,10 +113,10 @@ int main(void) {
     const int coast_id = colonies_found(&pool, &map, coast_x, coast_y, -1, 0, 0, 0);
     CHECK(coast_id >= 0, "found coastal colony");
     const ColonizeColony* coastal = colonies_get(&pool, coast_id);
-    CHECK(coastal && coastal->has_building[docks], "coastal starter includes Docks");
+    CHECK(coastal && !coastal->has_building[docks], "coastal starter excludes Docks");
     CHECK(coastal && !coastal->has_building[warehouse], "coastal starter excludes Warehouse");
   } else {
-    printf("OK: skip coastal docks check (no free coastal tile)\n");
+    printf("OK: skip coastal founding check (no free coastal tile)\n");
   }
 
   /* Another colony with a founder on a different land tile. */
@@ -143,9 +141,9 @@ int main(void) {
   CHECK(col->population == 1 && col->colonist_count == 1, "founder becomes colonist");
   CHECK(col->colonists[0].unit_type_index == pioneer_type, "colonist type preserved");
   CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
-  CHECK(col->stock_tools == 100, "founder tools enter stockpile");
+  CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
   printf("  colony name: %s at (%d,%d) pop=%d tools=%d\n",
-         col->name, col->x, col->y, col->population, col->stock_tools);
+         col->name, col->x, col->y, col->population, col->stock[COLONIZE_CARGO_TOOLS]);
 
   CHECK(!colonies_can_found(&pool, &map, land2_x, land2_y), "cannot found on occupied tile");
   CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");

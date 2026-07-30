@@ -4,6 +4,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_screen.h"
+#include "core/ff.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -66,6 +67,17 @@ int main(void) {
     return 1;
   }
 
+  if (!view.icons_ok || view.icons.sprite_count < COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT) {
+    fprintf(
+      stderr,
+      "ICONS.SS missing/short for cargo icons (count=%d, need %d+)\n",
+      view.icons.sprite_count,
+      COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT
+    );
+    colony_screen_free(&view);
+    return 1;
+  }
+
   ColonizeColonyPool pool;
   colonies_init(&pool);
   ColonizeMsgCatalog names;
@@ -113,11 +125,22 @@ int main(void) {
 
   int land_x = -1;
   int land_y = -1;
+  /* Prefer a coastal tile so we can assert the empty-coast placeholder. */
   for (int y = 0; y < (int)map.height && land_x < 0; ++y) {
     for (int x = 0; x < (int)map.width && land_x < 0; ++x) {
-      if (map_tile_is_land(&map, x, y)) {
+      if (map_tile_is_coastal(&map, x, y)) {
         land_x = x;
         land_y = y;
+      }
+    }
+  }
+  if (land_x < 0) {
+    for (int y = 0; y < (int)map.height && land_x < 0; ++y) {
+      for (int x = 0; x < (int)map.width && land_x < 0; ++x) {
+        if (map_tile_is_land(&map, x, y)) {
+          land_x = x;
+          land_y = y;
+        }
       }
     }
   }
@@ -129,6 +152,7 @@ int main(void) {
     colony_screen_free(&view);
     return 1;
   }
+  const bool sample_coastal = map_tile_is_coastal(&map, land_x, land_y);
 
   const int cid = colonies_found(&pool, &map, land_x, land_y, pioneer, 100, 0, 0);
   if (cid < 0) {
@@ -145,10 +169,16 @@ int main(void) {
   memset(&phys0, 0, sizeof(phys0));
   const bool phys0_ok = ss_load("COLONIZE/PHYS0.SS", &phys0, err, sizeof(err));
 
+  /* Need a font so cargo amounts are drawn into the strip. */
+  ColonizeFont font;
+  memset(&font, 0, sizeof(font));
+  const bool font_ok = ff_load("COLONIZE/FONTTINY.FF", &font, err, sizeof(err));
+
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   colony_screen_render(
-    &view, &pool, sample, &units, &map, &terrain, phys0_ok ? &phys0 : NULL, NULL, &fb
+    &view, &pool, sample, &units, &map, &terrain, phys0_ok ? &phys0 : NULL, 1, 1000,
+    font_ok ? &font : NULL, &fb
   );
 
   if (pixels[0] == 0) {
@@ -176,9 +206,9 @@ int main(void) {
     return 1;
   }
 
-  /* Town Hall sprite is blitted near (70,4) on parchment. */
+  /* Town Hall sprite is blitted near viewport (70,4). */
   bool building_pixel = false;
-  for (int y = 4; y < 40 && !building_pixel; ++y) {
+  for (int y = COLONY_VIEWPORT_Y + 4; y < COLONY_VIEWPORT_Y + 40 && !building_pixel; ++y) {
     for (int x = 70; x < 120; ++x) {
       if (pixels[y * 320 + x] != 0) {
         building_pixel = true;
@@ -212,7 +242,7 @@ int main(void) {
     return 1;
   }
   bool tree_pixel = false;
-  for (int y = 72; y < 94 && !tree_pixel; ++y) {
+  for (int y = COLONY_VIEWPORT_Y + 72; y < COLONY_VIEWPORT_Y + 94 && !tree_pixel; ++y) {
     for (int x = 88; x < 132; ++x) {
       if (pixels[y * 320 + x] != 0) {
         tree_pixel = true;
@@ -244,18 +274,9 @@ int main(void) {
     colony_screen_free(&view);
     return 1;
   }
-  /* Pre-stockade fence is BUILDING.SS #16 along the fortification row. */
-  bool fence_pixel = false;
-  for (int y = 108; y < 126 && !fence_pixel; ++y) {
-    for (int x = 8; x < 80; ++x) {
-      if (pixels[y * 320 + x] != 0) {
-        fence_pixel = true;
-        break;
-      }
-    }
-  }
-  if (!fence_pixel) {
-    fprintf(stderr, "expected fence pixels (BUILDING.SS #16) without Stockade\n");
+  const int docks = colonies_find_building(&pool, "Docks");
+  if (docks < 0 || (sample && sample->has_building[docks])) {
+    fprintf(stderr, "expected founded colony without Docks\n");
     if (phys0_ok) {
       ss_free(&phys0);
     }
@@ -264,6 +285,95 @@ int main(void) {
     assets_msg_free(&names);
     colony_screen_free(&view);
     return 1;
+  }
+
+  /* Fence (BUILDING.SS #16) bottom-right of the buildings section. */
+  const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - 73;
+  const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - 18;
+  bool fence_pixel = false;
+  for (int y = fence_y; y < fence_y + 18 && !fence_pixel; ++y) {
+    for (int x = fence_x; x < fence_x + 73; ++x) {
+      if (pixels[y * 320 + x] != 0) {
+        fence_pixel = true;
+        break;
+      }
+    }
+  }
+  if (!fence_pixel) {
+    fprintf(stderr, "expected fence pixels (BUILDING.SS #16) without Stockade at bottom-right\n");
+    if (phys0_ok) {
+      ss_free(&phys0);
+    }
+    ss_free(&terrain);
+    map_free(&map);
+    assets_msg_free(&names);
+    colony_screen_free(&view);
+    return 1;
+  }
+
+  /* Coastal colonies without Docks show empty coast placeholder (#45) above the fence. */
+  if (sample_coastal) {
+    const int coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - 75;
+    const int coast_y = fence_y - 48;
+    bool coast_pixel = false;
+    for (int y = coast_y; y < coast_y + 48 && !coast_pixel; ++y) {
+      for (int x = coast_x; x < coast_x + 75; ++x) {
+        if (pixels[y * 320 + x] != 0) {
+          coast_pixel = true;
+          break;
+        }
+      }
+    }
+    if (!coast_pixel) {
+      fprintf(stderr, "expected coastal placeholder (BUILDING.SS #45) above fence\n");
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+  }
+
+  /* 1px black section separators (top/middle, middle/bottom, buildings/minimap). */
+  for (int x = 0; x < 320; ++x) {
+    if (pixels[COLONY_TOP_SEPARATOR_Y * 320 + x] != 0) {
+      fprintf(stderr, "expected black top separator at y=%d\n", COLONY_TOP_SEPARATOR_Y);
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    if (pixels[COLONY_BOTTOM_SEPARATOR_Y * 320 + x] != 0) {
+      fprintf(stderr, "expected black bottom separator at y=%d\n", COLONY_BOTTOM_SEPARATOR_Y);
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+  }
+  for (int y = COLONY_MIDDLE_Y; y < COLONY_BOTTOM_SEPARATOR_Y; ++y) {
+    if (pixels[y * 320 + COLONY_VIEWPORT_W] != 0) {
+      fprintf(stderr, "expected black vertical separator at x=%d y=%d\n", COLONY_VIEWPORT_W, y);
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
   }
 
   /* 3×3 minimap centered in the WOODTILE section with equal L/R and T/B margins. */
@@ -295,6 +405,9 @@ int main(void) {
   const int mini_y1 = mini_y + grid_px - 1;
   if (pixels[mini_y * 320 + mini_x] == 0 || pixels[mini_y1 * 320 + mini_x1] == 0) {
     fprintf(stderr, "minimap corners look empty (expected centered 3x3)\n");
+    if (font_ok) {
+      ff_free(&font);
+    }
     if (phys0_ok) {
       ss_free(&phys0);
     }
@@ -305,9 +418,88 @@ int main(void) {
     return 1;
   }
 
+  /* Cargo strip: Food icon (#22) in first slot, amount digits below. */
+  {
+    const int food_slot_x = COLONY_CARGO_SLOT_X0;
+    bool icon_pixel = false;
+    for (int y = COLONY_CARGO_STRIP_Y; y < COLONY_CARGO_STRIP_Y + 12 && !icon_pixel; ++y) {
+      for (int x = food_slot_x; x < food_slot_x + COLONY_CARGO_SLOT_W; ++x) {
+        if (pixels[y * 320 + x] != 0 && pixels[y * 320 + x] != 56) {
+          icon_pixel = true;
+          break;
+        }
+      }
+    }
+    if (!icon_pixel) {
+      fprintf(stderr, "expected Food cargo icon in first COLONY.PIK slot\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    bool amount_pixel = false;
+    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_CARGO_NUM_Y + 6 && !amount_pixel; ++y) {
+      for (int x = food_slot_x; x < food_slot_x + COLONY_CARGO_SLOT_W; ++x) {
+        if (pixels[y * 320 + x] == 15) {
+          amount_pixel = true;
+          break;
+        }
+      }
+    }
+    if (font_ok && !amount_pixel) {
+      fprintf(stderr, "expected Food amount digits under cargo icon\n");
+      ff_free(&font);
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    /* Tools slot (index 14) should also have an icon after founding with 100 tools. */
+    const int tools_slot_x = COLONY_CARGO_SLOT_X0 + COLONIZE_CARGO_TOOLS * COLONY_CARGO_PITCH;
+    bool tools_icon = false;
+    for (int y = COLONY_CARGO_STRIP_Y; y < COLONY_CARGO_STRIP_Y + 12 && !tools_icon; ++y) {
+      for (int x = tools_slot_x; x < tools_slot_x + COLONY_CARGO_SLOT_W; ++x) {
+        if (pixels[y * 320 + x] != 0 && pixels[y * 320 + x] != 56) {
+          tools_icon = true;
+          break;
+        }
+      }
+    }
+    if (!tools_icon) {
+      fprintf(stderr, "expected Tools cargo icon in slot 14\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+  }
+
   colony_screen_set_status(&view, "test status");
   if (strcmp(view.status, "test status") != 0) {
     fprintf(stderr, "set_status failed\n");
+    if (font_ok) {
+      ff_free(&font);
+    }
     if (phys0_ok) {
       ss_free(&phys0);
     }
@@ -320,12 +512,13 @@ int main(void) {
 
   fprintf(
     stderr,
-    "colony screen tests ok (WOODPANL=%dx%d PARCH=%d WOODTILE=%d BUILDING=%d COLONY=%dx%d pop=%d mini=%dx%d@%d,%d margin=%d)\n",
+    "colony screen tests ok (WOODPANL=%dx%d PARCH=%d WOODTILE=%d BUILDING=%d ICONS=%d COLONY=%dx%d pop=%d mini=%dx%d@%d,%d margin=%d)\n",
     view.frame.width,
     view.frame.height,
     view.parch.sprite_count,
     view.wood_tile.sprite_count,
     view.buildings.sprite_count,
+    view.icons.sprite_count,
     view.bottom_panel.width,
     view.bottom_panel.height,
     sample ? sample->population : -1,
@@ -335,6 +528,9 @@ int main(void) {
     mini_y,
     margin_x
   );
+  if (font_ok) {
+    ff_free(&font);
+  }
   if (phys0_ok) {
     ss_free(&phys0);
   }

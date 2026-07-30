@@ -189,16 +189,11 @@ static void colonies_grant_building(ColonizeColonyPool* pool, ColonizeColony* sl
 
 /*
  * Classic free starters: craft houses + carpenter + town hall.
- * Warehouse and Stockade are buildable. Docks are free only on coastal tiles.
- * When Stockade is absent the colony screen draws fence art (BUILDING.SS #16).
+ * Warehouse, Stockade, and Docks are buildable (not free).
+ * Coastal colonies without Docks show BUILDING.SS #45 coast placeholder;
+ * without Stockade the screen draws fence art (BUILDING.SS #16).
  */
-static void colonies_grant_starters(
-  ColonizeColonyPool* pool,
-  ColonizeColony* slot,
-  const ColonizeWorldMap* map,
-  int x,
-  int y
-) {
+static void colonies_grant_starters(ColonizeColonyPool* pool, ColonizeColony* slot) {
   static const char* k_starters[] = {
     "Town Hall",
     "Carpenter's Shop",
@@ -210,9 +205,6 @@ static void colonies_grant_starters(
   };
   for (size_t i = 0; i < sizeof(k_starters) / sizeof(k_starters[0]); ++i) {
     colonies_grant_building(pool, slot, k_starters[i]);
-  }
-  if (map_tile_is_coastal(map, x, y)) {
-    colonies_grant_building(pool, slot, "Docks");
   }
 }
 
@@ -251,19 +243,19 @@ int colonies_found(
   slot->y = y;
   slot->active = true;
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool));
-  colonies_grant_starters(pool, slot, map, x, y);
+  colonies_grant_starters(pool, slot);
 
   if (tools > 0) {
-    slot->stock_tools += tools;
+    slot->stock[COLONIZE_CARGO_TOOLS] += tools;
   }
   if (muskets > 0) {
-    slot->stock_muskets += muskets;
+    slot->stock[COLONIZE_CARGO_MUSKETS] += muskets;
   }
   if (horses > 0) {
-    slot->stock_horses += horses;
+    slot->stock[COLONIZE_CARGO_HORSES] += horses;
   }
   /* New colonies start with a little food in the warehouse stub. */
-  slot->stock_food = 200;
+  slot->stock[COLONIZE_CARGO_FOOD] = 200;
 
   if (founder_type_index >= 0 && slot->colonist_count < COLONIZE_COLONY_POP_MAX) {
     ColonizeColonist* c = &slot->colonists[slot->colonist_count++];
@@ -282,9 +274,9 @@ int colonies_found(
     x,
     y,
     slot->population,
-    slot->stock_tools,
-    slot->stock_muskets,
-    slot->stock_horses
+    slot->stock[COLONIZE_CARGO_TOOLS],
+    slot->stock[COLONIZE_CARGO_MUSKETS],
+    slot->stock[COLONIZE_CARGO_HORSES]
   );
   return slot->id;
 }

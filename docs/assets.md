@@ -228,15 +228,19 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 | Layer | Asset | Role |
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
+| Top bar | (rendered) | Colony name, campaign date, and treasury across the top strip |
 | Building ground | `PARCH.SS` (32×24 tile) | Beige scrollwork tiled across the full upper-left buildings section |
-| Buildings | `BUILDING.SS` | Starter buildings on parchment (indices match `NAMES.TXT @BUILDING`); **#16** is the pre-stockade fence; sprites **42–47** are empty-slot tree clumps |
+| Buildings | `BUILDING.SS` | Starter buildings on parchment (indices match `NAMES.TXT @BUILDING`); **#16** fence (bottom-right); **#45** empty coast above fence; **42–47** tree clumps |
 | Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill for the square top-right section (equal L/R and T/B margins) |
 | Surroundings | `TERRAIN.SS` + `PHYS0.SS` | 3×3 catchment tiles centered in the WOODTILE section |
-| Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock / cargo strip; also lists colonists + stockpile stub |
+| Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock band; warehouse cargo strip along the bottom |
+| Cargo icons | `ICONS.SS` **#22–37** | One icon per `@CARGO` type, centered in each 18px slot with the amount below |
 
 `CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here. Esc, C, or Enter returns to the map.
 
-A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Coastal colonies also get Docks. Warehouse and Stockade are **not** free. Until Stockade is built, the fortification row shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite). Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the stockpile stub (Pioneers → 100 tools). Production, build queue, field work, and cargo drag UI are not implemented yet. Building collage positions are approximate.
+Single-pixel black separators split the sections: top bar vs middle band, buildings vs minimap, and middle band vs bottom panel.
+
+A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite) in the **bottom-right** of the buildings section. Coastal colonies without Docks show the empty coast placeholder (`BUILDING.SS` **#45**) **above** that fence; Docks / Drydock / Shipyard replace it when built. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse (`stock[]` in `@CARGO` order; Pioneers → 100 tools, starter food 200). The bottom of `COLONY.PIK` holds the 16 cargo slots (18px wide, pitch 19, measured from the asset) with `ICONS.SS` icons and amounts underneath. Production, build queue, field work, and cargo drag UI are not implemented yet. Building collage positions are approximate.
 
 | Key | Action |
 |-----|--------|
