@@ -226,7 +226,7 @@ Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter)
 | F9 | Indian Adviser | `REPORT9.PIK` |
 | F10 | Colonization Score | `WOODPANL.PIK` (full-screen wood) |
 
-Content uses live colony / unit / Europe data where available; foreign powers, Indians, founding fathers, and full scoring remain stubs.
+Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. F10 score remains a partial formula.
 
 ### Colonizopedia terrain preview
 

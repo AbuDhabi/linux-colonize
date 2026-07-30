@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/europe.h"
 #include "core/font.h"
@@ -27,6 +28,9 @@
  *   F8  Foreign Affairs Advisor → REPORT8.PIK
  *   F9  Indian Adviser          → REPORT9.PIK
  *   F10 Colonization Score      → WOODPANL.PIK (full-screen wood)
+ *
+ * Content prefers ColonizeCol1Save when non-NULL; otherwise falls back to
+ * runtime colony / unit / Europe pools.
  */
 typedef enum ColonizeReportId {
   COLONIZE_REPORT_RELIGIOUS = 0,
@@ -65,6 +69,8 @@ void reports_render(
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
   const EuropeScreen* europe,
+  const ColonizeCol1Save* col1,
+  int human_nation,
   int cursor_x,
   int cursor_y,
   uint32_t turn_number,

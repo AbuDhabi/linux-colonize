@@ -284,6 +284,7 @@ add_test(NAME smoke_colonies COMMAND smoke_colonies WORKING_DIRECTORY ${CMAKE_SO
 add_executable(smoke_reports
   tests/smoke/test_reports.c
   src/core/reports.c
+  src/core/col1_save.c
   src/core/colony.c
   src/core/units.c
   src/core/map.c

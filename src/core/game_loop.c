@@ -1974,6 +1974,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->units_ok ? &game->units : NULL,
       game->world_map_ok ? &game->world_map : NULL,
       game->europe_ok ? &game->europe : NULL,
+      game->col1_ok ? &game->col1 : NULL,
+      game->human_nation,
       game->map_cursor_x,
       game->map_cursor_y,
       game->turn_number,

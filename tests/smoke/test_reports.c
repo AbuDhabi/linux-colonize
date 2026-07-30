@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/col1_save.h"
 #include "core/reports.h"
 #include "platform/diagnostics.h"
 
@@ -80,6 +81,8 @@ int main(void) {
     NULL,
     NULL,
     NULL,
+    NULL,
+    0,
     0,
     0,
     1,
@@ -100,6 +103,8 @@ int main(void) {
     NULL,
     NULL,
     NULL,
+    NULL,
+    0,
     0,
     0,
     1,
@@ -112,7 +117,59 @@ int main(void) {
     return 1;
   }
 
-  fprintf(stderr, "report screens ok (%d backgrounds)\n", COLONIZE_REPORT_COUNT);
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  if (!col1_save_read_file("original_saves/COLONY01.SAV", &col1, err, sizeof(err))) {
+    fprintf(stderr, "col1 load failed: %s\n", err);
+    reports_free(&view);
+    return 1;
+  }
+
+  for (int id = 0; id < COLONIZE_REPORT_COUNT; ++id) {
+    memset(pixels, 0, sizeof(pixels));
+    reports_render(
+      &view,
+      (ColonizeReportId)id,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      &col1,
+      0,
+      0,
+      0,
+      col1.head.turn,
+      NULL,
+      &fb
+    );
+    if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
+      fprintf(stderr, "report id %d empty with Col1 data\n", id);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
+  if (col1.nation[0].current_crosses != 6 || col1.nation[0].needed_crosses != 9) {
+    fprintf(
+      stderr,
+      "unexpected COLONY01 crosses %u/%u\n",
+      (unsigned)col1.nation[0].current_crosses,
+      (unsigned)col1.nation[0].needed_crosses
+    );
+    col1_save_free(&col1);
+    reports_free(&view);
+    return 1;
+  }
+  if (col1.head.tribe_count == 0) {
+    fprintf(stderr, "COLONY01 should have tribes for Indian report\n");
+    col1_save_free(&col1);
+    reports_free(&view);
+    return 1;
+  }
+
+  col1_save_free(&col1);
+  fprintf(stderr, "report screens ok (%d backgrounds + Col1 data)\n", COLONIZE_REPORT_COUNT);
   reports_free(&view);
   diag_shutdown();
   return 0;

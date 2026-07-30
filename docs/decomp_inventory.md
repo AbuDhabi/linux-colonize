@@ -104,7 +104,8 @@ port I/O in the native build.
   mouse cursor moves on map click; unimplemented trade/pedia entries stubbed
 - Report / adviser screens: F2–F10 + REPORTS menu (`src/core/reports.c`);
   F1 Terrain Information → Colonizopedia at cursor; F8=`REPORT8.PIK`; F10=`WOODPANL.PIK`;
-  `REPORT*.PIK` / `CCBKGD.PIK` / wood backgrounds with live stubs for colony/labor/naval/economy
+  F2–F9 filled from Col1 save + runtime pools (crosses, FF, labor, trade, warehouses,
+  ships, rivals, tribes); F10 score still incomplete
 
 ## Parked: coastlines and estuaries
 
