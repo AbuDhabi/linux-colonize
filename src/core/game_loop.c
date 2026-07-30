@@ -206,11 +206,11 @@ static void blit_map_sprite_offset(
   int screen_tile_y,
   int tile_w,
   int tile_h,
+  int origin_x,
+  int origin_y,
   int pixel_ox,
   int pixel_oy
 ) {
-  (void)tile_w;
-  (void)tile_h;
   if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
     return;
   }
@@ -218,8 +218,8 @@ static void blit_map_sprite_offset(
   if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
     return;
   }
-  const int ox = screen_tile_x * tile_w + pixel_ox;
-  const int oy = screen_tile_y * tile_h + pixel_oy;
+  const int ox = origin_x + screen_tile_x * tile_w + pixel_ox;
+  const int oy = origin_y + screen_tile_y * tile_h + pixel_oy;
   ss_blit_sprite(sheet, sprite_index, framebuffer, ox, oy);
 }
 
@@ -230,7 +230,9 @@ static void blit_map_sprite(
   int screen_tile_x,
   int screen_tile_y,
   int tile_w,
-  int tile_h
+  int tile_h,
+  int origin_x,
+  int origin_y
 ) {
   if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
     return;
@@ -242,7 +244,17 @@ static void blit_map_sprite(
   const int cox = (tile_w - tile->width) / 2;
   const int coy = (tile_h - tile->height) / 2;
   blit_map_sprite_offset(
-    sheet, sprite_index, framebuffer, screen_tile_x, screen_tile_y, tile_w, tile_h, cox, coy
+    sheet,
+    sprite_index,
+    framebuffer,
+    screen_tile_x,
+    screen_tile_y,
+    tile_w,
+    tile_h,
+    origin_x,
+    origin_y,
+    cox,
+    coy
   );
 }
 
@@ -1588,8 +1600,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (input->mouse_left_clicked && game->world_map_ok) {
       const int tile_w = 16;
       const int tile_h = 16;
+      const int map_origin_x = 0;
+      const int map_origin_y = MAP_MENU_BAR_H;
       const int view_cols = 320 / tile_w;
-      const int view_rows = 200 / tile_h;
+      const int map_h = 200 - map_origin_y;
+      const int view_rows = (map_h + tile_h - 1) / tile_h;
+      if (input->mouse_y < map_origin_y) {
+        return true;
+      }
       int view_x = game->map_cursor_x - view_cols / 2;
       int view_y = game->map_cursor_y - view_rows / 2;
       const int max_view_x = (int)game->world_map.width - view_cols;
@@ -1606,8 +1624,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       if (max_view_y > 0 && view_y > max_view_y) {
         view_y = max_view_y;
       }
-      const int mx = view_x + input->mouse_x / tile_w;
-      const int my = view_y + input->mouse_y / tile_h;
+      const int mx = view_x + (input->mouse_x - map_origin_x) / tile_w;
+      const int my = view_y + (input->mouse_y - map_origin_y) / tile_h;
       if (mx >= 0 && my >= 0 && mx < (int)game->world_map.width && my < (int)game->world_map.height) {
         game->map_cursor_x = mx;
         game->map_cursor_y = my;
@@ -2018,13 +2036,16 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     goto render_log_sample;
   }
 
-  /* Map view: scrollable world map with terrain sprites and cursor overlay. */
+  /* Map view: scrollable world map below the DOS menu bar. */
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
   const int tile_w = 16;
   const int tile_h = 16;
+  const int map_origin_x = 0;
+  const int map_origin_y = MAP_MENU_BAR_H;
   const int view_cols = framebuffer->width / tile_w;
-  const int view_rows = framebuffer->height / tile_h;
+  const int map_pixel_h = framebuffer->height - map_origin_y;
+  const int view_rows = map_pixel_h > 0 ? (map_pixel_h + tile_h - 1) / tile_h : 0;
 
   int view_x = game->map_cursor_x - view_cols / 2;
   int view_y = game->map_cursor_y - view_rows / 2;
@@ -2065,14 +2086,18 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         if (base_sprite < 0 || base_sprite >= game->terrain.sprite_count) {
           base_sprite = 0;
         }
-        blit_map_sprite(&game->terrain, base_sprite, framebuffer, sx, sy, tile_w, tile_h);
+        blit_map_sprite(
+          &game->terrain, base_sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+        );
 
         if (game->phys0_ok && game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
           const int forest_sprite = map_phys0_forest_sprite_at(&game->world_map, mx, my);
           if (forest_sprite >= 0) {
-            blit_map_sprite(&game->phys0, forest_sprite, framebuffer, sx, sy, tile_w, tile_h);
+            blit_map_sprite(
+              &game->phys0, forest_sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+            );
           }
           const int overlay_layers = map_phys0_overlay_count(&game->world_map, mx, my);
           /* Coast / estuary PHYS0 stubbed when MAP_*_OVERLAYS_ENABLED is 0. */
@@ -2083,7 +2108,17 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               int oy = 0;
               map_phys0_overlay_offset_at(&game->world_map, mx, my, layer, &ox, &oy);
               blit_map_sprite_offset(
-                &game->phys0, overlay_sprite, framebuffer, sx, sy, tile_w, tile_h, ox, oy
+                &game->phys0,
+                overlay_sprite,
+                framebuffer,
+                sx,
+                sy,
+                tile_w,
+                tile_h,
+                map_origin_x,
+                map_origin_y,
+                ox,
+                oy
               );
             }
           }
@@ -2091,7 +2126,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       }
     }
   } else {
-    for (int y = 0; y < framebuffer->height; ++y) {
+    for (int y = map_origin_y; y < framebuffer->height; ++y) {
       for (int x = 0; x < framebuffer->width; ++x) {
         const int idx = y * framebuffer->width + x;
         uint8_t base = (uint8_t)(((x / 8) ^ (y / 8) ^ (int)game->turn_number) & 0x0f);
@@ -2110,7 +2145,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       view_cols,
       view_rows,
       tile_w,
-      tile_h
+      tile_h,
+      map_origin_x,
+      map_origin_y
     );
   }
 
@@ -2125,17 +2162,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       view_cols,
       view_rows,
       tile_w,
-      tile_h
+      tile_h,
+      map_origin_x,
+      map_origin_y
     );
   }
 
   if (game->cursor_ok && game->cursor.sprite_count > 0) {
-    const int cx = (game->map_cursor_x - view_x) * tile_w;
-    const int cy = (game->map_cursor_y - view_y) * tile_h;
+    const int cx = map_origin_x + (game->map_cursor_x - view_x) * tile_w;
+    const int cy = map_origin_y + (game->map_cursor_y - view_y) * tile_h;
     ss_blit_sprite(&game->cursor, 0, framebuffer, cx, cy);
   } else {
-    const int cx0 = (game->map_cursor_x - view_x) * tile_w;
-    const int cy0 = (game->map_cursor_y - view_y) * tile_h;
+    const int cx0 = map_origin_x + (game->map_cursor_x - view_x) * tile_w;
+    const int cy0 = map_origin_y + (game->map_cursor_y - view_y) * tile_h;
     for (int y = cy0; y < cy0 + tile_h; ++y) {
       for (int x = cx0; x < cx0 + tile_w; ++x) {
         if (x >= 0 && x < framebuffer->width && y >= 0 && y < framebuffer->height) {

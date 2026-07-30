@@ -205,7 +205,7 @@ Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_t
 
 ### Map menu bar
 
-On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map (outside menus) moves the cursor. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
+On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. The map viewport starts below that bar (`MAP_MENU_BAR_H`, 9px) so the top tile row is not covered. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map (outside menus) moves the cursor. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
 
 Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), Colonizopedia → Terrain Types, **F1** terrain info at cursor, and **REPORTS** F2–F10. Other trade/pedia entries show “Not implemented yet”.
 

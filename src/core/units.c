@@ -851,7 +851,9 @@ void units_render_on_map(
   int view_cols,
   int view_rows,
   int tile_w,
-  int tile_h
+  int tile_h,
+  int origin_x,
+  int origin_y
 ) {
   if (!pool || !nation_sheet || !framebuffer) {
     return;
@@ -873,11 +875,14 @@ void units_render_on_map(
       continue;
     }
 
-    const int px = sx * tile_w;
-    const int py = sy * tile_h;
+    const int px = origin_x + sx * tile_w;
+    const int py = origin_y + sy * tile_h;
     if (unit->id == pool->selected_id) {
       for (int y = py; y < py + tile_h && y < framebuffer->height; ++y) {
         for (int x = px; x < px + tile_w && x < framebuffer->width; ++x) {
+          if (x < 0 || y < 0) {
+            continue;
+          }
           if (x == px || x == px + tile_w - 1 || y == py || y == py + tile_h - 1) {
             framebuffer->pixels[y * framebuffer->width + x] = 14;
           }

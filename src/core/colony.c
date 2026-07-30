@@ -330,7 +330,9 @@ void colonies_render_on_map(
   int view_cols,
   int view_rows,
   int tile_w,
-  int tile_h
+  int tile_h,
+  int origin_x,
+  int origin_y
 ) {
   (void)icons; /* reserved for future icon */
   if (!pool || !framebuffer) {
@@ -348,12 +350,18 @@ void colonies_render_on_map(
       continue;
     }
 
-    const int px = sx * tile_w;
-    const int py = sy * tile_h;
+    const int px = origin_x + sx * tile_w;
+    const int py = origin_y + sy * tile_h;
 
     /* Filled square in bright cyan (palette index 11). */
     for (int row = py; row < py + tile_h && row < framebuffer->height; ++row) {
+      if (row < 0) {
+        continue;
+      }
       for (int col = px; col < px + tile_w && col < framebuffer->width; ++col) {
+        if (col < 0) {
+          continue;
+        }
         framebuffer->pixels[row * framebuffer->width + col] = 11;
       }
     }

@@ -121,7 +121,9 @@ void colonies_render_on_map(
   int view_cols,
   int view_rows,
   int tile_w,
-  int tile_h
+  int tile_h,
+  int origin_x,
+  int origin_y
 );
 
 #endif
