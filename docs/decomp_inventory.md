@@ -96,6 +96,8 @@ port I/O in the native build.
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
   board/unload (**O**/**U**), sail ship to/from Europe with passengers
   (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`)
+- Map menu bar: `MENU.TXT` pull-downs with mouse hit-testing (`src/core/map_menu.c`);
+  mouse cursor moves on map click; unimplemented report/trade/pedia entries stubbed
 
 ## Parked: coastlines and estuaries
 

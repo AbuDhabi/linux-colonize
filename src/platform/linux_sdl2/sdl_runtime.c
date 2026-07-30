@@ -202,8 +202,47 @@ void platform_destroy(ColonizePlatform* platform) {
   free(platform);
 }
 
+static void mouse_to_logical(
+  const ColonizePlatform* platform,
+  int window_x,
+  int window_y,
+  int* out_x,
+  int* out_y
+) {
+  int ww = platform->width;
+  int wh = platform->height;
+  if (platform->window) {
+    SDL_GetWindowSize(platform->window, &ww, &wh);
+  }
+  if (ww < 1) {
+    ww = 1;
+  }
+  if (wh < 1) {
+    wh = 1;
+  }
+  int lx = window_x * platform->width / ww;
+  int ly = window_y * platform->height / wh;
+  if (lx < 0) {
+    lx = 0;
+  }
+  if (ly < 0) {
+    ly = 0;
+  }
+  if (lx >= platform->width) {
+    lx = platform->width - 1;
+  }
+  if (ly >= platform->height) {
+    ly = platform->height - 1;
+  }
+  if (out_x) {
+    *out_x = lx;
+  }
+  if (out_y) {
+    *out_y = ly;
+  }
+}
+
 bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_input) {
-  (void)platform;
   if (!out_input) {
     return false;
   }
@@ -215,13 +254,24 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
         out_input->quit_requested = true;
         break;
       case SDL_MOUSEMOTION:
-        out_input->mouse_x = event.motion.x;
-        out_input->mouse_y = event.motion.y;
+        mouse_to_logical(
+          platform, event.motion.x, event.motion.y, &out_input->mouse_x, &out_input->mouse_y
+        );
         break;
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP:
+        mouse_to_logical(
+          platform,
+          event.button.x,
+          event.button.y,
+          &out_input->mouse_x,
+          &out_input->mouse_y
+        );
         if (event.button.button == SDL_BUTTON_LEFT) {
           out_input->mouse_left_down = (event.type == SDL_MOUSEBUTTONDOWN);
+          if (event.type == SDL_MOUSEBUTTONDOWN) {
+            out_input->mouse_left_clicked = true;
+          }
         }
         break;
       case SDL_KEYDOWN:

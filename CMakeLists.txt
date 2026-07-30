@@ -31,6 +31,7 @@ add_library(colonize_core STATIC
   src/core/font.c
   src/core/ff.c
   src/core/map.c
+  src/core/map_menu.c
   src/core/pedia.c
   src/core/europe.c
   src/core/colony_screen.c
@@ -115,6 +116,7 @@ add_executable(smoke_game_flow
   src/core/font.c
   src/core/ff.c
   src/core/map.c
+  src/core/map_menu.c
   src/core/pedia.c
   src/core/europe.c
   src/core/colony_screen.c
@@ -245,6 +247,23 @@ target_include_directories(smoke_colonies PRIVATE
 )
 
 add_test(NAME smoke_colonies COMMAND smoke_colonies WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_map_menu
+  tests/smoke/test_map_menu.c
+  src/core/map_menu.c
+  src/core/assets.c
+  src/core/font.c
+  src/core/ff.c
+  src/core/madspack.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_map_menu PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_map_menu COMMAND smoke_map_menu WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_ff
   tests/smoke/test_ff.c

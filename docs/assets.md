@@ -16,7 +16,7 @@ Key text catalogs:
 | File | Role |
 |------|------|
 | `GAME.TXT` | Dialogs, main menu (`@BEGINMENU`), prompts |
-| `MENU.TXT` | In-game menu bar structure |
+| `MENU.TXT` | In-game map menu bar (`@GAME` `@VIEW` `@ORDERS` `@REPORTS` `@TRADE` `@PEDIA`, optional `@CUP` cheat) |
 | `LABELS.TXT` | Short UI labels |
 | `COLONY.TXT` | Colony name lists by nation |
 | `ERRORS.DB` | Error / series name strings |
@@ -202,6 +202,12 @@ Prior documented models (also wrong / superseded):
 Land-side shore (140–153), animation frames (140–147), and per-tile texture variation from DOS RAM buffers are not drawn.
 
 Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
+
+### Map menu bar
+
+On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map (outside menus) moves the cursor. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
+
+Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), Colonizopedia → Terrain Types. Other entries show “Not implemented yet”.
 
 ### Colonizopedia terrain preview
 

@@ -35,7 +35,8 @@ typedef enum ColonizeKey {
 typedef struct ColonizeInputState {
   bool quit_requested;
   bool mouse_left_down;
-  int mouse_x;
+  bool mouse_left_clicked; /* edged: true on left button down this frame */
+  int mouse_x;             /* framebuffer/logical coords (320×200 space) */
   int mouse_y;
   ColonizeKey last_key;
 } ColonizeInputState;

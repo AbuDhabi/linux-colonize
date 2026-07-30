@@ -14,6 +14,7 @@
 #include "core/ff.h"
 #include "core/font.h"
 #include "core/map.h"
+#include "core/map_menu.h"
 #include "core/pedia.h"
 #include "core/pik.h"
 #include "core/savegame.h"
@@ -36,6 +37,8 @@ struct ColonizeGameState {
   bool palette_ok;
   ColonizePalette palette;
   ColonizeMsgCatalog messages;
+  ColonizeMsgCatalog map_menu_txt;
+  MapMenuBar map_menu;
   ColonizeMsgCatalog pedia;
   bool pedia_ok;
   bool in_pedia;
@@ -471,8 +474,10 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->in_menu = true;
 
   assets_msg_init(&game->messages);
+  assets_msg_init(&game->map_menu_txt);
   assets_msg_init(&game->pedia);
   assets_msg_init(&game->names);
+  map_menu_init(&game->map_menu);
   units_reset(&game->units);
   colonies_init(&game->colonies);
   debug_atlas_init(&game->debug_atlas);
@@ -507,6 +512,15 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     }
   }
   load_begin_menu(game);
+
+  char menu_txt[512];
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "MENU.TXT", menu_txt, sizeof(menu_txt))) {
+    if (assets_msg_load_file(&game->map_menu_txt, menu_txt)) {
+      map_menu_load(&game->map_menu, &game->map_menu_txt);
+    } else {
+      diag_warn("Failed to parse MENU.TXT");
+    }
+  }
 
   char names_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "NAMES.TXT", names_txt, sizeof(names_txt))) {
@@ -685,6 +699,8 @@ void game_destroy(ColonizeGameState* game) {
   ff_free(&game->colony_font);
   map_free(&game->world_map);
   assets_msg_free(&game->messages);
+  assets_msg_free(&game->map_menu_txt);
+  map_menu_free(&game->map_menu);
   assets_msg_free(&game->pedia);
   assets_msg_free(&game->names);
   debug_atlas_free(&game->debug_atlas);
@@ -730,8 +746,296 @@ static void activate_menu_selection(ColonizeGameState* game) {
   snprintf(
     game->status,
     sizeof(game->status),
-    "Map: arrows, Enter move, B found, C colony, D deploy, H sail Europe, E Europe"
+    "Map: menus (mouse), arrows, Enter move, B found, C colony, E Europe"
   );
+}
+
+static void game_find_next_colony(ColonizeGameState* game) {
+  if (!game || game->colonies.colony_count <= 0) {
+    set_status(game, "No colonies founded yet", NULL);
+    return;
+  }
+  int best_id = -1;
+  int best_x = 9999;
+  int best_y = 9999;
+  int next_id = -1;
+  int next_x = 9999;
+  int next_y = 9999;
+  const int cx = game->map_cursor_x;
+  const int cy = game->map_cursor_y;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (!c->active) {
+      continue;
+    }
+    if (best_id < 0 || c->y < best_y || (c->y == best_y && c->x < best_x)) {
+      best_id = c->id;
+      best_x = c->x;
+      best_y = c->y;
+    }
+    const bool after =
+      (c->y > cy) || (c->y == cy && c->x > cx);
+    if (after &&
+        (next_id < 0 || c->y < next_y || (c->y == next_y && c->x < next_x))) {
+      next_id = c->id;
+      next_x = c->x;
+      next_y = c->y;
+    }
+  }
+  const ColonizeColony* target =
+    colonies_get(&game->colonies, next_id >= 0 ? next_id : best_id);
+  if (!target) {
+    set_status(game, "No colonies founded yet", NULL);
+    return;
+  }
+  game->map_cursor_x = target->x;
+  game->map_cursor_y = target->y;
+  snprintf(game->status, sizeof(game->status), "Find Colony: %s", target->name);
+}
+
+static void game_enter_colony_at_cursor(ColonizeGameState* game) {
+  const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
+  if (cid < 0) {
+    set_status(game, "No colony at cursor", NULL);
+    return;
+  }
+  game->in_colony = true;
+  game->in_europe = false;
+  game->in_pedia = false;
+  game->colony_view_id = cid;
+  const ColonizeColony* col = colonies_get(&game->colonies, cid);
+  snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "colony");
+  colony_screen_set_status(&game->colony_screen, col ? col->name : "Colony");
+}
+
+static void game_center_on_selected_unit(ColonizeGameState* game) {
+  const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
+  if (!selected || !selected->active) {
+    set_status(game, "No active unit to center on", NULL);
+    return;
+  }
+  game->map_cursor_x = selected->x;
+  game->map_cursor_y = selected->y;
+  set_status(game, "Centered on active unit", NULL);
+}
+
+/* Returns false if the game should quit. */
+static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
+  switch (action) {
+    case MAP_MENU_ACTION_NONE:
+      return true;
+    case MAP_MENU_ACTION_UNIMPLEMENTED:
+      set_status(game, "Not implemented yet", NULL);
+      return true;
+    case MAP_MENU_ACTION_SAVE: {
+      ColonizeSavePayload payload = {
+        .turn_number = game->turn_number,
+        .random_seed = game->elapsed_ms,
+        .map_seed = game->map_seed
+      };
+      char err[256];
+      if (!savegame_write(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+        set_status(game, "Save failed", err);
+        return true;
+      }
+      snprintf(game->status, sizeof(game->status), "Saved slot1 (turn %u)", game->turn_number);
+      return true;
+    }
+    case MAP_MENU_ACTION_LOAD: {
+      ColonizeSavePayload payload;
+      char err[256];
+      if (!savegame_read(game->config.save_dir, "slot1", &payload, err, sizeof(err))) {
+        set_status(game, "Load failed", err);
+        return true;
+      }
+      game->turn_number = payload.turn_number;
+      game->map_seed = payload.map_seed;
+      snprintf(game->status, sizeof(game->status), "Loaded slot1 (turn %u)", game->turn_number);
+      return true;
+    }
+    case MAP_MENU_ACTION_RETIRE: {
+      ColonizeInputState empty;
+      memset(&empty, 0, sizeof(empty));
+      map_menu_handle_input(&game->map_menu, &empty, NULL, true);
+      game->in_menu = true;
+      set_status(game, "Retired to main menu", NULL);
+      return true;
+    }
+    case MAP_MENU_ACTION_EXIT:
+      return false;
+    case MAP_MENU_ACTION_EUROPE:
+      game->in_europe = true;
+      game->in_pedia = false;
+      game->in_colony = false;
+      snprintf(
+        game->europe.status,
+        sizeof(game->europe.status),
+        "Home port ready. Recruit / Train / S Sail / Esc."
+      );
+      return true;
+    case MAP_MENU_ACTION_FIND_COLONY:
+      game_find_next_colony(game);
+      return true;
+    case MAP_MENU_ACTION_CENTER_VIEW:
+      game_center_on_selected_unit(game);
+      return true;
+    case MAP_MENU_ACTION_ACTIVATE_UNIT: {
+      const int at = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+      if (at < 0) {
+        set_status(game, "No unit at cursor", NULL);
+      } else {
+        game->units.selected_id = at;
+        const ColonizeUnit* u = units_get_const(&game->units, at);
+        const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
+        snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_BUILD_COLONY: {
+      const int cx = game->map_cursor_x;
+      const int cy = game->map_cursor_y;
+      if (!game->world_map_ok || !colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
+        set_status(game, "Cannot found colony here", NULL);
+      } else {
+        const int uid = units_id_at(&game->units, cx, cy);
+        if (uid < 0) {
+          set_status(game, "No unit at cursor to found colony", NULL);
+        } else if (units_is_sea(&game->units, uid)) {
+          set_status(game, "Ships cannot found colonies", NULL);
+        } else {
+          ColonizeUnit* founder = units_get(&game->units, uid);
+          const int type_index = founder ? founder->type_index : -1;
+          int tools = 0, muskets = 0, horses = 0;
+          units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
+          const int cid = colonies_found(
+            &game->colonies, &game->world_map, cx, cy, type_index, tools, muskets, horses
+          );
+          if (cid >= 0) {
+            units_despawn(&game->units, uid);
+            const ColonizeColony* col = colonies_get(&game->colonies, cid);
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Founded %s (pop %d)",
+              col ? col->name : "colony",
+              col ? col->population : 0
+            );
+          }
+        }
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_JOIN_COLONY:
+      game_enter_colony_at_cursor(game);
+      return true;
+    case MAP_MENU_ACTION_LOAD_CARGO: {
+      if (!game->world_map_ok || !game->units_ok) {
+        set_status(game, "Cannot load cargo", NULL);
+        return true;
+      }
+      const int sid = game->units.selected_id;
+      const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+      int land_id = -1;
+      int ship_id = -1;
+      if (sid >= 0 && at_cursor >= 0) {
+        if (!units_is_sea(&game->units, sid) && units_is_sea(&game->units, at_cursor)) {
+          land_id = sid;
+          ship_id = at_cursor;
+        } else if (units_is_sea(&game->units, sid) && !units_is_sea(&game->units, at_cursor)) {
+          land_id = at_cursor;
+          ship_id = sid;
+        }
+      }
+      if (land_id < 0 || ship_id < 0) {
+        set_status(game, "Select land unit and cursor on adjacent ship (or reverse)", NULL);
+      } else if (!units_board(&game->units, land_id, ship_id)) {
+        set_status(game, "Cannot board (need adjacent ship with free hold)", NULL);
+      } else {
+        const ColonizeUnit* ship = units_get_const(&game->units, ship_id);
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "Boarded ship (hold %d)",
+          ship ? ship->cargo_count : 0
+        );
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_UNLOAD_CARGO: {
+      const int sid = game->units.selected_id;
+      if (!game->world_map_ok || !game->units_ok || sid < 0 || !units_is_sea(&game->units, sid)) {
+        set_status(game, "Select a ship to unload", NULL);
+      } else if (!units_unload(
+                   &game->units, sid, &game->world_map, game->map_cursor_x, game->map_cursor_y
+                 )) {
+        set_status(game, "Cannot unload (need adjacent free land)", NULL);
+      } else {
+        set_status(game, "Unit unloaded", NULL);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_RETURN_EUROPE: {
+      /* Same rules as H: selected ship on high seas sails to Europe harbor. */
+      if (!game->world_map_ok || !game->units_ok || !game->europe_ok) {
+        set_status(game, "Cannot return to Europe", NULL);
+        return true;
+      }
+      const int sid = game->units.selected_id;
+      const ColonizeUnit* ship = units_get_const(&game->units, sid);
+      if (sid < 0 || !ship || !units_is_sea(&game->units, sid)) {
+        set_status(game, "Select a ship to sail to Europe", NULL);
+      } else if (!units_on_high_seas(&game->world_map, ship->x, ship->y)) {
+        set_status(game, "Ship must be on high seas", NULL);
+      } else {
+        const int berth_x = ship->x;
+        const int berth_y = ship->y;
+        int type_index = -1;
+        char ship_name[32];
+        int cargo_types[EUROPE_SHIP_CARGO_MAX];
+        int cargo_count = 0;
+        if (!units_despawn_ship_with_cargo(
+              &game->units,
+              sid,
+              &type_index,
+              ship_name,
+              sizeof(ship_name),
+              cargo_types,
+              &cargo_count,
+              EUROPE_SHIP_CARGO_MAX
+            )) {
+          set_status(game, "Failed to sail ship", NULL);
+        } else if (!europe_harbor_push(
+                     &game->europe, type_index, ship_name, cargo_types, cargo_count
+                   )) {
+          const int restored = units_spawn_ship_with_cargo(
+            &game->units, type_index, berth_x, berth_y, cargo_types, cargo_count
+          );
+          if (restored >= 0) {
+            game->units.selected_id = restored;
+          }
+          set_status(game, "Europe harbor is full", NULL);
+        } else {
+          snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
+          game->in_europe = true;
+        }
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_NO_ORDERS:
+      game->turn_number++;
+      units_end_turn(&game->units);
+      snprintf(game->status, sizeof(game->status), "Turn %u", game->turn_number);
+      return true;
+    case MAP_MENU_ACTION_PEDIA_TERRAIN:
+      game->in_pedia = true;
+      game->in_europe = false;
+      game->in_colony = false;
+      game->pedia_terrain_index = 0;
+      return true;
+    default:
+      set_status(game, "Not implemented yet", NULL);
+      return true;
+  }
 }
 
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
@@ -984,6 +1288,68 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       );
     }
     return true;
+  }
+
+  /* Map-screen menu bar (MENU.TXT pull-downs) + mouse map click. */
+  if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas) {
+    const ColonizeFont* menu_font = game->menu_font_ok ? &game->menu_font : NULL;
+    const bool menu_was_open = game->map_menu.open_index >= 0;
+    if (input->last_key == COLONIZE_KEY_ESCAPE && menu_was_open) {
+      ColonizeInputState empty;
+      memset(&empty, 0, sizeof(empty));
+      map_menu_handle_input(&game->map_menu, &empty, menu_font, true);
+      return true;
+    }
+
+    const bool click_on_menu_ui =
+      input->mouse_left_clicked &&
+      map_menu_hit_ui(&game->map_menu, input->mouse_x, input->mouse_y);
+    const MapMenuAction menu_action =
+      map_menu_handle_input(&game->map_menu, input, menu_font, false);
+    if (menu_action != MAP_MENU_ACTION_NONE) {
+      if (menu_action == MAP_MENU_ACTION_UNIMPLEMENTED) {
+        set_status(game, "Not implemented yet", NULL);
+        return true;
+      }
+      if (!game_apply_map_menu_action(game, menu_action)) {
+        return false;
+      }
+      return true;
+    }
+
+    if (input->mouse_left_clicked && (click_on_menu_ui || menu_was_open)) {
+      /* Menu open/close consumed the click. */
+      return true;
+    }
+
+    if (input->mouse_left_clicked && game->world_map_ok) {
+      const int tile_w = 16;
+      const int tile_h = 16;
+      const int view_cols = 320 / tile_w;
+      const int view_rows = 200 / tile_h;
+      int view_x = game->map_cursor_x - view_cols / 2;
+      int view_y = game->map_cursor_y - view_rows / 2;
+      const int max_view_x = (int)game->world_map.width - view_cols;
+      const int max_view_y = (int)game->world_map.height - view_rows;
+      if (view_x < 0) {
+        view_x = 0;
+      }
+      if (view_y < 0) {
+        view_y = 0;
+      }
+      if (max_view_x > 0 && view_x > max_view_x) {
+        view_x = max_view_x;
+      }
+      if (max_view_y > 0 && view_y > max_view_y) {
+        view_y = max_view_y;
+      }
+      const int mx = view_x + input->mouse_x / tile_w;
+      const int my = view_y + input->mouse_y / tile_h;
+      if (mx >= 0 && my >= 0 && mx < (int)game->world_map.width && my < (int)game->world_map.height) {
+        game->map_cursor_x = mx;
+        game->map_cursor_y = my;
+      }
+    }
   }
 
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
@@ -1526,7 +1892,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     snprintf(hud, sizeof(hud), "Turn %u  Esc=menu", game->turn_number);
   }
   const ColonizeFont* hud_font = game->menu_font_ok ? &game->menu_font : NULL;
-  font_draw_text(hud_font, framebuffer, 4, 4, hud, 15);
+  font_draw_text(hud_font, framebuffer, 4, 192, hud, 15);
+
+  if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_pedia &&
+      !game->in_debug_atlas) {
+    map_menu_render((MapMenuBar*)&game->map_menu, hud_font, framebuffer);
+  }
 
 render_log_sample:
   render_log_counter++;
