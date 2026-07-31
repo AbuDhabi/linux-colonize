@@ -86,9 +86,10 @@ port I/O in the native build.
 - Decomp exports (`viceroy.c`, `viceroy_unpacked.c`) are not compiled into the binary;
   DOS typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
-  (see `docs/viceroy_tables.md`)
-- World map view: terrain + PHYS0 overlays (forests, hills, rivers, coasts, estuaries)
-- Coast / estuary: enabled from `MAPEDIT.EXE` compositor (`FUN_1a47_0932`; see below)
+  (see `docs/viceroy_tables.md`); **static map feature art** follows `MAPEDIT.EXE` instead
+- World map view (**fidelity OK vs MAPEDIT**): terrain, land transitions, forest/hill/mountain/river
+  connectivity, coasts, estuaries, special resources, rumours — see below and `docs/assets.md`
+- Coast / estuary: enabled (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` default 1)
 - **Music playback: parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0` in `src/core/sound.h`; loader kept (see `docs/assets.md`)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
@@ -153,9 +154,11 @@ Evidence:
 
 AI production for non-human Europeans is **skipped** until save-diff evidence says otherwise; human colonies always tick.
 
-## Map coastlines and estuaries (MAPEDIT)
+## Map compositor (MAPEDIT)
 
-Authoritative static map compositor: `COLONIZE/MAPEDIT.EXE` / `mapedit.c` (`FUN_1a47_0932`, land mask `FUN_1a47_01ae`). No RTLink; no fog-of-war / animation. Enabled by default (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` in `src/core/map.h`).
+Authoritative static map compositor: `COLONIZE/MAPEDIT.EXE` / `mapedit.c` (`FUN_1a47_0932`, land mask `FUN_1a47_01ae`). No RTLink; no fog-of-war / animation. Coast and estuary are **on by default** (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` in `src/core/map.h`); the flags are compile-time debug toggles, not parked features.
+
+**Recovered and matching MAPEDIT on AMER2:** coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, procedural resources, rumours. Details and PHYS0 ranges: [assets.md](assets.md).
 
 ### Coast decoration
 
@@ -169,7 +172,7 @@ On ocean / high-seas tiles with at least one land neighbour:
    **`108 + 4*quad_mask + q`** at pixel offsets NW/NE/SE/SW (`0`/`8`).
 
 Draw order vs MAPEDIT: land TERRAIN underlayer (last cardinal neighbour) → coast PHYS0 →
-masked ocean into palette-0 holes (`FUN_1a47_0676`) → estuary. Fog of war is not drawn
+masked ocean into palette-0 holes (`FUN_1a47_0676`) → resources / estuary. Fog of war is not drawn
 (MAPEDIT skips it too).
 
 ### River estuaries
@@ -191,19 +194,20 @@ Same MAPEDIT cardinal mask as rivers (`FUN_1a47_030e` / `036e` / `0418`): **N=8,
 
 Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers/resources via overlay layers.
 
-Land transitions (`FUN_1a47_06da`): PHYS0 **104+q** colour-0 masks then neighbour TERRAIN fill (before forest). Ocean neighbours resolve through land cardinals (W/S/E/N).
+### Land transitions
 
-Resources (`FUN_12ab_0458`) / rumours (`0540`): seed default **100**; type table DS **0x4de** / file **0x1794e**; PHYS **89+type** / **103**. Ocean → fish.
+`FUN_1a47_06da`: PHYS0 **104+q** colour-0 masks then neighbour TERRAIN fill (before forest). Ocean neighbours resolve through land cardinals (W/S/E/N).
 
-### Remaining map compositor gaps
+### Resources / rumours
+
+`FUN_12ab_0458` / `0540`: seed default **100**; type table DS **0x4de** / file **0x1794e** (MAPEDIT DS base **0x17470**); PHYS **89+type** / **103**. Ocean → fish (type 7). Mountain class **27** / hill **28**. Full type→terrain table in [assets.md](assets.md).
+
+### Remaining gaps
 
 - Fog-of-war / exploration blackness (intentional MAPEDIT gap; game still needs it)
-- Coast animation frames; texture-variation overlays from DOS RAM buffers
-- Prior VICEROY RAM-buffer / parked quadrant heuristics — superseded by MAPEDIT
-
-### Other map compositor gaps (unchanged priority)
-
-- Texture variation overlays (per-tile random `PHYS0` variants from DOS buffers)
-- Roads, fog-of-war
+- Roads
+- Coast animation frames; per-tile texture-variation overlays from DOS RAM buffers
 - Resource seed from live game RNG (static map view uses MAPEDIT default seed 100)
+
+Prior VICEROY RAM-buffer / quadrant coast heuristics are **superseded** by MAPEDIT (see [viceroy_tables.md](viceroy_tables.md)).
 

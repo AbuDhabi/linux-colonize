@@ -78,16 +78,36 @@ Colonization scenario maps (e.g. `AMER2.MP`) are raw binary files:
 | 2 | 1 | map height |
 | 3 | 3 | unknown header padding |
 | 6 | W×H | terrain layer |
-| 6+W×H | W×H | layer 2 (unused in shipped maps) |
-| 6+2×W×H | W×H | layer 3 (fog / visibility in-game) |
+| 6+W×H | W×H | layer 2 (runtime flags; AMER2 is all zeros) |
+| 6+2×W×H | W×H | layer 3 (fog / visibility in-game; rare art markers) |
 
-Each terrain byte (FreeCol `ColonizationMapLoader`):
+**Layer 2** (MAPEDIT / VICEROY): bit 1 = settlement ownership (suppresses resources/rumours); bit 2 = depleted resource (silver → PHYS0 **89**). Shipped `.MP` files typically leave this zero; the live game fills it.
 
-- bits 0–4: terrain index 0–26 (see table below; bit 3 and bit 4 both contribute to the index)
-- bits 5–7: overlay (0=none, 1=hill, 2=minor river, 5=mountain, 6=major river, …)
+**Layer 3**: fog/visibility at runtime. AMER2 also uses **`0x0e`** at `(43,68)` as an isolated mountain peak marker (PHYS0 **32**).
+
+Each terrain byte (FreeCol `ColonizationMapLoader` / MAPEDIT):
+
+- bits 0–4: terrain index 0–26 (see **Map terrain index** below)
+- bits 5–7: feature flags (also readable as FreeCol “overlay” 0–7):
+  - `0x20` hill or mountain base
+  - `0x40` river (any)
+  - `0x80` with `0x20` → mountain; with `0x40` → major river; alone unused for land art
 
 Forest indices 8–15 use bit 3; 16–23 use bit 4 (same eight forest types on cleared land 0–7).
-The Linux port decodes terrain as `byte & 0x1f`.
+The Linux port decodes the index as `byte & 0x1f`.
+
+### Map terrain index (bits 0–4)
+
+| Index | Type |
+|------:|------|
+| 0–7 | Cleared land (tundra…swamp; same order as TERRAIN sprites 0–7) |
+| 8–15 | Forests on types 0–7 (bit 3 set); scrub = type 1 → indices 9, 17 |
+| 16–23 | Same forests with bit 4 set |
+| 24 | Arctic |
+| 25 | Ocean |
+| 26 | High seas |
+
+Hills / mountains are **not** separate indices — they set bit `0x20` (and `0x80` for mountains) on a land/forest byte. Resource class then remaps to table slots **27** (mountain) / **28** (hill).
 
 ### TERRAIN.SS sprite index
 
@@ -151,9 +171,19 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 ### Map overlay compositing
 
-The Linux port draws cleared terrain from `TERRAIN.SS` (using FreeCol-style decoding of bits 0–4), then composites `.MP` overlays from `PHYS0.SS`.
+**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. Remaining gaps are fog-of-war, roads, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
 
-**Terrain byte decode (layer 1):** `terrain_index = byte & 0x1f` (FreeCol). Indices 0–7 are cleared land; 8–23 are forests (type = `index & 7`); 24–26 are arctic/ocean/high seas.
+Authority for static map art is decompiled **`MAPEDIT.EXE` / `mapedit.c`** (no RTLink), not VICEROY’s runtime buffers. Compile-time toggles `MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` (default **1** in `src/core/map.h`) exist only to disable coast/estuary for debugging.
+
+The Linux port draws cleared terrain from `TERRAIN.SS` (bits 0–4), then composites `PHYS0.SS` in MAPEDIT order:
+
+1. **Base** — land TERRAIN, or coastal **underlayer** (last cardinal land neighbour’s TERRAIN)
+2. **Land transitions** (`FUN_1a47_06da`, land tiles only) — PHYS0 **104+q** colour-0 edge, then neighbour TERRAIN into holes; ocean neighbours resolve via land cardinals W→S→E→N
+3. **Forest canopy** — PHYS0 **64+mask** (non-scrub)
+4. **Overlays** — coast fragments/corners; hills/mountains/rivers; resources; rumours; estuaries  
+   On coast tiles: coast PHYS0 → masked ocean into palette-0 holes → resource/estuary layers
+
+**Terrain byte decode (layer 1):** `terrain_index = byte & 0x1f`. Indices 0–7 are cleared land; 8–23 are forests (type = `index & 7`); 24–26 are arctic/ocean/high seas.
 
 **Forest TERRAIN/PHYS0 rules:**
 
@@ -185,23 +215,41 @@ Layer-3 `0x0e` on AMER2 `(43,68)` is a lone tundra peak drawn as isolated mounta
 
 **Land terrain transitions.** After the base TERRAIN blit, MAPEDIT `FUN_1a47_06da` walks cardinal neighbours; when the neighbour’s display type differs (forests compared as `index & 7`), it blits PHYS0 **104+q** (colour-0 edge mask) then fills holes with the neighbour’s TERRAIN. Ocean/high-seas neighbours are resolved via their land cardinals (W→S→E→N) so coast corners pick up diagonal land fill. Drawn before forest canopy.
 
-**Special resources / rumours.** Procedural from coordinates + seed (MAPEDIT `FUN_12ab_0458` / `0540`, default seed **100**). Type table at MAPEDIT DS:**0x4de** (file **0x1794e**). PHYS0 **89–102** = `89 + type`; rumours **103**. Ocean → fish (type 7); not stored in `.MP` layer 2.
+**Special resources / rumours.** Procedural from coordinates + seed (MAPEDIT `FUN_12ab_0458` / `0540`, default seed **100**). Type table at MAPEDIT DS:**0x4de** (file **0x1794e**; DS base **0x17470**). PHYS0 **89–102** = `89 + type`; rumours **103**. Not stored as art indices in `.MP` layer 2 (layer 2 only gates settlement / depleted).
 
-Roads and fog overlays are not drawn from static `.MP` data yet.
+| Type | PHYS0 | Typical terrain class |
+|-----:|------:|------------------------|
+| 0 | 89 | Depleted silver (layer2 bit 2 + type 12) |
+| 1 | 90 | Oasis — desert, scrub forest |
+| 2 | 91 | Wheat — plains |
+| 3 | 92 | Cotton — prairie |
+| 4 | 93 | Tobacco — grassland |
+| 5 | 94 | Sugar — savannah |
+| 6 | 95 | Minerals/gems — tundra, marsh, swamp, wetland/rain forests |
+| 7 | 96 | Fish — ocean (25); high seas / arctic are −1 in the table |
+| 8 | 97 | Beaver — mixed forest |
+| 9 | 98 | Deer/game — boreal, broadleaf |
+| 10 | 99 | Timber — conifer, tropical |
+| 12 | 101 | Silver — mountains (class 27) |
+| 13 | 102 | Ore — hills (class 28) |
 
-**Coastal ocean.** `MAP_COAST_OVERLAYS_ENABLED` defaults to `1`. MAPEDIT: land underlayer → fragments **108+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary. Details: [decomp_inventory.md](decomp_inventory.md).
+Class index = terrain `& 0x1f`, except mountain → **27**, hill → **28** (`FUN_19b7_0006`). Table value `0` remaps to type 6; `−1` means no resource.
 
-| Model | PHYS0 / TERRAIN | Status |
-|-------|-----------------|--------|
-| MAPEDIT underlayer + zero-fill | land TERRAIN, then ocean into dest==0 | **Enabled** |
-| MAPEDIT fragments + corners | 108–139 (8×8), 150–153 (16×16) | **Enabled** |
-| MAPEDIT estuary cardinals | 140–147 (16×16) | **Enabled** |
-| Old 4-quadrant bases 108/116/124/132 | 108–139 | Superseded |
-| Estuary DOS RAM lookup | 108–139, 149 | Superseded |
+Roads and fog overlays are not drawn yet.
 
-Not drawn yet: fog of war; per-tile texture variation from DOS RAM buffers.
+**Coastal ocean.** Enabled by default. MAPEDIT: land underlayer → fragments **108+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary (+ fish when present). Details: [decomp_inventory.md](decomp_inventory.md).
 
-Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
+| Piece | PHYS0 / TERRAIN |
+|-------|-----------------|
+| Underlayer + zero-fill | land TERRAIN, then ocean into dest==0 |
+| Fragments + corners | 108–139 (8×8), 150–153 (16×16) |
+| Estuary cardinals | 140–147 (16×16) |
+
+Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this MAPEDIT path (`docs/viceroy_tables.md`).
+
+Not drawn yet: fog of war; roads; per-tile texture variation from DOS RAM buffers; coast animation frames.
+
+Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md). World-map **feature art** (forest/hill/mountain/coast) uses MAPEDIT rules above, not those VICEROY tables.
 
 ### Map menu bar
 

@@ -1,6 +1,11 @@
 # VICEROY.EXE data tables
 
-Static lookup tables used by the DOS map renderer and Colonizopedia tile previews, extracted from `COLONIZE/VICEROY.EXE`.
+Static lookup tables extracted from `COLONIZE/VICEROY.EXE` for Colonizopedia tile
+previews and residual DOS references.
+
+**World-map feature art** (coasts, forests, hills, mountains, land transitions,
+resources) is driven by **`MAPEDIT.EXE`**, not these tables — see
+[decomp_inventory.md](decomp_inventory.md) and [assets.md](assets.md).
 
 Regenerate embedded copies:
 
@@ -73,17 +78,19 @@ Small base-index tables immediately after the river transition table:
 ### `connectivity_transition` (21 bytes)
 
 Candidate for coastline / connectivity variant selection (sprites in the 112–139 band).
-**Not wired** in the Linux port for coast selection — ocean coasts/estuaries now follow `MAPEDIT.EXE` (`FUN_1a47_0932`); see [decomp_inventory.md](decomp_inventory.md) (**Map coastlines and estuaries**). This table remains a VICEROY candidate for texture/connectivity work, not the MAPEDIT coast path.
+**Not used** for world-map coasts — those follow `MAPEDIT.EXE` (`FUN_1a47_0932`); see
+[decomp_inventory.md](decomp_inventory.md). Retained as a VICEROY candidate for unrelated
+texture/connectivity work.
 
 ### Linux compositor usage
 
 | Table | Wired? | Notes |
 |-------|--------|-------|
-| `connectivity_transition` | no | Superseded for coasts by MAPEDIT; unused |
-| `feature_sprite_bases_b[3]` | no | Was tundra canopy 65; map now uses isolated forest **64** |
+| `connectivity_transition` | no | World coasts use MAPEDIT; table unused |
+| `feature_sprite_bases_b[3]` | no | Was tundra canopy 65; map uses isolated forest **64** |
 | `viceroy_forest_phys0_sprite()` | pedia | Fixed per-type preview; world map uses MAPEDIT `64+mask` |
 | `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |
-| `feature_sprite_bases_a` | no | Superseded for hills/mountains by MAPEDIT `32/48+mask` |
+| `feature_sprite_bases_a` | no | World hills/mountains use MAPEDIT `32/48+mask` |
 | `terrain_meta` class | pedia | Mountains/hills class flags |
 
 ## References in decomp exports

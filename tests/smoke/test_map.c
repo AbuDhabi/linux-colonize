@@ -456,13 +456,13 @@ int main(void) {
 #if MAP_COAST_OVERLAYS_ENABLED
     ", coast enabled"
 #else
-    ", coast parked"
+    ", coast disabled"
 #endif
     ,
 #if MAP_ESTUARY_OVERLAYS_ENABLED
     ", estuary enabled"
 #else
-    ", estuary parked"
+    ", estuary disabled"
 #endif
   );
 

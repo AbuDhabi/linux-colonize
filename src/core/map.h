@@ -11,7 +11,8 @@
  * Ocean-tile coast decoration from MAPEDIT.EXE FUN_1a47_0932 / FUN_1a47_01ae:
  * 8-neighbour land mask → either one 16×16 corner (150–153) or four 8×8
  * fragments (108 + 4*quad_mask + q). MAPEDIT IDs are 1-based; values here are
- * 0-based sheet indices.
+ * 0-based sheet indices. Default on — fidelity matches MAPEDIT; set to 0 only
+ * to debug without coast art.
  */
 #ifndef MAP_COAST_OVERLAYS_ENABLED
 #define MAP_COAST_OVERLAYS_ENABLED 1
@@ -21,6 +22,7 @@
  * Ocean-tile river estuaries from MAPEDIT.EXE FUN_1a47_0932:
  * terrain & 0xc0 on ocean → up to four 16×16 PHYS0 mouths (140–143 major,
  * 144–147 minor) when the matching cardinal neighbour is land with bit 0x40.
+ * Default on (same as coasts).
  */
 #ifndef MAP_ESTUARY_OVERLAYS_ENABLED
 #define MAP_ESTUARY_OVERLAYS_ENABLED 1
