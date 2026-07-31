@@ -2790,14 +2790,18 @@ static void game_render_begin_menu(
 
   const ColonizeFont* font = begin_menu_font(game);
   const int line_h = font ? (font->max_height + 2) : 8;
-  const int pad_x = 8;
-  const int pad_y = 6;
-  const int gap_after_version = game->menu_version_line[0] ? 4 : 0;
-  const int version_h = game->menu_version_line[0] ? line_h : 0;
+  const int title_h = font ? font->max_height : 6;
+  const int title_pad_top = 3; /* from innermost top bevel */
+  const int title_pad_x = 2; /* from innermost left/right bevel */
+  const int option_pad_x = 8;
+  const int gap_after_title = 4; /* title glyph bottom → first option */
   const int options_h = game->menu_option_count * line_h;
-  /* Outer size includes POPUP_FRAME_INSET chrome on each side. */
-  int dialog_h =
-    POPUP_FRAME_INSET * 2 + pad_y + version_h + gap_after_version + options_h + pad_y;
+  /*
+   * Outer height from the previous pad_y=6 / line_h layout, then -12 from the
+   * bottom (dialog_y unchanged). Inner title spacing is tighter (3 / title_h / 4).
+   */
+  int dialog_h = POPUP_FRAME_INSET * 2 + 6 +
+                 (game->menu_version_line[0] ? line_h + 4 : 0) + options_h + 6 - 12;
   if (dialog_h < 24) {
     dialog_h = 24;
   }
@@ -2840,12 +2844,12 @@ static void game_render_begin_menu(
     return;
   }
 
-  int text_y = inner_y + pad_y;
+  int text_y = inner_y + title_pad_top;
   if (game->menu_version_line[0]) {
     const int tw = begin_menu_text_width(font, game->menu_version_line);
     int tx = inner_x + (inner_w - tw) / 2;
-    if (tx < inner_x + pad_x) {
-      tx = inner_x + pad_x;
+    if (tx < inner_x + title_pad_x) {
+      tx = inner_x + title_pad_x;
     }
     begin_menu_draw_markup(
       font,
@@ -2856,24 +2860,25 @@ static void game_render_begin_menu(
       game->menu_col_basic,
       game->menu_col_hilite
     );
-    text_y += line_h + gap_after_version;
+    text_y += title_h + gap_after_title;
   }
 
   for (int i = 0; i < game->menu_option_count; ++i) {
     const int row_y = text_y + i * line_h;
     const bool selected = (i == game->menu_selection);
     if (selected) {
+      /* 1px inset from each side of the inner content edge. */
       begin_menu_fill_rect(
         framebuffer,
-        inner_x,
+        inner_x + 1,
         row_y - 1,
-        inner_x + inner_w - 1,
+        inner_x + inner_w - 2,
         row_y + line_h - 2,
         game->menu_col_select
       );
     }
     font_draw_text(
-      font, framebuffer, inner_x + pad_x, row_y, game->menu_options[i], game->menu_col_basic
+      font, framebuffer, inner_x + option_pad_x, row_y, game->menu_options[i], game->menu_col_basic
     );
   }
 }
