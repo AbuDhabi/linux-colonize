@@ -42,6 +42,7 @@ add_library(colonize_core STATIC
   src/core/map.c
   src/core/map_menu.c
   src/core/map_panel.c
+  src/core/popup.c
   src/core/pedia.c
   src/core/reports.c
   src/core/europe.c
@@ -173,6 +174,7 @@ add_executable(smoke_game_flow
   src/core/map.c
   src/core/map_menu.c
   src/core/map_panel.c
+  src/core/popup.c
   src/core/pedia.c
   src/core/reports.c
   src/core/europe.c
@@ -192,6 +194,22 @@ add_executable(smoke_game_flow
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
+
+add_executable(smoke_popup
+  tests/smoke/test_popup.c
+  src/core/popup.c
+  src/core/ss.c
+  src/core/madspack.c
+  src/core/assets.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_popup PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_popup COMMAND smoke_popup)
 
 add_executable(smoke_map
   tests/smoke/test_map.c

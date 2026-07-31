@@ -51,7 +51,20 @@ Colonization `.PIK` layout (after MADSPACK explode):
 | 1 | Indexed 8-bit pixels (`width * height`) |
 | 2 | Optional VGA palette (768 bytes = 256×RGB, 6-bit DAC values) |
 
-The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette, then overlays the `@BEGINMENU` wood dialog (`OPENTILE.SS` tile fill, `@width`/`@y`/`@smallfont` → `FONTTINY.FF`). Text colors come from `NAMES.TXT` `@COLORS` (`basic=68`, `{hilite}=149`, `select=138` on WOODPANL / in-game palettes; remapped by RGB onto `OPENMENU.PIK` so the title menu matches Colonizopedia greens — see `src/core/ui_colors.h`). Version line is `{COLONIZATION} Linux Port` + `COLONIZE_VERSION_STRING`. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
+The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette, then overlays `@BEGINMENU` as a shared **popup window** (`OPENTILE.SS` fill, 3px wood bevel chrome from `src/core/popup.c`, `@width`/`@y`/`@smallfont` → `FONTTINY.FF`). Text colors come from `NAMES.TXT` `@COLORS` (`basic=68`, `{hilite}=149`, `select=138` on WOODPANL / in-game palettes; remapped by RGB onto `OPENMENU.PIK` so the title menu matches Colonizopedia greens — see `src/core/ui_colors.h`). Border colors (`border0/1/2`) are remapped the same way. Version line is `{COLONIZATION} Linux Port` + `COLONIZE_VERSION_STRING`. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
+
+### Popup window
+
+Colonization uses the same wood dialog chrome for many confirmations and prompts. The Linux port exposes it as a reusable template in `src/core/popup.c` / `popup.h`:
+
+| Layer (outside → in) | Size | Color (`NAMES.TXT` `@COLORS`) |
+|----------------------|------|-------------------------------|
+| Fill | full rect | Caller tile sprite 0 (`OPENTILE.SS` on the title menu; typically `WOODTILE.SS` in-game). Solid index `4` if no sheet. |
+| Outer | 1px all sides | Black (`0`) |
+| Mid | 1px all sides | `border0` = **134** (WOODTILE mid brown) |
+| Bevel | 1px | `border1` = **128** light on **top + right**; `border2` = **138** dark on **bottom + left** |
+
+Content draws inside the rect inset by `POPUP_FRAME_INSET` (3). Call `popup_draw(...)`; on palettes that differ from WOODPANL (e.g. `OPENMENU.PIK`), use `popup_colors_from_ui` + `popup_colors_remap`. First consumer: title `@BEGINMENU`. Not the same as `WOODFRAM.SS` (colony frame graphic) or map-menu pulldowns.
 
 `.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`.
 

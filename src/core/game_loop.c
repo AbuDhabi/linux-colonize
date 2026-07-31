@@ -20,6 +20,7 @@
 #include "core/map_panel.h"
 #include "core/pedia.h"
 #include "core/pik.h"
+#include "core/popup.h"
 #include "core/reports.h"
 #include "core/savegame.h"
 #include "core/ss.h"
@@ -128,6 +129,7 @@ struct ColonizeGameState {
   uint8_t menu_col_basic;
   uint8_t menu_col_hilite;
   uint8_t menu_col_select;
+  ColonizePopupColors menu_popup_colors;
   char status[128];
 };
 
@@ -1081,6 +1083,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->menu_col_basic = COLONIZE_COL_BASIC;
   game->menu_col_hilite = COLONIZE_COL_HILITE;
   game->menu_col_select = COLONIZE_COL_SELECT;
+  popup_colors_from_ui(&game->menu_popup_colors);
   if (game->menu_bg_ok && game->menu_bg.has_palette && game->pedia_wood_ok &&
       game->pedia_wood.has_palette) {
     game->menu_col_basic = palette_nearest_rgb(
@@ -1101,14 +1104,21 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       game->pedia_wood.palette.rgb[COLONIZE_COL_SELECT][1],
       game->pedia_wood.palette.rgb[COLONIZE_COL_SELECT][2]
     );
+    popup_colors_remap(
+      &game->menu_popup_colors, &game->pedia_wood.palette, &game->menu_bg.palette
+    );
     diag_info(
-      "Title menu @COLORS remap: basic %u→%u hilite %u→%u select %u→%u",
+      "Title menu @COLORS remap: basic %u→%u hilite %u→%u select %u→%u "
+      "popup mid/light/dark %u/%u/%u",
       (unsigned)COLONIZE_COL_BASIC,
       (unsigned)game->menu_col_basic,
       (unsigned)COLONIZE_COL_HILITE,
       (unsigned)game->menu_col_hilite,
       (unsigned)COLONIZE_COL_SELECT,
-      (unsigned)game->menu_col_select
+      (unsigned)game->menu_col_select,
+      (unsigned)game->menu_popup_colors.mid,
+      (unsigned)game->menu_popup_colors.light,
+      (unsigned)game->menu_popup_colors.dark
     );
   }
 
@@ -2659,10 +2669,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   return true;
 }
 
-/* Title-menu dialog: black frame; text colors from remapped @COLORS (menu_col_*). */
-enum {
-  BEGINMENU_COL_BORDER = 0
-};
+/* Title-menu helpers: brace markup + selection fill (chrome via popup_draw). */
 
 static int begin_menu_text_width(const ColonizeFont* font, const char* text) {
   if (!text) {
@@ -2713,47 +2720,6 @@ static void begin_menu_fill_rect(
     uint8_t* row = fb->pixels + y * fb->width;
     for (int x = x0; x <= x1; ++x) {
       row[x] = color;
-    }
-  }
-}
-
-/* Tile sprite 0 into [ox,oy,ox+rw,oy+rh), clipped to the rect (and framebuffer). */
-static void begin_menu_tile_rect(
-  const ColonizeSpriteSheet* sheet,
-  int ox,
-  int oy,
-  int rw,
-  int rh,
-  ColonizeFramebuffer8* fb
-) {
-  if (!sheet || sheet->sprite_count < 1 || !fb || !fb->pixels || rw <= 0 || rh <= 0) {
-    return;
-  }
-  const ColonizeSprite* tile = &sheet->sprites[0];
-  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
-    return;
-  }
-  const int x1 = ox + rw;
-  const int y1 = oy + rh;
-  for (int ty = oy; ty < y1; ty += tile->height) {
-    for (int tx = ox; tx < x1; tx += tile->width) {
-      for (int sy = 0; sy < tile->height; ++sy) {
-        const int fy = ty + sy;
-        if (fy < oy || fy >= y1 || fy < 0 || fy >= fb->height) {
-          continue;
-        }
-        for (int sx = 0; sx < tile->width; ++sx) {
-          const int fx = tx + sx;
-          if (fx < ox || fx >= x1 || fx < 0 || fx >= fb->width) {
-            continue;
-          }
-          const uint8_t color = tile->pixels[sy * tile->width + sx];
-          if (color == COLONIZE_SS_TRANSPARENT) {
-            continue;
-          }
-          fb->pixels[fy * fb->width + fx] = color;
-        }
-      }
     }
   }
 }
@@ -2829,7 +2795,9 @@ static void game_render_begin_menu(
   const int gap_after_version = game->menu_version_line[0] ? 4 : 0;
   const int version_h = game->menu_version_line[0] ? line_h : 0;
   const int options_h = game->menu_option_count * line_h;
-  int dialog_h = pad_y + version_h + gap_after_version + options_h + pad_y;
+  /* Outer size includes POPUP_FRAME_INSET chrome on each side. */
+  int dialog_h =
+    POPUP_FRAME_INSET * 2 + pad_y + version_h + gap_after_version + options_h + pad_y;
   if (dialog_h < 24) {
     dialog_h = 24;
   }
@@ -2851,61 +2819,33 @@ static void game_render_begin_menu(
     }
   }
 
-  if (game->menu_opentile_ok) {
-    begin_menu_tile_rect(
-      &game->menu_opentile, dialog_x, dialog_y, dialog_w, dialog_h, framebuffer
-    );
-  } else {
-    begin_menu_fill_rect(
-      framebuffer,
-      dialog_x,
-      dialog_y,
-      dialog_x + dialog_w - 1,
-      dialog_y + dialog_h - 1,
-      4
-    );
+  int inner_x = 0;
+  int inner_y = 0;
+  int inner_w = 0;
+  int inner_h = 0;
+  popup_draw(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_w,
+    dialog_h,
+    game->menu_opentile_ok ? &game->menu_opentile : NULL,
+    &game->menu_popup_colors,
+    &inner_x,
+    &inner_y,
+    &inner_w,
+    &inner_h
+  );
+  if (inner_w <= 0 || inner_h <= 0) {
+    return;
   }
 
-  /* Thin white frame around the wood dialog. */
-  begin_menu_fill_rect(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_x + dialog_w - 1,
-    dialog_y,
-    BEGINMENU_COL_BORDER
-  );
-  begin_menu_fill_rect(
-    framebuffer,
-    dialog_x,
-    dialog_y + dialog_h - 1,
-    dialog_x + dialog_w - 1,
-    dialog_y + dialog_h - 1,
-    BEGINMENU_COL_BORDER
-  );
-  begin_menu_fill_rect(
-    framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_x,
-    dialog_y + dialog_h - 1,
-    BEGINMENU_COL_BORDER
-  );
-  begin_menu_fill_rect(
-    framebuffer,
-    dialog_x + dialog_w - 1,
-    dialog_y,
-    dialog_x + dialog_w - 1,
-    dialog_y + dialog_h - 1,
-    BEGINMENU_COL_BORDER
-  );
-
-  int text_y = dialog_y + pad_y;
+  int text_y = inner_y + pad_y;
   if (game->menu_version_line[0]) {
     const int tw = begin_menu_text_width(font, game->menu_version_line);
-    int tx = dialog_x + (dialog_w - tw) / 2;
-    if (tx < dialog_x + pad_x) {
-      tx = dialog_x + pad_x;
+    int tx = inner_x + (inner_w - tw) / 2;
+    if (tx < inner_x + pad_x) {
+      tx = inner_x + pad_x;
     }
     begin_menu_draw_markup(
       font,
@@ -2925,15 +2865,15 @@ static void game_render_begin_menu(
     if (selected) {
       begin_menu_fill_rect(
         framebuffer,
-        dialog_x + 2,
+        inner_x,
         row_y - 1,
-        dialog_x + dialog_w - 3,
+        inner_x + inner_w - 1,
         row_y + line_h - 2,
         game->menu_col_select
       );
     }
     font_draw_text(
-      font, framebuffer, dialog_x + pad_x, row_y, game->menu_options[i], game->menu_col_basic
+      font, framebuffer, inner_x + pad_x, row_y, game->menu_options[i], game->menu_col_basic
     );
   }
 }

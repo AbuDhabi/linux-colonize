@@ -10,6 +10,7 @@
  *          in-game palettes; OPENMENU remaps by RGB — see game_loop menu_col_*)
  * hilite — {braced} emphasis (and hover highlight)
  * select — selection fill / chrome
+ * border0/1/2 — popup frame mid / light bevel / dark bevel (`src/core/popup.c`)
  */
 #define COLONIZE_COL_BASIC 68
 #define COLONIZE_COL_HILITE 149

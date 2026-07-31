@@ -107,9 +107,11 @@ port I/O in the native build.
   selected; blinking white tile outline in tile-select mode; `CURSOR.SS` #0 is the OS
   pointer over the map viewport; Colonizopedia category lists from `PEDIA.TXT`
   (`src/core/pedia.c`); pull-down divider after Terrain Types; trade menu entries stubbed
+- Shared wood **popup window** chrome (`src/core/popup.c`): black + mid brown + raised
+  bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`)
 - Main-map right panel + scrolling 1:1 minimap (`src/core/map_panel.c`): viewport **15×12**
   tiles (`x=0..239`); wood strip `x=240..319` (`WOODTILE.SS`) with black left rule and
-  minimap-section separator; AMER2 minimap window **56×34** (click-to-center, brown border);
+  minimap-section separator; AMER2 minimap window **56×39** (click-to-center, dark-orange border);
   `@INFO` unit/date/gold (`NAMEPLAT.SS` / `FONTTINY.FF`); menu bar shares wood + tiny green
   / yellow hotkeys; nation box at `(315,197)` unchanged; not using `WOODPAN2` / `WOODFRAM`
 - Report / adviser screens: F2–F10 + REPORTS menu (`src/core/reports.c`);
