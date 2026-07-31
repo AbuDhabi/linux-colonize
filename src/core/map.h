@@ -91,4 +91,11 @@ bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y);
  */
 int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y);
 
+/* Special resource type 0..13, or -1 if none (MAPEDIT procedural). */
+int map_resource_type_at(const ColonizeWorldMap* map, int x, int y);
+bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
+/* True when terrain byte has a river (major or minor). */
+bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y);
+bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y);
+
 #endif

@@ -370,7 +370,13 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
     }
     const int tw = (int)strlen(menu->title) * 6;
     menu->title_w = tw + 8;
-    menu->title_x = MAP_PANEL_X;
+    const int inner_x0 = MAP_PANEL_X + 2;
+    const int inner_w = 319 - inner_x0 + 1;
+    const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
+    menu->title_x = mx + MAP_PANEL_MINIMAP_W / 2 - tw / 2;
+    if (menu->title_x < MAP_PANEL_X) {
+      menu->title_x = MAP_PANEL_X;
+    }
   }
 
   bar->loaded = bar->menu_count > 0;
@@ -401,12 +407,16 @@ static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
     MapMenuPulldown* menu = &bar->menus[pedia];
     const int tw = map_menu_text_width(font, menu->title);
     menu->title_w = tw + 8;
-    menu->title_x = MAP_PANEL_X;
+    /* Center over the minimap (same horizontal math as map_panel_minimap_rect). */
+    const int inner_x0 = MAP_PANEL_X + 2;
+    const int inner_w = 319 - inner_x0 + 1;
+    const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
+    menu->title_x = mx + MAP_PANEL_MINIMAP_W / 2 - tw / 2;
+    if (menu->title_x < MAP_PANEL_X) {
+      menu->title_x = MAP_PANEL_X;
+    }
     if (menu->title_x + menu->title_w > 320) {
       menu->title_x = 320 - menu->title_w;
-      if (menu->title_x < MAP_PANEL_X) {
-        menu->title_x = MAP_PANEL_X;
-      }
     }
   }
 }

@@ -3265,6 +3265,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL,
       game->unit_icons_ok ? &game->unit_icons : NULL,
       panel_font,
+      game->names_ok ? &game->names : NULL,
+      game->labels_ok ? &game->labels : NULL,
+      game->col1_ok ? &game->col1 : NULL,
       view_x,
       view_y,
       view_cols,
@@ -3275,6 +3278,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->game_year,
       game->game_autumn,
       game->europe.gold,
+      game->europe.tax_percent,
+      game->europe.nation_name,
       framebuffer
     );
   }

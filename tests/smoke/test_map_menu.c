@@ -137,11 +137,18 @@ int main(void) {
     assets_msg_free(&menu_txt);
     return 1;
   }
-  if (bar.menus[5].title_x != MAP_PANEL_X) {
+  const int inner_x0 = MAP_PANEL_X + 2;
+  const int inner_w = 319 - inner_x0 + 1;
+  const int mx = inner_x0 + (inner_w - MAP_PANEL_MINIMAP_W) / 2;
+  const int minimap_cx = mx + MAP_PANEL_MINIMAP_W / 2;
+  const int title_cx = bar.menus[5].title_x + bar.menus[5].title_w / 2;
+  /* COLONIZOPEDIA title center should align with the minimap center. */
+  if (title_cx < minimap_cx - 12 || title_cx > minimap_cx + 12) {
     fprintf(
       stderr,
-      "COLONIZOPEDIA title_x expected %d, got %d\n",
-      MAP_PANEL_X,
+      "COLONIZOPEDIA should be centered over minimap (title_cx=%d minimap_cx=%d title_x=%d)\n",
+      title_cx,
+      minimap_cx,
       bar.menus[5].title_x
     );
     if (font_ok) {

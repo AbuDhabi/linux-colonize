@@ -19,8 +19,8 @@ enum {
   MAP_PANEL_COL_TEXT = COLONIZE_COL_BASIC,
   MAP_PANEL_COL_EMPHASIS = COLONIZE_COL_HILITE,
   MAP_PANEL_COL_LINE = 0,
-  /* Light tan/brown on the map palette (index 20 is grey). */
-  MAP_PANEL_COL_MINIMAP_BORDER = 90
+  /* Dark orange on TERRAIN/WOODTILE palettes (index 90 is muted tan). */
+  MAP_PANEL_COL_MINIMAP_BORDER = 6
 };
 
 void map_panel_tile_rect(
@@ -283,6 +283,179 @@ bool map_panel_minimap_click(
   return true;
 }
 
+
+static void map_panel_csv_field(const char* line, char* out, size_t out_size) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (!line) {
+    return;
+  }
+  size_t i = 0;
+  while (line[i] == ' ' || line[i] == '\t') {
+    ++i;
+  }
+  size_t n = 0;
+  while (line[i] && line[i] != ',' && n + 1 < out_size) {
+    out[n++] = line[i++];
+  }
+  while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t')) {
+    --n;
+  }
+  out[n] = '\0';
+}
+
+static const char* map_panel_section_line(
+  const ColonizeMsgCatalog* names, const char* section, int index
+) {
+  if (!names || !section || index < 0) {
+    return NULL;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(names, section);
+  if (!sec || index >= sec->line_count) {
+    return NULL;
+  }
+  return sec->lines[index];
+}
+
+static void map_panel_terrain_name(
+  const ColonizeMsgCatalog* names, int pedia_index, char* out, size_t out_size
+) {
+  const char* line = NULL;
+  if (pedia_index >= 0 && pedia_index <= 7) {
+    line = map_panel_section_line(names, "UNFORESTED", pedia_index);
+  } else if (pedia_index >= 8 && pedia_index <= 15) {
+    line = map_panel_section_line(names, "FORESTED", pedia_index - 8);
+  } else if (pedia_index == 24) {
+    line = map_panel_section_line(names, "OTHER", 0);
+  } else if (pedia_index == 25) {
+    line = map_panel_section_line(names, "OTHER", 1);
+  } else if (pedia_index == 26) {
+    line = map_panel_section_line(names, "OTHER", 2);
+  } else if (pedia_index == 27) {
+    line = map_panel_section_line(names, "OTHER", 3);
+  } else if (pedia_index == 28) {
+    line = map_panel_section_line(names, "OTHER", 4);
+  }
+  map_panel_csv_field(line ? line : "Unknown", out, out_size);
+}
+
+static void map_panel_resource_name(
+  const ColonizeMsgCatalog* names, int resource_type, char* out, size_t out_size
+) {
+  const char* line = map_panel_section_line(names, "RESOURCE", resource_type);
+  map_panel_csv_field(line ? line : "Resource", out, out_size);
+}
+
+static const char* map_panel_tribe_short(const ColonizeMsgCatalog* names, int nation_id) {
+  static const char* k_fallback[] = {
+    "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
+  };
+  const int idx = nation_id - 4;
+  if (idx < 0 || idx >= 8) {
+    return "Native";
+  }
+  const char* line = map_panel_section_line(names, "TRIBES", idx);
+  if (!line) {
+    return k_fallback[idx];
+  }
+  /* @TRIBES: Incas, Inca, Jewel..., tech, color — want second field. */
+  char plural[32];
+  map_panel_csv_field(line, plural, sizeof(plural));
+  const char* p = strchr(line, ',');
+  if (!p) {
+    return k_fallback[idx];
+  }
+  ++p;
+  while (*p == ' ' || *p == '\t') {
+    ++p;
+  }
+  static char short_name[32];
+  size_t n = 0;
+  while (*p && *p != ',' && n + 1 < sizeof(short_name)) {
+    short_name[n++] = *p++;
+  }
+  while (n > 0 && (short_name[n - 1] == ' ' || short_name[n - 1] == '\t')) {
+    --n;
+  }
+  short_name[n] = '\0';
+  return short_name[0] ? short_name : k_fallback[idx];
+}
+
+static const char* map_panel_euro_country(
+  const ColonizeCol1Save* col1, const char* nation_name, int nation_id
+) {
+  static const char* k_euro[] = {"England", "France", "Spain", "Netherlands"};
+  if (nation_id >= 0 && nation_id < 4 && col1) {
+    if (col1->player[nation_id].country_name[0]) {
+      return col1->player[nation_id].country_name;
+    }
+  }
+  if (nation_name && nation_name[0] && nation_id == 0) {
+    return nation_name;
+  }
+  if (nation_id >= 0 && nation_id < 4) {
+    return k_euro[nation_id];
+  }
+  return "European";
+}
+
+static const ColonizeCol1Tribe* map_panel_tribe_at(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->tribe) {
+    return NULL;
+  }
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &col1->tribe[i];
+    if ((int)t->x == x && (int)t->y == y) {
+      return t;
+    }
+  }
+  return NULL;
+}
+
+static bool map_panel_tile_plowed(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->map.mask || x < 0 || y < 0 ||
+      x >= (int)col1->map.width || y >= (int)col1->map.height) {
+    return false;
+  }
+  const uint8_t m = col1->map.mask[y * col1->map.width + x];
+  return (m & 0x40u) != 0; /* plowed bit in ColonizeCol1Mask */
+}
+
+static bool map_panel_tile_road(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->map.mask || x < 0 || y < 0 ||
+      x >= (int)col1->map.width || y >= (int)col1->map.height) {
+    return false;
+  }
+  const uint8_t m = col1->map.mask[y * col1->map.width + x];
+  return (m & 0x08u) != 0; /* road bit */
+}
+
+static const char* map_panel_order_label(const ColonizeMsgCatalog* names) {
+  const char* line = map_panel_section_line(names, "ORDERS", 0);
+  static char buf[24];
+  map_panel_csv_field(line ? line : "No Orders", buf, sizeof(buf));
+  return buf;
+}
+
+static int map_panel_draw_line(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int* y,
+  int line_h,
+  int y_limit,
+  const char* text
+) {
+  if (!text || !text[0] || *y + line_h > y_limit) {
+    return 0;
+  }
+  font_draw_text(font, fb, x, *y, text, MAP_PANEL_COL_TEXT);
+  *y += line_h;
+  return 1;
+}
+
 void map_panel_render(
   const MapPanel* panel,
   const ColonizeWorldMap* map,
@@ -290,6 +463,9 @@ void map_panel_render(
   const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
+  const ColonizeMsgCatalog* names,
+  const ColonizeMsgCatalog* labels,
+  const ColonizeCol1Save* col1,
   int view_x,
   int view_y,
   int view_cols,
@@ -300,6 +476,8 @@ void map_panel_render(
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
+  int tax_percent,
+  const char* nation_name,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!framebuffer || !framebuffer->pixels) {
@@ -323,7 +501,6 @@ void map_panel_render(
     map, view_x, view_y, view_cols, view_rows, &mx, &my, &mw, &mh, &origin_x, &origin_y
   );
 
-  /* Light-brown border around the minimap (outside the terrain pixels). */
   map_panel_hline(framebuffer, my - 1, mx - 1, mx + mw, MAP_PANEL_COL_MINIMAP_BORDER);
   map_panel_hline(framebuffer, my + mh, mx - 1, mx + mw, MAP_PANEL_COL_MINIMAP_BORDER);
   map_panel_vline(framebuffer, mx - 1, my - 1, my + mh, MAP_PANEL_COL_MINIMAP_BORDER);
@@ -368,10 +545,6 @@ void map_panel_render(
       }
     }
 
-    /*
-     * Viewport outline: white pixels sit ON the edge tiles of the current view
-     * (not one pixel outside). Local coords relative to the minimap window.
-     */
     if (view_cols > 0 && view_rows > 0) {
       const int lx0 = view_x - origin_x;
       const int ly0 = view_y - origin_y;
@@ -400,13 +573,10 @@ void map_panel_render(
     }
   }
 
-  /* Black separator immediately under the brown bottom border (no wood gap). */
   const int section_bottom = my + mh + 1;
   map_panel_hline(
     framebuffer, section_bottom, MAP_PANEL_X, framebuffer->width - 1, MAP_PANEL_COL_LINE
   );
-
-  /* Sidebar left edge. */
   map_panel_vline(
     framebuffer, MAP_PANEL_X, panel_y, framebuffer->height - 1, MAP_PANEL_COL_LINE
   );
@@ -414,18 +584,21 @@ void map_panel_render(
   int text_y = section_bottom + 2;
   const int text_x = MAP_PANEL_X + MAP_PANEL_TEXT_MARGIN;
   const int line_h = font ? (font->max_height + 2) : 8;
+  const int y_limit = framebuffer->height - 4;
 
   char date[48];
   turn_format_date(game_year, game_autumn, date, sizeof(date));
-  char gold_line[48];
-  snprintf(gold_line, sizeof(gold_line), "Gold: %d$", gold);
-  font_draw_text(font, framebuffer, text_x, text_y, date, MAP_PANEL_COL_TEXT);
-  text_y += line_h;
-  font_draw_text(font, framebuffer, text_x, text_y, gold_line, MAP_PANEL_COL_TEXT);
-  text_y += line_h + 2;
+  char gold_line[64];
+  snprintf(gold_line, sizeof(gold_line), "Gold: %d$  Tax: %d%%", gold, tax_percent);
+  map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, date);
+  map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, gold_line);
+  text_y += 2;
 
   const ColonizeUnit* selected =
     (units && selected_unit_id >= 0) ? units_get_const(units, selected_unit_id) : NULL;
+  const int info_x = selected ? selected->x : cursor_x;
+  const int info_y = selected ? selected->y : cursor_y;
+
   if (selected) {
     const ColonizeUnitType* ut = units_type(units, selected->type_index);
     if (panel && panel->nameplat_ok && panel->nameplat.sprite_count > 0) {
@@ -440,15 +613,9 @@ void map_panel_render(
 
     char line[64];
     snprintf(
-      line,
-      sizeof(line),
-      "%s %d",
-      panel ? panel->label_moves : "Moves:",
-      selected->moves_left
+      line, sizeof(line), "%s %d", panel ? panel->label_moves : "Moves:", selected->moves_left
     );
-    font_draw_text(font, framebuffer, text_x, text_y, line, MAP_PANEL_COL_TEXT);
-    text_y += line_h;
-
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
     snprintf(
       line,
       sizeof(line),
@@ -457,9 +624,7 @@ void map_panel_render(
       selected->x,
       selected->y
     );
-    font_draw_text(font, framebuffer, text_x, text_y, line, MAP_PANEL_COL_TEXT);
-    text_y += line_h;
-
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
     if (selected->cargo_count > 0) {
       snprintf(
         line,
@@ -468,7 +633,7 @@ void map_panel_render(
         panel ? panel->label_with : "With:",
         selected->cargo_count
       );
-      font_draw_text(font, framebuffer, text_x, text_y, line, MAP_PANEL_COL_TEXT);
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
     }
   } else {
     char line[64];
@@ -480,6 +645,157 @@ void map_panel_render(
       cursor_x,
       cursor_y
     );
-    font_draw_text(font, framebuffer, text_x, text_y, line, MAP_PANEL_COL_TEXT);
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+  }
+
+  /* Tile details under Locat (manual Information Sidebar). */
+  if (map && map->terrain && info_x >= 0 && info_y >= 0 && info_x < map->width &&
+      info_y < map->height) {
+    char line[72];
+
+    if (map_tile_is_land(map, info_x, info_y)) {
+      const ColonizeColony* col_here =
+        colonies ? colonies_get(colonies, colonies_id_at(colonies, info_x, info_y)) : NULL;
+      const ColonizeCol1Tribe* tribe = map_panel_tribe_at(col1, info_x, info_y);
+      if (col_here && col_here->active) {
+        snprintf(
+          line,
+          sizeof(line),
+          "%s",
+          map_panel_euro_country(col1, nation_name, col_here->nation_id)
+        );
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+      } else if (tribe) {
+        snprintf(line, sizeof(line), "%s Land", map_panel_tribe_short(names, tribe->nation_id));
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+      } else {
+        const char* wild = "Wilderness";
+        if (labels) {
+          const ColonizeMsgSection* misc = assets_msg_find(labels, "MISC");
+          /* LABELS @MISC: Wilderness is among the early lines — search. */
+          if (misc) {
+            for (int i = 0; i < misc->line_count; ++i) {
+              if (strcmp(misc->lines[i], "Wilderness") == 0) {
+                wild = misc->lines[i];
+                break;
+              }
+            }
+          }
+        }
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, wild);
+      }
+    }
+
+    {
+      char tname[40];
+      map_panel_terrain_name(names, map_pedia_terrain_index_at(map, info_x, info_y), tname, sizeof(tname));
+      snprintf(line, sizeof(line), "(%s)", tname);
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+    }
+
+    if (map_panel_tile_plowed(col1, info_x, info_y)) {
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Plowed)");
+    }
+    if (map_panel_tile_road(col1, info_x, info_y)) {
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Road)");
+    }
+    if (map_tile_has_major_river(map, info_x, info_y)) {
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Major River)");
+    } else if (map_tile_has_river(map, info_x, info_y)) {
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(River)");
+    }
+    {
+      const int rtype = map_resource_type_at(map, info_x, info_y);
+      if (rtype >= 0) {
+        char rname[40];
+        map_panel_resource_name(names, rtype, rname, sizeof(rname));
+        snprintf(line, sizeof(line), "(%s)", rname);
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+      }
+    }
+    if (map_tile_has_rumour(map, info_x, info_y)) {
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Lost City Rumor)");
+    }
+
+    /* Colony / native camp under the tile. */
+    if (colonies) {
+      const int cid = colonies_id_at(colonies, info_x, info_y);
+      const ColonizeColony* col = colonies_get(colonies, cid);
+      if (col && col->active) {
+        if (icons && icons->sprite_count > 38) {
+          ss_blit_sprite(icons, 38, framebuffer, text_x, text_y);
+        }
+        snprintf(line, sizeof(line), "%s", col->name[0] ? col->name : "Colony");
+        font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
+        text_y += 16;
+        /* Cargo summary stub: first non-zero stock. */
+        for (int c = 0; c < COLONIZE_CARGO_COUNT && text_y + line_h <= y_limit; ++c) {
+          if (col->stock[c] > 0) {
+            snprintf(line, sizeof(line), "  cargo %d", col->stock[c]);
+            map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+            break;
+          }
+        }
+      }
+    }
+    {
+      const ColonizeCol1Tribe* tribe = map_panel_tribe_at(col1, info_x, info_y);
+      if (tribe) {
+        const char* tshort = map_panel_tribe_short(names, tribe->nation_id);
+        const char* settlement = "Camp";
+        if (names) {
+          const ColonizeMsgSection* levels = assets_msg_find(names, "LEVELS");
+          const int tech = (tribe->nation_id >= 4 && tribe->nation_id < 12)
+                             ? (col1 && col1->indian[tribe->nation_id - 4].tech)
+                             : 0;
+          if (levels && tech >= 0 && tech < levels->line_count) {
+            /* tech-level, singular, plural */
+            const char* lp = strchr(levels->lines[tech], ',');
+            if (lp) {
+              ++lp;
+              while (*lp == ' ') {
+                ++lp;
+              }
+              static char settle[24];
+              size_t n = 0;
+              while (*lp && *lp != ',' && n + 1 < sizeof(settle)) {
+                settle[n++] = *lp++;
+              }
+              while (n > 0 && settle[n - 1] == ' ') {
+                --n;
+              }
+              settle[n] = '\0';
+              if (settle[0]) {
+                settlement = settle;
+              }
+            }
+          }
+        }
+        if (icons && icons->sprite_count > 110) {
+          ss_blit_sprite(icons, 110, framebuffer, text_x, text_y);
+        }
+        snprintf(line, sizeof(line), "%s %s", tshort, settlement);
+        font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
+        text_y += 16;
+      }
+    }
+
+    /* Units on the selected tile with order label. */
+    if (units) {
+      const char* orders = map_panel_order_label(names);
+      for (int i = 0; i < COLONIZE_UNITS_MAX && text_y + 14 <= y_limit; ++i) {
+        const ColonizeUnit* u = &units->units[i];
+        if (!units_is_on_map(u) || u->x != info_x || u->y != info_y) {
+          continue;
+        }
+        const ColonizeUnitType* ut = units_type(units, u->type_index);
+        if (icons && ut && ut->icon_sprite >= 0) {
+          ss_blit_sprite(icons, ut->icon_sprite, framebuffer, text_x, text_y);
+        }
+        snprintf(line, sizeof(line), "%s %s", ut ? ut->name : "Unit", orders);
+        font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
+        text_y += 14;
+      }
+    }
   }
 }

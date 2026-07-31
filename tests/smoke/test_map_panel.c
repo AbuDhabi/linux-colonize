@@ -40,8 +40,11 @@ int main(void) {
   if (MAP_VIEW_ORIGIN_Y + MAP_VIEW_H != 200) {
     return fail("viewport + menu should fill 200px");
   }
-  if (MAP_PANEL_MINIMAP_H != 34 || MAP_PANEL_MINIMAP_W != 56) {
-    return fail("minimap window expected 56x34");
+  if (MAP_PANEL_MINIMAP_H != 39 || MAP_PANEL_MINIMAP_W != 56) {
+    return fail("minimap window expected 56x39");
+  }
+  if (MAP_PANEL_TEXT_MARGIN != 2) {
+    return fail("text margin expected 2");
   }
 
   ColonizeMsgCatalog labels;
@@ -85,8 +88,8 @@ int main(void) {
 
   int mx, my, mw, mh, ox, oy;
   map_panel_minimap_rect(&map, 0, 0, 15, 12, &mx, &my, &mw, &mh, &ox, &oy);
-  if (mw != 56 || mh != 34) {
-    fprintf(stderr, "minimap size expected 56x34, got %dx%d\n", mw, mh);
+  if (mw != 56 || mh != 39) {
+    fprintf(stderr, "minimap size expected 56x39, got %dx%d\n", mw, mh);
     map_free(&map);
     map_panel_free(&panel);
     assets_msg_free(&labels);
@@ -168,6 +171,9 @@ int main(void) {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
     5,
     5,
     MAP_VIEW_TILE_COLS,
@@ -178,6 +184,8 @@ int main(void) {
     1492,
     0,
     1000,
+    0,
+    "New England",
     &fb
   );
 
@@ -218,9 +226,9 @@ int main(void) {
     return fail("panel region stayed blank");
   }
 
-  /* Brown border pixel just above minimap terrain (touches menu rule above). */
-  if (pixels[(my - 1) * 320 + mx] != 90) {
-    fprintf(stderr, "minimap border color expected 90, got %u\n", pixels[(my - 1) * 320 + mx]);
+  /* Dark-orange border pixel just above minimap terrain (touches menu rule above). */
+  if (pixels[(my - 1) * 320 + mx] != 6) {
+    fprintf(stderr, "minimap border color expected 6, got %u\n", pixels[(my - 1) * 320 + mx]);
     free(pixels);
     map_free(&map);
     map_panel_free(&panel);

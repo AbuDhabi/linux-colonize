@@ -497,7 +497,7 @@ static int map_resource_terrain_class(uint8_t terrain_byte) {
  * FUN_12ab_0458: coordinate hash + resource table. DOS coords are 1-based.
  * Ocean (25) yields fish (type 7); arctic/high seas table entries are -1.
  */
-static int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
+int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return -1;
   }
@@ -1056,6 +1056,24 @@ int map_phys0_feature_sprite(const ColonizeWorldMap* map, int x, int y) {
 
 int map_terrain_sprite(uint8_t terrain_byte) {
   return map_terrain_base_sprite(terrain_byte);
+}
+
+bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y) {
+  return map_has_rumour_at(map, x, y);
+}
+
+bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  return (map_terrain_overlay(map_get_terrain(map, x, y)) & 0x40u) != 0;
+}
+
+bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_tile_has_river(map, x, y)) {
+    return false;
+  }
+  return (map_get_terrain(map, x, y) & 0x80u) != 0;
 }
 
 int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y) {

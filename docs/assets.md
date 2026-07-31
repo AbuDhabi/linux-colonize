@@ -266,9 +266,10 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Wood fill | `WOODTILE.SS` | Tiled over `x=240..319`, below the menu bar (and the menu bar itself) |
 | Left rule | 1px black | `x=240`, full panel height |
 | Minimap section | wood + 1px black separator below | Section is larger than the minimap; wood shows in the margins |
-| Minimap | 56×34 window (1px/tile) | AMER2 window (not full map); scrolls with the main view; light-brown border (palette 90) flush to section black rules; terrain/ocean/high-seas, colony/unit dots; white view outline on edge tiles; click centers main view |
+| Minimap | 56×39 window (1px/tile) | AMER2 window (not full map); scrolls with the main view; dark-orange border (palette 6) flush to section black rules; terrain/ocean/high-seas, colony/unit dots; white view outline on edge tiles; click centers main view |
 | Unit block | `NAMEPLAT.SS`, `ICONS.SS`, `LABELS.TXT` `@INFO` | Portrait + name; `Moves:` / `Locat:` / `With:` (cargo count stub) |
-| Date + gold | Campaign calendar + `EuropeScreen` gold | Same season/year formatting as the colony top bar (`FONTTINY.FF`, `@COLORS` basic/hilite) |
+| Date + gold + tax | Campaign calendar + `EuropeScreen` gold/tax | `Spring 1492` / `Gold: N$  Tax: N%` (`FONTTINY.FF`, `@COLORS` basic) |
+| Tile details | `NAMES.TXT` / Col1 mask / colonies / units | Under Locat: ownership, `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp + units with order label |
 | Nation box | Turn indicator at `(315,197)` | Existing 5×3 owner color; kept in the panel strip |
 
 Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (colony frame). Fog-of-war on the minimap is not drawn yet.

@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/font.h"
 #include "core/map.h"
@@ -21,8 +22,7 @@
  *   Map viewport: x = 0 .. MAP_PANEL_X-1     (240px = 15×16 tiles; 12 rows)
  *   Right panel:  x = MAP_PANEL_X .. 319     (80px)
  *
- * Minimap shows the full map width at 1px/tile, but only MAP_PANEL_MINIMAP_H
- * rows (half of AMER2's 72) — a window that tracks the main view.
+ * Minimap is a scrolling window (MAP_PANEL_MINIMAP_W × MAP_PANEL_MINIMAP_H).
  */
 #define MAP_PANEL_X 240
 #define MAP_PANEL_W (320 - MAP_PANEL_X)
@@ -35,10 +35,10 @@
 #define MAP_VIEW_H (MAP_VIEW_TILE_ROWS * MAP_VIEW_TILE_H)
 
 #define MAP_PANEL_MINIMAP_W 56
-#define MAP_PANEL_MINIMAP_H 34
+#define MAP_PANEL_MINIMAP_H 39
 /* Terrain sits 1px below the menu black rule so the brown top border touches it. */
 #define MAP_PANEL_MINIMAP_ORIGIN_Y (MAP_MENU_BAR_H + 1)
-#define MAP_PANEL_TEXT_MARGIN 1
+#define MAP_PANEL_TEXT_MARGIN 2
 
 typedef struct MapPanel {
   ColonizeSpriteSheet wood_tile;
@@ -55,10 +55,6 @@ void map_panel_free(MapPanel* panel);
 
 bool map_panel_contains_xy(int mouse_x, int mouse_y);
 
-/*
- * Pixel rect of the visible minimap window, plus the world-tile origin of that
- * window (top-left tile shown).
- */
 void map_panel_minimap_rect(
   const ColonizeWorldMap* map,
   int view_x,
@@ -73,7 +69,6 @@ void map_panel_minimap_rect(
   int* out_origin_y
 );
 
-/* True if (mouse_x,mouse_y) is on the minimap; writes world tile coords. */
 bool map_panel_minimap_click(
   const ColonizeWorldMap* map,
   int view_x,
@@ -93,6 +88,9 @@ void map_panel_render(
   const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
+  const ColonizeMsgCatalog* names,
+  const ColonizeMsgCatalog* labels,
+  const ColonizeCol1Save* col1,
   int view_x,
   int view_y,
   int view_cols,
@@ -103,10 +101,11 @@ void map_panel_render(
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
+  int tax_percent,
+  const char* nation_name,
   ColonizeFramebuffer8* framebuffer
 );
 
-/* Tile WOODTILE into a rect (also used for the map menu bar). */
 void map_panel_tile_rect(
   const ColonizeSpriteSheet* sheet,
   int origin_x,
