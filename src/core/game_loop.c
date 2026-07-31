@@ -20,6 +20,7 @@
 #include "core/map_panel.h"
 #include "core/pedia.h"
 #include "core/pik.h"
+#include "core/pick_music.h"
 #include "core/popup.h"
 #include "core/reports.h"
 #include "core/savegame.h"
@@ -50,6 +51,7 @@ struct ColonizeGameState {
   ColonizeMsgCatalog messages;
   ColonizeMsgCatalog map_menu_txt;
   MapMenuBar map_menu;
+  PickMusicDialog pick_music;
   ColonizeMsgCatalog labels;
   bool labels_ok;
   MapPanel map_panel;
@@ -934,6 +936,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   assets_msg_init(&game->pedia);
   assets_msg_init(&game->names);
   map_menu_init(&game->map_menu);
+  pick_music_init(&game->pick_music);
   units_reset(&game->units);
   colonies_init(&game->colonies);
   debug_atlas_init(&game->debug_atlas);
@@ -1627,6 +1630,13 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     }
     case MAP_MENU_ACTION_EXIT:
       return false;
+    case MAP_MENU_ACTION_PICK_MUSIC:
+      if (!pick_music_open(&game->pick_music, &game->messages)) {
+        set_status(game, "Pick Music unavailable", "GAME.TXT @PICKMUSIC missing");
+      } else {
+        set_status(game, "Pick Music", "Esc closes");
+      }
+      return true;
     case MAP_MENU_ACTION_EUROPE:
       game->in_europe = true;
       game->in_pedia = false;
@@ -2218,6 +2228,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   /* Map-screen menu bar (MENU.TXT pull-downs) + mouse map click. */
   if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas &&
       !game->in_report) {
+    if (game->pick_music.open) {
+      const ColonizeFont* pm_font = game->colony_font_ok ? &game->colony_font :
+                                    (game->menu_font_ok ? &game->menu_font : NULL);
+      pick_music_handle_input(
+        &game->pick_music, &game->messages, input, pm_font, game->status, sizeof(game->status)
+      );
+      return true;
+    }
+
     /* F1 terrain pedia at cursor; F2–F10 adviser / report screens. */
     if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
       game_handle_report_fkey(game, input->last_key);
@@ -3236,6 +3255,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     const ColonizeSpriteSheet* wood =
       (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
     map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
+    if (game->pick_music.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      pick_music_render(
+        (PickMusicDialog*)&game->pick_music,
+        hud_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
   }
 
 render_log_sample:

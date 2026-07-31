@@ -108,7 +108,8 @@ port I/O in the native build.
   pointer over the map viewport; Colonizopedia category lists from `PEDIA.TXT`
   (`src/core/pedia.c`); pull-down divider after Terrain Types; trade menu entries stubbed
 - Shared wood **popup window** chrome (`src/core/popup.c`): black + mid brown + raised
-  bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`)
+  bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`);
+  **GAME → Pick Music** uses the same chrome with `WOODTILE.SS` (`src/core/pick_music.c`)
 - Main-map right panel + scrolling 1:1 minimap (`src/core/map_panel.c`): viewport **15×12**
   tiles (`x=0..239`); wood strip `x=240..319` (`WOODTILE.SS`) with black left rule and
   minimap-section separator; AMER2 minimap window **56×39** (click-to-center, dark-orange border);
@@ -127,9 +128,10 @@ port I/O in the native build.
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
-- Music (`src/core/sound.c`): **parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0`;
-  `GSOUND.COL` loader/ID map kept; heuristic MIDI playback disabled until fidelity work;
-  `COLDIG.BIN` SFX still deferred
+- Music (`src/core/sound.c`): **autoplay parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0`;
+  `GSOUND.COL` loader/ID map kept; Pick Music UI (`pick_music.c`) uses `sound_play_preview`
+  for audible A/B tests; heuristic MIDI playback for title/map BGM disabled until fidelity
+  work; `COLDIG.BIN` SFX still deferred
 
 ## End-of-turn recovery checklist
 

@@ -80,13 +80,15 @@ int main(void) {
   }
   free(buf);
 
-  /* Gating API still callable while parked (no-ops). */
+  /* Autoplay gated while parked; preview still works. */
   ColonizeSoundOptions opts = sound_get_options();
   opts.background_music = false;
   sound_set_options(opts);
-  sound_play(SOUND_TITLE_ID);
-  sound_set_bgm(1);
+  sound_play(SOUND_TITLE_ID); /* no-op while parked */
+  sound_set_bgm(1); /* no-op while parked */
+  sound_play_preview(SOUND_BGM_ID_BASE + 1);
   sound_service();
+  sound_stop_preview();
 
   sound_shutdown();
   diag_shutdown();

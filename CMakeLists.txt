@@ -43,6 +43,7 @@ add_library(colonize_core STATIC
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
+  src/core/pick_music.c
   src/core/pedia.c
   src/core/reports.c
   src/core/europe.c
@@ -175,6 +176,7 @@ add_executable(smoke_game_flow
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
+  src/core/pick_music.c
   src/core/pedia.c
   src/core/reports.c
   src/core/europe.c
@@ -210,6 +212,31 @@ target_include_directories(smoke_popup PRIVATE
 )
 
 add_test(NAME smoke_popup COMMAND smoke_popup)
+
+add_executable(smoke_pick_music
+  tests/smoke/test_pick_music.c
+  src/core/pick_music.c
+  src/core/popup.c
+  src/core/sound.c
+  src/core/font.c
+  src/core/assets.c
+  src/core/ss.c
+  src/core/madspack.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_pick_music PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(smoke_pick_music PRIVATE m pthread)
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(smoke_pick_music PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(smoke_pick_music PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(smoke_pick_music PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+endif()
+
+add_test(NAME smoke_pick_music COMMAND smoke_pick_music WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_map
   tests/smoke/test_map.c

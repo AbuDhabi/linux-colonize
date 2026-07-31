@@ -56,6 +56,7 @@ typedef struct SoundState {
   int bgm_track;      /* requested DOS track number; 0 = none */
   int bgm_song_id;
   bool need_restart;
+  bool preview_active; /* Pick Music / A-B listen; bypasses autoplay park */
   uint32_t play_tick;
   double tick_accum; /* samples → ticks */
   double ticks_per_sample;
@@ -451,14 +452,16 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   }
   memset(&g_sound, 0, sizeof(g_sound));
   pthread_mutex_init(&g_sound.lock, NULL);
-  /* Parked playback: never open the synth or feed the SDL callback. */
-  g_sound.enable_audio = enable_audio && COLONIZE_SOUND_PLAYBACK_ENABLED;
+  /* Open the device whenever the platform allows it so Pick Music previews work
+   * even while ambient autoplay (COLONIZE_SOUND_PLAYBACK_ENABLED) is parked. */
+  g_sound.enable_audio = enable_audio;
   g_sound.opts.background_music = true;
   g_sound.opts.event_music = true;
   g_sound.opts.sound_effects = true;
   g_sound.active_song_id = -1;
   g_sound.bgm_track = 0;
   g_sound.bgm_song_id = -1;
+  g_sound.preview_active = false;
   /*
    * F4 duration bytes are driver time-base units. Empirically ~3.75 ms/tick
    * (about 4x faster than a naive 15 ms guess) — still needs DOS validation.
@@ -471,8 +474,12 @@ bool sound_init(const char* data_dir, bool enable_audio) {
     if (!g_sound.backend_ok) {
       diag_info("sound: using square-wave fallback renderer");
     }
-  } else if (!COLONIZE_SOUND_PLAYBACK_ENABLED) {
-    diag_info("sound: playback parked (COLONIZE_SOUND_PLAYBACK_ENABLED=0)");
+    if (!COLONIZE_SOUND_PLAYBACK_ENABLED) {
+      diag_info(
+        "sound: autoplay parked (COLONIZE_SOUND_PLAYBACK_ENABLED=0); "
+        "Pick Music preview available"
+      );
+    }
   } else {
     diag_info("sound: audio disabled");
   }
@@ -483,6 +490,10 @@ bool sound_init(const char* data_dir, bool enable_audio) {
 
 bool sound_playback_enabled(void) {
   return COLONIZE_SOUND_PLAYBACK_ENABLED != 0;
+}
+
+bool sound_audio_output_ready(void) {
+  return g_sound.inited && g_sound.enable_audio;
 }
 
 void sound_shutdown(void) {
@@ -560,6 +571,7 @@ void sound_play(int id) {
   }
   if (id == 1 || id == 0) {
     pthread_mutex_lock(&g_sound.lock);
+    g_sound.preview_active = false;
     g_sound.active_song_id = -1;
     g_sound.bgm_track = 0;
     sound_all_notes_off_unlocked();
@@ -568,10 +580,45 @@ void sound_play(int id) {
   }
   if (id >= SOUND_BGM_ID_BASE && id < SOUND_EVENT_ID_BASE) {
     pthread_mutex_lock(&g_sound.lock);
+    g_sound.preview_active = false;
     sound_start_song_unlocked(id);
     pthread_mutex_unlock(&g_sound.lock);
   }
   /* Event / SFX IDs: not decoded in this pass (music-focused). */
+}
+
+void sound_play_preview(int id) {
+  if (!g_sound.inited) {
+    return;
+  }
+  if (id == 0 || id == 1) {
+    sound_stop_preview();
+    return;
+  }
+  if (id < SOUND_BGM_ID_BASE || id >= SOUND_EVENT_ID_BASE) {
+    return;
+  }
+  if (!sound_gsound_has_song(id)) {
+    diag_warn("sound: preview missing song id 0x%02x", id);
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  g_sound.preview_active = true;
+  sound_start_song_unlocked(id);
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
+void sound_stop_preview(void) {
+  if (!g_sound.inited) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  if (g_sound.preview_active) {
+    g_sound.preview_active = false;
+    g_sound.active_song_id = -1;
+    sound_all_notes_off_unlocked();
+  }
+  pthread_mutex_unlock(&g_sound.lock);
 }
 
 void sound_set_bgm(int track) {
@@ -583,8 +630,10 @@ void sound_set_bgm(int track) {
     g_sound.bgm_track = 0;
     g_sound.bgm_song_id = -1;
     g_sound.need_restart = false;
-    g_sound.active_song_id = -1;
-    sound_all_notes_off_unlocked();
+    if (!g_sound.preview_active) {
+      g_sound.active_song_id = -1;
+      sound_all_notes_off_unlocked();
+    }
     pthread_mutex_unlock(&g_sound.lock);
     return;
   }
@@ -599,18 +648,20 @@ void sound_stop_bgm(void) {
 }
 
 void sound_service(void) {
-  if (!g_sound.inited || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
+  if (!g_sound.inited) {
     return;
   }
   pthread_mutex_lock(&g_sound.lock);
-  if (g_sound.need_restart) {
+  const bool autoplay = COLONIZE_SOUND_PLAYBACK_ENABLED != 0;
+  if (autoplay && g_sound.need_restart) {
     g_sound.need_restart = false;
-    if (g_sound.opts.background_music && g_sound.bgm_song_id >= 0) {
+    if (g_sound.opts.background_music && g_sound.bgm_song_id >= 0 && !g_sound.preview_active) {
       sound_start_song_unlocked(g_sound.bgm_song_id);
     }
   }
-  /* Loop BGM when the decoded song ends. */
-  if (g_sound.active_song_id >= 0 && g_sound.opts.background_music) {
+  /* Loop BGM / preview when the decoded song ends. */
+  if (g_sound.active_song_id >= 0 &&
+      (g_sound.preview_active || (autoplay && g_sound.opts.background_music))) {
     SoundSong* song = sound_find_song(g_sound.active_song_id);
     if (song && song->duration_ticks > 0 && g_sound.play_tick >= song->duration_ticks + 8) {
       sound_start_song_unlocked(g_sound.active_song_id);
@@ -645,11 +696,17 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
     return;
   }
   memset(dst, 0, (size_t)frames * (size_t)channels * sizeof(int16_t));
-  if (!g_sound.inited || !g_sound.enable_audio || !COLONIZE_SOUND_PLAYBACK_ENABLED) {
+  if (!g_sound.inited || !g_sound.enable_audio) {
     return;
   }
 
   pthread_mutex_lock(&g_sound.lock);
+  /* Ambient path parked: only emit when Pick Music (or offline) set preview_active. */
+  if (!COLONIZE_SOUND_PLAYBACK_ENABLED && !g_sound.preview_active) {
+    pthread_mutex_unlock(&g_sound.lock);
+    return;
+  }
+
   sound_advance_unlocked(frames, sample_rate);
 
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
@@ -706,6 +763,10 @@ int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sam
   const int prev = g_sound.active_song_id;
   const uint32_t prev_tick = g_sound.play_tick;
   const double prev_acc = g_sound.tick_accum;
+  const bool prev_preview = g_sound.preview_active;
+  const bool prev_enable = g_sound.enable_audio;
+  g_sound.enable_audio = true; /* allow render path without an SDL device */
+  g_sound.preview_active = true;
   sound_start_song_unlocked(song_id);
   pthread_mutex_unlock(&g_sound.lock);
 
@@ -720,6 +781,8 @@ int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sam
   g_sound.active_song_id = prev;
   g_sound.play_tick = prev_tick;
   g_sound.tick_accum = prev_acc;
+  g_sound.preview_active = prev_preview;
+  g_sound.enable_audio = prev_enable;
   sound_all_notes_off_unlocked();
   pthread_mutex_unlock(&g_sound.lock);
   return written;

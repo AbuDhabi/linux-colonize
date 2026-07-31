@@ -12,8 +12,10 @@
  * IDs 0x20..0x3f are background music; 0x40..0x5c are event music; IDs < 0x10
  * are always forwarded (stop / system).
  *
- * Playback is PARKED: heuristic GSOUND→MIDI decode does not match the original
- * soundtrack yet. Keep the loader/API; set to 1 only when fidelity is revisited.
+ * Autoplay (title / map BGM via sound_play / sound_set_bgm) is PARKED: heuristic
+ * GSOUND→MIDI decode does not match the original soundtrack yet. Pick Music can
+ * still preview songs through sound_play_preview() when the SDL audio device is
+ * open. Set COLONIZE_SOUND_PLAYBACK_ENABLED to 1 to re-enable ambient music.
  */
 #define COLONIZE_SOUND_PLAYBACK_ENABLED 0
 
@@ -21,7 +23,10 @@
 #define SOUND_EVENT_ID_BASE 0x40
 #define SOUND_TITLE_ID 0x33
 
+/* True when ambient autoplay is allowed (not the Pick Music preview path). */
 bool sound_playback_enabled(void);
+/* True when the audio device/backend was opened (previews can be heard). */
+bool sound_audio_output_ready(void);
 
 typedef struct ColonizeSoundOptions {
   bool background_music;
@@ -37,8 +42,15 @@ bool sound_backend_ok(void); /* FluidSynth + soundfont ready */
 void sound_set_options(ColonizeSoundOptions opts);
 ColonizeSoundOptions sound_get_options(void);
 
-/* Mirror FUN_12d8_000e: gate by option bits then play. */
+/* Mirror FUN_12d8_000e: gate by option bits then play (no-op while autoplay parked). */
 void sound_play(int id);
+
+/*
+ * Play a song for A/B testing from Pick Music even when autoplay is parked.
+ * Does not change the map BGM track. Stop with sound_stop_preview().
+ */
+void sound_play_preview(int id);
+void sound_stop_preview(void);
 
 /* BGM channel (FUN_129f_*): track 1..N maps to sound id SOUND_BGM_ID_BASE+track. */
 void sound_set_bgm(int track);

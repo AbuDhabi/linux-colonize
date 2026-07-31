@@ -268,7 +268,7 @@ Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_t
 
 On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. The bar uses `WOODTILE.SS` fill (same as the right panel), `FONTTINY.FF`, `@COLORS` basic green with yellow (`~`) hotkeys, and a 1px black rule across the full width. Below the bar the screen splits into a **15×12-tile map viewport** (`x=0..239`, `MAP_PANEL_X` / `MAP_VIEW_*` in `src/core/map_panel.h`) and a **right info panel** (`x=240..319`, 80px) with a 1px black left edge. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map viewport: select an owned unit with moves, else select the tile (owned unit with no moves, empty land, etc.), or open an owned colony. Right-click always selects the tile (and clears unit selection). While a unit is selected, left-click only pans the viewport. Left-click on the panel minimap centers the view on that world tile. The selected tile shows a blinking white outline; over the map viewport the OS pointer uses `CURSOR.SS` #0. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
 
-Working items today: Save/Load, Retire, Exit, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. Trade menu entries still stub.
+Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. Trade menu entries still stub.
 
 ### Main-map right panel
 
@@ -423,11 +423,21 @@ Map BGM track *n* maps to ID `0x20+n` (track 1 → `0x21`).
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
 
-**Playback — parked.** Heuristic F4→MIDI decode does not match the original soundtrack
-(`COLONIZE_SOUND_PLAYBACK_ENABLED` is `0` in `src/core/sound.h`). The loader, ID map, and
-API remain for a later fidelity pass. When re-enabled, FluidSynth uses `COLONIZE_SOUNDFONT`
-or `/usr/share/sounds/sf2/*.sf2`; `--nosound` skips the SDL device. `smoke_sound` still
-checks that `GSOUND.COL` songs resolve.
+**Pick Music (GAME menu):** implemented in [`src/core/pick_music.c`](../src/core/pick_music.c) as a
+shared wood **popup** (`popup_draw` + `WOODTILE.SS`) over the map. Main-list songs map to BGM
+tracks **1–12** (ids `0x21..0x2c`) in `@PICKMUSIC` order (Bird Song … Nightingale). Submenu
+ids continue through remaining BGM slots, skipping Introduction **`0x33`**: Independence
+`0x2d..0x31`, Military `0x32`/`0x34..0x36`, Indian `0x37..0x3a`. Selecting a song calls `sound_play_preview` (audible A/B listen even while ambient
+autoplay is parked) and updates the status line. Esc / click-outside stops the preview.
+Map title/BGM via `sound_play` / `sound_set_bgm` stay gated by
+`COLONIZE_SOUND_PLAYBACK_ENABLED`.
+
+**Autoplay — parked.** Heuristic F4→MIDI decode does not match the original soundtrack
+(`COLONIZE_SOUND_PLAYBACK_ENABLED` is `0` in `src/core/sound.h`). The loader, ID map,
+preview path, and API remain for a later fidelity pass. When autoplay is re-enabled,
+FluidSynth uses `COLONIZE_SOUNDFONT` or `/usr/share/sounds/sf2/*.sf2`; `--nosound` skips
+the SDL device (and Pick Music previews). `smoke_sound` / `smoke_pick_music` cover load +
+dialog.
 
 ## Discovery Order
 

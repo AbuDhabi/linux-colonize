@@ -28,6 +28,7 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_SEPARATOR,     /* visual rule in dropdown; not clickable */
 
   /* GAME */
+  MAP_MENU_ACTION_PICK_MUSIC,
   MAP_MENU_ACTION_SAVE,
   MAP_MENU_ACTION_LOAD,
   MAP_MENU_ACTION_RETIRE,

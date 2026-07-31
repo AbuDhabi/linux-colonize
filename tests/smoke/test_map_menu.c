@@ -50,10 +50,15 @@ int main(void) {
 
   /* REPORTS items are enabled (open report screens). */
   bool found_save = false;
+  bool found_pick_music = false;
   bool found_report = false;
   for (int i = 0; i < bar.menus[0].item_count; ++i) {
     if (bar.menus[0].items[i].action == MAP_MENU_ACTION_SAVE && bar.menus[0].items[i].enabled) {
       found_save = true;
+    }
+    if (bar.menus[0].items[i].action == MAP_MENU_ACTION_PICK_MUSIC &&
+        bar.menus[0].items[i].enabled) {
+      found_pick_music = true;
     }
   }
   for (int i = 0; i < bar.menus[3].item_count; ++i) {
@@ -62,11 +67,12 @@ int main(void) {
       found_report = true;
     }
   }
-  if (!found_save || !found_report) {
+  if (!found_save || !found_pick_music || !found_report) {
     fprintf(
       stderr,
-      "expected enabled Save + Reports Congress (save=%d report=%d)\n",
+      "expected enabled Save + Pick Music + Reports Congress (save=%d pick=%d report=%d)\n",
       found_save ? 1 : 0,
+      found_pick_music ? 1 : 0,
       found_report ? 1 : 0
     );
     map_menu_free(&bar);
