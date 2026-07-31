@@ -46,6 +46,8 @@ typedef struct ColonizeInputState {
   bool quit_requested;
   bool mouse_left_down;
   bool mouse_left_clicked; /* edged: true on left button down this frame */
+  bool mouse_right_down;
+  bool mouse_right_clicked; /* edged: true on right button down this frame */
   int mouse_x;             /* framebuffer/logical coords (320×200 space) */
   int mouse_y;
   ColonizeKey last_key;
@@ -81,6 +83,24 @@ bool platform_present(
 uint32_t platform_ticks_ms(void);
 void platform_sleep_ms(uint32_t ms);
 void platform_set_window_title(ColonizePlatform* platform, const char* title);
+
+/*
+ * Replace the OS mouse pointer with an indexed-color sprite (0xFD = transparent),
+ * scaled to the window scale. Pass NULL pixels via platform_set_mouse_cursor_default
+ * to restore the system arrow. platform_show_game_mouse_cursor toggles between the
+ * last built game cursor and the default without rebuilding.
+ */
+bool platform_set_mouse_cursor_indexed(
+  ColonizePlatform* platform,
+  const uint8_t* indexed_pixels,
+  int width,
+  int height,
+  int hotspot_x,
+  int hotspot_y,
+  const ColonizePalette* palette
+);
+void platform_set_mouse_cursor_default(ColonizePlatform* platform);
+void platform_show_game_mouse_cursor(ColonizePlatform* platform, bool show_game_cursor);
 
 /* Audio: SDL device is opened paused; resume after sound_init. */
 void platform_audio_resume(ColonizePlatform* platform);

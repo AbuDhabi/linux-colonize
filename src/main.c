@@ -142,6 +142,7 @@ int main(int argc, char** argv) {
     if (!game_update(game, &input, dt)) {
       running = false;
     }
+    game_apply_mouse_cursor(game, platform, input.mouse_x, input.mouse_y);
     game_render(game, &framebuffer, &palette);
     platform_set_window_title(platform, game_status_text(game));
     if (!platform_present(platform, &framebuffer, &palette)) {

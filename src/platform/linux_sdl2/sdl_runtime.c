@@ -16,10 +16,18 @@ struct ColonizePlatform {
   uint32_t* rgba_buffer;
   int width;
   int height;
+  int window_scale;
   bool audio_enabled;
   SDL_AudioDeviceID audio_device;
   int audio_freq;
   int audio_channels;
+  int last_mouse_x;
+  int last_mouse_y;
+  bool mouse_left_down;
+  bool mouse_right_down;
+  SDL_Cursor* game_cursor;
+  SDL_Cursor* default_cursor;
+  bool game_cursor_active;
 };
 
 static ColonizeKey map_key(SDL_Keycode key) {
@@ -111,6 +119,8 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
 
   platform->width = width;
   platform->height = height;
+  platform->window_scale = scale;
+  platform->default_cursor = SDL_GetDefaultCursor();
   platform->window = SDL_CreateWindow(
     "Colonization Linux Port",
     SDL_WINDOWPOS_CENTERED,
@@ -230,6 +240,13 @@ void platform_destroy(ColonizePlatform* platform) {
   if (!platform) {
     return;
   }
+  if (platform->game_cursor) {
+    SDL_FreeCursor(platform->game_cursor);
+    platform->game_cursor = NULL;
+  }
+  if (platform->default_cursor) {
+    SDL_SetCursor(platform->default_cursor);
+  }
   if (platform->audio_device != 0) {
     SDL_CloseAudioDevice(platform->audio_device);
     platform->audio_device = 0;
@@ -301,7 +318,7 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
         break;
       case SDL_MOUSEMOTION:
         mouse_to_logical(
-          platform, event.motion.x, event.motion.y, &out_input->mouse_x, &out_input->mouse_y
+          platform, event.motion.x, event.motion.y, &platform->last_mouse_x, &platform->last_mouse_y
         );
         break;
       case SDL_MOUSEBUTTONDOWN:
@@ -310,13 +327,18 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
           platform,
           event.button.x,
           event.button.y,
-          &out_input->mouse_x,
-          &out_input->mouse_y
+          &platform->last_mouse_x,
+          &platform->last_mouse_y
         );
         if (event.button.button == SDL_BUTTON_LEFT) {
-          out_input->mouse_left_down = (event.type == SDL_MOUSEBUTTONDOWN);
+          platform->mouse_left_down = (event.type == SDL_MOUSEBUTTONDOWN);
           if (event.type == SDL_MOUSEBUTTONDOWN) {
             out_input->mouse_left_clicked = true;
+          }
+        } else if (event.button.button == SDL_BUTTON_RIGHT) {
+          platform->mouse_right_down = (event.type == SDL_MOUSEBUTTONDOWN);
+          if (event.type == SDL_MOUSEBUTTONDOWN) {
+            out_input->mouse_right_clicked = true;
           }
         }
         break;
@@ -327,7 +349,107 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
         break;
     }
   }
+
+  out_input->mouse_x = platform->last_mouse_x;
+  out_input->mouse_y = platform->last_mouse_y;
+  out_input->mouse_left_down = platform->mouse_left_down;
+  out_input->mouse_right_down = platform->mouse_right_down;
   return true;
+}
+
+void platform_set_mouse_cursor_default(ColonizePlatform* platform) {
+  if (!platform) {
+    return;
+  }
+  if (platform->default_cursor) {
+    SDL_SetCursor(platform->default_cursor);
+  } else {
+    SDL_Cursor* arrow = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+    if (arrow) {
+      SDL_SetCursor(arrow);
+      /* Leak one system cursor if default was null — rare. */
+    }
+  }
+  platform->game_cursor_active = false;
+}
+
+bool platform_set_mouse_cursor_indexed(
+  ColonizePlatform* platform,
+  const uint8_t* indexed_pixels,
+  int width,
+  int height,
+  int hotspot_x,
+  int hotspot_y,
+  const ColonizePalette* palette
+) {
+  if (!platform || !indexed_pixels || !palette || width <= 0 || height <= 0) {
+    return false;
+  }
+
+  int scale = platform->window_scale > 0 ? platform->window_scale : 1;
+  const int sw = width * scale;
+  const int sh = height * scale;
+  SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, sw, sh, 32, SDL_PIXELFORMAT_ARGB8888);
+  if (!surface) {
+    diag_warn("SDL_CreateRGBSurfaceWithFormat failed: %s", SDL_GetError());
+    return false;
+  }
+
+  if (SDL_LockSurface(surface) != 0) {
+    diag_warn("SDL_LockSurface failed: %s", SDL_GetError());
+    SDL_FreeSurface(surface);
+    return false;
+  }
+
+  uint32_t* dst = (uint32_t*)surface->pixels;
+  const int pitch = surface->pitch / (int)sizeof(uint32_t);
+  for (int y = 0; y < sh; ++y) {
+    const int sy = y / scale;
+    for (int x = 0; x < sw; ++x) {
+      const int sx = x / scale;
+      const uint8_t index = indexed_pixels[sy * width + sx];
+      uint32_t pixel = 0;
+      if (index != 0xFDu) {
+        const uint8_t r = palette->rgb[index][0];
+        const uint8_t g = palette->rgb[index][1];
+        const uint8_t b = palette->rgb[index][2];
+        pixel = 0xff000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+      }
+      dst[y * pitch + x] = pixel;
+    }
+  }
+  SDL_UnlockSurface(surface);
+
+  const int hot_x = hotspot_x * scale;
+  const int hot_y = hotspot_y * scale;
+  SDL_Cursor* cursor = SDL_CreateColorCursor(surface, hot_x, hot_y);
+  SDL_FreeSurface(surface);
+  if (!cursor) {
+    diag_warn("SDL_CreateColorCursor failed: %s", SDL_GetError());
+    return false;
+  }
+
+  if (platform->game_cursor) {
+    SDL_FreeCursor(platform->game_cursor);
+  }
+  platform->game_cursor = cursor;
+  SDL_SetCursor(cursor);
+  platform->game_cursor_active = true;
+  return true;
+}
+
+void platform_show_game_mouse_cursor(ColonizePlatform* platform, bool show_game_cursor) {
+  if (!platform) {
+    return;
+  }
+  if (show_game_cursor) {
+    if (platform->game_cursor) {
+      SDL_SetCursor(platform->game_cursor);
+      platform->game_cursor_active = true;
+    }
+  } else {
+    platform_set_mouse_cursor_default(platform);
+  }
 }
 
 bool platform_present(

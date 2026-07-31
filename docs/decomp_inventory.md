@@ -103,7 +103,9 @@ port I/O in the native build.
   board/unload (**O**/**U**), sail ship to/from Europe with passengers
   (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`)
 - Map menu bar: `MENU.TXT` pull-downs with mouse hit-testing (`src/core/map_menu.c`);
-  mouse cursor moves on map click; Colonizopedia category lists from `PEDIA.TXT`
+  left-click selects unit/tile/colony, right-click selects tile; pan-only while a unit is
+  selected; blinking white tile outline in tile-select mode; `CURSOR.SS` #0 is the OS
+  pointer over the map viewport; Colonizopedia category lists from `PEDIA.TXT`
   (`src/core/pedia.c`); pull-down divider after Terrain Types; trade menu entries stubbed
 - Report / adviser screens: F2–F10 + REPORTS menu (`src/core/reports.c`);
   F1 Terrain Information → Colonizopedia at cursor; F8=`REPORT8.PIK`; F10=`WOODPANL.PIK`;
