@@ -139,14 +139,13 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 | 96–99 | Fish, beaver, deer, timber |
 | 100 | Empty |
 | 101–103 | Silver, ore (hill), rumours |
-| 104–111 | Fog-of-war edges (approx.) |
-| 112–127 | Coastline 8×8 fragments (edge variants; not yet placed) |
-| 128–131 | Coastline 8×8 diagonal (checkerboard 2×2) |
-| 132–139 | Coastline 8×8 fragments (not yet placed) |
-| 140–147 | Coastline 16×16 animation frames (approx.) |
-| 148 | Ocean overlay |
-| 149 | Plowed |
-| 150–153 | Coastal ocean corners (NW/NE/SW/SE land → 150/151/152/153) |
+| 104–111 | Fog-of-war edges / solid fillers (approx.) |
+| 109–139 | Coastline 8×8 fragments (`109+4*mask+q` in MAPEDIT) |
+| 140 | 16×16 (also last MAPEDIT fragment when mask=7,q=3) |
+| 141–144 | Major river estuary corners (N/E/S/W) |
+| 145–148 | Minor river estuary corners |
+| 149 | Plowed / other overlay |
+| 150–153 | Coastal ocean corners (land NW/NE/SW/SE → 150/151/152/153) |
 
 ### Map overlay compositing
 
@@ -183,23 +182,23 @@ Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest spri
 | 6 major river | 1–15 | Major-neighbour mask, or minor-band at junctions |
 | 7 mountain + major river | mountain then river | — |
 
-**Ocean estuaries — parked (not drawn).** Terrain index 25 with river overlay (bits 5–7) marks river mouths in `.MP` data; the port draws **TERRAIN only** (`MAP_ESTUARY_OVERLAYS_ENABLED 0`). Parked `phys0_estuary_sprite()` in `src/core/map.c` — see [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines and estuaries**).
+**Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; MAPEDIT blits PHYS0 **141–148** toward land neighbours with bit `0x40` (`MAP_ESTUARY_OVERLAYS_ENABLED`). See [decomp_inventory.md](decomp_inventory.md) (**Map coastlines and estuaries**).
 
 When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses mountain art (e.g. AMER2 `(1,1)` → PHYS0 36 on tundra).
 
 Forests on other rows now draw PHYS0 canopy overlays; roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
-**Coastal ocean — parked (cosmetic, not drawn).** `MAP_COAST_OVERLAYS_ENABLED` defaults to `0` in `src/core/map.h`. Research and resume checklist: [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines and estuaries**).
+**Coastal ocean.** `MAP_COAST_OVERLAYS_ENABLED` defaults to `1`. MAPEDIT: land underlayer → fragments **109+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary. Details: [decomp_inventory.md](decomp_inventory.md).
 
-Prior documented models (also wrong / superseded):
+| Model | PHYS0 / TERRAIN | Status |
+|-------|-----------------|--------|
+| MAPEDIT underlayer + zero-fill | land TERRAIN, then ocean into dest==0 | **Enabled** |
+| MAPEDIT fragments + corners | 109–140 (8×8), 150–153 (16×16) | **Enabled** |
+| MAPEDIT estuary cardinals | 141–148 (16×16) | **Enabled** |
+| Old 4-quadrant bases 108/116/124/132 | 108–139 | Superseded |
+| Estuary DOS RAM lookup | 108–139, 149 | Superseded |
 
-| Model | PHYS0 | Status |
-|-------|-------|--------|
-| 2×2 full/diagonal corners | 150–153 (16×16), 128–131 (8×8) | Removed from code; do not revive without DOS proof |
-| 4-quadrant neighbour mask | 108–139 (8×8) | **Parked**; `MAP_COAST_OVERLAYS_ENABLED` |
-| Estuary lookup (DOS RAM capture) | 108–139, 149 | **Parked**; `MAP_ESTUARY_OVERLAYS_ENABLED` |
-
-Land-side shore (140–153), animation frames (140–147), and per-tile texture variation from DOS RAM buffers are not drawn.
+Not drawn yet: fog of war; per-tile texture variation from DOS RAM buffers.
 
 Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md).
 

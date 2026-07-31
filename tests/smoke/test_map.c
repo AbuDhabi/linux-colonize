@@ -4,7 +4,7 @@
 #include "core/map.h"
 #include "platform/diagnostics.h"
 
-#define MAP_FIXTURE_PHYS0_MAX 4
+#define MAP_FIXTURE_PHYS0_MAX 8
 
 typedef struct MapTileExpectation {
   int x;
@@ -155,28 +155,18 @@ int main(void) {
 
 #if MAP_COAST_OVERLAYS_ENABLED
   /*
-   * Parked 4-quadrant coast heuristic (sprites 108-139). Compiled only when
-   * MAP_COAST_OVERLAYS_ENABLED is 1 in core/map.h.
+   * MAPEDIT coast masks; corners use PHYS0 150–153 (NW/NE/SW/SE land).
    */
   static const MapTileExpectation amer2_coast_fixtures[] = {
-    /* (6,14): ocean with land on all 4 cardinal sides -> all quadrants fully set. */
-    {6, 14, 10, 4, {115, 123, 131, 139}},
-    /* (23,2): ocean with land only to the E -> NE+SW+SE quadrants. */
-    {23, 2, 10, 3, {118, 125, 139}},
-    /* (8,2): ocean with land only to the W -> NW+NE+SW+SE quadrants. */
-    {8, 2, 10, 4, {114, 120, 131, 138}},
-    /* (1,3): ocean with land only to the N -> NW+NE+SE quadrants. */
-    {1, 3, 10, 3, {109, 123, 133}},
-    /* (18,2): ocean with land only to the W+NW -> NW+NE+SW quadrants. */
-    {18, 2, 10, 3, {115, 117, 130}},
-    /* (33,6): ocean with diagonal land to SE -> all 4 quadrants. */
-    {33, 6, 10, 4, {112, 118, 125, 135}},
-    /* (9,25): ocean with diagonal land to SW -> all 4 quadrants. */
-    {9, 25, 10, 4, {110, 120, 127, 134}},
-    /* (8,26): ocean with diagonal land to NE -> NW+NE+SE quadrants. */
-    {8, 26, 10, 3, {113, 119, 133}},
-    /* (34,7): ocean with diagonal land to NW -> NW+NE+SW+SE quadrants. */
-    {34, 7, 10, 4, {111, 121, 126, 136}},
+    {6, 14, 10, 4, {137, 138, 139, 140}},
+    {23, 2, 10, 1, {153}},
+    {8, 2, 10, 4, {121, 118, 135, 140}},
+    {1, 3, 10, 1, {151}},
+    {18, 2, 10, 1, {150}},
+    {33, 6, 10, 4, {117, 126, 131, 116}},
+    {9, 25, 10, 4, {113, 118, 127, 132}},
+    {8, 26, 10, 4, {133, 130, 115, 112}},
+    {34, 7, 10, 4, {129, 122, 119, 128}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_coast_fixtures) / sizeof(amer2_coast_fixtures[0]); ++i) {
@@ -184,6 +174,38 @@ int main(void) {
       fprintf(stderr, "coast regression: %s\n", err);
       map_free(&map);
       return 1;
+    }
+  }
+
+  /* MAPEDIT land underlayer (last cardinal land neighbour TERRAIN sprite). */
+  {
+    static const struct {
+      int x, y, underlayer;
+    } under[] = {
+      {6, 14, 1},
+      {23, 2, 0},
+      {1, 3, 4},
+      {18, 2, 0},
+      {33, 6, 2},
+      {8, 26, 1},
+      {19, 25, 5},
+      {0, 0, 0}, /* coastal: land to the E on tundra row → underlayer 0 */
+      {29, 0, -1}, /* open ocean */
+    };
+    for (size_t i = 0; i < sizeof(under) / sizeof(under[0]); ++i) {
+      const int got = map_coast_underlayer_sprite_at(&map, under[i].x, under[i].y);
+      if (got != under[i].underlayer) {
+        fprintf(
+          stderr,
+          "underlayer regression: (%d,%d) expected %d got %d\n",
+          under[i].x,
+          under[i].y,
+          under[i].underlayer,
+          got
+        );
+        map_free(&map);
+        return 1;
+      }
     }
   }
 #else
@@ -303,17 +325,16 @@ int main(void) {
   }
 
   /*
-   * River estuaries (ocean + river overlay). Compiled only when
-   * MAP_ESTUARY_OVERLAYS_ENABLED is 1 in core/map.h.
+   * River estuaries (MAPEDIT: ocean & 0xc0 → PHYS0 141–148 after coast).
    */
 #if MAP_ESTUARY_OVERLAYS_ENABLED
   static const MapTileExpectation amer2_river_estuary[] = {
-    {19, 25, 10, 1, {137}},
-    {22, 23, 10, 1, {135}},
-    {23, 22, 10, 1, {68}},
-    {46, 39, 10, 0, {0}},
-    {13, 8, 10, 1, {149}},
-    {25, 15, 10, 1, {149}},
+    {19, 25, 10, 2, {150, 148}},
+    {22, 23, 10, 5, {133, 114, 111, 112, 141}},
+    {23, 22, 10, 5, {137, 138, 115, 128, 144}},
+    {46, 39, 10, 3, {152, 143, 144}},
+    {13, 8, 10, 6, {137, 138, 115, 136, 146, 148}},
+    {25, 15, 10, 5, {133, 130, 139, 124, 142}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_river_estuary) / sizeof(amer2_river_estuary[0]); ++i) {
@@ -324,7 +345,8 @@ int main(void) {
     }
   }
 #else
-  /* Estuary PHYS0 stubbed off — ocean+river tiles draw TERRAIN only. */
+#if !MAP_COAST_OVERLAYS_ENABLED
+  /* Estuary + coast both off — ocean+river tiles draw TERRAIN only. */
   static const MapTileExpectation amer2_estuary_disabled[] = {
     {19, 25, 10, 0, {0}},
     {22, 23, 10, 0, {0}},
@@ -340,14 +362,21 @@ int main(void) {
     }
   }
 #endif
+#endif
 
   fprintf(stderr,
-    "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles%s)\n",
+    "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles%s%s)\n",
     sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),
     scrub_sprite8_tiles,
     sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]),
     sizeof(amer2_river_north) / sizeof(amer2_river_north[0]),
     sizeof(amer2_river_major) / sizeof(amer2_river_major[0]),
+#if MAP_COAST_OVERLAYS_ENABLED
+    ", coast enabled"
+#else
+    ", coast parked"
+#endif
+    ,
 #if MAP_ESTUARY_OVERLAYS_ENABLED
     ", estuary enabled"
 #else

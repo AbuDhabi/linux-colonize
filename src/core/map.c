@@ -14,13 +14,9 @@
  *   bit 4 (16): hill/mountain base flag (with bits 0-2)
  *   bits 5-7: hill / river / mountain overlays
  *
- * Coastlines: best-effort 4-quadrant PHYS0 overlays on ocean tiles only.
- * PARKED — wrong vs DOS, cosmetic only, disabled via MAP_COAST_OVERLAYS_ENABLED.
- * Implementation kept in map_phys0_coast_collect() for later recovery.
- * See docs/decomp_inventory.md "Parked: coastlines and estuaries".
- *
- * River estuaries on ocean (overlay on index 25): PARKED via MAP_ESTUARY_OVERLAYS_ENABLED.
- * phys0_estuary_sprite() kept for recovery; default is TERRAIN-only on those tiles.
+ * Ocean coast / estuary PHYS0: MAPEDIT.EXE FUN_1a47_0932 (no RTLink).
+ * Coast: FUN_1a47_01ae land-neighbour mask → fragments 109+4*m+q or corners 150–153.
+ * Estuary: ocean terrain & 0xc0 → mouths 141–148 toward land river neighbours.
  */
 
 #define PHYS0_MAJOR_RIVER_FIRST 1
@@ -34,13 +30,11 @@
 #define PHYS0_MOUNTAIN_ISOLATED 36
 #define PHYS0_TUNDRA_CANOPY viceroy_feature_sprite_bases_b[3] /* 65 */
 
-#if MAP_COAST_OVERLAYS_ENABLED
-/* 4-quadrant 8x8 coast fragments — parked heuristic; see docs/decomp_inventory.md */
-#define PHYS0_COAST_NW_BASE 108
-#define PHYS0_COAST_NE_BASE 116
-#define PHYS0_COAST_SW_BASE 124
-#define PHYS0_COAST_SE_BASE 132
-#define PHYS0_COAST_QUAD_PX 8  /* pixels per quadrant side */
+#if MAP_COAST_OVERLAYS_ENABLED || MAP_ESTUARY_OVERLAYS_ENABLED
+#define PHYS0_COAST_FRAG_BASE 109 /* MAPEDIT: 0x6d + 4*mask + q */
+#define PHYS0_COAST_CORNER_BASE 150 /* PHYS0 150–153: NW/NE/SW/SE land */
+#define PHYS0_ESTUARY_MAJOR_BASE 141 /* MAPEDIT: 0x8d */
+#define PHYS0_ESTUARY_MINOR_BASE 145 /* MAPEDIT: 0x8d + 4 */
 #define COAST_QUADS 4
 #endif
 
@@ -203,96 +197,237 @@ static bool major_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) 
   return overlay_is_major_river((uint8_t)(tile_byte >> 5));
 }
 
-static bool map_is_ocean_river_tile(uint8_t terrain_byte) {
-  return map_is_ocean_index(map_decode_terrain_index(terrain_byte))
-    && overlay_is_any_river(map_terrain_overlay(terrain_byte));
-}
+static bool map_is_land_at(const ColonizeWorldMap* map, int x, int y);
 
-#if MAP_ESTUARY_OVERLAYS_ENABLED
-#define PHYS0_COAST_FRAG_FIRST 108
-#define PHYS0_COAST_FRAG_LAST 139
-#define PHYS0_FRAGMENT_8_PX 8
+/* MAPEDIT 8-neighbour walk: N,NE,E,SE,S,SW,W,NW (DS 0x6c0 / 0x6ca). */
+static const int mapedit_neigh8_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+static const int mapedit_neigh8_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
 
-static bool land_river_neighbor(uint8_t tile_byte, uint8_t self_byte, int dir) {
-  (void)self_byte;
-  (void)dir;
-  if (map_is_ocean_index(map_decode_terrain_index(tile_byte))) {
-    return false;
+/* MAPEDIT estuary / 4-corner walk: N,E,S,W (DS 0x6b4 / 0x6ba). */
+static const int mapedit_card_dx[4] = {0, 1, 0, -1};
+static const int mapedit_card_dy[4] = {-1, 0, 1, 0};
+
+#if MAP_COAST_OVERLAYS_ENABLED || MAP_ESTUARY_OVERLAYS_ENABLED
+typedef struct CoastOverlay {
+  int sprite;
+  int ox;
+  int oy;
+} CoastOverlay;
+
+/*
+ * FUN_1a47_01ae: build 8-bit land mask and per-quadrant 3-bit masks.
+ * Cardinal land sets bit2 on quad[d>>1] and bit0 on the next quad;
+ * diagonal land sets bit1 on the facing quad.
+ * Quadrant pixel origins (ASM 0x714/0x715): NW,NE,SE,SW.
+ */
+static void mapedit_coast_masks(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  uint8_t* out_mask8,
+  uint8_t out_quads[4]
+) {
+  uint8_t mask8 = 0;
+  out_quads[0] = out_quads[1] = out_quads[2] = out_quads[3] = 0;
+  for (int d = 0; d < 8; ++d) {
+    if (!map_is_land_at(map, x + mapedit_neigh8_dx[d], y + mapedit_neigh8_dy[d])) {
+      continue;
+    }
+    mask8 = (uint8_t)(mask8 | (uint8_t)(1u << d));
+    if ((d & 1) == 0) {
+      const int q = d >> 1;
+      out_quads[q] = (uint8_t)(out_quads[q] | 4u);
+      out_quads[(q + 1) & 3] = (uint8_t)(out_quads[(q + 1) & 3] | 1u);
+    } else {
+      const int q = ((d + 1) & 6) >> 1;
+      out_quads[q] = (uint8_t)(out_quads[q] | 2u);
+    }
   }
-  return overlay_is_any_river((uint8_t)(tile_byte >> 5));
+  if (out_mask8) {
+    *out_mask8 = mask8;
+  }
 }
 
-static void phys0_coast_fragment_offset(int sprite, int* out_ox, int* out_oy) {
+static void mapedit_coast_quad_offset(int q, int* out_ox, int* out_oy) {
+  /* ox = ((q+1)&2)<<2; oy = (q&~1)<<2  → (0,0),(8,0),(8,8),(0,8) */
   if (out_ox) {
-    *out_ox = 0;
+    *out_ox = (((q + 1) & 2) << 2);
   }
   if (out_oy) {
-    *out_oy = 0;
-  }
-  if (sprite >= 108 && sprite <= 115) {
-    return;
-  }
-  if (sprite >= 116 && sprite <= 123) {
-    if (out_ox) {
-      *out_ox = PHYS0_FRAGMENT_8_PX;
-    }
-    return;
-  }
-  if (sprite >= 124 && sprite <= 131) {
-    if (out_oy) {
-      *out_oy = PHYS0_FRAGMENT_8_PX;
-    }
-    return;
-  }
-  if (sprite >= 132 && sprite <= 139) {
-    if (out_ox) {
-      *out_ox = PHYS0_FRAGMENT_8_PX;
-    }
-    if (out_oy) {
-      *out_oy = PHYS0_FRAGMENT_8_PX;
-    }
+    *out_oy = ((q & ~1) << 2);
   }
 }
+#endif
 
-static int phys0_estuary_sprite(uint8_t overlay, uint8_t land_river_mask) {
-  /*
-   * Ocean river mouths: overlay nibble + land-side river connectivity.
-   * PARKED heuristic — canonical indices from DOS RAM 0x0328f0 on AMER2.
-   */
-  static const int minor_estuary_by_mask[16] = {
-    137, 134, 132, -1,
-    137, -1, -1, -1,
-    137, -1, 149, -1,
-    60, -1, -1, -1,
-  };
-  static const int major_estuary_by_mask[16] = {
-    -1, 135, 149, -1,
-    128, -1, -1, -1,
-    68, -1, -1, -1,
-    -1, -1, -1, -1,
-  };
-  const uint8_t mask = land_river_mask & 0x0f;
-
-  if (overlay_is_major_river(overlay)) {
-    return major_estuary_by_mask[mask];
-  }
-  if (overlay_is_minor_river(overlay)) {
-    return minor_estuary_by_mask[mask];
-  }
-  return -1;
-}
-
-static int map_estuary_phys0_sprite(const ColonizeWorldMap* map, int x, int y) {
+#if MAP_COAST_OVERLAYS_ENABLED
+static int map_phys0_coast_collect(const ColonizeWorldMap* map, int x, int y, CoastOverlay* out, int max_out) {
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
-  if (!map_is_ocean_river_tile(terrain_byte)) {
-    return -1;
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+    return 0;
   }
-  const uint8_t overlay = map_terrain_overlay(terrain_byte);
-  const uint8_t land_mask =
-    map_cardinal_mask(map, x, y, land_river_neighbor, terrain_byte);
-  return phys0_estuary_sprite(overlay, land_mask);
+
+  uint8_t mask8 = 0;
+  uint8_t quads[4];
+  mapedit_coast_masks(map, x, y, &mask8, quads);
+  if (mask8 == 0) {
+    return 0; /* open ocean — MAPEDIT skips coast art when FUN_1a47_01ae returns 0 */
+  }
+
+  int corner = -1;
+  if ((mask8 & 0xddu) == 0xc1u) {
+    corner = 0;
+  }
+  if ((mask8 & 0x77u) == 0x07u) {
+    corner = 1;
+  }
+  if ((mask8 & 0x77u) == 0x70u) {
+    corner = 2;
+  }
+  if ((mask8 & 0xddu) == 0x1cu) {
+    corner = 3;
+  }
+
+  if (corner >= 0) {
+    if (max_out < 1) {
+      return 0;
+    }
+    /*
+     * Corner id 0..3 = land toward NW/NE/SW/SE (2×2 with this ocean).
+     * PHYS0.SS art is 150–153 in that order (transparent on the land side).
+     * MAPEDIT writes 0x97+id (151–154); that is off-by-one vs this sheet.
+     */
+    out[0] = (CoastOverlay){PHYS0_COAST_CORNER_BASE + corner, 0, 0};
+    return 1;
+  }
+
+  int count = 0;
+  for (int q = 0; q < COAST_QUADS && count < max_out; ++q) {
+    int ox = 0;
+    int oy = 0;
+    mapedit_coast_quad_offset(q, &ox, &oy);
+    out[count++] = (CoastOverlay){
+      PHYS0_COAST_FRAG_BASE + (int)quads[q] * 4 + q,
+      ox,
+      oy
+    };
+  }
+  return count;
+}
+
+static CoastOverlay map_phys0_coast_layer_at(const ColonizeWorldMap* map, int x, int y, int layer) {
+  CoastOverlay layers[COAST_QUADS];
+  const int count = map_phys0_coast_collect(map, x, y, layers, COAST_QUADS);
+  if (layer < 0 || layer >= count) {
+    return (CoastOverlay){-1, 0, 0};
+  }
+  return layers[layer];
+}
+#endif /* MAP_COAST_OVERLAYS_ENABLED */
+
+#if MAP_ESTUARY_OVERLAYS_ENABLED
+static bool map_terrain_has_river_bit(uint8_t terrain_byte) {
+  /* MAPEDIT neighbour test: terrain & 0x40 (FreeCol river overlays 2/3/6/7). */
+  return (terrain_byte & 0x40u) != 0;
+}
+
+static int map_phys0_estuary_collect(const ColonizeWorldMap* map, int x, int y, CoastOverlay* out, int max_out) {
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+    return 0;
+  }
+  /* MAPEDIT: (original_terrain & 0xc0) != 0 */
+  if ((terrain_byte & 0xc0u) == 0) {
+    return 0;
+  }
+
+  const int base = ((terrain_byte & 0x80u) != 0) ? PHYS0_ESTUARY_MAJOR_BASE : PHYS0_ESTUARY_MINOR_BASE;
+  int count = 0;
+  for (int q = 0; q < 4 && count < max_out; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    const uint8_t neighbor = map_get_terrain(map, nx, ny);
+    if (!map_terrain_has_river_bit(neighbor)) {
+      continue;
+    }
+    if (!map_is_land_for_coast(map_decode_terrain_index(neighbor))) {
+      continue;
+    }
+    /* 16×16 estuary art; MAPEDIT leaves 0x714/0x715 at 0 after coast. */
+    out[count++] = (CoastOverlay){base + q, 0, 0};
+  }
+  return count;
+}
+
+static CoastOverlay map_phys0_estuary_layer_at(const ColonizeWorldMap* map, int x, int y, int layer) {
+  CoastOverlay layers[COAST_QUADS];
+  const int count = map_phys0_estuary_collect(map, x, y, layers, COAST_QUADS);
+  if (layer < 0 || layer >= count) {
+    return (CoastOverlay){-1, 0, 0};
+  }
+  return layers[layer];
 }
 #endif /* MAP_ESTUARY_OVERLAYS_ENABLED */
+
+static int map_phys0_coast_layer_count_internal(const ColonizeWorldMap* map, int x, int y) {
+#if MAP_COAST_OVERLAYS_ENABLED
+  CoastOverlay unused[COAST_QUADS];
+  return map_phys0_coast_collect(map, x, y, unused, COAST_QUADS);
+#else
+  (void)map;
+  (void)x;
+  (void)y;
+  return 0;
+#endif
+}
+
+static int map_phys0_estuary_layer_count(const ColonizeWorldMap* map, int x, int y) {
+#if MAP_ESTUARY_OVERLAYS_ENABLED
+  CoastOverlay unused[COAST_QUADS];
+  return map_phys0_estuary_collect(map, x, y, unused, COAST_QUADS);
+#else
+  (void)map;
+  (void)x;
+  (void)y;
+  return 0;
+#endif
+}
+
+int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y) {
+  if (!map) {
+    return 0;
+  }
+  return map_phys0_coast_layer_count_internal(map, x, y);
+}
+
+int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || map_phys0_coast_layer_count_internal(map, x, y) <= 0) {
+    return -1;
+  }
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+    return -1;
+  }
+
+  /* FUN_1a47_01ae: last cardinal land (N,E,S,W) updates the underlayer type. */
+  int land_x = -1;
+  int land_y = -1;
+  for (int d = 0; d < 8; d += 2) {
+    const int nx = x + mapedit_neigh8_dx[d];
+    const int ny = y + mapedit_neigh8_dy[d];
+    if (map_is_land_at(map, nx, ny)) {
+      land_x = nx;
+      land_y = ny;
+    }
+  }
+  if (land_x >= 0) {
+    return map_terrain_sprite_at(map, land_x, land_y);
+  }
+  /* Diagonal-only coast: MAPEDIT keeps ocean as the 05b2 underlayer. */
+  return map_terrain_sprite_at(map, x, y);
+}
 
 static bool map_is_land_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
@@ -338,93 +473,6 @@ bool map_tile_is_high_seas(const ColonizeWorldMap* map, int x, int y) {
     return false;
   }
   return map_decode_terrain_index(map_get_terrain(map, x, y)) == MAP_HIGH_SEAS_INDEX;
-}
-
-#if MAP_COAST_OVERLAYS_ENABLED
-typedef struct CoastOverlay {
-  int sprite;
-  int ox;
-  int oy;
-} CoastOverlay;
-#endif
-
-#if MAP_COAST_OVERLAYS_ENABLED
-/*
- * 4-quadrant coast system (derived from live VICEROY.EXE RAM analysis):
- * PHYS0 sprites 108-139 are 8x8 coast fragments.
- * For each ocean tile, up to 4 quadrant overlays are emitted.
- * Each quadrant variant = 3-bit mask of which relevant neighbours are land.
- * Variant 0 = no art needed for that quadrant.
- */
-static int map_phys0_coast_collect(const ColonizeWorldMap* map, int x, int y, CoastOverlay* out, int max_out) {
-  const uint8_t terrain_byte = map_get_terrain(map, x, y);
-  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
-    return 0;
-  }
-
-  const int n  = map_is_land_at(map, x,     y - 1) ? 1 : 0;
-  const int e  = map_is_land_at(map, x + 1, y)     ? 1 : 0;
-  const int s  = map_is_land_at(map, x,     y + 1) ? 1 : 0;
-  const int w  = map_is_land_at(map, x - 1, y)     ? 1 : 0;
-  const int nw = map_is_land_at(map, x - 1, y - 1) ? 1 : 0;
-  const int ne = map_is_land_at(map, x + 1, y - 1) ? 1 : 0;
-  const int sw = map_is_land_at(map, x - 1, y + 1) ? 1 : 0;
-  const int se = map_is_land_at(map, x + 1, y + 1) ? 1 : 0;
-
-  int count = 0;
-
-  /* NW quadrant: bit0=N, bit1=W, bit2=NW */
-  {
-    const int v = n | (w << 1) | (nw << 2);
-    if (v && count < max_out) {
-      out[count++] = (CoastOverlay){PHYS0_COAST_NW_BASE + v, 0, 0};
-    }
-  }
-  /* NE quadrant: bit0=N, bit1=E, bit2=NE */
-  {
-    const int v = n | (e << 1) | (ne << 2);
-    if (v && count < max_out) {
-      out[count++] = (CoastOverlay){PHYS0_COAST_NE_BASE + v, PHYS0_COAST_QUAD_PX, 0};
-    }
-  }
-  /* SW quadrant: bit0=S, bit1=W, bit2=SW */
-  {
-    const int v = s | (w << 1) | (sw << 2);
-    if (v && count < max_out) {
-      out[count++] = (CoastOverlay){PHYS0_COAST_SW_BASE + v, 0, PHYS0_COAST_QUAD_PX};
-    }
-  }
-  /* SE quadrant: bit0=E, bit1=S, bit2=SE */
-  {
-    const int v = e | (s << 1) | (se << 2);
-    if (v && count < max_out) {
-      out[count++] = (CoastOverlay){PHYS0_COAST_SE_BASE + v, PHYS0_COAST_QUAD_PX, PHYS0_COAST_QUAD_PX};
-    }
-  }
-
-  return count;
-}
-
-static CoastOverlay map_phys0_coast_layer_at(const ColonizeWorldMap* map, int x, int y, int layer) {
-  CoastOverlay layers[COAST_QUADS];
-  const int count = map_phys0_coast_collect(map, x, y, layers, COAST_QUADS);
-  if (layer < 0 || layer >= count) {
-    return (CoastOverlay){-1, 0, 0};
-  }
-  return layers[layer];
-}
-#endif /* MAP_COAST_OVERLAYS_ENABLED */
-
-static int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y) {
-#if MAP_COAST_OVERLAYS_ENABLED
-  CoastOverlay unused[COAST_QUADS];
-  return map_phys0_coast_collect(map, x, y, unused, COAST_QUADS);
-#else
-  (void)map;
-  (void)x;
-  (void)y;
-  return 0;
-#endif
 }
 
 static int phys0_connectivity_sprite(int first, int count, uint8_t mask) {
@@ -672,24 +720,20 @@ int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
   if (map_has_special_mountain_marker(map, x, y)) {
     ++count;
   }
-  if (overlay == 0 || overlay == 4) {
-    return count;
-  }
 
-  if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
-    ++count;
-  }
-  if (overlay_is_minor_river(overlay) || overlay_is_major_river(overlay)) {
-    if (map_is_ocean_river_tile(terrain_byte)) {
-#if MAP_ESTUARY_OVERLAYS_ENABLED
-      if (map_estuary_phys0_sprite(map, x, y) >= 0) {
-        ++count;
-      }
-#endif
-    } else {
+  /* Inland hills / mountains / rivers (not ocean mouths). */
+  if (overlay != 0 && overlay != 4) {
+    if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
+      ++count;
+    }
+    if ((overlay_is_minor_river(overlay) || overlay_is_major_river(overlay))
+        && !map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
       ++count;
     }
   }
+
+  /* MAPEDIT: estuary after coast on ocean tiles with terrain & 0xc0. */
+  count += map_phys0_estuary_layer_count(map, x, y);
   return count;
 }
 
@@ -700,15 +744,15 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
 
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t overlay = map_terrain_overlay(terrain_byte);
-#if MAP_COAST_OVERLAYS_ENABLED
   const int coast_layers = map_phys0_coast_layer_count(map, x, y);
   if (layer < coast_layers) {
+#if MAP_COAST_OVERLAYS_ENABLED
     return map_phys0_coast_layer_at(map, x, y, layer).sprite;
+#else
+    return -1;
+#endif
   }
   int feature_layer = coast_layers;
-#else
-  int feature_layer = 0;
-#endif
 
   if (map_has_special_mountain_marker(map, x, y)) {
     if (layer == feature_layer) {
@@ -717,46 +761,48 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
     ++feature_layer;
   }
 
-  if (overlay == 0 || overlay == 4) {
-    return -1;
-  }
-
-  if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
-    if (layer == feature_layer) {
-      const uint8_t mask = overlay_is_mountain(overlay, terrain_byte)
-        ? map_cardinal_mask(map, x, y, mountain_neighbor, terrain_byte)
-        : map_cardinal_mask(map, x, y, hill_neighbor_dir, terrain_byte);
-      if (overlay_is_mountain(overlay, terrain_byte)) {
-        return phys0_mountain_sprite(mask);
+  if (overlay != 0 && overlay != 4) {
+    if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
+      if (layer == feature_layer) {
+        const uint8_t mask = overlay_is_mountain(overlay, terrain_byte)
+          ? map_cardinal_mask(map, x, y, mountain_neighbor, terrain_byte)
+          : map_cardinal_mask(map, x, y, hill_neighbor_dir, terrain_byte);
+        if (overlay_is_mountain(overlay, terrain_byte)) {
+          return phys0_mountain_sprite(mask);
+        }
+        return phys0_connectivity_sprite(PHYS0_HILL_FIRST, PHYS0_HILL_COUNT, mask);
       }
-      return phys0_connectivity_sprite(PHYS0_HILL_FIRST, PHYS0_HILL_COUNT, mask);
+      ++feature_layer;
     }
-    ++feature_layer;
+
+    if ((overlay_is_minor_river(overlay) || overlay_is_major_river(overlay))
+        && !map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+      if (layer == feature_layer) {
+        const uint8_t minor_mask =
+          map_cardinal_mask(map, x, y, minor_river_neighbor_only, terrain_byte);
+        const uint8_t major_mask =
+          map_cardinal_mask(map, x, y, major_river_neighbor, terrain_byte);
+        const uint8_t any_mask =
+          map_cardinal_mask(map, x, y, any_river_neighbor, terrain_byte);
+        return phys0_river_sprite(
+          overlay_is_major_river(overlay),
+          minor_mask,
+          major_mask,
+          any_mask
+        );
+      }
+      ++feature_layer;
+    }
   }
 
-  if (overlay_is_minor_river(overlay) || overlay_is_major_river(overlay)) {
-    if (layer == feature_layer) {
-      if (map_is_ocean_river_tile(terrain_byte)) {
+  const int estuary_layers = map_phys0_estuary_layer_count(map, x, y);
+  const int estuary_index = layer - feature_layer;
+  if (estuary_index >= 0 && estuary_index < estuary_layers) {
 #if MAP_ESTUARY_OVERLAYS_ENABLED
-        return map_estuary_phys0_sprite(map, x, y);
+    return map_phys0_estuary_layer_at(map, x, y, estuary_index).sprite;
 #else
-        return -1;
+    return -1;
 #endif
-      }
-      const uint8_t minor_mask =
-        map_cardinal_mask(map, x, y, minor_river_neighbor_only, terrain_byte);
-      const uint8_t major_mask =
-        map_cardinal_mask(map, x, y, major_river_neighbor, terrain_byte);
-      const uint8_t any_mask =
-        map_cardinal_mask(map, x, y, any_river_neighbor, terrain_byte);
-      return phys0_river_sprite(
-        overlay_is_major_river(overlay),
-        minor_mask,
-        major_mask,
-        any_mask
-      );
-    }
-    ++feature_layer;
   }
 
   return -1;
@@ -779,9 +825,12 @@ void map_phys0_overlay_offset_at(
   if (!map || layer < 0) {
     return;
   }
-#if MAP_COAST_OVERLAYS_ENABLED
+
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const uint8_t overlay = map_terrain_overlay(terrain_byte);
   const int coast_layers = map_phys0_coast_layer_count(map, x, y);
   if (layer < coast_layers) {
+#if MAP_COAST_OVERLAYS_ENABLED
     const CoastOverlay coast = map_phys0_coast_layer_at(map, x, y, layer);
     if (out_ox) {
       *out_ox = coast.ox;
@@ -789,36 +838,37 @@ void map_phys0_overlay_offset_at(
     if (out_oy) {
       *out_oy = coast.oy;
     }
+#endif
     return;
   }
   int feature_layer = coast_layers;
-#else
-  int feature_layer = 0;
-#endif
-
-  const uint8_t terrain_byte = map_get_terrain(map, x, y);
-  const uint8_t overlay = map_terrain_overlay(terrain_byte);
 
   if (map_has_special_mountain_marker(map, x, y)) {
     ++feature_layer;
   }
-  if (overlay == 0 || overlay == 4) {
-    return;
-  }
-  if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
-    ++feature_layer;
-  }
-#if MAP_ESTUARY_OVERLAYS_ENABLED
-  if ((overlay_is_minor_river(overlay) || overlay_is_major_river(overlay))
-      && map_is_ocean_river_tile(terrain_byte)) {
-    if (layer == feature_layer) {
-      const int sprite = map_estuary_phys0_sprite(map, x, y);
-      if (sprite >= PHYS0_COAST_FRAG_FIRST && sprite <= PHYS0_COAST_FRAG_LAST) {
-        phys0_coast_fragment_offset(sprite, out_ox, out_oy);
-      }
+  if (overlay != 0 && overlay != 4) {
+    if (overlay_is_hill(overlay, terrain_byte) || overlay_is_mountain(overlay, terrain_byte)) {
+      ++feature_layer;
+    }
+    if ((overlay_is_minor_river(overlay) || overlay_is_major_river(overlay))
+        && !map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+      ++feature_layer;
     }
   }
+
+  const int estuary_layers = map_phys0_estuary_layer_count(map, x, y);
+  const int estuary_index = layer - feature_layer;
+  if (estuary_index >= 0 && estuary_index < estuary_layers) {
+#if MAP_ESTUARY_OVERLAYS_ENABLED
+    const CoastOverlay est = map_phys0_estuary_layer_at(map, x, y, estuary_index);
+    if (out_ox) {
+      *out_ox = est.ox;
+    }
+    if (out_oy) {
+      *out_oy = est.oy;
+    }
 #endif
+  }
 }
 
 int map_phys0_overlay_sprite(const ColonizeWorldMap* map, int x, int y) {

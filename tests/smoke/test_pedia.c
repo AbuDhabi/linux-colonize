@@ -67,7 +67,7 @@ static int expect_preview(
 int main(void) {
   diag_init(0, NULL);
 
-  static const int coast_phys0[] = {153, 152, 151, 150};
+  static const int coast_phys0[] = {150, 151, 152, 153};
   static const int forest8[] = {70};
   static const int forest13[] = {69};
   static const int mountain[] = {36};

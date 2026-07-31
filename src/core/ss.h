@@ -31,5 +31,14 @@ void ss_blit_sprite(
   int dst_x,
   int dst_y
 );
+/* Copy sprite pixels only onto framebuffer cells that currently equal match_color (MAPEDIT masked terrain). */
+void ss_blit_sprite_where_dest(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y,
+  uint8_t match_color
+);
 
 #endif

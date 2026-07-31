@@ -318,7 +318,9 @@ static void colony_screen_render_minimap(
       const int my = colony_y + dy;
       const int tile_x = origin_x + (dx + half) * COLONY_MINIMAP_TILE;
       const int tile_y = origin_y + (dy + half) * COLONY_MINIMAP_TILE;
-      const int sprite = map_terrain_sprite_at(map, mx, my);
+      const int underlayer = map_coast_underlayer_sprite_at(map, mx, my);
+      const int coast_layers = map_phys0_coast_layer_count(map, mx, my);
+      const int sprite = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(map, mx, my);
       if (sprite >= 0 && sprite < terrain->sprite_count) {
         ss_blit_sprite(terrain, sprite, framebuffer, tile_x, tile_y);
       }
@@ -330,7 +332,8 @@ static void colony_screen_render_minimap(
         ss_blit_sprite(phys0, forest, framebuffer, tile_x, tile_y);
       }
       const int layers = map_phys0_overlay_count(map, mx, my);
-      for (int layer = 0; layer < layers; ++layer) {
+      const int coast_end = (underlayer >= 0) ? coast_layers : layers;
+      for (int layer = 0; layer < coast_end; ++layer) {
         const int overlay = map_phys0_overlay_sprite_at(map, mx, my, layer);
         if (overlay < 0 || overlay >= phys0->sprite_count) {
           continue;
@@ -339,6 +342,22 @@ static void colony_screen_render_minimap(
         int oy = 0;
         map_phys0_overlay_offset_at(map, mx, my, layer, &ox, &oy);
         ss_blit_sprite(phys0, overlay, framebuffer, tile_x + ox, tile_y + oy);
+      }
+      if (underlayer >= 0) {
+        const int ocean_sprite = map_terrain_sprite_at(map, mx, my);
+        if (ocean_sprite >= 0 && ocean_sprite < terrain->sprite_count) {
+          ss_blit_sprite_where_dest(terrain, ocean_sprite, framebuffer, tile_x, tile_y, 0);
+        }
+        for (int layer = coast_layers; layer < layers; ++layer) {
+          const int overlay = map_phys0_overlay_sprite_at(map, mx, my, layer);
+          if (overlay < 0 || overlay >= phys0->sprite_count) {
+            continue;
+          }
+          int ox = 0;
+          int oy = 0;
+          map_phys0_overlay_offset_at(map, mx, my, layer, &ox, &oy);
+          ss_blit_sprite(phys0, overlay, framebuffer, tile_x + ox, tile_y + oy);
+        }
       }
     }
   }

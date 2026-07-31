@@ -87,8 +87,8 @@ port I/O in the native build.
   DOS typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
   (see `docs/viceroy_tables.md`)
-- World map view: terrain + PHYS0 overlays (forests, hills, rivers) — playable bring-up
-- **Coastlines and estuaries: parked** — not drawn (`MAP_COAST_OVERLAYS_ENABLED 0`, `MAP_ESTUARY_OVERLAYS_ENABLED 0`); cosmetic only (see **Parked: coastlines and estuaries** below)
+- World map view: terrain + PHYS0 overlays (forests, hills, rivers, coasts, estuaries)
+- Coast / estuary: enabled from `MAPEDIT.EXE` compositor (`FUN_1a47_0932`; see below)
 - **Music playback: parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0` in `src/core/sound.h`; loader kept (see `docs/assets.md`)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
@@ -153,51 +153,35 @@ Evidence:
 
 AI production for non-human Europeans is **skipped** until save-diff evidence says otherwise; human colonies always tick.
 
-## Parked: coastlines and estuaries
+## Map coastlines and estuaries (MAPEDIT)
 
-**Decision (2026-07):** Stop iterating on shoreline and river-mouth art. Wrong rendering does not block gameplay (units, colonies, Europe, turn flow). Revisit only when map fidelity is explicitly prioritized.
+Authoritative static map compositor: `COLONIZE/MAPEDIT.EXE` / `mapedit.c` (`FUN_1a47_0932`, land mask `FUN_1a47_01ae`). No RTLink; no fog-of-war / animation. Enabled by default (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` in `src/core/map.h`).
 
 ### Coast decoration
 
-Coast decoration is **stubbed off** by default: `MAP_COAST_OVERLAYS_ENABLED` in `src/core/map.h` is `0`, so ocean tiles draw TERRAIN only. The parked implementation `map_phys0_coast_collect()` remains in `src/core/map.c` (compiled when the flag is `1`) and blits up to four 8×8 `PHYS0.SS` fragments (sprites 108–139) on ocean tiles using a 3-bit land-neighbour mask per quadrant. Smoke fixtures in `tests/smoke/test_map.c` (`amer2_coast_fixtures`) compile only with the flag enabled. **Do not treat those fixtures as ground truth for DOS fidelity** — they document the heuristic, not the original game.
+On ocean / high-seas tiles with at least one land neighbour:
 
-Land-side shore sprites (140–153) are not drawn. Texture-variation overlays from the DOS precomputed buffers are not implemented.
+1. Build 8-bit land mask (N→NW clockwise) and four 3-bit quadrant masks (cardinal → bits 0/2 on adjacent quads; diagonal → bit 1).
+2. Special full-tile corners when mask matches (id 0..3 = land NW/NE/SW/SE):
+   PHYS0 **`150 + id`**. MAPEDIT encodes `0x97+id` (151–154); the sheet is
+   150–153 in land-direction order (transparent on the land side of the tile).
+3. Else four 8×8 fragments: sprite **`109 + 4*quad_mask + q`** at pixel offsets NW/NE/SE/SW (`0`/`8`).
 
-### River estuaries (ocean + river overlay)
+Draw order vs MAPEDIT: land TERRAIN underlayer (last cardinal neighbour) → coast PHYS0 →
+masked ocean into palette-0 holes (`FUN_1a47_0676`) → estuary. Fog of war is not drawn
+(MAPEDIT skips it too).
 
-`.MP` marks river mouths as **ocean (index 25) with river overlay** (bits 5–7 = minor or major). The port does **not** draw PHYS0 on those tiles by default (`MAP_ESTUARY_OVERLAYS_ENABLED 0`). Inland rivers (land tiles) are unchanged.
+### River estuaries
 
-Parked implementation: `phys0_estuary_sprite()` in `src/core/map.c` (compiled when the flag is `1`). It indexed overlay nibble + land-side river neighbour mask against DOS RAM buffer `0x0328f0` (coast fragments 108–139, sprite 149). Looked wrong in-game; folded into this parking lot with coast work. Fixtures: `amer2_river_estuary` in `tests/smoke/test_map.c` (enabled flag only).
+Ocean tile with `terrain & 0xc0`: for each cardinal neighbour that is land with `terrain & 0x40`, blit **`141+q`** (major, bit `0x80` set) or **`145+q`** (minor) as 16×16 at `(0,0)`. Inland rivers unchanged.
 
-### Research already done (keep when resuming)
+Fixtures: `amer2_coast_fixtures` / `amer2_river_estuary` in `tests/smoke/test_map.c`.
 
-Full 640 KB conventional RAM from DOSBox-X save state (`dosbox_save_state_2/Memory`; header skip `0x88` bytes before linear RAM):
+### Remaining map compositor gaps
 
-| Linear addr | Size | Contents |
-|-------------|------|----------|
-| `0x0324d0` | `map_w × map_h` | Per-tile byte → `PHYS0.SS` sprite index (overlay / variation) |
-| `0x0328f0` | `map_w × map_h` | Second per-tile `PHYS0` index buffer (texture variation; not coast direction) |
-
-Findings from correlating AMER2.MP terrain with those buffers:
-
-- Values `0x80`–`0x8A` (sprites 128–138) appear on **both** coast and interior tiles with **no** stable mapping to a 4-neighbour ocean mask — they behave like **random texture variation**, not directional coast indices.
-- Open ocean often uses `0x3c`–`0x3e` (sprites 60–62) or `0x00` / `0x44` (no overlay / sprite 68).
-- Sprite 149 (`0x95`) appears at river mouths; not wired in the port.
-- Unpacked decomp recovered viewport orchestration (`FUN_6a9f_0360`, `FUN_6a9f_0118`), not the leaf that picks coast sprites. RTLink thunks `FUN_210d_0dab` / `FUN_210d_0d91` still gate overlay pages.
-
-`PHYS0.SS` layout (154 sprites): 108–139 = 8×8; 140–153 = 16×16. See [assets.md](assets.md).
-
-Static table `connectivity_transition` at EXE offset `0x5599` (`src/data/viceroy_tables.*`) is a candidate for coast variant selection but was **not** validated against live output. Prior 2×2-corner model (150–153 / 128–131) was replaced by the quadrant heuristic and also looked wrong in-game.
-
-### Checklist when resuming coast / estuary work
-
-0. **Re-enable drawing** — Set `MAP_COAST_OVERLAYS_ENABLED` and/or `MAP_ESTUARY_OVERLAYS_ENABLED` to `1` in `src/core/map.h`; rebuild and compare smoke fixtures.
-1. **Ground truth** — Side-by-side DOSBox-X vs Linux screenshot at the same AMER2 view (e.g. cursor ~39,10); note specific wrong tiles.
-2. **Breakpoints** — In DOSBox-X, break on blit/write when sprite index ∈ [108,153] and backtrace through loaded overlay (not packed `viceroy.c` stubs). User reports breakpoints were unreliable; save-state RAM diff may be easier.
-3. **Buffer consumer** — Find code that **writes** `0x0324d0` / `0x0328f0` (search for stores into those regions, or follow `FUN_6a9f_0118` consumers).
-4. **Validate tables** — Compare `connectivity_transition` and overlay nibble paths against live buffer bytes on coast tiles only (filter tiles where land/ocean neighbours differ).
-5. **Land-side art** — Add 140–153 (and quadrant placement rules) once ocean-side rules are confirmed.
-6. **Tests** — Replace or supplement `tests/smoke/test_map.c` coast fixtures with captures from DOS reference buffers, not hand-derived quadrant math.
+- Fog-of-war / exploration blackness (intentional MAPEDIT gap; game still needs it)
+- Coast animation frames; texture-variation overlays from DOS RAM buffers
+- Prior VICEROY RAM-buffer / parked quadrant heuristics — superseded by MAPEDIT
 
 ### Other map compositor gaps (unchanged priority)
 

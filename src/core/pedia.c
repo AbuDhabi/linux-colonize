@@ -222,7 +222,7 @@ void pedia_terrain_preview(int terrain_index, PediaTerrainPreview* out) {
   }
 
   if (terrain_index == 25 || terrain_index == 26) {
-    static const int coast_corners[] = {153, 152, 151, 150};
+    static const int coast_corners[] = {150, 151, 152, 153};
     for (int i = 0; i < 4 && out->phys0_count < PEDIA_PREVIEW_PHYS0_MAX; ++i) {
       out->phys0_sprites[out->phys0_count++] = coast_corners[i];
     }

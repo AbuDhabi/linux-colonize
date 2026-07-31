@@ -73,13 +73,13 @@ Small base-index tables immediately after the river transition table:
 ### `connectivity_transition` (21 bytes)
 
 Candidate for coastline / connectivity variant selection (sprites in the 112–139 band).
-**Not wired** in the Linux port; coast work is **parked** — see [decomp_inventory.md](decomp_inventory.md) (**Parked: coastlines**). Live RAM analysis showed per-tile `PHYS0` buffer bytes do not map cleanly to a simple neighbour mask; validate this table against DOS output before indexing it from `map.c`.
+**Not wired** in the Linux port for coast selection — ocean coasts/estuaries now follow `MAPEDIT.EXE` (`FUN_1a47_0932`); see [decomp_inventory.md](decomp_inventory.md) (**Map coastlines and estuaries**). This table remains a VICEROY candidate for texture/connectivity work, not the MAPEDIT coast path.
 
 ### Linux compositor usage
 
 | Table | Wired? | Notes |
 |-------|--------|-------|
-| `connectivity_transition` | no | Coast parked; candidate table — needs DOS validation |
+| `connectivity_transition` | no | Superseded for coasts by MAPEDIT; unused |
 | `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
 | `viceroy_forest_phys0_sprite()` | yes | All non-scrub forest PHYS0 overlays (map + pedia) |
 | `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |

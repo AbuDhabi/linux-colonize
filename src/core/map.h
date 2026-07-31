@@ -8,23 +8,21 @@
 #define COLONIZE_MAP_HEADER_SIZE 6
 
 /*
- * Ocean-tile coast decoration (4-quadrant PHYS0 108–139 heuristic).
- * PARKED — wrong vs DOS and disabled by default. Set to 1 to re-enable drawing
- * and the coast smoke fixtures in tests/smoke/test_map.c.
- * See docs/decomp_inventory.md "Parked: coastlines and estuaries".
+ * Ocean-tile coast decoration from MAPEDIT.EXE FUN_1a47_0932 / FUN_1a47_01ae:
+ * 8-neighbour land mask → either one 16×16 corner (150–153) or four 8×8
+ * fragments sprite = 109 + 4*quad_mask + q at quadrant pixel offsets.
  */
 #ifndef MAP_COAST_OVERLAYS_ENABLED
-#define MAP_COAST_OVERLAYS_ENABLED 0
+#define MAP_COAST_OVERLAYS_ENABLED 1
 #endif
 
 /*
- * Ocean-tile river estuaries (terrain 25 + river overlay → PHYS0 mouth art).
- * PARKED — disabled by default; set to 1 to re-enable phys0_estuary_sprite()
- * and amer2_river_estuary fixtures in tests/smoke/test_map.c.
- * See docs/decomp_inventory.md "Parked: coastlines and estuaries".
+ * Ocean-tile river estuaries from MAPEDIT.EXE FUN_1a47_0932:
+ * terrain & 0xc0 on ocean → up to four 16×16 PHYS0 mouths (141–144 major,
+ * 145–148 minor) when the matching cardinal neighbour is land with bit 0x40.
  */
 #ifndef MAP_ESTUARY_OVERLAYS_ENABLED
-#define MAP_ESTUARY_OVERLAYS_ENABLED 0
+#define MAP_ESTUARY_OVERLAYS_ENABLED 1
 #endif
 
 typedef struct ColonizeWorldMap {
@@ -47,6 +45,14 @@ uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_base_sprite(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
+/* MAPEDIT coast layer count (0 if open ocean / land). */
+int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y);
+/*
+ * MAPEDIT land underlayer for coastal ocean (FUN_1a47_05b2 after FUN_1a47_01ae).
+ * Last cardinal land neighbour's TERRAIN sprite, or this tile's ocean sprite if only
+ * diagonal land. Returns -1 when the tile is not a coastal ocean composite.
+ */
+int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int layer);
 /* Pixel offset within the 16×16 tile for 8×8 coast fragments; 0,0 for full tiles. */

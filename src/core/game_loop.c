@@ -238,6 +238,32 @@ static void blit_map_sprite_offset(
   ss_blit_sprite(sheet, sprite_index, framebuffer, ox, oy);
 }
 
+static void blit_map_sprite_where_dest(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int screen_tile_x,
+  int screen_tile_y,
+  int tile_w,
+  int tile_h,
+  int origin_x,
+  int origin_y,
+  uint8_t match_color
+) {
+  if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* tile = &sheet->sprites[sprite_index];
+  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
+    return;
+  }
+  const int cox = (tile_w - tile->width) / 2;
+  const int coy = (tile_h - tile->height) / 2;
+  const int ox = origin_x + screen_tile_x * tile_w + cox;
+  const int oy = origin_y + screen_tile_y * tile_h + coy;
+  ss_blit_sprite_where_dest(sheet, sprite_index, framebuffer, ox, oy, match_color);
+}
+
 static void blit_map_sprite(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
@@ -2458,13 +2484,17 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     for (int sy = 0; sy < view_rows; ++sy) {
       for (int sx = 0; sx < view_cols; ++sx) {
         int base_sprite;
+        int underlayer = -1;
+        int coast_layers = 0;
         if (game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
           if (mx < 0 || my < 0 || mx >= game->world_map.width || my >= game->world_map.height) {
             continue;
           }
-          base_sprite = map_terrain_sprite_at(&game->world_map, mx, my);
+          underlayer = map_coast_underlayer_sprite_at(&game->world_map, mx, my);
+          coast_layers = map_phys0_coast_layer_count(&game->world_map, mx, my);
+          base_sprite = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(&game->world_map, mx, my);
         } else {
           base_sprite = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
         }
@@ -2485,8 +2515,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
             );
           }
           const int overlay_layers = map_phys0_overlay_count(&game->world_map, mx, my);
-          /* Coast / estuary PHYS0 stubbed when MAP_*_OVERLAYS_ENABLED is 0. */
-          for (int layer = 0; layer < overlay_layers; ++layer) {
+          /* MAPEDIT: coast PHYS0, then masked ocean into colour-0 holes, then estuary. */
+          const int coast_end = (underlayer >= 0) ? coast_layers : overlay_layers;
+          for (int layer = 0; layer < coast_end; ++layer) {
             const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
             if (overlay_sprite >= 0) {
               int ox = 0;
@@ -2505,6 +2536,44 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
                 ox,
                 oy
               );
+            }
+          }
+          if (underlayer >= 0) {
+            const int ocean_sprite = map_terrain_sprite_at(&game->world_map, mx, my);
+            if (ocean_sprite >= 0 && ocean_sprite < game->terrain.sprite_count) {
+              blit_map_sprite_where_dest(
+                &game->terrain,
+                ocean_sprite,
+                framebuffer,
+                sx,
+                sy,
+                tile_w,
+                tile_h,
+                map_origin_x,
+                map_origin_y,
+                0
+              );
+            }
+            for (int layer = coast_layers; layer < overlay_layers; ++layer) {
+              const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
+              if (overlay_sprite >= 0) {
+                int ox = 0;
+                int oy = 0;
+                map_phys0_overlay_offset_at(&game->world_map, mx, my, layer, &ox, &oy);
+                blit_map_sprite_offset(
+                  &game->phys0,
+                  overlay_sprite,
+                  framebuffer,
+                  sx,
+                  sy,
+                  tile_w,
+                  tile_h,
+                  map_origin_x,
+                  map_origin_y,
+                  ox,
+                  oy
+                );
+              }
             }
           }
         }
