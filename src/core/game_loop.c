@@ -17,6 +17,7 @@
 #include "core/font.h"
 #include "core/map.h"
 #include "core/map_menu.h"
+#include "core/map_panel.h"
 #include "core/pedia.h"
 #include "core/pik.h"
 #include "core/reports.h"
@@ -48,6 +49,10 @@ struct ColonizeGameState {
   ColonizeMsgCatalog messages;
   ColonizeMsgCatalog map_menu_txt;
   MapMenuBar map_menu;
+  ColonizeMsgCatalog labels;
+  bool labels_ok;
+  MapPanel map_panel;
+  bool map_panel_ok;
   ColonizeMsgCatalog pedia;
   bool pedia_ok;
   bool in_pedia;
@@ -923,6 +928,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
 
   assets_msg_init(&game->messages);
   assets_msg_init(&game->map_menu_txt);
+  assets_msg_init(&game->labels);
   assets_msg_init(&game->pedia);
   assets_msg_init(&game->names);
   map_menu_init(&game->map_menu);
@@ -968,6 +974,30 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     } else {
       diag_warn("Failed to parse MENU.TXT");
     }
+  }
+
+  char labels_txt[512];
+  game->labels_ok = false;
+  if (dos_compat_normalize_asset_path(
+        game->resolved_data_dir, "LABELS.TXT", labels_txt, sizeof(labels_txt)
+      )) {
+    if (assets_msg_load_file(&game->labels, labels_txt)) {
+      game->labels_ok = true;
+      diag_info("Loaded LABELS.TXT");
+    } else {
+      diag_warn("Failed to parse LABELS.TXT");
+    }
+  }
+
+  game->map_panel_ok = map_panel_load(
+    &game->map_panel,
+    game->resolved_data_dir,
+    game->labels_ok ? &game->labels : NULL
+  );
+  if (game->map_panel_ok) {
+    diag_info("Loaded map right panel (WOODTILE/NAMEPLAT)");
+  } else {
+    diag_warn("Map right panel assets incomplete");
   }
 
   char names_txt[512];
@@ -1263,7 +1293,9 @@ void game_destroy(ColonizeGameState* game) {
   col1_save_free(&game->col1);
   assets_msg_free(&game->messages);
   assets_msg_free(&game->map_menu_txt);
+  assets_msg_free(&game->labels);
   map_menu_free(&game->map_menu);
+  map_panel_free(&game->map_panel);
   assets_msg_free(&game->pedia);
   assets_msg_free(&game->names);
   debug_atlas_free(&game->debug_atlas);
@@ -2182,7 +2214,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
-    const ColonizeFont* menu_font = game->menu_font_ok ? &game->menu_font : NULL;
+    const ColonizeFont* menu_font = game->colony_font_ok ? &game->colony_font :
+                                    (game->menu_font_ok ? &game->menu_font : NULL);
     const bool menu_was_open = game->map_menu.open_index >= 0;
     if (input->last_key == COLONIZE_KEY_ESCAPE && menu_was_open) {
       ColonizeInputState empty;
@@ -2213,16 +2246,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     if ((input->mouse_left_clicked || input->mouse_right_clicked) && game->world_map_ok) {
-      const int tile_w = 16;
-      const int tile_h = 16;
+      const int tile_w = MAP_VIEW_TILE_W;
+      const int tile_h = MAP_VIEW_TILE_H;
       const int map_origin_x = 0;
-      const int map_origin_y = MAP_MENU_BAR_H;
-      const int view_cols = 320 / tile_w;
-      const int map_h = 200 - map_origin_y;
-      const int view_rows = (map_h + tile_h - 1) / tile_h;
+      const int map_origin_y = MAP_VIEW_ORIGIN_Y;
+      const int view_cols = MAP_VIEW_TILE_COLS;
+      const int view_rows = MAP_VIEW_TILE_ROWS;
       if (input->mouse_y < map_origin_y) {
         return true;
       }
+
       int view_x = game->map_view_x - view_cols / 2;
       int view_y = game->map_view_y - view_rows / 2;
       const int max_view_x = (int)game->world_map.width - view_cols;
@@ -2239,6 +2272,33 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       if (max_view_y > 0 && view_y > max_view_y) {
         view_y = max_view_y;
       }
+
+      /* Right panel / minimap: left-click centers the view on the clicked tile. */
+      if (map_panel_contains_xy(input->mouse_x, input->mouse_y)) {
+        if (input->mouse_left_clicked) {
+          int tx = 0;
+          int ty = 0;
+          if (map_panel_minimap_click(
+                &game->world_map,
+                view_x,
+                view_y,
+                view_cols,
+                view_rows,
+                input->mouse_x,
+                input->mouse_y,
+                &tx,
+                &ty
+              )) {
+            game_set_view_center(game, tx, ty);
+          }
+        }
+        return true;
+      }
+
+      if (input->mouse_x >= MAP_PANEL_X) {
+        return true;
+      }
+
       const int mx = view_x + (input->mouse_x - map_origin_x) / tile_w;
       const int my = view_y + (input->mouse_y - map_origin_y) / tile_h;
       if (mx < 0 || my < 0 || mx >= (int)game->world_map.width || my >= (int)game->world_map.height) {
@@ -2968,16 +3028,15 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     goto render_log_sample;
   }
 
-  /* Map view: scrollable world map below the DOS menu bar. */
+  /* Map view: scrollable world map (13×11 tiles) left of the right info panel. */
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
   const int tile_w = 16;
   const int tile_h = 16;
   const int map_origin_x = 0;
   const int map_origin_y = MAP_MENU_BAR_H;
-  const int view_cols = framebuffer->width / tile_w;
-  const int map_pixel_h = framebuffer->height - map_origin_y;
-  const int view_rows = map_pixel_h > 0 ? (map_pixel_h + tile_h - 1) / tile_h : 0;
+  const int view_cols = MAP_VIEW_TILE_COLS;
+  const int view_rows = MAP_VIEW_TILE_ROWS;
 
   int view_x = game->map_view_x - view_cols / 2;
   int view_y = game->map_view_y - view_rows / 2;
@@ -3196,56 +3255,37 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     }
   }
 
-  char hud[128];
-  if (game->world_map_ok) {
-    const uint8_t terrain = map_get_terrain(&game->world_map, game->map_cursor_x, game->map_cursor_y);
-    const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
-    if (selected) {
-      const ColonizeUnitType* ut = units_type(&game->units, selected->type_index);
-      if (units_is_sea(&game->units, selected->id) && selected->cargo_count > 0) {
-        snprintf(
-          hud,
-          sizeof(hud),
-          "Turn %u  (%d,%d) %s mv=%d hold=%d  O=board U=unload",
-          game->turn_number,
-          game->map_cursor_x,
-          game->map_cursor_y,
-          ut ? ut->name : "unit",
-          selected->moves_left,
-          selected->cargo_count
-        );
-      } else {
-        snprintf(
-          hud,
-          sizeof(hud),
-          "Turn %u  (%d,%d) %s mv=%d  Enter=move O=board",
-          game->turn_number,
-          game->map_cursor_x,
-          game->map_cursor_y,
-          ut ? ut->name : "unit",
-          selected->moves_left
-        );
-      }
-    } else {
-      snprintf(
-        hud,
-        sizeof(hud),
-        "Turn %u  (%d,%d) t=0x%02x  Enter=select D=deploy",
-        game->turn_number,
-        game->map_cursor_x,
-        game->map_cursor_y,
-        terrain
-      );
-    }
-  } else {
-    snprintf(hud, sizeof(hud), "Turn %u  Esc=menu", game->turn_number);
+  if (game->map_panel_ok) {
+    const ColonizeFont* panel_font = game->colony_font_ok ? &game->colony_font :
+                                     (game->menu_font_ok ? &game->menu_font : NULL);
+    map_panel_render(
+      &game->map_panel,
+      game->world_map_ok ? &game->world_map : NULL,
+      game->units_ok ? &game->units : NULL,
+      game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL,
+      game->unit_icons_ok ? &game->unit_icons : NULL,
+      panel_font,
+      view_x,
+      view_y,
+      view_cols,
+      view_rows,
+      game->map_cursor_x,
+      game->map_cursor_y,
+      game->units.selected_id,
+      game->game_year,
+      game->game_autumn,
+      game->europe.gold,
+      framebuffer
+    );
   }
-  const ColonizeFont* hud_font = game->menu_font_ok ? &game->menu_font : NULL;
-  font_draw_text(hud_font, framebuffer, 4, 192, hud, 15);
 
+  const ColonizeFont* hud_font = game->colony_font_ok ? &game->colony_font :
+                                 (game->menu_font_ok ? &game->menu_font : NULL);
   if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_pedia &&
       !game->in_debug_atlas && !game->in_report) {
-    map_menu_render((MapMenuBar*)&game->map_menu, hud_font, framebuffer);
+    const ColonizeSpriteSheet* wood =
+      (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
+    map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
   }
 
 render_log_sample:

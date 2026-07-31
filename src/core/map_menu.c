@@ -3,24 +3,41 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/map_panel.h"
+#include "core/ss.h"
+#include "core/ui_colors.h"
 #include "platform/diagnostics.h"
 
-/* Wood-ish palette indices that work under VICEROY / terrain palettes. */
+/* Menu bar / dropdown chrome under the map palette. */
 enum {
   MAP_MENU_COL_BAR = 6,
-  MAP_MENU_COL_TITLE = 15,
-  MAP_MENU_COL_TITLE_ACTIVE = 14,
+  MAP_MENU_COL_TITLE = COLONIZE_COL_BASIC,
+  MAP_MENU_COL_TITLE_ACTIVE = COLONIZE_COL_HILITE,
+  MAP_MENU_COL_HOTKEY = COLONIZE_COL_HILITE, /* darker yellow / @COLORS hilite */
   MAP_MENU_COL_PANEL = 4,
   MAP_MENU_COL_BORDER = 15,
-  MAP_MENU_COL_ITEM = 15,
-  MAP_MENU_COL_ITEM_DISABLED = 8,
+  MAP_MENU_COL_RULE = 0, /* black separator under the bar */
+  MAP_MENU_COL_ITEM = COLONIZE_COL_BASIC,
+  MAP_MENU_COL_ITEM_DISABLED = COLONIZE_COL_GREY,
   MAP_MENU_COL_HOVER = 1
 };
 
-static void map_menu_strip_markers(char* text) {
+static void map_menu_strip_all_markers(char* text) {
   char* dst = text;
   for (char* src = text; *src; ++src) {
     if (*src == '~' || *src == '#') {
+      continue;
+    }
+    *dst++ = *src;
+  }
+  *dst = '\0';
+}
+
+/* Keep '~' hotkey markers for rendering; drop '#' disable/zoom tags. */
+static void map_menu_strip_hash_only(char* text) {
+  char* dst = text;
+  for (char* src = text; *src; ++src) {
+    if (*src == '#') {
       continue;
     }
     *dst++ = *src;
@@ -49,6 +66,9 @@ static int map_menu_text_width(const ColonizeFont* font, const char* text) {
   int w = 0;
   for (const char* p = text; *p; ++p) {
     const unsigned char ch = (unsigned char)*p;
+    if (ch == '~' || ch == '#') {
+      continue;
+    }
     if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
       w += font->char_widths[ch];
     } else {
@@ -300,21 +320,27 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
 
     char title[MAP_MENU_TITLE_LEN];
     snprintf(title, sizeof(title), "%s", sec->lines[0]);
-    map_menu_strip_markers(title);
+    map_menu_strip_hash_only(title);
     map_menu_trim(title);
     snprintf(menu->title, sizeof(menu->title), "%s", title);
 
     for (int i = 1; i < sec->line_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++i) {
       char label[MAP_MENU_LABEL_LEN];
       snprintf(label, sizeof(label), "%s", sec->lines[i]);
-      map_menu_strip_markers(label);
+      map_menu_strip_hash_only(label);
       map_menu_trim(label);
       if (label[0] == '\0') {
         continue;
       }
+      char classify_label[MAP_MENU_LABEL_LEN];
+      snprintf(classify_label, sizeof(classify_label), "%s", label);
+      map_menu_strip_all_markers(classify_label);
+      if (classify_label[0] == '\0') {
+        continue;
+      }
       MapMenuItem* item = &menu->items[menu->item_count++];
       snprintf(item->label, sizeof(item->label), "%s", label);
-      item->action = map_menu_classify(menu->section_name, label);
+      item->action = map_menu_classify(menu->section_name, classify_label);
       item->separator = (item->action == MAP_MENU_ACTION_SEPARATOR);
       item->enabled = !item->separator && map_menu_action_enabled(item->action);
     }
@@ -325,14 +351,26 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
   (void)k_cheat;
   (void)assets_msg_find(menu_txt, k_cheat);
 
-  /* Lay out title hit-boxes left to right. */
-  int x = 4;
+  /* Lay out title hit-boxes; PEDIA is placed later above the right panel. */
+  int x = 12;
   for (int i = 0; i < bar->menu_count; ++i) {
     MapMenuPulldown* menu = &bar->menus[i];
+    if (strcmp(menu->section_name, "PEDIA") == 0) {
+      continue;
+    }
     const int tw = (int)strlen(menu->title) * 6; /* approx; refined at render with font */
     menu->title_x = x;
     menu->title_w = tw + 8;
     x += menu->title_w + 4;
+  }
+  for (int i = 0; i < bar->menu_count; ++i) {
+    MapMenuPulldown* menu = &bar->menus[i];
+    if (strcmp(menu->section_name, "PEDIA") != 0) {
+      continue;
+    }
+    const int tw = (int)strlen(menu->title) * 6;
+    menu->title_w = tw + 8;
+    menu->title_x = MAP_PANEL_X;
   }
 
   bar->loaded = bar->menu_count > 0;
@@ -345,13 +383,31 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
 }
 
 static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
-  int x = 4;
+  /* 8px right of the old origin (4); COLONIZOPEDIA sits above the minimap strip. */
+  int x = 12;
+  int pedia = -1;
   for (int i = 0; i < bar->menu_count; ++i) {
     MapMenuPulldown* menu = &bar->menus[i];
+    if (strcmp(menu->section_name, "PEDIA") == 0) {
+      pedia = i;
+      continue;
+    }
     const int tw = map_menu_text_width(font, menu->title);
     menu->title_x = x;
     menu->title_w = tw + 8;
     x += menu->title_w + 6;
+  }
+  if (pedia >= 0) {
+    MapMenuPulldown* menu = &bar->menus[pedia];
+    const int tw = map_menu_text_width(font, menu->title);
+    menu->title_w = tw + 8;
+    menu->title_x = MAP_PANEL_X;
+    if (menu->title_x + menu->title_w > 320) {
+      menu->title_x = 320 - menu->title_w;
+      if (menu->title_x < MAP_PANEL_X) {
+        menu->title_x = MAP_PANEL_X;
+      }
+    }
   }
 }
 
@@ -522,9 +578,50 @@ MapMenuAction map_menu_handle_input(
   return MAP_MENU_ACTION_NONE;
 }
 
+static void map_menu_tile_wood(
+  const ColonizeSpriteSheet* sheet,
+  int origin_x,
+  int origin_y,
+  int rect_w,
+  int rect_h,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!sheet || sheet->sprite_count < 1 || !framebuffer || rect_w <= 0 || rect_h <= 0) {
+    return;
+  }
+  const ColonizeSprite* tile = &sheet->sprites[0];
+  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
+    return;
+  }
+  const int x1 = origin_x + rect_w;
+  const int y1 = origin_y + rect_h;
+  for (int y = origin_y; y < y1; y += tile->height) {
+    for (int x = origin_x; x < x1; x += tile->width) {
+      for (int sy = 0; sy < tile->height; ++sy) {
+        const int fy = y + sy;
+        if (fy < origin_y || fy >= y1 || fy < 0 || fy >= framebuffer->height) {
+          continue;
+        }
+        for (int sx = 0; sx < tile->width; ++sx) {
+          const int fx = x + sx;
+          if (fx < origin_x || fx >= x1 || fx < 0 || fx >= framebuffer->width) {
+            continue;
+          }
+          const uint8_t color = tile->pixels[sy * tile->width + sx];
+          if (color == COLONIZE_SS_TRANSPARENT) {
+            continue;
+          }
+          framebuffer->pixels[fy * framebuffer->width + fx] = color;
+        }
+      }
+    }
+  }
+}
+
 void map_menu_render(
   MapMenuBar* bar,
   const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!bar || !bar->loaded || !framebuffer || !framebuffer->pixels) {
@@ -533,14 +630,21 @@ void map_menu_render(
 
   map_menu_layout_titles(bar, font);
 
-  map_menu_fill_rect(framebuffer, 0, 0, framebuffer->width - 1, MAP_MENU_BAR_H - 1, MAP_MENU_COL_BAR);
-  map_menu_hline(framebuffer, MAP_MENU_BAR_H - 1, 0, framebuffer->width - 1, MAP_MENU_COL_BORDER);
+  if (wood_tile && wood_tile->sprite_count > 0) {
+    map_menu_tile_wood(wood_tile, 0, 0, framebuffer->width, MAP_MENU_BAR_H, framebuffer);
+  } else {
+    map_menu_fill_rect(framebuffer, 0, 0, framebuffer->width - 1, MAP_MENU_BAR_H - 1, MAP_MENU_COL_BAR);
+  }
+  /* Black rule under the menu bar (full width; separates bar from map + minimap). */
+  map_menu_hline(framebuffer, MAP_MENU_BAR_H - 1, 0, framebuffer->width - 1, MAP_MENU_COL_RULE);
 
   for (int i = 0; i < bar->menu_count; ++i) {
     const MapMenuPulldown* menu = &bar->menus[i];
     const uint8_t color =
       (i == bar->open_index) ? MAP_MENU_COL_TITLE_ACTIVE : MAP_MENU_COL_TITLE;
-    font_draw_text(font, framebuffer, menu->title_x + 2, 1, menu->title, color);
+    font_draw_text_hotkey(
+      font, framebuffer, menu->title_x + 2, 1, menu->title, color, MAP_MENU_COL_HOTKEY
+    );
   }
 
   if (bar->open_index < 0 || bar->open_index >= bar->menu_count) {
@@ -569,7 +673,9 @@ void map_menu_render(
     }
     const uint8_t color =
       open->items[i].enabled ? MAP_MENU_COL_ITEM : MAP_MENU_COL_ITEM_DISABLED;
-    font_draw_text(font, framebuffer, dx + 4, iy, open->items[i].label, color);
+    font_draw_text_hotkey(
+      font, framebuffer, dx + 4, iy, open->items[i].label, color, MAP_MENU_COL_HOTKEY
+    );
   }
 }
 

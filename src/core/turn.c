@@ -79,7 +79,7 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
   if (year == 0) {
     year = TURN_START_YEAR;
   }
-  snprintf(out, out_size, "%s, %u", autumn ? "Autumn" : "Spring", (unsigned)year);
+  snprintf(out, out_size, "%s %u", autumn ? "Autumn" : "Spring", (unsigned)year);
 }
 
 void turn_refresh_moves_for_nation(ColonizeUnitPool* pool, int nation_id) {

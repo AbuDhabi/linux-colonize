@@ -181,22 +181,46 @@ void font_draw_text(
   const char* text,
   uint8_t color
 ) {
+  font_draw_text_hotkey(font, framebuffer, x, y, text, color, color);
+}
+
+void font_draw_text_hotkey(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color,
+  uint8_t hotkey_color
+) {
   if (!framebuffer || !text) {
     return;
   }
 
   const int line_step = font ? (font->max_height + 2) : 8;
   int cx = x;
+  bool next_hotkey = false;
   for (const char* p = text; *p; ++p) {
     unsigned char ch = (unsigned char)*p;
     if (ch == '\n') {
       y += line_step;
       cx = x;
+      next_hotkey = false;
+      continue;
+    }
+    if (ch == '~') {
+      next_hotkey = true;
+      continue;
+    }
+    if (ch == '#') {
       continue;
     }
 
+    const uint8_t use = next_hotkey ? hotkey_color : color;
+    next_hotkey = false;
+
     if (font && font->section_data && ch < 128) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, color);
+      draw_ff_glyph(font, framebuffer, cx, y, ch, use);
       cx += font->char_widths[ch];
       continue;
     }
@@ -204,7 +228,7 @@ void font_draw_text(
     if (ch < 32 || ch > 126) {
       ch = '?';
     }
-    draw_builtin_glyph(framebuffer, cx, y, ch, color);
+    draw_builtin_glyph(framebuffer, cx, y, ch, use);
     cx += 6;
   }
 }

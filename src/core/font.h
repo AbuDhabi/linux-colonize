@@ -15,4 +15,15 @@ void font_draw_text(
   uint8_t color
 );
 
+/* Like font_draw_text, but '~' marks the next character as a hotkey (hotkey_color). */
+void font_draw_text_hotkey(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color,
+  uint8_t hotkey_color
+);
+
 #endif

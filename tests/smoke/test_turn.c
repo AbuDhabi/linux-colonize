@@ -45,7 +45,7 @@ static int expect_cal(
 int main(void) {
   diag_init(0, NULL);
 
-  if (expect_date(1492, 0, "Spring, 1492") != 0 || expect_date(1600, 1, "Autumn, 1600") != 0) {
+  if (expect_date(1492, 0, "Spring 1492") != 0 || expect_date(1600, 1, "Autumn 1600") != 0) {
     return 1;
   }
 

@@ -6,6 +6,7 @@
 
 #include "core/assets.h"
 #include "core/font.h"
+#include "core/ss.h"
 #include "platform/platform.h"
 
 /*
@@ -15,7 +16,7 @@
  * Layout matches the DOS map display: pull-down titles across the top strip;
  * open a menu to drop a list of items. Mouse-driven (manual: menu bar commands).
  */
-#define MAP_MENU_BAR_H 9
+#define MAP_MENU_BAR_H 8
 #define MAP_MENU_MAX_MENUS 8
 #define MAP_MENU_MAX_ITEMS 24
 #define MAP_MENU_TITLE_LEN 24
@@ -115,6 +116,7 @@ MapMenuAction map_menu_handle_input(
 void map_menu_render(
   MapMenuBar* bar,
   const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile, /* nullable; WOODTILE fill when set */
   ColonizeFramebuffer8* framebuffer
 );
 

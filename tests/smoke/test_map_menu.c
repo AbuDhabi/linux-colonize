@@ -5,6 +5,7 @@
 #include "core/ff.h"
 #include "core/font.h"
 #include "core/map_menu.h"
+#include "core/map_panel.h"
 #include "platform/diagnostics.h"
 
 int main(void) {
@@ -32,9 +33,9 @@ int main(void) {
     return 1;
   }
 
-  if (strcmp(bar.menus[0].title, "GAME") != 0 ||
-      strcmp(bar.menus[1].title, "VIEW") != 0 ||
-      strcmp(bar.menus[5].title, "COLONIZOPEDIA") != 0) {
+  if (strcmp(bar.menus[0].title, "~GAME") != 0 ||
+      strcmp(bar.menus[1].title, "~VIEW") != 0 ||
+      strcmp(bar.menus[5].title, "~COLONIZOPEDIA") != 0) {
     fprintf(
       stderr,
       "unexpected titles: '%s' '%s' ... '%s'\n",
@@ -126,7 +127,30 @@ int main(void) {
   uint8_t pixels[320 * 200];
   memset(pixels, 0, sizeof(pixels));
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
-  map_menu_render(&bar, f, &fb);
+  map_menu_render(&bar, f, NULL, &fb);
+  if (bar.menus[0].title_x != 12) {
+    fprintf(stderr, "GAME title_x expected 12, got %d\n", bar.menus[0].title_x);
+    if (font_ok) {
+      ff_free(&font);
+    }
+    map_menu_free(&bar);
+    assets_msg_free(&menu_txt);
+    return 1;
+  }
+  if (bar.menus[5].title_x != MAP_PANEL_X) {
+    fprintf(
+      stderr,
+      "COLONIZOPEDIA title_x expected %d, got %d\n",
+      MAP_PANEL_X,
+      bar.menus[5].title_x
+    );
+    if (font_ok) {
+      ff_free(&font);
+    }
+    map_menu_free(&bar);
+    assets_msg_free(&menu_txt);
+    return 1;
+  }
   if (pixels[2] == 0 && pixels[320 * 2 + 10] == 0) {
     fprintf(stderr, "menu bar render produced empty pixels\n");
     if (font_ok) {
