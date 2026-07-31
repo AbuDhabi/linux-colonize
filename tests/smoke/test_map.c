@@ -122,27 +122,26 @@ int main(void) {
   }
 
   static const MapTileExpectation amer2_fixtures[] = {
-    /* User-reported fixtures for iterative map rendering. */
-    {1, 1, 0, 1, {36}},
-    {2, 11, 4, 1, {36}},
+    /* Shared connectivity: base + mask (N=8,S=4,W=2,E=1); 0-based PHYS0 indices. */
+    {1, 1, 0, 2, {69, 48}},
+    {2, 11, 4, 1, {32}},
     {43, 68, 0, 1, {36}},
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
     {8, 14, 8, 0, {0}},
-    {1, 0, 0, 1, {65}},
-    {1, 2, 0, 1, {70}},
+    {1, 0, 0, 1, {64}},
+    {1, 2, 0, 1, {73}},
     {16, 2, 0, 1, {70}},
-    {4, 18, 5, 1, {69}},
-    {36, 4, 2, 1, {64}},
-    {27, 14, 3, 1, {65}},
-    {3, 3, 4, 1, {66}},
-    {27, 20, 6, 1, {67}},
-    {39, 28, 7, 1, {68}},
-    {24, 19, 4, 1, {52}},
-    {24, 20, 4, 1, {56}},
-    /* Regression anchors from earlier passes. */
+    {4, 18, 5, 1, {64}},
+    {36, 4, 2, 1, {68}},
+    {27, 14, 3, 1, {69}},
+    {3, 3, 4, 1, {72}},
+    {27, 20, 6, 1, {78}},
+    {39, 28, 7, 1, {66}},
+    {24, 19, 4, 2, {79, 52}},
+    {24, 20, 4, 2, {79, 56}},
     {9, 26, 1, 1, {48}},
-    {16, 3, 0, 1, {21}},
+    {16, 3, 0, 2, {78, 21}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]); ++i) {
@@ -155,18 +154,18 @@ int main(void) {
 
 #if MAP_COAST_OVERLAYS_ENABLED
   /*
-   * MAPEDIT coast masks; corners use PHYS0 150–153 (NW/NE/SW/SE land).
+   * MAPEDIT coast masks; corners 150–153; fragments 108+4*m+q (MAPEDIT 0x6d − 1).
    */
   static const MapTileExpectation amer2_coast_fixtures[] = {
-    {6, 14, 10, 4, {137, 138, 139, 140}},
+    {6, 14, 10, 4, {136, 137, 138, 139}},
     {23, 2, 10, 1, {153}},
-    {8, 2, 10, 4, {121, 118, 135, 140}},
+    {8, 2, 10, 4, {120, 117, 134, 139}},
     {1, 3, 10, 1, {151}},
     {18, 2, 10, 1, {150}},
-    {33, 6, 10, 4, {117, 126, 131, 116}},
-    {9, 25, 10, 4, {113, 118, 127, 132}},
-    {8, 26, 10, 4, {133, 130, 115, 112}},
-    {34, 7, 10, 4, {129, 122, 119, 128}},
+    {33, 6, 10, 4, {116, 125, 130, 115}},
+    {9, 25, 10, 4, {112, 117, 126, 131}},
+    {8, 26, 10, 4, {132, 129, 114, 111}},
+    {34, 7, 10, 4, {128, 121, 118, 127}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_coast_fixtures) / sizeof(amer2_coast_fixtures[0]); ++i) {
@@ -262,8 +261,8 @@ int main(void) {
   }
 
   /*
-   * Minor-river chain on AMER2 (~14,22)–(18,25): cardinal connectivity → PHYS0 17–31.
-   * Locks phys0_river_sprite() against the old mask-% count heuristic.
+   * Minor-river chain on AMER2 (~14,22)–(18,25): shared mask → PHYS0 16–31.
+   * Forest tiles may also report a canopy sprite ahead of the river overlay.
    */
   static const MapTileExpectation amer2_river_chain[] = {
     {14, 22, 1, 1, {17}},
@@ -271,13 +270,12 @@ int main(void) {
     {15, 23, 8, 1, {25}},
     {16, 23, 3, 1, {19}},
     {17, 23, 5, 1, {22}},
-    {17, 24, 3, 1, {28}},
+    {17, 24, 3, 2, {64, 28}},
     {17, 25, 8, 1, {25}},
-    {18, 25, 5, 1, {19}},
-    /* Minor N-only links (~45,50)–(50,49). */
-    {45, 50, 5, 1, {24}},
+    {18, 25, 5, 2, {68, 19}},
+    {45, 50, 5, 2, {70, 24}},
     {48, 46, 5, 1, {24}},
-    {50, 49, 5, 1, {24}},
+    {50, 49, 5, 2, {79, 24}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]); ++i) {
@@ -308,12 +306,12 @@ int main(void) {
 
   /* Major/minor junction on AMER2 (~21,18)–(22,20), minor fork at (21,20). */
   static const MapTileExpectation amer2_river_major[] = {
-    {21, 18, 3, 1, {27}},
-    {22, 18, 3, 1, {7}},
-    {21, 20, 3, 1, {19}},
-    {22, 20, 3, 1, {14}},
-    {29, 15, 3, 1, {28}},
-    {29, 14, 2, 1, {20}},
+    {21, 18, 3, 2, {69, 11}},
+    {22, 18, 3, 2, {79, 7}},
+    {21, 20, 3, 2, {79, 19}},
+    {22, 20, 3, 2, {79, 14}},
+    {29, 15, 3, 2, {79, 28}},
+    {29, 14, 2, 2, {79, 20}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_river_major) / sizeof(amer2_river_major[0]); ++i) {
@@ -325,16 +323,16 @@ int main(void) {
   }
 
   /*
-   * River estuaries (MAPEDIT: ocean & 0xc0 → PHYS0 141–148 after coast).
+   * River estuaries (MAPEDIT 0x8d+q → 0-based 140–147 after coast).
    */
 #if MAP_ESTUARY_OVERLAYS_ENABLED
   static const MapTileExpectation amer2_river_estuary[] = {
-    {19, 25, 10, 2, {150, 148}},
-    {22, 23, 10, 5, {133, 114, 111, 112, 141}},
-    {23, 22, 10, 5, {137, 138, 115, 128, 144}},
-    {46, 39, 10, 3, {152, 143, 144}},
-    {13, 8, 10, 6, {137, 138, 115, 136, 146, 148}},
-    {25, 15, 10, 5, {133, 130, 139, 124, 142}},
+    {19, 25, 10, 2, {150, 147}},
+    {22, 23, 10, 5, {132, 113, 110, 111, 140}},
+    {23, 22, 10, 5, {136, 137, 114, 127, 143}},
+    {46, 39, 10, 3, {152, 142, 143}},
+    {13, 8, 10, 6, {136, 137, 114, 135, 145, 147}},
+    {25, 15, 10, 5, {132, 129, 138, 123, 141}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_river_estuary) / sizeof(amer2_river_estuary[0]); ++i) {

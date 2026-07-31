@@ -400,6 +400,21 @@ void debug_atlas_render(
       h,
       sheet->sprite_count
     );
+    /* PHYS0: labels are 0-based blit indices (MAPEDIT IDs are index+1). */
+    if (strstr(name, "PHYS0") != NULL) {
+      snprintf(
+        hud,
+        sizeof(hud),
+        "%s#%d (=MAPEDIT %d) [%d/%d] %dx%d  L/R Up/Dn Esc",
+        name,
+        idx,
+        idx + 1,
+        atlas->index + 1,
+        atlas->count,
+        w,
+        h
+      );
+    }
     for (int y = 0; y < 12; ++y) {
       memset(&framebuffer->pixels[y * framebuffer->width], 0, (size_t)framebuffer->width);
     }
@@ -444,6 +459,18 @@ void debug_atlas_render(
     cell_w,
     cell_h
   );
+  if (strstr(name, "PHYS0") != NULL) {
+    snprintf(
+      hud,
+      sizeof(hud),
+      "%s [%d/%d] #%d-%d (0-based; MAPEDIT=+1)  L/R Up/Dn Esc",
+      name,
+      atlas->index + 1,
+      atlas->count,
+      sheet->sprite_count > 0 ? first : 0,
+      shown_last >= 0 ? shown_last : 0
+    );
+  }
   font_draw_text(font, framebuffer, 2, 1, hud, 15);
 
   for (int row = 0; row < rows; ++row) {

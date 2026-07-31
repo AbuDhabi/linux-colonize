@@ -80,10 +80,10 @@ Candidate for coastline / connectivity variant selection (sprites in the 112–1
 | Table | Wired? | Notes |
 |-------|--------|-------|
 | `connectivity_transition` | no | Superseded for coasts by MAPEDIT; unused |
-| `feature_sprite_bases_b[3]` | yes | Tundra row forest canopy (65) |
-| `viceroy_forest_phys0_sprite()` | yes | All non-scrub forest PHYS0 overlays (map + pedia) |
+| `feature_sprite_bases_b[3]` | no | Was tundra canopy 65; map now uses isolated forest **64** |
+| `viceroy_forest_phys0_sprite()` | pedia | Fixed per-type preview; world map uses MAPEDIT `64+mask` |
 | `river_transition` | no | Indexed by runtime `0x314c` in UI/unit paths; not map connectivity |
-| `feature_sprite_bases_a` | no | Deferred with map compositor |
+| `feature_sprite_bases_a` | no | Superseded for hills/mountains by MAPEDIT `32/48+mask` |
 | `terrain_meta` class | pedia | Mountains/hills class flags |
 
 ## References in decomp exports

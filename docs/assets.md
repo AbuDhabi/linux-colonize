@@ -122,6 +122,8 @@ Scans `COLONIZE/` for every `.SS` and `.PIK`, loads one at a time, and shows fil
 
 Small sprite sheets render as a labeled grid. Large or single-sprite sheets show one sprite centered with `FILE#index WxH`. `.PIK` images use their embedded palette when present.
 
+**PHYS0 numbering:** atlas labels are **0-based** blit indices (0..153), matching `ss_blit_sprite` and the map compositor. MAPEDIT.EXE uses **1-based** IDs (1..154); isolated forest/hill/mountain are MAPEDIT `0x41`/`0x31`/`0x21` = atlas **64/48/32**. The PHYS0 HUD shows both (`#64 (=MAPEDIT 65)`).
+
 `PHYS0.SS` contents (for map work):
 
 | Sprites | Content |
@@ -131,7 +133,7 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 | 17–31 | Minor rivers |
 | 32–47 | Mountains |
 | 48–63 | Hills |
-| 64–79 | Mixed forests |
+| 64–79 | Forests (`64 + mask`; isolated=64, all sides=79) |
 | 80–88 | Roads |
 | 89 | Depleted silver |
 | 90 | Oasis |
@@ -140,12 +142,12 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 | 100 | Empty |
 | 101–103 | Silver, ore (hill), rumours |
 | 104–111 | Fog-of-war edges / solid fillers (approx.) |
-| 109–139 | Coastline 8×8 fragments (`109+4*mask+q` in MAPEDIT) |
-| 140 | 16×16 (also last MAPEDIT fragment when mask=7,q=3) |
-| 141–144 | Major river estuary corners (N/E/S/W) |
-| 145–148 | Minor river estuary corners |
+| 108–139 | Coastline 8×8 fragments (`108+4*mask+q`; MAPEDIT `0x6d−1`) |
+| 140–143 | Major river estuary corners (N/E/S/W) |
+| 144–147 | Minor river estuary corners |
+| 148 | (reserved / solid) |
 | 149 | Plowed / other overlay |
-| 150–153 | Coastal ocean corners (land NW/NE/SW/SE → 150/151/152/153) |
+| 150–153 | Coastal ocean corners (land NW/NE/SW/SE) |
 
 ### Map overlay compositing
 
@@ -157,44 +159,39 @@ The Linux port draws cleared terrain from `TERRAIN.SS` (using FreeCol-style deco
 
 | Forest type (`index & 7`) | Example index | TERRAIN sprite | PHYS0 overlay |
 |---------------------------|---------------|----------------|---------------|
-| 0 boreal | 8, 16 | 0 (tundra) | 70 |
-| 1 scrub | 9, 17 | 8 | — |
-| 2 mixed | 10, 18 | cleared type (plains) | 64 |
-| 3 broadleaf | 11, 19 | cleared type (prairie) | 65 |
-| 4 conifer | 12, 20 | cleared type (grassland) | 66 |
-| 5 tropical | 13, 21 | cleared type (savannah) | 69 |
-| 6 wetland | 14, 22 | cleared type (marsh) | 67 |
-| 7 rain | 15, 23 | cleared type (swamp) | 68 |
+| 0 boreal | 8, 16 | 0 (tundra) | `64 + mask` |
+| 1 scrub | 9, 17 | 8 | — (no canopy) |
+| 2–7 other | 10–15, 18–23 | cleared type (`index & 7`) | `64 + mask` |
 
-Mixed/broadleaf/conifer/tropical/wetland/rain overlays use the `PHYS0.SS` mixed-forest band (sprites 64–79); one canonical sprite per type above. Sprite 99 is timber (bonus resource), not forest canopy.
+Non-scrub forests share one PHYS0 band (**64–79**). MAPEDIT connectivity mask bits: **N=8, S=4, W=2, E=1** (any non-scrub forest neighbour). TERRAIN still shows the cleared forest type. Sprite 99 is timber (bonus resource), not canopy.
 
-Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest sprite 65.
+Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest sprite 64.
 
-**Overlay rules (bits 5–7):**
+**Hill / mountain / river overlays (shared adjacency, 0-based indices):**
 
-| Overlay | PHYS0 range | Notes |
-|---------|-------------|-------|
-| 0, 4 | (none) | — |
-| 1 hill | 48–63 | Unless bit 4 is set → mountain (below) |
-| 2 minor river | 17–31 | Cardinal mask (any river neighbours) → sprite |
-| 3 hill + minor river | mountain or hill, then river | Bit 4 selects mountain vs hill |
-| 5 mountain | 32–47 | Isolated tile uses sprite **36** |
-| 6 major river | 1–15 | Major-neighbour mask, or minor-band at junctions |
-| 7 mountain + major river | mountain then river | — |
+| Feature | PHYS0 | Neighbour match |
+|---------|-------|-----------------|
+| Mountain | `32 + mask` | `(n & 0xa0) == (self & 0xa0)` |
+| Hill | `48 + mask` | same |
+| Major river | `0 + mask` (mask 0 → 15) | any `n & 0x40` |
+| Minor river | `16 + mask` (mask 0 → 15) | any `n & 0x40` |
+| Forest | `64 + mask` | any non-scrub forest |
 
-**Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; MAPEDIT blits PHYS0 **141–148** toward land neighbours with bit `0x40` (`MAP_ESTUARY_OVERLAYS_ENABLED`). See [decomp_inventory.md](decomp_inventory.md) (**Map coastlines and estuaries**).
+MAPEDIT immediates are **1-based** (`0x21`/`0x31`/`0x41` → indices 32/48/64). Debug atlas labels match these 0-based indices.
 
-When overlay is 1/3 **and** bit 4 is set in the terrain byte, the tile uses mountain art (e.g. AMER2 `(1,1)` → PHYS0 36 on tundra).
+Layer-3 arctic marker `0x0e` still forces mountain sprite **36**. Forest can stack with hill/mountain/river on the same tile.
 
-Forests on other rows now draw PHYS0 canopy overlays; roads, resources, and fog overlays are not drawn from static `.MP` data yet.
+**Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; MAPEDIT blits IDs **141–148** → indices **140–147** toward land neighbours with bit `0x40`. See [decomp_inventory.md](decomp_inventory.md).
+
+Roads, resources, and fog overlays are not drawn from static `.MP` data yet.
 
 **Coastal ocean.** `MAP_COAST_OVERLAYS_ENABLED` defaults to `1`. MAPEDIT: land underlayer → fragments **109+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary. Details: [decomp_inventory.md](decomp_inventory.md).
 
 | Model | PHYS0 / TERRAIN | Status |
 |-------|-----------------|--------|
 | MAPEDIT underlayer + zero-fill | land TERRAIN, then ocean into dest==0 | **Enabled** |
-| MAPEDIT fragments + corners | 109–140 (8×8), 150–153 (16×16) | **Enabled** |
-| MAPEDIT estuary cardinals | 141–148 (16×16) | **Enabled** |
+| MAPEDIT fragments + corners | 108–139 (8×8), 150–153 (16×16) | **Enabled** |
+| MAPEDIT estuary cardinals | 140–147 (16×16) | **Enabled** |
 | Old 4-quadrant bases 108/116/124/132 | 108–139 | Superseded |
 | Estuary DOS RAM lookup | 108–139, 149 | Superseded |
 

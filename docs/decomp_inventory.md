@@ -163,9 +163,10 @@ On ocean / high-seas tiles with at least one land neighbour:
 
 1. Build 8-bit land mask (N→NW clockwise) and four 3-bit quadrant masks (cardinal → bits 0/2 on adjacent quads; diagonal → bit 1).
 2. Special full-tile corners when mask matches (id 0..3 = land NW/NE/SW/SE):
-   PHYS0 **`150 + id`**. MAPEDIT encodes `0x97+id` (151–154); the sheet is
-   150–153 in land-direction order (transparent on the land side of the tile).
-3. Else four 8×8 fragments: sprite **`109 + 4*quad_mask + q`** at pixel offsets NW/NE/SE/SW (`0`/`8`).
+   PHYS0 **`150 + id`**. MAPEDIT encodes `0x97+id` (1-based IDs 151–154);
+   convert with −1 for 0-based sheet indices 150–153.
+3. Else four 8×8 fragments: MAPEDIT ID **`0x6d + 4*quad_mask + q`** → index
+   **`108 + 4*quad_mask + q`** at pixel offsets NW/NE/SE/SW (`0`/`8`).
 
 Draw order vs MAPEDIT: land TERRAIN underlayer (last cardinal neighbour) → coast PHYS0 →
 masked ocean into palette-0 holes (`FUN_1a47_0676`) → estuary. Fog of war is not drawn
@@ -173,9 +174,22 @@ masked ocean into palette-0 holes (`FUN_1a47_0676`) → estuary. Fog of war is n
 
 ### River estuaries
 
-Ocean tile with `terrain & 0xc0`: for each cardinal neighbour that is land with `terrain & 0x40`, blit **`141+q`** (major, bit `0x80` set) or **`145+q`** (minor) as 16×16 at `(0,0)`. Inland rivers unchanged.
+Ocean tile with `terrain & 0xc0`: for each cardinal neighbour that is land with `terrain & 0x40`, blit MAPEDIT ID **`0x8d+q`** / **`0x91+q`** → indices **140–147**. Inland rivers unchanged.
 
 Fixtures: `amer2_coast_fixtures` / `amer2_river_estuary` in `tests/smoke/test_map.c`.
+
+### Forest / hill / mountain / inland river connectivity
+
+Same MAPEDIT cardinal mask as rivers (`FUN_1a47_030e` / `036e` / `0418`): **N=8, S=4, W=2, E=1**.
+
+| Feature | Sprite (0-based) | Match |
+|---------|------------------|-------|
+| Forest (non-scrub) | `64 + mask` | any non-scrub forest neighbour |
+| Mountain | `32 + mask` | `(n & 0xa0) == (self & 0xa0)` when `self & 0x20` |
+| Hill | `48 + mask` | same bit test (hill when not also `& 0x80`) |
+| Major / minor river | `0+mask` / `16+mask` (0 → 15) | `n & 0x40` |
+
+MAPEDIT adds `0x41`/`0x21`/`0x31`/`1`/`0x11` to the mask as **1-based** IDs; subtract 1 for sheet indices (isolated = 64/32/48). Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers via overlay layers.
 
 ### Remaining map compositor gaps
 
@@ -187,5 +201,4 @@ Fixtures: `amer2_coast_fixtures` / `amer2_river_estuary` in `tests/smoke/test_ma
 
 - Texture variation overlays (per-tile random `PHYS0` variants from DOS buffers)
 - Roads, resources, fog-of-war
-- River/hill connectivity vs `viceroy_tables` (partially heuristic today; inland rivers only)
 
