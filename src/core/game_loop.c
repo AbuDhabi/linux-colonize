@@ -2508,6 +2508,33 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         if (game->phys0_ok && game->world_map_ok) {
           const int mx = view_x + sx;
           const int my = view_y + sy;
+          /* MAPEDIT: land transitions before forest (FUN_1a47_06da). */
+          if (underlayer < 0) {
+            const int transitions = map_land_transition_count(&game->world_map, mx, my);
+            for (int ti = 0; ti < transitions; ++ti) {
+              const int mask = map_land_transition_mask_sprite_at(&game->world_map, mx, my, ti);
+              const int fill = map_land_transition_fill_terrain_at(&game->world_map, mx, my, ti);
+              if (mask >= 0) {
+                blit_map_sprite(
+                  &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+                );
+              }
+              if (fill >= 0 && fill < game->terrain.sprite_count) {
+                blit_map_sprite_where_dest(
+                  &game->terrain,
+                  fill,
+                  framebuffer,
+                  sx,
+                  sy,
+                  tile_w,
+                  tile_h,
+                  map_origin_x,
+                  map_origin_y,
+                  0
+                );
+              }
+            }
+          }
           const int forest_sprite = map_phys0_forest_sprite_at(&game->world_map, mx, my);
           if (forest_sprite >= 0) {
             blit_map_sprite(

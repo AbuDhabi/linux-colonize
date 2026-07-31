@@ -189,7 +189,11 @@ Same MAPEDIT cardinal mask as rivers (`FUN_1a47_030e` / `036e` / `0418`): **N=8,
 | Hill | `48 + mask` | same bit test (hill when not also `& 0x80`) |
 | Major / minor river | `0+mask` / `16+mask` (0 → 15) | `n & 0x40` |
 
-MAPEDIT adds `0x41`/`0x21`/`0x31`/`1`/`0x11` to the mask as **1-based** IDs; subtract 1 for sheet indices (isolated = 64/32/48). Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers via overlay layers.
+Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers/resources via overlay layers.
+
+Land transitions (`FUN_1a47_06da`): PHYS0 **104+q** colour-0 masks then neighbour TERRAIN fill (before forest). Ocean neighbours resolve through land cardinals (W/S/E/N).
+
+Resources (`FUN_12ab_0458`) / rumours (`0540`): seed default **100**; type table DS **0x4de** / file **0x1794e**; PHYS **89+type** / **103**. Ocean → fish.
 
 ### Remaining map compositor gaps
 
@@ -200,5 +204,6 @@ MAPEDIT adds `0x41`/`0x21`/`0x31`/`1`/`0x11` to the mask as **1-based** IDs; sub
 ### Other map compositor gaps (unchanged priority)
 
 - Texture variation overlays (per-tile random `PHYS0` variants from DOS buffers)
-- Roads, resources, fog-of-war
+- Roads, fog-of-war
+- Resource seed from live game RNG (static map view uses MAPEDIT default seed 100)
 

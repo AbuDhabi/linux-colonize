@@ -327,6 +327,19 @@ static void colony_screen_render_minimap(
       if (!phys0) {
         continue;
       }
+      if (underlayer < 0) {
+        const int transitions = map_land_transition_count(map, mx, my);
+        for (int ti = 0; ti < transitions; ++ti) {
+          const int mask = map_land_transition_mask_sprite_at(map, mx, my, ti);
+          const int fill = map_land_transition_fill_terrain_at(map, mx, my, ti);
+          if (mask >= 0 && mask < phys0->sprite_count) {
+            ss_blit_sprite(phys0, mask, framebuffer, tile_x, tile_y);
+          }
+          if (fill >= 0 && fill < terrain->sprite_count) {
+            ss_blit_sprite_where_dest(terrain, fill, framebuffer, tile_x, tile_y, 0);
+          }
+        }
+      }
       const int forest = map_phys0_forest_sprite_at(map, mx, my);
       if (forest >= 0 && forest < phys0->sprite_count) {
         ss_blit_sprite(phys0, forest, framebuffer, tile_x, tile_y);

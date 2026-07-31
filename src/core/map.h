@@ -54,6 +54,12 @@ int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y);
  * diagonal land. Returns -1 when the tile is not a coastal ocean composite.
  */
 int map_coast_underlayer_sprite_at(const ColonizeWorldMap* map, int x, int y);
+
+/* MAPEDIT land-land edge blends (FUN_1a47_06da): PHYS0 104+q then neighbour TERRAIN fill. */
+int map_land_transition_count(const ColonizeWorldMap* map, int x, int y);
+int map_land_transition_mask_sprite_at(const ColonizeWorldMap* map, int x, int y, int index);
+int map_land_transition_fill_terrain_at(const ColonizeWorldMap* map, int x, int y, int index);
+
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int layer);
 /* Pixel offset within the 16×16 tile for 8×8 coast fragments; 0,0 for full tiles. */

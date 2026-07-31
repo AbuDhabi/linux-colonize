@@ -28,8 +28,12 @@
 #define PHYS0_MOUNTAIN_BASE 32
 #define PHYS0_HILL_BASE 48
 #define PHYS0_FOREST_BASE 64
-#define PHYS0_MOUNTAIN_ISOLATED 36 /* layer-3 arctic marker only */
+#define PHYS0_MOUNTAIN_ISOLATED 32 /* layer-3 arctic peak: isolated mountain */
 #define PHYS0_TUNDRA_CANOPY 64 /* isolated forest canopy on y=0 */
+#define PHYS0_LAND_TRANSITION_BASE 104 /* MAPEDIT 0x69+q − 1; N/E/S/W colour-0 masks */
+#define PHYS0_RESOURCE_BASE 89 /* MAPEDIT 0x5a + type − 1 */
+#define PHYS0_RUMOUR 103 /* MAPEDIT 0x68 − 1 */
+#define MAP_RESOURCE_SEED_DEFAULT 100 /* MAPEDIT/runtime seed at DS:0x4dc (AMER2 matches 100) */
 
 #if MAP_COAST_OVERLAYS_ENABLED || MAP_ESTUARY_OVERLAYS_ENABLED
 #define PHYS0_COAST_FRAG_BASE 108 /* MAPEDIT 0x6d − 1 */
@@ -42,6 +46,15 @@
 static int mapedit_phys0_index(int mapedit_id) {
   return mapedit_id - 1;
 }
+
+/*
+ * MAPEDIT resource-type table at DS:0x4de (file 0x1794e; MAPEDIT DS base 0x17470).
+ * Index = FUN_19b7_0006: terrain & 0x1f, or mountain→27 / hill→28.
+ * Values are PHYS0 type offsets (sprite = 89 + type); -1 = none; 0 remaps to 6.
+ */
+static const int mapedit_resource_type_by_terrain[29] = {
+  6, 1, 2, 3, 4, 5, 6, 6, 9, 1, 8, 9, 10, 10, 6, 6, 9, 1, 8, 9, 10, 10, 6, 6, -1, 7, -1, 12, 13
+};
 
 #define MAP_TUNDRA_ROW 0
 #define MAP_OCEAN_INDEX 25
@@ -459,8 +472,94 @@ static int phys0_connectivity_sprite(int base, uint8_t mask) {
 }
 
 static bool map_has_special_mountain_marker(const ColonizeWorldMap* map, int x, int y) {
-  /* AMER2 has one arctic tile tagged in layer 3 that DOS draws with mountain art. */
+  /* AMER2 (43,68): layer3 0x0e marks an isolated mountain peak on tundra. */
   return map_get_layer3(map, x, y) == 0x0eu;
+}
+
+/* MAPEDIT FUN_1a47_06da compare key: forests collapse to type & 7. */
+static int map_land_transition_type(uint8_t terrain_byte) {
+  const int idx = map_decode_terrain_index(terrain_byte);
+  if (idx < 24) {
+    return idx & 7;
+  }
+  return idx;
+}
+
+/* FUN_19b7_0006: mountain (bit7)→27, hill (bit5 only)→28, else terrain & 0x1f. */
+static int map_resource_terrain_class(uint8_t terrain_byte) {
+  if ((terrain_byte & 0x20u) != 0) {
+    return ((terrain_byte & 0x80u) != 0) ? 27 : 28;
+  }
+  return map_decode_terrain_index(terrain_byte);
+}
+
+/*
+ * FUN_12ab_0458: coordinate hash + resource table. DOS coords are 1-based.
+ * Ocean (25) yields fish (type 7); arctic/high seas table entries are -1.
+ */
+static int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return -1;
+  }
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  /* Layer2 bit1 marks settlement ownership — skip resources (FUN_12ab_0380). */
+  const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
+  if ((layer2 & 2u) != 0) {
+    return -1;
+  }
+
+  const int dos_x = x + 1;
+  const int dos_y = y + 1;
+  const int local_a = (int)(terrain_byte & 0x3fu);
+  const int local_4 =
+    !(((local_a < 8) || (local_a > 15)) && ((local_a < 16) || (local_a > 23))) ? 1 : 0;
+  const int uVar2 = (dos_x & 3) * 4 + (dos_y & 3);
+  const int uVar3 =
+    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + MAP_RESOURCE_SEED_DEFAULT) & 0xf;
+  if (uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
+    return -1;
+  }
+
+  int class_id = map_resource_terrain_class(terrain_byte);
+  if (class_id < 0 || class_id >= 29) {
+    return -1;
+  }
+  int resource_type = mapedit_resource_type_by_terrain[class_id];
+  if (resource_type < 0) {
+    return -1;
+  }
+  if (resource_type == 0) {
+    resource_type = 6;
+  }
+  /* Layer2 bit2 = depleted; silver (0xc) becomes depleted sprite type 0. */
+  if ((layer2 & 4u) != 0) {
+    if (resource_type == 0xc) {
+      return 0;
+    }
+    return -1;
+  }
+  return resource_type;
+}
+
+static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const int idx = map_decode_terrain_index(terrain_byte);
+  if (map_is_ocean_index(idx) || idx == 24) {
+    return false;
+  }
+  const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
+  /* FUN_12ab_0204 / 0540: no rumour on settlement tiles. */
+  if ((layer2 & 2u) != 0) {
+    return false;
+  }
+  const int dos_x = x + 1;
+  const int dos_y = y + 1;
+  const unsigned hash =
+    (unsigned)(((dos_y >> 2) * 0x13 + (dos_x >> 2) * 0x11 + MAP_RESOURCE_SEED_DEFAULT + 8) & 0x1f);
+  return (int)hash + (dos_x & 3) * -4 == (dos_y & 3);
 }
 
 static int phys0_river_sprite(uint8_t terrain_byte, uint8_t mask) {
@@ -647,6 +746,129 @@ int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y) {
   return -1;
 }
 
+/*
+ * MAPEDIT FUN_1a47_06da: when a land tile's neighbour is ocean/high seas, walk that
+ * neighbour's cardinal 8-neighbours (order W,S,E,N = even indices 6,4,2,0) for a land
+ * display type to compare/fill — matches coast corners filled from diagonal land.
+ * Returns -1 if the neighbour stays ocean (no land-land transition).
+ */
+static int map_land_transition_resolve_neighbour(
+  const ColonizeWorldMap* map,
+  int nx,
+  int ny,
+  int* out_fill_sprite
+) {
+  const uint8_t nb = map_get_terrain(map, nx, ny);
+  const int nidx = map_decode_terrain_index(nb);
+  if (!map_is_ocean_index(nidx)) {
+    if (out_fill_sprite) {
+      *out_fill_sprite = map_terrain_sprite_at(map, nx, ny);
+    }
+    return map_land_transition_type(nb);
+  }
+  static const int even_dir[4] = {6, 4, 2, 0}; /* W, S, E, N */
+  for (int i = 0; i < 4; ++i) {
+    const int d = even_dir[i];
+    const int x2 = nx + mapedit_neigh8_dx[d];
+    const int y2 = ny + mapedit_neigh8_dy[d];
+    if (x2 < 0 || y2 < 0 || x2 >= map->width || y2 >= map->height) {
+      continue;
+    }
+    const uint8_t b2 = map_get_terrain(map, x2, y2);
+    if (map_is_ocean_index(map_decode_terrain_index(b2))) {
+      continue;
+    }
+    if (out_fill_sprite) {
+      *out_fill_sprite = map_terrain_sprite_at(map, x2, y2);
+    }
+    return map_land_transition_type(b2);
+  }
+  return -1;
+}
+
+/*
+ * MAPEDIT FUN_1a47_06da land transitions: for each cardinal neighbour with a different
+ * display type, blit PHYS0 104+q (colour-0 edge) then fill holes with neighbour TERRAIN.
+ */
+int map_land_transition_count(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  const uint8_t self_byte = map_get_terrain(map, x, y);
+  if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
+    return 0;
+  }
+  const int self_type = map_land_transition_type(self_byte);
+  int count = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, NULL);
+    if (ntype >= 0 && ntype != self_type) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int map_land_transition_mask_sprite_at(const ColonizeWorldMap* map, int x, int y, int index) {
+  if (!map || index < 0) {
+    return -1;
+  }
+  const uint8_t self_byte = map_get_terrain(map, x, y);
+  if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
+    return -1;
+  }
+  const int self_type = map_land_transition_type(self_byte);
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, NULL);
+    if (ntype >= 0 && ntype != self_type) {
+      if (seen == index) {
+        return PHYS0_LAND_TRANSITION_BASE + q;
+      }
+      ++seen;
+    }
+  }
+  return -1;
+}
+
+int map_land_transition_fill_terrain_at(const ColonizeWorldMap* map, int x, int y, int index) {
+  if (!map || index < 0) {
+    return -1;
+  }
+  const uint8_t self_byte = map_get_terrain(map, x, y);
+  if (map_is_ocean_index(map_decode_terrain_index(self_byte))) {
+    return -1;
+  }
+  const int self_type = map_land_transition_type(self_byte);
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    int fill = -1;
+    const int ntype = map_land_transition_resolve_neighbour(map, nx, ny, &fill);
+    if (ntype >= 0 && ntype != self_type) {
+      if (seen == index) {
+        return fill;
+      }
+      ++seen;
+    }
+  }
+  return -1;
+}
+
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
   if (!map) {
     return 0;
@@ -665,6 +887,14 @@ int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
     if (map_byte_has_river(terrain_byte)) {
       ++count;
     }
+  }
+  /* Resources include ocean fish (MAPEDIT draws 0458 on sea tiles too). */
+  if (map_resource_type_at(map, x, y) >= 0) {
+    ++count;
+  }
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
+      map_has_rumour_at(map, x, y)) {
+    ++count;
   }
 
   count += map_phys0_estuary_layer_count(map, x, y);
@@ -711,6 +941,24 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
       }
       ++feature_layer;
     }
+  }
+
+  {
+    const int resource_type = map_resource_type_at(map, x, y);
+    if (resource_type >= 0) {
+      if (layer == feature_layer) {
+        return PHYS0_RESOURCE_BASE + resource_type;
+      }
+      ++feature_layer;
+    }
+  }
+
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
+      map_has_rumour_at(map, x, y)) {
+    if (layer == feature_layer) {
+      return PHYS0_RUMOUR;
+    }
+    ++feature_layer;
   }
 
   const int estuary_layers = map_phys0_estuary_layer_count(map, x, y);
@@ -770,6 +1018,13 @@ void map_phys0_overlay_offset_at(
     if (map_byte_has_river(terrain_byte)) {
       ++feature_layer;
     }
+  }
+  if (map_resource_type_at(map, x, y) >= 0) {
+    ++feature_layer;
+  }
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
+      map_has_rumour_at(map, x, y)) {
+    ++feature_layer;
   }
 
   const int estuary_layers = map_phys0_estuary_layer_count(map, x, y);

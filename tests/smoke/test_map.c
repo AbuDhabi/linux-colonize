@@ -125,16 +125,16 @@ int main(void) {
     /* Shared connectivity: base + mask (N=8,S=4,W=2,E=1); 0-based PHYS0 indices. */
     {1, 1, 0, 2, {69, 48}},
     {2, 11, 4, 1, {32}},
-    {43, 68, 0, 1, {36}},
+    {43, 68, 0, 1, {32}},
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
-    {8, 14, 8, 0, {0}},
+    {8, 14, 8, 1, {103}}, /* scrub + lost-city rumour */
     {1, 0, 0, 1, {64}},
     {1, 2, 0, 1, {73}},
-    {16, 2, 0, 1, {70}},
+    {16, 2, 0, 2, {70, 98}},
     {4, 18, 5, 1, {64}},
-    {36, 4, 2, 1, {68}},
-    {27, 14, 3, 1, {69}},
+    {36, 4, 2, 2, {68, 97}},
+    {27, 14, 3, 2, {69, 98}},
     {3, 3, 4, 1, {72}},
     {27, 20, 6, 1, {78}},
     {39, 28, 7, 1, {66}},
@@ -260,6 +260,90 @@ int main(void) {
     return 1;
   }
 
+  /* Land-land transitions (MAPEDIT 06da): PHYS0 104+q then neighbour TERRAIN fill. */
+  {
+    const int n = map_land_transition_count(&map, 4, 18);
+    if (n != 3) {
+      fprintf(stderr, "transition count (4,18) expected 3 got %d\n", n);
+      map_free(&map);
+      return 1;
+    }
+    if (map_land_transition_mask_sprite_at(&map, 4, 18, 0) != 104 ||
+        map_land_transition_fill_terrain_at(&map, 4, 18, 0) != 3 ||
+        map_land_transition_mask_sprite_at(&map, 4, 18, 1) != 105 ||
+        map_land_transition_fill_terrain_at(&map, 4, 18, 1) != 1 ||
+        map_land_transition_mask_sprite_at(&map, 4, 18, 2) != 106 ||
+        map_land_transition_fill_terrain_at(&map, 4, 18, 2) != 8) {
+      fprintf(stderr, "transition sprites (4,18) mismatch\n");
+      map_free(&map);
+      return 1;
+    }
+    /* (2,15) conifer vs ocean (2,16) filled from prairie (3,16). */
+    {
+      int found = 0;
+      const int tn = map_land_transition_count(&map, 2, 15);
+      for (int i = 0; i < tn; ++i) {
+        if (map_land_transition_mask_sprite_at(&map, 2, 15, i) == 106 &&
+            map_land_transition_fill_terrain_at(&map, 2, 15, i) == 3) {
+          found = 1;
+        }
+      }
+      if (!found) {
+        fprintf(stderr, "transition (2,15)→ocean corner: expected S mask 106 fill prairie 3\n");
+        map_free(&map);
+        return 1;
+      }
+    }
+  }
+
+  /* Procedural resources / rumours (MAPEDIT 0458 / 0540, seed 100). */
+  {
+    int resources = 0;
+    int rumours = 0;
+    int fish = 0;
+    int bad_gems = 0;
+    for (int y = 0; y < (int)map.height; ++y) {
+      for (int x = 0; x < (int)map.width; ++x) {
+        const int n = map_phys0_overlay_count(&map, x, y);
+        for (int i = 0; i < n; ++i) {
+          const int s = map_phys0_overlay_sprite_at(&map, x, y, i);
+          if (s >= 89 && s <= 102) {
+            ++resources;
+          }
+          if (s == 96) {
+            ++fish;
+          }
+          if (s == 95) {
+            /* Table value 6: tundra/marsh/swamp and wetland/rain forests. */
+            const int idx = map_get_terrain(&map, x, y) & 0x1f;
+            if (idx != 0 && idx != 6 && idx != 7 && idx != 14 && idx != 15 && idx != 22 &&
+                idx != 23) {
+              ++bad_gems;
+            }
+          }
+          if (s == 103) {
+            ++rumours;
+          }
+        }
+      }
+    }
+    if (resources != 420 || rumours != 40) {
+      fprintf(stderr, "resource/rumour count expected 420/40 got %d/%d\n", resources, rumours);
+      map_free(&map);
+      return 1;
+    }
+    if (fish != 275) {
+      fprintf(stderr, "fish resource count expected 275 got %d\n", fish);
+      map_free(&map);
+      return 1;
+    }
+    if (bad_gems != 0) {
+      fprintf(stderr, "minerals/gems (95) on unexpected terrain (%d tiles)\n", bad_gems);
+      map_free(&map);
+      return 1;
+    }
+  }
+
   /*
    * Minor-river chain on AMER2 (~14,22)–(18,25): shared mask → PHYS0 16–31.
    * Forest tiles may also report a canopy sprite ahead of the river overlay.
@@ -270,10 +354,10 @@ int main(void) {
     {15, 23, 8, 1, {25}},
     {16, 23, 3, 1, {19}},
     {17, 23, 5, 1, {22}},
-    {17, 24, 3, 2, {64, 28}},
+    {17, 24, 3, 3, {64, 28, 98}},
     {17, 25, 8, 1, {25}},
     {18, 25, 5, 2, {68, 19}},
-    {45, 50, 5, 2, {70, 24}},
+    {45, 50, 5, 3, {70, 24, 103}},
     {48, 46, 5, 1, {24}},
     {50, 49, 5, 2, {79, 24}},
   };
@@ -291,7 +375,7 @@ int main(void) {
     {6, 19, 1, 1, {21}},
     {7, 19, 8, 1, {26}},
     {7, 18, 1, 1, {28}},
-    {7, 17, 1, 1, {28}},
+    {7, 17, 1, 2, {28, 90}},
     {7, 16, 1, 1, {21}},
     {8, 16, 8, 1, {18}},
   };
@@ -309,7 +393,7 @@ int main(void) {
     {21, 18, 3, 2, {69, 11}},
     {22, 18, 3, 2, {79, 7}},
     {21, 20, 3, 2, {79, 19}},
-    {22, 20, 3, 2, {79, 14}},
+    {22, 20, 3, 3, {79, 14, 98}},
     {29, 15, 3, 2, {79, 28}},
     {29, 14, 2, 2, {79, 20}},
   };
@@ -329,7 +413,7 @@ int main(void) {
   static const MapTileExpectation amer2_river_estuary[] = {
     {19, 25, 10, 2, {150, 147}},
     {22, 23, 10, 5, {132, 113, 110, 111, 140}},
-    {23, 22, 10, 5, {136, 137, 114, 127, 143}},
+    {23, 22, 10, 6, {136, 137, 114, 127, 96, 143}},
     {46, 39, 10, 3, {152, 142, 143}},
     {13, 8, 10, 6, {136, 137, 114, 135, 145, 147}},
     {25, 15, 10, 5, {132, 129, 138, 123, 141}},

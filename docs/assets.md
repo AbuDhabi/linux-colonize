@@ -137,11 +137,11 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 | 80–88 | Roads |
 | 89 | Depleted silver |
 | 90 | Oasis |
-| 91–95 | Wheat, cotton, tobacco, sugar, ore (flat) |
+| 91–95 | Wheat, cotton, tobacco, sugar, minerals/gems |
 | 96–99 | Fish, beaver, deer, timber |
 | 100 | Empty |
-| 101–103 | Silver, ore (hill), rumours |
-| 104–111 | Fog-of-war edges / solid fillers (approx.) |
+| 101–103 | Silver (mountain), ore (hill), rumours |
+| 104–107 | Land-land transition colour-0 edge masks (N/E/S/W) |
 | 108–139 | Coastline 8×8 fragments (`108+4*mask+q`; MAPEDIT `0x6d−1`) |
 | 140–143 | Major river estuary corners (N/E/S/W) |
 | 144–147 | Minor river estuary corners |
@@ -179,13 +179,17 @@ Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest spri
 
 MAPEDIT immediates are **1-based** (`0x21`/`0x31`/`0x41` → indices 32/48/64). Debug atlas labels match these 0-based indices.
 
-Layer-3 arctic marker `0x0e` still forces mountain sprite **36**. Forest can stack with hill/mountain/river on the same tile.
+Layer-3 `0x0e` on AMER2 `(43,68)` is a lone tundra peak drawn as isolated mountain **32** (no hill bit in the terrain byte).
 
 **Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; MAPEDIT blits IDs **141–148** → indices **140–147** toward land neighbours with bit `0x40`. See [decomp_inventory.md](decomp_inventory.md).
 
-Roads, resources, and fog overlays are not drawn from static `.MP` data yet.
+**Land terrain transitions.** After the base TERRAIN blit, MAPEDIT `FUN_1a47_06da` walks cardinal neighbours; when the neighbour’s display type differs (forests compared as `index & 7`), it blits PHYS0 **104+q** (colour-0 edge mask) then fills holes with the neighbour’s TERRAIN. Ocean/high-seas neighbours are resolved via their land cardinals (W→S→E→N) so coast corners pick up diagonal land fill. Drawn before forest canopy.
 
-**Coastal ocean.** `MAP_COAST_OVERLAYS_ENABLED` defaults to `1`. MAPEDIT: land underlayer → fragments **109+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary. Details: [decomp_inventory.md](decomp_inventory.md).
+**Special resources / rumours.** Procedural from coordinates + seed (MAPEDIT `FUN_12ab_0458` / `0540`, default seed **100**). Type table at MAPEDIT DS:**0x4de** (file **0x1794e**). PHYS0 **89–102** = `89 + type`; rumours **103**. Ocean → fish (type 7); not stored in `.MP` layer 2.
+
+Roads and fog overlays are not drawn from static `.MP` data yet.
+
+**Coastal ocean.** `MAP_COAST_OVERLAYS_ENABLED` defaults to `1`. MAPEDIT: land underlayer → fragments **108+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary. Details: [decomp_inventory.md](decomp_inventory.md).
 
 | Model | PHYS0 / TERRAIN | Status |
 |-------|-----------------|--------|
