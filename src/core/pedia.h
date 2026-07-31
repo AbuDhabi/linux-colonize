@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/font.h"
 #include "core/pik.h"
+#include "core/ui_colors.h"
 #include "platform/platform.h"
 
 /*
@@ -51,10 +52,10 @@ typedef enum PediaViewMode {
 #define PEDIA_LIST_COLS 3
 #define PEDIA_LIST_HEADER "ENCYCLOPEDIA OF COLONIZATION"
 #define PEDIA_LIST_EXIT "(Exit)"
-/* VGA greens that read well on WOODPANL; white for the header. */
+/* Link greens from NAMES.TXT @COLORS (basic / hilite). */
 #define PEDIA_COL_HEADER 15
-#define PEDIA_COL_LINK 2
-#define PEDIA_COL_LINK_HOVER 10
+#define PEDIA_COL_LINK COLONIZE_COL_BASIC
+#define PEDIA_COL_LINK_HOVER COLONIZE_COL_HILITE
 
 typedef enum PediaPreviewKind {
   PEDIA_PREVIEW_NONE = 0,

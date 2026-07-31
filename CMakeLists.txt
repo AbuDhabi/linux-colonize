@@ -164,6 +164,7 @@ add_test(NAME smoke_col1_save COMMAND smoke_col1_save WORKING_DIRECTORY ${CMAKE_
 
 add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
+  tests/smoke/platform_cursor_stubs.c
   src/core/game_loop.c
   src/core/assets.c
   src/core/font.c

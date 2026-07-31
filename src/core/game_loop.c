@@ -24,7 +24,9 @@
 #include "core/ss.h"
 #include "core/sound.h"
 #include "core/turn.h"
+#include "core/ui_colors.h"
 #include "core/units.h"
+#include "core/version.h"
 #include "platform/diagnostics.h"
 
 #define MENU_MAX_OPTIONS 12
@@ -74,6 +76,8 @@ struct ColonizeGameState {
   int colony_view_id;
   ColonizePikImage menu_bg;
   bool menu_bg_ok;
+  ColonizeSpriteSheet menu_opentile; /* OPENTILE.SS — title-dialog wood fill */
+  bool menu_opentile_ok;
   ColonizeSpriteSheet terrain;
   ColonizeSpriteSheet phys0;
   ColonizeSpriteSheet cursor;
@@ -85,6 +89,8 @@ struct ColonizeGameState {
   bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
+  ColonizeFont intro_font; /* FONTINTR.FF — VICEROY title/dialog default */
+  bool intro_font_ok;
   ColonizeFont colony_font;
   bool colony_font_ok;
   ColonizeMsgCatalog names;
@@ -109,6 +115,14 @@ struct ColonizeGameState {
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
   int menu_option_count;
   int menu_selection;
+  int menu_dialog_width; /* @BEGINMENU @width (default 160) */
+  int menu_dialog_y; /* @BEGINMENU @y (default 91) */
+  bool menu_smallfont; /* @BEGINMENU @smallfont → FONTTINY */
+  char menu_version_line[COLONIZE_MSG_LINE_LEN];
+  /* @COLORS indices remapped into OPENMENU.PIK palette (match WOODPANL RGB). */
+  uint8_t menu_col_basic;
+  uint8_t menu_col_hilite;
+  uint8_t menu_col_select;
   char status[128];
 };
 
@@ -162,6 +176,29 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
   snprintf(game->status, sizeof(game->status), "%.64s: %.60s", prefix, detail);
 }
 
+/* Nearest palette index to an 8-bit RGB triple (for cross-PIK @COLORS remap). */
+static uint8_t palette_nearest_rgb(const ColonizePalette* pal, int r, int g, int b) {
+  if (!pal) {
+    return 0;
+  }
+  int best = 0;
+  int best_d = 1 << 30;
+  for (int i = 0; i < 256; ++i) {
+    const int dr = r - (int)pal->rgb[i][0];
+    const int dg = g - (int)pal->rgb[i][1];
+    const int db = b - (int)pal->rgb[i][2];
+    const int d = dr * dr + dg * dg + db * db;
+    if (d < best_d) {
+      best_d = d;
+      best = i;
+      if (d == 0) {
+        break;
+      }
+    }
+  }
+  return (uint8_t)best;
+}
+
 static void strip_hotkey_markers(char* text) {
   char* dst = text;
   for (char* src = text; *src; ++src) {
@@ -176,6 +213,16 @@ static void strip_hotkey_markers(char* text) {
 static void load_begin_menu(ColonizeGameState* game) {
   game->menu_option_count = 0;
   game->menu_selection = 0;
+  game->menu_dialog_width = 160;
+  game->menu_dialog_y = 91;
+  game->menu_smallfont = false;
+  /* Title dialog version line: COLONIZATION in emphasis, then Linux port tag. */
+  snprintf(
+    game->menu_version_line,
+    sizeof(game->menu_version_line),
+    "{COLONIZATION} Linux Port %s",
+    COLONIZE_VERSION_STRING
+  );
 
   const ColonizeMsgSection* section = assets_msg_find(&game->messages, "BEGINMENU");
   if (!section) {
@@ -194,7 +241,29 @@ static void load_begin_menu(ColonizeGameState* game) {
       in_options = true;
       continue;
     }
-    if (!in_options || line[0] == '@' || line[0] == '{') {
+    if (!in_options) {
+      if (strncmp(line, "@width=", 7) == 0) {
+        game->menu_dialog_width = atoi(line + 7);
+        if (game->menu_dialog_width < 40) {
+          game->menu_dialog_width = 40;
+        }
+        if (game->menu_dialog_width > 320) {
+          game->menu_dialog_width = 320;
+        }
+        continue;
+      }
+      if (strncmp(line, "@y=", 3) == 0) {
+        game->menu_dialog_y = atoi(line + 3);
+        continue;
+      }
+      if (strcmp(line, "@smallfont") == 0) {
+        game->menu_smallfont = true;
+        continue;
+      }
+      /* Skip GAME.TXT version/prompt lines; we supply our own above. */
+      continue;
+    }
+    if (line[0] == '@' || line[0] == '\0') {
       continue;
     }
     if (game->menu_option_count >= MENU_MAX_OPTIONS) {
@@ -210,7 +279,14 @@ static void load_begin_menu(ColonizeGameState* game) {
     game->menu_option_count++;
   }
 
-  diag_info("BEGINMENU loaded with %d options", game->menu_option_count);
+  diag_info(
+    "BEGINMENU loaded with %d options (width=%d y=%d smallfont=%d)",
+    game->menu_option_count,
+    game->menu_dialog_width,
+    game->menu_dialog_y,
+    game->menu_smallfont ? 1 : 0
+  );
+  diag_info("  version=%s", game->menu_version_line);
   for (int i = 0; i < game->menu_option_count; ++i) {
     diag_info("  menu[%d]=%s", i, game->menu_options[i]);
   }
@@ -938,6 +1014,25 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_warn("Failed to load menu background OPENMENU.PIK: %s", pik_err);
     }
   }
+
+  game->menu_opentile_ok = false;
+  {
+    char ss_path_ot[512];
+    char ss_err_ot[256];
+    if (dos_compat_normalize_asset_path(
+          game->resolved_data_dir, "OPENTILE.SS", ss_path_ot, sizeof(ss_path_ot)
+        )) {
+      if (ss_load(ss_path_ot, &game->menu_opentile, ss_err_ot, sizeof(ss_err_ot))) {
+        game->menu_opentile_ok = true;
+        diag_info(
+          "Loaded title dialog wood OPENTILE.SS (%d sprites)",
+          game->menu_opentile.sprite_count
+        );
+      } else {
+        diag_warn("Failed to load OPENTILE.SS: %s", ss_err_ot);
+      }
+    }
+  }
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "WOODPANL.PIK", pik_path, sizeof(pik_path))) {
     if (pik_load(pik_path, &game->pedia_wood, pik_err, sizeof(pik_err))) {
       game->pedia_wood_ok = true;
@@ -949,6 +1044,42 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     } else {
       diag_warn("Failed to load WOODPANL.PIK for Colonizopedia: %s", pik_err);
     }
+  }
+
+  /* OPENMENU.PIK embeds a different palette than WOODPANL; map @COLORS by RGB so
+   * title-menu text matches Colonizopedia link green (basic=68 → often openmenu 254). */
+  game->menu_col_basic = COLONIZE_COL_BASIC;
+  game->menu_col_hilite = COLONIZE_COL_HILITE;
+  game->menu_col_select = COLONIZE_COL_SELECT;
+  if (game->menu_bg_ok && game->menu_bg.has_palette && game->pedia_wood_ok &&
+      game->pedia_wood.has_palette) {
+    game->menu_col_basic = palette_nearest_rgb(
+      &game->menu_bg.palette,
+      game->pedia_wood.palette.rgb[COLONIZE_COL_BASIC][0],
+      game->pedia_wood.palette.rgb[COLONIZE_COL_BASIC][1],
+      game->pedia_wood.palette.rgb[COLONIZE_COL_BASIC][2]
+    );
+    game->menu_col_hilite = palette_nearest_rgb(
+      &game->menu_bg.palette,
+      game->pedia_wood.palette.rgb[COLONIZE_COL_HILITE][0],
+      game->pedia_wood.palette.rgb[COLONIZE_COL_HILITE][1],
+      game->pedia_wood.palette.rgb[COLONIZE_COL_HILITE][2]
+    );
+    game->menu_col_select = palette_nearest_rgb(
+      &game->menu_bg.palette,
+      game->pedia_wood.palette.rgb[COLONIZE_COL_SELECT][0],
+      game->pedia_wood.palette.rgb[COLONIZE_COL_SELECT][1],
+      game->pedia_wood.palette.rgb[COLONIZE_COL_SELECT][2]
+    );
+    diag_info(
+      "Title menu @COLORS remap: basic %u→%u hilite %u→%u select %u→%u",
+      (unsigned)COLONIZE_COL_BASIC,
+      (unsigned)game->menu_col_basic,
+      (unsigned)COLONIZE_COL_HILITE,
+      (unsigned)game->menu_col_hilite,
+      (unsigned)COLONIZE_COL_SELECT,
+      (unsigned)game->menu_col_select
+    );
   }
 
   /* Log MADSPACK samples for bring-up. */
@@ -1013,6 +1144,18 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       );
     } else {
       diag_warn("Failed to load FONTSMAL.FF: %s", ff_err);
+    }
+  }
+  if (dos_compat_normalize_asset_path(game->resolved_data_dir, "FONTINTR.FF", ff_path, sizeof(ff_path))) {
+    if (ff_load(ff_path, &game->intro_font, ff_err, sizeof(ff_err))) {
+      game->intro_font_ok = true;
+      diag_info(
+        "Loaded intro font FONTINTR.FF (%ux%u)",
+        game->intro_font.max_width,
+        game->intro_font.max_height
+      );
+    } else {
+      diag_warn("Failed to load FONTINTR.FF: %s", ff_err);
     }
   }
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "FONTTINY.FF", ff_path, sizeof(ff_path))) {
@@ -1106,6 +1249,7 @@ void game_destroy(ColonizeGameState* game) {
   europe_free(&game->europe);
   colony_screen_free(&game->colony_screen);
   reports_free(&game->reports);
+  ss_free(&game->menu_opentile);
   ss_free(&game->terrain);
   ss_free(&game->phys0);
   ss_free(&game->cursor);
@@ -1113,6 +1257,7 @@ void game_destroy(ColonizeGameState* game) {
   ss_free(&game->pedia_buildings);
   ss_free(&game->pedia_father);
   ff_free(&game->menu_font);
+  ff_free(&game->intro_font);
   ff_free(&game->colony_font);
   map_free(&game->world_map);
   col1_save_free(&game->col1);
@@ -2454,6 +2599,285 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   return true;
 }
 
+/* Title-menu dialog: black frame; text colors from remapped @COLORS (menu_col_*). */
+enum {
+  BEGINMENU_COL_BORDER = 0
+};
+
+static int begin_menu_text_width(const ColonizeFont* font, const char* text) {
+  if (!text) {
+    return 0;
+  }
+  int w = 0;
+  for (const char* p = text; *p; ++p) {
+    if (*p == '{' || *p == '}') {
+      continue;
+    }
+    const unsigned char ch = (unsigned char)*p;
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
+      w += font->char_widths[ch];
+    } else {
+      w += 6;
+    }
+  }
+  return w;
+}
+
+static void begin_menu_fill_rect(
+  ColonizeFramebuffer8* fb,
+  int x0,
+  int y0,
+  int x1,
+  int y1,
+  uint8_t color
+) {
+  if (!fb || !fb->pixels) {
+    return;
+  }
+  if (x0 < 0) {
+    x0 = 0;
+  }
+  if (y0 < 0) {
+    y0 = 0;
+  }
+  if (x1 >= fb->width) {
+    x1 = fb->width - 1;
+  }
+  if (y1 >= fb->height) {
+    y1 = fb->height - 1;
+  }
+  if (x0 > x1 || y0 > y1) {
+    return;
+  }
+  for (int y = y0; y <= y1; ++y) {
+    uint8_t* row = fb->pixels + y * fb->width;
+    for (int x = x0; x <= x1; ++x) {
+      row[x] = color;
+    }
+  }
+}
+
+/* Tile sprite 0 into [ox,oy,ox+rw,oy+rh), clipped to the rect (and framebuffer). */
+static void begin_menu_tile_rect(
+  const ColonizeSpriteSheet* sheet,
+  int ox,
+  int oy,
+  int rw,
+  int rh,
+  ColonizeFramebuffer8* fb
+) {
+  if (!sheet || sheet->sprite_count < 1 || !fb || !fb->pixels || rw <= 0 || rh <= 0) {
+    return;
+  }
+  const ColonizeSprite* tile = &sheet->sprites[0];
+  if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
+    return;
+  }
+  const int x1 = ox + rw;
+  const int y1 = oy + rh;
+  for (int ty = oy; ty < y1; ty += tile->height) {
+    for (int tx = ox; tx < x1; tx += tile->width) {
+      for (int sy = 0; sy < tile->height; ++sy) {
+        const int fy = ty + sy;
+        if (fy < oy || fy >= y1 || fy < 0 || fy >= fb->height) {
+          continue;
+        }
+        for (int sx = 0; sx < tile->width; ++sx) {
+          const int fx = tx + sx;
+          if (fx < ox || fx >= x1 || fx < 0 || fx >= fb->width) {
+            continue;
+          }
+          const uint8_t color = tile->pixels[sy * tile->width + sx];
+          if (color == COLONIZE_SS_TRANSPARENT) {
+            continue;
+          }
+          fb->pixels[fy * fb->width + fx] = color;
+        }
+      }
+    }
+  }
+}
+
+/* Draw GAME.TXT brace markup: {text} uses emphasis color. */
+static void begin_menu_draw_markup(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  const char* text,
+  uint8_t normal_color,
+  uint8_t emphasis_color
+) {
+  if (!fb || !text) {
+    return;
+  }
+  uint8_t color = normal_color;
+  int cx = x;
+  char chbuf[2] = {0, 0};
+  for (const char* p = text; *p; ++p) {
+    if (*p == '{') {
+      color = emphasis_color;
+      continue;
+    }
+    if (*p == '}') {
+      color = normal_color;
+      continue;
+    }
+    chbuf[0] = *p;
+    font_draw_text(font, fb, cx, y, chbuf, color);
+    const unsigned char ch = (unsigned char)*p;
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] > 0) {
+      cx += font->char_widths[ch];
+    } else {
+      cx += 6;
+    }
+  }
+}
+
+static const ColonizeFont* begin_menu_font(const ColonizeGameState* game) {
+  if (!game) {
+    return NULL;
+  }
+  /* @smallfont → FONTTINY (colony_font). Default dialog slot is FONTINTR. */
+  if (game->menu_smallfont && game->colony_font_ok) {
+    return &game->colony_font;
+  }
+  if (game->intro_font_ok) {
+    return &game->intro_font;
+  }
+  if (game->colony_font_ok) {
+    return &game->colony_font;
+  }
+  if (game->menu_font_ok) {
+    return &game->menu_font;
+  }
+  return NULL;
+}
+
+static void game_render_begin_menu(
+  const ColonizeGameState* game,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!game || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+
+  const ColonizeFont* font = begin_menu_font(game);
+  const int line_h = font ? (font->max_height + 2) : 8;
+  const int pad_x = 8;
+  const int pad_y = 6;
+  const int gap_after_version = game->menu_version_line[0] ? 4 : 0;
+  const int version_h = game->menu_version_line[0] ? line_h : 0;
+  const int options_h = game->menu_option_count * line_h;
+  int dialog_h = pad_y + version_h + gap_after_version + options_h + pad_y;
+  if (dialog_h < 24) {
+    dialog_h = 24;
+  }
+
+  int dialog_w = game->menu_dialog_width > 0 ? game->menu_dialog_width : 160;
+  if (dialog_w > framebuffer->width) {
+    dialog_w = framebuffer->width;
+  }
+  int dialog_x = (framebuffer->width - dialog_w) / 2;
+  int dialog_y = game->menu_dialog_y;
+  if (dialog_y < 0) {
+    dialog_y = 0;
+  }
+  if (dialog_y + dialog_h > framebuffer->height) {
+    dialog_y = framebuffer->height - dialog_h;
+    if (dialog_y < 0) {
+      dialog_y = 0;
+      dialog_h = framebuffer->height;
+    }
+  }
+
+  if (game->menu_opentile_ok) {
+    begin_menu_tile_rect(
+      &game->menu_opentile, dialog_x, dialog_y, dialog_w, dialog_h, framebuffer
+    );
+  } else {
+    begin_menu_fill_rect(
+      framebuffer,
+      dialog_x,
+      dialog_y,
+      dialog_x + dialog_w - 1,
+      dialog_y + dialog_h - 1,
+      4
+    );
+  }
+
+  /* Thin white frame around the wood dialog. */
+  begin_menu_fill_rect(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_x + dialog_w - 1,
+    dialog_y,
+    BEGINMENU_COL_BORDER
+  );
+  begin_menu_fill_rect(
+    framebuffer,
+    dialog_x,
+    dialog_y + dialog_h - 1,
+    dialog_x + dialog_w - 1,
+    dialog_y + dialog_h - 1,
+    BEGINMENU_COL_BORDER
+  );
+  begin_menu_fill_rect(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_x,
+    dialog_y + dialog_h - 1,
+    BEGINMENU_COL_BORDER
+  );
+  begin_menu_fill_rect(
+    framebuffer,
+    dialog_x + dialog_w - 1,
+    dialog_y,
+    dialog_x + dialog_w - 1,
+    dialog_y + dialog_h - 1,
+    BEGINMENU_COL_BORDER
+  );
+
+  int text_y = dialog_y + pad_y;
+  if (game->menu_version_line[0]) {
+    const int tw = begin_menu_text_width(font, game->menu_version_line);
+    int tx = dialog_x + (dialog_w - tw) / 2;
+    if (tx < dialog_x + pad_x) {
+      tx = dialog_x + pad_x;
+    }
+    begin_menu_draw_markup(
+      font,
+      framebuffer,
+      tx,
+      text_y,
+      game->menu_version_line,
+      game->menu_col_basic,
+      game->menu_col_hilite
+    );
+    text_y += line_h + gap_after_version;
+  }
+
+  for (int i = 0; i < game->menu_option_count; ++i) {
+    const int row_y = text_y + i * line_h;
+    const bool selected = (i == game->menu_selection);
+    if (selected) {
+      begin_menu_fill_rect(
+        framebuffer,
+        dialog_x + 2,
+        row_y - 1,
+        dialog_x + dialog_w - 3,
+        row_y + line_h - 2,
+        game->menu_col_select
+      );
+    }
+    font_draw_text(
+      font, framebuffer, dialog_x + pad_x, row_y, game->menu_options[i], game->menu_col_basic
+    );
+  }
+}
+
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette) {
   static uint32_t render_log_counter = 0;
   if (!game || !framebuffer || !palette || !framebuffer->pixels) {
@@ -2540,28 +2964,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         }
       }
     }
-    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
-    const int line_step = font ? (font->max_height + 4) : 12;
-    const int option_x = 48;
-    int option_y = font ? 52 : 40;
-
-    for (int i = 0; i < game->menu_option_count; ++i) {
-      int y = option_y + i * line_step;
-      uint8_t color = (i == game->menu_selection) ? 14 : 15;
-      if (i == game->menu_selection) {
-        const int bar_h = font ? font->max_height : 8;
-        for (int x = 40; x < 280; ++x) {
-          if (y >= 0 && y < framebuffer->height) {
-            framebuffer->pixels[y * framebuffer->width + x] = 4;
-          }
-          if (y + bar_h >= 0 && y + bar_h < framebuffer->height) {
-            framebuffer->pixels[(y + bar_h) * framebuffer->width + x] = 4;
-          }
-        }
-      }
-      font_draw_text(font, framebuffer, option_x, y, game->menu_options[i], color);
-    }
-    font_draw_text(font, framebuffer, 36, 188, "Up/Down select  Enter start  Q quit", 15);
+    game_render_begin_menu(game, framebuffer);
     goto render_log_sample;
   }
 

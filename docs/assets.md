@@ -51,7 +51,7 @@ Colonization `.PIK` layout (after MADSPACK explode):
 | 1 | Indexed 8-bit pixels (`width * height`) |
 | 2 | Optional VGA palette (768 bytes = 256×RGB, 6-bit DAC values) |
 
-The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
+The Linux port decompresses MADSPACK/FAB and blits `.PIK` images. The main menu uses `OPENMENU.PIK` with its embedded palette, then overlays the `@BEGINMENU` wood dialog (`OPENTILE.SS` tile fill, `@width`/`@y`/`@smallfont` → `FONTTINY.FF`). Text colors come from `NAMES.TXT` `@COLORS` (`basic=68`, `{hilite}=149`, `select=138` on WOODPANL / in-game palettes; remapped by RGB onto `OPENMENU.PIK` so the title menu matches Colonizopedia greens — see `src/core/ui_colors.h`). Version line is `{COLONIZATION} Linux Port` + `COLONIZE_VERSION_STRING`. `CCBKGD.PIK` is the Continental Congress / Founding Fathers background.
 
 `.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`.
 
