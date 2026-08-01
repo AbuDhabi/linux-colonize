@@ -79,6 +79,17 @@ int main(void) {
   }
 
   ColonizeInputState input = {0};
+  /* Hover + click second option (LOAD Game) should move selection without quitting. */
+  input.mouse_x = 160;
+  input.mouse_y = 120;
+  input.mouse_left_clicked = true;
+  if (!game_update(game, &input, 16)) {
+    fprintf(stderr, "game_update failed on menu mouse click\n");
+    game_destroy(game);
+    return 1;
+  }
+
+  input = (ColonizeInputState){0};
   input.last_key = COLONIZE_KEY_ENTER;
   if (!game_update(game, &input, 16)) {
     fprintf(stderr, "game_update failed on enter\n");

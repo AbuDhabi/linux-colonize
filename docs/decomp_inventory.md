@@ -105,7 +105,7 @@ port I/O in the native build.
 - Map menu bar: `MENU.TXT` pull-downs with mouse hit-testing (`src/core/map_menu.c`);
   left-click selects unit/tile/colony, right-click selects tile; pan-only while a unit is
   selected; blinking white tile outline in tile-select mode; `CURSOR.SS` #0 is the OS
-  pointer over the map viewport; Colonizopedia category lists from `PEDIA.TXT`
+  pointer over the 320×200 frame on all screens; Colonizopedia category lists from `PEDIA.TXT`
   (`src/core/pedia.c`); pull-down divider after Terrain Types; trade menu entries stubbed
 - Shared wood **popup window** chrome (`src/core/popup.c`): black + mid brown + raised
   bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`);

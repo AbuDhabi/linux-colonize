@@ -18,7 +18,7 @@ void game_destroy(ColonizeGameState* game);
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms);
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette);
 const char* game_status_text(const ColonizeGameState* game);
-/* Build/toggle SDL mouse cursor from CURSOR.SS when the pointer is over the map view. */
+/* Build/toggle SDL mouse cursor from CURSOR.SS when the pointer is over the 320x200 frame. */
 void game_apply_mouse_cursor(
   ColonizeGameState* game,
   ColonizePlatform* platform,

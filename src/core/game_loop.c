@@ -135,6 +135,36 @@ struct ColonizeGameState {
   char status[128];
 };
 
+static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
+static void activate_menu_selection(ColonizeGameState* game);
+
+typedef struct BeginMenuLayout {
+  int dialog_x;
+  int dialog_y;
+  int dialog_w;
+  int dialog_h;
+  int inner_x;
+  int inner_y;
+  int inner_w;
+  int inner_h;
+  int list_y0;
+  int line_h;
+  int title_h;
+  int title_pad_top;
+  int title_pad_x;
+  int option_pad_x;
+  int gap_after_title;
+  int option_count;
+} BeginMenuLayout;
+
+static bool begin_menu_compute_layout(
+  const ColonizeGameState* game,
+  int fb_w,
+  int fb_h,
+  BeginMenuLayout* out
+);
+static int begin_menu_option_at_xy(const BeginMenuLayout* layout, int mx, int my);
+
 static const char* key_name(ColonizeKey key) {
   switch (key) {
     case COLONIZE_KEY_ESCAPE: return "ESCAPE";
@@ -2214,6 +2244,23 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return false;
       }
     }
+
+    /* Mouse: hover selects; click activates (same pattern as Pick Music). */
+    BeginMenuLayout menu_layout;
+    if (begin_menu_compute_layout(game, 320, 200, &menu_layout)) {
+      const int hit =
+        begin_menu_option_at_xy(&menu_layout, input->mouse_x, input->mouse_y);
+      if (hit >= 0) {
+        game->menu_selection = hit;
+        if (input->mouse_left_clicked) {
+          activate_menu_selection(game);
+          if (game->elapsed_ms == UINT32_MAX) {
+            return false;
+          }
+        }
+      }
+    }
+
     if (game->menu_option_count > 0) {
       snprintf(
         game->status,
@@ -2799,6 +2846,91 @@ static const ColonizeFont* begin_menu_font(const ColonizeGameState* game) {
   return NULL;
 }
 
+/* Same geometry as render — used for mouse hit-testing. */
+static bool begin_menu_compute_layout(
+  const ColonizeGameState* game,
+  int fb_w,
+  int fb_h,
+  BeginMenuLayout* out
+) {
+  if (!game || !out || fb_w <= 0 || fb_h <= 0) {
+    return false;
+  }
+  memset(out, 0, sizeof(*out));
+  const ColonizeFont* font = begin_menu_font(game);
+  out->line_h = font ? (font->max_height + 2) : 8;
+  out->title_h = font ? font->max_height : 6;
+  out->title_pad_top = 3;
+  out->title_pad_x = 2;
+  out->option_pad_x = 8;
+  out->gap_after_title = 4;
+  out->option_count = game->menu_option_count;
+  const int options_h = out->option_count * out->line_h;
+  /*
+   * Outer height from the previous pad_y=6 / line_h layout, then -12 from the
+   * bottom (dialog_y unchanged). Inner title spacing is tighter (3 / title_h / 4).
+   */
+  int dialog_h = POPUP_FRAME_INSET * 2 + 6 +
+                 (game->menu_version_line[0] ? out->line_h + 4 : 0) + options_h + 6 - 12;
+  if (dialog_h < 24) {
+    dialog_h = 24;
+  }
+
+  int dialog_w = game->menu_dialog_width > 0 ? game->menu_dialog_width : 160;
+  if (dialog_w > fb_w) {
+    dialog_w = fb_w;
+  }
+  int dialog_x = (fb_w - dialog_w) / 2;
+  int dialog_y = game->menu_dialog_y;
+  if (dialog_y < 0) {
+    dialog_y = 0;
+  }
+  if (dialog_y + dialog_h > fb_h) {
+    dialog_y = fb_h - dialog_h;
+    if (dialog_y < 0) {
+      dialog_y = 0;
+      dialog_h = fb_h;
+    }
+  }
+
+  out->dialog_x = dialog_x;
+  out->dialog_y = dialog_y;
+  out->dialog_w = dialog_w;
+  out->dialog_h = dialog_h;
+  out->inner_x = dialog_x + POPUP_FRAME_INSET;
+  out->inner_y = dialog_y + POPUP_FRAME_INSET;
+  out->inner_w = dialog_w - POPUP_FRAME_INSET * 2;
+  out->inner_h = dialog_h - POPUP_FRAME_INSET * 2;
+  if (out->inner_w <= 0 || out->inner_h <= 0) {
+    return false;
+  }
+
+  int text_y = out->inner_y + out->title_pad_top;
+  if (game->menu_version_line[0]) {
+    text_y += out->title_h + out->gap_after_title;
+  }
+  out->list_y0 = text_y;
+  return true;
+}
+
+static int begin_menu_option_at_xy(const BeginMenuLayout* layout, int mx, int my) {
+  if (!layout || layout->option_count <= 0 || layout->line_h <= 0) {
+    return -1;
+  }
+  if (mx < layout->inner_x || mx >= layout->inner_x + layout->inner_w) {
+    return -1;
+  }
+  if (my < layout->list_y0) {
+    return -1;
+  }
+  const int rel = my - layout->list_y0;
+  const int idx = rel / layout->line_h;
+  if (idx < 0 || idx >= layout->option_count) {
+    return -1;
+  }
+  return idx;
+}
+
 static void game_render_begin_menu(
   const ColonizeGameState* game,
   ColonizeFramebuffer8* framebuffer
@@ -2807,51 +2939,22 @@ static void game_render_begin_menu(
     return;
   }
 
+  BeginMenuLayout L;
+  if (!begin_menu_compute_layout(game, framebuffer->width, framebuffer->height, &L)) {
+    return;
+  }
+
   const ColonizeFont* font = begin_menu_font(game);
-  const int line_h = font ? (font->max_height + 2) : 8;
-  const int title_h = font ? font->max_height : 6;
-  const int title_pad_top = 3; /* from innermost top bevel */
-  const int title_pad_x = 2; /* from innermost left/right bevel */
-  const int option_pad_x = 8;
-  const int gap_after_title = 4; /* title glyph bottom → first option */
-  const int options_h = game->menu_option_count * line_h;
-  /*
-   * Outer height from the previous pad_y=6 / line_h layout, then -12 from the
-   * bottom (dialog_y unchanged). Inner title spacing is tighter (3 / title_h / 4).
-   */
-  int dialog_h = POPUP_FRAME_INSET * 2 + 6 +
-                 (game->menu_version_line[0] ? line_h + 4 : 0) + options_h + 6 - 12;
-  if (dialog_h < 24) {
-    dialog_h = 24;
-  }
-
-  int dialog_w = game->menu_dialog_width > 0 ? game->menu_dialog_width : 160;
-  if (dialog_w > framebuffer->width) {
-    dialog_w = framebuffer->width;
-  }
-  int dialog_x = (framebuffer->width - dialog_w) / 2;
-  int dialog_y = game->menu_dialog_y;
-  if (dialog_y < 0) {
-    dialog_y = 0;
-  }
-  if (dialog_y + dialog_h > framebuffer->height) {
-    dialog_y = framebuffer->height - dialog_h;
-    if (dialog_y < 0) {
-      dialog_y = 0;
-      dialog_h = framebuffer->height;
-    }
-  }
-
   int inner_x = 0;
   int inner_y = 0;
   int inner_w = 0;
   int inner_h = 0;
   popup_draw(
     framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
+    L.dialog_x,
+    L.dialog_y,
+    L.dialog_w,
+    L.dialog_h,
     game->menu_opentile_ok ? &game->menu_opentile : NULL,
     &game->menu_popup_colors,
     &inner_x,
@@ -2863,12 +2966,12 @@ static void game_render_begin_menu(
     return;
   }
 
-  int text_y = inner_y + title_pad_top;
+  int text_y = inner_y + L.title_pad_top;
   if (game->menu_version_line[0]) {
     const int tw = begin_menu_text_width(font, game->menu_version_line);
     int tx = inner_x + (inner_w - tw) / 2;
-    if (tx < inner_x + title_pad_x) {
-      tx = inner_x + title_pad_x;
+    if (tx < inner_x + L.title_pad_x) {
+      tx = inner_x + L.title_pad_x;
     }
     begin_menu_draw_markup(
       font,
@@ -2879,11 +2982,11 @@ static void game_render_begin_menu(
       game->menu_col_basic,
       game->menu_col_hilite
     );
-    text_y += title_h + gap_after_title;
+    text_y += L.title_h + L.gap_after_title;
   }
 
   for (int i = 0; i < game->menu_option_count; ++i) {
-    const int row_y = text_y + i * line_h;
+    const int row_y = text_y + i * L.line_h;
     const bool selected = (i == game->menu_selection);
     if (selected) {
       /* 1px inset from each side of the inner content edge. */
@@ -2892,12 +2995,12 @@ static void game_render_begin_menu(
         inner_x + 1,
         row_y - 1,
         inner_x + inner_w - 2,
-        row_y + line_h - 2,
+        row_y + L.line_h - 2,
         game->menu_col_select
       );
     }
     font_draw_text(
-      font, framebuffer, inner_x + option_pad_x, row_y, game->menu_options[i], game->menu_col_basic
+      font, framebuffer, inner_x + L.option_pad_x, row_y, game->menu_options[i], game->menu_col_basic
     );
   }
 }
@@ -3309,22 +3412,36 @@ void game_apply_mouse_cursor(
     return;
   }
 
-  /* Build the game pointer once from CURSOR.SS #0 (arrow tip near 1,0). */
+  /* Build the game pointer once from CURSOR.SS #0 (arrow tip near 1,0).
+   * Sprite corners store stray index 0x09 (light blue) that is not part of the
+   * arrow; treat it as transparent like COLONIZE_SS_TRANSPARENT. */
   if (game->cursor_ok && game->cursor.sprite_count > 0 && !game->mouse_cursor_built) {
     const ColonizeSprite* sp = &game->cursor.sprites[0];
-    const ColonizePalette* pal =
-      game->map_palette_ok ? &game->map_palette : (game->palette_ok ? &game->palette : NULL);
-    if (sp->pixels && pal &&
-        platform_set_mouse_cursor_indexed(
-          platform, sp->pixels, sp->width, sp->height, 1, 0, pal
-        )) {
-      game->mouse_cursor_built = true;
+    const ColonizePalette* pal = game->cursor.has_palette ? &game->cursor.palette
+      : (game->map_palette_ok ? &game->map_palette
+                              : (game->palette_ok ? &game->palette : NULL));
+    if (sp->pixels && pal && sp->width > 0 && sp->height > 0) {
+      const size_t n = (size_t)sp->width * (size_t)sp->height;
+      uint8_t* masked = (uint8_t*)malloc(n);
+      if (masked) {
+        memcpy(masked, sp->pixels, n);
+        for (size_t i = 0; i < n; ++i) {
+          if (masked[i] == 0x09u) {
+            masked[i] = COLONIZE_SS_TRANSPARENT;
+          }
+        }
+        if (platform_set_mouse_cursor_indexed(
+              platform, masked, sp->width, sp->height, 1, 0, pal
+            )) {
+          game->mouse_cursor_built = true;
+        }
+        free(masked);
+      }
     }
   }
 
-  /* Game cursor over the whole 320x200 frame (map + top menu bar). */
-  const bool on_game_frame = !game->in_menu && !game->in_debug_atlas && !game->in_pedia &&
-    !game->in_europe && !game->in_colony && !game->in_report &&
+  /* Game cursor over the full 320x200 frame on every screen (menu, map, reports…). */
+  const bool on_game_frame =
     mouse_x >= 0 && mouse_x < 320 && mouse_y >= 0 && mouse_y < 200;
 
   if (on_game_frame && game->mouse_cursor_built) {
