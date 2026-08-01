@@ -67,6 +67,8 @@ typedef struct EuropeScreen {
 bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size);
 void europe_free(EuropeScreen* eu);
 void europe_reset_campaign(EuropeScreen* eu);
+/* Reset treasury/dock and set port/nation for European power 0..3. */
+void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
 
 /* Recruit cheapest available class onto the docks. Returns false if broke/full. */
 bool europe_recruit(EuropeScreen* eu);

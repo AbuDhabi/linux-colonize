@@ -1,0 +1,13 @@
+@LEADERNAME
+Walter Raleigh, 1, -1, 0
+Jacques Cartier, 0, 1, 0
+Christopher Columbus, 1, 0, -1
+Michiel De Ruyter, -1, 0, 1
+
+@SCENARIO
+AMER2, 34, 20, 39, 10, 47, 61, 50, 33
+
+@UNIT
+Colonists, 0, 0, 0, 0, 0, 0, 0, 0
+Pioneers, 0, 0, 0, 0, 0, 0, 0, 0
+Caravel, 0, 0, 0, 0, 0, 0, 0, 0

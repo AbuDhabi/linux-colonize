@@ -53,7 +53,7 @@ int main(void) {
     return 1;
   }
 
-  units_new_world_start(&pool, &map);
+  units_new_world_start(&pool, &map, 39, 10);
   if (pool.unit_count < 2 || pool.selected_id < 0) {
     fprintf(stderr, "expected starter pioneer + caravel on map (count=%d)\n", pool.unit_count);
     map_free(&map);

@@ -44,6 +44,7 @@ add_library(colonize_core STATIC
   src/core/map_panel.c
   src/core/popup.c
   src/core/pick_music.c
+  src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
   src/core/europe.c
@@ -191,6 +192,7 @@ add_executable(smoke_game_flow
   src/core/map_panel.c
   src/core/popup.c
   src/core/pick_music.c
+  src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
   src/core/europe.c
@@ -210,6 +212,50 @@ add_executable(smoke_game_flow
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
+
+add_executable(smoke_new_game
+  tests/smoke/test_new_game.c
+  tests/smoke/platform_cursor_stubs.c
+  src/core/game_loop.c
+  src/core/assets.c
+  src/core/font.c
+  src/core/ff.c
+  src/core/map.c
+  src/core/map_menu.c
+  src/core/map_panel.c
+  src/core/popup.c
+  src/core/pick_music.c
+  src/core/new_game.c
+  src/core/pedia.c
+  src/core/reports.c
+  src/core/europe.c
+  src/core/colony_screen.c
+  src/core/debug_atlas.c
+  src/core/units.c
+  src/core/colony.c
+  src/core/turn.c
+  src/core/sound.c
+  src/core/madspack.c
+  src/core/pik.c
+  src/core/ss.c
+  src/core/savegame.c
+  src/core/col1_save.c
+  src/core/col1_bridge.c
+  src/data/viceroy_tables.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_new_game PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(smoke_new_game PRIVATE m pthread)
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(smoke_new_game PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(smoke_new_game PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(smoke_new_game PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+endif()
+add_test(NAME smoke_new_game COMMAND smoke_new_game)
 
 add_executable(smoke_popup
   tests/smoke/test_popup.c

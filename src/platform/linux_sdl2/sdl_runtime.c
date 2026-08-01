@@ -65,6 +65,7 @@ static ColonizeKey map_key(SDL_Keycode key) {
     case SDLK_F8: return COLONIZE_KEY_F8;
     case SDLK_F9: return COLONIZE_KEY_F9;
     case SDLK_F10: return COLONIZE_KEY_F10;
+    case SDLK_BACKSPACE: return COLONIZE_KEY_BACKSPACE;
     default: return COLONIZE_KEY_NONE;
   }
 }
@@ -102,6 +103,7 @@ ColonizePlatform* platform_create(const ColonizePlatformConfig* config) {
     diag_error("SDL_Init failed: %s", SDL_GetError());
     return NULL;
   }
+  SDL_StartTextInput();
   diag_info("SDL version=%d.%d.%d audio_requested=%s",
     SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL,
     want_audio ? "yes" : "no");
@@ -310,6 +312,10 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
     return false;
   }
 
+  /* Preserve edged flags that callers may have zeroed; we OR into a fresh poll. */
+  out_input->text_input_len = 0;
+  out_input->text_input[0] = '\0';
+
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
     switch (event.type) {
@@ -344,6 +350,13 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
         break;
       case SDL_KEYDOWN:
         out_input->last_key = map_key(event.key.keysym.sym);
+        break;
+      case SDL_TEXTINPUT:
+        if (event.text.text[0] && out_input->text_input_len + 1 < COLONIZE_TEXT_INPUT_MAX) {
+          /* Take first byte of each text event (ASCII names). */
+          out_input->text_input[out_input->text_input_len++] = event.text.text[0];
+          out_input->text_input[out_input->text_input_len] = '\0';
+        }
         break;
       default:
         break;

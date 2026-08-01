@@ -18,6 +18,7 @@
 #include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/new_game.h"
 #include "core/pedia.h"
 #include "core/pik.h"
 #include "core/pick_music.h"
@@ -45,6 +46,9 @@ struct ColonizeGameState {
   int map_view_x; /* viewport center tile (may diverge from cursor while a unit is selected) */
   int map_view_y;
   bool in_menu;
+  NewGameWizard new_game;
+  int difficulty;
+  char leader_name[NEW_GAME_LEADER_NAME_MAX];
   bool assets_ok;
   bool palette_ok;
   ColonizePalette palette;
@@ -200,6 +204,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_F8: return "F8";
     case COLONIZE_KEY_F9: return "F9";
     case COLONIZE_KEY_F10: return "F10";
+    case COLONIZE_KEY_BACKSPACE: return "Backspace";
     default: return "NONE";
   }
 }
@@ -433,6 +438,9 @@ static const char* render_mode_name(const ColonizeGameState* game) {
   if (game->in_debug_atlas) {
     return "debug-atlas";
   }
+  if (new_game_active(&game->new_game)) {
+    return "new-game";
+  }
   if (game->in_menu) {
     return "menu";
   }
@@ -524,6 +532,27 @@ static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, si
         )) {
       return false;
     }
+    /* Apply new-game wizard identity onto the template. */
+    for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
+      game->col1.player[i].control = 1;
+    }
+    const int hn = game->human_nation;
+    if (hn >= 0 && hn < (int)COLONIZE_COL1_NATION_COUNT) {
+      game->col1.player[hn].control = 0;
+      snprintf(
+        game->col1.player[hn].name,
+        sizeof(game->col1.player[hn].name),
+        "%s",
+        game->leader_name[0] ? game->leader_name : "Governor"
+      );
+      snprintf(
+        game->col1.player[hn].country_name,
+        sizeof(game->col1.player[hn].country_name),
+        "%s",
+        new_game_nation_name(hn)
+      );
+    }
+    game->col1.head.difficulty = (uint8_t)game->difficulty;
     game->col1_ok = true;
     if (game->game_year == 0) {
       game->game_year = 1492;
@@ -947,6 +976,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->map_view_x = 29;
   game->map_view_y = 36;
   game->in_menu = true;
+  game->difficulty = 0;
+  snprintf(game->leader_name, sizeof(game->leader_name), "Walter Raleigh");
   game->game_year = 1492;
   game->game_autumn = 0;
   game->human_nation = 0;
@@ -967,6 +998,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   assets_msg_init(&game->names);
   map_menu_init(&game->map_menu);
   pick_music_init(&game->pick_music);
+  new_game_init(&game->new_game);
   units_reset(&game->units);
   colonies_init(&game->colonies);
   debug_atlas_init(&game->debug_atlas);
@@ -1339,11 +1371,92 @@ void game_destroy(ColonizeGameState* game) {
   assets_msg_free(&game->labels);
   map_menu_free(&game->map_menu);
   map_panel_free(&game->map_panel);
+  pick_music_close(&game->pick_music);
+  new_game_free(&game->new_game);
   assets_msg_free(&game->pedia);
   assets_msg_free(&game->names);
   debug_atlas_free(&game->debug_atlas);
   dos_compat_shutdown();
   free(game);
+}
+
+static void game_commit_new_campaign(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  NewGameWizard* ng = &game->new_game;
+
+  game->difficulty = ng->difficulty;
+  game->human_nation = ng->nation;
+  game->active_turn_nation = ng->nation;
+  snprintf(game->leader_name, sizeof(game->leader_name), "%s", ng->leader_name);
+
+  char map_path[512];
+  char err[256];
+  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, ng->map_file, map_path, sizeof(map_path))) {
+    snprintf(map_path, sizeof(map_path), "%s/%s", game->resolved_data_dir, ng->map_file);
+  }
+  map_free(&game->world_map);
+  game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+  if (!game->world_map_ok) {
+    diag_error("new game map load failed (%s): %s", ng->map_file, err);
+    /* Fall back to AMER2 if custom map missing. */
+    if (dos_compat_normalize_asset_path(game->resolved_data_dir, "AMER2.MP", map_path, sizeof(map_path))) {
+      game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+    }
+  }
+
+  col1_save_free(&game->col1);
+  game->col1_ok = false;
+  game->game_year = 1492;
+  game->game_autumn = 0;
+  game->turn_number = 0;
+  europe_reset_campaign_nation(&game->europe, game->human_nation);
+  colonies_init(&game->colonies);
+  game->colonies_ok = true;
+
+  char stem[64];
+  snprintf(stem, sizeof(stem), "%s", ng->map_file);
+  char* dot = strrchr(stem, '.');
+  if (dot) {
+    *dot = '\0';
+  }
+  int sx = 39, sy = 10;
+  new_game_scenario_start(
+    game->names_ok ? &game->names : NULL, stem, game->human_nation, &sx, &sy
+  );
+
+  if (game->world_map_ok && game->units_ok) {
+    units_new_world_start(&game->units, &game->world_map, sx, sy);
+    if (game->units.selected_id >= 0) {
+      const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
+      if (u) {
+        game->map_cursor_x = u->x;
+        game->map_cursor_y = u->y;
+        game->map_view_x = u->x;
+        game->map_view_y = u->y;
+      }
+    } else {
+      game->map_cursor_x = sx;
+      game->map_cursor_y = sy;
+      game->map_view_x = sx;
+      game->map_view_y = sy;
+    }
+  }
+
+  sound_set_bgm(1);
+  char map_label[NEW_GAME_MAP_NAME_MAX];
+  snprintf(map_label, sizeof(map_label), "%s", ng->map_file);
+  new_game_cancel(ng);
+  game->in_menu = false;
+  snprintf(
+    game->status,
+    sizeof(game->status),
+    "%s of %s (%s)",
+    game->leader_name,
+    new_game_nation_name(game->human_nation),
+    map_label
+  );
 }
 
 static void activate_menu_selection(ColonizeGameState* game) {
@@ -1377,25 +1490,44 @@ static void activate_menu_selection(ColonizeGameState* game) {
     return;
   }
 
-  /* Start / customize / America / New World -> enter map view. */
-  game->in_menu = false;
-  col1_save_free(&game->col1);
-  game->col1_ok = false;
-  game->game_year = 1492;
-  game->game_autumn = 0;
-  game->human_nation = 0;
-  game->active_turn_nation = 0;
-  game->turn_number = 0;
-  europe_reset_campaign(&game->europe);
-  if (game->world_map_ok) {
-    units_new_world_start(&game->units, &game->world_map);
+  if (strstr(choice, "Hall of Fame") != NULL || strstr(choice, "HALL") != NULL) {
+    set_status(game, "Hall of Fame", "not implemented yet");
+    return;
   }
-  sound_set_bgm(1);
-  snprintf(
-    game->status,
-    sizeof(game->status),
-    "Map: menus (mouse), arrows, Enter move, B found, C colony, E Europe"
-  );
+
+  if (strstr(choice, "CUSTOMIZE") != NULL || strstr(choice, "Customize") != NULL) {
+    set_status(game, "Customize New World", "not implemented yet");
+    return;
+  }
+
+  if (strstr(choice, "AMERICA") != NULL || strstr(choice, "America") != NULL) {
+    game->in_menu = false;
+    new_game_begin(
+      &game->new_game,
+      NEW_GAME_PATH_AMERICA,
+      game->resolved_data_dir,
+      &game->messages,
+      game->names_ok ? &game->names : NULL
+    );
+    set_status(game, "New game", "America");
+    return;
+  }
+
+  if (strstr(choice, "NEW WORLD") != NULL || strstr(choice, "New World") != NULL ||
+      strstr(choice, "Start") != NULL) {
+    game->in_menu = false;
+    new_game_begin(
+      &game->new_game,
+      NEW_GAME_PATH_NEW_WORLD,
+      game->resolved_data_dir,
+      &game->messages,
+      game->names_ok ? &game->names : NULL
+    );
+    set_status(game, "New game", "New World (AMER2 stand-in)");
+    return;
+  }
+
+  set_status(game, "Menu", "unknown option");
 }
 
 static void game_set_view_center(ColonizeGameState* game, int x, int y) {
@@ -1911,6 +2043,33 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game_fill_turn_context(game, &ctx);
     if (!turn_processor_advance(&game->turn_proc, &ctx)) {
       game_finish_end_turn(game, &game->turn_proc.result);
+    }
+    return true;
+  }
+
+  /* New-game wizard (difficulty → nation → … → sail). */
+  if (new_game_active(&game->new_game)) {
+    game->new_game.ui_font = game->intro_font_ok ? &game->intro_font
+      : (game->colony_font_ok ? &game->colony_font
+                              : (game->menu_font_ok ? &game->menu_font : NULL));
+    game->new_game.lore_font = game->menu_font_ok ? &game->menu_font : game->new_game.ui_font;
+    game->new_game.wood_tile = game->menu_opentile_ok ? &game->menu_opentile : NULL;
+    game->new_game.woodpanl = (game->pedia_wood_ok) ? &game->pedia_wood : NULL;
+    game->new_game.labels_txt = game->labels_ok ? &game->labels : NULL;
+    new_game_update(&game->new_game, dt_ms);
+    if (new_game_wants_commit(&game->new_game)) {
+      game_commit_new_campaign(game);
+      return true;
+    }
+    new_game_handle_input(&game->new_game, input);
+    if (new_game_wants_commit(&game->new_game)) {
+      game_commit_new_campaign(game);
+      return true;
+    }
+    if (!new_game_active(&game->new_game)) {
+      /* Cancelled back to title. */
+      game->in_menu = true;
+      set_status(game, "Colonization Linux Port", NULL);
     }
     return true;
   }
@@ -3079,6 +3238,51 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     goto render_log_sample;
   }
 
+  if (new_game_active(&game->new_game)) {
+    ColonizePopupColors popup_cols;
+    popup_colors_from_ui(&popup_cols);
+    if (game->menu_bg_ok && game->menu_bg.has_palette) {
+      popup_colors_remap(&popup_cols, &game->palette, &game->menu_bg.palette);
+    }
+    /* Hit-test layout is updated during render. */
+    NewGameWizard* ng = (NewGameWizard*)&game->new_game;
+    ng->ui_font = game->intro_font_ok ? &game->intro_font
+      : (game->colony_font_ok ? &game->colony_font
+                              : (game->menu_font_ok ? &game->menu_font : NULL));
+    ng->lore_font = game->menu_font_ok ? &game->menu_font : ng->ui_font;
+    ng->wood_tile = game->menu_opentile_ok ? &game->menu_opentile : NULL;
+    ng->woodpanl = game->pedia_wood_ok ? &game->pedia_wood : NULL;
+    ng->labels_txt = game->labels_ok ? &game->labels : NULL;
+    uint8_t basic = COLONIZE_COL_BASIC;
+    uint8_t hilite = COLONIZE_COL_HILITE;
+    uint8_t select = COLONIZE_COL_SELECT;
+    /* Bright selection border on DIFFICUL/NATIONS own palettes. */
+    if (ng->phase == NEW_GAME_PHASE_DIFFICULTY && ng->difficul_ok) {
+      hilite = palette_nearest_rgb(&ng->difficul_pik.palette, 0, 255, 0);
+      basic = palette_nearest_rgb(&ng->difficul_pik.palette, 0, 180, 0);
+    } else if (ng->phase == NEW_GAME_PHASE_NATION && ng->nations_ok) {
+      hilite = palette_nearest_rgb(&ng->nations_pik.palette, 0, 255, 0);
+      basic = palette_nearest_rgb(&ng->nations_pik.palette, 0, 180, 0);
+    } else if (
+      (ng->phase == NEW_GAME_PHASE_LEADER_NAME || ng->phase == NEW_GAME_PHASE_NATION_LORE_A ||
+       ng->phase == NEW_GAME_PHASE_NATION_LORE_B) &&
+      game->pedia_wood_ok && game->pedia_wood.has_palette
+    ) {
+      basic = palette_nearest_rgb(&game->pedia_wood.palette, 40, 140, 40);
+      hilite = palette_nearest_rgb(&game->pedia_wood.palette, 220, 220, 40);
+    }
+    new_game_render(
+      ng,
+      framebuffer,
+      palette,
+      &popup_cols,
+      basic,
+      hilite,
+      select
+    );
+    goto render_log_sample;
+  }
+
   if (game->in_menu) {
     if (game->menu_bg_ok) {
       memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
@@ -3449,4 +3653,24 @@ void game_apply_mouse_cursor(
   } else {
     platform_show_game_mouse_cursor(platform, false);
   }
+}
+
+bool game_in_menu(const ColonizeGameState* game) {
+  return game && game->in_menu;
+}
+
+bool game_in_new_game(const ColonizeGameState* game) {
+  return game && new_game_active(&game->new_game);
+}
+
+int game_human_nation(const ColonizeGameState* game) {
+  return game ? game->human_nation : 0;
+}
+
+int game_difficulty(const ColonizeGameState* game) {
+  return game ? game->difficulty : 0;
+}
+
+const char* game_leader_name(const ColonizeGameState* game) {
+  return game ? game->leader_name : "";
 }

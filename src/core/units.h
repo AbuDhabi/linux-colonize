@@ -153,7 +153,12 @@ int units_spawn_ship_with_cargo(
 );
 
 void units_end_turn(ColonizeUnitPool* pool);
-void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map);
+void units_new_world_start(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y
+);
 
 bool units_deploy_colonist(
   ColonizeUnitPool* pool,

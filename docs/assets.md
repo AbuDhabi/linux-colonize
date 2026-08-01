@@ -388,7 +388,17 @@ nation phases run (`FUN_1984_00aa`): England 12, France 9, Spain 14, Netherlands
 (`NAMES.TXT` `@COUNTRY`). Native phases use `@TRIBES` colors. It is hidden during the
 human turn.
 
-A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a new game, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
+A **Pioneer** spawns at the nation's `@SCENARIO` start tile (AMER2 England `(39,10)`) when finishing the new-game wizard, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
+
+### New-game wizard
+
+Title `@BEGINMENU` no longer jumps straight to the map. Flow (see `src/core/new_game.c`):
+
+1. **Start in NEW WORLD** → difficulty (stand-in map **AMER2.MP** after sail; procedural gen deferred)
+2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard
+3. Difficulty (`DIFFICUL.PIK` image regions + border, top-left prompt / “(Click Here When Finished)”) → nation (`NATIONS.PIK` regions) → leader name on `WOODPANL.PIK` → `@NATION{n}A` / `B` on wood (`FONTSMAL`) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` captions → map
+
+Enter or left-click **skips** the remaining sail frames (QoL; original is hard to skip). `AMERICA.MOV` is a short motion/script blob for map tooling, **not** the dock voyage cutscene.
 
 | Extension | Typical use |
 |-----------|-------------|
@@ -396,7 +406,7 @@ A **Pioneer** spawns at the AMER2 scenario start tile `(39,10)` when starting a 
 | `.SS` | Sprite sheets / animation frames |
 | `.PAL` | VGA palette (`VICEROY.PAL`, 1024 bytes = 256×RGBA, 6-bit VGA RGB) |
 | `.COL` | MicroProse sound drivers (`A/G/P/RSOUND.COL`) + `CONFIG.COL` |
-| `.MOV` | Short motion / script tables |
+| `.MOV` | Short motion / script tables (e.g. `AMERICA.MOV`; not the LEVN voyage) |
 | `.MP` | Map data |
 | `.DAT` | Tables / path data |
 | `.BIN` | Large binary blobs (e.g. `COLDIG.BIN` digital SFX — not yet played) |

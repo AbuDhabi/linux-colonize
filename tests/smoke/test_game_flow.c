@@ -79,20 +79,17 @@ int main(void) {
   }
 
   ColonizeInputState input = {0};
-  /* Hover + click second option (LOAD Game) should move selection without quitting. */
-  input.mouse_x = 160;
-  input.mouse_y = 120;
-  input.mouse_left_clicked = true;
+  /* Stay on title: move to Exit and do not activate Start (wizard). */
+  input.last_key = COLONIZE_KEY_DOWN;
   if (!game_update(game, &input, 16)) {
-    fprintf(stderr, "game_update failed on menu mouse click\n");
+    fprintf(stderr, "game_update failed on menu down\n");
     game_destroy(game);
     return 1;
   }
-
   input = (ColonizeInputState){0};
-  input.last_key = COLONIZE_KEY_ENTER;
+  input.last_key = COLONIZE_KEY_DOWN;
   if (!game_update(game, &input, 16)) {
-    fprintf(stderr, "game_update failed on enter\n");
+    fprintf(stderr, "game_update failed on menu down 2\n");
     game_destroy(game);
     return 1;
   }
@@ -100,11 +97,9 @@ int main(void) {
   for (int i = 0; i < 500; ++i) {
     ColonizeInputState frame = {0};
     if (i % 30 == 0) {
-      frame.last_key = COLONIZE_KEY_SPACE;
+      frame.last_key = COLONIZE_KEY_UP;
     } else if (i == 200) {
-      frame.last_key = COLONIZE_KEY_S;
-    } else if (i == 300) {
-      frame.last_key = COLONIZE_KEY_L;
+      frame.last_key = COLONIZE_KEY_DOWN;
     }
     if (!game_update(game, &frame, 16)) {
       fprintf(stderr, "game loop aborted unexpectedly at frame %d\n", i);

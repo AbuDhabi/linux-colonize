@@ -1,0 +1,65 @@
+@BEGINMENU
+@width=160
+{COLONIZATION} Version test
+@options
+Start a Game in NEW WORLD
+Start a Game in AMERICA
+LOAD Game
+View Hall of Fame
+Exit to DOS
+
+@AMERICA
+@width=160
+Would you like to use the original Americas map, or
+a map prepared with the map editor?
+Original Americas
+Map Editor
+
+@DIFFICULTY
+@width=190
+Select a Difficulty Level
+Discoverer
+Explorer
+Conquistador
+Governor
+Viceroy
+
+@PICKNATION
+@default=1
+Select a European Power
+England
+France
+Spain
+Netherlands
+
+@LEADERNAME
+@width=300
+Please Enter Your Name.
+@options
+______________________
+
+@NATION1A
+@width=300
+FRANCE
+History page A.
+
+@NATION1B
+@width=300
+FRANCE
+Bonus page B.
+
+@VICEROY
+@width=78
+@x=232
+@y=21
+An Audience With
+The King of %COUNTRY
+
+@BUILD1
+@width=310
+@y=30
+In the Year of Our Lord
+
+@BUILD2
+@y=30
+led by %STRING0, %STRING1

@@ -26,4 +26,11 @@ void game_apply_mouse_cursor(
   int mouse_y
 );
 
+/* New-game wizard / campaign identity (for smoke tests). */
+bool game_in_menu(const ColonizeGameState* game);
+bool game_in_new_game(const ColonizeGameState* game);
+int game_human_nation(const ColonizeGameState* game);
+int game_difficulty(const ColonizeGameState* game);
+const char* game_leader_name(const ColonizeGameState* game);
+
 #endif

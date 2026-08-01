@@ -133,11 +133,20 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
 }
 
 void europe_reset_campaign(EuropeScreen* eu) {
+  europe_reset_campaign_nation(eu, 0);
+}
+
+void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   if (!eu) {
     return;
   }
-  snprintf(eu->port_city, sizeof(eu->port_city), "%s", "London");
-  snprintf(eu->nation_name, sizeof(eu->nation_name), "%s", "England");
+  if (nation < 0 || nation > 3) {
+    nation = 0;
+  }
+  static const char* ports[4] = {"London", "Paris", "Seville", "Amsterdam"};
+  static const char* nations[4] = {"England", "France", "Spain", "Netherlands"};
+  snprintf(eu->port_city, sizeof(eu->port_city), "%s", ports[nation]);
+  snprintf(eu->nation_name, sizeof(eu->nation_name), "%s", nations[nation]);
   eu->gold = 1000;
   eu->tax_percent = 0;
   eu->current_crosses = 0;

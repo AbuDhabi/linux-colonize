@@ -39,8 +39,11 @@ typedef enum ColonizeKey {
   COLONIZE_KEY_F7,
   COLONIZE_KEY_F8,
   COLONIZE_KEY_F9,
-  COLONIZE_KEY_F10
+  COLONIZE_KEY_F10,
+  COLONIZE_KEY_BACKSPACE
 } ColonizeKey;
+
+#define COLONIZE_TEXT_INPUT_MAX 16
 
 typedef struct ColonizeInputState {
   bool quit_requested;
@@ -51,6 +54,8 @@ typedef struct ColonizeInputState {
   int mouse_x;             /* framebuffer/logical coords (320×200 space) */
   int mouse_y;
   ColonizeKey last_key;
+  char text_input[COLONIZE_TEXT_INPUT_MAX]; /* printable chars this frame */
+  int text_input_len;
 } ColonizeInputState;
 
 typedef struct ColonizePalette {

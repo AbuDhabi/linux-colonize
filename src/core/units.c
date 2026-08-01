@@ -749,7 +749,12 @@ bool units_find_high_seas_tile(
   return true;
 }
 
-void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map) {
+void units_new_world_start(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y
+) {
   if (!pool) {
     return;
   }
@@ -766,17 +771,16 @@ void units_new_world_start(ColonizeUnitPool* pool, const ColonizeWorldMap* map) 
     pioneer_type = 0;
   }
 
-  /* AMER2 @SCENARIO start tile (39,10) — first player landing site. */
-  int x = 39;
-  int y = 10;
+  int x = start_x;
+  int y = start_y;
   int pioneer_id = -1;
   if (pioneer_type >= 0) {
     if (!units_find_land_tile(map, x, y, &x, &y)) {
       x = map->width / 2;
       y = map->height / 2;
       if (!units_find_land_tile(map, x, y, &x, &y)) {
-        x = 39;
-        y = 10;
+        x = start_x;
+        y = start_y;
       }
     }
     pioneer_id = units_spawn(pool, pioneer_type, x, y);
