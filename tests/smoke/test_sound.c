@@ -34,6 +34,53 @@ int main(void) {
     return 1;
   }
 
+  /* Golden decode: Bird Song (0x21) first melody note is D5 (74) vel 44 prog 22. */
+  int events = 0;
+  uint32_t dur = 0;
+  uint8_t note = 0, vel = 0, prog = 0, ch = 0;
+  if (!sound_gsound_song_stats(SOUND_BGM_ID_BASE + 1, &events, &dur, &note, &vel, &prog, &ch)) {
+    fprintf(stderr, "song 0x21 stats failed\n");
+    sound_shutdown();
+    return 1;
+  }
+  if (events < 100) {
+    fprintf(stderr, "song 0x21 too few events (%d)\n", events);
+    sound_shutdown();
+    return 1;
+  }
+  /* ~60 Hz ticks; one pass of lead is ~67s → expect thousands of ticks. */
+  if (dur < 2000 || dur > 20000) {
+    fprintf(stderr, "song 0x21 duration out of range (%u ticks)\n", dur);
+    sound_shutdown();
+    return 1;
+  }
+  if (note != 74 || vel != 44 || prog != 22) {
+    fprintf(
+      stderr,
+      "song 0x21 first note mismatch note=%u vel=%u prog=%u (want 74/44/22)\n",
+      note,
+      vel,
+      prog
+    );
+    sound_shutdown();
+    return 1;
+  }
+
+  /* Title intro must decode to a substantial event list. */
+  int title_events = 0;
+  uint32_t title_dur = 0;
+  if (!sound_gsound_song_stats(SOUND_TITLE_ID, &title_events, &title_dur, NULL, NULL, NULL, NULL) ||
+      title_events < 50 || title_dur < 500) {
+    fprintf(
+      stderr,
+      "title 0x33 weak decode events=%d dur=%u\n",
+      title_events,
+      title_dur
+    );
+    sound_shutdown();
+    return 1;
+  }
+
   enum { FRAMES = 44100 / 2 }; /* 0.5s */
   int16_t* buf = (int16_t*)calloc(FRAMES, sizeof(int16_t));
   if (!buf) {
@@ -41,51 +88,44 @@ int main(void) {
     return 1;
   }
 
-  if (COLONIZE_SOUND_PLAYBACK_ENABLED) {
-    const int n = sound_render_offline_mono(SOUND_TITLE_ID, buf, FRAMES, 44100);
-    if (n < FRAMES / 2) {
-      fprintf(stderr, "offline render too short (%d)\n", n);
-      free(buf);
-      sound_shutdown();
-      return 1;
-    }
-    double energy = 0.0;
-    int nonzero = 0;
-    for (int i = 0; i < n; ++i) {
-      const double s = (double)buf[i];
-      energy += s * s;
-      if (buf[i] != 0) {
-        nonzero++;
-      }
-    }
-    if (nonzero < 100 || energy < 1.0) {
-      fprintf(stderr, "rendered silence (nonzero=%d energy=%g)\n", nonzero, energy);
-      free(buf);
-      sound_shutdown();
-      return 1;
-    }
-    fprintf(
-      stderr,
-      "sound tests ok songs=%d backend=%s nonzero=%d\n",
-      sound_gsound_song_count(),
-      sound_backend_ok() ? "fluidsynth" : "fallback",
-      nonzero
-    );
-  } else {
-    fprintf(
-      stderr,
-      "sound tests ok songs=%d playback=parked\n",
-      sound_gsound_song_count()
-    );
+  const int n = sound_render_offline_mono(SOUND_TITLE_ID, buf, FRAMES, 44100);
+  if (n < FRAMES / 2) {
+    fprintf(stderr, "offline render too short (%d)\n", n);
+    free(buf);
+    sound_shutdown();
+    return 1;
   }
+  double energy = 0.0;
+  int nonzero = 0;
+  for (int i = 0; i < n; ++i) {
+    const double s = (double)buf[i];
+    energy += s * s;
+    if (buf[i] != 0) {
+      nonzero++;
+    }
+  }
+  if (nonzero < 100 || energy < 1.0) {
+    fprintf(stderr, "rendered silence (nonzero=%d energy=%g)\n", nonzero, energy);
+    free(buf);
+    sound_shutdown();
+    return 1;
+  }
+  fprintf(
+    stderr,
+    "sound tests ok songs=%d backend=%s events21=%d dur21=%u nonzero=%d\n",
+    sound_gsound_song_count(),
+    sound_backend_ok() ? "fluidsynth" : "fallback",
+    events,
+    dur,
+    nonzero
+  );
   free(buf);
 
-  /* Autoplay gated while parked; preview still works. */
   ColonizeSoundOptions opts = sound_get_options();
   opts.background_music = false;
   sound_set_options(opts);
-  sound_play(SOUND_TITLE_ID); /* no-op while parked */
-  sound_set_bgm(1); /* no-op while parked */
+  sound_play(SOUND_TITLE_ID); /* gated off by options */
+  sound_set_bgm(1);
   sound_play_preview(SOUND_BGM_ID_BASE + 1);
   sound_service();
   sound_stop_preview();

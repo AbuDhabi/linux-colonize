@@ -90,7 +90,7 @@ port I/O in the native build.
 - World map view (**fidelity OK vs MAPEDIT**): terrain, land transitions, forest/hill/mountain/river
   connectivity, coasts, estuaries, special resources, rumours — see below and `docs/assets.md`
 - Coast / estuary: enabled (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` default 1)
-- **Music playback: parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0` in `src/core/sound.h`; loader kept (see `docs/assets.md`)
+- **Music playback: enabled** — GSOUND bytecode decode + FluidSynth (`COLONIZE_SOUND_PLAYBACK_ENABLED 1`; see `docs/assets.md`)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; see `src/core/europe.c`)
 - Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
@@ -128,10 +128,9 @@ port I/O in the native build.
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
-- Music (`src/core/sound.c`): **autoplay parked** — `COLONIZE_SOUND_PLAYBACK_ENABLED 0`;
-  `GSOUND.COL` loader/ID map kept; Pick Music UI (`pick_music.c`) uses `sound_play_preview`
-  for audible A/B tests; heuristic MIDI playback for title/map BGM disabled until fidelity
-  work; `COLDIG.BIN` SFX still deferred
+- Music (`src/core/sound.c`): GSOUND.COL voice bytecode → MIDI events (~60 Hz ticks);
+  FluidSynth with SC-55-preferring SoundFont search; Pick Music preview + title/map BGM
+  via `COLONIZE_SOUND_PLAYBACK_ENABLED`; `COLDIG.BIN` SFX still deferred
 
 ## End-of-turn recovery checklist
 

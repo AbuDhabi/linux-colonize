@@ -108,14 +108,13 @@ int main(int argc, char** argv) {
 
   sound_init(cli.data_dir, platform_audio_enabled(platform));
   if (platform_audio_enabled(platform)) {
-    /* Keep the device running so Pick Music previews can be heard while autoplay is parked. */
     platform_audio_resume(platform);
   }
   if (sound_playback_enabled()) {
     sound_play(SOUND_TITLE_ID);
   } else {
     diag_info(
-      "Music autoplay parked; use GAME → Pick Music to preview songs%s.",
+      "Music autoplay disabled; use GAME → Pick Music to preview songs%s.",
       platform_audio_enabled(platform) ? "" : " (audio device off)"
     );
   }

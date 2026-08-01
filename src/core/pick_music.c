@@ -176,7 +176,7 @@ static void pick_music_play_song(const PickMusicOption* opt, char* status, size_
     }
     return;
   }
-  /* Preview path: audible even while ambient autoplay is parked. */
+  /* Preview path: plays immediately without changing map BGM. */
   sound_play_preview(opt->song_id);
   if (status && status_size > 0) {
     if (sound_audio_output_ready()) {

@@ -420,6 +420,36 @@ Background / Event / SFX (`FUN_12d8_000e`). IDs `0x20..0x3f` are background musi
 `0x40..0x5c` event music; IDs `< 0x10` are system (stop). Title intro uses **`0x33`**.
 Map BGM track *n* maps to ID `0x20+n` (track 1 → `0x21`).
 
+### GSOUND stream format (RE from `GSOUND.COL` MZ)
+
+Banner string: `Coloniz GMID09-12-94`. Voice bytecode is interpreted by a jump table at
+image offset `0xEF2` for opcodes `0xBB..0xFF`. Timing uses PIT divisor **`0x4DBF`**
+(~**60 Hz** ticks). Summary:
+
+| Bytes | Meaning |
+|-------|---------|
+| `note, dur` with `note ≤ 0xBA` | Note or rest (`note==0`); duration in ticks |
+| `F4 vv` | Set velocity for following notes |
+| `F8 pp` | Program change (GM patch) |
+| `F1 vv` | CC 7 volume |
+| `F0 vv` | CC 10 pan |
+| `C2 vv` | CC 91 reverb (**not** program change) |
+| `C1 vv` | CC 93 chorus |
+| `F6` / `F7` | Gate / articulation |
+| `FA addr` / `F9` | Call / return (DS-relative) |
+| `FF nn` | Loop (`nn==0` sets label; else repeat) |
+| `BE a b` | Driver tempo/scale (internal) |
+
+MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
+Closest practical playback: FluidSynth + an SC-55-character SoundFont.
+
+**SoundFont search order:** `COLONIZE_SOUNDFONT` → SC-55-named SF2 (e.g. ScummVM’s
+`Roland_SC-55.sf2`) → GeneralUser GS → FluidR3 / distro defaults. For the closest match,
+point `COLONIZE_SOUNDFONT` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont)
+(not vendored — ROM-derived samples). Gold A/B reference: DOSBox Staging
+`mididevice=soundcanvas` (Nuked SC-55 + user ROMs). AdLib / MT-32 drivers and
+`COLDIG.BIN` SFX remain out of scope.
+
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
 
@@ -427,17 +457,12 @@ Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
 shared wood **popup** (`popup_draw` + `WOODTILE.SS`) over the map. Main-list songs map to BGM
 tracks **1–12** (ids `0x21..0x2c`) in `@PICKMUSIC` order (Bird Song … Nightingale). Submenu
 ids continue through remaining BGM slots, skipping Introduction **`0x33`**: Independence
-`0x2d..0x31`, Military `0x32`/`0x34..0x36`, Indian `0x37..0x3a`. Selecting a song calls `sound_play_preview` (audible A/B listen even while ambient
-autoplay is parked) and updates the status line. Esc / click-outside stops the preview.
-Map title/BGM via `sound_play` / `sound_set_bgm` stay gated by
-`COLONIZE_SOUND_PLAYBACK_ENABLED`.
+`0x2d..0x31`, Military `0x32`/`0x34..0x36`, Indian `0x37..0x3a`. Selecting a song calls
+`sound_play_preview` and updates the status line. Esc / click-outside stops the preview.
 
-**Autoplay — parked.** Heuristic F4→MIDI decode does not match the original soundtrack
-(`COLONIZE_SOUND_PLAYBACK_ENABLED` is `0` in `src/core/sound.h`). The loader, ID map,
-preview path, and API remain for a later fidelity pass. When autoplay is re-enabled,
-FluidSynth uses `COLONIZE_SOUNDFONT` or `/usr/share/sounds/sf2/*.sf2`; `--nosound` skips
-the SDL device (and Pick Music previews). `smoke_sound` / `smoke_pick_music` cover load +
-dialog.
+Title/map BGM via `sound_play` / `sound_set_bgm` is enabled (`COLONIZE_SOUND_PLAYBACK_ENABLED`).
+`--nosound` skips the SDL device (and Pick Music previews). `smoke_sound` /
+`smoke_pick_music` cover load + dialog + golden decode checks.
 
 ## Discovery Order
 

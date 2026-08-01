@@ -14,17 +14,25 @@
 #endif
 
 #define SOUND_MAX_TRACKS 12
-#define SOUND_MAX_EVENTS 4096
+#define SOUND_MAX_EVENTS 16384
 #define SOUND_GSOUND_DS_PARAS 0x0322
 #define SOUND_GSOUND_BGM_TABLE 0x2A6E
 #define SOUND_GSOUND_BGM_BOUND 0x331A
 #define SOUND_GSOUND_IMG_HDR 512
-/* Seconds per F4 duration unit (driver time base). ~4× prior 15 ms guess. */
-#define SOUND_TICK_SECONDS (0.015 / 4.0)
+/*
+ * GSOUND.COL stores PIT divisor 0x4DBF at DS:0081 → ~60 Hz voice ticks
+ * (1193182 / 19903 ≈ 59.95 Hz). Duration bytes are counts of these ticks.
+ */
+#define SOUND_PIT_DIVISOR 0x4DBF
+#define SOUND_TICK_HZ (1193182.0 / (double)SOUND_PIT_DIVISOR)
+#define SOUND_TICK_SECONDS (1.0 / SOUND_TICK_HZ)
+#define SOUND_MAX_TRACK_TICKS 14400u /* 4 minutes @ ~60 Hz */
+#define SOUND_MAX_CALL_DEPTH 8
+#define SOUND_MAX_LOOP_ITERS 64
 
 typedef struct SoundMidiEvent {
   uint32_t tick;
-  uint8_t status; /* 0x90 note on, 0x80 note off, 0xC0 program */
+  uint8_t status; /* 0x80/0x90/0xB0/0xC0/0xE0 */
   uint8_t data1;
   uint8_t data2;
   uint8_t channel;
@@ -56,7 +64,7 @@ typedef struct SoundState {
   int bgm_track;      /* requested DOS track number; 0 = none */
   int bgm_song_id;
   bool need_restart;
-  bool preview_active; /* Pick Music / A-B listen; bypasses autoplay park */
+  bool preview_active; /* Pick Music preview; independent of map BGM */
   uint32_t play_tick;
   double tick_accum; /* samples → ticks */
   double ticks_per_sample;
@@ -95,57 +103,310 @@ static void sound_push_event(SoundSong* song, uint32_t tick, uint8_t status, uin
   }
 }
 
-static void sound_decode_track(SoundSong* song, const uint8_t* data, size_t len, uint8_t channel) {
-  if (!song || !data || len == 0) {
+/*
+ * Decode one GSOUND voice stream (DS-relative). Opcodes reverse-engineered from
+ * the MZ jump table at image 0xEF2 (ops 0xBB..0xFF). Bytes <= 0xBA are
+ * note/duration pairs; F4 sets velocity; F8 is program change (not C2 — C2 is
+ * CC 91 reverb).
+ */
+static void sound_decode_track(
+  SoundSong* song,
+  const uint8_t* ds_img,
+  size_t ds_size,
+  uint16_t start_off,
+  uint8_t channel
+) {
+  if (!song || !ds_img || ds_size == 0 || (size_t)start_off >= ds_size) {
     return;
   }
+
   uint32_t time = 0;
-  size_t i = 0;
-  int program = 0;
-  while (i < len && song->event_count < SOUND_MAX_EVENTS - 2) {
-    const uint8_t op = data[i];
-    if (op == 0xf4 && i + 3 < len) {
-      const uint8_t note = data[i + 1];
-      const uint8_t dur = data[i + 2] ? data[i + 2] : 1;
-      uint8_t vel = data[i + 3];
-      if (vel == 0 || vel > 127) {
-        vel = 64;
+  size_t pos = start_off;
+  uint8_t velocity = 64;
+  uint8_t artic_sub = 0; /* F7: gate = dur - artic_sub */
+  uint8_t artic_abs = 0; /* F6: gate = artic_abs when nonzero */
+  uint8_t transpose = 0; /* EE */
+
+  size_t loop_start = start_off;
+  int loop_count = 0;
+  int nest_count = 0;
+  size_t nest_start = start_off;
+  size_t call_stack[SOUND_MAX_CALL_DEPTH];
+  int call_depth = 0;
+  int stuck = 0;
+
+  while (time < SOUND_MAX_TRACK_TICKS && song->event_count < SOUND_MAX_EVENTS - 4) {
+    if (pos >= ds_size) {
+      break;
+    }
+    const size_t pos_before = pos;
+    const uint8_t op = ds_img[pos];
+
+    if (op <= 0xBA) {
+      if (pos + 1 >= ds_size) {
+        break;
       }
-      if (note <= 127) {
-        sound_push_event(song, time, 0x90, note, vel, channel);
-        sound_push_event(song, time + (uint32_t)dur, 0x80, note, 0, channel);
+      const uint8_t note_raw = op;
+      const uint8_t dur = ds_img[pos + 1];
+      pos += 2;
+
+      if (note_raw == 0 && dur == 0) {
+        /* Terminal rest used at track ends — stop expanding. */
+        break;
       }
-      time += (uint32_t)dur;
-      i += 4;
+
+      uint8_t gate;
+      if (artic_abs != 0) {
+        gate = artic_abs;
+      } else {
+        gate = (uint8_t)(dur - artic_sub);
+      }
+      if (dur != 0 && gate > dur) {
+        gate = dur;
+      }
+
+      if (note_raw == 0) {
+        time += dur ? (uint32_t)dur : 1u;
+      } else {
+        int midi_note = (int)note_raw + (int8_t)transpose;
+        if (midi_note < 0) {
+          midi_note = 0;
+        }
+        if (midi_note > 127) {
+          midi_note = 127;
+        }
+        uint8_t vel = velocity;
+        if (vel == 0 || vel > 127) {
+          vel = 64;
+        }
+        sound_push_event(song, time, 0x90, (uint8_t)midi_note, vel, channel);
+        const uint32_t off_at = time + (gate ? (uint32_t)gate : (uint32_t)(dur ? dur : 1u));
+        sound_push_event(song, off_at, 0x80, (uint8_t)midi_note, 0, channel);
+        time += dur ? (uint32_t)dur : 1u;
+      }
+      stuck = 0;
       continue;
     }
-    if (op == 0xc2 && i + 1 < len) {
-      program = data[i + 1] & 0x7f;
-      sound_push_event(song, time, 0xc0, (uint8_t)program, 0, channel);
-      i += 2;
-      continue;
+
+    /* Opcode 0xBB..0xFF */
+    switch (op) {
+      case 0xF4: /* velocity */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        velocity = ds_img[pos + 1];
+        pos += 2;
+        break;
+      case 0xF8: /* program change */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xc0, ds_img[pos + 1] & 0x7f, 0, channel);
+        pos += 2;
+        break;
+      case 0xC3: /* far patch helper — treat as program change */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xc0, ds_img[pos + 1] & 0x7f, 0, channel);
+        pos += 2;
+        break;
+      case 0xF1: /* CC 7 volume */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xb0, 7, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xF0: /* CC 10 pan */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xb0, 10, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xC2: /* CC 91 reverb */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xb0, 91, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xC1: /* CC 93 chorus */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xb0, 93, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xC0: /* CC 0 bank select */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xb0, 0, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xF2: /* pitch bend (high byte; low forced 0 like driver) */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xe0, 0, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xF6: /* absolute gate */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        artic_abs = ds_img[pos + 1];
+        artic_sub = 0;
+        pos += 2;
+        break;
+      case 0xF7: /* subtractive articulation */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        artic_sub = ds_img[pos + 1];
+        artic_abs = 0;
+        pos += 2;
+        break;
+      case 0xEE: /* per-voice transpose */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        transpose = ds_img[pos + 1];
+        pos += 2;
+        break;
+      case 0xBF: /* master volume scale (driver-internal) */
+      case 0xBC:
+      case 0xBD:
+      case 0xBB:
+      case 0xC4:
+      case 0xC5:
+        pos += 2;
+        break;
+      case 0xBE: /* tempo / clock scale (driver-internal) */
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        pos += 3;
+        break;
+      case 0xF3: /* envelope params */
+      case 0xEF:
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        pos += 3;
+        break;
+      case 0xF5:
+        if (pos + 3 >= ds_size) {
+          return;
+        }
+        pos += 4;
+        break;
+      case 0xFC: { /* set loop/stream anchors to absolute DS offset */
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
+        loop_start = abs;
+        nest_start = abs;
+        pos = abs;
+        break;
+      }
+      case 0xFB: { /* jump absolute */
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
+        pos = abs;
+        break;
+      }
+      case 0xFA: { /* call absolute */
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
+        const size_t ret = pos + 3;
+        if (call_depth < SOUND_MAX_CALL_DEPTH) {
+          call_stack[call_depth++] = ret;
+          pos = abs;
+        } else {
+          pos = ret;
+        }
+        break;
+      }
+      case 0xF9: /* return from FA */
+        if (call_depth > 0) {
+          pos = call_stack[--call_depth];
+        } else {
+          pos += 1;
+        }
+        break;
+      case 0xFD: /* jump to FC loop start */
+        pos = loop_start;
+        break;
+      case 0xFF: { /* counted loop to loop_start */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        const uint8_t count = ds_img[pos + 1];
+        if (count == 0) {
+          pos += 2;
+          loop_start = pos;
+        } else if (loop_count <= 0) {
+          loop_count = count;
+          if (loop_count > SOUND_MAX_LOOP_ITERS) {
+            loop_count = SOUND_MAX_LOOP_ITERS;
+          }
+          pos = loop_start;
+        } else {
+          loop_count--;
+          if (loop_count > 0) {
+            pos = loop_start;
+          } else {
+            pos += 2;
+          }
+        }
+        break;
+      }
+      case 0xFE: { /* nested counted loop */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        const uint8_t count = ds_img[pos + 1];
+        if (count == 0) {
+          pos += 2;
+          nest_start = pos;
+        } else if (nest_count <= 0) {
+          nest_count = count;
+          if (nest_count > SOUND_MAX_LOOP_ITERS) {
+            nest_count = SOUND_MAX_LOOP_ITERS;
+          }
+          pos = nest_start;
+        } else {
+          nest_count--;
+          if (nest_count > 0) {
+            pos = nest_start;
+          } else {
+            pos += 2;
+          }
+        }
+        break;
+      }
+      default:
+        /* Unknown high opcode: skip opcode + 1 data byte (common size). */
+        pos += 2;
+        break;
     }
-    if ((op == 0xf8 || op == 0xf1 || op == 0xf0 || op == 0xfa || op == 0xbf || op == 0xbe ||
-         op == 0xff) &&
-        i + 1 < len) {
-      i += 2;
-      continue;
+
+    if (pos == pos_before) {
+      if (++stuck > 8) {
+        break;
+      }
+    } else {
+      stuck = 0;
     }
-    if ((op == 0xfe || op == 0xfb) && i + 2 < len) {
-      i += 3;
-      continue;
-    }
-    if (op == 0xee) {
-      i += 1;
-      continue;
-    }
-    /* Untagged delay nibble-ish bytes: advance a little so streams still progress. */
-    if (op < 0x80) {
-      time += (op == 0) ? 1u : (uint32_t)(op > 32 ? 4 : 1);
-    }
-    i += 1;
   }
-  (void)program;
 }
 
 static void sound_parse_handler_tracks(
@@ -265,34 +526,34 @@ static bool sound_load_gsound(const char* data_dir) {
     SoundSong* song = &g_sound.songs[g_sound.song_count];
     memset(song, 0, sizeof(*song));
     song->id = id;
+    const uint8_t* ds_img = img + g_sound.ds_base;
+    const size_t ds_size = img_size - g_sound.ds_base;
     for (int t = 0; t < track_count; ++t) {
-      const uint32_t abs_off = g_sound.ds_base + (uint32_t)tracks[t];
-      if (abs_off >= img_size) {
+      if ((size_t)tracks[t] >= ds_size) {
         continue;
       }
-      size_t span = 512;
-      if (abs_off + span > img_size) {
-        span = img_size - abs_off;
-      }
-      /* Prefer ending before the next track in the same song when possible. */
-      for (int u = 0; u < track_count; ++u) {
-        if (u == t) {
-          continue;
-        }
-        const uint32_t other = g_sound.ds_base + (uint32_t)tracks[u];
-        if (other > abs_off && other - abs_off < span) {
-          span = (size_t)(other - abs_off);
-        }
-      }
-      sound_decode_track(song, img + abs_off, span, (uint8_t)(t & 0x0f));
+      /* MIDI channel = track index; driver voices are 1-based but map 1:1. */
+      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t & 0x0f));
     }
     if (song->event_count > 0) {
-      /* Stable event order by tick. */
+      /* Stable event order by tick; at equal ticks: program/CC/pitch before notes. */
       for (int a = 0; a < song->event_count - 1; ++a) {
         for (int b = a + 1; b < song->event_count; ++b) {
-          if (song->events[b].tick < song->events[a].tick ||
-              (song->events[b].tick == song->events[a].tick &&
-               song->events[b].status < song->events[a].status)) {
+          const SoundMidiEvent* ea = &song->events[a];
+          const SoundMidiEvent* eb = &song->events[b];
+          int pri_a = (ea->status == 0xc0)   ? 0
+                      : (ea->status == 0xb0) ? 1
+                      : (ea->status == 0xe0) ? 2
+                      : (ea->status == 0x80) ? 3
+                                             : 4;
+          int pri_b = (eb->status == 0xc0)   ? 0
+                      : (eb->status == 0xb0) ? 1
+                      : (eb->status == 0xe0) ? 2
+                      : (eb->status == 0x80) ? 3
+                                             : 4;
+          const bool swap = eb->tick < ea->tick ||
+                            (eb->tick == ea->tick && (pri_b < pri_a || (pri_b == pri_a && eb->status < ea->status)));
+          if (swap) {
             SoundMidiEvent tmp = song->events[a];
             song->events[a] = song->events[b];
             song->events[b] = tmp;
@@ -331,7 +592,21 @@ static const char* sound_find_soundfont(void) {
     }
     diag_warn("sound: COLONIZE_SOUNDFONT not readable: %s", env);
   }
+  /*
+   * Prefer SC-55-character banks (MicroProse GM was written for Sound Canvas),
+   * then GeneralUser GS, then common distro FluidR3.
+   */
   static const char* candidates[] = {
+    "/usr/share/scummvm/Roland_SC-55.sf2",
+    "/usr/share/sounds/sf2/SC-55.sf2",
+    "/usr/share/sounds/sf2/SC55.sf2",
+    "/usr/share/soundfonts/SC-55.sf2",
+    "/usr/share/sounds/sf2/GeneralUser-GS.sf2",
+    "/usr/share/sounds/sf2/GeneralUser_GS.sf2",
+    "/usr/share/sounds/sf2/GeneralUser.sf2",
+    "/usr/share/soundfonts/GeneralUser-GS.sf2",
+    "/usr/share/soundfonts/GeneralUser_GS.sf2",
+    "/usr/local/share/sounds/sf2/GeneralUser-GS.sf2",
     "/usr/share/sounds/sf2/FluidR3_GM.sf2",
     "/usr/share/sounds/sf2/default-GM.sf2",
     "/usr/share/sounds/sf2/TimGM6mb.sf2",
@@ -377,6 +652,18 @@ static bool sound_init_fluidsynth(void) {
     g_sound.fluid_settings = NULL;
     return false;
   }
+  /* SC-55-ish room: Staging uses similar defaults for GeneralUser / SC-55 SF2. */
+  fluid_synth_reverb_on(g_sound.fluid_synth, -1, 1);
+  fluid_synth_chorus_on(g_sound.fluid_synth, -1, 1);
+  fluid_synth_set_reverb_group_roomsize(g_sound.fluid_synth, -1, 0.7);
+  fluid_synth_set_reverb_group_damp(g_sound.fluid_synth, -1, 0.3);
+  fluid_synth_set_reverb_group_width(g_sound.fluid_synth, -1, 0.5);
+  fluid_synth_set_reverb_group_level(g_sound.fluid_synth, -1, 0.8);
+  fluid_synth_set_chorus_group_nr(g_sound.fluid_synth, -1, 3);
+  fluid_synth_set_chorus_group_level(g_sound.fluid_synth, -1, 1.2);
+  fluid_synth_set_chorus_group_speed(g_sound.fluid_synth, -1, 0.3);
+  fluid_synth_set_chorus_group_depth(g_sound.fluid_synth, -1, 8.0);
+  fluid_synth_set_chorus_group_type(g_sound.fluid_synth, -1, FLUID_CHORUS_MOD_SINE);
   diag_info("sound: FluidSynth ready soundfont=%s", sf);
   return true;
 #else
@@ -413,6 +700,10 @@ static void sound_apply_event_unlocked(const SoundMidiEvent* e) {
     } else if (e->status == 0xc0) {
       fluid_synth_program_change(g_sound.fluid_synth, ch, e->data1);
       g_sound.program = e->data1;
+    } else if (e->status == 0xb0) {
+      fluid_synth_cc(g_sound.fluid_synth, ch, e->data1, e->data2);
+    } else if (e->status == 0xe0) {
+      fluid_synth_pitch_bend(g_sound.fluid_synth, ch, ((int)e->data2 << 7) | (int)e->data1);
     }
     return;
   }
@@ -452,8 +743,7 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   }
   memset(&g_sound, 0, sizeof(g_sound));
   pthread_mutex_init(&g_sound.lock, NULL);
-  /* Open the device whenever the platform allows it so Pick Music previews work
-   * even while ambient autoplay (COLONIZE_SOUND_PLAYBACK_ENABLED) is parked. */
+  /* Open the device whenever the platform allows so title/map BGM and Pick Music work. */
   g_sound.enable_audio = enable_audio;
   g_sound.opts.background_music = true;
   g_sound.opts.event_music = true;
@@ -462,10 +752,6 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   g_sound.bgm_track = 0;
   g_sound.bgm_song_id = -1;
   g_sound.preview_active = false;
-  /*
-   * F4 duration bytes are driver time-base units. Empirically ~3.75 ms/tick
-   * (about 4x faster than a naive 15 ms guess) — still needs DOS validation.
-   */
   g_sound.ticks_per_sample = 1.0 / (SOUND_TICK_SECONDS * 44100.0);
 
   g_sound.gsound_ok = sound_load_gsound(data_dir ? data_dir : "./COLONIZE");
@@ -473,12 +759,6 @@ bool sound_init(const char* data_dir, bool enable_audio) {
     g_sound.backend_ok = sound_init_fluidsynth();
     if (!g_sound.backend_ok) {
       diag_info("sound: using square-wave fallback renderer");
-    }
-    if (!COLONIZE_SOUND_PLAYBACK_ENABLED) {
-      diag_info(
-        "sound: autoplay parked (COLONIZE_SOUND_PLAYBACK_ENABLED=0); "
-        "Pick Music preview available"
-      );
     }
   } else {
     diag_info("sound: audio disabled");
@@ -701,7 +981,7 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
   }
 
   pthread_mutex_lock(&g_sound.lock);
-  /* Ambient path parked: only emit when Pick Music (or offline) set preview_active. */
+  /* When autoplay is compiled off, only Pick Music / offline preview may emit. */
   if (!COLONIZE_SOUND_PLAYBACK_ENABLED && !g_sound.preview_active) {
     pthread_mutex_unlock(&g_sound.lock);
     return;
@@ -753,6 +1033,53 @@ int sound_gsound_song_count(void) {
 
 bool sound_gsound_has_song(int id) {
   return sound_find_song(id) != NULL;
+}
+
+bool sound_gsound_song_stats(
+  int id,
+  int* out_events,
+  uint32_t* out_duration_ticks,
+  uint8_t* out_first_note,
+  uint8_t* out_first_vel,
+  uint8_t* out_first_program,
+  uint8_t* out_first_channel
+) {
+  SoundSong* song = sound_find_song(id);
+  if (!song) {
+    return false;
+  }
+  if (out_events) {
+    *out_events = song->event_count;
+  }
+  if (out_duration_ticks) {
+    *out_duration_ticks = song->duration_ticks;
+  }
+  uint8_t prog_by_ch[16];
+  memset(prog_by_ch, 0, sizeof(prog_by_ch));
+  bool found_note = false;
+  for (int i = 0; i < song->event_count; ++i) {
+    const SoundMidiEvent* e = &song->events[i];
+    const uint8_t ch = e->channel & 0x0f;
+    if (e->status == 0xc0) {
+      prog_by_ch[ch] = e->data1;
+    }
+    if (!found_note && e->status == 0x90 && e->data2 > 0) {
+      if (out_first_note) {
+        *out_first_note = e->data1;
+      }
+      if (out_first_vel) {
+        *out_first_vel = e->data2;
+      }
+      if (out_first_program) {
+        *out_first_program = prog_by_ch[ch];
+      }
+      if (out_first_channel) {
+        *out_first_channel = ch;
+      }
+      found_note = true;
+    }
+  }
+  return found_note || song->event_count > 0;
 }
 
 int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sample_rate) {
