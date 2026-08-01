@@ -388,17 +388,33 @@ nation phases run (`FUN_1984_00aa`): England 12, France 9, Spain 14, Netherlands
 (`NAMES.TXT` `@COUNTRY`). Native phases use `@TRIBES` colors. It is hidden during the
 human turn.
 
-A **Pioneer** spawns at the nation's `@SCENARIO` start tile (AMER2 England `(39,10)`) when finishing the new-game wizard, with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
+A **Pioneer** spawns at the nation's start tile when finishing the new-game wizard — `@SCENARIO` for named `.MP` stems (AMER2 England `(39,10)`), or a coastal land pick (`map_gen_pick_start`) after NEW WORLD generation — with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
 
 ### New-game wizard
 
 Title `@BEGINMENU` no longer jumps straight to the map. Flow (see `src/core/new_game.c`):
 
-1. **Start in NEW WORLD** → difficulty (stand-in map **AMER2.MP** after sail; procedural gen deferred)
-2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard
+1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate`; coastal start via `map_gen_pick_start`)
+2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard → load that `.MP` + `@SCENARIO` starts
 3. Difficulty (`DIFFICUL.PIK` image regions + border, top-left prompt / “(Click Here When Finished)”) → nation (`NATIONS.PIK` regions) → leader name on `WOODPANL.PIK` → `@NATION{n}A` / `B` on wood (`FONTSMAL`) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` captions → map
 
 Enter or left-click **skips** the remaining sail frames (QoL; original is hard to skip). `AMERICA.MOV` is a short motion/script blob for map tooling, **not** the dock voyage cutscene.
+
+### Map generation (NEW WORLD)
+
+VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0` (`viceroy_unpacked.c`). The Linux port mirrors that pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files (terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`).
+
+Parameters (DOS words at `DS:0x1e7e`, each 0..2; NEW WORLD sets all five via `rand() % 3`):
+
+| Index | UI (`LABELS.TXT`) | Role |
+|------:|-------------------|------|
+| 0 | Land Mass: Small / Moderate / Large | Land budget with form: `(form + mass + 1) * 0x140` |
+| 1 | Land Form: Archipelago / Normal / Continents | Blob growth style |
+| 2 | Temperature: Cool / Temperate / Warm | Latitude band shift |
+| 3 | Climate: Arid / Normal / Wet | Forest / river density |
+| 4 | (internal) | Extra forest-pass count |
+
+Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI is deferred but shares `MapGenParams`. RNG is a portable LCG approximating DOS `FUN_281f_04d4` call patterns — not bit-identical to DOSBox.
 
 | Extension | Typical use |
 |-----------|-------------|

@@ -7,6 +7,7 @@
 #include "core/assets.h"
 #include "core/ff.h"
 #include "core/font.h"
+#include "core/map_gen.h"
 #include "core/pik.h"
 #include "core/popup.h"
 #include "core/ss.h"
@@ -43,7 +44,9 @@ typedef struct NewGameWizard {
   int difficulty; /* 0..4 */
   int nation; /* 0..3 England..Netherlands */
   char leader_name[NEW_GAME_LEADER_NAME_MAX];
-  char map_file[NEW_GAME_MAP_NAME_MAX]; /* basename, e.g. AMER2.MP */
+  char map_file[NEW_GAME_MAP_NAME_MAX]; /* basename, e.g. AMER2.MP; empty if generate */
+  bool generate_map; /* NEW WORLD procedural map */
+  MapGenParams gen_params;
   char data_dir[512];
 
   int selection;

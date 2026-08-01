@@ -476,6 +476,8 @@ bool new_game_begin(
   ng->difficulty = 0;
   ng->nation = 0;
   ng->leader_name[0] = '\0';
+  ng->generate_map = false;
+  memset(&ng->gen_params, 0, sizeof(ng->gen_params));
   snprintf(ng->map_file, sizeof(ng->map_file), "AMER2.MP");
   snprintf(ng->data_dir, sizeof(ng->data_dir), "%s", data_dir);
   ng->sail_frame = 0;
@@ -492,6 +494,9 @@ bool new_game_begin(
       ng->option_count = 2;
     }
   } else {
+    /* NEW WORLD: procedural map (params randomized; seed filled at commit if 0). */
+    ng->generate_map = true;
+    ng->map_file[0] = '\0';
     new_game_enter_difficulty(ng);
   }
   return true;

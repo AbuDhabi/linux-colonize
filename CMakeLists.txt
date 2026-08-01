@@ -40,6 +40,7 @@ add_library(colonize_core STATIC
   src/core/font.c
   src/core/ff.c
   src/core/map.c
+  src/core/map_gen.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -188,6 +189,7 @@ add_executable(smoke_game_flow
   src/core/font.c
   src/core/ff.c
   src/core/map.c
+  src/core/map_gen.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -221,6 +223,7 @@ add_executable(smoke_new_game
   src/core/font.c
   src/core/ff.c
   src/core/map.c
+  src/core/map_gen.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -310,6 +313,20 @@ target_include_directories(smoke_map PRIVATE
 )
 
 add_test(NAME smoke_map COMMAND smoke_map WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_map_gen
+  tests/smoke/test_map_gen.c
+  src/core/map_gen.c
+  src/core/map.c
+  src/data/viceroy_tables.c
+  src/platform/diagnostics.c
+)
+
+target_include_directories(smoke_map_gen PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME smoke_map_gen COMMAND smoke_map_gen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_viceroy_tables
   tests/smoke/test_viceroy_tables.c

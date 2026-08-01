@@ -16,6 +16,7 @@
 #include "core/ff.h"
 #include "core/font.h"
 #include "core/map.h"
+#include "core/map_gen.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
 #include "core/new_game.h"
@@ -1391,19 +1392,36 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   game->active_turn_nation = ng->nation;
   snprintf(game->leader_name, sizeof(game->leader_name), "%s", ng->leader_name);
 
-  char map_path[512];
   char err[256];
-  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, ng->map_file, map_path, sizeof(map_path))) {
-    snprintf(map_path, sizeof(map_path), "%s/%s", game->resolved_data_dir, ng->map_file);
-  }
   map_free(&game->world_map);
-  game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
-  if (!game->world_map_ok) {
-    diag_error("new game map load failed (%s): %s", ng->map_file, err);
-    /* Fall back to AMER2 if custom map missing. */
-    if (dos_compat_normalize_asset_path(game->resolved_data_dir, "AMER2.MP", map_path, sizeof(map_path))) {
-      game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+  game->world_map_ok = false;
+
+  char map_label[NEW_GAME_MAP_NAME_MAX];
+  map_label[0] = '\0';
+
+  if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD) {
+    if (ng->gen_params.seed == 0) {
+      uint32_t seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+      map_gen_params_random(&ng->gen_params, seed);
     }
+    game->world_map_ok = map_generate(&game->world_map, &ng->gen_params, err, sizeof(err));
+    if (!game->world_map_ok) {
+      diag_error("new world map_generate failed: %s", err);
+    }
+    snprintf(map_label, sizeof(map_label), "NEW WORLD");
+  } else {
+    char map_path[512];
+    if (!dos_compat_normalize_asset_path(game->resolved_data_dir, ng->map_file, map_path, sizeof(map_path))) {
+      snprintf(map_path, sizeof(map_path), "%s/%s", game->resolved_data_dir, ng->map_file);
+    }
+    game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+    if (!game->world_map_ok) {
+      diag_error("new game map load failed (%s): %s", ng->map_file, err);
+      if (dos_compat_normalize_asset_path(game->resolved_data_dir, "AMER2.MP", map_path, sizeof(map_path))) {
+        game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
+      }
+    }
+    snprintf(map_label, sizeof(map_label), "%s", ng->map_file[0] ? ng->map_file : "AMER2.MP");
   }
 
   col1_save_free(&game->col1);
@@ -1415,16 +1433,25 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   colonies_init(&game->colonies);
   game->colonies_ok = true;
 
-  char stem[64];
-  snprintf(stem, sizeof(stem), "%s", ng->map_file);
-  char* dot = strrchr(stem, '.');
-  if (dot) {
-    *dot = '\0';
-  }
   int sx = 39, sy = 10;
-  new_game_scenario_start(
-    game->names_ok ? &game->names : NULL, stem, game->human_nation, &sx, &sy
-  );
+  if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD) {
+    if (!map_gen_pick_start(
+          &game->world_map, game->human_nation, -1, -1, 0, &sx, &sy
+        )) {
+      sx = game->world_map.width / 2;
+      sy = game->world_map.height / 2;
+    }
+  } else {
+    char stem[64];
+    snprintf(stem, sizeof(stem), "%s", ng->map_file);
+    char* dot = strrchr(stem, '.');
+    if (dot) {
+      *dot = '\0';
+    }
+    new_game_scenario_start(
+      game->names_ok ? &game->names : NULL, stem, game->human_nation, &sx, &sy
+    );
+  }
 
   if (game->world_map_ok && game->units_ok) {
     units_new_world_start(&game->units, &game->world_map, sx, sy);
@@ -1445,8 +1472,6 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   }
 
   sound_set_bgm(1);
-  char map_label[NEW_GAME_MAP_NAME_MAX];
-  snprintf(map_label, sizeof(map_label), "%s", ng->map_file);
   new_game_cancel(ng);
   game->in_menu = false;
   snprintf(
