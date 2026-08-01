@@ -443,12 +443,13 @@ image offset `0xEF2` for opcodes `0xBB..0xFF`. Timing uses PIT divisor **`0x4DBF
 MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
 Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 
-**SoundFont search order:** `COLONIZE_SOUNDFONT` → SC-55-named SF2 (e.g. ScummVM’s
-`Roland_SC-55.sf2`) → GeneralUser GS → FluidR3 / distro defaults. For the closest match,
-point `COLONIZE_SOUNDFONT` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont)
-(not vendored — ROM-derived samples). Gold A/B reference: DOSBox Staging
-`mididevice=soundcanvas` (Nuked SC-55 + user ROMs). AdLib / MT-32 drivers and
-`COLDIG.BIN` SFX remain out of scope.
+**SoundFont search order:** `COLONIZE_SOUNDFONT` → bundled
+[`data/soundfonts/Roland_SC-55.sf2`](../data/soundfonts/Roland_SC-55.sf2) (ScummVM’s
+GPL-3+ bank by deemster; see [`COPYRIGHT.Roland_SC-55`](../data/soundfonts/COPYRIGHT.Roland_SC-55))
+→ system SC-55 / GeneralUser GS → FluidR3 / distro defaults. For an alternate SC-55
+character, point `COLONIZE_SOUNDFONT` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
+Gold A/B reference: DOSBox Staging `mididevice=soundcanvas` (Nuked SC-55 + user ROMs).
+AdLib / MT-32 drivers and `COLDIG.BIN` SFX remain out of scope.
 
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.

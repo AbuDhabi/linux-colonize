@@ -107,6 +107,20 @@ if(SDL2_FOUND)
   if(COLONIZE_ENABLE_AUDIO)
     target_compile_definitions(colonize_linux PRIVATE COLONIZE_ENABLE_AUDIO=1)
   endif()
+
+  # Ship bundled SoundFont next to the binary (no ScummVM install required).
+  add_custom_command(
+    TARGET colonize_linux POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:colonize_linux>/data/soundfonts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/data/soundfonts/Roland_SC-55.sf2
+            $<TARGET_FILE_DIR:colonize_linux>/data/soundfonts/Roland_SC-55.sf2
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/data/soundfonts/COPYRIGHT.Roland_SC-55
+            $<TARGET_FILE_DIR:colonize_linux>/data/soundfonts/COPYRIGHT.Roland_SC-55
+    COMMENT "Copy bundled Roland_SC-55.sf2 next to colonize_linux"
+  )
 else()
   message(WARNING "SDL2 not found. colonize_linux target is disabled; build/install SDL2 dev packages to enable.")
 endif()

@@ -582,18 +582,66 @@ static SoundSong* sound_find_song(int id) {
   return NULL;
 }
 
-static const char* sound_find_soundfont(void) {
+static bool sound_path_readable(const char* path) {
+  if (!path || !path[0]) {
+    return false;
+  }
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    return false;
+  }
+  fclose(f);
+  return true;
+}
+
+/* Returns a durable path string (static buffer or literal / env). */
+static const char* sound_find_soundfont(const char* data_dir) {
+  static char path_buf[768];
   const char* env = getenv("COLONIZE_SOUNDFONT");
   if (env && env[0]) {
-    FILE* f = fopen(env, "rb");
-    if (f) {
-      fclose(f);
+    if (sound_path_readable(env)) {
       return env;
     }
     diag_warn("sound: COLONIZE_SOUNDFONT not readable: %s", env);
   }
+
+  /* Bundled default: data/soundfonts/Roland_SC-55.sf2 (GPL-3+, see COPYRIGHT). */
+  {
+    const char* exe = diag_exe_dir();
+    const char* bundled[] = {
+      "data/soundfonts/Roland_SC-55.sf2",
+      "./data/soundfonts/Roland_SC-55.sf2",
+      NULL
+    };
+    for (int i = 0; bundled[i]; ++i) {
+      if (sound_path_readable(bundled[i])) {
+        return bundled[i];
+      }
+    }
+    if (exe && exe[0]) {
+      snprintf(path_buf, sizeof(path_buf), "%s/data/soundfonts/Roland_SC-55.sf2", exe);
+      if (sound_path_readable(path_buf)) {
+        return path_buf;
+      }
+      snprintf(path_buf, sizeof(path_buf), "%s/soundfonts/Roland_SC-55.sf2", exe);
+      if (sound_path_readable(path_buf)) {
+        return path_buf;
+      }
+    }
+    if (data_dir && data_dir[0]) {
+      snprintf(path_buf, sizeof(path_buf), "%s/../data/soundfonts/Roland_SC-55.sf2", data_dir);
+      if (sound_path_readable(path_buf)) {
+        return path_buf;
+      }
+      snprintf(path_buf, sizeof(path_buf), "%s/soundfonts/Roland_SC-55.sf2", data_dir);
+      if (sound_path_readable(path_buf)) {
+        return path_buf;
+      }
+    }
+  }
+
   /*
-   * Prefer SC-55-character banks (MicroProse GM was written for Sound Canvas),
+   * System fallbacks: SC-55-character banks first (MicroProse GM / Sound Canvas),
    * then GeneralUser GS, then common distro FluidR3.
    */
   static const char* candidates[] = {
@@ -615,18 +663,16 @@ static const char* sound_find_soundfont(void) {
     NULL
   };
   for (int i = 0; candidates[i]; ++i) {
-    FILE* f = fopen(candidates[i], "rb");
-    if (f) {
-      fclose(f);
+    if (sound_path_readable(candidates[i])) {
       return candidates[i];
     }
   }
   return NULL;
 }
 
-static bool sound_init_fluidsynth(void) {
+static bool sound_init_fluidsynth(const char* data_dir) {
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
-  const char* sf = sound_find_soundfont();
+  const char* sf = sound_find_soundfont(data_dir);
   if (!sf) {
     diag_warn("sound: no soundfont found (set COLONIZE_SOUNDFONT); using soft fallback");
     return false;
@@ -667,7 +713,7 @@ static bool sound_init_fluidsynth(void) {
   diag_info("sound: FluidSynth ready soundfont=%s", sf);
   return true;
 #else
-  (void)sound_find_soundfont;
+  (void)data_dir;
   return false;
 #endif
 }
@@ -754,9 +800,10 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   g_sound.preview_active = false;
   g_sound.ticks_per_sample = 1.0 / (SOUND_TICK_SECONDS * 44100.0);
 
-  g_sound.gsound_ok = sound_load_gsound(data_dir ? data_dir : "./COLONIZE");
+  const char* dir = data_dir ? data_dir : "./COLONIZE";
+  g_sound.gsound_ok = sound_load_gsound(dir);
   if (g_sound.enable_audio) {
-    g_sound.backend_ok = sound_init_fluidsynth();
+    g_sound.backend_ok = sound_init_fluidsynth(dir);
     if (!g_sound.backend_ok) {
       diag_info("sound: using square-wave fallback renderer");
     }
