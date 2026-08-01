@@ -1,7 +1,8 @@
 # Decompiled Surface Inventory
 
 For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox/MEMDUMP
-artifacts, see [original_index.md](original_index.md).
+artifacts, see [original_index.md](original_index.md). Manual feature coverage vs the
+Linux port: [manual_gap.md](manual_gap.md).
 
 This repository keeps Ghidra exports of `VICEROY.EXE` for reverse-engineering
 reference. They are not buildable with a modern Linux compiler and retain DOS

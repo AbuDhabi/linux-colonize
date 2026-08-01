@@ -6,6 +6,7 @@ the deep detail.
 
 | Topic | Deep dive |
 |-------|-----------|
+| Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
@@ -341,6 +342,7 @@ Layout and bridge → [savegame.md](savegame.md).
 
 | Path | Purpose |
 |------|---------|
+| `COLONIZE/Colonization.pdf` | Official manual + tech supplement — feature gaps in [manual_gap.md](manual_gap.md) |
 | `scripts/extract_viceroy_tables.py` | Pull static tables from `VICEROY.EXE` → `src/data/viceroy_tables.c` ([viceroy_tables.md](viceroy_tables.md)) |
 | `data/soundfonts/` | FluidSynth bank for `GSOUND.COL` playback |
 | `test-assets*`, `test-saves*` | Minimal TXT/DB and save fixtures for smoke tests |
