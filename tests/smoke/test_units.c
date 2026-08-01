@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/colony.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -192,14 +193,14 @@ int main(void) {
     return 1;
   }
 
-  if (units_try_move(&pool, starter->id, &map, ocean_x, ocean_y)) {
+  if (units_try_move(&pool, starter->id, &map, ocean_x, ocean_y, NULL)) {
     fprintf(stderr, "land unit should not enter ocean\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
 
-  if (units_try_move(&pool, ship_id, &map, land_x, land_y)) {
+  if (units_try_move(&pool, ship_id, &map, land_x, land_y, NULL)) {
     fprintf(stderr, "sea unit should not enter land\n");
     map_free(&map);
     assets_msg_free(&names);
@@ -207,7 +208,7 @@ int main(void) {
   }
 
   if (land_x + 1 < map.width &&
-      units_try_move(&pool, starter->id, &map, land_x + 1, land_y)) {
+      units_try_move(&pool, starter->id, &map, land_x + 1, land_y, NULL)) {
     if (starter->x != land_x + 1) {
       fprintf(stderr, "move did not update position\n");
       map_free(&map);
@@ -216,9 +217,26 @@ int main(void) {
     }
   }
 
-  const int colonist_id = units_spawn(&pool, colonist, starter->x, starter->y);
-  if (colonist_id >= 0) {
-    fprintf(stderr, "should not stack two units on one tile\n");
+  /* Spawn still rejects occupied tiles; friendly stacks via try_move are OK. */
+  {
+    const int stack_id = units_spawn_allow_stack(&pool, colonist, starter->x, starter->y);
+    if (stack_id < 0) {
+      fprintf(stderr, "friendly stack spawn_allow_stack failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_can_enter(&pool, colonist, &map, starter->x, starter->y, stack_id, NULL)) {
+      fprintf(stderr, "friendly stack should be enterable\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, stack_id);
+  }
+
+  if (units_spawn(&pool, colonist, starter->x, starter->y) >= 0) {
+    fprintf(stderr, "units_spawn should still reject occupied tiles\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
@@ -314,7 +332,13 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (units_try_move(&pool, land_id, &map, land_tile_x, land_tile_y)) {
+    if (boarded->orders != 1 || boarded->moves_left != 0) {
+      fprintf(stderr, "board should set sentry and zero moves\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (units_try_move(&pool, land_id, &map, land_tile_x, land_tile_y, NULL)) {
       fprintf(stderr, "boarded unit should not move on map\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -399,7 +423,7 @@ int main(void) {
         }
         const int tx = returned_ship->x + dx;
         const int ty = returned_ship->y + dy;
-        if (units_can_enter(&pool, pioneer, &map, tx, ty, -1)) {
+        if (units_can_enter(&pool, pioneer, &map, tx, ty, -1, NULL)) {
           ux = tx;
           uy = ty;
           break;
@@ -427,7 +451,7 @@ int main(void) {
           }
           const int tx = near_x + dx;
           const int ty = near_y + dy;
-          if (units_can_enter(&pool, pioneer, &map, tx, ty, -1)) {
+          if (units_can_enter(&pool, pioneer, &map, tx, ty, -1, NULL)) {
             ux = tx;
             uy = ty;
             break;
@@ -435,7 +459,7 @@ int main(void) {
         }
       }
     }
-    if (ux < 0 || !units_unload(&pool, returned, &map, ux, uy)) {
+    if (ux < 0 || !units_unload(&pool, returned, &map, ux, uy, NULL)) {
       fprintf(stderr, "unload failed\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -452,6 +476,224 @@ int main(void) {
     unload_x = ux;
     unload_y = uy;
     ship_id = returned;
+  }
+
+  /* Landfall unload: cargo with moves onto adjacent land; ship stays put. */
+  {
+    int bx = -1;
+    int by = -1;
+    int lx = -1;
+    int ly = -1;
+    for (int y = 1; y < map.height - 1 && lx < 0; ++y) {
+      for (int x = 1; x < map.width - 1 && lx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) || units_id_at(&pool, x, y) >= 0) {
+          continue;
+        }
+        for (int dy = -1; dy <= 1 && lx < 0; ++dy) {
+          for (int dx = -1; dx <= 1; ++dx) {
+            if (dx == 0 && dy == 0) {
+              continue;
+            }
+            const int wx = x + dx;
+            const int wy = y + dy;
+            if (map_tile_is_water(&map, wx, wy) && units_id_at(&pool, wx, wy) < 0) {
+              lx = x;
+              ly = y;
+              bx = wx;
+              by = wy;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (lx < 0) {
+      fprintf(stderr, "no land/water pair for landfall test\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int lf_ship = units_spawn(&pool, caravel, bx, by);
+    const int lf_pax = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+    if (lf_ship < 0 || lf_pax < 0 || !units_board(&pool, lf_pax, lf_ship)) {
+      fprintf(stderr, "landfall setup failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* lf_cargo = units_get(&pool, lf_pax);
+    ColonizeUnit* lf_boat = units_get(&pool, lf_ship);
+    if (!lf_cargo || !lf_boat) {
+      fprintf(stderr, "landfall units missing\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    lf_cargo->moves_left = 1;
+    if (units_try_move(&pool, lf_ship, &map, lx, ly, NULL)) {
+      fprintf(stderr, "ship must not enter plain land via try_move\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (units_first_cargo_with_moves(&pool, lf_ship) != lf_pax) {
+      fprintf(stderr, "first cargo with moves mismatch\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_unload_passenger(&pool, lf_ship, lf_pax, &map, lx, ly, NULL)) {
+      fprintf(stderr, "landfall unload_passenger failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    lf_cargo = units_get(&pool, lf_pax);
+    lf_boat = units_get(&pool, lf_ship);
+    if (!lf_cargo || !lf_boat || lf_cargo->aboard_ship_id >= 0 || lf_cargo->x != lx ||
+        lf_cargo->y != ly || lf_boat->x != bx || lf_boat->y != by) {
+      fprintf(stderr, "landfall state wrong\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, lf_pax);
+    units_despawn(&pool, lf_ship);
+  }
+
+  /* Colony dock: ship may enter own colony; disembark clears sentry. */
+  {
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
+        !colonies_load_buildings(&colonies, &names)) {
+      fprintf(stderr, "colony catalogs failed for dock test\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int cx = -1;
+    int cy = -1;
+    int wx = -1;
+    int wy = -1;
+    for (int y = 1; y < map.height - 1 && cx < 0; ++y) {
+      for (int x = 1; x < map.width - 1 && cx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) || !map_tile_is_coastal(&map, x, y)) {
+          continue;
+        }
+        if (units_id_at(&pool, x, y) >= 0) {
+          continue;
+        }
+        for (int dy = -1; dy <= 1 && cx < 0; ++dy) {
+          for (int dx = -1; dx <= 1; ++dx) {
+            if (dx == 0 && dy == 0) {
+              continue;
+            }
+            const int tx = x + dx;
+            const int ty = y + dy;
+            if (map_tile_is_water(&map, tx, ty) && units_id_at(&pool, tx, ty) < 0) {
+              cx = x;
+              cy = y;
+              wx = tx;
+              wy = ty;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (cx < 0) {
+      fprintf(stderr, "no coastal tile for dock test\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int cid = colonies_found(&colonies, &map, cx, cy, -1, 0, 0, 0);
+    if (cid < 0) {
+      fprintf(stderr, "colonies_found failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColony* col = colonies_get_mut(&colonies, cid);
+    if (col) {
+      col->nation_id = 0;
+    }
+    const int dock_ship = units_spawn(&pool, caravel, wx, wy);
+    if (dock_ship < 0) {
+      fprintf(stderr, "dock ship spawn failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* dship = units_get(&pool, dock_ship);
+    dship->nation_id = 0;
+    const int dock_pax = units_spawn_allow_stack(&pool, pioneer, cx, cy);
+    if (dock_pax < 0) {
+      fprintf(stderr, "dock pax spawn failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* dpax = units_get(&pool, dock_pax);
+    dpax->nation_id = 0;
+    dpax->x = wx;
+    dpax->y = wy;
+    if (!units_board_stacked(&pool, dock_pax, dock_ship)) {
+      fprintf(stderr, "dock board_stacked failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    dpax = units_get(&pool, dock_pax);
+    if (!dpax || dpax->orders != 1) {
+      fprintf(stderr, "board_stacked should set sentry\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_can_enter(&pool, caravel, &map, cx, cy, dock_ship, &colonies)) {
+      fprintf(stderr, "ship should enter own colony tile\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_try_move(&pool, dock_ship, &map, cx, cy, &colonies)) {
+      fprintf(stderr, "ship try_move onto colony failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int nd = units_disembark_all(&pool, dock_ship, cx, cy);
+    dpax = units_get(&pool, dock_pax);
+    if (nd != 1 || !dpax || dpax->aboard_ship_id >= 0 || dpax->orders != 0 ||
+        dpax->x != cx || dpax->y != cy) {
+      fprintf(stderr, "disembark_all state wrong (n=%d)\n", nd);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    int stack_ids[UNITS_TILE_STACK_MAX];
+    /* Re-board for stack collect: ship + passenger. */
+    dpax->x = cx;
+    dpax->y = cy;
+    if (!units_board_stacked(&pool, dock_pax, dock_ship)) {
+      /* ship is on colony land; board_stacked does not need water adjacency */
+      fprintf(stderr, "reboard for stack collect failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int sn = units_collect_tile_stack(&pool, cx, cy, 0, stack_ids, UNITS_TILE_STACK_MAX);
+    if (sn < 2) {
+      fprintf(stderr, "tile stack should list ship+cargo (got %d)\n", sn);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, dock_pax);
+    units_despawn(&pool, dock_ship);
   }
 
   ColonizeSpriteSheet icons;

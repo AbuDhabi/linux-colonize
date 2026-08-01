@@ -371,17 +371,19 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 |-----|--------|
 | Arrows / numpad | Tile mode: move blinking tile cursor. Unit mode: move selected unit (numpad diagonals supported) |
 | Enter | Select movable unit under cursor, or move selected unit toward cursor tile |
-| Click | Select movable human unit (blinks; no tile cursor). Exhausted units / empty tiles → tile select. With a unit selected, left-click pans the view |
+| Click | No selection: stack popup if multiple human units (on-map + ship cargo); else select movable unit. Exhausted / empty → tile select. With a unit selected, left-click pans |
 | C | Enter colony screen when cursor is on a colony tile |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
-| O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (must be adjacent; hold uses `@UNIT` cargo) |
+| O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (adjacent; boarded units go on sentry) |
 | U | Unload oldest passenger from selected ship onto adjacent enterable land under cursor |
 | H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26); passengers stay aboard in harbor |
 | B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |
 | Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, AI/Indian/King stubs, refresh human movement |
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |
 
-Selected units **blink** (sprite on/off); the tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
+Ship→**non-colony land** with a passenger that has moves left: **landfall unload** (passenger onto tile; ship stays; full landfall confirm dialog deferred). Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain.
+
+Selected units **blink** (sprite on/off); the tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
 
 On the **colony screen**, Space is the DOS cheat **free production turn** (production only; does not advance year).
 
@@ -399,8 +401,9 @@ Veteran Soldier); on harder difficulties only the French keep a Hardy Pioneer an
 the Spanish a Veteran Soldier. Rival Europeans spawn the same way. Europe keeps dock
 immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found
 a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`).
-Ships move only on water; land units only on land. Boarded units are hidden from the map
-until unloaded.
+Ships move on water and may enter **own-nation colony** land tiles (dock). Land units
+only on land. Boarded units are hidden from the map until unloaded (or woken via the
+stack popup / landfall / colony disembark).
 
 ### New-game wizard
 

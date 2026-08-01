@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "core/assets.h"
+#include "core/colony.h"
 #include "core/map.h"
 #include "core/ss.h"
 
@@ -88,14 +89,16 @@ bool units_can_enter(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int occupant_id
+  int mover_id,
+  const ColonizeColonyPool* colonies
 );
 bool units_try_move(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   int dest_x,
-  int dest_y
+  int dest_y,
+  const ColonizeColonyPool* colonies
 );
 
 /* True for high-seas / sea-lane tiles (terrain index 26). */
@@ -136,8 +139,43 @@ bool units_unload(
   int ship_id,
   const ColonizeWorldMap* map,
   int dest_x,
-  int dest_y
+  int dest_y,
+  const ColonizeColonyPool* colonies
 );
+/* Unload a specific passenger onto dest. */
+bool units_unload_passenger(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  int pax_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+);
+/* First cargo with moves_left > 0, or -1. */
+int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id);
+/*
+ * Colony dock: remove all passengers from the ship onto (x,y), clear sentry.
+ * Does not change ship position. Returns number disembarked.
+ */
+int units_disembark_all(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  int x,
+  int y
+);
+
+/* Collect on-map units at tile plus cargo of ships there (for stack popup). */
+#define UNITS_TILE_STACK_MAX 32
+int units_collect_tile_stack(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id,
+  int* out_ids,
+  int out_max
+);
+
 int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id);
 /* Snapshot passenger type indices (for Europe harbor transfer). */
 int units_export_cargo_types(

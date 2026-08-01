@@ -31,6 +31,7 @@
 #include "core/sound.h"
 #include "core/turn.h"
 #include "core/ui_colors.h"
+#include "core/unit_stack.h"
 #include "core/units.h"
 #include "core/version.h"
 #include "platform/diagnostics.h"
@@ -58,6 +59,7 @@ struct ColonizeGameState {
   ColonizeMsgCatalog map_menu_txt;
   MapMenuBar map_menu;
   PickMusicDialog pick_music;
+  UnitStackPopup unit_stack;
   ColonizeMsgCatalog labels;
   bool labels_ok;
   MapPanel map_panel;
@@ -1624,6 +1626,7 @@ static void game_set_view_center(ColonizeGameState* game, int x, int y) {
 
 static void game_do_end_turn(ColonizeGameState* game);
 static void game_center_on_selected_unit(ColonizeGameState* game);
+static void game_after_unit_action(ColonizeGameState* game);
 
 /* Tile-select mode: clear unit selection, place blinking cursor, center view. */
 static void game_select_tile(ColonizeGameState* game, int x, int y) {
@@ -1638,16 +1641,27 @@ static void game_select_tile(ColonizeGameState* game, int x, int y) {
   game_set_view_center(game, x, y);
 }
 
+/* On-map, or awake passenger (orders cleared) with moves remaining. */
+static bool game_unit_selectable(const ColonizeGameState* game, const ColonizeUnit* u) {
+  if (!game || !u || !u->active || u->nation_id != game->human_nation || u->moves_left <= 0) {
+    return false;
+  }
+  if (units_is_on_map(u)) {
+    return true;
+  }
+  return u->aboard_ship_id >= 0 && u->orders != 1;
+}
+
 /* Select a human unit that still has moves; otherwise select the tile under it. */
 static void game_select_unit(ColonizeGameState* game, int unit_id) {
   if (!game || !game->units_ok) {
     return;
   }
   const ColonizeUnit* u = units_get_const(&game->units, unit_id);
-  if (!u || !units_is_on_map(u)) {
+  if (!u || !u->active) {
     return;
   }
-  if (u->nation_id != game->human_nation || u->moves_left <= 0) {
+  if (!game_unit_selectable(game, u)) {
     game_select_tile(game, u->x, u->y);
     return;
   }
@@ -1657,6 +1671,93 @@ static void game_select_unit(ColonizeGameState* game, int unit_id) {
   game_set_view_center(game, u->x, u->y);
   const ColonizeUnitType* ut = units_type(&game->units, u->type_index);
   snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
+}
+
+static bool game_friendly_colony_at(const ColonizeGameState* game, int x, int y) {
+  if (!game) {
+    return false;
+  }
+  const int cid = colonies_id_at(&game->colonies, x, y);
+  const ColonizeColony* col = colonies_get(&game->colonies, cid);
+  return col && col->active && col->nation_id == game->human_nation;
+}
+
+/*
+ * Move selected unit to dest: ship landfall unload, colony dock disembark,
+ * awake passenger walking ashore, or normal try_move.
+ */
+static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) {
+  if (!game || !game->units_ok || !game->world_map_ok) {
+    return false;
+  }
+  const int sid = game->units.selected_id;
+  ColonizeUnit* selected = units_get(&game->units, sid);
+  if (!selected || selected->moves_left <= 0) {
+    return false;
+  }
+  const ColonizeColonyPool* colonies = &game->colonies;
+
+  /* Awake passenger: walk onto adjacent land → unload. */
+  if (selected->aboard_ship_id >= 0) {
+    if (selected->orders == 1) {
+      set_status(game, "Wake unit from stack first", NULL);
+      return false;
+    }
+    const int ship_id = selected->aboard_ship_id;
+    if (!units_unload_passenger(
+          &game->units, ship_id, sid, &game->world_map, dest_x, dest_y, colonies
+        )) {
+      set_status(game, "Cannot disembark here", NULL);
+      return false;
+    }
+    snprintf(game->status, sizeof(game->status), "Disembarked to (%d,%d)", dest_x, dest_y);
+    game_after_unit_action(game);
+    return true;
+  }
+
+  if (units_is_sea(&game->units, sid)) {
+    const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
+    const bool dest_land = map_tile_is_land(&game->world_map, dest_x, dest_y);
+    if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
+      if (!units_try_move(&game->units, sid, &game->world_map, dest_x, dest_y, colonies)) {
+        set_status(game, "Move blocked", NULL);
+        return false;
+      }
+      const int n = units_disembark_all(&game->units, sid, dest_x, dest_y);
+      game->units.selected_id = sid;
+      if (n > 0) {
+        snprintf(game->status, sizeof(game->status), "Docked; %d disembarked", n);
+      } else {
+        snprintf(game->status, sizeof(game->status), "Moved to colony (%d,%d)", dest_x, dest_y);
+      }
+      game_after_unit_action(game);
+      return true;
+    }
+    if (dest_land && !dest_water) {
+      const int pax_id = units_first_cargo_with_moves(&game->units, sid);
+      if (pax_id < 0) {
+        set_status(game, "No unit ready to disembark", NULL);
+        return false;
+      }
+      if (!units_unload_passenger(
+            &game->units, sid, pax_id, &game->world_map, dest_x, dest_y, colonies
+          )) {
+        set_status(game, "Move blocked", NULL);
+        return false;
+      }
+      snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
+      game_after_unit_action(game);
+      return true;
+    }
+  }
+
+  if (!units_try_move(&game->units, sid, &game->world_map, dest_x, dest_y, colonies)) {
+    set_status(game, "Move blocked", NULL);
+    return false;
+  }
+  snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
+  game_after_unit_action(game);
+  return true;
 }
 
 /* After spending moves: keep unit, advance to next with moves, or tile-select. */
@@ -2078,7 +2179,12 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       if (!game->world_map_ok || !game->units_ok || sid < 0 || !units_is_sea(&game->units, sid)) {
         set_status(game, "Select a ship to unload", NULL);
       } else if (!units_unload(
-                   &game->units, sid, &game->world_map, game->map_cursor_x, game->map_cursor_y
+                   &game->units,
+                   sid,
+                   &game->world_map,
+                   game->map_cursor_x,
+                   game->map_cursor_y,
+                   &game->colonies
                  )) {
         set_status(game, "Cannot unload (need adjacent free land)", NULL);
       } else {
@@ -2614,11 +2720,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
+    if (game->unit_stack.open) {
+      int select_id = -1;
+      unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
+      if (select_id >= 0) {
+        game_select_unit(game, select_id);
+      }
+      return true;
+    }
+
     /* Drop selection if the active unit no longer has moves (e.g. after load). */
     if (game->units_ok && game->units.selected_id >= 0) {
       const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
-      if (!sel || !units_is_on_map(sel) || sel->nation_id != game->human_nation ||
-          sel->moves_left <= 0) {
+      if (!game_unit_selectable(game, sel)) {
         const int tx = sel ? sel->x : game->map_cursor_x;
         const int ty = sel ? sel->y : game->map_cursor_y;
         game_select_tile(game, tx, ty);
@@ -2735,6 +2849,26 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
 
+      if (game->units_ok &&
+          unit_stack_try_open(
+            &game->unit_stack, &game->units, mx, my, game->human_nation
+          )) {
+        set_status(game, "Choose unit from stack", NULL);
+        return true;
+      }
+
+      {
+        int stack_ids[UNITS_TILE_STACK_MAX];
+        const int n = game->units_ok ? units_collect_tile_stack(
+                                         &game->units, mx, my, game->human_nation, stack_ids, UNITS_TILE_STACK_MAX
+                                       )
+                                     : 0;
+        if (n == 1) {
+          game_select_unit(game, stack_ids[0]);
+          return true;
+        }
+      }
+
       const int owned = game_owned_unit_at(game, mx, my);
       if (owned >= 0) {
         game_select_unit(game, owned);
@@ -2790,24 +2924,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
       if (selected &&
           (selected->x != game->map_cursor_x || selected->y != game->map_cursor_y)) {
-        if (units_try_move(
-              &game->units,
-              game->units.selected_id,
-              &game->world_map,
-              game->map_cursor_x,
-              game->map_cursor_y
-            )) {
-          snprintf(
-            game->status,
-            sizeof(game->status),
-            "Moved unit to (%d,%d)",
-            game->map_cursor_x,
-            game->map_cursor_y
-          );
-          game_after_unit_action(game);
+        if (game_try_unit_move(game, game->map_cursor_x, game->map_cursor_y)) {
           return true;
-        } else {
-          set_status(game, "Move blocked", NULL);
         }
       } else if (at_cursor >= 0) {
         game_select_unit(game, at_cursor);
@@ -2914,7 +3032,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (sid < 0 || !units_is_sea(&game->units, sid)) {
       set_status(game, "Select a ship to unload", NULL);
     } else if (!units_unload(
-                 &game->units, sid, &game->world_map, game->map_cursor_x, game->map_cursor_y
+                 &game->units,
+                 sid,
+                 &game->world_map,
+                 game->map_cursor_x,
+                 game->map_cursor_y,
+                 &game->colonies
                )) {
       set_status(game, "Cannot unload (need adjacent free land)", NULL);
     } else {
@@ -3000,14 +3123,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (selected && selected->moves_left > 0) {
           const int dest_x = selected->x + dx;
           const int dest_y = selected->y + dy;
-          if (units_try_move(
-                &game->units, game->units.selected_id, &game->world_map, dest_x, dest_y
-              )) {
-            snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
-            game_after_unit_action(game);
-          } else {
-            set_status(game, "Move blocked", NULL);
-          }
+          game_try_unit_move(game, dest_x, dest_y);
         } else if (selected) {
           /* Safety: exhausted selection → tile mode. */
           game_select_tile(game, selected->x, selected->y);
@@ -3779,6 +3895,21 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       popup_colors_from_ui(&popup_cols);
       pick_music_render(
         (PickMusicDialog*)&game->pick_music,
+        hud_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
+    if (game->unit_stack.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      unit_stack_render(
+        (UnitStackPopup*)&game->unit_stack,
+        &game->units,
+        game->unit_icons_ok ? &game->unit_icons : NULL,
         hud_font,
         wood,
         &popup_cols,

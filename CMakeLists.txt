@@ -45,6 +45,7 @@ add_library(colonize_core STATIC
   src/core/map_panel.c
   src/core/popup.c
   src/core/pick_music.c
+  src/core/unit_stack.c
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
@@ -181,6 +182,7 @@ add_executable(smoke_game_flow
   src/core/map_panel.c
   src/core/popup.c
   src/core/pick_music.c
+  src/core/unit_stack.c
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
@@ -216,6 +218,7 @@ add_executable(smoke_new_game
   src/core/map_panel.c
   src/core/popup.c
   src/core/pick_music.c
+  src/core/unit_stack.c
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
@@ -390,8 +393,11 @@ add_test(NAME smoke_map_panel COMMAND smoke_map_panel WORKING_DIRECTORY ${CMAKE_
 add_executable(smoke_units
   tests/smoke/test_units.c
   src/core/units.c
+  src/core/colony.c
   src/core/map.c
   src/core/assets.c
+  src/core/font.c
+  src/core/ff.c
   src/core/ss.c
   src/core/madspack.c
   src/data/viceroy_tables.c

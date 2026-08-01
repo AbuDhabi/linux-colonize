@@ -666,7 +666,7 @@ static bool ai_step_toward(
     if (try_dx[i] == 0 && try_dy[i] == 0) {
       continue;
     }
-    if (units_try_move(units, unit->id, map, unit->x + try_dx[i], unit->y + try_dy[i])) {
+    if (units_try_move(units, unit->id, map, unit->x + try_dx[i], unit->y + try_dy[i], NULL)) {
       return true;
     }
   }
@@ -792,7 +792,7 @@ static void ai_wander_braves(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     const int d = (int)(ai_rng_next(&rng) & 7u);
-    units_try_move(ctx->units, u->id, ctx->map, u->x + k_dx[d], u->y + k_dy[d]);
+    units_try_move(ctx->units, u->id, ctx->map, u->x + k_dx[d], u->y + k_dy[d], NULL);
   }
 }
 

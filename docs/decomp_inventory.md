@@ -100,8 +100,10 @@ port I/O in the native build.
   surroundings with PHYS0 (press **C** on a colony tile; see `src/core/colony_screen.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
-  board/unload (**O**/**U**), sail ship to/from Europe with passengers
-  (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`)
+  board/unload (**O**/**U**), ship landfall unload / colony dock disembark,
+  tile stack popup (wake sentry cargo then select), sail ship to/from Europe with passengers
+  (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`,
+  `src/core/unit_stack.c`)
 - Map menu bar: `MENU.TXT` pull-downs with mouse hit-testing (`src/core/map_menu.c`);
   left-click selects unit/tile/colony, right-click selects tile; pan-only while a unit is
   selected; blinking white tile outline in tile-select mode; `CURSOR.SS` #0 is the OS
