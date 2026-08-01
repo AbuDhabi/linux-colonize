@@ -21,13 +21,15 @@
 
 typedef enum NewGamePath {
   NEW_GAME_PATH_NEW_WORLD = 0,
-  NEW_GAME_PATH_AMERICA
+  NEW_GAME_PATH_AMERICA,
+  NEW_GAME_PATH_CUSTOMIZE
 } NewGamePath;
 
 typedef enum NewGamePhase {
   NEW_GAME_PHASE_IDLE = 0,
   NEW_GAME_PHASE_AMERICA_CHOICE,
   NEW_GAME_PHASE_MAP_PICK,
+  NEW_GAME_PHASE_CUSTOMIZE,
   NEW_GAME_PHASE_DIFFICULTY,
   NEW_GAME_PHASE_NATION,
   NEW_GAME_PHASE_LEADER_NAME,
@@ -45,8 +47,9 @@ typedef struct NewGameWizard {
   int nation; /* 0..3 England..Netherlands */
   char leader_name[NEW_GAME_LEADER_NAME_MAX];
   char map_file[NEW_GAME_MAP_NAME_MAX]; /* basename, e.g. AMER2.MP; empty if generate */
-  bool generate_map; /* NEW WORLD procedural map */
+  bool generate_map; /* NEW WORLD / CUSTOMIZE procedural map */
   MapGenParams gen_params;
+  int customize_focus; /* column 0..3 on CUSTOMIZE screen */
   char data_dir[512];
 
   int selection;
@@ -73,6 +76,8 @@ typedef struct NewGameWizard {
   bool difficul_ok;
   ColonizePikImage nations_pik;
   bool nations_ok;
+  ColonizePikImage customiz_pik;
+  bool customiz_ok;
   ColonizePikImage kinglss_pik;
   bool kinglss_ok;
   ColonizeSpriteSheet king1;
@@ -106,8 +111,9 @@ bool new_game_active(const NewGameWizard* ng);
 bool new_game_wants_commit(const NewGameWizard* ng);
 
 /*
- * Start wizard. path NEW_WORLD → difficulty; AMERICA → @AMERICA choice.
- * names_txt supplies @LEADERNAME defaults and @SCENARIO (optional).
+ * Start wizard. NEW_WORLD → difficulty (random map params at commit);
+ * CUSTOMIZE → CUSTOMIZ.PIK then difficulty (user MapGenParams);
+ * AMERICA → @AMERICA choice. names_txt supplies @LEADERNAME / @SCENARIO.
  */
 bool new_game_begin(
   NewGameWizard* ng,

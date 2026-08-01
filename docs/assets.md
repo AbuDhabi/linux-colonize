@@ -394,17 +394,18 @@ A **Pioneer** spawns at the nation's start tile when finishing the new-game wiza
 
 Title `@BEGINMENU` no longer jumps straight to the map. Flow (see `src/core/new_game.c`):
 
-1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate`; coastal start via `map_gen_pick_start`)
+1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate` with randomized `MapGenParams`; coastal start via `map_gen_pick_start`)
 2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard → load that `.MP` + `@SCENARIO` starts
-3. Difficulty (`DIFFICUL.PIK` image regions + border, top-left prompt / “(Click Here When Finished)”) → nation (`NATIONS.PIK` regions) → leader name on `WOODPANL.PIK` → `@NATION{n}A` / `B` on wood (`FONTSMAL`) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` captions → map
+3. **CUSTOMIZE New World** → `CUSTOMIZ.PIK` 4×3 grid (`FUN_733a_0270`; Land Mass / Form / Temperature / Climate) → same wizard → `map_generate` with user params (`forest_extra` stays 1)
+4. Difficulty (`DIFFICUL.PIK` image regions + border, top-left prompt / “(Click Here When Finished)”) → nation (`NATIONS.PIK` regions) → leader name on `WOODPANL.PIK` → `@NATION{n}A` / `B` on wood (`FONTSMAL`) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` captions → map
 
 Enter or left-click **skips** the remaining sail frames (QoL; original is hard to skip). `AMERICA.MOV` is a short motion/script blob for map tooling, **not** the dock voyage cutscene.
 
 ### Map generation (NEW WORLD)
 
-VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0` (`viceroy_unpacked.c`). The Linux port mirrors that pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files (terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`).
+VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0` (`viceroy_unpacked.c`). The Linux port mirrors that pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files (terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`). CUSTOMIZE edits the four UI axes on `CUSTOMIZ.PIK` via `FUN_733a_0270` / `NEW_GAME_PHASE_CUSTOMIZE` before the shared wizard.
 
-Parameters (DOS words at `DS:0x1e7e`, each 0..2; NEW WORLD sets all five via `rand() % 3`):
+Parameters (DOS words at `DS:0x1e7e`, each 0..2; NEW WORLD sets all five via `rand() % 3`; CUSTOMIZE starts all at `1` and edits 0..3 on screen):
 
 | Index | UI (`LABELS.TXT`) | Role |
 |------:|-------------------|------|
@@ -414,7 +415,7 @@ Parameters (DOS words at `DS:0x1e7e`, each 0..2; NEW WORLD sets all five via `ra
 | 3 | Climate: Arid / Normal / Wet | Forest / river density |
 | 4 | (internal) | Extra forest-pass count |
 
-Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI is deferred but shares `MapGenParams`. RNG is a portable LCG approximating DOS `FUN_281f_04d4` call patterns — not bit-identical to DOSBox.
+Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`). RNG is a portable LCG approximating DOS `FUN_281f_04d4` call patterns — not bit-identical to DOSBox.
 
 | Extension | Typical use |
 |-----------|-------------|

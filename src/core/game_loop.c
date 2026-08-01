@@ -1399,16 +1399,29 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   char map_label[NEW_GAME_MAP_NAME_MAX];
   map_label[0] = '\0';
 
-  if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD) {
-    if (ng->gen_params.seed == 0) {
-      uint32_t seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+  if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD ||
+      ng->path == NEW_GAME_PATH_CUSTOMIZE) {
+    if (ng->path == NEW_GAME_PATH_NEW_WORLD) {
+      /* Randomize all axes (DOS NEW WORLD). */
+      uint32_t seed = ng->gen_params.seed;
+      if (seed == 0) {
+        seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+      }
       map_gen_params_random(&ng->gen_params, seed);
+    } else if (ng->gen_params.seed == 0) {
+      /* CUSTOMIZE: keep user axes; only fill LCG seed. */
+      ng->gen_params.seed = game->elapsed_ms ? game->elapsed_ms : 1u;
     }
     game->world_map_ok = map_generate(&game->world_map, &ng->gen_params, err, sizeof(err));
     if (!game->world_map_ok) {
       diag_error("new world map_generate failed: %s", err);
     }
-    snprintf(map_label, sizeof(map_label), "NEW WORLD");
+    snprintf(
+      map_label,
+      sizeof(map_label),
+      "%s",
+      ng->path == NEW_GAME_PATH_CUSTOMIZE ? "CUSTOMIZE" : "NEW WORLD"
+    );
   } else {
     char map_path[512];
     if (!dos_compat_normalize_asset_path(game->resolved_data_dir, ng->map_file, map_path, sizeof(map_path))) {
@@ -1434,7 +1447,8 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   game->colonies_ok = true;
 
   int sx = 39, sy = 10;
-  if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD) {
+  if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD ||
+      ng->path == NEW_GAME_PATH_CUSTOMIZE) {
     if (!map_gen_pick_start(
           &game->world_map, game->human_nation, -1, -1, 0, &sx, &sy
         )) {
@@ -1521,7 +1535,15 @@ static void activate_menu_selection(ColonizeGameState* game) {
   }
 
   if (strstr(choice, "CUSTOMIZE") != NULL || strstr(choice, "Customize") != NULL) {
-    set_status(game, "Customize New World", "not implemented yet");
+    game->in_menu = false;
+    new_game_begin(
+      &game->new_game,
+      NEW_GAME_PATH_CUSTOMIZE,
+      game->resolved_data_dir,
+      &game->messages,
+      game->names_ok ? &game->names : NULL
+    );
+    set_status(game, "New game", "Customize New World");
     return;
   }
 
@@ -1548,7 +1570,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
       &game->messages,
       game->names_ok ? &game->names : NULL
     );
-    set_status(game, "New game", "New World (AMER2 stand-in)");
+    set_status(game, "New game", "New World");
     return;
   }
 
@@ -3281,13 +3303,17 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     uint8_t basic = COLONIZE_COL_BASIC;
     uint8_t hilite = COLONIZE_COL_HILITE;
     uint8_t select = COLONIZE_COL_SELECT;
-    /* Bright selection border on DIFFICUL/NATIONS own palettes. */
+    /* Bright selection border on DIFFICUL/NATIONS/CUSTOMIZ own palettes. */
     if (ng->phase == NEW_GAME_PHASE_DIFFICULTY && ng->difficul_ok) {
       hilite = palette_nearest_rgb(&ng->difficul_pik.palette, 0, 255, 0);
       basic = palette_nearest_rgb(&ng->difficul_pik.palette, 0, 180, 0);
     } else if (ng->phase == NEW_GAME_PHASE_NATION && ng->nations_ok) {
       hilite = palette_nearest_rgb(&ng->nations_pik.palette, 0, 255, 0);
       basic = palette_nearest_rgb(&ng->nations_pik.palette, 0, 180, 0);
+    } else if (ng->phase == NEW_GAME_PHASE_CUSTOMIZE && ng->customiz_ok) {
+      /* Focused column yellow; other selection rects green (DOS 0xe / 0xa). */
+      hilite = palette_nearest_rgb(&ng->customiz_pik.palette, 255, 255, 0);
+      basic = palette_nearest_rgb(&ng->customiz_pik.palette, 0, 220, 0);
     } else if (
       (ng->phase == NEW_GAME_PHASE_LEADER_NAME || ng->phase == NEW_GAME_PHASE_NATION_LORE_A ||
        ng->phase == NEW_GAME_PHASE_NATION_LORE_B) &&

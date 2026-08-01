@@ -41,7 +41,23 @@ static const NewGameRect k_nation_rects[4] = {
   {212, 104, 86, 84},
 };
 
+/* CUSTOMIZ.PIK: 4 columns (params) × 3 rows (values). FUN_733a_0000. */
+static const NewGameRect k_customiz_rects[4][3] = {
+  {{10, 16, 72, 48}, {10, 76, 72, 48}, {10, 135, 72, 48}},
+  {{86, 16, 72, 48}, {86, 76, 72, 48}, {86, 135, 72, 48}},
+  {{162, 16, 72, 48}, {162, 76, 72, 48}, {162, 135, 72, 48}},
+  {{238, 16, 72, 48}, {238, 76, 72, 48}, {238, 135, 72, 48}},
+};
+
 static const char* k_finished_label = "(Click Here When Finished)";
+static const char* k_customiz_title = "CUSTOMIZE NEW WORLD";
+static const char* k_customiz_cats[4] = {"Land Mass", "Land Form", "Temperature", "Climate"};
+static const char* k_customiz_vals[4][3] = {
+  {"Small", "Moderate", "Large"},
+  {"Archipelago", "Normal", "Continents"},
+  {"Cool", "Temperate", "Warm"},
+  {"Arid", "Normal", "Wet"},
+};
 
 const char* new_game_nation_name(int nation) {
   if (nation < 0 || nation > 3) {
@@ -82,6 +98,10 @@ static void new_game_free_assets(NewGameWizard* ng) {
   if (ng->nations_ok) {
     pik_free(&ng->nations_pik);
     ng->nations_ok = false;
+  }
+  if (ng->customiz_ok) {
+    pik_free(&ng->customiz_pik);
+    ng->customiz_ok = false;
   }
   if (ng->kinglss_ok) {
     pik_free(&ng->kinglss_pik);
@@ -175,6 +195,10 @@ static void new_game_ensure_difficul(NewGameWizard* ng) {
 
 static void new_game_ensure_nations(NewGameWizard* ng) {
   new_game_load_pik(ng, "NATIONS.PIK", &ng->nations_pik, &ng->nations_ok);
+}
+
+static void new_game_ensure_customiz(NewGameWizard* ng) {
+  new_game_load_pik(ng, "CUSTOMIZ.PIK", &ng->customiz_pik, &ng->customiz_ok);
 }
 
 static void new_game_ensure_king(NewGameWizard* ng) {
@@ -381,6 +405,77 @@ static void new_game_enter_difficulty(NewGameWizard* ng) {
   }
 }
 
+static int* new_game_gen_param_axis(MapGenParams* p, int col) {
+  if (!p) {
+    return NULL;
+  }
+  switch (col) {
+    case 0:
+      return &p->land_mass;
+    case 1:
+      return &p->land_form;
+    case 2:
+      return &p->temperature;
+    case 3:
+      return &p->climate;
+    default:
+      return NULL;
+  }
+}
+
+static int new_game_gen_param_value(const MapGenParams* p, int col) {
+  if (!p) {
+    return 1;
+  }
+  int v = 1;
+  switch (col) {
+    case 0:
+      v = p->land_mass;
+      break;
+    case 1:
+      v = p->land_form;
+      break;
+    case 2:
+      v = p->temperature;
+      break;
+    case 3:
+      v = p->climate;
+      break;
+    default:
+      break;
+  }
+  if (v < 0) {
+    return 0;
+  }
+  if (v > 2) {
+    return 2;
+  }
+  return v;
+}
+
+static void new_game_set_gen_param_value(MapGenParams* p, int col, int value) {
+  int* axis = new_game_gen_param_axis(p, col);
+  if (!axis) {
+    return;
+  }
+  if (value < 0) {
+    value = 0;
+  }
+  if (value > 2) {
+    value = 2;
+  }
+  *axis = value;
+}
+
+static void new_game_enter_customize(NewGameWizard* ng) {
+  ng->phase = NEW_GAME_PHASE_CUSTOMIZE;
+  ng->customize_focus = 0;
+  new_game_ensure_customiz(ng);
+  new_game_clear_list(ng);
+  snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "%s", k_customiz_title);
+  ng->prompt_line_count = 1;
+}
+
 static void new_game_enter_nation(NewGameWizard* ng) {
   ng->phase = NEW_GAME_PHASE_NATION;
   new_game_ensure_nations(ng);
@@ -478,6 +573,7 @@ bool new_game_begin(
   ng->leader_name[0] = '\0';
   ng->generate_map = false;
   memset(&ng->gen_params, 0, sizeof(ng->gen_params));
+  ng->customize_focus = 0;
   snprintf(ng->map_file, sizeof(ng->map_file), "AMER2.MP");
   snprintf(ng->data_dir, sizeof(ng->data_dir), "%s", data_dir);
   ng->sail_frame = 0;
@@ -493,8 +589,19 @@ bool new_game_begin(
       snprintf(ng->options[1], sizeof(ng->options[1]), "Map Editor");
       ng->option_count = 2;
     }
+  } else if (path == NEW_GAME_PATH_CUSTOMIZE) {
+    /* DOS: all five words = 1; UI edits 0..3 only. */
+    ng->generate_map = true;
+    ng->map_file[0] = '\0';
+    ng->gen_params.land_mass = 1;
+    ng->gen_params.land_form = 1;
+    ng->gen_params.temperature = 1;
+    ng->gen_params.climate = 1;
+    ng->gen_params.forest_extra = 1;
+    ng->gen_params.seed = 0;
+    new_game_enter_customize(ng);
   } else {
-    /* NEW WORLD: procedural map (params randomized; seed filled at commit if 0). */
+    /* NEW WORLD: procedural map (params randomized at commit if seed 0). */
     ng->generate_map = true;
     ng->map_file[0] = '\0';
     new_game_enter_difficulty(ng);
@@ -764,17 +871,123 @@ static const char* new_game_finished_text(const NewGameWizard* ng) {
   return k_finished_label;
 }
 
+/* Resolve CUSTOMIZE labels from @MISC starting at "Land Mass"; else English fallbacks. */
+static void new_game_customiz_labels(
+  const NewGameWizard* ng,
+  const char** out_cats,
+  const char** out_vals,
+  const char** out_title
+) {
+  for (int c = 0; c < 4; ++c) {
+    out_cats[c] = k_customiz_cats[c];
+    for (int r = 0; r < 3; ++r) {
+      out_vals[c * 3 + r] = k_customiz_vals[c][r];
+    }
+  }
+  *out_title = k_customiz_title;
+  if (!ng || !ng->labels_txt) {
+    return;
+  }
+  const ColonizeMsgSection* misc = assets_msg_find(ng->labels_txt, "MISC");
+  if (!misc) {
+    return;
+  }
+  int start = -1;
+  for (int i = 0; i < misc->line_count; ++i) {
+    if (misc->lines[i][0] && strcmp(misc->lines[i], "Land Mass") == 0) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0 || start + 16 >= misc->line_count) {
+    return;
+  }
+  for (int c = 0; c < 4; ++c) {
+    if (misc->lines[start + c][0]) {
+      out_cats[c] = misc->lines[start + c];
+    }
+  }
+  for (int i = 0; i < 12; ++i) {
+    if (misc->lines[start + 4 + i][0]) {
+      out_vals[i] = misc->lines[start + 4 + i];
+    }
+  }
+  if (misc->lines[start + 16][0]) {
+    *out_title = misc->lines[start + 16];
+  }
+}
+
+static int new_game_point_in_customiz(int mx, int my, int* out_col, int* out_row) {
+  for (int c = 0; c < 4; ++c) {
+    for (int r = 0; r < 3; ++r) {
+      const NewGameRect* rect = &k_customiz_rects[c][r];
+      if (mx >= rect->x && my >= rect->y && mx < rect->x + rect->w && my < rect->y + rect->h) {
+        if (out_col) {
+          *out_col = c;
+        }
+        if (out_row) {
+          *out_row = r;
+        }
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
   if (!ng || !input || !new_game_active(ng) || ng->phase == NEW_GAME_PHASE_COMMIT) {
     return false;
   }
 
   const bool pre_king = ng->phase == NEW_GAME_PHASE_AMERICA_CHOICE ||
-    ng->phase == NEW_GAME_PHASE_MAP_PICK || ng->phase == NEW_GAME_PHASE_DIFFICULTY ||
-    ng->phase == NEW_GAME_PHASE_NATION || ng->phase == NEW_GAME_PHASE_LEADER_NAME;
+    ng->phase == NEW_GAME_PHASE_MAP_PICK || ng->phase == NEW_GAME_PHASE_CUSTOMIZE ||
+    ng->phase == NEW_GAME_PHASE_DIFFICULTY || ng->phase == NEW_GAME_PHASE_NATION ||
+    ng->phase == NEW_GAME_PHASE_LEADER_NAME;
 
   if (input->last_key == COLONIZE_KEY_ESCAPE && pre_king) {
     new_game_cancel(ng);
+    return true;
+  }
+
+  /* CUSTOMIZE: 4×3 param grid (FUN_733a_0270). */
+  if (ng->phase == NEW_GAME_PHASE_CUSTOMIZE) {
+    if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_BACKSPACE) {
+      ng->customize_focus = (ng->customize_focus + 3) % 4;
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_RIGHT) {
+      ng->customize_focus = (ng->customize_focus + 1) % 4;
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_UP) {
+      int v = new_game_gen_param_value(&ng->gen_params, ng->customize_focus);
+      new_game_set_gen_param_value(&ng->gen_params, ng->customize_focus, (v + 2) % 3);
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_DOWN || input->last_key == COLONIZE_KEY_SPACE) {
+      int v = new_game_gen_param_value(&ng->gen_params, ng->customize_focus);
+      new_game_set_gen_param_value(&ng->gen_params, ng->customize_focus, (v + 1) % 3);
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_ENTER) {
+      new_game_enter_difficulty(ng);
+      return true;
+    }
+    if (input->mouse_left_clicked) {
+      int col = 0, row = 0;
+      if (new_game_point_in_customiz(input->mouse_x, input->mouse_y, &col, &row)) {
+        ng->customize_focus = col;
+        new_game_set_gen_param_value(&ng->gen_params, col, row);
+        return true;
+      }
+      /* DOS: finished = full-width strip y > 184. */
+      if (input->mouse_y > 184 || new_game_point_in_finished(ng, input->mouse_x, input->mouse_y)) {
+        new_game_enter_difficulty(ng);
+        return true;
+      }
+      return true;
+    }
     return true;
   }
 
@@ -1209,6 +1422,77 @@ static void new_game_render_region_pick(
   ng->finished_h = line_h;
 }
 
+static void new_game_render_customize(
+  NewGameWizard* ng,
+  ColonizeFramebuffer8* fb,
+  ColonizePalette* out_palette,
+  uint8_t focus_border,
+  uint8_t other_border
+) {
+  memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
+  if (ng->customiz_ok) {
+    pik_blit(&ng->customiz_pik, fb, 0, 0);
+    if (ng->customiz_pik.has_palette && out_palette) {
+      new_game_copy_palette(out_palette, &ng->customiz_pik.palette);
+    }
+  }
+
+  const char* cats[4];
+  const char* vals[12];
+  const char* title = k_customiz_title;
+  new_game_customiz_labels(ng, cats, vals, &title);
+
+  const ColonizeFont* font = ng->ui_font;
+  const uint8_t ink = 15;
+
+  /* Title near top-left (DOS draws over wood art). */
+  new_game_draw_markup_line(font, fb, 8, 2, title, ink, ink);
+
+  /*
+   * One selection rect per column (current value). Focused column is yellow;
+   * other columns are green. Labels only on those four selected cells.
+   */
+  for (int c = 0; c < 4; ++c) {
+    const int row = new_game_gen_param_value(&ng->gen_params, c);
+    const NewGameRect* rect = &k_customiz_rects[c][row];
+    const uint8_t border = (c == ng->customize_focus) ? focus_border : other_border;
+    new_game_draw_rect_border(fb, rect->x, rect->y, rect->w, rect->h, border);
+    new_game_draw_rect_border(fb, rect->x + 1, rect->y + 1, rect->w - 2, rect->h - 2, border);
+
+    const char* cat = cats[c];
+    const char* val = vals[c * 3 + row];
+    const int cat_w = new_game_text_width(font, cat);
+    const int val_w = new_game_text_width(font, val);
+    int cat_x = rect->x + (rect->w - cat_w) / 2;
+    int val_x = rect->x + (rect->w - val_w) / 2;
+    if (cat_x < rect->x + 1) {
+      cat_x = rect->x + 1;
+    }
+    if (val_x < rect->x + 1) {
+      val_x = rect->x + 1;
+    }
+    new_game_draw_markup_line(font, fb, cat_x, rect->y + 4, cat, ink, ink);
+    new_game_draw_markup_line(font, fb, val_x, rect->y + rect->h / 2, val, ink, ink);
+  }
+
+  const char* finished = new_game_finished_text(ng);
+  char finished_buf[80];
+  if (finished[0] == '(') {
+    snprintf(finished_buf, sizeof(finished_buf), "%s", finished);
+  } else {
+    snprintf(finished_buf, sizeof(finished_buf), "(%s)", finished);
+  }
+  const int fw = new_game_text_width(font, finished_buf);
+  const int fx = (fb->width - fw) / 2;
+  const int fy = 186;
+  new_game_draw_markup_line(font, fb, fx, fy, finished_buf, ink, ink);
+  /* Hitbox: full-width DOS strip y > 184 (also keep text rect for helpers). */
+  ng->finished_x = 0;
+  ng->finished_y = 185;
+  ng->finished_w = fb->width;
+  ng->finished_h = fb->height - 185;
+}
+
 static void new_game_render_leader_name(
   NewGameWizard* ng,
   ColonizeFramebuffer8* fb,
@@ -1541,6 +1825,10 @@ void new_game_render(
   }
 
   switch (ng->phase) {
+    case NEW_GAME_PHASE_CUSTOMIZE:
+      /* hilite = yellow (focus), text_color = green (other columns). */
+      new_game_render_customize(ng, framebuffer, out_palette, hilite_color, text_color);
+      break;
     case NEW_GAME_PHASE_DIFFICULTY:
     case NEW_GAME_PHASE_NATION:
       new_game_render_region_pick(

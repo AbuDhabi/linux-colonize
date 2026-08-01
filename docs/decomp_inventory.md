@@ -114,9 +114,10 @@ port I/O in the native build.
   king audience (`KINGLSS1.PIK` / `KING1.SS` / nation SS / `FONTKING.FF` / `@VICEROY`) →
   voyage slideshow `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` (Enter/LMB skips to map). NEW WORLD
   calls `map_generate` (`src/core/map_gen.c`, VICEROY `FUN_684c_08c0` pipeline) for a
-  procedural 58×72 map; AMERICA still loads `AMER2.MP` / editor `.MP`. `AMERICA.MOV` is
-  unrelated (map/path script, not this cutscene). CUSTOMIZE / Hall of Fame still stubs
-  (CUSTOMIZE can reuse `MapGenParams` later).
+  procedural 58×72 map; **CUSTOMIZE New World** opens `CUSTOMIZ.PIK` (`FUN_733a_0270`,
+  4×3 `MapGenParams` grid) then the same wizard and generate path without randomizing
+  axes. AMERICA still loads `AMER2.MP` / editor `.MP`. `AMERICA.MOV` is unrelated
+  (map/path script, not this cutscene). Hall of Fame still a stub.
 - Shared wood **popup window** chrome (`src/core/popup.c`): black + mid brown + raised
   bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`);
   **GAME → Pick Music** uses the same chrome with `WOODTILE.SS` (`src/core/pick_music.c`)
@@ -176,7 +177,7 @@ AI production for non-human Europeans is **skipped** until save-diff evidence sa
 
 ## Map generation (VICEROY)
 
-Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Linux port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`). CUSTOMIZE UI deferred; same param surface. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
+Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Customize UI: `FUN_733a_0270` on `CUSTOMIZ.PIK` (4 columns × 3 rows; defaults all mid/`1`). Linux port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`) + `NEW_GAME_PHASE_CUSTOMIZE` in `src/core/new_game.c`. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
 
 Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (masks 6/9) is ported. RNG is an LCG approximating `FUN_281f_04d4`, not bit-identical to DOS.
 

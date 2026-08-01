@@ -181,6 +181,69 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /* Unit: CUSTOMIZE path defaults + confirm preserves axes. */
+  {
+    NewGameWizard ng;
+    new_game_init(&ng);
+    if (!new_game_begin(&ng, NEW_GAME_PATH_CUSTOMIZE, data_dir, NULL, NULL)) {
+      fprintf(stderr, "customize begin failed\n");
+      return 1;
+    }
+    if (ng.phase != NEW_GAME_PHASE_CUSTOMIZE) {
+      fprintf(stderr, "expected CUSTOMIZE phase got %d\n", (int)ng.phase);
+      return 1;
+    }
+    if (!ng.generate_map || ng.gen_params.land_mass != 1 || ng.gen_params.land_form != 1 ||
+        ng.gen_params.temperature != 1 || ng.gen_params.climate != 1 ||
+        ng.gen_params.forest_extra != 1) {
+      fprintf(stderr, "customize defaults expected all 1\n");
+      return 1;
+    }
+    ColonizeInputState input = {0};
+    input.last_key = COLONIZE_KEY_DOWN;
+    if (!new_game_handle_input(&ng, &input)) {
+      fprintf(stderr, "customize down failed\n");
+      return 1;
+    }
+    if (ng.gen_params.land_mass != 2) {
+      fprintf(stderr, "expected land_mass 2 after DOWN got %d\n", ng.gen_params.land_mass);
+      return 1;
+    }
+    /* Click Temperature / Cool cell (col 2, row 0). */
+    memset(&input, 0, sizeof(input));
+    input.mouse_left_clicked = true;
+    input.mouse_x = 162 + 36;
+    input.mouse_y = 16 + 24;
+    if (!new_game_handle_input(&ng, &input)) {
+      fprintf(stderr, "customize cell click failed\n");
+      return 1;
+    }
+    if (ng.customize_focus != 2 || ng.gen_params.temperature != 0) {
+      fprintf(
+        stderr,
+        "expected focus 2 temp 0 got focus=%d temp=%d\n",
+        ng.customize_focus,
+        ng.gen_params.temperature
+      );
+      return 1;
+    }
+    memset(&input, 0, sizeof(input));
+    input.last_key = COLONIZE_KEY_ENTER;
+    if (!new_game_handle_input(&ng, &input)) {
+      fprintf(stderr, "customize enter failed\n");
+      return 1;
+    }
+    if (ng.phase != NEW_GAME_PHASE_DIFFICULTY) {
+      fprintf(stderr, "expected DIFFICULTY after customize confirm got %d\n", (int)ng.phase);
+      return 1;
+    }
+    if (ng.gen_params.land_mass != 2 || ng.gen_params.temperature != 0) {
+      fprintf(stderr, "customize params wiped after confirm\n");
+      return 1;
+    }
+    new_game_free(&ng);
+  }
+
   ColonizeGameConfig cfg = {.data_dir = data_dir, .save_dir = save_dir};
   ColonizeGameState* game = game_create(&cfg);
   if (!game) {
