@@ -1,5 +1,8 @@
 # Colonization Asset Notes
 
+For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox/MEMDUMP
+artifacts, see [original_index.md](original_index.md).
+
 Runtime data lives under `COLONIZE/` (override with `--data-dir`).
 
 ## Text Encoding
