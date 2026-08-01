@@ -132,7 +132,7 @@ static int run_init_and_turns(
   } else {
     map_gen_pick_start(&map, human_nation, -1, -1, 0, &sx, &sy);
   }
-  units_new_world_start(&units, &map, sx, sy, human_nation);
+  units_new_world_start(&units, &map, sx, sy, human_nation, 0);
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -226,6 +226,37 @@ static int run_init_and_turns(
     }
     if (human_ship->cargo_count < 2) {
       fprintf(stderr, "%s: human ship cargo=%d expected Pioneer+Soldier\n", label, human_ship->cargo_count);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
+  /* AI fleets also carry Pioneer+Soldier. */
+  for (int n = 0; n < 4; ++n) {
+    if (n == human_nation) {
+      continue;
+    }
+    const ColonizeUnit* ai_ship = NULL;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != n || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      if (units_is_sea(&units, u->id)) {
+        ai_ship = u;
+        break;
+      }
+    }
+    if (!ai_ship || ai_ship->cargo_count < 2) {
+      fprintf(
+        stderr,
+        "%s: AI nation %d ship cargo=%d expected Pioneer+Soldier\n",
+        label,
+        n,
+        ai_ship ? ai_ship->cargo_count : -1
+      );
       map_free(&map);
       col1_save_free(&col1);
       assets_msg_free(&names);

@@ -160,7 +160,8 @@ Ordered pipeline recovered for the Linux port:
 
 **New-game AI actors** (`ai_init_new_game`): Col1 template (human control 0 / gold 1000;
 AI control 1 / gold 0; `nation_relation[]=-1`); human and three rival fleets on eastern
-high seas at turn 0 (Caravel / Dutch Merchantman with Pioneer+Soldier; landfall `goto`);
+high seas at turn 0 (Caravel / Dutch Merchantman with Pioneer+Soldier; skills from
+difficulty/nation; landfall `goto`);
 AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE procedural
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 

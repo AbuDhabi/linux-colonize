@@ -1469,7 +1469,9 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   }
 
   if (game->world_map_ok && game->units_ok) {
-    units_new_world_start(&game->units, &game->world_map, sx, sy, game->human_nation);
+    units_new_world_start(
+      &game->units, &game->world_map, sx, sy, game->human_nation, game->difficulty
+    );
     if (game->units.selected_id >= 0) {
       const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
       if (u) {
@@ -1620,6 +1622,9 @@ static void game_set_view_center(ColonizeGameState* game, int x, int y) {
   game->map_view_y = y;
 }
 
+static void game_do_end_turn(ColonizeGameState* game);
+static void game_center_on_selected_unit(ColonizeGameState* game);
+
 /* Tile-select mode: clear unit selection, place blinking cursor, center view. */
 static void game_select_tile(ColonizeGameState* game, int x, int y) {
   if (!game) {
@@ -1633,12 +1638,17 @@ static void game_select_tile(ColonizeGameState* game, int x, int y) {
   game_set_view_center(game, x, y);
 }
 
+/* Select a human unit that still has moves; otherwise select the tile under it. */
 static void game_select_unit(ColonizeGameState* game, int unit_id) {
   if (!game || !game->units_ok) {
     return;
   }
   const ColonizeUnit* u = units_get_const(&game->units, unit_id);
-  if (!u) {
+  if (!u || !units_is_on_map(u)) {
+    return;
+  }
+  if (u->nation_id != game->human_nation || u->moves_left <= 0) {
+    game_select_tile(game, u->x, u->y);
     return;
   }
   game->units.selected_id = unit_id;
@@ -1649,28 +1659,104 @@ static void game_select_unit(ColonizeGameState* game, int unit_id) {
   snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
 }
 
-/* Human-owned map unit on tile; prefers one with moves remaining. */
+/* After spending moves: keep unit, advance to next with moves, or tile-select. */
+static void game_after_unit_action(ColonizeGameState* game) {
+  if (!game || !game->units_ok) {
+    return;
+  }
+  ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
+  if (!u || !u->active) {
+    game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+    return;
+  }
+  game->map_cursor_x = u->x;
+  game->map_cursor_y = u->y;
+  game_set_view_center(game, u->x, u->y);
+  if (u->moves_left > 0) {
+    return;
+  }
+  const int exhausted_x = u->x;
+  const int exhausted_y = u->y;
+  if (turn_select_next_unit(&game->units, game->human_nation)) {
+    game_center_on_selected_unit(game);
+    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+    const ColonizeUnitType* ut = next ? units_type(&game->units, next->type_index) : NULL;
+    snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
+    return;
+  }
+  game_select_tile(game, exhausted_x, exhausted_y);
+  if (!turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok) &&
+      turn_human_units_exhausted(&game->units, game->human_nation)) {
+    game_do_end_turn(game);
+  } else {
+    snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
+  }
+}
+
+static bool game_key_move_delta(ColonizeKey key, int* out_dx, int* out_dy) {
+  int dx = 0;
+  int dy = 0;
+  switch (key) {
+    case COLONIZE_KEY_UP:
+    case COLONIZE_KEY_KP8:
+      dy = -1;
+      break;
+    case COLONIZE_KEY_DOWN:
+    case COLONIZE_KEY_KP2:
+      dy = 1;
+      break;
+    case COLONIZE_KEY_LEFT:
+    case COLONIZE_KEY_KP4:
+      dx = -1;
+      break;
+    case COLONIZE_KEY_RIGHT:
+    case COLONIZE_KEY_KP6:
+      dx = 1;
+      break;
+    case COLONIZE_KEY_KP7:
+      dx = -1;
+      dy = -1;
+      break;
+    case COLONIZE_KEY_KP9:
+      dx = 1;
+      dy = -1;
+      break;
+    case COLONIZE_KEY_KP1:
+      dx = -1;
+      dy = 1;
+      break;
+    case COLONIZE_KEY_KP3:
+      dx = 1;
+      dy = 1;
+      break;
+    default:
+      return false;
+  }
+  if (out_dx) {
+    *out_dx = dx;
+  }
+  if (out_dy) {
+    *out_dy = dy;
+  }
+  return true;
+}
+
+/* Human-owned map unit on tile with moves remaining (else -1). */
 static int game_owned_unit_at(const ColonizeGameState* game, int x, int y) {
   if (!game || !game->units_ok) {
     return -1;
   }
-  int with_moves = -1;
-  int without_moves = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &game->units.units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
     }
-    if (u->nation_id != game->human_nation) {
+    if (u->nation_id != game->human_nation || u->moves_left <= 0) {
       continue;
     }
-    if (u->moves_left > 0) {
-      with_moves = u->id;
-    } else if (without_moves < 0) {
-      without_moves = u->id;
-    }
+    return u->id;
   }
-  return with_moves >= 0 ? with_moves : without_moves;
+  return -1;
 }
 
 static void game_find_next_colony(ColonizeGameState* game) {
@@ -1811,7 +1897,7 @@ static void game_wait_next_unit(ColonizeGameState* game) {
     return;
   }
   if (!turn_select_next_unit(&game->units, game->human_nation)) {
-    game->units.selected_id = -1;
+    game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     if (turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok)) {
       snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
     } else {
@@ -2528,6 +2614,17 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
+    /* Drop selection if the active unit no longer has moves (e.g. after load). */
+    if (game->units_ok && game->units.selected_id >= 0) {
+      const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+      if (!sel || !units_is_on_map(sel) || sel->nation_id != game->human_nation ||
+          sel->moves_left <= 0) {
+        const int tx = sel ? sel->x : game->map_cursor_x;
+        const int ty = sel ? sel->y : game->map_cursor_y;
+        game_select_tile(game, tx, ty);
+      }
+    }
+
     /* F1 terrain pedia at cursor; F2–F10 adviser / report screens. */
     if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
       game_handle_report_fkey(game, input->last_key);
@@ -2640,14 +2737,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
       const int owned = game_owned_unit_at(game, mx, my);
       if (owned >= 0) {
-        const ColonizeUnit* u = units_get_const(&game->units, owned);
-        if (u && u->moves_left > 0) {
-          game_select_unit(game, owned);
+        game_select_unit(game, owned);
+        return true;
+      }
+
+      /* Human unit with no moves: select the tile under it. */
+      {
+        const int any_id = units_id_at(&game->units, mx, my);
+        const ColonizeUnit* any = units_get_const(&game->units, any_id);
+        if (any && any->nation_id == game->human_nation) {
+          game_select_tile(game, mx, my);
           return true;
         }
-        /* Owned unit with no moves: select the tile. */
-        game_select_tile(game, mx, my);
-        return true;
       }
 
       const int cid = colonies_id_at(&game->colonies, mx, my);
@@ -2682,7 +2783,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 1 : 15;
 
   if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok && game->units_ok) {
-    const int at_cursor = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+    const int at_cursor = game_owned_unit_at(game, game->map_cursor_x, game->map_cursor_y);
     if (at_cursor >= 0 && at_cursor != game->units.selected_id) {
       game_select_unit(game, at_cursor);
     } else if (game->units.selected_id >= 0) {
@@ -2696,7 +2797,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               game->map_cursor_x,
               game->map_cursor_y
             )) {
-          game_set_view_center(game, game->map_cursor_x, game->map_cursor_y);
           snprintf(
             game->status,
             sizeof(game->status),
@@ -2704,12 +2804,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             game->map_cursor_x,
             game->map_cursor_y
           );
-          /* Auto end-turn when option is clear and no human moves remain. */
-          if (!turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok) &&
-              turn_human_units_exhausted(&game->units, game->human_nation)) {
-            game_do_end_turn(game);
-            return true;
-          }
+          game_after_unit_action(game);
+          return true;
         } else {
           set_status(game, "Move blocked", NULL);
         }
@@ -2718,6 +2814,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     } else if (at_cursor >= 0) {
       game_select_unit(game, at_cursor);
+    } else {
+      /* Enter on exhausted human unit / empty tile → tile select. */
+      const int any_id = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+      const ColonizeUnit* any = units_get_const(&game->units, any_id);
+      if (any && any->nation_id == game->human_nation) {
+        game_select_tile(game, any->x, any->y);
+      }
     }
   }
 
@@ -2888,29 +2991,45 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  if (input->last_key == COLONIZE_KEY_UP || input->last_key == COLONIZE_KEY_DOWN ||
-      input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_RIGHT) {
-    if (game->units.selected_id < 0) {
-      if (input->last_key == COLONIZE_KEY_UP && game->map_cursor_y > 0) {
-        game->map_cursor_y--;
-      } else if (input->last_key == COLONIZE_KEY_DOWN && game->map_cursor_y < map_max_y) {
-        game->map_cursor_y++;
-      } else if (input->last_key == COLONIZE_KEY_LEFT && game->map_cursor_x > 0) {
-        game->map_cursor_x--;
-      } else if (input->last_key == COLONIZE_KEY_RIGHT && game->map_cursor_x < map_max_x) {
-        game->map_cursor_x++;
-      }
-      game_set_view_center(game, game->map_cursor_x, game->map_cursor_y);
-    } else {
-      /* Unit selected: arrows pan the view without changing selection. */
-      if (input->last_key == COLONIZE_KEY_UP && game->map_view_y > 0) {
-        game->map_view_y--;
-      } else if (input->last_key == COLONIZE_KEY_DOWN && game->map_view_y < map_max_y) {
-        game->map_view_y++;
-      } else if (input->last_key == COLONIZE_KEY_LEFT && game->map_view_x > 0) {
-        game->map_view_x--;
-      } else if (input->last_key == COLONIZE_KEY_RIGHT && game->map_view_x < map_max_x) {
-        game->map_view_x++;
+  {
+    int dx = 0;
+    int dy = 0;
+    if (game_key_move_delta(input->last_key, &dx, &dy)) {
+      if (game->units.selected_id >= 0 && game->world_map_ok && game->units_ok) {
+        ColonizeUnit* selected = units_get(&game->units, game->units.selected_id);
+        if (selected && selected->moves_left > 0) {
+          const int dest_x = selected->x + dx;
+          const int dest_y = selected->y + dy;
+          if (units_try_move(
+                &game->units, game->units.selected_id, &game->world_map, dest_x, dest_y
+              )) {
+            snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
+            game_after_unit_action(game);
+          } else {
+            set_status(game, "Move blocked", NULL);
+          }
+        } else if (selected) {
+          /* Safety: exhausted selection → tile mode. */
+          game_select_tile(game, selected->x, selected->y);
+        }
+      } else {
+        int nx = game->map_cursor_x + dx;
+        int ny = game->map_cursor_y + dy;
+        if (nx < 0) {
+          nx = 0;
+        }
+        if (ny < 0) {
+          ny = 0;
+        }
+        if (nx > map_max_x) {
+          nx = map_max_x;
+        }
+        if (ny > map_max_y) {
+          ny = map_max_y;
+        }
+        game->map_cursor_x = nx;
+        game->map_cursor_y = ny;
+        game_set_view_center(game, game->map_cursor_x, game->map_cursor_y);
       }
     }
   }
@@ -3559,6 +3678,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   }
 
   if (game->units_ok && game->unit_icons_ok) {
+    const bool blink_on = ((game->elapsed_ms / 250u) % 2u) == 0u;
     units_render_on_map(
       &game->units,
       &game->unit_icons,
@@ -3570,7 +3690,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       tile_w,
       tile_h,
       map_origin_x,
-      map_origin_y
+      map_origin_y,
+      blink_on
     );
   }
 

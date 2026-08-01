@@ -3,11 +3,15 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/colony.h"
 #include "core/ss.h"
 #include "core/turn.h"
 #include "core/ui_colors.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+
+/* ICONS.SS #22–37 match NAMES.TXT @CARGO (same as colony warehouse strip). */
+#define MAP_PANEL_CARGO_ICON_BASE 22
 
 enum {
   MAP_PANEL_COL_OCEAN = 1,
@@ -456,6 +460,155 @@ static int map_panel_draw_line(
   return 1;
 }
 
+/* Empty cargo-hold recess (COL1 sidebar shows vacant holds as inset boxes). */
+static void map_panel_draw_empty_hold(ColonizeFramebuffer8* fb, int x, int y, int w, int h) {
+  if (!fb || w < 3 || h < 3) {
+    return;
+  }
+  for (int dy = 0; dy < h; ++dy) {
+    for (int dx = 0; dx < w; ++dx) {
+      uint8_t c = 8; /* mid recess */
+      if (dy == 0 || dx == 0) {
+        c = 0; /* top/left shadow */
+      } else if (dy == h - 1 || dx == w - 1) {
+        c = 15; /* bottom/right highlight */
+      }
+      map_panel_put(fb, x + dx, y + dy, c);
+    }
+  }
+}
+
+/*
+ * COL1 information sidebar: "With:" then hold icons (passengers from ICONS.SS
+ * unit sprites; goods from ICONS.SS #22–37; empty holds as recessed slots).
+ */
+static void map_panel_draw_with_holds(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* ship,
+  const ColonizeSpriteSheet* icons,
+  const ColonizeFont* font,
+  const char* with_label,
+  ColonizeFramebuffer8* fb,
+  int text_x,
+  int* text_y,
+  int line_h,
+  int y_limit
+) {
+  if (!ship || !units || !text_y) {
+    return;
+  }
+
+  int goods_slots = 0;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
+      goods_slots++;
+    }
+  }
+
+  int cap = units_ship_capacity(units, ship->id);
+  if (cap <= 0) {
+    /* Wagons / incomplete @UNIT rows: size hold row from contents. */
+    cap = ship->cargo_count + goods_slots;
+  }
+  if (cap <= 0 && ship->cargo_count <= 0 && goods_slots <= 0) {
+    return;
+  }
+  const int used = ship->cargo_count + goods_slots;
+  if (cap < used) {
+    cap = used;
+  }
+  if (cap > COLONIZE_UNIT_CARGO_MAX) {
+    cap = COLONIZE_UNIT_CARGO_MAX;
+  }
+
+  char line[32];
+  snprintf(line, sizeof(line), "%s", with_label ? with_label : "With:");
+  if (!map_panel_draw_line(font, fb, text_x, text_y, line_h, y_limit, line)) {
+    return;
+  }
+
+  const int panel_right = MAP_PANEL_X + MAP_PANEL_W - 2;
+  const int hold_h = 14;
+  const int hold_w = 12;
+  const int pitch = 13;
+  if (*text_y + hold_h > y_limit) {
+    return;
+  }
+
+  int x = text_x;
+  int y = *text_y;
+  int drawn = 0;
+
+  for (int i = 0; i < ship->cargo_count && drawn < cap; ++i) {
+    const ColonizeUnit* pax = units_get_const(units, ship->cargo_ids[i]);
+    const ColonizeUnitType* pt = pax ? units_type(units, pax->type_index) : NULL;
+    const int sprite = (pt && icons) ? pt->icon_sprite : -1;
+
+    if (x + hold_w > panel_right) {
+      x = text_x;
+      y += hold_h + 1;
+      if (y + hold_h > y_limit) {
+        break;
+      }
+    }
+
+    if (sprite >= 0 && icons && sprite < icons->sprite_count) {
+      ss_blit_sprite(icons, sprite, fb, x, y);
+      const ColonizeSprite* sp = &icons->sprites[sprite];
+      const int step = sp->width > 0 ? sp->width + 1 : pitch;
+      x += step > pitch ? step : pitch;
+    } else {
+      const char* name = units_display_name(units, pax);
+      font_draw_text(font, fb, x, y + 2, name ? name : "?", MAP_PANEL_COL_TEXT);
+      x = panel_right;
+    }
+    drawn++;
+  }
+
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX && drawn < cap; ++i) {
+    const int amt = ship->hold_goods_amount[i];
+    if (amt <= 0 || amt >= 255) {
+      continue;
+    }
+    const int gtype = ship->hold_goods_type[i];
+    if (gtype < 0 || gtype >= COLONIZE_CARGO_COUNT) {
+      continue;
+    }
+    if (x + hold_w > panel_right) {
+      x = text_x;
+      y += hold_h + 1;
+      if (y + hold_h > y_limit) {
+        break;
+      }
+    }
+    const int sprite = MAP_PANEL_CARGO_ICON_BASE + gtype;
+    if (icons && sprite >= 0 && sprite < icons->sprite_count) {
+      ss_blit_sprite(icons, sprite, fb, x, y);
+      const ColonizeSprite* sp = &icons->sprites[sprite];
+      const int step = sp->width > 0 ? sp->width + 1 : pitch;
+      x += step > pitch ? step : pitch;
+    } else {
+      x += pitch;
+    }
+    drawn++;
+  }
+
+  while (drawn < cap) {
+    if (x + hold_w > panel_right) {
+      x = text_x;
+      y += hold_h + 1;
+      if (y + hold_h > y_limit) {
+        break;
+      }
+    }
+    map_panel_draw_empty_hold(fb, x, y, hold_w, hold_h);
+    x += pitch;
+    drawn++;
+  }
+
+  *text_y = y + hold_h + 2;
+}
+
 void map_panel_render(
   const MapPanel* panel,
   const ColonizeWorldMap* map,
@@ -607,7 +760,7 @@ void map_panel_render(
     if (icons && ut && ut->icon_sprite >= 0) {
       ss_blit_sprite(icons, ut->icon_sprite, framebuffer, text_x + 2, text_y + 1);
     }
-    const char* uname = ut ? ut->name : "Unit";
+    const char* uname = units_display_name(units, selected);
     font_draw_text(font, framebuffer, text_x + 20, text_y + 3, uname, MAP_PANEL_COL_TEXT);
     text_y += 16;
 
@@ -625,15 +778,29 @@ void map_panel_render(
       selected->y
     );
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
-    if (selected->cargo_count > 0) {
-      snprintf(
-        line,
-        sizeof(line),
-        "%s %d",
-        panel ? panel->label_with : "With:",
-        selected->cargo_count
-      );
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+    /* COL1: transport holds under With: as unit/cargo icons (LABELS.TXT @INFO). */
+    {
+      int goods = 0;
+      for (int g = 0; g < COLONIZE_UNIT_CARGO_MAX; ++g) {
+        if (selected->hold_goods_amount[g] > 0 && selected->hold_goods_amount[g] < 255) {
+          goods++;
+        }
+      }
+      if (units_is_sea(units, selected->id) || selected->cargo_count > 0 || goods > 0 ||
+          units_ship_capacity(units, selected->id) > 0) {
+        map_panel_draw_with_holds(
+          units,
+          selected,
+          icons,
+          font,
+          panel ? panel->label_with : "With:",
+          framebuffer,
+          text_x,
+          &text_y,
+          line_h,
+          y_limit
+        );
+      }
     }
   } else {
     char line[64];

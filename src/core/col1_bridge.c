@@ -397,6 +397,25 @@ bool col1_bridge_apply(
       u->orders = (int)src->orders;
       u->goto_x = (int)src->goto_x;
       u->goto_y = (int)src->goto_y;
+      u->profession = (int)src->profession;
+      /* Commodity hold slots (passengers board separately via transport chain). */
+      {
+        const uint8_t items[6] = {
+          src->cargo_item_0,
+          src->cargo_item_1,
+          src->cargo_item_2,
+          src->cargo_item_3,
+          src->cargo_item_4,
+          src->cargo_item_5
+        };
+        for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+          const int amt = src->cargo_hold[h];
+          if (amt > 0 && amt < 255) {
+            u->hold_goods_type[h] = (int)items[h];
+            u->hold_goods_amount[h] = amt;
+          }
+        }
+      }
     }
     id_by_index[i] = id;
     local.imported_units++;
@@ -660,10 +679,55 @@ bool col1_bridge_capture(
       }
       dst->goto_x = (uint8_t)(src->goto_x < 0 ? 0xFF : src->goto_x);
       dst->goto_y = (uint8_t)(src->goto_y < 0 ? 0xFF : src->goto_y);
+      dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
+      memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
+      {
+        /* Pack goods into nibble fields + amounts. Passengers are not goods. */
+        int gi = 0;
+        for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && gi < 6; ++h) {
+          const int amt = src->hold_goods_amount[h];
+          if (amt <= 0 || amt >= 255) {
+            continue;
+          }
+          int t = src->hold_goods_type[h];
+          if (t < 0) {
+            t = 0;
+          }
+          if (t > 15) {
+            t = 15;
+          }
+          dst->cargo_hold[gi] = (uint8_t)amt;
+          switch (gi) {
+            case 0:
+              dst->cargo_item_0 = (uint8_t)t;
+              break;
+            case 1:
+              dst->cargo_item_1 = (uint8_t)t;
+              break;
+            case 2:
+              dst->cargo_item_2 = (uint8_t)t;
+              break;
+            case 3:
+              dst->cargo_item_3 = (uint8_t)t;
+              break;
+            case 4:
+              dst->cargo_item_4 = (uint8_t)t;
+              break;
+            case 5:
+              dst->cargo_item_5 = (uint8_t)t;
+              break;
+            default:
+              break;
+          }
+          gi++;
+        }
+        if (gi == 0) {
+          dst->cargo_hold[2] = 255; /* COL1 empty-hold sentinel seen in starters */
+        }
+        dst->holds_occupied = (uint8_t)(src->cargo_count + gi);
+      }
       dst->transport_chain.next_unit_idx = -1;
       dst->transport_chain.prev_unit_idx = -1;
-      memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
-      dst->cargo_hold[2] = 255;
       runtime_to_col1[src->id] = written;
       if (src->id == active_unit_id) {
         active_col1 = written;

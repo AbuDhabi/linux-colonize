@@ -53,7 +53,7 @@ int main(void) {
     return 1;
   }
 
-  units_new_world_start(&pool, &map, 39, 10, 0);
+  units_new_world_start(&pool, &map, 39, 10, 0, 0);
   if (pool.unit_count < 3 || pool.selected_id < 0) {
     fprintf(stderr, "expected starter ship+pioneer+soldier (count=%d)\n", pool.unit_count);
     map_free(&map);
@@ -91,6 +91,50 @@ int main(void) {
     map_free(&map);
     assets_msg_free(&names);
     return 1;
+  }
+  /* Discoverer (diff 0) England: Hardy Pioneer + Veteran Soldier. */
+  {
+    const ColonizeUnit* p0 = units_get_const(&pool, ship->cargo_ids[0]);
+    const ColonizeUnit* p1 = units_get_const(&pool, ship->cargo_ids[1]);
+    if (!p0 || !p1 || p0->profession != UNITS_JOB_PIONEER || p1->profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "Discoverer England expected Hardy+Veteran professions (got %d,%d)\n",
+        p0 ? p0->profession : -1,
+        p1 ? p1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+  /* Conquistador (diff 2) Dutch: plain Pioneer + plain Soldier. */
+  {
+    ColonizeUnitPool hard;
+    memset(&hard, 0, sizeof(hard));
+    hard.type_count = pool.type_count;
+    memcpy(hard.types, pool.types, sizeof(pool.types));
+    const int sid = units_spawn_euro_starter_fleet(&hard, 3, 2, ship->x, ship->y, 39, 10);
+    ColonizeUnit* hs = units_get(&hard, sid);
+    if (!hs || hs->cargo_count < 2) {
+      fprintf(stderr, "Dutch Conquistador fleet missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* hp0 = units_get_const(&hard, hs->cargo_ids[0]);
+    const ColonizeUnit* hp1 = units_get_const(&hard, hs->cargo_ids[1]);
+    if (!hp0 || !hp1 || hp0->profession != UNITS_JOB_NONE || hp1->profession != UNITS_JOB_NONE) {
+      fprintf(
+        stderr,
+        "Dutch Conquistador expected plain skills (got %d,%d)\n",
+        hp0 ? hp0->profession : -1,
+        hp1 ? hp1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
   }
   int ship_id = ship->id;
 

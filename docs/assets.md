@@ -280,7 +280,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Left rule | 1px black | `x=240`, full panel height |
 | Minimap section | wood + 1px black separator below | Section is larger than the minimap; wood shows in the margins |
 | Minimap | 56×39 window (1px/tile) | AMER2 window (not full map); scrolls with the main view; dark-orange border (palette 6) flush to section black rules; terrain/ocean/high-seas, colony/unit dots; white view outline on edge tiles; click centers main view |
-| Unit block | `NAMEPLAT.SS`, `ICONS.SS`, `LABELS.TXT` `@INFO` | Portrait + name; `Moves:` / `Locat:` / `With:` (cargo count stub) |
+| Unit block | `NAMEPLAT.SS`, `ICONS.SS`, `LABELS.TXT` `@INFO` | Portrait + name; `Moves:` / `Locat:` / `With:` hold icons (passengers + goods; empty recessed slots up to `@UNIT` cargo) |
 | Date + gold + tax | Campaign calendar + `EuropeScreen` gold/tax | `Spring 1492` / `Gold: N$  Tax: N%` (`FONTTINY.FF`, `@COLORS` basic) |
 | Tile details | `NAMES.TXT` / Col1 mask / colonies / units | Under Locat: ownership, `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp + units with order label |
 | Nation box | Turn indicator at `(315,197)` | Existing 5×3 owner color; kept in the panel strip |
@@ -369,7 +369,9 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 
 | Key | Action |
 |-----|--------|
-| Enter | Select unit under cursor (if different from current), or move selected unit to empty cursor tile |
+| Arrows / numpad | Tile mode: move blinking tile cursor. Unit mode: move selected unit (numpad diagonals supported) |
+| Enter | Select movable unit under cursor, or move selected unit toward cursor tile |
+| Click | Select movable human unit (blinks; no tile cursor). Exhausted units / empty tiles → tile select. With a unit selected, left-click pans the view |
 | C | Enter colony screen when cursor is on a colony tile |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
 | O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (must be adjacent; hold uses `@UNIT` cargo) |
@@ -378,6 +380,8 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 | B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |
 | Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, AI/Indian/King stubs, refresh human movement |
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |
+
+Selected units **blink** (sprite on/off); the tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
 
 On the **colony screen**, Space is the DOS cheat **free production turn** (production only; does not advance year).
 
@@ -388,7 +392,15 @@ nation phases run (`FUN_1984_00aa`): England 12, France 9, Spain 14, Netherlands
 (`NAMES.TXT` `@COUNTRY`). Native phases use `@TRIBES` colors. It is hidden during the
 human turn.
 
-A **Pioneer** spawns at the nation's start tile when finishing the new-game wizard — `@SCENARIO` for named `.MP` stems (AMER2 England `(39,10)`), or a coastal land pick (`map_gen_pick_start`) after NEW WORLD generation — with a **Caravel** on the nearest ocean tile. Europe keeps dock immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`). Ships move only on water; land units only on land. Boarded units are hidden from the map until unloaded.
+A starter **Caravel** (Dutch: **Merchantman**) with a Pioneer and Soldier aboard
+spawns on the western rim of the eastern high seas when finishing the new-game wizard.
+Skills follow classic COL1 rules: on Discoverer/Explorer both are experts (Hardy Pioneer,
+Veteran Soldier); on harder difficulties only the French keep a Hardy Pioneer and only
+the Spanish a Veteran Soldier. Rival Europeans spawn the same way. Europe keeps dock
+immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found
+a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`).
+Ships move only on water; land units only on land. Boarded units are hidden from the map
+until unloaded.
 
 ### New-game wizard
 

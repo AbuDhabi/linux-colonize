@@ -40,9 +40,13 @@ typedef struct ColonizeUnit {
   int aboard_ship_id; /* -1 = on map; else id of carrying ship */
   int cargo_ids[COLONIZE_UNIT_CARGO_MAX]; /* passenger unit ids (ships only) */
   int cargo_count;
+  /* Commodity holds (ships/wagons): type is @CARGO index; amount 0 = empty. */
+  int hold_goods_type[COLONIZE_UNIT_CARGO_MAX];
+  int hold_goods_amount[COLONIZE_UNIT_CARGO_MAX];
   int orders; /* COL1 orders byte; 0=none, 1=sentry, 12=goto, … */
   int goto_x; /* 0xFF = none */
   int goto_y;
+  int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {
@@ -164,14 +168,40 @@ int units_spawn_ship_with_cargo(
 );
 
 void units_end_turn(ColonizeUnitPool* pool);
+
+/* NAMES.TXT @JOB indices used for unit skills (COL1 profession byte). */
+#define UNITS_JOB_COLONIST 19 /* Free Colonists */
+#define UNITS_JOB_PIONEER 20  /* Hardy Pioneers */
+#define UNITS_JOB_SOLDIER 21  /* Veteran Soldiers */
+#define UNITS_JOB_NONE 28     /* no expert skill (plain Pioneer/Soldier) */
+
 /* Human starter: Caravel (Dutch Merchantman) on eastern high seas with Pioneer+Soldier. */
 void units_new_world_start(
   ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
   int start_x,
   int start_y,
-  int nation_id
+  int nation_id,
+  int difficulty
 );
+
+/*
+ * Spawn European starter fleet (ship + Pioneer + Soldier) at (x,y).
+ * Skills from difficulty/nation (Discoverer/Explorer / French Hardy / Spanish Veteran).
+ * Returns ship unit id or -1.
+ */
+int units_spawn_euro_starter_fleet(
+  ColonizeUnitPool* pool,
+  int nation_id,
+  int difficulty,
+  int x,
+  int y,
+  int goto_x,
+  int goto_y
+);
+
+/* Panel label: "Hardy Pioneer", "Veteran Soldier", unit type name, … */
+const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit);
 
 bool units_deploy_colonist(
   ColonizeUnitPool* pool,
@@ -182,6 +212,7 @@ bool units_deploy_colonist(
 );
 
 int units_map_sprite(const ColonizeUnitPool* pool, int unit_id);
+/* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,
   const ColonizeSpriteSheet* nation_sheet,
@@ -193,7 +224,8 @@ void units_render_on_map(
   int tile_w,
   int tile_h,
   int origin_x,
-  int origin_y
+  int origin_y,
+  bool selected_visible
 );
 
 #endif

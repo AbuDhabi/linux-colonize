@@ -6,6 +6,8 @@
 #include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
+#include "core/ss.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -264,6 +266,91 @@ int main(void) {
     map_panel_free(&panel);
     assets_msg_free(&labels);
     return 1;
+  }
+
+  /* Selected ship: With: hold icons (passengers) must paint into the sidebar. */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return fail("NAMES.TXT load failed for hold icon check");
+    }
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    if (!units_load_types(&units, &names)) {
+      assets_msg_free(&names);
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return fail("units_load_types failed");
+    }
+    units_new_world_start(&units, &map, 39, 10, 0, 0);
+    ColonizeUnit* ship = units_get(&units, units.selected_id);
+    if (!ship || ship->cargo_count < 2) {
+      assets_msg_free(&names);
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return fail("starter ship missing passengers for With: check");
+    }
+
+    ColonizeSpriteSheet icons;
+    memset(&icons, 0, sizeof(icons));
+    char err2[256];
+    const bool icons_ok = ss_load("COLONIZE/ICONS.SS", &icons, err2, sizeof(err2));
+
+    memset(pixels, 0, 320 * 200);
+    map_panel_render(
+      &panel,
+      &map,
+      &units,
+      NULL,
+      icons_ok ? &icons : NULL,
+      NULL,
+      &names,
+      &labels,
+      NULL,
+      ship->x > 7 ? ship->x - 7 : 0,
+      ship->y > 6 ? ship->y - 6 : 0,
+      MAP_VIEW_TILE_COLS,
+      MAP_VIEW_TILE_ROWS,
+      ship->x,
+      ship->y,
+      ship->id,
+      1492,
+      0,
+      1000,
+      0,
+      "England",
+      &fb
+    );
+
+    int hold_pixels = 0;
+    for (int y = 80; y < 160; ++y) {
+      for (int x = MAP_PANEL_X + 2; x < 320; ++x) {
+        if (pixels[y * 320 + x] != 0 && pixels[y * 320 + x] != 8) {
+          hold_pixels++;
+        }
+      }
+    }
+    if (icons_ok) {
+      ss_free(&icons);
+    }
+    assets_msg_free(&names);
+    if (hold_pixels < 20) {
+      fprintf(stderr, "expected With: hold icons in sidebar (opaque=%d)\n", hold_pixels);
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
   }
 
   free(pixels);

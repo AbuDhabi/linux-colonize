@@ -163,9 +163,12 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->aboard_ship_id = -1;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
+  memset(slot->hold_goods_type, 0, sizeof(slot->hold_goods_type));
+  memset(slot->hold_goods_amount, 0, sizeof(slot->hold_goods_amount));
   slot->orders = 0;
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
+  slot->profession = UNITS_JOB_NONE;
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
@@ -186,9 +189,12 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->aboard_ship_id = -1;
   unit->cargo_count = 0;
   memset(unit->cargo_ids, 0, sizeof(unit->cargo_ids));
+  memset(unit->hold_goods_type, 0, sizeof(unit->hold_goods_type));
+  memset(unit->hold_goods_amount, 0, sizeof(unit->hold_goods_amount));
   unit->orders = 0;
   unit->goto_x = 0xFF;
   unit->goto_y = 0xFF;
+  unit->profession = UNITS_JOB_NONE;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -592,6 +598,12 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->aboard_ship_id = ship->id;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
+  memset(slot->hold_goods_type, 0, sizeof(slot->hold_goods_type));
+  memset(slot->hold_goods_amount, 0, sizeof(slot->hold_goods_amount));
+  slot->orders = 0;
+  slot->goto_x = 0xFF;
+  slot->goto_y = 0xFF;
+  slot->profession = UNITS_JOB_NONE;
   ship->cargo_ids[ship->cargo_count++] = slot->id;
   pool->unit_count++;
   return slot->id;
@@ -605,7 +617,8 @@ int units_spawn_ship_with_cargo(
   const int* cargo_types,
   int cargo_count
 ) {
-  const int ship_id = units_spawn(pool, ship_type_index, x, y);
+  /* Allow stacking: harbor return / Europe berth may share a water tile. */
+  const int ship_id = units_spawn_allow_stack(pool, ship_type_index, x, y);
   if (ship_id < 0) {
     return -1;
   }
@@ -613,7 +626,11 @@ int units_spawn_ship_with_cargo(
   if (!ship) {
     return -1;
   }
-  const int cap = units_ship_capacity(pool, ship_id);
+  int cap = units_ship_capacity(pool, ship_id);
+  /* Test / incomplete @UNIT rows may list cargo 0; still allow boarding passengers. */
+  if (cap <= 0) {
+    cap = COLONIZE_UNIT_CARGO_MAX;
+  }
   const int n = cargo_count < 0 ? 0 : cargo_count;
   for (int i = 0; i < n && ship->cargo_count < cap; ++i) {
     if (!cargo_types) {
@@ -623,6 +640,130 @@ int units_spawn_ship_with_cargo(
       break;
     }
   }
+  return ship_id;
+}
+
+/* Discoverer/Explorer: experts for all. Else French→Hardy Pioneer, Spanish→Veteran Soldier. */
+static void units_starter_skills(int nation_id, int difficulty, int* pioneer_job, int* soldier_job) {
+  const bool easy = difficulty <= 1;
+  const bool hardy = easy || nation_id == 1;
+  const bool veteran = easy || nation_id == 2;
+  if (pioneer_job) {
+    *pioneer_job = hardy ? UNITS_JOB_PIONEER : UNITS_JOB_NONE;
+  }
+  if (soldier_job) {
+    *soldier_job = veteran ? UNITS_JOB_SOLDIER : UNITS_JOB_NONE;
+  }
+}
+
+const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit) {
+  static char buf[48];
+  if (!unit) {
+    return "Unit";
+  }
+  const ColonizeUnitType* ut = pool ? units_type(pool, unit->type_index) : NULL;
+  if (unit->profession == UNITS_JOB_PIONEER) {
+    snprintf(buf, sizeof(buf), "Hardy Pioneer");
+    return buf;
+  }
+  if (unit->profession == UNITS_JOB_SOLDIER) {
+    snprintf(buf, sizeof(buf), "Veteran Soldier");
+    return buf;
+  }
+  if (ut && strcmp(ut->name, "Pioneers") == 0) {
+    return "Pioneer";
+  }
+  if (ut && strcmp(ut->name, "Soldiers") == 0) {
+    return "Soldier";
+  }
+  return ut ? ut->name : "Unit";
+}
+
+int units_spawn_euro_starter_fleet(
+  ColonizeUnitPool* pool,
+  int nation_id,
+  int difficulty,
+  int x,
+  int y,
+  int goto_x,
+  int goto_y
+) {
+  if (!pool || nation_id < 0 || nation_id > 3) {
+    return -1;
+  }
+  if (difficulty < 0) {
+    difficulty = 0;
+  }
+  if (difficulty > 4) {
+    difficulty = 4;
+  }
+
+  int pioneer_type = units_find_type(pool, "Pioneers");
+  if (pioneer_type < 0) {
+    pioneer_type = units_find_type(pool, "Colonists");
+  }
+  const int soldier_type = units_find_type(pool, "Soldiers");
+  int ship_type = units_find_type(pool, "Caravel");
+  if (nation_id == 3) {
+    const int merchant = units_find_type(pool, "Merchantman");
+    if (merchant >= 0) {
+      ship_type = merchant;
+    }
+  }
+  if (ship_type < 0 || pioneer_type < 0) {
+    return -1;
+  }
+
+  const int ship_id = units_spawn_allow_stack(pool, ship_type, x, y);
+  if (ship_id < 0) {
+    return -1;
+  }
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!ship) {
+    return -1;
+  }
+  ship->nation_id = nation_id;
+  ship->profession = UNITS_JOB_NONE;
+  if (goto_x >= 0 && goto_x < 255 && goto_y >= 0 && goto_y < 255) {
+    ship->orders = 12; /* goto landfall */
+    ship->goto_x = goto_x;
+    ship->goto_y = goto_y;
+  }
+
+  int pioneer_job = UNITS_JOB_NONE;
+  int soldier_job = UNITS_JOB_NONE;
+  units_starter_skills(nation_id, difficulty, &pioneer_job, &soldier_job);
+
+  const int cargo_types[2] = {pioneer_type, soldier_type >= 0 ? soldier_type : pioneer_type};
+  const int cargo_jobs[2] = {pioneer_job, soldier_type >= 0 ? soldier_job : pioneer_job};
+  const int cargo_n = soldier_type >= 0 ? 2 : 1;
+  for (int i = 0; i < cargo_n; ++i) {
+    const int pid = units_spawn_aboard(pool, cargo_types[i], ship);
+    if (pid < 0) {
+      diag_warn("starter fleet: failed to board passenger %d for nation %d", i, nation_id);
+      continue;
+    }
+    ColonizeUnit* pax = units_get(pool, pid);
+    if (!pax) {
+      continue;
+    }
+    pax->nation_id = nation_id;
+    pax->profession = cargo_jobs[i];
+    pax->orders = 1; /* sentry aboard */
+    pax->goto_x = goto_x >= 0 ? goto_x : 0xFF;
+    pax->goto_y = goto_y >= 0 ? goto_y : 0xFF;
+  }
+
+  diag_info(
+    "Euro starter fleet nation=%d ship=%d cargo=%d at (%d,%d) skills p=%d s=%d",
+    nation_id,
+    ship_id,
+    ship->cargo_count,
+    x,
+    y,
+    pioneer_job,
+    soldier_job
+  );
   return ship_id;
 }
 
@@ -834,7 +975,8 @@ void units_new_world_start(
   const ColonizeWorldMap* map,
   int start_x,
   int start_y,
-  int nation_id
+  int nation_id,
+  int difficulty
 ) {
   if (!pool) {
     return;
@@ -847,58 +989,22 @@ void units_new_world_start(
     nation_id = 0;
   }
 
-  int pioneer_type = units_find_type(pool, "Pioneers");
-  if (pioneer_type < 0) {
-    pioneer_type = units_find_type(pool, "Colonists");
-  }
-  int soldier_type = units_find_type(pool, "Soldiers");
-  int ship_type = units_find_type(pool, "Caravel");
-  if (nation_id == 3) {
-    const int merchant = units_find_type(pool, "Merchantman");
-    if (merchant >= 0) {
-      ship_type = merchant;
-    }
-  }
-  if (ship_type < 0) {
-    return;
-  }
-
   int sx = start_x;
   int sy = start_y;
   if (!units_find_eastern_high_seas_tile(pool, map, start_y, &sx, &sy)) {
     return;
   }
 
-  int cargo[2];
-  int cargo_n = 0;
-  if (pioneer_type >= 0) {
-    cargo[cargo_n++] = pioneer_type;
-  }
-  if (soldier_type >= 0) {
-    cargo[cargo_n++] = soldier_type;
-  } else if (pioneer_type >= 0 && cargo_n < 2) {
-    cargo[cargo_n++] = pioneer_type;
-  }
-
-  const int ship_id = units_spawn_ship_with_cargo(pool, ship_type, sx, sy, cargo, cargo_n);
+  const int ship_id = units_spawn_euro_starter_fleet(
+    pool, nation_id, difficulty, sx, sy, start_x, start_y
+  );
   if (ship_id < 0) {
     return;
   }
+  /* Human starts with ship selected; clear goto until player sets course (orders keep landfall dest). */
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (ship) {
-    ship->nation_id = nation_id;
     ship->orders = 0;
-    ship->goto_x = start_x;
-    ship->goto_y = start_y;
-  }
-  for (int i = 0; i < (ship ? ship->cargo_count : 0); ++i) {
-    ColonizeUnit* pax = units_get(pool, ship->cargo_ids[i]);
-    if (pax) {
-      pax->nation_id = nation_id;
-      pax->orders = 1;
-      pax->goto_x = start_x;
-      pax->goto_y = start_y;
-    }
   }
   pool->selected_id = ship_id;
 }
@@ -958,7 +1064,8 @@ void units_render_on_map(
   int tile_w,
   int tile_h,
   int origin_x,
-  int origin_y
+  int origin_y,
+  bool selected_visible
 ) {
   if (!pool || !nation_sheet || !framebuffer) {
     return;
@@ -967,6 +1074,10 @@ void units_render_on_map(
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* unit = &pool->units[i];
     if (!units_is_on_map(unit)) {
+      continue;
+    }
+    /* Blink: omit selected unit on off frames (tile cursor stays hidden). */
+    if (unit->id == pool->selected_id && !selected_visible) {
       continue;
     }
     const int sx = unit->x - view_x;
@@ -982,18 +1093,6 @@ void units_render_on_map(
 
     const int px = origin_x + sx * tile_w;
     const int py = origin_y + sy * tile_h;
-    if (unit->id == pool->selected_id) {
-      for (int y = py; y < py + tile_h && y < framebuffer->height; ++y) {
-        for (int x = px; x < px + tile_w && x < framebuffer->width; ++x) {
-          if (x < 0 || y < 0) {
-            continue;
-          }
-          if (x == px || x == px + tile_w - 1 || y == py || y == py + tile_h - 1) {
-            framebuffer->pixels[y * framebuffer->width + x] = 14;
-          }
-        }
-      }
-    }
     ss_blit_sprite(nation_sheet, sprite, framebuffer, px, py);
   }
 }

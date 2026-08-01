@@ -180,22 +180,11 @@ static bool ai_spawn_euro_fleet(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
   int nation,
+  int difficulty,
   int landfall_x,
   int landfall_y
 ) {
   if (!units || !map || nation < 0 || nation > 3) {
-    return false;
-  }
-  const int pioneer = ai_type_or(units, "Pioneers", "Colonists");
-  const int soldier = ai_type_or(units, "Soldiers", NULL);
-  int ship_type = ai_type_or(units, "Caravel", NULL);
-  if (nation == 3) {
-    const int merchant = units_find_type(units, "Merchantman");
-    if (merchant >= 0) {
-      ship_type = merchant;
-    }
-  }
-  if (ship_type < 0 || pioneer < 0) {
     return false;
   }
 
@@ -206,37 +195,10 @@ static bool ai_spawn_euro_fleet(
     return false;
   }
 
-  const int ship_id = units_spawn_allow_stack(units, ship_type, sx, sy);
-  if (ship_id < 0) {
-    return false;
-  }
-  ColonizeUnit* ship = units_get(units, ship_id);
-  if (!ship) {
-    return false;
-  }
-  ship->nation_id = nation;
-  ship->orders = 12; /* goto landfall */
-  ship->goto_x = landfall_x;
-  ship->goto_y = landfall_y;
-
-  const int cargo_types[2] = {pioneer, soldier >= 0 ? soldier : pioneer};
-  const int cargo_n = soldier >= 0 ? 2 : 1;
-  for (int i = 0; i < cargo_n; ++i) {
-    const int pid = units_spawn_allow_stack(units, cargo_types[i], sx, sy);
-    if (pid < 0) {
-      continue;
-    }
-    ColonizeUnit* pax = units_get(units, pid);
-    if (!pax) {
-      continue;
-    }
-    pax->nation_id = nation;
-    pax->orders = 1; /* sentry aboard */
-    pax->goto_x = landfall_x;
-    pax->goto_y = landfall_y;
-    units_board_stacked(units, pid, ship_id);
-  }
-  return true;
+  const int ship_id = units_spawn_euro_starter_fleet(
+    units, nation, difficulty, sx, sy, landfall_x, landfall_y
+  );
+  return ship_id >= 0;
 }
 
 static int ai_tribe_initial_pop(uint8_t tech) {
@@ -615,7 +577,12 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     }
     ai_pick_landfall(params, n, ax, ay, &landfalls[n][0], &landfalls[n][1]);
     if (!ai_spawn_euro_fleet(
-          params->units, params->map, n, landfalls[n][0], landfalls[n][1]
+          params->units,
+          params->map,
+          n,
+          params->difficulty,
+          landfalls[n][0],
+          landfalls[n][1]
         )) {
       diag_warn("ai: failed to spawn fleet for nation %d", n);
     }
