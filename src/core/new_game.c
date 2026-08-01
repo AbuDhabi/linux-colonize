@@ -8,6 +8,7 @@
 #include <strings.h>
 
 #include "core/ui_colors.h"
+#include "core/turn.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -49,6 +50,17 @@ static const NewGameRect k_customiz_rects[4][3] = {
   {{238, 16, 72, 48}, {238, 76, 72, 48}, {238, 135, 72, 48}},
 };
 
+static const char* k_difficul_names[5] = {
+  "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+};
+static const char* k_difficul_levels[5] = {
+  "Easiest", "Easy", "Moderate", "Tough", "Toughest"
+};
+/* FUN_733a_0512 local_5a: Discoverer..Viceroy palette indices. */
+static const uint8_t k_difficul_colors[5] = {10, 9, 14, 13, 12};
+static const char* k_nation_bonuses[4] = {
+  "Immigration", "Cooperation", "Conquest", "Trade"
+};
 static const char* k_finished_label = "(Click Here When Finished)";
 static const char* k_customiz_title = "CUSTOMIZE NEW WORLD";
 static const char* k_customiz_cats[4] = {"Land Mass", "Land Form", "Temperature", "Climate"};
@@ -493,6 +505,7 @@ static void new_game_enter_nation(NewGameWizard* ng) {
 static void new_game_enter_leader_name(NewGameWizard* ng) {
   ng->phase = NEW_GAME_PHASE_LEADER_NAME;
   new_game_seed_leader_name(ng);
+  ng->leader_name_selected = true;
   new_game_load_choice_section(ng, "LEADERNAME");
   if (ng->prompt_line_count == 0) {
     snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Please Enter Your Name.");
@@ -997,12 +1010,6 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? k_difficul_rects : k_nation_rects;
     const int count = (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? 5 : 4;
 
-    /* Hover selects. */
-    const int hover = new_game_point_in_rects(rects, count, input->mouse_x, input->mouse_y);
-    if (hover >= 0) {
-      ng->selection = hover;
-    }
-
     if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_RIGHT ||
         input->last_key == COLONIZE_KEY_UP || input->last_key == COLONIZE_KEY_DOWN) {
       if (ng->phase == NEW_GAME_PHASE_DIFFICULTY) {
@@ -1012,14 +1019,15 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       }
       return true;
     }
-    if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
+    if (input->last_key == COLONIZE_KEY_ENTER) {
       new_game_activate_list(ng);
       return true;
     }
     if (input->mouse_left_clicked) {
-      if (hover >= 0) {
-        ng->selection = hover;
-        /* Click portrait selects only; confirm via finished / Enter (DOS style). */
+      const int hit = new_game_point_in_rects(rects, count, input->mouse_x, input->mouse_y);
+      if (hit >= 0) {
+        /* Left-click selects only; confirm via finished / Enter. */
+        ng->selection = hit;
         return true;
       }
       if (new_game_point_in_finished(ng, input->mouse_x, input->mouse_y)) {
@@ -1034,21 +1042,33 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
   /* Leader name text entry. */
   if (ng->phase == NEW_GAME_PHASE_LEADER_NAME) {
     if (input->last_key == COLONIZE_KEY_BACKSPACE) {
-      size_t n = strlen(ng->leader_name);
-      if (n > 0) {
-        ng->leader_name[n - 1] = '\0';
+      if (ng->leader_name_selected) {
+        ng->leader_name[0] = '\0';
+        ng->leader_name_selected = false;
+      } else {
+        size_t n = strlen(ng->leader_name);
+        if (n > 0) {
+          ng->leader_name[n - 1] = '\0';
+        }
       }
       return true;
     }
-    for (int i = 0; i < input->text_input_len; ++i) {
-      char ch = input->text_input[i];
-      if (ch >= 32 && ch < 127) {
-        size_t n = strlen(ng->leader_name);
-        if (n + 1 < sizeof(ng->leader_name)) {
-          ng->leader_name[n] = ch;
-          ng->leader_name[n + 1] = '\0';
+    if (input->text_input_len > 0) {
+      if (ng->leader_name_selected) {
+        ng->leader_name[0] = '\0';
+        ng->leader_name_selected = false;
+      }
+      for (int i = 0; i < input->text_input_len; ++i) {
+        char ch = input->text_input[i];
+        if (ch >= 32 && ch < 127) {
+          size_t n = strlen(ng->leader_name);
+          if (n + 1 < sizeof(ng->leader_name)) {
+            ng->leader_name[n] = ch;
+            ng->leader_name[n + 1] = '\0';
+          }
         }
       }
+      return true;
     }
     if (input->last_key == COLONIZE_KEY_ENTER) {
       new_game_advance_cinematic(ng);
@@ -1337,6 +1357,84 @@ static void new_game_blit_woodpanl(
   }
 }
 
+static void new_game_draw_shadowed_line(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color,
+  uint8_t shadow
+) {
+  new_game_draw_markup_line(font, fb, x + 1, y + 1, text, shadow, shadow);
+  new_game_draw_markup_line(font, fb, x, y, text, color, color);
+}
+
+static void new_game_format_finished(const NewGameWizard* ng, char* out, size_t out_size) {
+  const char* finished = new_game_finished_text(ng);
+  if (finished[0] == '(') {
+    snprintf(out, out_size, "%s", finished);
+  } else {
+    snprintf(out, out_size, "(%s)", finished);
+  }
+}
+
+/* Two tight lines centered in rect (no extra gap between lines). */
+static void new_game_draw_centered_pair(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  const NewGameRect* rect,
+  const char* top,
+  const char* bottom,
+  uint8_t color
+) {
+  const int line_h = font ? font->max_height : 6;
+  const int block_h = line_h * 2;
+  int y0 = rect->y + (rect->h - block_h) / 2;
+  if (y0 < rect->y + 1) {
+    y0 = rect->y + 1;
+  }
+  const int top_w = new_game_text_width(font, top);
+  const int bot_w = new_game_text_width(font, bottom);
+  int top_x = rect->x + (rect->w - top_w) / 2;
+  int bot_x = rect->x + (rect->w - bot_w) / 2;
+  if (top_x < rect->x + 1) {
+    top_x = rect->x + 1;
+  }
+  if (bot_x < rect->x + 1) {
+    bot_x = rect->x + 1;
+  }
+  new_game_draw_markup_line(font, fb, top_x, y0, top, color, color);
+  new_game_draw_markup_line(font, fb, bot_x, y0 + line_h, bottom, color, color);
+}
+
+static void new_game_draw_nation_pair(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  const NewGameRect* rect,
+  const char* top,
+  const char* bottom,
+  uint8_t color
+) {
+  /* Nation name at top, bonus at bottom — maximize vertical whitespace. */
+  const int line_h = font ? font->max_height : 6;
+  const int pad = 4;
+  const int top_w = new_game_text_width(font, top);
+  const int bot_w = new_game_text_width(font, bottom);
+  int top_x = rect->x + (rect->w - top_w) / 2;
+  int bot_x = rect->x + (rect->w - bot_w) / 2;
+  if (top_x < rect->x + 1) {
+    top_x = rect->x + 1;
+  }
+  if (bot_x < rect->x + 1) {
+    bot_x = rect->x + 1;
+  }
+  new_game_draw_markup_line(font, fb, top_x, rect->y + pad, top, color, color);
+  new_game_draw_markup_line(
+    font, fb, bot_x, rect->y + rect->h - pad - line_h, bottom, color, color
+  );
+}
+
 static void new_game_render_region_pick(
   NewGameWizard* ng,
   ColonizeFramebuffer8* fb,
@@ -1345,7 +1443,6 @@ static void new_game_render_region_pick(
   uint8_t hilite_color,
   uint8_t border_color
 ) {
-  (void)text_color;
   (void)hilite_color;
   const bool difficul = (ng->phase == NEW_GAME_PHASE_DIFFICULTY);
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
@@ -1363,63 +1460,97 @@ static void new_game_render_region_pick(
 
   const NewGameRect* rects = difficul ? k_difficul_rects : k_nation_rects;
   const int count = difficul ? 5 : 4;
+  const ColonizeFont* tiny = ng->tiny_font ? ng->tiny_font : ng->ui_font;
+  const ColonizeFont* title_font = ng->ui_font;
+  const uint8_t green = text_color;
+
+  uint8_t nation_ink = green;
+  if (!difficul) {
+    int sel = ng->selection;
+    if (sel < 0 || sel > 3) {
+      sel = 0;
+    }
+    nation_ink = turn_nation_color(sel);
+  }
+
   if (ng->selection >= 0 && ng->selection < count) {
     const NewGameRect* r = &rects[ng->selection];
-    /* Double border like DOS highlight. */
-    new_game_draw_rect_border(fb, r->x, r->y, r->w, r->h, border_color);
-    new_game_draw_rect_border(fb, r->x + 1, r->y + 1, r->w - 2, r->h - 2, border_color);
-  }
-
-  /*
-   * FF glyphs only anti-alias when ink is 15 or 7; any other index fills every
-   * shade solid and looks bold. Use 15 for regular body text on these screens.
-   */
-  const ColonizeFont* font = ng->ui_font;
-  const uint8_t ink = 15;
-  const int line_h = font ? (font->max_height + 2) : 8;
-  const char* title = ng->prompt_line_count > 0 ? ng->prompt_lines[0]
-    : (difficul ? "Select a Difficulty Level" : "Select a European Power");
-  const int tx = 8;
-  const int ty = 10;
-  new_game_draw_markup_line(font, fb, tx, ty, title, ink, ink);
-
-  /* Difficulty / nation name centered near the bottom of each portrait. */
-  for (int i = 0; i < count; ++i) {
-    const char* label = NULL;
-    if (i < ng->option_count && ng->options[i][0]) {
-      label = ng->options[i];
-    } else if (difficul) {
-      static const char* k_diff[5] = {
-        "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
-      };
-      label = k_diff[i];
+    uint8_t border = border_color;
+    if (difficul) {
+      border = k_difficul_colors[ng->selection];
     } else {
-      label = k_nation_names[i];
+      border = nation_ink;
     }
-    const NewGameRect* r = &rects[i];
-    const int lw = new_game_text_width(font, label);
-    int lx = r->x + (r->w - lw) / 2;
-    if (lx < r->x + 1) {
-      lx = r->x + 1;
-    }
-    const int ly = r->y + r->h - line_h - 3;
-    new_game_draw_markup_line(font, fb, lx, ly, label, ink, ink);
+    new_game_draw_rect_border(fb, r->x, r->y, r->w, r->h, border);
   }
 
-  const char* finished = new_game_finished_text(ng);
-  char finished_buf[80];
-  if (finished[0] == '(') {
-    snprintf(finished_buf, sizeof(finished_buf), "%s", finished);
+  const uint8_t shadow = 0;
+
+  if (difficul) {
+    const int title_lh = title_font ? title_font->max_height + 1 : 8;
+    new_game_draw_shadowed_line(title_font, fb, 8, 10, "Choose", green, shadow);
+    new_game_draw_shadowed_line(
+      title_font, fb, 8, 10 + title_lh, "Difficulty Level", green, shadow
+    );
+    /* Labels only on the selected difficulty (FUN_733a_0512). */
+    if (ng->selection >= 0 && ng->selection < count) {
+      char top[32];
+      snprintf(top, sizeof(top), "%s:", k_difficul_names[ng->selection]);
+      new_game_draw_centered_pair(
+        tiny,
+        fb,
+        &rects[ng->selection],
+        top,
+        k_difficul_levels[ng->selection],
+        k_difficul_colors[ng->selection]
+      );
+    }
+    char finished_buf[80];
+    new_game_format_finished(ng, finished_buf, sizeof(finished_buf));
+    const int line_h = tiny ? tiny->max_height : 6;
+    const int fy = 92;
+    const int tx = 8;
+    new_game_draw_markup_line(tiny, fb, tx, fy, finished_buf, green, green);
+    ng->finished_x = tx;
+    ng->finished_y = fy;
+    ng->finished_w = new_game_text_width(tiny, finished_buf) + 4;
+    ng->finished_h = line_h + 2;
   } else {
-    snprintf(finished_buf, sizeof(finished_buf), "(%s)", finished);
+    const int title_lh = title_font ? title_font->max_height + 1 : 8;
+    /* Same green+shadow two-line title style as difficulty. */
+    new_game_draw_shadowed_line(title_font, fb, 8, 10, "Select", green, shadow);
+    new_game_draw_shadowed_line(
+      title_font, fb, 8, 10 + title_lh, "European Power", green, shadow
+    );
+    /* Labels only when that nation is selected. */
+    if (ng->selection >= 0 && ng->selection < count) {
+      char top[32];
+      snprintf(top, sizeof(top), "%s:", k_nation_names[ng->selection]);
+      for (char* p = top; *p; ++p) {
+        if (*p >= 'a' && *p <= 'z') {
+          *p = (char)(*p - 'a' + 'A');
+        }
+      }
+      new_game_draw_nation_pair(
+        tiny,
+        fb,
+        &rects[ng->selection],
+        top,
+        k_nation_bonuses[ng->selection],
+        turn_nation_color(ng->selection)
+      );
+    }
+    char finished_buf[80];
+    new_game_format_finished(ng, finished_buf, sizeof(finished_buf));
+    const int line_h = tiny ? tiny->max_height : 6;
+    const int tx = 8;
+    const int fy = fb->height - line_h - 4;
+    new_game_draw_markup_line(tiny, fb, tx, fy, finished_buf, green, green);
+    ng->finished_x = tx;
+    ng->finished_y = fy;
+    ng->finished_w = new_game_text_width(tiny, finished_buf) + 4;
+    ng->finished_h = line_h + 2;
   }
-  /* Lower in the empty left column, near vertical mid-screen. */
-  const int fy = 92;
-  new_game_draw_markup_line(font, fb, tx, fy, finished_buf, ink, ink);
-  ng->finished_x = tx;
-  ng->finished_y = fy;
-  ng->finished_w = new_game_text_width(font, finished_buf) + 4;
-  ng->finished_h = line_h;
 }
 
 static void new_game_render_customize(
@@ -1442,51 +1573,29 @@ static void new_game_render_customize(
   const char* title = k_customiz_title;
   new_game_customiz_labels(ng, cats, vals, &title);
 
-  const ColonizeFont* font = ng->ui_font;
-  const uint8_t ink = 15;
+  const ColonizeFont* tiny = ng->tiny_font ? ng->tiny_font : ng->ui_font;
+  const ColonizeFont* title_font = ng->ui_font;
+  const uint8_t green = other_border;
+  const uint8_t yellow = focus_border;
+  const uint8_t unbold = 15;
 
-  /* Title near top-left (DOS draws over wood art). */
-  new_game_draw_markup_line(font, fb, 8, 2, title, ink, ink);
+  new_game_draw_markup_line(title_font, fb, 8, 2, title, unbold, unbold);
 
-  /*
-   * One selection rect per column (current value). Focused column is yellow;
-   * other columns are green. Labels only on those four selected cells.
-   */
   for (int c = 0; c < 4; ++c) {
     const int row = new_game_gen_param_value(&ng->gen_params, c);
     const NewGameRect* rect = &k_customiz_rects[c][row];
-    const uint8_t border = (c == ng->customize_focus) ? focus_border : other_border;
-    new_game_draw_rect_border(fb, rect->x, rect->y, rect->w, rect->h, border);
-    new_game_draw_rect_border(fb, rect->x + 1, rect->y + 1, rect->w - 2, rect->h - 2, border);
-
-    const char* cat = cats[c];
-    const char* val = vals[c * 3 + row];
-    const int cat_w = new_game_text_width(font, cat);
-    const int val_w = new_game_text_width(font, val);
-    int cat_x = rect->x + (rect->w - cat_w) / 2;
-    int val_x = rect->x + (rect->w - val_w) / 2;
-    if (cat_x < rect->x + 1) {
-      cat_x = rect->x + 1;
-    }
-    if (val_x < rect->x + 1) {
-      val_x = rect->x + 1;
-    }
-    new_game_draw_markup_line(font, fb, cat_x, rect->y + 4, cat, ink, ink);
-    new_game_draw_markup_line(font, fb, val_x, rect->y + rect->h / 2, val, ink, ink);
+    const bool focused = (c == ng->customize_focus);
+    const uint8_t ink = focused ? yellow : green;
+    new_game_draw_rect_border(fb, rect->x, rect->y, rect->w, rect->h, ink);
+    new_game_draw_centered_pair(tiny, fb, rect, cats[c], vals[c * 3 + row], ink);
   }
 
-  const char* finished = new_game_finished_text(ng);
   char finished_buf[80];
-  if (finished[0] == '(') {
-    snprintf(finished_buf, sizeof(finished_buf), "%s", finished);
-  } else {
-    snprintf(finished_buf, sizeof(finished_buf), "(%s)", finished);
-  }
-  const int fw = new_game_text_width(font, finished_buf);
+  new_game_format_finished(ng, finished_buf, sizeof(finished_buf));
+  const int fw = new_game_text_width(tiny, finished_buf);
   const int fx = (fb->width - fw) / 2;
   const int fy = 186;
-  new_game_draw_markup_line(font, fb, fx, fy, finished_buf, ink, ink);
-  /* Hitbox: full-width DOS strip y > 184 (also keep text rect for helpers). */
+  new_game_draw_markup_line(tiny, fb, fx, fy, finished_buf, green, green);
   ng->finished_x = 0;
   ng->finished_y = 185;
   ng->finished_w = fb->width;
@@ -1505,7 +1614,6 @@ static void new_game_render_leader_name(
   const int line_h = font ? (font->max_height + 3) : 10;
   const char* prompt =
     ng->prompt_line_count > 0 ? ng->prompt_lines[0] : "Please Enter Your Name.";
-  /* Strip centering markers for measurement. */
   char prompt_clean[COLONIZE_MSG_LINE_LEN];
   size_t po = 0;
   for (const char* p = prompt; *p && po + 1 < sizeof(prompt_clean); ++p) {
@@ -1516,16 +1624,118 @@ static void new_game_render_leader_name(
   }
   prompt_clean[po] = '\0';
 
-  char field[NEW_GAME_LEADER_NAME_MAX + 2];
-  snprintf(field, sizeof(field), "%s_", ng->leader_name);
-
+  const int name_w = new_game_text_width(font, ng->leader_name);
+  const int cursor_w = new_game_text_width(font, "_");
+  const int field_w = name_w + cursor_w;
+  int box_w = field_w * 2;
+  if (box_w < 120) {
+    box_w = 120;
+  }
   const int prompt_w = new_game_text_width(font, prompt_clean);
-  const int field_w = new_game_text_width(font, field);
-  const int box_w = prompt_w > field_w ? prompt_w : field_w;
+  if (box_w < prompt_w) {
+    box_w = prompt_w;
+  }
   const int cx = (fb->width - box_w) / 2;
   const int cy = (fb->height - line_h * 2 - 8) / 2;
-  new_game_draw_markup_line(font, fb, cx, cy, prompt_clean, text_color, hilite_color);
-  new_game_draw_markup_line(font, fb, cx, cy + line_h + 6, field, text_color, hilite_color);
+  const uint8_t green = text_color;
+  /* Dark brown selection (wood panel shadow / earth tone). */
+  uint8_t brown = COLONIZE_COL_SHADOW;
+  if (ng->woodpanl && ng->woodpanl->has_palette) {
+    const ColonizePalette* pal = &ng->woodpanl->palette;
+    int best = 0;
+    int best_d = 1 << 30;
+    for (int i = 0; i < 256; ++i) {
+      const int dr = (int)pal->rgb[i][0] - 72;
+      const int dg = (int)pal->rgb[i][1] - 40;
+      const int db = (int)pal->rgb[i][2] - 16;
+      const int d = dr * dr + dg * dg + db * db;
+      if (d < best_d) {
+        best_d = d;
+        best = i;
+      }
+    }
+    brown = (uint8_t)best;
+  }
+  (void)hilite_color;
+  new_game_draw_markup_line(font, fb, cx, cy, prompt_clean, green, green);
+
+  const int field_y = cy + line_h + 6;
+  const int pad = 3;
+  new_game_draw_rect_border(
+    fb, cx - pad, field_y - pad, box_w + pad * 2, line_h + pad * 2, green
+  );
+  const int name_x = cx + pad;
+  if (ng->leader_name_selected && ng->leader_name[0] && name_w > 0) {
+    new_game_fill_rect(fb, name_x - 1, field_y - 1, name_w + 2, line_h - 1, brown);
+  }
+  new_game_draw_markup_line(font, fb, name_x, field_y, ng->leader_name, green, green);
+  new_game_draw_markup_line(font, fb, name_x + name_w, field_y, "_", green, green);
+}
+
+/* Word-wrap lore into out_lines; returns count. */
+static int new_game_wrap_lore_line(
+  const ColonizeFont* font,
+  const char* text,
+  int max_w,
+  char out_lines[][COLONIZE_MSG_LINE_LEN],
+  int max_lines
+) {
+  if (!text || max_lines <= 0) {
+    return 0;
+  }
+  int count = 0;
+  const char* p = text;
+  while (*p && count < max_lines) {
+    while (*p == ' ') {
+      p++;
+    }
+    if (!*p) {
+      break;
+    }
+    const char* line_start = p;
+    const char* last_break = NULL;
+    int width = 0;
+    while (*p) {
+      if (*p == '{' || *p == '}' || *p == '^' || *p == '_') {
+        p++;
+        continue;
+      }
+      if (*p == ' ') {
+        last_break = p;
+      }
+      char chbuf[2] = {*p, 0};
+      int cw = new_game_text_width(font, chbuf);
+      if (width + cw > max_w && last_break && last_break > line_start) {
+        break;
+      }
+      if (width + cw > max_w) {
+        if (width == 0) {
+          /* Force at least one character so we always advance. */
+          p++;
+        }
+        break;
+      }
+      width += cw;
+      p++;
+      if (*p == '\0') {
+        last_break = p;
+        break;
+      }
+    }
+    const char* end = (last_break && last_break > line_start && *p) ? last_break : p;
+    size_t n = (size_t)(end - line_start);
+    if (n >= COLONIZE_MSG_LINE_LEN) {
+      n = COLONIZE_MSG_LINE_LEN - 1;
+    }
+    memcpy(out_lines[count], line_start, n);
+    out_lines[count][n] = '\0';
+    count++;
+    p = end;
+    while (*p == ' ') {
+      p++;
+    }
+  }
+  return count;
 }
 
 static void new_game_render_lore(
@@ -1548,27 +1758,84 @@ static void new_game_render_lore(
   const ColonizeMsgSection* section =
     ng->game_txt ? assets_msg_find(ng->game_txt, section_name) : NULL;
 
+  /*
+   * GAME.TXT @NATION* lines are already wrapped for @width=300. Respect those
+   * breaks (do not re-wrap). FONTSMAL fits the pre-wrapped lines on 320×200.
+   */
   const ColonizeFont* font = ng->lore_font ? ng->lore_font : ng->ui_font;
-  const int line_h = font ? (font->max_height + 2) : 10;
-  const int margin_x = 12;
-  const int margin_y = 12;
-  int cy = margin_y;
+  const int line_h = font ? (font->max_height + 1) : 9;
+  const int margin_x = 10;
+  const int margin_y = 8;
+  const uint8_t green = text_color;
+  const uint8_t yellow = hilite_color;
 
   if (!section) {
     new_game_draw_markup_line(
-      font, fb, margin_x, cy, "Nation history unavailable.", text_color, hilite_color
+      font, fb, margin_x, fb->height / 2, "Nation history unavailable.", green, yellow
     );
     return;
   }
-  for (int i = 0; i < section->line_count; ++i) {
+
+  typedef struct LoreDrawLine {
+    const char* text;
+    bool center;
+  } LoreDrawLine;
+  LoreDrawLine lines[48];
+  int n_lines = 0;
+  for (int i = 0; i < section->line_count && n_lines < 48; ++i) {
     const char* line = section->lines[i];
-    if (!line || line[0] == '\0' || new_game_is_directive(line)) {
+    if (!line || new_game_is_directive(line)) {
       continue;
     }
+    bool center = false;
+    const char* p = line;
+    if (p[0] == '^') {
+      center = true;
+      while (*p == '^') {
+        p++;
+      }
+    }
+    while (*p == '_' || *p == ' ') {
+      p++;
+    }
+    /* Blank / spacer line from source (^^_ or empty). */
+    if (*p == '\0') {
+      lines[n_lines].text = "";
+      lines[n_lines].center = false;
+      n_lines++;
+      continue;
+    }
+    lines[n_lines].text = p;
+    lines[n_lines].center = center;
+    n_lines++;
+  }
+
+  const int block_h = n_lines * line_h;
+  int cy = (fb->height - block_h) / 2;
+  if (cy < margin_y) {
+    cy = margin_y;
+  }
+  /* If still overflowing, tighten from the top. */
+  if (cy + block_h > fb->height - margin_y) {
+    cy = margin_y;
+  }
+
+  for (int i = 0; i < n_lines; ++i) {
     if (cy + line_h > fb->height - margin_y) {
       break;
     }
-    new_game_draw_markup_line(font, fb, margin_x, cy, line, text_color, hilite_color);
+    const char* text = lines[i].text;
+    if (text[0]) {
+      int x = margin_x;
+      if (lines[i].center) {
+        const int w = new_game_text_width(font, text);
+        x = (fb->width - w) / 2;
+        if (x < margin_x) {
+          x = margin_x;
+        }
+      }
+      new_game_draw_markup_line(font, fb, x, cy, text, green, yellow);
+    }
     cy += line_h;
   }
 }
@@ -1612,12 +1879,28 @@ static void new_game_render_king(
       new_game_copy_palette(out_palette, &ng->kinglss_pik.palette);
     }
   }
-  if (ng->nation_art_ok && ng->nation_art.sprite_count > 0) {
-    ss_blit_sprite(&ng->nation_art, 0, fb, 8, 20);
-  }
-  if (ng->king1_ok && ng->king1.sprite_count > 0) {
-    /* Large king figure — place toward left/center. */
-    ss_blit_sprite(&ng->king1, 0, fb, 20, 8);
+  if (ng->nation_art_ok && ng->nation_art.sprite_count > 0 && ng->king1_ok &&
+      ng->king1.sprite_count > 0) {
+    /*
+     * ENGLND1/FRANCE1/… is one sprite with left+right banners and a transparent
+     * mid-gap (opaque gap columns ~51..122 → center offset 86). Align that gap
+     * with KING1's horizontal center and seat the king near the bottom so the
+     * banners frame the throne (prior (8,20)/(20,8) left the gap ~20px off).
+     */
+    const ColonizeSprite* king = &ng->king1.sprites[0];
+    const int king_x = 20;
+    const int king_y = fb->height - king->height; /* typically 13 on 200px */
+    const int flag_x = king_x + king->width / 2 - 86 + 6;
+    const int flag_y = 0;
+    ss_blit_sprite(&ng->nation_art, 0, fb, flag_x, flag_y);
+    ss_blit_sprite(&ng->king1, 0, fb, king_x, king_y);
+  } else {
+    if (ng->nation_art_ok && ng->nation_art.sprite_count > 0) {
+      ss_blit_sprite(&ng->nation_art, 0, fb, 28 + 6, 0);
+    }
+    if (ng->king1_ok && ng->king1.sprite_count > 0) {
+      ss_blit_sprite(&ng->king1, 0, fb, 20, fb->height - ng->king1.sprites[0].height);
+    }
   }
 
   const char* section_name = (ng->nation == 3) ? "VICEROY2" : "VICEROY";
@@ -1723,6 +2006,8 @@ static void new_game_render_sail(
   uint8_t text_color,
   uint8_t hilite_color
 ) {
+  (void)text_color;
+  (void)hilite_color;
   const int frame = ng->sail_frame;
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
   if (frame >= 0 && frame < NEW_GAME_SAIL_FRAMES && ng->levn_ok[frame]) {
@@ -1773,6 +2058,10 @@ static void new_game_render_sail(
       break;
   }
 
+  /* Unbold white (ink 15 AA) + black drop-shadow. */
+  const uint8_t white = 15;
+  const uint8_t black = 0;
+
   if (!section) {
     return;
   }
@@ -1806,7 +2095,8 @@ static void new_game_render_sail(
     if (x < 0) {
       x = 0;
     }
-    new_game_draw_markup_line(font, fb, x, ty, body, text_color, hilite_color);
+    new_game_draw_markup_line(font, fb, x + 1, ty + 1, body, black, black);
+    new_game_draw_markup_line(font, fb, x, ty, body, white, white);
     ty += line_h;
   }
 }

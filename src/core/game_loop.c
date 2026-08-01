@@ -2099,6 +2099,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     game->new_game.ui_font = game->intro_font_ok ? &game->intro_font
       : (game->colony_font_ok ? &game->colony_font
                               : (game->menu_font_ok ? &game->menu_font : NULL));
+    game->new_game.tiny_font = game->colony_font_ok ? &game->colony_font
+      : (game->menu_font_ok ? &game->menu_font : game->new_game.ui_font);
     game->new_game.lore_font = game->menu_font_ok ? &game->menu_font : game->new_game.ui_font;
     game->new_game.wood_tile = game->menu_opentile_ok ? &game->menu_opentile : NULL;
     game->new_game.woodpanl = (game->pedia_wood_ok) ? &game->pedia_wood : NULL;
@@ -3296,6 +3298,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     ng->ui_font = game->intro_font_ok ? &game->intro_font
       : (game->colony_font_ok ? &game->colony_font
                               : (game->menu_font_ok ? &game->menu_font : NULL));
+    ng->tiny_font = game->colony_font_ok ? &game->colony_font
+      : (game->menu_font_ok ? &game->menu_font : ng->ui_font);
     ng->lore_font = game->menu_font_ok ? &game->menu_font : ng->ui_font;
     ng->wood_tile = game->menu_opentile_ok ? &game->menu_opentile : NULL;
     ng->woodpanl = game->pedia_wood_ok ? &game->pedia_wood : NULL;

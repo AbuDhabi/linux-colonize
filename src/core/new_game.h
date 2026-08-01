@@ -92,8 +92,9 @@ typedef struct NewGameWizard {
   const ColonizeMsgCatalog* game_txt;
   const ColonizeMsgCatalog* names_txt;
   const ColonizeMsgCatalog* labels_txt; /* LABELS.TXT for "Click Here When Finished" */
-  const ColonizeFont* ui_font; /* FONTINTR — prompts / name */
-  const ColonizeFont* lore_font; /* FONTSMAL — nation lore body (larger) */
+  const ColonizeFont* ui_font; /* FONTINTR — prompts / name / lore */
+  const ColonizeFont* tiny_font; /* FONTTINY — customize / finished / difficulty labels */
+  const ColonizeFont* lore_font; /* unused legacy; lore uses ui_font */
   const ColonizeSpriteSheet* wood_tile; /* OPENTILE for remaining popups (America) */
   const ColonizePikImage* woodpanl; /* WOODPANL.PIK full-screen for name/lore */
 
@@ -102,6 +103,9 @@ typedef struct NewGameWizard {
   int finished_y;
   int finished_w;
   int finished_h;
+
+  /* Leader name: default text starts selected; first edit clears selection. */
+  bool leader_name_selected;
 } NewGameWizard;
 
 void new_game_init(NewGameWizard* ng);

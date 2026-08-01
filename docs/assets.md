@@ -397,7 +397,7 @@ Title `@BEGINMENU` no longer jumps straight to the map. Flow (see `src/core/new_
 1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate` with randomized `MapGenParams`; coastal start via `map_gen_pick_start`)
 2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard → load that `.MP` + `@SCENARIO` starts
 3. **CUSTOMIZE New World** → `CUSTOMIZ.PIK` 4×3 grid (`FUN_733a_0270`; Land Mass / Form / Temperature / Climate) → same wizard → `map_generate` with user params (`forest_extra` stays 1)
-4. Difficulty (`DIFFICUL.PIK` image regions + border, top-left prompt / “(Click Here When Finished)”) → nation (`NATIONS.PIK` regions) → leader name on `WOODPANL.PIK` → `@NATION{n}A` / `B` on wood (`FONTSMAL`) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` captions → map
+4. Difficulty (`DIFFICUL.PIK` image regions + 1px border, click to select / Enter or finished to confirm) → nation (`NATIONS.PIK`, same) → leader name on `WOODPANL.PIK` (unbold `FONTINTR` + green input box) → `@NATION{n}A` / `B` on wood (same font, vertically centered) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` yellow captions → map
 
 Enter or left-click **skips** the remaining sail frames (QoL; original is hard to skip). `AMERICA.MOV` is a short motion/script blob for map tooling, **not** the dock voyage cutscene.
 

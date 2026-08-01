@@ -107,17 +107,12 @@ port I/O in the native build.
   selected; blinking white tile outline in tile-select mode; `CURSOR.SS` #0 is the OS
   pointer over the 320×200 frame on all screens; Colonizopedia category lists from `PEDIA.TXT`
   (`src/core/pedia.c`); pull-down divider after Terrain Types; trade menu entries stubbed
-- **New-game wizard** (`src/core/new_game.c`): `@BEGINMENU` → NEW WORLD or AMERICA
-  (`@AMERICA` / `*.MP` pick) → `@DIFFICULTY` on `DIFFICUL.PIK` (image-region border
-  select + “(Click Here When Finished)”) → `@PICKNATION` on `NATIONS.PIK` (same) →
-  `@LEADERNAME` / `@NATION{n}A/B` full-screen on `WOODPANL.PIK` (`FONTSMAL` lore) →
-  king audience (`KINGLSS1.PIK` / `KING1.SS` / nation SS / `FONTKING.FF` / `@VICEROY`) →
-  voyage slideshow `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` (Enter/LMB skips to map). NEW WORLD
-  calls `map_generate` (`src/core/map_gen.c`, VICEROY `FUN_684c_08c0` pipeline) for a
-  procedural 58×72 map; **CUSTOMIZE New World** opens `CUSTOMIZ.PIK` (`FUN_733a_0270`,
-  4×3 `MapGenParams` grid) then the same wizard and generate path without randomizing
-  axes. AMERICA still loads `AMER2.MP` / editor `.MP`. `AMERICA.MOV` is unrelated
-  (map/path script, not this cutscene). Hall of Fame still a stub.
+- **New-game wizard** (`src/core/new_game.c`): `@BEGINMENU` → NEW WORLD / AMERICA /
+  CUSTOMIZE → difficulty (`DIFFICUL.PIK`) → nation (`NATIONS.PIK`) → leader name /
+  `@NATION{n}A/B` on `WOODPANL.PIK` → king audience → `LEVN0001`–`0010` sail → map.
+  NEW WORLD / CUSTOMIZE use `map_generate` (`MapGenParams`); AMERICA loads `.MP`.
+  Hall of Fame still a stub. **Parked:** further pixel-perfect styling vs DOSBox
+  (fonts/ink/shadows/exact title layout); flow is functional.
 - Shared wood **popup window** chrome (`src/core/popup.c`): black + mid brown + raised
   bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`);
   **GAME → Pick Music** uses the same chrome with `WOODTILE.SS` (`src/core/pick_music.c`)
