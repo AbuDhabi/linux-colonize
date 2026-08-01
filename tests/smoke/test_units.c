@@ -53,45 +53,83 @@ int main(void) {
     return 1;
   }
 
-  units_new_world_start(&pool, &map, 39, 10);
-  if (pool.unit_count < 2 || pool.selected_id < 0) {
-    fprintf(stderr, "expected starter pioneer + caravel on map (count=%d)\n", pool.unit_count);
+  units_new_world_start(&pool, &map, 39, 10, 0);
+  if (pool.unit_count < 3 || pool.selected_id < 0) {
+    fprintf(stderr, "expected starter ship+pioneer+soldier (count=%d)\n", pool.unit_count);
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
 
-  ColonizeUnit* starter = units_get(&pool, pool.selected_id);
-  if (!starter || !map_tile_is_land(&map, starter->x, starter->y)) {
-    fprintf(stderr, "starter not on land\n");
+  ColonizeUnit* ship = units_get(&pool, pool.selected_id);
+  if (!ship || !units_is_sea(&pool, ship->id)) {
+    fprintf(stderr, "selected starter should be the ship\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
+  if (!map_tile_is_high_seas(&map, ship->x, ship->y)) {
+    fprintf(stderr, "starter ship not on eastern high seas (%d,%d)\n", ship->x, ship->y);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  /* Western rim: tile to the west should not be high seas. */
+  if (ship->x > 0 && map_tile_is_high_seas(&map, ship->x - 1, ship->y)) {
+    fprintf(
+      stderr,
+      "starter ship not on western rim of eastern high seas (%d,%d)\n",
+      ship->x,
+      ship->y
+    );
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (ship->cargo_count < 2) {
+    fprintf(stderr, "starter ship expected Pioneer+Soldier cargo (got %d)\n", ship->cargo_count);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  int ship_id = ship->id;
 
-  int ship_id = -1;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    if (pool.units[i].active && units_is_sea(&pool, pool.units[i].id)) {
-      ship_id = pool.units[i].id;
-      break;
+  /* Separate land unit for domain / stacking tests (ship is offshore). */
+  int land_x = 39;
+  int land_y = 10;
+  if (!map_tile_is_land(&map, land_x, land_y) || units_id_at(&pool, land_x, land_y) >= 0) {
+    land_x = -1;
+    for (int y = 0; y < map.height && land_x < 0; ++y) {
+      for (int x = 0; x < map.width; ++x) {
+        if (map_tile_is_land(&map, x, y) && units_id_at(&pool, x, y) < 0) {
+          land_x = x;
+          land_y = y;
+          break;
+        }
+      }
     }
   }
-  if (ship_id < 0) {
-    fprintf(stderr, "expected starter Caravel on map\n");
+  if (land_x < 0) {
+    fprintf(stderr, "no free land tile for move tests\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
-  ColonizeUnit* ship = units_get(&pool, ship_id);
-  if (!ship || !map_tile_is_water(&map, ship->x, ship->y)) {
-    fprintf(stderr, "starter Caravel not on water\n");
+  const int land_id = units_spawn(&pool, pioneer >= 0 ? pioneer : colonist, land_x, land_y);
+  if (land_id < 0) {
+    fprintf(stderr, "failed to spawn land test unit\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeUnit* starter = units_get(&pool, land_id);
+  if (!starter || !map_tile_is_land(&map, starter->x, starter->y)) {
+    fprintf(stderr, "land test unit not on land\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
 
-  const int land_x = starter->x;
-  const int land_y = starter->y;
   int ocean_x = -1;
   int ocean_y = -1;
   for (int y = 0; y < map.height && ocean_x < 0; ++y) {
@@ -158,8 +196,9 @@ int main(void) {
   }
 
   const int before = pool.unit_count;
-  if (!units_despawn(&pool, ship_id) || pool.unit_count != before - 1) {
-    fprintf(stderr, "despawn failed\n");
+  const int cargo_n = ship->cargo_count;
+  if (!units_despawn(&pool, ship_id) || pool.unit_count != before - 1 - cargo_n) {
+    fprintf(stderr, "despawn failed (before=%d cargo=%d after=%d)\n", before, cargo_n, pool.unit_count);
     map_free(&map);
     assets_msg_free(&names);
     return 1;

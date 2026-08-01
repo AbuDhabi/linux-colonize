@@ -40,6 +40,9 @@ typedef struct ColonizeUnit {
   int aboard_ship_id; /* -1 = on map; else id of carrying ship */
   int cargo_ids[COLONIZE_UNIT_CARGO_MAX]; /* passenger unit ids (ships only) */
   int cargo_count;
+  int orders; /* COL1 orders byte; 0=none, 1=sentry, 12=goto, … */
+  int goto_x; /* 0xFF = none */
+  int goto_y;
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {
@@ -110,6 +113,14 @@ bool units_find_high_seas_tile(
   int* out_x,
   int* out_y
 );
+/* Prefer western rim of eastern high seas near prefer_y — Atlantic approach. */
+bool units_find_eastern_high_seas_tile(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int prefer_y,
+  int* out_x,
+  int* out_y
+);
 
 /* Board a land unit onto an adjacent ship. Returns false if capacity/adjacency fails. */
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
@@ -153,11 +164,13 @@ int units_spawn_ship_with_cargo(
 );
 
 void units_end_turn(ColonizeUnitPool* pool);
+/* Human starter: Caravel (Dutch Merchantman) on eastern high seas with Pioneer+Soldier. */
 void units_new_world_start(
   ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
   int start_x,
-  int start_y
+  int start_y,
+  int nation_id
 );
 
 bool units_deploy_colonist(

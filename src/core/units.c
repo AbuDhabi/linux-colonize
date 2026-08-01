@@ -163,6 +163,9 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->aboard_ship_id = -1;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
+  slot->orders = 0;
+  slot->goto_x = 0xFF;
+  slot->goto_y = 0xFF;
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
@@ -183,6 +186,9 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->aboard_ship_id = -1;
   unit->cargo_count = 0;
   memset(unit->cargo_ids, 0, sizeof(unit->cargo_ids));
+  unit->orders = 0;
+  unit->goto_x = 0xFF;
+  unit->goto_y = 0xFF;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -749,11 +755,86 @@ bool units_find_high_seas_tile(
   return true;
 }
 
+bool units_find_eastern_high_seas_tile(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int prefer_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return false;
+  }
+
+  /*
+   * Western rim of the eastern high-seas band: high-seas tiles whose west
+   * neighbour is not high seas (Atlantic approach), excluding the map's
+   * western border strip. Prefer latitude near prefer_y.
+   */
+  int best_x = -1;
+  int best_y = -1;
+  int best_score = -1;
+  const int east_min_x = map->width / 2;
+
+  for (int y = 0; y < (int)map->height; ++y) {
+    for (int x = east_min_x; x < (int)map->width; ++x) {
+      if (!map_tile_is_high_seas(map, x, y)) {
+        continue;
+      }
+      if (map_tile_is_high_seas(map, x - 1, y)) {
+        continue; /* interior of eastern high seas — not the western edge */
+      }
+      if (pool && units_id_at(pool, x, y) >= 0) {
+        continue;
+      }
+      /* Closer latitude wins; tie-break westward (smaller x). */
+      const int score = 100000 - abs(y - prefer_y) * 1000 - x;
+      if (score > best_score) {
+        best_score = score;
+        best_x = x;
+        best_y = y;
+      }
+    }
+  }
+
+  if (best_x < 0) {
+    /* Fallback: any eastern high seas near prefer_y, then any high seas / water. */
+    best_score = -1;
+    for (int y = 0; y < (int)map->height; ++y) {
+      for (int x = east_min_x; x < (int)map->width; ++x) {
+        if (!map_tile_is_high_seas(map, x, y)) {
+          continue;
+        }
+        if (pool && units_id_at(pool, x, y) >= 0) {
+          continue;
+        }
+        const int score = 100000 - abs(y - prefer_y) * 1000 - x;
+        if (score > best_score) {
+          best_score = score;
+          best_x = x;
+          best_y = y;
+        }
+      }
+    }
+  }
+
+  if (best_x < 0) {
+    if (units_find_high_seas_tile(pool, map, map->width - 1, prefer_y, out_x, out_y)) {
+      return true;
+    }
+    return units_find_water_tile(pool, map, map->width - 1, prefer_y, -1, out_x, out_y);
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return true;
+}
+
 void units_new_world_start(
   ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,
   int start_x,
-  int start_y
+  int start_y,
+  int nation_id
 ) {
   if (!pool) {
     return;
@@ -762,44 +843,64 @@ void units_new_world_start(
   if (!map) {
     return;
   }
+  if (nation_id < 0 || nation_id > 3) {
+    nation_id = 0;
+  }
 
   int pioneer_type = units_find_type(pool, "Pioneers");
   if (pioneer_type < 0) {
     pioneer_type = units_find_type(pool, "Colonists");
   }
-  if (pioneer_type < 0 && pool->type_count > 0) {
-    pioneer_type = 0;
+  int soldier_type = units_find_type(pool, "Soldiers");
+  int ship_type = units_find_type(pool, "Caravel");
+  if (nation_id == 3) {
+    const int merchant = units_find_type(pool, "Merchantman");
+    if (merchant >= 0) {
+      ship_type = merchant;
+    }
+  }
+  if (ship_type < 0) {
+    return;
   }
 
-  int x = start_x;
-  int y = start_y;
-  int pioneer_id = -1;
+  int sx = start_x;
+  int sy = start_y;
+  if (!units_find_eastern_high_seas_tile(pool, map, start_y, &sx, &sy)) {
+    return;
+  }
+
+  int cargo[2];
+  int cargo_n = 0;
   if (pioneer_type >= 0) {
-    if (!units_find_land_tile(map, x, y, &x, &y)) {
-      x = map->width / 2;
-      y = map->height / 2;
-      if (!units_find_land_tile(map, x, y, &x, &y)) {
-        x = start_x;
-        y = start_y;
-      }
-    }
-    pioneer_id = units_spawn(pool, pioneer_type, x, y);
-    if (pioneer_id >= 0) {
-      pool->selected_id = pioneer_id;
-    }
+    cargo[cargo_n++] = pioneer_type;
+  }
+  if (soldier_type >= 0) {
+    cargo[cargo_n++] = soldier_type;
+  } else if (pioneer_type >= 0 && cargo_n < 2) {
+    cargo[cargo_n++] = pioneer_type;
   }
 
-  const int caravel_type = units_find_type(pool, "Caravel");
-  if (caravel_type >= 0) {
-    int sx = x;
-    int sy = y;
-    if (units_find_water_tile(pool, map, x, y, -1, &sx, &sy)) {
-      const int ship_id = units_spawn(pool, caravel_type, sx, sy);
-      if (ship_id >= 0 && pool->selected_id < 0) {
-        pool->selected_id = ship_id;
-      }
+  const int ship_id = units_spawn_ship_with_cargo(pool, ship_type, sx, sy, cargo, cargo_n);
+  if (ship_id < 0) {
+    return;
+  }
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (ship) {
+    ship->nation_id = nation_id;
+    ship->orders = 0;
+    ship->goto_x = start_x;
+    ship->goto_y = start_y;
+  }
+  for (int i = 0; i < (ship ? ship->cargo_count : 0); ++i) {
+    ColonizeUnit* pax = units_get(pool, ship->cargo_ids[i]);
+    if (pax) {
+      pax->nation_id = nation_id;
+      pax->orders = 1;
+      pax->goto_x = start_x;
+      pax->goto_y = start_y;
     }
   }
+  pool->selected_id = ship_id;
 }
 
 bool units_deploy_colonist(

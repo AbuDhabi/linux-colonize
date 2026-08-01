@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/ai.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -1468,7 +1469,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   }
 
   if (game->world_map_ok && game->units_ok) {
-    units_new_world_start(&game->units, &game->world_map, sx, sy);
+    units_new_world_start(&game->units, &game->world_map, sx, sy, game->human_nation);
     if (game->units.selected_id >= 0) {
       const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
       if (u) {
@@ -1482,6 +1483,40 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
       game->map_cursor_y = sy;
       game->map_view_x = sx;
       game->map_view_y = sy;
+    }
+
+    char stem[64];
+    stem[0] = '\0';
+    if (ng->map_file[0] && ng->path == NEW_GAME_PATH_AMERICA) {
+      snprintf(stem, sizeof(stem), "%s", ng->map_file);
+      char* dot = strrchr(stem, '.');
+      if (dot) {
+        *dot = '\0';
+      }
+    }
+    AiNewGameParams ai;
+    memset(&ai, 0, sizeof(ai));
+    ai.col1 = &game->col1;
+    ai.col1_ok = &game->col1_ok;
+    ai.map = &game->world_map;
+    ai.units = &game->units;
+    ai.europe = &game->europe;
+    ai.names = game->names_ok ? &game->names : NULL;
+    ai.data_dir = game->resolved_data_dir;
+    ai.human_nation = game->human_nation;
+    ai.difficulty = game->difficulty;
+    ai.leader_name = game->leader_name;
+    ai.use_tribe_txt = (ng->path == NEW_GAME_PATH_AMERICA);
+    ai.map_stem = stem[0] ? stem : NULL;
+    ai.human_start_x = sx;
+    ai.human_start_y = sy;
+    ai.rng_seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+    if (ng->path == NEW_GAME_PATH_NEW_WORLD || ng->path == NEW_GAME_PATH_CUSTOMIZE) {
+      ai.rng_seed = ng->gen_params.seed ? ng->gen_params.seed : ai.rng_seed;
+    }
+    char ai_err[256];
+    if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
+      diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
     }
   }
 
@@ -1741,6 +1776,7 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->units = game->units_ok ? &game->units : NULL;
   ctx->colonies = &game->colonies;
   ctx->europe = game->europe_ok ? &game->europe : &game->europe;
+  ctx->map = game->world_map_ok ? &game->world_map : NULL;
   ctx->col1 = game->col1_ok ? &game->col1 : NULL;
   ctx->col1_ok = game->col1_ok;
   ctx->status = game->status;

@@ -140,7 +140,7 @@ port I/O in the native build.
 
 ## End-of-turn recovery checklist
 
-Ordered pipeline recovered for the Linux port (human-centric; AI actions are stubs):
+Ordered pipeline recovered for the Linux port:
 
 1. **Human ends turn** — Space / ORDERS → No Orders (`LABELS.TXT` “End of Turn”)
 2. **Advance calendar** — `head.year` / `autumn` / `turn` (`@TIMECHANGE` in `GAME.TXT`):
@@ -151,24 +151,38 @@ Ordered pipeline recovered for the Linux port (human-centric; AI actions are stu
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election **not** recovered yet
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
-   currently refresh MP only
-6. **Indians** — refresh native unit MP (`nation_id` 4..11); raids deferred
+   Phase 1 (`src/core/ai.c`): refresh MP, tick AI crosses, sail ships with `goto` toward
+   landfall (new-game fleets start on eastern high seas). No founding / combat / colony AI yet.
+6. **Indians** — Phase 1: village growth accumulator (`FUN_4d56_152e`-style → pop++),
+   light Brave wander; refresh MP. Raids / contact / full `FUN_4d56_1816` deferred.
 7. **King** — stub (tax / REF / independence events deferred)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
+
+**New-game AI actors** (`ai_init_new_game`): Col1 template (human control 0 / gold 1000;
+AI control 1 / gold 0; `nation_relation[]=-1`); human and three rival fleets on eastern
+high seas at turn 0 (Caravel / Dutch Merchantman with Pioneer+Soldier; landfall `goto`);
+AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE procedural
+villages (cap ~84). Human starter `nation_id` matches chosen power.
+
+**Parked (Phase 2+):** full Euro planner `FUN_521d_6d8e` / unit goals `FUN_521d_5b66` /
+`0a60`; unload+found first AI colony; Indian meet/alarm/raid (`@RAID*`); bit-identical
+native move AI.
 
 Evidence:
 
 | Source | Finding |
 |--------|---------|
 | `GAME.TXT` `@TIMECHANGE` | Biannual seasons from 1600 |
-| `original_saves/COLONY00/01.SAV` | turn 0→2 ≈ year 1492→1494 (1 year/turn) |
+| `original_saves/COLONY00/01.SAV` | turn 0→2 ≈ year 1492→1494 (1 year/turn); AI fleets leave Europe; AI crosses advance |
 | `README.TXT` | Dutch turn ends European order; colony Space = free production |
 | `LABELS.TXT` | “End of Turn” / “Continue turn.” |
 | `NAMES.TXT` `@COUNTRY` / `@TRIBES` | Turn-owner box colors (DS:0x848 / 0x84c) |
+| `COLONIZE/TRIBE.TXT` | AMERICA village seeds |
+| `FUN_6a09_0006` / `FUN_4d56_152e` / `FUN_521d_6d8e` | Tribe place / growth / Euro AI dispatcher |
 | `FUN_1984_00aa` / `FUN_281f_0590` | 5×3 fill at (0x13b, 0xc5) overlaid on screen |
 | `viceroy_unpacked.asm` | `TIMECHANGE` / `MULTINEXT` / `SEASONS` string table only (no FUN_* XREF yet) |
 
-AI production for non-human Europeans is **skipped** until save-diff evidence says otherwise; human colonies always tick.
+AI colony production for non-human Europeans remains **skipped** until save-diff evidence says otherwise; human colonies always tick.
 
 ## Map generation (VICEROY)
 

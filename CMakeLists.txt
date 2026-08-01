@@ -54,6 +54,7 @@ add_library(colonize_core STATIC
   src/core/units.c
   src/core/colony.c
   src/core/turn.c
+  src/core/ai.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -157,27 +158,13 @@ add_test(NAME smoke_savegame_incompatible COMMAND smoke_savegame_incompatible)
 
 add_executable(smoke_col1_save
   tests/smoke/test_col1_save.c
-  src/core/col1_save.c
-  src/core/col1_bridge.c
-  src/core/map.c
-  src/core/units.c
-  src/core/colony.c
-  src/core/europe.c
-  src/core/turn.c
-  src/core/assets.c
-  src/core/pik.c
-  src/core/madspack.c
-  src/core/ss.c
-  src/core/font.c
-  src/core/ff.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_col1_save PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(smoke_col1_save PRIVATE colonize_core)
 
 add_test(NAME smoke_col1_save COMMAND smoke_col1_save WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
@@ -203,6 +190,7 @@ add_executable(smoke_game_flow
   src/core/units.c
   src/core/colony.c
   src/core/turn.c
+  src/core/ai.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -237,6 +225,7 @@ add_executable(smoke_new_game
   src/core/units.c
   src/core/colony.c
   src/core/turn.c
+  src/core/ai.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -376,49 +365,25 @@ add_test(NAME smoke_europe COMMAND smoke_europe WORKING_DIRECTORY ${CMAKE_SOURCE
 
 add_executable(smoke_colony_screen
   tests/smoke/test_colony_screen.c
-  src/core/colony_screen.c
-  src/core/colony.c
-  src/core/turn.c
-  src/core/units.c
-  src/core/map.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/europe.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_colony_screen PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_link_libraries(smoke_colony_screen PRIVATE colonize_core)
+
 add_test(NAME smoke_colony_screen COMMAND smoke_colony_screen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_map_panel
   tests/smoke/test_map_panel.c
-  src/core/map_panel.c
-  src/core/map.c
-  src/core/turn.c
-  src/core/units.c
-  src/core/colony.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_map_panel PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(smoke_map_panel PRIVATE colonize_core)
 
 add_test(NAME smoke_map_panel COMMAND smoke_map_panel WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
@@ -504,25 +469,13 @@ add_test(NAME smoke_map_menu COMMAND smoke_map_menu WORKING_DIRECTORY ${CMAKE_SO
 
 add_executable(smoke_turn
   tests/smoke/test_turn.c
-  src/core/turn.c
-  src/core/colony.c
-  src/core/units.c
-  src/core/europe.c
-  src/core/assets.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/madspack.c
-  src/core/map.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_turn PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(smoke_turn PRIVATE colonize_core)
 
 add_test(NAME smoke_turn COMMAND smoke_turn WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
@@ -581,6 +534,18 @@ target_include_directories(smoke_pik PRIVATE
 )
 
 add_test(NAME smoke_pik COMMAND smoke_pik WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_ai
+  tests/smoke/test_ai.c
+)
+
+target_include_directories(smoke_ai PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_ai PRIVATE colonize_core)
+
+add_test(NAME smoke_ai COMMAND smoke_ai WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_sound
   tests/smoke/test_sound.c

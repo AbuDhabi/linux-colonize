@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/ai.h"
 #include "platform/diagnostics.h"
 
 /* NAMES.TXT @COUNTRY / FUN_43f7_05f4 → DS:0x848..0x84b */
@@ -428,8 +429,8 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       continue; /* withdrawn */
     }
     turn_set_active_nation(ctx, n);
-    /* AI action stub: refresh movement only (no orders yet). */
     turn_refresh_moves_for_nation(ctx->units, n);
+    ai_euro_nation_turn(ctx, n);
   }
 }
 
@@ -443,6 +444,7 @@ void turn_run_indian_stub(ColonizeTurnContext* ctx) {
   for (int n = 4; n <= 11; ++n) {
     turn_set_active_nation(ctx, n);
     turn_refresh_moves_for_nation(ctx->units, n);
+    ai_indian_nation_turn(ctx, n);
   }
 }
 
@@ -550,6 +552,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       if (ctx->units) {
         turn_refresh_moves_for_nation(ctx->units, n);
       }
+      ai_euro_nation_turn(ctx, n);
       {
         const int next = turn_next_euro_ai(ctx, n + 1);
         if (next >= 0) {
@@ -568,6 +571,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       if (ctx->units) {
         turn_refresh_moves_for_nation(ctx->units, n);
       }
+      ai_indian_nation_turn(ctx, n);
       if (n < 11) {
         proc->nation_cursor = n + 1;
       } else {

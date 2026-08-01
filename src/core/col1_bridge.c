@@ -366,13 +366,18 @@ bool col1_bridge_apply(
     const ColonizeCol1Unit* src = &save->unit[i];
     if (col1_coord_is_europe(src->x, src->y)) {
       local.skipped_europe_units++;
+      /* Human ships stay in Europe harbor UI; AI fleets stay as live Europe units. */
       if (europe && (src->nation_id == (uint8_t)local.human_nation) &&
           src->type >= 13 && src->type <= 18) {
         const int ti = col1_unit_type_to_runtime(units, src->type);
         const ColonizeUnitType* ut = units_type(units, ti);
         europe_harbor_push(europe, ti, ut ? ut->name : "Ship", NULL, 0);
+        continue;
       }
-      continue;
+      if (src->nation_id == (uint8_t)local.human_nation) {
+        continue;
+      }
+      /* Fall through: spawn AI Europe units into the live pool. */
     }
     const int ti = col1_unit_type_to_runtime(units, src->type);
     if (ti < 0) {
@@ -389,6 +394,9 @@ bool col1_bridge_apply(
       /* COL1 moves are spent-ish; treat 0 as full refresh for playability. */
       const ColonizeUnitType* ut = units_type(units, ti);
       u->moves_left = (src->moves == 0 && ut) ? ut->movement : (int)src->moves;
+      u->orders = (int)src->orders;
+      u->goto_x = (int)src->goto_x;
+      u->goto_y = (int)src->goto_y;
     }
     id_by_index[i] = id;
     local.imported_units++;
@@ -640,7 +648,18 @@ bool col1_bridge_capture(
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
       dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
-      dst->orders = src->aboard_ship_id >= 0 ? 1 : 0; /* sentry if aboard */
+      if (src->aboard_ship_id >= 0) {
+        dst->orders = 1; /* sentry if aboard */
+      } else if (src->orders != 0) {
+        dst->orders = (uint8_t)src->orders;
+      } else if (src->goto_x >= 0 && src->goto_x < 255 && src->goto_y >= 0 && src->goto_y < 255 &&
+                 (src->x != src->goto_x || src->y != src->goto_y)) {
+        dst->orders = 12; /* goto */
+      } else {
+        dst->orders = 0;
+      }
+      dst->goto_x = (uint8_t)(src->goto_x < 0 ? 0xFF : src->goto_x);
+      dst->goto_y = (uint8_t)(src->goto_y < 0 ? 0xFF : src->goto_y);
       dst->transport_chain.next_unit_idx = -1;
       dst->transport_chain.prev_unit_idx = -1;
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
