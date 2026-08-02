@@ -333,16 +333,41 @@ bool col1_bridge_apply(
     col1_apply_colony_buildings(colonies, dst, &src->buildings);
     const int pop = src->population > COLONIZE_COLONY_POP_MAX ? COLONIZE_COLONY_POP_MAX
                                                               : (int)src->population;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      dst->tiles[t] = -1;
+    }
     for (int p = 0; p < pop; ++p) {
       ColonizeColonist* col = &dst->colonists[p];
       col->active = true;
       col->building_type = -1;
+      col->field_job = -1;
       int t = src->profession[p];
       if (t < 0 || t >= units->type_count) {
         t = 0;
       }
       col->unit_type_index = t;
       dst->colonist_count++;
+    }
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      const int who = (int)src->tiles[ti];
+      if (who < 0 || who >= dst->colonist_count) {
+        continue;
+      }
+      dst->tiles[ti] = (int8_t)who;
+      const int occ = (int)src->occupation[who];
+      if (occ >= 0 && occ < COLONIZE_FIELD_JOB_COUNT) {
+        dst->colonists[who].field_job = occ;
+        dst->colonists[who].building_type = -1;
+      }
+    }
+    for (int p = 0; p < dst->colonist_count; ++p) {
+      if (dst->colonists[p].field_job >= 0) {
+        continue;
+      }
+      const int occ = (int)src->occupation[p];
+      if (occ >= 0 && occ < colonies->building_type_count && dst->has_building[occ]) {
+        dst->colonists[p].building_type = occ;
+      }
     }
     dst->population = dst->colonist_count;
     colonies->colony_count++;
@@ -598,12 +623,19 @@ bool col1_bridge_capture(
       dst->building_in_production =
         (uint8_t)(src->building_in_production < 0 ? 0xFF : src->building_in_production);
       for (int p = 0; p < dst->population; ++p) {
-        int t = src->colonists[p].unit_type_index;
-        if (t < 0) {
-          t = 0;
+        const ColonizeColonist* c = &src->colonists[p];
+        int prof = c->unit_type_index;
+        if (prof < 0) {
+          prof = 0;
         }
-        dst->occupation[p] = (uint8_t)t;
-        dst->profession[p] = (uint8_t)t;
+        dst->profession[p] = (uint8_t)prof;
+        if (c->field_job >= 0 && c->field_job < COLONIZE_FIELD_JOB_COUNT) {
+          dst->occupation[p] = (uint8_t)c->field_job;
+        } else if (c->building_type >= 0 && c->building_type < 256) {
+          dst->occupation[p] = (uint8_t)c->building_type;
+        } else {
+          dst->occupation[p] = (uint8_t)UNITS_JOB_COLONIST;
+        }
       }
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
         int s = src->stock[c];
@@ -615,7 +647,10 @@ bool col1_bridge_capture(
         }
         dst->stock[c] = (uint16_t)s;
       }
-      memset(dst->tiles, 0xFF, sizeof(dst->tiles));
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        const int who = (int)src->tiles[ti];
+        dst->tiles[ti] = (who >= 0 && who < dst->population) ? (int8_t)who : (int8_t)-1;
+      }
       /* Minimal buildings: town hall if present in live flags. */
       if (colonies_find_building(colonies, "Town Hall") >= 0) {
         const int thi = colonies_find_building(colonies, "Town Hall");

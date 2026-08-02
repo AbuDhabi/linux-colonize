@@ -4,9 +4,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/colony_yield.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+
+static void colony_screen_fill_rect(
+  ColonizeFramebuffer8* framebuffer,
+  int x0,
+  int y0,
+  int x1,
+  int y1,
+  uint8_t color
+);
 
 void colony_screen_set_status(ColonyScreenView* view, const char* text) {
   if (!view) {
@@ -23,6 +33,10 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->construction_open = false;
   view->construction_selection = 0;
   view->buildable_count = 0;
+  view->jobs_open = false;
+  view->jobs_tile_index = -1;
+  view->jobs_selection = 0;
+  view->job_count = 0;
   view->last_delta_valid = false;
   memset(&view->last_delta, 0, sizeof(view->last_delta));
 }
@@ -55,10 +69,60 @@ void colony_screen_open_construction(
   if (!view) {
     return;
   }
+  colony_screen_close_jobs(view);
   view->buildable_count =
     colonies_list_buildable(pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX);
   view->construction_open = true;
   view->construction_selection = 0;
+}
+
+void colony_screen_close_jobs(ColonyScreenView* view) {
+  if (!view) {
+    return;
+  }
+  view->jobs_open = false;
+  view->jobs_tile_index = -1;
+  view->jobs_selection = 0;
+  view->job_count = 0;
+}
+
+void colony_screen_open_jobs(
+  ColonyScreenView* view,
+  const ColonizeWorldMap* map,
+  const ColonizeColony* colony,
+  int tile_index
+) {
+  if (!view || !colony || tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+    return;
+  }
+  colony_screen_close_construction(view);
+  view->jobs_tile_index = tile_index;
+  view->job_count = 0;
+  int dx = 0;
+  int dy = 0;
+  if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
+    return;
+  }
+  const int tx = colony->x + dx;
+  const int ty = colony->y + dy;
+  for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT && view->job_count < COLONY_JOB_LIST_MAX; ++job) {
+    const int yld = map ? colony_yield_for_tile(map, tx, ty, job) : 0;
+    if (yld > 0) {
+      view->job_ids[view->job_count++] = job;
+    }
+  }
+  view->jobs_open = true;
+  view->jobs_selection = 0;
+}
+
+void colony_screen_minimap_origin(int* out_x, int* out_y) {
+  const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
+  if (out_x) {
+    *out_x = COLONY_MINIMAP_SECTION_X + (COLONY_MINIMAP_SECTION_W - grid_px) / 2;
+  }
+  if (out_y) {
+    *out_y = COLONY_MINIMAP_SECTION_Y + (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
+  }
 }
 
 static bool colony_screen_load_pik(
@@ -339,6 +403,49 @@ static void colony_screen_draw_top_bar(
   font_draw_text(font, framebuffer, 240, 2, line, 15);
 }
 
+static void colony_screen_draw_field_workers(
+  const ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!colony || !framebuffer) {
+    return;
+  }
+  int origin_x = 0;
+  int origin_y = 0;
+  colony_screen_minimap_origin(&origin_x, &origin_y);
+  const int half = COLONY_MINIMAP_GRID / 2;
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    const int who = (int)colony->tiles[ti];
+    if (who < 0 || who >= colony->colonist_count) {
+      continue;
+    }
+    const ColonizeColonist* c = &colony->colonists[who];
+    if (!c->active || c->field_job < 0) {
+      continue;
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tile_x = origin_x + (dx + half) * COLONY_MINIMAP_TILE;
+    const int tile_y = origin_y + (dy + half) * COLONY_MINIMAP_TILE;
+    const bool sel = view && view->selected_colonist == who;
+    colony_screen_fill_rect(
+      framebuffer, tile_x + 1, tile_y + 1, tile_x + 6, tile_y + 6, sel ? 15 : 14
+    );
+    if (font && map) {
+      const int yld = colony_yield_for_tile(map, colony->x + dx, colony->y + dy, c->field_job);
+      char num[8];
+      snprintf(num, sizeof(num), "%d", yld);
+      font_draw_text(font, framebuffer, tile_x + 7, tile_y + 4, num, 15);
+    }
+  }
+}
+
 static void colony_screen_render_minimap(
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
@@ -351,11 +458,9 @@ static void colony_screen_render_minimap(
     return;
   }
 
-  const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
-  const int origin_x =
-    COLONY_MINIMAP_SECTION_X + (COLONY_MINIMAP_SECTION_W - grid_px) / 2;
-  const int origin_y =
-    COLONY_MINIMAP_SECTION_Y + (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
+  int origin_x = 0;
+  int origin_y = 0;
+  colony_screen_minimap_origin(&origin_x, &origin_y);
   const int half = COLONY_MINIMAP_GRID / 2;
 
   for (int dy = -half; dy <= half; ++dy) {
@@ -799,6 +904,86 @@ static void colony_screen_draw_construction_popup(
   }
 }
 
+static void colony_screen_draw_jobs_popup(
+  ColonyScreenView* view,
+  const ColonizeWorldMap* map,
+  const ColonizeColony* colony,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !view->jobs_open || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const int rows = view->job_count + 1;
+  const int line_h = font ? (font->max_height + 2) : 8;
+  const int pad = 4;
+  int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + rows * line_h + pad;
+  if (dialog_h > framebuffer->height - 8) {
+    dialog_h = framebuffer->height - 8;
+  }
+  int dialog_w = 170;
+  if (dialog_w > framebuffer->width - 8) {
+    dialog_w = framebuffer->width - 8;
+  }
+  const int dialog_x = (framebuffer->width - dialog_w) / 2;
+  const int dialog_y = 28;
+
+  ColonizePopupColors colors;
+  popup_colors_from_ui(&colors);
+  int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
+  popup_draw(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_w,
+    dialog_h,
+    view->wood_tile_ok ? &view->wood_tile : NULL,
+    &colors,
+    &inner_x,
+    &inner_y,
+    &inner_w,
+    &inner_h
+  );
+  view->jobs_dialog_x = dialog_x;
+  view->jobs_dialog_y = dialog_y;
+  view->jobs_dialog_w = dialog_w;
+  view->jobs_dialog_h = dialog_h;
+  view->jobs_line_h = line_h;
+
+  if (font && inner_w > 0) {
+    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Field job", 15);
+  }
+  const int list_y0 = inner_y + pad + line_h;
+  view->jobs_list_y0 = list_y0;
+
+  int dx = 0;
+  int dy = 0;
+  colonies_field_tile_delta(view->jobs_tile_index, &dx, &dy);
+  const int tx = colony ? colony->x + dx : 0;
+  const int ty = colony ? colony->y + dy : 0;
+
+  for (int i = 0; i < rows; ++i) {
+    const int row_y = list_y0 + i * line_h;
+    const bool selected = (i == view->jobs_selection);
+    if (selected) {
+      colony_screen_fill_rect(
+        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
+      );
+    }
+    char label[48];
+    if (i == 0) {
+      snprintf(label, sizeof(label), "Clear");
+    } else {
+      const int job = view->job_ids[i - 1];
+      const int yld = (map && colony) ? colony_yield_for_tile(map, tx, ty, job) : 0;
+      snprintf(label, sizeof(label), "%s (%d)", colony_yield_job_name(job), yld);
+    }
+    if (font) {
+      font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
+    }
+  }
+}
+
 ColonyScreenHitResult colony_screen_hit_test(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -810,6 +995,25 @@ ColonyScreenHitResult colony_screen_hit_test(
   hit.kind = COLONY_HIT_NONE;
   hit.index = -1;
   if (!view || !colony) {
+    return hit;
+  }
+
+  if (view->jobs_open) {
+    if (mx < view->jobs_dialog_x || my < view->jobs_dialog_y ||
+        mx >= view->jobs_dialog_x + view->jobs_dialog_w ||
+        my >= view->jobs_dialog_y + view->jobs_dialog_h) {
+      hit.kind = COLONY_HIT_JOBS_OUTSIDE;
+      return hit;
+    }
+    if (view->jobs_line_h > 0 && my >= view->jobs_list_y0) {
+      const int idx = (my - view->jobs_list_y0) / view->jobs_line_h;
+      const int rows = view->job_count + 1;
+      if (idx >= 0 && idx < rows) {
+        hit.kind = (idx == 0) ? COLONY_HIT_JOBS_CLEAR : COLONY_HIT_JOBS_ROW;
+        hit.index = (idx == 0) ? -1 : (idx - 1);
+        return hit;
+      }
+    }
     return hit;
   }
 
@@ -842,6 +1046,27 @@ ColonyScreenHitResult colony_screen_hit_test(
       mx >= COLONY_VIEWPORT_X && mx < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W) {
     hit.kind = COLONY_HIT_CONSTRUCTION_BANNER;
     return hit;
+  }
+
+  /* Area-view tiles (surround only; center is not assignable). */
+  {
+    int origin_x = 0;
+    int origin_y = 0;
+    colony_screen_minimap_origin(&origin_x, &origin_y);
+    const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
+    if (mx >= origin_x && my >= origin_y && mx < origin_x + grid_px && my < origin_y + grid_px) {
+      const int col = (mx - origin_x) / COLONY_MINIMAP_TILE;
+      const int row = (my - origin_y) / COLONY_MINIMAP_TILE;
+      const int half = COLONY_MINIMAP_GRID / 2;
+      const int dx = col - half;
+      const int dy = row - half;
+      const int ti = colonies_field_tile_index(dx, dy);
+      if (ti >= 0) {
+        hit.kind = COLONY_HIT_AREA_TILE;
+        hit.index = ti;
+        return hit;
+      }
+    }
   }
 
   if (colony->colonist_count > 0 && my >= COLONY_COLONIST_LIST_Y0) {
@@ -914,6 +1139,7 @@ void colony_screen_render(
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
     colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
+    colony_screen_draw_field_workers(view, colony, map, font, framebuffer);
   }
 
   if (view && view->bottom_panel_ok) {
@@ -953,14 +1179,16 @@ void colony_screen_render(
           uname = ut->name;
         }
       }
-      const char* bname = "Town";
-      if (pool && c->building_type >= 0) {
+      const char* place = "Idle";
+      if (c->field_job >= 0) {
+        place = colony_yield_job_name(c->field_job);
+      } else if (pool && c->building_type >= 0) {
         const ColonizeBuildingType* bt = colonies_building_type(pool, c->building_type);
         if (bt) {
-          bname = bt->name;
+          place = bt->name;
         }
       }
-      snprintf(line, sizeof(line), "%d. %s @ %s", i + 1, uname, bname);
+      snprintf(line, sizeof(line), "%d. %s @ %s", i + 1, uname, place);
       const bool sel = view && view->selected_colonist == i;
       if (sel) {
         colony_screen_fill_rect(framebuffer, 6, y - 1, 200, y + COLONY_COLONIST_ROW_H - 1, 138);
@@ -972,6 +1200,9 @@ void colony_screen_render(
 
   if (view && view->construction_open) {
     colony_screen_draw_construction_popup(view, pool, font, framebuffer);
+  }
+  if (view && view->jobs_open) {
+    colony_screen_draw_jobs_popup(view, map, colony, font, framebuffer);
   }
 
   if (view && font) {

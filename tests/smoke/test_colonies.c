@@ -156,6 +156,21 @@ int main(void) {
   );
   CHECK(!colonies_assign_workplace(&pool, cid, 0, stockade), "cannot assign to unbuilt Stockade");
 
+  CHECK(
+    colonies_assign_field(&pool, cid, 0, 0, COLONIZE_JOB_FARMER),
+    "assign founder to North field as Farmer"
+  );
+  CHECK(colonies_get(&pool, cid)->tiles[0] == 0, "tiles[0] is founder");
+  CHECK(colonies_get(&pool, cid)->colonists[0].field_job == COLONIZE_JOB_FARMER, "field_job Farmer");
+  CHECK(colonies_get(&pool, cid)->colonists[0].building_type < 0, "field clears workplace");
+  CHECK(colonies_colonist_tile(colonies_get(&pool, cid), 0) == 0, "colonist_tile is 0");
+  CHECK(
+    colonies_assign_workplace(&pool, cid, 0, carpenter),
+    "reassign to Carpenter clears field"
+  );
+  CHECK(colonies_get(&pool, cid)->tiles[0] < 0, "field tile cleared by workplace");
+  CHECK(colonies_get(&pool, cid)->colonists[0].field_job < 0, "field_job cleared");
+
   int buildable[32];
   const int n_buildable = colonies_list_buildable(&pool, cid, buildable, 32);
   CHECK(n_buildable > 0, "list_buildable returns projects");

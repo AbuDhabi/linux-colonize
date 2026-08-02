@@ -1,0 +1,21 @@
+#ifndef COLONIZE_COLONY_YIELD_H
+#define COLONIZE_COLONY_YIELD_H
+
+#include "core/colony.h"
+#include "core/map.h"
+
+/*
+ * Terrain yield stubs from NAMES.TXT @UNFORESTED / @FORESTED / @OTHER
+ * (Farmer … Fisherman columns) plus light @RESOURCE bonuses.
+ */
+
+/* Cargo produced by a field @JOB (Farmer/Fisherman → food). Returns -1 if invalid. */
+int colony_yield_job_cargo(int field_job);
+
+/* Base + resource yield for working (x,y) as field_job. 0 if impossible. */
+int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job);
+
+/* Display name for field @JOB (static string). */
+const char* colony_yield_job_name(int field_job);
+
+#endif

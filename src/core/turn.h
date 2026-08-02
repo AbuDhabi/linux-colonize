@@ -96,16 +96,21 @@ bool turn_processor_show_indicator(const ColonizeTurnProcessor* proc);
 bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 
 /* Colony Space cheat: one production cycle without advancing world time.
- * If out_delta is non-NULL, fills last-tick nets for UI. */
+ * If out_delta is non-NULL, fills last-tick nets for UI. map may be NULL. */
 void turn_colony_free_production(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
+  const ColonizeWorldMap* map,
   ColonizeTurnResult* out,
   ColonizeColonyProdDelta* out_delta
 );
 
-/* Production for every active colony (used by turn_end). */
-void turn_run_colony_production(ColonizeColonyPool* pool, ColonizeTurnResult* out);
+/* Production for every active colony (used by turn_end). map may be NULL. */
+void turn_run_colony_production(
+  ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  ColonizeTurnResult* out
+);
 
 /* Crosses → dock immigrant; liberty bells counters (human nation + Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);

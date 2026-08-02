@@ -26,6 +26,11 @@ void colonies_init(ColonizeColonyPool* pool) {
     return;
   }
   memset(pool, 0, sizeof(*pool));
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      pool->colonies[i].tiles[t] = -1;
+    }
+  }
 }
 
 bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) {
@@ -244,6 +249,9 @@ int colonies_found(
   slot->nation_id = 0;
   slot->building_in_production = -1;
   slot->active = true;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    slot->tiles[t] = -1;
+  }
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool));
   colonies_grant_starters(pool, slot);
 
@@ -264,6 +272,7 @@ int colonies_found(
     c->active = true;
     c->unit_type_index = founder_type_index;
     c->building_type = colonies_find_building(pool, "Town Hall");
+    c->field_job = -1;
     slot->population = slot->colonist_count;
   } else {
     slot->population = 0;
@@ -327,6 +336,55 @@ int colonies_id_at(const ColonizeColonyPool* pool, int x, int y) {
   return -1;
 }
 
+/* Surround order: N, NE, E, SE, S, SW, W, NW. */
+static const int k_field_dx[COLONIZE_COLONY_FIELD_TILES] = {0, 1, 1, 1, 0, -1, -1, -1};
+static const int k_field_dy[COLONIZE_COLONY_FIELD_TILES] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy) {
+  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+    return false;
+  }
+  if (out_dx) {
+    *out_dx = k_field_dx[tile_index];
+  }
+  if (out_dy) {
+    *out_dy = k_field_dy[tile_index];
+  }
+  return true;
+}
+
+int colonies_field_tile_index(int dx, int dy) {
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    if (k_field_dx[i] == dx && k_field_dy[i] == dy) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index) {
+  if (!colony || colonist_index < 0) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    if ((int)colony->tiles[i] == colonist_index) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index) {
+  if (!col) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    if ((int)col->tiles[i] == colonist_index) {
+      col->tiles[i] = -1;
+    }
+  }
+}
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -350,7 +408,61 @@ bool colonies_assign_workplace(
   if (!col->has_building[building_type]) {
     return false;
   }
+  colonies_clear_colonist_tile(col, colonist_index);
+  c->field_job = -1;
   c->building_type = building_type;
+  return true;
+}
+
+bool colonies_assign_field(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int tile_index,
+  int field_job
+) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool) {
+    return false;
+  }
+  if (colonist_index < 0 || colonist_index >= col->colonist_count) {
+    return false;
+  }
+  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+    return false;
+  }
+  if (field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
+    return false;
+  }
+  ColonizeColonist* c = &col->colonists[colonist_index];
+  if (!c->active) {
+    return false;
+  }
+  /* Evict prior worker on this tile. */
+  const int prev = (int)col->tiles[tile_index];
+  if (prev >= 0 && prev < col->colonist_count && prev != colonist_index) {
+    col->colonists[prev].field_job = -1;
+  }
+  colonies_clear_colonist_tile(col, colonist_index);
+  col->tiles[tile_index] = (int8_t)colonist_index;
+  c->building_type = -1;
+  c->field_job = field_job;
+  return true;
+}
+
+bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_index) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col) {
+    return false;
+  }
+  if (tile_index < 0 || tile_index >= COLONIZE_COLONY_FIELD_TILES) {
+    return false;
+  }
+  const int who = (int)col->tiles[tile_index];
+  col->tiles[tile_index] = -1;
+  if (who >= 0 && who < col->colonist_count) {
+    col->colonists[who].field_job = -1;
+  }
   return true;
 }
 

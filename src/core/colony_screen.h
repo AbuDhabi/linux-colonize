@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "core/colony.h"
+#include "core/colony_yield.h"
 #include "core/font.h"
 #include "core/map.h"
 #include "core/pik.h"
@@ -78,6 +79,7 @@
 #define COLONY_COLONIST_LIST_X 8
 #define COLONY_COLONIST_LIST_Y0 (COLONY_BOTTOM_PANEL_Y + 14)
 #define COLONY_COLONIST_ROW_H 9
+#define COLONY_JOB_LIST_MAX COLONIZE_FIELD_JOB_COUNT
 
 typedef enum ColonyScreenHit {
   COLONY_HIT_NONE = 0,
@@ -87,7 +89,11 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_CONSTRUCTION_ROW,
   COLONY_HIT_CONSTRUCTION_CLEAR,
   COLONY_HIT_EXIT,
-  COLONY_HIT_CONSTRUCTION_OUTSIDE
+  COLONY_HIT_CONSTRUCTION_OUTSIDE,
+  COLONY_HIT_AREA_TILE,
+  COLONY_HIT_JOBS_ROW,
+  COLONY_HIT_JOBS_CLEAR,
+  COLONY_HIT_JOBS_OUTSIDE
 } ColonyScreenHit;
 
 typedef struct ColonyScreenHitResult {
@@ -123,6 +129,18 @@ typedef struct ColonyScreenView {
   int construction_list_y0;
   int construction_line_h;
 
+  bool jobs_open;
+  int jobs_tile_index; /* field tile being assigned */
+  int jobs_selection;
+  int job_ids[COLONY_JOB_LIST_MAX];
+  int job_count;
+  int jobs_dialog_x;
+  int jobs_dialog_y;
+  int jobs_dialog_w;
+  int jobs_dialog_h;
+  int jobs_list_y0;
+  int jobs_line_h;
+
   ColonizeColonyProdDelta last_delta;
   bool last_delta_valid;
 } ColonyScreenView;
@@ -140,7 +158,18 @@ void colony_screen_open_construction(
 );
 void colony_screen_close_construction(ColonyScreenView* view);
 
-/* Hit-test at framebuffer coords. When construction_open, only popup/outside. */
+void colony_screen_open_jobs(
+  ColonyScreenView* view,
+  const ColonizeWorldMap* map,
+  const ColonizeColony* colony,
+  int tile_index
+);
+void colony_screen_close_jobs(ColonyScreenView* view);
+
+/* Pixel origin of the 3×3 area grid (for hit-tests / overlays). */
+void colony_screen_minimap_origin(int* out_x, int* out_y);
+
+/* Hit-test at framebuffer coords. Jobs/construction popups capture input when open. */
 ColonyScreenHitResult colony_screen_hit_test(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,

@@ -17,6 +17,19 @@ typedef struct ColonizeFont ColonizeFont;
 #define COLONIZE_COLONY_NAMES_MAX 48
 #define COLONIZE_BUILDING_TYPES_MAX 48
 #define COLONIZE_COLONY_POP_MAX 32
+#define COLONIZE_COLONY_FIELD_TILES 8
+
+/* NAMES.TXT @JOB field jobs (Farmer … Fisherman). */
+#define COLONIZE_JOB_FARMER 0
+#define COLONIZE_JOB_SUGAR_PLANTER 1
+#define COLONIZE_JOB_TOBACCO_PLANTER 2
+#define COLONIZE_JOB_COTTON_PLANTER 3
+#define COLONIZE_JOB_FUR_TRAPPER 4
+#define COLONIZE_JOB_LUMBERJACK 5
+#define COLONIZE_JOB_ORE_MINER 6
+#define COLONIZE_JOB_SILVER_MINER 7
+#define COLONIZE_JOB_FISHERMAN 8
+#define COLONIZE_FIELD_JOB_COUNT 9
 
 /* Warehouse cargo order matches NAMES.TXT @CARGO (and ICONS.SS 22..37). */
 #define COLONIZE_CARGO_FOOD 0
@@ -48,6 +61,7 @@ typedef struct ColonizeBuildingType {
 typedef struct ColonizeColonist {
   int unit_type_index; /* into ColonizeUnitPool types */
   int building_type;   /* workplace @BUILDING index, or -1 */
+  int field_job;       /* @JOB field index 0..8, or -1 */
   bool active;
 } ColonizeColonist;
 
@@ -62,6 +76,8 @@ typedef struct ColonizeColony {
   ColonizeColonist colonists[COLONIZE_COLONY_POP_MAX];
   int colonist_count;
   bool has_building[COLONIZE_BUILDING_TYPES_MAX];
+  /* Surrounding field slots: colonist index or -1. Order N,NE,E,SE,S,SW,W,NW. */
+  int8_t tiles[COLONIZE_COLONY_FIELD_TILES];
   /* Warehouse + build queue — production ticks in src/core/turn.c. */
   int stock[COLONIZE_CARGO_COUNT];
   int hammers;
@@ -114,13 +130,28 @@ ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
 
-/* Assign colonist to a built workplace (@BUILDING index). Returns false if invalid. */
+/* Assign colonist to a built workplace (@BUILDING index). Clears any field tile. */
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
   int colonist_index,
   int building_type
 );
+/* Assign colonist to a surround tile with a field @JOB. Clears workplace. */
+bool colonies_assign_field(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int tile_index,
+  int field_job
+);
+bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_index);
+/* Tile index (0..7) for colonist, or -1 if not on a field. */
+int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index);
+/* Map tile index ↔ (dx,dy) offsets from colony center (N=0 … NW=7). */
+bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy);
+int colonies_field_tile_index(int dx, int dy);
+
 /* Set construction target; building_type must be unowned and meet min_population. */
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);
 bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id);

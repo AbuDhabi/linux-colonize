@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/colony_yield.h"
 #include "platform/diagnostics.h"
 
 /* NAMES.TXT @COUNTRY / FUN_43f7_05f4 → DS:0x848..0x84b */
@@ -203,9 +204,27 @@ static int turn_count_workplace_workers(
   return n;
 }
 
+static int turn_count_field_job(const ColonizeColony* colony, int field_job) {
+  if (!colony) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+    const int who = (int)colony->tiles[i];
+    if (who < 0 || who >= colony->colonist_count) {
+      continue;
+    }
+    if (colony->colonists[who].active && colony->colonists[who].field_job == field_job) {
+      n++;
+    }
+  }
+  return n;
+}
+
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
+  const ColonizeWorldMap* map,
   ColonizeTurnResult* out,
   ColonizeColonyProdDelta* delta
 ) {
@@ -220,44 +239,67 @@ static void turn_produce_one_colony(
     return;
   }
 
-  /* Simplified field/town food: 3 food per colonist, consume 2 (PEDIA lore). */
-  const int produced = pop * 3;
-  const int consumed = pop * TURN_FOOD_PER_COLONIST;
-  const int food_net = produced - consumed;
-  colony->stock[COLONIZE_CARGO_FOOD] =
-    turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + food_net);
-  if (delta) {
-    delta->food_net = food_net;
-  }
-  if (produced < consumed) {
-    if (out) {
-      out->food_shortages++;
+  int field_food = 0;
+  int field_lumber = 0;
+  int field_ore = 0;
+
+  /* Harvest from area-view field workers. */
+  if (map) {
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      const int who = (int)colony->tiles[ti];
+      if (who < 0 || who >= colony->colonist_count) {
+        continue;
+      }
+      const ColonizeColonist* c = &colony->colonists[who];
+      if (!c->active || c->field_job < 0) {
+        continue;
+      }
+      int dx = 0;
+      int dy = 0;
+      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+        continue;
+      }
+      const int yld = colony_yield_for_tile(map, colony->x + dx, colony->y + dy, c->field_job);
+      if (yld <= 0) {
+        continue;
+      }
+      const int cargo = colony_yield_job_cargo(c->field_job);
+      if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+        continue;
+      }
+      colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + yld);
+      if (cargo == COLONIZE_CARGO_FOOD) {
+        field_food += yld;
+      } else if (cargo == COLONIZE_CARGO_LUMBER) {
+        field_lumber += yld;
+      } else if (cargo == COLONIZE_CARGO_ORE) {
+        field_ore += yld;
+      }
     }
+  }
+
+  const int consumed = pop * TURN_FOOD_PER_COLONIST;
+  colony->stock[COLONIZE_CARGO_FOOD] =
+    turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - consumed);
+  if (delta) {
+    delta->food_net = field_food - consumed;
+    delta->lumber = field_lumber;
+    delta->ore = field_ore;
+  }
+  if (field_food < consumed && out) {
+    out->food_shortages++;
   }
 
   /*
-   * Lumber stub: workers in Lumber Mill / Carpenter's Shop (or building present).
-   * Gives the carpenter→hammers loop fuel without terrain field work.
+   * Lumber fallback: if no lumberjacks but a carpenter building exists,
+   * invent 1 lumber so Stockade demos still work without field assign.
    */
-  int lumber_workers = turn_count_workplace_workers(pool, colony, "Lumber") +
-                       turn_count_workplace_workers(pool, colony, "Carpenter");
-  if (lumber_workers == 0 &&
-      (turn_building_name_has(pool, colony, "Lumber") ||
-       turn_building_name_has(pool, colony, "Carpenter"))) {
-    lumber_workers = 1;
-  }
-  if (lumber_workers > 0) {
+  if (turn_count_field_job(colony, COLONIZE_JOB_LUMBERJACK) == 0 &&
+      turn_building_name_has(pool, colony, "Carpenter")) {
     colony->stock[COLONIZE_CARGO_LUMBER] =
-      turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + lumber_workers);
+      turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + 1);
     if (delta) {
-      delta->lumber = lumber_workers;
-    }
-  }
-
-  if (turn_building_name_has(pool, colony, "Ore") || turn_building_name_has(pool, colony, "Mine")) {
-    colony->stock[COLONIZE_CARGO_ORE] = turn_clamp_stock(colony->stock[COLONIZE_CARGO_ORE] + 1);
-    if (delta) {
-      delta->ore = 1;
+      delta->lumber += 1;
     }
   }
 
@@ -304,13 +346,17 @@ static void turn_produce_one_colony(
   }
 }
 
-void turn_run_colony_production(ColonizeColonyPool* pool, ColonizeTurnResult* out) {
+void turn_run_colony_production(
+  ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  ColonizeTurnResult* out
+) {
   if (!pool) {
     return;
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active) {
-      turn_produce_one_colony(pool, &pool->colonies[i], out, NULL);
+      turn_produce_one_colony(pool, &pool->colonies[i], map, out, NULL);
     }
   }
 }
@@ -318,12 +364,13 @@ void turn_run_colony_production(ColonizeColonyPool* pool, ColonizeTurnResult* ou
 void turn_colony_free_production(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
+  const ColonizeWorldMap* map,
   ColonizeTurnResult* out,
   ColonizeColonyProdDelta* out_delta
 ) {
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
-  turn_produce_one_colony(pool, colony, out ? out : &local, out_delta);
+  turn_produce_one_colony(pool, colony, map, out ? out : &local, out_delta);
 }
 
 static int turn_count_bells_and_crosses(
@@ -578,7 +625,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1->head.year = *ctx->game_year;
         ctx->col1->head.autumn = *ctx->game_autumn;
       }
-      turn_run_colony_production(ctx->colonies, &proc->result);
+      turn_run_colony_production(ctx->colonies, ctx->map, &proc->result);
       turn_run_nation_ticks(ctx, &proc->result);
       proc->nation_cursor = 0;
       {

@@ -559,6 +559,38 @@ int main(void) {
       return 1;
     }
 
+    {
+      int ox = 0, oy = 0;
+      colony_screen_minimap_origin(&ox, &oy);
+      /* North surround tile (center of top-middle cell). */
+      hit = colony_screen_hit_test(
+        &view,
+        &pool,
+        sample,
+        ox + COLONY_MINIMAP_TILE + COLONY_MINIMAP_TILE / 2,
+        oy + COLONY_MINIMAP_TILE / 2
+      );
+      if (hit.kind != COLONY_HIT_AREA_TILE || hit.index != 0) {
+        fprintf(
+          stderr,
+          "expected north area tile hit got kind=%d idx=%d\n",
+          (int)hit.kind,
+          hit.index
+        );
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+    }
+
     hit = colony_screen_hit_test(
       &view, &pool, sample, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
     );

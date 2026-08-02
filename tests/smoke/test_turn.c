@@ -3,7 +3,9 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_yield.h"
 #include "core/europe.h"
+#include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -63,7 +65,7 @@ int main(void) {
     return 1;
   }
 
-  /* Production: food +3/−2 per colonist. */
+  /* Production without fields: consume 2 food / colonist. */
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
   ColonizeColony* c = &colonies.colonies[0];
@@ -75,19 +77,29 @@ int main(void) {
   c->colonists[0].active = true;
   c->colonists[0].unit_type_index = 0;
   c->colonists[0].building_type = -1;
+  c->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    c->tiles[t] = -1;
+  }
   c->colonist_count = 1;
   c->population = 1;
   colonies.colony_count = 1;
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_colony_free_production(&colonies, c, &prod, NULL);
-  if (c->stock[COLONIZE_CARGO_FOOD] != 11) { /* 10 + 3 - 2 */
-    fprintf(stderr, "food expected 11 got %d\n", c->stock[COLONIZE_CARGO_FOOD]);
+  turn_colony_free_production(&colonies, c, NULL, &prod, NULL);
+  if (c->stock[COLONIZE_CARGO_FOOD] != 8) { /* 10 - 2 */
+    fprintf(stderr, "food expected 8 got %d\n", c->stock[COLONIZE_CARGO_FOOD]);
     return 1;
   }
   if (prod.colonies_produced != 1) {
     fprintf(stderr, "expected 1 colony produced\n");
+    return 1;
+  }
+
+  /* Yield chart: plains farmer / ocean fisherman. */
+  if (colony_yield_job_cargo(COLONIZE_JOB_LUMBERJACK) != COLONIZE_CARGO_LUMBER) {
+    fprintf(stderr, "lumberjack cargo mapping wrong\n");
     return 1;
   }
 
@@ -257,6 +269,10 @@ int main(void) {
     col->colonists[0].active = true;
     col->colonists[0].unit_type_index = 0;
     col->colonists[0].building_type = carpenter;
+    col->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
     col->colonist_count = 1;
     col->population = 1;
     pool.colony_count = 1;
@@ -268,7 +284,7 @@ int main(void) {
     for (int t = 0; t < need + 8; ++t) {
       ColonizeTurnResult prod;
       memset(&prod, 0, sizeof(prod));
-      turn_colony_free_production(&pool, col, &prod, &delta);
+      turn_colony_free_production(&pool, col, NULL, &prod, &delta);
       if (delta.building_completed || col->has_building[stockade]) {
         completed = true;
         break;
@@ -290,6 +306,87 @@ int main(void) {
       return 1;
     }
     assets_msg_free(&names);
+  }
+
+  /* Field lumberjack harvests from forest surround tile. */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "map load for field test: %s\n", err);
+      return 1;
+    }
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+      fprintf(stderr, "names/buildings for field test failed\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
+    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+          continue;
+        }
+        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+          int dx = 0, dy = 0;
+          colonies_field_tile_delta(ti, &dx, &dy);
+          const int yld =
+            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_LUMBERJACK);
+          if (yld > 0) {
+            cx = x;
+            cy = y;
+            fx = x + dx;
+            fy = y + dy;
+            ftile = ti;
+            break;
+          }
+        }
+      }
+    }
+    if (ftile < 0) {
+      fprintf(stderr, "no colony site with lumberjack yield nearby\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, 0, 0);
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
+      fprintf(stderr, "assign lumberjack failed at (%d,%d) tile %d\n", fx, fy, ftile);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int before = col->stock[COLONIZE_CARGO_LUMBER];
+    const int expect =
+      colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_LUMBERJACK);
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    turn_colony_free_production(&pool, col, &map, &prod, &delta);
+    /* Carpenter fallback may add +1; field adds expect; hammers may consume 1. */
+    if (delta.lumber < expect - 1) {
+      fprintf(
+        stderr,
+        "field lumber delta too low got %d expect~%d (stock %d->%d)\n",
+        delta.lumber,
+        expect,
+        before,
+        col->stock[COLONIZE_CARGO_LUMBER]
+      );
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    assets_msg_free(&names);
+    map_free(&map);
   }
 
   fprintf(stderr, "turn tests ok\n");

@@ -77,7 +77,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump |
 | Join colony | Partial | Opens colony screen; not true join-into-population |
 | Colony display chrome | Partial | Buildings art, cargo strip, 3×3 surrounds (`colony_screen.c`) |
-| Assign jobs / field work / production numbers | Partial | Phase 1: assign colonist → built workplace; warehouse + last-tick deltas; field tiles later |
+| Assign jobs / field work / production numbers | Partial | Phase 1 workplace + phase 2 area tiles / `@JOB` harvest; manufacturing chains later |
 | Construction queue + buy with gold | Partial | Phase 1: pick/clear `building_in_production` + hammers banner; buy-with-gold later |
 | Warehouse drag load/unload to ships / wagons | Missing | |
 | Fortification defense bonuses | Missing | Fence / docks art only; no combat |
@@ -156,7 +156,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 Aligned with early manual chapters (short playable loop first):
 
-1. **Colony economy UI** — phase 1 (jobs / construction / deltas) done; fields + goods chains next
+1. **Colony economy UI** — phases 1–2 (workplaces, construction, area fields) done; goods chains next
 2. **Europe commodity trade** — buy/sell + tax display
 3. **Pioneer terrain work + roads** and real movement costs
 4. **Unit orders** — fortify, sentry, goto, disband

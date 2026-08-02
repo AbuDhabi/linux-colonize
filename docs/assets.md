@@ -360,15 +360,16 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 
 Single-pixel black separators split the sections: top bar vs middle band, buildings vs minimap, and middle band vs bottom panel.
 
-A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite) in the **bottom-right** of the buildings section. Coastal colonies without Docks show the empty coast placeholder (`BUILDING.SS` **#45**) **above** that fence; Docks / Drydock / Shipyard replace it when built. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse (`stock[]` in `@CARGO` order; Pioneers → 100 tools, starter food 200). The bottom of `COLONY.PIK` holds the 16 cargo slots (18px wide, pitch 19, measured from the asset) with `ICONS.SS` icons and amounts underneath; last free-production deltas tint as `+N`/`-N` beside amounts. Click a colonist row, then a built building slot, to assign `building_type`. Construction banner (or **3**) opens a wood popup to pick/clear the build project (`hammers/needed`). Field work, manufactured goods chains, and cargo drag UI are later. Building collage positions are approximate.
+A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite) in the **bottom-right** of the buildings section. Coastal colonies without Docks show the empty coast placeholder (`BUILDING.SS` **#45**) **above** that fence; Docks / Drydock / Shipyard replace it when built. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse (`stock[]` in `@CARGO` order; Pioneers → 100 tools, starter food 200). The bottom of `COLONY.PIK` holds the 16 cargo slots (18px wide, pitch 19, measured from the asset) with `ICONS.SS` icons and amounts underneath; last free-production deltas tint as `+N`/`-N` beside amounts. Click a colonist row, then a built building slot, to assign `building_type`. Click a 3×3 **area** surround tile (or **2**) to open a field-jobs popup (`NAMES.TXT` yields). Construction banner (or **3**) opens a wood popup to pick/clear the build project (`hammers/needed`). Manufactured goods chains and cargo drag UI are later. Building collage positions are approximate.
 
 | Key | Action |
 |-----|--------|
 | Click colonist / building | Select colonist; assign to built workplace |
+| Click area tile or **2** | Open/close field jobs popup for surround tile |
 | Banner or **3** | Open/close construction popup |
-| Esc | Close construction popup first; else return to map |
-| C / Enter | Return to map (when no popup); Enter confirms construction row |
-| Space | Free production turn; status shows food/lumber/hammer deltas |
+| Esc | Close jobs, then construction, then return to map |
+| C / Enter | Return to map (when no popup); Enter confirms popup row |
+| Space | Free production turn; status shows food/lumber/ore/hammer deltas |
 
 ### Units (map bring-up)
 

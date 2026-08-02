@@ -101,8 +101,9 @@ port I/O in the native build.
   `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters / tree placeholders
   (sprites 42–47) + top bar (name/date/gold) + 1px black separators + `COLONY.PIK` bottom
   panel + `ICONS.SS` #22–37 cargo strip (icon + amount) + population stub + centered 3×3
-  surroundings with PHYS0; phase-1 economy UI (assign workplace, construction **3**/banner,
-  Space free-production deltas; see `src/core/colony_screen.c`)
+  surroundings with PHYS0; economy UI phases 1–2 (workplace assign, construction **3**,
+  area-view field jobs **2** / tiles[8], Space free-production deltas; see
+  `src/core/colony_screen.c`, `src/core/colony_yield.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
   board/unload (**O**/**U**), ship landfall unload / colony dock disembark,
@@ -152,9 +153,10 @@ Ordered pipeline recovered for the Linux port:
 1. **Human ends turn** — Space / ORDERS → No Orders (`LABELS.TXT` “End of Turn”)
 2. **Advance calendar** — `head.year` / `autumn` / `turn` (`@TIMECHANGE` in `GAME.TXT`):
    one turn/year until 1600; thereafter Spring then Autumn each year
-3. **Colony production** — food ± (produce 3 / consume 2 per colonist), lumber from
-   Carpenter/Lumber workplaces, hammers toward `building_in_production` (Colony Space =
-   free production + UI deltas; `README.TXT` “free turn”)
+3. **Colony production** — field harvest from `tiles[8]` (`NAMES.TXT` yields) − food
+   consume 2/colonist; lumberjack → lumber (carpenter invents 1 lumber if none);
+   hammers toward `building_in_production` (Colony Space = free production + UI deltas;
+   `README.TXT` “free turn”)
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election **not** recovered yet
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
