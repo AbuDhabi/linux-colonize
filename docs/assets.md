@@ -285,7 +285,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Minimap | 56×39 window (1px/tile) | AMER2 window (not full map); scrolls with the main view; dark-orange border (palette 6) flush to section black rules; terrain/ocean/high-seas, colony/unit dots; white view outline on edge tiles; click centers main view |
 | Unit block | `NAMEPLAT.SS`, `ICONS.SS`, `LABELS.TXT` `@INFO` | Portrait + name; `Moves:` / `Locat:` / `With:` hold icons (passengers + goods; empty recessed slots up to `@UNIT` cargo) |
 | Date + gold + tax | Campaign calendar + `EuropeScreen` gold/tax | `Spring 1492` / `Gold: N$  Tax: N%` (`FONTTINY.FF`, `@COLORS` basic) |
-| Tile details | `NAMES.TXT` / Col1 mask / colonies / units | Under Locat: ownership, `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp + units with order label |
+| Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership, `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp + units with order label |
 | Nation box | Turn indicator at `(315,197)` | Existing 5×3 owner color; kept in the panel strip |
 
 Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (colony frame). Fog-of-war on the minimap is not drawn yet.
@@ -383,11 +383,11 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 
 ### Units (map bring-up)
 
-Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites indexed by the `@UNIT` icon field (e.g. Pioneers → 102).
+Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites; the `@UNIT` icon field is **1-based** (DOS style), converted to 0-based blit indices on load (e.g. Pioneers `102` → sprite **101**, Caravel `6` → **5**). Cargo strip icons `#22–37` are already 0-based.
 
 | Key | Action |
 |-----|--------|
-| Arrows / numpad | Tile mode: move blinking tile cursor. Unit mode: move selected unit (numpad diagonals supported) |
+| Arrows / numpad | Tile mode: move blinking tile cursor. Unit mode: move selected unit (numpad diagonals supported; MP cost from terrain / road / river) |
 | Enter | Select movable unit under cursor, or move selected unit toward cursor tile |
 | Click | No selection: stack popup if multiple human units (on-map + ship cargo); else select movable unit. Exhausted / empty → tile select. With a unit selected, left-click pans |
 | C | Enter colony screen when cursor is on a colony tile |
@@ -395,6 +395,8 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 | O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (adjacent; boarded units go on sentry) |
 | U | Unload oldest passenger from selected ship onto adjacent enterable land under cursor |
 | H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26); passengers stay aboard in harbor |
+| P | Pioneer selected with moves: plow/clear (20 tools). Otherwise open Colonizopedia |
+| R | Pioneer selected with moves: build road (20 tools). Otherwise unused on map (Europe: recruit) |
 | B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |
 | Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, AI/Indian/King stubs, refresh human movement |
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |

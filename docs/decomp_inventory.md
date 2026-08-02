@@ -106,10 +106,12 @@ port I/O in the native build.
   area-view field jobs **2** / tiles[8], craft chains, warehouse↔ship hold transfer **L**/**U**;
   see `src/core/colony_screen.c`, `src/core/colony_yield.c`, `src/core/colony_craft.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
-  starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
-  board/unload (**O**/**U**), ship landfall unload / colony dock disembark,
-  tile stack popup (wake sentry cargo then select), sail ship to/from Europe with passengers
-  (**H** on high seas / **S** in Europe; see `src/core/units.c`, `src/core/europe.c`,
+  starter Pioneer + Caravel, select/move (terrain/road/river MP costs), deploy dock
+  immigrants (**D**), board/unload (**O**/**U**), ship landfall unload / colony dock
+  disembark, tile stack popup (wake sentry cargo then select), sail ship to/from Europe
+  with passengers (**H** on high seas / **S** in Europe); Pioneer plow/road (**P**/**R**,
+  carried tools, WorldMap `improve` flags synced with Col1 mask; yield bonuses in
+  `colony_yield.c`; see `src/core/units.c`, `src/core/map.c`, `src/core/europe.c`,
   `src/core/unit_stack.c`)
 - Map menu bar: `MENU.TXT` pull-downs with mouse hit-testing (`src/core/map_menu.c`);
   left-click selects unit/tile/colony, right-click selects tile; pan-only while a unit is

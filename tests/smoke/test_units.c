@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_yield.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -703,6 +704,166 @@ int main(void) {
     units_despawn(&pool, dock_ship);
   }
 
+  /* Phase 7: terrain MP costs, pioneer plow/road, yield bonuses. */
+  {
+    ColonizeWorldMap tmap;
+    memset(&tmap, 0, sizeof(tmap));
+    if (!map_alloc(&tmap, 8, 8, err, sizeof(err))) {
+      fprintf(stderr, "phase7 map_alloc failed: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int px = -1;
+    int py = -1;
+    for (int y = 0; y < 6 && px < 0; ++y) {
+      for (int x = 0; x < 6; ++x) {
+        if (units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
+          px = x;
+          py = y;
+          break;
+        }
+      }
+    }
+    if (px < 0) {
+      fprintf(stderr, "phase7: no free adjacent tiles\n");
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int fx = px + 1;
+    const int fy = py;
+    tmap.terrain[py * tmap.width + px] = 2; /* plains */
+    tmap.terrain[fy * tmap.width + fx] = 10; /* mixed forest */
+    if (map_move_cost_at(&tmap, fx, fy) != 2) {
+      fprintf(stderr, "forest move cost expected 2 got %d\n", map_move_cost_at(&tmap, fx, fy));
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int pid = units_spawn(&pool, pioneer, px, py);
+    ColonizeUnit* pu = units_get(&pool, pid);
+    if (!pu || pu->tools != 100 || !units_is_pioneer(&pool, pid)) {
+      fprintf(stderr, "phase7 pioneer spawn/tools failed\n");
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pu->moves_left = 1;
+    if (units_try_move(&pool, pid, &tmap, fx, fy, NULL)) {
+      fprintf(stderr, "phase7 move should fail with 1 MP into forest\n");
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pu->moves_left = 2;
+    if (!units_try_move(&pool, pid, &tmap, fx, fy, NULL) || pu->moves_left != 0) {
+      fprintf(stderr, "phase7 forest move cost 2 failed (moves_left=%d)\n", pu->moves_left);
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, pid);
+
+    const int pid2 = units_spawn(&pool, pioneer, px, py);
+    ColonizeUnit* pu2 = units_get(&pool, pid2);
+    if (!pu2) {
+      fprintf(stderr, "phase7 second pioneer spawn failed\n");
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    map_tile_set_road(&tmap, fx, fy, true);
+    if (map_move_cost_at(&tmap, fx, fy) != 1) {
+      fprintf(stderr, "roaded forest cost expected 1 got %d\n", map_move_cost_at(&tmap, fx, fy));
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pu2->moves_left = 2;
+    if (!units_try_move(&pool, pid2, &tmap, fx, fy, NULL) || pu2->moves_left != 1) {
+      fprintf(stderr, "phase7 roaded forest move failed (moves_left=%d)\n", pu2->moves_left);
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, pid2);
+
+    const int pid3 = units_spawn(&pool, pioneer, px, py);
+    ColonizeUnit* pu3 = units_get(&pool, pid3);
+    if (!pu3) {
+      fprintf(stderr, "phase7 third pioneer spawn failed\n");
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    map_tile_set_road(&tmap, px, py, false);
+    char pmsg[64];
+    pu3->moves_left = 1;
+    if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg)) ||
+        !map_tile_has_road(&tmap, px, py) || pu3->tools != 80 || pu3->moves_left != 0) {
+      fprintf(
+        stderr,
+        "phase7 road failed tools=%d road=%d moves=%d (%s)\n",
+        pu3->tools,
+        (int)map_tile_has_road(&tmap, px, py),
+        pu3->moves_left,
+        pmsg
+      );
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pu3->moves_left = 1;
+    pu3->tools = 100;
+    const int farm_base = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
+    if (!units_pioneer_plow(&pool, pid3, &tmap, pmsg, sizeof(pmsg)) ||
+        !map_tile_is_plowed(&tmap, px, py) || pu3->tools != 80) {
+      fprintf(stderr, "phase7 plow failed (%s)\n", pmsg);
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int farm_plowed = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
+    if (farm_plowed != farm_base + 1) {
+      fprintf(stderr, "phase7 plow yield expected %d got %d\n", farm_base + 1, farm_plowed);
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int lumber_base = colony_yield_for_tile(&tmap, fx, fy, COLONIZE_JOB_LUMBERJACK);
+    map_tile_set_road(&tmap, fx, fy, false);
+    const int lumber_clear = colony_yield_for_tile(&tmap, fx, fy, COLONIZE_JOB_LUMBERJACK);
+    map_tile_set_road(&tmap, fx, fy, true);
+    if (lumber_base != lumber_clear + 1) {
+      fprintf(
+        stderr,
+        "phase7 road lumber yield expected %d got base=%d clear=%d\n",
+        lumber_clear + 1,
+        lumber_base,
+        lumber_clear
+      );
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, pid3);
+    map_free(&tmap);
+  }
+
   ColonizeSpriteSheet icons;
   char ss_path[512];
   if (!dos_compat_normalize_asset_path("COLONIZE", "ICONS.SS", ss_path, sizeof(ss_path)) ||
@@ -714,6 +875,21 @@ int main(void) {
   }
   const int icon = pool.types[pioneer].icon_sprite;
   const int ship_icon = pool.types[caravel].icon_sprite;
+  /* NAMES Pioneers=102, Caravel=6 are 1-based; blit indices are 101 and 5. */
+  if (icon != 101) {
+    fprintf(stderr, "pioneer icon expected 101 got %d\n", icon);
+    ss_free(&icons);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (ship_icon != 5) {
+    fprintf(stderr, "caravel icon expected 5 got %d\n", ship_icon);
+    ss_free(&icons);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
   if (icon < 0 || icon >= icons.sprite_count || icons.sprites[icon].width <= 0) {
     fprintf(stderr, "pioneer icon %d invalid (sprites=%d)\n", icon, icons.sprite_count);
     ss_free(&icons);

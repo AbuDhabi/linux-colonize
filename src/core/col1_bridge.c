@@ -290,6 +290,17 @@ bool col1_bridge_apply(
       const bool visible = (seen & (uint8_t)(0x10u << local.human_nation)) != 0;
       map->layer3[i] = visible ? 0 : 1;
     }
+    if (map->improve && save->map.mask) {
+      const uint8_t m = save->map.mask[i];
+      uint8_t flags = 0;
+      if ((m & 0x08u) != 0) {
+        flags = (uint8_t)(flags | MAP_IMPROVE_ROAD);
+      }
+      if ((m & 0x40u) != 0) {
+        flags = (uint8_t)(flags | MAP_IMPROVE_PLOWED);
+      }
+      map->improve[i] = flags;
+    }
   }
 
   /* Colonies — soft-reset actives, keep name/building catalogs. */
@@ -592,6 +603,20 @@ bool col1_bridge_capture(
 
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     save->map.tile[i] = col1_mp_terrain_to_tile(map->terrain[i]);
+    if (save->map.mask && map->improve) {
+      uint8_t m = save->map.mask[i];
+      if ((map->improve[i] & MAP_IMPROVE_ROAD) != 0) {
+        m = (uint8_t)(m | 0x08u);
+      } else {
+        m = (uint8_t)(m & (uint8_t)~0x08u);
+      }
+      if ((map->improve[i] & MAP_IMPROVE_PLOWED) != 0) {
+        m = (uint8_t)(m | 0x40u);
+      } else {
+        m = (uint8_t)(m & (uint8_t)~0x40u);
+      }
+      save->map.mask[i] = m;
+    }
   }
 
   /* Nations: update human treasury/tax/prices; leave AI blob intact. */

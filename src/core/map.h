@@ -28,12 +28,17 @@
 #define MAP_ESTUARY_OVERLAYS_ENABLED 1
 #endif
 
+/* Runtime tile improvements (synced to Col1 mask road/plowed on save/load). */
+#define MAP_IMPROVE_ROAD 0x01u
+#define MAP_IMPROVE_PLOWED 0x02u
+
 typedef struct ColonizeWorldMap {
   uint8_t width;
   uint8_t height;
   uint8_t* terrain;
   uint8_t* layer2;
   uint8_t* layer3;
+  uint8_t* improve; /* per-tile flags: MAP_IMPROVE_* */
   size_t tile_count;
 } ColonizeWorldMap;
 
@@ -97,5 +102,14 @@ bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
 /* True when terrain byte has a river (major or minor). */
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y);
+
+bool map_tile_has_road(const ColonizeWorldMap* map, int x, int y);
+bool map_tile_is_plowed(const ColonizeWorldMap* map, int x, int y);
+void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on);
+void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on);
+/* Clear forest canopy to base land type; preserves river/hill overlay bits. */
+bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y);
+/* Land movement cost stub (pedia terrain); road/river halves (min 1). Sea = 1. */
+int map_move_cost_at(const ColonizeWorldMap* map, int x, int y);
 
 #endif

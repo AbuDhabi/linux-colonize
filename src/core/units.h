@@ -22,7 +22,7 @@ typedef enum ColonizeUnitDomain {
 
 typedef struct ColonizeUnitType {
   char name[32];
-  int icon_sprite; /* ICONS.SS sprite index from NAMES.TXT @UNIT */
+  int icon_sprite; /* ICONS.SS 0-based blit index (@UNIT icon is 1-based in NAMES.TXT) */
   int movement;
   int attack;
   int defense;
@@ -48,6 +48,7 @@ typedef struct ColonizeUnit {
   int goto_x; /* 0xFF = none */
   int goto_y;
   int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
+  int tools; /* carried tools (Pioneers); 0 default */
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {
@@ -92,6 +93,14 @@ bool units_can_enter(
   int mover_id,
   const ColonizeColonyPool* colonies
 );
+/* Destination MP cost (terrain + road/river); sea units always 1. */
+int units_move_cost(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y
+);
 bool units_try_move(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -99,6 +108,23 @@ bool units_try_move(
   int dest_x,
   int dest_y,
   const ColonizeColonyPool* colonies
+);
+
+bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
+/* Plow (clear forest if needed) / road on unit tile. Spends 20 tools + remaining moves. */
+bool units_pioneer_plow(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size
+);
+bool units_pioneer_road(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size
 );
 
 /* True for high-seas / sea-lane tiles (terrain index 26). */

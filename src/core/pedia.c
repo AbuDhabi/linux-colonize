@@ -101,11 +101,11 @@ static const int k_cargo_icons[PEDIA_CARGO_COUNT] = {
   22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37
 };
 
-/* Fallback unit icons matching NAMES.TXT @UNIT icon field (UNIT0–22). */
+/* Fallback unit icons: 0-based ICONS.SS blit indices (NAMES @UNIT is 1-based). */
 static const int k_unit_icons[PEDIA_UNIT_COUNT] = {
-  101, 103, 102, 106, 105, 104, 126, 130, 127, 129, 17, 10, 9, 6, 7, 8, 15, 16, 128,
-  110, 111, 112, 113,
-  101 /* UNIT23 stub */
+  100, 102, 101, 105, 104, 103, 125, 129, 126, 128, 16, 9, 8, 5, 6, 7, 14, 15, 127,
+  109, 110, 111, 112,
+  100 /* UNIT23 stub */
 };
 
 /* Skill pages: prefer matching cargo / unit icons when useful. */
@@ -123,21 +123,21 @@ static const int k_job_icons[PEDIA_JOB_COUNT] = {
   32,  /* Tobacconist → Cigars */
   33,  /* Weaver → Cloth */
   34,  /* Fur trader → Coats */
-  102, /* Carpenter → Pioneer tools vibe */
+  101, /* Carpenter → Pioneer tools vibe */
   36,  /* Blacksmith → Tools */
   37,  /* Gunsmith → Muskets */
-  101, /* Preacher */
-  101, /* Statesman */
-  101, /* Teacher */
-  101, /* Free colonist */
-  102, /* Pioneer */
-  103, /* Soldier */
-  104, /* Scout */
-  105, /* Dragoon */
-  106, /* Missionary */
-  101, /* Indentured */
-  101, /* Criminal */
-  110  /* Convert → Brave-ish */
+  100, /* Preacher */
+  100, /* Statesman */
+  100, /* Teacher */
+  100, /* Free colonist */
+  101, /* Pioneer */
+  102, /* Soldier */
+  103, /* Scout */
+  104, /* Dragoon */
+  105, /* Missionary */
+  100, /* Indentured */
+  100, /* Criminal */
+  109  /* Convert → Brave-ish */
 };
 
 int pedia_category_count(PediaCategory category) {
@@ -368,7 +368,7 @@ static int pedia_unit_icon_from_names(const ColonizeMsgCatalog* names, int index
         if (p) {
           int icon = 0;
           if (sscanf(p + 1, " %d", &icon) == 1 && icon > 0) {
-            return icon;
+            return icon - 1; /* NAMES 1-based → ICONS.SS 0-based */
           }
         }
       }

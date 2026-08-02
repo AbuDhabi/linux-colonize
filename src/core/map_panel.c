@@ -418,7 +418,15 @@ static const ColonizeCol1Tribe* map_panel_tribe_at(const ColonizeCol1Save* col1,
   return NULL;
 }
 
-static bool map_panel_tile_plowed(const ColonizeCol1Save* col1, int x, int y) {
+static bool map_panel_tile_plowed(
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y
+) {
+  if (map && map->improve) {
+    return map_tile_is_plowed(map, x, y);
+  }
   if (!col1 || !col1->map.mask || x < 0 || y < 0 ||
       x >= (int)col1->map.width || y >= (int)col1->map.height) {
     return false;
@@ -427,7 +435,15 @@ static bool map_panel_tile_plowed(const ColonizeCol1Save* col1, int x, int y) {
   return (m & 0x40u) != 0; /* plowed bit in ColonizeCol1Mask */
 }
 
-static bool map_panel_tile_road(const ColonizeCol1Save* col1, int x, int y) {
+static bool map_panel_tile_road(
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y
+) {
+  if (map && map->improve) {
+    return map_tile_has_road(map, x, y);
+  }
   if (!col1 || !col1->map.mask || x < 0 || y < 0 ||
       x >= (int)col1->map.width || y >= (int)col1->map.height) {
     return false;
@@ -860,10 +876,10 @@ void map_panel_render(
       map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
     }
 
-    if (map_panel_tile_plowed(col1, info_x, info_y)) {
+    if (map_panel_tile_plowed(map, col1, info_x, info_y)) {
       map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Plowed)");
     }
-    if (map_panel_tile_road(col1, info_x, info_y)) {
+    if (map_panel_tile_road(map, col1, info_x, info_y)) {
       map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Road)");
     }
     if (map_tile_has_major_river(map, info_x, info_y)) {

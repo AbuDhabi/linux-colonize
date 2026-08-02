@@ -60,10 +60,10 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
-| Terrain move costs (forest >1 MP, roads, rivers) | Missing | Flat 1 MP today |
+| Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7: pedia stub costs; road/river halves |
 | Fortify (F), Sentry (S), Disband, Goto (G) | Missing | Sentry used only for passengers aboard |
 | Orders box letters on units | Missing | |
-| Pioneer clear / plow / road (P / R) | Missing | |
+| Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Landfall confirm + activate-all ashore | Partial | Simplified: unload ready cargo; full dialog deferred |
@@ -158,7 +158,7 @@ Aligned with early manual chapters (short playable loop first):
 
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
 2. **Europe commodity trade** — phase 5 buy/sell + tax on sales done; boycotts / volume prices later
-3. **Pioneer terrain work + roads** and real movement costs
+3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — fortify, sentry, goto, disband
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense)

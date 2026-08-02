@@ -100,7 +100,8 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
 
     ColonizeUnitType* t = &pool->types[pool->type_count++];
     snprintf(t->name, sizeof(t->name), "%s", line);
-    t->icon_sprite = icon;
+    /* NAMES.TXT @UNIT icon is 1-based (DOS / MAPEDIT style); ICONS.SS blit is 0-based. */
+    t->icon_sprite = icon > 0 ? icon - 1 : -1;
     t->movement = movement > 0 ? movement : 1;
     t->attack = attack;
     t->defense = defense;
@@ -169,6 +170,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
   slot->profession = UNITS_JOB_NONE;
+  slot->tools = (strstr(type->name, "Pioneer") != NULL) ? 100 : 0;
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
@@ -195,6 +197,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->goto_x = 0xFF;
   unit->goto_y = 0xFF;
   unit->profession = UNITS_JOB_NONE;
+  unit->tools = 0;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -397,6 +400,22 @@ bool units_can_enter(
   return map_tile_is_land(map, x, y);
 }
 
+int units_move_cost(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y
+) {
+  if (!map) {
+    return 1;
+  }
+  if (units_is_sea(pool, unit_id)) {
+    return 1;
+  }
+  return map_move_cost_at(map, dest_x, dest_y);
+}
+
 bool units_try_move(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -426,9 +445,13 @@ bool units_try_move(
   if (!units_can_enter(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies)) {
     return false;
   }
+  const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
+  if (unit->moves_left < cost) {
+    return false;
+  }
   unit->x = dest_x;
   unit->y = dest_y;
-  unit->moves_left--;
+  unit->moves_left -= cost;
   /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
   for (int i = 0; i < unit->cargo_count; ++i) {
     ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
@@ -436,6 +459,125 @@ bool units_try_move(
       pax->x = dest_x;
       pax->y = dest_y;
     }
+  }
+  return true;
+}
+
+bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u) || units_is_sea(pool, unit_id)) {
+    return false;
+  }
+  if (u->profession == UNITS_JOB_PIONEER) {
+    return true;
+  }
+  const ColonizeUnitType* type = units_type(pool, u->type_index);
+  return type && strstr(type->name, "Pioneer") != NULL;
+}
+
+#define UNITS_PIONEER_TOOL_COST 20
+
+bool units_pioneer_plow(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !map || !units_is_pioneer(pool, unit_id)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Select a Pioneer");
+    }
+    return false;
+  }
+  if (u->moves_left <= 0) {
+    if (err && err_size) {
+      snprintf(err, err_size, "No moves left");
+    }
+    return false;
+  }
+  if (u->tools < UNITS_PIONEER_TOOL_COST) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Need tools");
+    }
+    return false;
+  }
+  if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Cannot plow here");
+    }
+    return false;
+  }
+  const int pedia = map_pedia_terrain_index_at(map, u->x, u->y);
+  /* Arctic / mountains (hills are plowable). */
+  if (pedia == 24 || pedia == 27) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Cannot plow here");
+    }
+    return false;
+  }
+  if (map_tile_is_plowed(map, u->x, u->y)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Already plowed");
+    }
+    return false;
+  }
+  if (pedia >= 8 && pedia <= 23) {
+    map_tile_clear_forest(map, u->x, u->y);
+  }
+  map_tile_set_plowed(map, u->x, u->y, true);
+  u->tools -= UNITS_PIONEER_TOOL_COST;
+  u->moves_left = 0;
+  if (err && err_size) {
+    snprintf(err, err_size, "Plowed (-%d tools)", UNITS_PIONEER_TOOL_COST);
+  }
+  return true;
+}
+
+bool units_pioneer_road(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !map || !units_is_pioneer(pool, unit_id)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Select a Pioneer");
+    }
+    return false;
+  }
+  if (u->moves_left <= 0) {
+    if (err && err_size) {
+      snprintf(err, err_size, "No moves left");
+    }
+    return false;
+  }
+  if (u->tools < UNITS_PIONEER_TOOL_COST) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Need tools");
+    }
+    return false;
+  }
+  if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Cannot build road here");
+    }
+    return false;
+  }
+  if (map_tile_has_road(map, u->x, u->y)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Already a road");
+    }
+    return false;
+  }
+  map_tile_set_road(map, u->x, u->y, true);
+  u->tools -= UNITS_PIONEER_TOOL_COST;
+  u->moves_left = 0;
+  if (err && err_size) {
+    snprintf(err, err_size, "Road built (-%d tools)", UNITS_PIONEER_TOOL_COST);
   }
   return true;
 }

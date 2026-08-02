@@ -3306,8 +3306,33 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_P) {
+    if (!game->in_menu && !game->in_europe && !game->in_colony && !game->in_report &&
+        game->world_map_ok && game->units_ok) {
+      const int sid = game->units.selected_id;
+      const ColonizeUnit* su = units_get_const(&game->units, sid);
+      if (su && units_is_pioneer(&game->units, sid) && su->moves_left > 0) {
+        char msg[96];
+        units_pioneer_plow(&game->units, sid, &game->world_map, msg, sizeof(msg));
+        set_status(game, msg, NULL);
+        return true;
+      }
+    }
     game_open_pedia_list(game, PEDIA_CAT_CARGO);
     return true;
+  }
+
+  if (input->last_key == COLONIZE_KEY_R) {
+    if (!game->in_menu && !game->in_europe && !game->in_colony && !game->in_report &&
+        game->world_map_ok && game->units_ok) {
+      const int sid = game->units.selected_id;
+      const ColonizeUnit* su = units_get_const(&game->units, sid);
+      if (su && units_is_pioneer(&game->units, sid) && su->moves_left > 0) {
+        char msg[96];
+        units_pioneer_road(&game->units, sid, &game->world_map, msg, sizeof(msg));
+        set_status(game, msg, NULL);
+        return true;
+      }
+    }
   }
 
   if (input->last_key == COLONIZE_KEY_C && !game->in_menu && game->world_map_ok) {

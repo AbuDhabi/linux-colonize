@@ -604,10 +604,12 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   uint8_t* terrain = calloc(tile_count, 1);
   uint8_t* layer2 = calloc(tile_count, 1);
   uint8_t* layer3 = calloc(tile_count, 1);
-  if (!terrain || !layer2 || !layer3) {
+  uint8_t* improve = calloc(tile_count, 1);
+  if (!terrain || !layer2 || !layer3 || !improve) {
     free(terrain);
     free(layer2);
     free(layer3);
+    free(improve);
     fclose(f);
     snprintf(err, err_size, "oom loading map %s", path);
     return false;
@@ -619,6 +621,7 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
     free(terrain);
     free(layer2);
     free(layer3);
+    free(improve);
     fclose(f);
     snprintf(err, err_size, "truncated map data in %s", path);
     return false;
@@ -630,6 +633,7 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   out_map->terrain = terrain;
   out_map->layer2 = layer2;
   out_map->layer3 = layer3;
+  out_map->improve = improve;
   out_map->tile_count = tile_count;
 
   diag_info("Loaded map %s (%ux%u, %zu tiles)", path, width, height, tile_count);
@@ -648,10 +652,12 @@ bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* e
   uint8_t* terrain = calloc(tile_count, 1);
   uint8_t* layer2 = calloc(tile_count, 1);
   uint8_t* layer3 = calloc(tile_count, 1);
-  if (!terrain || !layer2 || !layer3) {
+  uint8_t* improve = calloc(tile_count, 1);
+  if (!terrain || !layer2 || !layer3 || !improve) {
     free(terrain);
     free(layer2);
     free(layer3);
+    free(improve);
     if (err && err_size) {
       snprintf(err, err_size, "oom in map_alloc");
     }
@@ -662,6 +668,7 @@ bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* e
   out_map->terrain = terrain;
   out_map->layer2 = layer2;
   out_map->layer3 = layer3;
+  out_map->improve = improve;
   out_map->tile_count = tile_count;
   if (err && err_size) {
     err[0] = '\0';
@@ -676,6 +683,7 @@ void map_free(ColonizeWorldMap* map) {
   free(map->terrain);
   free(map->layer2);
   free(map->layer3);
+  free(map->improve);
   memset(map, 0, sizeof(*map));
 }
 
@@ -1096,4 +1104,88 @@ int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y) {
     index = 26;
   }
   return index;
+}
+
+static uint8_t* map_improve_ptr(ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return NULL;
+  }
+  return &map->improve[y * map->width + x];
+}
+
+bool map_tile_has_road(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  return (map->improve[y * map->width + x] & MAP_IMPROVE_ROAD) != 0;
+}
+
+bool map_tile_is_plowed(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  return (map->improve[y * map->width + x] & MAP_IMPROVE_PLOWED) != 0;
+}
+
+void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on) {
+  uint8_t* p = map_improve_ptr(map, x, y);
+  if (!p) {
+    return;
+  }
+  if (on) {
+    *p = (uint8_t)(*p | MAP_IMPROVE_ROAD);
+  } else {
+    *p = (uint8_t)(*p & (uint8_t)~MAP_IMPROVE_ROAD);
+  }
+}
+
+void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on) {
+  uint8_t* p = map_improve_ptr(map, x, y);
+  if (!p) {
+    return;
+  }
+  if (on) {
+    *p = (uint8_t)(*p | MAP_IMPROVE_PLOWED);
+  } else {
+    *p = (uint8_t)(*p & (uint8_t)~MAP_IMPROVE_PLOWED);
+  }
+}
+
+bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+  uint8_t b = map->terrain[idx];
+  const int tidx = map_decode_terrain_index(b);
+  if (!map_is_forest_index(tidx)) {
+    return false;
+  }
+  const int cleared = map_cleared_base_for_forest_type(map_forest_type(tidx));
+  map->terrain[idx] = (uint8_t)((b & (uint8_t)~0x1fu) | (uint8_t)(cleared & 0x1f));
+  return true;
+}
+
+int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map_tile_is_land(map, x, y)) {
+    return 1;
+  }
+  const int pedia = map_pedia_terrain_index_at(map, x, y);
+  int base = 1;
+  if (pedia >= 8 && pedia <= 23) {
+    base = 2; /* forest / scrub */
+  } else if (pedia == 6 || pedia == 7) {
+    base = 2; /* marsh / swamp */
+  } else if (pedia == 28) {
+    base = 2; /* hills */
+  } else if (pedia == 27) {
+    base = 3; /* mountains */
+  }
+  if (map_tile_has_road(map, x, y) || map_tile_has_river(map, x, y)) {
+    base = base / 2;
+    if (base < 1) {
+      base = 1;
+    }
+  }
+  return base;
 }

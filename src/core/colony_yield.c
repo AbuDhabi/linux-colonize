@@ -151,5 +151,15 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
       yield += 2;
     }
   }
+  if (map_tile_is_plowed(map, x, y) &&
+      (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_SUGAR_PLANTER ||
+       field_job == COLONIZE_JOB_TOBACCO_PLANTER || field_job == COLONIZE_JOB_COTTON_PLANTER)) {
+    yield += 1;
+  }
+  if (map_tile_has_road(map, x, y) &&
+      (field_job == COLONIZE_JOB_FUR_TRAPPER || field_job == COLONIZE_JOB_LUMBERJACK ||
+       field_job == COLONIZE_JOB_ORE_MINER || field_job == COLONIZE_JOB_SILVER_MINER)) {
+    yield += 1;
+  }
   return yield;
 }
