@@ -188,11 +188,11 @@ static bool ai_spawn_euro_fleet(
   if (p && !p->use_tribe_txt) {
     /*
      * NEW WORLD / CUSTOMIZE: AI Europeans begin in Europe harbor
-     * (Col1 sentinel coords 229+n), not on the eastern high seas.
+     * (Col1 sentinel coords = (uint8_t)(nation - 28) → 229/230/231).
      * AMERICA / TRIBE.TXT keeps on-map fleets toward @SCENARIO landfalls.
      */
-    sx = 229 + nation;
-    sy = 229 + nation;
+    sx = 228 + nation;
+    sy = 228 + nation;
   } else {
     sx = landfall_x;
     sy = landfall_y;
@@ -395,7 +395,71 @@ static int ai_village_neighbour_blocked(const ColonizeWorldMap* map, int x, int 
   return 0;
 }
 
-/* FUN_6a09 Brave: range(-2,2) offsets, same continent, land, layer2&3==0. */
+/* FUN_6a09 Brave: range(-2,2) offsets, same landmass, land, layer2&3==0. */
+static int ai_same_landmass(const ColonizeWorldMap* map, int ax, int ay, int bx, int by) {
+  if (!map || !map->terrain) {
+    return 0;
+  }
+  if (ax == bx && ay == by) {
+    return 1;
+  }
+  if (map_tile_is_water(map, ax, ay) || map_tile_is_water(map, bx, by)) {
+    return 0;
+  }
+  const int w = map->width;
+  const int h = map->height;
+  const int n = w * h;
+  uint8_t* seen = calloc((size_t)n, 1);
+  if (!seen) {
+    return 0;
+  }
+  int* qx = malloc((size_t)n * sizeof(int));
+  int* qy = malloc((size_t)n * sizeof(int));
+  if (!qx || !qy) {
+    free(seen);
+    free(qx);
+    free(qy);
+    return 0;
+  }
+  int qh = 0;
+  int qt = 0;
+  qx[qt] = ax;
+  qy[qt] = ay;
+  qt++;
+  seen[ay * w + ax] = 1;
+  static const int kdx[4] = {1, -1, 0, 0};
+  static const int kdy[4] = {0, 0, 1, -1};
+  int found = 0;
+  while (qh < qt) {
+    const int cx = qx[qh];
+    const int cy = qy[qh];
+    qh++;
+    if (cx == bx && cy == by) {
+      found = 1;
+      break;
+    }
+    for (int d = 0; d < 4; ++d) {
+      const int nx = cx + kdx[d];
+      const int ny = cy + kdy[d];
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
+        continue;
+      }
+      const int j = ny * w + nx;
+      if (seen[j] || map_tile_is_water(map, nx, ny)) {
+        continue;
+      }
+      seen[j] = 1;
+      qx[qt] = nx;
+      qy[qt] = ny;
+      qt++;
+    }
+  }
+  free(seen);
+  free(qx);
+  free(qy);
+  return found;
+}
+
 static void ai_spawn_brave_near(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -408,7 +472,6 @@ static void ai_spawn_brave_near(
   if (brave < 0 || !units || !map) {
     return;
   }
-  const int home_c = ai_continent_id(map, tx, ty);
   int ox = tx;
   int oy = ty;
   int ok = 0;
@@ -416,17 +479,22 @@ static void ai_spawn_brave_near(
     const int x = tx + ai_rng_range(rng, -2, 2);
     const int y = ty + ai_rng_range(rng, -2, 2);
     if (!ai_map_inset(map, x, y)) {
+      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject inset (%d,%d)\n", x, y);
       continue;
     }
-    if (ai_continent_id(map, x, y) != home_c) {
+    if (!ai_same_landmass(map, tx, ty, x, y)) {
+      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject landmass (%d,%d)\n", x, y);
       continue;
     }
     if (map_tile_is_water(map, x, y)) {
+      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject water (%d,%d) t=%02x\n", x, y, ai_terrain_at(map,x,y));
       continue;
     }
     if ((ai_layer2_at(map, x, y) & 3u) != 0) {
+      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject flags (%d,%d) l2=%02x\n", x, y, ai_layer2_at(map,x,y));
       continue;
     }
+    if (tx == 9 && ty == 23) fprintf(stderr, "brave0 ACCEPT (%d,%d) attempt=%d t=%02x l2=%02x\n", x, y, attempt, ai_terrain_at(map,x,y), ai_layer2_at(map,x,y));
     ox = x;
     oy = y;
     ok = 1;
@@ -557,6 +625,7 @@ static bool ai_place_tribes_procedural(
   memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
 
   /* Per-indian init: 4× range(0,14) cargo seeds (stream sync). */
+  fprintf(stderr, "proc-enter rng=%u\n", (unsigned)rng->state);
   for (int indian = 0; indian < 8; ++indian) {
     for (int slot = 0; slot < 4; ++slot) {
       int bonus = 0;
@@ -566,6 +635,7 @@ static bool ai_place_tribes_procedural(
       (void)(ai_rng_range(rng, 0, 14) + bonus);
     }
   }
+  fprintf(stderr, "post-cargo rng=%u\n", (unsigned)rng->state);
 
   int regions_marked = 0;
 
@@ -618,6 +688,16 @@ static bool ai_place_tribes_procedural(
     if (!placed) {
       continue;
     }
+
+    fprintf(
+      stderr,
+      "capital[%d]=(%d,%d) attempts=%d rng=%u\n",
+      indian,
+      px,
+      py,
+      attempt,
+      (unsigned)rng->state
+    );
 
     const uint8_t tech = p->col1->indian[indian].tech;
     if (!ai_append_tribe(tribes, count, capacity, px, py, indian + 4, true, tech)) {
@@ -700,6 +780,15 @@ static bool ai_place_tribes_procedural(
     grid[cx * 18 + cy] = 1;
     regions_marked++;
   }
+
+  fprintf(
+    stderr,
+    "sat done: regions=%d attempts=%d tribes=%d rng=%u\n",
+    regions_marked,
+    sat_attempts,
+    *count,
+    (unsigned)rng->state
+  );
 
   return *count > 0;
 }
@@ -817,10 +906,14 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   int capacity = 0;
   bool placed = false;
   /*
-   * DOS FUN_75c2_235c after mapgen: range(1,8) → DS:0x53a8 before FUN_6a09.
-   * Required for capital RNG sync on NEW WORLD / CUSTOMIZE.
+   * Tribe RNG is NOT the post-mapgen stream. DOS restores the LCG to the
+   * post-customize-axes state before range(1,8)→fleets→FUN_6a09 (mapgen
+   * itself ran on a reseeded copy). Replay: seed → 5×range(0,3) → range(1,8).
    */
-  (void)ai_rng_range(rng, 1, 8);
+  if (!params->use_tribe_txt && params->rng_seed) {
+    dos_rng_seed(rng, params->rng_seed);
+  }
+  fprintf(stderr, "tribe-entry rng=%u\n", (unsigned)rng->state);
   if (params->use_tribe_txt && params->data_dir) {
     placed = ai_place_tribes_from_txt(params, &tribes, &count, &capacity, rng);
   }

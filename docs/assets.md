@@ -450,7 +450,7 @@ Parameters (DOS words at `DS:0x1e7e`, each 0..3 from NEW WORLD `range(0,3)`; CUS
 
 Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → climate humidity → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`).
 
-RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`) → tribe placement (`FUN_6a09_0006`) on the continuing stream. Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
+RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`). Tribe placement (`FUN_6a09_0006`) uses the **post-axes** LCG state (not the post-mapgen stream): seed → replay 5×`range(0,3)` → `range(1,8)` → indian cargo seeds → capitals/satellites/Braves. Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
 
 | Extension | Typical use |
 |-----------|-------------|
