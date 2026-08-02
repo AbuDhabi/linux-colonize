@@ -163,6 +163,27 @@ int colonies_list_buildable(
   int out_max
 );
 
+/* Gold to finish current project (remaining hammers), or 0 if none. */
+int colonies_construction_gold_cost(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+);
+/* Tools still needed from warehouse for current project (0 if none/affordable). */
+int colonies_construction_tools_needed(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+);
+/*
+ * If hammers >= need and tools >= tools_cost: spend tools, mark built, clear project.
+ * Returns true when a building was completed.
+ */
+bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id);
+/*
+ * Buy remaining hammers with *gold (1 gold each), then try_complete.
+ * Fails if no project, insufficient gold, or short tools. Updates *gold on success.
+ */
+bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gold);
+
 /* Warehouse capacity per cargo type (100 base; +100 Warehouse; +100 Expansion). Food 199. */
 int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,

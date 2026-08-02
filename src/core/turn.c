@@ -338,15 +338,7 @@ static void turn_produce_one_colony(
       delta->hammers_added = hammers_add;
     }
 
-    const ColonizeBuildingType* bt =
-      colonies_building_type(pool, colony->building_in_production);
-    if (bt && bt->hammers > 0 && colony->hammers >= bt->hammers) {
-      if (colony->building_in_production >= 0 &&
-          colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX) {
-        colony->has_building[colony->building_in_production] = true;
-      }
-      colony->hammers = 0;
-      colony->building_in_production = -1;
+    if (colonies_try_complete_building(pool, colony->id)) {
       if (delta) {
         delta->building_completed = true;
       }

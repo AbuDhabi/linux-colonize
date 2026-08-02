@@ -495,6 +495,91 @@ bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
   return true;
 }
 
+int colonies_construction_gold_cost(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+) {
+  if (!pool || !colony || colony->building_in_production < 0) {
+    return 0;
+  }
+  const ColonizeBuildingType* bt =
+    colonies_building_type(pool, colony->building_in_production);
+  if (!bt || bt->hammers <= 0) {
+    return 0;
+  }
+  const int rem = bt->hammers - colony->hammers;
+  return rem > 0 ? rem : 0;
+}
+
+int colonies_construction_tools_needed(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+) {
+  if (!pool || !colony || colony->building_in_production < 0) {
+    return 0;
+  }
+  const ColonizeBuildingType* bt =
+    colonies_building_type(pool, colony->building_in_production);
+  if (!bt || bt->tools_cost <= 0) {
+    return 0;
+  }
+  const int have = colony->stock[COLONIZE_CARGO_TOOLS];
+  const int need = bt->tools_cost - have;
+  return need > 0 ? need : 0;
+}
+
+bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool || col->building_in_production < 0) {
+    return false;
+  }
+  const int bid = col->building_in_production;
+  const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
+  if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
+    return false;
+  }
+  if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
+    return false;
+  }
+  if (bt->tools_cost > 0) {
+    col->stock[COLONIZE_CARGO_TOOLS] -= bt->tools_cost;
+  }
+  if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX) {
+    col->has_building[bid] = true;
+  }
+  col->hammers = 0;
+  col->building_in_production = -1;
+  return true;
+}
+
+bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gold) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool || !gold || col->building_in_production < 0) {
+    return false;
+  }
+  const ColonizeBuildingType* bt =
+    colonies_building_type(pool, col->building_in_production);
+  if (!bt || bt->hammers <= 0) {
+    return false;
+  }
+  if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
+    return false;
+  }
+  const int gold_cost = colonies_construction_gold_cost(pool, col);
+  if (*gold < gold_cost) {
+    return false;
+  }
+  const int prev_hammers = col->hammers;
+  *gold -= gold_cost;
+  col->hammers = bt->hammers;
+  if (!colonies_try_complete_building(pool, colony_id)) {
+    *gold += gold_cost;
+    col->hammers = prev_hammers;
+    return false;
+  }
+  return true;
+}
+
 int colonies_list_buildable(
   const ColonizeColonyPool* pool,
   int colony_id,

@@ -954,14 +954,38 @@ static void colony_screen_draw_construction_banner(
     const ColonizeBuildingType* bt =
       colonies_building_type(pool, colony->building_in_production);
     const int need = bt ? bt->hammers : 0;
-    snprintf(
-      line,
-      sizeof(line),
-      "Build: %s %d/%d  [3]",
-      bt ? bt->name : "?",
-      colony->hammers,
-      need
-    );
+    const int gold = colonies_construction_gold_cost(pool, colony);
+    const int tools = bt ? bt->tools_cost : 0;
+    if (gold > 0) {
+      snprintf(
+        line,
+        sizeof(line),
+        "Build: %s %d/%d  $%d  [3]/B",
+        bt ? bt->name : "?",
+        colony->hammers,
+        need,
+        gold
+      );
+    } else if (tools > 0) {
+      snprintf(
+        line,
+        sizeof(line),
+        "Build: %s %d/%d  %dT  [3]/B",
+        bt ? bt->name : "?",
+        colony->hammers,
+        need,
+        tools
+      );
+    } else {
+      snprintf(
+        line,
+        sizeof(line),
+        "Build: %s %d/%d  [3]/B",
+        bt ? bt->name : "?",
+        colony->hammers,
+        need
+      );
+    }
   } else {
     snprintf(line, sizeof(line), "Build: (none)  [3]");
   }
@@ -989,20 +1013,22 @@ static void colony_screen_draw_construction_banner(
 static void colony_screen_draw_construction_popup(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !view->construction_open || !framebuffer || !framebuffer->pixels) {
     return;
   }
-  const int rows = view->buildable_count + 1;
+  const int buy_row = (colony && colony->building_in_production >= 0) ? 1 : 0;
+  const int rows = view->buildable_count + 1 + buy_row;
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 4;
   int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + rows * line_h + pad;
   if (dialog_h > framebuffer->height - 8) {
     dialog_h = framebuffer->height - 8;
   }
-  int dialog_w = 180;
+  int dialog_w = 200;
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
@@ -1045,19 +1071,31 @@ static void colony_screen_draw_construction_popup(
         framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
       );
     }
-    char label[48];
+    char label[56];
     if (i == 0) {
       snprintf(label, sizeof(label), "Clear project");
+    } else if (buy_row && i == 1) {
+      const int gold = colonies_construction_gold_cost(pool, colony);
+      const ColonizeBuildingType* bt =
+        colonies_building_type(pool, colony->building_in_production);
+      const int tools = bt ? bt->tools_cost : 0;
+      snprintf(label, sizeof(label), "Buy now ($%d, %dT)", gold, tools);
     } else {
-      const int bid = view->buildable_ids[i - 1];
+      const int bid = view->buildable_ids[i - 1 - buy_row];
       const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
-      snprintf(
-        label,
-        sizeof(label),
-        "%s (%dH)",
-        bt ? bt->name : "?",
-        bt ? bt->hammers : 0
-      );
+      if (bt && bt->tools_cost > 0) {
+        snprintf(
+          label, sizeof(label), "%s (%dH, %dT)", bt->name, bt->hammers, bt->tools_cost
+        );
+      } else {
+        snprintf(
+          label,
+          sizeof(label),
+          "%s (%dH)",
+          bt ? bt->name : "?",
+          bt ? bt->hammers : 0
+        );
+      }
     }
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
@@ -1187,11 +1225,20 @@ ColonyScreenHitResult colony_screen_hit_test(
       return hit;
     }
     if (view->construction_line_h > 0 && my >= view->construction_list_y0) {
+      const int buy_row = (colony->building_in_production >= 0) ? 1 : 0;
       const int idx = (my - view->construction_list_y0) / view->construction_line_h;
-      const int rows = view->buildable_count + 1;
+      const int rows = view->buildable_count + 1 + buy_row;
       if (idx >= 0 && idx < rows) {
-        hit.kind = (idx == 0) ? COLONY_HIT_CONSTRUCTION_CLEAR : COLONY_HIT_CONSTRUCTION_ROW;
-        hit.index = (idx == 0) ? -1 : (idx - 1);
+        if (idx == 0) {
+          hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
+          hit.index = -1;
+        } else if (buy_row && idx == 1) {
+          hit.kind = COLONY_HIT_CONSTRUCTION_BUY;
+          hit.index = 0;
+        } else {
+          hit.kind = COLONY_HIT_CONSTRUCTION_ROW;
+          hit.index = idx - 1 - buy_row;
+        }
         return hit;
       }
     }
@@ -1405,7 +1452,7 @@ void colony_screen_render(
   }
 
   if (view && view->construction_open) {
-    colony_screen_draw_construction_popup(view, pool, font, framebuffer);
+    colony_screen_draw_construction_popup(view, pool, colony, font, framebuffer);
   }
   if (view && view->jobs_open) {
     colony_screen_draw_jobs_popup(view, map, colony, font, framebuffer);

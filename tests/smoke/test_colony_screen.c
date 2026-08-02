@@ -667,7 +667,23 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
+    /* Founded colony has Stockade in production → Buy row at index 1. */
     hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 52);
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_BUY) {
+      fprintf(stderr, "expected construction buy hit got kind=%d\n", (int)hit.kind);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 62);
     if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 0) {
       fprintf(stderr, "expected construction row 0 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
@@ -977,6 +993,144 @@ int main(void) {
       colony_screen_hit_test(&view, &pool, col, &units, COLONY_HOLD_X + 2, COLONY_HOLD_Y + 2);
     if (thit.kind != COLONY_HIT_HOLD || thit.index != 0) {
       fprintf(stderr, "expected hold hit got kind=%d idx=%d\n", (int)thit.kind, thit.index);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+  }
+
+  /* Buy construction with gold + tools gate. */
+  {
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    const int fort = colonies_find_building(&pool, "Fort");
+    if (!col || fort < 0) {
+      fprintf(stderr, "missing colony or Fort for buy test\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    /* Bypass min_population: force Fort project for tools-gate test. */
+    col->has_building[stockade] = true;
+    col->building_in_production = fort;
+    col->hammers = 0;
+    const ColonizeBuildingType* fbt = colonies_building_type(&pool, fort);
+    if (!fbt || fbt->tools_cost <= 0 || fbt->hammers <= 20) {
+      fprintf(stderr, "Fort should need tools and many hammers\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    col->hammers = fbt->hammers; /* ready to complete */
+    col->stock[COLONIZE_CARGO_TOOLS] = 0;
+    if (colonies_try_complete_building(&pool, cid)) {
+      fprintf(stderr, "Fort completed without tools\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    col->stock[COLONIZE_CARGO_TOOLS] = fbt->tools_cost;
+    if (!colonies_try_complete_building(&pool, cid) || !col->has_building[fort] ||
+        col->stock[COLONIZE_CARGO_TOOLS] != 0 || col->building_in_production >= 0) {
+      fprintf(stderr, "Fort tools completion failed\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    /* Buy Warehouse Expansion (tools_cost=2) with partial hammers. */
+    const int whe = colonies_find_building(&pool, "Warehouse Expansion");
+    const int wh = colonies_find_building(&pool, "Warehouse");
+    if (whe < 0 || wh < 0) {
+      fprintf(stderr, "Warehouse buildings missing\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    col->has_building[wh] = true;
+    col->building_in_production = whe;
+    const ColonizeBuildingType* wbt = colonies_building_type(&pool, whe);
+    col->hammers = 20;
+    col->stock[COLONIZE_CARGO_TOOLS] = wbt->tools_cost;
+    int gold = 500;
+    const int expect_cost = wbt->hammers - 20;
+    if (colonies_construction_gold_cost(&pool, col) != expect_cost) {
+      fprintf(
+        stderr,
+        "gold cost expected %d got %d\n",
+        expect_cost,
+        colonies_construction_gold_cost(&pool, col)
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    if (!colonies_buy_construction(&pool, cid, &gold) || gold != 500 - expect_cost ||
+        !col->has_building[whe] || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
+        col->building_in_production >= 0) {
+      fprintf(
+        stderr,
+        "buy construction failed gold=%d has=%d tools=%d proj=%d\n",
+        gold,
+        col->has_building[whe] ? 1 : 0,
+        col->stock[COLONIZE_CARGO_TOOLS],
+        col->building_in_production
+      );
       if (font_ok) {
         ff_free(&font);
       }

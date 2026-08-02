@@ -374,6 +374,7 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 | Click colonist / building | Select colonist; assign to built workplace |
 | Click area tile or **2** | Open/close field jobs popup for surround tile |
 | Banner or **3** | Open/close construction popup |
+| **B** / Buy now | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
 | Click ship / cargo / hold | Select transport; load warehouse→hold; unload hold→warehouse |
 | **L** / **U** | Load highest-value cargo (not horses/tools/muskets); unload first hold |
 | Esc | Close jobs, then construction, then return to map |

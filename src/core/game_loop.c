@@ -2518,20 +2518,48 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
       if (csv->construction_open && input->last_key == COLONIZE_KEY_ENTER) {
+        const int buy_row =
+          (colony && colony->building_in_production >= 0) ? 1 : 0;
         if (csv->construction_selection == 0) {
           colonies_clear_construction(&game->colonies, game->colony_view_id);
           set_status(game, "Construction cleared", NULL);
-        } else if (csv->construction_selection > 0 &&
-                   csv->construction_selection - 1 < csv->buildable_count) {
-          const int bid = csv->buildable_ids[csv->construction_selection - 1];
-          if (colonies_set_construction(&game->colonies, game->colony_view_id, bid)) {
-            const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
+        } else if (buy_row && csv->construction_selection == 1) {
+          const int gold_before = game->europe.gold;
+          const ColonizeBuildingType* bt = colonies_building_type(
+            &game->colonies, colony->building_in_production
+          );
+          const int tools = bt ? bt->tools_cost : 0;
+          if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
+            set_status(game, "Need tools", NULL);
+          } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
+            set_status(game, "Need gold", NULL);
+          } else if (colonies_buy_construction(
+                       &game->colonies, game->colony_view_id, &game->europe.gold
+                     )) {
             snprintf(
               game->status,
               sizeof(game->status),
-              "Building %s",
-              bt ? bt->name : "project"
+              "Bought %s (-%d$, -%d tools)",
+              bt ? bt->name : "building",
+              gold_before - game->europe.gold,
+              tools
             );
+          } else {
+            set_status(game, "Cannot buy", NULL);
+          }
+        } else {
+          const int bi = csv->construction_selection - 1 - buy_row;
+          if (bi >= 0 && bi < csv->buildable_count) {
+            const int bid = csv->buildable_ids[bi];
+            if (colonies_set_construction(&game->colonies, game->colony_view_id, bid)) {
+              const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
+              snprintf(
+                game->status,
+                sizeof(game->status),
+                "Building %s",
+                bt ? bt->name : "project"
+              );
+            }
           }
         }
         colony_screen_close_construction(csv);
@@ -2584,12 +2612,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
     } else if (csv->construction_open) {
+      const int buy_row =
+        (colony && colony->building_in_production >= 0) ? 1 : 0;
+      const int max_sel = csv->buildable_count + buy_row;
       if (input->last_key == COLONIZE_KEY_UP && csv->construction_selection > 0) {
         csv->construction_selection--;
         return true;
       }
-      if (input->last_key == COLONIZE_KEY_DOWN &&
-          csv->construction_selection < csv->buildable_count) {
+      if (input->last_key == COLONIZE_KEY_DOWN && csv->construction_selection < max_sel) {
         csv->construction_selection++;
         return true;
       }
@@ -2603,6 +2633,36 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         csv->selected_colonist++;
         return true;
       }
+    }
+
+    /* B = buy remaining construction with gold + warehouse tools. */
+    if (input->last_key == COLONIZE_KEY_B && colony &&
+        colony->building_in_production >= 0) {
+      const int gold_before = game->europe.gold;
+      const ColonizeBuildingType* bt =
+        colonies_building_type(&game->colonies, colony->building_in_production);
+      const int tools = bt ? bt->tools_cost : 0;
+      if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
+        set_status(game, "Need tools", NULL);
+      } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
+        set_status(game, "Need gold", NULL);
+      } else if (colonies_buy_construction(
+                   &game->colonies, game->colony_view_id, &game->europe.gold
+                 )) {
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "Bought %s (-%d$, -%d tools)",
+          bt ? bt->name : "building",
+          gold_before - game->europe.gold,
+          tools
+        );
+        colony_screen_close_construction(csv);
+      } else {
+        set_status(game, "Cannot buy", NULL);
+      }
+      colony_screen_set_status(csv, game->status);
+      return true;
     }
 
     /* L = load highest-value cargo; U = unload first non-empty hold. */
@@ -2885,6 +2945,34 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         set_status(game, "Construction cleared", NULL);
         colony_screen_set_status(csv, game->status);
         break;
+      case COLONY_HIT_CONSTRUCTION_BUY: {
+        const int gold_before = game->europe.gold;
+        const ColonizeBuildingType* bt = colonies_building_type(
+          &game->colonies, colony->building_in_production
+        );
+        const int tools = bt ? bt->tools_cost : 0;
+        if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
+          set_status(game, "Need tools", NULL);
+        } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
+          set_status(game, "Need gold", NULL);
+        } else if (colonies_buy_construction(
+                     &game->colonies, game->colony_view_id, &game->europe.gold
+                   )) {
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "Bought %s (-%d$, -%d tools)",
+            bt ? bt->name : "building",
+            gold_before - game->europe.gold,
+            tools
+          );
+        } else {
+          set_status(game, "Cannot buy", NULL);
+        }
+        colony_screen_close_construction(csv);
+        colony_screen_set_status(csv, game->status);
+        break;
+      }
       case COLONY_HIT_CONSTRUCTION_ROW:
         if (hit.index >= 0 && hit.index < csv->buildable_count) {
           const int bid = csv->buildable_ids[hit.index];
