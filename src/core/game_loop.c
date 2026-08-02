@@ -2410,6 +2410,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
     ColonyScreenView* csv = &game->colony_screen;
     const ColonizeWorldMap* cmap = game->world_map_ok ? &game->world_map : NULL;
+    if (colony && game->units_ok) {
+      colony_screen_refresh_transports(csv, &game->units, colony);
+    }
 
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
       if (csv->jobs_open) {
@@ -2543,6 +2546,68 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
 
+    /* L = load highest-value cargo; U = unload first non-empty hold. */
+    if (!csv->jobs_open && !csv->construction_open && colony && game->units_ok) {
+      if (input->last_key == COLONIZE_KEY_L) {
+        if (csv->transport_unit_id < 0) {
+          set_status(game, "Select a ship first", NULL);
+        } else {
+          const int cargo = colonies_best_load_cargo(colony);
+          if (cargo < 0) {
+            set_status(game, "Nothing to load", NULL);
+          } else {
+            const int want = colony->stock[cargo] < 100 ? colony->stock[cargo] : 100;
+            const int moved = colonies_transfer_to_unit(
+              &game->colonies,
+              game->colony_view_id,
+              &game->units,
+              csv->transport_unit_id,
+              cargo,
+              want
+            );
+            if (moved > 0) {
+              snprintf(game->status, sizeof(game->status), "Loaded %d", moved);
+            } else {
+              set_status(game, "No empty hold", NULL);
+            }
+          }
+        }
+        colony_screen_set_status(csv, game->status);
+        return true;
+      }
+      if (input->last_key == COLONIZE_KEY_U) {
+        if (csv->transport_unit_id < 0) {
+          set_status(game, "Select a ship first", NULL);
+        } else {
+          const int hold = units_first_goods_hold(&game->units, csv->transport_unit_id);
+          if (hold < 0) {
+            set_status(game, "Hold empty", NULL);
+          } else {
+            bool full = false;
+            const int moved = colonies_transfer_from_unit(
+              &game->colonies,
+              game->colony_view_id,
+              &game->units,
+              csv->transport_unit_id,
+              hold,
+              &full
+            );
+            if (moved > 0 && full) {
+              snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
+            } else if (moved > 0) {
+              snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
+            } else if (full) {
+              set_status(game, "Warehouse full", NULL);
+            } else {
+              set_status(game, "Cannot unload", NULL);
+            }
+          }
+        }
+        colony_screen_set_status(csv, game->status);
+        return true;
+      }
+    }
+
     if (input->last_key == COLONIZE_KEY_SPACE) {
       if (colony) {
         ColonizeTurnResult prod;
@@ -2617,13 +2682,72 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     if (input->mouse_left_clicked && colony) {
-      const ColonyScreenHitResult hit =
-        colony_screen_hit_test(csv, &game->colonies, colony, input->mouse_x, input->mouse_y);
+      const ColonyScreenHitResult hit = colony_screen_hit_test(
+        csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x, input->mouse_y
+      );
       switch (hit.kind) {
       case COLONY_HIT_EXIT:
         game->in_colony = false;
         game->colony_view_id = -1;
         return true;
+      case COLONY_HIT_TRANSPORT:
+        if (hit.index >= 0 && hit.index < csv->docked_transport_count) {
+          csv->transport_unit_id = csv->docked_transport_ids[hit.index];
+          set_status(game, "Transport selected", NULL);
+          colony_screen_set_status(csv, game->status);
+        }
+        break;
+      case COLONY_HIT_CARGO_SLOT:
+        if (csv->transport_unit_id < 0) {
+          set_status(game, "Select a ship first", NULL);
+        } else if (hit.index < 0 || hit.index >= COLONIZE_CARGO_COUNT || colony->stock[hit.index] <= 0) {
+          set_status(game, "No cargo in slot", NULL);
+        } else if (!game->units_ok) {
+          set_status(game, "Cannot load", NULL);
+        } else {
+          const int want =
+            colony->stock[hit.index] < 100 ? colony->stock[hit.index] : 100;
+          const int moved = colonies_transfer_to_unit(
+            &game->colonies,
+            game->colony_view_id,
+            &game->units,
+            csv->transport_unit_id,
+            hit.index,
+            want
+          );
+          if (moved > 0) {
+            snprintf(game->status, sizeof(game->status), "Loaded %d", moved);
+          } else {
+            set_status(game, "No empty hold", NULL);
+          }
+        }
+        colony_screen_set_status(csv, game->status);
+        break;
+      case COLONY_HIT_HOLD:
+        if (csv->transport_unit_id < 0 || !game->units_ok) {
+          set_status(game, "Select a ship first", NULL);
+        } else {
+          bool full = false;
+          const int moved = colonies_transfer_from_unit(
+            &game->colonies,
+            game->colony_view_id,
+            &game->units,
+            csv->transport_unit_id,
+            hit.index,
+            &full
+          );
+          if (moved > 0 && full) {
+            snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
+          } else if (moved > 0) {
+            snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
+          } else if (full) {
+            set_status(game, "Warehouse full", NULL);
+          } else {
+            set_status(game, "Hold empty", NULL);
+          }
+        }
+        colony_screen_set_status(csv, game->status);
+        break;
       case COLONY_HIT_COLONIST:
         csv->selected_colonist = hit.index;
         set_status(game, "Colonist selected", NULL);

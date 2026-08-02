@@ -177,6 +177,29 @@ int units_collect_tile_stack(
 );
 
 int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id);
+
+/* Ships and wagon trains that can carry commodity holds. */
+bool units_is_transport(const ColonizeUnitPool* pool, int unit_id);
+/* Number of commodity hold slots (from @UNIT cargo field). */
+int units_goods_hold_count(const ColonizeUnitPool* pool, int unit_id);
+/*
+ * Add goods into an empty hold (or stack into a matching partial hold).
+ * amount is clamped to remaining room (max 100 per hold). Returns amount loaded.
+ */
+int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount);
+/*
+ * Remove goods from one hold index. Writes type/amount unloaded (optional outs).
+ * Returns amount unloaded (0 if empty/invalid).
+ */
+int units_unload_goods_hold(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  int hold_index,
+  int* out_cargo_type,
+  int* out_amount
+);
+/* First non-empty goods hold index, or -1. */
+int units_first_goods_hold(const ColonizeUnitPool* pool, int unit_id);
 /* Snapshot passenger type indices (for Europe harbor transfer). */
 int units_export_cargo_types(
   const ColonizeUnitPool* pool,

@@ -514,7 +514,9 @@ int main(void) {
   {
     colony_screen_reset_ui(&view);
     ColonyScreenHitResult hit =
-      colony_screen_hit_test(&view, &pool, sample, COLONY_COLONIST_LIST_X + 4, COLONY_COLONIST_LIST_Y0 + 2);
+      colony_screen_hit_test(
+        &view, &pool, sample, &units, COLONY_COLONIST_LIST_X + 4, COLONY_COLONIST_LIST_Y0 + 2
+      );
     if (hit.kind != COLONY_HIT_COLONIST || hit.index != 0) {
       fprintf(stderr, "expected colonist hit got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
@@ -535,6 +537,7 @@ int main(void) {
       &view,
       &pool,
       sample,
+      &units,
       COLONY_VIEWPORT_X + 8 + 8,
       COLONY_VIEWPORT_Y + 44 + 8
     );
@@ -567,6 +570,7 @@ int main(void) {
         &view,
         &pool,
         sample,
+        &units,
         ox + COLONY_MINIMAP_TILE + COLONY_MINIMAP_TILE / 2,
         oy + COLONY_MINIMAP_TILE / 2
       );
@@ -592,7 +596,7 @@ int main(void) {
     }
 
     hit = colony_screen_hit_test(
-      &view, &pool, sample, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
+      &view, &pool, sample, &units, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
     );
     if (hit.kind != COLONY_HIT_CONSTRUCTION_BANNER) {
       fprintf(stderr, "expected construction banner hit got kind=%d\n", (int)hit.kind);
@@ -609,7 +613,8 @@ int main(void) {
       return 1;
     }
 
-    hit = colony_screen_hit_test(&view, &pool, sample, COLONY_EXIT_X + 2, COLONY_BOTTOM_PANEL_Y + 4);
+    hit =
+      colony_screen_hit_test(&view, &pool, sample, &units, COLONY_EXIT_X + 2, COLONY_BOTTOM_PANEL_Y + 4);
     if (hit.kind != COLONY_HIT_EXIT) {
       fprintf(stderr, "expected exit hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
@@ -647,7 +652,7 @@ int main(void) {
     view.construction_dialog_h = 80;
     view.construction_list_y0 = 40;
     view.construction_line_h = 10;
-    hit = colony_screen_hit_test(&view, &pool, sample, 80, 42);
+    hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 42);
     if (hit.kind != COLONY_HIT_CONSTRUCTION_CLEAR) {
       fprintf(stderr, "expected construction clear hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
@@ -662,7 +667,7 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
-    hit = colony_screen_hit_test(&view, &pool, sample, 80, 52);
+    hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 52);
     if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 0) {
       fprintf(stderr, "expected construction row 0 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
@@ -677,7 +682,7 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
-    hit = colony_screen_hit_test(&view, &pool, sample, 10, 10);
+    hit = colony_screen_hit_test(&view, &pool, sample, &units, 10, 10);
     if (hit.kind != COLONY_HIT_CONSTRUCTION_OUTSIDE) {
       fprintf(stderr, "expected construction outside hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
@@ -693,6 +698,297 @@ int main(void) {
       return 1;
     }
     colony_screen_close_construction(&view);
+  }
+
+  /* Warehouse ↔ transport transfer + capacity. */
+  {
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    const int caravel = units_find_type(&units, "Caravel");
+    if (!col || caravel < 0) {
+      fprintf(stderr, "missing colony or Caravel for transfer test\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    const int ship_id = units_spawn_allow_stack(&units, caravel, col->x, col->y);
+    ColonizeUnit* ship = units_get(&units, ship_id);
+    if (!ship || !units_is_transport(&units, ship_id)) {
+      fprintf(stderr, "failed to dock Caravel transport id=%d\n", ship_id);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    ship->nation_id = col->nation_id;
+
+    col->stock[COLONIZE_CARGO_SUGAR] = 150;
+    const int cap0 = colonies_warehouse_capacity(&pool, col, COLONIZE_CARGO_SUGAR);
+    if (cap0 != 100) {
+      fprintf(stderr, "expected base sugar capacity 100 got %d\n", cap0);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    const int food_cap = colonies_warehouse_capacity(&pool, col, COLONIZE_CARGO_FOOD);
+    if (food_cap != 199) {
+      fprintf(stderr, "expected food capacity 199 got %d\n", food_cap);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    const int loaded =
+      colonies_transfer_to_unit(&pool, cid, &units, ship_id, COLONIZE_CARGO_SUGAR, 100);
+    if (loaded != 100 || col->stock[COLONIZE_CARGO_SUGAR] != 50) {
+      fprintf(
+        stderr,
+        "load failed loaded=%d stock=%d\n",
+        loaded,
+        col->stock[COLONIZE_CARGO_SUGAR]
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    if (ship->hold_goods_amount[0] != 100 || ship->hold_goods_type[0] != COLONIZE_CARGO_SUGAR) {
+      fprintf(stderr, "hold not filled after load\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    bool full = false;
+    const int unloaded =
+      colonies_transfer_from_unit(&pool, cid, &units, ship_id, 0, &full);
+    if (unloaded != 50 || !full || col->stock[COLONIZE_CARGO_SUGAR] != 100) {
+      fprintf(
+        stderr,
+        "capacity unload expected 50/full stock=100 got unloaded=%d full=%d stock=%d\n",
+        unloaded,
+        full ? 1 : 0,
+        col->stock[COLONIZE_CARGO_SUGAR]
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    if (ship->hold_goods_amount[0] != 50) {
+      fprintf(stderr, "expected 50 sugar left in hold got %d\n", ship->hold_goods_amount[0]);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    if (warehouse >= 0) {
+      col->has_building[warehouse] = true;
+    }
+    const int cap_wh = colonies_warehouse_capacity(&pool, col, COLONIZE_CARGO_SUGAR);
+    if (cap_wh != 200) {
+      fprintf(stderr, "expected Warehouse capacity 200 got %d\n", cap_wh);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    full = false;
+    const int unloaded2 =
+      colonies_transfer_from_unit(&pool, cid, &units, ship_id, 0, &full);
+    if (unloaded2 != 50 || full || col->stock[COLONIZE_CARGO_SUGAR] != 150 ||
+        ship->hold_goods_amount[0] != 0) {
+      fprintf(
+        stderr,
+        "second unload failed moved=%d full=%d stock=%d hold=%d\n",
+        unloaded2,
+        full ? 1 : 0,
+        col->stock[COLONIZE_CARGO_SUGAR],
+        ship->hold_goods_amount[0]
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    const int best = colonies_best_load_cargo(col);
+    if (best != COLONIZE_CARGO_SUGAR) {
+      fprintf(stderr, "best load cargo expected sugar got %d\n", best);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    colony_screen_reset_ui(&view);
+    colony_screen_refresh_transports(&view, &units, col);
+    if (view.docked_transport_count < 1 || view.transport_unit_id != ship_id) {
+      fprintf(
+        stderr,
+        "expected docked transport auto-select count=%d id=%d (ship=%d)\n",
+        view.docked_transport_count,
+        view.transport_unit_id,
+        ship_id
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    ColonyScreenHitResult thit = colony_screen_hit_test(
+      &view,
+      &pool,
+      col,
+      &units,
+      COLONY_CARGO_SLOT_X0 + COLONIZE_CARGO_SUGAR * COLONY_CARGO_PITCH + 4,
+      COLONY_CARGO_STRIP_Y + 2
+    );
+    if (thit.kind != COLONY_HIT_CARGO_SLOT || thit.index != COLONIZE_CARGO_SUGAR) {
+      fprintf(
+        stderr,
+        "expected cargo slot sugar hit got kind=%d idx=%d\n",
+        (int)thit.kind,
+        thit.index
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    thit = colony_screen_hit_test(
+      &view, &pool, col, &units, COLONY_TRANSPORT_X + 4, COLONY_TRANSPORT_Y + 4
+    );
+    if (thit.kind != COLONY_HIT_TRANSPORT || thit.index != 0) {
+      fprintf(
+        stderr, "expected transport hit got kind=%d idx=%d\n", (int)thit.kind, thit.index
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    /* Reload one hold so hold hit-test / unload path stays meaningful. */
+    colonies_transfer_to_unit(&pool, cid, &units, ship_id, COLONIZE_CARGO_SUGAR, 40);
+    thit =
+      colony_screen_hit_test(&view, &pool, col, &units, COLONY_HOLD_X + 2, COLONY_HOLD_Y + 2);
+    if (thit.kind != COLONY_HIT_HOLD || thit.index != 0) {
+      fprintf(stderr, "expected hold hit got kind=%d idx=%d\n", (int)thit.kind, thit.index);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
   }
 
   fprintf(

@@ -79,7 +79,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Colony display chrome | Partial | Buildings art, cargo strip, 3×3 surrounds (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Phases 1–3: workplace, area fields, settlement craft (rum/cloth/coats/tools/…); experts/SoL later |
 | Construction queue + buy with gold | Partial | Phase 1: pick/clear `building_in_production` + hammers banner; buy-with-gold later |
-| Warehouse drag load/unload to ships / wagons | Missing | |
+| Warehouse drag load/unload to ships / wagons | Partial | Phase 4: click cargo↔hold + **L**/**U** on colony screen; full drag later |
 | Fortification defense bonuses | Missing | Fence / docks art only; no combat |
 
 ### Europe
@@ -156,7 +156,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 Aligned with early manual chapters (short playable loop first):
 
-1. **Colony economy UI** — phases 1–3 (workplaces, fields, craft chains) done; warehouse drag / Europe next
+1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done; Europe market next
 2. **Europe commodity trade** — buy/sell + tax display
 3. **Pioneer terrain work + roads** and real movement costs
 4. **Unit orders** — fortify, sentry, goto, disband

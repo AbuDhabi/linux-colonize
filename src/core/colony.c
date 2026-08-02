@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/font.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 
 static void colony_trim(char* s) {
@@ -526,6 +527,149 @@ int colonies_list_buildable(
     out_ids[n++] = i;
   }
   return n;
+}
+
+int colonies_warehouse_capacity(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type
+) {
+  if (!colony) {
+    return 0;
+  }
+  if (cargo_type == COLONIZE_CARGO_FOOD) {
+    return 199;
+  }
+  int cap = 100;
+  if (pool) {
+    const int wh = colonies_find_building(pool, "Warehouse");
+    const int whe = colonies_find_building(pool, "Warehouse Expansion");
+    if (wh >= 0 && colony->has_building[wh]) {
+      cap += 100;
+    }
+    if (whe >= 0 && colony->has_building[whe]) {
+      cap += 100;
+    }
+  }
+  return cap;
+}
+
+int colonies_transfer_to_unit(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount
+) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !units || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT || amount <= 0) {
+    return 0;
+  }
+  if (col->stock[cargo_type] < amount) {
+    amount = col->stock[cargo_type];
+  }
+  if (amount <= 0) {
+    return 0;
+  }
+  const int loaded = units_load_goods(units, unit_id, cargo_type, amount);
+  if (loaded > 0) {
+    col->stock[cargo_type] -= loaded;
+  }
+  return loaded;
+}
+
+int colonies_transfer_from_unit(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index,
+  bool* out_warehouse_full
+) {
+  if (out_warehouse_full) {
+    *out_warehouse_full = false;
+  }
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !units) {
+    return 0;
+  }
+  int ctype = -1;
+  int amt = 0;
+  /* Peek without clearing — unload helper clears; reload remainder if capped. */
+  const ColonizeUnit* u = units_get_const(units, unit_id);
+  if (!u) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(units, unit_id);
+  if (hold_index < 0 || hold_index >= n) {
+    return 0;
+  }
+  amt = u->hold_goods_amount[hold_index];
+  ctype = u->hold_goods_type[hold_index];
+  if (amt <= 0 || amt >= 255 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
+    return 0;
+  }
+  const int cap = colonies_warehouse_capacity(pool, col, ctype);
+  const int room = cap - col->stock[ctype];
+  if (room <= 0) {
+    if (out_warehouse_full) {
+      *out_warehouse_full = true;
+    }
+    return 0;
+  }
+  const int move = amt < room ? amt : room;
+  int got_type = 0;
+  int got_amt = 0;
+  if (units_unload_goods_hold(units, unit_id, hold_index, &got_type, &got_amt) <= 0) {
+    return 0;
+  }
+  col->stock[ctype] += move;
+  if (move < got_amt) {
+    /* Put remainder back into the same hold. */
+    units_load_goods(units, unit_id, ctype, got_amt - move);
+    if (out_warehouse_full) {
+      *out_warehouse_full = true;
+    }
+  }
+  return move;
+}
+
+int colonies_best_load_cargo(const ColonizeColony* colony) {
+  if (!colony) {
+    return -1;
+  }
+  /* Rough Europe bid ranking; exclude horses/tools/muskets (manual L-key). */
+  static const int k_value[COLONIZE_CARGO_COUNT] = {
+    1,  /* food */
+    5,  /* sugar */
+    4,  /* tobacco */
+    3,  /* cotton */
+    5,  /* furs */
+    0,  /* lumber — rarely sold */
+    4,  /* ore */
+    20, /* silver */
+    0,  /* horses — excluded */
+    8,  /* rum */
+    8,  /* cigars */
+    7,  /* cloth */
+    7,  /* coats */
+    2,  /* trade goods */
+    0,  /* tools — excluded */
+    0   /* muskets — excluded */
+  };
+  int best = -1;
+  int best_v = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    if (k_value[c] <= 0 || colony->stock[c] <= 0) {
+      continue;
+    }
+    if (k_value[c] > best_v || (k_value[c] == best_v && colony->stock[c] > colony->stock[best])) {
+      best_v = k_value[c];
+      best = c;
+    }
+  }
+  return best;
 }
 
 /* Draw a small filled square in colour 11 (bright cyan) with the colony name

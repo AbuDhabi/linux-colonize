@@ -81,6 +81,17 @@
 #define COLONY_COLONIST_ROW_H 9
 #define COLONY_JOB_LIST_MAX COLONIZE_FIELD_JOB_COUNT
 
+/* Dock / transport band (right side of COLONY.PIK above the cargo strip). */
+#define COLONY_TRANSPORT_MAX 8
+#define COLONY_TRANSPORT_X 210
+#define COLONY_TRANSPORT_Y (COLONY_BOTTOM_PANEL_Y + 14)
+#define COLONY_TRANSPORT_PITCH 18
+#define COLONY_HOLD_X 210
+#define COLONY_HOLD_Y (COLONY_BOTTOM_PANEL_Y + 32)
+#define COLONY_HOLD_W 12
+#define COLONY_HOLD_H 14
+#define COLONY_HOLD_PITCH 14
+
 typedef enum ColonyScreenHit {
   COLONY_HIT_NONE = 0,
   COLONY_HIT_COLONIST,
@@ -93,12 +104,15 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_AREA_TILE,
   COLONY_HIT_JOBS_ROW,
   COLONY_HIT_JOBS_CLEAR,
-  COLONY_HIT_JOBS_OUTSIDE
+  COLONY_HIT_JOBS_OUTSIDE,
+  COLONY_HIT_CARGO_SLOT,
+  COLONY_HIT_TRANSPORT,
+  COLONY_HIT_HOLD
 } ColonyScreenHit;
 
 typedef struct ColonyScreenHitResult {
   ColonyScreenHit kind;
-  int index; /* colonist, building slot, or construction list row */
+  int index; /* colonist, building, construction/jobs row, cargo type, transport idx, or hold */
 } ColonyScreenHitResult;
 
 typedef struct ColonyScreenView {
@@ -143,6 +157,10 @@ typedef struct ColonyScreenView {
 
   ColonizeColonyProdDelta last_delta;
   bool last_delta_valid;
+
+  int transport_unit_id; /* selected docked ship/wagon; -1 none */
+  int docked_transport_ids[COLONY_TRANSPORT_MAX];
+  int docked_transport_count;
 } ColonyScreenView;
 
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size);
@@ -169,11 +187,19 @@ void colony_screen_close_jobs(ColonyScreenView* view);
 /* Pixel origin of the 3×3 area grid (for hit-tests / overlays). */
 void colony_screen_minimap_origin(int* out_x, int* out_y);
 
+/* Refresh docked transport list (human ships/wagons on the colony tile). */
+void colony_screen_refresh_transports(
+  ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  const ColonizeColony* colony
+);
+
 /* Hit-test at framebuffer coords. Jobs/construction popups capture input when open. */
 ColonyScreenHitResult colony_screen_hit_test(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
   int mx,
   int my
 );

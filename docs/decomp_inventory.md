@@ -101,9 +101,9 @@ port I/O in the native build.
   `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters / tree placeholders
   (sprites 42–47) + top bar (name/date/gold) + 1px black separators + `COLONY.PIK` bottom
   panel + `ICONS.SS` #22–37 cargo strip (icon + amount) + population stub + centered 3×3
-  surroundings with PHYS0; economy UI phases 1–2 (workplace assign, construction **3**,
-  area-view field jobs **2** / tiles[8], Space free-production deltas; see
-  `src/core/colony_screen.c`, `src/core/colony_yield.c`)
+  surroundings with PHYS0; economy UI phases 1–4 (workplace assign, construction **3**,
+  area-view field jobs **2** / tiles[8], craft chains, warehouse↔ship hold transfer **L**/**U**;
+  see `src/core/colony_screen.c`, `src/core/colony_yield.c`, `src/core/colony_craft.c`)
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move, deploy dock immigrants (**D**),
   board/unload (**O**/**U**), ship landfall unload / colony dock disembark,

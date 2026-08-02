@@ -461,6 +461,120 @@ int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id) {
   return type->cargo > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX : type->cargo;
 }
 
+bool units_is_transport(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u)) {
+    return false;
+  }
+  if (units_is_sea(pool, unit_id)) {
+    return units_goods_hold_count(pool, unit_id) > 0;
+  }
+  const ColonizeUnitType* type = units_type(pool, u->type_index);
+  if (!type) {
+    return false;
+  }
+  return strstr(type->name, "Wagon") != NULL && type->cargo > 0;
+}
+
+int units_goods_hold_count(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u) {
+    return 0;
+  }
+  const ColonizeUnitType* type = units_type(pool, u->type_index);
+  if (!type || type->cargo <= 0) {
+    return 0;
+  }
+  /* Commodity holds share the @UNIT cargo count with passenger slots conceptually;
+   * goods use the same slot count (passengers occupy separate cargo_ids). */
+  return type->cargo > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX : type->cargo;
+}
+
+int units_first_goods_hold(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u) {
+    return -1;
+  }
+  const int n = units_goods_hold_count(pool, unit_id);
+  for (int i = 0; i < n; ++i) {
+    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !units_is_transport(pool, unit_id)) {
+    return 0;
+  }
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT || amount <= 0) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(pool, unit_id);
+  int loaded = 0;
+  /* Prefer stacking into a matching partial hold. */
+  for (int i = 0; i < n && amount > 0; ++i) {
+    if (u->hold_goods_amount[i] <= 0 || u->hold_goods_amount[i] >= 255) {
+      continue;
+    }
+    if (u->hold_goods_type[i] != cargo_type) {
+      continue;
+    }
+    const int room = 100 - u->hold_goods_amount[i];
+    if (room <= 0) {
+      continue;
+    }
+    const int add = amount < room ? amount : room;
+    u->hold_goods_amount[i] += add;
+    amount -= add;
+    loaded += add;
+  }
+  for (int i = 0; i < n && amount > 0; ++i) {
+    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
+      continue;
+    }
+    const int add = amount < 100 ? amount : 100;
+    u->hold_goods_type[i] = cargo_type;
+    u->hold_goods_amount[i] = add;
+    amount -= add;
+    loaded += add;
+  }
+  return loaded;
+}
+
+int units_unload_goods_hold(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  int hold_index,
+  int* out_cargo_type,
+  int* out_amount
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !units_is_transport(pool, unit_id)) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(pool, unit_id);
+  if (hold_index < 0 || hold_index >= n) {
+    return 0;
+  }
+  const int amt = u->hold_goods_amount[hold_index];
+  if (amt <= 0 || amt >= 255) {
+    return 0;
+  }
+  const int ctype = u->hold_goods_type[hold_index];
+  if (out_cargo_type) {
+    *out_cargo_type = ctype;
+  }
+  if (out_amount) {
+    *out_amount = amt;
+  }
+  u->hold_goods_amount[hold_index] = 0;
+  u->hold_goods_type[hold_index] = 0;
+  return amt;
+}
+
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
   ColonizeUnit* land = units_get(pool, land_unit_id);
   ColonizeUnit* ship = units_get(pool, ship_id);

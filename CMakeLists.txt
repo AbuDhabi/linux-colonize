@@ -420,6 +420,7 @@ add_test(NAME smoke_units COMMAND smoke_units WORKING_DIRECTORY ${CMAKE_SOURCE_D
 add_executable(smoke_colonies
   tests/smoke/test_colonies.c
   src/core/colony.c
+  src/core/units.c
   src/core/map.c
   src/core/assets.c
   src/core/font.c

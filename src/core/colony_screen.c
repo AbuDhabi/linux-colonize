@@ -39,6 +39,53 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->job_count = 0;
   view->last_delta_valid = false;
   memset(&view->last_delta, 0, sizeof(view->last_delta));
+  view->transport_unit_id = -1;
+  view->docked_transport_count = 0;
+  memset(view->docked_transport_ids, 0, sizeof(view->docked_transport_ids));
+}
+
+void colony_screen_refresh_transports(
+  ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  const ColonizeColony* colony
+) {
+  if (!view) {
+    return;
+  }
+  view->docked_transport_count = 0;
+  if (!units || !colony) {
+    view->transport_unit_id = -1;
+    return;
+  }
+  int stack[COLONIZE_UNITS_MAX];
+  const int n =
+    units_collect_tile_stack(units, colony->x, colony->y, colony->nation_id, stack, COLONIZE_UNITS_MAX);
+  for (int i = 0; i < n && view->docked_transport_count < COLONY_TRANSPORT_MAX; ++i) {
+    if (!units_is_transport(units, stack[i])) {
+      continue;
+    }
+    /* Skip passengers — transports must be on-map. */
+    const ColonizeUnit* u = units_get_const(units, stack[i]);
+    if (!u || !units_is_on_map(u)) {
+      continue;
+    }
+    view->docked_transport_ids[view->docked_transport_count++] = stack[i];
+  }
+  if (view->transport_unit_id >= 0) {
+    bool still = false;
+    for (int i = 0; i < view->docked_transport_count; ++i) {
+      if (view->docked_transport_ids[i] == view->transport_unit_id) {
+        still = true;
+        break;
+      }
+    }
+    if (!still) {
+      view->transport_unit_id = -1;
+    }
+  }
+  if (view->transport_unit_id < 0 && view->docked_transport_count == 1) {
+    view->transport_unit_id = view->docked_transport_ids[0];
+  }
 }
 
 void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta) {
@@ -797,6 +844,81 @@ static void colony_screen_draw_cargo_strip(
   }
 }
 
+static void colony_screen_draw_empty_hold(
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  int w,
+  int h
+) {
+  if (!framebuffer) {
+    return;
+  }
+  colony_screen_fill_rect(framebuffer, x, y, x + w, y + 1, 0);
+  colony_screen_fill_rect(framebuffer, x, y + h - 1, x + w, y + h, 0);
+  colony_screen_fill_rect(framebuffer, x, y, x + 1, y + h, 0);
+  colony_screen_fill_rect(framebuffer, x + w - 1, y, x + w, y + h, 0);
+  colony_screen_fill_rect(framebuffer, x + 1, y + 1, x + w - 1, y + h - 1, 138);
+}
+
+static void colony_screen_draw_transports(
+  ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !units || !framebuffer) {
+    return;
+  }
+  if (font && view->docked_transport_count > 0) {
+    font_draw_text(font, framebuffer, COLONY_TRANSPORT_X, COLONY_BOTTOM_PANEL_Y + 4, "Ship", 15);
+  }
+  for (int i = 0; i < view->docked_transport_count; ++i) {
+    const ColonizeUnit* u = units_get_const(units, view->docked_transport_ids[i]);
+    if (!u) {
+      continue;
+    }
+    const ColonizeUnitType* type = units_type(units, u->type_index);
+    const int x = COLONY_TRANSPORT_X + i * COLONY_TRANSPORT_PITCH;
+    const int y = COLONY_TRANSPORT_Y;
+    const bool sel = view->transport_unit_id == u->id;
+    if (sel) {
+      colony_screen_fill_rect(framebuffer, x - 1, y - 1, x + 17, y + 17, 10);
+    }
+    if (type && view->icons_ok && type->icon_sprite >= 0 &&
+        type->icon_sprite < view->icons.sprite_count) {
+      ss_blit_sprite(&view->icons, type->icon_sprite, framebuffer, x, y);
+    } else if (font) {
+      font_draw_text(font, framebuffer, x, y + 4, "?", 15);
+    }
+  }
+
+  if (view->transport_unit_id < 0) {
+    return;
+  }
+  const ColonizeUnit* ship = units_get_const(units, view->transport_unit_id);
+  if (!ship) {
+    return;
+  }
+  const int holds = units_goods_hold_count(units, view->transport_unit_id);
+  for (int i = 0; i < holds; ++i) {
+    const int x = COLONY_HOLD_X + i * COLONY_HOLD_PITCH;
+    const int y = COLONY_HOLD_Y;
+    const int amt = ship->hold_goods_amount[i];
+    const int gtype = ship->hold_goods_type[i];
+    if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT) {
+      const int sprite = COLONY_CARGO_ICON_BASE + gtype;
+      if (view->icons_ok && sprite < view->icons.sprite_count) {
+        ss_blit_sprite(&view->icons, sprite, framebuffer, x, y);
+      } else {
+        colony_screen_draw_empty_hold(framebuffer, x, y, COLONY_HOLD_W, COLONY_HOLD_H);
+      }
+    } else {
+      colony_screen_draw_empty_hold(framebuffer, x, y, COLONY_HOLD_W, COLONY_HOLD_H);
+    }
+  }
+}
+
 static void colony_screen_fill_rect(
   ColonizeFramebuffer8* framebuffer,
   int x0,
@@ -1027,6 +1149,7 @@ ColonyScreenHitResult colony_screen_hit_test(
   const ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
   int mx,
   int my
 ) {
@@ -1078,6 +1201,44 @@ ColonyScreenHitResult colony_screen_hit_test(
   if (my >= COLONY_BOTTOM_PANEL_Y && mx >= COLONY_EXIT_X) {
     hit.kind = COLONY_HIT_EXIT;
     return hit;
+  }
+
+  /* Warehouse cargo strip (load into selected transport). */
+  if (my >= COLONY_CARGO_STRIP_Y && my < COLONY_SCREEN_HEIGHT && mx < COLONY_EXIT_X) {
+    if (mx >= COLONY_CARGO_SLOT_X0) {
+      const int idx = (mx - COLONY_CARGO_SLOT_X0) / COLONY_CARGO_PITCH;
+      if (idx >= 0 && idx < COLONIZE_CARGO_COUNT) {
+        hit.kind = COLONY_HIT_CARGO_SLOT;
+        hit.index = idx;
+        return hit;
+      }
+    }
+  }
+
+  /* Goods holds of selected transport. */
+  if (units && view->transport_unit_id >= 0 && my >= COLONY_HOLD_Y &&
+      my < COLONY_HOLD_Y + COLONY_HOLD_H) {
+    const int holds = units_goods_hold_count(units, view->transport_unit_id);
+    if (mx >= COLONY_HOLD_X && holds > 0) {
+      const int idx = (mx - COLONY_HOLD_X) / COLONY_HOLD_PITCH;
+      if (idx >= 0 && idx < holds && mx < COLONY_HOLD_X + idx * COLONY_HOLD_PITCH + COLONY_HOLD_W) {
+        hit.kind = COLONY_HIT_HOLD;
+        hit.index = idx;
+        return hit;
+      }
+    }
+  }
+
+  /* Docked transport icons. */
+  if (view->docked_transport_count > 0 && my >= COLONY_TRANSPORT_Y &&
+      my < COLONY_TRANSPORT_Y + 16 && mx >= COLONY_TRANSPORT_X) {
+    const int idx = (mx - COLONY_TRANSPORT_X) / COLONY_TRANSPORT_PITCH;
+    if (idx >= 0 && idx < view->docked_transport_count &&
+        mx < COLONY_TRANSPORT_X + idx * COLONY_TRANSPORT_PITCH + 16) {
+      hit.kind = COLONY_HIT_TRANSPORT;
+      hit.index = idx;
+      return hit;
+    }
   }
 
   if (my >= COLONY_CONSTRUCTION_BANNER_Y &&
@@ -1197,6 +1358,11 @@ void colony_screen_render(
   );
 
   colony_screen_draw_construction_banner(view, pool, colony, font, framebuffer);
+
+  if (view && colony && units) {
+    colony_screen_refresh_transports(view, units, colony);
+    colony_screen_draw_transports(view, units, font, framebuffer);
+  }
 
   if (colony) {
     colony_screen_draw_cargo_strip(view, colony, font, framebuffer);

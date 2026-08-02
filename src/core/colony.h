@@ -163,6 +163,40 @@ int colonies_list_buildable(
   int out_max
 );
 
+/* Warehouse capacity per cargo type (100 base; +100 Warehouse; +100 Expansion). Food 199. */
+int colonies_warehouse_capacity(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type
+);
+
+/* Forward decl — transfer helpers need the unit pool without including units.h here. */
+typedef struct ColonizeUnitPool ColonizeUnitPool;
+
+/* Move up to `amount` of cargo_type from colony stock into a transport unit. Returns amount moved. */
+int colonies_transfer_to_unit(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount
+);
+/*
+ * Unload one goods hold into the colony warehouse (respects capacity).
+ * Returns amount moved. *out_warehouse_full true if hold still has leftovers.
+ */
+int colonies_transfer_from_unit(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index,
+  bool* out_warehouse_full
+);
+/* Best cargo type for L-key load (excludes horses/tools/muskets); -1 if none. */
+int colonies_best_load_cargo(const ColonizeColony* colony);
+
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
   const ColonizeSpriteSheet* icons,
