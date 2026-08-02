@@ -6,6 +6,7 @@
 #include <strings.h>
 
 #include "core/col1_bridge.h"
+#include "core/dos_rng.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
 #include "platform/diagnostics.h"
@@ -33,21 +34,14 @@ static const struct {
   {"TUPI", 11},
 };
 
-typedef struct AiRng {
-  uint32_t state;
-} AiRng;
+typedef ColonizeDosRng AiRng;
 
 static uint32_t ai_rng_next(AiRng* rng) {
-  /* Same LCG family as map_gen (approx FUN_281f_04d4). */
-  rng->state = rng->state * 1103515245u + 12345u;
-  return (rng->state >> 16) & 0x7fffu;
+  return dos_rng_next(rng);
 }
 
 static int ai_rng_range(AiRng* rng, int lo, int hi_inclusive) {
-  if (hi_inclusive <= lo) {
-    return lo;
-  }
-  return lo + (int)(ai_rng_next(rng) % (uint32_t)(hi_inclusive - lo + 1));
+  return dos_rng_range(rng, lo, hi_inclusive);
 }
 
 static bool ai_unit_in_europe(int x, int y) {
@@ -177,6 +171,7 @@ static void ai_pick_landfall(
 }
 
 static bool ai_spawn_euro_fleet(
+  const AiNewGameParams* p,
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
   int nation,
@@ -188,11 +183,22 @@ static bool ai_spawn_euro_fleet(
     return false;
   }
 
-  /* Place on eastern high seas at turn 0 so rivals are on the mapboard immediately. */
-  int sx = landfall_x;
-  int sy = landfall_y;
-  if (!units_find_eastern_high_seas_tile(units, map, landfall_y, &sx, &sy)) {
-    return false;
+  int sx;
+  int sy;
+  if (p && !p->use_tribe_txt) {
+    /*
+     * NEW WORLD / CUSTOMIZE: AI Europeans begin in Europe harbor
+     * (Col1 sentinel coords 229+n), not on the eastern high seas.
+     * AMERICA / TRIBE.TXT keeps on-map fleets toward @SCENARIO landfalls.
+     */
+    sx = 229 + nation;
+    sy = 229 + nation;
+  } else {
+    sx = landfall_x;
+    sy = landfall_y;
+    if (!units_find_eastern_high_seas_tile(units, map, landfall_y, &sx, &sy)) {
+      return false;
+    }
   }
 
   const int ship_id = units_spawn_euro_starter_fleet(
@@ -555,8 +561,13 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     }
   }
 
-  AiRng rng;
-  rng.state = params->rng_seed ? params->rng_seed : 1u;
+  AiRng local_rng;
+  AiRng* rng = &local_rng;
+  if (params->rng) {
+    rng = params->rng;
+  } else {
+    dos_rng_seed(&local_rng, params->rng_seed ? params->rng_seed : 1u);
+  }
 
   int landfalls[4][2];
   for (int n = 0; n < 4; ++n) {
@@ -577,6 +588,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
     }
     ai_pick_landfall(params, n, ax, ay, &landfalls[n][0], &landfalls[n][1]);
     if (!ai_spawn_euro_fleet(
+          params,
           params->units,
           params->map,
           n,
@@ -593,14 +605,14 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   int capacity = 0;
   bool placed = false;
   if (params->use_tribe_txt && params->data_dir) {
-    placed = ai_place_tribes_from_txt(params, &tribes, &count, &capacity, &rng);
+    placed = ai_place_tribes_from_txt(params, &tribes, &count, &capacity, rng);
   }
   if (!placed) {
     free(tribes);
     tribes = NULL;
     count = 0;
     capacity = 0;
-    placed = ai_place_tribes_procedural(params, &tribes, &count, &capacity, &rng);
+    placed = ai_place_tribes_procedural(params, &tribes, &count, &capacity, rng);
   }
   if (placed) {
     if (!ai_install_tribes(params, tribes, count)) {
@@ -617,7 +629,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
         (int)tribes[i].nation_id,
         (int)tribes[i].x,
         (int)tribes[i].y,
-        &rng
+        rng
       );
     }
   } else {
@@ -772,7 +784,10 @@ static void ai_wander_braves(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   AiRng rng;
-  rng.state = (uint32_t)(nation_id * 97u + (ctx->turn_number ? *ctx->turn_number : 1u) * 13u + 7u);
+  dos_rng_seed(
+    &rng,
+    (uint32_t)(nation_id * 97u + (ctx->turn_number ? *ctx->turn_number : 1u) * 13u + 7u)
+  );
   static const int k_dx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
   static const int k_dy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 

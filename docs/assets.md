@@ -448,7 +448,9 @@ Parameters (DOS words at `DS:0x1e7e`, each 0..2; NEW WORLD sets all five via `ra
 | 3 | Climate: Arid / Normal / Wet | Forest / river density |
 | 4 | (internal) | Extra forest-pass count |
 
-Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`). RNG is a portable LCG approximating DOS `FUN_281f_04d4` call patterns — not bit-identical to DOSBox.
+Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`).
+
+RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`) → tribe placement (`FUN_6a09_0006`) on the continuing stream. Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,1,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
 
 | Extension | Typical use |
 |-----------|-------------|

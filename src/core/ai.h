@@ -7,6 +7,7 @@
 
 #include "core/assets.h"
 #include "core/col1_save.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/turn.h"
@@ -41,6 +42,8 @@ typedef struct AiNewGameParams {
   int human_start_x;
   int human_start_y;
   uint32_t rng_seed;
+  /* When set, tribe placement continues this DOS LCG (post map_generate). */
+  ColonizeDosRng* rng;
 } AiNewGameParams;
 
 /* Col1 template, AI fleets, tribes/Braves, fix human unit nation_id. */

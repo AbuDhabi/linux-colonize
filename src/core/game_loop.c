@@ -13,6 +13,7 @@
 #include "core/colony.h"
 #include "core/colony_screen.h"
 #include "core/debug_atlas.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/ff.h"
 #include "core/font.h"
@@ -1442,18 +1443,30 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   char map_label[NEW_GAME_MAP_NAME_MAX];
   map_label[0] = '\0';
 
+  ColonizeDosRng campaign_rng;
+  memset(&campaign_rng, 0, sizeof(campaign_rng));
+  bool share_campaign_rng = false;
+
   if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD ||
       ng->path == NEW_GAME_PATH_CUSTOMIZE) {
+    uint32_t seed = ng->gen_params.seed;
+    if (seed == 0) {
+      seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+    }
+    ng->gen_params.seed = seed;
+    /*
+     * DOS NEW WORLD: seed LCG → draw customize axes → reseed with same tick
+     * before FUN_684c_08c0 (plan hypothesis 1). CUSTOMIZE keeps user axes;
+     * only seed the LCG once for generate + tribe stream.
+     */
+    dos_rng_seed(&campaign_rng, seed);
+    ng->gen_params.rng = &campaign_rng;
+    share_campaign_rng = true;
     if (ng->path == NEW_GAME_PATH_NEW_WORLD) {
-      /* Randomize all axes (DOS NEW WORLD). */
-      uint32_t seed = ng->gen_params.seed;
-      if (seed == 0) {
-        seed = game->elapsed_ms ? game->elapsed_ms : 1u;
-      }
+      /* Hypothesis 1: draw customize axes, then reseed before FUN_684c_08c0. */
       map_gen_params_random(&ng->gen_params, seed);
-    } else if (ng->gen_params.seed == 0) {
-      /* CUSTOMIZE: keep user axes; only fill LCG seed. */
-      ng->gen_params.seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+      dos_rng_seed(&campaign_rng, seed);
+      ng->gen_params.rng = &campaign_rng;
     }
     game->world_map_ok = map_generate(&game->world_map, &ng->gen_params, err, sizeof(err));
     if (!game->world_map_ok) {
@@ -1575,9 +1588,21 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     if (ng->path == NEW_GAME_PATH_NEW_WORLD || ng->path == NEW_GAME_PATH_CUSTOMIZE) {
       ai.rng_seed = ng->gen_params.seed ? ng->gen_params.seed : ai.rng_seed;
     }
+    if (share_campaign_rng) {
+      ai.rng = &campaign_rng;
+    }
     char ai_err[256];
     if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
       diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
+    }
+    if (game->units.selected_id >= 0) {
+      const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
+      if (u) {
+        game->map_cursor_x = u->x;
+        game->map_cursor_y = u->y;
+        game->map_view_x = u->x;
+        game->map_view_y = u->y;
+      }
     }
   }
 

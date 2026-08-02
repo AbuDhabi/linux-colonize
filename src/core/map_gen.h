@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/dos_rng.h"
 #include "core/map.h"
 
 /* Classic Col1 NEW WORLD / CUSTOMIZE size (AMER2). */
@@ -21,16 +22,21 @@ typedef struct MapGenParams {
   int climate; /* 0 Arid .. 2 Wet */
   int forest_extra; /* 0..2 DOS 5th word */
   uint32_t seed; /* 0 = treat as 1 for determinism helpers */
+  /*
+   * Optional shared DOS LCG (global DS:28EE in VICEROY). When non-NULL,
+   * map_generate continues from *rng and leaves the post-gen state there
+   * for tribe/euro placement (FUN_6a09). When NULL, seeds a local RNG from
+   * `seed` (smoke / isolated generate).
+   */
+  ColonizeDosRng* rng;
 } MapGenParams;
 
-/* NEW WORLD: each axis = seed-derived rand % 3 (DOS style). */
+/* NEW WORLD: each axis = seed-derived rand % 3 (DOS style). Uses *rng if set. */
 void map_gen_params_random(MapGenParams* out, uint32_t seed);
 
 /*
  * Allocate 58×72 via map_alloc and fill terrain (layer2/3 left 0).
- * Faithful-ish port of FUN_684c_08c0 pipeline (land blobs → cleanup →
- * climate bands → forests/rivers/hills). Documented approximations where
- * the Ghidra export is unreadable.
+ * Port of FUN_684c_08c0 pipeline (land blobs → cleanup → climate → features).
  */
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size);
 

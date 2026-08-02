@@ -202,7 +202,7 @@ AI colony production for non-human Europeans remains **skipped** until save-diff
 
 Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Customize UI: `FUN_733a_0270` on `CUSTOMIZ.PIK` (4 columns × 3 rows; defaults all mid/`1`). Linux port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`) + `NEW_GAME_PHASE_CUSTOMIZE` in `src/core/new_game.c`. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
 
-Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (masks 6/9) is ported. RNG is an LCG approximating `FUN_281f_04d4`, not bit-identical to DOS.
+Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (2×2 masks 6/9) is ported. RNG is exact DOS `FUN_1d1d_0e04` / `FUN_19ef_0032` (`src/core/dos_rng.c`): NEW WORLD draws customize axes then reseeds before `map_generate`, then continues into tribe place. Land-mask generation (blobs / budget / 15 extras) bit-matches seed 100; climate/forest paint and tribe placement still approximate. Golden fidelity target: `smoke_mapgen_seed100` vs `test-saves-mapgen/SEED100.SAV` (no seed-special runtime path).
 
 ## Map compositor (MAPEDIT)
 

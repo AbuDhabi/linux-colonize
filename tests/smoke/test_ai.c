@@ -14,6 +14,23 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+static int count_nation_ships_europe(const ColonizeUnitPool* units, int nation) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (!units_is_sea(units, u->id)) {
+      continue;
+    }
+    if (u->x >= 200 || u->y >= 200) {
+      n++;
+    }
+  }
+  return n;
+}
+
 static int count_nation_ships_on_map(const ColonizeUnitPool* units, const ColonizeWorldMap* map, int nation) {
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -187,8 +204,16 @@ static int run_init_and_turns(
     if (n == human_nation) {
       continue;
     }
-    if (count_nation_ships_on_map(&units, &map, n) < 1) {
-      fprintf(stderr, "%s: missing on-map AI fleet for nation %d\n", label, n);
+    if (america) {
+      if (count_nation_ships_on_map(&units, &map, n) < 1) {
+        fprintf(stderr, "%s: missing on-map AI fleet for nation %d\n", label, n);
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+    } else if (count_nation_ships_europe(&units, n) < 1) {
+      fprintf(stderr, "%s: missing Europe AI fleet for nation %d\n", label, n);
       map_free(&map);
       col1_save_free(&col1);
       assets_msg_free(&names);
@@ -264,7 +289,7 @@ static int run_init_and_turns(
     }
   }
 
-  const int dist0 = ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1);
+  const int dist0 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
   const int pop0 = tribe_pop_sum(&col1);
   const uint16_t crosses0 = col1.nation[human_nation == 1 ? 0 : 1].current_crosses;
 
@@ -291,24 +316,26 @@ static int run_init_and_turns(
     turn_end(&ctx);
   }
 
-  const int dist1 = ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1);
+  const int dist1 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
   const int pop1 = tribe_pop_sum(&col1);
   const uint16_t crosses1 = col1.nation[human_nation == 1 ? 0 : 1].current_crosses;
 
-  if (dist0 >= 0 && dist1 >= 0 && dist1 > dist0) {
-    fprintf(stderr, "%s: AI ship moved farther from landfall (%d -> %d)\n", label, dist0, dist1);
-    map_free(&map);
-    col1_save_free(&col1);
-    assets_msg_free(&names);
-    return 1;
-  }
-  /* Ships stop on water beside landfall; allow already-near starts (western HS rim). */
-  if (dist0 >= 0 && dist1 >= 0 && dist1 == dist0 && dist0 > 25) {
-    fprintf(stderr, "%s: AI ship did not approach landfall (%d -> %d)\n", label, dist0, dist1);
-    map_free(&map);
-    col1_save_free(&col1);
-    assets_msg_free(&names);
-    return 1;
+  if (america) {
+    if (dist0 >= 0 && dist1 >= 0 && dist1 > dist0) {
+      fprintf(stderr, "%s: AI ship moved farther from landfall (%d -> %d)\n", label, dist0, dist1);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Ships stop on water beside landfall; allow already-near starts (western HS rim). */
+    if (dist0 >= 0 && dist1 >= 0 && dist1 == dist0 && dist0 > 25) {
+      fprintf(stderr, "%s: AI ship did not approach landfall (%d -> %d)\n", label, dist0, dist1);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
   }
   if (crosses1 <= crosses0) {
     fprintf(stderr, "%s: AI crosses did not advance (%u -> %u)\n", label, crosses0, crosses1);

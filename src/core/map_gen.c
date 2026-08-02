@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/dos_rng.h"
 #include "platform/diagnostics.h"
 
 /* Terrain indices (bits 0–4); see docs/assets.md. */
@@ -23,25 +24,18 @@
 #define F_RIVER 0x40
 #define F_MOUNTAIN 0x80
 
-typedef struct MapGenRng {
-  uint32_t state;
-} MapGenRng;
+typedef ColonizeDosRng MapGenRng;
 
 static void rng_seed(MapGenRng* rng, uint32_t seed) {
-  rng->state = seed ? seed : 1u;
+  dos_rng_seed(rng, seed ? seed : 1u);
 }
 
-/* DOS-like linear congruential; FUN_281f_04d4 is a wrapped rand — approximate. */
 static uint32_t rng_next(MapGenRng* rng) {
-  rng->state = rng->state * 1103515245u + 12345u;
-  return (rng->state >> 16) & 0x7fffu;
+  return dos_rng_next(rng);
 }
 
 static int rng_range(MapGenRng* rng, int lo, int hi_inclusive) {
-  if (hi_inclusive <= lo) {
-    return lo;
-  }
-  return lo + (int)(rng_next(rng) % (uint32_t)(hi_inclusive - lo + 1));
+  return dos_rng_range(rng, lo, hi_inclusive);
 }
 
 static int clamp_i(int v, int lo, int hi) {
@@ -58,14 +52,19 @@ void map_gen_params_random(MapGenParams* out, uint32_t seed) {
   if (!out) {
     return;
   }
-  MapGenRng rng;
-  rng_seed(&rng, seed ? seed : 1u);
+  MapGenRng local;
+  MapGenRng* rng = &local;
+  if (out->rng) {
+    rng = out->rng;
+  } else {
+    rng_seed(&local, seed ? seed : 1u);
+  }
   out->seed = seed ? seed : 1u;
-  out->land_mass = rng_range(&rng, 0, 2);
-  out->land_form = rng_range(&rng, 0, 2);
-  out->temperature = rng_range(&rng, 0, 2);
-  out->climate = rng_range(&rng, 0, 2);
-  out->forest_extra = rng_range(&rng, 0, 2);
+  out->land_mass = rng_range(rng, 0, 2);
+  out->land_form = rng_range(rng, 0, 2);
+  out->temperature = rng_range(rng, 0, 2);
+  out->climate = rng_range(rng, 0, 2);
+  out->forest_extra = rng_range(rng, 0, 2);
 }
 
 static int idx(int x, int y, int w) {
@@ -94,69 +93,195 @@ static int count_land(const uint8_t* mask, int n) {
 }
 
 /*
- * Grow a land blob from (sx,sy). Style depends on land_form:
- *  0 archipelago — short wanders
- *  1 normal — medium
- *  2 continents — thicker radial growth
- * Approximates FUN_684c_02a8 / 0116 / 085a / 021c.
+ * 8-dir tables at VICEROY DS:0xb4 / 0xbe (file 0x1da54 / 0x1da5e):
+ *   N NE E SE S SW W NW
+ * FUN_684c_009c / 0116 index diagonals via (2*d)-1 for d in 1..4.
+ * FUN_684c_021c / rivers index cardinals via 2*(d-1) for d in 1..4.
  */
-static void grow_blob(
+static const int k_dir8_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+static const int k_dir8_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+typedef struct MapGenMargins {
+  int x0; /* 2d20: exclusive lower — need x > x0 */
+  int x1; /* 2d1e: exclusive upper — need x < x1 */
+  int y0; /* 2d21 */
+  int y1; /* 2d1f */
+} MapGenMargins;
+
+static bool in_margins(int x, int y, const MapGenMargins* m) {
+  return x > m->x0 && x < m->x1 && y > m->y0 && y < m->y1;
+}
+
+/* FUN_684c_0004: stamp land at (x,y) and optional +E / +S neighbours. */
+static void stamp_land(uint8_t* mask, int w, int h, int x, int y) {
+  if (x <= 0 || y <= 0 || x >= w || y >= h) {
+    return;
+  }
+  int order_x[3];
+  int order_y[3];
+  int n = 0;
+  order_x[n] = x;
+  order_y[n] = y;
+  n++;
+  if (x < w - 1) {
+    order_x[n] = x + 1;
+    order_y[n] = y;
+    n++;
+  }
+  if (y < h - 1) {
+    order_x[n] = x;
+    order_y[n] = y + 1;
+    n++;
+  }
+  for (int i = 0; i < n; ++i) {
+    const int px = order_x[i];
+    const int py = order_y[i];
+    if (!in_bounds(px, py, w, h)) {
+      continue;
+    }
+    mask[idx(px, py, w)] = 1;
+  }
+}
+
+/* Single-tile stamp used by FUN_684c_021c (no +E/+S thicken). */
+static void stamp_one(uint8_t* mask, int w, int h, int x, int y) {
+  if (x <= 0 || y <= 0 || x >= w || y >= h) {
+    return;
+  }
+  mask[idx(x, y, w)] = 1;
+}
+
+/* FUN_684c_009c — archipelago / normal wander (diagonal steps). */
+static void walk_009c(
   uint8_t* mask,
   int w,
   int h,
   MapGenRng* rng,
-  int sx,
-  int sy,
-  int target_add,
-  int land_form
+  const MapGenMargins* m,
+  int x,
+  int y
 ) {
-  static const int dx[8] = {1, -1, 0, 0, 1, 1, -1, -1};
-  static const int dy[8] = {0, 0, 1, -1, 1, -1, 1, -1};
-  int x = sx;
-  int y = sy;
-  int added = 0;
-  int steps = target_add * (land_form == 0 ? 3 : (land_form == 1 ? 4 : 6));
-  if (steps < target_add) {
-    steps = target_add;
+  int steps = rng_range(rng, 1, 0x40) + 2;
+  while (steps > 0 && in_margins(x, y, m)) {
+    stamp_land(mask, w, h, x, y);
+    const int d = rng_range(rng, 1, 4);
+    const int di = d * 2 - 1; /* 1,3,5,7 */
+    x += k_dir8_dx[di];
+    y += k_dir8_dy[di];
+    steps--;
   }
+}
 
-  if (!in_bounds(x, y, w, h) || x < 2 || y < 2 || x >= w - 2 || y >= h - 2) {
+/* FUN_684c_0116 — continents: wander + random diagonal thicken. */
+static void walk_0116(
+  uint8_t* mask,
+  int w,
+  int h,
+  MapGenRng* rng,
+  const MapGenMargins* m,
+  int x,
+  int y
+) {
+  int steps = rng_range(rng, 1, 0x30) + 2;
+  while (steps > 0 && in_margins(x, y, m)) {
+    stamp_land(mask, w, h, x, y);
+    if (rng_range(rng, 1, 4) == 1) {
+      stamp_land(mask, w, h, x + 1, y + 1);
+    }
+    if (rng_range(rng, 1, 4) == 1) {
+      stamp_land(mask, w, h, x - 1, y + 1);
+    }
+    if (rng_range(rng, 1, 4) == 1) {
+      stamp_land(mask, w, h, x + 1, y - 1);
+    }
+    if (rng_range(rng, 1, 4) == 1) {
+      stamp_land(mask, w, h, x - 1, y - 1);
+    }
+    const int d = rng_range(rng, 1, 4);
+    const int di = d * 2 - 1;
+    x += k_dir8_dx[di];
+    y += k_dir8_dy[di];
+    steps--;
+  }
+}
+
+/* FUN_684c_021c — short cardinal wander (extra-mass param_1!=0 path). */
+static void walk_021c(
+  uint8_t* mask,
+  int w,
+  int h,
+  MapGenRng* rng,
+  const MapGenMargins* m,
+  int x,
+  int y
+) {
+  int steps = rng_range(rng, 1, 0x10) + 2;
+  while (steps > 0 && in_margins(x, y, m)) {
+    stamp_one(mask, w, h, x, y);
+    const int d = rng_range(rng, 1, 4);
+    const int di = (d - 1) * 2; /* 0,2,4,6 cardinals */
+    x += k_dir8_dx[di];
+    y += k_dir8_dy[di];
+    steps--;
+  }
+}
+
+/*
+ * FUN_684c_02a8 — one land blob.
+ * Stamps into a cleared temp buffer, then merges: every temp tile increments the
+ * permanent coverage mask and the budget counter (overlaps across blobs count again).
+ */
+static void place_blob(
+  uint8_t* mask,
+  int* land_count,
+  int w,
+  int h,
+  MapGenRng* rng,
+  const MapGenMargins* m,
+  const MapGenParams* params,
+  int param_extra
+) {
+  const int n = w * h;
+  uint8_t* temp = (uint8_t*)calloc((size_t)n, 1);
+  if (!temp) {
     return;
   }
-  if (!mask[idx(x, y, w)]) {
-    mask[idx(x, y, w)] = 1;
-    added++;
+
+  int x = rng_range(rng, 1, w - 0x10) + 7;
+  int y = rng_range(rng, 1, h - 8) + 3;
+  if (param_extra != 0) {
+    int tries = 0;
+    while (tries < 32 && in_bounds(x, y, w, h) && mask[idx(x, y, w)]) {
+      x = rng_range(rng, 1, w - 0x10) + 7;
+      y = rng_range(rng, 1, h - 8) + 3;
+      tries++;
+    }
   }
 
-  for (int s = 0; s < steps && added < target_add; ++s) {
-    int n = land_form >= 2 ? rng_range(rng, 0, 3) : rng_range(rng, 0, 7);
-    int nx = x + dx[n];
-    int ny = y + dy[n];
-    /* Stay inside margins (DOS 0x2d20 / 0x2d1e style). */
-    if (nx < 3 || ny < 2 || nx >= w - 3 || ny >= h - 2) {
-      x = clamp_i(x + rng_range(rng, -2, 2), 3, w - 4);
-      y = clamp_i(y + rng_range(rng, -2, 2), 2, h - 3);
-      continue;
+  if (param_extra == 0) {
+    if (params->land_form < 2) {
+      walk_009c(temp, w, h, rng, m, x, y);
+    } else {
+      walk_0116(temp, w, h, rng, m, x, y);
     }
-    x = nx;
-    y = ny;
-    if (!mask[idx(x, y, w)]) {
-      mask[idx(x, y, w)] = 1;
-      added++;
-      /* Continents: thicken */
-      if (land_form >= 2) {
-        for (int k = 0; k < 4 && added < target_add; ++k) {
-          int tx = x + dx[k];
-          int ty = y + dy[k];
-          if (in_bounds(tx, ty, w, h) && tx >= 3 && ty >= 2 && tx < w - 3 && ty < h - 2 &&
-              !mask[idx(tx, ty, w)]) {
-            mask[idx(tx, ty, w)] = 1;
-            added++;
-          }
-        }
-      }
+  } else {
+    const int r = rng_range(rng, 1, 10);
+    walk_021c(temp, w, h, rng, m, x, y);
+    if (r > 6) {
+      walk_021c(temp, w, h, rng, m, x, y);
+    }
+    if (r > 7) {
+      walk_021c(temp, w, h, rng, m, x, y);
     }
   }
+
+  for (int i = 0; i < n; ++i) {
+    if (temp[i]) {
+      mask[i]++;
+      (*land_count)++;
+    }
+  }
+  free(temp);
 }
 
 static void generate_land_mask(
@@ -167,53 +292,56 @@ static void generate_land_mask(
   const MapGenParams* params
 ) {
   const int budget = land_budget(params);
-  const int form = clamp_i(params->land_form, 0, 2);
   memset(mask, 0, (size_t)w * (size_t)h);
 
-  /* Prefer starting on one side of the map (DOS margin flip). */
-  int prefer_north = rng_range(rng, 0, 1) == 0;
-
-  int attempts = 0;
-  while (count_land(mask, w * h) < budget && attempts < 200) {
-    attempts++;
-    int sx = rng_range(rng, 7, w - 8);
-    int sy = prefer_north ? rng_range(rng, 3, h / 2) : rng_range(rng, h / 2, h - 4);
-    int remaining = budget - count_land(mask, w * h);
-    int chunk = remaining;
-    if (form == 0) {
-      chunk = rng_range(rng, 20, 80);
-    } else if (form == 1) {
-      chunk = rng_range(rng, 60, 200);
-    } else {
-      chunk = rng_range(rng, 150, 400);
-    }
-    if (chunk > remaining) {
-      chunk = remaining;
-    }
-    grow_blob(mask, w, h, rng, sx, sy, chunk, form);
+  MapGenMargins m;
+  m.x0 = 3;
+  m.x1 = w - 6;
+  m.y0 = 0;
+  m.y1 = h;
+  /* FUN_684c_08c0: coin-flip shrinks south vs raises north margin. */
+  if (rng_range(rng, 0, 1) == 0) {
+    m.y1 = h - 6;
+  } else {
+    m.y0 = 5;
   }
 
-  /* Extra masses when land_form > 0 (DOS local_2c loop). */
-  if (form > 0) {
-    int extras = form + rng_range(rng, 0, 2);
-    for (int e = 0; e < extras; ++e) {
-      int sx = rng_range(rng, 7, w - 8);
-      int sy = rng_range(rng, 3, h - 4);
-      grow_blob(mask, w, h, rng, sx, sy, rng_range(rng, 30, 120), form);
-    }
+  int land_count = 0;
+  int guard = 0;
+  /* DOS: continue while land < budget (2d22 <= budget && 2d22 != budget). */
+  while (land_count < budget && guard < 500) {
+    place_blob(mask, &land_count, w, h, rng, &m, params, 0);
+    guard++;
+  }
+
+  /*
+   * Extras: 0xf - nonzero(DS:85c8[0..15]) after FUN_67bf_0000.
+   * At this stage terrain is still ocean-filled; 67bf leaves 85c8 empty for NEW
+   * WORLD land-blob labeling, so extras = 15. (seed-100 land mask bit-matches.)
+   * When land_form > 0, DOS randomly reduces the extra count.
+   */
+  int extras = 15;
+  if (params->land_form > 0) {
+    const int cut = rng_range(rng, 0, extras);
+    extras -= cut;
+  }
+  for (int e = 0; e < extras; ++e) {
+    place_blob(mask, &land_count, w, h, rng, &m, params, 1);
   }
 }
 
-/* Cardinal land mask bits: N=1 E=2 S=4 W=8. Awkward diagonals 6 (E+S) and 9 (N+W)
- * get cleared — FUN_684c_08c0 local_34[2]==6||9. */
+/*
+ * FUN_684c_08c0 awkward-diagonal pass: inspect each 2×2 (x,y)/(x+1,y)/(x,y+1)/(x+1,y+1).
+ * Bits: (x,y)=1, (x+1,y)=2, (x,y+1)=4, (x+1,y+1)=8. Patterns 6 and 9 are pure diagonals;
+ * DOS fills the missing cells (writes 1), then backs the scan up one step.
+ */
 static void cleanup_diagonal_land(uint8_t* mask, int w, int h) {
-  for (int y = 1; y < h - 1; ++y) {
-    for (int x = 1; x < w - 1; ++x) {
-      if (!mask[idx(x, y, w)]) {
-        continue;
-      }
+  int y = 1;
+  while (y < h - 1) {
+    int x = 1;
+    while (x < w - 1) {
       int m = 0;
-      if (mask[idx(x, y - 1, w)]) {
+      if (mask[idx(x, y, w)]) {
         m |= 1;
       }
       if (mask[idx(x + 1, y, w)]) {
@@ -222,50 +350,113 @@ static void cleanup_diagonal_land(uint8_t* mask, int w, int h) {
       if (mask[idx(x, y + 1, w)]) {
         m |= 4;
       }
-      if (mask[idx(x - 1, y, w)]) {
+      if (mask[idx(x + 1, y + 1, w)]) {
         m |= 8;
       }
       if (m == 6 || m == 9) {
-        mask[idx(x, y, w)] = 0;
+        mask[idx(x + 1, y, w)] = 1;
+        mask[idx(x, y + 1, w)] = 1;
+        mask[idx(x + 1, y + 1, w)] = 1;
+        if (x > 0) {
+          x--;
+        }
+        if (y > 0) {
+          y--;
+        }
+        continue;
       }
+      x++;
+    }
+    y++;
+  }
+}
+
+/*
+ * Latitude band from FUN_684c_08c0: two range(1,0x10) draws, then
+ *   dist = height/2 - rng - y + 8   (or abs form when first result <= 0),
+ *   dist += (1 - temperature) * 2, band = dist >> 2.
+ * Band → fixed base terrain (ASM switch at 0xbac); band > 5 → tundra (0).
+ */
+static uint8_t latitude_terrain(int y, int h, int temperature, MapGenRng* rng) {
+  int r1 = rng_range(rng, 1, 0x10);
+  int dist = (h >> 1) - r1 - y + 8;
+  if (dist <= 0) {
+    int r2 = rng_range(rng, 1, 0x10);
+    dist = (h >> 1) - r2 - y + 8;
+    if (dist < 0) {
+      dist = -dist;
+    }
+  } else {
+    (void)rng_range(rng, 1, 0x10); /* second draw always consumed */
+  }
+  dist += (1 - temperature) * 2;
+  if (dist < 0) {
+    dist = 0;
+  }
+  const int band = dist >> 2;
+  if (band > 5) {
+    return T_TUNDRA;
+  }
+  switch (band) {
+    case 0:
+      return T_SAVANNAH;
+    case 1:
+      return T_GRASSLAND;
+    case 2:
+      return T_DESERT;
+    case 3:
+      return T_PRAIRIE;
+    case 4:
+    case 5:
+    default:
+      return T_PLAINS;
+  }
+}
+
+/* Polar arctic rows + near-polar stomps + E/W high-seas (FUN_684c_08c0 tail). */
+static void paint_arctic_and_poles(uint8_t* terrain, int w, int h, MapGenRng* rng) {
+  /* 0x28 random arctic tiles on y=1 and y=h-2. */
+  for (int n = 0; n < 0x28; ++n) {
+    int x = rng_range(rng, 1, w) - 1;
+    if (x >= 0 && x < w && h > 2) {
+      terrain[idx(x, 1, w)] = T_ARCTIC;
+    }
+    x = rng_range(rng, 1, w) - 1;
+    if (x >= 0 && x < w && h > 2) {
+      terrain[idx(x, h - 2, w)] = T_ARCTIC;
     }
   }
 }
 
-/* Base terrain from latitude band + temperature shift (FUN_684c_08c0 paint). */
-static uint8_t latitude_terrain(int y, int h, int temperature, MapGenRng* rng) {
-  /* Distance from equator (mid-map), shifted by temperature. */
-  const int mid = h / 2;
-  int jitter = rng_range(rng, 0, 3);
-  int dist = mid - y;
-  if (dist < 0) {
-    dist = -dist;
+/* Eastern approach: convert open ocean from the east rim westward to high seas. */
+static void paint_high_seas(uint8_t* terrain, const uint8_t* mask, int w, int h) {
+  (void)mask;
+  /* FUN_281f_00ce: full-height high-seas columns at x=0 and x=1. */
+  for (int y = 0; y < h - 1; ++y) {
+    terrain[idx(0, y, w)] = (uint8_t)((terrain[idx(0, y, w)] & 0xe0) | T_HIGH_SEAS);
+    if (w > 1) {
+      terrain[idx(1, y, w)] = (uint8_t)((terrain[idx(1, y, w)] & 0xe0) | T_HIGH_SEAS);
+    }
   }
-  dist = dist + jitter;
-  dist = dist + (1 - temperature) * 2;
-  if (dist < 0) {
-    dist = 0;
+  /*
+   * DOS also walks west from the east rim via FUN_281f_0768 (sea-lane connectivity),
+   * not a blind ocean fill. Approximate: only convert pure ocean on the far-east
+   * columns (x >= w-2), preserving arctic stomps inland.
+   */
+  for (int y = 1; y < h - 1; ++y) {
+    for (int x = w - 1; x >= w - 2 && x >= 0; --x) {
+      const int i = idx(x, y, w);
+      if ((terrain[i] & 0x1f) == T_OCEAN) {
+        terrain[i] = (uint8_t)((terrain[i] & 0xe0) | T_HIGH_SEAS);
+      }
+    }
   }
-  const int band = dist >> 2; /* /4 as in decomp iVar12 >> 2 */
-
-  /* Near equator (small dist): tropical; near poles: arctic/tundra. */
-  if (band >= 6) {
-    return T_ARCTIC;
-  }
-  switch (band) {
-    case 0:
-      return (uint8_t)rng_range(rng, T_SAVANNAH, T_SWAMP);
-    case 1:
-      return (rng_next(rng) & 1) ? T_GRASSLAND : T_SAVANNAH;
-    case 2:
-      return (rng_next(rng) & 1) ? T_PLAINS : T_PRAIRIE;
-    case 3:
-      return (rng_next(rng) & 1) ? T_PLAINS : T_DESERT;
-    case 4:
-      return (rng_next(rng) & 1) ? T_TUNDRA : T_DESERT;
-    case 5:
-    default:
-      return (rng_next(rng) & 1) ? T_TUNDRA : T_ARCTIC;
+  /* Solid arctic on y=0 and y=h-1 (FUN_281f_00ba height=1). */
+  if (h > 0) {
+    for (int x = 0; x < w; ++x) {
+      terrain[idx(x, 0, w)] = T_ARCTIC;
+      terrain[idx(x, h - 1, w)] = T_ARCTIC;
+    }
   }
 }
 
@@ -281,19 +472,20 @@ static void paint_terrain(
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
       const int i = idx(x, y, w);
+      /* Always consume latitude RNGs (DOS does, even for water). */
+      uint8_t base = latitude_terrain(y, h, temp, rng);
       if (!mask[i]) {
-        /* High seas near map edges (east/west), ocean otherwise. */
-        if (x <= 1 || x >= w - 2) {
-          terrain[i] = T_HIGH_SEAS;
-        } else {
-          terrain[i] = T_OCEAN;
-        }
+        terrain[i] = T_OCEAN;
         continue;
       }
-      terrain[i] = latitude_terrain(y, h, temp, rng);
-      if (terrain[i] == T_ARCTIC) {
-        /* Keep arctic as-is */
+      /* Coverage ≥2 → hill, ≥3 → mountain (FUN_684c_08c0). */
+      if (mask[i] >= 2) {
+        base = (uint8_t)(base | F_HILL);
       }
+      if (mask[i] >= 3) {
+        base = (uint8_t)(base | F_MOUNTAIN);
+      }
+      terrain[i] = base;
     }
   }
 }
@@ -335,35 +527,6 @@ static void add_forests(
       continue;
     }
     terrain[i] = (uint8_t)(t | T_FOREST_BIT);
-  }
-}
-
-static void add_hills_mountains(
-  uint8_t* terrain,
-  const uint8_t* mask,
-  int w,
-  int h,
-  MapGenRng* rng,
-  const MapGenParams* params
-) {
-  (void)params;
-  const int attempts = w * h / 8;
-  for (int a = 0; a < attempts; ++a) {
-    int x = rng_range(rng, 2, w - 3);
-    int y = rng_range(rng, 2, h - 3);
-    int i = idx(x, y, w);
-    if (!mask[i]) {
-      continue;
-    }
-    uint8_t base = terrain[i] & 0x1f;
-    if (base >= T_ARCTIC) {
-      continue;
-    }
-    if ((rng_next(rng) % 5) == 0) {
-      terrain[i] = (uint8_t)((terrain[i] & 0x1f) | F_HILL | F_MOUNTAIN);
-    } else if ((rng_next(rng) % 3) == 0) {
-      terrain[i] = (uint8_t)((terrain[i] & 0x1f) | F_HILL);
-    }
   }
 }
 
@@ -454,18 +617,27 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
     return false;
   }
 
-  MapGenRng rng;
-  rng_seed(&rng, p.seed);
+  MapGenRng local;
+  MapGenRng* rng = &local;
+  if (params->rng) {
+    rng = params->rng;
+  } else {
+    rng_seed(&local, p.seed);
+  }
 
-  generate_land_mask(mask, w, h, &rng, &p);
-  cleanup_diagonal_land(mask, w, h);
-  /* Second cleanup pass for residual corners. */
+  /* FUN_684c_08c0: first range(1,0x7fff) → DS:0x190 resource seed. */
+  (void)rng_range(rng, 1, 0x7fff);
+
+  generate_land_mask(mask, w, h, rng, &p);
   cleanup_diagonal_land(mask, w, h);
 
-  paint_terrain(out->terrain, mask, w, h, &rng, &p);
-  add_forests(out->terrain, mask, w, h, &rng, &p);
-  add_hills_mountains(out->terrain, mask, w, h, &rng, &p);
-  add_rivers(out->terrain, mask, w, h, &rng, &p);
+  paint_terrain(out->terrain, mask, w, h, rng, &p);
+  add_forests(out->terrain, mask, w, h, rng, &p);
+  /* Hills/mountains come from blob coverage during paint_terrain (DOS). */
+  add_rivers(out->terrain, mask, w, h, rng, &p);
+  /* Arctic stomps + E/W high seas + polar arctic rows (after forest/river passes). */
+  paint_arctic_and_poles(out->terrain, w, h, rng);
+  paint_high_seas(out->terrain, mask, w, h);
 
   const int land = count_land(mask, n);
   diag_info(

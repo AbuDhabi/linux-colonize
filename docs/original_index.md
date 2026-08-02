@@ -132,7 +132,8 @@ one exists.
 | `FUN_684c_02a8` / `0116` / `085a` / `021c` | Land blobs / form thunks | map_gen |
 | `FUN_67bf_0000` | Continent flood-fill IDs | map_gen (IDs not written to layer2 in v1) |
 | `FUN_733a_0000` / `0270` / `0512` | CUSTOMIZE / difficulty-style UI | [new_game.c](../src/core/new_game.c) |
-| `FUN_281f_04d4` | Wrapped RNG | LCG approx in map_gen (not bit-identical) |
+| `FUN_281f_04d4` | Wrapped RNG (calls into libc) | `dos_rng` (`FUN_1d1d_0e04`) |
+| `FUN_1d1d_0e04` / `FUN_19ef_0032` | DOS LCG + range | [dos_rng.c](../src/core/dos_rng.c); golden via `smoke_mapgen_seed100` |
 | `FUN_281f_0590` | Fill helper (turn box) | turn indicator draw |
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |

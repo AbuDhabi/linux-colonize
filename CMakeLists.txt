@@ -41,6 +41,7 @@ add_library(colonize_core STATIC
   src/core/ff.c
   src/core/map.c
   src/core/map_gen.c
+  src/core/dos_rng.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -180,6 +181,7 @@ add_executable(smoke_game_flow
   src/core/ff.c
   src/core/map.c
   src/core/map_gen.c
+  src/core/dos_rng.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -218,6 +220,7 @@ add_executable(smoke_new_game
   src/core/ff.c
   src/core/map.c
   src/core/map_gen.c
+  src/core/dos_rng.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -314,17 +317,27 @@ add_test(NAME smoke_map COMMAND smoke_map WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_map_gen
   tests/smoke/test_map_gen.c
-  src/core/map_gen.c
-  src/core/map.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
 )
 
 target_include_directories(smoke_map_gen PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_link_libraries(smoke_map_gen PRIVATE colonize_core)
+
 add_test(NAME smoke_map_gen COMMAND smoke_map_gen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_mapgen_seed100
+  tests/smoke/test_mapgen_seed100.c
+)
+
+target_include_directories(smoke_mapgen_seed100 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_mapgen_seed100 PRIVATE colonize_core)
+
+add_test(NAME smoke_mapgen_seed100 COMMAND smoke_mapgen_seed100 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_viceroy_tables
   tests/smoke/test_viceroy_tables.c
