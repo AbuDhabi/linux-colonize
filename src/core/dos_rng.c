@@ -18,9 +18,13 @@ uint16_t dos_rng_next(ColonizeDosRng* rng) {
 }
 
 int dos_rng_range(ColonizeDosRng* rng, int lo, int hi) {
-  if (!rng || hi <= lo) {
+  if (!rng) {
     return lo;
   }
+  if (hi < lo) {
+    return lo;
+  }
+  /* Inclusive span; hi==lo still advances the LCG (span 1). */
   const int span = hi - lo + 1;
   const uint32_t r = dos_rng_next(rng);
   /* FUN_19ef_0032: (span * r) >> 15 + lo */

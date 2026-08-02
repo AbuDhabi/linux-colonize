@@ -288,6 +288,114 @@ static bool ai_append_tribe(
   return true;
 }
 
+/* VICEROY DS:0xb4 / 0xbe; index 8 is past-table (0,0) = centre. */
+static const int k_ai_dir8_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
+static const int k_ai_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
+
+/* FUN_124c_0040: diagonal-ish distance on abs deltas. */
+static int ai_dos_dist(int dx, int dy) {
+  if (dx < 0) {
+    dx = -dx;
+  }
+  if (dy < 0) {
+    dy = -dy;
+  }
+  if (dy < dx) {
+    return (dy >> 1) + dx;
+  }
+  return (dx >> 1) + dy;
+}
+
+static int ai_map_inset(const ColonizeWorldMap* map, int x, int y) {
+  return map && x >= 1 && y >= 1 && x < map->width - 1 && y < map->height - 1;
+}
+
+static uint8_t ai_terrain_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 25;
+  }
+  return map->terrain[y * map->width + x];
+}
+
+static uint8_t ai_layer2_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  return map->layer2[y * map->width + x];
+}
+
+static void ai_layer2_or(ColonizeWorldMap* map, int x, int y, uint8_t bits) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return;
+  }
+  map->layer2[y * map->width + x] = (uint8_t)(map->layer2[y * map->width + x] | bits);
+}
+
+/* FUN_13e4_003a / FUN_13e4_000e */
+static int ai_decoded_type(const ColonizeWorldMap* map, int x, int y) {
+  if (!ai_map_inset(map, x, y)) {
+    return 25;
+  }
+  const uint8_t t = ai_terrain_at(map, x, y);
+  if (t & 0x20u) {
+    return (t & 0x80u) ? 0x1c : 0x1b;
+  }
+  return (int)(t & 0x1fu);
+}
+
+static int ai_continent_id(const ColonizeWorldMap* map, int x, int y) {
+  const int n = (int)((ai_layer2_at(map, x, y) >> 4) & 0xfu);
+  return n == 0xf ? -1 : n;
+}
+
+/* FUN_4cc6_0356: nearest tribe distance → *out_dist; returns index or -1. */
+static int ai_nearest_tribe(
+  const ColonizeCol1Tribe* tribes,
+  int count,
+  int x,
+  int y,
+  int* out_dist
+) {
+  int best = -1;
+  int best_d = 9999;
+  for (int i = 0; i < count; ++i) {
+    const int d = ai_dos_dist(x - (int)tribes[i].x, y - (int)tribes[i].y);
+    if (d <= best_d) {
+      best_d = d;
+      best = i;
+    }
+  }
+  if (out_dist) {
+    *out_dist = best_d;
+  }
+  return best;
+}
+
+static int ai_terrain_ok_for_village(const ColonizeWorldMap* map, int x, int y) {
+  if (!ai_map_inset(map, x, y)) {
+    return 0;
+  }
+  if ((ai_layer2_at(map, x, y) & 3u) != 0) {
+    return 0;
+  }
+  const int typ = ai_decoded_type(map, x, y);
+  if (typ >= 0x18) {
+    return 0;
+  }
+  const int base = typ & 7;
+  return (base == 0 || (base >= 2 && base <= 6)) ? 1 : 0;
+}
+
+static int ai_village_neighbour_blocked(const ColonizeWorldMap* map, int x, int y) {
+  for (int d = 0; d < 9; ++d) {
+    if ((ai_layer2_at(map, x + k_ai_dir8_dx[d], y + k_ai_dir8_dy[d]) & 3u) != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* FUN_6a09 Brave: range(-2,2) offsets, same continent, land, layer2&3==0. */
 static void ai_spawn_brave_near(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -300,32 +408,34 @@ static void ai_spawn_brave_near(
   if (brave < 0 || !units || !map) {
     return;
   }
-  /* Prefer an adjacent empty land tile; else stack on village. */
-  static const int k_dx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
-  static const int k_dy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  const int start = (int)(ai_rng_next(rng) & 7u);
-  for (int i = 0; i < 8; ++i) {
-    const int d = (start + i) & 7;
-    const int x = tx + k_dx[d];
-    const int y = ty + k_dy[d];
-    if (!map_tile_is_land(map, x, y)) {
+  const int home_c = ai_continent_id(map, tx, ty);
+  int ox = tx;
+  int oy = ty;
+  int ok = 0;
+  for (int attempt = 0; attempt < 100; ++attempt) {
+    const int x = tx + ai_rng_range(rng, -2, 2);
+    const int y = ty + ai_rng_range(rng, -2, 2);
+    if (!ai_map_inset(map, x, y)) {
       continue;
     }
-    if (units_id_at(units, x, y) >= 0) {
+    if (ai_continent_id(map, x, y) != home_c) {
       continue;
     }
-    const int id = units_spawn(units, brave, x, y);
-    if (id >= 0) {
-      ColonizeUnit* u = units_get(units, id);
-      if (u) {
-        u->nation_id = nation_id;
-        u->goto_x = 0xFF;
-        u->goto_y = 0xFF;
-      }
-      return;
+    if (map_tile_is_water(map, x, y)) {
+      continue;
     }
+    if ((ai_layer2_at(map, x, y) & 3u) != 0) {
+      continue;
+    }
+    ox = x;
+    oy = y;
+    ok = 1;
+    break;
   }
-  const int id = units_spawn_allow_stack(units, brave, tx, ty);
+  if (!ok) {
+    return;
+  }
+  const int id = units_spawn_allow_stack(units, brave, ox, oy);
   if (id >= 0) {
     ColonizeUnit* u = units_get(units, id);
     if (u) {
@@ -418,6 +528,11 @@ static bool ai_place_tribes_from_txt(
   return *count > 0;
 }
 
+/*
+ * FUN_6a09_0006 NEW WORLD path (no TRIBE.TXT): 8 capitals then satellites
+ * until tribe_count>=84, attempts>=0x870, or region marks>=0x10e; then one
+ * Brave per village on the shared DOS LCG stream.
+ */
 static bool ai_place_tribes_procedural(
   const AiNewGameParams* p,
   ColonizeCol1Tribe** tribes,
@@ -425,70 +540,167 @@ static bool ai_place_tribes_procedural(
   int* capacity,
   AiRng* rng
 ) {
-  if (!p->map) {
+  if (!p || !p->map || !p->col1) {
     return false;
   }
-  /* Capitals first. */
+  const ColonizeWorldMap* map = p->map;
+  const int w = map->width;
+  const int h = map->height;
+  if (w < 17 || h < 25) {
+    return false;
+  }
+
+  /* 15×18 occupancy grid (FUN_1d1d_0dae @ DS:0x9faa). */
+  uint8_t grid[15 * 18];
+  memset(grid, 0, sizeof(grid));
+  uint8_t nation_tribe_count[8];
+  memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
+
+  /* Per-indian init: 4× range(0,14) cargo seeds (stream sync). */
   for (int indian = 0; indian < 8; ++indian) {
-    const int nation = indian + 4;
-    bool placed = false;
-    for (int attempt = 0; attempt < 800 && !placed; ++attempt) {
-      const int x = ai_rng_range(rng, 2, p->map->width - 3);
-      const int y = ai_rng_range(rng, 2, p->map->height - 3);
-      if (!map_tile_is_land(p->map, x, y)) {
-        continue;
+    for (int slot = 0; slot < 4; ++slot) {
+      int bonus = 0;
+      if (slot < 4 && p->col1->player[slot].control == 0) {
+        bonus = (p->difficulty & 0xff) << 1;
       }
-      /* Spacing vs existing capitals. */
-      bool ok = true;
-      for (int i = 0; i < *count; ++i) {
-        if (!(*tribes)[i].state.capital) {
-          continue;
-        }
-        const int dx = (int)(*tribes)[i].x - x;
-        const int dy = (int)(*tribes)[i].y - y;
-        if (dx * dx + dy * dy < 64) {
-          ok = false;
-          break;
-        }
-      }
-      if (!ok) {
-        continue;
-      }
-      const uint8_t tech = p->col1->indian[indian].tech;
-      if (!ai_append_tribe(tribes, count, capacity, x, y, nation, true, tech)) {
-        return *count > 0;
-      }
-      p->col1->indian[indian].capitol_x = (uint8_t)x;
-      p->col1->indian[indian].capitol_y = (uint8_t)y;
-      placed = true;
+      (void)(ai_rng_range(rng, 0, 14) + bonus);
     }
   }
 
-  /* Satellites until soft cap (~56–84). */
-  const int target = 56 + (int)(ai_rng_next(rng) % 29u);
-  int stall = 0;
-  while (*count < target && *count < AI_TRIBE_CAP_NEW_WORLD && stall < 2000) {
-    stall++;
-    const int indian = ai_rng_range(rng, 0, 7);
-    const int nation = indian + 4;
-    const int cx = p->col1->indian[indian].capitol_x;
-    const int cy = p->col1->indian[indian].capitol_y;
-    const int x = cx + ai_rng_range(rng, -10, 10);
-    const int y = cy + ai_rng_range(rng, -10, 10);
-    if (!map_tile_is_land(p->map, x, y) || ai_tile_has_tribe(*tribes, *count, x, y)) {
+  int regions_marked = 0;
+
+  /* Capitals: one attempt loop per indian 0..7. */
+  for (int indian = 0; indian < 8; ++indian) {
+    int placed = 0;
+    int attempt = 0;
+    int px = 0;
+    int py = 0;
+    do {
+      attempt++;
+      const int x = ai_rng_range(rng, 8, w - 8);
+      const int y = ai_rng_range(rng, 12, h - 12);
+      if (map_tile_is_water(map, x, y)) {
+        continue;
+      }
+      if ((ai_terrain_at(map, x, y) & 0x20u) != 0) {
+        continue;
+      }
+      int dist = 9999;
+      ai_nearest_tribe(*tribes, *count, x, y, &dist);
+      if (dist == 0) {
+        continue;
+      }
+      const int thresh = 90 - (attempt >> 2);
+      if (thresh > dist) {
+        continue;
+      }
+      if (dist < 8) {
+        if ((8 - dist) * 1000 > attempt) {
+          continue;
+        }
+      }
+      if (indian < 2 && (x << 3) > attempt) {
+        continue;
+      }
+      const int gx = x / 5;
+      const int gy = y / 5;
+      if (gx < 0 || gx > 14 || gy < 0 || gy > 17) {
+        continue;
+      }
+      if (grid[gx * 18 + gy] != 0 && attempt < 10000) {
+        continue;
+      }
+      placed = 1;
+      px = x;
+      py = y;
+    } while (!placed && attempt < 12000);
+
+    if (!placed) {
       continue;
     }
-    /* Keep satellites near own capital region. */
-    const int dx = x - cx;
-    const int dy = y - cy;
-    if (dx * dx + dy * dy > 225) {
-      continue;
-    }
+
     const uint8_t tech = p->col1->indian[indian].tech;
-    if (ai_append_tribe(tribes, count, capacity, x, y, nation, false, tech)) {
-      stall = 0;
+    if (!ai_append_tribe(tribes, count, capacity, px, py, indian + 4, true, tech)) {
+      return *count > 0;
     }
+    ai_layer2_or(p->map, px, py, 2);
+    p->col1->indian[indian].capitol_x = (uint8_t)px;
+    p->col1->indian[indian].capitol_y = (uint8_t)py;
+    nation_tribe_count[indian]++;
+    grid[(px / 5) * 18 + (py / 5)] = 1;
+    regions_marked++;
   }
+
+  /* Satellites. */
+  int sat_attempts = 0;
+  while (regions_marked < 0x10e && sat_attempts < 0x870 && *count < AI_TRIBE_CAP_NEW_WORLD) {
+    int indian;
+    do {
+      indian = ai_rng_range(rng, 0, 7);
+    } while (nation_tribe_count[indian] == 0);
+
+    int cx = (int)p->col1->indian[indian].capitol_x / 5;
+    int cy = (int)p->col1->indian[indian].capitol_y / 5;
+    int found_cell = 0;
+    sat_attempts++;
+    do {
+      const int dir = ai_rng_range(rng, 0, 7);
+      cx += k_ai_dir8_dx[dir];
+      cy += k_ai_dir8_dy[dir];
+      if (cx < 0 || cx > 14 || cy < 0 || cy > 17) {
+        break;
+      }
+      if (grid[cx * 18 + cy] == 0) {
+        found_cell = 1;
+      }
+    } while (!found_cell);
+
+    if (!found_cell) {
+      continue;
+    }
+
+    const int base_x = cx * 5;
+    const int base_y = cy * 5;
+    uint8_t cand_x[16];
+    uint8_t cand_y[16];
+    int n_cand = 0;
+    for (int y = base_y + 1; y < base_y + 4; ++y) {
+      for (int x = base_x + 1; x < base_x + 4; ++x) {
+        if (!ai_terrain_ok_for_village(map, x, y)) {
+          continue;
+        }
+        if (ai_village_neighbour_blocked(map, x, y)) {
+          continue;
+        }
+        if (n_cand < 16) {
+          cand_x[n_cand] = (uint8_t)x;
+          cand_y[n_cand] = (uint8_t)y;
+          n_cand++;
+        }
+      }
+    }
+
+    if (n_cand > 0) {
+      const int pick = ai_rng_range(rng, 0, n_cand - 1);
+      const int x = (int)cand_x[pick];
+      const int y = (int)cand_y[pick];
+      int nearest_dist = 9999;
+      const int nearest = ai_nearest_tribe(*tribes, *count, x, y, &nearest_dist);
+      const int nation =
+        (nearest >= 0) ? (int)(*tribes)[nearest].nation_id : (indian + 4);
+      const uint8_t tech = p->col1->indian[nation - 4].tech;
+      if (ai_append_tribe(tribes, count, capacity, x, y, nation, false, tech)) {
+        ai_layer2_or(p->map, x, y, 2);
+        if (nation >= 4 && nation <= 11) {
+          nation_tribe_count[nation - 4]++;
+        }
+      }
+    }
+
+    grid[cx * 18 + cy] = 1;
+    regions_marked++;
+  }
+
   return *count > 0;
 }
 
@@ -604,6 +816,11 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   int count = 0;
   int capacity = 0;
   bool placed = false;
+  /*
+   * DOS FUN_75c2_235c after mapgen: range(1,8) → DS:0x53a8 before FUN_6a09.
+   * Required for capital RNG sync on NEW WORLD / CUSTOMIZE.
+   */
+  (void)ai_rng_range(rng, 1, 8);
   if (params->use_tribe_txt && params->data_dir) {
     placed = ai_place_tribes_from_txt(params, &tribes, &count, &capacity, rng);
   }

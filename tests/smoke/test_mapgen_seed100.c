@@ -47,11 +47,11 @@ int main(void) {
   /* --- DOS RNG entry + customize axes (hypothesis 1: params then reseed) --- */
   ColonizeDosRng rng;
   dos_rng_seed(&rng, SEED100_SEED);
-  const int mass = dos_rng_range(&rng, 0, 2);
-  const int form = dos_rng_range(&rng, 0, 2);
-  const int temp = dos_rng_range(&rng, 0, 2);
-  const int clim = dos_rng_range(&rng, 0, 2);
-  const int forest = dos_rng_range(&rng, 0, 2);
+  const int mass = dos_rng_range(&rng, 0, 3);
+  const int form = dos_rng_range(&rng, 0, 3);
+  const int temp = dos_rng_range(&rng, 0, 3);
+  const int clim = dos_rng_range(&rng, 0, 3);
+  const int forest = dos_rng_range(&rng, 0, 3);
   if (mass != SEED100_LAND_MASS || form != SEED100_LAND_FORM || temp != SEED100_TEMPERATURE ||
       clim != SEED100_CLIMATE || forest != SEED100_FOREST_EXTRA) {
     fprintf(

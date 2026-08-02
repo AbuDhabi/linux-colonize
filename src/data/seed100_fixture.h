@@ -13,11 +13,11 @@
 #define SEED100_UNIT_COUNT 46
 #define SEED100_SEED 100u
 
-/* DOS LCG: seed(100) → five FUN_19ef_0032(0,2) = customize axes. */
+/* DOS LCG: seed(100) → five FUN_19ef_0032(0,3) = NEW WORLD axes (not 0..2). */
 #define SEED100_LAND_MASS 0
 #define SEED100_LAND_FORM 0
 #define SEED100_TEMPERATURE 0
-#define SEED100_CLIMATE 1
+#define SEED100_CLIMATE 2
 #define SEED100_FOREST_EXTRA 2
 
 /* Human England stack tile in the golden save. */

@@ -7,6 +7,10 @@
 #include "core/dos_rng.h"
 #include "platform/diagnostics.h"
 
+#ifndef MAPGEN_STAGE_DIAG
+#define MAPGEN_STAGE_DIAG 0
+#endif
+
 /* Terrain indices (bits 0–4); see docs/assets.md. */
 #define T_TUNDRA 0
 #define T_DESERT 1
@@ -56,11 +60,12 @@ void map_gen_params_random(MapGenParams* out, uint32_t seed) {
     rng_seed(&local, seed ? seed : 1u);
   }
   out->seed = seed ? seed : 1u;
-  out->land_mass = rng_range(rng, 0, 2);
-  out->land_form = rng_range(rng, 0, 2);
-  out->temperature = rng_range(rng, 0, 2);
-  out->climate = rng_range(rng, 0, 2);
-  out->forest_extra = rng_range(rng, 0, 2);
+  /* NEW WORLD: FUN_281f_04d4(0,3) per axis (can be 0..3). CUSTOMIZE UI stays 0..2. */
+  out->land_mass = rng_range(rng, 0, 3);
+  out->land_form = rng_range(rng, 0, 3);
+  out->temperature = rng_range(rng, 0, 3);
+  out->climate = rng_range(rng, 0, 3);
+  out->forest_extra = rng_range(rng, 0, 3);
 }
 
 static int idx(int x, int y, int w) {
@@ -73,8 +78,8 @@ static bool in_bounds(int x, int y, int w, int h) {
 
 /* Land budget from FUN_684c_08c0: (form + mass + 1) * 0x140. */
 static int land_budget(const MapGenParams* p) {
-  const int mass = clamp_i(p->land_mass, 0, 2);
-  const int form = clamp_i(p->land_form, 0, 2);
+  const int mass = clamp_i(p->land_mass, 0, 3);
+  const int form = clamp_i(p->land_form, 0, 3);
   return (form + mass + 1) * 0x140;
 }
 
@@ -285,7 +290,8 @@ static void generate_land_mask(
   int w,
   int h,
   MapGenRng* rng,
-  const MapGenParams* params
+  const MapGenParams* params,
+  int* out_open_south
 ) {
   const int budget = land_budget(params);
   memset(mask, 0, (size_t)w * (size_t)h);
@@ -295,11 +301,16 @@ static void generate_land_mask(
   m.x1 = w - 6;
   m.y0 = 0;
   m.y1 = h;
-  /* FUN_684c_08c0: coin-flip shrinks south vs raises north margin. */
-  if (rng_range(rng, 0, 1) == 0) {
+  /* FUN_684c_08c0: range(0,1) → local_e. 0 shrinks south margin + bottom ocean
+   * fill in arctic; 1 raises north margin + top ocean fill. */
+  const int open_south = rng_range(rng, 0, 1) == 0;
+  if (open_south) {
     m.y1 = h - 6;
   } else {
     m.y0 = 5;
+  }
+  if (out_open_south) {
+    *out_open_south = open_south;
   }
 
   int land_count = 0;
@@ -374,16 +385,15 @@ static void cleanup_diagonal_land(uint8_t* mask, int w, int h) {
  * Band → fixed base terrain (ASM switch at 0xbac); band > 5 → tundra (0).
  */
 static uint8_t latitude_terrain(int y, int h, int temperature, MapGenRng* rng) {
+  /* Dual range(1,0x10): first chooses signed vs negated path; band uses r2.
+   * FUN_684c_08c0 @ 0x0c2c / 0x0b2c / 0x0c46 / EXE 64d75. */
   int r1 = rng_range(rng, 1, 0x10);
-  int dist = (h >> 1) - r1 - y + 8;
-  if (dist <= 0) {
-    int r2 = rng_range(rng, 1, 0x10);
-    dist = (h >> 1) - r2 - y + 8;
-    if (dist < 0) {
-      dist = -dist;
-    }
-  } else {
-    (void)rng_range(rng, 1, 0x10); /* second draw always consumed */
+  int first = (h >> 1) - r1 - y + 8;
+  int r2 = rng_range(rng, 1, 0x10);
+  int dist = (h >> 1) - r2 - y + 8;
+  if (first <= 0) {
+    /* DOS: NOT AX; INC AX (NEG). Not abs — positive dist becomes negative. */
+    dist = -dist;
   }
   dist += (1 - temperature) * 2;
   if (dist < 0) {
@@ -432,9 +442,12 @@ static int inset_bounds(int x, int y, int w, int h) {
 }
 
 /*
- * Rivers (FUN_684c_04a6): walk inland until ocean/existing river, OR 0x40 on
- * path. Failed short walks restore a terrain backup. Stops after 512 attempts
- * or (climate + mass + 2) * 8 successful rivers.
+ * Rivers (FUN_684c_04a6).
+ *
+ * Each attempt snapshots terrain into a backup plane (DOS: memcpy 15c→168, the
+ * 85c0 far pointer). Walk paints live terrain (85a8); mid-walk hill/river stops
+ * and "existing river" connects read the snapshot, so the in-progress trail is
+ * invisible to those tests. Failed walks restore from the snapshot.
  */
 static void rivers_pass(
   uint8_t* terrain,
@@ -445,31 +458,52 @@ static void rivers_pass(
   int land_mass
 ) {
   const int n = w * h;
-  uint8_t* backup = (uint8_t*)malloc((size_t)n);
-  if (!backup) {
+  uint8_t* snap = (uint8_t*)malloc((size_t)n);
+  if (!snap) {
     return;
   }
 
   int attempts = 0;
   int successes = 0;
   const int success_target = (climate + land_mass + 2) * 8;
+#if MAPGEN_STAGE_DIAG
+  int reject_loops = 0;
+  int fail_restore = 0;
+  int ok_connect = 0;
+  int ok_step_riv = 0;
+  int fail_short = 0;
+  int fail_no_conn = 0;
+  int fail_short_conn = 0;
+#endif
 
   while (attempts < 0x200 && successes < success_target) {
-    memcpy(backup, terrain, (size_t)n);
+    /* FUN_1d1d_0fb2: terrain → 85c0 snapshot. */
+    memcpy(snap, terrain, (size_t)n);
     attempts++;
 
     int x, y;
+    uint8_t tile_snap;
     for (;;) {
       x = rng_range(rng, 1, w - 2);
       y = rng_range(rng, 1, h - 2);
-      /* DOS tests coverage-plane bit 0x20 (never set) then FUN_281f_0768 water. */
+      tile_snap = snap[idx(x, y, w)];
+      /* Reject hills on snapshot, then water on live terrain (0768). */
+      if (tile_snap & F_HILL) {
+#if MAPGEN_STAGE_DIAG
+        reject_loops++;
+#endif
+        continue;
+      }
       if (is_water_tile(terrain[idx(x, y, w)])) {
+#if MAPGEN_STAGE_DIAG
+        reject_loops++;
+#endif
         continue;
       }
       break;
     }
 
-    int dir = rng_range(rng, 0, 3) << 1; /* even 8-dir index */
+    int dir = rng_range(rng, 0, 3) << 1;
     int turn_flag = rng_range(rng, 0, 1);
     int length = 0;
     int connected = 0;
@@ -477,11 +511,13 @@ static void rivers_pass(
     const int origin_y = y;
     int join_x = x;
     int join_y = y;
+    uint8_t cur_snap = tile_snap;
 
     for (;;) {
+      /* Paint snapshot|0x40 onto live terrain (matches first-visit DOS write). */
       {
         const int i = idx(x, y, w);
-        terrain[i] = (uint8_t)(terrain[i] | F_RIVER);
+        terrain[i] = (uint8_t)(cur_snap | F_RIVER);
       }
       length++;
 
@@ -492,13 +528,20 @@ static void rivers_pass(
         if (!in_bounds(nx, ny, w, h)) {
           continue;
         }
-        const uint8_t nt = terrain[idx(nx, ny, w)];
-        /* Only ocean/HS: coverage-plane 0x40 never flags our own trail. */
-        if (is_water_tile(nt)) {
+        if (is_water_tile(terrain[idx(nx, ny, w)])) {
           connected = 1;
-          join_x = nx;
-          join_y = ny;
-          terrain[idx(nx, ny, w)] = (uint8_t)(nt | F_RIVER);
+          /* Thicken starts at the walker tile (DOS local_1a/local_20). */
+          join_x = x;
+          join_y = y;
+          terrain[idx(nx, ny, w)] = (uint8_t)(terrain[idx(nx, ny, w)] | F_RIVER);
+          break;
+        }
+        /* Existing committed river on snapshot (not our in-progress trail). */
+        if (snap[idx(nx, ny, w)] & F_RIVER) {
+          connected = 1;
+          join_x = x;
+          join_y = y;
+          terrain[idx(nx, ny, w)] = (uint8_t)(terrain[idx(nx, ny, w)] | F_RIVER);
           break;
         }
       }
@@ -519,22 +562,35 @@ static void rivers_pass(
       x += k_dir8_dx[dir];
       y += k_dir8_dy[dir];
 
+      /* DOS reads 85c0 at the new coords before the inset / feature tests, so a
+       * step onto the map rim can still succeed via an existing river there. */
+      if (in_bounds(x, y, w, h)) {
+        cur_snap = snap[idx(x, y, w)];
+      } else {
+        cur_snap = 0;
+      }
+
       if (connected) {
         break;
       }
       if (!inset_bounds(x, y, w, h)) {
         break;
       }
-      {
-        const uint8_t t = terrain[idx(x, y, w)];
-        if ((t & F_RIVER) || (t & F_HILL)) {
-          break;
-        }
+      if ((cur_snap & F_RIVER) || (cur_snap & F_HILL)) {
+        break;
       }
     }
 
-    if (connected && length > 2) {
+    /* Success: connected to water/committed river, or stepped onto committed river. */
+    if ((connected || (cur_snap & F_RIVER)) && length > 2) {
       successes++;
+#if MAPGEN_STAGE_DIAG
+      if (connected) {
+        ok_connect++;
+      } else {
+        ok_step_riv++;
+      }
+#endif
 
       if (connected) {
         const int thr = (climate + 6) * 2;
@@ -542,17 +598,19 @@ static void rivers_pass(
           int steps = rng_range(rng, 1, climate * 2 + 3);
           int mx = join_x;
           int my = join_y;
+          /* Preload join tile (DOS read before LAB_684c_077d). */
+          uint8_t cell = in_bounds(mx, my, w, h) ? terrain[idx(mx, my, w)] : 0;
           while (steps-- > 0) {
             if (!in_bounds(mx, my, w, h)) {
               break;
             }
-            /* Don't mountain-flag ocean join tiles. */
-            if (!is_water_tile(terrain[idx(mx, my, w)])) {
-              terrain[idx(mx, my, w)] = (uint8_t)(terrain[idx(mx, my, w)] | F_MOUNTAIN);
-            }
+            cell = (uint8_t)(cell | F_MOUNTAIN);
+            terrain[idx(mx, my, w)] = cell;
+
             int found = 0;
             int nx = mx;
             int ny = my;
+            uint8_t next_cell = cell;
             for (int c = 0; c < 4; ++c) {
               const int tx = mx + k_dir4_dx[c];
               const int ty = my + k_dir4_dy[c];
@@ -564,6 +622,7 @@ static void rivers_pass(
                 found = 1;
                 nx = tx;
                 ny = ty;
+                next_cell = t; /* local_6 ← neighbour for next OR */
                 break;
               }
             }
@@ -572,6 +631,7 @@ static void rivers_pass(
             }
             mx = nx;
             my = ny;
+            cell = next_cell;
           }
         }
       }
@@ -590,56 +650,245 @@ static void rivers_pass(
         }
       }
     } else {
-      memcpy(terrain, backup, (size_t)n);
+      /* FUN_1d1d_0fb2: snapshot → terrain. */
+      memcpy(terrain, snap, (size_t)n);
+#if MAPGEN_STAGE_DIAG
+      fail_restore++;
+      if (connected && length <= 2) {
+        fail_short_conn++;
+      } else if ((cur_snap & F_RIVER) && length <= 2) {
+        fail_short++;
+      } else {
+        fail_no_conn++;
+      }
+#endif
     }
   }
 
-  free(backup);
+#if MAPGEN_STAGE_DIAG
+  fprintf(
+    stderr,
+    "RIVERS attempts=%d successes=%d/%d reject_draws≈%d fail=%d "
+    "(short_conn=%d short_step=%d no_conn=%d) ok_conn=%d ok_step=%d\n",
+    attempts,
+    successes,
+    success_target,
+    reject_loops,
+    fail_restore,
+    fail_short_conn,
+    fail_short,
+    fail_no_conn,
+    ok_connect,
+    ok_step_riv
+  );
+#endif
+
+  free(snap);
 }
 
-/* Polar arctic rows + near-polar stomps + E/W high-seas (FUN_684c_08c0 tail). */
-static void paint_arctic_and_poles(uint8_t* terrain, int w, int h, MapGenRng* rng) {
-  /* 0x28 random arctic tiles on y=1 and y=h-2. */
-  for (int n = 0; n < 0x28; ++n) {
-    int x = rng_range(rng, 1, w) - 1;
-    if (x >= 0 && x < w && h > 2) {
-      terrain[idx(x, 1, w)] = T_ARCTIC;
+static void set_type_keep_feat(uint8_t* terrain, int i, uint8_t type_0_1f) {
+  terrain[i] = (uint8_t)((terrain[i] & 0xe0) | (type_0_1f & 0x1f));
+}
+
+/* FUN_1bca_0002 rectangle outline: top/bottom horizontals + left/right verticals. */
+/* FUN_281f_00ce: inclusive rectangle outline (x0,y0)–(x1,y1). */
+static void paint_rect_outline(
+  uint8_t* terrain,
+  int w,
+  int h,
+  int x0,
+  int y0,
+  int x1,
+  int y1,
+  uint8_t type_0_1f
+) {
+  if (x1 < x0) {
+    const int t = x0;
+    x0 = x1;
+    x1 = t;
+  }
+  if (y1 < y0) {
+    const int t = y0;
+    y0 = y1;
+    y1 = t;
+  }
+  for (int x = x0; x <= x1; ++x) {
+    if (in_bounds(x, y0, w, h)) {
+      set_type_keep_feat(terrain, idx(x, y0, w), type_0_1f);
     }
-    x = rng_range(rng, 1, w) - 1;
-    if (x >= 0 && x < w && h > 2) {
-      terrain[idx(x, h - 2, w)] = T_ARCTIC;
+    if (y1 != y0 && in_bounds(x, y1, w, h)) {
+      set_type_keep_feat(terrain, idx(x, y1, w), type_0_1f);
+    }
+  }
+  for (int y = y0; y <= y1; ++y) {
+    if (in_bounds(x0, y, w, h)) {
+      set_type_keep_feat(terrain, idx(x0, y, w), type_0_1f);
+    }
+    if (x1 != x0 && in_bounds(x1, y, w, h)) {
+      set_type_keep_feat(terrain, idx(x1, y, w), type_0_1f);
     }
   }
 }
 
-/* Eastern approach: convert open ocean from the east rim westward to high seas. */
-static void paint_high_seas(uint8_t* terrain, const uint8_t* mask, int w, int h) {
-  (void)mask;
-  /* FUN_281f_00ce: full-height high-seas columns at x=0 and x=1. */
-  for (int y = 0; y < h - 1; ++y) {
-    terrain[idx(0, y, w)] = (uint8_t)((terrain[idx(0, y, w)] & 0xe0) | T_HIGH_SEAS);
-    if (w > 1) {
-      terrain[idx(1, y, w)] = (uint8_t)((terrain[idx(1, y, w)] & 0xe0) | T_HIGH_SEAS);
-    }
+/*
+ * Post-river arctic / high-seas (FUN_684c_08c0 @ LAB_684c_136a).
+ * NEW WORLD: southern ocean fill → early ocean outline → 0x28 arctic stomps →
+ * east HS lane → land-neighbour ocean punch → HS-fringe trim → polar fringe →
+ * final HS outlines + polar arctic rows → bit4-forest demotion.
+ */
+static void paint_arctic_and_high_seas(
+  uint8_t* terrain,
+  int w,
+  int h,
+  MapGenRng* rng,
+  int open_south
+) {
+  if (w <= 0 || h <= 0) {
+    return;
   }
-  /*
-   * DOS also walks west from the east rim via FUN_281f_0768 (sea-lane connectivity),
-   * not a blind ocean fill. Approximate: only convert pure ocean on the far-east
-   * columns (x >= w-2), preserving arctic stomps inland.
-   */
-  for (int y = 1; y < h - 1; ++y) {
-    for (int x = w - 1; x >= w - 2 && x >= 0; --x) {
-      const int i = idx(x, y, w);
-      if ((terrain[i] & 0x1f) == T_OCEAN) {
-        terrain[i] = (uint8_t)((terrain[i] & 0xe0) | T_HIGH_SEAS);
+
+  /* FUN_281f_00ba: local_e==0 → fill y=h-4..h-1; else fill y=0..3. */
+  if (h >= 4) {
+    const int y0 = open_south ? (h - 4) : 0;
+    const int y1 = open_south ? h : 4;
+    for (int y = y0; y < y1; ++y) {
+      for (int x = 0; x < w; ++x) {
+        set_type_keep_feat(terrain, idx(x, y, w), T_OCEAN);
       }
     }
   }
-  /* Solid arctic on y=0 and y=h-1 (FUN_281f_00ba height=1). */
-  if (h > 0) {
+
+  /* Early FUN_281f_00ce: ocean outline (2,0)–(w-3,h-1). */
+  if (w > 3 && h > 1) {
+    paint_rect_outline(terrain, w, h, 2, 0, w - 3, h - 1, T_OCEAN);
+  }
+
+  /* 0x28 arctic stomps on y=1 and y=h-2. */
+  for (int n = 0; n < 0x28; ++n) {
+    int x = rng_range(rng, 1, w) - 1;
+    if (x >= 0 && x < w && h > 2) {
+      set_type_keep_feat(terrain, idx(x, 1, w), T_ARCTIC);
+    }
+    x = rng_range(rng, 1, w) - 1;
+    if (x >= 0 && x < w && h > 2) {
+      set_type_keep_feat(terrain, idx(x, h - 2, w), T_ARCTIC);
+    }
+  }
+
+  /* Pass 1 (1448): east half sea-lane — walk west from x=w-1 while x>=w/2
+   * and tile is ocean/HS; convert to HS. Stop at land/arctic. */
+  for (int y = 1; y < h - 1; ++y) {
+    int active = 1;
+    for (int x = w - 1; active && x >= (w >> 1); --x) {
+      const int i = idx(x, y, w);
+      if (!is_water_tile(terrain[i])) {
+        active = 0;
+      } else {
+        set_type_keep_feat(terrain, i, T_HIGH_SEAS);
+      }
+    }
+  }
+
+  /* Pass 2 (14da): per row find easternmost non-water L; for yy in [y-3,y+3]
+   * walk east from min(L+3,w-2) to water and write ocean (punches HS band).
+   * x carries across yy — matches DOS. */
+  for (int y = 1; y < h - 1; ++y) {
+    int land_x = -1;
+    for (int x = w - 1; x >= 1; --x) {
+      if (!is_water_tile(terrain[idx(x, y, w)])) {
+        land_x = x;
+        break;
+      }
+    }
+    if (land_x < 0) {
+      continue;
+    }
+    int x = land_x + 3;
+    if (x > w - 2) {
+      x = w - 2;
+    }
+    for (int yy = y - 3; yy <= y + 3; ++yy) {
+      if (!inset_bounds(x, yy, w, h)) {
+        continue;
+      }
+      while (!is_water_tile(terrain[idx(x, yy, w)]) && x < w - 2) {
+        x++;
+      }
+      if (is_water_tile(terrain[idx(x, yy, w)])) {
+        set_type_keep_feat(terrain, idx(x, yy, w), T_OCEAN);
+      }
+    }
+  }
+
+  /* Pass 3 (15f6): from east, skip contiguous HS fringe; past first non-HS,
+   * convert remaining water to ocean (trims mid-map HS left by pass 1). */
+  for (int y = 1; y < h - 1; ++y) {
+    int in_hs_fringe = 1;
+    for (int x = w - 1; x >= 1; --x) {
+      const int i = idx(x, y, w);
+      if (!in_hs_fringe) {
+        if (is_water_tile(terrain[i])) {
+          set_type_keep_feat(terrain, i, T_OCEAN);
+        }
+      } else if ((terrain[i] & 0x1f) != T_HIGH_SEAS) {
+        in_hs_fringe = 0;
+      }
+    }
+  }
+
+  /* Polar fringe (16ac): for north (y=1,2,3) and south (h-2,h-3,h-4). */
+  for (int pass = 0; pass < 2; ++pass) {
     for (int x = 0; x < w; ++x) {
-      terrain[idx(x, 0, w)] = T_ARCTIC;
-      terrain[idx(x, h - 1, w)] = T_ARCTIC;
+      const int y0 = (pass == 0) ? (h - 2) : 1;
+      const int y1 = (pass == 0) ? (h - 3) : 2;
+      const int y2 = (pass == 0) ? (h - 4) : 3;
+
+      /* 078c returns decoded type (no feature bits); writes clear feats. */
+      if (in_bounds(x, y0, w, h) && !is_water_tile(terrain[idx(x, y0, w)])) {
+        terrain[idx(x, y0, w)] = T_ARCTIC;
+      }
+
+      if (in_bounds(x, y1, w, h) && !is_water_tile(terrain[idx(x, y1, w)])) {
+        /* range(0,1)==1 → arctic; ==0 → 0 (CMP/CMC/SBB/AND 0x18). */
+        terrain[idx(x, y1, w)] =
+          (rng_range(rng, 0, 1) == 1) ? (uint8_t)T_ARCTIC : (uint8_t)0;
+      }
+
+      if (in_bounds(x, y2, w, h) && rng_range(rng, 0, 1) != 0 &&
+          !is_water_tile(terrain[idx(x, y2, w)])) {
+        terrain[idx(x, y2, w)] = 0;
+      }
+    }
+  }
+
+  /* Final 00ce HS outlines: (0,0)–(w-1,h-1) and (1,0)–(w-2,h-1). */
+  if (h > 1) {
+    paint_rect_outline(terrain, w, h, 0, 0, w - 1, h - 1, T_HIGH_SEAS);
+    if (w > 2) {
+      paint_rect_outline(terrain, w, h, 1, 0, w - 2, h - 1, T_HIGH_SEAS);
+    }
+  }
+
+  /* Final 00ba: full arctic on y=0 and y=h-1. */
+  for (int x = 0; x < w; ++x) {
+    set_type_keep_feat(terrain, idx(x, 0, w), T_ARCTIC);
+    set_type_keep_feat(terrain, idx(x, h - 1, w), T_ARCTIC);
+  }
+
+  /* LAB_684c_1888: demote bit4 forests (0x10..0x17 → −8); hills lose forest. */
+  for (int x = 0; x < w; ++x) {
+    for (int y = 0; y < h; ++y) {
+      const int i = idx(x, y, w);
+      const uint8_t tile = terrain[i];
+      const uint8_t typ = (uint8_t)(tile & 0x1f);
+      if (typ >= 0x18) {
+        continue;
+      }
+      if (tile & F_HILL) {
+        terrain[i] = (uint8_t)((tile & 0xe0) | (typ & 7));
+      } else if (typ >= 0x10 && typ <= 0x17) {
+        terrain[i] = (uint8_t)(tile - 8);
+      }
     }
   }
 }
@@ -658,7 +907,7 @@ static void climate_humidity_pass(
   MapGenRng* rng,
   int climate
 ) {
-  climate = clamp_i(climate, 0, 2);
+  climate = clamp_i(climate, 0, 3);
 
   for (int y = 0; y < h; ++y) {
     int dist = (h >> 1) - y;
@@ -680,13 +929,14 @@ static void climate_humidity_pass(
       uint8_t base = (uint8_t)(tile & 0x1f);
       uint8_t feat = (uint8_t)(tile & 0xe0);
 
-      if (base == T_OCEAN) {
+      if (tile == T_OCEAN) {
         int thresh = (h >> 2) - dist;
         if (thresh < 0) {
           thresh = -thresh;
         }
         thresh += climate * 4;
-        if (humidity > thresh) {
+        /* DOS: INC when thresh > humidity (LAB_684c_0cda). */
+        if (humidity < thresh) {
           humidity++;
         }
         continue;
@@ -695,7 +945,8 @@ static void climate_humidity_pass(
       if (feat & F_MOUNTAIN) {
         humidity -= 3;
       } else if (feat & F_HILL) {
-        feat = (uint8_t)(feat & (uint8_t)~F_HILL);
+        /* DOS AND 0x5f at LAB_684c_0d02 (clears hill/river/mountain bits). */
+        feat = (uint8_t)(feat & 0x5fu);
       } else if (humidity < 0) {
         if (base == T_TUNDRA) {
           mask[i] = 2;
@@ -755,7 +1006,8 @@ static void climate_humidity_pass(
 
       if (base == T_OCEAN) {
         int thresh = (dist >> 1) + climate;
-        if (humidity > thresh) {
+        /* DOS: INC when thresh > humidity (LAB_684c_0f92). */
+        if (humidity < thresh) {
           humidity++;
         }
         continue;
@@ -764,11 +1016,14 @@ static void climate_humidity_pass(
       if (feat & F_MOUNTAIN) {
         humidity -= 3;
       } else if (feat & F_HILL) {
-        feat = (uint8_t)(feat & (uint8_t)~F_HILL);
+        /* DOS AND 0x5f at LAB_684c_0ea0. */
+        feat = (uint8_t)(feat & 0x5fu);
       } else if (humidity > 0) {
+        /* Reverse switch @ LAB_684c_0ef0: 0→2, 1→3, 2→3, 3→4,
+         * 4→marsh via range(0,1), 5→swamp always (no RNG). */
         if (base == T_TUNDRA) {
           base = T_PLAINS;
-        } else if (base == T_PLAINS) {
+        } else if (base == T_DESERT || base == T_PLAINS) {
           base = T_PRAIRIE;
         } else if (base == T_PRAIRIE) {
           base = T_GRASSLAND;
@@ -779,9 +1034,7 @@ static void climate_humidity_pass(
           }
         } else if (base == T_SAVANNAH) {
           humidity -= 2;
-          if (rng_range(rng, 0, 1) == 0) {
-            base = T_SWAMP;
-          }
+          base = T_SWAMP;
         }
       }
 
@@ -812,7 +1065,8 @@ static int mountain_landlocked(const uint8_t* terrain, int x, int y, int w, int 
   for (int n = 0; n < 4; ++n) {
     const int nx = x + dxy[n][0];
     const int ny = y + dxy[n][1];
-    if ((terrain[idx(nx, ny, w)] & 0x1f) == T_OCEAN) {
+    /* DOS FUN_684c_03e4: CMP AL, 0x19 on the full tile byte (not masked). */
+    if (terrain[idx(nx, ny, w)] == T_OCEAN) {
       return 0;
     }
   }
@@ -849,7 +1103,7 @@ static void forest_wander_pass(
   MapGenRng* rng,
   int forest_extra
 ) {
-  forest_extra = clamp_i(forest_extra, 0, 2);
+  forest_extra = clamp_i(forest_extra, 0, 3);
   const int attempts = (forest_extra + 1) * 0x320;
   int x = 1;
   int y = 1;
@@ -863,18 +1117,20 @@ static void forest_wander_pass(
       y = rng_range(rng, 1, h - 2);
     } else {
       int d = rng_range(rng, 0, 8);
-      /* DOS indexes [BX+0xb4] with no clamp; BX==8 reads past the 8-byte table.
-       * Adjacent bytes behave as a no-step for our port (tables are 8 entries). */
+      /* DOS indexes [BX+0xb4] with no clamp; BX==8 → (0,0) past-table. */
       if (d >= 0 && d <= 7) {
         x += k_dir8_dx[d];
         y += k_dir8_dy[d];
       }
     }
-    if (!in_bounds(x, y, w, h)) {
+    /*
+     * DOS FUN_1a4e_0008: flat (int16)(width*y+x) with no bounds check. Row-wrap
+     * when x is OOB but the flat offset stays in-buffer must still process.
+     */
+    const int i = y * w + x;
+    if (i < 0 || i >= w * h) {
       continue;
     }
-
-    const int i = idx(x, y, w);
     uint8_t feat = terrain[i];
     uint8_t typ = (uint8_t)(feat & 0x1f);
     int write_mask_val = -1; /* >=0 → also write coverage mask */
@@ -954,6 +1210,8 @@ static void forest_wander_pass(
         }
         break;
       case 6: /* marsh */
+        /* After type draw, falls into plains/prairie mask check at 0x10e4
+         * without resetting chances (stay 5/3, not 2/2). */
         hill_chance = 5;
         mtn_chance = 3;
         if (rng_range(rng, 0, 1) == 0) {
@@ -969,6 +1227,7 @@ static void forest_wander_pass(
         if (rng_range(rng, 0, 1) != 0) {
           typ = T_SAVANNAH;
         }
+        /* Second range: nonzero → mask:=2; zero → epilogue only. */
         if (rng_range(rng, 0, 1) != 0) {
           write_mask_val = 2;
         }
@@ -986,16 +1245,32 @@ static void forest_wander_pass(
 }
 
 /*
- * Whole-map forest-bit pass (LAB_684c_1286): ocean skipped; coverage==1 always
- * gains +8 or +0x10; coverage!=1 goes through FUN_281f_0d12 (unit/path probe
- * that returns 0 during mapgen) so hills/mountains keep their cleared type.
+ * Whole-map forest-bit pass (LAB_684c_1286): skip exact ocean byte 0x19;
+ * coverage==1 always gains +8 or +0x10; coverage!=1 uses FUN_281f_0d12
+ * (FUN_15eb_00a2): returns 1 when any 8-neighbor is ocean/HS — coastal tiles
+ * may still gain forest and always consume those draws.
  */
+static int has_water_neighbor8(const uint8_t* terrain, int x, int y, int w, int h) {
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + k_dir8_dx[d];
+    const int ny = y + k_dir8_dy[d];
+    if (!inset_bounds(nx, ny, w, h)) {
+      continue;
+    }
+    if (is_water_tile(terrain[idx(nx, ny, w)])) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void forest_bit_pass(uint8_t* terrain, const uint8_t* mask, int w, int h, MapGenRng* rng) {
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
       const int i = idx(x, y, w);
       uint8_t tile = terrain[i];
-      if ((tile & 0x1f) == T_OCEAN) {
+      /* DOS: CMP AX, 0x19 — full byte, not masked type. */
+      if (tile == T_OCEAN) {
         continue;
       }
       if (mask[i] == 1) {
@@ -1007,9 +1282,16 @@ static void forest_bit_pass(uint8_t* terrain, const uint8_t* mask, int w, int h,
         terrain[i] = tile;
         continue;
       }
-      /* FUN_281f_0d12 → FUN_15eb_00a2: no units during mapgen → 0, no RNG. */
-      (void)rng;
-    }
+      if (!has_water_neighbor8(terrain, x, y, w, h)) {
+        terrain[i] = tile; /* DOS still writes via 12c2 */
+        continue;
+      }
+      if (rng_range(rng, 0, 1) == 0) {
+        tile = (uint8_t)(tile + 8);
+      } else if (rng_range(rng, 0, 4) != 0) {
+        tile = (uint8_t)(tile + 0x10);
+      }
+      terrain[i] = tile;    }
   }
 }
 
@@ -1021,7 +1303,7 @@ static void paint_terrain(
   MapGenRng* rng,
   const MapGenParams* params
 ) {
-  const int temp = clamp_i(params->temperature, 0, 2);
+  const int temp = clamp_i(params->temperature, 0, 3);
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
       const int i = idx(x, y, w);
@@ -1052,11 +1334,11 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   }
 
   MapGenParams p = *params;
-  p.land_mass = clamp_i(p.land_mass, 0, 2);
-  p.land_form = clamp_i(p.land_form, 0, 2);
-  p.temperature = clamp_i(p.temperature, 0, 2);
-  p.climate = clamp_i(p.climate, 0, 2);
-  p.forest_extra = clamp_i(p.forest_extra, 0, 2);
+  p.land_mass = clamp_i(p.land_mass, 0, 3);
+  p.land_form = clamp_i(p.land_form, 0, 3);
+  p.temperature = clamp_i(p.temperature, 0, 3);
+  p.climate = clamp_i(p.climate, 0, 3);
+  p.forest_extra = clamp_i(p.forest_extra, 0, 3);
   if (p.seed == 0) {
     p.seed = 1;
   }
@@ -1088,16 +1370,225 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   /* FUN_684c_08c0: first range(1,0x7fff) → DS:0x190 resource seed. */
   (void)rng_range(rng, 1, 0x7fff);
 
-  generate_land_mask(mask, w, h, rng, &p);
+  int open_south = 1;
+  generate_land_mask(mask, w, h, rng, &p, &open_south);
   cleanup_diagonal_land(mask, w, h);
+#if MAPGEN_STAGE_DIAG
+  {
+    int m1 = 0, m2 = 0, m3 = 0, land = 0;
+    for (int i = 0; i < n; i++) {
+      if (!mask[i]) {
+        continue;
+      }
+      land++;
+      if (mask[i] == 1) {
+        m1++;
+      } else if (mask[i] == 2) {
+        m2++;
+      } else {
+        m3++;
+      }
+    }
+    fprintf(stderr, "STAGE post-mask land=%d m1=%d m2=%d m3+=%d\n", land, m1, m2, m3);
+  }
+#endif
 
   paint_terrain(out->terrain, mask, w, h, rng, &p);
+#if MAPGEN_STAGE_DIAG
+  {
+    int hist[8] = {0}, hills = 0, mtn = 0, land = 0;
+    for (int i = 0; i < n; ++i) {
+      const uint8_t t = out->terrain[i];
+      const uint8_t b = (uint8_t)(t & 0x1f);
+      if (b >= 24) {
+        continue;
+      }
+      land++;
+      if (b < 8) {
+        hist[b]++;
+      }
+      if (t & F_HILL) {
+        hills++;
+      }
+      if (t & F_MOUNTAIN) {
+        mtn++;
+      }
+    }
+    fprintf(
+      stderr,
+      "STAGE post-lat land=%d hills=%d mtn=%d types=%d,%d,%d,%d,%d,%d,%d,%d rng=%u\n",
+      land,
+      hills,
+      mtn,
+      hist[0],
+      hist[1],
+      hist[2],
+      hist[3],
+      hist[4],
+      hist[5],
+      hist[6],
+      hist[7],
+      (unsigned)rng->state
+    );
+  }
+#endif
   climate_humidity_pass(out->terrain, mask, w, h, rng, p.climate);
+#if MAPGEN_STAGE_DIAG
+  {
+    int hist[8] = {0};
+    for (int i = 0; i < n; ++i) {
+      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
+      if (b < 8) {
+        hist[b]++;
+      }
+    }
+    fprintf(
+      stderr,
+      "STAGE post-clim types=%d,%d,%d,%d,%d,%d,%d,%d rng=%u\n",
+      hist[0],
+      hist[1],
+      hist[2],
+      hist[3],
+      hist[4],
+      hist[5],
+      hist[6],
+      hist[7],
+      (unsigned)rng->state
+    );
+  }
+#endif
   forest_wander_pass(out->terrain, mask, w, h, rng, p.forest_extra);
+#if MAPGEN_STAGE_DIAG
+  {
+    int hist[8] = {0};
+    int m0 = 0, m1 = 0, m2 = 0, m3p = 0, land = 0;
+    for (int i = 0; i < n; ++i) {
+      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
+      if (b < 8) {
+        hist[b]++;
+      }
+      if (!mask[i]) {
+        m0++;
+        continue;
+      }
+      land++;
+      if (mask[i] == 1) {
+        m1++;
+      } else if (mask[i] == 2) {
+        m2++;
+      } else {
+        m3p++;
+      }
+    }
+    fprintf(
+      stderr,
+      "STAGE post-wander types=%d,%d,%d,%d,%d,%d,%d,%d rng=%u\n",
+      hist[0],
+      hist[1],
+      hist[2],
+      hist[3],
+      hist[4],
+      hist[5],
+      hist[6],
+      hist[7],
+      (unsigned)rng->state
+    );
+    fprintf(stderr, "STAGE pre-fbit mask land=%d m1=%d m2=%d m3+=%d ocean_m=%d\n", land, m1, m2, m3p, m0);
+  }
+#endif
   forest_bit_pass(out->terrain, mask, w, h, rng);
+#if MAPGEN_STAGE_DIAG
+  {
+    int forest = 0, hills = 0, mtn = 0;
+    int coast = 0, deep = 0, deep_free = 0;
+    for (int i = 0; i < n; ++i) {
+      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
+      const uint8_t f = (uint8_t)(out->terrain[i] & 0xe0);
+      if (b >= 8 && b <= 23) {
+        forest++;
+      }
+      if (f & F_HILL) {
+        hills++;
+      }
+      if (f & F_MOUNTAIN) {
+        mtn++;
+      }
+    }
+    for (int y = 1; y < h - 1; ++y) {
+      for (int x = 1; x < w - 1; ++x) {
+        const int i = idx(x, y, w);
+        const uint8_t t = out->terrain[i];
+        if (is_water_tile(t) || (t & 0x1f) >= 24) {
+          continue;
+        }
+        int adj_water = 0;
+        for (int c = 0; c < 4; ++c) {
+          if (is_water_tile(out->terrain[idx(x + k_dir4_dx[c], y + k_dir4_dy[c], w)])) {
+            adj_water = 1;
+            break;
+          }
+        }
+        if (adj_water) {
+          coast++;
+        } else {
+          deep++;
+          if (!(t & F_HILL)) {
+            deep_free++;
+          }
+        }
+      }
+    }
+    fprintf(
+      stderr,
+      "STAGE pre-river forest=%d hills=%d mtn=%d coast=%d deep=%d deep_free=%d open_south=%d rng=%u\n",
+      forest,
+      hills,
+      mtn,
+      coast,
+      deep,
+      deep_free,
+      open_south,
+      (unsigned)rng->state
+    );
+  }
+#endif
   rivers_pass(out->terrain, w, h, rng, p.climate, p.land_mass);
-  paint_arctic_and_poles(out->terrain, w, h, rng);
-  paint_high_seas(out->terrain, mask, w, h);
+#if MAPGEN_STAGE_DIAG
+  {
+    int forest = 0, hills = 0, mtn = 0, lr = 0, wr = 0;
+    for (int i = 0; i < n; ++i) {
+      const uint8_t b = (uint8_t)(out->terrain[i] & 0x1f);
+      const uint8_t f = (uint8_t)(out->terrain[i] & 0xe0);
+      if (b >= 8 && b <= 23) {
+        forest++;
+      }
+      if (f & F_HILL) {
+        hills++;
+      }
+      if (f & F_MOUNTAIN) {
+        mtn++;
+      }
+      if (f & F_RIVER) {
+        if (b == T_OCEAN || b == T_HIGH_SEAS) {
+          wr++;
+        } else {
+          lr++;
+        }
+      }
+    }
+    fprintf(
+      stderr,
+      "STAGE post-river forest=%d hills=%d mtn=%d lr=%d wr=%d rng=%u\n",
+      forest,
+      hills,
+      mtn,
+      lr,
+      wr,
+      (unsigned)rng->state
+    );
+  }
+#endif
+  paint_arctic_and_high_seas(out->terrain, w, h, rng, open_south);
 
   const int land = count_land(mask, n);
   diag_info(

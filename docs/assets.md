@@ -438,19 +438,19 @@ Enter or left-click **skips** the remaining sail frames (QoL; original is hard t
 
 VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0` (`viceroy_unpacked.c`). The Linux port mirrors that pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files (terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`). CUSTOMIZE edits the four UI axes on `CUSTOMIZ.PIK` via `FUN_733a_0270` / `NEW_GAME_PHASE_CUSTOMIZE` before the shared wizard.
 
-Parameters (DOS words at `DS:0x1e7e`, each 0..2; NEW WORLD sets all five via `rand() % 3`; CUSTOMIZE starts all at `1` and edits 0..3 on screen):
+Parameters (DOS words at `DS:0x1e7e`, each 0..3 from NEW WORLD `range(0,3)`; CUSTOMIZE UI keeps 0..2 via `% 3`):
 
 | Index | UI (`LABELS.TXT`) | Role |
 |------:|-------------------|------|
 | 0 | Land Mass: Small / Moderate / Large | Land budget with form: `(form + mass + 1) * 0x140` |
 | 1 | Land Form: Archipelago / Normal / Continents | Blob growth style |
 | 2 | Temperature: Cool / Temperate / Warm | Latitude band shift |
-| 3 | Climate: Arid / Normal / Wet | Forest / river density |
+| 3 | Climate: Arid / Normal / Wet | Humidity / river density |
 | 4 | (internal) | Extra forest-pass count |
 
-Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`).
+Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → climate humidity → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`).
 
-RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`) → tribe placement (`FUN_6a09_0006`) on the continuing stream. Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,1,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
+RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`) → tribe placement (`FUN_6a09_0006`) on the continuing stream. Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
 
 | Extension | Typical use |
 |-----------|-------------|
