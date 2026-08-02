@@ -89,7 +89,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Open Europe (**E**), sail **H** / **S** | Done | Passengers persist in harbor |
 | Docks immigrants from crosses | Partial | Crosses → dock; recruit |
 | Market bid / ask display | Done | From `NAMES.TXT` `@CARGO` |
-| Buy / sell goods (drag / L / = / + / U) | Missing | |
+| Buy / sell goods (drag / L / = / + / U) | Partial | Phase 5: click hold/market + **L**/**U**/**=**/**+**; tax on sales; goods persist H/S; drag later |
 | Buy ships / artillery | Missing | |
 | Hire Royal University / Train | Missing | Train stub |
 | Equip muskets / horses / tools; bless missionary | Missing | |
@@ -156,8 +156,8 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 Aligned with early manual chapters (short playable loop first):
 
-1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done; Europe market next
-2. **Europe commodity trade** — buy/sell + tax display
+1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
+2. **Europe commodity trade** — phase 5 buy/sell + tax on sales done; boycotts / volume prices later
 3. **Pioneer terrain work + roads** and real movement costs
 4. **Unit orders** — fortify, sentry, goto, disband
 5. **Fog of war / exploration**

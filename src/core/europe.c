@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/colony.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -155,6 +156,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->liberty_bells_last_turn = 0;
   eu->harbor_ships = 0;
   memset(eu->harbor, 0, sizeof(eu->harbor));
+  eu->selected_harbor = -1;
   eu->dock_count = 0;
   memset(eu->dock, 0, sizeof(eu->dock));
   /* Three free colonists already waiting — matches early-game dock feel. */
@@ -276,7 +278,9 @@ bool europe_harbor_push(
   int type_index,
   const char* name,
   const int* cargo_types,
-  int cargo_count
+  int cargo_count,
+  const int* hold_goods_type,
+  const int* hold_goods_amount
 ) {
   if (!eu || type_index < 0) {
     return false;
@@ -286,16 +290,21 @@ bool europe_harbor_push(
     return false;
   }
   EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
+  memset(slot, 0, sizeof(*slot));
   slot->type_index = type_index;
   snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Ship");
-  slot->cargo_count = 0;
-  memset(slot->cargo_types, 0, sizeof(slot->cargo_types));
   if (cargo_types && cargo_count > 0) {
     const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
     for (int i = 0; i < n; ++i) {
       slot->cargo_types[i] = cargo_types[i];
     }
     slot->cargo_count = n;
+  }
+  if (hold_goods_type && hold_goods_amount) {
+    for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+      slot->hold_goods_type[i] = hold_goods_type[i];
+      slot->hold_goods_amount[i] = hold_goods_amount[i];
+    }
   }
   if (slot->cargo_count > 0) {
     snprintf(
@@ -308,6 +317,7 @@ bool europe_harbor_push(
   } else {
     snprintf(eu->status, sizeof(eu->status), "%s arrived in harbor.", slot->name);
   }
+  europe_refresh_harbor_selection(eu);
   return true;
 }
 
@@ -318,7 +328,10 @@ bool europe_harbor_pop(
   size_t out_name_size,
   int* out_cargo_types,
   int* out_cargo_count,
-  int cargo_max
+  int cargo_max,
+  int* out_hold_goods_type,
+  int* out_hold_goods_amount,
+  int hold_max
 ) {
   if (!eu || eu->harbor_ships <= 0) {
     return false;
@@ -340,14 +353,262 @@ bool europe_harbor_pop(
     }
     *out_cargo_count = n;
   }
+  if (out_hold_goods_type && out_hold_goods_amount && hold_max > 0) {
+    const int n = hold_max > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : hold_max;
+    for (int i = 0; i < n; ++i) {
+      out_hold_goods_type[i] = eu->harbor[0].hold_goods_type[i];
+      out_hold_goods_amount[i] = eu->harbor[0].hold_goods_amount[i];
+    }
+    for (int i = n; i < hold_max; ++i) {
+      out_hold_goods_type[i] = 0;
+      out_hold_goods_amount[i] = 0;
+    }
+  }
   for (int i = 1; i < eu->harbor_ships; ++i) {
     eu->harbor[i - 1] = eu->harbor[i];
   }
   eu->harbor_ships--;
+  memset(&eu->harbor[eu->harbor_ships], 0, sizeof(eu->harbor[0]));
   eu->harbor[eu->harbor_ships].type_index = -1;
-  eu->harbor[eu->harbor_ships].name[0] = '\0';
-  eu->harbor[eu->harbor_ships].cargo_count = 0;
+  if (eu->selected_harbor == 0) {
+    eu->selected_harbor = -1;
+  } else if (eu->selected_harbor > 0) {
+    eu->selected_harbor--;
+  }
+  europe_refresh_harbor_selection(eu);
   return true;
+}
+
+void europe_refresh_harbor_selection(EuropeScreen* eu) {
+  if (!eu) {
+    return;
+  }
+  if (eu->harbor_ships <= 0) {
+    eu->selected_harbor = -1;
+    return;
+  }
+  if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
+    return;
+  }
+  if (eu->harbor_ships == 1) {
+    eu->selected_harbor = 0;
+    return;
+  }
+  for (int i = 0; i < eu->harbor_ships; ++i) {
+    for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+      const int amt = eu->harbor[i].hold_goods_amount[h];
+      if (amt > 0 && amt < 255) {
+        eu->selected_harbor = i;
+        return;
+      }
+    }
+  }
+  eu->selected_harbor = 0;
+}
+
+static int europe_cargo_value_rank(int cargo_type) {
+  static const int k_value[COLONIZE_CARGO_COUNT] = {
+    1, 5, 4, 3, 5, 0, 4, 20, 0, 8, 8, 7, 7, 2, 0, 0
+  };
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return 0;
+  }
+  return k_value[cargo_type];
+}
+
+int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
+  if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
+    return 0;
+  }
+  const int bid = eu->cargo[cargo_type].bid;
+  if (bid <= 0) {
+    return 0;
+  }
+  int tax = eu->tax_percent;
+  if (tax < 0) {
+    tax = 0;
+  }
+  if (tax > 100) {
+    tax = 100;
+  }
+  return (bid * amount * (100 - tax)) / 100;
+}
+
+int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
+  if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
+    return 0;
+  }
+  if (hold_index < 0 || hold_index >= EUROPE_SHIP_CARGO_MAX) {
+    return 0;
+  }
+  EuropeHarborShip* ship = &eu->harbor[harbor_index];
+  const int amt = ship->hold_goods_amount[hold_index];
+  const int ctype = ship->hold_goods_type[hold_index];
+  if (amt <= 0 || amt >= 255) {
+    return 0;
+  }
+  const int gained = europe_sell_proceeds(eu, ctype, amt);
+  eu->gold += gained;
+  ship->hold_goods_amount[hold_index] = 0;
+  ship->hold_goods_type[hold_index] = 0;
+  const char* cname =
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  return gained;
+}
+
+int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount) {
+  if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
+    return 0;
+  }
+  if (cargo_type < 0 || cargo_type >= eu->cargo_count || amount <= 0) {
+    return 0;
+  }
+  const int ask = eu->cargo[cargo_type].ask;
+  if (ask <= 0) {
+    europe_set_status(eu, "Cannot buy that cargo.");
+    return 0;
+  }
+  EuropeHarborShip* ship = &eu->harbor[harbor_index];
+  int room_total = 0;
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    const int amt = ship->hold_goods_amount[i];
+    if (amt > 0 && amt < 255) {
+      if (ship->hold_goods_type[i] == cargo_type) {
+        room_total += 100 - amt;
+      }
+    } else {
+      room_total += 100;
+    }
+  }
+  if (room_total <= 0) {
+    europe_set_status(eu, "No empty hold.");
+    return 0;
+  }
+  int can_afford = eu->gold / ask;
+  if (can_afford <= 0) {
+    europe_set_status(eu, "Need gold.");
+    return 0;
+  }
+  int buy = amount;
+  if (buy > 100) {
+    buy = 100;
+  }
+  if (buy > room_total) {
+    buy = room_total;
+  }
+  if (buy > can_afford) {
+    buy = can_afford;
+  }
+  if (buy <= 0) {
+    return 0;
+  }
+
+  int remaining = buy;
+  /* Stack into matching partial holds first. */
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX && remaining > 0; ++i) {
+    const int amt = ship->hold_goods_amount[i];
+    if (amt <= 0 || amt >= 255 || ship->hold_goods_type[i] != cargo_type) {
+      continue;
+    }
+    const int room = 100 - amt;
+    if (room <= 0) {
+      continue;
+    }
+    const int add = remaining < room ? remaining : room;
+    ship->hold_goods_amount[i] += add;
+    remaining -= add;
+  }
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX && remaining > 0; ++i) {
+    const int amt = ship->hold_goods_amount[i];
+    if (amt > 0 && amt < 255) {
+      continue;
+    }
+    const int add = remaining < 100 ? remaining : 100;
+    ship->hold_goods_type[i] = cargo_type;
+    ship->hold_goods_amount[i] = add;
+    remaining -= add;
+  }
+  const int bought = buy - remaining;
+  eu->gold -= bought * ask;
+  snprintf(
+    eu->status,
+    sizeof(eu->status),
+    "Bought %d %s (-%d$).",
+    bought,
+    eu->cargo[cargo_type].name,
+    bought * ask
+  );
+  return bought;
+}
+
+int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index) {
+  if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
+    return -1;
+  }
+  const EuropeHarborShip* ship = &eu->harbor[harbor_index];
+  int best = -1;
+  int best_v = 0;
+  int best_amt = 0;
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    const int amt = ship->hold_goods_amount[i];
+    const int ctype = ship->hold_goods_type[i];
+    if (amt <= 0 || amt >= 255) {
+      continue;
+    }
+    const int v = europe_cargo_value_rank(ctype);
+    if (v <= 0) {
+      continue;
+    }
+    if (v > best_v || (v == best_v && amt > best_amt)) {
+      best_v = v;
+      best_amt = amt;
+      best = i;
+    }
+  }
+  return best;
+}
+
+EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
+  EuropeHitResult hit;
+  hit.kind = EUROPE_HIT_NONE;
+  hit.index = -1;
+  if (!eu) {
+    return hit;
+  }
+
+  if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships &&
+      my >= EUROPE_HOLD_Y && my < EUROPE_HOLD_Y + EUROPE_HOLD_H && mx >= EUROPE_HOLD_X) {
+    const int idx = (mx - EUROPE_HOLD_X) / EUROPE_HOLD_PITCH;
+    if (idx >= 0 && idx < EUROPE_SHIP_CARGO_MAX &&
+        mx < EUROPE_HOLD_X + idx * EUROPE_HOLD_PITCH + EUROPE_HOLD_W) {
+      hit.kind = EUROPE_HIT_HOLD;
+      hit.index = idx;
+      return hit;
+    }
+  }
+
+  if (eu->harbor_ships > 0 && mx >= EUROPE_HARBOR_LIST_X &&
+      mx < EUROPE_HARBOR_LIST_X + EUROPE_HARBOR_LIST_W && my >= EUROPE_HARBOR_LIST_Y) {
+    const int idx = (my - EUROPE_HARBOR_LIST_Y) / EUROPE_HARBOR_ROW_H;
+    if (idx >= 0 && idx < eu->harbor_ships) {
+      hit.kind = EUROPE_HIT_HARBOR_SHIP;
+      hit.index = idx;
+      return hit;
+    }
+  }
+
+  if (mx >= EUROPE_MARKET_X && mx < EUROPE_MARKET_X + EUROPE_MARKET_W &&
+      my >= EUROPE_MARKET_Y) {
+    const int idx = (my - EUROPE_MARKET_Y) / EUROPE_MARKET_ROW_H;
+    if (idx >= 0 && idx < eu->cargo_count && idx < EUROPE_CARGO_MAX) {
+      hit.kind = EUROPE_HIT_MARKET;
+      hit.index = idx;
+      return hit;
+    }
+  }
+
+  return hit;
 }
 
 void europe_train_stub(EuropeScreen* eu) {

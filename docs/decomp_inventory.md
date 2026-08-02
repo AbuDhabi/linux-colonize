@@ -96,7 +96,8 @@ port I/O in the native build.
 - Coast / estuary: enabled (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` default 1)
 - **Music playback: enabled** — GSOUND bytecode decode + FluidSynth (`COLONIZE_SOUND_PLAYBACK_ENABLED 1`; see `docs/assets.md`)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
-  (press **E** from the map; see `src/core/europe.c`)
+  (press **E** from the map; phase 5 hold buy/sell + tax, goods persist on **H**/**S**;
+  see `src/core/europe.c`)
 - Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
   `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters / tree placeholders
   (sprites 42–47) + top bar (name/date/gold) + 1px black separators + `COLONY.PIK` bottom

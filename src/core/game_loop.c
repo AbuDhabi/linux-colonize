@@ -852,7 +852,11 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
 static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
   const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+  EuropeScreen* eu_mut = game->europe_ok ? (EuropeScreen*)&game->europe : NULL;
   const EuropeScreen* eu = &game->europe;
+  if (eu_mut) {
+    europe_refresh_harbor_selection(eu_mut);
+  }
 
   if (game->europe_ok && eu->background_ok) {
     pik_blit(&eu->background, framebuffer, 0, 0);
@@ -888,7 +892,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
   }
 
   font_draw_text(font, framebuffer, 4, 100, "Harbor", 14);
-  y = 110;
+  y = EUROPE_HARBOR_LIST_Y;
   if (eu->harbor_ships == 0) {
     font_draw_text(font, framebuffer, 8, y, "(empty)", 12);
   } else {
@@ -905,18 +909,48 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       } else {
         snprintf(line, sizeof(line), "%d. %s", i + 1, eu->harbor[i].name);
       }
-      font_draw_text(font, framebuffer, 8, y, line, 15);
-      y += 9;
-      if (y > 155) {
+      const bool sel = (eu->selected_harbor == i);
+      font_draw_text(font, framebuffer, 8, y, line, sel ? 14 : 15);
+      y += EUROPE_HARBOR_ROW_H;
+      if (y > EUROPE_HOLD_Y - 2) {
         break;
       }
     }
   }
 
-  font_draw_text(font, framebuffer, 170, 28, "Market (bid/ask)", 14);
-  y = 38;
-  const int market_rows = eu->cargo_count > 12 ? 12 : eu->cargo_count;
-  for (int i = 0; i < market_rows; ++i) {
+  /* Selected ship commodity holds. */
+  if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
+    const EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
+    font_draw_text(font, framebuffer, EUROPE_HOLD_X, EUROPE_HOLD_Y - 10, "Holds", 14);
+    for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+      const int x = EUROPE_HOLD_X + i * EUROPE_HOLD_PITCH;
+      const int hy = EUROPE_HOLD_Y;
+      const int amt = ship->hold_goods_amount[i];
+      const int gtype = ship->hold_goods_type[i];
+      if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT &&
+          game->unit_icons_ok) {
+        const int sprite = EUROPE_CARGO_ICON_BASE + gtype;
+        if (sprite < game->unit_icons.sprite_count) {
+          ss_blit_sprite(&game->unit_icons, sprite, framebuffer, x, hy);
+        }
+      } else {
+        /* Empty recessed hold. */
+        for (int py = hy; py < hy + EUROPE_HOLD_H; ++py) {
+          for (int px = x; px < x + EUROPE_HOLD_W; ++px) {
+            if (px >= 0 && py >= 0 && px < framebuffer->width && py < framebuffer->height) {
+              const bool edge =
+                px == x || py == hy || px == x + EUROPE_HOLD_W - 1 || py == hy + EUROPE_HOLD_H - 1;
+              framebuffer->pixels[py * framebuffer->width + px] = edge ? 0 : 138;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  font_draw_text(font, framebuffer, EUROPE_MARKET_X, 28, "Market (bid/ask)", 14);
+  y = EUROPE_MARKET_Y;
+  for (int i = 0; i < eu->cargo_count && i < EUROPE_CARGO_MAX; ++i) {
     snprintf(
       line,
       sizeof(line),
@@ -925,12 +959,17 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       eu->cargo[i].bid,
       eu->cargo[i].ask
     );
-    font_draw_text(font, framebuffer, 170, y, line, 15);
-    y += 9;
+    font_draw_text(font, framebuffer, EUROPE_MARKET_X, y, line, 15);
+    y += EUROPE_MARKET_ROW_H;
+    if (y > 165) {
+      break;
+    }
   }
 
   font_draw_text(font, framebuffer, 4, 168, eu->status, 14);
-  font_draw_text(font, framebuffer, 4, 180, "R Recruit  T Train  S Sail  ] +1000$  [ tax-  Esc", 12);
+  font_draw_text(
+    font, framebuffer, 4, 180, "L Sell  U Buy goods  click hold/market  S Sail  Esc", 12
+  );
   if (!game->europe_ok) {
     font_draw_text(font, framebuffer, 4, 100, "EUROPE.PIK / NAMES.TXT failed to load", 12);
   }
@@ -2233,6 +2272,10 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         char ship_name[32];
         int cargo_types[EUROPE_SHIP_CARGO_MAX];
         int cargo_count = 0;
+        int hold_types[EUROPE_SHIP_CARGO_MAX];
+        int hold_amts[EUROPE_SHIP_CARGO_MAX];
+        memset(hold_types, 0, sizeof(hold_types));
+        memset(hold_amts, 0, sizeof(hold_amts));
         if (!units_despawn_ship_with_cargo(
               &game->units,
               sid,
@@ -2241,14 +2284,30 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
               sizeof(ship_name),
               cargo_types,
               &cargo_count,
+              EUROPE_SHIP_CARGO_MAX,
+              hold_types,
+              hold_amts,
               EUROPE_SHIP_CARGO_MAX
             )) {
           set_status(game, "Failed to sail ship", NULL);
         } else if (!europe_harbor_push(
-                     &game->europe, type_index, ship_name, cargo_types, cargo_count
+                     &game->europe,
+                     type_index,
+                     ship_name,
+                     cargo_types,
+                     cargo_count,
+                     hold_types,
+                     hold_amts
                    )) {
           const int restored = units_spawn_ship_with_cargo(
-            &game->units, type_index, berth_x, berth_y, cargo_types, cargo_count
+            &game->units,
+            type_index,
+            berth_x,
+            berth_y,
+            cargo_types,
+            cargo_count,
+            hold_types,
+            hold_amts
           );
           if (restored >= 0) {
             game->units.selected_id = restored;
@@ -2852,11 +2911,87 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (game->in_europe) {
+    EuropeScreen* eu = &game->europe;
+    europe_refresh_harbor_selection(eu);
+
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_E) {
       game->in_europe = false;
       diag_info("Left Europe screen.");
       return true;
     }
+
+    if (input->last_key == COLONIZE_KEY_L) {
+      if (eu->selected_harbor < 0) {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      } else {
+        const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
+        if (hold < 0) {
+          snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
+        } else {
+          europe_sell_hold(eu, eu->selected_harbor, hold);
+        }
+      }
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_U) {
+      if (eu->selected_harbor < 0) {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      } else {
+        europe_buy_cargo(eu, eu->selected_harbor, COLONIZE_CARGO_TRADE_GOODS, 100);
+      }
+      return true;
+    }
+    for (int ti = 0; ti < input->text_input_len; ++ti) {
+      const char ch = input->text_input[ti];
+      if (ch == '=' && eu->selected_harbor >= 0) {
+        const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
+        if (hold >= 0) {
+          EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
+          if (ship->hold_goods_amount[hold] > 1) {
+            const int ctype = ship->hold_goods_type[hold];
+            const int gained = europe_sell_proceeds(eu, ctype, 1);
+            eu->gold += gained;
+            ship->hold_goods_amount[hold]--;
+            snprintf(eu->status, sizeof(eu->status), "Sold 1 for %d$.", gained);
+          } else {
+            europe_sell_hold(eu, eu->selected_harbor, hold);
+          }
+        } else {
+          snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
+        }
+        return true;
+      }
+      if (ch == '+' && eu->selected_harbor >= 0) {
+        europe_buy_cargo(eu, eu->selected_harbor, COLONIZE_CARGO_TRADE_GOODS, 1);
+        return true;
+      }
+    }
+
+    if (input->mouse_left_clicked) {
+      const EuropeHitResult hit = europe_hit_test(eu, input->mouse_x, input->mouse_y);
+      switch (hit.kind) {
+      case EUROPE_HIT_HARBOR_SHIP:
+        eu->selected_harbor = hit.index;
+        snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
+        break;
+      case EUROPE_HIT_HOLD:
+        if (eu->selected_harbor >= 0) {
+          europe_sell_hold(eu, eu->selected_harbor, hit.index);
+        }
+        break;
+      case EUROPE_HIT_MARKET:
+        if (eu->selected_harbor < 0) {
+          snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+        } else {
+          europe_buy_cargo(eu, eu->selected_harbor, hit.index, 100);
+        }
+        break;
+      default:
+        break;
+      }
+      return true;
+    }
+
     if (input->last_key == COLONIZE_KEY_R) {
       europe_recruit(&game->europe);
     } else if (input->last_key == COLONIZE_KEY_T) {
@@ -2871,6 +3006,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         char ship_name[32];
         int cargo_types[EUROPE_SHIP_CARGO_MAX];
         int cargo_count = 0;
+        int hold_types[EUROPE_SHIP_CARGO_MAX];
+        int hold_amts[EUROPE_SHIP_CARGO_MAX];
+        memset(hold_types, 0, sizeof(hold_types));
+        memset(hold_amts, 0, sizeof(hold_amts));
         if (!europe_harbor_pop(
               &game->europe,
               &type_index,
@@ -2878,6 +3017,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               sizeof(ship_name),
               cargo_types,
               &cargo_count,
+              EUROPE_SHIP_CARGO_MAX,
+              hold_types,
+              hold_amts,
               EUROPE_SHIP_CARGO_MAX
             )) {
           snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Harbor pop failed.");
@@ -2886,16 +3028,35 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           int sy = 10;
           if (!units_find_high_seas_tile(&game->units, &game->world_map, sx, sy, &sx, &sy)) {
             europe_harbor_push(
-              &game->europe, type_index, ship_name, cargo_types, cargo_count
+              &game->europe,
+              type_index,
+              ship_name,
+              cargo_types,
+              cargo_count,
+              hold_types,
+              hold_amts
             );
             snprintf(game->europe.status, sizeof(game->europe.status), "%s", "No free high-seas berth.");
           } else {
             const int ship_id = units_spawn_ship_with_cargo(
-              &game->units, type_index, sx, sy, cargo_types, cargo_count
+              &game->units,
+              type_index,
+              sx,
+              sy,
+              cargo_types,
+              cargo_count,
+              hold_types,
+              hold_amts
             );
             if (ship_id < 0) {
               europe_harbor_push(
-                &game->europe, type_index, ship_name, cargo_types, cargo_count
+                &game->europe,
+                type_index,
+                ship_name,
+                cargo_types,
+                cargo_count,
+                hold_types,
+                hold_amts
               );
               snprintf(game->europe.status, sizeof(game->europe.status), "%s", "Could not place ship.");
             } else {
@@ -3393,6 +3554,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       char ship_name[32];
       int cargo_types[EUROPE_SHIP_CARGO_MAX];
       int cargo_count = 0;
+      int hold_types[EUROPE_SHIP_CARGO_MAX];
+      int hold_amts[EUROPE_SHIP_CARGO_MAX];
+      memset(hold_types, 0, sizeof(hold_types));
+      memset(hold_amts, 0, sizeof(hold_amts));
       if (!units_despawn_ship_with_cargo(
             &game->units,
             sid,
@@ -3401,15 +3566,31 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             sizeof(ship_name),
             cargo_types,
             &cargo_count,
+            EUROPE_SHIP_CARGO_MAX,
+            hold_types,
+            hold_amts,
             EUROPE_SHIP_CARGO_MAX
           )) {
         set_status(game, "Failed to sail ship", NULL);
       } else if (!europe_harbor_push(
-                   &game->europe, type_index, ship_name, cargo_types, cargo_count
+                   &game->europe,
+                   type_index,
+                   ship_name,
+                   cargo_types,
+                   cargo_count,
+                   hold_types,
+                   hold_amts
                  )) {
         /* Harbor full — put the ship back on the map with passengers. */
         const int restored = units_spawn_ship_with_cargo(
-          &game->units, type_index, berth_x, berth_y, cargo_types, cargo_count
+          &game->units,
+          type_index,
+          berth_x,
+          berth_y,
+          cargo_types,
+          cargo_count,
+          hold_types,
+          hold_amts
         );
         if (restored >= 0) {
           game->units.selected_id = restored;

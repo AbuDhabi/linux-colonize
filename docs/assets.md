@@ -336,10 +336,16 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 | R | Recruit cheapest `@CLASS` immigrant onto the docks |
 | T | Train (stub) |
 | S | Sail oldest harbor ship to the New World (onto a high-seas tile) |
+| Click harbor ship | Select ship (shows commodity holds) |
+| Click hold | Sell entire hold (bid after tax) |
+| Click market row | Buy up to 100 into an empty hold (ask price) |
+| **L** | Sell highest-value hold |
+| **U** | Buy up to 100 Trade Goods |
+| `=` / `+` | Sell 1 from best hold / buy 1 Trade Goods |
 | `]` | Cheat: +1000 gold |
 | `[` | Cheat: −1% tax |
 
-Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Commodity cargo holds and drag-trade are not implemented yet. Unit passengers ride in the ship hold (board with **O**, unload with **U**) and persist through Europe harbor sail (**H** / **S**). Buying ships in Europe is not implemented yet.
+Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds use `floor(bid × amount × (100 − tax) / 100)`. Commodity holds persist through Europe harbor sail (**H** / **S**) with passengers. Drag-trade polish and buy-ships are not implemented yet.
 
 ### Colony screen bring-up
 

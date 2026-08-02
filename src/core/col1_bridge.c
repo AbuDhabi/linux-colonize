@@ -396,7 +396,30 @@ bool col1_bridge_apply(
           src->type >= 13 && src->type <= 18) {
         const int ti = col1_unit_type_to_runtime(units, src->type);
         const ColonizeUnitType* ut = units_type(units, ti);
-        europe_harbor_push(europe, ti, ut ? ut->name : "Ship", NULL, 0);
+        {
+          int hold_types[EUROPE_SHIP_CARGO_MAX];
+          int hold_amts[EUROPE_SHIP_CARGO_MAX];
+          memset(hold_types, 0, sizeof(hold_types));
+          memset(hold_amts, 0, sizeof(hold_amts));
+          const uint8_t items[6] = {
+            src->cargo_item_0,
+            src->cargo_item_1,
+            src->cargo_item_2,
+            src->cargo_item_3,
+            src->cargo_item_4,
+            src->cargo_item_5
+          };
+          for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+            const int amt = src->cargo_hold[h];
+            if (amt > 0 && amt < 255) {
+              hold_types[h] = (int)items[h];
+              hold_amts[h] = amt;
+            }
+          }
+          europe_harbor_push(
+            europe, ti, ut ? ut->name : "Ship", NULL, 0, hold_types, hold_amts
+          );
+        }
         continue;
       }
       if (src->nation_id == (uint8_t)local.human_nation) {

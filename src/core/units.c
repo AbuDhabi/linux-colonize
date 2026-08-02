@@ -820,7 +820,10 @@ bool units_despawn_ship_with_cargo(
   size_t out_name_size,
   int* out_cargo_types,
   int* out_cargo_count,
-  int cargo_max
+  int cargo_max,
+  int* out_hold_goods_type,
+  int* out_hold_goods_amount,
+  int hold_max
 ) {
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (!ship || !units_is_sea(pool, ship_id)) {
@@ -837,6 +840,17 @@ bool units_despawn_ship_with_cargo(
     *out_cargo_count = units_export_cargo_types(pool, ship_id, out_cargo_types, cargo_max);
   } else if (out_cargo_count) {
     *out_cargo_count = 0;
+  }
+  if (out_hold_goods_type && out_hold_goods_amount && hold_max > 0) {
+    const int n = hold_max > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX : hold_max;
+    for (int i = 0; i < n; ++i) {
+      out_hold_goods_type[i] = ship->hold_goods_type[i];
+      out_hold_goods_amount[i] = ship->hold_goods_amount[i];
+    }
+    for (int i = n; i < hold_max; ++i) {
+      out_hold_goods_type[i] = 0;
+      out_hold_goods_amount[i] = 0;
+    }
   }
   return units_despawn(pool, ship_id);
 }
@@ -880,7 +894,9 @@ int units_spawn_ship_with_cargo(
   int x,
   int y,
   const int* cargo_types,
-  int cargo_count
+  int cargo_count,
+  const int* hold_goods_type,
+  const int* hold_goods_amount
 ) {
   /* Allow stacking: harbor return / Europe berth may share a water tile. */
   const int ship_id = units_spawn_allow_stack(pool, ship_type_index, x, y);
@@ -903,6 +919,12 @@ int units_spawn_ship_with_cargo(
     }
     if (units_spawn_aboard(pool, cargo_types[i], ship) < 0) {
       break;
+    }
+  }
+  if (hold_goods_type && hold_goods_amount) {
+    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      ship->hold_goods_type[i] = hold_goods_type[i];
+      ship->hold_goods_amount[i] = hold_goods_amount[i];
     }
   }
   return ship_id;

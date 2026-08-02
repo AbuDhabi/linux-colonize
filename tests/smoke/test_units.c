@@ -350,6 +350,10 @@ int main(void) {
     int exported_type = -1;
     char exported_name[32];
     const int count_before_sail = pool.unit_count;
+    int hold_types[COLONIZE_UNIT_CARGO_MAX];
+    int hold_amts[COLONIZE_UNIT_CARGO_MAX];
+    memset(hold_types, 0, sizeof(hold_types));
+    memset(hold_amts, 0, sizeof(hold_amts));
     if (!units_despawn_ship_with_cargo(
           &pool,
           ship_id,
@@ -358,6 +362,9 @@ int main(void) {
           sizeof(exported_name),
           cargo_types,
           &cargo_count,
+          COLONIZE_UNIT_CARGO_MAX,
+          hold_types,
+          hold_amts,
           COLONIZE_UNIT_CARGO_MAX
         )) {
       fprintf(stderr, "despawn_ship_with_cargo failed\n");
@@ -388,7 +395,7 @@ int main(void) {
       return 1;
     }
     const int returned = units_spawn_ship_with_cargo(
-      &pool, caravel, hx, hy, cargo_types, cargo_count
+      &pool, caravel, hx, hy, cargo_types, cargo_count, hold_types, hold_amts
     );
     if (returned < 0) {
       fprintf(stderr, "spawn_ship_with_cargo failed\n");

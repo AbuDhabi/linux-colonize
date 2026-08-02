@@ -207,7 +207,10 @@ int units_export_cargo_types(
   int* out_types,
   int out_max
 );
-/* Despawn ship and all passengers; fills cargo type list for harbor. */
+/*
+ * Despawn ship and all passengers; fills passenger type list and optional
+ * commodity hold arrays for Europe harbor transfer.
+ */
 bool units_despawn_ship_with_cargo(
   ColonizeUnitPool* pool,
   int ship_id,
@@ -216,16 +219,21 @@ bool units_despawn_ship_with_cargo(
   size_t out_name_size,
   int* out_cargo_types,
   int* out_cargo_count,
-  int cargo_max
+  int cargo_max,
+  int* out_hold_goods_type,
+  int* out_hold_goods_amount,
+  int hold_max
 );
-/* Spawn ship at (x,y) and recreate passengers aboard from type indices. */
+/* Spawn ship at (x,y); recreate passengers and optional commodity holds. */
 int units_spawn_ship_with_cargo(
   ColonizeUnitPool* pool,
   int ship_type_index,
   int x,
   int y,
   const int* cargo_types,
-  int cargo_count
+  int cargo_count,
+  const int* hold_goods_type,
+  const int* hold_goods_amount
 );
 
 void units_end_turn(ColonizeUnitPool* pool);
