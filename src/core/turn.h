@@ -60,6 +60,8 @@ typedef struct ColonizeColonyProdDelta {
   int ore;
   int hammers_added;
   bool building_completed;
+  /* Net change per @CARGO (field harvest, craft consume/produce, lumber use). */
+  int goods[COLONIZE_CARGO_COUNT];
 } ColonizeColonyProdDelta;
 
 /* Frame-stepped end-of-turn (indicator only while a nation turn runs). */

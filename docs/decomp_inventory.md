@@ -155,7 +155,8 @@ Ordered pipeline recovered for the Linux port:
    one turn/year until 1600; thereafter Spring then Autumn each year
 3. **Colony production** — field harvest from `tiles[8]` (`NAMES.TXT` yields) − food
    consume 2/colonist; lumberjack → lumber (carpenter invents 1 lumber if none);
-   hammers toward `building_in_production` (Colony Space = free production + UI deltas;
+   settlement craft (`colony_craft.c`: raw→goods by workplace); hammers toward
+   `building_in_production` (Colony Space = free production + UI deltas;
    `README.TXT` “free turn”)
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election **not** recovered yet

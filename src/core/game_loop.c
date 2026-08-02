@@ -1447,8 +1447,25 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   game->game_autumn = 0;
   game->turn_number = 0;
   europe_reset_campaign_nation(&game->europe, game->human_nation);
+  /* Wipe live colonies but restore @BUILDING / COLONY.TXT so founding can grant starters. */
   colonies_init(&game->colonies);
-  game->colonies_ok = true;
+  game->colonies_ok = false;
+  if (game->names_ok) {
+    if (!colonies_load_buildings(&game->colonies, &game->names)) {
+      diag_warn("Failed to reload @BUILDING after new campaign init");
+    }
+  }
+  {
+    char colony_txt[512];
+    if (dos_compat_normalize_asset_path(
+          game->resolved_data_dir, "COLONY.TXT", colony_txt, sizeof(colony_txt)
+        )) {
+      game->colonies_ok = colonies_load_names(&game->colonies, colony_txt);
+    }
+  }
+  if (!game->colonies_ok) {
+    game->colonies_ok = game->colonies.building_type_count > 0;
+  }
 
   int sx = 39, sy = 10;
   if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD ||
@@ -2533,15 +2550,63 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         memset(&prod, 0, sizeof(prod));
         turn_colony_free_production(&game->colonies, colony, cmap, &prod, &delta);
         colony_screen_set_delta(csv, &delta);
-        snprintf(
-          game->status,
-          sizeof(game->status),
-          "Food%+d Lumber%+d Ore%+d H%+d",
-          delta.food_net,
-          delta.lumber,
-          delta.ore,
-          delta.hammers_added
-        );
+        {
+          static const struct {
+            int cargo;
+            const char* tag;
+          } k_craft[] = {
+            {COLONIZE_CARGO_RUM, "Rum"},
+            {COLONIZE_CARGO_CIGARS, "Cigar"},
+            {COLONIZE_CARGO_CLOTH, "Cloth"},
+            {COLONIZE_CARGO_COATS, "Coat"},
+            {COLONIZE_CARGO_TOOLS, "Tool"},
+            {COLONIZE_CARGO_MUSKETS, "Gun"},
+          };
+          char craft[48];
+          craft[0] = '\0';
+          size_t cn = 0;
+          for (size_t ci = 0; ci < sizeof(k_craft) / sizeof(k_craft[0]); ++ci) {
+            const int g = delta.goods[k_craft[ci].cargo];
+            if (g <= 0) {
+              continue;
+            }
+            const int wrote = snprintf(
+              craft + cn,
+              sizeof(craft) - cn,
+              "%s%s%+d",
+              cn > 0 ? " " : "",
+              k_craft[ci].tag,
+              g
+            );
+            if (wrote > 0) {
+              cn += (size_t)wrote;
+            }
+            if (cn >= sizeof(craft)) {
+              break;
+            }
+          }
+          if (craft[0]) {
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Food%+d L%+d H%+d %s",
+              delta.food_net,
+              delta.lumber,
+              delta.hammers_added,
+              craft
+            );
+          } else {
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Food%+d Lumber%+d Ore%+d H%+d",
+              delta.food_net,
+              delta.lumber,
+              delta.ore,
+              delta.hammers_added
+            );
+          }
+        }
         if (delta.building_completed) {
           snprintf(game->status, sizeof(game->status), "Building completed!");
         }

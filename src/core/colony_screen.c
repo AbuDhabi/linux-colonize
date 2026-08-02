@@ -696,6 +696,51 @@ static void colony_screen_blit_buildings(
   }
 }
 
+/* Tiny +N craft output under settlement craft slots (from last production delta). */
+static void colony_screen_draw_craft_deltas(
+  const ColonyScreenView* view,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !view->last_delta_valid || !font || !framebuffer) {
+    return;
+  }
+  typedef struct {
+    const char* const* chain;
+    int out_cargo;
+  } CraftLabel;
+  static const CraftLabel k_labels[] = {
+    {k_slot_rum, COLONIZE_CARGO_RUM},
+    {k_slot_tobacco, COLONIZE_CARGO_CIGARS},
+    {k_slot_weaver, COLONIZE_CARGO_CLOTH},
+    {k_slot_fur, COLONIZE_CARGO_COATS},
+    {k_slot_blacksmith, COLONIZE_CARGO_TOOLS},
+    {k_slot_armory, COLONIZE_CARGO_MUSKETS},
+  };
+  for (size_t li = 0; li < sizeof(k_labels) / sizeof(k_labels[0]); ++li) {
+    const int g = view->last_delta.goods[k_labels[li].out_cargo];
+    if (g <= 0) {
+      continue;
+    }
+    for (int i = 0; i < k_building_slot_count; ++i) {
+      if (k_building_slots[i].chain != k_labels[li].chain) {
+        continue;
+      }
+      char buf[12];
+      snprintf(buf, sizeof(buf), "+%d", g);
+      font_draw_text(
+        font,
+        framebuffer,
+        COLONY_VIEWPORT_X + k_building_slots[i].x + 2,
+        COLONY_VIEWPORT_Y + k_building_slots[i].y + COLONY_BUILDING_SLOT_H - 8,
+        buf,
+        10
+      );
+      break;
+    }
+  }
+}
+
 static int colony_screen_text_width(const ColonizeFont* font, const char* text) {
   if (!text) {
     return 0;
@@ -737,13 +782,7 @@ static void colony_screen_draw_cargo_strip(
       char amount[16];
       int delta = 0;
       if (view && view->last_delta_valid) {
-        if (i == COLONIZE_CARGO_FOOD) {
-          delta = view->last_delta.food_net;
-        } else if (i == COLONIZE_CARGO_LUMBER) {
-          delta = view->last_delta.lumber;
-        } else if (i == COLONIZE_CARGO_ORE) {
-          delta = view->last_delta.ore;
-        }
+        delta = view->last_delta.goods[i];
       }
       if (delta != 0) {
         snprintf(amount, sizeof(amount), "%d%+d", colony->stock[i], delta);
@@ -1134,6 +1173,7 @@ void colony_screen_render(
     const bool coastal =
       colony && map && map_tile_is_coastal(map, colony->x, colony->y);
     colony_screen_blit_buildings(view, pool, colony, coastal, framebuffer);
+    colony_screen_draw_craft_deltas(view, font, framebuffer);
   }
 
   colony_screen_fill_wood_tile(view, framebuffer);

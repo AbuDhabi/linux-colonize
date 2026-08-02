@@ -308,6 +308,121 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /* Settlement craft: sugar→rum, cotton→cloth, ore→tools→muskets; no input → no output. */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names)) {
+      fprintf(stderr, "craft test: load buildings failed\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int distiller = colonies_find_building(&pool, "Rum Distiller's House");
+    const int weaver = colonies_find_building(&pool, "Weaver's House");
+    const int smith = colonies_find_building(&pool, "Blacksmith's House");
+    const int armory = colonies_find_building(&pool, "Armory");
+    const int fur = colonies_find_building(&pool, "Fur Trader's House");
+    if (distiller < 0 || weaver < 0 || smith < 0 || armory < 0 || fur < 0) {
+      fprintf(stderr, "craft test: missing building types\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->building_in_production = -1;
+    col->has_building[distiller] = true;
+    col->stock[COLONIZE_CARGO_FOOD] = 20;
+    col->stock[COLONIZE_CARGO_SUGAR] = 10;
+    col->colonists[0].active = true;
+    col->colonists[0].building_type = distiller;
+    col->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->colonist_count = 1;
+    col->population = 1;
+    pool.colony_count = 1;
+
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    if (col->stock[COLONIZE_CARGO_RUM] != 3 || col->stock[COLONIZE_CARGO_SUGAR] != 7 ||
+        delta.goods[COLONIZE_CARGO_RUM] != 3) {
+      fprintf(
+        stderr,
+        "rum craft failed sugar=%d rum=%d dRum=%d\n",
+        col->stock[COLONIZE_CARGO_SUGAR],
+        col->stock[COLONIZE_CARGO_RUM],
+        delta.goods[COLONIZE_CARGO_RUM]
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* No furs → no coats. */
+    col->has_building[fur] = true;
+    col->colonists[0].building_type = fur;
+    col->stock[COLONIZE_CARGO_FURS] = 0;
+    const int coats_before = col->stock[COLONIZE_CARGO_COATS];
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    if (col->stock[COLONIZE_CARGO_COATS] != coats_before || delta.goods[COLONIZE_CARGO_COATS] != 0) {
+      fprintf(stderr, "expected no coats without furs\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    col->has_building[weaver] = true;
+    col->colonists[0].building_type = weaver;
+    col->stock[COLONIZE_CARGO_COTTON] = 5;
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    if (col->stock[COLONIZE_CARGO_CLOTH] != 3 || col->stock[COLONIZE_CARGO_COTTON] != 2) {
+      fprintf(
+        stderr,
+        "cloth craft failed cotton=%d cloth=%d\n",
+        col->stock[COLONIZE_CARGO_COTTON],
+        col->stock[COLONIZE_CARGO_CLOTH]
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    col->has_building[smith] = true;
+    col->has_building[armory] = true;
+    col->colonists[0].building_type = smith;
+    col->colonists[0].active = true;
+    col->stock[COLONIZE_CARGO_ORE] = 10;
+    col->stock[COLONIZE_CARGO_TOOLS] = 0;
+    col->stock[COLONIZE_CARGO_MUSKETS] = 0;
+    /* Two workers: smith + gunsmith. */
+    col->colonists[1].active = true;
+    col->colonists[1].building_type = armory;
+    col->colonists[1].field_job = -1;
+    col->colonist_count = 2;
+    col->population = 2;
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    /* Smith makes 3 tools from ore; gunsmith converts 3 tools → 3 muskets same tick. */
+    if (col->stock[COLONIZE_CARGO_ORE] != 7 || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
+        col->stock[COLONIZE_CARGO_MUSKETS] != 3) {
+      fprintf(
+        stderr,
+        "tools/muskets craft failed ore=%d tools=%d guns=%d\n",
+        col->stock[COLONIZE_CARGO_ORE],
+        col->stock[COLONIZE_CARGO_TOOLS],
+        col->stock[COLONIZE_CARGO_MUSKETS]
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    assets_msg_free(&names);
+  }
+
   /* Field lumberjack harvests from forest surround tile. */
   {
     ColonizeWorldMap map;

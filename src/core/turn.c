@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/colony_craft.h"
 #include "core/colony_yield.h"
 #include "platform/diagnostics.h"
 
@@ -268,6 +269,9 @@ static void turn_produce_one_colony(
         continue;
       }
       colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + yld);
+      if (delta) {
+        delta->goods[cargo] += yld;
+      }
       if (cargo == COLONIZE_CARGO_FOOD) {
         field_food += yld;
       } else if (cargo == COLONIZE_CARGO_LUMBER) {
@@ -282,6 +286,7 @@ static void turn_produce_one_colony(
   colony->stock[COLONIZE_CARGO_FOOD] =
     turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - consumed);
   if (delta) {
+    delta->goods[COLONIZE_CARGO_FOOD] -= consumed;
     delta->food_net = field_food - consumed;
     delta->lumber = field_lumber;
     delta->ore = field_ore;
@@ -300,7 +305,16 @@ static void turn_produce_one_colony(
       turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + 1);
     if (delta) {
       delta->lumber += 1;
+      delta->goods[COLONIZE_CARGO_LUMBER] += 1;
     }
+  }
+
+  /* Settlement manufacturing (raw → goods) before hammers consume lumber. */
+  colony_craft_one_colony(pool, colony, delta);
+  if (delta) {
+    delta->lumber = delta->goods[COLONIZE_CARGO_LUMBER];
+    delta->ore = delta->goods[COLONIZE_CARGO_ORE];
+    delta->food_net = delta->goods[COLONIZE_CARGO_FOOD];
   }
 
   /* Carpenter hammers: convert lumber toward current project. */
@@ -316,6 +330,7 @@ static void turn_produce_one_colony(
     colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
     if (delta) {
       delta->lumber -= lumber_use;
+      delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
     }
     const int hammers_add = lumber_use > 0 ? lumber_use : hammer_workers;
     colony->hammers += hammers_add;
