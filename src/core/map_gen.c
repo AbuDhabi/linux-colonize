@@ -30,10 +30,6 @@ static void rng_seed(MapGenRng* rng, uint32_t seed) {
   dos_rng_seed(rng, seed ? seed : 1u);
 }
 
-static uint32_t rng_next(MapGenRng* rng) {
-  return dos_rng_next(rng);
-}
-
 static int rng_range(MapGenRng* rng, int lo, int hi_inclusive) {
   return dos_rng_range(rng, lo, hi_inclusive);
 }
@@ -413,6 +409,194 @@ static uint8_t latitude_terrain(int y, int h, int temperature, MapGenRng* rng) {
   }
 }
 
+/* Cardinal dirs at DS:0xa8 / 0xae (N E S W). */
+static const int k_dir4_dx[4] = {0, 1, 0, -1};
+static const int k_dir4_dy[4] = {-1, 0, 1, 0};
+
+/* 20-neighbour offsets at DS:0xc8 / 0xde (river forest sprinkle). */
+static const int k_nbr20_dx[20] = {
+  0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
+};
+static const int k_nbr20_dy[20] = {
+  -1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1
+};
+
+static int is_water_tile(uint8_t tile) {
+  const uint8_t t = (uint8_t)(tile & 0x1f);
+  return t == T_OCEAN || t == T_HIGH_SEAS;
+}
+
+static int inset_bounds(int x, int y, int w, int h) {
+  /* FUN_137f_000a / FUN_281f_0302 */
+  return x >= 1 && y >= 1 && x < w - 1 && y < h - 1;
+}
+
+/*
+ * Rivers (FUN_684c_04a6): walk inland until ocean/existing river, OR 0x40 on
+ * path. Failed short walks restore a terrain backup. Stops after 512 attempts
+ * or (climate + mass + 2) * 8 successful rivers.
+ */
+static void rivers_pass(
+  uint8_t* terrain,
+  int w,
+  int h,
+  MapGenRng* rng,
+  int climate,
+  int land_mass
+) {
+  const int n = w * h;
+  uint8_t* backup = (uint8_t*)malloc((size_t)n);
+  if (!backup) {
+    return;
+  }
+
+  int attempts = 0;
+  int successes = 0;
+  const int success_target = (climate + land_mass + 2) * 8;
+
+  while (attempts < 0x200 && successes < success_target) {
+    memcpy(backup, terrain, (size_t)n);
+    attempts++;
+
+    int x, y;
+    for (;;) {
+      x = rng_range(rng, 1, w - 2);
+      y = rng_range(rng, 1, h - 2);
+      /* DOS tests coverage-plane bit 0x20 (never set) then FUN_281f_0768 water. */
+      if (is_water_tile(terrain[idx(x, y, w)])) {
+        continue;
+      }
+      break;
+    }
+
+    int dir = rng_range(rng, 0, 3) << 1; /* even 8-dir index */
+    int turn_flag = rng_range(rng, 0, 1);
+    int length = 0;
+    int connected = 0;
+    const int origin_x = x;
+    const int origin_y = y;
+    int join_x = x;
+    int join_y = y;
+
+    for (;;) {
+      {
+        const int i = idx(x, y, w);
+        terrain[i] = (uint8_t)(terrain[i] | F_RIVER);
+      }
+      length++;
+
+      connected = 0;
+      for (int c = 0; c < 4; ++c) {
+        const int nx = x + k_dir4_dx[c];
+        const int ny = y + k_dir4_dy[c];
+        if (!in_bounds(nx, ny, w, h)) {
+          continue;
+        }
+        const uint8_t nt = terrain[idx(nx, ny, w)];
+        /* Only ocean/HS: coverage-plane 0x40 never flags our own trail. */
+        if (is_water_tile(nt)) {
+          connected = 1;
+          join_x = nx;
+          join_y = ny;
+          terrain[idx(nx, ny, w)] = (uint8_t)(nt | F_RIVER);
+          break;
+        }
+      }
+
+      const int r = rng_range(rng, 0, 99);
+      if (r >= 0x3c) {
+        if (r > 0x5f) {
+          turn_flag = turn_flag == 0 ? 1 : 0;
+        }
+        if (turn_flag == 0) {
+          dir = (dir + 6) % 8;
+        } else {
+          dir = (dir + 2) % 8;
+        }
+        turn_flag = turn_flag == 0 ? 1 : 0;
+      }
+
+      x += k_dir8_dx[dir];
+      y += k_dir8_dy[dir];
+
+      if (connected) {
+        break;
+      }
+      if (!inset_bounds(x, y, w, h)) {
+        break;
+      }
+      {
+        const uint8_t t = terrain[idx(x, y, w)];
+        if ((t & F_RIVER) || (t & F_HILL)) {
+          break;
+        }
+      }
+    }
+
+    if (connected && length > 2) {
+      successes++;
+
+      if (connected) {
+        const int thr = (climate + 6) * 2;
+        if (rng_range(rng, 1, thr) > 6) {
+          int steps = rng_range(rng, 1, climate * 2 + 3);
+          int mx = join_x;
+          int my = join_y;
+          while (steps-- > 0) {
+            if (!in_bounds(mx, my, w, h)) {
+              break;
+            }
+            /* Don't mountain-flag ocean join tiles. */
+            if (!is_water_tile(terrain[idx(mx, my, w)])) {
+              terrain[idx(mx, my, w)] = (uint8_t)(terrain[idx(mx, my, w)] | F_MOUNTAIN);
+            }
+            int found = 0;
+            int nx = mx;
+            int ny = my;
+            for (int c = 0; c < 4; ++c) {
+              const int tx = mx + k_dir4_dx[c];
+              const int ty = my + k_dir4_dy[c];
+              if (!in_bounds(tx, ty, w, h)) {
+                continue;
+              }
+              const uint8_t t = terrain[idx(tx, ty, w)];
+              if ((t & F_RIVER) && !(t & F_MOUNTAIN)) {
+                found = 1;
+                nx = tx;
+                ny = ty;
+                break;
+              }
+            }
+            if (!found) {
+              break;
+            }
+            mx = nx;
+            my = ny;
+          }
+        }
+      }
+
+      for (int c = 0; c < 0x14; ++c) {
+        const int nx = origin_x + k_nbr20_dx[c];
+        const int ny = origin_y + k_nbr20_dy[c];
+        if (!in_bounds(nx, ny, w, h)) {
+          continue;
+        }
+        uint8_t t = terrain[idx(nx, ny, w)];
+        if ((t & 0x1f) < 0x10) {
+          if (rng_range(rng, 0, 1) != 0) {
+            terrain[idx(nx, ny, w)] = (uint8_t)(t + 8);
+          }
+        }
+      }
+    } else {
+      memcpy(terrain, backup, (size_t)n);
+    }
+  }
+
+  free(backup);
+}
+
 /* Polar arctic rows + near-polar stomps + E/W high-seas (FUN_684c_08c0 tail). */
 static void paint_arctic_and_poles(uint8_t* terrain, int w, int h, MapGenRng* rng) {
   /* 0x28 random arctic tiles on y=1 and y=h-2. */
@@ -460,6 +644,375 @@ static void paint_high_seas(uint8_t* terrain, const uint8_t* mask, int w, int h)
   }
 }
 
+/*
+ * Climate humidity walk (FUN_684c_08c0 after latitude paint).
+ * Per row: L→R with humidity = range(0, |h/4 - dist| + climate*4), then R→L
+ * starting at humidity 0. Ocean tiles adjust humidity; land tiles shift type
+ * arid←→wet and mountains reduce humidity.
+ */
+static void climate_humidity_pass(
+  uint8_t* terrain,
+  uint8_t* mask,
+  int w,
+  int h,
+  MapGenRng* rng,
+  int climate
+) {
+  climate = clamp_i(climate, 0, 2);
+
+  for (int y = 0; y < h; ++y) {
+    int dist = (h >> 1) - y;
+    if (dist < 0) {
+      dist = -dist;
+    }
+
+    /* --- Forward L→R --- */
+    int span = (h >> 2) - dist;
+    if (span < 0) {
+      span = -span;
+    }
+    span += climate * 4;
+    int humidity = rng_range(rng, 0, span);
+
+    for (int x = 0; x < w; ++x) {
+      const int i = idx(x, y, w);
+      uint8_t tile = terrain[i];
+      uint8_t base = (uint8_t)(tile & 0x1f);
+      uint8_t feat = (uint8_t)(tile & 0xe0);
+
+      if (base == T_OCEAN) {
+        int thresh = (h >> 2) - dist;
+        if (thresh < 0) {
+          thresh = -thresh;
+        }
+        thresh += climate * 4;
+        if (humidity > thresh) {
+          humidity++;
+        }
+        continue;
+      }
+
+      if (feat & F_MOUNTAIN) {
+        humidity -= 3;
+      } else if (feat & F_HILL) {
+        feat = (uint8_t)(feat & (uint8_t)~F_HILL);
+      } else if (humidity < 0) {
+        if (base == T_TUNDRA) {
+          mask[i] = 2;
+        } else if (base == T_PLAINS) {
+          base = T_TUNDRA;
+        } else if (base == T_PRAIRIE) {
+          int mag = humidity < 0 ? -humidity : humidity;
+          if (rng_range(rng, 0, mag) != 0) {
+            base = T_DESERT;
+          } else {
+            base = T_PLAINS;
+            humidity--;
+          }
+        } else if (base == T_GRASSLAND) {
+          base = T_PRAIRIE;
+        }
+      } else if (humidity > 0) {
+        if (base == T_TUNDRA) {
+          base = T_PLAINS;
+        } else if (base == T_PLAINS) {
+          base = T_PRAIRIE;
+        } else if (base == T_PRAIRIE) {
+          base = T_GRASSLAND;
+        } else if (base == T_GRASSLAND) {
+          humidity -= 2;
+          if (rng_range(rng, 0, 3) == 0) {
+            base = T_MARSH;
+          }
+        } else if (base == T_SAVANNAH) {
+          humidity -= 2;
+          if (rng_range(rng, 0, 3) == 0) {
+            base = T_SWAMP;
+          }
+        }
+      }
+
+      if (humidity > 0) {
+        int hi = 7 - 2 * climate;
+        if (hi < 1) {
+          hi = 1;
+        }
+        humidity -= rng_range(rng, 1, hi);
+      } else if (humidity < 0) {
+        humidity++;
+      }
+
+      terrain[i] = (uint8_t)(feat | base);
+    }
+
+    /* --- Reverse R→L, humidity starts at 0 --- */
+    humidity = 0;
+    for (int x = w - 1; x >= 0; --x) {
+      const int i = idx(x, y, w);
+      uint8_t tile = terrain[i];
+      uint8_t base = (uint8_t)(tile & 0x1f);
+      uint8_t feat = (uint8_t)(tile & 0xe0);
+
+      if (base == T_OCEAN) {
+        int thresh = (dist >> 1) + climate;
+        if (humidity > thresh) {
+          humidity++;
+        }
+        continue;
+      }
+
+      if (feat & F_MOUNTAIN) {
+        humidity -= 3;
+      } else if (feat & F_HILL) {
+        feat = (uint8_t)(feat & (uint8_t)~F_HILL);
+      } else if (humidity > 0) {
+        if (base == T_TUNDRA) {
+          base = T_PLAINS;
+        } else if (base == T_PLAINS) {
+          base = T_PRAIRIE;
+        } else if (base == T_PRAIRIE) {
+          base = T_GRASSLAND;
+        } else if (base == T_GRASSLAND) {
+          humidity -= 2;
+          if (rng_range(rng, 0, 1) == 0) {
+            base = T_MARSH;
+          }
+        } else if (base == T_SAVANNAH) {
+          humidity -= 2;
+          if (rng_range(rng, 0, 1) == 0) {
+            base = T_SWAMP;
+          }
+        }
+      }
+
+      if (humidity > 0) {
+        int hi = 7 - 2 * climate;
+        if (hi < 1) {
+          hi = 1;
+        }
+        humidity -= rng_range(rng, 1, hi);
+      } else if (humidity < 0) {
+        humidity++;
+      }
+
+      terrain[i] = (uint8_t)(feat | base);
+    }
+  }
+}
+
+/*
+ * FUN_684c_03e4: true when (x,y) is in-bounds for a 1-tile inset and all four
+ * diagonals are non-ocean. Inland mountains are demoted; coastal ones stay.
+ */
+static int mountain_landlocked(const uint8_t* terrain, int x, int y, int w, int h) {
+  if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) {
+    return 0;
+  }
+  const int dxy[4][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+  for (int n = 0; n < 4; ++n) {
+    const int nx = x + dxy[n][0];
+    const int ny = y + dxy[n][1];
+    if ((terrain[idx(nx, ny, w)] & 0x1f) == T_OCEAN) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/* Apply hill/mountain chance epilogue at LAB_684c_11de. */
+static void forest_hill_epilogue(uint8_t* feat, int hill_chance, int mtn_chance, MapGenRng* rng) {
+  if (hill_chance <= 0) {
+    return;
+  }
+  if (rng_range(rng, 0, hill_chance) != 0) {
+    return;
+  }
+  *feat = (uint8_t)(*feat | F_HILL);
+  if (mtn_chance <= 0) {
+    return;
+  }
+  if (rng_range(rng, 0, mtn_chance) == 0) {
+    *feat = (uint8_t)(*feat | F_MOUNTAIN);
+  }
+}
+
+/*
+ * Forest wander (FUN_684c_08c0 @ 0x0fcc / 0x123d): (forest_extra+1)*0x320 steps.
+ * Even: new interior point. Odd: step by DS:0xb4/0xbe dir from range(0,8).
+ * Mutates land types / hills / mountains; forest canopy is the later 0x1286 pass.
+ */
+static void forest_wander_pass(
+  uint8_t* terrain,
+  uint8_t* mask,
+  int w,
+  int h,
+  MapGenRng* rng,
+  int forest_extra
+) {
+  forest_extra = clamp_i(forest_extra, 0, 2);
+  const int attempts = (forest_extra + 1) * 0x320;
+  int x = 1;
+  int y = 1;
+  /* DOS reuses these across early-outs; start cleared like a fresh frame. */
+  int hill_chance = 0;
+  int mtn_chance = 0;
+
+  for (int n = 0; n < attempts; ++n) {
+    if ((n & 1) == 0) {
+      x = rng_range(rng, 1, w - 2);
+      y = rng_range(rng, 1, h - 2);
+    } else {
+      int d = rng_range(rng, 0, 8);
+      /* DOS indexes [BX+0xb4] with no clamp; BX==8 reads past the 8-byte table.
+       * Adjacent bytes behave as a no-step for our port (tables are 8 entries). */
+      if (d >= 0 && d <= 7) {
+        x += k_dir8_dx[d];
+        y += k_dir8_dy[d];
+      }
+    }
+    if (!in_bounds(x, y, w, h)) {
+      continue;
+    }
+
+    const int i = idx(x, y, w);
+    uint8_t feat = terrain[i];
+    uint8_t typ = (uint8_t)(feat & 0x1f);
+    int write_mask_val = -1; /* >=0 → also write coverage mask */
+
+    if (feat & F_MOUNTAIN) {
+      /* Coastal / OOB-diagonal mountains kept; inland demoted (AND 0x5f). */
+      if (mountain_landlocked(terrain, x, y, w, h)) {
+        feat = (uint8_t)(feat & 0x5fu);
+      }
+      forest_hill_epilogue(&feat, hill_chance, mtn_chance, rng);
+      terrain[i] = (uint8_t)((feat & 0xe0) | typ);
+      continue;
+    }
+
+    if (feat & F_HILL) {
+      feat = (uint8_t)(feat | F_MOUNTAIN);
+      mask[i] = 1;
+      forest_hill_epilogue(&feat, hill_chance, mtn_chance, rng);
+      terrain[i] = (uint8_t)((feat & 0xe0) | typ);
+      continue;
+    }
+
+    /* LAB_684c_106a: reset chances, switch on base type 0..7. */
+    hill_chance = 0;
+    mtn_chance = 0;
+    if (typ > 7) {
+      /* JA → 11de: still runs hill epilogue with the cleared chances (no-op). */
+      forest_hill_epilogue(&feat, hill_chance, mtn_chance, rng);
+      terrain[i] = (uint8_t)((feat & 0xe0) | typ);
+      continue;
+    }
+
+    switch (typ) {
+      case 0: /* tundra */
+        hill_chance = 1;
+        mtn_chance = 0;
+        if (rng_range(rng, 0, 1) == 0) {
+          typ = T_PLAINS;
+        }
+        break;
+      case 1: /* desert */
+        hill_chance = 1;
+        mtn_chance = 1;
+        if (rng_range(rng, 0, 1) == 0) {
+          typ = T_PRAIRIE;
+        }
+        break;
+      case 2: /* plains */
+      case 3: /* prairie */
+        if (typ == T_PRAIRIE && rng_range(rng, 0, 2) == 0) {
+          typ = T_PLAINS;
+        }
+        hill_chance = 2;
+        mtn_chance = 2;
+        if (rng_range(rng, 0, 1) == 0) {
+          write_mask_val = 2;
+        }
+        break;
+      case 4: /* grassland */
+        hill_chance = 3;
+        mtn_chance = 1;
+        if (rng_range(rng, 0, 1) == 0) {
+          typ = T_MARSH;
+        }
+        if (rng_range(rng, 0, 1) == 0) {
+          write_mask_val = 1;
+        }
+        break;
+      case 5: /* savannah */
+        hill_chance = 3;
+        mtn_chance = 2;
+        if (rng_range(rng, 0, 1) == 0) {
+          typ = T_SWAMP;
+        }
+        if (rng_range(rng, 0, 1) == 0) {
+          write_mask_val = 1;
+        }
+        break;
+      case 6: /* marsh */
+        hill_chance = 5;
+        mtn_chance = 3;
+        if (rng_range(rng, 0, 1) == 0) {
+          typ = T_GRASSLAND;
+        }
+        if (rng_range(rng, 0, 1) == 0) {
+          write_mask_val = 2;
+        }
+        break;
+      case 7: /* swamp */
+        hill_chance = 5;
+        mtn_chance = 3;
+        if (rng_range(rng, 0, 1) != 0) {
+          typ = T_SAVANNAH;
+        }
+        if (rng_range(rng, 0, 1) != 0) {
+          write_mask_val = 2;
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (write_mask_val >= 0) {
+      mask[i] = (uint8_t)write_mask_val;
+    }
+    forest_hill_epilogue(&feat, hill_chance, mtn_chance, rng);
+    terrain[i] = (uint8_t)((feat & 0xe0) | typ);
+  }
+}
+
+/*
+ * Whole-map forest-bit pass (LAB_684c_1286): ocean skipped; coverage==1 always
+ * gains +8 or +0x10; coverage!=1 goes through FUN_281f_0d12 (unit/path probe
+ * that returns 0 during mapgen) so hills/mountains keep their cleared type.
+ */
+static void forest_bit_pass(uint8_t* terrain, const uint8_t* mask, int w, int h, MapGenRng* rng) {
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      const int i = idx(x, y, w);
+      uint8_t tile = terrain[i];
+      if ((tile & 0x1f) == T_OCEAN) {
+        continue;
+      }
+      if (mask[i] == 1) {
+        if (rng_range(rng, 0, 8) == 0) {
+          tile = (uint8_t)(tile + 8);
+        } else {
+          tile = (uint8_t)(tile + 0x10);
+        }
+        terrain[i] = tile;
+        continue;
+      }
+      /* FUN_281f_0d12 → FUN_15eb_00a2: no units during mapgen → 0, no RNG. */
+      (void)rng;
+    }
+  }
+}
+
 static void paint_terrain(
   uint8_t* terrain,
   const uint8_t* mask,
@@ -486,99 +1039,6 @@ static void paint_terrain(
         base = (uint8_t)(base | F_MOUNTAIN);
       }
       terrain[i] = base;
-    }
-  }
-}
-
-static void add_forests(
-  uint8_t* terrain,
-  const uint8_t* mask,
-  int w,
-  int h,
-  MapGenRng* rng,
-  const MapGenParams* params
-) {
-  /* Forest pass count ~ (forest_extra + 1) * 800 attempts (DOS 0x1e86). */
-  const int climate = clamp_i(params->climate, 0, 2);
-  const int extra = clamp_i(params->forest_extra, 0, 2);
-  int attempts = (extra + 1) * 800;
-  /* Arid fewer forests, wet more. */
-  attempts = attempts * (climate + 1) / 2;
-  if (attempts < 200) {
-    attempts = 200;
-  }
-
-  for (int a = 0; a < attempts; ++a) {
-    int x = rng_range(rng, 1, w - 2);
-    int y = rng_range(rng, 1, h - 2);
-    int i = idx(x, y, w);
-    if (!mask[i]) {
-      continue;
-    }
-    uint8_t t = terrain[i] & 0x1f;
-    if (t >= 8 || t == T_ARCTIC || t == T_OCEAN || t == T_HIGH_SEAS) {
-      continue;
-    }
-    /* Desert less likely to forest unless wet. */
-    if (t == T_DESERT && climate < 2 && (rng_next(rng) % 3) != 0) {
-      continue;
-    }
-    if (climate == 0 && (rng_next(rng) % 3) != 0) {
-      continue;
-    }
-    terrain[i] = (uint8_t)(t | T_FOREST_BIT);
-  }
-}
-
-static void add_rivers(
-  uint8_t* terrain,
-  const uint8_t* mask,
-  int w,
-  int h,
-  MapGenRng* rng,
-  const MapGenParams* params
-) {
-  /* River density from climate: (climate + mass + 2) * 8 style threshold. */
-  const int climate = clamp_i(params->climate, 0, 2);
-  const int mass = clamp_i(params->land_mass, 0, 2);
-  int rivers = (climate + mass + 2) * 2;
-  if (rivers < 4) {
-    rivers = 4;
-  }
-  if (rivers > 24) {
-    rivers = 24;
-  }
-
-  static const int dx[4] = {1, -1, 0, 0};
-  static const int dy[4] = {0, 0, 1, -1};
-
-  for (int r = 0; r < rivers; ++r) {
-    int x = rng_range(rng, 4, w - 5);
-    int y = rng_range(rng, 4, h - 5);
-    if (!mask[idx(x, y, w)]) {
-      continue;
-    }
-    int len = rng_range(rng, 8, 28);
-    int dir = rng_range(rng, 0, 3);
-    for (int s = 0; s < len; ++s) {
-      if (!in_bounds(x, y, w, h) || !mask[idx(x, y, w)]) {
-        break;
-      }
-      uint8_t t = terrain[idx(x, y, w)];
-      uint8_t base = t & 0x1f;
-      if (base < T_ARCTIC) {
-        uint8_t feat = (uint8_t)(t & (F_HILL | F_MOUNTAIN));
-        uint8_t river = F_RIVER;
-        if ((rng_next(rng) % 4) == 0) {
-          river = (uint8_t)(F_RIVER | F_MOUNTAIN); /* major river bit combo */
-        }
-        terrain[idx(x, y, w)] = (uint8_t)(base | feat | river);
-      }
-      if ((rng_next(rng) % 5) == 0) {
-        dir = rng_range(rng, 0, 3);
-      }
-      x += dx[dir];
-      y += dy[dir];
     }
   }
 }
@@ -632,10 +1092,10 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   cleanup_diagonal_land(mask, w, h);
 
   paint_terrain(out->terrain, mask, w, h, rng, &p);
-  add_forests(out->terrain, mask, w, h, rng, &p);
-  /* Hills/mountains come from blob coverage during paint_terrain (DOS). */
-  add_rivers(out->terrain, mask, w, h, rng, &p);
-  /* Arctic stomps + E/W high seas + polar arctic rows (after forest/river passes). */
+  climate_humidity_pass(out->terrain, mask, w, h, rng, p.climate);
+  forest_wander_pass(out->terrain, mask, w, h, rng, p.forest_extra);
+  forest_bit_pass(out->terrain, mask, w, h, rng);
+  rivers_pass(out->terrain, w, h, rng, p.climate, p.land_mass);
   paint_arctic_and_poles(out->terrain, w, h, rng);
   paint_high_seas(out->terrain, mask, w, h);
 
