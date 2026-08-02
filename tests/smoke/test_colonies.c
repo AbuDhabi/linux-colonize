@@ -142,8 +142,39 @@ int main(void) {
   CHECK(col->colonists[0].unit_type_index == pioneer_type, "colonist type preserved");
   CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
+  CHECK(col->building_in_production == stockade, "found defaults Stockade project");
   printf("  colony name: %s at (%d,%d) pop=%d tools=%d\n",
          col->name, col->x, col->y, col->population, col->stock[COLONIZE_CARGO_TOOLS]);
+
+  CHECK(
+    colonies_assign_workplace(&pool, cid, 0, carpenter),
+    "assign founder to Carpenter's Shop"
+  );
+  CHECK(
+    colonies_get(&pool, cid)->colonists[0].building_type == carpenter,
+    "workplace is Carpenter's Shop"
+  );
+  CHECK(!colonies_assign_workplace(&pool, cid, 0, stockade), "cannot assign to unbuilt Stockade");
+
+  int buildable[32];
+  const int n_buildable = colonies_list_buildable(&pool, cid, buildable, 32);
+  CHECK(n_buildable > 0, "list_buildable returns projects");
+  bool listed_stockade = false;
+  for (int i = 0; i < n_buildable; ++i) {
+    if (buildable[i] == stockade) {
+      listed_stockade = true;
+    }
+  }
+  CHECK(listed_stockade, "Stockade is buildable");
+
+  CHECK(colonies_clear_construction(&pool, cid), "clear construction");
+  CHECK(colonies_get(&pool, cid)->building_in_production < 0, "construction cleared");
+  CHECK(colonies_set_construction(&pool, cid, stockade), "set construction to Stockade");
+  CHECK(
+    colonies_get(&pool, cid)->building_in_production == stockade,
+    "building_in_production is Stockade"
+  );
+  CHECK(!colonies_set_construction(&pool, cid, town_hall), "cannot set already-built Town Hall");
 
   CHECK(!colonies_can_found(&pool, &map, land2_x, land2_y), "cannot found on occupied tile");
   CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");

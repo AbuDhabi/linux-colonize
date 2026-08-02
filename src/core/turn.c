@@ -181,11 +181,37 @@ static bool turn_building_name_has(const ColonizeColonyPool* pool, const Coloniz
   return false;
 }
 
+static int turn_count_workplace_workers(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const char* needle
+) {
+  if (!pool || !colony || !needle) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < colony->colonist_count; ++i) {
+    if (!colony->colonists[i].active) {
+      continue;
+    }
+    const int bt = colony->colonists[i].building_type;
+    if (bt >= 0 && bt < pool->building_type_count &&
+        strstr(pool->building_types[bt].name, needle) != NULL) {
+      n++;
+    }
+  }
+  return n;
+}
+
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
-  ColonizeTurnResult* out
+  ColonizeTurnResult* out,
+  ColonizeColonyProdDelta* delta
 ) {
+  if (delta) {
+    memset(delta, 0, sizeof(*delta));
+  }
   if (!pool || !colony || !colony->active) {
     return;
   }
@@ -197,34 +223,46 @@ static void turn_produce_one_colony(
   /* Simplified field/town food: 3 food per colonist, consume 2 (PEDIA lore). */
   const int produced = pop * 3;
   const int consumed = pop * TURN_FOOD_PER_COLONIST;
+  const int food_net = produced - consumed;
   colony->stock[COLONIZE_CARGO_FOOD] =
-    turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + produced - consumed);
+    turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + food_net);
+  if (delta) {
+    delta->food_net = food_net;
+  }
   if (produced < consumed) {
     if (out) {
       out->food_shortages++;
     }
   }
 
-  /* Raw goods stubs when matching workplaces / buildings exist. */
-  if (turn_building_name_has(pool, colony, "Lumber")) {
-    colony->stock[COLONIZE_CARGO_LUMBER] = turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + pop);
+  /*
+   * Lumber stub: workers in Lumber Mill / Carpenter's Shop (or building present).
+   * Gives the carpenter→hammers loop fuel without terrain field work.
+   */
+  int lumber_workers = turn_count_workplace_workers(pool, colony, "Lumber") +
+                       turn_count_workplace_workers(pool, colony, "Carpenter");
+  if (lumber_workers == 0 &&
+      (turn_building_name_has(pool, colony, "Lumber") ||
+       turn_building_name_has(pool, colony, "Carpenter"))) {
+    lumber_workers = 1;
   }
+  if (lumber_workers > 0) {
+    colony->stock[COLONIZE_CARGO_LUMBER] =
+      turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + lumber_workers);
+    if (delta) {
+      delta->lumber = lumber_workers;
+    }
+  }
+
   if (turn_building_name_has(pool, colony, "Ore") || turn_building_name_has(pool, colony, "Mine")) {
     colony->stock[COLONIZE_CARGO_ORE] = turn_clamp_stock(colony->stock[COLONIZE_CARGO_ORE] + 1);
+    if (delta) {
+      delta->ore = 1;
+    }
   }
 
   /* Carpenter hammers: convert lumber toward current project. */
-  int hammer_workers = 0;
-  for (int i = 0; i < colony->colonist_count; ++i) {
-    if (!colony->colonists[i].active) {
-      continue;
-    }
-    const int bt = colony->colonists[i].building_type;
-    if (bt >= 0 && bt < pool->building_type_count &&
-        strstr(pool->building_types[bt].name, "Carpenter") != NULL) {
-      hammer_workers++;
-    }
-  }
+  int hammer_workers = turn_count_workplace_workers(pool, colony, "Carpenter");
   if (hammer_workers == 0 && turn_building_name_has(pool, colony, "Carpenter")) {
     hammer_workers = 1;
   }
@@ -234,7 +272,14 @@ static void turn_produce_one_colony(
       lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
     }
     colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
-    colony->hammers += lumber_use > 0 ? lumber_use : hammer_workers;
+    if (delta) {
+      delta->lumber -= lumber_use;
+    }
+    const int hammers_add = lumber_use > 0 ? lumber_use : hammer_workers;
+    colony->hammers += hammers_add;
+    if (delta) {
+      delta->hammers_added = hammers_add;
+    }
 
     const ColonizeBuildingType* bt =
       colonies_building_type(pool, colony->building_in_production);
@@ -245,13 +290,15 @@ static void turn_produce_one_colony(
       }
       colony->hammers = 0;
       colony->building_in_production = -1;
+      if (delta) {
+        delta->building_completed = true;
+      }
       if (out) {
         out->buildings_completed++;
       }
     }
   }
 
-  /* Liberty bells / crosses contribution counted in nation ticks from buildings. */
   if (out) {
     out->colonies_produced++;
   }
@@ -263,7 +310,7 @@ void turn_run_colony_production(ColonizeColonyPool* pool, ColonizeTurnResult* ou
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active) {
-      turn_produce_one_colony(pool, &pool->colonies[i], out);
+      turn_produce_one_colony(pool, &pool->colonies[i], out, NULL);
     }
   }
 }
@@ -271,11 +318,12 @@ void turn_run_colony_production(ColonizeColonyPool* pool, ColonizeTurnResult* ou
 void turn_colony_free_production(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
-  ColonizeTurnResult* out
+  ColonizeTurnResult* out,
+  ColonizeColonyProdDelta* out_delta
 ) {
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
-  turn_produce_one_colony(pool, colony, out ? out : &local);
+  turn_produce_one_colony(pool, colony, out ? out : &local, out_delta);
 }
 
 static int turn_count_bells_and_crosses(

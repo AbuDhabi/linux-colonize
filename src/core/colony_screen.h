@@ -9,7 +9,9 @@
 #include "core/font.h"
 #include "core/map.h"
 #include "core/pik.h"
+#include "core/popup.h"
 #include "core/ss.h"
+#include "core/turn.h"
 #include "core/units.h"
 #include "platform/platform.h"
 
@@ -67,6 +69,32 @@
 #define COLONY_CARGO_STRIP_Y (COLONY_BOTTOM_PANEL_Y + 52)
 #define COLONY_CARGO_NUM_Y (COLONY_BOTTOM_PANEL_Y + 64)
 
+#define COLONY_CONSTRUCTION_BANNER_Y (COLONY_MIDDLE_Y + 1)
+#define COLONY_CONSTRUCTION_BANNER_H 10
+#define COLONY_EXIT_X 305
+#define COLONY_BUILDABLE_MAX 32
+#define COLONY_BUILDING_SLOT_W 48
+#define COLONY_BUILDING_SLOT_H 32
+#define COLONY_COLONIST_LIST_X 8
+#define COLONY_COLONIST_LIST_Y0 (COLONY_BOTTOM_PANEL_Y + 14)
+#define COLONY_COLONIST_ROW_H 9
+
+typedef enum ColonyScreenHit {
+  COLONY_HIT_NONE = 0,
+  COLONY_HIT_COLONIST,
+  COLONY_HIT_BUILDING,
+  COLONY_HIT_CONSTRUCTION_BANNER,
+  COLONY_HIT_CONSTRUCTION_ROW,
+  COLONY_HIT_CONSTRUCTION_CLEAR,
+  COLONY_HIT_EXIT,
+  COLONY_HIT_CONSTRUCTION_OUTSIDE
+} ColonyScreenHit;
+
+typedef struct ColonyScreenHitResult {
+  ColonyScreenHit kind;
+  int index; /* colonist, building slot, or construction list row */
+} ColonyScreenHitResult;
+
 typedef struct ColonyScreenView {
   ColonizePikImage frame;          /* WOODPANL.PIK — also supplies screen palette */
   ColonizeSpriteSheet parch;       /* PARCH.SS — buildings ground fill */
@@ -81,14 +109,48 @@ typedef struct ColonyScreenView {
   bool icons_ok;
   bool bottom_panel_ok;
   char status[96];
+
+  int selected_colonist; /* -1 none */
+  bool construction_open;
+  int construction_selection;
+  int buildable_ids[COLONY_BUILDABLE_MAX];
+  int buildable_count;
+  /* Cached layout for construction popup hit-testing. */
+  int construction_dialog_x;
+  int construction_dialog_y;
+  int construction_dialog_w;
+  int construction_dialog_h;
+  int construction_list_y0;
+  int construction_line_h;
+
+  ColonizeColonyProdDelta last_delta;
+  bool last_delta_valid;
 } ColonyScreenView;
 
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size);
 void colony_screen_free(ColonyScreenView* view);
 void colony_screen_set_status(ColonyScreenView* view, const char* text);
+void colony_screen_reset_ui(ColonyScreenView* view);
+void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta);
+
+void colony_screen_open_construction(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  int colony_id
+);
+void colony_screen_close_construction(ColonyScreenView* view);
+
+/* Hit-test at framebuffer coords. When construction_open, only popup/outside. */
+ColonyScreenHitResult colony_screen_hit_test(
+  const ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int mx,
+  int my
+);
 
 void colony_screen_render(
-  const ColonyScreenView* view,
+  ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,

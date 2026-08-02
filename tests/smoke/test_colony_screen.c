@@ -510,6 +510,159 @@ int main(void) {
     return 1;
   }
 
+  /* Hit-tests: colonist row, carpenter slot, construction banner, exit. */
+  {
+    colony_screen_reset_ui(&view);
+    ColonyScreenHitResult hit =
+      colony_screen_hit_test(&view, &pool, sample, COLONY_COLONIST_LIST_X + 4, COLONY_COLONIST_LIST_Y0 + 2);
+    if (hit.kind != COLONY_HIT_COLONIST || hit.index != 0) {
+      fprintf(stderr, "expected colonist hit got kind=%d idx=%d\n", (int)hit.kind, hit.index);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+    hit = colony_screen_hit_test(
+      &view,
+      &pool,
+      sample,
+      COLONY_VIEWPORT_X + 8 + 8,
+      COLONY_VIEWPORT_Y + 44 + 8
+    );
+    if (hit.kind != COLONY_HIT_BUILDING || hit.index != carpenter) {
+      fprintf(
+        stderr,
+        "expected carpenter building hit got kind=%d idx=%d (carpenter=%d)\n",
+        (int)hit.kind,
+        hit.index,
+        carpenter
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    hit = colony_screen_hit_test(
+      &view, &pool, sample, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
+    );
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_BANNER) {
+      fprintf(stderr, "expected construction banner hit got kind=%d\n", (int)hit.kind);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    hit = colony_screen_hit_test(&view, &pool, sample, COLONY_EXIT_X + 2, COLONY_BOTTOM_PANEL_Y + 4);
+    if (hit.kind != COLONY_HIT_EXIT) {
+      fprintf(stderr, "expected exit hit got kind=%d\n", (int)hit.kind);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    colony_screen_open_construction(&view, &pool, cid);
+    if (!view.construction_open || view.buildable_count <= 0) {
+      fprintf(stderr, "construction popup failed to open/list\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    /* Seed dialog metrics as render would. */
+    view.construction_dialog_x = 70;
+    view.construction_dialog_y = 24;
+    view.construction_dialog_w = 180;
+    view.construction_dialog_h = 80;
+    view.construction_list_y0 = 40;
+    view.construction_line_h = 10;
+    hit = colony_screen_hit_test(&view, &pool, sample, 80, 42);
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_CLEAR) {
+      fprintf(stderr, "expected construction clear hit got kind=%d\n", (int)hit.kind);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    hit = colony_screen_hit_test(&view, &pool, sample, 80, 52);
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 0) {
+      fprintf(stderr, "expected construction row 0 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    hit = colony_screen_hit_test(&view, &pool, sample, 10, 10);
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_OUTSIDE) {
+      fprintf(stderr, "expected construction outside hit got kind=%d\n", (int)hit.kind);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    colony_screen_close_construction(&view);
+  }
+
   fprintf(
     stderr,
     "colony screen tests ok (WOODPANL=%dx%d PARCH=%d WOODTILE=%d BUILDING=%d ICONS=%d COLONY=%dx%d pop=%d mini=%dx%d@%d,%d margin=%d)\n",

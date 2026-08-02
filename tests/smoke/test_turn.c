@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/europe.h"
 #include "core/turn.h"
@@ -80,7 +81,7 @@ int main(void) {
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_colony_free_production(&colonies, c, &prod);
+  turn_colony_free_production(&colonies, c, &prod, NULL);
   if (c->stock[COLONIZE_CARGO_FOOD] != 11) { /* 10 + 3 - 2 */
     fprintf(stderr, "food expected 11 got %d\n", c->stock[COLONIZE_CARGO_FOOD]);
     return 1;
@@ -225,6 +226,70 @@ int main(void) {
       fprintf(stderr, "expected france active got %d\n", active);
       return 1;
     }
+  }
+
+  /* Carpenter workplace + Stockade project completes via free production ticks. */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names)) {
+      fprintf(stderr, "failed to load buildings for hammer test\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+    const int stockade = colonies_find_building(&pool, "Stockade");
+    if (carpenter < 0 || stockade < 0) {
+      fprintf(stderr, "missing Carpenter/Stockade building types\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->has_building[carpenter] = true;
+    col->building_in_production = stockade;
+    col->stock[COLONIZE_CARGO_FOOD] = 50;
+    col->colonists[0].active = true;
+    col->colonists[0].unit_type_index = 0;
+    col->colonists[0].building_type = carpenter;
+    col->colonist_count = 1;
+    col->population = 1;
+    pool.colony_count = 1;
+
+    const ColonizeBuildingType* bt = colonies_building_type(&pool, stockade);
+    const int need = bt ? bt->hammers : 64;
+    ColonizeColonyProdDelta delta;
+    bool completed = false;
+    for (int t = 0; t < need + 8; ++t) {
+      ColonizeTurnResult prod;
+      memset(&prod, 0, sizeof(prod));
+      turn_colony_free_production(&pool, col, &prod, &delta);
+      if (delta.building_completed || col->has_building[stockade]) {
+        completed = true;
+        break;
+      }
+    }
+    if (!completed || !col->has_building[stockade]) {
+      fprintf(
+        stderr,
+        "Stockade not completed after ticks (hammers=%d need=%d)\n",
+        col->hammers,
+        need
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (col->building_in_production >= 0) {
+      fprintf(stderr, "expected cleared building_in_production after complete\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    assets_msg_free(&names);
   }
 
   fprintf(stderr, "turn tests ok\n");

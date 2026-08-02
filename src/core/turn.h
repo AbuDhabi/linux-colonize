@@ -53,6 +53,15 @@ typedef struct ColonizeTurnResult {
   int buildings_completed;
 } ColonizeTurnResult;
 
+/* Per-colony last production tick (for colony-screen deltas). */
+typedef struct ColonizeColonyProdDelta {
+  int food_net;
+  int lumber;
+  int ore;
+  int hammers_added;
+  bool building_completed;
+} ColonizeColonyProdDelta;
+
 /* Frame-stepped end-of-turn (indicator only while a nation turn runs). */
 typedef enum ColonizeTurnProcStep {
   TURN_PROC_IDLE = 0,
@@ -86,8 +95,14 @@ bool turn_processor_show_indicator(const ColonizeTurnProcessor* proc);
 /* One slice; returns true if still active. */
 bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ctx);
 
-/* Colony Space cheat: one production cycle without advancing world time. */
-void turn_colony_free_production(ColonizeColonyPool* pool, ColonizeColony* colony, ColonizeTurnResult* out);
+/* Colony Space cheat: one production cycle without advancing world time.
+ * If out_delta is non-NULL, fills last-tick nets for UI. */
+void turn_colony_free_production(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeTurnResult* out,
+  ColonizeColonyProdDelta* out_delta
+);
 
 /* Production for every active colony (used by turn_end). */
 void turn_run_colony_production(ColonizeColonyPool* pool, ColonizeTurnResult* out);

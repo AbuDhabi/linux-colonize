@@ -114,6 +114,24 @@ ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
 
+/* Assign colonist to a built workplace (@BUILDING index). Returns false if invalid. */
+bool colonies_assign_workplace(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int building_type
+);
+/* Set construction target; building_type must be unowned and meet min_population. */
+bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);
+bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id);
+/* Fill out_ids with buildable @BUILDING indices; returns count. */
+int colonies_list_buildable(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int* out_ids,
+  int out_max
+);
+
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
   const ColonizeSpriteSheet* icons,

@@ -356,15 +356,19 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 | Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock band; warehouse cargo strip along the bottom |
 | Cargo icons | `ICONS.SS` **#22–37** | One icon per `@CARGO` type, centered in each 18px slot with the amount below |
 
-`CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here. Esc, C, or Enter returns to the map.
+`CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here.
 
 Single-pixel black separators split the sections: top bar vs middle band, buildings vs minimap, and middle band vs bottom panel.
 
-A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite) in the **bottom-right** of the buildings section. Coastal colonies without Docks show the empty coast placeholder (`BUILDING.SS` **#45**) **above** that fence; Docks / Drydock / Shipyard replace it when built. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse (`stock[]` in `@CARGO` order; Pioneers → 100 tools, starter food 200). The bottom of `COLONY.PIK` holds the 16 cargo slots (18px wide, pitch 19, measured from the asset) with `ICONS.SS` icons and amounts underneath. Production, build queue, field work, and cargo drag UI are not implemented yet. Building collage positions are approximate.
+A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite) in the **bottom-right** of the buildings section. Coastal colonies without Docks show the empty coast placeholder (`BUILDING.SS` **#45**) **above** that fence; Docks / Drydock / Shipyard replace it when built. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse (`stock[]` in `@CARGO` order; Pioneers → 100 tools, starter food 200). The bottom of `COLONY.PIK` holds the 16 cargo slots (18px wide, pitch 19, measured from the asset) with `ICONS.SS` icons and amounts underneath; last free-production deltas tint as `+N`/`-N` beside amounts. Click a colonist row, then a built building slot, to assign `building_type`. Construction banner (or **3**) opens a wood popup to pick/clear the build project (`hammers/needed`). Field work, manufactured goods chains, and cargo drag UI are later. Building collage positions are approximate.
 
 | Key | Action |
 |-----|--------|
-| Esc / C / Enter | Return to map |
+| Click colonist / building | Select colonist; assign to built workplace |
+| Banner or **3** | Open/close construction popup |
+| Esc | Close construction popup first; else return to map |
+| C / Enter | Return to map (when no popup); Enter confirms construction row |
+| Space | Free production turn; status shows food/lumber/hammer deltas |
 
 ### Units (map bring-up)
 
@@ -387,8 +391,6 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 Ship→**non-colony land** with a passenger that has moves left: **landfall unload** (passenger onto tile; ship stays; full landfall confirm dialog deferred). Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain.
 
 Selected units **blink** (sprite on/off); the tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
-
-On the **colony screen**, Space is the DOS cheat **free production turn** (production only; does not advance year).
 
 Calendar: one turn per year until **1600**, then Spring and Autumn each year. Colony top bar / reports use `game_year` + `game_autumn`. When the Col1 **Autosave** option is set, end-turn writes slot **9** (and slot **8** on decade Spring years).
 

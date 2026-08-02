@@ -269,6 +269,14 @@ int colonies_found(
     slot->population = 0;
   }
 
+  /* Default first project so carpenter hammers have a target. */
+  {
+    const int stockade = colonies_find_building(pool, "Stockade");
+    if (stockade >= 0 && !slot->has_building[stockade]) {
+      slot->building_in_production = stockade;
+    }
+  }
+
   pool->colony_count++;
   diag_info(
     "Founded colony '%s' at (%d,%d) pop=%d tools=%d muskets=%d horses=%d",
@@ -317,6 +325,95 @@ int colonies_id_at(const ColonizeColonyPool* pool, int x, int y) {
     }
   }
   return -1;
+}
+
+bool colonies_assign_workplace(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int building_type
+) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool) {
+    return false;
+  }
+  if (colonist_index < 0 || colonist_index >= col->colonist_count) {
+    return false;
+  }
+  ColonizeColonist* c = &col->colonists[colonist_index];
+  if (!c->active) {
+    return false;
+  }
+  if (building_type < 0 || building_type >= pool->building_type_count) {
+    return false;
+  }
+  if (!col->has_building[building_type]) {
+    return false;
+  }
+  c->building_type = building_type;
+  return true;
+}
+
+bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool) {
+    return false;
+  }
+  if (building_type < 0 || building_type >= pool->building_type_count) {
+    return false;
+  }
+  if (col->has_building[building_type]) {
+    return false;
+  }
+  const ColonizeBuildingType* bt = &pool->building_types[building_type];
+  if (bt->min_population > 0 && col->population < bt->min_population) {
+    return false;
+  }
+  col->building_in_production = building_type;
+  return true;
+}
+
+bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col) {
+    return false;
+  }
+  col->building_in_production = -1;
+  return true;
+}
+
+int colonies_list_buildable(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int* out_ids,
+  int out_max
+) {
+  if (!pool || !out_ids || out_max <= 0) {
+    return 0;
+  }
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < pool->building_type_count && n < out_max; ++i) {
+    if (col->has_building[i]) {
+      continue;
+    }
+    const ColonizeBuildingType* bt = &pool->building_types[i];
+    if (bt->name[0] == '\0') {
+      continue;
+    }
+    if (bt->min_population > 0 && col->population < bt->min_population) {
+      continue;
+    }
+    /* Skip zero-hammer fluff / duplicates that aren't real projects. */
+    if (bt->hammers <= 0) {
+      continue;
+    }
+    out_ids[n++] = i;
+  }
+  return n;
 }
 
 /* Draw a small filled square in colour 11 (bright cyan) with the colony name
