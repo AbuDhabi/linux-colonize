@@ -12,12 +12,17 @@
 
 /* ICONS.SS #22–37 match NAMES.TXT @CARGO (same as colony warehouse strip). */
 #define MAP_PANEL_CARGO_ICON_BASE 22
+/* World-map / sidebar markers: ICONS.SS European colonies #0–3, Indian villages #10–13. */
+#define MAP_PANEL_COLONY_ICON_NONE 3
+#define MAP_PANEL_TRIBE_ICON_BASE 10
+#define MAP_PANEL_TRIBE_ICON_COUNT 4
 
 enum {
   MAP_PANEL_COL_OCEAN = 1,
   MAP_PANEL_COL_HIGH_SEAS = 9,
   MAP_PANEL_COL_LAND = COLONIZE_COL_BASIC,
   MAP_PANEL_COL_COLONY = 15,
+  MAP_PANEL_COL_TRIBE = 12,
   MAP_PANEL_COL_UNIT = 14,
   MAP_PANEL_COL_VIEW_RECT = 15,
   MAP_PANEL_COL_TEXT = COLONIZE_COL_BASIC,
@@ -418,6 +423,52 @@ static const ColonizeCol1Tribe* map_panel_tribe_at(const ColonizeCol1Save* col1,
   return NULL;
 }
 
+void map_panel_render_tribes_on_map(
+  const ColonizeCol1Save* col1,
+  const ColonizeSpriteSheet* icons,
+  ColonizeFramebuffer8* framebuffer,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int tile_w,
+  int tile_h,
+  int origin_x,
+  int origin_y
+) {
+  if (!col1 || !col1->tribe || !framebuffer || !icons ||
+      icons->sprite_count < MAP_PANEL_TRIBE_ICON_BASE + MAP_PANEL_TRIBE_ICON_COUNT) {
+    return;
+  }
+
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &col1->tribe[i];
+    const int sx = (int)t->x - view_x;
+    const int sy = (int)t->y - view_y;
+    if (sx < 0 || sy < 0 || sx >= view_cols || sy >= view_rows) {
+      continue;
+    }
+
+    int tech = 0;
+    if (t->nation_id >= 4 && t->nation_id < 12) {
+      tech = (int)col1->indian[t->nation_id - 4].tech;
+    }
+    if (tech < 0) {
+      tech = 0;
+    }
+    if (tech >= MAP_PANEL_TRIBE_ICON_COUNT) {
+      tech = MAP_PANEL_TRIBE_ICON_COUNT - 1;
+    }
+    const int sprite = MAP_PANEL_TRIBE_ICON_BASE + tech;
+    const ColonizeSprite* sp = &icons->sprites[sprite];
+    const int tile_px = origin_x + sx * tile_w;
+    const int tile_py = origin_y + sy * tile_h;
+    const int px = tile_px + (tile_w - sp->width) / 2;
+    const int py = tile_py + (tile_h - sp->height) / 2;
+    ss_blit_sprite(icons, sprite, framebuffer, px, py);
+  }
+}
+
 static bool map_panel_tile_plowed(
   const ColonizeWorldMap* map,
   const ColonizeCol1Save* col1,
@@ -699,6 +750,18 @@ void map_panel_render(
       }
     }
 
+    if (col1 && col1->tribe) {
+      for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+        const ColonizeCol1Tribe* t = &col1->tribe[i];
+        const int lx = (int)t->x - origin_x;
+        const int ly = (int)t->y - origin_y;
+        if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) {
+          continue;
+        }
+        map_panel_put(framebuffer, mx + lx, my + ly, MAP_PANEL_COL_TRIBE);
+      }
+    }
+
     if (units) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units->units[i];
@@ -905,11 +968,27 @@ void map_panel_render(
       const int cid = colonies_id_at(colonies, info_x, info_y);
       const ColonizeColony* col = colonies_get(colonies, cid);
       if (col && col->active) {
-        if (icons && icons->sprite_count > 38) {
-          ss_blit_sprite(icons, 38, framebuffer, text_x, text_y);
+        int colony_icon = MAP_PANEL_COLONY_ICON_NONE;
+        const int fortress = colonies_find_building(colonies, "Fortress");
+        const int fort = colonies_find_building(colonies, "Fort");
+        const int stockade = colonies_find_building(colonies, "Stockade");
+        if (fortress >= 0 && col->has_building[fortress]) {
+          colony_icon = 2;
+        } else if (fort >= 0 && col->has_building[fort]) {
+          colony_icon = 1;
+        } else if (stockade >= 0 && col->has_building[stockade]) {
+          colony_icon = 0;
+        }
+        int label_x = text_x + 18;
+        if (icons && icons->sprite_count > MAP_PANEL_COLONY_ICON_NONE) {
+          ss_blit_sprite(icons, colony_icon, framebuffer, text_x, text_y);
+          const ColonizeSprite* sp = &icons->sprites[colony_icon];
+          if (sp->width > 0) {
+            label_x = text_x + sp->width + 2;
+          }
         }
         snprintf(line, sizeof(line), "%s", col->name[0] ? col->name : "Colony");
-        font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
+        font_draw_text(font, framebuffer, label_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
         text_y += 16;
         /* Cargo summary stub: first non-zero stock. */
         for (int c = 0; c < COLONIZE_CARGO_COUNT && text_y + line_h <= y_limit; ++c) {
@@ -926,11 +1005,12 @@ void map_panel_render(
       if (tribe) {
         const char* tshort = map_panel_tribe_short(names, tribe->nation_id);
         const char* settlement = "Camp";
+        int tech = 0;
         if (names) {
           const ColonizeMsgSection* levels = assets_msg_find(names, "LEVELS");
-          const int tech = (tribe->nation_id >= 4 && tribe->nation_id < 12)
-                             ? (col1 && col1->indian[tribe->nation_id - 4].tech)
-                             : 0;
+          tech = (tribe->nation_id >= 4 && tribe->nation_id < 12)
+                   ? (col1 && col1->indian[tribe->nation_id - 4].tech)
+                   : 0;
           if (levels && tech >= 0 && tech < levels->line_count) {
             /* tech-level, singular, plural */
             const char* lp = strchr(levels->lines[tech], ',');
@@ -954,11 +1034,23 @@ void map_panel_render(
             }
           }
         }
-        if (icons && icons->sprite_count > 110) {
-          ss_blit_sprite(icons, 110, framebuffer, text_x, text_y);
+        if (tech < 0) {
+          tech = 0;
+        }
+        if (tech >= MAP_PANEL_TRIBE_ICON_COUNT) {
+          tech = MAP_PANEL_TRIBE_ICON_COUNT - 1;
+        }
+        const int tribe_icon = MAP_PANEL_TRIBE_ICON_BASE + tech;
+        int label_x = text_x + 18;
+        if (icons && icons->sprite_count > tribe_icon) {
+          ss_blit_sprite(icons, tribe_icon, framebuffer, text_x, text_y);
+          const ColonizeSprite* sp = &icons->sprites[tribe_icon];
+          if (sp->width > 0) {
+            label_x = text_x + sp->width + 2;
+          }
         }
         snprintf(line, sizeof(line), "%s %s", tshort, settlement);
-        font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
+        font_draw_text(font, framebuffer, label_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
         text_y += 16;
       }
     }

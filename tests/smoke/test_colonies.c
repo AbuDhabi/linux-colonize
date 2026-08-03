@@ -4,7 +4,9 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/map.h"
+#include "core/ss.h"
 #include "platform/diagnostics.h"
+#include "platform/platform.h"
 
 static int failures = 0;
 
@@ -194,6 +196,37 @@ int main(void) {
   CHECK(!colonies_can_found(&pool, &map, land2_x, land2_y), "cannot found on occupied tile");
   CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");
   CHECK(colonies_id_at(&pool, land2_x + 1, land2_y) < 0, "colonies_id_at returns -1 for empty tile");
+
+  /* Map marker: ICONS.SS #0–3 colony settlement (not cargo greys #38+). */
+  {
+    ColonizeSpriteSheet icons;
+    memset(&icons, 0, sizeof(icons));
+    char icons_err[256];
+    const bool icons_ok = ss_load("COLONIZE/ICONS.SS", &icons, icons_err, sizeof(icons_err));
+    CHECK(icons_ok && icons.sprite_count > 3, "load ICONS.SS for colony map icon");
+    if (icons_ok) {
+      CHECK(icons.sprites[3].width == 21 && icons.sprites[3].height == 16,
+            "unfortified colony icon is 21x16");
+      uint8_t pixels[16 * 16];
+      memset(pixels, 0, sizeof(pixels));
+      ColonizeFramebuffer8 fb = {.width = 16, .height = 16, .pixels = pixels};
+      colonies_render_on_map(&pool, &icons, &fb, NULL, land2_x, land2_y, 1, 1, 16, 16, 0, 0);
+
+      int cyan = 0;
+      int opaque = 0;
+      for (int i = 0; i < 16 * 16; ++i) {
+        if (pixels[i] == 11) {
+          ++cyan;
+        }
+        if (pixels[i] != 0 && pixels[i] != COLONIZE_SS_TRANSPARENT) {
+          ++opaque;
+        }
+      }
+      CHECK(opaque > 0, "colony map icon painted opaque pixels");
+      CHECK(cyan < 16 * 16, "colony map icon is not a solid cyan tile");
+      ss_free(&icons);
+    }
+  }
 
   assets_msg_free(&names);
   map_free(&map);
