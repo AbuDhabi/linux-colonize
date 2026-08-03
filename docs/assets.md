@@ -285,10 +285,10 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Wood fill | `WOODTILE.SS` | Tiled over `x=240..319`, below the menu bar (and the menu bar itself) |
 | Left rule | 1px black | `x=240`, full panel height |
 | Minimap section | wood + 1px black separator below | Section is larger than the minimap; wood shows in the margins |
-| Minimap | 56×39 window (1px/tile) | AMER2 window (not full map); scrolls with the main view; dark-orange border (palette 6) flush to section black rules; terrain/ocean/high-seas, colony/unit dots; white view outline on edge tiles; click centers main view |
+| Minimap | 56×39 window (1px/tile) | AMER2 window (not full map); scrolls with the main view; dark-orange border (palette 6) flush to section black rules; terrain/ocean/high-seas, colony (white) / tribe (palette 12) / unit dots; white view outline on edge tiles; click centers main view |
 | Unit block | `NAMEPLAT.SS`, `ICONS.SS`, `LABELS.TXT` `@INFO` | Portrait + name; `Moves:` / `Locat:` / `With:` hold icons (passengers + goods; empty recessed slots up to `@UNIT` cargo) |
 | Date + gold + tax | Campaign calendar + `EuropeScreen` gold/tax | `Spring 1492` / `Gold: N$  Tax: N%` (`FONTTINY.FF`, `@COLORS` basic) |
-| Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership, `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp + units with order label |
+| Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership, `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp (`ICONS.SS` **#0–3** / **#10–13**) + units with order label |
 | Nation box | Turn indicator at `(315,197)` | Existing 5×3 owner color; kept in the panel strip |
 
 Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (colony frame). Fog-of-war on the minimap is not drawn yet.
@@ -386,7 +386,7 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 
 ### Units (map bring-up)
 
-Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites; the `@UNIT` icon field is **1-based** (DOS style), converted to 0-based blit indices on load (e.g. Pioneers `102` → sprite **101**, Caravel `6` → **5**). Cargo strip icons `#22–37` are already 0-based.
+Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites; the `@UNIT` icon field is **1-based** (DOS style), converted to 0-based blit indices on load (e.g. Pioneers `102` → sprite **101**, Caravel `6` → **5**). Cargo strip icons `#22–37` are already 0-based (greys `#38–53`). European colonies blit settlement art **#0–3** (none / stockade / fort / fortress; 21×16, centered on the tile) with a name label under the tile; Indian villages blit **#10–13** by `@TRIBES` tech (tipis / adobe / pyramid / city). Draw order is colonies → villages → units so stacked units stay visible.
 
 | Key | Action |
 |-----|--------|

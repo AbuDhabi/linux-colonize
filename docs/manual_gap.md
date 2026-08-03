@@ -110,7 +110,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Villages on map + Braves | Partial | Placement + light wander / growth |
+| Villages on map + Braves | Partial | Map/minimap icons (`ICONS` #10–13 by tech) + placement + light wander / growth |
 | Meet menus, trade, teach skills | Missing | Parked |
 | Missions / convert / incite | Missing | |
 | Alarm, raid, Indian wars | Missing | `@RAID*` deferred |

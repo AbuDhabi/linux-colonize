@@ -5,8 +5,56 @@
 #include <string.h>
 
 #include "core/font.h"
+#include "core/ss.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
+
+/* ICONS.SS #0–3: European colonies by fortification (none / stockade / fort / fortress). */
+#define COLONY_MAP_ICON_STOCKADE 0
+#define COLONY_MAP_ICON_FORT 1
+#define COLONY_MAP_ICON_FORTRESS 2
+#define COLONY_MAP_ICON_NONE 3
+
+static int colony_map_icon(const ColonizeColonyPool* pool, const ColonizeColony* c) {
+  if (!pool || !c) {
+    return COLONY_MAP_ICON_NONE;
+  }
+  const int fortress = colonies_find_building(pool, "Fortress");
+  if (fortress >= 0 && c->has_building[fortress]) {
+    return COLONY_MAP_ICON_FORTRESS;
+  }
+  const int fort = colonies_find_building(pool, "Fort");
+  if (fort >= 0 && c->has_building[fort]) {
+    return COLONY_MAP_ICON_FORT;
+  }
+  const int stockade = colonies_find_building(pool, "Stockade");
+  if (stockade >= 0 && c->has_building[stockade]) {
+    return COLONY_MAP_ICON_STOCKADE;
+  }
+  return COLONY_MAP_ICON_NONE;
+}
+
+static void colony_blit_map_icon(
+  const ColonizeSpriteSheet* icons,
+  int sprite,
+  ColonizeFramebuffer8* framebuffer,
+  int tile_px,
+  int tile_py,
+  int tile_w,
+  int tile_h
+) {
+  if (!icons || sprite < 0 || sprite >= icons->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &icons->sprites[sprite];
+  if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  /* 21×16 markers: center on the 16×16 tile. */
+  const int px = tile_px + (tile_w - sp->width) / 2;
+  const int py = tile_py + (tile_h - sp->height) / 2;
+  ss_blit_sprite(icons, sprite, framebuffer, px, py);
+}
 
 static void colony_trim(char* s) {
   char* start = s;
@@ -757,9 +805,7 @@ int colonies_best_load_cargo(const ColonizeColony* colony) {
   return best;
 }
 
-/* Draw a small filled square in colour 11 (bright cyan) with the colony name
-   rendered one pixel below the tile.  We skip blitting an icon sprite because
-   no suitable 16x16 colony marker exists in ICONS.SS. */
+/* Draw ICONS.SS colony settlement (#0–3 by fortification) with name below the tile. */
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
   const ColonizeSpriteSheet* icons,
@@ -774,10 +820,11 @@ void colonies_render_on_map(
   int origin_x,
   int origin_y
 ) {
-  (void)icons; /* reserved for future icon */
   if (!pool || !framebuffer) {
     return;
   }
+
+  const bool have_icon = icons && icons->sprite_count > COLONY_MAP_ICON_NONE;
 
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
@@ -793,16 +840,20 @@ void colonies_render_on_map(
     const int px = origin_x + sx * tile_w;
     const int py = origin_y + sy * tile_h;
 
-    /* Filled square in bright cyan (palette index 11). */
-    for (int row = py; row < py + tile_h && row < framebuffer->height; ++row) {
-      if (row < 0) {
-        continue;
-      }
-      for (int col = px; col < px + tile_w && col < framebuffer->width; ++col) {
-        if (col < 0) {
+    if (have_icon) {
+      colony_blit_map_icon(icons, colony_map_icon(pool, c), framebuffer, px, py, tile_w, tile_h);
+    } else {
+      /* Icons missing: tiny cyan marker so colonies stay findable. */
+      for (int row = py; row < py + 2 && row < framebuffer->height; ++row) {
+        if (row < 0) {
           continue;
         }
-        framebuffer->pixels[row * framebuffer->width + col] = 11;
+        for (int col = px; col < px + 2 && col < framebuffer->width; ++col) {
+          if (col < 0) {
+            continue;
+          }
+          framebuffer->pixels[row * framebuffer->width + col] = 11;
+        }
       }
     }
 

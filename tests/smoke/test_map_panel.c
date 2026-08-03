@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
@@ -345,6 +346,62 @@ int main(void) {
     assets_msg_free(&names);
     if (hold_pixels < 20) {
       fprintf(stderr, "expected With: hold icons in sidebar (opaque=%d)\n", hold_pixels);
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+  }
+
+  /* Tribe settlement (#10 tipis for tech 0) blits on the main map viewport. */
+  {
+    ColonizeSpriteSheet icons;
+    memset(&icons, 0, sizeof(icons));
+    char err2[256];
+    if (!ss_load("COLONIZE/ICONS.SS", &icons, err2, sizeof(err2))) {
+      fprintf(stderr, "ICONS.SS for tribe marker: %s\n", err2);
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    if (icons.sprite_count < 14 || icons.sprites[10].width != 21) {
+      fprintf(stderr, "expected ICONS #10 tribe settlement 21px wide\n");
+      ss_free(&icons);
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.x = 3;
+    tribe.y = 4;
+    tribe.nation_id = 4;
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.tribe_count = 1;
+    col1.tribe = &tribe;
+    /* nation 4 → indian[0]; tech 0 → tipis #10 */
+    col1.indian[0].tech = 0;
+
+    uint8_t tile_px[16 * 16];
+    memset(tile_px, 0, sizeof(tile_px));
+    ColonizeFramebuffer8 tile_fb = {.width = 16, .height = 16, .pixels = tile_px};
+    map_panel_render_tribes_on_map(&col1, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0);
+
+    int opaque = 0;
+    for (int i = 0; i < 16 * 16; ++i) {
+      if (tile_px[i] != 0 && tile_px[i] != COLONIZE_SS_TRANSPARENT) {
+        ++opaque;
+      }
+    }
+    ss_free(&icons);
+    if (opaque < 8) {
+      fprintf(stderr, "expected tribe map icon opaque pixels, got %d\n", opaque);
       free(pixels);
       map_free(&map);
       map_panel_free(&panel);

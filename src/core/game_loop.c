@@ -4548,6 +4548,39 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     }
   }
 
+  if (game->colonies_ok || game->colonies.colony_count > 0) {
+    colonies_render_on_map(
+      &game->colonies,
+      game->unit_icons_ok ? &game->unit_icons : NULL,
+      framebuffer,
+      game->menu_font_ok ? &game->menu_font : NULL,
+      view_x,
+      view_y,
+      view_cols,
+      view_rows,
+      tile_w,
+      tile_h,
+      map_origin_x,
+      map_origin_y
+    );
+  }
+
+  if (game->col1_ok && game->unit_icons_ok) {
+    map_panel_render_tribes_on_map(
+      &game->col1,
+      &game->unit_icons,
+      framebuffer,
+      view_x,
+      view_y,
+      view_cols,
+      view_rows,
+      tile_w,
+      tile_h,
+      map_origin_x,
+      map_origin_y
+    );
+  }
+
   if (game->units_ok && game->unit_icons_ok) {
     const bool blink_on = ((game->elapsed_ms / 250u) % 2u) == 0u;
     units_render_on_map(
@@ -4563,23 +4596,6 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_x,
       map_origin_y,
       blink_on
-    );
-  }
-
-  if (game->colonies_ok || game->colonies.colony_count > 0) {
-    colonies_render_on_map(
-      &game->colonies,
-      game->unit_icons_ok ? &game->unit_icons : NULL,
-      framebuffer,
-      game->menu_font_ok ? &game->menu_font : NULL,
-      view_x,
-      view_y,
-      view_cols,
-      view_rows,
-      tile_w,
-      tile_h,
-      map_origin_x,
-      map_origin_y
     );
   }
 
