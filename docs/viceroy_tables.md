@@ -66,7 +66,8 @@ Indexed by tile display type (`0x3146`), not the raw `.MP` terrain index.
 
 ### `river_transition` (28 bytes)
 
-Used in `viceroy.c` case `0x10` via `table[overlay_nibble + 0x54de]` to pick river PHYS0 sprites (range 1–39).
+Used in unpacked VICEROY case `0x10` via `table[overlay_nibble + 0x54de]` to pick
+river PHYS0 sprites (range 1–39).
 
 ### `feature_sprite_bases_a` / `_b`
 
@@ -95,8 +96,8 @@ texture/connectivity work.
 
 ## References in decomp exports
 
-Prefer `viceroy_unpacked.c` for overlay-resident code; packed `viceroy.c` lacks
-`FUN_6a9f_*` / `FUN_6b22_*`. See [decomp_inventory.md](decomp_inventory.md).
+Prefer `original_sources_decompiled/viceroy_unpacked.c` for overlay-resident code.
+See [decomp_inventory.md](decomp_inventory.md).
 
 - `FUN_157e_*` — reads `0x5235` / `0x5236`, multiplies by 8 for **unit** PHYS0
   sprite index (not world-map coast composition)

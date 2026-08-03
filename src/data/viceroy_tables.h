@@ -4,7 +4,8 @@
 #include <stdint.h>
 
 /*
- * Static tables extracted from COLONIZE/VICEROY.EXE (DS-relative addresses from viceroy.c).
+ * Static tables extracted from COLONIZE/VICEROY.EXE (DS-relative addresses from
+ * original_sources_decompiled/viceroy_unpacked.c).
  * Regenerate with: python3 scripts/extract_viceroy_tables.py
  */
 

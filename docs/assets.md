@@ -1,7 +1,7 @@
 # Colonization Asset Notes
 
-For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox/MEMDUMP
-artifacts, see [original_index.md](original_index.md).
+For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox memory
+dumps, see [original_index.md](original_index.md).
 
 Runtime data lives under `COLONIZE/` (override with `--data-dir`).
 
@@ -189,7 +189,10 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 **Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. Remaining gaps are fog-of-war, roads, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
 
-Authority for static map art is decompiled **`MAPEDIT.EXE` / `mapedit.c`** (no RTLink), not VICEROY’s runtime buffers. Compile-time toggles `MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` (default **1** in `src/core/map.h`) exist only to disable coast/estuary for debugging.
+Authority for static map art is decompiled **`MAPEDIT.EXE` /
+`original_sources_decompiled/mapedit.c`** (no RTLink), not VICEROY’s runtime buffers.
+Compile-time toggles `MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED`
+(default **1** in `src/core/map.h`) exist only to disable coast/estuary for debugging.
 
 The Linux port draws cleared terrain from `TERRAIN.SS` (bits 0–4), then composites `PHYS0.SS` in MAPEDIT order:
 
@@ -436,7 +439,12 @@ Enter or left-click **skips** the remaining sail frames (QoL; original is hard t
 
 ### Map generation (NEW WORLD)
 
-VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0` (`viceroy_unpacked.c`). The Linux port mirrors that pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files (terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`). CUSTOMIZE edits the four UI axes on `CUSTOMIZ.PIK` via `FUN_733a_0270` / `NEW_GAME_PHASE_CUSTOMIZE` before the shared wizard.
+VICEROY (not MAPEDIT) builds random maps in `FUN_684c_08c0`
+(`original_sources_decompiled/viceroy_unpacked.c`). The Linux port mirrors that
+pipeline in `src/core/map_gen.c` into the same three-layer layout as `.MP` files
+(terrain filled; layer2/3 left 0 for gen v1). Size is fixed **58×72** (`0x3a`×`0x48`).
+CUSTOMIZE edits the four UI axes on `CUSTOMIZ.PIK` via `FUN_733a_0270` /
+`NEW_GAME_PHASE_CUSTOMIZE` before the shared wizard.
 
 Parameters (DOS words at `DS:0x1e7e`, each 0..3 from NEW WORLD `range(0,3)`; CUSTOMIZE UI keeps 0..2 via `% 3`):
 

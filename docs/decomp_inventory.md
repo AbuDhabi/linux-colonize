@@ -1,24 +1,24 @@
 # Decompiled Surface Inventory
 
-For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox/MEMDUMP
-artifacts, see [original_index.md](original_index.md). Manual feature coverage vs the
+For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox memory
+dumps, see [original_index.md](original_index.md). Manual feature coverage vs the
 Linux port: [manual_gap.md](manual_gap.md).
 
-This repository keeps Ghidra exports of `VICEROY.EXE` for reverse-engineering
+This repository keeps Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE` under
+[`original_sources_decompiled/`](../original_sources_decompiled/) for reverse-engineering
 reference. They are not buildable with a modern Linux compiler and retain DOS
 memory-model / runtime artifacts.
 
 | File | Source | Notes |
 |------|--------|-------|
-| `viceroy.c` / `viceroy.asm` | Packed EXE | ~25k / ~139k lines; RTLink overlay pages largely unresolved |
-| `viceroy_unpacked.c` / `viceroy_unpacked.asm` | Unpacked EXE | ~125k / ~305k lines; overlay-resident code is present |
+| `original_sources_decompiled/viceroy_unpacked.c` / `.asm` | Unpacked EXE | ~125k / ~305k lines; overlay-resident code is present |
+| `original_sources_decompiled/mapedit.c` | `MAPEDIT.EXE` | Static map feature art |
 
 Prefer **`viceroy_unpacked.*`** when chasing map-view or overlay call chains.
 
 ## High-Level Metrics
 
-- Packed export: ~397 `__cdecl16far` functions
-- Unpacked export: substantially larger (overlay bodies + more segments)
+- Unpacked VICEROY export: large (overlay bodies + many segments)
 - Common synthetic symbols:
   - Globals: `DAT_xxxx_xxxx`
   - Labels: `LAB_xxxx_xxxx`
@@ -87,8 +87,9 @@ port I/O in the native build.
   `original_saves/COLONY00.SAV` / `COLONY01.SAV`
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
-- Decomp exports (`viceroy.c`, `viceroy_unpacked.c`) are not compiled into the binary;
-  DOS typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction
+- Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,
+  `original_sources_decompiled/mapedit.c`) are not compiled into the binary; DOS
+  typedef stubs live in `src/platform/dos_compat/dos_types.h` for incremental extraction
 - Map compositor lookup tables from `VICEROY.EXE` are extracted to `src/data/viceroy_tables.{h,c}`
   (see `docs/viceroy_tables.md`); **static map feature art** follows `MAPEDIT.EXE` instead
 - World map view (**fidelity OK vs MAPEDIT**): terrain, land transitions, forest/hill/mountain/river
@@ -194,7 +195,7 @@ Evidence:
 | `COLONIZE/TRIBE.TXT` | AMERICA village seeds |
 | `FUN_6a09_0006` / `FUN_4d56_152e` / `FUN_521d_6d8e` | Tribe place / growth / Euro AI dispatcher |
 | `FUN_1984_00aa` / `FUN_281f_0590` | 5×3 fill at (0x13b, 0xc5) overlaid on screen |
-| `viceroy_unpacked.asm` | `TIMECHANGE` / `MULTINEXT` / `SEASONS` string table only (no FUN_* XREF yet) |
+| `original_sources_decompiled/viceroy_unpacked.asm` | `TIMECHANGE` / `MULTINEXT` / `SEASONS` string table only (no FUN_* XREF yet) |
 
 AI colony production for non-human Europeans remains **skipped** until save-diff evidence says otherwise; human colonies always tick.
 
@@ -206,7 +207,11 @@ Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (
 
 ## Map compositor (MAPEDIT)
 
-Authoritative static map compositor: `COLONIZE/MAPEDIT.EXE` / `mapedit.c` (`FUN_1a47_0932`, land mask `FUN_1a47_01ae`). No RTLink; no fog-of-war / animation. Coast and estuary are **on by default** (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` in `src/core/map.h`); the flags are compile-time debug toggles, not parked features.
+Authoritative static map compositor: `COLONIZE/MAPEDIT.EXE` /
+`original_sources_decompiled/mapedit.c` (`FUN_1a47_0932`, land mask `FUN_1a47_01ae`).
+No RTLink; no fog-of-war / animation. Coast and estuary are **on by default**
+(`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` in `src/core/map.h`);
+the flags are compile-time debug toggles, not parked features.
 
 **Recovered and matching MAPEDIT on AMER2:** coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, procedural resources, rumours. Details and PHYS0 ranges: [assets.md](assets.md).
 

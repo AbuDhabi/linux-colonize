@@ -20,7 +20,8 @@ MADSPACK layouts, or full bring-up checklists.
 ## How to use
 
 1. Identify the subsystem (map gen, colony screen, AI, sound, …).
-2. Open the right **decomp** file (usually `viceroy_unpacked.c` or `mapedit.c`).
+2. Open the right **decomp** under [`original_sources_decompiled/`](../original_sources_decompiled/)
+   (usually `viceroy_unpacked.c` or `mapedit.c`).
 3. Jump via a known `FUN_*` below, or search by segment prefix / string in `.asm`.
 4. Match the Linux module under `src/core/` and the data file under `COLONIZE/`.
 5. Follow the deep-dive link for formats and port status.
@@ -29,25 +30,21 @@ MADSPACK layouts, or full bring-up checklists.
 
 ## Decompiled sources at a glance
 
-Ghidra exports of the original EXEs. Not buildable; DOS memory-model / runtime
-artifacts remain. The Linux binary never compiles these files.
+Ghidra exports live in [`original_sources_decompiled/`](../original_sources_decompiled/).
+Not buildable; DOS memory-model / runtime artifacts remain. The Linux binary never
+compiles these files.
 
 | Artifact | Source | Size (approx.) | When to use |
 |----------|--------|----------------|-------------|
-| [`viceroy_unpacked.c`](../viceroy_unpacked.c) / [`.asm`](../viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | **Default** for game logic, RTLink overlays, AI, map gen, UI |
-| [`viceroy.c`](../viceroy.c) / [`.asm`](../viceroy.asm) | Packed `VICEROY.EXE` | ~25k / ~139k lines | Avoid for overlay call chains (bodies unresolved) |
-| [`mapedit.c`](../mapedit.c) | `MAPEDIT.EXE` | ~23k lines | Static world-map **feature art** (coasts, transitions, forest/hill/river masks) |
+| [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | **Default** for game logic, RTLink overlays, AI, map gen, UI |
+| [`mapedit.c`](../original_sources_decompiled/mapedit.c) | `MAPEDIT.EXE` | ~23k lines | Static world-map **feature art** (coasts, transitions, forest/hill/river masks) |
 | `COLONIZE/VICEROY.EXE` | Shipped binary | ~483 KB | Table extraction, file byte offsets (`scripts/extract_viceroy_tables.py`) |
 | `COLONIZE/MAPEDIT.EXE` | Shipped binary | — | Authority for static map compositor rules |
 
 **Address-space warning:** VICEROY and MAPEDIT are **separate** programs. Never equate
-a MAPEDIT `FUN_1a47_*` with any VICEROY `FUN_*` of the same digits. Prefer
-`viceroy_unpacked.*` over packed `viceroy.*` whenever chasing map-view or overlay
-call chains.
-
-Packed vs unpacked: RTLink overlay pages are largely missing from the packed export
-(map gen `FUN_684c_*`, Indians `FUN_4d56_*`, Euro AI `FUN_521d_*`, customize
-`FUN_733a_*`, etc. appear in the unpacked tree).
+a MAPEDIT `FUN_1a47_*` with any VICEROY `FUN_*` of the same digits. The packed
+`viceroy.c` export was removed (overlay bodies unresolved); always use
+`viceroy_unpacked.*`.
 
 ---
 
@@ -71,16 +68,16 @@ string literals (`SAVEGAME`, `EUROPE`, `PICKMUSIC`, …).
 
 ```bash
 # Function body in VICEROY unpacked C
-rg -n '__cdecl16.*FUN_684c_08c0\(' viceroy_unpacked.c
+rg -n '__cdecl16.*FUN_684c_08c0\(' original_sources_decompiled/viceroy_unpacked.c
 
 # Call sites / XREFs in asm
-rg -n 'FUN_684c_08c0' viceroy_unpacked.asm
+rg -n 'FUN_684c_08c0' original_sources_decompiled/viceroy_unpacked.asm
 
 # MAPEDIT-only (separate address space)
-rg -n '__cdecl16.*FUN_1a47_0932' mapedit.c
+rg -n '__cdecl16.*FUN_1a47_0932' original_sources_decompiled/mapedit.c
 
 # Strings that hint at a subsystem
-rg -n 'PICKMUSIC\|CUSTOMIZ\|SAVEGAME' viceroy_unpacked.asm
+rg -n 'PICKMUSIC\|CUSTOMIZ\|SAVEGAME' original_sources_decompiled/viceroy_unpacked.asm
 ```
 
 Start with the **segment prefix** (`684c` = map-gen cluster), then the offset within
@@ -123,7 +120,7 @@ Full bring-up narrative and fidelity notes → [decomp_inventory.md](decomp_inve
 High-value addresses already cited in this repo. “Linux” is the port counterpart when
 one exists.
 
-### VICEROY (`viceroy_unpacked.c`)
+### VICEROY (`original_sources_decompiled/viceroy_unpacked.c`)
 
 | Address | Purpose | Linux / docs |
 |---------|---------|--------------|
@@ -149,7 +146,7 @@ one exists.
 | `FUN_2059_000a` | Sound driver jump table | sound.c |
 | `FUN_129f_*` | BGM helpers (e.g. `0008`, `00f6`, `0300`) | sound.c |
 
-### MAPEDIT (`mapedit.c`)
+### MAPEDIT (`original_sources_decompiled/mapedit.c`)
 
 | Address | Purpose | Linux / docs |
 |---------|---------|--------------|
@@ -286,21 +283,22 @@ plus RE binaries `VICEROY.EXE` / `MAPEDIT.EXE`.
 
 ## DOSBox and memory artifacts
 
-Undeclared RE captures of a running `VICEROY` under DOSBox-X. Use when decomp + static
+Undeclared RE captures of a running `VICEROY` under DOSBox-X live under
+[`original_memory_dumps/`](../original_memory_dumps/). Use when decomp + static
 data are not enough (live VGA, RAM layouts, cursor blink timing).
 
 ### Save-state folders
 
 | Path | Remark | Timestamp |
 |------|--------|-----------|
-| [`dosbox_save_state/`](../dosbox_save_state/) | `colonization` | 2026-07-29 10:54 |
-| [`dosbox_save_state_2/`](../dosbox_save_state_2/) | `while_map_cursor_blinking` | 2026-07-29 11:23 |
-| [`dosbox_x_save_state`](../dosbox_x_save_state) | Packed ZIP form of a DOSBox-X state | — |
+| [`original_memory_dumps/dosbox_save_state/`](../original_memory_dumps/dosbox_save_state/) | `colonization` | 2026-07-29 10:54 |
+| [`original_memory_dumps/dosbox_save_state_2/`](../original_memory_dumps/dosbox_save_state_2/) | `while_map_cursor_blinking` | 2026-07-29 11:23 |
+| [`original_memory_dumps/dosbox_save_state_brave/`](../original_memory_dumps/dosbox_save_state_brave/) | seed-100 Brave hang (`brave`) | — |
 
-Both expanded folders: DOSBox-X 2026.07.02 (SDL2), `Program_Name` = `VICEROY`,
+Both early expanded folders: DOSBox-X 2026.07.02 (SDL2), `Program_Name` = `VICEROY`,
 `Machine_Type` = `MCH_VGA`, configured `Memory_Size` = 4096 (KB).
 
-### Per-file roles (both expanded folders)
+### Per-file roles (expanded folders)
 
 | File | Role |
 |------|------|
@@ -312,22 +310,10 @@ Both expanded folders: DOSBox-X 2026.07.02 (SDL2), `Program_Name` = `VICEROY`,
 | `Mouse` / `Keyboard` / `Joystick` | Input |
 | `Save_Remark` / `Time_Stamp` / `Program_Name` / `DOSBox-X_Version` / `Machine_Type` / `Memory_Size` | Text metadata |
 
-**Difference between the two folders:** later capture (~29 minutes) during map-cursor
-blink. Large blobs (`Memory`, `CPU`, `Vga`, …) differ; several small device dumps and
-all version/program metadata match. Useful pair for “what changes while the tile
-cursor blinks.”
-
-### `MEMDUMP.BIN` / `MEMDUMP.TXT` (repo root)
-
-| File | Size | Role |
-|------|------|------|
-| [`MEMDUMP.BIN`](../MEMDUMP.BIN) | 640 KiB | Raw conventional-memory dump |
-| [`MEMDUMP.TXT`](../MEMDUMP.TXT) | ~2.5 MB | Hex listing of the same 640 KiB |
-
-Relation to save-state `Memory`: not the same file. The IVT signature of
-`MEMDUMP.BIN` appears in `Memory` near offset **~136**; only the first ~64 KiB then
-matches before divergence (different capture time). Prefer `Memory` for a full
-guest-RAM snapshot; prefer `MEMDUMP.*` for classic low-memory / IVT / PSP hunting.
+**Difference between `dosbox_save_state` and `_2`:** later capture (~29 minutes) during
+map-cursor blink. Large blobs (`Memory`, `CPU`, `Vga`, …) differ; several small device
+dumps and all version/program metadata match. Useful pair for “what changes while the
+tile cursor blinks.” Prefer `Memory` for a full guest-RAM snapshot.
 
 ### Original saves
 
@@ -355,9 +341,9 @@ Layout and bridge → [savegame.md](savegame.md).
 
 | Question | Start here |
 |----------|------------|
-| How does NEW WORLD map gen work? | `FUN_684c_08c0` in `viceroy_unpacked.c` → `src/core/map_gen.c` |
-| Why does coast/forest art look wrong? | `mapedit.c` `FUN_1a47_*` → `src/core/map.c` + [assets.md](assets.md) |
+| How does NEW WORLD map gen work? | `FUN_684c_08c0` in `original_sources_decompiled/viceroy_unpacked.c` → `src/core/map_gen.c` |
+| Why does coast/forest art look wrong? | `original_sources_decompiled/mapedit.c` `FUN_1a47_*` → `src/core/map.c` + [assets.md](assets.md) |
 | What does this `.PIK` / `.SS` decode as? | [assets.md](assets.md) |
 | Save file field / nation gold? | [savegame.md](savegame.md) + `original_saves/` |
-| Live palette / blink timing? | `dosbox_save_state_2/` (`Vga` / `Memory`) |
+| Live palette / blink timing? | `original_memory_dumps/dosbox_save_state_2/` (`Vga` / `Memory`) |
 | Is this feature already ported? | [decomp_inventory.md](decomp_inventory.md) bring-up list |

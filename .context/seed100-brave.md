@@ -95,7 +95,7 @@ Mostly nearby offsets (manhattan≤2 for 28/34); only 2 exact matches. Pattern i
 - `src/core/ai.c` — tribes/Braves + debug prints
 - `src/core/dos_rng.c`
 - `tests/smoke/test_mapgen_seed100.c`
-- `COLONIZE/VR_SEED.EXE`, `viceroy_unpacked.c` / `.asm`
+- `COLONIZE/VR_SEED.EXE`, `original_sources_decompiled/viceroy_unpacked.c` / `.asm`
 
 ## SEED100 regenerations (2026-08-03)
 
@@ -123,7 +123,7 @@ Not a fog/seen-plane difference:
 
 ## DOS hang dump (VR_BRAVE2)
 
-### Dump 1 (`dosbox_save_state_brave/`, remark `brave`) — seed-100 Brave **entry**
+### Dump 1 (`original_memory_dumps/dosbox_save_state_brave/`, remark `brave`) — seed-100 Brave **entry**
 
 Valid `VR_SEED` hang at `IP=0x79c`. Parsed with Memory `HDR=8`, `DS=0x2385`. Plane bytes need **+0x80** from far-ptr base (DOS MCB/arena gap before map data; matches golden tiles).
 

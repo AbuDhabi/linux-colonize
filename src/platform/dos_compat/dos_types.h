@@ -2,7 +2,8 @@
 #define COLONIZE_DOS_TYPES_H
 
 /*
- * Compatibility typedefs mirroring Ghidra decompilation conventions in viceroy.c.
+ * Compatibility typedefs mirroring Ghidra decompilation conventions in
+ * original_sources_decompiled/viceroy_unpacked.c.
  * These allow incremental extraction of decompiled functions into Linux builds.
  */
 
