@@ -19,9 +19,18 @@ seed 100 is golden only. **No** fixture-apply runtime path.
 | Post-sat LCG | Locked `rng.state = 3528268925` (`0xD24D1C7D`) — **DOS dump confirms** |
 | `FUN_67bf` continents → `layer3` | PORTED; IDs often gold+1; **3 partition diffs** in brave neighborhoods (all near tribe[13]) |
 | Brave checks shape (06b4/0768/0754, OR1) | PORTED in `ai.c`; ASM re-confirmed |
-| Brave coordinates | **RED** — 2/34 accidental; first miss `unit[12] type=19 nation=4 at (10,24)` |
-| Debug `fprintf`s in `ai.c` | Still present — strip on green |
-| Docs claiming Braves match | Premature — fix on green |
+| Brave coordinates | **GREEN** — `smoke_mapgen_seed100` all units (post-`6a09` pulse) |
+| Debug `fprintf`s in `ai.c` | Stripped |
+| Docs claiming Braves match | OK once pulse landed |
+
+## Post-`6a09` native pulse (ported)
+
+- Site: `FUN_4d56_1816` → dir pick `FUN_521d_20e6` quiet path → apply `FUN_465b_0000`.
+- Wire: after Brave spawn in `ai_init_new_game`, reseed per indian nation with `rng_seed`, one action per Brave.
+- Scoring: base 200, facing, home dist (`FUN_124c_0040`), unowned +5, own −0x28, `range(1,5)`; stay `range(0,(tech+1)*4)`.
+- MP: DS:`0x2f76` terrain byte × 3 into COL1 `moves` (forest → 9, hills/marsh → 6, plains → 3). Brave max MP thirds = 3.
+- **Open:** after the **first** Brave of a nation, DOS burns extra LCG steps before the next unit. Seed-100 needs **6** (Inca / nation 4) and **1** (Tupi / nation 11); other nations **0**. Exact DOS call site still TBD — port hardcodes those counts. Do not blanket-burn after every unit / every forest move (breaks other nations).
+
 
 ## VR_SEED.EXE (verified)
 
