@@ -218,6 +218,9 @@ int colonies_transfer_from_unit(
 /* Best cargo type for L-key load (excludes horses/tools/muskets); -1 if none. */
 int colonies_best_load_cargo(const ColonizeColony* colony);
 
+/* ICONS.SS settlement marker #0–3 by fortification (none/stockade/fort/fortress). */
+int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
   const ColonizeSpriteSheet* icons,

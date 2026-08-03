@@ -99,13 +99,13 @@ port I/O in the native build.
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; phase 5 hold buy/sell + tax, goods persist on **H**/**S**;
   see `src/core/europe.c`)
-- Colony screen bring-up: `WOODPANL.PIK` + `PARCH.SS` (full buildings section) +
-  `WOODTILE.SS` (square minimap panel) + `BUILDING.SS` starters / tree placeholders
-  (sprites 42–47) + top bar (name/date/gold) + 1px black separators + `COLONY.PIK` bottom
-  panel + `ICONS.SS` #22–37 cargo strip (icon + amount) + population stub + centered 3×3
-  surroundings with PHYS0; economy UI phases 1–4 + 6 (workplace assign, construction **3**/**B** buy,
-  area-view field jobs **2** / tiles[8], craft chains, warehouse↔ship hold transfer **L**/**U**;
-  see `src/core/colony_screen.c`, `src/core/colony_yield.c`, `src/core/colony_craft.c`)
+- Colony screen bring-up: DOS six-view layout — settlement (workers + badges + outside
+  units), area (settlement icon #0–3, harvest + colonist sprites), people (SoL/Tory,
+  icon strip, food/crosses/bells), transport (wharf holds: color/grey/empty + passengers),
+  multifunction Production/Units/Construction (**1**/**2**/**3**/**M**, **N** numbers),
+  warehouse strip unchanged; preview via `colony_preview.c`; construction **C**/**B**;
+  field jobs via area click / Enter; cargo↔hold **L**/**U**/**=**/**+**;
+  see `src/core/colony_screen.c`, `src/core/colony_yield.c`, `src/core/colony_craft.c`
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move (terrain/road/river MP costs), deploy dock
   immigrants (**D**), board/unload (**O**/**U**), ship landfall unload / colony dock

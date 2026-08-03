@@ -177,8 +177,19 @@ int main(void) {
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   colony_screen_render(
-    &view, &pool, sample, &units, &map, &terrain, phys0_ok ? &phys0 : NULL, 1492, 0, 1000,
-    font_ok ? &font : NULL, &fb
+    &view,
+    &pool,
+    sample,
+    &units,
+    &map,
+    &terrain,
+    phys0_ok ? &phys0 : NULL,
+    NULL,
+    1492,
+    0,
+    1000,
+    font_ok ? &font : NULL,
+    &fb
   );
 
   if (pixels[0] == 0) {
@@ -494,6 +505,217 @@ int main(void) {
     }
   }
 
+
+  /* Area: center settlement icon paints non-zero pixels. */
+  {
+    int ox = 0, oy = 0;
+    colony_screen_minimap_origin(&ox, &oy);
+    const int half = COLONY_MINIMAP_GRID / 2;
+    const int cx = ox + half * COLONY_MINIMAP_TILE;
+    const int cy = oy + half * COLONY_MINIMAP_TILE;
+    bool settle_px = false;
+    for (int y = cy; y < cy + COLONY_MINIMAP_TILE && !settle_px; ++y) {
+      for (int x = cx; x < cx + COLONY_MINIMAP_TILE; ++x) {
+        if (pixels[y * 320 + x] != 0) {
+          settle_px = true;
+          break;
+        }
+      }
+    }
+    if (!settle_px) {
+      fprintf(stderr, "expected settlement icon pixels on center area tile\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+  }
+
+  /* Assign field worker and re-render: colonist unit icon on surround tile. */
+  {
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    const int food_job = 0; /* Food Gathering is job 0 in yield table */
+    if (!col || col->colonist_count < 1 ||
+        !colonies_assign_field(&pool, cid, 0, 0, food_job)) {
+      fprintf(stderr, "failed to assign field colonist for area overlay test\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    memset(pixels, 0, sizeof(pixels));
+    colony_screen_render(
+      &view,
+      &pool,
+      col,
+      &units,
+      &map,
+      &terrain,
+      phys0_ok ? &phys0 : NULL,
+      NULL,
+      1492,
+      0,
+      1000,
+      font_ok ? &font : NULL,
+      &fb
+    );
+    int ox = 0, oy = 0;
+    colony_screen_minimap_origin(&ox, &oy);
+    const int half = COLONY_MINIMAP_GRID / 2;
+    /* North tile (index 0): dy=-1 */
+    const int tx = ox + half * COLONY_MINIMAP_TILE;
+    const int ty = oy + (half - 1) * COLONY_MINIMAP_TILE;
+    bool unit_px = false;
+    for (int y = ty + 4; y < ty + COLONY_MINIMAP_TILE && !unit_px; ++y) {
+      for (int x = tx; x < tx + COLONY_MINIMAP_TILE; ++x) {
+        if (pixels[y * 320 + x] != 0) {
+          unit_px = true;
+          break;
+        }
+      }
+    }
+    if (!unit_px) {
+      fprintf(stderr, "expected field colonist/unit pixels on north area tile\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    /* People strip non-empty after render. */
+    bool people_px = false;
+    for (int y = COLONY_PANEL_CONTENT_Y + 16; y < COLONY_PANEL_CONTENT_Y + 30 && !people_px; ++y) {
+      for (int x = COLONY_PEOPLE_X + 2; x < COLONY_PEOPLE_X + 40; ++x) {
+        if (pixels[y * 320 + x] != 0) {
+          people_px = true;
+          break;
+        }
+      }
+    }
+    if (!people_px) {
+      fprintf(stderr, "expected people-view colonist strip pixels\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    /* Multifunction mode switch changes pane content. */
+    view.multi_mode = COLONY_MULTI_PRODUCTION;
+    view.preview_valid = true;
+    view.preview.goods[COLONIZE_CARGO_FOOD] = 5;
+    memset(pixels, 0, sizeof(pixels));
+    colony_screen_render(
+      &view,
+      &pool,
+      col,
+      &units,
+      &map,
+      &terrain,
+      phys0_ok ? &phys0 : NULL,
+      NULL,
+      1492,
+      0,
+      1000,
+      font_ok ? &font : NULL,
+      &fb
+    );
+    int prod_sum = 0;
+    for (int y = COLONY_PANEL_CONTENT_Y; y < COLONY_CARGO_STRIP_Y; ++y) {
+      for (int x = COLONY_MULTI_X; x < COLONY_MULTI_BTN_X; ++x) {
+        prod_sum += pixels[y * 320 + x];
+      }
+    }
+    view.multi_mode = COLONY_MULTI_CONSTRUCTION;
+    memset(pixels, 0, sizeof(pixels));
+    colony_screen_render(
+      &view,
+      &pool,
+      col,
+      &units,
+      &map,
+      &terrain,
+      phys0_ok ? &phys0 : NULL,
+      NULL,
+      1492,
+      0,
+      1000,
+      font_ok ? &font : NULL,
+      &fb
+    );
+    int cons_sum = 0;
+    for (int y = COLONY_PANEL_CONTENT_Y; y < COLONY_CARGO_STRIP_Y; ++y) {
+      for (int x = COLONY_MULTI_X; x < COLONY_MULTI_BTN_X; ++x) {
+        cons_sum += pixels[y * 320 + x];
+      }
+    }
+    if (prod_sum == cons_sum) {
+      fprintf(
+        stderr,
+        "expected multifunction Production vs Construction content to differ (sum=%d)\n",
+        prod_sum
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+
+    /* Multi button hit. */
+    ColonyScreenHitResult mhit = colony_screen_hit_test(
+      &view, &pool, col, &units, COLONY_MULTI_BTN_X + 2, COLONY_PANEL_CONTENT_Y + 2
+    );
+    if (mhit.kind != COLONY_HIT_MULTI_BTN || mhit.index != 0) {
+      fprintf(stderr, "expected multi btn 0 hit got kind=%d idx=%d\n", (int)mhit.kind, mhit.index);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+  }
+
   colony_screen_set_status(&view, "test status");
   if (strcmp(view.status, "test status") != 0) {
     fprintf(stderr, "set_status failed\n");
@@ -515,10 +737,15 @@ int main(void) {
     colony_screen_reset_ui(&view);
     ColonyScreenHitResult hit =
       colony_screen_hit_test(
-        &view, &pool, sample, &units, COLONY_COLONIST_LIST_X + 4, COLONY_COLONIST_LIST_Y0 + 2
+        &view,
+        &pool,
+        sample,
+        &units,
+        COLONY_PEOPLE_X + 2 + 4,
+        COLONY_PANEL_CONTENT_Y + 16 + 2
       );
-    if (hit.kind != COLONY_HIT_COLONIST || hit.index != 0) {
-      fprintf(stderr, "expected colonist hit got kind=%d idx=%d\n", (int)hit.kind, hit.index);
+    if (hit.kind != COLONY_HIT_PEOPLE_COLONIST || hit.index != 0) {
+      fprintf(stderr, "expected people colonist hit got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
         ff_free(&font);
       }
@@ -969,7 +1196,7 @@ int main(void) {
       return 1;
     }
     thit = colony_screen_hit_test(
-      &view, &pool, col, &units, COLONY_TRANSPORT_X + 4, COLONY_TRANSPORT_Y + 4
+      &view, &pool, col, &units, COLONY_TRANSPORT_X + 4, COLONY_TRANSPORT_ICON_Y + 4
     );
     if (thit.kind != COLONY_HIT_TRANSPORT || thit.index != 0) {
       fprintf(
@@ -990,7 +1217,7 @@ int main(void) {
     /* Reload one hold so hold hit-test / unload path stays meaningful. */
     colonies_transfer_to_unit(&pool, cid, &units, ship_id, COLONIZE_CARGO_SUGAR, 40);
     thit =
-      colony_screen_hit_test(&view, &pool, col, &units, COLONY_HOLD_X + 2, COLONY_HOLD_Y + 2);
+      colony_screen_hit_test(&view, &pool, col, &units, COLONY_HOLD_X + 4 + 2, COLONY_HOLD_Y + 2);
     if (thit.kind != COLONY_HIT_HOLD || thit.index != 0) {
       fprintf(stderr, "expected hold hit got kind=%d idx=%d\n", (int)thit.kind, thit.index);
       if (font_ok) {
