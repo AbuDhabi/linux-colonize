@@ -49,6 +49,7 @@ typedef struct ColonizeUnit {
   int goto_y;
   int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
   int tools; /* carried tools (Pioneers); 0 default */
+  int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {

@@ -18,8 +18,8 @@
  *
  * New-game: Col1 template + rival fleets in Europe with landfall goto +
  * TRIBE.TXT / procedural villages with Braves.
- * Turn: sail AI ships toward goto; tick AI crosses; village growth + light
- * Brave wander. Full FUN_521d_* planner / raids remain parked.
+ * Turn: sail AI ships toward goto; tick AI crosses; village growth +
+ * FUN_4d56_1816-style Brave pulse. Full FUN_521d_* planner / raids remain parked.
  */
 
 #define AI_TRIBE_CAP_AMERICA 84
@@ -52,7 +52,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
 /* One European AI nation: refresh already done by caller; sail + crosses. */
 void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
-/* One native nation (4..11): village growth + Brave wander; then refresh MP. */
+/* One native nation (4..11): village growth + DOS Brave pulse. */
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
 #endif

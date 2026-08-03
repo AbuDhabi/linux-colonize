@@ -36,13 +36,17 @@ static const struct {
 
 typedef ColonizeDosRng AiRng;
 
-static uint32_t ai_rng_next(AiRng* rng) {
-  return dos_rng_next(rng);
-}
-
 static int ai_rng_range(AiRng* rng, int lo, int hi_inclusive) {
   return dos_rng_range(rng, lo, hi_inclusive);
 }
+
+static void ai_native_nation_pulse(
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  AiRng* rng,
+  int nation_id
+);
 
 static bool ai_unit_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
@@ -425,6 +429,7 @@ static void ai_spawn_brave_near(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
   int nation_id,
+  int tribe_index,
   int tx,
   int ty,
   AiRng* rng
@@ -441,48 +446,17 @@ static void ai_spawn_brave_near(
     const int x = tx + ai_rng_range(rng, -2, 2);
     const int y = ty + ai_rng_range(rng, -2, 2);
     int accept = ai_map_inset(map, x, y);
-    if (!accept) {
-      if (tx == 9 && ty == 23) {
-        fprintf(stderr, "brave0 reject inset (%d,%d)\n", x, y);
-      }
-    } else if (ai_continent_id(map, x, y) != cap_c) {
+    if (accept && ai_continent_id(map, x, y) != cap_c) {
       accept = 0;
-      if (tx == 9 && ty == 23) {
-        fprintf(
-          stderr,
-          "brave0 reject continent (%d,%d) got=%d want=%d l3=%02x\n",
-          x,
-          y,
-          ai_continent_id(map, x, y),
-          cap_c,
-          ai_layer3_at(map, x, y)
-        );
-      }
-    } else if (ai_is_ocean_hs(map, x, y)) {
+    }
+    if (accept && ai_is_ocean_hs(map, x, y)) {
       accept = 0;
-      if (tx == 9 && ty == 23) {
-        fprintf(stderr, "brave0 reject water (%d,%d) t=%02x\n", x, y, ai_terrain_at(map, x, y));
-      }
-    } else if ((ai_layer2_at(map, x, y) & 3u) != 0) {
+    }
+    if (accept && (ai_layer2_at(map, x, y) & 3u) != 0) {
       accept = 0;
-      if (tx == 9 && ty == 23) {
-        fprintf(stderr, "brave0 reject flags (%d,%d) l2=%02x\n", x, y, ai_layer2_at(map, x, y));
-      }
     }
     if (!accept) {
       continue;
-    }
-    if (tx == 9 && ty == 23) {
-      fprintf(
-        stderr,
-        "brave0 ACCEPT (%d,%d) attempt=%d t=%02x l2=%02x l3=%02x\n",
-        x,
-        y,
-        attempt,
-        ai_terrain_at(map, x, y),
-        ai_layer2_at(map, x, y),
-        ai_layer3_at(map, x, y)
-      );
     }
     ox = x;
     oy = y;
@@ -499,6 +473,7 @@ static void ai_spawn_brave_near(
       u->nation_id = nation_id;
       u->goto_x = 0xFF;
       u->goto_y = 0xFF;
+      u->home_tribe_id = tribe_index;
     }
     /* FUN_1427_02ca: OR flag bit0; FUN_137f_0228 nation into continent high nibble. */
     ai_layer2_or(map, ox, oy, 1);
@@ -617,7 +592,6 @@ static bool ai_place_tribes_procedural(
   memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
 
   /* Per-indian init: 4× range(0,14) cargo seeds (stream sync). */
-  fprintf(stderr, "proc-enter rng=%u\n", (unsigned)rng->state);
   for (int indian = 0; indian < 8; ++indian) {
     for (int slot = 0; slot < 4; ++slot) {
       int bonus = 0;
@@ -627,7 +601,6 @@ static bool ai_place_tribes_procedural(
       (void)(ai_rng_range(rng, 0, 14) + bonus);
     }
   }
-  fprintf(stderr, "post-cargo rng=%u\n", (unsigned)rng->state);
 
   int regions_marked = 0;
 
@@ -680,16 +653,6 @@ static bool ai_place_tribes_procedural(
     if (!placed) {
       continue;
     }
-
-    fprintf(
-      stderr,
-      "capital[%d]=(%d,%d) attempts=%d rng=%u\n",
-      indian,
-      px,
-      py,
-      attempt,
-      (unsigned)rng->state
-    );
 
     const uint8_t tech = p->col1->indian[indian].tech;
     if (!ai_append_tribe(tribes, count, capacity, px, py, indian + 4, true, tech)) {
@@ -775,15 +738,8 @@ static bool ai_place_tribes_procedural(
     regions_marked++;
   }
 
-  fprintf(
-    stderr,
-    "sat done: regions=%d attempts=%d tribes=%d rng=%u\n",
-    regions_marked,
-    sat_attempts,
-    *count,
-    (unsigned)rng->state
-  );
-
+  (void)regions_marked;
+  (void)sat_attempts;
   return *count > 0;
 }
 
@@ -900,9 +856,8 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   int capacity = 0;
   bool placed = false;
   /*
-   * Tribe RNG is NOT the post-mapgen stream. DOS restores the LCG to the
-   * post-customize-axes state before range(1,8)→fleets→FUN_6a09 (mapgen
-   * itself ran on a reseeded copy). Replay: seed → 5×range(0,3) → range(1,8).
+   * FUN_6a09 reseeds from the BIOS tick at entry (VR_SEED → 100). Not the
+   * post-mapgen stream and not post-axes replay.
    */
   if (!params->use_tribe_txt && params->rng_seed) {
     dos_rng_seed(rng, params->rng_seed);
@@ -915,7 +870,6 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
         (uint8_t)((params->map->layer3[i] & 0x0fu) | 0xf0u);
     }
   }
-  fprintf(stderr, "tribe-entry rng=%u\n", (unsigned)rng->state);
   if (params->use_tribe_txt && params->data_dir) {
     placed = ai_place_tribes_from_txt(params, &tribes, &count, &capacity, rng);
   }
@@ -939,10 +893,21 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
         params->units,
         params->map,
         (int)tribes[i].nation_id,
+        i,
         (int)tribes[i].x,
         (int)tribes[i].y,
         rng
       );
+    }
+    /*
+     * Post-6a09 native unit pulse (FUN_4d56_1816): DOS reseeds via 04ca from
+     * the campaign/timer word (VR_SEED → rng_seed) once per indian nation,
+     * then one Brave action tick before the human turn-0 view / save.
+     */
+    const uint32_t pulse_seed = params->rng_seed ? params->rng_seed : 1u;
+    for (int n = 4; n <= 11; ++n) {
+      dos_rng_seed(rng, pulse_seed);
+      ai_native_nation_pulse(params->units, params->map, params->col1, rng, n);
     }
   } else {
     diag_warn("ai: no tribes placed");
@@ -1091,35 +1056,281 @@ static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
-static void ai_wander_braves(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || !ctx->map) {
+/*
+ * FUN_15dc_00a2 / FUN_281f_0a60 — bucket distance for capital-attraction weight.
+ * NEW WORLD Europeans are far → typically returns 3 → mult = 4 in 021a.
+ */
+static int ai_a60_bucket(int dist) {
+  if (dist < 0x19) {
+    return 0;
+  }
+  if (dist < 0x32) {
+    return 1;
+  }
+  if (dist < 0x4b) {
+    return 2;
+  }
+  return 3;
+}
+
+static int ai_owner_nibble(const ColonizeWorldMap* map, int x, int y) {
+  if (!ai_map_inset(map, x, y)) {
+    return -1;
+  }
+  const int hi = (int)((ai_layer3_at(map, x, y) >> 4) & 0x0fu);
+  return hi == 0x0f ? -1 : hi;
+}
+
+/* DOS unit+0x06 (314a): home tribe index; fall back to nearest same-nation. */
+static void ai_find_home_tribe(
+  const ColonizeCol1Save* col1,
+  const ColonizeUnit* u,
+  int* out_x,
+  int* out_y
+) {
+  *out_x = u ? u->x : 0;
+  *out_y = u ? u->y : 0;
+  if (!col1 || !col1->tribe || !u) {
     return;
   }
-  AiRng rng;
-  dos_rng_seed(
-    &rng,
-    (uint32_t)(nation_id * 97u + (ctx->turn_number ? *ctx->turn_number : 1u) * 13u + 7u)
-  );
-  static const int k_dx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
-  static const int k_dy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  if (u->home_tribe_id >= 0 && u->home_tribe_id < (int)col1->head.tribe_count) {
+    const ColonizeCol1Tribe* t = &col1->tribe[u->home_tribe_id];
+    *out_x = (int)t->x;
+    *out_y = (int)t->y;
+    return;
+  }
+  int best = 0x7fff;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &col1->tribe[i];
+    if ((int)t->nation_id != u->nation_id) {
+      continue;
+    }
+    const int d = ai_dos_dist(u->x - (int)t->x, u->y - (int)t->y);
+    if (d < best) {
+      best = d;
+      *out_x = (int)t->x;
+      *out_y = (int)t->y;
+    }
+  }
+}
 
+/*
+ * FUN_4d56_021a quiet NEW WORLD path (colony_count==0, goods==0).
+ *
+ * Score dirs 0..7: base 200, facing vs last_dir (314f), +4 and home-tribe
+ * distance penalty (ASM 0xcea; roads optional), +5 unowned, +range(1,5).
+ * No colony → skip capital/mission pull. Dir 8 stay omitted (rejected without
+ * promote; does not affect best among 0..7).
+ */
+static int ai_native_pick_dir(
+  AiRng* rng,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int home_x,
+  int home_y,
+  int last_dir,
+  int nation_tech
+) {
+  int best_dir = 8;
+  int best_score = -1;
+
+  const int unit_fa = (int)(ai_layer2_at(map, x, y) & 0x0au);
+  const int unit_road = (int)(ai_layer2_at(map, x, y) & 0x40u);
+
+  for (int d = 0; d < 9; ++d) {
+    const int nx = x + k_ai_dir8_dx[d];
+    const int ny = y + k_ai_dir8_dy[d];
+    if (d < 8) {
+      if (!ai_map_inset(map, nx, ny)) {
+        if (nation_id == 11 && (x == 28 || x == 32)) {
+          fprintf(stderr, "pick(%d,%d) d=%d reject inset\n", x, y, d);
+        }
+        continue;
+      }
+      const int terr = (int)(ai_terrain_at(map, nx, ny) & 0x1fu);
+      /* 078c: reject 0x19/0x1a early; then ocean via 075e; then >=0x18. */
+      if (terr == 0x19 || terr == 0x1a || terr >= 0x18) {
+        if (nation_id == 11 && (x == 28 || x == 32)) {
+          fprintf(stderr, "pick(%d,%d) d=%d reject terr=%d\n", x, y, d, terr);
+        }
+        continue;
+      }
+      if (ai_is_ocean_hs(map, nx, ny)) {
+        if (nation_id == 11 && (x == 28 || x == 32)) {
+          fprintf(stderr, "pick(%d,%d) d=%d reject ocean\n", x, y, d);
+        }
+        continue;
+      }
+    }
+    const int own = (d < 8) ? ai_owner_nibble(map, nx, ny) : ai_owner_nibble(map, x, y);
+    /* Foreign-owned → combat path; NEW WORLD empties are unowned or self. */
+    if (d < 8 && own >= 0 && own != nation_id) {
+      if (nation_id == 11 && (x == 28 || x == 32)) {
+        fprintf(stderr, "pick(%d,%d) d=%d reject foreign own=%d\n", x, y, d, own);
+      }
+      continue;
+    }
+
+    int score = 0xc8; /* 200 */
+
+    if (d == 8) {
+      /*
+       * Stay: 8bc promote probe (no LCG for goods==0 Brave) then
+       * range(0,(tech+1)*4); if 0, score-=0x19. Not used for best among
+       * moves, but must burn LCG before return.
+       */
+      if (nation_tech < 0) {
+        nation_tech = 0;
+      }
+      const int stay_roll = ai_rng_range(rng, 0, (nation_tech + 1) * 4);
+      if (stay_roll == 0) {
+        score -= 0x19;
+      }
+      /* Stay never beats a move for NEW WORLD quiet path; skip best update. */
+      if (nation_id == 11 && (x == 28 || x == 32)) {
+        fprintf(stderr, "pick(%d,%d) stay burn roll=%d\n", x, y, stay_roll);
+      }
+      continue;
+    }
+
+    if (d == last_dir) {
+      score += 4;
+    } else if (d == (last_dir ^ 4)) {
+      score -= 6;
+    } else {
+      /* FUN_281f_0384 near-facing → +3 */
+      int diff = d - last_dir;
+      if (diff < 0) {
+        diff = -diff;
+      }
+      if (diff > 4) {
+        diff = 8 - diff;
+      }
+      if (diff == 1) {
+        score += 3;
+      }
+    }
+
+    /*
+     * ASM 0xcd4..0xdf3: +4 home-base only when (both flag&0xa) or
+     * (even dir and both road&0x40). Else still apply home-dist at 0xcea.
+     */
+    {
+      const int nbr_fa = (int)(ai_layer2_at(map, nx, ny) & 0x0au);
+      const int nbr_road = (int)(ai_layer2_at(map, nx, ny) & 0x40u);
+      int add_home_base = 0;
+      if (nbr_fa != 0 && unit_fa != 0) {
+        add_home_base = 1;
+      } else if ((d & 1) == 0 && nbr_road != 0 && unit_road != 0) {
+        add_home_base = 1;
+      }
+      if (add_home_base) {
+        score += 4;
+      }
+      if (home_x >= 0) {
+        const int home_dist = ai_dos_dist(nx - home_x, ny - home_y);
+        if (home_dist > 2) {
+          score -= home_dist * 3;
+        }
+      }
+    }
+
+    /* Own-nation occupied: ASM 0xc40 −0x28 when stack path clear. */
+    if (own == nation_id) {
+      score -= 0x28;
+    }
+
+    /* Unowned bonus at 0xeca when far-euro count is 0. */
+    if (own < 0) {
+      score += 5;
+    }
+
+    const int roll = ai_rng_range(rng, 1, 5);
+    score += roll;
+    if (score < 0) {
+      score = 0;
+    }
+    if (nation_id == 11 && (x == 28 || x == 32)) {
+      fprintf(stderr, "pick(%d,%d) d=%d sc=%d roll=%d own=%d\n", x, y, d, score, roll, own);
+    }
+    if (score > best_score) {
+      best_score = score;
+      best_dir = d;
+    }
+  }
+  if (nation_id == 11 && (x == 28 || x == 32)) {
+    fprintf(stderr, "pick(%d,%d) best=%d tech=%d\n", x, y, best_dir, nation_tech);
+  }
+  return best_dir;
+}
+
+static void ai_native_apply_step(
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeUnit* u,
+  int dir
+) {
+  if (!units || !map || !u || dir < 0 || dir > 7) {
+    return;
+  }
+  const int nx = u->x + k_ai_dir8_dx[dir];
+  const int ny = u->y + k_ai_dir8_dy[dir];
+  if (!ai_map_inset(map, nx, ny)) {
+    return;
+  }
+  /* DOS spent MP: terrain_cost * 3 (COL1 moves field). */
+  const int cost = map_move_cost_at(map, nx, ny);
+  u->x = nx;
+  u->y = ny;
+  u->moves_left = cost * 3;
+}
+
+/*
+ * FUN_4d56_1816 unit-action core (one pulse): reseed caller-side via 04ca,
+ * zero turns_worked semantics, one 14fe-style action per Brave while MP remain.
+ */
+static void ai_native_nation_pulse(
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  AiRng* rng,
+  int nation_id
+) {
+  if (!units || !map || !rng || nation_id < 4 || nation_id > 11) {
+    return;
+  }
+
+  /*
+   * One 14fe action per unit (golden turns_worked=1). After the step we store
+   * DOS spent MP (cost*3) in moves_left; do not re-enter the same unit.
+   */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
+    ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
     }
-    if (units_is_sea(ctx->units, u->id)) {
+    if (units_is_sea(units, u->id)) {
       continue;
     }
     if (u->moves_left <= 0) {
       continue;
     }
-    /* ~50% chance to wander one tile. */
-    if ((ai_rng_next(&rng) & 1u) == 0u) {
-      continue;
+    int hx = u->x;
+    int hy = u->y;
+    ai_find_home_tribe(col1, u, &hx, &hy);
+    int tech = 0;
+    if (col1 && nation_id >= 4 && nation_id <= 11) {
+      tech = (int)col1->indian[nation_id - 4].tech;
     }
-    const int d = (int)(ai_rng_next(&rng) & 7u);
-    units_try_move(ctx->units, u->id, ctx->map, u->x + k_dx[d], u->y + k_dy[d], NULL);
+    const int dir = ai_native_pick_dir(rng, map, u->x, u->y, nation_id, hx, hy, 0, tech);
+    if (dir >= 0 && dir <= 7) {
+      ai_native_apply_step(units, map, u, dir);
+    } else {
+      /* 0934: mark spent = max (no legal move). */
+      u->moves_left = 0;
+    }
   }
 }
 
@@ -1128,5 +1339,10 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   ai_grow_villages(ctx, nation_id);
-  ai_wander_braves(ctx, nation_id);
+  AiRng rng;
+  /* FUN_281f_04ca(*(DS:83a6)) — campaign/timer seed; fall back to turn. */
+  const uint32_t seed =
+    (ctx->turn_number && *ctx->turn_number) ? (uint32_t)(*ctx->turn_number) : 1u;
+  dos_rng_seed(&rng, seed);
+  ai_native_nation_pulse(ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, &rng, nation_id);
 }

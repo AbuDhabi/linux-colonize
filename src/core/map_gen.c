@@ -1687,6 +1687,41 @@ void map_gen_assign_continents(ColonizeWorldMap* map) {
           }
         }
 
+        /*
+         * RTL scan: also merge with the already-labeled eastern neighbour
+         * (x+1). Without this, a NE-diagonal northern label can assign a
+         * different ID than the in-row run to the east (tribe[13] blob).
+         */
+        if (x + 1 < w - 1) {
+          const uint16_t east = labels[y * w + (x + 1)];
+          if (east != 0) {
+            if (cur == 0) {
+              cur = east;
+            } else if (east != cur) {
+              uint16_t hi = east;
+              uint16_t lo = cur;
+              if ((int)east < (int)cur) {
+                hi = cur;
+                lo = east;
+              }
+              counts[lo] += counts[hi];
+              counts[hi] = 0;
+              for (int yy = 1; yy <= y; ++yy) {
+                for (int xx = 1; xx <= w; ++xx) {
+                  const int j = yy * w + xx;
+                  if (j >= n) {
+                    continue;
+                  }
+                  if (labels[j] == hi) {
+                    labels[j] = lo;
+                  }
+                }
+              }
+              cur = lo;
+            }
+          }
+        }
+
         if (cur == 0) {
           if (!in_run) {
             uint16_t nid = 0;

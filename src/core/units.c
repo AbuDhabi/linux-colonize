@@ -171,6 +171,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->goto_y = 0xFF;
   slot->profession = UNITS_JOB_NONE;
   slot->tools = (strstr(type->name, "Pioneer") != NULL) ? 100 : 0;
+  slot->home_tribe_id = -1;
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
