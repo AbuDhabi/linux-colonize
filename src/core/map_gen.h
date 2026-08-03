@@ -35,10 +35,18 @@ typedef struct MapGenParams {
 void map_gen_params_random(MapGenParams* out, uint32_t seed);
 
 /*
- * Allocate 58×72 via map_alloc and fill terrain (layer2/3 left 0).
+ * Allocate 58×72 via map_alloc and fill terrain.
  * Port of FUN_684c_08c0 pipeline (land blobs → cleanup → climate → features).
+ * Ends with FUN_67bf continent IDs in layer3 (low nibble), flags cleared in
+ * layer2, then ocean tiles OR 0x20 (DOS FUN_281f_068c after mapgen).
  */
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size);
+
+/*
+ * FUN_67bf_0000: water then land connected-component IDs remapped to 1..0xf,
+ * written to layer3. Clears layer2 (flags). Does not touch terrain.
+ */
+void map_gen_assign_continents(ColonizeWorldMap* map);
 
 /*
  * Pick a coastal land start for nation 0..3 on a generated map.

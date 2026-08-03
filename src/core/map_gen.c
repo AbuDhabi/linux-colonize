@@ -1590,6 +1590,9 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
 #endif
   paint_arctic_and_high_seas(out->terrain, w, h, rng, open_south);
 
+  /* FUN_684c_08c0 tail: FUN_67bf_0000 then clear flags + OR 0x20 on ocean. */
+  map_gen_assign_continents(out);
+
   const int land = count_land(mask, n);
   diag_info(
     "map_generate seed=%u mass=%d form=%d temp=%d clim=%d land=%d/%d budget=%d",
@@ -1605,6 +1608,162 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
 
   free(mask);
   return true;
+}
+
+/*
+ * FUN_67bf_0000 — connected components for water (pass 1) then land (pass 0).
+ * Scan y=1..h-2, x=w-2..1 (RTL). Northern 3 neighbours + prior-in-scan reuse
+ * give 8-connectivity. Remap IDs >0xf down to 1..0xf; write byte to layer3.
+ * Clears layer2 (flags). Ocean then OR 0x20 like FUN_281f_068c after mapgen.
+ */
+void map_gen_assign_continents(ColonizeWorldMap* map) {
+  if (!map || !map->terrain || !map->layer2 || !map->layer3) {
+    return;
+  }
+  const int w = map->width;
+  const int h = map->height;
+  const int n = w * h;
+  if (w < 3 || h < 3) {
+    return;
+  }
+
+  memset(map->layer2, 0, (size_t)n);
+  memset(map->layer3, 0, (size_t)n);
+
+  uint16_t* labels = (uint16_t*)calloc((size_t)n, sizeof(uint16_t));
+  /* DOS size table at DS:23c6 — 0x4002 words. */
+  int* counts = (int*)calloc(0x4002, sizeof(int));
+  if (!labels || !counts) {
+    free(labels);
+    free(counts);
+    return;
+  }
+
+  for (int want_water = 1; want_water >= 0; --want_water) {
+    memset(labels, 0, (size_t)n * sizeof(uint16_t));
+    memset(counts, 0, 0x4002 * sizeof(int));
+    uint16_t run_id = 0;
+    int in_run = 0;
+
+    for (int y = 1; y < h - 1; ++y) {
+      for (int x = w - 2; x > 0; --x) {
+        const uint8_t t = (uint8_t)(map->terrain[y * w + x] & 0x1fu);
+        const int is_water = (t == T_OCEAN || t == T_HIGH_SEAS) ? 1 : 0;
+        if (is_water != want_water) {
+          in_run = 0;
+          run_id = 0;
+          continue;
+        }
+
+        uint16_t cur = 0;
+        for (int dx = -1; dx <= 1; ++dx) {
+          const uint16_t nb = labels[(y - 1) * w + (x + dx)];
+          if (nb == 0) {
+            continue;
+          }
+          if (cur != 0 && nb != cur) {
+            uint16_t hi = nb;
+            uint16_t lo = cur;
+            if ((int)nb < (int)cur) {
+              hi = cur;
+              lo = nb;
+            }
+            counts[lo] += counts[hi];
+            counts[hi] = 0;
+            for (int yy = 1; yy <= y; ++yy) {
+              for (int xx = 1; xx <= w; ++xx) {
+                const int j = yy * w + xx;
+                if (j >= n) {
+                  continue;
+                }
+                if (labels[j] == hi) {
+                  labels[j] = lo;
+                }
+              }
+            }
+            cur = lo;
+          } else {
+            cur = nb;
+          }
+        }
+
+        if (cur == 0) {
+          if (!in_run) {
+            uint16_t nid = 0;
+            /* Polar land rows start ID search at 0x10. */
+            if ((y == 1 || h - y == 2) && want_water == 0) {
+              nid = 0x10;
+            }
+            do {
+              nid++;
+              if (nid > 0x3fff) {
+                nid = 0x3fff;
+                break;
+              }
+            } while (counts[nid] != 0);
+            run_id = nid;
+          }
+          cur = run_id;
+        } else {
+          run_id = cur;
+        }
+
+        labels[y * w + x] = cur;
+        if (cur < 0x4002) {
+          counts[cur]++;
+        }
+        in_run = 1;
+      }
+    }
+
+    /* Remap labels > 0xf into free slots 1..0xf; write to layer3. */
+    for (int y = 0; y < h; ++y) {
+      for (int x = 0; x < w; ++x) {
+        uint16_t id = labels[y * w + x];
+        if (id == 0) {
+          continue;
+        }
+        if (id > 0xf) {
+          int c = counts[id];
+          if (c < 1) {
+            /* Negative entry = already remapped to -slot. */
+            if (c < 0) {
+              id = (uint16_t)(-c);
+            } else {
+              id = 0xf;
+            }
+          } else {
+            uint16_t slot = 0;
+            do {
+              slot++;
+            } while (slot <= 0xf && counts[slot] != 0);
+            if (slot > 0xf) {
+              id = 0xf;
+            } else {
+              counts[slot] = counts[id];
+              counts[id] = -(int)slot;
+              id = slot;
+            }
+          }
+          labels[y * w + x] = id;
+        }
+        map->layer3[y * w + x] = (uint8_t)(id & 0xffu);
+      }
+    }
+  }
+
+  free(labels);
+  free(counts);
+
+  /* FUN_281f_068c after clear: OR flag bit 0x20 on ocean/HS (inset walk). */
+  for (int y = 1; y < h - 1; ++y) {
+    for (int x = 1; x < w - 1; ++x) {
+      const uint8_t t = (uint8_t)(map->terrain[y * w + x] & 0x1fu);
+      if (t == T_OCEAN || t == T_HIGH_SEAS) {
+        map->layer2[y * w + x] = (uint8_t)(map->layer2[y * w + x] | 0x20u);
+      }
+    }
+  }
 }
 
 static bool is_coastal_land(const ColonizeWorldMap* map, int x, int y) {

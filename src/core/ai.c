@@ -331,6 +331,35 @@ static void ai_layer2_or(ColonizeWorldMap* map, int x, int y, uint8_t bits) {
   map->layer2[y * map->width + x] = (uint8_t)(map->layer2[y * map->width + x] | bits);
 }
 
+static uint8_t ai_layer3_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  return map->layer3[y * map->width + x];
+}
+
+/* FUN_137f_0228 — set continent high nibble (nation / 0xf unowned). */
+static void ai_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff) {
+  if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return;
+  }
+  const int i = y * map->width + x;
+  const uint8_t low = (uint8_t)(map->layer3[i] & 0x0fu);
+  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & 0x0fu) << 4);
+  map->layer3[i] = (uint8_t)(low | hi);
+}
+
+/* FUN_137f_01ca / FUN_281f_06b4 — continent ID = layer3 low nibble. */
+static int ai_continent_id(const ColonizeWorldMap* map, int x, int y) {
+  return (int)(ai_layer3_at(map, x, y) & 0x0fu);
+}
+
+/* FUN_13e4_0074 / FUN_281f_0768 — ocean or high seas only. */
+static int ai_is_ocean_hs(const ColonizeWorldMap* map, int x, int y) {
+  const uint8_t t = (uint8_t)(ai_terrain_at(map, x, y) & 0x1fu);
+  return t == 0x19 || t == 0x1a;
+}
+
 /* FUN_13e4_003a / FUN_13e4_000e */
 static int ai_decoded_type(const ColonizeWorldMap* map, int x, int y) {
   if (!ai_map_inset(map, x, y)) {
@@ -341,11 +370,6 @@ static int ai_decoded_type(const ColonizeWorldMap* map, int x, int y) {
     return (t & 0x80u) ? 0x1c : 0x1b;
   }
   return (int)(t & 0x1fu);
-}
-
-static int ai_continent_id(const ColonizeWorldMap* map, int x, int y) {
-  const int n = (int)((ai_layer2_at(map, x, y) >> 4) & 0xfu);
-  return n == 0xf ? -1 : n;
 }
 
 /* FUN_4cc6_0356: nearest tribe distance → *out_dist; returns index or -1. */
@@ -395,74 +419,11 @@ static int ai_village_neighbour_blocked(const ColonizeWorldMap* map, int x, int 
   return 0;
 }
 
-/* FUN_6a09 Brave: range(-2,2) offsets, same landmass, land, layer2&3==0. */
-static int ai_same_landmass(const ColonizeWorldMap* map, int ax, int ay, int bx, int by) {
-  if (!map || !map->terrain) {
-    return 0;
-  }
-  if (ax == bx && ay == by) {
-    return 1;
-  }
-  if (map_tile_is_water(map, ax, ay) || map_tile_is_water(map, bx, by)) {
-    return 0;
-  }
-  const int w = map->width;
-  const int h = map->height;
-  const int n = w * h;
-  uint8_t* seen = calloc((size_t)n, 1);
-  if (!seen) {
-    return 0;
-  }
-  int* qx = malloc((size_t)n * sizeof(int));
-  int* qy = malloc((size_t)n * sizeof(int));
-  if (!qx || !qy) {
-    free(seen);
-    free(qx);
-    free(qy);
-    return 0;
-  }
-  int qh = 0;
-  int qt = 0;
-  qx[qt] = ax;
-  qy[qt] = ay;
-  qt++;
-  seen[ay * w + ax] = 1;
-  static const int kdx[4] = {1, -1, 0, 0};
-  static const int kdy[4] = {0, 0, 1, -1};
-  int found = 0;
-  while (qh < qt) {
-    const int cx = qx[qh];
-    const int cy = qy[qh];
-    qh++;
-    if (cx == bx && cy == by) {
-      found = 1;
-      break;
-    }
-    for (int d = 0; d < 4; ++d) {
-      const int nx = cx + kdx[d];
-      const int ny = cy + kdy[d];
-      if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
-        continue;
-      }
-      const int j = ny * w + nx;
-      if (seen[j] || map_tile_is_water(map, nx, ny)) {
-        continue;
-      }
-      seen[j] = 1;
-      qx[qt] = nx;
-      qy[qt] = ny;
-      qt++;
-    }
-  }
-  free(seen);
-  free(qx);
-  free(qy);
-  return found;
-}
-
+/* FUN_6a09 Brave: range(-2,2), inset, same continent (06b4), not ocean/HS (0768),
+ * flags&3==0 (0754). Spawn OR bit0 (015e) + owner high nibble (0228). */
 static void ai_spawn_brave_near(
   ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
+  ColonizeWorldMap* map,
   int nation_id,
   int tx,
   int ty,
@@ -472,29 +433,57 @@ static void ai_spawn_brave_near(
   if (brave < 0 || !units || !map) {
     return;
   }
+  const int cap_c = ai_continent_id(map, tx, ty);
   int ox = tx;
   int oy = ty;
   int ok = 0;
   for (int attempt = 0; attempt < 100; ++attempt) {
     const int x = tx + ai_rng_range(rng, -2, 2);
     const int y = ty + ai_rng_range(rng, -2, 2);
-    if (!ai_map_inset(map, x, y)) {
-      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject inset (%d,%d)\n", x, y);
+    int accept = ai_map_inset(map, x, y);
+    if (!accept) {
+      if (tx == 9 && ty == 23) {
+        fprintf(stderr, "brave0 reject inset (%d,%d)\n", x, y);
+      }
+    } else if (ai_continent_id(map, x, y) != cap_c) {
+      accept = 0;
+      if (tx == 9 && ty == 23) {
+        fprintf(
+          stderr,
+          "brave0 reject continent (%d,%d) got=%d want=%d l3=%02x\n",
+          x,
+          y,
+          ai_continent_id(map, x, y),
+          cap_c,
+          ai_layer3_at(map, x, y)
+        );
+      }
+    } else if (ai_is_ocean_hs(map, x, y)) {
+      accept = 0;
+      if (tx == 9 && ty == 23) {
+        fprintf(stderr, "brave0 reject water (%d,%d) t=%02x\n", x, y, ai_terrain_at(map, x, y));
+      }
+    } else if ((ai_layer2_at(map, x, y) & 3u) != 0) {
+      accept = 0;
+      if (tx == 9 && ty == 23) {
+        fprintf(stderr, "brave0 reject flags (%d,%d) l2=%02x\n", x, y, ai_layer2_at(map, x, y));
+      }
+    }
+    if (!accept) {
       continue;
     }
-    if (!ai_same_landmass(map, tx, ty, x, y)) {
-      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject landmass (%d,%d)\n", x, y);
-      continue;
+    if (tx == 9 && ty == 23) {
+      fprintf(
+        stderr,
+        "brave0 ACCEPT (%d,%d) attempt=%d t=%02x l2=%02x l3=%02x\n",
+        x,
+        y,
+        attempt,
+        ai_terrain_at(map, x, y),
+        ai_layer2_at(map, x, y),
+        ai_layer3_at(map, x, y)
+      );
     }
-    if (map_tile_is_water(map, x, y)) {
-      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject water (%d,%d) t=%02x\n", x, y, ai_terrain_at(map,x,y));
-      continue;
-    }
-    if ((ai_layer2_at(map, x, y) & 3u) != 0) {
-      if (tx == 9 && ty == 23) fprintf(stderr, "brave0 reject flags (%d,%d) l2=%02x\n", x, y, ai_layer2_at(map,x,y));
-      continue;
-    }
-    if (tx == 9 && ty == 23) fprintf(stderr, "brave0 ACCEPT (%d,%d) attempt=%d t=%02x l2=%02x\n", x, y, attempt, ai_terrain_at(map,x,y), ai_layer2_at(map,x,y));
     ox = x;
     oy = y;
     ok = 1;
@@ -511,6 +500,9 @@ static void ai_spawn_brave_near(
       u->goto_x = 0xFF;
       u->goto_y = 0xFF;
     }
+    /* FUN_1427_02ca: OR flag bit0; FUN_137f_0228 nation into continent high nibble. */
+    ai_layer2_or(map, ox, oy, 1);
+    ai_set_owner_nibble(map, ox, oy, nation_id);
   }
 }
 
@@ -704,6 +696,7 @@ static bool ai_place_tribes_procedural(
       return *count > 0;
     }
     ai_layer2_or(p->map, px, py, 2);
+    ai_set_owner_nibble(p->map, px, py, indian + 4);
     p->col1->indian[indian].capitol_x = (uint8_t)px;
     p->col1->indian[indian].capitol_y = (uint8_t)py;
     nation_tribe_count[indian]++;
@@ -771,6 +764,7 @@ static bool ai_place_tribes_procedural(
       const uint8_t tech = p->col1->indian[nation - 4].tech;
       if (ai_append_tribe(tribes, count, capacity, x, y, nation, false, tech)) {
         ai_layer2_or(p->map, x, y, 2);
+        ai_set_owner_nibble(p->map, x, y, nation);
         if (nation >= 4 && nation <= 11) {
           nation_tribe_count[nation - 4]++;
         }
@@ -912,6 +906,14 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
    */
   if (!params->use_tribe_txt && params->rng_seed) {
     dos_rng_seed(rng, params->rng_seed);
+  }
+  /* FUN_6ba1_10be: mark every tile unowned (high nibble 0xf) before villages. */
+  if (params->map && params->map->layer3) {
+    const int n = params->map->width * params->map->height;
+    for (int i = 0; i < n; ++i) {
+      params->map->layer3[i] =
+        (uint8_t)((params->map->layer3[i] & 0x0fu) | 0xf0u);
+    }
   }
   fprintf(stderr, "tribe-entry rng=%u\n", (unsigned)rng->state);
   if (params->use_tribe_txt && params->data_dir) {
