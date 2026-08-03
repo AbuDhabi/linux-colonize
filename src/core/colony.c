@@ -34,6 +34,10 @@ static int colony_map_icon(const ColonizeColonyPool* pool, const ColonizeColony*
   return COLONY_MAP_ICON_NONE;
 }
 
+int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  return colony_map_icon(pool, colony);
+}
+
 static void colony_blit_map_icon(
   const ColonizeSpriteSheet* icons,
   int sprite,

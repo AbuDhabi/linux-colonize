@@ -352,36 +352,40 @@ Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). S
 
 ### Colony screen bring-up
 
-Press **C** on the map when the cursor is on a founded colony to open the colony screen. The layout matches DOS:
+Press **C** on the map when the cursor is on a founded colony to open the colony screen. The layout matches DOS “THE COLONY DISPLAY”:
 
 | Layer | Asset | Role |
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
 | Top bar | (rendered) | Colony name, campaign date, and treasury across the top strip |
-| Building ground | `PARCH.SS` (32×24 tile) | Beige scrollwork tiled across the full upper-left buildings section |
-| Buildings | `BUILDING.SS` | Starter buildings on parchment (indices match `NAMES.TXT @BUILDING`); **#16** fence (bottom-right); **#45** empty coast above fence; **42–47** tree clumps |
-| Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill for the square top-right section (equal L/R and T/B margins) |
-| Surroundings | `TERRAIN.SS` + `PHYS0.SS` | 3×3 catchment tiles centered in the WOODTILE section |
-| Bottom panel | `COLONY.PIK` (320×72) | Outside colony / dock band; warehouse cargo strip along the bottom |
-| Cargo icons | `ICONS.SS` **#22–37** | One icon per `@CARGO` type, centered in each 18px slot with the amount below |
-| Dock transports | `ICONS.SS` unit icons | Ships/wagons on the colony tile; selected outline + hold boxes (`#22–37`) under the dock band |
+| Settlement view | `PARCH.SS` + `BUILDING.SS` | Worker icons on buildings, production badges (craft/bells/crosses/hammers), outside units on the fortification strip |
+| Area view | `TERRAIN.SS` + `PHYS0.SS` + `ICONS.SS` | 3×3 catchment: settlement icon **#0–3** on center, harvest cargo icons, colonist unit sprites on surrounds |
+| Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill behind the 3×3 (equal L/R and T/B margins) |
+| People view | `COLONY.PIK` left (~x0–99) | SoL % (flag **#123**) / Tory % (crown **#124**), colonist icon strip, food/crosses/bells meters |
+| Transport view | mid (~x100–209) | Ships/wagons on wharf art; holds: full color / partial grey / empty recess; passengers as unit icons |
+| Multifunction | right (~x210–292) + buttons (~x293–304) | Production / Units / Construction (house / rifle **#68** / hammer **#69**) |
+| Warehouse | cargo strip `y=180/192` | Unchanged slots (`ICONS.SS` **#22–37**); Exit `x≥305` |
 
 `CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here.
 
 Single-pixel black separators split the sections: top bar vs middle band, buildings vs minimap, and middle band vs bottom panel.
 
-A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**, one sprite) in the **bottom-right** of the buildings section. Coastal colonies without Docks show the empty coast placeholder (`BUILDING.SS` **#45**) **above** that fence; Docks / Drydock / Shipyard replace it when built. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse (`stock[]` in `@CARGO` order; Pioneers → 100 tools, starter food 200). The bottom of `COLONY.PIK` holds the 16 cargo slots (18px wide, pitch 19, measured from the asset) with `ICONS.SS` icons and amounts underneath; last free-production deltas tint as `+N`/`-N` beside amounts. Click a colonist row, then a built building slot, to assign `building_type`. Click a 3×3 **area** surround tile (or **2**) to open a field-jobs popup (`NAMES.TXT` yields). Construction banner (or **3**) opens a wood popup to pick/clear the build project (`hammers/needed`). Settlement craft converts warehouse raw→goods (sugar→rum, tobacco→cigars, cotton→cloth, furs→coats, ore→tools, tools→muskets) when a colonist works that building; cargo-strip deltas show nets. Docked ships/wagons appear in the right dock band; click a cargo slot to load up to 100 into an empty hold, click a hold to unload (warehouse capacity: 100/type, +100 Warehouse, +100 Expansion; food soft-cap 199). Building collage positions are approximate.
+A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**) bottom-right. Coastal colonies without Docks show empty coast (`BUILDING.SS` **#45**) above the fence. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist and dumps carried tools/muskets/horses into the warehouse.
 
-| Key | Action |
-|-----|--------|
-| Click colonist / building | Select colonist; assign to built workplace |
-| Click area tile or **2** | Open/close field jobs popup for surround tile |
-| Banner or **3** | Open/close construction popup |
-| **B** / Buy now | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
+**Select-then-click** assignment (no drag): click a people/area/settlement colonist, then a building or area tile. Click an outside unit to select it and focus the Units tab. Production preview (`colony_preview.c`) drives area/settlement badges, people meters, and the Production tab without mutating stock. SoL uses Col1 `rebel_dividend`/`rebel_divisor` when the colony is bridged from a save; otherwise 0% SoL / 100% Tory.
+
+| Key / click | Action |
+|-------------|--------|
+| Click colonist / building / area | Select; assign workplace or open field-jobs popup |
+| **N** / click Production pane | Toggle production numbers on icons |
+| **1** / **2** / **3** / **M** | Multifunction Production / Units / Construction / cycle |
+| **C** | Open Construction Change popup (also from Construction tab) |
+| **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
 | Click ship / cargo / hold | Select transport; load warehouse→hold; unload hold→warehouse |
-| **L** / **U** | Load highest-value cargo (not horses/tools/muskets); unload first hold |
+| **L** / **U** | Load highest-value cargo; unload first hold |
+| **=** / **+** | Full / partial load of selected warehouse cargo |
 | Esc | Close jobs, then construction, then return to map |
-| C / Enter | Return to map (when no popup); Enter confirms popup row |
+| Enter | Confirm popup; with a colonist selected open field jobs; else leave |
 | Space | Free production turn; status shows food/lumber/ore/hammer deltas |
 
 ### Units (map bring-up)

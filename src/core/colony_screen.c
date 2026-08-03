@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/colony_preview.h"
 #include "core/colony_yield.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
@@ -30,6 +31,10 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
     return;
   }
   view->selected_colonist = -1;
+  view->selected_outside_unit = -1;
+  view->show_production_numbers = false;
+  view->multi_mode = COLONY_MULTI_PRODUCTION;
+  view->selected_cargo = -1;
   view->construction_open = false;
   view->construction_selection = 0;
   view->buildable_count = 0;
@@ -39,9 +44,13 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->job_count = 0;
   view->last_delta_valid = false;
   memset(&view->last_delta, 0, sizeof(view->last_delta));
+  view->preview_valid = false;
+  memset(&view->preview, 0, sizeof(view->preview));
   view->transport_unit_id = -1;
   view->docked_transport_count = 0;
   memset(view->docked_transport_ids, 0, sizeof(view->docked_transport_ids));
+  view->outside_unit_count = 0;
+  memset(view->outside_unit_ids, 0, sizeof(view->outside_unit_ids));
 }
 
 void colony_screen_refresh_transports(
@@ -64,7 +73,6 @@ void colony_screen_refresh_transports(
     if (!units_is_transport(units, stack[i])) {
       continue;
     }
-    /* Skip passengers — transports must be on-map. */
     const ColonizeUnit* u = units_get_const(units, stack[i]);
     if (!u || !units_is_on_map(u)) {
       continue;
@@ -86,6 +94,63 @@ void colony_screen_refresh_transports(
   if (view->transport_unit_id < 0 && view->docked_transport_count == 1) {
     view->transport_unit_id = view->docked_transport_ids[0];
   }
+}
+
+void colony_screen_refresh_outside(
+  ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  const ColonizeColony* colony
+) {
+  if (!view) {
+    return;
+  }
+  view->outside_unit_count = 0;
+  if (!units || !colony) {
+    view->selected_outside_unit = -1;
+    return;
+  }
+  int stack[COLONIZE_UNITS_MAX];
+  const int n =
+    units_collect_tile_stack(units, colony->x, colony->y, colony->nation_id, stack, COLONIZE_UNITS_MAX);
+  for (int i = 0; i < n && view->outside_unit_count < COLONY_OUTSIDE_MAX; ++i) {
+    if (units_is_transport(units, stack[i])) {
+      continue;
+    }
+    const ColonizeUnit* u = units_get_const(units, stack[i]);
+    if (!u || !units_is_on_map(u)) {
+      continue;
+    }
+    view->outside_unit_ids[view->outside_unit_count++] = stack[i];
+  }
+  if (view->selected_outside_unit >= 0) {
+    bool still = false;
+    for (int i = 0; i < view->outside_unit_count; ++i) {
+      if (view->outside_unit_ids[i] == view->selected_outside_unit) {
+        still = true;
+        break;
+      }
+    }
+    if (!still) {
+      view->selected_outside_unit = -1;
+    }
+  }
+}
+
+void colony_screen_refresh_preview(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeWorldMap* map
+) {
+  if (!view) {
+    return;
+  }
+  if (!pool || !colony) {
+    view->preview_valid = false;
+    return;
+  }
+  colony_preview_compute(pool, colony, map, &view->preview);
+  view->preview_valid = true;
 }
 
 void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDelta* delta) {
@@ -450,20 +515,113 @@ static void colony_screen_draw_top_bar(
   font_draw_text(font, framebuffer, 240, 2, line, 15);
 }
 
-static void colony_screen_draw_field_workers(
+static void colony_screen_draw_selection_box(
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  int w,
+  int h,
+  uint8_t color
+) {
+  if (!framebuffer || w <= 0 || h <= 0) {
+    return;
+  }
+  colony_screen_fill_rect(framebuffer, x, y, x + w, y + 1, color);
+  colony_screen_fill_rect(framebuffer, x, y + h - 1, x + w, y + h, color);
+  colony_screen_fill_rect(framebuffer, x, y, x + 1, y + h, color);
+  colony_screen_fill_rect(framebuffer, x + w - 1, y, x + w, y + h, color);
+}
+
+static void colony_screen_blit_icon(
   const ColonyScreenView* view,
+  int sprite,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y
+) {
+  if (!view || !view->icons_ok || !framebuffer || sprite < 0 || sprite >= view->icons.sprite_count) {
+    return;
+  }
+  ss_blit_sprite(&view->icons, sprite, framebuffer, x, y);
+}
+
+static void colony_screen_blit_cargo(
+  const ColonyScreenView* view,
+  int cargo,
+  bool grey,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y
+) {
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  const int sprite = (grey ? COLONY_CARGO_GREY_BASE : COLONY_CARGO_ICON_BASE) + cargo;
+  colony_screen_blit_icon(view, sprite, framebuffer, x, y);
+}
+
+static void colony_screen_draw_area_overlays(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
-  if (!colony || !framebuffer) {
+  (void)units;
+  if (!view || !colony || !map || !framebuffer) {
     return;
   }
   int origin_x = 0;
   int origin_y = 0;
   colony_screen_minimap_origin(&origin_x, &origin_y);
   const int half = COLONY_MINIMAP_GRID / 2;
+
+  /* Center settlement icon. */
+  {
+    const int tile_x = origin_x + half * COLONY_MINIMAP_TILE;
+    const int tile_y = origin_y + half * COLONY_MINIMAP_TILE;
+    const int icon = colonies_settlement_icon(pool, colony);
+    if (view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+      const ColonizeSprite* sp = &view->icons.sprites[icon];
+      const int px = tile_x + (COLONY_MINIMAP_TILE - sp->width) / 2;
+      const int py = tile_y + (COLONY_MINIMAP_TILE - sp->height) / 2;
+      ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
+    }
+    /* Up to two auto-yield cargo rows above the settlement. */
+    const int j0 = colony_preview_best_job(map, colony->x, colony->y);
+    int row = 0;
+    if (j0 >= 0) {
+      const int cargo = colony_yield_job_cargo(j0);
+      const int yld = colony_yield_for_tile(map, colony->x, colony->y, j0);
+      if (cargo >= 0 && yld > 0) {
+        colony_screen_blit_cargo(view, cargo, false, framebuffer, tile_x + 1, tile_y - 10);
+        if (view->show_production_numbers && font) {
+          char num[8];
+          snprintf(num, sizeof(num), "%d", yld);
+          font_draw_text(font, framebuffer, tile_x + 10, tile_y - 8, num, 15);
+        }
+        row = 1;
+      }
+      const int j1 = colony_preview_second_job(map, colony->x, colony->y, j0);
+      if (j1 >= 0) {
+        const int cargo1 = colony_yield_job_cargo(j1);
+        const int yld1 = colony_yield_for_tile(map, colony->x, colony->y, j1);
+        if (cargo1 >= 0 && yld1 > 0) {
+          colony_screen_blit_cargo(
+            view, cargo1, false, framebuffer, tile_x + 1, tile_y - 10 - row * 10
+          );
+          if (view->show_production_numbers && font) {
+            char num[8];
+            snprintf(num, sizeof(num), "%d", yld1);
+            font_draw_text(font, framebuffer, tile_x + 10, tile_y - 8 - row * 10, num, 15);
+          }
+        }
+      }
+    }
+  }
+
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
     const int who = (int)colony->tiles[ti];
     if (who < 0 || who >= colony->colonist_count) {
@@ -480,15 +638,27 @@ static void colony_screen_draw_field_workers(
     }
     const int tile_x = origin_x + (dx + half) * COLONY_MINIMAP_TILE;
     const int tile_y = origin_y + (dy + half) * COLONY_MINIMAP_TILE;
-    const bool sel = view && view->selected_colonist == who;
-    colony_screen_fill_rect(
-      framebuffer, tile_x + 1, tile_y + 1, tile_x + 6, tile_y + 6, sel ? 15 : 14
-    );
-    if (font && map) {
-      const int yld = colony_yield_for_tile(map, colony->x + dx, colony->y + dy, c->field_job);
-      char num[8];
-      snprintf(num, sizeof(num), "%d", yld);
-      font_draw_text(font, framebuffer, tile_x + 7, tile_y + 4, num, 15);
+    const int cargo = colony_yield_job_cargo(c->field_job);
+    const int yld = colony_yield_for_tile(map, colony->x + dx, colony->y + dy, c->field_job);
+    if (cargo >= 0 && yld > 0) {
+      colony_screen_blit_cargo(view, cargo, false, framebuffer, tile_x + 4, tile_y + 1);
+      if (view->show_production_numbers && font) {
+        char num[8];
+        snprintf(num, sizeof(num), "%d", yld);
+        font_draw_text(font, framebuffer, tile_x + 4, tile_y + 1, num, 15);
+      }
+    }
+    /* Colonist icon in front of resources. */
+    if (units) {
+      const ColonizeUnitType* ut = units_type(units, c->unit_type_index);
+      if (ut && ut->icon_sprite >= 0) {
+        const int ix = tile_x + 2;
+        const int iy = tile_y + 4;
+        colony_screen_blit_icon(view, ut->icon_sprite, framebuffer, ix, iy);
+        if (view->selected_colonist == who) {
+          colony_screen_draw_selection_box(framebuffer, ix - 1, iy - 1, 14, 14, 10);
+        }
+      }
     }
   }
 }
@@ -690,9 +860,10 @@ static void colony_screen_blit_slot(
 }
 
 static void colony_screen_blit_buildings(
-  const ColonyScreenView* view,
+  ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
   bool coastal,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -716,13 +887,69 @@ static void colony_screen_blit_buildings(
         view, slot->tree_sprite, slot_ox + slot->x, slot_oy + slot->y, framebuffer
       );
     }
+
+    /* Workers in this building (up to 3) + production badges. */
+    if (built < 0 || !units) {
+      continue;
+    }
+    int workers = 0;
+    for (int ci = 0; ci < colony->colonist_count && workers < 3; ++ci) {
+      const ColonizeColonist* c = &colony->colonists[ci];
+      if (!c->active || c->building_type != built) {
+        continue;
+      }
+      const ColonizeUnitType* ut = units_type(units, c->unit_type_index);
+      const int wx = slot_ox + slot->x + 2 + workers * 12;
+      const int wy = slot_oy + slot->y + COLONY_BUILDING_SLOT_H - 18;
+      if (ut && ut->icon_sprite >= 0) {
+        colony_screen_blit_icon(view, ut->icon_sprite, framebuffer, wx, wy);
+        if (view->selected_colonist == ci) {
+          colony_screen_draw_selection_box(framebuffer, wx - 1, wy - 1, 14, 14, 10);
+        }
+      }
+      /* Production badge above worker. */
+      int badge = -1;
+      if (strstr(pool->building_types[built].name, "Town Hall") ||
+          strstr(pool->building_types[built].name, "Printing") ||
+          strstr(pool->building_types[built].name, "Newspaper")) {
+        badge = COLONY_ICON_BELL;
+      } else if (
+        strstr(pool->building_types[built].name, "Church") ||
+        strstr(pool->building_types[built].name, "Cathedral")
+      ) {
+        badge = COLONY_ICON_CROSS;
+      } else if (strstr(pool->building_types[built].name, "Carpenter")) {
+        badge = COLONY_ICON_HAMMER;
+      } else if (strstr(pool->building_types[built].name, "Rum")) {
+        badge = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_RUM;
+      } else if (strstr(pool->building_types[built].name, "Tobacconist")) {
+        badge = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_CIGARS;
+      } else if (
+        strstr(pool->building_types[built].name, "Weaver") ||
+        strstr(pool->building_types[built].name, "Textile")
+      ) {
+        badge = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_CLOTH;
+      } else if (strstr(pool->building_types[built].name, "Fur")) {
+        badge = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COATS;
+      } else if (
+        strstr(pool->building_types[built].name, "Blacksmith") ||
+        strstr(pool->building_types[built].name, "Iron")
+      ) {
+        badge = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_TOOLS;
+      } else if (
+        strstr(pool->building_types[built].name, "Armory") ||
+        strstr(pool->building_types[built].name, "Magazine") ||
+        strstr(pool->building_types[built].name, "Arsenal")
+      ) {
+        badge = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_MUSKETS;
+      }
+      if (badge >= 0) {
+        colony_screen_blit_icon(view, badge, framebuffer, wx + 2, wy - 10);
+      }
+      workers++;
+    }
   }
 
-  /*
-   * Bottom-right stack (DOS colony collage):
-   *   coast / docks / drydock / shipyard (75×48) above
-   *   fence / stockade / fort / fortress (73×18) below, right-aligned
-   */
   const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_FENCE_W;
   const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - COLONY_FENCE_H;
   const int coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_COAST_W;
@@ -741,49 +968,23 @@ static void colony_screen_blit_buildings(
   } else {
     colony_screen_blit_slot(view, COLONY_FENCE_SPRITE, fence_x, fence_y, framebuffer);
   }
-}
 
-/* Tiny +N craft output under settlement craft slots (from last production delta). */
-static void colony_screen_draw_craft_deltas(
-  const ColonyScreenView* view,
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* framebuffer
-) {
-  if (!view || !view->last_delta_valid || !font || !framebuffer) {
-    return;
-  }
-  typedef struct {
-    const char* const* chain;
-    int out_cargo;
-  } CraftLabel;
-  static const CraftLabel k_labels[] = {
-    {k_slot_rum, COLONIZE_CARGO_RUM},
-    {k_slot_tobacco, COLONIZE_CARGO_CIGARS},
-    {k_slot_weaver, COLONIZE_CARGO_CLOTH},
-    {k_slot_fur, COLONIZE_CARGO_COATS},
-    {k_slot_blacksmith, COLONIZE_CARGO_TOOLS},
-    {k_slot_armory, COLONIZE_CARGO_MUSKETS},
-  };
-  for (size_t li = 0; li < sizeof(k_labels) / sizeof(k_labels[0]); ++li) {
-    const int g = view->last_delta.goods[k_labels[li].out_cargo];
-    if (g <= 0) {
-      continue;
-    }
-    for (int i = 0; i < k_building_slot_count; ++i) {
-      if (k_building_slots[i].chain != k_labels[li].chain) {
+  /* Outside units in front of fortification. */
+  if (units) {
+    for (int i = 0; i < view->outside_unit_count; ++i) {
+      const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
+      if (!u) {
         continue;
       }
-      char buf[12];
-      snprintf(buf, sizeof(buf), "+%d", g);
-      font_draw_text(
-        font,
-        framebuffer,
-        COLONY_VIEWPORT_X + k_building_slots[i].x + 2,
-        COLONY_VIEWPORT_Y + k_building_slots[i].y + COLONY_BUILDING_SLOT_H - 8,
-        buf,
-        10
-      );
-      break;
+      const ColonizeUnitType* ut = units_type(units, u->type_index);
+      const int ux = fence_x + 4 + i * 14;
+      const int uy = fence_y - 2;
+      if (ut && ut->icon_sprite >= 0) {
+        colony_screen_blit_icon(view, ut->icon_sprite, framebuffer, ux, uy);
+        if (view->selected_outside_unit == u->id) {
+          colony_screen_draw_selection_box(framebuffer, ux - 1, uy - 1, 14, 14, 10);
+        }
+      }
     }
   }
 }
@@ -867,11 +1068,9 @@ static void colony_screen_draw_transports(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
+  (void)font;
   if (!view || !units || !framebuffer) {
     return;
-  }
-  if (font && view->docked_transport_count > 0) {
-    font_draw_text(font, framebuffer, COLONY_TRANSPORT_X, COLONY_BOTTOM_PANEL_Y + 4, "Ship", 15);
   }
   for (int i = 0; i < view->docked_transport_count; ++i) {
     const ColonizeUnit* u = units_get_const(units, view->docked_transport_ids[i]);
@@ -879,17 +1078,14 @@ static void colony_screen_draw_transports(
       continue;
     }
     const ColonizeUnitType* type = units_type(units, u->type_index);
-    const int x = COLONY_TRANSPORT_X + i * COLONY_TRANSPORT_PITCH;
-    const int y = COLONY_TRANSPORT_Y;
+    const int x = COLONY_TRANSPORT_X + 4 + i * COLONY_TRANSPORT_PITCH;
+    const int y = COLONY_TRANSPORT_ICON_Y;
     const bool sel = view->transport_unit_id == u->id;
     if (sel) {
-      colony_screen_fill_rect(framebuffer, x - 1, y - 1, x + 17, y + 17, 10);
+      colony_screen_draw_selection_box(framebuffer, x - 1, y - 1, 16, 16, 10);
     }
-    if (type && view->icons_ok && type->icon_sprite >= 0 &&
-        type->icon_sprite < view->icons.sprite_count) {
-      ss_blit_sprite(&view->icons, type->icon_sprite, framebuffer, x, y);
-    } else if (font) {
-      font_draw_text(font, framebuffer, x, y + 4, "?", 15);
+    if (type && type->icon_sprite >= 0) {
+      colony_screen_blit_icon(view, type->icon_sprite, framebuffer, x, y);
     }
   }
 
@@ -900,22 +1096,264 @@ static void colony_screen_draw_transports(
   if (!ship) {
     return;
   }
-  const int holds = units_goods_hold_count(units, view->transport_unit_id);
-  for (int i = 0; i < holds; ++i) {
-    const int x = COLONY_HOLD_X + i * COLONY_HOLD_PITCH;
+  const int goods_holds = units_goods_hold_count(units, view->transport_unit_id);
+  for (int i = 0; i < goods_holds; ++i) {
+    const int x = COLONY_HOLD_X + 4 + i * COLONY_HOLD_PITCH;
     const int y = COLONY_HOLD_Y;
     const int amt = ship->hold_goods_amount[i];
     const int gtype = ship->hold_goods_type[i];
     if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT) {
-      const int sprite = COLONY_CARGO_ICON_BASE + gtype;
-      if (view->icons_ok && sprite < view->icons.sprite_count) {
-        ss_blit_sprite(&view->icons, sprite, framebuffer, x, y);
-      } else {
-        colony_screen_draw_empty_hold(framebuffer, x, y, COLONY_HOLD_W, COLONY_HOLD_H);
-      }
+      const bool partial = amt < 100;
+      colony_screen_blit_cargo(view, gtype, partial, framebuffer, x, y);
     } else {
       colony_screen_draw_empty_hold(framebuffer, x, y, COLONY_HOLD_W, COLONY_HOLD_H);
     }
+  }
+  /* Passengers drawn after goods holds. */
+  for (int i = 0; i < ship->cargo_count; ++i) {
+    const int x = COLONY_HOLD_X + 4 + (goods_holds + i) * COLONY_HOLD_PITCH;
+    const int y = COLONY_HOLD_Y;
+    const ColonizeUnit* pass = units_get_const(units, ship->cargo_ids[i]);
+    if (!pass) {
+      continue;
+    }
+    const ColonizeUnitType* pt = units_type(units, pass->type_index);
+    if (pt && pt->icon_sprite >= 0) {
+      colony_screen_blit_icon(view, pt->icon_sprite, framebuffer, x, y);
+    }
+  }
+}
+
+static int colony_screen_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  if (!col1 || !colony || !col1->colony) {
+    return 0;
+  }
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->x == colony->x && (int)c->y == colony->y) {
+      if (c->rebel_divisor == 0) {
+        return 0;
+      }
+      return (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+    }
+  }
+  return 0;
+}
+
+static void colony_screen_draw_people(
+  ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !colony || !framebuffer) {
+    return;
+  }
+  const int sol = colony_screen_sol_percent(col1, colony);
+  const int tory = 100 - sol;
+  colony_screen_blit_icon(view, COLONY_ICON_FLAG, framebuffer, COLONY_PEOPLE_X + 2, COLONY_PANEL_CONTENT_Y);
+  colony_screen_blit_icon(
+    view, COLONY_ICON_CROWN, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16, COLONY_PANEL_CONTENT_Y
+  );
+  if (font) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d%%", sol);
+    font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 16, COLONY_PANEL_CONTENT_Y + 2, buf, 15);
+    snprintf(buf, sizeof(buf), "%d%%", tory);
+    font_draw_text(
+      font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 40, COLONY_PANEL_CONTENT_Y + 2, buf, 15
+    );
+  }
+
+  int x = COLONY_PEOPLE_X + 2;
+  const int y_people = COLONY_PANEL_CONTENT_Y + 16;
+  for (int i = 0; i < colony->colonist_count; ++i) {
+    const ColonizeColonist* c = &colony->colonists[i];
+    if (!c->active) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units ? units_type(units, c->unit_type_index) : NULL;
+    if (ut && ut->icon_sprite >= 0) {
+      colony_screen_blit_icon(view, ut->icon_sprite, framebuffer, x, y_people);
+      if (view->selected_colonist == i) {
+        colony_screen_draw_selection_box(framebuffer, x - 1, y_people - 1, 14, 14, 10);
+      }
+    }
+    x += 12;
+    if (x > COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14) {
+      break;
+    }
+  }
+
+  x = COLONY_PEOPLE_X + 2;
+  const int y_out = y_people + 16;
+  for (int i = 0; i < view->outside_unit_count; ++i) {
+    const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
+    if (!u) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units_type(units, u->type_index);
+    if (ut && ut->icon_sprite >= 0) {
+      colony_screen_blit_icon(view, ut->icon_sprite, framebuffer, x, y_out);
+      if (view->selected_outside_unit == u->id) {
+        colony_screen_draw_selection_box(framebuffer, x - 1, y_out - 1, 14, 14, 10);
+      }
+    }
+    x += 12;
+    if (x > COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14) {
+      break;
+    }
+  }
+
+  if (!view->preview_valid) {
+    return;
+  }
+  const ColonizeColonyPreview* p = &view->preview;
+  int meter_y = COLONY_CARGO_STRIP_Y - 14;
+  int mx = COLONY_PEOPLE_X + 2;
+  const int food_show = p->food_produced > 8 ? 8 : p->food_produced;
+  for (int i = 0; i < food_show; ++i) {
+    colony_screen_blit_cargo(view, COLONIZE_CARGO_FOOD, false, framebuffer, mx, meter_y);
+    mx += 8;
+  }
+  if (p->food_net > 0) {
+    mx += 4;
+    const int excess = p->food_net > 4 ? 4 : p->food_net;
+    for (int i = 0; i < excess; ++i) {
+      colony_screen_blit_cargo(view, COLONIZE_CARGO_FOOD, false, framebuffer, mx, meter_y);
+      mx += 8;
+    }
+  } else if (p->food_net < 0) {
+    mx += 4;
+    const int shortf = (-p->food_net) > 4 ? 4 : -p->food_net;
+    for (int i = 0; i < shortf; ++i) {
+      colony_screen_blit_cargo(view, COLONIZE_CARGO_FOOD, true, framebuffer, mx, meter_y);
+      mx += 8;
+    }
+  }
+  mx = COLONY_PEOPLE_X + 2;
+  meter_y -= 12;
+  const int crosses = p->crosses > 6 ? 6 : p->crosses;
+  for (int i = 0; i < crosses; ++i) {
+    colony_screen_blit_icon(view, COLONY_ICON_CROSS, framebuffer, mx, meter_y);
+    mx += 8;
+  }
+  mx = COLONY_PEOPLE_X + 50;
+  const int bells = p->bells > 6 ? 6 : p->bells;
+  for (int i = 0; i < bells; ++i) {
+    colony_screen_blit_icon(view, COLONY_ICON_BELL, framebuffer, mx, meter_y);
+    mx += 8;
+  }
+}
+
+static void colony_screen_draw_multifunction(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !framebuffer) {
+    return;
+  }
+  /* Mode buttons. */
+  colony_screen_blit_icon(
+    view, 3, framebuffer, COLONY_MULTI_BTN_X, COLONY_PANEL_CONTENT_Y
+  ); /* unfortified colony as "house" */
+  colony_screen_blit_icon(
+    view, COLONY_ICON_RIFLE, framebuffer, COLONY_MULTI_BTN_X, COLONY_PANEL_CONTENT_Y + 16
+  );
+  colony_screen_blit_icon(
+    view, COLONY_ICON_HAMMER_BTN, framebuffer, COLONY_MULTI_BTN_X, COLONY_PANEL_CONTENT_Y + 32
+  );
+  {
+    const int by = COLONY_PANEL_CONTENT_Y + (int)view->multi_mode * 16;
+    colony_screen_draw_selection_box(framebuffer, COLONY_MULTI_BTN_X - 1, by - 1, 14, 14, 10);
+  }
+
+  const int px = COLONY_MULTI_X + 2;
+  int py = COLONY_PANEL_CONTENT_Y;
+  if (view->multi_mode == COLONY_MULTI_PRODUCTION && view->preview_valid) {
+    const ColonizeColonyPreview* p = &view->preview;
+    int x = px;
+    int y = py;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      if (p->goods[c] <= 0 && p->shortfall[c] <= 0) {
+        continue;
+      }
+      if (p->goods[c] > 0) {
+        colony_screen_blit_cargo(view, c, false, framebuffer, x, y);
+        if (view->show_production_numbers && font) {
+          char num[8];
+          snprintf(num, sizeof(num), "%d", p->goods[c]);
+          font_draw_text(font, framebuffer, x + 8, y, num, 15);
+        }
+        x += 16;
+      }
+      if (p->shortfall[c] > 0) {
+        colony_screen_blit_cargo(view, c, true, framebuffer, x, y);
+        x += 16;
+      }
+      if (x > COLONY_MULTI_X + COLONY_MULTI_W - 20) {
+        x = px;
+        y += 14;
+      }
+    }
+    if (p->hammers > 0) {
+      colony_screen_blit_icon(view, COLONY_ICON_HAMMER, framebuffer, px, y + 16);
+      if (font) {
+        char num[12];
+        snprintf(num, sizeof(num), "%d", p->hammers);
+        font_draw_text(font, framebuffer, px + 12, y + 18, num, 15);
+      }
+    }
+  } else if (view->multi_mode == COLONY_MULTI_UNITS && units) {
+    int x = px;
+    int y = py;
+    for (int i = 0; i < view->outside_unit_count; ++i) {
+      const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
+      if (!u) {
+        continue;
+      }
+      const ColonizeUnitType* ut = units_type(units, u->type_index);
+      if (ut && ut->icon_sprite >= 0) {
+        colony_screen_blit_icon(view, ut->icon_sprite, framebuffer, x, y);
+        if (view->selected_outside_unit == u->id) {
+          colony_screen_draw_selection_box(framebuffer, x - 1, y - 1, 14, 14, 10);
+        }
+      }
+      x += 14;
+      if (x > COLONY_MULTI_X + COLONY_MULTI_W - 16) {
+        x = px;
+        y += 16;
+      }
+    }
+  } else if (view->multi_mode == COLONY_MULTI_CONSTRUCTION && colony && pool && font) {
+    char line[64];
+    if (colony->building_in_production >= 0) {
+      const ColonizeBuildingType* bt =
+        colonies_building_type(pool, colony->building_in_production);
+      snprintf(
+        line,
+        sizeof(line),
+        "%s",
+        bt ? bt->name : "?"
+      );
+      font_draw_text(font, framebuffer, px, py, line, 15);
+      snprintf(line, sizeof(line), "%d/%d H", colony->hammers, bt ? bt->hammers : 0);
+      font_draw_text(font, framebuffer, px, py + 10, line, 15);
+      if (bt && bt->tools_cost > 0) {
+        snprintf(line, sizeof(line), "%d tools", bt->tools_cost);
+        font_draw_text(font, framebuffer, px, py + 20, line, 15);
+      }
+    } else {
+      font_draw_text(font, framebuffer, px, py, "(none)", 15);
+    }
+    font_draw_text(font, framebuffer, px, py + 32, "Change [C]", 14);
+    font_draw_text(font, framebuffer, px, py + 42, "Buy [B]", 14);
   }
 }
 
@@ -1266,9 +1704,10 @@ ColonyScreenHitResult colony_screen_hit_test(
   if (units && view->transport_unit_id >= 0 && my >= COLONY_HOLD_Y &&
       my < COLONY_HOLD_Y + COLONY_HOLD_H) {
     const int holds = units_goods_hold_count(units, view->transport_unit_id);
-    if (mx >= COLONY_HOLD_X && holds > 0) {
-      const int idx = (mx - COLONY_HOLD_X) / COLONY_HOLD_PITCH;
-      if (idx >= 0 && idx < holds && mx < COLONY_HOLD_X + idx * COLONY_HOLD_PITCH + COLONY_HOLD_W) {
+    if (mx >= COLONY_HOLD_X + 4 && holds > 0) {
+      const int idx = (mx - (COLONY_HOLD_X + 4)) / COLONY_HOLD_PITCH;
+      if (idx >= 0 && idx < holds &&
+          mx < COLONY_HOLD_X + 4 + idx * COLONY_HOLD_PITCH + COLONY_HOLD_W) {
         hit.kind = COLONY_HIT_HOLD;
         hit.index = idx;
         return hit;
@@ -1276,13 +1715,44 @@ ColonyScreenHitResult colony_screen_hit_test(
     }
   }
 
+  /* Multifunction mode buttons. */
+  if (mx >= COLONY_MULTI_BTN_X && mx < COLONY_MULTI_BTN_X + COLONY_MULTI_BTN_W &&
+      my >= COLONY_PANEL_CONTENT_Y && my < COLONY_PANEL_CONTENT_Y + 48) {
+    const int idx = (my - COLONY_PANEL_CONTENT_Y) / 16;
+    if (idx >= 0 && idx < 3) {
+      hit.kind = COLONY_HIT_MULTI_BTN;
+      hit.index = idx;
+      return hit;
+    }
+  }
+
+  /* Multifunction pane / Construction Change click. */
+  if (mx >= COLONY_MULTI_X && mx < COLONY_MULTI_BTN_X && my >= COLONY_PANEL_CONTENT_Y &&
+      my < COLONY_CARGO_STRIP_Y) {
+    hit.kind = COLONY_HIT_MULTI_PANE;
+    hit.index = (int)view->multi_mode;
+    return hit;
+  }
+
   /* Docked transport icons. */
-  if (view->docked_transport_count > 0 && my >= COLONY_TRANSPORT_Y &&
-      my < COLONY_TRANSPORT_Y + 16 && mx >= COLONY_TRANSPORT_X) {
-    const int idx = (mx - COLONY_TRANSPORT_X) / COLONY_TRANSPORT_PITCH;
-    if (idx >= 0 && idx < view->docked_transport_count &&
-        mx < COLONY_TRANSPORT_X + idx * COLONY_TRANSPORT_PITCH + 16) {
+  if (view->docked_transport_count > 0 && my >= COLONY_TRANSPORT_ICON_Y &&
+      my < COLONY_TRANSPORT_ICON_Y + 16 && mx >= COLONY_TRANSPORT_X &&
+      mx < COLONY_TRANSPORT_X + COLONY_TRANSPORT_W) {
+    const int idx = (mx - (COLONY_TRANSPORT_X + 4)) / COLONY_TRANSPORT_PITCH;
+    if (idx >= 0 && idx < view->docked_transport_count) {
       hit.kind = COLONY_HIT_TRANSPORT;
+      hit.index = idx;
+      return hit;
+    }
+  }
+
+  /* Outside units on fortification strip. */
+  if (view->outside_unit_count > 0 && my >= COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - 20 &&
+      my < COLONY_BOTTOM_SEPARATOR_Y && mx >= COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_FENCE_W) {
+    const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_FENCE_W;
+    const int idx = (mx - (fence_x + 4)) / 14;
+    if (idx >= 0 && idx < view->outside_unit_count) {
+      hit.kind = COLONY_HIT_OUTSIDE_UNIT;
       hit.index = idx;
       return hit;
     }
@@ -1290,7 +1760,8 @@ ColonyScreenHitResult colony_screen_hit_test(
 
   if (my >= COLONY_CONSTRUCTION_BANNER_Y &&
       my < COLONY_CONSTRUCTION_BANNER_Y + COLONY_CONSTRUCTION_BANNER_H &&
-      mx >= COLONY_VIEWPORT_X && mx < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W) {
+      mx >= COLONY_VIEWPORT_X && mx < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W &&
+      view->multi_mode != COLONY_MULTI_CONSTRUCTION) {
     hit.kind = COLONY_HIT_CONSTRUCTION_BANNER;
     return hit;
   }
@@ -1316,15 +1787,24 @@ ColonyScreenHitResult colony_screen_hit_test(
     }
   }
 
-  if (colony->colonist_count > 0 && my >= COLONY_COLONIST_LIST_Y0) {
-    const int cargo_limit = COLONY_CARGO_STRIP_Y - 2;
-    if (my < cargo_limit && mx >= COLONY_COLONIST_LIST_X && mx < 200) {
-      const int idx = (my - COLONY_COLONIST_LIST_Y0) / COLONY_COLONIST_ROW_H;
-      if (idx >= 0 && idx < colony->colonist_count && colony->colonists[idx].active) {
-        hit.kind = COLONY_HIT_COLONIST;
-        hit.index = idx;
-        return hit;
-      }
+  /* People-view colonist icons (first row) and outside units (second row). */
+  if (my >= COLONY_PANEL_CONTENT_Y + 16 && my < COLONY_PANEL_CONTENT_Y + 32 &&
+      mx >= COLONY_PEOPLE_X && mx < COLONY_PEOPLE_X + COLONY_PEOPLE_W) {
+    const int idx = (mx - (COLONY_PEOPLE_X + 2)) / 12;
+    if (idx >= 0 && idx < colony->colonist_count && colony->colonists[idx].active) {
+      hit.kind = COLONY_HIT_PEOPLE_COLONIST;
+      hit.index = idx;
+      return hit;
+    }
+  }
+  if (view->outside_unit_count > 0 && my >= COLONY_PANEL_CONTENT_Y + 32 &&
+      my < COLONY_PANEL_CONTENT_Y + 48 && mx >= COLONY_PEOPLE_X &&
+      mx < COLONY_PEOPLE_X + COLONY_PEOPLE_W) {
+    const int idx = (mx - (COLONY_PEOPLE_X + 2)) / 12;
+    if (idx >= 0 && idx < view->outside_unit_count) {
+      hit.kind = COLONY_HIT_OUTSIDE_UNIT;
+      hit.index = idx;
+      return hit;
     }
   }
 
@@ -1359,6 +1839,7 @@ void colony_screen_render(
   const ColonizeWorldMap* map,
   const ColonizeSpriteSheet* terrain,
   const ColonizeSpriteSheet* phys0,
+  const ColonizeCol1Save* col1,
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
@@ -1374,20 +1855,27 @@ void colony_screen_render(
     pik_blit(&view->frame, framebuffer, 0, 0);
   }
 
+  if (view && colony && units) {
+    colony_screen_refresh_transports(view, units, colony);
+    colony_screen_refresh_outside(view, units, colony);
+  }
+  if (view && pool && colony) {
+    colony_screen_refresh_preview(view, pool, colony, map);
+  }
+
   colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);
 
   colony_screen_fill_parch(view, framebuffer);
   {
     const bool coastal =
       colony && map && map_tile_is_coastal(map, colony->x, colony->y);
-    colony_screen_blit_buildings(view, pool, colony, coastal, framebuffer);
-    colony_screen_draw_craft_deltas(view, font, framebuffer);
+    colony_screen_blit_buildings(view, pool, colony, units, coastal, framebuffer);
   }
 
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
     colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
-    colony_screen_draw_field_workers(view, colony, map, font, framebuffer);
+    colony_screen_draw_area_overlays(view, pool, colony, units, map, font, framebuffer);
   }
 
   if (view && view->bottom_panel_ok) {
@@ -1404,51 +1892,18 @@ void colony_screen_render(
     0
   );
 
-  colony_screen_draw_construction_banner(view, pool, colony, font, framebuffer);
+  if (view && view->multi_mode != COLONY_MULTI_CONSTRUCTION) {
+    colony_screen_draw_construction_banner(view, pool, colony, font, framebuffer);
+  }
 
-  if (view && colony && units) {
-    colony_screen_refresh_transports(view, units, colony);
+  if (view) {
+    colony_screen_draw_people(view, colony, units, col1, font, framebuffer);
     colony_screen_draw_transports(view, units, font, framebuffer);
+    colony_screen_draw_multifunction(view, pool, colony, units, font, framebuffer);
   }
 
   if (colony) {
     colony_screen_draw_cargo_strip(view, colony, font, framebuffer);
-  }
-
-  if (colony && font) {
-    char line[96];
-    const int cargo_limit = COLONY_CARGO_STRIP_Y - 2;
-    font_draw_text(font, framebuffer, 8, COLONY_BOTTOM_PANEL_Y + 4, "Colonists", 15);
-    int y = COLONY_COLONIST_LIST_Y0;
-    for (int i = 0; i < colony->colonist_count && y + 8 < cargo_limit; ++i) {
-      const ColonizeColonist* c = &colony->colonists[i];
-      if (!c->active) {
-        continue;
-      }
-      const char* uname = "Colonist";
-      if (units) {
-        const ColonizeUnitType* ut = units_type(units, c->unit_type_index);
-        if (ut) {
-          uname = ut->name;
-        }
-      }
-      const char* place = "Idle";
-      if (c->field_job >= 0) {
-        place = colony_yield_job_name(c->field_job);
-      } else if (pool && c->building_type >= 0) {
-        const ColonizeBuildingType* bt = colonies_building_type(pool, c->building_type);
-        if (bt) {
-          place = bt->name;
-        }
-      }
-      snprintf(line, sizeof(line), "%d. %s @ %s", i + 1, uname, place);
-      const bool sel = view && view->selected_colonist == i;
-      if (sel) {
-        colony_screen_fill_rect(framebuffer, 6, y - 1, 200, y + COLONY_COLONIST_ROW_H - 1, 138);
-      }
-      font_draw_text(font, framebuffer, 8, y, line, sel ? 15 : 12);
-      y += COLONY_COLONIST_ROW_H;
-    }
   }
 
   if (view && view->construction_open) {
@@ -1470,3 +1925,4 @@ void colony_screen_render(
     }
   }
 }
+
