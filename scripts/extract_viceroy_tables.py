@@ -10,7 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXE = ROOT / "COLONIZE" / "VICEROY.EXE"
 OUT_C = ROOT / "src" / "data" / "viceroy_tables.c"
 
-# Anchor: river transition table at DS:0x54de (verified against viceroy.c usage).
+# Anchor: river transition table at DS:0x54de (verified against
+# original_sources_decompiled/viceroy_unpacked.c usage).
 DS_RIVER_TRANSITION = 0x54DE
 RIVER_TRANSITION = bytes(
     [7, 4, 2, 1, 1, 0, 0, 7, 11, 13, 14, 0, 23, 44, 53, 73, 75, 0, 27, 22, 37, 18, 48, 0, 3, 20, 25, 5]
