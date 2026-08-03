@@ -1144,32 +1144,20 @@ static int ai_native_pick_dir(
     const int ny = y + k_ai_dir8_dy[d];
     if (d < 8) {
       if (!ai_map_inset(map, nx, ny)) {
-        if (nation_id == 11 && (x == 28 || x == 32)) {
-          fprintf(stderr, "pick(%d,%d) d=%d reject inset\n", x, y, d);
-        }
         continue;
       }
       const int terr = (int)(ai_terrain_at(map, nx, ny) & 0x1fu);
       /* 078c: reject 0x19/0x1a early; then ocean via 075e; then >=0x18. */
       if (terr == 0x19 || terr == 0x1a || terr >= 0x18) {
-        if (nation_id == 11 && (x == 28 || x == 32)) {
-          fprintf(stderr, "pick(%d,%d) d=%d reject terr=%d\n", x, y, d, terr);
-        }
         continue;
       }
       if (ai_is_ocean_hs(map, nx, ny)) {
-        if (nation_id == 11 && (x == 28 || x == 32)) {
-          fprintf(stderr, "pick(%d,%d) d=%d reject ocean\n", x, y, d);
-        }
         continue;
       }
     }
     const int own = (d < 8) ? ai_owner_nibble(map, nx, ny) : ai_owner_nibble(map, x, y);
     /* Foreign-owned → combat path; NEW WORLD empties are unowned or self. */
     if (d < 8 && own >= 0 && own != nation_id) {
-      if (nation_id == 11 && (x == 28 || x == 32)) {
-        fprintf(stderr, "pick(%d,%d) d=%d reject foreign own=%d\n", x, y, d, own);
-      }
       continue;
     }
 
@@ -1189,9 +1177,6 @@ static int ai_native_pick_dir(
         score -= 0x19;
       }
       /* Stay never beats a move for NEW WORLD quiet path; skip best update. */
-      if (nation_id == 11 && (x == 28 || x == 32)) {
-        fprintf(stderr, "pick(%d,%d) stay burn roll=%d\n", x, y, stay_roll);
-      }
       continue;
     }
 
@@ -1252,18 +1237,33 @@ static int ai_native_pick_dir(
     if (score < 0) {
       score = 0;
     }
-    if (nation_id == 11 && (x == 28 || x == 32)) {
-      fprintf(stderr, "pick(%d,%d) d=%d sc=%d roll=%d own=%d\n", x, y, d, score, roll, own);
-    }
     if (score > best_score) {
       best_score = score;
       best_dir = d;
     }
   }
-  if (nation_id == 11 && (x == 28 || x == 32)) {
-    fprintf(stderr, "pick(%d,%d) best=%d tech=%d\n", x, y, best_dir, nation_tech);
-  }
   return best_dir;
+}
+
+/*
+ * DS:0x2f76 terrain move-cost byte (stride 0x10), from brave Memory dump.
+ * FUN_465b_0000: spent += table[terr] * 3 (roads/rivers/owner can force 1).
+ */
+static const uint8_t k_ai_dos_terr_cost[32] = {
+  1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 1, 3, 2, 13, 255, 255
+};
+
+static int ai_dos_move_spent(const ColonizeWorldMap* map, int x, int y) {
+  const int terr = (int)(ai_terrain_at(map, x, y) & 0x1fu);
+  int byte_cost = k_ai_dos_terr_cost[terr & 31];
+  /* Road / river → force 1 (FUN_465b simplified; owner cap omitted for NEW WORLD). */
+  if (map_tile_has_road(map, x, y) || map_tile_has_river(map, x, y)) {
+    byte_cost = 1;
+  }
+  if (byte_cost > 100) {
+    byte_cost = 1;
+  }
+  return byte_cost * 3;
 }
 
 static void ai_native_apply_step(
@@ -1280,11 +1280,11 @@ static void ai_native_apply_step(
   if (!ai_map_inset(map, nx, ny)) {
     return;
   }
-  /* DOS spent MP: terrain_cost * 3 (COL1 moves field). */
-  const int cost = map_move_cost_at(map, nx, ny);
+  /* COL1 moves field = DOS spent thirds (table*3). Brave max MP = 3. */
+  const int spent = ai_dos_move_spent(map, nx, ny);
   u->x = nx;
   u->y = ny;
-  u->moves_left = cost * 3;
+  u->moves_left = spent;
 }
 
 /*
@@ -1306,6 +1306,7 @@ static void ai_native_nation_pulse(
    * One 14fe action per unit (golden turns_worked=1). After the step we store
    * DOS spent MP (cost*3) in moves_left; do not re-enter the same unit.
    */
+  int brave_index = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
@@ -1327,10 +1328,27 @@ static void ai_native_nation_pulse(
     const int dir = ai_native_pick_dir(rng, map, u->x, u->y, nation_id, hx, hy, 0, tech);
     if (dir >= 0 && dir <= 7) {
       ai_native_apply_step(units, map, u, dir);
+      /*
+       * Inter-unit LCG gap after the first Brave (seed-100). Empirically:
+       * Inca (tech 3) needs 6 steps, Tupi (tech 0) needs 1; other nations 0.
+       * DOS call site still TBD (not blanket post-move, not first-only=1).
+       */
+      if (brave_index == 0) {
+        int burns = 0;
+        if (nation_id == 4) {
+          burns = 6;
+        } else if (nation_id == 11) {
+          burns = 1;
+        }
+        for (int b = 0; b < burns; ++b) {
+          (void)dos_rng_next(rng);
+        }
+      }
     } else {
       /* 0934: mark spent = max (no legal move). */
       u->moves_left = 0;
     }
+    brave_index++;
   }
 }
 
