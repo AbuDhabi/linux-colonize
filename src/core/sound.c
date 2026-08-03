@@ -1,11 +1,14 @@
 #include "core/sound.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
+#include "core/sound_opl.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -18,10 +21,14 @@
 #define SOUND_GSOUND_DS_PARAS 0x0322
 #define SOUND_GSOUND_BGM_TABLE 0x2A6E
 #define SOUND_GSOUND_BGM_BOUND 0x331A
-#define SOUND_GSOUND_IMG_HDR 512
+#define SOUND_ASOUND_DS_PARAS 0x03c0
+#define SOUND_ASOUND_BGM_TABLE 0x1B6B
+#define SOUND_ASOUND_BGM_MAX 0x3f
+#define SOUND_MZ_IMG_HDR 512
 /*
  * GSOUND.COL stores PIT divisor 0x4DBF at DS:0081 → ~60 Hz voice ticks
  * (1193182 / 19903 ≈ 59.95 Hz). Duration bytes are counts of these ticks.
+ * ASOUND uses the same duration scale for its parallel arrangements.
  */
 #define SOUND_PIT_DIVISOR 0x4DBF
 #define SOUND_TICK_HZ (1193182.0 / (double)SOUND_PIT_DIVISOR)
@@ -29,6 +36,9 @@
 #define SOUND_MAX_TRACK_TICKS 14400u /* 4 minutes @ ~60 Hz */
 #define SOUND_MAX_CALL_DEPTH 8
 #define SOUND_MAX_LOOP_ITERS 64
+
+static SoundDriver g_driver_override = SOUND_DRIVER_G;
+static bool g_driver_override_set = false;
 
 typedef struct SoundMidiEvent {
   uint32_t tick;
@@ -48,12 +58,13 @@ typedef struct SoundSong {
 typedef struct SoundState {
   bool inited;
   bool enable_audio;
-  bool gsound_ok;
+  bool songs_ok;
   bool backend_ok;
+  SoundDriver driver;
   ColonizeSoundOptions opts;
 
-  uint8_t* gsound_img;
-  size_t gsound_img_size;
+  uint8_t* driver_img;
+  size_t driver_img_size;
   uint32_t ds_base;
 
   SoundSong songs[32]; /* ids 0x20..0x3f */
@@ -68,6 +79,9 @@ typedef struct SoundState {
   uint32_t play_tick;
   double tick_accum; /* samples → ticks */
   double ticks_per_sample;
+  double tick_scale; /* ASOUND C0 a/b → b/a; default 1.0 */
+  uint8_t tempo_a;
+  uint8_t tempo_b;
   int program;
 
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
@@ -75,7 +89,7 @@ typedef struct SoundState {
   fluid_synth_t* fluid_synth;
   int fluid_sfont_id;
 #endif
-  /* Soft fallback oscillator when FluidSynth is unavailable. */
+  /* Soft fallback oscillator when FluidSynth is unavailable (G only). */
   double phase;
   int fallback_note;
   int fallback_vel;
@@ -104,17 +118,18 @@ static void sound_push_event(SoundSong* song, uint32_t tick, uint8_t status, uin
 }
 
 /*
- * Decode one GSOUND voice stream (DS-relative). Opcodes reverse-engineered from
- * the MZ jump table at image 0xEF2 (ops 0xBB..0xFF). Bytes <= 0xBA are
- * note/duration pairs; F4 sets velocity; F8 is program change (not C2 — C2 is
- * CC 91 reverb).
+ * Decode one voice stream (DS-relative). Opcodes reverse-engineered from
+ * GSOUND MZ jump table at image 0xEF2 (ops 0xBB..0xFF). ASOUND uses the same
+ * note/dur/F4/F8/FA family; tempo setup is C0 (3 bytes) / C1 (2 bytes) instead
+ * of BE / BF. Bytes <= 0xBA are note/duration pairs.
  */
 static void sound_decode_track(
   SoundSong* song,
   const uint8_t* ds_img,
   size_t ds_size,
   uint16_t start_off,
-  uint8_t channel
+  uint8_t channel,
+  bool asound_mode
 ) {
   if (!song || !ds_img || ds_size == 0 || (size_t)start_off >= ds_size) {
     return;
@@ -225,21 +240,42 @@ static void sound_decode_track(
         sound_push_event(song, time, 0xb0, 10, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
-      case 0xC2: /* CC 91 reverb */
+      case 0xC2: /* CC 91 reverb (GSOUND) */
         if (pos + 1 >= ds_size) {
           return;
         }
         sound_push_event(song, time, 0xb0, 91, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
-      case 0xC1: /* CC 93 chorus */
+      case 0xC1:
+        if (asound_mode) {
+          /* ASOUND: master volume scale (handler ~0x1D86). */
+          if (pos + 1 >= ds_size) {
+            return;
+          }
+          sound_push_event(song, time, 0xb0, 0x70, ds_img[pos + 1], channel);
+          pos += 2;
+          break;
+        }
+        /* GSOUND: CC 93 chorus */
         if (pos + 1 >= ds_size) {
           return;
         }
         sound_push_event(song, time, 0xb0, 93, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
-      case 0xC0: /* CC 0 bank select */
+      case 0xC0:
+        if (asound_mode) {
+          /* ASOUND: tempo / clock scale (like GSOUND BE) — 3 bytes. */
+          if (pos + 2 >= ds_size) {
+            return;
+          }
+          sound_push_event(song, time, 0xb0, 0x71, ds_img[pos + 1], channel);
+          sound_push_event(song, time, 0xb0, 0x72, ds_img[pos + 2], channel);
+          pos += 3;
+          break;
+        }
+        /* GSOUND: CC 0 bank select */
         if (pos + 1 >= ds_size) {
           return;
         }
@@ -440,10 +476,71 @@ static void sound_parse_handler_tracks(
   }
 }
 
-static bool sound_load_gsound(const char* data_dir) {
+/* ASOUND handlers use `lea cx, [track]` (8D 0E xx xx) instead of `mov cx, imm`. */
+static void sound_parse_handler_tracks_lea(
+  const uint8_t* img,
+  size_t img_size,
+  uint32_t handler,
+  uint16_t* out_offs,
+  int* out_count
+) {
+  *out_count = 0;
+  uint32_t i = handler;
+  const uint32_t end = handler + 160;
+  while (i + 4 <= end && i < img_size && *out_count < SOUND_MAX_TRACKS) {
+    if (img[i] == 0xc3) {
+      break;
+    }
+    if (img[i] == 0x8d && img[i + 1] == 0x0e) {
+      out_offs[*out_count] = rd_u16(img + i + 2);
+      (*out_count)++;
+      i += 4;
+      continue;
+    }
+    if (img[i] == 0xe8) {
+      i += 3;
+      continue;
+    }
+    if (img[i] == 0xe9) {
+      break;
+    }
+    i++;
+  }
+}
+
+static void sound_sort_song_events(SoundSong* song) {
+  if (!song) {
+    return;
+  }
+  for (int a = 0; a < song->event_count - 1; ++a) {
+    for (int b = a + 1; b < song->event_count; ++b) {
+      const SoundMidiEvent* ea = &song->events[a];
+      const SoundMidiEvent* eb = &song->events[b];
+      int pri_a = (ea->status == 0xc0)   ? 0
+                  : (ea->status == 0xb0) ? 1
+                  : (ea->status == 0xe0) ? 2
+                  : (ea->status == 0x80) ? 3
+                                         : 4;
+      int pri_b = (eb->status == 0xc0)   ? 0
+                  : (eb->status == 0xb0) ? 1
+                  : (eb->status == 0xe0) ? 2
+                  : (eb->status == 0x80) ? 3
+                                         : 4;
+      const bool swap = eb->tick < ea->tick ||
+                        (eb->tick == ea->tick && (pri_b < pri_a || (pri_b == pri_a && eb->status < ea->status)));
+      if (swap) {
+        SoundMidiEvent tmp = song->events[a];
+        song->events[a] = song->events[b];
+        song->events[b] = tmp;
+      }
+    }
+  }
+}
+
+static bool sound_load_mz_driver(const char* data_dir, const char* filename, uint8_t** out_img, size_t* out_size) {
   char path[512];
-  if (!dos_compat_normalize_asset_path(data_dir, "GSOUND.COL", path, sizeof(path))) {
-    diag_warn("sound: cannot resolve GSOUND.COL");
+  if (!dos_compat_normalize_asset_path(data_dir, filename, path, sizeof(path))) {
+    diag_warn("sound: cannot resolve %s", filename);
     return false;
   }
   FILE* f = fopen(path, "rb");
@@ -456,7 +553,7 @@ static bool sound_load_gsound(const char* data_dir) {
     return false;
   }
   const long sz = ftell(f);
-  if (sz < SOUND_GSOUND_IMG_HDR + 0x3400) {
+  if (sz < SOUND_MZ_IMG_HDR + 0x2000) {
     fclose(f);
     return false;
   }
@@ -482,24 +579,31 @@ static bool sound_load_gsound(const char* data_dir) {
     free(file);
     return false;
   }
-  g_sound.gsound_img_size = (size_t)sz - hdr;
-  g_sound.gsound_img = (uint8_t*)malloc(g_sound.gsound_img_size);
-  if (!g_sound.gsound_img) {
+  *out_size = (size_t)sz - hdr;
+  *out_img = (uint8_t*)malloc(*out_size);
+  if (!*out_img) {
     free(file);
     return false;
   }
-  memcpy(g_sound.gsound_img, file + hdr, g_sound.gsound_img_size);
+  memcpy(*out_img, file + hdr, *out_size);
   free(file);
+  return true;
+}
 
-  g_sound.ds_base = (uint32_t)SOUND_GSOUND_DS_PARAS * 16u;
-  if (g_sound.ds_base >= g_sound.gsound_img_size) {
-    free(g_sound.gsound_img);
-    g_sound.gsound_img = NULL;
+static bool sound_load_gsound(const char* data_dir) {
+  if (!sound_load_mz_driver(data_dir, "GSOUND.COL", &g_sound.driver_img, &g_sound.driver_img_size)) {
     return false;
   }
 
-  const uint8_t* img = g_sound.gsound_img;
-  const size_t img_size = g_sound.gsound_img_size;
+  g_sound.ds_base = (uint32_t)SOUND_GSOUND_DS_PARAS * 16u;
+  if (g_sound.ds_base >= g_sound.driver_img_size) {
+    free(g_sound.driver_img);
+    g_sound.driver_img = NULL;
+    return false;
+  }
+
+  const uint8_t* img = g_sound.driver_img;
+  const size_t img_size = g_sound.driver_img_size;
   uint16_t bgm_max = 0x3f;
   if (SOUND_GSOUND_BGM_BOUND + 2 <= img_size) {
     bgm_max = rd_u16(img + SOUND_GSOUND_BGM_BOUND);
@@ -532,34 +636,10 @@ static bool sound_load_gsound(const char* data_dir) {
       if ((size_t)tracks[t] >= ds_size) {
         continue;
       }
-      /* MIDI channel = track index; driver voices are 1-based but map 1:1. */
-      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t & 0x0f));
+      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t & 0x0f), false);
     }
     if (song->event_count > 0) {
-      /* Stable event order by tick; at equal ticks: program/CC/pitch before notes. */
-      for (int a = 0; a < song->event_count - 1; ++a) {
-        for (int b = a + 1; b < song->event_count; ++b) {
-          const SoundMidiEvent* ea = &song->events[a];
-          const SoundMidiEvent* eb = &song->events[b];
-          int pri_a = (ea->status == 0xc0)   ? 0
-                      : (ea->status == 0xb0) ? 1
-                      : (ea->status == 0xe0) ? 2
-                      : (ea->status == 0x80) ? 3
-                                             : 4;
-          int pri_b = (eb->status == 0xc0)   ? 0
-                      : (eb->status == 0xb0) ? 1
-                      : (eb->status == 0xe0) ? 2
-                      : (eb->status == 0x80) ? 3
-                                             : 4;
-          const bool swap = eb->tick < ea->tick ||
-                            (eb->tick == ea->tick && (pri_b < pri_a || (pri_b == pri_a && eb->status < ea->status)));
-          if (swap) {
-            SoundMidiEvent tmp = song->events[a];
-            song->events[a] = song->events[b];
-            song->events[b] = tmp;
-          }
-        }
-      }
+      sound_sort_song_events(song);
       g_sound.song_count++;
     }
   }
@@ -568,7 +648,78 @@ static bool sound_load_gsound(const char* data_dir) {
     "sound: GSOUND.COL loaded songs=%d ds_base=0x%x img=%zu",
     g_sound.song_count,
     g_sound.ds_base,
-    g_sound.gsound_img_size
+    g_sound.driver_img_size
+  );
+  return g_sound.song_count > 0;
+}
+
+static bool sound_load_asound(const char* data_dir) {
+  if (!sound_load_mz_driver(data_dir, "ASOUND.COL", &g_sound.driver_img, &g_sound.driver_img_size)) {
+    return false;
+  }
+
+  g_sound.ds_base = (uint32_t)SOUND_ASOUND_DS_PARAS * 16u;
+  if (g_sound.ds_base >= g_sound.driver_img_size) {
+    free(g_sound.driver_img);
+    g_sound.driver_img = NULL;
+    return false;
+  }
+
+  const uint8_t* img = g_sound.driver_img;
+  const size_t img_size = g_sound.driver_img_size;
+  const uint16_t bgm_max = SOUND_ASOUND_BGM_MAX;
+
+  g_sound.song_count = 0;
+  for (int id = SOUND_BGM_ID_BASE; id <= (int)bgm_max && id < SOUND_BGM_ID_BASE + 32; ++id) {
+    const int idx = id - SOUND_BGM_ID_BASE;
+    const uint32_t table_off = SOUND_ASOUND_BGM_TABLE + (uint32_t)idx * 2u;
+    if (table_off + 2 > img_size) {
+      break;
+    }
+    const uint32_t handler = rd_u16(img + table_off);
+    if (handler == 0 || handler + 4 > img_size) {
+      continue;
+    }
+    uint16_t tracks[SOUND_MAX_TRACKS];
+    int track_count = 0;
+    sound_parse_handler_tracks_lea(img, img_size, handler, tracks, &track_count);
+    if (track_count <= 0) {
+      continue;
+    }
+
+    SoundSong* song = &g_sound.songs[g_sound.song_count];
+    memset(song, 0, sizeof(*song));
+    song->id = id;
+    const uint8_t* ds_img = img + g_sound.ds_base;
+    const size_t ds_size = img_size - g_sound.ds_base;
+    for (int t = 0; t < track_count; ++t) {
+      if ((size_t)tracks[t] >= ds_size) {
+        continue;
+      }
+      /* OPL melodic channels 0..8; clamp track index. */
+      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t % 9), true);
+    }
+    if (song->event_count > 0) {
+      sound_sort_song_events(song);
+      g_sound.song_count++;
+    }
+  }
+
+  {
+    const uint8_t* ds_img = img + g_sound.ds_base;
+    const size_t ds_size = img_size - g_sound.ds_base;
+    if (!sound_opl_load_tables(ds_img, ds_size)) {
+      diag_warn("sound: ASOUND instrument/fnum tables missing or truncated");
+    } else {
+      diag_info("sound: ASOUND bank+fnum+vel curve loaded from DS");
+    }
+  }
+
+  diag_info(
+    "sound: ASOUND.COL loaded songs=%d ds_base=0x%x img=%zu",
+    g_sound.song_count,
+    g_sound.ds_base,
+    g_sound.driver_img_size
   );
   return g_sound.song_count > 0;
 }
@@ -719,6 +870,9 @@ static bool sound_init_fluidsynth(const char* data_dir) {
 }
 
 static void sound_all_notes_off_unlocked(void) {
+  if (g_sound.driver == SOUND_DRIVER_A) {
+    sound_opl_all_notes_off();
+  }
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   if (g_sound.fluid_synth) {
     for (int ch = 0; ch < 16; ++ch) {
@@ -734,6 +888,32 @@ static void sound_all_notes_off_unlocked(void) {
 
 static void sound_apply_event_unlocked(const SoundMidiEvent* e) {
   if (!e) {
+    return;
+  }
+  if (g_sound.driver == SOUND_DRIVER_A) {
+    const int ch = e->channel % 9;
+    if (e->status == 0x90 && e->data2 > 0) {
+      sound_opl_note_on(ch, e->data1, e->data2);
+    } else if (e->status == 0x80 || (e->status == 0x90 && e->data2 == 0)) {
+      sound_opl_note_off(ch, e->data1);
+    } else if (e->status == 0xc0) {
+      sound_opl_program(ch, e->data1);
+      g_sound.program = e->data1;
+    } else if (e->status == 0xb0 && e->data1 == 7) {
+      sound_opl_volume(ch, e->data2);
+    } else if (e->status == 0xb0 && e->data1 == 0x70) {
+      sound_opl_master_volume(e->data2);
+    } else if (e->status == 0xb0 && e->data1 == 0x71) {
+      g_sound.tempo_a = e->data2;
+      if (g_sound.tempo_a > 0 && g_sound.tempo_b > 0) {
+        g_sound.tick_scale = (double)g_sound.tempo_b / (double)g_sound.tempo_a;
+      }
+    } else if (e->status == 0xb0 && e->data1 == 0x72) {
+      g_sound.tempo_b = e->data2;
+      if (g_sound.tempo_a > 0 && g_sound.tempo_b > 0) {
+        g_sound.tick_scale = (double)g_sound.tempo_b / (double)g_sound.tempo_a;
+      }
+    }
     return;
   }
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
@@ -767,6 +947,57 @@ static void sound_apply_event_unlocked(const SoundMidiEvent* e) {
   }
 }
 
+static SoundDriver sound_resolve_driver(void) {
+  if (g_driver_override_set) {
+    return g_driver_override;
+  }
+  const char* env = getenv("COLONIZE_SOUND_DRIVER");
+  if (env && env[0]) {
+    SoundDriver d = SOUND_DRIVER_G;
+    if (sound_parse_driver(env, &d)) {
+      return d;
+    }
+    diag_warn("sound: ignoring invalid COLONIZE_SOUND_DRIVER=%s (use A or G)", env);
+  }
+  return SOUND_DRIVER_G;
+}
+
+bool sound_parse_driver(const char* s, SoundDriver* out) {
+  if (!s || !s[0] || !out) {
+    return false;
+  }
+  if (s[1] == '\0') {
+    const char c = (char)toupper((unsigned char)s[0]);
+    if (c == 'A') {
+      *out = SOUND_DRIVER_A;
+      return true;
+    }
+    if (c == 'G') {
+      *out = SOUND_DRIVER_G;
+      return true;
+    }
+    return false;
+  }
+  if (strcasecmp(s, "adlib") == 0 || strcasecmp(s, "opl") == 0 || strcasecmp(s, "sb") == 0) {
+    *out = SOUND_DRIVER_A;
+    return true;
+  }
+  if (strcasecmp(s, "gm") == 0 || strcasecmp(s, "midi") == 0 || strcasecmp(s, "roland") == 0) {
+    *out = SOUND_DRIVER_G;
+    return true;
+  }
+  return false;
+}
+
+void sound_configure_driver(SoundDriver driver) {
+  g_driver_override = driver;
+  g_driver_override_set = true;
+}
+
+SoundDriver sound_current_driver(void) {
+  return g_sound.inited ? g_sound.driver : sound_resolve_driver();
+}
+
 static void sound_seek_events_unlocked(SoundSong* song, uint32_t from_tick, uint32_t to_tick) {
   if (!song) {
     return;
@@ -789,7 +1020,6 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   }
   memset(&g_sound, 0, sizeof(g_sound));
   pthread_mutex_init(&g_sound.lock, NULL);
-  /* Open the device whenever the platform allows so title/map BGM and Pick Music work. */
   g_sound.enable_audio = enable_audio;
   g_sound.opts.background_music = true;
   g_sound.opts.event_music = true;
@@ -799,10 +1029,32 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   g_sound.bgm_song_id = -1;
   g_sound.preview_active = false;
   g_sound.ticks_per_sample = 1.0 / (SOUND_TICK_SECONDS * 44100.0);
+  g_sound.tick_scale = 1.0;
+  g_sound.tempo_a = 4;
+  g_sound.tempo_b = 4;
+  g_sound.driver = sound_resolve_driver();
 
   const char* dir = data_dir ? data_dir : "./COLONIZE";
-  g_sound.gsound_ok = sound_load_gsound(dir);
-  if (g_sound.enable_audio) {
+  if (g_sound.driver == SOUND_DRIVER_A) {
+    g_sound.songs_ok = sound_load_asound(dir);
+    diag_info("sound: driver=A (ASOUND / AdLib OPL)");
+  } else {
+    g_sound.songs_ok = sound_load_gsound(dir);
+    diag_info("sound: driver=G (GSOUND / General MIDI)");
+  }
+
+  if (g_sound.driver == SOUND_DRIVER_A) {
+    /* OPL is needed for offline render even without an SDL device. */
+    g_sound.backend_ok = sound_opl_init(44100);
+    if (!g_sound.backend_ok) {
+      diag_warn("sound: OPL init failed");
+    } else {
+      diag_info("sound: Nuked-OPL3 ready");
+    }
+    if (!g_sound.enable_audio) {
+      diag_info("sound: audio device disabled");
+    }
+  } else if (g_sound.enable_audio) {
     g_sound.backend_ok = sound_init_fluidsynth(dir);
     if (!g_sound.backend_ok) {
       diag_info("sound: using square-wave fallback renderer");
@@ -829,6 +1081,9 @@ void sound_shutdown(void) {
   }
   pthread_mutex_lock(&g_sound.lock);
   sound_all_notes_off_unlocked();
+  if (g_sound.driver == SOUND_DRIVER_A) {
+    sound_opl_shutdown();
+  }
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   if (g_sound.fluid_synth) {
     delete_fluid_synth(g_sound.fluid_synth);
@@ -839,15 +1094,15 @@ void sound_shutdown(void) {
     g_sound.fluid_settings = NULL;
   }
 #endif
-  free(g_sound.gsound_img);
-  g_sound.gsound_img = NULL;
+  free(g_sound.driver_img);
+  g_sound.driver_img = NULL;
   pthread_mutex_unlock(&g_sound.lock);
   pthread_mutex_destroy(&g_sound.lock);
   memset(&g_sound, 0, sizeof(g_sound));
 }
 
 bool sound_ok(void) {
-  return g_sound.inited && g_sound.gsound_ok;
+  return g_sound.inited && g_sound.songs_ok;
 }
 
 bool sound_backend_ok(void) {
@@ -879,6 +1134,9 @@ static void sound_start_song_unlocked(int id) {
   g_sound.active_song_id = id;
   g_sound.play_tick = 0;
   g_sound.tick_accum = 0.0;
+  g_sound.tick_scale = 1.0;
+  g_sound.tempo_a = 4;
+  g_sound.tempo_b = 4;
   /* Apply program / initial notes at tick 0. */
   sound_seek_events_unlocked(song, 0, 0);
 }
@@ -1005,7 +1263,8 @@ static void sound_advance_unlocked(int frames, int sample_rate) {
   if (!song) {
     return;
   }
-  const double tps = 1.0 / (SOUND_TICK_SECONDS * (double)sample_rate);
+  const double scale = (g_sound.tick_scale > 0.0) ? g_sound.tick_scale : 1.0;
+  const double tps = scale / (SOUND_TICK_SECONDS * (double)sample_rate);
   const uint32_t start = g_sound.play_tick;
   g_sound.tick_accum += (double)frames * tps;
   const uint32_t advance = (uint32_t)g_sound.tick_accum;
@@ -1035,6 +1294,12 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
   }
 
   sound_advance_unlocked(frames, sample_rate);
+
+  if (g_sound.driver == SOUND_DRIVER_A) {
+    sound_opl_render_s16(dst, frames, channels);
+    pthread_mutex_unlock(&g_sound.lock);
+    return;
+  }
 
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   if (g_sound.fluid_synth) {

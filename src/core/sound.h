@@ -8,19 +8,32 @@
 /*
  * DOS-faithful sound/music facade (FUN_12d8_000e gating + FUN_129f_* BGM).
  *
- * Music data is loaded from GSOUND.COL (General MIDI MicroProse driver). Song
- * IDs 0x20..0x3f are background music; 0x40..0x5c are event music; IDs < 0x10
- * are always forwarded (stop / system).
+ * Drivers (runtime select; default G):
+ *   G — GSOUND.COL General MIDI → FluidSynth + SC-55-ish SoundFont
+ *   A — ASOUND.COL AdLib/OPL → Nuked-OPL3
  *
- * Streams are decoded from the GSOUND voice bytecode (note/dur pairs, F4
- * velocity, F8 program, CC ops). Synthesis uses FluidSynth with an SC-55-ish
- * SoundFont when available (COLONIZE_SOUNDFONT overrides).
+ * Selection: sound_configure_driver() before sound_init, or
+ * COLONIZE_SOUND_DRIVER=G|A, or CLI --sound=G|A (overrides env).
+ *
+ * Song IDs 0x20..0x3f are background music; 0x40..0x5c event music;
+ * IDs < 0x10 are always forwarded (stop / system). Title intro uses 0x33.
  */
 #define COLONIZE_SOUND_PLAYBACK_ENABLED 1
 
 #define SOUND_BGM_ID_BASE 0x20
 #define SOUND_EVENT_ID_BASE 0x40
 #define SOUND_TITLE_ID 0x33
+
+typedef enum SoundDriver {
+  SOUND_DRIVER_G = 0, /* General MIDI / Roland SC-55 path */
+  SOUND_DRIVER_A = 1  /* AdLib / Sound Blaster OPL path */
+} SoundDriver;
+
+/* Call before sound_init. CLI should override env. */
+void sound_configure_driver(SoundDriver driver);
+SoundDriver sound_current_driver(void);
+/* Parse 'A'/'G' (case-insensitive). Returns false if invalid. */
+bool sound_parse_driver(const char* s, SoundDriver* out);
 
 /* True when ambient autoplay is allowed (not the Pick Music preview path). */
 bool sound_playback_enabled(void);
@@ -36,7 +49,8 @@ typedef struct ColonizeSoundOptions {
 bool sound_init(const char* data_dir, bool enable_audio);
 void sound_shutdown(void);
 bool sound_ok(void);
-bool sound_backend_ok(void); /* FluidSynth + soundfont ready */
+/* G: FluidSynth+soundfont; A: Nuked-OPL3 ready. */
+bool sound_backend_ok(void);
 
 void sound_set_options(ColonizeSoundOptions opts);
 ColonizeSoundOptions sound_get_options(void);
@@ -59,7 +73,7 @@ void sound_service(void);
 /* Fill interleaved S16 samples for the SDL audio callback (thread-safe). */
 void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate);
 
-/* Test helpers: song count recovered from GSOUND.COL; decode one song to events. */
+/* Test helpers: song count recovered from the active *SOUND.COL. */
 int sound_gsound_song_count(void);
 bool sound_gsound_has_song(int id);
 /*

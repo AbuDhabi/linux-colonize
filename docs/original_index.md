@@ -254,7 +254,7 @@ Runtime data root (~289 files). Override with `--data-dir`. Formats and screen w
 | File | Purpose |
 |------|---------|
 | `GSOUND.COL` | General MIDI driver — **used by Linux port** |
-| `ASOUND.COL` / `PSOUND.COL` / `RSOUND.COL` | AdLib / SB / Roland (not used yet) |
+| `ASOUND.COL` / `PSOUND.COL` / `RSOUND.COL` | AdLib selectable (`--sound=A`); P/R unused |
 | `COLDIG.BIN` | Digital SFX — deferred |
 | `AMERICA.MOV` | Short map-tooling motion blob (not the LEVN voyage) |
 | `CONFIG.COL` | INSTALL sound-card config |

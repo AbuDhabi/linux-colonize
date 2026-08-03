@@ -34,6 +34,12 @@ if(PkgConfig_FOUND)
   endif()
 endif()
 
+set(COLONIZE_SOUND_SOURCES
+  src/core/sound.c
+  src/core/sound_opl.c
+  third_party/nuked-opl3/opl3.c
+)
+
 add_library(colonize_core STATIC
   src/core/game_loop.c
   src/core/assets.c
@@ -59,7 +65,7 @@ add_library(colonize_core STATIC
   src/core/colony_craft.c
   src/core/turn.c
   src/core/ai.c
-  src/core/sound.c
+  ${COLONIZE_SOUND_SOURCES}
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -73,6 +79,7 @@ add_library(colonize_core STATIC
 
 target_include_directories(colonize_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nuked-opl3
 )
 
 target_compile_options(colonize_core PRIVATE
@@ -199,7 +206,7 @@ add_executable(smoke_game_flow
   src/core/colony_craft.c
   src/core/turn.c
   src/core/ai.c
-  src/core/sound.c
+  ${COLONIZE_SOUND_SOURCES}
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -238,7 +245,7 @@ add_executable(smoke_new_game
   src/core/colony_craft.c
   src/core/turn.c
   src/core/ai.c
-  src/core/sound.c
+  ${COLONIZE_SOUND_SOURCES}
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -252,6 +259,7 @@ add_executable(smoke_new_game
 
 target_include_directories(smoke_new_game PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nuked-opl3
 )
 target_link_libraries(smoke_new_game PRIVATE m pthread)
 if(COLONIZE_HAS_FLUIDSYNTH)
@@ -281,7 +289,7 @@ add_executable(smoke_pick_music
   tests/smoke/test_pick_music.c
   src/core/pick_music.c
   src/core/popup.c
-  src/core/sound.c
+  ${COLONIZE_SOUND_SOURCES}
   src/core/font.c
   src/core/assets.c
   src/core/ss.c
@@ -292,6 +300,7 @@ add_executable(smoke_pick_music
 
 target_include_directories(smoke_pick_music PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nuked-opl3
 )
 target_link_libraries(smoke_pick_music PRIVATE m pthread)
 if(COLONIZE_HAS_FLUIDSYNTH)
@@ -576,13 +585,14 @@ add_test(NAME smoke_ai COMMAND smoke_ai WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_sound
   tests/smoke/test_sound.c
-  src/core/sound.c
+  ${COLONIZE_SOUND_SOURCES}
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_sound PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nuked-opl3
 )
 
 target_link_libraries(smoke_sound PRIVATE m pthread)
@@ -596,6 +606,7 @@ add_test(NAME smoke_sound COMMAND smoke_sound WORKING_DIRECTORY ${CMAKE_SOURCE_D
 
 target_include_directories(smoke_game_flow PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nuked-opl3
 )
 
 target_link_libraries(smoke_game_flow PRIVATE m pthread)

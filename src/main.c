@@ -14,6 +14,8 @@ typedef struct CliConfig {
   const char* save_dir;
   bool windowed;
   bool no_sound;
+  bool sound_driver_set;
+  SoundDriver sound_driver;
   int window_scale;
 } CliConfig;
 
@@ -23,6 +25,8 @@ static CliConfig cli_defaults(void) {
   cfg.save_dir = savegame_default_dir();
   cfg.windowed = true;
   cfg.no_sound = false;
+  cfg.sound_driver_set = false;
+  cfg.sound_driver = SOUND_DRIVER_G;
   cfg.window_scale = 2;
   return cfg;
 }
@@ -40,6 +44,22 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       cfg->windowed = false;
     } else if (strcmp(arg, "--nosound") == 0) {
       cfg->no_sound = true;
+    } else if (strncmp(arg, "--sound=", 8) == 0) {
+      SoundDriver d = SOUND_DRIVER_G;
+      if (!sound_parse_driver(arg + 8, &d)) {
+        fprintf(stderr, "Invalid --sound= value (use A or G): %s\n", arg + 8);
+        return false;
+      }
+      cfg->sound_driver = d;
+      cfg->sound_driver_set = true;
+    } else if (strcmp(arg, "--sound") == 0 && i + 1 < argc) {
+      SoundDriver d = SOUND_DRIVER_G;
+      if (!sound_parse_driver(argv[++i], &d)) {
+        fprintf(stderr, "Invalid --sound value (use A or G): %s\n", argv[i]);
+        return false;
+      }
+      cfg->sound_driver = d;
+      cfg->sound_driver_set = true;
     } else if (strcmp(arg, "--scale") == 0 && i + 1 < argc) {
       cfg->window_scale = atoi(argv[++i]);
       if (cfg->window_scale < 1) {
@@ -66,13 +86,12 @@ int main(int argc, char** argv) {
 
   diag_info("CLI data_dir=%s", cli.data_dir);
   diag_info("CLI save_dir=%s", cli.save_dir);
-  diag_info("CLI windowed=%s scale=%d nosound=%s",
+  diag_info(
+    "CLI windowed=%s scale=%d nosound=%s sound=%s",
     cli.windowed ? "yes" : "no",
     cli.window_scale,
-    cli.no_sound ? "yes" : "no");
-  diag_info(
-    "NOTE: UI now uses GAME.TXT @BEGINMENU + VICEROY.PAL. "
-    "Map/menu art from MADSPACK .PIK/.SS is not decoded yet; map view is still a placeholder."
+    cli.no_sound ? "yes" : "no",
+    cli.sound_driver_set ? (cli.sound_driver == SOUND_DRIVER_A ? "A" : "G") : "default"
   );
 
   ColonizePlatformConfig platform_cfg = {
@@ -106,6 +125,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (cli.sound_driver_set) {
+    sound_configure_driver(cli.sound_driver);
+  }
   sound_init(cli.data_dir, platform_audio_enabled(platform));
   if (platform_audio_enabled(platform)) {
     platform_audio_resume(platform);

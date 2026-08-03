@@ -70,7 +70,7 @@ port I/O in the native build.
 - Keyboard/mouse polling and event translation
 - Time/tick services
 - File path, save location, and case normalization
-- Audio output (SDL callback + FluidSynth; see `src/core/sound.c`)
+- Audio output (SDL callback + FluidSynth or Nuked-OPL3; see `src/core/sound.c`)
 
 ## Bring-Up Strategy Notes
 
@@ -95,7 +95,7 @@ port I/O in the native build.
 - World map view (**fidelity OK vs MAPEDIT**): terrain, land transitions, forest/hill/mountain/river
   connectivity, coasts, estuaries, special resources, rumours — see below and `docs/assets.md`
 - Coast / estuary: enabled (`MAP_COAST_OVERLAYS_ENABLED` / `MAP_ESTUARY_OVERLAYS_ENABLED` default 1)
-- **Music playback: enabled** — GSOUND bytecode decode + FluidSynth (`COLONIZE_SOUND_PLAYBACK_ENABLED 1`; see `docs/assets.md`)
+- **Music playback: enabled** — GSOUND (default) or ASOUND via `--sound=A` / `COLONIZE_SOUND_DRIVER`; FluidSynth or Nuked-OPL3 (`COLONIZE_SOUND_PLAYBACK_ENABLED 1`; see `docs/assets.md`)
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; phase 5 hold buy/sell + tax, goods persist on **H**/**S**;
   see `src/core/europe.c`)
@@ -146,8 +146,8 @@ port I/O in the native build.
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
-- Music (`src/core/sound.c`): GSOUND.COL voice bytecode → MIDI events (~60 Hz ticks);
-  FluidSynth with SC-55-preferring SoundFont search; Pick Music preview + title/map BGM
+- Music (`src/core/sound.c` + `sound_opl.c`): GSOUND → FluidSynth/SC-55 (default) or ASOUND →
+  Nuked-OPL3 with native DS:0x5376 bank / 0x2d2 fnum (`--sound=A`); Pick Music + title/map BGM
   via `COLONIZE_SOUND_PLAYBACK_ENABLED`; `COLDIG.BIN` SFX still deferred
 
 ## End-of-turn recovery checklist

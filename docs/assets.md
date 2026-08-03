@@ -474,16 +474,19 @@ RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/do
 ## Music / sound
 
 There are **no** standalone `.MID` / `.XMI` song files. Music lives inside the MZ sound
-drivers. The Linux port loads **`GSOUND.COL`** (General MIDI) via [`src/core/sound.c`](../src/core/sound.c):
+drivers. The Linux port supports two backends selected at runtime (default **G**):
 
-| Driver | Card letter | Role |
-|--------|-------------|------|
-| `ASOUND.COL` | A | AdLib / OPL |
-| `GSOUND.COL` | G | General MIDI (**used**) |
-| `PSOUND.COL` | P | PAS / SB-family |
-| `RSOUND.COL` | R | Roland / MT-32-style |
-| `CONFIG.COL` | — | 20-byte INSTALL card config |
-| `COLDIG.BIN` | — | Digital SFX (deferred) |
+| Driver | Card letter | Role | Port status |
+|--------|-------------|------|-------------|
+| `ASOUND.COL` | A | AdLib / OPL | **Selectable** (`--sound=A`) |
+| `GSOUND.COL` | G | General MIDI | **Default** |
+| `PSOUND.COL` | P | PAS / SB-family | Unused |
+| `RSOUND.COL` | R | Roland / MT-32-style | Unused |
+| `CONFIG.COL` | — | 20-byte INSTALL card config | Unused (explicit switch instead) |
+| `COLDIG.BIN` | — | Digital SFX | Deferred |
+
+**Runtime switch:** `--sound=A|G` (CLI overrides env) or `COLONIZE_SOUND_DRIVER=A|G`.
+Song IDs are shared across drivers; only the loaded `*SOUND.COL` and synth change.
 
 DOS play path: numeric sound IDs through the driver jump table (`FUN_2059_000a`), gated by
 Background / Event / SFX (`FUN_12d8_000e`). IDs `0x20..0x3f` are background music;
@@ -510,6 +513,9 @@ image offset `0xEF2` for opcodes `0xBB..0xFF`. Timing uses PIT divisor **`0x4DBF
 | `FF nn` | Loop (`nn==0` sets label; else repeat) |
 | `BE a b` | Driver tempo/scale (internal) |
 
+BGM handler table at image **`0x2A6E`** (bound `0x331A`); handlers load tracks with
+`mov cx, imm16` (`B9`).
+
 MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
 Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 
@@ -518,8 +524,37 @@ Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 GPL-3+ bank by deemster; see [`COPYRIGHT.Roland_SC-55`](../data/soundfonts/COPYRIGHT.Roland_SC-55))
 → system SC-55 / GeneralUser GS → FluidR3 / distro defaults. For an alternate SC-55
 character, point `COLONIZE_SOUNDFONT` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
-Gold A/B reference: DOSBox Staging `mididevice=soundcanvas` (Nuked SC-55 + user ROMs).
-AdLib / MT-32 drivers and `COLDIG.BIN` SFX remain out of scope.
+Gold A/B reference for GM: DOSBox Staging `mididevice=soundcanvas` (Nuked SC-55 + user ROMs).
+
+### ASOUND stream format (RE from `ASOUND.COL` MZ)
+
+Banner: `ColonizatonA09-14-94`. DS paras **`0x3c0`**. Play dispatch at image `0x1a35`
+indexes BGM via `call CS:[bx+0x1B6B]` for ids `0x20..0x3f` (event table at `0x1BB9`).
+Handlers load tracks with **`lea cx, [disp16]`** (`8D 0E xx xx`), not `mov cx, imm`.
+
+Voice bytecode is the same family as GSOUND (note/dur, `F4`, `F8`, `F1`, `FA`/`F9`,
+`FF` loops). Tempo setup uses **`C1` / `C0 a b`** where GSOUND uses `BF` / `BE`.
+`F8` selects an AdLib instrument index (not a GM patch). Arrangements are parallel to
+GSOUND but transposed/adapted for FM (e.g. Bird Song `0x21` lead starts at note 55 /
+prog 6 vs GSOUND note 74 / prog 22). Duration scale matches ~60 Hz ticks.
+
+Synthesis: vendored **Nuked-OPL3** ([`third_party/nuked-opl3/`](../third_party/nuked-opl3/)).
+Native ASOUND tables (loaded at init):
+
+| DS offset | Size | Role |
+|-----------|------|------|
+| `0x5376` | 56 × 44 bytes | Instrument bank (`F8` index × `0x2C`; mod 22 + car 22) |
+| `0x2d2` | 12 × u16 | F-num table (`0x200..0x3c7`); block = `note/12` |
+| `0x250` | 48 bytes | Velocity→atten curve (non-AdLib path; AdLib uses direct TL math) |
+
+Operator record packing (apply @ image `0x21A8`): AR/DR/SL/RR nibbles → `0x60`/`0x80`;
+AM/VIB/EG/KSR/MULT flags → `0x20`; wave → `0xE0`; feedback/conn → `0xC0`. TL uses
+instrument byte `[6]` with driver loudness math (`tl = 0x3F - clamp(loud - (0x3F-lvl))`).
+`C1` is the MicroProse master-scale opcode (often `0x0a` at track start); it is **not** applied as a
+0..255 PCM attenuator (that previously silenced `--sound=A`). `C0 a b` sets tick scale `b/a`
+(default `04 04` → 1.0). Render applies a modest gain so Nuked output is audible vs FluidSynth.
+
+`PSOUND.COL`, `RSOUND.COL`, and `COLDIG.BIN` SFX remain out of scope.
 
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
