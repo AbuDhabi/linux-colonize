@@ -189,7 +189,7 @@ Wrong-building assignment → free colonist rates (see [Matching skill vs wrong 
 ## Building chart (construction)
 
 From manual player-aid **Building Chart** + [`NAMES.TXT`](../COLONIZE/NAMES.TXT) `@BUILDING`.  
-**Ham** = hammers to complete; **Tools** = tools to finish (NAMES lists `tools×10`, e.g. `10` → **100** tools).
+**Ham** = hammers to complete; **Tools** = tools to finish. `NAMES.TXT` stores `tools(*10)` (e.g. `2` → **20** tools); the port multiplies by 10 on load.
 
 | Building | Ham | Tools | Min pop | Effect (summary) |
 |----------|----:|------:|--------:|------------------|

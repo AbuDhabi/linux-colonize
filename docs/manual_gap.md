@@ -76,11 +76,12 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump |
 | Join colony | Partial | Opens colony screen; not true join-into-population |
-| Colony display chrome | Partial | Area 1.5× tiles; people/transport bands; multifunction; resource-count strips (`colony_screen.c`) |
+| Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Workplace strips show **output-type badge** (no per-worker count); Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
-| Construction queue + buy with gold | Partial | Construction tab only (BUY/CHANGE + hammer rows); banner hidden otherwise; **B**/Buy + tools gate |
+| Construction queue + buy with gold | Partial | Construction tab BUY/CHANGE; Change list uses min-pop / upgrade / FF gates; hammers = accumulated progress; `NAMES` tools×10; no settlement banner |
 | Warehouse drag load/unload to ships / wagons | Partial | Click cargo↔hold + **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122**; full drag later |
-| SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned in people pane |
+| SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned; people row includes fence units |
+| Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥2; last colonist confirms abandon (cargo lost) |
 | Fortification defense bonuses | Missing | Fence / docks art only; no combat |
 
 ### Europe
