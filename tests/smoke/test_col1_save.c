@@ -4,6 +4,7 @@
 
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/europe.h"
 #include "core/map.h"
@@ -289,6 +290,181 @@ int main(void) {
     );
     map_free(&map);
     col1_save_free(&orig);
+  }
+
+  /* Capture/apply must preserve colony buildings (starters + upgrades). */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "building roundtrip: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    if (!colonies_load_buildings(&colonies, &names) || !colonies_load_names(&colonies, "COLONIZE/COLONY.TXT")) {
+      fprintf(stderr, "building roundtrip: buildings/names failed\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "building roundtrip: map load: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int fx = -1, fy = -1;
+    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+        if (map_tile_is_land(&map, x, y) && colonies_can_found(&colonies, &map, x, y)) {
+          fx = x;
+          fy = y;
+        }
+      }
+    }
+    if (fx < 0) {
+      fprintf(stderr, "building roundtrip: no founding site\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int cid = colonies_found(&colonies, &map, fx, fy, 0, -1, 0, 0, 0);
+    ColonizeColony* col = colonies_get_mut(&colonies, cid);
+    const int stockade = colonies_find_building(&colonies, "Stockade");
+    const int warehouse = colonies_find_building(&colonies, "Warehouse");
+    const int carpenter = colonies_find_building(&colonies, "Carpenter's Shop");
+    const int town_hall = colonies_find_building(&colonies, "Town Hall");
+    if (!col || stockade < 0 || warehouse < 0 || carpenter < 0 || town_hall < 0) {
+      fprintf(stderr, "building roundtrip: setup failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    col->has_building[stockade] = true;
+    col->has_building[warehouse] = true;
+    /* Found with a Veteran Soldier skill working Town Hall. */
+    if (col->colonist_count < 1) {
+      col->colonists[0].active = true;
+      col->colonists[0].building_type = town_hall;
+      col->colonists[0].field_job = -1;
+      col->colonist_count = 1;
+      col->population = 1;
+    }
+    col->colonists[0].profession = UNITS_JOB_SOLDIER;
+    col->colonists[0].building_type = town_hall;
+    col->colonists[0].field_job = -1;
+
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "building roundtrip: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnitPool units;
+    units_reset(&units);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "building roundtrip: unit types failed\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, fx, fy, -1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "building roundtrip: capture: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (save.head.colony_count < 1 ||
+        save.colony[0].buildings.town_hall == 0 ||
+        save.colony[0].buildings.carpenters_shop == 0 ||
+        save.colony[0].buildings.fortification == 0 ||
+        save.colony[0].buildings.warehouse == 0 ||
+        save.colony[0].profession[0] != (uint8_t)UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "building roundtrip: encode missing hall=%u carpenter=%u fort=%u wh=%u skill=%u\n",
+        (unsigned)save.colony[0].buildings.town_hall,
+        (unsigned)save.colony[0].buildings.carpenters_shop,
+        (unsigned)save.colony[0].buildings.fortification,
+        (unsigned)save.colony[0].buildings.warehouse,
+        (unsigned)save.colony[0].profession[0]
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    ColonizeColonyPool loaded;
+    colonies_init(&loaded);
+    if (!colonies_load_buildings(&loaded, &names)) {
+      fprintf(stderr, "building roundtrip: reload buildings failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeWorldMap map2;
+    memset(&map2, 0, sizeof(map2));
+    ColonizeUnitPool units2;
+    units_reset(&units2);
+    if (!units_load_types(&units2, &names)) {
+      fprintf(stderr, "building roundtrip: reload unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    EuropeScreen europe2;
+    memset(&europe2, 0, sizeof(europe2));
+    europe2.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    if (!col1_bridge_apply(&save, &map2, &units2, &loaded, &europe2, &br, err, sizeof(err))) {
+      fprintf(stderr, "building roundtrip: apply: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      map_free(&map2);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeColony* got = NULL;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      if (loaded.colonies[i].active) {
+        got = &loaded.colonies[i];
+        break;
+      }
+    }
+    const int l_hall = colonies_find_building(&loaded, "Town Hall");
+    const int l_carpenter = colonies_find_building(&loaded, "Carpenter's Shop");
+    const int l_stockade = colonies_find_building(&loaded, "Stockade");
+    const int l_warehouse = colonies_find_building(&loaded, "Warehouse");
+    if (!got || l_hall < 0 || !got->has_building[l_hall] || !got->has_building[l_carpenter] ||
+        !got->has_building[l_stockade] || !got->has_building[l_warehouse] ||
+        got->colonist_count < 1 || got->colonists[0].profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "building roundtrip: apply wiped buildings/skills (skill=%d)\n",
+        got && got->colonist_count > 0 ? got->colonists[0].profession : -1
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      map_free(&map2);
+      assets_msg_free(&names);
+      return 1;
+    }
+    fprintf(stderr, "building capture/apply roundtrip ok\n");
+    col1_save_free(&save);
+    map_free(&map);
+    map_free(&map2);
+    assets_msg_free(&names);
   }
 
   fprintf(stderr, "col1 original saves + bridge ok\n");

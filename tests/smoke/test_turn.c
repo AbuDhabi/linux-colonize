@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
 #include "core/map.h"
@@ -423,6 +424,117 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /* Production rules: convert +1 on tiles; convert/criminal floor in buildings; wrong expert → free rate. */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "production rules: map load: %s\n", err);
+      return 1;
+    }
+    int fx = -1, fy = -1;
+    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+        if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_LUMBERJACK) == 2) {
+          fx = x;
+          fy = y;
+        }
+      }
+    }
+    if (fx < 0) {
+      fprintf(stderr, "production rules: no tile with lumberjack yield 2\n");
+      map_free(&map);
+      return 1;
+    }
+    const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_LUMBERJACK);
+    const int convert_yld =
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT);
+    if (convert_yld != base + 1) {
+      fprintf(
+        stderr,
+        "convert tile bonus failed base=%d convert=%d\n",
+        base,
+        convert_yld
+      );
+      map_free(&map);
+      return 1;
+    }
+    const int wrong_expert =
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST);
+    if (wrong_expert != base) {
+      fprintf(
+        stderr,
+        "wrong field expert should match free yield base=%d got=%d\n",
+        base,
+        wrong_expert
+      );
+      map_free(&map);
+      return 1;
+    }
+    map_free(&map);
+
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names)) {
+      fprintf(stderr, "production rules: load buildings failed\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int distiller = colonies_find_building(&pool, "Rum Distiller's House");
+    if (distiller < 0) {
+      fprintf(stderr, "production rules: missing distillery\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+    const char* dname = pool.building_types[distiller].name;
+    if (colony_prod_manufacturing_output(dname, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER) != 1 ||
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER) != 3 ||
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER) != 6) {
+      fprintf(stderr, "manufacturing class/skill rules failed\n");
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->building_in_production = -1;
+    col->has_building[distiller] = true;
+    col->stock[COLONIZE_CARGO_FOOD] = 20;
+    col->stock[COLONIZE_CARGO_SUGAR] = 10;
+    col->colonists[0].active = true;
+    col->colonists[0].building_type = distiller;
+    col->colonists[0].profession = COLONIZE_PROF_CONVERT;
+    col->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->colonist_count = 1;
+    col->population = 1;
+    pool.colony_count = 1;
+
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    if (col->stock[COLONIZE_CARGO_RUM] != 1 || col->stock[COLONIZE_CARGO_SUGAR] != 9) {
+      fprintf(
+        stderr,
+        "convert rum craft failed sugar=%d rum=%d\n",
+        col->stock[COLONIZE_CARGO_SUGAR],
+        col->stock[COLONIZE_CARGO_RUM]
+      );
+      assets_msg_free(&names);
+      return 1;
+    }
+    assets_msg_free(&names);
+  }
+
   /* Field lumberjack harvests from forest surround tile. */
   {
     ColonizeWorldMap map;
@@ -479,9 +591,11 @@ int main(void) {
       map_free(&map);
       return 1;
     }
+    /* Isolate field harvest from carpenter hammers on default Stockade project. */
+    col->building_in_production = -1;
     const int before = col->stock[COLONIZE_CARGO_LUMBER];
     const int expect =
-      colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_LUMBERJACK);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession);
     ColonizeTurnResult prod;
     ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));

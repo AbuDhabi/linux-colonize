@@ -14,4 +14,12 @@ void colony_craft_one_colony(
   ColonizeColonyProdDelta* delta
 );
 
+/* Non-mutating craft pass on scratch stock; fills shortfall[] and optional delta. */
+void colony_craft_preview(
+  const ColonizeColonyPool* pool,
+  ColonizeColony* scratch,
+  int shortfall[COLONIZE_CARGO_COUNT],
+  ColonizeColonyProdDelta* delta
+);
+
 #endif

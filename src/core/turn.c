@@ -5,6 +5,7 @@
 
 #include "core/ai.h"
 #include "core/colony_craft.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "platform/diagnostics.h"
 
@@ -284,7 +285,8 @@ static void turn_produce_one_colony(
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
         continue;
       }
-      const int yld = colony_yield_for_tile(map, colony->x + dx, colony->y + dy, c->field_job);
+      const int yld =
+        colony_yield_for_worker(map, colony->x + dx, colony->y + dy, c->field_job, c->profession);
       if (yld <= 0) {
         continue;
       }
@@ -342,32 +344,32 @@ static void turn_produce_one_colony(
   }
 
   /* Carpenter hammers: convert lumber toward current project. */
-  int hammer_workers = turn_count_workplace_workers(pool, colony, "Carpenter");
-  if (hammer_workers == 0 && turn_building_name_has(pool, colony, "Carpenter")) {
-    hammer_workers = 1;
-  }
-  if (colony->building_in_production >= 0 && hammer_workers > 0) {
-    int lumber_use = hammer_workers;
-    if (colony->stock[COLONIZE_CARGO_LUMBER] < lumber_use) {
-      lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
-    }
-    colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
-    if (delta) {
-      delta->lumber -= lumber_use;
-      delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
-    }
-    const int hammers_add = lumber_use > 0 ? lumber_use : hammer_workers;
-    colony->hammers += hammers_add;
-    if (delta) {
-      delta->hammers_added = hammers_add;
-    }
-
-    if (colonies_try_complete_building(pool, colony->id)) {
-      if (delta) {
-        delta->building_completed = true;
+  if (colony->building_in_production >= 0) {
+    int lumber_use = 0;
+    const int hammers_add =
+      colony_prod_colony_hammers(pool, colony, 1, &lumber_use);
+    if (hammers_add > 0) {
+      if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
+        lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
       }
-      if (out) {
-        out->buildings_completed++;
+      colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
+      if (delta) {
+        delta->lumber -= lumber_use;
+        delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
+      }
+      const int hammers = lumber_use > 0 ? lumber_use : hammers_add;
+      colony->hammers += hammers;
+      if (delta) {
+        delta->hammers_added = hammers;
+      }
+
+      if (colonies_try_complete_building(pool, colony->id)) {
+        if (delta) {
+          delta->building_completed = true;
+        }
+        if (out) {
+          out->buildings_completed++;
+        }
       }
     }
   }
@@ -425,28 +427,8 @@ static int turn_count_bells_and_crosses(
     if (!c->active) {
       continue;
     }
-    if (turn_building_name_has(pool, c, "Town Hall") || turn_building_name_has(pool, c, "Newspaper") ||
-        turn_building_name_has(pool, c, "Printing")) {
-      bells += 1 + c->colonist_count / 4;
-    }
-    if (turn_building_name_has(pool, c, "Church") || turn_building_name_has(pool, c, "Cathedral")) {
-      crosses += 1 + c->colonist_count / 4;
-    }
-    for (int p = 0; p < c->colonist_count; ++p) {
-      if (!c->colonists[p].active) {
-        continue;
-      }
-      const int bt = c->colonists[p].building_type;
-      if (bt >= 0 && bt < pool->building_type_count) {
-        const char* name = pool->building_types[bt].name;
-        if (strstr(name, "Town Hall") || strstr(name, "Newspaper")) {
-          bells++;
-        }
-        if (strstr(name, "Church") || strstr(name, "Cathedral")) {
-          crosses++;
-        }
-      }
-    }
+    bells += colony_prod_colony_bells(pool, c);
+    crosses += colony_prod_colony_crosses(pool, c);
   }
   if (out_bells) {
     *out_bells = bells;
