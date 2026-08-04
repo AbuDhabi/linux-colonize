@@ -9,6 +9,7 @@
 #include "core/dos_rng.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -52,14 +53,6 @@ static bool ai_unit_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
 }
 
-static int ai_type_or(ColonizeUnitPool* units, const char* primary, const char* fallback) {
-  int t = units_find_type(units, primary);
-  if (t < 0 && fallback) {
-    t = units_find_type(units, fallback);
-  }
-  return t;
-}
-
 static void ai_set_nation_identity(
   ColonizeCol1Save* save,
   int nation,
@@ -71,16 +64,14 @@ static void ai_set_nation_identity(
     return;
   }
   save->player[nation].control = (uint8_t)control;
-  snprintf(
+  str_copy_trunc(
     save->player[nation].name,
     sizeof(save->player[nation].name),
-    "%s",
     leader && leader[0] ? leader : k_default_leaders[nation]
   );
-  snprintf(
+  str_copy_trunc(
     save->player[nation].country_name,
     sizeof(save->player[nation].country_name),
-    "%s",
     country && country[0] ? country : k_new_country[nation]
   );
 }
@@ -1016,23 +1007,6 @@ static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
       t->unknown28[0] = (uint8_t)acc;
     }
   }
-}
-
-/*
- * FUN_15dc_00a2 / FUN_281f_0a60 — bucket distance for capital-attraction weight.
- * NEW WORLD Europeans are far → typically returns 3 → mult = 4 in 021a.
- */
-static int ai_a60_bucket(int dist) {
-  if (dist < 0x19) {
-    return 0;
-  }
-  if (dist < 0x32) {
-    return 1;
-  }
-  if (dist < 0x4b) {
-    return 2;
-  }
-  return 3;
 }
 
 static int ai_owner_nibble(const ColonizeWorldMap* map, int x, int y) {

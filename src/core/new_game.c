@@ -7,6 +7,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "core/strutil.h"
 #include "core/ui_colors.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
@@ -317,11 +318,11 @@ static void new_game_load_choice_section(NewGameWizard* ng, const char* section_
       }
       if (i < options_at) {
         if (ng->prompt_line_count < 8) {
-          snprintf(ng->prompt_lines[ng->prompt_line_count], sizeof(ng->prompt_lines[0]), "%s", line);
+          str_copy_trunc(ng->prompt_lines[ng->prompt_line_count], sizeof(ng->prompt_lines[0]), line);
           ng->prompt_line_count++;
         }
       } else if (i > options_at && ng->option_count < NEW_GAME_OPTION_MAX) {
-        snprintf(ng->options[ng->option_count], sizeof(ng->options[0]), "%s", line);
+        str_copy_trunc(ng->options[ng->option_count], sizeof(ng->options[0]), line);
         ng->option_count++;
       }
     }
@@ -350,11 +351,11 @@ static void new_game_load_choice_section(NewGameWizard* ng, const char* section_
       split = 0;
     }
     for (int i = 0; i < split && i < content_count && ng->prompt_line_count < 8; ++i) {
-      snprintf(ng->prompt_lines[ng->prompt_line_count], sizeof(ng->prompt_lines[0]), "%s", content[i]);
+      str_copy_trunc(ng->prompt_lines[ng->prompt_line_count], sizeof(ng->prompt_lines[0]), content[i]);
       ng->prompt_line_count++;
     }
     for (int i = split; i < content_count && ng->option_count < NEW_GAME_OPTION_MAX; ++i) {
-      snprintf(ng->options[ng->option_count], sizeof(ng->options[0]), "%s", content[i]);
+      str_copy_trunc(ng->options[ng->option_count], sizeof(ng->options[0]), content[i]);
       ng->option_count++;
     }
   }
@@ -380,7 +381,7 @@ static void new_game_seed_leader_name(NewGameWizard* ng) {
         }
         if (idx == ng->nation) {
           char buf[NEW_GAME_LEADER_NAME_MAX];
-          snprintf(buf, sizeof(buf), "%s", line);
+          str_copy_trunc(buf, sizeof(buf), line);
           char* comma = strchr(buf, ',');
           if (comma) {
             *comma = '\0';
@@ -391,7 +392,7 @@ static void new_game_seed_leader_name(NewGameWizard* ng) {
             buf[--n] = '\0';
           }
           if (buf[0]) {
-            snprintf(ng->leader_name, sizeof(ng->leader_name), "%s", buf);
+            str_copy_trunc(ng->leader_name, sizeof(ng->leader_name), buf);
             return;
           }
         }
@@ -556,12 +557,12 @@ static void new_game_scan_mp_files(NewGameWizard* ng) {
     if (strcasecmp(name + n - 3, ".MP") != 0) {
       continue;
     }
-    snprintf(ng->options[ng->option_count], sizeof(ng->options[0]), "%s", name);
+    str_copy_trunc(ng->options[ng->option_count], sizeof(ng->options[0]), name);
     ng->option_count++;
   }
   closedir(dir);
   if (ng->option_count == 0) {
-    snprintf(ng->options[0], sizeof(ng->options[0]), "AMER2.MP");
+    str_copy_trunc(ng->options[0], sizeof(ng->options[0]), "AMER2.MP");
     ng->option_count = 1;
   }
 }
@@ -1673,71 +1674,6 @@ static void new_game_render_leader_name(
 }
 
 /* Word-wrap lore into out_lines; returns count. */
-static int new_game_wrap_lore_line(
-  const ColonizeFont* font,
-  const char* text,
-  int max_w,
-  char out_lines[][COLONIZE_MSG_LINE_LEN],
-  int max_lines
-) {
-  if (!text || max_lines <= 0) {
-    return 0;
-  }
-  int count = 0;
-  const char* p = text;
-  while (*p && count < max_lines) {
-    while (*p == ' ') {
-      p++;
-    }
-    if (!*p) {
-      break;
-    }
-    const char* line_start = p;
-    const char* last_break = NULL;
-    int width = 0;
-    while (*p) {
-      if (*p == '{' || *p == '}' || *p == '^' || *p == '_') {
-        p++;
-        continue;
-      }
-      if (*p == ' ') {
-        last_break = p;
-      }
-      char chbuf[2] = {*p, 0};
-      int cw = new_game_text_width(font, chbuf);
-      if (width + cw > max_w && last_break && last_break > line_start) {
-        break;
-      }
-      if (width + cw > max_w) {
-        if (width == 0) {
-          /* Force at least one character so we always advance. */
-          p++;
-        }
-        break;
-      }
-      width += cw;
-      p++;
-      if (*p == '\0') {
-        last_break = p;
-        break;
-      }
-    }
-    const char* end = (last_break && last_break > line_start && *p) ? last_break : p;
-    size_t n = (size_t)(end - line_start);
-    if (n >= COLONIZE_MSG_LINE_LEN) {
-      n = COLONIZE_MSG_LINE_LEN - 1;
-    }
-    memcpy(out_lines[count], line_start, n);
-    out_lines[count][n] = '\0';
-    count++;
-    p = end;
-    while (*p == ' ') {
-      p++;
-    }
-  }
-  return count;
-}
-
 static void new_game_render_lore(
   NewGameWizard* ng,
   ColonizeFramebuffer8* fb,
@@ -2017,7 +1953,7 @@ static void new_game_render_sail(
     }
   }
 
-  char section_name[16];
+  char section_name[24];
   snprintf(section_name, sizeof(section_name), "BUILD%d", frame + 1);
   const ColonizeMsgSection* section =
     ng->game_txt ? assets_msg_find(ng->game_txt, section_name) : NULL;

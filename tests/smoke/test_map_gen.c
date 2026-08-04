@@ -39,10 +39,12 @@ static int maps_equal(const ColonizeWorldMap* a, const ColonizeWorldMap* b) {
 int main(void) {
   char err[256];
   MapGenParams params;
+  memset(&params, 0, sizeof(params));
   map_gen_params_random(&params, 0xC01A71Eu);
-  if (params.land_mass < 0 || params.land_mass > 2 || params.land_form < 0 || params.land_form > 2 ||
-      params.temperature < 0 || params.temperature > 2 || params.climate < 0 || params.climate > 2 ||
-      params.forest_extra < 0 || params.forest_extra > 2) {
+  /* NEW WORLD axes are FUN_281f_04d4(0,3) → 0..3 (CUSTOMIZE UI stays 0..2). */
+  if (params.land_mass < 0 || params.land_mass > 3 || params.land_form < 0 || params.land_form > 3 ||
+      params.temperature < 0 || params.temperature > 3 || params.climate < 0 || params.climate > 3 ||
+      params.forest_extra < 0 || params.forest_extra > 3) {
     fprintf(stderr, "map_gen_params_random out of range\n");
     return 1;
   }

@@ -42,6 +42,7 @@ add_library(colonize_core STATIC
   src/core/map.c
   src/core/map_gen.c
   src/core/dos_rng.c
+  src/core/strutil.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -143,6 +144,7 @@ add_executable(smoke_savegame
   src/core/savegame.c
   src/core/col1_save.c
   src/platform/diagnostics.c
+  src/core/strutil.c
 )
 
 target_include_directories(smoke_savegame PRIVATE
@@ -156,6 +158,7 @@ add_executable(smoke_savegame_incompatible
   src/core/savegame.c
   src/core/col1_save.c
   src/platform/diagnostics.c
+  src/core/strutil.c
 )
 
 target_include_directories(smoke_savegame_incompatible PRIVATE
@@ -186,6 +189,7 @@ add_executable(smoke_game_flow
   src/core/map.c
   src/core/map_gen.c
   src/core/dos_rng.c
+  src/core/strutil.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -229,6 +233,7 @@ add_executable(smoke_new_game
   src/core/map.c
   src/core/map_gen.c
   src/core/dos_rng.c
+  src/core/strutil.c
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
@@ -280,6 +285,7 @@ add_executable(smoke_popup
   src/core/madspack.c
   src/core/assets.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -299,6 +305,7 @@ add_executable(smoke_pick_music
   src/core/ss.c
   src/core/madspack.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -319,6 +326,7 @@ add_executable(smoke_map
   src/core/map.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
+  src/core/strutil.c
 )
 
 target_include_directories(smoke_map PRIVATE
@@ -372,6 +380,7 @@ add_executable(smoke_pedia
   src/core/ff.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -426,6 +435,7 @@ add_executable(smoke_units
   src/core/colony_yield.c
   src/core/map.c
   src/core/dos_rng.c
+  src/core/strutil.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -448,6 +458,7 @@ add_executable(smoke_colonies
   src/core/units.c
   src/core/map.c
   src/core/dos_rng.c
+  src/core/strutil.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -471,6 +482,7 @@ add_executable(smoke_reports
   src/core/colony.c
   src/core/units.c
   src/core/dos_rng.c
+  src/core/strutil.c
   src/core/map.c
   src/core/europe.c
   src/core/pik.c
@@ -498,6 +510,7 @@ add_executable(smoke_map_menu
   src/core/ff.c
   src/core/madspack.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -525,6 +538,7 @@ add_executable(smoke_ff
   src/core/font.c
   src/core/madspack.c
   src/platform/diagnostics.c
+  src/core/strutil.c
 )
 
 target_include_directories(smoke_ff PRIVATE
@@ -539,6 +553,7 @@ add_executable(smoke_ss
   src/core/madspack.c
   src/core/assets.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -552,6 +567,7 @@ add_executable(smoke_assets
   tests/smoke/test_assets.c
   src/core/assets.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -567,6 +583,7 @@ add_executable(smoke_pik
   src/core/pik.c
   src/core/assets.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 
@@ -592,6 +609,7 @@ add_executable(smoke_sound
   tests/smoke/test_sound.c
   src/core/sound.c
   src/platform/diagnostics.c
+  src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
 )
 

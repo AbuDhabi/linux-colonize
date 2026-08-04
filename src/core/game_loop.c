@@ -30,6 +30,7 @@
 #include "core/savegame.h"
 #include "core/sound.h"
 #include "core/ss.h"
+#include "core/strutil.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -562,16 +563,14 @@ static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, si
     const int hn = game->human_nation;
     if (hn >= 0 && hn < (int)COLONIZE_COL1_NATION_COUNT) {
       game->col1.player[hn].control = 0;
-      snprintf(
+      str_copy_trunc(
         game->col1.player[hn].name,
         sizeof(game->col1.player[hn].name),
-        "%s",
         game->leader_name[0] ? game->leader_name : "Governor"
       );
-      snprintf(
+      str_copy_trunc(
         game->col1.player[hn].country_name,
         sizeof(game->col1.player[hn].country_name),
-        "%s",
         new_game_nation_name(hn)
       );
     }
@@ -1187,7 +1186,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     framebuffer, 0, EUROPE_TOP_SEPARATOR_Y, framebuffer->width, EUROPE_TOP_SEPARATOR_Y + 1, 0
   );
 
-  char line[128];
+  char line[192];
   if (game->game_year > 0) {
     char date[32];
     turn_format_date(game->game_year, game->game_autumn, date, sizeof(date));
@@ -1921,7 +1920,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   } else {
     char map_path[512];
     if (!dos_compat_normalize_asset_path(game->resolved_data_dir, ng->map_file, map_path, sizeof(map_path))) {
-      snprintf(map_path, sizeof(map_path), "%s/%s", game->resolved_data_dir, ng->map_file);
+      str_path_join(map_path, sizeof(map_path), game->resolved_data_dir, ng->map_file);
     }
     game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
     if (!game->world_map_ok) {

@@ -10,6 +10,7 @@
 
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+#include "core/strutil.h"
 
 static bool file_exists(const char* path) {
   struct stat st;
@@ -314,12 +315,7 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
     if (current->line_count >= COLONIZE_MSG_MAX_LINES) {
       continue;
     }
-    snprintf(
-      current->lines[current->line_count],
-      COLONIZE_MSG_LINE_LEN,
-      "%s",
-      line
-    );
+    str_copy_trunc(current->lines[current->line_count], COLONIZE_MSG_LINE_LEN, line);
     current->line_count++;
   }
   fclose(f);

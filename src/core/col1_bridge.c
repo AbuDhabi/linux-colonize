@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/turn.h"
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 
 #define COL1_FAIL(err, err_size, ...)           \
@@ -608,7 +609,7 @@ bool col1_bridge_apply(
     europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
     col1_copy_name24(europe->nation_name, sizeof(europe->nation_name),
                      save->player[local.human_nation].country_name);
-    for (int i = 0; i < europe->cargo_count && i < COLONIZE_COL1_CARGO_TYPES; ++i) {
+    for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       europe->cargo[i].bid = nat->trade.euro_price[i];
       europe->cargo[i].ask = nat->trade.euro_price[i] + 1;
     }
@@ -712,7 +713,7 @@ bool col1_bridge_capture(
     nat->needed_crosses = europe->needed_crosses > 0 ? europe->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     nat->liberty_bells_total = europe->liberty_bells_total;
     nat->liberty_bells_last_turn = europe->liberty_bells_last_turn;
-    for (int i = 0; i < europe->cargo_count && i < COLONIZE_COL1_CARGO_TYPES; ++i) {
+    for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       int bid = europe->cargo[i].bid;
       if (bid < 0) {
         bid = 0;
@@ -748,7 +749,7 @@ bool col1_bridge_capture(
       memset(dst, 0, sizeof(*dst));
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
-      snprintf(dst->name, sizeof(dst->name), "%s", src->name);
+      str_copy_trunc(dst->name, sizeof(dst->name), src->name);
       dst->nation_id = (uint8_t)src->nation_id;
       dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
       dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));

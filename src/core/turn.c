@@ -184,28 +184,6 @@ static bool turn_building_name_has(const ColonizeColonyPool* pool, const Coloniz
   return false;
 }
 
-static int turn_count_workplace_workers(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const char* needle
-) {
-  if (!pool || !colony || !needle) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < colony->colonist_count; ++i) {
-    if (!colony->colonists[i].active) {
-      continue;
-    }
-    const int bt = colony->colonists[i].building_type;
-    if (bt >= 0 && bt < pool->building_type_count &&
-        strstr(pool->building_types[bt].name, needle) != NULL) {
-      n++;
-    }
-  }
-  return n;
-}
-
 static int turn_count_field_job(const ColonizeColony* colony, int field_job) {
   if (!colony) {
     return 0;

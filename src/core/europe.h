@@ -200,7 +200,7 @@ typedef struct EuropeScreen {
   bool last_exit_east;
   bool last_exit_valid;
   bool open_on_dock; /* set when Expected→Harbor this tick */
-  char status[96];
+  char status[160];
 } EuropeScreen;
 
 bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size);

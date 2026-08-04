@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 
 static void units_trim(char* s) {
@@ -98,7 +99,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     (void)guns;
 
     ColonizeUnitType* t = &pool->types[pool->type_count++];
-    snprintf(t->name, sizeof(t->name), "%s", line);
+    str_copy_trunc(t->name, sizeof(t->name), line);
     /* NAMES.TXT @UNIT icon is 1-based (DOS / MAPEDIT style); ICONS.SS blit is 0-based. */
     t->icon_sprite = icon > 0 ? icon - 1 : -1;
     t->movement = movement > 0 ? movement : 1;
@@ -1638,7 +1639,6 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   if (!slot) {
     return -1;
   }
-  const ColonizeUnitType* type = &pool->types[type_index];
   slot->id = pool->next_id++;
   slot->type_index = type_index;
   slot->x = ship->x;
@@ -1917,34 +1917,6 @@ void units_end_turn(ColonizeUnitPool* pool) {
       u->moves_left = type->movement;
     }
   }
-}
-
-static bool units_find_land_tile(const ColonizeWorldMap* map, int start_x, int start_y, int* out_x, int* out_y) {
-  if (!map || !out_x || !out_y) {
-    return false;
-  }
-  if (map_tile_is_land(map, start_x, start_y)) {
-    *out_x = start_x;
-    *out_y = start_y;
-    return true;
-  }
-  for (int radius = 1; radius < 32; ++radius) {
-    for (int dy = -radius; dy <= radius; ++dy) {
-      for (int dx = -radius; dx <= radius; ++dx) {
-        if (abs(dx) != radius && abs(dy) != radius) {
-          continue;
-        }
-        const int x = start_x + dx;
-        const int y = start_y + dy;
-        if (map_tile_is_land(map, x, y)) {
-          *out_x = x;
-          *out_y = y;
-          return true;
-        }
-      }
-    }
-  }
-  return false;
 }
 
 bool units_find_water_tile(

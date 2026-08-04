@@ -6,6 +6,7 @@
 
 #include "core/font.h"
 #include "core/ss.h"
+#include "core/strutil.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -125,12 +126,7 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
     if (pool->name_count >= COLONIZE_COLONY_NAMES_MAX) {
       break;
     }
-    snprintf(
-      pool->names[pool->name_count],
-      COLONIZE_COLONY_NAME_MAX,
-      "%s",
-      line
-    );
+    str_copy_trunc(pool->names[pool->name_count], COLONIZE_COLONY_NAME_MAX, line);
     pool->name_count++;
   }
   fclose(f);
@@ -182,7 +178,7 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     (void)upkeep;
 
     ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
-    snprintf(t->name, sizeof(t->name), "%s", line);
+    str_copy_trunc(t->name, sizeof(t->name), line);
     t->hammers = hammers;
     /* NAMES.TXT tools(*10): file stores tens of tools (2 → 20 tools). */
     t->tools_cost = tools_cost * 10;
