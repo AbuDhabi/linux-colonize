@@ -10,6 +10,7 @@
  */
 typedef struct ColonizeColonyPreview {
   int food_produced; /* field + center before consumption */
+  int food_fish;     /* fisherman portion of food_produced (display icon only) */
   int food_consumed; /* pop * 2 */
   int food_net;      /* produced - consumed */
   int crosses;

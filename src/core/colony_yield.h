@@ -18,4 +18,23 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
 /* Display name for field @JOB (static string). */
 const char* colony_yield_job_name(int field_job);
 
+/*
+ * Town commons (colony center): always food + one other commodity.
+ * Plow applies to food only; artificial roads ignored for secondary.
+ * Special resources apply except Prime Timber (see docs/terrain_yields.md).
+ */
+typedef struct ColonizeTownCommonsYield {
+  int food;
+  int secondary_job;   /* COLONIZE_JOB_* or -1 */
+  int secondary_cargo; /* COLONIZE_CARGO_* or -1 */
+  int secondary_amount;
+} ColonizeTownCommonsYield;
+
+void colony_yield_town_commons(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  ColonizeTownCommonsYield* out
+);
+
 #endif

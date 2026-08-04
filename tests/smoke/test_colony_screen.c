@@ -19,6 +19,21 @@ int main(void) {
     fprintf(stderr, "colony_screen_load failed: %s\n", err);
     return 1;
   }
+  if (COLONY_ICON_FISH != 57) {
+    fprintf(stderr, "COLONY_ICON_FISH expected 57 got %d\n", COLONY_ICON_FISH);
+    colony_screen_free(&view);
+    return 1;
+  }
+  if (!view.icons_ok || view.icons.sprite_count <= COLONY_ICON_FISH) {
+    fprintf(
+      stderr,
+      "ICONS.SS needs sprite %d for fish food (count=%d)\n",
+      COLONY_ICON_FISH,
+      view.icons_ok ? view.icons.sprite_count : -1
+    );
+    colony_screen_free(&view);
+    return 1;
+  }
 
   if (!view.frame_ok || view.frame.width != 320 || view.frame.height != 200) {
     fprintf(
@@ -557,6 +572,92 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
+
+    /* Fisherman food is still cargo food, but preview tracks fish for colony UI. */
+    {
+      int tile_i = -1;
+      int dx = 0;
+      int dy = 0;
+      for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+        if (!colonies_field_tile_delta(i, &dx, &dy)) {
+          continue;
+        }
+        const int fx = col->x + dx;
+        const int fy = col->y + dy;
+        if (fx >= 0 && fy >= 0 && fx < (int)map.width && fy < (int)map.height) {
+          tile_i = i;
+          break;
+        }
+      }
+      if (tile_i < 0) {
+        fprintf(stderr, "no on-map field tile for fisherman preview\n");
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+      map.terrain[(col->y + dy) * map.width + (col->x + dx)] = 25; /* ocean */
+      if (!colonies_assign_field(&pool, cid, 0, tile_i, COLONIZE_JOB_FISHERMAN)) {
+        fprintf(stderr, "failed to assign fisherman for food_fish preview\n");
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+      ColonizeColonyPreview prev;
+      colony_preview_compute(&pool, colonies_get(&pool, cid), &map, &prev);
+      if (prev.food_fish <= 0 || prev.food_fish > prev.food_produced ||
+          prev.goods[COLONIZE_CARGO_FOOD] != prev.food_produced) {
+        fprintf(
+          stderr,
+          "fisherman preview expected food_fish>0 within food got fish=%d food=%d goods=%d\n",
+          prev.food_fish,
+          prev.food_produced,
+          prev.goods[COLONIZE_CARGO_FOOD]
+        );
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+      /* Restore farmer on land for subsequent area overlay pixel checks. */
+      map.terrain[(col->y + dy) * map.width + (col->x + dx)] = 2; /* plains */
+      if (!colonies_assign_field(&pool, cid, 0, 0, food_job)) {
+        fprintf(stderr, "failed to restore farmer after fisherman preview\n");
+        if (font_ok) {
+          ff_free(&font);
+        }
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+    }
     memset(pixels, 0, sizeof(pixels));
     colony_screen_render(
       &view,
@@ -765,8 +866,8 @@ int main(void) {
       &pool,
       sample,
       &units,
-      COLONY_VIEWPORT_X + 8 + 8,
-      COLONY_VIEWPORT_Y + 44 + 8
+      COLONY_VIEWPORT_X + 8 + 4,
+      COLONY_VIEWPORT_Y + 44 + 4
     );
     if (hit.kind != COLONY_HIT_BUILDING || hit.index != carpenter) {
       fprintf(
@@ -822,6 +923,7 @@ int main(void) {
       }
     }
 
+    view.multi_mode = COLONY_MULTI_CONSTRUCTION;
     hit = colony_screen_hit_test(
       &view, &pool, sample, &units, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
     );

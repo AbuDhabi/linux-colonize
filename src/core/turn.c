@@ -244,8 +244,32 @@ static void turn_produce_one_colony(
   int field_lumber = 0;
   int field_ore = 0;
 
-  /* Harvest from area-view field workers. */
+  /* Town commons (center tile) + area-view field workers. */
   if (map) {
+    ColonizeTownCommonsYield tc;
+    colony_yield_town_commons(map, colony->x, colony->y, &tc);
+    if (tc.food > 0) {
+      colony->stock[COLONIZE_CARGO_FOOD] =
+        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
+      field_food += tc.food;
+      if (delta) {
+        delta->goods[COLONIZE_CARGO_FOOD] += tc.food;
+      }
+    }
+    if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
+        tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
+      colony->stock[tc.secondary_cargo] =
+        turn_clamp_stock(colony->stock[tc.secondary_cargo] + tc.secondary_amount);
+      if (delta) {
+        delta->goods[tc.secondary_cargo] += tc.secondary_amount;
+      }
+      if (tc.secondary_cargo == COLONIZE_CARGO_LUMBER) {
+        field_lumber += tc.secondary_amount;
+      } else if (tc.secondary_cargo == COLONIZE_CARGO_ORE) {
+        field_ore += tc.secondary_amount;
+      }
+    }
+
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       const int who = (int)colony->tiles[ti];
       if (who < 0 || who >= colony->colonist_count) {

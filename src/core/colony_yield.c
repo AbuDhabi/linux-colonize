@@ -1,6 +1,7 @@
 #include "core/colony_yield.h"
 
 #include <stddef.h>
+#include <string.h>
 
 /*
  * Yield columns match NAMES.TXT @JOB Farmer…Fisherman.
@@ -162,4 +163,116 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
     yield += 1;
   }
   return yield;
+}
+
+/* Apply @RESOURCE bonus without plow/road (town-commons secondary / food specials). */
+static int colony_yield_apply_resource(int base, int resource, int field_job) {
+  if (resource < 0 || colony_yield_resource_job(resource) != field_job) {
+    return base;
+  }
+  /* Prime Timber never applies on the town commons. */
+  if (resource == 10 || resource == 11) {
+    return base;
+  }
+  const int bonus = colony_yield_resource_bonus(resource);
+  if (bonus > base) {
+    return bonus;
+  }
+  return base + 2;
+}
+
+/*
+ * Town-commons food before specials: forested uses classic dual-produce food
+ * (scrub 2, others 3); cleared land uses @UNFORESTED Farmer.
+ */
+static int colony_yield_town_commons_food_base(int pedia) {
+  if (pedia >= 8 && pedia <= 23) {
+    return ((pedia & 7) == 1) ? 2 : 3; /* Scrub vs other forests */
+  }
+  if (pedia >= 0 && pedia <= 7) {
+    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER);
+  }
+  if (pedia == 28) {
+    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER); /* Hills */
+  }
+  return 0;
+}
+
+/* Secondary commodity job for the settlement square (not best-of-table). */
+static int colony_yield_town_commons_secondary_job(int pedia) {
+  if (pedia >= 8 && pedia <= 23) {
+    /* Rain forest → sugar; all other forests → furs (not lumber). */
+    return ((pedia & 7) == 7) ? COLONIZE_JOB_SUGAR_PLANTER : COLONIZE_JOB_FUR_TRAPPER;
+  }
+  switch (pedia) {
+  case 0: /* Tundra */
+  case 1: /* Desert */
+  case 28: /* Hills */
+    return COLONIZE_JOB_ORE_MINER;
+  case 2: /* Plains */
+  case 3: /* Prairie */
+    return COLONIZE_JOB_COTTON_PLANTER;
+  case 4: /* Grassland */
+  case 6: /* Marsh */
+    return COLONIZE_JOB_TOBACCO_PLANTER;
+  case 5: /* Savannah */
+  case 7: /* Swamp */
+    return COLONIZE_JOB_SUGAR_PLANTER;
+  case 27: /* Mountains (not founding terrain) */
+    return COLONIZE_JOB_SILVER_MINER;
+  default:
+    return -1;
+  }
+}
+
+void colony_yield_town_commons(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  ColonizeTownCommonsYield* out
+) {
+  if (out) {
+    memset(out, 0, sizeof(*out));
+    out->secondary_job = -1;
+    out->secondary_cargo = -1;
+  }
+  if (!map || !out) {
+    return;
+  }
+  const int pedia = map_pedia_terrain_index_at(map, x, y);
+  const int res = map_resource_type_at(map, x, y);
+  const bool timber = (res == 10 || res == 11);
+
+  int food = colony_yield_town_commons_food_base(pedia);
+  /* Plow (artificial) applies to commons food on cleared land. */
+  if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
+    food += 1;
+  }
+  /* Food-oriented specials. Skip Prime Timber. Game also boosts food. */
+  if (!timber && res >= 0) {
+    if (res == 1 || res == 2) { /* Oasis, Wheat */
+      food = colony_yield_apply_resource(food, res, COLONIZE_JOB_FARMER);
+    } else if (res == 9) { /* Game */
+      const int bonus = colony_yield_resource_bonus(9);
+      if (bonus > food) {
+        food = bonus;
+      } else {
+        food += 2;
+      }
+    }
+  }
+  out->food = food > 0 ? food : 0;
+
+  const int sec_job = colony_yield_town_commons_secondary_job(pedia);
+  if (sec_job < 0) {
+    return;
+  }
+  int sec = colony_yield_base_for_pedia(pedia, sec_job);
+  /* No plow / road on commons secondary (artificial improvements ignored). */
+  if (!timber) {
+    sec = colony_yield_apply_resource(sec, res, sec_job);
+  }
+  out->secondary_job = sec_job;
+  out->secondary_cargo = colony_yield_job_cargo(sec_job);
+  out->secondary_amount = sec > 0 ? sec : 0;
 }

@@ -358,13 +358,15 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
 | Top bar | (rendered) | Colony name, campaign date, and treasury across the top strip |
-| Settlement view | `PARCH.SS` + `BUILDING.SS` | Worker icons on buildings, production badges (craft/bells/crosses/hammers), outside units on the fortification strip |
-| Area view | `TERRAIN.SS` + `PHYS0.SS` + `ICONS.SS` | 3×3 catchment: settlement icon **#0–3** on center, harvest cargo icons, colonist unit sprites on surrounds |
+| Settlement view | `PARCH.SS` + `BUILDING.SS` | Workers + badges; click uses **sprite bounds**; tight selection boxes; construction banner only in Construction tab |
+| Area view | `TERRAIN.SS` + `PHYS0.SS` + `ICONS.SS` | Centered 3×3 at **24px** tiles (1.5×); settlement **#0–3**; yields via resource-count strips (fisherman food uses fish **#57**) |
 | Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill behind the 3×3 (equal L/R and T/B margins) |
-| People view | `COLONY.PIK` left (~x0–99) | SoL % (flag **#123**) / Tory % (crown **#124**), colonist icon strip, food/crosses/bells meters |
-| Transport view | mid (~x100–209) | Ships/wagons on wharf art; holds: full color / partial grey / empty recess; passengers as unit icons |
-| Multifunction | right (~x210–292) + buttons (~x293–304) | Production / Units / Construction (house / rifle **#68** / hammer **#69**) |
+| People view | `COLONY.PIK` left (~x0–129) | SoL (flag **#123**) / Tory (crown **#124**, right-aligned); food→crosses→bells resource strips (fish **#57** first, then grain food) |
+| Transport view | mid (~x130–209) | Ship **class** name; holds: color / grey partial / empty cover **#122**; passengers as unit icons |
+| Multifunction | right (~x210–292) + buttons (~x293–304) | Production / Units / Construction (house **#67** / rifle **#68** / hammer **#69**) |
 | Warehouse | cargo strip `y=180/192` | Unchanged slots (`ICONS.SS` **#22–37**); Exit `x≥305` |
+
+**Resource-count strip** (`colony_screen_draw_resource_count` / `_pair`): one icon per unit, evenly spaced in a rect; when start-to-start spacing is ≤ 1px (nearly total overlap), overlay the amount on the **left** with a black outline and a caller-chosen foreground (white / green / red / …). An `always_show_number` flag exists but is unused by current call sites. Used for area yields, people meters, Production tab, and Construction hammers (two rows totaling project cost). Fisherman yields still count as food cargo; colony UI only swaps the icon to `ICONS.SS` **#57** (fish before grain when both appear in one strip).
 
 `CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here.
 
@@ -377,11 +379,11 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 | Key / click | Action |
 |-------------|--------|
 | Click colonist / building / area | Select; assign workplace or open field-jobs popup |
-| **N** / click Production pane | Toggle production numbers on icons |
+| **N** / click Production pane | Toggle production numbers on dense strips |
 | **1** / **2** / **3** / **M** | Multifunction Production / Units / Construction / cycle |
-| **C** | Open Construction Change popup (also from Construction tab) |
+| Construction **BUY** / **CHANGE** | Buy remaining project; open Change popup (**C** also) |
 | **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
-| Click ship / cargo / hold | Select transport; load warehouse→hold; unload hold→warehouse |
+| Click ship / cargo / hold | Select transport (shows class name); load warehouse→hold; unload hold→warehouse |
 | **L** / **U** | Load highest-value cargo; unload first hold |
 | **=** / **+** | Full / partial load of selected warehouse cargo |
 | Esc | Close jobs, then construction, then return to map |

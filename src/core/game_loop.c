@@ -2884,7 +2884,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_TRANSPORT:
         if (hit.index >= 0 && hit.index < csv->docked_transport_count) {
           csv->transport_unit_id = csv->docked_transport_ids[hit.index];
-          set_status(game, "Transport selected", NULL);
+          {
+            const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+            const ColonizeUnitType* tt = tu ? units_type(&game->units, tu->type_index) : NULL;
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "%s",
+              tt && tt->name[0] ? tt->name : "Transport selected"
+            );
+          }
           colony_screen_set_status(csv, game->status);
         }
         break;
@@ -2975,6 +2984,40 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         } else if (csv->multi_mode == COLONY_MULTI_CONSTRUCTION) {
           colony_screen_open_construction(csv, &game->colonies, game->colony_view_id);
         }
+        break;
+      case COLONY_HIT_MULTI_BUY: {
+        if (!colony || colony->building_in_production < 0) {
+          set_status(game, "No project", NULL);
+        } else {
+          const int gold_before = game->europe.gold;
+          const ColonizeBuildingType* bt = colonies_building_type(
+            &game->colonies, colony->building_in_production
+          );
+          const int tools = bt ? bt->tools_cost : 0;
+          if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
+            set_status(game, "Need tools", NULL);
+          } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
+            set_status(game, "Need gold", NULL);
+          } else if (colonies_buy_construction(
+                       &game->colonies, game->colony_view_id, &game->europe.gold
+                     )) {
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Bought %s (-%d$, -%d tools)",
+              bt ? bt->name : "building",
+              gold_before - game->europe.gold,
+              tools
+            );
+          } else {
+            set_status(game, "Cannot buy", NULL);
+          }
+        }
+        colony_screen_set_status(csv, game->status);
+        break;
+      }
+      case COLONY_HIT_MULTI_CHANGE:
+        colony_screen_open_construction(csv, &game->colonies, game->colony_view_id);
         break;
       case COLONY_HIT_AREA_TILE: {
         const int who = (int)colony->tiles[hit.index];
