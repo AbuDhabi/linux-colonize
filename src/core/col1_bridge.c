@@ -123,6 +123,25 @@ static void col1_apply_building_level(
   }
 }
 
+static unsigned col1_encode_building_level(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const char* const* names,
+  int name_count
+) {
+  unsigned level = 0;
+  if (!pool || !colony || !names || name_count <= 0) {
+    return 0;
+  }
+  for (int i = 0; i < name_count; ++i) {
+    const int idx = colonies_find_building(pool, names[i]);
+    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[idx]) {
+      level = (unsigned)(i + 1);
+    }
+  }
+  return level;
+}
+
 static void col1_apply_colony_buildings(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -149,6 +168,7 @@ static void col1_apply_colony_buildings(
   static const char* k_smith[] = {
     "Blacksmith's House", "Blacksmith's Shop", "Iron Works"
   };
+  static const char* k_capitol[] = {"Capitol", "Capitol Expansion"};
 
   col1_apply_building_level(pool, colony, k_fort, 3, b->fortification);
   col1_apply_building_level(pool, colony, k_armory, 3, b->armory);
@@ -175,6 +195,64 @@ static void col1_apply_colony_buildings(
   col1_apply_building_level(pool, colony, k_carpenter, 2, b->carpenters_shop);
   col1_apply_building_level(pool, colony, k_church, 2, b->church);
   col1_apply_building_level(pool, colony, k_smith, 3, b->blacksmiths_house);
+  col1_apply_building_level(pool, colony, k_capitol, 2, b->capitol);
+}
+
+static void col1_encode_colony_buildings(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  ColonizeCol1Buildings* out
+) {
+  static const char* k_fort[] = {"Stockade", "Fort", "Fortress"};
+  static const char* k_armory[] = {"Armory", "Magazine", "Arsenal"};
+  static const char* k_docks[] = {"Docks", "Drydock", "Shipyard"};
+  static const char* k_hall[] = {"Town Hall"};
+  static const char* k_school[] = {"Schoolhouse", "College", "University"};
+  static const char* k_warehouse[] = {"Warehouse", "Warehouse Expansion"};
+  static const char* k_stable[] = {"Stable"};
+  static const char* k_custom[] = {"Custom House"};
+  static const char* k_press[] = {"Printing Press", "Newspaper"};
+  static const char* k_weaver[] = {"Weaver's House", "Weaver's Shop", "Textile Mill"};
+  static const char* k_tobacco[] = {
+    "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory"
+  };
+  static const char* k_rum[] = {
+    "Rum Distiller's House", "Rum Distiller's Shop", "Rum Factory"
+  };
+  static const char* k_fur[] = {
+    "Fur Trader's House", "Fur Trading Post", "Fur Factory"
+  };
+  static const char* k_carpenter[] = {"Carpenter's Shop", "Lumber Mill"};
+  static const char* k_church[] = {"Church", "Cathedral"};
+  static const char* k_smith[] = {
+    "Blacksmith's House", "Blacksmith's Shop", "Iron Works"
+  };
+  static const char* k_capitol[] = {"Capitol", "Capitol Expansion"};
+
+  if (!out) {
+    return;
+  }
+  memset(out, 0, sizeof(*out));
+  if (!pool || !colony) {
+    return;
+  }
+  out->fortification = col1_encode_building_level(pool, colony, k_fort, 3);
+  out->armory = col1_encode_building_level(pool, colony, k_armory, 3);
+  out->docks = col1_encode_building_level(pool, colony, k_docks, 3);
+  out->town_hall = col1_encode_building_level(pool, colony, k_hall, 1);
+  out->schoolhouse = col1_encode_building_level(pool, colony, k_school, 3);
+  out->warehouse = col1_encode_building_level(pool, colony, k_warehouse, 2);
+  out->stables = col1_encode_building_level(pool, colony, k_stable, 1) ? 1u : 0u;
+  out->custom_house = col1_encode_building_level(pool, colony, k_custom, 1) ? 1u : 0u;
+  out->printing_press = col1_encode_building_level(pool, colony, k_press, 2);
+  out->weavers_house = col1_encode_building_level(pool, colony, k_weaver, 3);
+  out->tobacconists_house = col1_encode_building_level(pool, colony, k_tobacco, 3);
+  out->rum_distillers_house = col1_encode_building_level(pool, colony, k_rum, 3);
+  out->fur_traders_house = col1_encode_building_level(pool, colony, k_fur, 3);
+  out->carpenters_shop = col1_encode_building_level(pool, colony, k_carpenter, 2);
+  out->church = col1_encode_building_level(pool, colony, k_church, 2);
+  out->blacksmiths_house = col1_encode_building_level(pool, colony, k_smith, 3);
+  out->capitol = col1_encode_building_level(pool, colony, k_capitol, 2);
 }
 
 static int col1_unit_type_to_runtime(const ColonizeUnitPool* units, uint8_t col1_type) {
@@ -352,12 +430,13 @@ bool col1_bridge_apply(
       col->active = true;
       col->building_type = -1;
       col->field_job = -1;
-      col->profession = UNITS_JOB_NONE;
-      int t = src->profession[p];
-      if (t < 0 || t >= units->type_count) {
-        t = 0;
+      /* COL1 profession[] is NAMES.TXT @JOB skill, not unit type. */
+      col->profession = (int)src->profession[p];
+      int work_type = units_find_type(units, "Colonists");
+      if (work_type < 0) {
+        work_type = 0;
       }
-      col->unit_type_index = t;
+      col->unit_type_index = work_type;
       dst->colonist_count++;
     }
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
@@ -673,9 +752,9 @@ bool col1_bridge_capture(
         (uint8_t)(src->building_in_production < 0 ? 0xFF : src->building_in_production);
       for (int p = 0; p < dst->population; ++p) {
         const ColonizeColonist* c = &src->colonists[p];
-        int prof = c->unit_type_index;
+        int prof = c->profession;
         if (prof < 0) {
-          prof = 0;
+          prof = UNITS_JOB_NONE;
         }
         dst->profession[p] = (uint8_t)prof;
         if (c->field_job >= 0 && c->field_job < COLONIZE_FIELD_JOB_COUNT) {
@@ -700,13 +779,7 @@ bool col1_bridge_capture(
         const int who = (int)src->tiles[ti];
         dst->tiles[ti] = (who >= 0 && who < dst->population) ? (int8_t)who : (int8_t)-1;
       }
-      /* Minimal buildings: town hall if present in live flags. */
-      if (colonies_find_building(colonies, "Town Hall") >= 0) {
-        const int thi = colonies_find_building(colonies, "Town Hall");
-        if (thi >= 0 && src->has_building[thi]) {
-          dst->buildings.town_hall = 1;
-        }
-      }
+      col1_encode_colony_buildings(colonies, src, &dst->buildings);
     }
     free(save->colony);
     save->colony = neu;

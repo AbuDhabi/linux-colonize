@@ -256,11 +256,11 @@ River / road / plow on **field** tiles add up to **+4** food/resources (manual T
 
 | UI element | Should show | Linux port today |
 |------------|-------------|------------------|
-| **Production tab** (`colony_preview.c`) | Net colony output this turn (goods, shortfalls, hammers, bells/crosses) | Simplified: craft uses fixed tier rates **3 / 5 / 8** per worker, **ignores** `@JOB` skill and colonist class; bells/crosses stub (`1 + pop/4` + per worker) |
-| **Worker badge** above building colonists (`colony_screen_building_production_badge`) | Icon **count** = expected output for **that worker** (building tier × class × skill × modifiers), appropriate **output** icon | Shows a **single output-type icon** per worker (**no count**, no skill/tier/modifiers) |
-| **EOT production** (`colony_craft.c`, `turn.c`) | Same rules as Production tab | Same simplifications as preview; skill/class not wired |
+| **Production tab** (`colony_preview.c`) | Net colony output this turn (goods, shortfalls, hammers, bells/crosses) | Uses [`colony_production.c`](../src/core/colony_production.c): tier rates **3 / 6 / 9**, class scaling, skill match ×2, convert +1 on tiles |
+| **Production strip** above building colonists | Icon strip spanning the building = **sum** of assigned workers' output | Full building width; amount via `colony_prod_worker_building_output()` summed per workplace |
+| **EOT production** (`colony_craft.c`, `turn.c`) | Same rules as Production tab | Same module; field harvest uses `colony_yield_for_worker()` |
 
-To fix badge/preview mismatches, both paths should share one function:
+To fix badge/preview mismatches, both paths should share one function — implemented as **`colony_production.c`**:
 
 ```
 effective_class = (profession matches recipe) ? skilled : free_colonist
@@ -268,7 +268,7 @@ output(worker, building) = tier_rate(building) × class_factor(effective_class) 
 input(worker, building)  = output(...) × (factory ? 6/9 : 1)   // 1:1 except factory 6→9
 ```
 
-`class_factor`: criminal/convert → manufacturing floor **1**; indentured → **2**; free (and unmatched experts) → tier baseline; matched Master/Expert → ×2 on that baseline. Shortfalls appear when Σ input demand > warehouse stock + same-turn field intake for that cargo.
+`class_factor`: criminal/convert → manufacturing floor **1**; indentured → **2/3** of tier rate; free (and unmatched experts) → tier baseline; matched Master/Expert → ×2 on class-scaled baseline. **Sentiment bonus not yet applied.** Shortfalls appear when Σ input demand > warehouse stock + same-turn field intake for that cargo.
 
 ---
 
@@ -276,10 +276,11 @@ input(worker, building)  = output(...) × (factory ? 6/9 : 1)   // 1:1 except fa
 
 | Concern | Module |
 |---------|--------|
+| Shared production rules | [`src/core/colony_production.c`](../src/core/colony_production.c) |
 | Manufacturing recipes | [`src/core/colony_craft.c`](../src/core/colony_craft.c) |
 | Turn production + hammers | [`src/core/turn.c`](../src/core/turn.c) |
 | Production tab preview | [`src/core/colony_preview.c`](../src/core/colony_preview.c) |
-| Settlement worker badges | [`colony_screen_building_production_badge()`](../src/core/colony_screen.c) |
+| Settlement production strips | [`colony_screen_building_production_badge()`](../src/core/colony_screen.c) (one strip per building, full width) |
 | Profession / skill storage | [`ColonizeColonist.profession`](../src/core/colony.h), [`UNITS_JOB_*`](../src/core/units.h) |
 | Building definitions | [`colonies_load_buildings()`](../src/core/colony.c) ← `NAMES.TXT` |
 

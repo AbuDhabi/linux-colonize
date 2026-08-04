@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/colony_preview.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/turn.h"
 #include "platform/diagnostics.h"
@@ -1019,7 +1020,7 @@ static void colony_screen_draw_area_overlays(
     const int tile_x = origin_x + (dx + half) * tile;
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
-    const int yld = colony_yield_for_tile(map, colony->x + dx, colony->y + dy, c->field_job);
+    const int yld = colony_yield_for_worker(map, colony->x + dx, colony->y + dy, c->field_job, c->profession);
     if (cargo >= 0 && yld > 0) {
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
@@ -1421,17 +1422,30 @@ static void colony_screen_blit_buildings(
       15,
       false
     );
-    /* Production badge above each worker. */
-    const int badge = colony_screen_building_production_badge(pool, built);
-    if (badge >= 0 && view->icons_ok) {
-      int ref_iw = 12;
-      if (worker_icons[0] >= 0 && worker_icons[0] < view->icons.sprite_count) {
-        ref_iw = view->icons.sprites[worker_icons[0]].width;
-      }
-      int xs[COLONY_BUILDING_WORKERS_MAX];
-      colony_screen_icon_strip_layout(bx, bw, workers, ref_iw, xs);
-      for (int wi = 0; wi < workers; ++wi) {
-        colony_screen_blit_icon(view, badge, framebuffer, xs[wi] + 2, strip_y - 10);
+    /* One production strip spanning the building (sum of assigned workers). */
+    if (view->icons_ok) {
+      const int badge = colony_screen_building_production_badge(pool, built);
+      if (badge >= 0) {
+        int amount = 0;
+        for (int wi = 0; wi < workers; ++wi) {
+          const ColonizeColonist* wc = &colony->colonists[worker_ci[wi]];
+          amount += colony_prod_worker_building_output(pool, built, wc->profession);
+        }
+        if (amount > 0) {
+          colony_screen_draw_resource_count(
+            view,
+            NULL,
+            framebuffer,
+            bx,
+            strip_y - 12,
+            bw,
+            10,
+            badge,
+            amount,
+            15,
+            false
+          );
+        }
       }
     }
   }
@@ -2110,7 +2124,13 @@ static void colony_screen_draw_jobs_popup(
       snprintf(label, sizeof(label), "Clear");
     } else {
       const int job = view->job_ids[i - 1];
-      const int yld = (map && colony) ? colony_yield_for_tile(map, tx, ty, job) : 0;
+      int profession = COLONIZE_PROF_FREE_COLONIST;
+      if (colony && view->selected_colonist >= 0 &&
+          view->selected_colonist < colony->colonist_count) {
+        profession = colony->colonists[view->selected_colonist].profession;
+      }
+      const int yld =
+        (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession) : 0;
       snprintf(label, sizeof(label), "%s (%d)", colony_yield_job_name(job), yld);
     }
     if (font) {

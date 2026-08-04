@@ -56,6 +56,7 @@ add_library(colonize_core STATIC
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
+  src/core/colony_production.c
   src/core/colony_craft.c
   src/core/colony_preview.c
   src/core/turn.c
@@ -197,6 +198,7 @@ add_executable(smoke_game_flow
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
+  src/core/colony_production.c
   src/core/colony_craft.c
   src/core/colony_preview.c
   src/core/turn.c
@@ -237,6 +239,7 @@ add_executable(smoke_new_game
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
+  src/core/colony_production.c
   src/core/colony_craft.c
   src/core/colony_preview.c
   src/core/turn.c
