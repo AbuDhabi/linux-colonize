@@ -103,6 +103,8 @@ struct ColonizeGameState {
   bool phys0_ok;
   bool cursor_ok;
   bool mouse_cursor_built; /* SDL color cursor created from CURSOR.SS #0 */
+  int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
+  int debug_mouse_y;
   bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
@@ -4954,6 +4956,40 @@ render_log_sample:
   if (!game->in_menu && turn_processor_show_indicator(&game->turn_proc)) {
     turn_draw_owner_indicator(framebuffer, game->active_turn_nation);
   }
+  /* Debug measure: original-resolution pixel under the pointer (for layout). */
+  {
+    const ColonizeFont* font = game->colony_font_ok ? &game->colony_font
+      : (game->menu_font_ok ? &game->menu_font : NULL);
+    const int mx = game->debug_mouse_x;
+    const int my = game->debug_mouse_y;
+    if (font && mx >= 0 && my >= 0 && mx < framebuffer->width && my < framebuffer->height) {
+      char label[24];
+      snprintf(label, sizeof(label), "%d,%d", mx, my);
+      int tx = mx + 12;
+      int ty = my + 2;
+      if (tx > framebuffer->width - 40) {
+        tx = mx - 40;
+      }
+      if (ty > framebuffer->height - 8) {
+        ty = framebuffer->height - 8;
+      }
+      if (tx < 0) {
+        tx = 0;
+      }
+      if (ty < 0) {
+        ty = 0;
+      }
+      for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          font_draw_text(font, framebuffer, tx + dx, ty + dy, label, 0);
+        }
+      }
+      font_draw_text(font, framebuffer, tx, ty, label, 15);
+    }
+  }
   render_log_counter++;
   if (render_log_counter == 1 || render_log_counter == 60 || render_log_counter == 300) {
     const int cx = framebuffer->width / 2;
@@ -4988,6 +5024,9 @@ void game_apply_mouse_cursor(
   if (!game || !platform) {
     return;
   }
+
+  game->debug_mouse_x = mouse_x;
+  game->debug_mouse_y = mouse_y;
 
   /* Build the game pointer once from CURSOR.SS #0 (arrow tip near 1,0).
    * Sprite corners store stray index 0x09 (light blue) that is not part of the
