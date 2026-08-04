@@ -1068,8 +1068,7 @@ int main(void) {
       return 1;
     }
 
-    hit =
-      colony_screen_hit_test(&view, &pool, sample, &units, COLONY_EXIT_X + 2, COLONY_BOTTOM_PANEL_Y + 4);
+    hit = colony_screen_hit_test(&view, &pool, sample, &units, COLONY_EXIT_X + 2, COLONY_EXIT_Y + 2);
     if (hit.kind != COLONY_HIT_EXIT) {
       fprintf(stderr, "expected exit hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {

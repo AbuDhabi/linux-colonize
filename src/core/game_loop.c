@@ -2593,11 +2593,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
       if (csv->jobs_open) {
-        if (csv->jobs_selection == 0) {
-          colonies_clear_field(&game->colonies, game->colony_view_id, csv->jobs_tile_index);
-          set_status(game, "Field cleared", NULL);
-        } else if (csv->jobs_selection > 0 && csv->jobs_selection - 1 < csv->job_count) {
-          const int job = csv->job_ids[csv->jobs_selection - 1];
+        if (csv->jobs_selection >= 0 && csv->jobs_selection < csv->job_count) {
+          const int job = csv->job_ids[csv->jobs_selection];
           const int ci = game_colony_selected_colonist(game);
           if (ci < 0) {
             set_status(game, "Select a colonist first", NULL);
@@ -3043,14 +3040,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_COLONIST:
       case COLONY_HIT_PEOPLE_COLONIST:
         game_colony_select_colonist(game, hit.index);
-        set_status(game, "Colonist selected", NULL);
-        colony_screen_set_status(csv, game->status);
         break;
       case COLONY_HIT_OUTSIDE_UNIT:
         if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
           game_colony_select_outside(game, csv->outside_unit_ids[hit.index]);
-          set_status(game, "Colonist selected", NULL);
-          colony_screen_set_status(csv, game->status);
         }
         break;
       case COLONY_HIT_FENCE: {
@@ -3161,12 +3154,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         break;
       }
-      case COLONY_HIT_JOBS_CLEAR:
-        colonies_clear_field(&game->colonies, game->colony_view_id, csv->jobs_tile_index);
-        colony_screen_close_jobs(csv);
-        set_status(game, "Field cleared", NULL);
-        colony_screen_set_status(csv, game->status);
-        break;
       case COLONY_HIT_JOBS_ROW:
         if (hit.index >= 0 && hit.index < csv->job_count) {
           const int job = csv->job_ids[hit.index];
@@ -3612,32 +3599,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  if (input->last_key == COLONIZE_KEY_C && !game->in_menu && game->world_map_ok) {
-    const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
-    if (cid < 0) {
-      set_status(game, "No colony at cursor", NULL);
-    } else {
-      game->in_colony = true;
-      game->in_europe = false;
-      game->in_pedia = false;
-      game->in_report = false;
-      game->colony_view_id = cid;
-      const ColonizeColony* col = colonies_get(&game->colonies, cid);
-      snprintf(
-        game->status,
-        sizeof(game->status),
-        "Entered %s",
-        col ? col->name : "colony"
-      );
-      colony_screen_set_status(
-        &game->colony_screen,
-        col ? col->name : "Colony"
-      );
-      diag_info("Entered colony screen (id=%d).", cid);
-    }
-    return true;
-  }
-
   if (input->last_key == COLONIZE_KEY_E && !game->in_menu) {
     game->in_europe = true;
     game->in_pedia = false;
@@ -3830,6 +3791,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
 
       /* Left-click */
+      const int cid = colonies_id_at(&game->colonies, mx, my);
+      if (cid >= 0) {
+        const ColonizeColony* col = colonies_get(&game->colonies, cid);
+        if (col && col->nation_id == game->human_nation) {
+          game_select_tile(game, mx, my);
+          game_enter_colony_at_cursor(game);
+          return true;
+        }
+      }
+
       if (game->units.selected_id >= 0) {
         /* Unit selected: pan view only — keep unit, do not select tile. */
         game_set_view_center(game, mx, my);
@@ -3872,16 +3843,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
       }
 
-      const int cid = colonies_id_at(&game->colonies, mx, my);
-      if (cid >= 0) {
-        const ColonizeColony* col = colonies_get(&game->colonies, cid);
-        if (col && col->nation_id == game->human_nation) {
-          game_select_tile(game, mx, my);
-          game_enter_colony_at_cursor(game);
-          return true;
-        }
-      }
-
       game_select_tile(game, mx, my);
       return true;
     }
@@ -3903,7 +3864,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 1 : 15;
   const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 1 : 15;
 
-  if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok && game->units_ok) {
+  if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok) {
+    const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
+    if (cid >= 0) {
+      const ColonizeColony* col = colonies_get(&game->colonies, cid);
+      if (col && col->nation_id == game->human_nation) {
+        game_enter_colony_at_cursor(game);
+        return true;
+      }
+    }
+    if (!game->units_ok) {
+      return true;
+    }
     const int at_cursor = game_owned_unit_at(game, game->map_cursor_x, game->map_cursor_y);
     if (at_cursor >= 0 && at_cursor != game->units.selected_id) {
       game_select_unit(game, at_cursor);
