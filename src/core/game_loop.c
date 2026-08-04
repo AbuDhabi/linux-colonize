@@ -33,6 +33,7 @@
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
+#include "core/ui_drag.h"
 #include "core/unit_stack.h"
 #include "core/units.h"
 #include "core/version.h"
@@ -106,6 +107,7 @@ struct ColonizeGameState {
   bool mouse_cursor_built; /* SDL color cursor created from CURSOR.SS #0 */
   int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
   int debug_mouse_y;
+  UiDragSession ui_drag;
   bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
@@ -2565,6 +2567,358 @@ static int game_colony_list_outside_roles(
   const ColonizeUnit* unit,
   int* out_roles,
   int out_max
+);
+
+static void game_ui_drag_clear(ColonizeGameState* game) {
+  if (game) {
+    ui_drag_clear(&game->ui_drag);
+  }
+}
+
+static const ColonizeSpriteSheet* game_icons(const ColonizeGameState* game) {
+  return (game && game->unit_icons_ok) ? &game->unit_icons : NULL;
+}
+
+static int game_europe_transit_line_h(const ColonizeGameState* game) {
+  const ColonizeFont* font = (game && game->menu_font_ok) ? &game->menu_font : NULL;
+  return font && font->max_height > 0 ? (int)font->max_height + 2 : 8;
+}
+
+static EuropeHitResult game_europe_hit(const ColonizeGameState* game, int mx, int my) {
+  return europe_hit_test_ex(
+    &game->europe,
+    mx,
+    my,
+    game->units_ok ? &game->units : NULL,
+    game_icons(game),
+    game_europe_transit_line_h(game)
+  );
+}
+
+static void game_ui_drag_set_icon(ColonizeGameState* game, int sprite) {
+  const ColonizeSpriteSheet* icons = game_icons(game);
+  if (icons) {
+    ui_drag_set_cursor_from_sheet(&game->ui_drag, icons, sprite);
+  }
+}
+
+static void game_colony_drag_begin_cargo(ColonizeGameState* game, int cargo_type) {
+  ColonyScreenView* csv = &game->colony_screen;
+  ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
+  if (!colony || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  csv->selected_cargo = cargo_type;
+  if (csv->transport_unit_id < 0) {
+    set_status(game, "Select a ship first", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  if (colony->stock[cargo_type] <= 0) {
+    set_status(game, "No cargo in slot", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  const int want = colony->stock[cargo_type] < 100 ? colony->stock[cargo_type] : 100;
+  ui_drag_begin(
+    &game->ui_drag, UI_DRAG_COLONY_CARGO, cargo_type, csv->transport_unit_id, want
+  );
+  game_ui_drag_set_icon(game, COLONY_CARGO_ICON_BASE + cargo_type);
+}
+
+static void game_colony_drag_begin_hold(ColonizeGameState* game, int hold_index) {
+  ColonyScreenView* csv = &game->colony_screen;
+  if (csv->transport_unit_id < 0 || !game->units_ok) {
+    set_status(game, "Select a ship first", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+  if (!tu || hold_index < 0 || hold_index >= COLONIZE_UNIT_CARGO_MAX) {
+    return;
+  }
+  if (tu->hold_goods_amount[hold_index] <= 0 || tu->hold_goods_amount[hold_index] >= 255) {
+    set_status(game, "Hold empty", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  const int ctype = tu->hold_goods_type[hold_index];
+  ui_drag_begin(
+    &game->ui_drag, UI_DRAG_COLONY_HOLD, hold_index, csv->transport_unit_id, 0
+  );
+  if (ctype >= 0 && ctype < COLONIZE_CARGO_COUNT) {
+    game_ui_drag_set_icon(game, COLONY_CARGO_ICON_BASE + ctype);
+  }
+}
+
+static void game_colony_drag_begin_colonist(ColonizeGameState* game, int colonist_index) {
+  ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
+  game_colony_select_colonist(game, colonist_index);
+  if (!colony || colonist_index < 0 || colonist_index >= colony->colonist_count) {
+    return;
+  }
+  const ColonizeColonist* c = &colony->colonists[colonist_index];
+  ui_drag_begin(&game->ui_drag, UI_DRAG_COLONY_COLONIST, colonist_index, -1, 0);
+  if (game->units_ok) {
+    const int sprite =
+      units_working_colonist_sprite(&game->units, c->unit_type_index, c->profession);
+    game_ui_drag_set_icon(game, sprite);
+  }
+}
+
+static void game_colony_drag_begin_outside(ColonizeGameState* game, int unit_id) {
+  game_colony_select_outside(game, unit_id);
+  ui_drag_begin(&game->ui_drag, UI_DRAG_COLONY_OUTSIDE, -1, unit_id, 0);
+  if (!game->units_ok) {
+    return;
+  }
+  const ColonizeUnit* u = units_get_const(&game->units, unit_id);
+  if (!u) {
+    return;
+  }
+  const ColonizeUnitType* ut = units_type(&game->units, u->type_index);
+  int sprite = ut ? ut->icon_sprite : -1;
+  if (ut && strstr(ut->name, "Colonist") != NULL) {
+    sprite = units_working_colonist_sprite(&game->units, u->type_index, u->profession);
+  }
+  game_ui_drag_set_icon(game, sprite);
+}
+
+static void game_colony_assign_building_drop(ColonizeGameState* game, int building_index) {
+  ColonyScreenView* csv = &game->colony_screen;
+  if (building_index < 0) {
+    set_status(game, "Build it first", NULL);
+  } else {
+    const int ci = game_colony_selected_colonist(game);
+    if (ci < 0) {
+      set_status(game, "Select a colonist first", NULL);
+    } else if (colonies_assign_workplace(
+                 &game->colonies, game->colony_view_id, ci, building_index
+               )) {
+      const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, building_index);
+      snprintf(
+        game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : "building"
+      );
+    } else {
+      set_status(game, "Cannot assign here", NULL);
+    }
+  }
+  colony_screen_set_status(csv, game->status);
+}
+
+static void game_colony_area_tile_drop(
+  ColonizeGameState* game,
+  ColonizeColony* colony,
+  const ColonizeWorldMap* cmap,
+  int tile_index
+) {
+  ColonyScreenView* csv = &game->colony_screen;
+  const int who = (int)colony->tiles[tile_index];
+  if (who >= 0 && who < colony->colonist_count) {
+    game_colony_select_colonist(game, who);
+    colony_screen_open_jobs(csv, cmap, colony, tile_index);
+  } else {
+    const int ci = game_colony_selected_colonist(game);
+    if (ci < 0) {
+      set_status(game, "Select a colonist first", NULL);
+      colony_screen_set_status(csv, game->status);
+    } else {
+      colony_screen_open_jobs(csv, cmap, colony, tile_index);
+    }
+  }
+}
+
+static void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
+  ColonyScreenView* csv = &game->colony_screen;
+  if (csv->selected_colonist < 0) {
+    if (csv->selected_outside_unit >= 0) {
+      const ColonizeUnit* u = game->units_ok
+        ? units_get_const(&game->units, csv->selected_outside_unit)
+        : NULL;
+      if (u && colony) {
+        csv->eject_role_count = game_colony_list_outside_roles(
+          colony, u, csv->eject_roles, COLONIZE_EJECT_ROLE_COUNT
+        );
+        if (csv->eject_role_count <= 0) {
+          csv->eject_roles[0] = COLONIZE_EJECT_COLONIST;
+          csv->eject_role_count = 1;
+        }
+        csv->eject_colonist_index = -1;
+        csv->eject_unit_id = u->id;
+        csv->eject_selection = 0;
+        csv->eject_open = true;
+      } else {
+        set_status(game, "Select a colonist first", NULL);
+        colony_screen_set_status(csv, game->status);
+      }
+    } else {
+      set_status(game, "Select a colonist first", NULL);
+      colony_screen_set_status(csv, game->status);
+    }
+  } else {
+    colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
+  }
+}
+
+static bool game_colony_drag_drop(
+  ColonizeGameState* game,
+  ColonizeColony* colony,
+  const ColonizeWorldMap* cmap,
+  int mx,
+  int my
+) {
+  ColonyScreenView* csv = &game->colony_screen;
+  UiDragSession* drag = &game->ui_drag;
+  if (!ui_drag_active(drag) || !colony) {
+    game_ui_drag_clear(game);
+    return false;
+  }
+  const ColonyScreenHitResult hit = colony_screen_hit_test(
+    csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, mx, my
+  );
+  const UiDragKind kind = drag->kind;
+
+  if (kind == UI_DRAG_COLONY_CARGO) {
+    if (hit.kind == COLONY_HIT_HOLD || hit.kind == COLONY_HIT_TRANSPORT) {
+      int tid = csv->transport_unit_id;
+      if (hit.kind == COLONY_HIT_TRANSPORT && hit.index >= 0 &&
+          hit.index < csv->docked_transport_count) {
+        tid = csv->docked_transport_ids[hit.index];
+        csv->transport_unit_id = tid;
+      }
+      if (tid >= 0 && game->units_ok) {
+        const int moved = colonies_transfer_to_unit(
+          &game->colonies,
+          game->colony_view_id,
+          &game->units,
+          tid,
+          drag->index,
+          drag->amount > 0 ? drag->amount : 100
+        );
+        if (moved > 0) {
+          snprintf(game->status, sizeof(game->status), "Loaded %d", moved);
+        } else {
+          set_status(game, "No empty hold", NULL);
+        }
+        colony_screen_set_status(csv, game->status);
+      }
+    }
+  } else if (kind == UI_DRAG_COLONY_HOLD) {
+    if (hit.kind == COLONY_HIT_CARGO_SLOT ||
+        (hit.kind == COLONY_HIT_NONE && my >= COLONY_CARGO_STRIP_Y)) {
+      if (csv->transport_unit_id >= 0 && game->units_ok) {
+        bool full = false;
+        const int moved = colonies_transfer_from_unit(
+          &game->colonies,
+          game->colony_view_id,
+          &game->units,
+          csv->transport_unit_id,
+          drag->index,
+          &full
+        );
+        if (moved > 0 && full) {
+          snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
+        } else if (moved > 0) {
+          snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
+        } else if (full) {
+          set_status(game, "Warehouse full", NULL);
+        } else {
+          set_status(game, "Hold empty", NULL);
+        }
+        colony_screen_set_status(csv, game->status);
+      }
+    }
+  } else if (kind == UI_DRAG_COLONY_COLONIST || kind == UI_DRAG_COLONY_OUTSIDE) {
+    if (hit.kind == COLONY_HIT_BUILDING) {
+      game_colony_assign_building_drop(game, hit.index);
+    } else if (hit.kind == COLONY_HIT_AREA_TILE) {
+      game_colony_area_tile_drop(game, colony, cmap, hit.index);
+    } else if (hit.kind == COLONY_HIT_FENCE) {
+      game_colony_fence_drop(game, colony);
+    }
+  }
+
+  game_ui_drag_clear(game);
+  return true;
+}
+
+static void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
+  EuropeScreen* eu = &game->europe;
+  if (eu->harbor_ships <= 0 || hidx < 0 || hidx >= eu->harbor_ships) {
+    snprintf(eu->status, sizeof(eu->status), "%s", "No ships in harbor.");
+    return;
+  }
+  if (!game->units_ok) {
+    snprintf(eu->status, sizeof(eu->status), "%s", "Cannot sail: units unavailable.");
+    return;
+  }
+  EuropeHarborShip* hs = &eu->harbor[hidx];
+  if (hs->type_index < 0) {
+    const int resolved = units_find_type(&game->units, hs->name);
+    if (resolved >= 0) {
+      hs->type_index = resolved;
+    }
+  }
+  int movement = 5;
+  const ColonizeUnitType* ut = units_type(&game->units, hs->type_index);
+  if (ut) {
+    movement = ut->movement;
+  }
+  europe_set_sail_from_harbor(eu, hidx, movement, &game->units);
+}
+
+static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
+  EuropeScreen* eu = &game->europe;
+  UiDragSession* drag = &game->ui_drag;
+  if (!ui_drag_active(drag)) {
+    game_ui_drag_clear(game);
+    return false;
+  }
+  const EuropeHitResult hit = game_europe_hit(game, mx, my);
+  const UiDragKind kind = drag->kind;
+
+  if (kind == UI_DRAG_EUROPE_MARKET) {
+    if (hit.kind == EUROPE_HIT_HOLD || hit.kind == EUROPE_HIT_HARBOR_SHIP) {
+      int hidx = eu->selected_harbor;
+      if (hit.kind == EUROPE_HIT_HARBOR_SHIP && hit.index >= 0) {
+        hidx = hit.index;
+        eu->selected_harbor = hidx;
+      }
+      if (hidx >= 0) {
+        europe_buy_cargo(eu, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
+      } else {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
+      }
+    }
+  } else if (kind == UI_DRAG_EUROPE_HOLD) {
+    if (hit.kind == EUROPE_HIT_MARKET) {
+      if (eu->selected_harbor >= 0) {
+        europe_sell_hold(eu, eu->selected_harbor, drag->index);
+      }
+    }
+  } else if (kind == UI_DRAG_EUROPE_HARBOR_SHIP) {
+    if (hit.kind == EUROPE_HIT_BOUND) {
+      game_europe_sail_harbor(game, drag->index);
+    }
+  } else if (kind == UI_DRAG_EUROPE_EXPECTED_SHIP) {
+    if (hit.kind == EUROPE_HIT_BOUND) {
+      europe_reverse_transit(eu, true, drag->index);
+    }
+  } else if (kind == UI_DRAG_EUROPE_BOUND_SHIP) {
+    if (hit.kind == EUROPE_HIT_EXPECTED) {
+      europe_reverse_transit(eu, false, drag->index);
+    }
+  }
+
+  game_ui_drag_clear(game);
+  return true;
+}
+
+static int game_colony_list_outside_roles(
+  const ColonizeColony* colony,
+  const ColonizeUnit* unit,
+  int* out_roles,
+  int out_max
 ) {
   if (!colony || !unit || !out_roles || out_max <= 0) {
     return 0;
@@ -3316,6 +3670,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
+      if (ui_drag_active(&game->ui_drag)) {
+        game_ui_drag_clear(game);
+        return true;
+      }
       if (csv->message_kind != COLONY_MSG_NONE) {
         colony_screen_close_message(csv);
         return true;
@@ -3727,12 +4085,26 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
+    if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
+      game_ui_drag_clear(game);
+      return true;
+    }
+
+    if (ui_drag_active(&game->ui_drag) && input->mouse_left_released && colony) {
+      game_colony_drag_drop(game, colony, cmap, input->mouse_x, input->mouse_y);
+      return true;
+    }
+
     if (input->mouse_left_clicked && colony) {
+      if (ui_drag_active(&game->ui_drag)) {
+        return true; /* ignore click while dragging */
+      }
       const ColonyScreenHitResult hit = colony_screen_hit_test(
         csv, &game->colonies, colony, game->units_ok ? &game->units : NULL, input->mouse_x, input->mouse_y
       );
       switch (hit.kind) {
       case COLONY_HIT_EXIT:
+        game_ui_drag_clear(game);
         game->in_colony = false;
         game->colony_view_id = -1;
         return true;
@@ -3753,97 +4125,22 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         break;
       case COLONY_HIT_CARGO_SLOT:
-        if (hit.index >= 0 && hit.index < COLONIZE_CARGO_COUNT) {
-          csv->selected_cargo = hit.index;
-        }
-        if (csv->transport_unit_id < 0) {
-          set_status(game, "Select a ship first", NULL);
-        } else if (hit.index < 0 || hit.index >= COLONIZE_CARGO_COUNT || colony->stock[hit.index] <= 0) {
-          set_status(game, "No cargo in slot", NULL);
-        } else if (!game->units_ok) {
-          set_status(game, "Cannot load", NULL);
-        } else {
-          const int want =
-            colony->stock[hit.index] < 100 ? colony->stock[hit.index] : 100;
-          const int moved = colonies_transfer_to_unit(
-            &game->colonies,
-            game->colony_view_id,
-            &game->units,
-            csv->transport_unit_id,
-            hit.index,
-            want
-          );
-          if (moved > 0) {
-            snprintf(game->status, sizeof(game->status), "Loaded %d", moved);
-          } else {
-            set_status(game, "No empty hold", NULL);
-          }
-        }
-        colony_screen_set_status(csv, game->status);
+        game_colony_drag_begin_cargo(game, hit.index);
         break;
       case COLONY_HIT_HOLD:
-        if (csv->transport_unit_id < 0 || !game->units_ok) {
-          set_status(game, "Select a ship first", NULL);
-        } else {
-          bool full = false;
-          const int moved = colonies_transfer_from_unit(
-            &game->colonies,
-            game->colony_view_id,
-            &game->units,
-            csv->transport_unit_id,
-            hit.index,
-            &full
-          );
-          if (moved > 0 && full) {
-            snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
-          } else if (moved > 0) {
-            snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
-          } else if (full) {
-            set_status(game, "Warehouse full", NULL);
-          } else {
-            set_status(game, "Hold empty", NULL);
-          }
-        }
-        colony_screen_set_status(csv, game->status);
+        game_colony_drag_begin_hold(game, hit.index);
         break;
       case COLONY_HIT_COLONIST:
       case COLONY_HIT_PEOPLE_COLONIST:
-        game_colony_select_colonist(game, hit.index);
+        game_colony_drag_begin_colonist(game, hit.index);
         break;
       case COLONY_HIT_OUTSIDE_UNIT:
         if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
-          game_colony_select_outside(game, csv->outside_unit_ids[hit.index]);
+          game_colony_drag_begin_outside(game, csv->outside_unit_ids[hit.index]);
         }
         break;
       case COLONY_HIT_FENCE: {
-        if (csv->selected_colonist < 0) {
-          if (csv->selected_outside_unit >= 0) {
-            const ColonizeUnit* u = game->units_ok
-              ? units_get_const(&game->units, csv->selected_outside_unit)
-              : NULL;
-            if (u && colony) {
-              csv->eject_role_count = game_colony_list_outside_roles(
-                colony, u, csv->eject_roles, COLONIZE_EJECT_ROLE_COUNT
-              );
-              if (csv->eject_role_count <= 0) {
-                csv->eject_roles[0] = COLONIZE_EJECT_COLONIST;
-                csv->eject_role_count = 1;
-              }
-              csv->eject_colonist_index = -1;
-              csv->eject_unit_id = u->id;
-              csv->eject_selection = 0;
-              csv->eject_open = true;
-            } else {
-              set_status(game, "Select a colonist first", NULL);
-              colony_screen_set_status(csv, game->status);
-            }
-          } else {
-            set_status(game, "Select a colonist first", NULL);
-            colony_screen_set_status(csv, game->status);
-          }
-        } else {
-          colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
-        }
+        game_colony_fence_drop(game, colony);
         break;
       }
       case COLONY_HIT_EJECT_ROW: {
@@ -3953,19 +4250,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         break;
       case COLONY_HIT_AREA_TILE: {
-        const int who = (int)colony->tiles[hit.index];
-        if (who >= 0 && who < colony->colonist_count) {
-          game_colony_select_colonist(game, who);
-          colony_screen_open_jobs(csv, cmap, colony, hit.index);
-        } else {
-          const int ci = game_colony_selected_colonist(game);
-          if (ci < 0) {
-            set_status(game, "Select a colonist first", NULL);
-            colony_screen_set_status(csv, game->status);
-          } else {
-            colony_screen_open_jobs(csv, cmap, colony, hit.index);
-          }
-        }
+        game_colony_area_tile_drop(game, colony, cmap, hit.index);
         break;
       }
       case COLONY_HIT_JOBS_ROW:
@@ -3991,27 +4276,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         colony_screen_close_jobs(csv);
         break;
       case COLONY_HIT_BUILDING: {
-        if (hit.index < 0) {
-          set_status(game, "Build it first", NULL);
-        } else {
-          const int ci = game_colony_selected_colonist(game);
-          if (ci < 0) {
-            set_status(game, "Select a colonist first", NULL);
-          } else if (colonies_assign_workplace(
-                       &game->colonies, game->colony_view_id, ci, hit.index
-                     )) {
-            const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Assigned to %s",
-              bt ? bt->name : "building"
-            );
-          } else {
-            set_status(game, "Cannot assign here", NULL);
-          }
-        }
-        colony_screen_set_status(csv, game->status);
+        game_colony_assign_building_drop(game, hit.index);
         break;
       }
       case COLONY_HIT_CONSTRUCTION_BANNER:
@@ -4066,6 +4331,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     if (eu->menu != EUROPE_MENU_NONE) {
+      if (ui_drag_active(&game->ui_drag)) {
+        game_ui_drag_clear(game);
+      }
       if (input->last_key == COLONIZE_KEY_ESCAPE) {
         europe_menu_close(eu);
         return true;
@@ -4098,6 +4366,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_E) {
+      if (ui_drag_active(&game->ui_drag)) {
+        game_ui_drag_clear(game);
+        if (input->last_key == COLONIZE_KEY_ESCAPE) {
+          return true;
+        }
+      }
+      game_ui_drag_clear(game);
       game->in_europe = false;
       game_europe_deliver_bound_ships(game);
       diag_info("Left Europe screen.");
@@ -4192,10 +4467,24 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
 
+    if (input->mouse_right_clicked && ui_drag_active(&game->ui_drag)) {
+      game_ui_drag_clear(game);
+      return true;
+    }
+
+    if (ui_drag_active(&game->ui_drag) && input->mouse_left_released) {
+      game_europe_drag_drop(game, input->mouse_x, input->mouse_y);
+      return true;
+    }
+
     if (input->mouse_left_clicked) {
-      const EuropeHitResult hit = europe_hit_test(eu, input->mouse_x, input->mouse_y);
+      if (ui_drag_active(&game->ui_drag)) {
+        return true;
+      }
+      const EuropeHitResult hit = game_europe_hit(game, input->mouse_x, input->mouse_y);
       switch (hit.kind) {
       case EUROPE_HIT_EXIT:
+        game_ui_drag_clear(game);
         game->in_europe = false;
         game_europe_deliver_bound_ships(game);
         diag_info("Left Europe screen (Exit).");
@@ -4203,10 +4492,24 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case EUROPE_HIT_HARBOR_SHIP:
         eu->selected_harbor = hit.index;
         snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
+        ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HARBOR_SHIP, hit.index, -1, 0);
+        if (game->units_ok && game_icons(game)) {
+          const int sprite = europe_ship_icon_sprite(&game->units, &eu->harbor[hit.index]);
+          game_ui_drag_set_icon(game, sprite);
+        }
         break;
       case EUROPE_HIT_HOLD:
         if (eu->selected_harbor >= 0) {
-          europe_sell_hold(eu, eu->selected_harbor, hit.index);
+          EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
+          if (hit.index >= 0 && hit.index < EUROPE_SHIP_CARGO_MAX &&
+              ship->hold_goods_amount[hit.index] > 0 &&
+              ship->hold_goods_amount[hit.index] < 255) {
+            const int ctype = ship->hold_goods_type[hit.index];
+            ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_HOLD, hit.index, -1, 0);
+            if (ctype >= 0) {
+              game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + ctype);
+            }
+          }
         }
         break;
       case EUROPE_HIT_MARKET:
@@ -4214,7 +4517,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (eu->selected_harbor < 0) {
           snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
         } else {
-          europe_buy_cargo(eu, eu->selected_harbor, hit.index, 100);
+          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_MARKET, hit.index, -1, 100);
+          game_ui_drag_set_icon(game, EUROPE_CARGO_ICON_BASE + hit.index);
         }
         break;
       case EUROPE_HIT_BTN_RECRUIT:
@@ -4231,10 +4535,23 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         europe_menu_open(eu, EUROPE_MENU_DOCK);
         break;
       case EUROPE_HIT_EXPECTED:
-        europe_reverse_transit(eu, true, hit.index);
+        if (hit.index >= 0 && hit.index < eu->expected_ships) {
+          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_EXPECTED_SHIP, hit.index, -1, 0);
+          if (game->units_ok && game_icons(game)) {
+            const int sprite =
+              europe_ship_icon_sprite(&game->units, &eu->expected[hit.index]);
+            game_ui_drag_set_icon(game, sprite);
+          }
+        }
         break;
       case EUROPE_HIT_BOUND:
-        europe_reverse_transit(eu, false, hit.index);
+        if (hit.index >= 0 && hit.index < eu->bound_ships) {
+          ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_BOUND_SHIP, hit.index, -1, 0);
+          if (game->units_ok && game_icons(game)) {
+            const int sprite = europe_ship_icon_sprite(&game->units, &eu->bound[hit.index]);
+            game_ui_drag_set_icon(game, sprite);
+          }
+        }
         break;
       default:
         break;
@@ -4244,27 +4561,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
     if (input->last_key == COLONIZE_KEY_S) {
       const int hidx = eu->selected_harbor >= 0 ? eu->selected_harbor : 0;
-      if (eu->harbor_ships <= 0 || hidx >= eu->harbor_ships) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "No ships in harbor.");
-      } else if (!game->units_ok) {
-        snprintf(eu->status, sizeof(eu->status), "%s", "Cannot sail: units unavailable.");
-      } else {
-        EuropeHarborShip* hs = &eu->harbor[hidx];
-        if (hs->type_index < 0) {
-          /* Purchase leaves type_index=-1 with only the name set. */
-          const int resolved = units_find_type(&game->units, hs->name);
-          if (resolved >= 0) {
-            hs->type_index = resolved;
-          }
-        }
-        int movement = 5;
-        const ColonizeUnitType* ut = units_type(&game->units, hs->type_index);
-        if (ut) {
-          movement = ut->movement;
-        }
-        /* Ship goes to Bound; game_europe_deliver_bound_ships spawns it once it arrives. */
-        europe_set_sail_from_harbor(eu, hidx, movement, &game->units);
-      }
+      game_europe_sail_harbor(game, hidx);
       return true;
     } else if (input->last_key == COLONIZE_KEY_RIGHTBRACKET) {
       europe_cheat_add_gold(eu, 1000);
@@ -5852,32 +6149,31 @@ void game_apply_mouse_cursor(
   game->debug_mouse_x = mouse_x;
   game->debug_mouse_y = mouse_y;
 
-  /* Build the game pointer once from CURSOR.SS #0 (arrow tip near 1,0).
-   * Sprite corners store stray index 0x09 (light blue) that is not part of the
-   * arrow; treat it as transparent like COLONIZE_SS_TRANSPARENT. */
-  if (game->cursor_ok && game->cursor.sprite_count > 0 && !game->mouse_cursor_built) {
-    const ColonizeSprite* sp = &game->cursor.sprites[0];
-    const ColonizePalette* pal = game->cursor.has_palette ? &game->cursor.palette
-      : (game->map_palette_ok ? &game->map_palette
-                              : (game->palette_ok ? &game->palette : NULL));
-    if (sp->pixels && pal && sp->width > 0 && sp->height > 0) {
-      const size_t n = (size_t)sp->width * (size_t)sp->height;
-      uint8_t* masked = (uint8_t*)malloc(n);
-      if (masked) {
-        memcpy(masked, sp->pixels, n);
-        for (size_t i = 0; i < n; ++i) {
-          if (masked[i] == 0x09u) {
-            masked[i] = COLONIZE_SS_TRANSPARENT;
-          }
-        }
-        if (platform_set_mouse_cursor_indexed(
-              platform, masked, sp->width, sp->height, 1, 0, pal
-            )) {
-          game->mouse_cursor_built = true;
-        }
-        free(masked);
-      }
+  const ColonizePalette* pal = NULL;
+  /* Drag icons come from ICONS.SS — decode with that sheet's palette, not CURSOR.SS. */
+  if (ui_drag_active(&game->ui_drag) && game->ui_drag.cursor_ok) {
+    if (game->unit_icons_ok && game->unit_icons.has_palette) {
+      pal = &game->unit_icons.palette;
+    } else if (game->in_europe && game->europe_ok && game->europe.background.has_palette) {
+      pal = &game->europe.background.palette;
+    } else if (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette) {
+      pal = &game->colony_screen.frame.palette;
     }
+  }
+  if (!pal) {
+    if (game->cursor_ok && game->cursor.has_palette) {
+      pal = &game->cursor.palette;
+    } else if (game->map_palette_ok) {
+      pal = &game->map_palette;
+    } else if (game->palette_ok) {
+      pal = &game->palette;
+    }
+  }
+
+  if (pal && game->cursor_ok) {
+    ui_drag_apply_cursor(
+      &game->ui_drag, platform, pal, &game->cursor, &game->mouse_cursor_built
+    );
   }
 
   /* Game cursor over the full 320x200 frame on every screen (menu, map, reports…). */
@@ -5885,6 +6181,8 @@ void game_apply_mouse_cursor(
     mouse_x >= 0 && mouse_x < 320 && mouse_y >= 0 && mouse_y < 200;
 
   if (on_game_frame && game->mouse_cursor_built) {
+    platform_show_game_mouse_cursor(platform, true);
+  } else if (on_game_frame && ui_drag_active(&game->ui_drag) && game->ui_drag.cursor_ok) {
     platform_show_game_mouse_cursor(platform, true);
   } else {
     platform_show_game_mouse_cursor(platform, false);

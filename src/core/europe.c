@@ -1351,7 +1351,85 @@ static bool europe_in_rect(int mx, int my, int x, int y, int w, int h) {
   return mx >= x && my >= y && mx < x + w && my < y + h;
 }
 
+static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
+  if (!units || !ship) {
+    return -1;
+  }
+  int ti = ship->type_index;
+  if (ti < 0) {
+    ti = units_find_type(units, ship->name);
+  }
+  const ColonizeUnitType* ut = units_type(units, ti);
+  return ut ? ut->icon_sprite : -1;
+}
+
+int europe_transit_ship_at(
+  const EuropeHarborShip* ships,
+  int count,
+  const ColonizeUnitPool* units,
+  const ColonizeSpriteSheet* unit_icons,
+  int box_x,
+  int box_y,
+  int box_w,
+  int box_h,
+  int transit_line_h,
+  int mx,
+  int my
+) {
+  if (!ships || count <= 0 || !units || !unit_icons || !europe_in_rect(mx, my, box_x, box_y, box_w, box_h)) {
+    return -1;
+  }
+  const int line_h = transit_line_h > 0 ? transit_line_h : 8;
+  const int header_h = EUROPE_TRANSIT_HEADER_LINES * line_h;
+  const int ship_y0 = box_y + 2 + header_h + 10;
+  const int ship_area_h = box_y + box_h - ship_y0 - 1;
+  if (ship_area_h < 8) {
+    return -1;
+  }
+
+  int x = box_x + 3;
+  int y = ship_y0;
+  int row_h = 0;
+  for (int i = 0; i < count; ++i) {
+    const int sprite = europe_ship_icon_sprite(units, &ships[i]);
+    if (sprite < 0 || sprite >= unit_icons->sprite_count) {
+      continue;
+    }
+    const ColonizeSprite* sp = &unit_icons->sprites[sprite];
+    const int sw = sp->width > 0 ? sp->width : 14;
+    const int sh = sp->height > 0 ? sp->height : 16;
+    if (x + sw > box_x + box_w - 2) {
+      x = box_x + 3;
+      y += row_h + 1;
+      row_h = 0;
+      if (y + sh > box_y + box_h - 1) {
+        break;
+      }
+    }
+    if (sh > row_h) {
+      row_h = sh;
+    }
+    if (mx >= x && my >= y && mx < x + sw && my < y + sh) {
+      return i;
+    }
+    x += sw + 2;
+  }
+  /* Clicked the box but not an icon — use first ship. */
+  return count > 0 ? 0 : -1;
+}
+
 EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
+  return europe_hit_test_ex(eu, mx, my, NULL, NULL, 8);
+}
+
+EuropeHitResult europe_hit_test_ex(
+  const EuropeScreen* eu,
+  int mx,
+  int my,
+  const ColonizeUnitPool* units,
+  const ColonizeSpriteSheet* unit_icons,
+  int transit_line_h
+) {
   EuropeHitResult hit;
   hit.kind = EUROPE_HIT_NONE;
   hit.index = -1;
@@ -1389,8 +1467,6 @@ EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
   {
     int open_holds = 0;
     if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
-      /* Capacity unknown here without unit pool; allow all painted slots when a ship
-       * is selected — render covers closed slots; sell only hits filled goods. */
       open_holds = EUROPE_HOLD_MAX;
     }
     if (open_holds > 0 && my >= EUROPE_HOLD_Y && my < EUROPE_HOLD_Y + EUROPE_HOLD_H &&
@@ -1408,20 +1484,68 @@ EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
   if (eu->harbor_ships > 0 &&
       europe_in_rect(mx, my, EUROPE_LOADING_X, EUROPE_LOADING_Y, EUROPE_LOADING_W, EUROPE_LOADING_H)) {
     hit.kind = EUROPE_HIT_HARBOR_SHIP;
-    hit.index = eu->selected_harbor >= 0 ? eu->selected_harbor : 0;
+    if (units && unit_icons) {
+      const int si = europe_transit_ship_at(
+        eu->harbor,
+        eu->harbor_ships,
+        units,
+        unit_icons,
+        EUROPE_LOADING_X,
+        EUROPE_LOADING_Y,
+        EUROPE_LOADING_W,
+        EUROPE_LOADING_H,
+        transit_line_h,
+        mx,
+        my
+      );
+      hit.index = si >= 0 ? si : (eu->selected_harbor >= 0 ? eu->selected_harbor : 0);
+    } else {
+      hit.index = eu->selected_harbor >= 0 ? eu->selected_harbor : 0;
+    }
     return hit;
   }
 
-  if (eu->expected_ships > 0 &&
-      europe_in_rect(mx, my, EUROPE_EXPECTED_X, EUROPE_EXPECTED_Y, EUROPE_EXPECTED_W, EUROPE_EXPECTED_H)) {
+  /* Transit boxes stay hittable when empty so ships can be dropped into them. */
+  if (europe_in_rect(mx, my, EUROPE_EXPECTED_X, EUROPE_EXPECTED_Y, EUROPE_EXPECTED_W, EUROPE_EXPECTED_H)) {
     hit.kind = EUROPE_HIT_EXPECTED;
-    hit.index = 0;
+    if (eu->expected_ships > 0 && units && unit_icons) {
+      hit.index = europe_transit_ship_at(
+        eu->expected,
+        eu->expected_ships,
+        units,
+        unit_icons,
+        EUROPE_EXPECTED_X,
+        EUROPE_EXPECTED_Y,
+        EUROPE_EXPECTED_W,
+        EUROPE_EXPECTED_H,
+        transit_line_h,
+        mx,
+        my
+      );
+    } else {
+      hit.index = eu->expected_ships > 0 ? 0 : -1;
+    }
     return hit;
   }
-  if (eu->bound_ships > 0 &&
-      europe_in_rect(mx, my, EUROPE_BOUND_X, EUROPE_BOUND_Y, EUROPE_BOUND_W, EUROPE_BOUND_H)) {
+  if (europe_in_rect(mx, my, EUROPE_BOUND_X, EUROPE_BOUND_Y, EUROPE_BOUND_W, EUROPE_BOUND_H)) {
     hit.kind = EUROPE_HIT_BOUND;
-    hit.index = 0;
+    if (eu->bound_ships > 0 && units && unit_icons) {
+      hit.index = europe_transit_ship_at(
+        eu->bound,
+        eu->bound_ships,
+        units,
+        unit_icons,
+        EUROPE_BOUND_X,
+        EUROPE_BOUND_Y,
+        EUROPE_BOUND_W,
+        EUROPE_BOUND_H,
+        transit_line_h,
+        mx,
+        my
+      );
+    } else {
+      hit.index = eu->bound_ships > 0 ? 0 : -1;
+    }
     return hit;
   }
 

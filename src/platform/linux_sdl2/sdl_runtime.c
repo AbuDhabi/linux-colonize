@@ -350,11 +350,15 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
           platform->mouse_left_down = (event.type == SDL_MOUSEBUTTONDOWN);
           if (event.type == SDL_MOUSEBUTTONDOWN) {
             out_input->mouse_left_clicked = true;
+          } else {
+            out_input->mouse_left_released = true;
           }
         } else if (event.button.button == SDL_BUTTON_RIGHT) {
           platform->mouse_right_down = (event.type == SDL_MOUSEBUTTONDOWN);
           if (event.type == SDL_MOUSEBUTTONDOWN) {
             out_input->mouse_right_clicked = true;
+          } else {
+            out_input->mouse_right_released = true;
           }
         }
         break;

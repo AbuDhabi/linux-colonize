@@ -3,6 +3,7 @@
 
 #include "core/colony.h"
 #include "core/europe.h"
+#include "core/ui_drag.h"
 #include "platform/diagnostics.h"
 
 int main(void) {
@@ -193,6 +194,24 @@ int main(void) {
     return 1;
   }
 
+  /* Drag session helpers. */
+  {
+    UiDragSession drag;
+    memset(&drag, 0, sizeof(drag));
+    ui_drag_begin(&drag, UI_DRAG_EUROPE_MARKET, 3, -1, 100);
+    if (!ui_drag_active(&drag) || drag.index != 3 || drag.amount != 100) {
+      fprintf(stderr, "ui_drag_begin failed\n");
+      europe_free(&eu);
+      return 1;
+    }
+    ui_drag_clear(&drag);
+    if (ui_drag_active(&drag)) {
+      fprintf(stderr, "ui_drag_clear failed\n");
+      europe_free(&eu);
+      return 1;
+    }
+  }
+
   /* Hit-tests. */
   {
     EuropeHitResult hit = europe_hit_test(&eu, EUROPE_LOADING_X + 4, EUROPE_LOADING_Y + 2);
@@ -221,6 +240,20 @@ int main(void) {
       fprintf(stderr, "exit hit expected EXIT got kind=%d\n", (int)hit.kind);
       europe_free(&eu);
       return 1;
+    }
+    /* Empty Bound box must still be hittable (drag drop target). */
+    {
+      const int saved_bound = eu.bound_ships;
+      eu.bound_ships = 0;
+      hit = europe_hit_test(
+        &eu, EUROPE_BOUND_X + EUROPE_BOUND_W / 2, EUROPE_BOUND_Y + EUROPE_BOUND_H / 2
+      );
+      eu.bound_ships = saved_bound;
+      if (hit.kind != EUROPE_HIT_BOUND) {
+        fprintf(stderr, "empty Bound hit expected BOUND got kind=%d\n", (int)hit.kind);
+        europe_free(&eu);
+        return 1;
+      }
     }
   }
 

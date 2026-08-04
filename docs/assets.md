@@ -337,8 +337,8 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship moves ≥6 — **Unverified vs DOS**):
 
 - **H** / Return to Europe on high seas → **Expected Soon** (not instant dock); docks when turns elapse (auto-opens Europe).
-- **S** / Set sail from harbor → **Bound For** `@COLONYNAME` region; arrives at last exit sea lane.
-- Click Expected/Bound to reverse direction (keeps remaining turns).
+- **S** / Set sail from harbor → **Bound For** `@COLONYNAME` region; arrives at last exit sea lane (also drag Loading → Bound).
+- Drag Expected → Bound to reverse westbound (keeps remaining turns); drag Bound → Expected for the opposite reverse.
 
 | Key | Action |
 |-----|--------|
@@ -346,7 +346,10 @@ Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship move
 | **P** / 2 | Purchase — Artillery 500, Caravel 1000, Merchantman/Privateer 2000, Galleon 3000, Frigate 5000 |
 | **T** / 3 | Royal University train — `@JOB` hire costs; expert to docks |
 | **S** | Set sail selected/oldest harbor ship (Bound lane) |
-| Click harbor / holds / market | Select ship; sell hold; buy selected cargo |
+| Click harbor / holds / market | Select ship; drag hold→market to sell; drag market→hold to buy |
+| Drag Loading → Bound | Set sail (same as **S**) |
+| Drag Expected → Bound | Reverse toward New World (keeps turns) |
+| Drag Bound → Expected | Reverse toward Europe (keeps turns) |
 | Click dock colonist | Dock orders (don’t board / board next / move to front) |
 | **L** / `=` / `+` | Buy full / full / some of selected market good |
 | **U** / `-` / `_` | Sell best hold / all / some |
@@ -378,16 +381,16 @@ Single-pixel black separators split the sections: top bar vs middle band, buildi
 
 A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**) bottom-right. Coastal colonies without Docks show empty coast (`BUILDING.SS` **#45**) above the fence. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist (skill/`profession` preserved) and dumps carried tools/muskets/horses into the warehouse.
 
-**Select-then-click** assignment (no drag): one selection covers field workers, building workers, and outside (fence) units. Click a colonist, then a building or area tile (outside units are admitted into the colony on assign; carried tools/muskets/horses go to the warehouse). Click the fence with a colony colonist selected to open a **Leave as** popup (Colonist / Pioneer / Soldier / Scout / Dragoon, gated by stock). Working colonists use skill sprites (Hardy Pioneer **#58**, Veteran Soldier **#59**); outside/map icons follow equipment (pioneer/soldier/scout/dragoon; expert sprites only when `profession` matches that role — e.g. hardy pioneer with muskets uses non-veteran soldier **#74**). Skill sticks across admit/eject and gear changes. The people band shows colony colonists and fence/on-tile units on the same row (outside group to the right, with a gap). Production preview (`colony_preview.c`) drives area/settlement badges, people meters, and the Production tab without mutating stock. The Production multipurpose pane lists every produced cargo type (grey shortfall rows) plus hammers, packing slots into a dynamic grid as the set of types changes; crosses/bells stay on the people meters. With no docked/selected transport, all six hold slots show empty-hold covers. SoL uses Col1 `rebel_dividend`/`rebel_divisor` when the colony is bridged from a save; otherwise 0% SoL / 100% Tory.
+**Drag or select-then-click** assignment: drag a colonist (or fence unit) onto a building, area/minimap tile, or the fence; short click still selects, and a second click assigns. Outside units are admitted into the colony on assign; carried tools/muskets/horses go to the warehouse. Drop/click the fence with a colony colonist selected to open a **Leave as** popup (Colonist / Pioneer / Soldier / Scout / Dragoon, gated by stock). Working colonists use skill sprites (Hardy Pioneer **#58**, Veteran Soldier **#59**); outside/map icons follow equipment (pioneer/soldier/scout/dragoon; expert sprites only when `profession` matches that role — e.g. hardy pioneer with muskets uses non-veteran soldier **#74**). Skill sticks across admit/eject and gear changes. The people band shows colony colonists and fence/on-tile units on the same row (outside group to the right, with a gap). Production preview (`colony_preview.c`) drives area/settlement badges, people meters, and the Production tab without mutating stock. The Production multipurpose pane lists every produced cargo type (grey shortfall rows) plus hammers, packing slots into a dynamic grid as the set of types changes; crosses/bells stay on the people meters. With no docked/selected transport, all six hold slots show empty-hold covers. SoL uses Col1 `rebel_dividend`/`rebel_divisor` when the colony is bridged from a save; otherwise 0% SoL / 100% Tory.
 
 | Key / click | Action |
 |-------------|--------|
-| Click colonist / building / area | Select; assign workplace or open field-jobs popup |
+| Click / drag colonist → building / area / fence | Select; assign workplace, open field-jobs popup, or Leave-as |
 | **N** / click Production pane | Toggle production numbers on dense strips |
 | **1** / **2** / **3** / **M** | Multifunction Production / Units / Construction / cycle |
 | Construction **BUY** / **CHANGE** | Buy remaining project (multifunction BUY); Change popup lists projects only (no Buy row; **C** also opens Change) |
 | **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
-| Click ship / cargo / hold | Select transport (shows class name); load warehouse→hold; unload hold→warehouse |
+| Drag / click ship cargo / hold | Select transport; drag warehouse↔hold to load/unload |
 | Fence **Leave as** | Eject/equip popup; last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 2 colonists |
 | **L** / **U** | Load highest-value cargo; unload first hold |
 | **=** / **+** | Full / partial load of selected warehouse cargo |

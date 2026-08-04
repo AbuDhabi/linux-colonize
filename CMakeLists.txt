@@ -46,6 +46,7 @@ add_library(colonize_core STATIC
   src/core/map_panel.c
   src/core/popup.c
   src/core/ui_button.c
+  src/core/ui_drag.c
   src/core/pick_music.c
   src/core/unit_stack.c
   src/core/new_game.c
@@ -189,6 +190,7 @@ add_executable(smoke_game_flow
   src/core/map_panel.c
   src/core/popup.c
   src/core/ui_button.c
+  src/core/ui_drag.c
   src/core/pick_music.c
   src/core/unit_stack.c
   src/core/new_game.c
@@ -231,6 +233,7 @@ add_executable(smoke_new_game
   src/core/map_panel.c
   src/core/popup.c
   src/core/ui_button.c
+  src/core/ui_drag.c
   src/core/pick_music.c
   src/core/unit_stack.c
   src/core/new_game.c
@@ -380,6 +383,7 @@ add_test(NAME smoke_pedia COMMAND smoke_pedia WORKING_DIRECTORY ${CMAKE_SOURCE_D
 
 add_executable(smoke_europe
   tests/smoke/test_europe.c
+  tests/smoke/platform_cursor_stubs.c
 )
 
 target_include_directories(smoke_europe PRIVATE
@@ -392,6 +396,7 @@ add_test(NAME smoke_europe COMMAND smoke_europe WORKING_DIRECTORY ${CMAKE_SOURCE
 
 add_executable(smoke_colony_screen
   tests/smoke/test_colony_screen.c
+  tests/smoke/platform_cursor_stubs.c
 )
 
 target_include_directories(smoke_colony_screen PRIVATE
