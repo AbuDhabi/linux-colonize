@@ -231,10 +231,24 @@ The printed chart uses forested/non-forested pairs per land name (e.g. Plains FD
 
 ---
 
+## Colonist class / skill on tiles
+
+| Worker | Field yield |
+|--------|-------------|
+| Free colonist (unskilled) | Base terrain / resource / plow/road yield |
+| Expert / Master whose **skill matches** the assigned field job | Expert bonus (typically **×2** base; see [building_production.md](building_production.md)) |
+| Expert / Master on a **mismatched** job (e.g. Elder Statesman as Fisherman; Sugar Planter as Lumberjack) | Same as **free colonist** — no specialty bonus |
+| Indian convert | **Free-colonist yield + 1** (before expert multipliers / SoL) |
+| Indentured / criminal | Weaker than free on manufacturing; field rates TBD vs DOS (convert exception is the known +1) |
+
+Building manufacturing rates and convert-in-building (**1**, like criminals) are in [building_production.md](building_production.md).
+
+---
+
 ## Explicitly excluded here
 
 - Sons of Liberty / Tory production ±1 (manual production bonus/penalty)
-- Expert / Master job multipliers
+- Full Expert / Master arithmetic beyond the matching-skill rule above
 - Building gates (Dock for fishing, etc.) beyond noting them
 - River major/minor numeric bonuses (mentioned only)
 - Combat / movement columns from the Terrain Chart
