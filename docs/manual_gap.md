@@ -77,9 +77,9 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump |
 | Join colony | Partial | Opens colony screen; not true join-into-population |
 | Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
-| Assign jobs / field work / production numbers | Partial | Workplace strips show **output-type badge** (no per-worker count); Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
+| Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
 | Construction queue + buy with gold | Partial | Construction tab BUY/CHANGE; Change list uses min-pop / upgrade / FF gates; hammers = accumulated progress; `NAMES` tools×10; no settlement banner |
-| Warehouse drag load/unload to ships / wagons | Partial | Click cargo↔hold + **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122**; full drag later |
+| Warehouse drag load/unload to ships / wagons | Done | Drag cargo↔hold (icon cursor); **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122** |
 | SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned; people row includes fence units |
 | Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥2; last colonist confirms abandon (cargo lost) |
 | Fortification defense bonuses | Missing | Fence / docks art only; no combat |
@@ -91,7 +91,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Open Europe (**E**), sail **H** / **S** | Done | Multi-turn Expected Soon / Bound For *region*; passengers + holds persist |
 | Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter later |
 | Market bid / ask display | Done | Bottom strip from `NAMES.TXT` `@CARGO` |
-| Buy / sell goods (drag / L / = / + / U) | Partial | Manual polarity: **L**/**=**/**+** buy, **U**/**-**/**_** sell; click hold/market; drag later |
+| Buy / sell goods (drag / L / = / + / U) | Done | Drag market↔hold; **L**/**=**/**+** buy, **U**/**-**/**_** sell |
 | Buy ships / artillery | Done | **P** purchase menu (screenshot gold: Artillery 500 … Frigate 5000) |
 | Hire Royal University / Train | Done | **T** / `@JOB` hire costs; expert → docks |
 | Recruit pool (3) + passage | Done | **R** dialog; passage starts 100, +16 per recruit (Unverified formula) |

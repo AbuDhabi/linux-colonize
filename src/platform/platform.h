@@ -58,8 +58,10 @@ typedef struct ColonizeInputState {
   bool quit_requested;
   bool mouse_left_down;
   bool mouse_left_clicked; /* edged: true on left button down this frame */
+  bool mouse_left_released; /* edged: true on left button up this frame */
   bool mouse_right_down;
   bool mouse_right_clicked; /* edged: true on right button down this frame */
+  bool mouse_right_released; /* edged: true on right button up this frame */
   int mouse_x;             /* framebuffer/logical coords (320×200 space) */
   int mouse_y;
   ColonizeKey last_key;

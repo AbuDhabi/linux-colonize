@@ -310,6 +310,35 @@ int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 
 EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my);
 
+/*
+ * Like europe_hit_test, but Expected/Bound resolve the ship icon under the pointer
+ * when units + icons are provided (matches Loading/Expected/Bound render layout).
+ * transit_line_h is font line height used for the two-line header (default 8).
+ */
+EuropeHitResult europe_hit_test_ex(
+  const EuropeScreen* eu,
+  int mx,
+  int my,
+  const ColonizeUnitPool* units,
+  const ColonizeSpriteSheet* unit_icons,
+  int transit_line_h
+);
+
+/* Ship icon index under (mx,my) inside a transit box, or -1. */
+int europe_transit_ship_at(
+  const EuropeHarborShip* ships,
+  int count,
+  const ColonizeUnitPool* units,
+  const ColonizeSpriteSheet* unit_icons,
+  int box_x,
+  int box_y,
+  int box_w,
+  int box_h,
+  int transit_line_h,
+  int mx,
+  int my
+);
+
 void europe_menu_open(EuropeScreen* eu, EuropeMenu menu);
 void europe_menu_close(EuropeScreen* eu);
 /* Apply current menu_selection (0 = cancel). Returns true if acted. */
