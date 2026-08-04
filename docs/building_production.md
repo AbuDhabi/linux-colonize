@@ -256,9 +256,9 @@ River / road / plow on **field** tiles add up to **+4** food/resources (manual T
 
 | UI element | Should show | Linux port today |
 |------------|-------------|------------------|
-| **Production tab** (`colony_preview.c`) | Net colony output this turn (goods, shortfalls, hammers, bells/crosses) | Uses [`colony_production.c`](../src/core/colony_production.c): tier rates **3 / 6 / 9**, class scaling, skill match ×2, convert +1 on tiles |
+| **Production tab** (multipurpose pane) | Every cargo good / shortfall this turn, plus hammers; slot grid fills the pane as type count changes (no crosses or bells) | Preview from [`colony_preview.c`](../src/core/colony_preview.c) via [`colony_production.c`](../src/core/colony_production.c); crosses/bells → people meters |
 | **Production strip** above building colonists | Icon strip spanning the building = **sum** of assigned workers' output | Full building width; amount via `colony_prod_worker_building_output()` summed per workplace |
-| **EOT production** (`colony_craft.c`, `turn.c`) | Same rules as Production tab | Same module; field harvest uses `colony_yield_for_worker()` |
+| **Construction Change list** | Buildable projects with upgrade chains, min population (`NAMES.TXT` min_colony), coastal docks, **Adam Smith** factories, **Peter Stuyvesant** Custom House | [`colonies_list_buildable()`](../src/core/colony.c) |
 
 To fix badge/preview mismatches, both paths should share one function — implemented as **`colony_production.c`**:
 

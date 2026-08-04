@@ -134,8 +134,18 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_FENCE, /* fortification strip (not a specific unit icon) */
   COLONY_HIT_PEOPLE_COLONIST,
   COLONY_HIT_EJECT_ROW,
-  COLONY_HIT_EJECT_OUTSIDE
+  COLONY_HIT_EJECT_OUTSIDE,
+  COLONY_HIT_MESSAGE_YES,
+  COLONY_HIT_MESSAGE_NO,
+  COLONY_HIT_MESSAGE_OK,
+  COLONY_HIT_MESSAGE_OUTSIDE
 } ColonyScreenHit;
+
+typedef enum ColonyMessageKind {
+  COLONY_MSG_NONE = 0,
+  COLONY_MSG_OK,      /* single OK dismiss */
+  COLONY_MSG_CONFIRM  /* Yes / No */
+} ColonyMessageKind;
 
 typedef struct ColonyScreenHitResult {
   ColonyScreenHit kind;
@@ -199,6 +209,18 @@ typedef struct ColonyScreenView {
   int eject_list_y0;
   int eject_line_h;
 
+  ColonyMessageKind message_kind;
+  char message_text[160];
+  int message_selection; /* 0=Yes/OK, 1=No for confirm */
+  int pending_eject_colonist;
+  int pending_eject_role;
+  int message_dialog_x;
+  int message_dialog_y;
+  int message_dialog_w;
+  int message_dialog_h;
+  int message_list_y0;
+  int message_line_h;
+
   ColonizeColonyProdDelta last_delta;
   bool last_delta_valid;
   ColonizeColonyPreview preview;
@@ -221,7 +243,8 @@ void colony_screen_set_delta(ColonyScreenView* view, const ColonizeColonyProdDel
 void colony_screen_open_construction(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
-  int colony_id
+  int colony_id,
+  const ColoniesBuildableOpts* buildable_opts
 );
 void colony_screen_close_construction(ColonyScreenView* view);
 
@@ -240,6 +263,14 @@ void colony_screen_open_eject(
   int colonist_index
 );
 void colony_screen_close_eject(ColonyScreenView* view);
+
+void colony_screen_open_message_ok(ColonyScreenView* view, const char* text);
+void colony_screen_open_abandon_confirm(
+  ColonyScreenView* view,
+  int colonist_index,
+  int role
+);
+void colony_screen_close_message(ColonyScreenView* view);
 
 void colony_screen_minimap_origin(int* out_x, int* out_y);
 

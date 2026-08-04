@@ -306,10 +306,30 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* No carpenter assigned → no hammers even if Carpenter's Shop exists. */
+    col->colonists[0].building_type = -1;
+    col->hammers = 0;
+    col->building_in_production = stockade;
+    col->has_building[stockade] = false;
+    {
+      ColonizeTurnResult prod;
+      ColonizeColonyProdDelta delta;
+      memset(&prod, 0, sizeof(prod));
+      memset(&delta, 0, sizeof(delta));
+      turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+      if (delta.hammers_added != 0 || col->hammers != 0) {
+        fprintf(
+          stderr,
+          "expected no hammers without carpenter got delta=%d stock=%d\n",
+          delta.hammers_added,
+          col->hammers
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
     assets_msg_free(&names);
   }
-
-  /* Settlement craft: sugar→rum, cotton→cloth, ore→tools→muskets; no input → no output. */
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
@@ -600,11 +620,11 @@ int main(void) {
     ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));
     turn_colony_free_production(&pool, col, &map, &prod, &delta);
-    /* Carpenter fallback may add +1; field adds expect; hammers may consume 1. */
-    if (delta.lumber < expect - 1) {
+    /* No carpenter assigned → hammers stay 0 (shop alone does not produce). */
+    if (delta.lumber < expect) {
       fprintf(
         stderr,
-        "field lumber delta too low got %d expect~%d (stock %d->%d)\n",
+        "field lumber delta too low got %d expect %d (stock %d->%d)\n",
         delta.lumber,
         expect,
         before,

@@ -137,7 +137,7 @@ void colony_preview_compute(
 
   if (colony->building_in_production >= 0) {
     int lumber_use = 0;
-    const int hammers = colony_prod_colony_hammers(pool, colony, 1, &lumber_use);
+    const int hammers = colony_prod_colony_hammers(pool, colony, &lumber_use);
     if (hammers > 0) {
       int lumber = colony->stock[COLONIZE_CARGO_LUMBER] + out->goods[COLONIZE_CARGO_LUMBER];
       if (lumber_use > lumber) {

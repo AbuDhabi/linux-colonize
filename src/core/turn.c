@@ -347,7 +347,7 @@ static void turn_produce_one_colony(
   if (colony->building_in_production >= 0) {
     int lumber_use = 0;
     const int hammers_add =
-      colony_prod_colony_hammers(pool, colony, 1, &lumber_use);
+      colony_prod_colony_hammers(pool, colony, &lumber_use);
     if (hammers_add > 0) {
       if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
         lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];

@@ -77,13 +77,11 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
 
 /*
  * Sum carpenter hammer output and lumber consumed this turn.
- * `fallback_worker`: when Carpenter's Shop exists but nobody is assigned, DOS uses one
- * implicit free colonist (pass 1).
+ * Only assigned workers at Carpenter's Shop / Lumber Mill produce hammers.
  */
 int colony_prod_colony_hammers(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int fallback_worker,
   int* out_lumber_use
 );
 
