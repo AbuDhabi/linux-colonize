@@ -88,12 +88,14 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Open Europe (**E**), sail **H** / **S** | Done | Passengers persist in harbor |
-| Docks immigrants from crosses | Partial | Crosses → dock; recruit |
-| Market bid / ask display | Done | From `NAMES.TXT` `@CARGO` |
-| Buy / sell goods (drag / L / = / + / U) | Partial | Phase 5: click hold/market + **L**/**U**/**=**/**+**; tax on sales; goods persist H/S; drag later |
-| Buy ships / artillery | Missing | |
-| Hire Royal University / Train | Missing | Train stub |
+| Open Europe (**E**), sail **H** / **S** | Done | Multi-turn Expected Soon / Bound For *region*; passengers + holds persist |
+| Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter later |
+| Market bid / ask display | Done | Bottom strip from `NAMES.TXT` `@CARGO` |
+| Buy / sell goods (drag / L / = / + / U) | Partial | Manual polarity: **L**/**=**/**+** buy, **U**/**-**/**_** sell; click hold/market; drag later |
+| Buy ships / artillery | Done | **P** purchase menu (screenshot gold: Artillery 500 … Frigate 5000) |
+| Hire Royal University / Train | Done | **T** / `@JOB` hire costs; expert → docks |
+| Recruit pool (3) + passage | Done | **R** dialog; passage starts 100, +16 per recruit (Unverified formula) |
+| Dock sentry / board on sail | Partial | Default sentry; Don’t/Board/Move-front menu; full equip/bless later |
 | Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
 | Tax rate / boycotts / king tax events | Missing | King phase stub; wiki checklist in [fandom_col1994.md](fandom_col1994.md) (unverified) |
 
@@ -159,7 +161,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 Aligned with early manual chapters (short playable loop first):
 
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
-2. **Europe commodity trade** — phase 5 buy/sell + tax on sales done; boycotts / volume prices later
+2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; boycotts / volume prices later
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — fortify, sentry, goto, disband
 5. **Fog of war / exploration**

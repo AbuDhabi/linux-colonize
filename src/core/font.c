@@ -173,6 +173,28 @@ static void draw_builtin_glyph(
   }
 }
 
+int font_text_width(const ColonizeFont* font, const char* text) {
+  if (!text) {
+    return 0;
+  }
+  int width = 0;
+  for (const char* p = text; *p; ++p) {
+    unsigned char ch = (unsigned char)*p;
+    if (ch == '\n') {
+      break;
+    }
+    if (ch == '~' || ch == '#') {
+      continue;
+    }
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+      width += font->char_widths[ch];
+    } else {
+      width += 6;
+    }
+  }
+  return width;
+}
+
 void font_draw_text(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
@@ -219,7 +241,9 @@ void font_draw_text_hotkey(
     const uint8_t use = next_hotkey ? hotkey_color : color;
     next_hotkey = false;
 
-    if (font && font->section_data && ch < 128) {
+    /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
+     * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
       draw_ff_glyph(font, framebuffer, cx, y, ch, use);
       cx += font->char_widths[ch];
       continue;

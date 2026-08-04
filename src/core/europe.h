@@ -6,28 +6,68 @@
 #include <stdint.h>
 
 #include "core/pik.h"
+#include "core/ss.h"
 
 #define EUROPE_CARGO_MAX 16
 #define EUROPE_DOCK_MAX 8
 #define EUROPE_CLASS_MAX 8
 #define EUROPE_HARBOR_MAX 8
 #define EUROPE_SHIP_CARGO_MAX 6 /* matches COLONIZE_UNIT_CARGO_MAX */
+#define EUROPE_POOL_SIZE 3
+#define EUROPE_TRAIN_MAX 24
+#define EUROPE_PURCHASE_MAX 8
 
-/* Approximate EUROPE.PIK hit/layout for market + harbor holds. */
-#define EUROPE_MARKET_X 170
-#define EUROPE_MARKET_Y 38
-#define EUROPE_MARKET_ROW_H 8
-#define EUROPE_MARKET_W 140
-#define EUROPE_HARBOR_LIST_X 4
-#define EUROPE_HARBOR_LIST_Y 110
-#define EUROPE_HARBOR_ROW_H 9
-#define EUROPE_HARBOR_LIST_W 160
-#define EUROPE_HOLD_X 8
-#define EUROPE_HOLD_Y 148
+/*
+ * Layout calibrated to EUROPE.PIK / original_screenshots/europe/* (320×200).
+ * Transit boxes sit on the water; holds under Loading; market along the bottom.
+ */
+#define EUROPE_TOP_BAR_H 11 /* matches colony screen wood strip */
+#define EUROPE_TOP_SEPARATOR_Y EUROPE_TOP_BAR_H
+
+#define EUROPE_EXPECTED_X 8
+#define EUROPE_EXPECTED_Y 128 /* labels/lists +80 from early sky placement */
+#define EUROPE_EXPECTED_W 72
+#define EUROPE_EXPECTED_H 40
+#define EUROPE_BOUND_X 88
+#define EUROPE_BOUND_Y 128
+#define EUROPE_BOUND_W 72
+#define EUROPE_BOUND_H 40
+#define EUROPE_LOADING_X 168
+#define EUROPE_LOADING_Y 128
+#define EUROPE_LOADING_W 80
+#define EUROPE_LOADING_H 32
+#define EUROPE_HOLD_X 170
+#define EUROPE_HOLD_Y 160
 #define EUROPE_HOLD_W 12
 #define EUROPE_HOLD_H 14
 #define EUROPE_HOLD_PITCH 14
+#define EUROPE_DOCK_X 235
+#define EUROPE_DOCK_Y 140
+#define EUROPE_DOCK_PITCH 20
+#define EUROPE_DOCK_UNIT_H 16
+#define EUROPE_BTN_X 268
+#define EUROPE_BTN_Y 48
+#define EUROPE_BTN_W 48
+#define EUROPE_BTN_H 14
+#define EUROPE_BTN_PITCH 18
+#define EUROPE_MARKET_X 0
+#define EUROPE_MARKET_Y 179 /* EUROPE.PIK blue cargo strip */
+#define EUROPE_MARKET_CELL 20 /* outer size; adjacent cells share the 1px border */
+#define EUROPE_MARKET_PITCH 19
+#define EUROPE_MARKET_H EUROPE_MARKET_CELL
 #define EUROPE_CARGO_ICON_BASE 22
+
+/* Transparent button bevel on EUROPE.PIK sky (dark TL / light BR). */
+#define EUROPE_BTN_DARK 0x3f  /* deep blue */
+#define EUROPE_BTN_LIGHT 0x31 /* pale blue */
+/* Bright green under EUROPE.PIK (index 15 is white on this palette). */
+#define EUROPE_TEXT_GREEN 10
+
+/* Voyage delays — Unverified vs DOS (manual: 1–4 turns; east usually shorter). */
+#define EUROPE_VOYAGE_EAST_TURNS 2
+#define EUROPE_VOYAGE_WEST_TURNS 4
+#define EUROPE_RECRUIT_PASSAGE_START 100
+#define EUROPE_RECRUIT_PASSAGE_STEP 16
 
 typedef struct EuropeCargoQuote {
   char name[32];
@@ -37,48 +77,88 @@ typedef struct EuropeCargoQuote {
 
 typedef struct EuropeDockImmigrant {
   char name[40];
+  int profession; /* NAMES.TXT @JOB index; -1 unknown */
   bool present;
+  bool sentry; /* board next outbound ship (default true) */
 } EuropeDockImmigrant;
 
 typedef struct EuropeRecruitClass {
   char name[40];
-  int cost;
+  int cost; /* @CLASS transport table (RE reference; dialog uses passage_gold) */
 } EuropeRecruitClass;
 
+typedef struct EuropePoolSlot {
+  char name[40];
+  int profession; /* @JOB index */
+  bool filled;
+} EuropePoolSlot;
+
+typedef struct EuropeTrainOption {
+  char expert_name[40];
+  int job_index;
+  int cost;
+} EuropeTrainOption;
+
+typedef struct EuropePurchaseOption {
+  char name[32];
+  int gold;
+  bool is_ship; /* false = artillery → docks */
+} EuropePurchaseOption;
+
 typedef struct EuropeHarborShip {
-  int type_index; /* into ColonizeUnitPool types */
+  int type_index; /* into ColonizeUnitPool types; -1 until resolved by name */
   char name[32];
   int cargo_types[EUROPE_SHIP_CARGO_MAX]; /* passenger unit type indices */
+  int cargo_professions[EUROPE_SHIP_CARGO_MAX]; /* @JOB per passenger */
   int cargo_count;
-  /* Commodity holds (same layout as ColonizeUnit). */
   int hold_goods_type[EUROPE_SHIP_CARGO_MAX];
   int hold_goods_amount[EUROPE_SHIP_CARGO_MAX];
+  int turns_left; /* 0 when in harbor; >0 while in transit */
+  int exit_x;
+  int exit_y;
+  bool exit_east; /* true = left via east edge (usually shorter) */
 } EuropeHarborShip;
 
 typedef enum EuropeHit {
   EUROPE_HIT_NONE = 0,
   EUROPE_HIT_HARBOR_SHIP,
   EUROPE_HIT_HOLD,
-  EUROPE_HIT_MARKET
+  EUROPE_HIT_MARKET,
+  EUROPE_HIT_BTN_RECRUIT,
+  EUROPE_HIT_BTN_PURCHASE,
+  EUROPE_HIT_BTN_TRAIN,
+  EUROPE_HIT_DOCK,
+  EUROPE_HIT_EXPECTED,
+  EUROPE_HIT_BOUND
 } EuropeHit;
 
 typedef struct EuropeHitResult {
   EuropeHit kind;
-  int index; /* harbor ship, hold slot, or cargo type */
+  int index;
 } EuropeHitResult;
 
+typedef enum EuropeMenu {
+  EUROPE_MENU_NONE = 0,
+  EUROPE_MENU_RECRUIT,
+  EUROPE_MENU_TRAIN,
+  EUROPE_MENU_PURCHASE,
+  EUROPE_MENU_DOCK
+} EuropeMenu;
+
 /*
- * Europe / home-port screen: market quotes, treasury, tax, immigrant dock,
- * harbor ships with passenger + commodity holds, and buy/sell helpers.
+ * Europe / home-port screen: market, docks, harbor + transit lanes,
+ * recruit pool / train / purchase, buy/sell helpers.
  */
 typedef struct EuropeScreen {
   ColonizePikImage background;
   bool background_ok;
+  ColonizeSpriteSheet wood_tile; /* WOODTILE.SS remapped to Europe palette */
+  bool wood_tile_ok;
   char port_city[48];
   char nation_name[48];
+  char colony_region[48]; /* @COLONYNAME — "Bound For …" */
   int gold;
   int tax_percent;
-  /* Nation-side turn ticks (mirrors Col1 nation blob for the human player). */
   uint16_t current_crosses;
   uint16_t needed_crosses;
   uint16_t liberty_bells_total;
@@ -91,25 +171,54 @@ typedef struct EuropeScreen {
   int dock_count;
   EuropeHarborShip harbor[EUROPE_HARBOR_MAX];
   int harbor_ships;
-  int selected_harbor; /* -1 none */
+  EuropeHarborShip expected[EUROPE_HARBOR_MAX];
+  int expected_ships;
+  EuropeHarborShip bound[EUROPE_HARBOR_MAX];
+  int bound_ships;
+  int selected_harbor; /* -1 none; index into harbor[] */
+  int selected_market; /* cargo type highlight */
+  EuropePoolSlot pool[EUROPE_POOL_SIZE];
+  int recruit_passage; /* current dialog gold */
+  EuropeTrainOption train[EUROPE_TRAIN_MAX];
+  int train_count;
+  EuropePurchaseOption purchase[EUROPE_PURCHASE_MAX];
+  int purchase_count;
+  EuropeMenu menu;
+  int menu_selection; /* 0 = None / cancel for list menus */
+  int menu_dock_index;
+  int last_exit_x;
+  int last_exit_y;
+  bool last_exit_east;
+  bool last_exit_valid;
+  bool open_on_dock; /* set when Expected→Harbor this tick */
   char status[96];
 } EuropeScreen;
 
 bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size);
 void europe_free(EuropeScreen* eu);
 void europe_reset_campaign(EuropeScreen* eu);
-/* Reset treasury/dock and set port/nation for European power 0..3. */
 void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
 
-/* Recruit cheapest available class onto the docks. Returns false if broke/full. */
-bool europe_recruit(EuropeScreen* eu);
-/* Remove oldest dock immigrant for deployment in the New World. */
-bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
+/* Voyage turns (east shorter). ship_movement ≥6 shaves one turn (Unverified). */
+int europe_voyage_turns(bool exit_east, int ship_movement);
 
-/*
- * Dock a New World ship in the European harbor (FIFO).
- * cargo_types / hold arrays may be NULL (empty passengers / holds).
- */
+bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index);
+/* Crosses / unrest: move pool[0] (or first filled) to docks; refill. */
+bool europe_immigrant_from_pool(EuropeScreen* eu);
+void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
+
+bool europe_train(EuropeScreen* eu, int train_index);
+bool europe_purchase(EuropeScreen* eu, int purchase_index);
+
+bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
+/* Pop with profession; returns false if empty. */
+bool europe_pop_dock_immigrant_ex(
+  EuropeScreen* eu,
+  char* out_name,
+  size_t out_name_size,
+  int* out_profession
+);
+
 bool europe_harbor_push(
   EuropeScreen* eu,
   int type_index,
@@ -119,7 +228,28 @@ bool europe_harbor_push(
   const int* hold_goods_type,
   const int* hold_goods_amount
 );
-/* Undock oldest harbor ship. Out arrays may be NULL. */
+
+/* Map→Europe: enqueue Expected Soon (not instant harbor). */
+bool europe_enqueue_expected(
+  EuropeScreen* eu,
+  int type_index,
+  const char* name,
+  const int* cargo_types,
+  int cargo_count,
+  const int* hold_goods_type,
+  const int* hold_goods_amount,
+  int exit_x,
+  int exit_y,
+  bool exit_east,
+  int ship_movement
+);
+
+/* Harbor→Bound for New World; auto-boards sentry dockers into empty holds. */
+bool europe_set_sail_from_harbor(EuropeScreen* eu, int harbor_index, int ship_movement);
+
+/* Expected↔Bound reverse (keeps remaining turns). */
+bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index);
+
 bool europe_harbor_pop(
   EuropeScreen* eu,
   int* out_type_index,
@@ -133,26 +263,47 @@ bool europe_harbor_pop(
   int hold_max
 );
 
-/* Keep selected_harbor valid; auto-select sole ship or first with goods. */
+/* Pop oldest Bound ship that has arrived (turns_left==0 after tick). */
+bool europe_bound_pop_arrived(
+  EuropeScreen* eu,
+  int* out_type_index,
+  char* out_name,
+  size_t out_name_size,
+  int* out_cargo_types,
+  int* out_cargo_count,
+  int cargo_max,
+  int* out_hold_goods_type,
+  int* out_hold_goods_amount,
+  int hold_max,
+  int* out_exit_x,
+  int* out_exit_y,
+  bool* out_exit_east
+);
+
 void europe_refresh_harbor_selection(EuropeScreen* eu);
 
-/* Taxed sale proceeds for amount of cargo_type (0 if unknown type). */
-int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
-/* Sell one hold; returns gold gained (0 if empty/invalid). */
-int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
 /*
- * Buy into selected harbor ship holds. amount clamped by ask/gold/room (max 100/hold).
- * Returns amount bought.
+ * Decrement transit; move Expected→Harbor when due; leave Bound at 0 for
+ * caller to spawn. Sets open_on_dock when a ship docks.
  */
+void europe_tick_voyages(EuropeScreen* eu);
+
+int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
+int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
-/* Best non-empty hold index to sell (L-key), or -1. */
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 
 EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my);
 
-/* Train is not implemented yet; sets status text. */
-void europe_train_stub(EuropeScreen* eu);
+void europe_menu_open(EuropeScreen* eu, EuropeMenu menu);
+void europe_menu_close(EuropeScreen* eu);
+/* Apply current menu_selection (0 = cancel). Returns true if acted. */
+bool europe_menu_confirm(EuropeScreen* eu);
+
 void europe_cheat_add_gold(EuropeScreen* eu, int amount);
 void europe_cheat_adjust_tax(EuropeScreen* eu, int delta);
+
+/* Legacy name — opens recruit menu. */
+bool europe_recruit(EuropeScreen* eu);
 
 #endif

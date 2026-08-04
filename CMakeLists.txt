@@ -45,6 +45,7 @@ add_library(colonize_core STATIC
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
+  src/core/ui_button.c
   src/core/pick_music.c
   src/core/unit_stack.c
   src/core/new_game.c
@@ -187,6 +188,7 @@ add_executable(smoke_game_flow
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
+  src/core/ui_button.c
   src/core/pick_music.c
   src/core/unit_stack.c
   src/core/new_game.c
@@ -228,6 +230,7 @@ add_executable(smoke_new_game
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
+  src/core/ui_button.c
   src/core/pick_music.c
   src/core/unit_stack.c
   src/core/new_game.c
@@ -380,6 +383,7 @@ add_executable(smoke_europe
   src/core/europe.c
   src/core/assets.c
   src/core/pik.c
+  src/core/ss.c
   src/core/madspack.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -515,6 +519,7 @@ add_test(NAME smoke_turn COMMAND smoke_turn WORKING_DIRECTORY ${CMAKE_SOURCE_DIR
 add_executable(smoke_ff
   tests/smoke/test_ff.c
   src/core/ff.c
+  src/core/font.c
   src/core/madspack.c
   src/platform/diagnostics.c
 )

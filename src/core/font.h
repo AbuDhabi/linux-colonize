@@ -26,4 +26,7 @@ void font_draw_text_hotkey(
   uint8_t hotkey_color
 );
 
+/* Pixel width of text as drawn (honors '~' / '#' markup; missing FF glyphs use builtin 6px). */
+int font_text_width(const ColonizeFont* font, const char* text);
+
 #endif

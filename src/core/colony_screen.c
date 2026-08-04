@@ -8,6 +8,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/turn.h"
+#include "core/ui_button.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -2118,9 +2119,47 @@ static void colony_screen_draw_multifunction(
         snprintf(line, sizeof(line), "none");
       }
       font_draw_text(font, framebuffer, px, py, line, 15);
-      font_draw_text(font, framebuffer, px, py + 12, "BUY", 14);
-      const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - 48;
-      font_draw_text(font, framebuffer, change_x, py + 12, "CHANGE", 14);
+      {
+        UiButtonColors bc;
+        bc.dark = 0x31;
+        bc.light = 0x3f;
+        bc.text = 15;
+        bc.hotkey = 14;
+        if (view->frame_ok && view->frame.has_palette) {
+          /* Remap Europe-style blues into the colony frame palette. */
+          const ColonizePalette* pal = &view->frame.palette;
+          int best_d = 1 << 30;
+          int best_l = 1 << 30;
+          uint8_t dark = bc.dark;
+          uint8_t light = bc.light;
+          for (int j = 0; j < 256; ++j) {
+            const int r = pal->rgb[j][0];
+            const int g = pal->rgb[j][1];
+            const int b = pal->rgb[j][2];
+            const int dd = (r - 20) * (r - 20) + (g - 40) * (g - 40) + (b - 120) * (b - 120);
+            const int ld = (r - 180) * (r - 180) + (g - 200) * (g - 200) + (b - 255) * (b - 255);
+            if (dd < best_d) {
+              best_d = dd;
+              dark = (uint8_t)j;
+            }
+            if (ld < best_l) {
+              best_l = ld;
+              light = (uint8_t)j;
+            }
+          }
+          bc.dark = dark;
+          bc.light = light;
+        }
+        int buy_w = 0;
+        int buy_h = 0;
+        int chg_w = 0;
+        int chg_h = 0;
+        ui_button_measure(font, "~BUY", &buy_w, &buy_h);
+        ui_button_measure(font, "~CHANGE", &chg_w, &chg_h);
+        ui_button_draw(font, framebuffer, px, py + 10, buy_w, buy_h, "~BUY", &bc);
+        const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4;
+        ui_button_draw(font, framebuffer, change_x, py + 10, chg_w, chg_h, "~CHANGE", &bc);
+      }
     }
     /* Accumulated carpenter hammers toward the current project (not total cost). */
     const int need = bt ? bt->hammers : 0;
@@ -2614,7 +2653,7 @@ ColonyScreenHitResult colony_screen_hit_test(
   if (mx >= COLONY_MULTI_X && mx < COLONY_MULTI_BTN_X && my >= COLONY_PANEL_CONTENT_Y &&
       my < COLONY_CARGO_STRIP_Y) {
     if (view->multi_mode == COLONY_MULTI_CONSTRUCTION &&
-        my >= COLONY_PANEL_CONTENT_Y + 10 && my < COLONY_PANEL_CONTENT_Y + 24) {
+        my >= COLONY_PANEL_CONTENT_Y + 10 && my < COLONY_PANEL_CONTENT_Y + 26) {
       const int mid = COLONY_MULTI_X + COLONY_MULTI_W / 2;
       if (mx < mid) {
         hit.kind = COLONY_HIT_MULTI_BUY;

@@ -94,7 +94,6 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
       continue;
     }
     (void)size;
-    (void)cost;
     (void)tools;
     (void)guns;
 
@@ -106,6 +105,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     t->attack = attack;
     t->defense = defense;
     t->cargo = cargo;
+    t->cost = cost;
     t->domain = hull > 0 ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
   }
 
