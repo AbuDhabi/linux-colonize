@@ -95,7 +95,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Buy ships / artillery | Missing | |
 | Hire Royal University / Train | Missing | Train stub |
 | Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
-| Tax rate / boycotts / king tax events | Missing | King phase stub |
+| Tax rate / boycotts / king tax events | Missing | King phase stub; wiki checklist in [fandom_col1994.md](fandom_col1994.md) (unverified) |
 
 ### Economy and turn sequence
 
@@ -113,7 +113,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons (`ICONS` #10–13 by tech) + placement + light wander / growth |
-| Meet menus, trade, teach skills | Missing | Parked |
+| Meet menus, trade, teach skills | Missing | Parked; wiki natives digest [fandom_col1994.md](fandom_col1994.md) (unverified) |
 | Missions / convert / incite | Missing | |
 | Alarm, raid, Indian wars | Missing | `@RAID*` deferred |
 
@@ -123,17 +123,17 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Land / naval attack | Missing | Foreign occupant only blocks enter |
 | Capture colony | Missing | |
-| Stockade / fort / fortress defense % | Missing | |
+| Stockade / fort / fortress defense % | Missing | Wiki +100%/+150%/+200% in [fandom_col1994.md](fandom_col1994.md) / [building_production.md](building_production.md); unverified in combat |
 | Rival war / peace / privateers | Missing | |
 
 ### Founding Fathers and independence
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Missing | Stub in turn pipeline |
+| FF election from liberty bells | Missing | Stub in turn pipeline; per-Father wiki effects in [fandom_col1994.md](fandom_col1994.md) (unverified) |
 | Pedia / F3 Congress report | Partial | Data / articles; no election |
-| Sons of Liberty %, declare independence | Missing | |
-| REF invasion / revolution combat | Missing | |
+| Sons of Liberty %, declare independence | Missing | Wiki SoL / independence outline in [fandom_col1994.md](fandom_col1994.md) (unverified) |
+| REF invasion / revolution combat | Missing | Wiki REF checklist in [fandom_col1994.md](fandom_col1994.md) (unverified) |
 | F10 Colonization Score | Partial | Schedule exists; win loop incomplete |
 
 ### AI Europeans

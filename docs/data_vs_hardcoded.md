@@ -14,7 +14,7 @@ For file-by-file navigation see [original_index.md](original_index.md). Formats 
 | **Extract once → bake into `src/`** | The value lives only inside an `.EXE` (or is pure algorithm). There is no parallel `.TXT` / `.DAT` table. Regenerate via script when possible (`scripts/extract_viceroy_tables.py`). |
 | **Never as a runtime dependency** | Memory dumps, decomp C/ASM, RE tool EXEs (`VR_*.EXE`), installer helpers, sample `CONFIG.SYS` text. Use only as evidence while porting. |
 
-When the printed manual / Terrain Chart disagrees with `NAMES.TXT`, **`NAMES.TXT` wins** for numbers. Use the manual for qualitative rules the catalogs omit (town-commons dual produce, SoL ±1, Adam Smith gate, etc.).
+When the printed manual / Terrain Chart disagrees with `NAMES.TXT`, **`NAMES.TXT` wins** for numbers. Use the manual for qualitative rules the catalogs omit (town-commons dual produce, SoL ±1, Adam Smith gate, etc.). Community wiki digests ([fandom_col1994.md](fandom_col1994.md) and similar) are **tier-3** evidence only — after original code and the manual — never runtime data.
 
 ---
 
