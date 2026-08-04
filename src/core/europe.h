@@ -7,6 +7,7 @@
 
 #include "core/pik.h"
 #include "core/ss.h"
+#include "core/units.h"
 
 #define EUROPE_CARGO_MAX 16
 #define EUROPE_DOCK_MAX 8
@@ -18,29 +19,32 @@
 #define EUROPE_PURCHASE_MAX 8
 
 /*
- * Layout calibrated to EUROPE.PIK / original_screenshots/europe/* (320×200).
+ * Layout calibrated to EUROPE.PIK / original_screenshots/europe/ (320×200).
  * Transit boxes sit on the water; holds under Loading; market along the bottom.
  */
 #define EUROPE_TOP_BAR_H 11 /* matches colony screen wood strip */
 #define EUROPE_TOP_SEPARATOR_Y EUROPE_TOP_BAR_H
 
-#define EUROPE_EXPECTED_X 8
-#define EUROPE_EXPECTED_Y 128 /* labels/lists +80 from early sky placement */
-#define EUROPE_EXPECTED_W 72
-#define EUROPE_EXPECTED_H 40
-#define EUROPE_BOUND_X 88
-#define EUROPE_BOUND_Y 128
-#define EUROPE_BOUND_W 72
-#define EUROPE_BOUND_H 40
-#define EUROPE_LOADING_X 168
-#define EUROPE_LOADING_Y 128
-#define EUROPE_LOADING_W 80
-#define EUROPE_LOADING_H 32
-#define EUROPE_HOLD_X 170
-#define EUROPE_HOLD_Y 160
+#define EUROPE_EXPECTED_X 2
+#define EUROPE_EXPECTED_Y 118
+#define EUROPE_EXPECTED_W 70 /* (2,118)–(72,160); shares edge with Bound */
+#define EUROPE_EXPECTED_H 42
+#define EUROPE_BOUND_X 72
+#define EUROPE_BOUND_Y 118
+#define EUROPE_BOUND_W 70 /* (72,118)–(142,160) */
+#define EUROPE_BOUND_H 42
+#define EUROPE_LOADING_X 144
+#define EUROPE_LOADING_Y 118
+#define EUROPE_LOADING_W 78 /* (144,118)–(222,160) */
+#define EUROPE_LOADING_H 42
+#define EUROPE_TRANSIT_HEADER_LINES 2
+#define EUROPE_HOLD_X 146
+#define EUROPE_HOLD_Y 163
 #define EUROPE_HOLD_W 12
 #define EUROPE_HOLD_H 14
-#define EUROPE_HOLD_PITCH 14
+#define EUROPE_HOLD_PITCH 12
+#define EUROPE_HOLD_MAX 6
+#define EUROPE_ICON_EMPTY_HOLD 122 /* ICONS.SS — closed hold cover (colony transport) */
 #define EUROPE_DOCK_X 235
 #define EUROPE_DOCK_Y 140
 #define EUROPE_DOCK_PITCH 20
@@ -56,6 +60,10 @@
 #define EUROPE_MARKET_PITCH 19
 #define EUROPE_MARKET_H EUROPE_MARKET_CELL
 #define EUROPE_CARGO_ICON_BASE 22
+#define EUROPE_EXIT_X 306 /* same painted Exit as colony / EUROPE.PIK */
+#define EUROPE_EXIT_Y 179
+#define EUROPE_SCREEN_W 320
+#define EUROPE_SCREEN_H 200
 
 /* Transparent button bevel on EUROPE.PIK sky (dark TL / light BR). */
 #define EUROPE_BTN_DARK 0x3f  /* deep blue */
@@ -129,7 +137,8 @@ typedef enum EuropeHit {
   EUROPE_HIT_BTN_TRAIN,
   EUROPE_HIT_DOCK,
   EUROPE_HIT_EXPECTED,
-  EUROPE_HIT_BOUND
+  EUROPE_HIT_BOUND,
+  EUROPE_HIT_EXIT
 } EuropeHit;
 
 typedef struct EuropeHitResult {
@@ -235,6 +244,7 @@ bool europe_enqueue_expected(
   int type_index,
   const char* name,
   const int* cargo_types,
+  const int* cargo_professions,
   int cargo_count,
   const int* hold_goods_type,
   const int* hold_goods_amount,
@@ -244,8 +254,13 @@ bool europe_enqueue_expected(
   int ship_movement
 );
 
-/* Harbor→Bound for New World; auto-boards sentry dockers into empty holds. */
-bool europe_set_sail_from_harbor(EuropeScreen* eu, int harbor_index, int ship_movement);
+/* Harbor→Bound for New World; auto-boards sentry dockers into free holds. */
+bool europe_set_sail_from_harbor(
+  EuropeScreen* eu,
+  int harbor_index,
+  int ship_movement,
+  const ColonizeUnitPool* units
+);
 
 /* Expected↔Bound reverse (keeps remaining turns). */
 bool europe_reverse_transit(EuropeScreen* eu, bool from_expected, int index);
@@ -283,10 +298,10 @@ bool europe_bound_pop_arrived(
 void europe_refresh_harbor_selection(EuropeScreen* eu);
 
 /*
- * Decrement transit; move Expected→Harbor when due; leave Bound at 0 for
- * caller to spawn. Sets open_on_dock when a ship docks.
+ * Decrement transit; move Expected→Harbor when due (passengers → dock front);
+ * leave Bound at 0 for caller to spawn. Sets open_on_dock when a ship docks.
  */
-void europe_tick_voyages(EuropeScreen* eu);
+void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units);
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);

@@ -7,6 +7,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/ss.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -114,6 +115,102 @@ static void europe_clear_ship(EuropeHarborShip* s) {
   }
   memset(s, 0, sizeof(*s));
   s->type_index = -1;
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    s->cargo_professions[i] = -1;
+  }
+}
+
+static int europe_goods_slots_used(const EuropeHarborShip* ship) {
+  if (!ship) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
+      n++;
+    }
+  }
+  return n;
+}
+
+static int europe_ship_cargo_cap(const EuropeHarborShip* ship, const ColonizeUnitPool* units) {
+  if (!ship) {
+    return 0;
+  }
+  if (units) {
+    int ti = ship->type_index;
+    if (ti < 0) {
+      ti = units_find_type(units, ship->name);
+    }
+    const ColonizeUnitType* ut = units_type(units, ti);
+    if (ut && ut->cargo > 0) {
+      return ut->cargo > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : ut->cargo;
+    }
+  }
+  return EUROPE_SHIP_CARGO_MAX;
+}
+
+/* Insert at dock front (index 0). Returns false if docks are full. */
+static bool europe_dock_push_front(
+  EuropeScreen* eu,
+  const char* name,
+  int profession,
+  bool sentry
+) {
+  if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
+    return false;
+  }
+  for (int i = eu->dock_count; i > 0; --i) {
+    eu->dock[i] = eu->dock[i - 1];
+  }
+  EuropeDockImmigrant* d = &eu->dock[0];
+  memset(d, 0, sizeof(*d));
+  snprintf(d->name, sizeof(d->name), "%s", name ? name : "Colonists");
+  d->profession = profession;
+  d->present = true;
+  d->sentry = sentry;
+  eu->dock_count++;
+  return true;
+}
+
+/* Unload passengers onto dock front (preserves on-board order); clear holds. */
+static void europe_disembark_passengers_to_dock(
+  EuropeScreen* eu,
+  EuropeHarborShip* ship,
+  const ColonizeUnitPool* units
+) {
+  if (!eu || !ship || ship->cargo_count <= 0) {
+    return;
+  }
+  for (int i = ship->cargo_count - 1; i >= 0; --i) {
+    char name[40];
+    const int tag = ship->cargo_types[i];
+    const int prof = ship->cargo_professions[i];
+    if (tag == -2) {
+      snprintf(name, sizeof(name), "%s", "Artillery");
+    } else if (units) {
+      const ColonizeUnitType* ut = units_type(units, tag);
+      if (ut && ut->name[0]) {
+        snprintf(name, sizeof(name), "%s", ut->name);
+      } else {
+        snprintf(name, sizeof(name), "%s", "Free Colonists");
+      }
+    } else {
+      snprintf(name, sizeof(name), "%s", "Free Colonists");
+    }
+    /* Passengers keep sentry ("board next") — same convention as aboard ship. */
+    if (!europe_dock_push_front(eu, name, prof, true)) {
+      snprintf(eu->status, sizeof(eu->status), "%s", "Docks are full — some passengers remain aboard.");
+      /* Leave remaining passengers (0..i) on the ship. */
+      ship->cargo_count = i + 1;
+      return;
+    }
+  }
+  ship->cargo_count = 0;
+  memset(ship->cargo_types, 0, sizeof(ship->cargo_types));
+  for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+    ship->cargo_professions[i] = -1;
+  }
 }
 
 /* Screenshot / DOS purchase list (no Man-O-War). Oracle: original_screenshots/europe/purchase.png */
@@ -742,6 +839,7 @@ bool europe_enqueue_expected(
   int type_index,
   const char* name,
   const int* cargo_types,
+  const int* cargo_professions,
   int cargo_count,
   const int* hold_goods_type,
   const int* hold_goods_amount,
@@ -765,6 +863,8 @@ bool europe_enqueue_expected(
     const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
     for (int i = 0; i < n; ++i) {
       slot->cargo_types[i] = cargo_types[i];
+      slot->cargo_professions[i] =
+        cargo_professions ? cargo_professions[i] : -1;
     }
     slot->cargo_count = n;
   }
@@ -792,24 +892,36 @@ bool europe_enqueue_expected(
   return true;
 }
 
-static void europe_board_sentry_dockers(EuropeScreen* eu, EuropeHarborShip* ship) {
-  if (!eu || !ship) {
+static void europe_board_sentry_dockers(
+  EuropeScreen* eu,
+  EuropeHarborShip* ship,
+  const ColonizeUnitPool* units,
+  int cargo_cap
+) {
+  if (!eu || !ship || cargo_cap <= 0) {
     return;
   }
-  while (ship->cargo_count < EUROPE_SHIP_CARGO_MAX) {
+  const int goods = europe_goods_slots_used(ship);
+  while (ship->cargo_count + goods < cargo_cap) {
     int di = -1;
     for (int i = 0; i < eu->dock_count; ++i) {
       if (eu->dock[i].present && eu->dock[i].sentry) {
         di = i;
-        break;
+        break; /* front of queue first */
       }
     }
     if (di < 0) {
       break;
     }
-    /* Type index 0 = Colonists row in @UNIT; artillery resolved by name later. */
+    int type_tag = 0;
     const bool is_artillery = (strcmp(eu->dock[di].name, "Artillery") == 0);
-    ship->cargo_types[ship->cargo_count] = is_artillery ? -2 : 0;
+    if (is_artillery) {
+      type_tag = -2;
+    } else if (units) {
+      const int ti = units_find_type(units, eu->dock[di].name);
+      type_tag = ti >= 0 ? ti : 0;
+    }
+    ship->cargo_types[ship->cargo_count] = type_tag;
     ship->cargo_professions[ship->cargo_count] = eu->dock[di].profession;
     ship->cargo_count++;
     for (int j = di + 1; j < eu->dock_count; ++j) {
@@ -820,7 +932,12 @@ static void europe_board_sentry_dockers(EuropeScreen* eu, EuropeHarborShip* ship
   }
 }
 
-bool europe_set_sail_from_harbor(EuropeScreen* eu, int harbor_index, int ship_movement) {
+bool europe_set_sail_from_harbor(
+  EuropeScreen* eu,
+  int harbor_index,
+  int ship_movement,
+  const ColonizeUnitPool* units
+) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return false;
   }
@@ -830,7 +947,8 @@ bool europe_set_sail_from_harbor(EuropeScreen* eu, int harbor_index, int ship_mo
   }
   EuropeHarborShip ship;
   europe_copy_ship(&ship, &eu->harbor[harbor_index]);
-  europe_board_sentry_dockers(eu, &ship);
+  const int cargo_cap = europe_ship_cargo_cap(&ship, units);
+  europe_board_sentry_dockers(eu, &ship, units, cargo_cap);
   bool exit_east = eu->last_exit_valid ? eu->last_exit_east : true;
   ship.exit_east = exit_east;
   if (eu->last_exit_valid) {
@@ -1033,7 +1151,7 @@ void europe_refresh_harbor_selection(EuropeScreen* eu) {
   eu->selected_harbor = 0;
 }
 
-void europe_tick_voyages(EuropeScreen* eu) {
+void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
   if (!eu) {
     return;
   }
@@ -1048,7 +1166,7 @@ void europe_tick_voyages(EuropeScreen* eu) {
       eu->bound[i].turns_left--;
     }
   }
-  /* Move due Expected ships into harbor. */
+  /* Move due Expected ships into harbor; passengers go to dock front. */
   int i = 0;
   while (i < eu->expected_ships) {
     if (eu->expected[i].turns_left > 0) {
@@ -1065,6 +1183,7 @@ void europe_tick_voyages(EuropeScreen* eu) {
     eu->expected_ships--;
     europe_clear_ship(&eu->expected[eu->expected_ships]);
     ship.turns_left = 0;
+    europe_disembark_passengers_to_dock(eu, &ship, units);
     eu->harbor[eu->harbor_ships++] = ship;
     eu->open_on_dock = true;
     europe_refresh_harbor_selection(eu);
@@ -1240,6 +1359,11 @@ EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
     return hit;
   }
 
+  if (mx >= EUROPE_EXIT_X && mx < EUROPE_SCREEN_W && my >= EUROPE_EXIT_Y && my < EUROPE_SCREEN_H) {
+    hit.kind = EUROPE_HIT_EXIT;
+    return hit;
+  }
+
   if (europe_in_rect(mx, my, EUROPE_BTN_X, EUROPE_BTN_Y, EUROPE_BTN_W, EUROPE_BTN_H)) {
     hit.kind = EUROPE_HIT_BTN_RECRUIT;
     return hit;
@@ -1262,14 +1386,22 @@ EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my) {
     return hit;
   }
 
-  if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships &&
-      my >= EUROPE_HOLD_Y && my < EUROPE_HOLD_Y + EUROPE_HOLD_H && mx >= EUROPE_HOLD_X) {
-    const int idx = (mx - EUROPE_HOLD_X) / EUROPE_HOLD_PITCH;
-    if (idx >= 0 && idx < EUROPE_SHIP_CARGO_MAX &&
-        mx < EUROPE_HOLD_X + idx * EUROPE_HOLD_PITCH + EUROPE_HOLD_W) {
-      hit.kind = EUROPE_HIT_HOLD;
-      hit.index = idx;
-      return hit;
+  {
+    int open_holds = 0;
+    if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
+      /* Capacity unknown here without unit pool; allow all painted slots when a ship
+       * is selected — render covers closed slots; sell only hits filled goods. */
+      open_holds = EUROPE_HOLD_MAX;
+    }
+    if (open_holds > 0 && my >= EUROPE_HOLD_Y && my < EUROPE_HOLD_Y + EUROPE_HOLD_H &&
+        mx >= EUROPE_HOLD_X && mx < EUROPE_HOLD_X + EUROPE_HOLD_MAX * EUROPE_HOLD_PITCH) {
+      const int idx = (mx - EUROPE_HOLD_X) / EUROPE_HOLD_PITCH;
+      if (idx >= 0 && idx < open_holds &&
+          mx < EUROPE_HOLD_X + idx * EUROPE_HOLD_PITCH + EUROPE_HOLD_W) {
+        hit.kind = EUROPE_HIT_HOLD;
+        hit.index = idx;
+        return hit;
+      }
     }
   }
 

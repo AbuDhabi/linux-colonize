@@ -489,7 +489,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->needed_crosses = (uint16_t)need;
       turn_push_dock_immigrant(ctx->europe, out);
     }
-    europe_tick_voyages(ctx->europe);
+    europe_tick_voyages(ctx->europe, ctx->units);
   }
 
   if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {

@@ -380,18 +380,13 @@ add_test(NAME smoke_pedia COMMAND smoke_pedia WORKING_DIRECTORY ${CMAKE_SOURCE_D
 
 add_executable(smoke_europe
   tests/smoke/test_europe.c
-  src/core/europe.c
-  src/core/assets.c
-  src/core/pik.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_europe PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(smoke_europe PRIVATE colonize_core)
 
 add_test(NAME smoke_europe COMMAND smoke_europe WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
