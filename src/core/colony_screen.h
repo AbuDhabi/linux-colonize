@@ -28,7 +28,7 @@
  *   WOODTILE.SS   — wood grain tiled in the square top-right minimap section
  *   TERRAIN+PHYS0 — 3×3 catchment tiles centered in the minimap section
  *   COLONY.PIK    — bottom panel (people / transport / multifunction / cargo)
- *   ICONS.SS      — cargo #22–37, settlement #0–3, crosses #56, bells #62, …
+ *   ICONS.SS      — cargo #22–37, settlement #0–3, crosses #56, fish #57, bells #62, …
  */
 #define COLONY_SCREEN_WIDTH 320
 #define COLONY_SCREEN_HEIGHT 200
@@ -45,7 +45,7 @@
 #define COLONY_MINIMAP_SECTION_X (COLONY_SCREEN_WIDTH - COLONY_MINIMAP_SECTION_W)
 #define COLONY_MINIMAP_SECTION_Y COLONY_MIDDLE_Y
 #define COLONY_MINIMAP_GRID 3
-#define COLONY_MINIMAP_TILE 16
+#define COLONY_MINIMAP_TILE 24 /* 16px terrain × 1.5, centered in WOODTILE */
 
 #define COLONY_VIEWPORT_X 0
 #define COLONY_VIEWPORT_Y COLONY_MIDDLE_Y
@@ -61,12 +61,15 @@
 #define COLONY_CARGO_NUM_Y (COLONY_BOTTOM_PANEL_Y + 64)
 
 #define COLONY_ICON_CROSS 56
+#define COLONY_ICON_FISH 57 /* fisherman food (colony view only; still cargo food) */
 #define COLONY_ICON_BELL 62
 #define COLONY_ICON_HAMMER 54
 #define COLONY_ICON_FLAG 123
 #define COLONY_ICON_CROWN 124
+#define COLONY_ICON_HOUSE 67
 #define COLONY_ICON_RIFLE 68
 #define COLONY_ICON_HAMMER_BTN 69
+#define COLONY_ICON_EMPTY_HOLD 122
 
 #define COLONY_CONSTRUCTION_BANNER_Y (COLONY_MIDDLE_Y + 1)
 #define COLONY_CONSTRUCTION_BANNER_H 10
@@ -76,11 +79,11 @@
 #define COLONY_BUILDING_SLOT_H 32
 #define COLONY_JOB_LIST_MAX COLONIZE_FIELD_JOB_COUNT
 
-/* COLONY.PIK bands above the warehouse strip (measured from asset). */
+/* COLONY.PIK bands above the warehouse strip (transport shifted +30 for People/Tory). */
 #define COLONY_PEOPLE_X 0
-#define COLONY_PEOPLE_W 100
-#define COLONY_TRANSPORT_X 100
-#define COLONY_TRANSPORT_W 110
+#define COLONY_PEOPLE_W 130
+#define COLONY_TRANSPORT_X 130
+#define COLONY_TRANSPORT_W 80
 #define COLONY_MULTI_X 210
 #define COLONY_MULTI_W 83
 #define COLONY_MULTI_BTN_X 293
@@ -124,6 +127,8 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_HOLD,
   COLONY_HIT_MULTI_BTN,
   COLONY_HIT_MULTI_PANE,
+  COLONY_HIT_MULTI_BUY,
+  COLONY_HIT_MULTI_CHANGE,
   COLONY_HIT_OUTSIDE_UNIT,
   COLONY_HIT_PEOPLE_COLONIST
 } ColonyScreenHit;

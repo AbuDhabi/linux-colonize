@@ -860,6 +860,38 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* Town commons: plains → food + cotton; forest → food + furs (not lumber). */
+    {
+      ColonizeTownCommonsYield tc;
+      colony_yield_town_commons(&tmap, px, py, &tc);
+      if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_COTTON) {
+        fprintf(
+          stderr,
+          "town commons plains expected food+cotton got food=%d cargo=%d amt=%d\n",
+          tc.food,
+          tc.secondary_cargo,
+          tc.secondary_amount
+        );
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      colony_yield_town_commons(&tmap, fx, fy, &tc);
+      if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_FURS) {
+        fprintf(
+          stderr,
+          "town commons forest expected food+furs got food=%d cargo=%d amt=%d\n",
+          tc.food,
+          tc.secondary_cargo,
+          tc.secondary_amount
+        );
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
     units_despawn(&pool, pid3);
     map_free(&tmap);
   }

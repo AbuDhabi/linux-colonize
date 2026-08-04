@@ -99,13 +99,12 @@ port I/O in the native build.
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; phase 5 hold buy/sell + tax, goods persist on **H**/**S**;
   see `src/core/europe.c`)
-- Colony screen bring-up: DOS six-view layout — settlement (workers + badges + outside
-  units), area (settlement icon #0–3, harvest + colonist sprites), people (SoL/Tory,
-  icon strip, food/crosses/bells), transport (wharf holds: color/grey/empty + passengers),
-  multifunction Production/Units/Construction (**1**/**2**/**3**/**M**, **N** numbers),
-  warehouse strip unchanged; preview via `colony_preview.c`; construction **C**/**B**;
-  field jobs via area click / Enter; cargo↔hold **L**/**U**/**=**/**+**;
-  see `src/core/colony_screen.c`, `src/core/colony_yield.c`, `src/core/colony_craft.c`
+- Colony screen bring-up: DOS six-view layout — settlement (sprite hit-rects, tight
+  selection), area (1.5× 24px tiles, Note 1 yield strips; fisherman → fish **#57**), people (SoL/Tory, food/crosses/bells
+  strips; fish before grain food), transport (class name, hold **#122** empties), multifunction (house **#67**,
+  Production Note 1, Units bottom, Construction BUY/CHANGE + hammer rows); warehouse strip
+  unchanged; preview via `colony_preview.c`; see `src/core/colony_screen.c`,
+  `src/core/colony_yield.c`, `src/core/colony_craft.c`
 - Units bring-up: `@UNIT` types from `NAMES.TXT`, map icons from `ICONS.SS`,
   starter Pioneer + Caravel, select/move (terrain/road/river MP costs), deploy dock
   immigrants (**D**), board/unload (**O**/**U**), ship landfall unload / colony dock

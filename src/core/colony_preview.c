@@ -96,23 +96,16 @@ void colony_preview_compute(
 
   const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
 
-  /* Center tile auto-yield (up to two commodities). */
+  /* Center tile auto-yield (town commons: food + one other). */
   if (map) {
-    const int j0 = colony_preview_best_job(map, colony->x, colony->y);
-    if (j0 >= 0) {
-      const int y0 = colony_yield_for_tile(map, colony->x, colony->y, j0);
-      const int c0 = colony_yield_job_cargo(j0);
-      if (y0 > 0 && c0 >= 0 && c0 < COLONIZE_CARGO_COUNT) {
-        out->goods[c0] += y0;
-      }
-      const int j1 = colony_preview_second_job(map, colony->x, colony->y, j0);
-      if (j1 >= 0) {
-        const int y1 = colony_yield_for_tile(map, colony->x, colony->y, j1);
-        const int c1 = colony_yield_job_cargo(j1);
-        if (y1 > 0 && c1 >= 0 && c1 < COLONIZE_CARGO_COUNT) {
-          out->goods[c1] += y1;
-        }
-      }
+    ColonizeTownCommonsYield tc;
+    colony_yield_town_commons(map, colony->x, colony->y, &tc);
+    if (tc.food > 0) {
+      out->goods[COLONIZE_CARGO_FOOD] += tc.food;
+    }
+    if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
+        tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
+      out->goods[tc.secondary_cargo] += tc.secondary_amount;
     }
 
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
@@ -133,11 +126,17 @@ void colony_preview_compute(
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
         out->goods[cargo] += yld;
+        if (c->field_job == COLONIZE_JOB_FISHERMAN) {
+          out->food_fish += yld;
+        }
       }
     }
   }
 
   out->food_produced = out->goods[COLONIZE_CARGO_FOOD];
+  if (out->food_fish > out->food_produced) {
+    out->food_fish = out->food_produced;
+  }
   out->food_consumed = pop > 0 ? pop * 2 : 0;
   out->food_net = out->food_produced - out->food_consumed;
 
