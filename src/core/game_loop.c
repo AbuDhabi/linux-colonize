@@ -891,40 +891,80 @@ static void europe_draw_box_border(
   europe_fill_rect(fb, x + w - 1, y, x + w, y + h, color);
 }
 
-/* Ship name/turns (Expected/Bound) or name/cargo (Loading) lists for the water boxes. */
-static void europe_render_ship_list(
+/* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
+static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
+  if (!units || !ship) {
+    return -1;
+  }
+  int ti = ship->type_index;
+  if (ti < 0) {
+    ti = units_find_type(units, ship->name);
+  }
+  const ColonizeUnitType* ut = units_type(units, ti);
+  return ut ? ut->icon_sprite : -1;
+}
+
+static void europe_render_transit_box(
+  const ColonizeGameState* game,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
+  int box_x,
+  int box_y,
+  int box_w,
+  int box_h,
+  const char* header,
   const EuropeHarborShip* ships,
   int count,
-  int x,
-  int y,
-  int h,
-  bool show_turns,
   int selected_index
 ) {
-  const int line_h = font ? (font->max_height + 2) : 9;
-  if (count <= 0) {
-    font_draw_text(font, framebuffer, x + 2, y, "(none)", 8);
+  if (!framebuffer) {
     return;
   }
-  int row_y = y;
-  char line[64];
-  for (int i = 0; i < count && row_y + line_h <= y + h; ++i) {
-    if (show_turns) {
-      snprintf(line, sizeof(line), "%s (%d)", ships[i].name, ships[i].turns_left);
-    } else if (ships[i].cargo_count > 0) {
-      snprintf(line, sizeof(line), "%s (+%d)", ships[i].name, ships[i].cargo_count);
-    } else {
-      snprintf(line, sizeof(line), "%s", ships[i].name);
+  const int line_h = font ? (font->max_height > 0 ? (int)font->max_height + 2 : 8) : 8;
+  const int header_h = EUROPE_TRANSIT_HEADER_LINES * line_h;
+  font_draw_text(font, framebuffer, box_x + 2, box_y + 2, header, EUROPE_TEXT_GREEN);
+
+  if (!game || !game->unit_icons_ok || !game->units_ok || count <= 0 || !ships) {
+    return;
+  }
+
+  const int ship_y0 = box_y + 2 + header_h + 10;
+  const int ship_area_h = box_y + box_h - ship_y0 - 1;
+  if (ship_area_h < 8) {
+    return;
+  }
+
+  int x = box_x + 3;
+  int y = ship_y0;
+  int row_h = 0;
+  for (int i = 0; i < count; ++i) {
+    const int sprite = europe_ship_icon_sprite(&game->units, &ships[i]);
+    if (sprite < 0 || sprite >= game->unit_icons.sprite_count) {
+      continue;
     }
-    font_draw_text(font, framebuffer, x + 2, row_y, line, (i == selected_index) ? 14 : 15);
-    row_y += line_h;
+    const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
+    const int sw = sp->width > 0 ? sp->width : 14;
+    const int sh = sp->height > 0 ? sp->height : 16;
+    if (x + sw > box_x + box_w - 2) {
+      x = box_x + 3;
+      y += row_h + 1;
+      row_h = 0;
+      if (y + sh > box_y + box_h - 1) {
+        break;
+      }
+    }
+    if (sh > row_h) {
+      row_h = sh;
+    }
+    ss_blit_sprite(&game->unit_icons, sprite, framebuffer, x, y);
+    if (i == selected_index) {
+      europe_draw_box_border(framebuffer, x - 1, y - 1, sw + 2, sh + 2, 14);
+    }
+    x += sw + 2;
   }
 }
 
-/* RECRUIT/TRAIN/PURCHASE/DOCK wood popup — chrome via popup_draw (no dedicated
- * wood-tile sheet loaded for Europe's own palette, so fall back to solid fill). */
+/* RECRUIT/TRAIN/PURCHASE/DOCK wood popup — chrome via popup_draw. */
 static void europe_render_menu_popup(
   const ColonizeGameState* game,
   ColonizeFramebuffer8* framebuffer
@@ -1092,6 +1132,21 @@ static int europe_dock_sprite(const ColonizeUnitPool* units, const EuropeDockImm
   return ut ? ut->icon_sprite : -1;
 }
 
+static int europe_harbor_open_holds(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
+  if (!units || !ship) {
+    return 0;
+  }
+  int ti = ship->type_index;
+  if (ti < 0) {
+    ti = units_find_type(units, ship->name);
+  }
+  const ColonizeUnitType* ut = units_type(units, ti);
+  if (!ut || ut->cargo <= 0) {
+    return 0;
+  }
+  return ut->cargo > EUROPE_HOLD_MAX ? EUROPE_HOLD_MAX : ut->cargo;
+}
+
 static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
   /* Main Europe chrome uses FONTTINY; popups keep menu_font (see europe_render_menu_popup). */
@@ -1150,19 +1205,18 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     font_draw_text(font, framebuffer, tx > 0 ? tx : 0, ty > 0 ? ty : 1, line, EUROPE_TEXT_GREEN);
   }
 
-  /* Transit boxes: Expected Soon / Bound For <region> / Loading <ship>. */
-  font_draw_text(
-    font, framebuffer, EUROPE_EXPECTED_X, EUROPE_EXPECTED_Y - 9, "Expected Soon", EUROPE_TEXT_GREEN
-  );
-  europe_render_ship_list(
+  /* Transit boxes: two-line headers + ship icons (not text lists). */
+  europe_render_transit_box(
+    game,
     font,
     framebuffer,
-    eu->expected,
-    eu->expected_ships,
     EUROPE_EXPECTED_X,
     EUROPE_EXPECTED_Y,
+    EUROPE_EXPECTED_W,
     EUROPE_EXPECTED_H,
-    true,
+    "Expected\nSoon",
+    eu->expected,
+    eu->expected_ships,
     -1
   );
 
@@ -1172,54 +1226,90 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     "Bound For\n%s",
     eu->colony_region[0] ? eu->colony_region : "New World"
   );
-  font_draw_text(font, framebuffer, EUROPE_BOUND_X, EUROPE_BOUND_Y - 9, line, EUROPE_TEXT_GREEN);
-  europe_render_ship_list(
+  europe_render_transit_box(
+    game,
     font,
     framebuffer,
-    eu->bound,
-    eu->bound_ships,
     EUROPE_BOUND_X,
     EUROPE_BOUND_Y,
+    EUROPE_BOUND_W,
     EUROPE_BOUND_H,
-    true,
+    line,
+    eu->bound,
+    eu->bound_ships,
     -1
   );
 
   if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
-    snprintf(line, sizeof(line), "Loading: %s", eu->harbor[eu->selected_harbor].name);
+    snprintf(line, sizeof(line), "Loading:\n%s", eu->harbor[eu->selected_harbor].name);
+  } else if (eu->harbor_ships > 0) {
+    snprintf(line, sizeof(line), "%s", "Loading:\n");
   } else {
-    snprintf(line, sizeof(line), "%s", "Loading:");
+    snprintf(line, sizeof(line), "%s", "Loading:\n");
   }
-  font_draw_text(font, framebuffer, EUROPE_LOADING_X, EUROPE_LOADING_Y - 9, line, EUROPE_TEXT_GREEN);
-  europe_render_ship_list(
+  europe_render_transit_box(
+    game,
     font,
     framebuffer,
-    eu->harbor,
-    eu->harbor_ships,
     EUROPE_LOADING_X,
     EUROPE_LOADING_Y,
+    EUROPE_LOADING_W,
     EUROPE_LOADING_H,
-    false,
+    line,
+    eu->harbor,
+    eu->harbor_ships,
     eu->selected_harbor
   );
 
-  /* Selected ship commodity holds. */
-  if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
-    const EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-    for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
-      const int x = EUROPE_HOLD_X + i * EUROPE_HOLD_PITCH;
-      const int hy = EUROPE_HOLD_Y;
-      const int amt = ship->hold_goods_amount[i];
-      const int gtype = ship->hold_goods_type[i];
-      if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT &&
-          game->unit_icons_ok) {
-        const int sprite = EUROPE_CARGO_ICON_BASE + gtype;
-        if (sprite < game->unit_icons.sprite_count) {
-          ss_blit_sprite(&game->unit_icons, sprite, framebuffer, x, hy);
+  /* Commodity holds — same closed/open cover behavior as colony transport pane. */
+  {
+    const EuropeHarborShip* ship = NULL;
+    int open_holds = 0;
+    if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
+      ship = &eu->harbor[eu->selected_harbor];
+      open_holds = game->units_ok ? europe_harbor_open_holds(&game->units, ship) : 0;
+    }
+    if (ship && open_holds > 0) {
+      for (int i = 0; i < open_holds; ++i) {
+        const int x = EUROPE_HOLD_X + i * EUROPE_HOLD_PITCH;
+        const int hy = EUROPE_HOLD_Y;
+        const int amt = ship->hold_goods_amount[i];
+        const int gtype = ship->hold_goods_type[i];
+        if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT &&
+            game->unit_icons_ok) {
+          const int sprite = EUROPE_CARGO_ICON_BASE + gtype;
+          if (sprite < game->unit_icons.sprite_count) {
+            const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
+            const int ix = x + (EUROPE_HOLD_W - sp->width) / 2;
+            ss_blit_sprite(&game->unit_icons, sprite, framebuffer, ix, hy);
+          }
         }
-      } else {
-        europe_fill_rect(framebuffer, x, hy, x + EUROPE_HOLD_W, hy + EUROPE_HOLD_H, 138);
-        europe_draw_box_border(framebuffer, x, hy, EUROPE_HOLD_W, EUROPE_HOLD_H, 0);
+      }
+      for (int i = 0; i < ship->cargo_count; ++i) {
+        const int slot = open_holds + i;
+        if (slot >= EUROPE_HOLD_MAX) {
+          break;
+        }
+        const int x = EUROPE_HOLD_X + slot * EUROPE_HOLD_PITCH;
+        const int hy = EUROPE_HOLD_Y;
+        const int pax_type = ship->cargo_types[i];
+        if (game->unit_icons_ok && pax_type >= 0) {
+          const ColonizeUnitType* ut = units_type(&game->units, pax_type);
+          if (ut && ut->icon_sprite >= 0 && ut->icon_sprite < game->unit_icons.sprite_count) {
+            ss_blit_sprite(&game->unit_icons, ut->icon_sprite, framebuffer, x, hy);
+          }
+        }
+      }
+    }
+    if (game->unit_icons_ok && EUROPE_ICON_EMPTY_HOLD < game->unit_icons.sprite_count) {
+      const ColonizeSprite* cov = &game->unit_icons.sprites[EUROPE_ICON_EMPTY_HOLD];
+      const int cover_w = (cov && cov->width > 0) ? cov->width : EUROPE_HOLD_W;
+      const int cover_h = (cov && cov->height > 0) ? cov->height : 12;
+      for (int i = open_holds; i < EUROPE_HOLD_MAX; ++i) {
+        const int x =
+          EUROPE_HOLD_X + i * EUROPE_HOLD_PITCH + (EUROPE_HOLD_W - cover_w) / 2;
+        const int y = EUROPE_HOLD_Y + (EUROPE_HOLD_H - cover_h) / 2;
+        ss_blit_sprite(&game->unit_icons, EUROPE_ICON_EMPTY_HOLD, framebuffer, x, y);
       }
     }
   }
@@ -1269,7 +1359,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     }
     if (sel) {
       europe_draw_box_border(
-        framebuffer, mx, EUROPE_MARKET_Y, EUROPE_MARKET_CELL, EUROPE_MARKET_CELL, 14
+        framebuffer, mx, EUROPE_MARKET_Y, EUROPE_MARKET_CELL, EUROPE_MARKET_CELL + 1, 14
       );
     }
   }
@@ -2627,6 +2717,28 @@ static int game_europe_resolve_pax_type(const ColonizeUnitPool* units, int tag) 
   return tag;
 }
 
+static void game_europe_capture_pax_professions(
+  const ColonizeUnitPool* units,
+  int ship_id,
+  int* out_profs,
+  int max
+) {
+  if (!out_profs || max <= 0) {
+    return;
+  }
+  for (int i = 0; i < max; ++i) {
+    out_profs[i] = -1;
+  }
+  const ColonizeUnit* ship = units_get_const(units, ship_id);
+  if (!ship) {
+    return;
+  }
+  for (int i = 0; i < ship->cargo_count && i < max; ++i) {
+    const ColonizeUnit* pax = units_get_const(units, ship->cargo_ids[i]);
+    out_profs[i] = pax ? pax->profession : -1;
+  }
+}
+
 /*
  * Spawn every Bound-for-New-World ship whose voyage has finished. Called after
  * turn end, when leaving the Europe screen, and at Europe-input time so ships
@@ -2988,11 +3100,15 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         int type_index = -1;
         char ship_name[32];
         int cargo_types[EUROPE_SHIP_CARGO_MAX];
+        int cargo_profs[EUROPE_SHIP_CARGO_MAX];
         int cargo_count = 0;
         int hold_types[EUROPE_SHIP_CARGO_MAX];
         int hold_amts[EUROPE_SHIP_CARGO_MAX];
         memset(hold_types, 0, sizeof(hold_types));
         memset(hold_amts, 0, sizeof(hold_amts));
+        game_europe_capture_pax_professions(
+          &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
+        );
         if (!units_despawn_ship_with_cargo(
               &game->units,
               sid,
@@ -3015,6 +3131,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
                 type_index,
                 ship_name,
                 cargo_types,
+                cargo_profs,
                 cargo_count,
                 hold_types,
                 hold_amts,
@@ -4078,6 +4195,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (input->mouse_left_clicked) {
       const EuropeHitResult hit = europe_hit_test(eu, input->mouse_x, input->mouse_y);
       switch (hit.kind) {
+      case EUROPE_HIT_EXIT:
+        game->in_europe = false;
+        game_europe_deliver_bound_ships(game);
+        diag_info("Left Europe screen (Exit).");
+        break;
       case EUROPE_HIT_HARBOR_SHIP:
         eu->selected_harbor = hit.index;
         snprintf(eu->status, sizeof(eu->status), "Selected %s.", eu->harbor[hit.index].name);
@@ -4141,7 +4263,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           movement = ut->movement;
         }
         /* Ship goes to Bound; game_europe_deliver_bound_ships spawns it once it arrives. */
-        europe_set_sail_from_harbor(eu, hidx, movement);
+        europe_set_sail_from_harbor(eu, hidx, movement, &game->units);
       }
       return true;
     } else if (input->last_key == COLONIZE_KEY_RIGHTBRACKET) {
@@ -4630,11 +4752,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       int type_index = -1;
       char ship_name[32];
       int cargo_types[EUROPE_SHIP_CARGO_MAX];
+      int cargo_profs[EUROPE_SHIP_CARGO_MAX];
       int cargo_count = 0;
       int hold_types[EUROPE_SHIP_CARGO_MAX];
       int hold_amts[EUROPE_SHIP_CARGO_MAX];
       memset(hold_types, 0, sizeof(hold_types));
       memset(hold_amts, 0, sizeof(hold_amts));
+      game_europe_capture_pax_professions(
+        &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
+      );
       if (!units_despawn_ship_with_cargo(
             &game->units,
             sid,
@@ -4657,6 +4783,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               type_index,
               ship_name,
               cargo_types,
+              cargo_profs,
               cargo_count,
               hold_types,
               hold_amts,

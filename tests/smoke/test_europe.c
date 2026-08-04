@@ -216,6 +216,12 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+    hit = europe_hit_test(&eu, EUROPE_EXIT_X + 2, EUROPE_EXIT_Y + 2);
+    if (hit.kind != EUROPE_HIT_EXIT) {
+      fprintf(stderr, "exit hit expected EXIT got kind=%d\n", (int)hit.kind);
+      europe_free(&eu);
+      return 1;
+    }
   }
 
   /* Round-trip pop preserves remaining trade-goods hold. */
@@ -336,16 +342,23 @@ int main(void) {
   eu.harbor_ships = 0;
   eu.expected_ships = 0;
   eu.bound_ships = 0;
-  if (!europe_enqueue_expected(
-        &eu, 14, "Caravel", NULL, 0, NULL, NULL, 50, 10, true, 4
-      ) ||
-      eu.expected_ships != 1 || eu.expected[0].turns_left != EUROPE_VOYAGE_EAST_TURNS) {
-    fprintf(stderr, "enqueue_expected failed\n");
-    europe_free(&eu);
-    return 1;
+  eu.dock_count = 0;
+  memset(eu.dock, 0, sizeof(eu.dock));
+  /* Arrival dumps passengers to dock front with board-next; preserves order. */
+  {
+    const int pax_types[2] = {0, 0};
+    const int pax_profs[2] = {21, 20}; /* soldier then pioneer in cargo */
+    if (!europe_enqueue_expected(
+          &eu, 14, "Caravel", pax_types, pax_profs, 2, NULL, NULL, 50, 10, true, 4
+        ) ||
+        eu.expected_ships != 1 || eu.expected[0].turns_left != EUROPE_VOYAGE_EAST_TURNS) {
+      fprintf(stderr, "enqueue_expected failed\n");
+      europe_free(&eu);
+      return 1;
+    }
   }
   for (int t = 0; t < EUROPE_VOYAGE_EAST_TURNS; ++t) {
-    europe_tick_voyages(&eu);
+    europe_tick_voyages(&eu, NULL);
   }
   if (eu.expected_ships != 0 || eu.harbor_ships != 1 || !eu.open_on_dock) {
     fprintf(
@@ -358,23 +371,64 @@ int main(void) {
     europe_free(&eu);
     return 1;
   }
-  eu.dock_count = 1;
-  snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "%s", "Free Colonists");
+  if (eu.harbor[0].cargo_count != 0) {
+    fprintf(stderr, "passengers should leave ship on dock, cargo=%d\n", eu.harbor[0].cargo_count);
+    europe_free(&eu);
+    return 1;
+  }
+  if (eu.dock_count != 2 || eu.dock[0].profession != 21 || eu.dock[1].profession != 20 ||
+      !eu.dock[0].sentry || !eu.dock[1].sentry) {
+    fprintf(
+      stderr,
+      "disembark dock front failed count=%d p0=%d s0=%d p1=%d s1=%d\n",
+      eu.dock_count,
+      eu.dock[0].profession,
+      eu.dock[0].sentry ? 1 : 0,
+      eu.dock[1].profession,
+      eu.dock[1].sentry ? 1 : 0
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  /* Boarding: only sentry from front; skip non-sentry ahead of queue. */
+  eu.dock_count = 3;
+  snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "%s", "Indentured Servants");
   eu.dock[0].present = true;
-  eu.dock[0].sentry = true;
-  eu.dock[0].profession = 19;
-  if (!europe_set_sail_from_harbor(&eu, 0, 4) || eu.bound_ships != 1 || eu.harbor_ships != 0) {
+  eu.dock[0].sentry = false;
+  eu.dock[0].profession = 25;
+  snprintf(eu.dock[1].name, sizeof(eu.dock[1].name), "%s", "Free Colonists");
+  eu.dock[1].present = true;
+  eu.dock[1].sentry = true;
+  eu.dock[1].profession = 19;
+  snprintf(eu.dock[2].name, sizeof(eu.dock[2].name), "%s", "Petty Criminals");
+  eu.dock[2].present = true;
+  eu.dock[2].sentry = true;
+  eu.dock[2].profession = 26;
+  if (!europe_set_sail_from_harbor(&eu, 0, 4, NULL) || eu.bound_ships != 1 ||
+      eu.harbor_ships != 0) {
     fprintf(stderr, "set_sail failed: %s\n", eu.status);
     europe_free(&eu);
     return 1;
   }
-  if (eu.bound[0].cargo_count < 1) {
-    fprintf(stderr, "sentry dockers did not board\n");
+  if (eu.bound[0].cargo_count != 2 || eu.bound[0].cargo_professions[0] != 19 ||
+      eu.bound[0].cargo_professions[1] != 26) {
+    fprintf(
+      stderr,
+      "sentry board order failed cargo=%d p0=%d p1=%d\n",
+      eu.bound[0].cargo_count,
+      eu.bound[0].cargo_professions[0],
+      eu.bound[0].cargo_professions[1]
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  if (eu.dock_count != 1 || eu.dock[0].profession != 25 || eu.dock[0].sentry) {
+    fprintf(stderr, "non-sentry should remain on dock\n");
     europe_free(&eu);
     return 1;
   }
   for (int t = 0; t < eu.bound[0].turns_left + 1; ++t) {
-    europe_tick_voyages(&eu);
+    europe_tick_voyages(&eu, NULL);
   }
   int bx = -1, by = -1;
   bool beast = false;
