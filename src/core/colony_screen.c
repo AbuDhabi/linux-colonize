@@ -45,6 +45,7 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->job_count = 0;
   view->eject_open = false;
   view->eject_colonist_index = -1;
+  view->eject_unit_id = -1;
   view->eject_selection = 0;
   view->eject_role_count = 0;
   view->last_delta_valid = false;
@@ -210,6 +211,7 @@ void colony_screen_close_eject(ColonyScreenView* view) {
   }
   view->eject_open = false;
   view->eject_colonist_index = -1;
+  view->eject_unit_id = -1;
   view->eject_selection = 0;
   view->eject_role_count = 0;
 }
@@ -226,6 +228,7 @@ void colony_screen_open_eject(
   colony_screen_close_jobs(view);
   colony_screen_close_construction(view);
   view->eject_colonist_index = colonist_index;
+  view->eject_unit_id = -1;
   view->eject_role_count = colonies_list_eject_roles(
     pool, colony_id, colonist_index, view->eject_roles, COLONIZE_EJECT_ROLE_COUNT
   );
@@ -1279,6 +1282,11 @@ static void colony_screen_blit_slot(
   ss_blit_sprite(&view->buildings, sprite_index, framebuffer, x, y);
 }
 
+static int colony_screen_outside_display_sprite(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u
+);
+
 /* Icon metrics for an outside (on-tile) unit; defaults if sheet/sprite missing. */
 static void colony_screen_outside_icon_metrics(
   const ColonyScreenView* view,
@@ -1290,7 +1298,8 @@ static void colony_screen_outside_icon_metrics(
   int w = 12;
   int h = 16;
   if (units && view && view->icons_ok) {
-    const int sprite = units_map_sprite(units, unit_id);
+    const ColonizeUnit* u = units_get_const(units, unit_id);
+    const int sprite = colony_screen_outside_display_sprite(units, u);
     if (sprite >= 0 && sprite < view->icons.sprite_count) {
       const ColonizeSprite* sp = &view->icons.sprites[sprite];
       if (sp && sp->width > 0 && sp->height > 0) {
@@ -1305,6 +1314,40 @@ static void colony_screen_outside_icon_metrics(
   if (out_h) {
     *out_h = h;
   }
+}
+
+static int colony_screen_outside_display_sprite(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u
+) {
+  if (!units || !u) {
+    return -1;
+  }
+  const ColonizeUnitType* type = units_type(units, u->type_index);
+  int sprite = units_map_sprite(units, u->id);
+  if (type && strstr(type->name, "Colonist") != NULL &&
+      u->muskets <= 0 && u->horses <= 0 && u->tools <= 0) {
+    sprite = units_working_colonist_sprite(units, u->type_index, u->profession);
+  }
+  return sprite;
+}
+
+static bool colony_screen_is_military_unit(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u
+) {
+  if (!units || !u) {
+    return false;
+  }
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(units, u->id, &tools, &muskets, &horses);
+  if (muskets > 0) {
+    return true;
+  }
+  const ColonizeUnitType* type = units_type(units, u->type_index);
+  return type && (strstr(type->name, "Artillery") != NULL || strstr(type->name, "Cannon") != NULL);
 }
 
 static int colony_screen_building_production_badge(
@@ -1507,7 +1550,7 @@ static void colony_screen_blit_buildings(
       if (!u) {
         continue;
       }
-      const int sprite = units_map_sprite(units, u->id);
+      const int sprite = colony_screen_outside_display_sprite(units, u);
       if (sprite < 0) {
         continue;
       }
@@ -1707,6 +1750,9 @@ static void colony_screen_draw_people(
   }
   const int sol = colony_screen_sol_percent(col1, colony);
   const int tory = 100 - sol;
+  const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+  const int sol_count = (pop > 0) ? ((pop * sol + 50) / 100) : 0;
+  const int tory_count = pop > sol_count ? (pop - sol_count) : 0;
   const int sol_y = COLONY_PANEL_CONTENT_Y + 1;
   colony_screen_blit_icon(view, COLONY_ICON_FLAG, framebuffer, COLONY_PEOPLE_X + 2, sol_y);
   /* Tory flush to the right of the (widened) people band. */
@@ -1714,10 +1760,10 @@ static void colony_screen_draw_people(
     view, COLONY_ICON_CROWN, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14, sol_y
   );
   if (font) {
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d%%", sol);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d%% (%d)", sol, sol_count);
     font_draw_text(font, framebuffer, COLONY_PEOPLE_X + 16, sol_y + 2, buf, 15);
-    snprintf(buf, sizeof(buf), "%d%%", tory);
+    snprintf(buf, sizeof(buf), "%d%% (%d)", tory, tory_count);
     const int tw = colony_screen_text_width(font, buf);
     font_draw_text(
       font, framebuffer, COLONY_PEOPLE_X + COLONY_PEOPLE_W - 16 - tw, sol_y + 2, buf, 15
@@ -1755,7 +1801,7 @@ static void colony_screen_draw_people(
     if (!u) {
       continue;
     }
-    const int sprite = units_map_sprite(units, u->id);
+    const int sprite = colony_screen_outside_display_sprite(units, u);
     if (sprite >= 0) {
       colony_screen_blit_icon(view, sprite, framebuffer, x, y_out);
       if (view->selected_outside_unit == u->id) {
@@ -1919,10 +1965,10 @@ static void colony_screen_draw_multifunction(
     const int y = COLONY_CARGO_STRIP_Y - 18;
     for (int i = 0; i < view->outside_unit_count; ++i) {
       const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      if (!u) {
+      if (!u || !colony_screen_is_military_unit(units, u)) {
         continue;
       }
-      const int sprite = units_map_sprite(units, u->id);
+      const int sprite = colony_screen_outside_display_sprite(units, u);
       if (sprite >= 0) {
         colony_screen_blit_icon(view, sprite, framebuffer, x, y);
         if (view->selected_outside_unit == u->id) {
@@ -2408,7 +2454,7 @@ ColonyScreenHitResult colony_screen_hit_test(
     int n = 0;
     for (int i = 0; i < view->outside_unit_count && n < COLONY_OUTSIDE_MAX; ++i) {
       const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      const int sprite = u ? units_map_sprite(units, u->id) : -1;
+      const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
       if (sprite < 0) {
         continue;
       }

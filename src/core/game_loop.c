@@ -2048,6 +2048,99 @@ static void game_colony_select_outside(ColonizeGameState* game, int unit_id) {
   game->colony_screen.selected_colonist = -1;
 }
 
+static int game_colony_list_outside_roles(
+  const ColonizeColony* colony,
+  const ColonizeUnit* unit,
+  int* out_roles,
+  int out_max
+) {
+  if (!colony || !unit || !out_roles || out_max <= 0) {
+    return 0;
+  }
+  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + (unit->tools > 0 ? unit->tools : 0);
+  int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (unit->muskets > 0 ? unit->muskets : 0);
+  int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (unit->horses > 0 ? unit->horses : 0);
+  int n = 0;
+  out_roles[n++] = COLONIZE_EJECT_COLONIST;
+  if (n < out_max && stock_tools >= UNITS_EQUIP_TOOLS_STEP) {
+    out_roles[n++] = COLONIZE_EJECT_PIONEER;
+  }
+  if (n < out_max && stock_muskets >= UNITS_EQUIP_MUSKETS) {
+    out_roles[n++] = COLONIZE_EJECT_SOLDIER;
+  }
+  if (n < out_max && stock_horses >= UNITS_EQUIP_HORSES) {
+    out_roles[n++] = COLONIZE_EJECT_SCOUT;
+  }
+  if (n < out_max && stock_muskets >= UNITS_EQUIP_MUSKETS &&
+      stock_horses >= UNITS_EQUIP_HORSES) {
+    out_roles[n++] = COLONIZE_EJECT_DRAGOON;
+  }
+  return n;
+}
+
+static bool game_colony_apply_outside_role(
+  ColonizeColony* colony,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int role
+) {
+  if (!colony || !units) {
+    return false;
+  }
+  ColonizeUnit* u = units_get(units, unit_id);
+  if (!u) {
+    return false;
+  }
+  int tools_take = 0;
+  int muskets_take = 0;
+  int horses_take = 0;
+  const char* type_name = "Colonists";
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER:
+    tools_take = UNITS_EQUIP_TOOLS_MAX;
+    type_name = "Pioneers";
+    break;
+  case COLONIZE_EJECT_SOLDIER:
+    muskets_take = UNITS_EQUIP_MUSKETS;
+    type_name = "Soldiers";
+    break;
+  case COLONIZE_EJECT_SCOUT:
+    horses_take = UNITS_EQUIP_HORSES;
+    type_name = "Scouts";
+    break;
+  case COLONIZE_EJECT_DRAGOON:
+    muskets_take = UNITS_EQUIP_MUSKETS;
+    horses_take = UNITS_EQUIP_HORSES;
+    type_name = "Dragoons";
+    break;
+  case COLONIZE_EJECT_COLONIST:
+  default:
+    type_name = "Colonists";
+    break;
+  }
+
+  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + (u->tools > 0 ? u->tools : 0);
+  int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (u->muskets > 0 ? u->muskets : 0);
+  int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (u->horses > 0 ? u->horses : 0);
+  if (stock_tools < tools_take || stock_muskets < muskets_take || stock_horses < horses_take) {
+    return false;
+  }
+
+  colony->stock[COLONIZE_CARGO_TOOLS] = stock_tools - tools_take;
+  colony->stock[COLONIZE_CARGO_MUSKETS] = stock_muskets - muskets_take;
+  colony->stock[COLONIZE_CARGO_HORSES] = stock_horses - horses_take;
+
+  int type_index = units_find_type(units, type_name);
+  if (type_index < 0) {
+    type_index = u->type_index;
+  }
+  u->type_index = type_index;
+  u->tools = tools_take;
+  u->muskets = muskets_take;
+  u->horses = horses_take;
+  return true;
+}
+
 static void game_center_on_selected_unit(ColonizeGameState* game) {
   const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
   if (!selected || !selected->active) {
@@ -2572,21 +2665,33 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (csv->eject_selection >= 0 && csv->eject_selection < csv->eject_role_count &&
             game->units_ok) {
           const int role = csv->eject_roles[csv->eject_selection];
-          const int who = csv->eject_colonist_index;
-          const int uid = colonies_eject_colonist(
-            &game->colonies, game->colony_view_id, who, &game->units, role
-          );
-          colony_screen_close_eject(csv);
-          if (uid >= 0) {
-            game_colony_select_outside(game, uid);
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Left as %s",
-              colonies_eject_role_name(role)
-            );
+          if (csv->eject_unit_id >= 0 && colony) {
+            const bool ok =
+              game_colony_apply_outside_role(colony, &game->units, csv->eject_unit_id, role);
+            colony_screen_close_eject(csv);
+            if (ok) {
+              game_colony_select_outside(game, csv->selected_outside_unit);
+              snprintf(game->status, sizeof(game->status), "Equipped as %s", colonies_eject_role_name(role));
+            } else {
+              set_status(game, "Cannot equip unit", NULL);
+            }
           } else {
-            set_status(game, "Cannot leave colony", NULL);
+            const int who = csv->eject_colonist_index;
+            const int uid = colonies_eject_colonist(
+              &game->colonies, game->colony_view_id, who, &game->units, role
+            );
+            colony_screen_close_eject(csv);
+            if (uid >= 0) {
+              game_colony_select_outside(game, uid);
+              snprintf(
+                game->status,
+                sizeof(game->status),
+                "Left as %s",
+                colonies_eject_role_name(role)
+              );
+            } else {
+              set_status(game, "Cannot leave colony", NULL);
+            }
           }
           colony_screen_set_status(csv, game->status);
         }
@@ -3049,11 +3154,29 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_FENCE: {
         if (csv->selected_colonist < 0) {
           if (csv->selected_outside_unit >= 0) {
-            set_status(game, "Already outside", NULL);
+            const ColonizeUnit* u = game->units_ok
+              ? units_get_const(&game->units, csv->selected_outside_unit)
+              : NULL;
+            if (u && colony) {
+              csv->eject_role_count = game_colony_list_outside_roles(
+                colony, u, csv->eject_roles, COLONIZE_EJECT_ROLE_COUNT
+              );
+              if (csv->eject_role_count <= 0) {
+                csv->eject_roles[0] = COLONIZE_EJECT_COLONIST;
+                csv->eject_role_count = 1;
+              }
+              csv->eject_colonist_index = -1;
+              csv->eject_unit_id = u->id;
+              csv->eject_selection = 0;
+              csv->eject_open = true;
+            } else {
+              set_status(game, "Select a colonist first", NULL);
+              colony_screen_set_status(csv, game->status);
+            }
           } else {
             set_status(game, "Select a colonist first", NULL);
+            colony_screen_set_status(csv, game->status);
           }
-          colony_screen_set_status(csv, game->status);
         } else {
           colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
         }
@@ -3062,21 +3185,39 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_EJECT_ROW: {
         if (hit.index >= 0 && hit.index < csv->eject_role_count && game->units_ok) {
           const int role = csv->eject_roles[hit.index];
-          const int who = csv->eject_colonist_index;
-          const int uid = colonies_eject_colonist(
-            &game->colonies, game->colony_view_id, who, &game->units, role
-          );
-          colony_screen_close_eject(csv);
-          if (uid >= 0) {
-            game_colony_select_outside(game, uid);
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Left as %s",
-              colonies_eject_role_name(role)
-            );
+          if (csv->eject_unit_id >= 0 && colony) {
+            const int uid = csv->eject_unit_id;
+            const bool ok =
+              game_colony_apply_outside_role(colony, &game->units, uid, role);
+            colony_screen_close_eject(csv);
+            if (ok) {
+              game_colony_select_outside(game, uid);
+              snprintf(
+                game->status,
+                sizeof(game->status),
+                "Equipped as %s",
+                colonies_eject_role_name(role)
+              );
+            } else {
+              set_status(game, "Cannot equip unit", NULL);
+            }
           } else {
-            set_status(game, "Cannot leave colony", NULL);
+            const int who = csv->eject_colonist_index;
+            const int uid = colonies_eject_colonist(
+              &game->colonies, game->colony_view_id, who, &game->units, role
+            );
+            colony_screen_close_eject(csv);
+            if (uid >= 0) {
+              game_colony_select_outside(game, uid);
+              snprintf(
+                game->status,
+                sizeof(game->status),
+                "Left as %s",
+                colonies_eject_role_name(role)
+              );
+            } else {
+              set_status(game, "Cannot leave colony", NULL);
+            }
           }
           colony_screen_set_status(csv, game->status);
         }
