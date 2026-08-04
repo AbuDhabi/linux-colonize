@@ -6,6 +6,7 @@ the deep detail.
 
 | Topic | Deep dive |
 |-------|-----------|
+| **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
@@ -343,6 +344,7 @@ Layout and bridge → [savegame.md](savegame.md).
 
 | Question | Start here |
 |----------|------------|
+| Should this value come from a data file or C? | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | How does NEW WORLD map gen work? | `FUN_684c_08c0` in `original_sources_decompiled/viceroy_unpacked.c` → `src/core/map_gen.c` |
 | Why does coast/forest art look wrong? | `original_sources_decompiled/mapedit.c` `FUN_1a47_*` → `src/core/map.c` + [assets.md](assets.md) |
 | What does this `.PIK` / `.SS` decode as? | [assets.md](assets.md) |
