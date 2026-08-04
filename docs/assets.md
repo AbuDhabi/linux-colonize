@@ -358,12 +358,12 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
 | Top bar | (rendered) | Colony name, campaign date, and treasury across the top strip |
-| Settlement view | `PARCH.SS` + `BUILDING.SS` | Workers + badges via Note 1 strips at building bottom-center (selectable); outside units same on fence; construction project UI only in Construction tab (no settlement banner) |
+| Settlement view | `PARCH.SS` + `BUILDING.SS` | Workers + badges via Note 1 strips at building bottom-center (selectable); hit-test uses **sprite bounds** (not fixed slot grid); outside units same on fence; construction project UI only in Construction tab (no settlement banner) |
 | Area view | `TERRAIN.SS` + `PHYS0.SS` + `ICONS.SS` | Centered 3×3 at **24px** tiles (1.5×); settlement **#0–3**; yields via resource-count strips (fisherman food uses fish **#57**) |
 | Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill behind the 3×3 (equal L/R and T/B margins) |
-| People view | `COLONY.PIK` left (~x0–129) | SoL (flag **#123**) / Tory (crown **#124**, right-aligned); food→crosses→bells resource strips (fish **#57** first, then grain food) |
-| Transport view | mid (~x130–209) | Ship **class** name; holds: color / grey partial / empty cover **#122**; passengers as unit icons |
-| Multifunction | right (~x210–292) + buttons (~x293–304) | Production / Units / Construction (house **#67** / rifle **#68** / hammer **#69**) |
+| People view | `COLONY.PIK` left (x0–117) | SoL (flag **#123**) / Tory (crown **#124**, right-aligned); colonists + fence units on one row; food→crosses→bells resource strips (fish **#57** first, then grain food) |
+| Transport view | mid (x121–202) | Ship **class** name; holds: color / grey partial / empty cover **#122** (all six covered with no ship); passengers as unit icons |
+| Multifunction | right (x207–306) + buttons (x307–318) | Production / Units / Construction (house **#67** / rifle **#68** / hammer **#69**); Production packs all cargo+shortfalls+hammers; Units along pane bottom; Construction shows accumulated hammers |
 | Warehouse | cargo strip `y=180/192` | Unchanged slots (`ICONS.SS` **#22–37**); Exit `x≥305` |
 
 **Resource-count strip** (`colony_screen_draw_resource_count` / `_pair` / `draw_icon_strip`): one icon per unit, evenly spaced in a rect; when start-to-start spacing is ≤ 1px (nearly total overlap), overlay the amount on the **left** with a black outline and a caller-chosen foreground (white / green / red / …). An `always_show_number` flag exists but is unused by current call sites. Used for area yields, people meters, Production tab, Construction accumulated hammers (two rows of progress toward the project, not total cost), and settlement building/fence colonists. Fisherman yields still count as food cargo; colony UI only swaps the icon to `ICONS.SS` **#57** (fish before grain when both appear in one strip). Colonist/unit strips pass a `selected_index` so individual icons are selectable; resource strips pass `-1`.
@@ -384,9 +384,10 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 | Construction **BUY** / **CHANGE** | Buy remaining project (multifunction BUY); Change popup lists projects only (no Buy row; **C** also opens Change) |
 | **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
 | Click ship / cargo / hold | Select transport (shows class name); load warehouse→hold; unload hold→warehouse |
+| Fence **Leave as** | Eject/equip popup; last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 2 colonists |
 | **L** / **U** | Load highest-value cargo; unload first hold |
 | **=** / **+** | Full / partial load of selected warehouse cargo |
-| Esc | Close jobs, then construction, then return to map |
+| Esc | Close message / jobs / eject / construction, then return to map |
 | Enter | Confirm popup; with a colonist selected open field jobs; else leave |
 | Space | Free production turn; status shows food/lumber/ore/hammer deltas |
 

@@ -24,6 +24,38 @@ int main(void) {
     colony_screen_free(&view);
     return 1;
   }
+  /* Step 6 layout invariants from gated polish (area / transport / multi / holds). */
+  if (COLONY_MINIMAP_TILE != 24) {
+    fprintf(stderr, "COLONY_MINIMAP_TILE expected 24 (1.5×) got %d\n", COLONY_MINIMAP_TILE);
+    colony_screen_free(&view);
+    return 1;
+  }
+  if (COLONY_TRANSPORT_X < 120) {
+    fprintf(stderr, "COLONY_TRANSPORT_X expected ~121 (shifted +30) got %d\n", COLONY_TRANSPORT_X);
+    colony_screen_free(&view);
+    return 1;
+  }
+  if (COLONY_ICON_HOUSE != 67) {
+    fprintf(stderr, "Production button icon expected ICONS #67 got %d\n", COLONY_ICON_HOUSE);
+    colony_screen_free(&view);
+    return 1;
+  }
+  if (COLONY_ICON_EMPTY_HOLD != 122) {
+    fprintf(stderr, "Empty hold cover expected ICONS #122 got %d\n", COLONY_ICON_EMPTY_HOLD);
+    colony_screen_free(&view);
+    return 1;
+  }
+  if (!view.icons_ok || view.icons.sprite_count <= COLONY_ICON_EMPTY_HOLD ||
+      view.icons.sprite_count <= COLONY_ICON_HOUSE) {
+    fprintf(
+      stderr,
+      "ICONS.SS short for house/hold icons (count=%d need >%d)\n",
+      view.icons_ok ? view.icons.sprite_count : -1,
+      COLONY_ICON_EMPTY_HOLD
+    );
+    colony_screen_free(&view);
+    return 1;
+  }
   if (!view.icons_ok || view.icons.sprite_count <= COLONY_ICON_FISH) {
     fprintf(
       stderr,
