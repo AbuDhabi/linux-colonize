@@ -7,6 +7,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/ss.h"
 
@@ -45,8 +46,8 @@ typedef struct ColonizeUnit {
   /* Commodity holds (ships/wagons): type is @CARGO index; amount 0 = empty. */
   int hold_goods_type[COLONIZE_UNIT_CARGO_MAX];
   int hold_goods_amount[COLONIZE_UNIT_CARGO_MAX];
-  int orders; /* COL1 orders byte; 0=none, 1=sentry, 12=goto, … */
-  int goto_x; /* 0xFF = none */
+  int orders; /* @ORDERS: 0=none, 1=sentry, 3=goto, … */
+  int goto_x; /* UNITS_GOTO_NONE (0xFF) = none */
   int goto_y;
   int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
   int tools; /* carried tools (Pioneers); 0–100 in steps of 20 */
@@ -105,12 +106,78 @@ int units_move_cost(
   int dest_x,
   int dest_y
 );
+/*
+ * DOS FUN_465b gate (non-combat, deterministic half): afford if cost <= moves_left,
+ * OR the unit still has its full allotment (spent MP == 0). Partial overspend is
+ * decided only in units_try_move via dos_rng_range(1, cost) <= remaining.
+ */
+bool units_can_afford_move_cost(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  int cost
+);
 bool units_try_move(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   int dest_x,
   int dest_y,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng /* nullable; required for partial overspend rolls */
+);
+
+/* @ORDERS indices (NAMES.TXT). */
+#define UNITS_ORDER_NONE 0
+#define UNITS_ORDER_SENTRY 1
+#define UNITS_ORDER_GOTO 3
+#define UNITS_GOTO_NONE 0xFF
+
+void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
+/* Set Go-To order (does not move); returns false if unit/dest invalid. */
+bool units_set_goto(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+);
+/*
+ * Next adjacent step toward goto (DOS FUN_6662 tiers: sign-step / cost flood / BFS).
+ * Writes (out_x,out_y); returns false if stuck or already there.
+ */
+bool units_next_goto_step(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int* out_x,
+  int* out_y
+);
+/* One adjacent step toward goto (or clear orders if arrived). */
+bool units_advance_goto_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+);
+/* Walk until MP exhausted, arrived, or blocked. Clears orders on arrival. */
+bool units_advance_goto(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+);
+/* One step for every Go-To unit that can move; returns how many stepped. */
+int units_advance_all_goto_one_step(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+);
+/* Advance every unit with Go-To until stuck; returns how many took at least one step. */
+int units_advance_all_goto(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies
 );
 

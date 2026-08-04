@@ -35,6 +35,8 @@ void ui_drag_begin(
   drag->cursor_ok = false;
   drag->cursor_w = 0;
   drag->cursor_h = 0;
+  drag->hotspot_x = 0;
+  drag->hotspot_y = 0;
   drag->cursor_dirty = true;
 }
 
@@ -53,6 +55,8 @@ bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite* sp) {
   }
   drag->cursor_w = w;
   drag->cursor_h = h;
+  drag->hotspot_x = w / 2;
+  drag->hotspot_y = h / 2;
   drag->cursor_ok = true;
   drag->cursor_dirty = true;
   return true;
@@ -115,8 +119,8 @@ bool ui_drag_apply_cursor(
     if (!drag->cursor_dirty && !*arrow_built_inout) {
       return false; /* drag icon already showing */
     }
-    const int hx = drag->cursor_w / 2;
-    const int hy = drag->cursor_h / 2;
+    const int hx = drag->hotspot_x;
+    const int hy = drag->hotspot_y;
     if (!platform_set_mouse_cursor_indexed(
           platform,
           drag->cursor_pixels,

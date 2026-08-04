@@ -834,7 +834,7 @@ bool col1_bridge_capture(
         dst->orders = (uint8_t)src->orders;
       } else if (src->goto_x >= 0 && src->goto_x < 255 && src->goto_y >= 0 && src->goto_y < 255 &&
                  (src->x != src->goto_x || src->y != src->goto_y)) {
-        dst->orders = 12; /* goto */
+        dst->orders = UNITS_ORDER_GOTO;
       } else {
         dst->orders = 0;
       }

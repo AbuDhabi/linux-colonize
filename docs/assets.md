@@ -402,11 +402,13 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 
 Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites; the `@UNIT` icon field is **1-based** (DOS style), converted to 0-based blit indices on load (e.g. Pioneers `102` → sprite **101**, Caravel `6` → **5**). Cargo strip icons `#22–37` are already 0-based (greys `#38–53`). European colonies blit settlement art **#0–3** (none / stockade / fort / fortress; 21×16, centered on the tile) with a name label under the tile; Indian villages blit **#10–13** by `@TRIBES` tech (tipis / adobe / pyramid / city). Draw order is colonies → villages → units so stacked units stay visible.
 
+Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) follow DOS `FUN_465b`: a unit may always enter when it still has its **full** movement allotment (remaining MP then exhausts). With **partial** MP into an over-budget tile, the game rolls `range(1, cost)` and succeeds if `roll ≤ remaining`; the full cost is charged either way (failed rolls leave the unit in place with 0 MP). Go-To pathfinding only commits guaranteed steps (no gambling).
+
 | Key | Action |
 |-----|--------|
 | Arrows / numpad | Tile mode: move blinking tile cursor. Unit mode: move selected unit (numpad diagonals supported; MP cost from terrain / road / river) |
 | Enter | Select movable unit under cursor, or move selected unit toward cursor tile |
-| Click | No selection: stack popup if multiple human units (on-map + ship cargo); else select movable unit. Exhausted / empty → tile select. With a unit selected, left-click pans |
+| Click | No selection: stack popup if multiple; else select unit / tile. With unit selected: **drag** to set Go-To (CURSOR.SS #1 after ≥1 logical pixel); short click pans (or enters own colony). Right-click clears selection |
 | C | Enter colony screen when cursor is on a colony tile |
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
 | O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (adjacent; boarded units go on sentry) |
@@ -420,7 +422,9 @@ Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via 
 
 Ship→**non-colony land** with a passenger that has moves left: **landfall unload** (passenger onto tile; ship stays; full landfall confirm dialog deferred). Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain.
 
-Selected units **blink** (sprite on/off); the tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
+Selected units **blink** (sprite on/off), except while executing **Go-To** (always drawn so pathing stays visible). The tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
+
+**Go-To:** drag from a blinking unit to a destination tile (CURSOR.SS #1 appears after ≥1 logical pixel of drag; pathfinding uses DOS-style destination cost flood nearby, BFS farther). The unit walks at **10 steps/sec** until out of moves and resumes after end of turn. Order byte is `@ORDERS` index 3.
 
 Calendar: one turn per year until **1600**, then Spring and Autumn each year. Colony top bar / reports use `game_year` + `game_autumn`. When the Col1 **Autosave** option is set, end-turn writes slot **9** (and slot **8** on decade Spring years).
 
