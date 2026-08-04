@@ -7,6 +7,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/ss.h"
+#include "core/strutil.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -346,7 +347,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
       (void)volatility;
 
       EuropeCargoQuote* q = &eu->cargo[eu->cargo_count++];
-      snprintf(q->name, sizeof(q->name), "%s", line);
+      str_copy_trunc(q->name, sizeof(q->name), line);
       q->bid = start_lo;
       if (q->bid < 0) {
         q->bid = 0;
@@ -375,7 +376,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
         continue;
       }
       EuropeRecruitClass* c = &eu->classes[eu->class_count++];
-      snprintf(c->name, sizeof(c->name), "%s", line);
+      str_copy_trunc(c->name, sizeof(c->name), line);
       c->cost = cost;
     }
   }
@@ -447,30 +448,30 @@ static void europe_apply_nation_names(EuropeScreen* eu, int nation, const Coloni
       snprintf(line, sizeof(line), "%s", home->lines[nation]);
       europe_trim(line);
       if (line[0] && line[0] != ';') {
-        snprintf(eu->port_city, sizeof(eu->port_city), "%s", line);
+        str_copy_trunc(eu->port_city, sizeof(eu->port_city), line);
       } else {
-        snprintf(eu->port_city, sizeof(eu->port_city), "%s", k_ports[nation]);
+        str_copy_trunc(eu->port_city, sizeof(eu->port_city), k_ports[nation]);
       }
     } else {
-      snprintf(eu->port_city, sizeof(eu->port_city), "%s", k_ports[nation]);
+      str_copy_trunc(eu->port_city, sizeof(eu->port_city), k_ports[nation]);
     }
     if (reg && nation >= 0 && nation < reg->line_count) {
       char line[COLONIZE_MSG_LINE_LEN];
       snprintf(line, sizeof(line), "%s", reg->lines[nation]);
       europe_trim(line);
       if (line[0] && line[0] != ';') {
-        snprintf(eu->colony_region, sizeof(eu->colony_region), "%s", line);
+        str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), line);
       } else {
-        snprintf(eu->colony_region, sizeof(eu->colony_region), "%s", k_regions[nation]);
+        str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
       }
     } else {
-      snprintf(eu->colony_region, sizeof(eu->colony_region), "%s", k_regions[nation]);
+      str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
     }
   } else {
-    snprintf(eu->port_city, sizeof(eu->port_city), "%s", k_ports[nation]);
-    snprintf(eu->colony_region, sizeof(eu->colony_region), "%s", k_regions[nation]);
+    str_copy_trunc(eu->port_city, sizeof(eu->port_city), k_ports[nation]);
+    str_copy_trunc(eu->colony_region, sizeof(eu->colony_region), k_regions[nation]);
   }
-  snprintf(eu->nation_name, sizeof(eu->nation_name), "%s", k_nations[nation]);
+  str_copy_trunc(eu->nation_name, sizeof(eu->nation_name), k_nations[nation]);
 }
 
 int europe_voyage_turns(bool exit_east, int ship_movement) {

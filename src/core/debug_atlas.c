@@ -7,6 +7,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "core/strutil.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -81,7 +82,7 @@ int debug_atlas_scan(DebugAtlas* atlas, const char* data_dir) {
     }
 
     DebugAtlasEntry* e = &atlas->entries[atlas->count++];
-    snprintf(e->name, sizeof(e->name), "%s", ent->d_name);
+    str_copy_trunc(e->name, sizeof(e->name), ent->d_name);
     e->kind = kind;
   }
   closedir(dir);

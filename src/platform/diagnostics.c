@@ -1,6 +1,8 @@
 #define _DEFAULT_SOURCE
 #include "platform/diagnostics.h"
 
+#include "core/strutil.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -68,11 +70,11 @@ static bool resolve_exe_dir(char* out_dir, size_t out_dir_size) {
 bool diag_init(int argc, char** argv) {
   (void)argc;
   resolve_exe_dir(g_exe_dir, sizeof(g_exe_dir));
-  snprintf(g_log_path, sizeof(g_log_path), "%s/colonize-linux.log", g_exe_dir);
+  str_path_join(g_log_path, sizeof(g_log_path), g_exe_dir, "colonize-linux.log");
 
   g_log = fopen(g_log_path, "w");
   if (!g_log) {
-    snprintf(g_log_path, sizeof(g_log_path), "./colonize-linux.log");
+    str_copy_trunc(g_log_path, sizeof(g_log_path), "./colonize-linux.log");
     g_log = fopen(g_log_path, "w");
   }
   if (!g_log) {

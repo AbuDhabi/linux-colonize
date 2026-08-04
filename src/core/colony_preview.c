@@ -6,25 +6,6 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 
-static int preview_building_has(
-  const ColonizeColonyPool* pool,
-  const ColonizeColony* colony,
-  const char* needle
-) {
-  if (!pool || !colony || !needle) {
-    return 0;
-  }
-  for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-    if (!colony->has_building[i]) {
-      continue;
-    }
-    if (strstr(pool->building_types[i].name, needle) != NULL) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y) {
   int best_job = -1;
   int best_yld = 0;

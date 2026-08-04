@@ -5,6 +5,7 @@
 
 #include "core/map_panel.h"
 #include "core/ss.h"
+#include "core/strutil.h"
 #include "core/ui_colors.h"
 #include "platform/diagnostics.h"
 
@@ -320,17 +321,17 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
       continue;
     }
     MapMenuPulldown* menu = &bar->menus[bar->menu_count];
-    snprintf(menu->section_name, sizeof(menu->section_name), "%s", k_sections[s]);
+    str_copy_trunc(menu->section_name, sizeof(menu->section_name), k_sections[s]);
 
     char title[MAP_MENU_TITLE_LEN];
-    snprintf(title, sizeof(title), "%s", sec->lines[0]);
+    str_copy_trunc(title, sizeof(title), sec->lines[0]);
     map_menu_strip_hash_only(title);
     map_menu_trim(title);
-    snprintf(menu->title, sizeof(menu->title), "%s", title);
+    str_copy_trunc(menu->title, sizeof(menu->title), title);
 
     for (int i = 1; i < sec->line_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++i) {
       char label[MAP_MENU_LABEL_LEN];
-      snprintf(label, sizeof(label), "%s", sec->lines[i]);
+      str_copy_trunc(label, sizeof(label), sec->lines[i]);
       map_menu_strip_hash_only(label);
       map_menu_trim(label);
       if (label[0] == '\0') {

@@ -6,6 +6,7 @@
 
 #include "core/map_menu.h"
 #include "core/sound.h"
+#include "core/strutil.h"
 #include "core/ui_colors.h"
 
 /*
@@ -125,7 +126,7 @@ static bool pick_music_load_section(
 
     /* First non-directive line is the prompt (may end with ':'). */
     if (dlg->prompt[0] == '\0') {
-      snprintf(dlg->prompt, sizeof(dlg->prompt), "%s", line);
+      str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), line);
       continue;
     }
 
@@ -135,7 +136,7 @@ static bool pick_music_load_section(
 
     PickMusicOption* opt = &dlg->options[dlg->option_count];
     memset(opt, 0, sizeof(*opt));
-    snprintf(opt->label, sizeof(opt->label), "%s", line);
+    str_copy_trunc(opt->label, sizeof(opt->label), line);
     pick_music_strip_quotes(opt->label);
 
     if (view == PICK_MUSIC_VIEW_MAIN) {
