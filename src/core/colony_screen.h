@@ -188,6 +188,7 @@ typedef struct ColonyScreenView {
 
   bool eject_open;
   int eject_colonist_index;
+  int eject_unit_id; /* outside unit id when re-equipping at fence; else -1 */
   int eject_selection;
   int eject_roles[COLONIZE_EJECT_ROLE_COUNT];
   int eject_role_count;

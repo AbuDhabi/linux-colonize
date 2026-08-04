@@ -33,7 +33,9 @@ struct ColonizePlatform {
 static ColonizeKey map_key(SDL_Keycode key) {
   switch (key) {
     case SDLK_ESCAPE: return COLONIZE_KEY_ESCAPE;
-    case SDLK_RETURN: return COLONIZE_KEY_ENTER;
+    case SDLK_RETURN:
+    case SDLK_KP_ENTER:
+      return COLONIZE_KEY_ENTER;
     case SDLK_SPACE: return COLONIZE_KEY_SPACE;
     case SDLK_UP: return COLONIZE_KEY_UP;
     case SDLK_DOWN: return COLONIZE_KEY_DOWN;
