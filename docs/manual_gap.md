@@ -77,7 +77,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump |
 | Join colony | Partial | Opens colony screen; not true join-into-population |
 | Colony display chrome | Partial | Area 1.5× tiles; people/transport bands; multifunction; resource-count strips (`colony_screen.c`) |
-| Assign jobs / field work / production numbers | Partial | Workplace sprite hit-rects; area yields as icon strips; experts later |
+| Assign jobs / field work / production numbers | Partial | Workplace strips show **output-type badge** (no per-worker count); Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
 | Construction queue + buy with gold | Partial | Construction tab only (BUY/CHANGE + hammer rows); banner hidden otherwise; **B**/Buy + tools gate |
 | Warehouse drag load/unload to ships / wagons | Partial | Click cargo↔hold + **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122**; full drag later |
 | SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned in people pane |

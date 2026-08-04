@@ -10,6 +10,7 @@ the deep detail.
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
 | Terrain / field / town-commons yields | [terrain_yields.md](terrain_yields.md) |
+| Settlement building production / skills | [building_production.md](building_production.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
 
