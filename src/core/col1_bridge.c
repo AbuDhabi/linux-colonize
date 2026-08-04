@@ -352,6 +352,7 @@ bool col1_bridge_apply(
       col->active = true;
       col->building_type = -1;
       col->field_job = -1;
+      col->profession = UNITS_JOB_NONE;
       int t = src->profession[p];
       if (t < 0 || t >= units->type_count) {
         t = 0;

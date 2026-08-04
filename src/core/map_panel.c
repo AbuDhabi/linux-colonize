@@ -608,8 +608,7 @@ static void map_panel_draw_with_holds(
 
   for (int i = 0; i < ship->cargo_count && drawn < cap; ++i) {
     const ColonizeUnit* pax = units_get_const(units, ship->cargo_ids[i]);
-    const ColonizeUnitType* pt = pax ? units_type(units, pax->type_index) : NULL;
-    const int sprite = (pt && icons) ? pt->icon_sprite : -1;
+    const int sprite = (pax && icons) ? units_map_sprite(units, pax->id) : -1;
 
     if (x + hold_w > panel_right) {
       x = text_x;
@@ -832,12 +831,12 @@ void map_panel_render(
   const int info_y = selected ? selected->y : cursor_y;
 
   if (selected) {
-    const ColonizeUnitType* ut = units_type(units, selected->type_index);
     if (panel && panel->nameplat_ok && panel->nameplat.sprite_count > 0) {
       ss_blit_sprite(&panel->nameplat, 0, framebuffer, text_x, text_y);
     }
-    if (icons && ut && ut->icon_sprite >= 0) {
-      ss_blit_sprite(icons, ut->icon_sprite, framebuffer, text_x + 2, text_y + 1);
+    const int sel_sprite = units_map_sprite(units, selected->id);
+    if (icons && sel_sprite >= 0) {
+      ss_blit_sprite(icons, sel_sprite, framebuffer, text_x + 2, text_y + 1);
     }
     const char* uname = units_display_name(units, selected);
     font_draw_text(font, framebuffer, text_x + 20, text_y + 3, uname, MAP_PANEL_COL_TEXT);
@@ -1063,11 +1062,13 @@ void map_panel_render(
         if (!units_is_on_map(u) || u->x != info_x || u->y != info_y) {
           continue;
         }
-        const ColonizeUnitType* ut = units_type(units, u->type_index);
-        if (icons && ut && ut->icon_sprite >= 0) {
-          ss_blit_sprite(icons, ut->icon_sprite, framebuffer, text_x, text_y);
+        const int sprite = units_map_sprite(units, u->id);
+        if (icons && sprite >= 0) {
+          ss_blit_sprite(icons, sprite, framebuffer, text_x, text_y);
         }
-        snprintf(line, sizeof(line), "%s %s", ut ? ut->name : "Unit", orders);
+        snprintf(
+          line, sizeof(line), "%s %s", units_display_name(units, u), orders
+        );
         font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
         text_y += 14;
       }

@@ -99,8 +99,10 @@ port I/O in the native build.
 - Europe screen bring-up: `EUROPE.PIK` + market quotes / dock recruit from `NAMES.TXT`
   (press **E** from the map; phase 5 hold buy/sell + tax, goods persist on **H**/**S**;
   see `src/core/europe.c`)
-- Colony screen bring-up: DOS six-view layout — settlement (sprite hit-rects, tight
-  selection), area (1.5× 24px tiles, Note 1 yield strips; fisherman → fish **#57**), people (SoL/Tory, food/crosses/bells
+- Colony screen bring-up: DOS six-view layout — settlement (sprite hit-rects; workers/outside
+  on Note 1 selectable strips at building bottom-center / fence; unified colonist selection
+  admit/eject via fence; profession sticks across gear/location; working sprites Hardy **#58** /
+  Veteran **#59**; no construction banner), area (1.5× 24px tiles, Note 1 yield strips; fisherman → fish **#57**), people (SoL/Tory, food/crosses/bells
   strips; fish before grain food), transport (class name, hold **#122** empties), multifunction (house **#67**,
   Production Note 1, Units bottom, Construction BUY/CHANGE + hammer rows); warehouse strip
   unchanged; preview via `colony_preview.c`; see `src/core/colony_screen.c`,

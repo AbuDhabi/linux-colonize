@@ -93,7 +93,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Buy / sell goods (drag / L / = / + / U) | Partial | Phase 5: click hold/market + **L**/**U**/**=**/**+**; tax on sales; goods persist H/S; drag later |
 | Buy ships / artillery | Missing | |
 | Hire Royal University / Train | Missing | Train stub |
-| Equip muskets / horses / tools; bless missionary | Missing | |
+| Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
 | Tax rate / boycotts / king tax events | Missing | King phase stub |
 
 ### Economy and turn sequence

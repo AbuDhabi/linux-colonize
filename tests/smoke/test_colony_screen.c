@@ -169,7 +169,7 @@ int main(void) {
   }
   const bool sample_coastal = map_tile_is_coastal(&map, land_x, land_y);
 
-  const int cid = colonies_found(&pool, &map, land_x, land_y, pioneer, 100, 0, 0);
+  const int cid = colonies_found(&pool, &map, land_x, land_y, pioneer, UNITS_JOB_NONE, 100, 0, 0);
   if (cid < 0) {
     fprintf(stderr, "colonies_found failed\n");
     ss_free(&terrain);
@@ -335,6 +335,109 @@ int main(void) {
     assets_msg_free(&names);
     colony_screen_free(&view);
     return 1;
+  }
+
+  /* Outside unit on colony tile is centered on the fence strip. */
+  {
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    const int oid = units_spawn_allow_stack(&units, pioneer, land_x, land_y);
+    if (!col || oid < 0) {
+      fprintf(stderr, "failed to spawn outside unit on colony tile\n");
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    ColonizeUnit* ou = units_get(&units, oid);
+    if (ou) {
+      ou->nation_id = col->nation_id;
+    }
+    memset(pixels, 0, sizeof(pixels));
+    colony_screen_render(
+      &view,
+      &pool,
+      col,
+      &units,
+      &map,
+      &terrain,
+      phys0_ok ? &phys0 : NULL,
+      NULL,
+      1492,
+      0,
+      1000,
+      font_ok ? &font : NULL,
+      &fb
+    );
+    if (view.outside_unit_count < 1) {
+      fprintf(stderr, "expected outside_unit_count>=1 after spawn on colony tile\n");
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    /* Single icon should sit near fence horizontal center (not left-aligned +4). */
+    const int mid_x = fence_x + 73 / 2;
+    bool outside_centered = false;
+    for (int y = fence_y; y < fence_y + 18 && !outside_centered; ++y) {
+      for (int x = mid_x - 8; x <= mid_x + 8; ++x) {
+        if (x >= 0 && x < 320 && pixels[y * 320 + x] != 0) {
+          outside_centered = true;
+          break;
+        }
+      }
+    }
+    if (!outside_centered) {
+      fprintf(stderr, "expected outside unit pixels near center of fence strip\n");
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    /* Left gutter of fence should not hold the sole unit (old left-align). */
+    bool left_gutter = false;
+    for (int y = fence_y; y < fence_y + 18 && !left_gutter; ++y) {
+      for (int x = fence_x; x < fence_x + 4; ++x) {
+        if (pixels[y * 320 + x] != 0) {
+          left_gutter = true;
+          break;
+        }
+      }
+    }
+    /* Fence art itself paints the gutter — only fail if hit-test still uses +4. */
+    {
+      ColonyScreenHitResult hit =
+        colony_screen_hit_test(&view, &pool, col, &units, mid_x, fence_y + 9);
+      if (hit.kind != COLONY_HIT_OUTSIDE_UNIT || hit.index != 0) {
+        fprintf(
+          stderr,
+          "expected outside-unit hit at fence center got kind=%d idx=%d\n",
+          (int)hit.kind,
+          hit.index
+        );
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+    }
+    (void)left_gutter;
+    units_despawn(&units, oid);
   }
 
   /* Coastal colonies without Docks show empty coast placeholder (#45) above the fence. */
@@ -925,10 +1028,33 @@ int main(void) {
 
     view.multi_mode = COLONY_MULTI_CONSTRUCTION;
     hit = colony_screen_hit_test(
+      &view,
+      &pool,
+      sample,
+      &units,
+      COLONY_MULTI_X + COLONY_MULTI_W - 20,
+      COLONY_PANEL_CONTENT_Y + 16
+    );
+    if (hit.kind != COLONY_HIT_MULTI_CHANGE) {
+      fprintf(stderr, "expected construction CHANGE hit got kind=%d\n", (int)hit.kind);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
+    /* Settlement viewport no longer hosts a construction banner. */
+    hit = colony_screen_hit_test(
       &view, &pool, sample, &units, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
     );
-    if (hit.kind != COLONY_HIT_CONSTRUCTION_BANNER) {
-      fprintf(stderr, "expected construction banner hit got kind=%d\n", (int)hit.kind);
+    if (hit.kind == COLONY_HIT_CONSTRUCTION_BANNER) {
+      fprintf(stderr, "settlement should not expose construction banner hit\n");
       if (font_ok) {
         ff_free(&font);
       }

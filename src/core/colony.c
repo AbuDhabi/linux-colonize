@@ -272,6 +272,7 @@ int colonies_found(
   int x,
   int y,
   int founder_type_index,
+  int founder_profession,
   int tools,
   int muskets,
   int horses
@@ -324,6 +325,8 @@ int colonies_found(
     ColonizeColonist* c = &slot->colonists[slot->colonist_count++];
     c->active = true;
     c->unit_type_index = founder_type_index;
+    c->profession =
+      (founder_profession >= 0) ? founder_profession : UNITS_JOB_NONE;
     c->building_type = colonies_find_building(pool, "Town Hall");
     c->field_job = -1;
     slot->population = slot->colonist_count;
@@ -517,6 +520,224 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
     col->colonists[who].field_job = -1;
   }
   return true;
+}
+
+int colonies_admit_unit(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id
+) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  const ColonizeUnit* unit = units_get_const(units, unit_id);
+  if (!col || !units || !unit || !unit->active) {
+    return -1;
+  }
+  if (!units_is_on_map(unit) || unit->x != col->x || unit->y != col->y) {
+    return -1;
+  }
+  if (unit->nation_id != col->nation_id) {
+    return -1;
+  }
+  if (units_is_sea(units, unit_id) || units_is_transport(units, unit_id)) {
+    return -1;
+  }
+  if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+    return -1;
+  }
+  const int profession = unit->profession;
+  int work_type = units_find_type(units, "Colonists");
+  if (work_type < 0) {
+    work_type = unit->type_index;
+  }
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(units, unit_id, &tools, &muskets, &horses);
+  if (!units_despawn(units, unit_id)) {
+    return -1;
+  }
+  if (tools > 0) {
+    col->stock[COLONIZE_CARGO_TOOLS] += tools;
+  }
+  if (muskets > 0) {
+    col->stock[COLONIZE_CARGO_MUSKETS] += muskets;
+  }
+  if (horses > 0) {
+    col->stock[COLONIZE_CARGO_HORSES] += horses;
+  }
+  ColonizeColonist* c = &col->colonists[col->colonist_count];
+  memset(c, 0, sizeof(*c));
+  c->active = true;
+  c->unit_type_index = work_type;
+  c->profession = profession;
+  c->building_type = -1;
+  c->field_job = -1;
+  const int idx = col->colonist_count++;
+  col->population = col->colonist_count;
+  return idx;
+}
+
+const char* colonies_eject_role_name(int role) {
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER:
+    return "Pioneer";
+  case COLONIZE_EJECT_SOLDIER:
+    return "Soldier";
+  case COLONIZE_EJECT_SCOUT:
+    return "Scout";
+  case COLONIZE_EJECT_DRAGOON:
+    return "Dragoon";
+  case COLONIZE_EJECT_COLONIST:
+  default:
+    return "Colonist";
+  }
+}
+
+int colonies_list_eject_roles(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int* out_roles,
+  int out_max
+) {
+  const ColonizeColony* col = colonies_get(pool, colony_id);
+  if (!col || !out_roles || out_max <= 0) {
+    return 0;
+  }
+  if (colonist_index < 0 || colonist_index >= col->colonist_count ||
+      !col->colonists[colonist_index].active) {
+    return 0;
+  }
+  int n = 0;
+  out_roles[n++] = COLONIZE_EJECT_COLONIST;
+  if (n < out_max && col->stock[COLONIZE_CARGO_TOOLS] >= UNITS_EQUIP_TOOLS_STEP) {
+    out_roles[n++] = COLONIZE_EJECT_PIONEER;
+  }
+  if (n < out_max && col->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS) {
+    out_roles[n++] = COLONIZE_EJECT_SOLDIER;
+  }
+  if (n < out_max && col->stock[COLONIZE_CARGO_HORSES] >= UNITS_EQUIP_HORSES) {
+    out_roles[n++] = COLONIZE_EJECT_SCOUT;
+  }
+  if (n < out_max && col->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS &&
+      col->stock[COLONIZE_CARGO_HORSES] >= UNITS_EQUIP_HORSES) {
+    out_roles[n++] = COLONIZE_EJECT_DRAGOON;
+  }
+  return n;
+}
+
+int colonies_eject_colonist(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  ColonizeUnitPool* units,
+  int role
+) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !units) {
+    return -1;
+  }
+  if (colonist_index < 0 || colonist_index >= col->colonist_count) {
+    return -1;
+  }
+  ColonizeColonist* c = &col->colonists[colonist_index];
+  if (!c->active) {
+    return -1;
+  }
+
+  int tools_take = 0;
+  int muskets_take = 0;
+  int horses_take = 0;
+  const char* type_name = "Colonists";
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER: {
+    int avail = col->stock[COLONIZE_CARGO_TOOLS];
+    avail = (avail / UNITS_EQUIP_TOOLS_STEP) * UNITS_EQUIP_TOOLS_STEP;
+    if (avail < UNITS_EQUIP_TOOLS_STEP) {
+      return -1;
+    }
+    if (avail > UNITS_EQUIP_TOOLS_MAX) {
+      avail = UNITS_EQUIP_TOOLS_MAX;
+    }
+    tools_take = avail;
+    type_name = "Pioneers";
+    break;
+  }
+  case COLONIZE_EJECT_SOLDIER:
+    if (col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS) {
+      return -1;
+    }
+    muskets_take = UNITS_EQUIP_MUSKETS;
+    type_name = "Soldiers";
+    break;
+  case COLONIZE_EJECT_SCOUT:
+    if (col->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES) {
+      return -1;
+    }
+    horses_take = UNITS_EQUIP_HORSES;
+    type_name = "Scouts";
+    break;
+  case COLONIZE_EJECT_DRAGOON:
+    if (col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS ||
+        col->stock[COLONIZE_CARGO_HORSES] < UNITS_EQUIP_HORSES) {
+      return -1;
+    }
+    muskets_take = UNITS_EQUIP_MUSKETS;
+    horses_take = UNITS_EQUIP_HORSES;
+    type_name = "Dragoons";
+    break;
+  case COLONIZE_EJECT_COLONIST:
+  default:
+    type_name = "Colonists";
+    break;
+  }
+
+  int type_index = units_find_type(units, type_name);
+  if (type_index < 0) {
+    type_index = c->unit_type_index;
+  }
+  const int profession = c->profession;
+
+  colonies_clear_colonist_tile(col, colonist_index);
+  for (int i = colonist_index; i < col->colonist_count - 1; ++i) {
+    col->colonists[i] = col->colonists[i + 1];
+  }
+  col->colonist_count--;
+  col->population = col->colonist_count;
+  if (col->colonist_count >= 0 && col->colonist_count < COLONIZE_COLONY_POP_MAX) {
+    memset(&col->colonists[col->colonist_count], 0, sizeof(col->colonists[0]));
+  }
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    const int who = (int)col->tiles[t];
+    if (who == colonist_index) {
+      col->tiles[t] = -1;
+    } else if (who > colonist_index) {
+      col->tiles[t] = (int8_t)(who - 1);
+    }
+  }
+
+  col->stock[COLONIZE_CARGO_TOOLS] -= tools_take;
+  col->stock[COLONIZE_CARGO_MUSKETS] -= muskets_take;
+  col->stock[COLONIZE_CARGO_HORSES] -= horses_take;
+
+  const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
+  if (uid < 0) {
+    /* Refund gear if spawn fails (colonist already removed — best-effort). */
+    col->stock[COLONIZE_CARGO_TOOLS] += tools_take;
+    col->stock[COLONIZE_CARGO_MUSKETS] += muskets_take;
+    col->stock[COLONIZE_CARGO_HORSES] += horses_take;
+    return -1;
+  }
+  ColonizeUnit* u = units_get(units, uid);
+  if (u) {
+    u->nation_id = col->nation_id;
+    u->profession = profession;
+    u->tools = tools_take;
+    u->muskets = muskets_take;
+    u->horses = horses_take;
+  }
+  return uid;
 }
 
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {

@@ -48,7 +48,9 @@ typedef struct ColonizeUnit {
   int goto_x; /* 0xFF = none */
   int goto_y;
   int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
-  int tools; /* carried tools (Pioneers); 0 default */
+  int tools; /* carried tools (Pioneers); 0–100 in steps of 20 */
+  int muskets; /* 0 or 50 when armed */
+  int horses; /* 0 or 50 when mounted */
   int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
 } ColonizeUnit;
 
@@ -269,7 +271,27 @@ void units_end_turn(ColonizeUnitPool* pool);
 #define UNITS_JOB_COLONIST 19 /* Free Colonists */
 #define UNITS_JOB_PIONEER 20  /* Hardy Pioneers */
 #define UNITS_JOB_SOLDIER 21  /* Veteran Soldiers */
+#define UNITS_JOB_SCOUT 22    /* Seasoned Scouts */
+#define UNITS_JOB_DRAGOON 23  /* Veteran Dragoons */
 #define UNITS_JOB_NONE 28     /* no expert skill (plain Pioneer/Soldier) */
+
+/* Equipped map/fence icons (ICONS.SS); expert variants when profession matches. */
+#define UNITS_ICON_PIONEER 73
+#define UNITS_ICON_SOLDIER 74
+#define UNITS_ICON_SCOUT 75
+#define UNITS_ICON_DRAGOON 76
+#define UNITS_ICON_HARDY_PIONEER 101
+#define UNITS_ICON_VETERAN_SOLDIER 102
+#define UNITS_ICON_SEASONED_SCOUT 103
+#define UNITS_ICON_VETERAN_DRAGOON 104
+/* Working inside a colony (unequipped citizen sprites). */
+#define UNITS_ICON_HARDY_PIONEER_WORK 58
+#define UNITS_ICON_VETERAN_SOLDIER_WORK 59
+
+#define UNITS_EQUIP_MUSKETS 50
+#define UNITS_EQUIP_HORSES 50
+#define UNITS_EQUIP_TOOLS_MAX 100
+#define UNITS_EQUIP_TOOLS_STEP 20
 
 /* Human starter: Caravel (Dutch Merchantman) on eastern high seas with Pioneer+Soldier. */
 void units_new_world_start(
@@ -298,6 +320,16 @@ int units_spawn_euro_starter_fleet(
 
 /* Panel label: "Hardy Pioneer", "Veteran Soldier", unit type name, … */
 const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit);
+
+/*
+ * ICONS.SS index for a colonist working inside a colony (no field equipment).
+ * Hardy Pioneer → #58, Veteran Soldier → #59; else @UNIT icon for unit_type_index.
+ */
+int units_working_colonist_sprite(
+  const ColonizeUnitPool* pool,
+  int unit_type_index,
+  int profession
+);
 
 bool units_deploy_colonist(
   ColonizeUnitPool* pool,

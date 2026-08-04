@@ -170,7 +170,22 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
   slot->profession = UNITS_JOB_NONE;
-  slot->tools = (strstr(type->name, "Pioneer") != NULL) ? 100 : 0;
+  slot->tools = 0;
+  slot->muskets = 0;
+  slot->horses = 0;
+  if (strstr(type->name, "Pioneer") != NULL) {
+    slot->tools = UNITS_EQUIP_TOOLS_MAX;
+  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
+    slot->muskets = UNITS_EQUIP_MUSKETS;
+    slot->horses = UNITS_EQUIP_HORSES;
+  } else if (
+    strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
+    strstr(type->name, "Army") != NULL
+  ) {
+    slot->muskets = UNITS_EQUIP_MUSKETS;
+  } else if (strstr(type->name, "Scout") != NULL) {
+    slot->horses = UNITS_EQUIP_HORSES;
+  }
   slot->home_tribe_id = -1;
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
@@ -199,6 +214,9 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->goto_y = 0xFF;
   unit->profession = UNITS_JOB_NONE;
   unit->tools = 0;
+  unit->muskets = 0;
+  unit->horses = 0;
+  unit->home_tribe_id = -1;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -271,21 +289,25 @@ void units_founder_loot(
   int horses = 0;
   const ColonizeUnit* unit = units_get_const(pool, unit_id);
   const ColonizeUnitType* type = unit ? units_type(pool, unit->type_index) : NULL;
-  if (type) {
-    /* NAMES.TXT tools/guns fields are build costs, not carried gear.
-       Match classic founding transfers by unit role. */
+  if (unit) {
+    tools = unit->tools > 0 ? unit->tools : 0;
+    muskets = unit->muskets > 0 ? unit->muskets : 0;
+    horses = unit->horses > 0 ? unit->horses : 0;
+  }
+  if (tools == 0 && muskets == 0 && horses == 0 && type) {
+    /* Fallback for units spawned before gear fields were set. */
     if (strstr(type->name, "Pioneer") != NULL) {
-      tools = 100;
+      tools = UNITS_EQUIP_TOOLS_MAX;
     } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
-      muskets = 50;
-      horses = 50;
+      muskets = UNITS_EQUIP_MUSKETS;
+      horses = UNITS_EQUIP_HORSES;
     } else if (
       strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
       strstr(type->name, "Army") != NULL
     ) {
-      muskets = 50;
+      muskets = UNITS_EQUIP_MUSKETS;
     } else if (strstr(type->name, "Scout") != NULL) {
-      horses = 50;
+      horses = UNITS_EQUIP_HORSES;
     }
   }
   if (out_tools) {
@@ -469,11 +491,10 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
   if (!u || !u->active || !units_is_on_map(u) || units_is_sea(pool, unit_id)) {
     return false;
   }
-  if (u->profession == UNITS_JOB_PIONEER) {
-    return true;
-  }
-  const ColonizeUnitType* type = units_type(pool, u->type_index);
-  return type && strstr(type->name, "Pioneer") != NULL;
+  /* Skill alone is not enough — plow/road require carried tools. */
+  int tools = 0;
+  units_founder_loot(pool, unit_id, &tools, NULL, NULL);
+  return tools > 0;
 }
 
 #define UNITS_PIONEER_TOOL_COST 20
@@ -1092,6 +1113,37 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
     return "Unit";
   }
   const ColonizeUnitType* ut = pool ? units_type(pool, unit->type_index) : NULL;
+  const bool armed = unit->muskets > 0;
+  const bool mounted = unit->horses > 0;
+  const bool has_tools = unit->tools > 0;
+  if (armed && mounted) {
+    if (unit->profession == UNITS_JOB_DRAGOON) {
+      snprintf(buf, sizeof(buf), "Veteran Dragoon");
+      return buf;
+    }
+    return "Dragoon";
+  }
+  if (armed) {
+    if (unit->profession == UNITS_JOB_SOLDIER) {
+      snprintf(buf, sizeof(buf), "Veteran Soldier");
+      return buf;
+    }
+    return "Soldier";
+  }
+  if (mounted) {
+    if (unit->profession == UNITS_JOB_SCOUT) {
+      snprintf(buf, sizeof(buf), "Seasoned Scout");
+      return buf;
+    }
+    return "Scout";
+  }
+  if (has_tools) {
+    if (unit->profession == UNITS_JOB_PIONEER) {
+      snprintf(buf, sizeof(buf), "Hardy Pioneer");
+      return buf;
+    }
+    return "Pioneer";
+  }
   if (unit->profession == UNITS_JOB_PIONEER) {
     snprintf(buf, sizeof(buf), "Hardy Pioneer");
     return buf;
@@ -1107,6 +1159,52 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
     return "Soldier";
   }
   return ut ? ut->name : "Unit";
+}
+
+int units_working_colonist_sprite(
+  const ColonizeUnitPool* pool,
+  int unit_type_index,
+  int profession
+) {
+  if (profession == UNITS_JOB_PIONEER) {
+    return UNITS_ICON_HARDY_PIONEER_WORK;
+  }
+  if (profession == UNITS_JOB_SOLDIER) {
+    return UNITS_ICON_VETERAN_SOLDIER_WORK;
+  }
+  const ColonizeUnitType* type = units_type(pool, unit_type_index);
+  return type ? type->icon_sprite : -1;
+}
+
+int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* unit = units_get_const(pool, unit_id);
+  if (!unit) {
+    return -1;
+  }
+  const ColonizeUnitType* type = units_type(pool, unit->type_index);
+  if (!type) {
+    return -1;
+  }
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(pool, unit_id, &tools, &muskets, &horses);
+  if (muskets > 0 && horses > 0) {
+    return (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_ICON_VETERAN_DRAGOON
+                                                   : UNITS_ICON_DRAGOON;
+  }
+  if (muskets > 0) {
+    return (unit->profession == UNITS_JOB_SOLDIER) ? UNITS_ICON_VETERAN_SOLDIER
+                                                  : UNITS_ICON_SOLDIER;
+  }
+  if (horses > 0) {
+    return (unit->profession == UNITS_JOB_SCOUT) ? UNITS_ICON_SEASONED_SCOUT : UNITS_ICON_SCOUT;
+  }
+  if (tools > 0) {
+    return (unit->profession == UNITS_JOB_PIONEER) ? UNITS_ICON_HARDY_PIONEER
+                                                  : UNITS_ICON_PIONEER;
+  }
+  return type->icon_sprite;
 }
 
 int units_spawn_euro_starter_fleet(
@@ -1463,24 +1561,6 @@ bool units_deploy_colonist(
   }
   pool->selected_id = id;
   return true;
-}
-
-int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
-  const ColonizeUnit* unit = NULL;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    if (pool->units[i].active && pool->units[i].id == unit_id) {
-      unit = &pool->units[i];
-      break;
-    }
-  }
-  if (!unit) {
-    return -1;
-  }
-  const ColonizeUnitType* type = units_type(pool, unit->type_index);
-  if (!type) {
-    return -1;
-  }
-  return type->icon_sprite;
 }
 
 void units_render_on_map(

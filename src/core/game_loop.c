@@ -2007,6 +2007,45 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
   colony_screen_set_status(&game->colony_screen, col ? col->name : "Colony");
 }
 
+/* One selection: colony colonist index, or admit selected outside unit first. */
+static int game_colony_selected_colonist(ColonizeGameState* game) {
+  if (!game) {
+    return -1;
+  }
+  ColonyScreenView* csv = &game->colony_screen;
+  if (csv->selected_colonist >= 0) {
+    return csv->selected_colonist;
+  }
+  if (csv->selected_outside_unit < 0 || !game->units_ok) {
+    return -1;
+  }
+  const int ci = colonies_admit_unit(
+    &game->colonies, game->colony_view_id, &game->units, csv->selected_outside_unit
+  );
+  if (ci < 0) {
+    return -1;
+  }
+  csv->selected_outside_unit = -1;
+  csv->selected_colonist = ci;
+  return ci;
+}
+
+static void game_colony_select_colonist(ColonizeGameState* game, int colonist_index) {
+  if (!game) {
+    return;
+  }
+  game->colony_screen.selected_colonist = colonist_index;
+  game->colony_screen.selected_outside_unit = -1;
+}
+
+static void game_colony_select_outside(ColonizeGameState* game, int unit_id) {
+  if (!game) {
+    return;
+  }
+  game->colony_screen.selected_outside_unit = unit_id;
+  game->colony_screen.selected_colonist = -1;
+}
+
 static void game_center_on_selected_unit(ColonizeGameState* game) {
   const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
   if (!selected || !selected->active) {
@@ -2201,10 +2240,19 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         } else {
           ColonizeUnit* founder = units_get(&game->units, uid);
           const int type_index = founder ? founder->type_index : -1;
+          const int profession = founder ? founder->profession : UNITS_JOB_NONE;
           int tools = 0, muskets = 0, horses = 0;
           units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
           const int cid = colonies_found(
-            &game->colonies, &game->world_map, cx, cy, type_index, tools, muskets, horses
+            &game->colonies,
+            &game->world_map,
+            cx,
+            cy,
+            type_index,
+            profession,
+            tools,
+            muskets,
+            horses
           );
           if (cid >= 0) {
             ColonizeColony* neu = colonies_get_mut(&game->colonies, cid);
@@ -2504,6 +2552,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         colony_screen_close_jobs(csv);
         return true;
       }
+      if (csv->eject_open) {
+        colony_screen_close_eject(csv);
+        return true;
+      }
       if (csv->construction_open) {
         colony_screen_close_construction(csv);
         return true;
@@ -2514,18 +2566,43 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
     if (input->last_key == COLONIZE_KEY_ENTER) {
+      if (csv->eject_open) {
+        if (csv->eject_selection >= 0 && csv->eject_selection < csv->eject_role_count &&
+            game->units_ok) {
+          const int role = csv->eject_roles[csv->eject_selection];
+          const int who = csv->eject_colonist_index;
+          const int uid = colonies_eject_colonist(
+            &game->colonies, game->colony_view_id, who, &game->units, role
+          );
+          colony_screen_close_eject(csv);
+          if (uid >= 0) {
+            game_colony_select_outside(game, uid);
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Left as %s",
+              colonies_eject_role_name(role)
+            );
+          } else {
+            set_status(game, "Cannot leave colony", NULL);
+          }
+          colony_screen_set_status(csv, game->status);
+        }
+        return true;
+      }
       if (csv->jobs_open) {
         if (csv->jobs_selection == 0) {
           colonies_clear_field(&game->colonies, game->colony_view_id, csv->jobs_tile_index);
           set_status(game, "Field cleared", NULL);
         } else if (csv->jobs_selection > 0 && csv->jobs_selection - 1 < csv->job_count) {
           const int job = csv->job_ids[csv->jobs_selection - 1];
-          if (csv->selected_colonist < 0) {
+          const int ci = game_colony_selected_colonist(game);
+          if (ci < 0) {
             set_status(game, "Select a colonist first", NULL);
           } else if (colonies_assign_field(
                        &game->colonies,
                        game->colony_view_id,
-                       csv->selected_colonist,
+                       ci,
                        csv->jobs_tile_index,
                        job
                      )) {
@@ -2683,6 +2760,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         csv->jobs_selection++;
         return true;
       }
+    } else if (csv->eject_open) {
+      if (input->last_key == COLONIZE_KEY_UP && csv->eject_selection > 0) {
+        csv->eject_selection--;
+        return true;
+      }
+      if (input->last_key == COLONIZE_KEY_DOWN &&
+          csv->eject_selection + 1 < csv->eject_role_count) {
+        csv->eject_selection++;
+        return true;
+      }
     } else if (csv->construction_open) {
       const int buy_row =
         (colony && colony->building_in_production >= 0) ? 1 : 0;
@@ -2697,12 +2784,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     } else {
       if (input->last_key == COLONIZE_KEY_UP && colony && csv->selected_colonist > 0) {
-        csv->selected_colonist--;
+        game_colony_select_colonist(game, csv->selected_colonist - 1);
         return true;
       }
       if (input->last_key == COLONIZE_KEY_DOWN && colony &&
           csv->selected_colonist + 1 < colony->colonist_count) {
-        csv->selected_colonist++;
+        game_colony_select_colonist(game, csv->selected_colonist + 1);
         return true;
       }
     }
@@ -2953,18 +3040,55 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         break;
       case COLONY_HIT_COLONIST:
       case COLONY_HIT_PEOPLE_COLONIST:
-        csv->selected_colonist = hit.index;
-        csv->selected_outside_unit = -1;
+        game_colony_select_colonist(game, hit.index);
         set_status(game, "Colonist selected", NULL);
         colony_screen_set_status(csv, game->status);
         break;
       case COLONY_HIT_OUTSIDE_UNIT:
         if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
-          csv->selected_outside_unit = csv->outside_unit_ids[hit.index];
-          csv->multi_mode = COLONY_MULTI_UNITS;
-          set_status(game, "Unit selected", NULL);
+          game_colony_select_outside(game, csv->outside_unit_ids[hit.index]);
+          set_status(game, "Colonist selected", NULL);
           colony_screen_set_status(csv, game->status);
         }
+        break;
+      case COLONY_HIT_FENCE: {
+        if (csv->selected_colonist < 0) {
+          if (csv->selected_outside_unit >= 0) {
+            set_status(game, "Already outside", NULL);
+          } else {
+            set_status(game, "Select a colonist first", NULL);
+          }
+          colony_screen_set_status(csv, game->status);
+        } else {
+          colony_screen_open_eject(csv, &game->colonies, game->colony_view_id, csv->selected_colonist);
+        }
+        break;
+      }
+      case COLONY_HIT_EJECT_ROW: {
+        if (hit.index >= 0 && hit.index < csv->eject_role_count && game->units_ok) {
+          const int role = csv->eject_roles[hit.index];
+          const int who = csv->eject_colonist_index;
+          const int uid = colonies_eject_colonist(
+            &game->colonies, game->colony_view_id, who, &game->units, role
+          );
+          colony_screen_close_eject(csv);
+          if (uid >= 0) {
+            game_colony_select_outside(game, uid);
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Left as %s",
+              colonies_eject_role_name(role)
+            );
+          } else {
+            set_status(game, "Cannot leave colony", NULL);
+          }
+          colony_screen_set_status(csv, game->status);
+        }
+        break;
+      }
+      case COLONY_HIT_EJECT_OUTSIDE:
+        colony_screen_close_eject(csv);
         break;
       case COLONY_HIT_MULTI_BTN:
         if (hit.index >= 0 && hit.index < 3) {
@@ -3022,13 +3146,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_AREA_TILE: {
         const int who = (int)colony->tiles[hit.index];
         if (who >= 0 && who < colony->colonist_count) {
-          csv->selected_colonist = who;
+          game_colony_select_colonist(game, who);
           colony_screen_open_jobs(csv, cmap, colony, hit.index);
-        } else if (csv->selected_colonist < 0) {
-          set_status(game, "Select a colonist first", NULL);
-          colony_screen_set_status(csv, game->status);
         } else {
-          colony_screen_open_jobs(csv, cmap, colony, hit.index);
+          const int ci = game_colony_selected_colonist(game);
+          if (ci < 0) {
+            set_status(game, "Select a colonist first", NULL);
+            colony_screen_set_status(csv, game->status);
+          } else {
+            colony_screen_open_jobs(csv, cmap, colony, hit.index);
+          }
         }
         break;
       }
@@ -3041,14 +3168,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_JOBS_ROW:
         if (hit.index >= 0 && hit.index < csv->job_count) {
           const int job = csv->job_ids[hit.index];
-          if (csv->selected_colonist < 0) {
+          const int ci = game_colony_selected_colonist(game);
+          if (ci < 0) {
             set_status(game, "Select a colonist first", NULL);
           } else if (colonies_assign_field(
-                       &game->colonies,
-                       game->colony_view_id,
-                       csv->selected_colonist,
-                       csv->jobs_tile_index,
-                       job
+                       &game->colonies, game->colony_view_id, ci, csv->jobs_tile_index, job
                      )) {
             snprintf(
               game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job)
@@ -3063,26 +3187,30 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       case COLONY_HIT_JOBS_OUTSIDE:
         colony_screen_close_jobs(csv);
         break;
-      case COLONY_HIT_BUILDING:
+      case COLONY_HIT_BUILDING: {
         if (hit.index < 0) {
           set_status(game, "Build it first", NULL);
-        } else if (csv->selected_colonist < 0) {
-          set_status(game, "Select a colonist first", NULL);
-        } else if (colonies_assign_workplace(
-                     &game->colonies, game->colony_view_id, csv->selected_colonist, hit.index
-                   )) {
-          const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
-          snprintf(
-            game->status,
-            sizeof(game->status),
-            "Assigned to %s",
-            bt ? bt->name : "building"
-          );
         } else {
-          set_status(game, "Cannot assign here", NULL);
+          const int ci = game_colony_selected_colonist(game);
+          if (ci < 0) {
+            set_status(game, "Select a colonist first", NULL);
+          } else if (colonies_assign_workplace(
+                       &game->colonies, game->colony_view_id, ci, hit.index
+                     )) {
+            const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
+            snprintf(
+              game->status,
+              sizeof(game->status),
+              "Assigned to %s",
+              bt ? bt->name : "building"
+            );
+          } else {
+            set_status(game, "Cannot assign here", NULL);
+          }
         }
         colony_screen_set_status(csv, game->status);
         break;
+      }
       case COLONY_HIT_CONSTRUCTION_BANNER:
         colony_screen_open_construction(csv, &game->colonies, game->colony_view_id);
         break;
@@ -3965,12 +4093,21 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       } else {
         ColonizeUnit* founder = units_get(&game->units, uid);
         const int type_index = founder ? founder->type_index : -1;
+        const int profession = founder ? founder->profession : UNITS_JOB_NONE;
         int tools = 0;
         int muskets = 0;
         int horses = 0;
         units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
         const int cid = colonies_found(
-          &game->colonies, &game->world_map, cx, cy, type_index, tools, muskets, horses
+          &game->colonies,
+          &game->world_map,
+          cx,
+          cy,
+          type_index,
+          profession,
+          tools,
+          muskets,
+          horses
         );
         if (cid >= 0) {
           ColonizeColony* neu = colonies_get_mut(&game->colonies, cid);
