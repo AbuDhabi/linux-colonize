@@ -471,7 +471,7 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, 0, 0);
+    const int cid = colonies_found(&pool, &map, cx, cy, 0, UNITS_JOB_NONE, 0, 0, 0);
     ColonizeColony* col = colonies_get_mut(&pool, cid);
     if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_LUMBERJACK)) {
       fprintf(stderr, "assign lumberjack failed at (%d,%d) tile %d\n", fx, fy, ftile);

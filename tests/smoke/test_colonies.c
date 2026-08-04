@@ -5,6 +5,7 @@
 #include "core/colony.h"
 #include "core/map.h"
 #include "core/ss.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -90,7 +91,7 @@ int main(void) {
   CHECK(colonies_can_found(&pool, &map, land_x, land_y), "can found on land tile");
 
   /* Found without a colonist (type -1) — still gets starter buildings. */
-  const int empty_id = colonies_found(&pool, &map, land_x, land_y, -1, 0, 0, 0);
+  const int empty_id = colonies_found(&pool, &map, land_x, land_y, -1, UNITS_JOB_NONE, 0, 0, 0);
   CHECK(empty_id >= 0, "colonies_found without founder");
   const ColonizeColony* empty = colonies_get(&pool, empty_id);
   CHECK(empty && empty->population == 0 && empty->colonist_count == 0, "no founder => pop 0");
@@ -112,7 +113,7 @@ int main(void) {
     }
   }
   if (coast_x >= 0) {
-    const int coast_id = colonies_found(&pool, &map, coast_x, coast_y, -1, 0, 0, 0);
+    const int coast_id = colonies_found(&pool, &map, coast_x, coast_y, -1, UNITS_JOB_NONE, 0, 0, 0);
     CHECK(coast_id >= 0, "found coastal colony");
     const ColonizeColony* coastal = colonies_get(&pool, coast_id);
     CHECK(coastal && !coastal->has_building[docks], "coastal starter excludes Docks");
@@ -133,7 +134,8 @@ int main(void) {
   }
   CHECK(land2_x >= 0, "second land tile");
   const int pioneer_type = 2; /* Pioneers are early in @UNIT; index used only for storage. */
-  const int cid = colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, 100, 0, 0);
+  const int cid =
+    colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, UNITS_JOB_PIONEER, 100, 0, 0);
   CHECK(cid >= 0, "colonies_found with founder");
   const ColonizeColony* col = colonies_get(&pool, cid);
   CHECK(col != NULL, "colonies_get returns colony");
@@ -142,9 +144,20 @@ int main(void) {
   CHECK(col->name[0] != '\0', "colony has a name");
   CHECK(col->population == 1 && col->colonist_count == 1, "founder becomes colonist");
   CHECK(col->colonists[0].unit_type_index == pioneer_type, "colonist type preserved");
+  CHECK(col->colonists[0].profession == UNITS_JOB_PIONEER, "founder profession preserved");
   CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
   CHECK(col->building_in_production == stockade, "found defaults Stockade project");
+  CHECK(
+    units_working_colonist_sprite(NULL, pioneer_type, UNITS_JOB_PIONEER) ==
+      UNITS_ICON_HARDY_PIONEER_WORK,
+    "hardy pioneer work sprite"
+  );
+  CHECK(
+    units_working_colonist_sprite(NULL, pioneer_type, UNITS_JOB_SOLDIER) ==
+      UNITS_ICON_VETERAN_SOLDIER_WORK,
+    "veteran soldier work sprite"
+  );
   printf("  colony name: %s at (%d,%d) pop=%d tools=%d\n",
          col->name, col->x, col->y, col->population, col->stock[COLONIZE_CARGO_TOOLS]);
 
@@ -172,6 +185,115 @@ int main(void) {
   );
   CHECK(colonies_get(&pool, cid)->tiles[0] < 0, "field tile cleared by workplace");
   CHECK(colonies_get(&pool, cid)->colonists[0].field_job < 0, "field_job cleared");
+
+  /* Admit outside unit → colonist; eject colonist → outside unit. */
+  {
+    ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
+    CHECK(units_load_types(&units, &names), "load unit types for admit/eject");
+    const int free_col = units_find_type(&units, "Colonists");
+    CHECK(free_col >= 0, "Colonists type");
+    const ColonizeColony* before = colonies_get(&pool, cid);
+    const int pop0 = before ? before->colonist_count : 0;
+    const int uid = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+    CHECK(uid >= 0, "spawn outside Colonist");
+    ColonizeUnit* ou = units_get(&units, uid);
+    if (ou && before) {
+      ou->nation_id = before->nation_id;
+    }
+    const int admitted = colonies_admit_unit(&pool, cid, &units, uid);
+    CHECK(admitted == pop0, "admit returns new colonist index");
+    CHECK(colonies_get(&pool, cid)->colonist_count == pop0 + 1, "pop +1 after admit");
+    {
+      const ColonizeUnit* gone = units_get_const(&units, uid);
+      CHECK(!gone || !gone->active, "map unit despawned on admit");
+    }
+    const int ejected = colonies_eject_colonist(&pool, cid, admitted, &units, COLONIZE_EJECT_COLONIST);
+    CHECK(ejected >= 0, "eject returns unit id");
+    CHECK(colonies_get(&pool, cid)->colonist_count == pop0, "pop restored after eject");
+    const ColonizeUnit* back = units_get_const(&units, ejected);
+    CHECK(back && back->active && back->x == land2_x && back->y == land2_y, "ejected on colony tile");
+    /* Pioneer eject spends tools from warehouse. */
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col != NULL, "colony mut for pioneer eject");
+      if (col) {
+        col->stock[COLONIZE_CARGO_TOOLS] = 100;
+      }
+      const int uid2 = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uid2 >= 0, "spawn for pioneer admit");
+      ColonizeUnit* ou2 = units_get(&units, uid2);
+      if (ou2 && col) {
+        ou2->nation_id = col->nation_id;
+      }
+      const int ad2 = colonies_admit_unit(&pool, cid, &units, uid2);
+      CHECK(ad2 >= 0, "admit before pioneer eject");
+      CHECK(colonies_get(&pool, cid)->stock[COLONIZE_CARGO_TOOLS] >= 100, "tools in stock after admit");
+      const int pej =
+        colonies_eject_colonist(&pool, cid, ad2, &units, COLONIZE_EJECT_PIONEER);
+      CHECK(pej >= 0, "eject as pioneer");
+      const ColonizeUnit* pion = units_get_const(&units, pej);
+      CHECK(pion && pion->tools >= 20, "pioneer carries tools");
+      CHECK(units_map_sprite(&units, pej) == UNITS_ICON_PIONEER ||
+              units_map_sprite(&units, pej) == UNITS_ICON_HARDY_PIONEER,
+            "pioneer map icon");
+    }
+    /* Skill sticks: hardy pioneer armed as soldier looks non-veteran; re-admit keeps skill. */
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col != NULL, "colony mut for skill stick");
+      if (col) {
+        col->stock[COLONIZE_CARGO_TOOLS] = 100;
+        col->stock[COLONIZE_CARGO_MUSKETS] = 50;
+      }
+      const int uid3 = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uid3 >= 0, "spawn for hardy skill test");
+      ColonizeUnit* ou3 = units_get(&units, uid3);
+      if (ou3 && col) {
+        ou3->nation_id = col->nation_id;
+        ou3->profession = UNITS_JOB_PIONEER;
+      }
+      const int ad3 = colonies_admit_unit(&pool, cid, &units, uid3);
+      CHECK(ad3 >= 0, "admit hardy pioneer");
+      CHECK(
+        colonies_get(&pool, cid)->colonists[ad3].profession == UNITS_JOB_PIONEER,
+        "admit keeps hardy profession"
+      );
+      CHECK(
+        units_working_colonist_sprite(
+          &units,
+          colonies_get(&pool, cid)->colonists[ad3].unit_type_index,
+          UNITS_JOB_PIONEER
+        ) == UNITS_ICON_HARDY_PIONEER_WORK,
+        "working hardy pioneer sprite #58"
+      );
+      const int sej =
+        colonies_eject_colonist(&pool, cid, ad3, &units, COLONIZE_EJECT_SOLDIER);
+      CHECK(sej >= 0, "eject hardy as soldier");
+      const ColonizeUnit* sold = units_get_const(&units, sej);
+      CHECK(sold && sold->profession == UNITS_JOB_PIONEER, "soldier keeps hardy skill");
+      CHECK(sold && sold->muskets > 0, "soldier carries muskets");
+      CHECK(
+        units_map_sprite(&units, sej) == UNITS_ICON_SOLDIER,
+        "hardy+muskets uses non-veteran soldier icon"
+      );
+      const int ad4 = colonies_admit_unit(&pool, cid, &units, sej);
+      CHECK(ad4 >= 0, "re-admit armed hardy");
+      CHECK(
+        colonies_get(&pool, cid)->colonists[ad4].profession == UNITS_JOB_PIONEER,
+        "re-admit still hardy pioneer"
+      );
+      const int pej2 =
+        colonies_eject_colonist(&pool, cid, ad4, &units, COLONIZE_EJECT_PIONEER);
+      CHECK(pej2 >= 0, "re-eject as pioneer");
+      const ColonizeUnit* pion2 = units_get_const(&units, pej2);
+      CHECK(pion2 && pion2->profession == UNITS_JOB_PIONEER, "tools eject keeps skill");
+      CHECK(
+        units_map_sprite(&units, pej2) == UNITS_ICON_HARDY_PIONEER,
+        "hardy+tools map icon #101"
+      );
+    }
+  }
 
   int buildable[32];
   const int n_buildable = colonies_list_buildable(&pool, cid, buildable, 32);

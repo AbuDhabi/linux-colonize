@@ -220,8 +220,7 @@ void unit_stack_render(
     }
 
     const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);
-    const ColonizeUnitType* ut = u ? units_type(pool, u->type_index) : NULL;
-    const int sprite = ut ? ut->icon_sprite : -1;
+    const int sprite = u ? units_map_sprite(pool, u->id) : -1;
     int text_x = inner_x + pad_x;
     if (sprite >= 0 && icons && sprite < icons->sprite_count) {
       ss_blit_sprite(icons, sprite, framebuffer, text_x, row_y);

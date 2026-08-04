@@ -616,7 +616,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    const int cid = colonies_found(&colonies, &map, cx, cy, -1, 0, 0, 0);
+    const int cid = colonies_found(&colonies, &map, cx, cy, -1, UNITS_JOB_NONE, 0, 0, 0);
     if (cid < 0) {
       fprintf(stderr, "colonies_found failed\n");
       map_free(&map);

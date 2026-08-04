@@ -59,7 +59,8 @@ typedef struct ColonizeBuildingType {
 
 /* One person living in a colony (disbanded map unit). */
 typedef struct ColonizeColonist {
-  int unit_type_index; /* into ColonizeUnitPool types */
+  int unit_type_index; /* into ColonizeUnitPool types (usually Colonists while working) */
+  int profession;      /* NAMES.TXT @JOB skill; UNITS_JOB_NONE if none */
   int building_type;   /* workplace @BUILDING index, or -1 */
   int field_job;       /* @JOB field index 0..8, or -1 */
   bool active;
@@ -112,6 +113,7 @@ bool colonies_can_found(
 
 /*
  * Found a colony. founder_type_index < 0 skips population (tests).
+ * founder_profession is NAMES.TXT @JOB skill (UNITS_JOB_NONE if unskilled).
  * Tools/muskets/horses from the disbanded unit go into the stockpile stub.
  */
 int colonies_found(
@@ -120,6 +122,7 @@ int colonies_found(
   int x,
   int y,
   int founder_type_index,
+  int founder_profession,
   int tools,
   int muskets,
   int horses
@@ -151,6 +154,50 @@ int colonies_colonist_tile(const ColonizeColony* colony, int colonist_index);
 /* Map tile index ↔ (dx,dy) offsets from colony center (N=0 … NW=7). */
 bool colonies_field_tile_delta(int tile_index, int* out_dx, int* out_dy);
 int colonies_field_tile_index(int dx, int dy);
+
+/* Forward decl — unit helpers need the unit pool without including units.h here. */
+typedef struct ColonizeUnitPool ColonizeUnitPool;
+
+/*
+ * Admit a land unit on the colony tile into the colony (despawn map unit).
+ * Transfers founder-style loot into the warehouse. Returns colonist index or -1.
+ */
+int colonies_admit_unit(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id
+);
+/*
+ * Remove a colonist onto the colony map tile as the given role (spends warehouse
+ * gear). Compacts the colonist list. Returns new unit id or -1.
+ * role: 0=Colonist, 1=Pioneer, 2=Soldier, 3=Scout, 4=Dragoon.
+ */
+int colonies_eject_colonist(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  ColonizeUnitPool* units,
+  int role
+);
+
+/* Fill out_roles with affordable eject roles for this colonist; returns count. */
+int colonies_list_eject_roles(
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index,
+  int* out_roles,
+  int out_max
+);
+
+#define COLONIZE_EJECT_COLONIST 0
+#define COLONIZE_EJECT_PIONEER 1
+#define COLONIZE_EJECT_SOLDIER 2
+#define COLONIZE_EJECT_SCOUT 3
+#define COLONIZE_EJECT_DRAGOON 4
+#define COLONIZE_EJECT_ROLE_COUNT 5
+
+const char* colonies_eject_role_name(int role);
 
 /* Set construction target; building_type must be unowned and meet min_population. */
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);
@@ -190,9 +237,6 @@ int colonies_warehouse_capacity(
   const ColonizeColony* colony,
   int cargo_type
 );
-
-/* Forward decl — transfer helpers need the unit pool without including units.h here. */
-typedef struct ColonizeUnitPool ColonizeUnitPool;
 
 /* Move up to `amount` of cargo_type from colony stock into a transport unit. Returns amount moved. */
 int colonies_transfer_to_unit(

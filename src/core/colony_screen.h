@@ -130,7 +130,10 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_MULTI_BUY,
   COLONY_HIT_MULTI_CHANGE,
   COLONY_HIT_OUTSIDE_UNIT,
-  COLONY_HIT_PEOPLE_COLONIST
+  COLONY_HIT_FENCE, /* fortification strip (not a specific unit icon) */
+  COLONY_HIT_PEOPLE_COLONIST,
+  COLONY_HIT_EJECT_ROW,
+  COLONY_HIT_EJECT_OUTSIDE
 } ColonyScreenHit;
 
 typedef struct ColonyScreenHitResult {
@@ -182,6 +185,18 @@ typedef struct ColonyScreenView {
   int jobs_list_y0;
   int jobs_line_h;
 
+  bool eject_open;
+  int eject_colonist_index;
+  int eject_selection;
+  int eject_roles[COLONIZE_EJECT_ROLE_COUNT];
+  int eject_role_count;
+  int eject_dialog_x;
+  int eject_dialog_y;
+  int eject_dialog_w;
+  int eject_dialog_h;
+  int eject_list_y0;
+  int eject_line_h;
+
   ColonizeColonyProdDelta last_delta;
   bool last_delta_valid;
   ColonizeColonyPreview preview;
@@ -215,6 +230,14 @@ void colony_screen_open_jobs(
   int tile_index
 );
 void colony_screen_close_jobs(ColonyScreenView* view);
+
+void colony_screen_open_eject(
+  ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  int colony_id,
+  int colonist_index
+);
+void colony_screen_close_eject(ColonyScreenView* view);
 
 void colony_screen_minimap_origin(int* out_x, int* out_y);
 
