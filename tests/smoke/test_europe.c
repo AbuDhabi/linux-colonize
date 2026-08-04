@@ -53,8 +53,14 @@ int main(void) {
 
   const int gold_before = eu.gold;
   const int dock_before = eu.dock_count;
-  if (!europe_recruit(&eu)) {
-    fprintf(stderr, "recruit failed: %s\n", eu.status);
+  if (!europe_recruit(&eu) || eu.menu != EUROPE_MENU_RECRUIT) {
+    fprintf(stderr, "recruit menu open failed: %s\n", eu.status);
+    europe_free(&eu);
+    return 1;
+  }
+  eu.menu_selection = 1; /* first pool slot */
+  if (!europe_menu_confirm(&eu)) {
+    fprintf(stderr, "recruit confirm failed: %s\n", eu.status);
     europe_free(&eu);
     return 1;
   }
@@ -189,14 +195,14 @@ int main(void) {
 
   /* Hit-tests. */
   {
-    EuropeHitResult hit = europe_hit_test(&eu, EUROPE_HARBOR_LIST_X + 4, EUROPE_HARBOR_LIST_Y + 2);
+    EuropeHitResult hit = europe_hit_test(&eu, EUROPE_LOADING_X + 4, EUROPE_LOADING_Y + 2);
     if (hit.kind != EUROPE_HIT_HARBOR_SHIP || hit.index != 0) {
       fprintf(stderr, "harbor hit expected ship0 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       europe_free(&eu);
       return 1;
     }
     hit = europe_hit_test(
-      &eu, EUROPE_MARKET_X + 4, EUROPE_MARKET_Y + COLONIZE_CARGO_SUGAR * EUROPE_MARKET_ROW_H + 2
+      &eu, EUROPE_MARKET_X + COLONIZE_CARGO_SUGAR * EUROPE_MARKET_PITCH + 4, EUROPE_MARKET_Y + 2
     );
     if (hit.kind != EUROPE_HIT_MARKET || hit.index != COLONIZE_CARGO_SUGAR) {
       fprintf(stderr, "market hit expected sugar got kind=%d idx=%d\n", (int)hit.kind, hit.index);
@@ -279,14 +285,143 @@ int main(void) {
     return 1;
   }
 
+  /* Purchase prices match original_screenshots/europe/purchase.png */
+  if (eu.purchase_count < 6 || eu.purchase[0].gold != 500 ||
+      strcmp(eu.purchase[0].name, "Artillery") != 0 || eu.purchase[1].gold != 1000 ||
+      eu.purchase[5].gold != 5000) {
+    fprintf(stderr, "purchase table mismatch count=%d\n", eu.purchase_count);
+    europe_free(&eu);
+    return 1;
+  }
+  europe_cheat_add_gold(&eu, 10000);
+  const int gold_pre_buy_ship = eu.gold;
+  const int harbor_before = eu.harbor_ships;
+  if (!europe_purchase(&eu, 1) || eu.harbor_ships != harbor_before + 1 ||
+      strcmp(eu.harbor[eu.harbor_ships - 1].name, "Caravel") != 0 ||
+      eu.gold != gold_pre_buy_ship - 1000) {
+    fprintf(stderr, "purchase Caravel failed: %s\n", eu.status);
+    europe_free(&eu);
+    return 1;
+  }
+
+  /* Train: cheapest @JOB hire (Expert Ore Miners 600). */
+  if (eu.train_count < 1) {
+    fprintf(stderr, "expected train options from @JOB\n");
+    europe_free(&eu);
+    return 1;
+  }
+  int train_i = 0;
+  for (int i = 0; i < eu.train_count; ++i) {
+    if (eu.train[i].cost > 0 &&
+        (eu.train[train_i].cost <= 0 || eu.train[i].cost < eu.train[train_i].cost)) {
+      train_i = i;
+    }
+  }
+  const int dock_pre_train = eu.dock_count;
+  const int gold_pre_train = eu.gold;
+  if (!europe_train(&eu, train_i) || eu.dock_count != dock_pre_train + 1 ||
+      eu.gold != gold_pre_train - eu.train[train_i].cost) {
+    fprintf(stderr, "train failed: %s\n", eu.status);
+    europe_free(&eu);
+    return 1;
+  }
+
+  /* Voyage: enqueue Expected → tick → harbor; set_sail → Bound. */
+  if (europe_voyage_turns(true, 4) != EUROPE_VOYAGE_EAST_TURNS ||
+      europe_voyage_turns(false, 4) != EUROPE_VOYAGE_WEST_TURNS) {
+    fprintf(stderr, "voyage turns unexpected\n");
+    europe_free(&eu);
+    return 1;
+  }
+  eu.harbor_ships = 0;
+  eu.expected_ships = 0;
+  eu.bound_ships = 0;
+  if (!europe_enqueue_expected(
+        &eu, 14, "Caravel", NULL, 0, NULL, NULL, 50, 10, true, 4
+      ) ||
+      eu.expected_ships != 1 || eu.expected[0].turns_left != EUROPE_VOYAGE_EAST_TURNS) {
+    fprintf(stderr, "enqueue_expected failed\n");
+    europe_free(&eu);
+    return 1;
+  }
+  for (int t = 0; t < EUROPE_VOYAGE_EAST_TURNS; ++t) {
+    europe_tick_voyages(&eu);
+  }
+  if (eu.expected_ships != 0 || eu.harbor_ships != 1 || !eu.open_on_dock) {
+    fprintf(
+      stderr,
+      "tick dock failed expected=%d harbor=%d open=%d\n",
+      eu.expected_ships,
+      eu.harbor_ships,
+      eu.open_on_dock ? 1 : 0
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  eu.dock_count = 1;
+  snprintf(eu.dock[0].name, sizeof(eu.dock[0].name), "%s", "Free Colonists");
+  eu.dock[0].present = true;
+  eu.dock[0].sentry = true;
+  eu.dock[0].profession = 19;
+  if (!europe_set_sail_from_harbor(&eu, 0, 4) || eu.bound_ships != 1 || eu.harbor_ships != 0) {
+    fprintf(stderr, "set_sail failed: %s\n", eu.status);
+    europe_free(&eu);
+    return 1;
+  }
+  if (eu.bound[0].cargo_count < 1) {
+    fprintf(stderr, "sentry dockers did not board\n");
+    europe_free(&eu);
+    return 1;
+  }
+  for (int t = 0; t < eu.bound[0].turns_left + 1; ++t) {
+    europe_tick_voyages(&eu);
+  }
+  int bx = -1, by = -1;
+  bool beast = false;
+  type_index = -1;
+  out_count = 0;
+  if (!europe_bound_pop_arrived(
+        &eu,
+        &type_index,
+        ship_name,
+        sizeof(ship_name),
+        out_cargo,
+        &out_count,
+        EUROPE_SHIP_CARGO_MAX,
+        out_hold_t,
+        out_hold_a,
+        EUROPE_SHIP_CARGO_MAX,
+        &bx,
+        &by,
+        &beast
+      ) ||
+      strcmp(ship_name, "Caravel") != 0) {
+    fprintf(stderr, "bound_pop_arrived failed\n");
+    europe_free(&eu);
+    return 1;
+  }
+
+  /* Recruit pool always 3; passage bumped after recruit. */
+  int filled = 0;
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    if (eu.pool[i].filled) {
+      filled++;
+    }
+  }
+  if (filled != EUROPE_POOL_SIZE) {
+    fprintf(stderr, "pool should stay full, filled=%d\n", filled);
+    europe_free(&eu);
+    return 1;
+  }
+
   fprintf(
     stderr,
-    "europe tests ok (cargo=%d classes=%d gold=%d dock=%d harbor=%d)\n",
+    "europe tests ok (cargo=%d train=%d purchase=%d gold=%d dock=%d)\n",
     eu.cargo_count,
-    eu.class_count,
+    eu.train_count,
+    eu.purchase_count,
     eu.gold,
-    eu.dock_count,
-    eu.harbor_ships
+    eu.dock_count
   );
   europe_free(&eu);
   diag_shutdown();

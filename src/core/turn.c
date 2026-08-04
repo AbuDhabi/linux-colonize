@@ -440,15 +440,13 @@ static int turn_count_bells_and_crosses(
 }
 
 static void turn_push_dock_immigrant(EuropeScreen* europe, ColonizeTurnResult* out) {
-  if (!europe || europe->dock_count >= EUROPE_DOCK_MAX) {
+  if (!europe) {
     return;
   }
-  EuropeDockImmigrant* slot = &europe->dock[europe->dock_count++];
-  memset(slot, 0, sizeof(*slot));
-  snprintf(slot->name, sizeof(slot->name), "%s", "Free Colonist");
-  slot->present = true;
-  if (out) {
-    out->immigrants_arrived++;
+  if (europe_immigrant_from_pool(europe)) {
+    if (out) {
+      out->immigrants_arrived++;
+    }
   }
 }
 
@@ -491,6 +489,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->needed_crosses = (uint16_t)need;
       turn_push_dock_immigrant(ctx->europe, out);
     }
+    europe_tick_voyages(ctx->europe);
   }
 
   if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {

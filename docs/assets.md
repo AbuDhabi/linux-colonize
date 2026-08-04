@@ -332,23 +332,27 @@ The pull-down has a horizontal rule between Terrain Types and Colonist Skills.
 
 ### Europe (home port) bring-up
 
-Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map.
+Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map (closes open menus first). Visual layout reference: [`original_screenshots/europe/`](../original_screenshots/europe/).
+
+Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship moves ≥6 — **Unverified vs DOS**):
+
+- **H** / Return to Europe on high seas → **Expected Soon** (not instant dock); docks when turns elapse (auto-opens Europe).
+- **S** / Set sail from harbor → **Bound For** `@COLONYNAME` region; arrives at last exit sea lane.
+- Click Expected/Bound to reverse direction (keeps remaining turns).
 
 | Key | Action |
 |-----|--------|
-| R | Recruit cheapest `@CLASS` immigrant onto the docks |
-| T | Train (stub) |
-| S | Sail oldest harbor ship to the New World (onto a high-seas tile) |
-| Click harbor ship | Select ship (shows commodity holds) |
-| Click hold | Sell entire hold (bid after tax) |
-| Click market row | Buy up to 100 into an empty hold (ask price) |
-| **L** | Sell highest-value hold |
-| **U** | Buy up to 100 Trade Goods |
-| `=` / `+` | Sell 1 from best hold / buy 1 Trade Goods |
-| `]` | Cheat: +1000 gold |
-| `[` | Cheat: −1% tax |
+| **R** / 1 | Recruit menu — 3-slot pool; pay rising passage gold |
+| **P** / 2 | Purchase — Artillery 500, Caravel 1000, Merchantman/Privateer 2000, Galleon 3000, Frigate 5000 |
+| **T** / 3 | Royal University train — `@JOB` hire costs; expert to docks |
+| **S** | Set sail selected/oldest harbor ship (Bound lane) |
+| Click harbor / holds / market | Select ship; sell hold; buy selected cargo |
+| Click dock colonist | Dock orders (don’t board / board next / move to front) |
+| **L** / `=` / `+` | Buy full / full / some of selected market good |
+| **U** / `-` / `_` | Sell best hold / all / some |
+| `]` / `[` | Cheat +1000 gold / −1% tax |
 
-Market bid/ask prices come from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds use `floor(bid × amount × (100 − tax) / 100)`. Commodity holds persist through Europe harbor sail (**H** / **S**) with passengers. Drag-trade polish and buy-ships are not implemented yet.
+Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-driven prices and boycotts not implemented yet.
 
 ### Colony screen bring-up
 

@@ -27,6 +27,7 @@ typedef struct ColonizeUnitType {
   int attack;
   int defense;
   int cargo;
+  int cost; /* NAMES.TXT @UNIT cost field (Europe purchase uses screenshot gold table) */
   ColonizeUnitDomain domain;
 } ColonizeUnitType;
 
