@@ -181,6 +181,12 @@ int colonies_eject_colonist(
   int role
 );
 
+/* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥2 pop). */
+bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+
+/* Remove colony and warehouse cargo; on-tile units are left alone. */
+bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);
+
 /* Fill out_roles with affordable eject roles for this colonist; returns count. */
 int colonies_list_eject_roles(
   const ColonizeColonyPool* pool,
@@ -202,12 +208,21 @@ const char* colonies_eject_role_name(int role);
 /* Set construction target; building_type must be unowned and meet min_population. */
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);
 bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id);
-/* Fill out_ids with buildable @BUILDING indices; returns count. */
+
+/* Optional gates for colonies_list_buildable (NULL map / false FF = deny gated buildings). */
+typedef struct ColoniesBuildableOpts {
+  const ColonizeWorldMap* map; /* docks / drydock / shipyard need a coastal colony */
+  bool has_adam_smith;         /* factory-tier buildings */
+  bool has_peter_stuyvesant;   /* Custom House */
+} ColoniesBuildableOpts;
+
+/* Fill out_ids with buildable @BUILDING indices (prerequisites applied); returns count. */
 int colonies_list_buildable(
   const ColonizeColonyPool* pool,
   int colony_id,
   int* out_ids,
-  int out_max
+  int out_max,
+  const ColoniesBuildableOpts* opts
 );
 
 /* Gold to finish current project (remaining hammers), or 0 if none. */

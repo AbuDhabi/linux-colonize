@@ -219,9 +219,14 @@ int main(void) {
     return 1;
   }
 
-  const int bottom_idx = COLONY_BOTTOM_PANEL_Y * 320;
-  if (pixels[bottom_idx] == 0) {
-    fprintf(stderr, "bottom panel row looks empty at y=%d\n", COLONY_BOTTOM_PANEL_Y);
+  /* No docked ship → all six hold slots should show empty-hold covers. */
+  if (view.transport_unit_id >= 0 || view.docked_transport_count > 0) {
+    fprintf(
+      stderr,
+      "expected founded colony with no transport (tid=%d n=%d)\n",
+      view.transport_unit_id,
+      view.docked_transport_count
+    );
     if (phys0_ok) {
       ss_free(&phys0);
     }
@@ -230,6 +235,44 @@ int main(void) {
     assets_msg_free(&names);
     colony_screen_free(&view);
     return 1;
+  }
+  {
+    int cover_w = COLONY_HOLD_W;
+    if (view.icons_ok && COLONY_ICON_EMPTY_HOLD < view.icons.sprite_count) {
+      const ColonizeSprite* cov = &view.icons.sprites[COLONY_ICON_EMPTY_HOLD];
+      if (cov && cov->width > 0) {
+        cover_w = cov->width;
+      }
+    }
+    const int cover_pitch = cover_w + 2;
+    int covered_slots = 0;
+    for (int i = 0; i < 6; ++i) {
+      const int x0 = COLONY_HOLD_X + 6 + i * cover_pitch;
+      const int y0 = COLONY_HOLD_Y + 7;
+      bool lit = false;
+      for (int y = y0; y < y0 + 10 && !lit; ++y) {
+        for (int x = x0; x < x0 + cover_w; ++x) {
+          if (x >= 0 && x < 320 && y >= 0 && y < 200 && pixels[y * 320 + x] != 0) {
+            lit = true;
+            break;
+          }
+        }
+      }
+      if (lit) {
+        covered_slots++;
+      }
+    }
+    if (covered_slots < 6) {
+      fprintf(stderr, "expected all 6 hold covers with no ship, got %d\n", covered_slots);
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
+    }
   }
 
   /* Town Hall sprite is blitted near viewport (70,4). */
@@ -404,6 +447,43 @@ int main(void) {
       assets_msg_free(&names);
       colony_screen_free(&view);
       return 1;
+    }
+    /* People band: fence unit is on the same row, right of colony population. */
+    {
+      bool found_people_out = false;
+      for (int x = COLONY_PEOPLE_X + 2; x < COLONY_PEOPLE_X + COLONY_PEOPLE_W - 4; ++x) {
+        ColonyScreenHitResult ph =
+          colony_screen_hit_test(&view, &pool, col, &units, x, COLONY_PANEL_CONTENT_Y + 18);
+        if (ph.kind == COLONY_HIT_OUTSIDE_UNIT && ph.index == 0) {
+          found_people_out = true;
+          break;
+        }
+      }
+      if (!found_people_out) {
+        fprintf(stderr, "expected outside unit hit on people row beside colonists\n");
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
+      ColonyScreenHitResult old_row = colony_screen_hit_test(
+        &view, &pool, col, &units, COLONY_PEOPLE_X + 2 + 4, COLONY_PANEL_CONTENT_Y + 32 + 2
+      );
+      if (old_row.kind == COLONY_HIT_OUTSIDE_UNIT) {
+        fprintf(stderr, "outside units should not use the old second people row\n");
+        if (phys0_ok) {
+          ss_free(&phys0);
+        }
+        ss_free(&terrain);
+        map_free(&map);
+        assets_msg_free(&names);
+        colony_screen_free(&view);
+        return 1;
+      }
     }
     /* Left gutter of fence should not hold the sole unit (old left-align). */
     bool left_gutter = false;
@@ -832,10 +912,16 @@ int main(void) {
       return 1;
     }
 
-    /* Multifunction mode switch changes pane content. */
+    /* Multifunction Production: all cargo types pack into the pane (no truncate). */
     view.multi_mode = COLONY_MULTI_PRODUCTION;
     view.preview_valid = true;
     view.preview.goods[COLONIZE_CARGO_FOOD] = 5;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      view.preview.goods[c] = 2 + (c % 3);
+      view.preview.shortfall[c] = (c % 4 == 0) ? 1 : 0;
+    }
+    view.preview.food_fish = 2;
+    view.preview.hammers = 9; /* included as a production slot */
     memset(pixels, 0, sizeof(pixels));
     colony_screen_render(
       &view,
@@ -853,10 +939,34 @@ int main(void) {
       &fb
     );
     int prod_sum = 0;
-    for (int y = COLONY_PANEL_CONTENT_Y; y < COLONY_CARGO_STRIP_Y; ++y) {
+    int prod_rows_with_px = 0;
+    for (int y = COLONY_PANEL_CONTENT_Y; y < COLONY_PANEL_CONTENT_Y + COLONY_PANEL_CONTENT_H; ++y) {
+      int row_sum = 0;
       for (int x = COLONY_MULTI_X; x < COLONY_MULTI_BTN_X; ++x) {
-        prod_sum += pixels[y * 320 + x];
+        row_sum += pixels[y * 320 + x];
       }
+      prod_sum += row_sum;
+      if (row_sum > 0) {
+        prod_rows_with_px++;
+      }
+    }
+    if (prod_rows_with_px < COLONY_PANEL_CONTENT_H / 2) {
+      fprintf(
+        stderr,
+        "expected Production pane to use most of content height for many cargo types (lit_rows=%d)\n",
+        prod_rows_with_px
+      );
+      if (font_ok) {
+        ff_free(&font);
+      }
+      if (phys0_ok) {
+        ss_free(&phys0);
+      }
+      ss_free(&terrain);
+      map_free(&map);
+      assets_msg_free(&names);
+      colony_screen_free(&view);
+      return 1;
     }
     view.multi_mode = COLONY_MULTI_CONSTRUCTION;
     memset(pixels, 0, sizeof(pixels));
@@ -1084,7 +1194,10 @@ int main(void) {
       return 1;
     }
 
-    colony_screen_open_construction(&view, &pool, cid);
+    ColoniesBuildableOpts bopts;
+    memset(&bopts, 0, sizeof(bopts));
+    bopts.map = &map;
+    colony_screen_open_construction(&view, &pool, cid, &bopts);
     if (!view.construction_open || view.buildable_count <= 0) {
       fprintf(stderr, "construction popup failed to open/list\n");
       if (font_ok) {
@@ -1121,10 +1234,15 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
-    /* Founded colony has Stockade in production → Buy row at index 1. */
+    /* Founded colony: first list row after Clear is a buildable project (Buy is multifunction). */
     hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 52);
-    if (hit.kind != COLONY_HIT_CONSTRUCTION_BUY) {
-      fprintf(stderr, "expected construction buy hit got kind=%d\n", (int)hit.kind);
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 0) {
+      fprintf(
+        stderr,
+        "expected construction row 0 got kind=%d idx=%d\n",
+        (int)hit.kind,
+        hit.index
+      );
       if (font_ok) {
         ff_free(&font);
       }
@@ -1138,8 +1256,8 @@ int main(void) {
       return 1;
     }
     hit = colony_screen_hit_test(&view, &pool, sample, &units, 80, 62);
-    if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 0) {
-      fprintf(stderr, "expected construction row 0 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_ROW || hit.index != 1) {
+      fprintf(stderr, "expected construction row 1 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
       if (font_ok) {
         ff_free(&font);
       }
@@ -1531,7 +1649,7 @@ int main(void) {
       return 1;
     }
 
-    /* Buy Warehouse Expansion (tools_cost=2) with partial hammers. */
+    /* Buy Warehouse Expansion (tools×10 from NAMES: 2 → 20) with partial hammers. */
     const int whe = colonies_find_building(&pool, "Warehouse Expansion");
     const int wh = colonies_find_building(&pool, "Warehouse");
     if (whe < 0 || wh < 0) {

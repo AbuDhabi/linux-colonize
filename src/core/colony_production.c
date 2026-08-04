@@ -18,11 +18,18 @@ ColonyProdTier colony_prod_building_tier(const char* building_name) {
       colony_prod_name_has(building_name, "Textile Mill")) {
     return COLONY_PROD_TIER_FACTORY;
   }
+  /* Carpenter's Shop is house-tier (3); Lumber Mill is shop-tier (6). Match
+   * before the generic "Shop" needle so "Carpenter's Shop" is not mis-tiered. */
+  if (colony_prod_name_has(building_name, "Lumber Mill")) {
+    return COLONY_PROD_TIER_SHOP;
+  }
+  if (colony_prod_name_has(building_name, "Carpenter")) {
+    return COLONY_PROD_TIER_HOUSE;
+  }
   if (colony_prod_name_has(building_name, "Shop") ||
       colony_prod_name_has(building_name, "Distillery") ||
       colony_prod_name_has(building_name, "Trading Post") ||
-      colony_prod_name_has(building_name, "Magazine") ||
-      colony_prod_name_has(building_name, "Lumber Mill")) {
+      colony_prod_name_has(building_name, "Magazine")) {
     return COLONY_PROD_TIER_SHOP;
   }
   return COLONY_PROD_TIER_HOUSE;
@@ -148,7 +155,9 @@ int colony_prod_bells_worker(const char* building_name, int profession) {
 }
 
 int colony_prod_hammers_worker(const char* building_name, int profession) {
-  if (!building_name || !colony_prod_name_has(building_name, "Carpenter")) {
+  if (!building_name ||
+      (!colony_prod_name_has(building_name, "Carpenter") &&
+       !colony_prod_name_has(building_name, "Lumber Mill"))) {
     return 0;
   }
   const ColonyProdTier tier = colony_prod_building_tier(building_name);
@@ -243,7 +252,6 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
 int colony_prod_colony_hammers(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int fallback_worker,
   int* out_lumber_use
 ) {
   if (out_lumber_use) {
@@ -253,32 +261,15 @@ int colony_prod_colony_hammers(
     return 0;
   }
   int total = 0;
-  bool any_carpenter = false;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
     const char* bname = pool->building_types[c->building_type].name;
-    if (!colony_prod_name_has(bname, "Carpenter")) {
-      continue;
-    }
-    any_carpenter = true;
     total += colony_prod_hammers_worker(bname, c->profession);
   }
-  if (total <= 0 && fallback_worker && colony_prod_building_built(pool, colony, "Carpenter")) {
-    for (int i = 0; i < pool->building_type_count && total <= 0; ++i) {
-      if (!colony->has_building[i]) {
-        continue;
-      }
-      if (colony_prod_name_has(pool->building_types[i].name, "Carpenter")) {
-        total = colony_prod_hammers_worker(pool->building_types[i].name, COLONIZE_PROF_FREE_COLONIST);
-        any_carpenter = true;
-        break;
-      }
-    }
-  }
-  if (out_lumber_use && any_carpenter && total > 0) {
+  if (out_lumber_use && total > 0) {
     *out_lumber_use = total;
   }
   return total;
@@ -302,7 +293,7 @@ int colony_prod_worker_building_output(
   if (colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")) {
     return colony_prod_crosses_worker(name, profession);
   }
-  if (colony_prod_name_has(name, "Carpenter")) {
+  if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
     return colony_prod_hammers_worker(name, profession);
   }
   if (colony_prod_name_has(name, "Rum Distill")) {

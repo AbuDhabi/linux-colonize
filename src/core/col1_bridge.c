@@ -299,6 +299,10 @@ bool col1_bridge_init_template(
   memset(&save->head, 0, sizeof(save->head));
   memcpy(save->head.sig_colonize, COLONIZE_COL1_SIG, 8);
   save->head.sig_colonize[8] = '\0';
+  /* Unrecruited founding fathers are -1 in DOS saves (not nation 0). */
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    save->head.founding_father[i] = -1;
+  }
   save->head.map_size_x = map_w;
   save->head.map_size_y = map_h;
   save->head.year = 1492;

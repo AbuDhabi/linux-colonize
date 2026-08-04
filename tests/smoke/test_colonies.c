@@ -134,7 +134,7 @@ int main(void) {
   }
   CHECK(land2_x >= 0, "second land tile");
   const int pioneer_type = 2; /* Pioneers are early in @UNIT; index used only for storage. */
-  const int cid =
+  int cid =
     colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, UNITS_JOB_PIONEER, 100, 0, 0);
   CHECK(cid >= 0, "colonies_found with founder");
   const ColonizeColony* col = colonies_get(&pool, cid);
@@ -148,6 +148,7 @@ int main(void) {
   CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
   CHECK(col->building_in_production == stockade, "found defaults Stockade project");
+  CHECK(col->hammers == 0, "new colony starts with zero accumulated hammers");
   CHECK(
     units_working_colonist_sprite(NULL, pioneer_type, UNITS_JOB_PIONEER) ==
       UNITS_ICON_HARDY_PIONEER_WORK,
@@ -213,6 +214,11 @@ int main(void) {
     CHECK(colonies_get(&pool, cid)->colonist_count == pop0, "pop restored after eject");
     const ColonizeUnit* back = units_get_const(&units, ejected);
     CHECK(back && back->active && back->x == land2_x && back->y == land2_y, "ejected on colony tile");
+    CHECK(
+      colonies_has_fortification(&pool, colonies_get(&pool, cid)) == false,
+      "no fortification yet"
+    );
+
     /* Pioneer eject spends tools from warehouse. */
     {
       ColonizeColony* col = colonies_get_mut(&pool, cid);
@@ -296,15 +302,103 @@ int main(void) {
   }
 
   int buildable[32];
-  const int n_buildable = colonies_list_buildable(&pool, cid, buildable, 32);
+  ColoniesBuildableOpts bopts;
+  memset(&bopts, 0, sizeof(bopts));
+  bopts.map = &map;
+  const int n_buildable = colonies_list_buildable(&pool, cid, buildable, 32, &bopts);
   CHECK(n_buildable > 0, "list_buildable returns projects");
   bool listed_stockade = false;
+  bool listed_warehouse = false;
+  bool listed_weavers_shop = false;
+  bool listed_iron_works = false;
   for (int i = 0; i < n_buildable; ++i) {
     if (buildable[i] == stockade) {
       listed_stockade = true;
     }
+    if (strcmp(pool.building_types[buildable[i]].name, "Warehouse") == 0) {
+      listed_warehouse = true;
+    }
+    if (strcmp(pool.building_types[buildable[i]].name, "Weaver's Shop") == 0) {
+      listed_weavers_shop = true;
+    }
+    if (strcmp(pool.building_types[buildable[i]].name, "Iron Works") == 0) {
+      listed_iron_works = true;
+    }
   }
-  CHECK(listed_stockade, "Stockade is buildable");
+  /* New colony pop=1: Stockade needs min_colony 3. */
+  CHECK(!listed_stockade, "Stockade hidden until population 3");
+  CHECK(listed_warehouse, "Warehouse is buildable at pop 1");
+  CHECK(listed_weavers_shop, "Weaver's Shop upgrade is buildable");
+  CHECK(!listed_iron_works, "Iron Works requires Adam Smith");
+
+  /* Grow to Stockade min pop and confirm it appears. */
+  {
+    ColonizeColony* grow = colonies_get_mut(&pool, cid);
+    CHECK(grow != NULL, "mut colony for pop bump");
+    grow->population = 3;
+    grow->colonist_count = 3;
+    for (int i = 1; i < 3; ++i) {
+      grow->colonists[i] = grow->colonists[0];
+      grow->colonists[i].active = true;
+    }
+  }
+  const int n2 = colonies_list_buildable(&pool, cid, buildable, 32, &bopts);
+  listed_stockade = false;
+  for (int i = 0; i < n2; ++i) {
+    if (buildable[i] == stockade) {
+      listed_stockade = true;
+    }
+  }
+  CHECK(listed_stockade, "Stockade is buildable at pop 3");
+
+  bopts.has_adam_smith = true;
+  {
+    ColonizeColony* grow = colonies_get_mut(&pool, cid);
+    grow->population = 8;
+    grow->colonist_count = 8;
+    for (int i = 3; i < 8; ++i) {
+      grow->colonists[i] = grow->colonists[0];
+      grow->colonists[i].active = true;
+    }
+    const int shop = colonies_find_building(&pool, "Blacksmith's Shop");
+    CHECK(shop >= 0, "Blacksmith's Shop type exists");
+    grow->has_building[shop] = true;
+  }
+  const int n3 = colonies_list_buildable(&pool, cid, buildable, 32, &bopts);
+  listed_iron_works = false;
+  for (int i = 0; i < n3; ++i) {
+    if (strcmp(pool.building_types[buildable[i]].name, "Iron Works") == 0) {
+      listed_iron_works = true;
+    }
+  }
+  CHECK(listed_iron_works, "Iron Works buildable with Adam Smith + shop");
+
+  /* Custom House requires Peter Stuyvesant (not available by default). */
+  {
+    bool listed_ch = false;
+    for (int i = 0; i < n3; ++i) {
+      if (strcmp(pool.building_types[buildable[i]].name, "Custom House") == 0) {
+        listed_ch = true;
+      }
+    }
+    CHECK(!listed_ch, "Custom House hidden without Stuyvesant");
+    bopts.has_peter_stuyvesant = true;
+    const int n4 = colonies_list_buildable(&pool, cid, buildable, 32, &bopts);
+    listed_ch = false;
+    for (int i = 0; i < n4; ++i) {
+      if (strcmp(pool.building_types[buildable[i]].name, "Custom House") == 0) {
+        listed_ch = true;
+      }
+    }
+    CHECK(listed_ch, "Custom House buildable with Stuyvesant");
+  }
+
+  /* tools(*10): Warehouse Expansion NAMES value 2 → 20 tools. */
+  {
+    const int whe = colonies_find_building(&pool, "Warehouse Expansion");
+    CHECK(whe >= 0, "Warehouse Expansion type exists");
+    CHECK(pool.building_types[whe].tools_cost == 20, "Warehouse Expansion tools are 20");
+  }
 
   CHECK(colonies_clear_construction(&pool, cid), "clear construction");
   CHECK(colonies_get(&pool, cid)->building_in_production < 0, "construction cleared");
@@ -318,6 +412,24 @@ int main(void) {
   CHECK(!colonies_can_found(&pool, &map, land2_x, land2_y), "cannot found on occupied tile");
   CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");
   CHECK(colonies_id_at(&pool, land2_x + 1, land2_y) < 0, "colonies_id_at returns -1 for empty tile");
+
+  /* Abandon removes colony (cargo discarded). */
+  {
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "colony before abandon");
+    c->stock[COLONIZE_CARGO_FOOD] = 50;
+    const int stockade_b = colonies_find_building(&pool, "Stockade");
+    CHECK(stockade_b >= 0, "stockade type for fortification check");
+    c->has_building[stockade_b] = true;
+    CHECK(colonies_has_fortification(&pool, c), "fortification detected");
+    CHECK(colonies_abandon(&pool, cid), "abandon colony");
+    CHECK(colonies_get(&pool, cid) == NULL, "colony gone after abandon");
+    CHECK(colonies_id_at(&pool, land2_x, land2_y) < 0, "tile free after abandon");
+  }
+
+  /* Re-found so map-icon test has a colony. */
+  cid = colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, UNITS_JOB_PIONEER, 0, 0, 0);
+  CHECK(cid >= 0, "re-found for map icon");
 
   /* Map marker: ICONS.SS #0–3 colony settlement (not cargo greys #38+). */
   {

@@ -173,18 +173,19 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     const char* p = comma + 1;
     int hammers = 0;
     int tools_cost = 0;
-    int a = 0;
-    int b = 0;
+    int size = 0;
     int min_pop = 0;
-    /* name, hammers, tools, ?, ?, min_population — trailing fields optional. */
-    sscanf(p, " %d , %d , %d , %d , %d", &hammers, &tools_cost, &a, &b, &min_pop);
-    (void)a;
-    (void)b;
+    int upkeep = 0;
+    /* NAMES.TXT: name, cost, tools(*10), size, min_colony, upkeep */
+    sscanf(p, " %d , %d , %d , %d , %d", &hammers, &tools_cost, &size, &min_pop, &upkeep);
+    (void)size;
+    (void)upkeep;
 
     ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
     snprintf(t->name, sizeof(t->name), "%s", line);
     t->hammers = hammers;
-    t->tools_cost = tools_cost;
+    /* NAMES.TXT tools(*10): file stores tens of tools (2 → 20 tools). */
+    t->tools_cost = tools_cost * 10;
     t->min_population = min_pop;
   }
 
@@ -334,11 +335,12 @@ int colonies_found(
     slot->population = 0;
   }
 
-  /* Default first project so carpenter hammers have a target. */
+  /* Default first project so carpenter hammers have a target (0 accumulated). */
   {
     const int stockade = colonies_find_building(pool, "Stockade");
     if (stockade >= 0 && !slot->has_building[stockade]) {
       slot->building_in_production = stockade;
+      slot->hammers = 0;
     }
   }
 
@@ -740,6 +742,36 @@ int colonies_eject_colonist(
   return uid;
 }
 
+bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  if (!pool || !colony) {
+    return false;
+  }
+  static const char* k_forts[] = {"Stockade", "Fort", "Fortress"};
+  for (size_t i = 0; i < sizeof(k_forts) / sizeof(k_forts[0]); ++i) {
+    const int idx = colonies_find_building(pool, k_forts[i]);
+    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[idx]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !col->active) {
+    return false;
+  }
+  memset(col, 0, sizeof(*col));
+  int active = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (pool->colonies[i].active) {
+      active++;
+    }
+  }
+  pool->colony_count = active;
+  return true;
+}
+
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool) {
@@ -853,11 +885,223 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gol
   return true;
 }
 
+static bool colonies_has_building_named(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  const char* name
+) {
+  const int idx = colonies_find_building(pool, name);
+  return idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && col->has_building[idx];
+}
+
+/* True if this type is currently a legal construction project for the colony. */
+static bool colonies_building_is_buildable(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  int type_index,
+  const ColoniesBuildableOpts* opts
+) {
+  if (!pool || !col || type_index < 0 || type_index >= pool->building_type_count) {
+    return false;
+  }
+  if (col->has_building[type_index]) {
+    return false;
+  }
+  const ColonizeBuildingType* bt = &pool->building_types[type_index];
+  if (bt->name[0] == '\0' || bt->hammers <= 0) {
+    return false;
+  }
+  if (bt->min_population > 0 && col->population < bt->min_population) {
+    return false;
+  }
+
+  const char* n = bt->name;
+  const bool adam = opts && opts->has_adam_smith;
+  const bool stuy = opts && opts->has_peter_stuyvesant;
+  const bool coastal =
+    opts && opts->map && map_tile_is_coastal(opts->map, col->x, col->y);
+
+  /* Duplicate Town Hall rows in NAMES.TXT — never list once any Town Hall exists. */
+  if (strcmp(n, "Town Hall") == 0) {
+    return false;
+  }
+
+  /* Fortification chain. */
+  if (strcmp(n, "Stockade") == 0) {
+    return !colonies_has_building_named(pool, col, "Stockade") &&
+           !colonies_has_building_named(pool, col, "Fort") &&
+           !colonies_has_building_named(pool, col, "Fortress");
+  }
+  if (strcmp(n, "Fort") == 0) {
+    return colonies_has_building_named(pool, col, "Stockade") &&
+           !colonies_has_building_named(pool, col, "Fort") &&
+           !colonies_has_building_named(pool, col, "Fortress");
+  }
+  if (strcmp(n, "Fortress") == 0) {
+    return colonies_has_building_named(pool, col, "Fort") &&
+           !colonies_has_building_named(pool, col, "Fortress");
+  }
+
+  /* Military production chain. */
+  if (strcmp(n, "Armory") == 0) {
+    return !colonies_has_building_named(pool, col, "Armory") &&
+           !colonies_has_building_named(pool, col, "Magazine") &&
+           !colonies_has_building_named(pool, col, "Arsenal");
+  }
+  if (strcmp(n, "Magazine") == 0) {
+    return colonies_has_building_named(pool, col, "Armory") &&
+           !colonies_has_building_named(pool, col, "Magazine") &&
+           !colonies_has_building_named(pool, col, "Arsenal");
+  }
+  if (strcmp(n, "Arsenal") == 0) {
+    return adam && colonies_has_building_named(pool, col, "Magazine") &&
+           !colonies_has_building_named(pool, col, "Arsenal");
+  }
+
+  /* Port chain (coastal only). */
+  if (strcmp(n, "Docks") == 0) {
+    return coastal && !colonies_has_building_named(pool, col, "Docks") &&
+           !colonies_has_building_named(pool, col, "Drydock") &&
+           !colonies_has_building_named(pool, col, "Shipyard");
+  }
+  if (strcmp(n, "Drydock") == 0) {
+    return coastal && colonies_has_building_named(pool, col, "Docks") &&
+           !colonies_has_building_named(pool, col, "Drydock") &&
+           !colonies_has_building_named(pool, col, "Shipyard");
+  }
+  if (strcmp(n, "Shipyard") == 0) {
+    return coastal && colonies_has_building_named(pool, col, "Drydock") &&
+           !colonies_has_building_named(pool, col, "Shipyard");
+  }
+
+  /* Education chain. */
+  if (strcmp(n, "Schoolhouse") == 0) {
+    return !colonies_has_building_named(pool, col, "Schoolhouse") &&
+           !colonies_has_building_named(pool, col, "College") &&
+           !colonies_has_building_named(pool, col, "University");
+  }
+  if (strcmp(n, "College") == 0) {
+    return colonies_has_building_named(pool, col, "Schoolhouse") &&
+           !colonies_has_building_named(pool, col, "College") &&
+           !colonies_has_building_named(pool, col, "University");
+  }
+  if (strcmp(n, "University") == 0) {
+    return colonies_has_building_named(pool, col, "College") &&
+           !colonies_has_building_named(pool, col, "University");
+  }
+
+  if (strcmp(n, "Warehouse") == 0) {
+    return !colonies_has_building_named(pool, col, "Warehouse");
+  }
+  if (strcmp(n, "Warehouse Expansion") == 0) {
+    return colonies_has_building_named(pool, col, "Warehouse") &&
+           !colonies_has_building_named(pool, col, "Warehouse Expansion");
+  }
+
+  if (strcmp(n, "Custom House") == 0) {
+    return stuy && !colonies_has_building_named(pool, col, "Custom House");
+  }
+
+  if (strcmp(n, "Printing Press") == 0) {
+    return !colonies_has_building_named(pool, col, "Printing Press") &&
+           !colonies_has_building_named(pool, col, "Newspaper");
+  }
+  if (strcmp(n, "Newspaper") == 0) {
+    return colonies_has_building_named(pool, col, "Printing Press") &&
+           !colonies_has_building_named(pool, col, "Newspaper");
+  }
+
+  if (strcmp(n, "Weaver's Shop") == 0) {
+    return colonies_has_building_named(pool, col, "Weaver's House") &&
+           !colonies_has_building_named(pool, col, "Weaver's Shop") &&
+           !colonies_has_building_named(pool, col, "Textile Mill");
+  }
+  if (strcmp(n, "Textile Mill") == 0) {
+    return adam && colonies_has_building_named(pool, col, "Weaver's Shop") &&
+           !colonies_has_building_named(pool, col, "Textile Mill");
+  }
+
+  if (strcmp(n, "Tobacconist's Shop") == 0) {
+    return colonies_has_building_named(pool, col, "Tobacconist's House") &&
+           !colonies_has_building_named(pool, col, "Tobacconist's Shop") &&
+           !colonies_has_building_named(pool, col, "Cigar Factory");
+  }
+  if (strcmp(n, "Cigar Factory") == 0) {
+    return adam && colonies_has_building_named(pool, col, "Tobacconist's Shop") &&
+           !colonies_has_building_named(pool, col, "Cigar Factory");
+  }
+
+  if (strcmp(n, "Rum Distillery") == 0) {
+    return colonies_has_building_named(pool, col, "Rum Distiller's House") &&
+           !colonies_has_building_named(pool, col, "Rum Distillery") &&
+           !colonies_has_building_named(pool, col, "Rum Factory");
+  }
+  if (strcmp(n, "Rum Factory") == 0) {
+    return adam && colonies_has_building_named(pool, col, "Rum Distillery") &&
+           !colonies_has_building_named(pool, col, "Rum Factory");
+  }
+
+  if (strcmp(n, "Fur Trading Post") == 0) {
+    return colonies_has_building_named(pool, col, "Fur Trader's House") &&
+           !colonies_has_building_named(pool, col, "Fur Trading Post") &&
+           !colonies_has_building_named(pool, col, "Fur Factory");
+  }
+  if (strcmp(n, "Fur Factory") == 0) {
+    return adam && colonies_has_building_named(pool, col, "Fur Trading Post") &&
+           !colonies_has_building_named(pool, col, "Fur Factory");
+  }
+
+  if (strcmp(n, "Carpenter's Shop") == 0) {
+    return !colonies_has_building_named(pool, col, "Carpenter's Shop") &&
+           !colonies_has_building_named(pool, col, "Lumber Mill");
+  }
+  if (strcmp(n, "Lumber Mill") == 0) {
+    return colonies_has_building_named(pool, col, "Carpenter's Shop") &&
+           !colonies_has_building_named(pool, col, "Lumber Mill");
+  }
+
+  if (strcmp(n, "Church") == 0) {
+    return !colonies_has_building_named(pool, col, "Church") &&
+           !colonies_has_building_named(pool, col, "Cathedral");
+  }
+  if (strcmp(n, "Cathedral") == 0) {
+    return colonies_has_building_named(pool, col, "Church") &&
+           !colonies_has_building_named(pool, col, "Cathedral");
+  }
+
+  if (strcmp(n, "Blacksmith's Shop") == 0) {
+    return colonies_has_building_named(pool, col, "Blacksmith's House") &&
+           !colonies_has_building_named(pool, col, "Blacksmith's Shop") &&
+           !colonies_has_building_named(pool, col, "Iron Works");
+  }
+  if (strcmp(n, "Iron Works") == 0) {
+    return adam && colonies_has_building_named(pool, col, "Blacksmith's Shop") &&
+           !colonies_has_building_named(pool, col, "Iron Works");
+  }
+
+  if (strcmp(n, "Capitol Expansion") == 0) {
+    return colonies_has_building_named(pool, col, "Capitol") &&
+           !colonies_has_building_named(pool, col, "Capitol Expansion");
+  }
+
+  /* Starter houses and other leaf buildings: available if not already owned. */
+  if (strcmp(n, "Weaver's House") == 0 || strcmp(n, "Tobacconist's House") == 0 ||
+      strcmp(n, "Rum Distiller's House") == 0 || strcmp(n, "Fur Trader's House") == 0 ||
+      strcmp(n, "Blacksmith's House") == 0 || strcmp(n, "Stable") == 0 ||
+      strcmp(n, "Capitol") == 0) {
+    return !colonies_has_building_named(pool, col, n);
+  }
+
+  /* Unknown name: allow if unmet and not owned (forward-compatible). */
+  return true;
+}
+
 int colonies_list_buildable(
   const ColonizeColonyPool* pool,
   int colony_id,
   int* out_ids,
-  int out_max
+  int out_max,
+  const ColoniesBuildableOpts* opts
 ) {
   if (!pool || !out_ids || out_max <= 0) {
     return 0;
@@ -868,21 +1112,9 @@ int colonies_list_buildable(
   }
   int n = 0;
   for (int i = 0; i < pool->building_type_count && n < out_max; ++i) {
-    if (col->has_building[i]) {
-      continue;
+    if (colonies_building_is_buildable(pool, col, i, opts)) {
+      out_ids[n++] = i;
     }
-    const ColonizeBuildingType* bt = &pool->building_types[i];
-    if (bt->name[0] == '\0') {
-      continue;
-    }
-    if (bt->min_population > 0 && col->population < bt->min_population) {
-      continue;
-    }
-    /* Skip zero-hammer fluff / duplicates that aren't real projects. */
-    if (bt->hammers <= 0) {
-      continue;
-    }
-    out_ids[n++] = i;
   }
   return n;
 }
