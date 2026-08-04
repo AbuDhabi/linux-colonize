@@ -108,6 +108,14 @@ struct ColonizeGameState {
   int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
   int debug_mouse_y;
   UiDragSession ui_drag;
+  int map_goto_anchor_x; /* tile under pointer when map goto drag began */
+  int map_goto_anchor_y;
+  bool map_goto_left_tile; /* true once pointer leaves the anchor tile */
+  int map_goto_down_px; /* logical 320×200 mouse at drag begin */
+  int map_goto_down_py;
+  bool map_goto_dragged_px; /* true once pointer moved ≥1 logical pixel */
+  uint32_t goto_step_accum_ms; /* paces Go-To at 10 steps/sec */
+  ColonizeDosRng move_rng; /* FUN_465b partial-overspend rolls */
   bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
@@ -504,6 +512,11 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     sound_set_options(opts);
   }
   sound_set_bgm(1);
+  /* Continue LCG for FUN_465b partial-overspend rolls (fresh stream per load). */
+  dos_rng_seed(
+    &game->move_rng,
+    game->turn_number ? game->turn_number : (game->game_year ? game->game_year : 1u)
+  );
   return true;
 }
 
@@ -1453,6 +1466,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->game_autumn = 0;
   game->human_nation = 0;
   game->active_turn_nation = 0;
+  dos_rng_seed(&game->move_rng, 1u);
   game->pedia_category = PEDIA_CAT_TERRAIN;
   game->pedia_index = 0;
   game->pedia_hover_entry = -1;
@@ -2021,6 +2035,11 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
       diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
     }
+    if (share_campaign_rng) {
+      game->move_rng = campaign_rng;
+    } else {
+      dos_rng_seed(&game->move_rng, ai.rng_seed ? ai.rng_seed : 1u);
+    }
     if (game->units.selected_id >= 0) {
       const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
       if (u) {
@@ -2227,7 +2246,9 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
     const bool dest_land = map_tile_is_land(&game->world_map, dest_x, dest_y);
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
-      if (!units_try_move(&game->units, sid, &game->world_map, dest_x, dest_y, colonies)) {
+      if (!units_try_move(
+            &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
+          )) {
         set_status(game, "Move blocked", NULL);
         return false;
       }
@@ -2259,9 +2280,20 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     }
   }
 
-  if (!units_try_move(&game->units, sid, &game->world_map, dest_x, dest_y, colonies)) {
-    set_status(game, "Move blocked", NULL);
-    return false;
+  {
+    const int mp_before = selected->moves_left;
+    if (!units_try_move(
+          &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
+        )) {
+      /* DOS charges MP on failed partial-overspend rolls even when the unit stays. */
+      if (selected->moves_left < mp_before) {
+        set_status(game, "Move failed", NULL);
+        game_after_unit_action(game);
+      } else {
+        set_status(game, "Move blocked", NULL);
+      }
+      return false;
+    }
   }
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
   game_after_unit_action(game);
@@ -3599,6 +3631,34 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return true;
   }
 
+  /* Pace Go-To at 10 tile-steps/sec so pathing is visible. */
+  if (game->units_ok && game->world_map_ok) {
+    game->goto_step_accum_ms += dt_ms;
+    if (game->goto_step_accum_ms >= 100u) {
+      game->goto_step_accum_ms -= 100u;
+      if (game->goto_step_accum_ms > 200u) {
+        game->goto_step_accum_ms = 0; /* drop backlog after hitch */
+      }
+      const int stepped = units_advance_all_goto_one_step(
+        &game->units, &game->world_map, &game->colonies
+      );
+      if (stepped > 0 && game->units.selected_id >= 0) {
+        const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+        if (sel && sel->active && units_is_on_map(sel)) {
+          game->map_cursor_x = sel->x;
+          game->map_cursor_y = sel->y;
+          if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_report &&
+              !game->in_pedia && !game->in_debug_atlas) {
+            game_set_view_center(game, sel->x, sel->y);
+          }
+          if (sel->moves_left <= 0) {
+            game_after_unit_action(game);
+          }
+        }
+      }
+    }
+  }
+
   /* New-game wizard (difficulty → nation → … → sail). */
   if (new_game_active(&game->new_game)) {
     game->new_game.ui_font = game->intro_font_ok ? &game->intro_font
@@ -4792,6 +4852,20 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   /* Map-screen menu bar (MENU.TXT pull-downs) + mouse map click. */
   if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas &&
       !game->in_report) {
+    /* Go-To cursor only after ≥1 logical pixel (even if pointer leaves the map). */
+    if (game->ui_drag.kind == UI_DRAG_MAP_GOTO && !game->map_goto_dragged_px) {
+      const int pdx = input->mouse_x - game->map_goto_down_px;
+      const int pdy = input->mouse_y - game->map_goto_down_py;
+      if (pdx != 0 || pdy != 0) {
+        game->map_goto_dragged_px = true;
+        if (game->cursor_ok && game->cursor.sprite_count > 1) {
+          ui_drag_set_cursor_from_sheet(&game->ui_drag, &game->cursor, 1);
+          game->ui_drag.hotspot_x = 1;
+          game->ui_drag.hotspot_y = 0;
+        }
+      }
+    }
+
     if (game->pick_music.open) {
       const ColonizeFont* pm_font = game->colony_font_ok ? &game->colony_font :
                                     (game->menu_font_ok ? &game->menu_font : NULL);
@@ -4857,7 +4931,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
-    if ((input->mouse_left_clicked || input->mouse_right_clicked) && game->world_map_ok) {
+    if ((input->mouse_left_clicked || input->mouse_right_clicked || input->mouse_left_released ||
+         (ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_MAP_GOTO &&
+          input->mouse_left_down)) &&
+        game->world_map_ok) {
       const int tile_w = MAP_VIEW_TILE_W;
       const int tile_h = MAP_VIEW_TILE_H;
       const int map_origin_x = 0;
@@ -4865,6 +4942,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       const int view_cols = MAP_VIEW_TILE_COLS;
       const int view_rows = MAP_VIEW_TILE_ROWS;
       if (input->mouse_y < map_origin_y) {
+        if (input->mouse_left_released && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+          game_ui_drag_clear(game);
+        }
         return true;
       }
 
@@ -4887,6 +4967,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
       /* Right panel / minimap: left-click centers the view on the clicked tile. */
       if (map_panel_contains_xy(input->mouse_x, input->mouse_y)) {
+        if (game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+          if (input->mouse_left_released || input->mouse_right_clicked) {
+            game_ui_drag_clear(game);
+          }
+          return true;
+        }
         if (input->mouse_left_clicked) {
           int tx = 0;
           int ty = 0;
@@ -4908,12 +4994,65 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
 
       if (input->mouse_x >= MAP_PANEL_X) {
+        if (input->mouse_left_released && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+          game_ui_drag_clear(game);
+        }
         return true;
       }
 
       const int mx = view_x + (input->mouse_x - map_origin_x) / tile_w;
       const int my = view_y + (input->mouse_y - map_origin_y) / tile_h;
       if (mx < 0 || my < 0 || mx >= (int)game->world_map.width || my >= (int)game->world_map.height) {
+        if (input->mouse_left_released && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+          game_ui_drag_clear(game);
+        }
+        return true;
+      }
+
+      /* Active map go-to drag: track / cancel / commit. */
+      if (game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+        if (mx != game->map_goto_anchor_x || my != game->map_goto_anchor_y) {
+          game->map_goto_left_tile = true;
+        }
+        if (input->mouse_right_clicked) {
+          game_ui_drag_clear(game);
+          return true;
+        }
+        if (input->mouse_left_released) {
+          const int uid = game->ui_drag.unit_id;
+          const ColonizeUnit* u = game->units_ok ? units_get_const(&game->units, uid) : NULL;
+          game_ui_drag_clear(game);
+          if (!u || !game_unit_selectable(game, u)) {
+            return true;
+          }
+          if (!game->map_goto_left_tile) {
+            /* Short click: colony enter or pan (legacy). */
+            const int cid = colonies_id_at(&game->colonies, mx, my);
+            if (cid >= 0) {
+              const ColonizeColony* col = colonies_get(&game->colonies, cid);
+              if (col && col->nation_id == game->human_nation) {
+                game_select_tile(game, mx, my);
+                game_enter_colony_at_cursor(game);
+                return true;
+              }
+            }
+            game_set_view_center(game, mx, my);
+            return true;
+          }
+          if (mx == u->x && my == u->y) {
+            return true;
+          }
+          if (units_set_goto(
+                &game->units, uid, &game->world_map, mx, my, &game->colonies
+              )) {
+            /* Movement is paced in game_update (10 steps/sec). */
+            snprintf(game->status, sizeof(game->status), "Go to (%d,%d)", mx, my);
+            game_set_view_center(game, u->x, u->y);
+          } else {
+            set_status(game, "Cannot go there", NULL);
+          }
+          return true;
+        }
         return true;
       }
 
@@ -4923,7 +5062,27 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
 
-      /* Left-click */
+      if (!input->mouse_left_clicked) {
+        return true;
+      }
+
+      /* Left-click — with a selected unit, begin go-to drag. */
+      if (game->units.selected_id >= 0 && game->units_ok) {
+        const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+        if (game_unit_selectable(game, sel)) {
+          ui_drag_begin(
+            &game->ui_drag, UI_DRAG_MAP_GOTO, mx, game->units.selected_id, my
+          );
+          game->map_goto_anchor_x = mx;
+          game->map_goto_anchor_y = my;
+          game->map_goto_left_tile = false;
+          game->map_goto_down_px = input->mouse_x;
+          game->map_goto_down_py = input->mouse_y;
+          game->map_goto_dragged_px = false;
+          return true;
+        }
+      }
+
       const int cid = colonies_id_at(&game->colonies, mx, my);
       if (cid >= 0) {
         const ColonizeColony* col = colonies_get(&game->colonies, cid);
@@ -4932,12 +5091,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           game_enter_colony_at_cursor(game);
           return true;
         }
-      }
-
-      if (game->units.selected_id >= 0) {
-        /* Unit selected: pan view only — keep unit, do not select tile. */
-        game_set_view_center(game, mx, my);
-        return true;
       }
 
       if (game->units_ok &&
@@ -4982,6 +5135,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
+    if (ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+      game_ui_drag_clear(game);
+      return true;
+    }
     game->in_menu = true;
     sound_stop_bgm();
     sound_play(SOUND_TITLE_ID);
@@ -6150,8 +6307,12 @@ void game_apply_mouse_cursor(
   game->debug_mouse_y = mouse_y;
 
   const ColonizePalette* pal = NULL;
-  /* Drag icons come from ICONS.SS — decode with that sheet's palette, not CURSOR.SS. */
-  if (ui_drag_active(&game->ui_drag) && game->ui_drag.cursor_ok) {
+  /* Map go-to uses CURSOR.SS #1; cargo/unit icons use ICONS.SS palette. */
+  if (ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
+    if (game->cursor_ok && game->cursor.has_palette) {
+      pal = &game->cursor.palette;
+    }
+  } else if (ui_drag_active(&game->ui_drag) && game->ui_drag.cursor_ok) {
     if (game->unit_icons_ok && game->unit_icons.has_palette) {
       pal = &game->unit_icons.palette;
     } else if (game->in_europe && game->europe_ok && game->europe.background.has_palette) {

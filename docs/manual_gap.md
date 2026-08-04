@@ -60,8 +60,8 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
-| Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7: pedia stub costs; road/river halves |
-| Fortify (F), Sentry (S), Disband, Goto (G) | Missing | Sentry used only for passengers aboard |
+| Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7 costs; full-MP enter; partial overspend via DOS `range(1,cost)` (charges MP even on fail) |
+| Fortify (F), Sentry (S), Disband, Goto (G) | Partial | **Go-To** via map drag (CURSOR #1 after 1px); paced 10 steps/sec; DOS cost flood / BFS; resumes next turn. Fortify / map Sentry / Disband still Missing |
 | Orders box letters on units | Missing | |
 | Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
@@ -163,7 +163,7 @@ Aligned with early manual chapters (short playable loop first):
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
 2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; boycotts / volume prices later
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
-4. **Unit orders** — fortify, sentry, goto, disband
+4. **Unit orders** — fortify, sentry, disband (goto drag done)
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense)
 7. **Indian contact** — meet / trade / alarm

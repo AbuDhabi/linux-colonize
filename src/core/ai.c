@@ -923,45 +923,6 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   return true;
 }
 
-static int ai_sign(int v) {
-  if (v < 0) {
-    return -1;
-  }
-  if (v > 0) {
-    return 1;
-  }
-  return 0;
-}
-
-static bool ai_step_toward(
-  ColonizeUnitPool* units,
-  const ColonizeWorldMap* map,
-  ColonizeUnit* unit,
-  int tx,
-  int ty
-) {
-  if (!units || !map || !unit || unit->moves_left <= 0) {
-    return false;
-  }
-  const int dx = ai_sign(tx - unit->x);
-  const int dy = ai_sign(ty - unit->y);
-  if (dx == 0 && dy == 0) {
-    return false;
-  }
-  /* Prefer diagonal/cardinal toward target; try alternatives if blocked. */
-  const int try_dx[5] = {dx, dx, 0, dx, -dx};
-  const int try_dy[5] = {dy, 0, dy, -dy, dy};
-  for (int i = 0; i < 5; ++i) {
-    if (try_dx[i] == 0 && try_dy[i] == 0) {
-      continue;
-    }
-    if (units_try_move(units, unit->id, map, unit->x + try_dx[i], unit->y + try_dy[i], NULL)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static void ai_sail_ship(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   if (!ctx || !ctx->units || !ctx->map || !ship) {
     return;
@@ -991,11 +952,12 @@ static void ai_sail_ship(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
     }
   }
 
-  while (ship->moves_left > 0 && (ship->x != gx || ship->y != gy)) {
-    if (!ai_step_toward(ctx->units, ctx->map, ship, gx, gy)) {
-      break;
-    }
+  if (ship->orders != UNITS_ORDER_GOTO || ship->goto_x != gx || ship->goto_y != gy) {
+    ship->orders = UNITS_ORDER_GOTO;
+    ship->goto_x = gx;
+    ship->goto_y = gy;
   }
+  units_advance_goto(ctx->units, ship->id, ctx->map, ctx->colonies);
 }
 
 void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {

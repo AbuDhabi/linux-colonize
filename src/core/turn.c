@@ -691,6 +691,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_run_king_stub(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(ctx->units, ctx->human_nation);
+      /* Go-To resumes at 10 steps/sec in game_update so the player can watch. */
       turn_select_next_unit(ctx->units, ctx->human_nation);
       if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {
         proc->result.request_autosave_turn = true;

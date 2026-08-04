@@ -4,6 +4,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_yield.h"
+#include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -194,14 +195,14 @@ int main(void) {
     return 1;
   }
 
-  if (units_try_move(&pool, starter->id, &map, ocean_x, ocean_y, NULL)) {
+  if (units_try_move(&pool, starter->id, &map, ocean_x, ocean_y, NULL, NULL)) {
     fprintf(stderr, "land unit should not enter ocean\n");
     map_free(&map);
     assets_msg_free(&names);
     return 1;
   }
 
-  if (units_try_move(&pool, ship_id, &map, land_x, land_y, NULL)) {
+  if (units_try_move(&pool, ship_id, &map, land_x, land_y, NULL, NULL)) {
     fprintf(stderr, "sea unit should not enter land\n");
     map_free(&map);
     assets_msg_free(&names);
@@ -209,7 +210,7 @@ int main(void) {
   }
 
   if (land_x + 1 < map.width &&
-      units_try_move(&pool, starter->id, &map, land_x + 1, land_y, NULL)) {
+      units_try_move(&pool, starter->id, &map, land_x + 1, land_y, NULL, NULL)) {
     if (starter->x != land_x + 1) {
       fprintf(stderr, "move did not update position\n");
       map_free(&map);
@@ -339,7 +340,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (units_try_move(&pool, land_id, &map, land_tile_x, land_tile_y, NULL)) {
+    if (units_try_move(&pool, land_id, &map, land_tile_x, land_tile_y, NULL, NULL)) {
       fprintf(stderr, "boarded unit should not move on map\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -538,7 +539,7 @@ int main(void) {
       return 1;
     }
     lf_cargo->moves_left = 1;
-    if (units_try_move(&pool, lf_ship, &map, lx, ly, NULL)) {
+    if (units_try_move(&pool, lf_ship, &map, lx, ly, NULL, NULL)) {
       fprintf(stderr, "ship must not enter plain land via try_move\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -666,7 +667,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (!units_try_move(&pool, dock_ship, &map, cx, cy, &colonies)) {
+    if (!units_try_move(&pool, dock_ship, &map, cx, cy, &colonies, NULL)) {
       fprintf(stderr, "ship try_move onto colony failed\n");
       map_free(&map);
       assets_msg_free(&names);
@@ -752,23 +753,87 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    pu->moves_left = 1;
-    if (units_try_move(&pool, pid, &tmap, fx, fy, NULL)) {
-      fprintf(stderr, "phase7 move should fail with 1 MP into forest\n");
-      map_free(&tmap);
-      map_free(&map);
-      assets_msg_free(&names);
-      return 1;
-    }
-    pu->moves_left = 2;
-    if (!units_try_move(&pool, pid, &tmap, fx, fy, NULL) || pu->moves_left != 0) {
-      fprintf(stderr, "phase7 forest move cost 2 failed (moves_left=%d)\n", pu->moves_left);
+    pu->moves_left = 1; /* pioneer max is 1 — full allotment */
+    if (!units_try_move(&pool, pid, &tmap, fx, fy, NULL, NULL) || pu->moves_left != 0) {
+      fprintf(
+        stderr,
+        "phase7 full-MP forest enter should succeed and exhaust (moves_left=%d)\n",
+        pu->moves_left
+      );
       map_free(&tmap);
       map_free(&map);
       assets_msg_free(&names);
       return 1;
     }
     units_despawn(&pool, pid);
+
+    /* Partial MP without RNG: deny and do not charge. */
+    const int pid_partial = units_spawn(&pool, pioneer, px, py);
+    ColonizeUnit* pu_partial = units_get(&pool, pid_partial);
+    if (!pu_partial) {
+      fprintf(stderr, "phase7 partial pioneer spawn failed\n");
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pool.types[pioneer].movement = 2;
+    pu_partial->moves_left = 1;
+    if (units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, NULL) ||
+        pu_partial->moves_left != 1) {
+      fprintf(
+        stderr,
+        "phase7 partial-MP without RNG should fail uncharged (moves=%d)\n",
+        pu_partial->moves_left
+      );
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* DOS FUN_465b: range(1,cost) <= remaining; cost always charged. */
+    {
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, 1u); /* first range(1,2) → 1 → success */
+      const int ox = pu_partial->x;
+      const int oy = pu_partial->y;
+      if (!units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, &rng) ||
+          pu_partial->x != fx || pu_partial->y != fy || pu_partial->moves_left != 0) {
+        fprintf(
+          stderr,
+          "phase7 RNG success should enter forest (pos=%d,%d moves=%d)\n",
+          pu_partial->x,
+          pu_partial->y,
+          pu_partial->moves_left
+        );
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      /* Reset for fail case. */
+      pu_partial->x = ox;
+      pu_partial->y = oy;
+      pu_partial->moves_left = 1;
+      dos_rng_seed(&rng, 5006u); /* first range(1,2) → 2 → fail */
+      if (units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, &rng) ||
+          pu_partial->x != ox || pu_partial->y != oy || pu_partial->moves_left != 0) {
+        fprintf(
+          stderr,
+          "phase7 RNG fail should stay and exhaust (pos=%d,%d moves=%d)\n",
+          pu_partial->x,
+          pu_partial->y,
+          pu_partial->moves_left
+        );
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+    pool.types[pioneer].movement = 1;
+    units_despawn(&pool, pid_partial);
 
     const int pid2 = units_spawn(&pool, pioneer, px, py);
     ColonizeUnit* pu2 = units_get(&pool, pid2);
@@ -788,7 +853,7 @@ int main(void) {
       return 1;
     }
     pu2->moves_left = 2;
-    if (!units_try_move(&pool, pid2, &tmap, fx, fy, NULL) || pu2->moves_left != 1) {
+    if (!units_try_move(&pool, pid2, &tmap, fx, fy, NULL, NULL) || pu2->moves_left != 1) {
       fprintf(stderr, "phase7 roaded forest move failed (moves_left=%d)\n", pu2->moves_left);
       map_free(&tmap);
       map_free(&map);
@@ -935,6 +1000,115 @@ int main(void) {
     map_free(&map);
     assets_msg_free(&names);
     return 1;
+  }
+
+  /* Go-to pathfinding: next step, spend MP, keep order, resume after end_turn. */
+  {
+    int lx = -1;
+    int ly = -1;
+    for (int y = 20; y < (int)map.height - 20 && lx < 0; ++y) {
+      for (int x = 20; x < (int)map.width - 20; ++x) {
+        if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 3, y + 2) &&
+            map_tile_is_land(&map, x + 1, y) &&
+            units_can_enter(&pool, pioneer, &map, x, y, -1, NULL) &&
+            units_can_enter(&pool, pioneer, &map, x + 1, y, -1, NULL) &&
+            units_can_enter(&pool, pioneer, &map, x + 3, y + 2, -1, NULL) &&
+            map_move_cost_at(&map, x + 1, y) <= 1) {
+          lx = x;
+          ly = y;
+          break;
+        }
+      }
+    }
+    if (lx < 0) {
+      fprintf(stderr, "goto test: no land path found\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int uid = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+    ColonizeUnit* walker = units_get(&pool, uid);
+    if (!walker) {
+      fprintf(stderr, "goto spawn failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int gx = lx + 3;
+    const int gy = ly + 2;
+    if (!units_set_goto(&pool, uid, &map, gx, gy, NULL)) {
+      fprintf(stderr, "units_set_goto failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (walker->orders != UNITS_ORDER_GOTO) {
+      fprintf(stderr, "expected ORDER_GOTO got %d\n", walker->orders);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int nx = -1;
+    int ny = -1;
+    if (!units_next_goto_step(&pool, uid, &map, NULL, &nx, &ny)) {
+      fprintf(stderr, "units_next_goto_step failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int before_mp = walker->moves_left;
+    units_advance_goto(&pool, uid, &map, NULL);
+    walker = units_get(&pool, uid);
+    if (!walker || (walker->x == lx && walker->y == ly && walker->moves_left >= before_mp)) {
+      fprintf(stderr, "advance_goto made no progress\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (walker->x == gx && walker->y == gy) {
+      if (walker->orders != UNITS_ORDER_NONE) {
+        fprintf(stderr, "arrival should clear orders\n");
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    } else if (walker->orders != UNITS_ORDER_GOTO) {
+      fprintf(stderr, "partial advance should keep GOTO\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    } else {
+      units_end_turn(&pool);
+      walker = units_get(&pool, uid);
+      const int refreshed = walker ? walker->moves_left : 0;
+      const int px = walker ? walker->x : -1;
+      const int py = walker ? walker->y : -1;
+      units_advance_all_goto(&pool, &map, NULL);
+      walker = units_get(&pool, uid);
+      if (!walker) {
+        fprintf(stderr, "walker missing after resume\n");
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (walker->moves_left >= refreshed && walker->x == px && walker->y == py &&
+          !(walker->x == gx && walker->y == gy)) {
+        fprintf(stderr, "resume after end_turn made no progress\n");
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
   }
 
   fprintf(

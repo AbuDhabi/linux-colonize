@@ -439,13 +439,32 @@ int units_move_cost(
   return map_move_cost_at(map, dest_x, dest_y);
 }
 
+bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
+  const ColonizeUnit* unit = units_get_const(pool, unit_id);
+  if (!unit || !unit->active || unit->moves_left <= 0) {
+    return false;
+  }
+  if (cost <= unit->moves_left) {
+    return true;
+  }
+  /* Full allotment remaining (DOS: spent MP byte == 0) → always allow. */
+  const ColonizeUnitType* type = units_type(pool, unit->type_index);
+  const int max_mp = type && type->movement > 0 ? type->movement : 1;
+  if (unit->moves_left >= max_mp) {
+    return true;
+  }
+  /* Partial overspend needs an RNG roll in units_try_move — not guaranteed. */
+  return false;
+}
+
 bool units_try_move(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   int dest_x,
   int dest_y,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
 ) {
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit || !map) {
@@ -469,12 +488,36 @@ bool units_try_move(
     return false;
   }
   const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-  if (unit->moves_left < cost) {
+  const int remaining = unit->moves_left;
+  const ColonizeUnitType* type = units_type(pool, unit->type_index);
+  const int max_mp = type && type->movement > 0 ? type->movement : 1;
+  const bool full_mp = remaining >= max_mp;
+
+  bool allow = false;
+  if (cost <= remaining || full_mp) {
+    allow = true;
+  } else if (rng) {
+    /* DOS FUN_465b: range(1, cost); succeed if roll <= remaining. */
+    const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
+    allow = roll <= remaining;
+  } else {
     return false;
   }
+
+  /*
+   * DOS adds the full terrain cost to spent MP before the allow/deny gate for
+   * non-combat moves — including failed partial-overspend rolls.
+   */
+  unit->moves_left = remaining - cost;
+  if (unit->moves_left < 0) {
+    unit->moves_left = 0;
+  }
+  if (!allow) {
+    return false;
+  }
+
   unit->x = dest_x;
   unit->y = dest_y;
-  unit->moves_left -= cost;
   /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
   for (int i = 0; i < unit->cargo_count; ++i) {
     ColonizeUnit* pax = units_get(pool, unit->cargo_ids[i]);
@@ -484,6 +527,571 @@ bool units_try_move(
     }
   }
   return true;
+}
+
+static int units_sign_i(int v) {
+  if (v < 0) {
+    return -1;
+  }
+  if (v > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+static int units_chebyshev(int x0, int y0, int x1, int y1) {
+  const int dx = abs(x1 - x0);
+  const int dy = abs(y1 - y0);
+  return dx > dy ? dx : dy;
+}
+
+/* Octile-style distance (FUN_124c_0040): max + min/2. */
+static int units_octile(int x0, int y0, int x1, int y1) {
+  const int dx = abs(x1 - x0);
+  const int dy = abs(y1 - y0);
+  const int mx = dx > dy ? dx : dy;
+  const int mn = dx < dy ? dx : dy;
+  return mx + mn / 2;
+}
+
+void units_clear_orders(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u) {
+    return;
+  }
+  u->orders = UNITS_ORDER_NONE;
+  u->goto_x = UNITS_GOTO_NONE;
+  u->goto_y = UNITS_GOTO_NONE;
+}
+
+bool units_set_goto(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u) || !map) {
+    return false;
+  }
+  if (dest_x < 0 || dest_y < 0 || dest_x >= (int)map->width || dest_y >= (int)map->height) {
+    return false;
+  }
+  if (u->x == dest_x && u->y == dest_y) {
+    units_clear_orders(pool, unit_id);
+    return true;
+  }
+  if (!units_can_enter(pool, u->type_index, map, dest_x, dest_y, unit_id, colonies)) {
+    return false;
+  }
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = dest_x;
+  u->goto_y = dest_y;
+  return true;
+}
+
+#define UNITS_FLOOD_W 16
+#define UNITS_FLOOD_INF 0x3fff
+#define UNITS_FLOOD_QMAX 256
+
+static bool units_flood_next_step(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int gx,
+  int gy,
+  int* out_x,
+  int* out_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !out_x || !out_y) {
+    return false;
+  }
+  const int origin_x = gx - UNITS_FLOOD_W / 2;
+  const int origin_y = gy - UNITS_FLOOD_W / 2;
+  int cost[UNITS_FLOOD_W][UNITS_FLOOD_W];
+  for (int y = 0; y < UNITS_FLOOD_W; ++y) {
+    for (int x = 0; x < UNITS_FLOOD_W; ++x) {
+      cost[y][x] = UNITS_FLOOD_INF;
+    }
+  }
+
+  int qx[UNITS_FLOOD_QMAX];
+  int qy[UNITS_FLOOD_QMAX];
+  int qh = 0;
+  int qt = 0;
+
+  const int dx0 = gx - origin_x;
+  const int dy0 = gy - origin_y;
+  if (dx0 < 0 || dy0 < 0 || dx0 >= UNITS_FLOOD_W || dy0 >= UNITS_FLOOD_W) {
+    return false;
+  }
+  if (!units_can_enter(pool, u->type_index, map, gx, gy, unit_id, colonies)) {
+    return false;
+  }
+  cost[dy0][dx0] = 1;
+  qx[qt] = gx;
+  qy[qt] = gy;
+  qt = (qt + 1) % UNITS_FLOOD_QMAX;
+
+  int expansions = 0;
+  while (qh != qt && expansions < 225) {
+    const int cx = qx[qh];
+    const int cy = qy[qh];
+    qh = (qh + 1) % UNITS_FLOOD_QMAX;
+    ++expansions;
+    const int lx = cx - origin_x;
+    const int ly = cy - origin_y;
+    const int base = cost[ly][lx];
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const int nx = cx + dx;
+        const int ny = cy + dy;
+        const int nlx = nx - origin_x;
+        const int nly = ny - origin_y;
+        if (nlx < 0 || nly < 0 || nlx >= UNITS_FLOOD_W || nly >= UNITS_FLOOD_W) {
+          continue;
+        }
+        if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+          continue;
+        }
+        const int edge = units_move_cost(pool, unit_id, map, nx, ny);
+        const int nc = base + (edge > 0 ? edge : 1);
+        if (nc < cost[nly][nlx]) {
+          cost[nly][nlx] = nc;
+          const int next_t = (qt + 1) % UNITS_FLOOD_QMAX;
+          if (next_t != qh) {
+            qx[qt] = nx;
+            qy[qt] = ny;
+            qt = next_t;
+          }
+        }
+      }
+    }
+  }
+
+  const int ulx = u->x - origin_x;
+  const int uly = u->y - origin_y;
+  if (ulx < 0 || uly < 0 || ulx >= UNITS_FLOOD_W || uly >= UNITS_FLOOD_W) {
+    return false;
+  }
+  if (cost[uly][ulx] >= UNITS_FLOOD_INF) {
+    return false;
+  }
+
+  int best_x = -1;
+  int best_y = -1;
+  int best_cost = cost[uly][ulx];
+  int best_tie = 1 << 30;
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+      const int nx = u->x + dx;
+      const int ny = u->y + dy;
+      const int nlx = nx - origin_x;
+      const int nly = ny - origin_y;
+      if (nlx < 0 || nly < 0 || nlx >= UNITS_FLOOD_W || nly >= UNITS_FLOOD_W) {
+        continue;
+      }
+      const int c = cost[nly][nlx];
+      if (c >= best_cost) {
+        continue;
+      }
+      if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+        continue;
+      }
+      const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
+      if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
+        continue;
+      }
+      const int tie = units_octile(nx, ny, gx, gy);
+      if (best_x < 0 || c < best_cost || (c == best_cost && tie < best_tie)) {
+        best_cost = c;
+        best_tie = tie;
+        best_x = nx;
+        best_y = ny;
+      }
+    }
+  }
+  if (best_x < 0) {
+    return false;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return true;
+}
+
+#define UNITS_BFS_MAX 2048
+
+static bool units_bfs_next_step(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int gx,
+  int gy,
+  int* out_x,
+  int* out_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !map || !out_x || !out_y) {
+    return false;
+  }
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+  if (w <= 0 || h <= 0 || w * h > 128 * 128) {
+    /* Huge maps: fall back without allocating a full visit grid. */
+    return false;
+  }
+
+  const int cells = w * h;
+  uint8_t* visited = (uint8_t*)calloc((size_t)cells, 1);
+  int* parent = (int*)malloc((size_t)cells * sizeof(int));
+  if (!visited || !parent) {
+    free(visited);
+    free(parent);
+    return false;
+  }
+  for (int i = 0; i < cells; ++i) {
+    parent[i] = -1;
+  }
+
+  int* qx = (int*)malloc((size_t)UNITS_BFS_MAX * sizeof(int));
+  int* qy = (int*)malloc((size_t)UNITS_BFS_MAX * sizeof(int));
+  if (!qx || !qy) {
+    free(visited);
+    free(parent);
+    free(qx);
+    free(qy);
+    return false;
+  }
+
+  int qh = 0;
+  int qt = 0;
+  const int start = u->y * w + u->x;
+  visited[start] = 1;
+  qx[qt] = u->x;
+  qy[qt] = u->y;
+  qt++;
+
+  bool found = false;
+  while (qh < qt && qt < UNITS_BFS_MAX) {
+    const int cx = qx[qh];
+    const int cy = qy[qh];
+    ++qh;
+    if (cx == gx && cy == gy) {
+      found = true;
+      break;
+    }
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const int nx = cx + dx;
+        const int ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
+          continue;
+        }
+        const int ni = ny * w + nx;
+        if (visited[ni]) {
+          continue;
+        }
+        if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+          continue;
+        }
+        visited[ni] = 1;
+        parent[ni] = cy * w + cx;
+        if (qt < UNITS_BFS_MAX) {
+          qx[qt] = nx;
+          qy[qt] = ny;
+          qt++;
+        }
+      }
+    }
+  }
+
+  bool ok = false;
+  if (found) {
+    int cur = gy * w + gx;
+    int prev = parent[cur];
+    while (prev >= 0 && prev != start) {
+      cur = prev;
+      prev = parent[cur];
+    }
+    if (prev == start) {
+      *out_x = cur % w;
+      *out_y = cur / w;
+      if (units_can_afford_move_cost(
+            pool, unit_id, units_move_cost(pool, unit_id, map, *out_x, *out_y)
+          )) {
+        ok = true;
+      }
+    }
+  }
+
+  free(visited);
+  free(parent);
+  free(qx);
+  free(qy);
+  return ok;
+}
+
+static bool units_greedy_next_step(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int gx,
+  int gy,
+  int* out_x,
+  int* out_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !out_x || !out_y) {
+    return false;
+  }
+  const int sdx = units_sign_i(gx - u->x);
+  const int sdy = units_sign_i(gy - u->y);
+  const int try_dx[5] = {sdx, sdx, 0, sdx, -sdx};
+  const int try_dy[5] = {sdy, 0, sdy, -sdy, sdy};
+
+  int best_x = -1;
+  int best_y = -1;
+  int best_score = 1 << 30;
+  for (int i = 0; i < 5; ++i) {
+    if (try_dx[i] == 0 && try_dy[i] == 0) {
+      continue;
+    }
+    const int nx = u->x + try_dx[i];
+    const int ny = u->y + try_dy[i];
+    if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+      continue;
+    }
+    const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
+    if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
+      continue;
+    }
+    const int score = units_octile(nx, ny, gx, gy) * 10 + step_cost;
+    if (score < best_score) {
+      best_score = score;
+      best_x = nx;
+      best_y = ny;
+    }
+  }
+  if (best_x < 0) {
+    /* Full 8-neighbor fallback. */
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const int nx = u->x + dx;
+        const int ny = u->y + dy;
+        if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+          continue;
+        }
+        const int step_cost = units_move_cost(pool, unit_id, map, nx, ny);
+        if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
+          continue;
+        }
+        const int score = units_octile(nx, ny, gx, gy) * 10 + step_cost;
+        if (score < best_score) {
+          best_score = score;
+          best_x = nx;
+          best_y = ny;
+        }
+      }
+    }
+  }
+  if (best_x < 0) {
+    return false;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return true;
+}
+
+bool units_next_goto_step(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int* out_x,
+  int* out_y
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u) || !map || !out_x || !out_y) {
+    return false;
+  }
+  if (u->orders != UNITS_ORDER_GOTO) {
+    return false;
+  }
+  const int gx = u->goto_x;
+  const int gy = u->goto_y;
+  if (gx < 0 || gy < 0 || gx >= (int)map->width || gy >= (int)map->height ||
+      gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE) {
+    return false;
+  }
+  if (u->x == gx && u->y == gy) {
+    return false;
+  }
+
+  const int adx = abs(gx - u->x);
+  const int ady = abs(gy - u->y);
+
+  /* Adjacent: sign-step (FUN_6662_0086). */
+  if (units_chebyshev(u->x, u->y, gx, gy) < 2) {
+    const int nx = u->x + units_sign_i(gx - u->x);
+    const int ny = u->y + units_sign_i(gy - u->y);
+    if (units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies) &&
+        units_can_afford_move_cost(
+          pool, unit_id, units_move_cost(pool, unit_id, map, nx, ny)
+        )) {
+      *out_x = nx;
+      *out_y = ny;
+      return true;
+    }
+    return units_greedy_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y);
+  }
+
+  /* Near: both axes within 6 — destination cost flood (FUN_6662_00f2). */
+  if (adx <= 6 && ady <= 6) {
+    if (units_flood_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
+      return true;
+    }
+    return units_greedy_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y);
+  }
+
+  /* Far: uniform BFS first step, else greedy. */
+  if (units_bfs_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
+    return true;
+  }
+  /* Intermediate waypoint within flood range, then flood. */
+  {
+    int wx = u->x + (adx > 6 ? units_sign_i(gx - u->x) * 6 : (gx - u->x));
+    int wy = u->y + (ady > 6 ? units_sign_i(gy - u->y) * 6 : (gy - u->y));
+    if (wx < 0) {
+      wx = 0;
+    }
+    if (wy < 0) {
+      wy = 0;
+    }
+    if (wx >= (int)map->width) {
+      wx = (int)map->width - 1;
+    }
+    if (wy >= (int)map->height) {
+      wy = (int)map->height - 1;
+    }
+    if (units_flood_next_step(pool, unit_id, map, colonies, wx, wy, out_x, out_y)) {
+      return true;
+    }
+  }
+  return units_greedy_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y);
+}
+
+bool units_advance_goto_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u) || !map) {
+    return false;
+  }
+  if (u->orders != UNITS_ORDER_GOTO) {
+    return false;
+  }
+  const int gx = u->goto_x;
+  const int gy = u->goto_y;
+  if (gx < 0 || gy < 0 || gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE) {
+    units_clear_orders(pool, unit_id);
+    return false;
+  }
+  if (u->x == gx && u->y == gy) {
+    units_clear_orders(pool, unit_id);
+    return false;
+  }
+  if (u->moves_left <= 0) {
+    return false;
+  }
+  int nx = -1;
+  int ny = -1;
+  if (!units_next_goto_step(pool, unit_id, map, colonies, &nx, &ny)) {
+    return false;
+  }
+  if (!units_try_move(pool, unit_id, map, nx, ny, colonies, NULL)) {
+    return false;
+  }
+  u = units_get(pool, unit_id);
+  if (u && u->x == gx && u->y == gy) {
+    units_clear_orders(pool, unit_id);
+  }
+  return true;
+}
+
+bool units_advance_goto(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+) {
+  bool moved = false;
+  while (units_advance_goto_one_step(pool, unit_id, map, colonies)) {
+    moved = true;
+  }
+  return moved;
+}
+
+int units_advance_all_goto_one_step(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+) {
+  if (!pool || !map) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->orders != UNITS_ORDER_GOTO || !units_is_on_map(u)) {
+      continue;
+    }
+    if (units_advance_goto_one_step(pool, u->id, map, colonies)) {
+      n++;
+    }
+  }
+  return n;
+}
+
+int units_advance_all_goto(
+  ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies
+) {
+  if (!pool || !map) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->orders != UNITS_ORDER_GOTO || !units_is_on_map(u)) {
+      continue;
+    }
+    if (units_advance_goto(pool, u->id, map, colonies)) {
+      n++;
+    }
+  }
+  return n;
 }
 
 bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
@@ -1253,7 +1861,7 @@ int units_spawn_euro_starter_fleet(
   ship->nation_id = nation_id;
   ship->profession = UNITS_JOB_NONE;
   if (goto_x >= 0 && goto_x < 255 && goto_y >= 0 && goto_y < 255) {
-    ship->orders = 12; /* goto landfall */
+    ship->orders = UNITS_ORDER_GOTO;
     ship->goto_x = goto_x;
     ship->goto_y = goto_y;
   }
@@ -1586,8 +2194,9 @@ void units_render_on_map(
     if (!units_is_on_map(unit)) {
       continue;
     }
-    /* Blink: omit selected unit on off frames (tile cursor stays hidden). */
-    if (unit->id == pool->selected_id && !selected_visible) {
+    /* Blink: omit selected unit on off frames — except Go-To, so pathing stays visible. */
+    if (unit->id == pool->selected_id && !selected_visible &&
+        unit->orders != UNITS_ORDER_GOTO) {
       continue;
     }
     const int sx = unit->x - view_x;

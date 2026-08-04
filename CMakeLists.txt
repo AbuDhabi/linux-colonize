@@ -425,6 +425,7 @@ add_executable(smoke_units
   src/core/colony.c
   src/core/colony_yield.c
   src/core/map.c
+  src/core/dos_rng.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -446,6 +447,7 @@ add_executable(smoke_colonies
   src/core/colony.c
   src/core/units.c
   src/core/map.c
+  src/core/dos_rng.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -468,6 +470,7 @@ add_executable(smoke_reports
   src/core/col1_save.c
   src/core/colony.c
   src/core/units.c
+  src/core/dos_rng.c
   src/core/map.c
   src/core/europe.c
   src/core/pik.c
