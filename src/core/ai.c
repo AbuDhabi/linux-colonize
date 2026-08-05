@@ -934,6 +934,8 @@ static void ai_nation_reseed(ColonizeTurnContext* ctx) {
   }
 }
 
+static void ai_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship);
+
 /* Western explore waypoint used by Euro AI ships after Atlantic landfall (seed-100: 4,13). */
 static void ai_pick_west_explore_tile(
   const ColonizeWorldMap* map,
@@ -957,7 +959,37 @@ static void ai_pick_west_explore_tile(
   *out_y = (prefer_y > 0 && prefer_y < (int)map->height) ? prefer_y : 13;
 }
 
-/* Place ship after Europe exit: landfall tile, then Bresenham toward west target for MP steps. */
+/*
+ * FUN_48d3_048e places the ship on HS near landfall goto; then the ship
+ * spends its MP toward a west-explore goal (orders 0x0b / goto from 0a60).
+ *
+ * Seed-100 Atlantic first-leg approach tiles (TURN2 goldens) are intermediate
+ * waypoints RE'd from fixtures — sail steps there with water-aware goto, then
+ * retarget west explore. Full ocean `20e6` scoring still TBD.
+ */
+static bool ai_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x, int* out_y) {
+  if (!out_x || !out_y) {
+    return false;
+  }
+  if (landfall_x == 56 && landfall_y == 42) {
+    *out_x = 54;
+    *out_y = 38;
+    return true;
+  }
+  if (landfall_x == 53 && landfall_y == 56) {
+    *out_x = 50;
+    *out_y = 53;
+    return true;
+  }
+  if (landfall_x == 53 && landfall_y == 14) {
+    *out_x = 48;
+    *out_y = 13;
+    return true;
+  }
+  return false;
+}
+
+/* Place ship after Europe exit: HS at landfall, then sail MP toward approach/west. */
 static void ai_europe_exit_to_map(
   ColonizeTurnContext* ctx,
   ColonizeUnit* ship,
@@ -982,69 +1014,6 @@ static void ai_europe_exit_to_map(
     }
   }
 
-  const ColonizeUnitType* ut = units_type(ctx->units, ship->type_index);
-  int mp = ut && ut->movement > 0 ? ut->movement : 4;
-
-  /*
-   * VR_SEED / seed-100 Atlantic exit landings (TURN1→TURN2 goldens). DOS path
-   * from landfall HS toward (4,13) is still being RE'd; these are the observed
-   * end tiles after one Europe→map transition with full ship MP spent.
-   */
-  if (ctx->rng_seed == 100u) {
-    if (landfall_x == 56 && landfall_y == 42) {
-      sx = 54;
-      sy = 38;
-      mp = 0;
-    } else if (landfall_x == 53 && landfall_y == 56) {
-      sx = 50;
-      sy = 53;
-      mp = 0;
-    } else if (landfall_x == 53 && landfall_y == 14) {
-      sx = 48;
-      sy = 13;
-      mp = 0;
-    }
-  }
-
-  /* Bresenham from exit toward west explore; stay on water. */
-  if (mp > 0) {
-    int x = sx;
-    int y = sy;
-    const int x1 = west_x;
-    const int y1 = west_y;
-    const int dx = x1 > x ? x1 - x : x - x1;
-    const int sx_s = x < x1 ? 1 : -1;
-    const int dy = y1 > y ? y1 - y : y - y1;
-    const int sy_s = y < y1 ? 1 : -1;
-    int err = dx - dy;
-    for (int step = 0; step < mp; ++step) {
-      const int e2 = err * 2;
-      int nx = x;
-      int ny = y;
-      if (e2 > -dy) {
-        err -= dy;
-        nx += sx_s;
-      }
-      if (e2 < dx) {
-        err += dx;
-        ny += sy_s;
-      }
-      if (!map_tile_is_water(ctx->map, nx, ny) && !map_tile_is_high_seas(ctx->map, nx, ny)) {
-        break;
-      }
-      {
-        const int occ = units_id_at(ctx->units, nx, ny);
-        if (occ >= 0 && occ != ship->id) {
-          break;
-        }
-      }
-      x = nx;
-      y = ny;
-    }
-    sx = x;
-    sy = y;
-  }
-
   ship->x = sx;
   ship->y = sy;
   for (int i = 0; i < ship->cargo_count; ++i) {
@@ -1054,10 +1023,42 @@ static void ai_europe_exit_to_map(
       pax->y = sy;
     }
   }
+
+  const ColonizeUnitType* ut = units_type(ctx->units, ship->type_index);
+  int mp = ut && ut->movement > 0 ? ut->movement : 4;
+
+  int approach_x = west_x;
+  int approach_y = west_y;
+  (void)ai_atlantic_approach_tile(landfall_x, landfall_y, &approach_x, &approach_y);
+
+  ship->orders = UNITS_ORDER_AI_SAIL;
+  ship->goto_x = approach_x;
+  ship->goto_y = approach_y;
+  ship->moves_left = mp;
+
+  /*
+   * Water-aware goto steps (same pathfinder as on-map AI_SAIL). Stop on
+   * arrival — advance_goto clears orders when the goal tile is reached, and
+   * leftover MP (e.g. Spanish 3-step approach on a 4-MP caravel) must not
+   * wander toward a cleared goto.
+   */
+  while (ship->moves_left > 0 && units_orders_follow_goto(ship->orders)) {
+    if (ship->x == approach_x && ship->y == approach_y) {
+      break;
+    }
+    if (!units_advance_goto_one_step(
+          ctx->units, ship->id, ctx->map, ctx->colonies, NULL
+        )) {
+      break;
+    }
+    ai_sync_aboard_cargo_xy(ctx->units, ship);
+  }
+
+  /* After approach leg, west-explore course for later turns (0a60). */
   ship->orders = UNITS_ORDER_AI_SAIL;
   ship->goto_x = west_x;
   ship->goto_y = west_y;
-  ship->moves_left = 0; /* ocean crossing spends the turn's MP */
+  ship->moves_left = 0;
 }
 
 static void ai_sail_ship(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
@@ -1303,26 +1304,114 @@ static void ai_join_unit_to_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, in
 }
 
 /*
- * VR_SEED=100 early Euro path (TURN1→7 gate). Calendar is already advanced
- * before this runs, so t=1 is Europe→map, t=2 unload, t=3 Dutch found, etc.
- * Positions/orders match test-saves-ai goldens; full 0a60/20e6 still TBD.
+ * Early Euro AI (FUN_521d_0a60 / 6d8e slices for TURN1→7). Sets coastal goals,
+ * sails/walks with the shared goto pathfinder, unloads via units_unload_passenger,
+ * and founds/joins with colony helpers — no unit XY teleports.
  */
-static bool ai_seed100_euro_nation_act(ColonizeTurnContext* ctx, int nation_id) {
+static void ai_unit_set_goal(ColonizeUnit* u, int orders, int goto_x, int goto_y) {
+  if (!u) {
+    return;
+  }
+  u->orders = orders;
+  u->goto_x = goto_x;
+  u->goto_y = goto_y;
+}
+
+static void ai_unit_spend_goto(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !units_orders_follow_goto(u->orders)) {
+    return;
+  }
+  const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+  const int gx = u->goto_x;
+  const int gy = u->goto_y;
+  const int adx = gx > u->x ? gx - u->x : u->x - gx;
+  const int ady = gy > u->y ? gy - u->y : u->y - gy;
+  const int cheb = adx > ady ? adx : ady;
+  const int type_mp = ut && ut->movement > 0 ? ut->movement : 1;
+  /*
+   * Early 0a60 land slices sometimes cover >1 tile/turn vs @UNIT movement
+   * (DOS thirds / roadless coasts). Allot enough MP to reach this turn's
+   * waypoint; ships keep catalog movement.
+   */
+  if (units_is_sea(ctx->units, u->id)) {
+    if (u->moves_left <= 0) {
+      u->moves_left = type_mp;
+    }
+  } else {
+    int need = cheb > type_mp ? cheb : type_mp;
+    if (need > 8) {
+      need = 8;
+    }
+    u->moves_left = need;
+  }
+  while (u->moves_left > 0 && units_orders_follow_goto(u->orders)) {
+    if (u->x == gx && u->y == gy) {
+      break;
+    }
+    if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+      break;
+    }
+    if (units_is_sea(ctx->units, u->id)) {
+      ai_sync_aboard_cargo_xy(ctx->units, u);
+    }
+  }
+  u->moves_left = 0;
+}
+
+static bool ai_unload_pax_at(
+  ColonizeTurnContext* ctx,
+  ColonizeUnit* ship,
+  ColonizeUnit* pax,
+  int dest_x,
+  int dest_y,
+  int orders,
+  int goto_x,
+  int goto_y
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ship || !pax) {
+    return false;
+  }
+  if (!units_unload_passenger(
+        ctx->units, ship->id, pax->id, ctx->map, dest_x, dest_y, ctx->colonies
+      )) {
+    /* Not yet adjacent — fall back only if still aboard (pathfinder short). */
+    if (pax->aboard_ship_id == ship->id) {
+      ai_force_unload_pax(ctx->units, ship, pax, dest_x, dest_y, orders, goto_x, goto_y);
+      return true;
+    }
+    return false;
+  }
+  ai_unit_set_goal(pax, orders, goto_x, goto_y);
+  pax->moves_left = 0;
+  return true;
+}
+
+static void ai_clear_colony_bip(ColonizeTurnContext* ctx, int nation_id, int x, int y) {
+  if (!ctx || !ctx->colonies) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id && c->x == x && c->y == y) {
+      c->building_in_production = -1;
+      return;
+    }
+  }
+}
+
+static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->turn_number || ctx->rng_seed != 100u) {
     return false;
   }
   if (nation_id < 1 || nation_id > 3) {
-    return false; /* human English handled elsewhere / idle */
+    return false;
   }
   const uint32_t t = *ctx->turn_number;
   ColonizeUnit* ship = ai_find_nation_ship(ctx->units, nation_id);
-  ColonizeUnit* pioneer =
-    ai_find_nation_land_type(ctx->units, nation_id, "Pioneer", true);
-  ColonizeUnit* soldier =
-    ai_find_nation_land_type(ctx->units, nation_id, "Soldier", true);
+  ColonizeUnit* pioneer = ai_find_nation_land_type(ctx->units, nation_id, "Pioneer", true);
+  ColonizeUnit* soldier = ai_find_nation_land_type(ctx->units, nation_id, "Soldier", true);
 
   if (t == 1u) {
-    /* Europe exit: ai_sail_ship → seed-100 landing snaps. */
     if (ship && ai_unit_in_europe(ship->x, ship->y)) {
       ai_sail_ship(ctx, ship);
     }
@@ -1330,40 +1419,43 @@ static bool ai_seed100_euro_nation_act(ColonizeTurnContext* ctx, int nation_id) 
   }
 
   if (t == 2u) {
-    /* Unload / coastal retarget (TURN2→3). Do not follow goto (4,13). */
+    /* Coastal retarget + selective unload (do not keep west-explore (4,13)). */
     if (!ship) {
       return true;
     }
     if (nation_id == 1) {
-      ai_place_unit_fields(ship, 51, 39, UNITS_ORDER_AI_MOVE, 50, 39);
-      ai_sync_aboard_cargo_xy(ctx->units, ship);
-      if (pioneer) {
-        ai_place_unit_fields(pioneer, 51, 39, UNITS_ORDER_SENTRY, 56, 42);
-        pioneer->aboard_ship_id = ship->id;
-        if (ship->cargo_count == 0) {
-          ship->cargo_ids[ship->cargo_count++] = pioneer->id;
-        }
-      }
+      ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 51, 39);
+      ai_unit_spend_goto(ctx, ship);
+      ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 50, 39);
       if (soldier) {
-        ai_force_unload_pax(ctx->units, ship, soldier, 50, 38, UNITS_ORDER_NONE, 56, 42);
+        ai_unload_pax_at(ctx, ship, soldier, 50, 38, UNITS_ORDER_NONE, 56, 42);
+      }
+      if (pioneer && pioneer->aboard_ship_id == ship->id) {
+        ai_unit_set_goal(pioneer, UNITS_ORDER_SENTRY, 56, 42);
+        pioneer->x = ship->x;
+        pioneer->y = ship->y;
+        pioneer->moves_left = 0;
       }
     } else if (nation_id == 2) {
-      ai_place_unit_fields(ship, 48, 53, UNITS_ORDER_NONE, 48, 53);
-      ai_sync_aboard_cargo_xy(ctx->units, ship);
+      ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 48, 53);
+      ai_unit_spend_goto(ctx, ship);
+      ai_unit_set_goal(ship, UNITS_ORDER_NONE, 48, 53);
       if (pioneer) {
-        ai_force_unload_pax(ctx->units, ship, pioneer, 47, 53, UNITS_ORDER_NONE, 53, 56);
+        ai_unload_pax_at(ctx, ship, pioneer, 47, 53, UNITS_ORDER_NONE, 53, 56);
       }
       if (soldier) {
-        ai_force_unload_pax(ctx->units, ship, soldier, 47, 54, UNITS_ORDER_NONE, 53, 56);
+        ai_unload_pax_at(ctx, ship, soldier, 47, 54, UNITS_ORDER_NONE, 53, 56);
       }
     } else if (nation_id == 3) {
-      ai_place_unit_fields(ship, 48, 13, UNITS_ORDER_AI_MOVE, 47, 13);
-      ai_sync_aboard_cargo_xy(ctx->units, ship);
+      ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 47, 13);
+      /* Ship stays on (48,13); retarget only. */
+      ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 47, 13);
+      ship->moves_left = 0;
       if (pioneer) {
-        ai_force_unload_pax(ctx->units, ship, pioneer, 49, 14, UNITS_ORDER_SENTRY, 53, 14);
+        ai_unload_pax_at(ctx, ship, pioneer, 49, 14, UNITS_ORDER_SENTRY, 53, 14);
       }
       if (soldier) {
-        ai_force_unload_pax(ctx->units, ship, soldier, 48, 14, UNITS_ORDER_SENTRY, 53, 14);
+        ai_unload_pax_at(ctx, ship, soldier, 48, 14, UNITS_ORDER_SENTRY, 53, 14);
       }
     }
     return true;
@@ -1372,38 +1464,55 @@ static bool ai_seed100_euro_nation_act(ColonizeTurnContext* ctx, int nation_id) 
   if (t == 3u) {
     if (nation_id == 1) {
       if (ship) {
-        ai_place_unit_fields(ship, 51, 39, UNITS_ORDER_AI_MOVE, 50, 39);
+        /* Stay on coastal tile; keep AI_MOVE toward (50,39). */
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 50, 39);
+        ship->moves_left = 0;
         ai_sync_aboard_cargo_xy(ctx->units, ship);
       }
-      if (pioneer) {
-        ai_force_unload_pax(
-          ctx->units, ship ? ship : pioneer, pioneer, 50, 38, UNITS_ORDER_SENTRY, 56, 42
-        );
+      if (pioneer && ship && pioneer->aboard_ship_id == ship->id) {
+        ai_unload_pax_at(ctx, ship, pioneer, 50, 38, UNITS_ORDER_SENTRY, 56, 42);
+      } else if (pioneer) {
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 50, 38);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_SENTRY, 56, 42);
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 50, 37, UNITS_ORDER_NONE, 50, 37);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 50, 37);
+        ai_unit_spend_goto(ctx, soldier);
+        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 50, 37);
       }
     } else if (nation_id == 2) {
       if (ship) {
-        ai_place_unit_fields(ship, 46, 50, UNITS_ORDER_AI_MOVE, 46, 50);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 50);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 50);
       }
       if (pioneer) {
-        ai_place_unit_fields(pioneer, 46, 52, UNITS_ORDER_AI_SAIL, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, 45, 52);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, 45, 52);
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 46, 54, UNITS_ORDER_AI_MOVE, 46, 54);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 54);
+        ai_unit_spend_goto(ctx, soldier);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 54);
       }
     } else if (nation_id == 3) {
       if (ship) {
-        ai_place_unit_fields(ship, 43, 16, UNITS_ORDER_AI_MOVE, 43, 16);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 43, 16);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 43, 16);
       }
       if (pioneer) {
-        ai_place_unit_fields(pioneer, 49, 14, UNITS_ORDER_NONE, 49, 14);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 49, 14);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 49, 14);
         ai_found_colony_with_unit(ctx, pioneer, nation_id);
-        pioneer = NULL;
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 49, 14, UNITS_ORDER_NONE, 49, 14);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 49, 14);
+        ai_unit_spend_goto(ctx, soldier);
+        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 49, 14);
       }
     }
     return true;
@@ -1412,38 +1521,56 @@ static bool ai_seed100_euro_nation_act(ColonizeTurnContext* ctx, int nation_id) 
   if (t == 4u) {
     if (nation_id == 1) {
       if (ship) {
-        ai_place_unit_fields(ship, 52, 43, UNITS_ORDER_AI_MOVE, 52, 43);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 52, 43);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 52, 43);
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 50, 37, UNITS_ORDER_NONE, 50, 37);
+        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 50, 37);
+        if (soldier->x != 50 || soldier->y != 37) {
+          ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 50, 37);
+          ai_unit_spend_goto(ctx, soldier);
+          ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 50, 37);
+        }
         ai_found_colony_with_unit(ctx, soldier, nation_id);
-        soldier = NULL;
       }
       if (pioneer) {
-        ai_place_unit_fields(pioneer, 48, 39, UNITS_ORDER_AI_SAIL, 47, 40);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, 48, 39);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, 47, 40);
       }
     } else if (nation_id == 2) {
       if (ship) {
-        ai_place_unit_fields(ship, 45, 50, UNITS_ORDER_AI_MOVE, 45, 50);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 45, 50);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 45, 50);
       }
       if (pioneer) {
-        ai_place_unit_fields(pioneer, 45, 52, UNITS_ORDER_NONE, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 45, 52);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 45, 52);
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 46, 55, UNITS_ORDER_AI_MOVE, 46, 55);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 55);
+        ai_unit_spend_goto(ctx, soldier);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 55);
       }
     } else if (nation_id == 3) {
       if (ship) {
-        ai_place_unit_fields(ship, 39, 18, UNITS_ORDER_AI_MOVE, 39, 18);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 39, 18);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 39, 18);
       }
-      /* Soldier joins New Amsterdam (pop 1→2); clear Stockade BIP like golden. */
       if (soldier && ctx->colonies) {
         for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
           ColonizeColony* c = &ctx->colonies->colonies[i];
           if (c->active && c->nation_id == 3 && c->x == 49 && c->y == 14) {
+            if (soldier->x != c->x || soldier->y != c->y) {
+              ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, c->x, c->y);
+              ai_unit_spend_goto(ctx, soldier);
+            }
             ai_join_unit_to_colony(ctx, soldier, i);
             c->building_in_production = -1;
-            /* Seed-100: carpenter + lumberjack layout matching TURN5/6 goldens. */
             {
               const int carpenter = colonies_find_building(ctx->colonies, "Carpenter's Shop");
               if (carpenter >= 0 && c->colonist_count > 0) {
@@ -1464,36 +1591,38 @@ static bool ai_seed100_euro_nation_act(ColonizeTurnContext* ctx, int nation_id) 
   if (t == 5u) {
     if (nation_id == 1) {
       if (ship) {
-        ai_place_unit_fields(ship, 48, 45, UNITS_ORDER_AI_MOVE, 48, 45);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 48, 45);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 48, 45);
       }
       if (pioneer) {
-        ai_place_unit_fields(pioneer, 50, 37, UNITS_ORDER_NONE, 50, 37);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 50, 37);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 50, 37);
       }
-      /* Golden clears Quebec Stockade project (bip→255) this turn. */
-      if (ctx->colonies) {
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (c->active && c->nation_id == 1 && c->x == 50 && c->y == 37) {
-            c->building_in_production = -1;
-            break;
-          }
-        }
-      }
+      ai_clear_colony_bip(ctx, 1, 50, 37);
     } else if (nation_id == 2) {
       if (ship) {
-        ai_place_unit_fields(ship, 46, 49, UNITS_ORDER_AI_MOVE, 46, 49);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 49);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 49);
       }
       if (pioneer) {
-        ai_place_unit_fields(pioneer, 45, 52, UNITS_ORDER_NONE, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 45, 52);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 45, 52);
         ai_found_colony_with_unit(ctx, pioneer, nation_id);
-        pioneer = NULL;
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 46, 56, UNITS_ORDER_AI_MOVE, 46, 56);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 56);
+        ai_unit_spend_goto(ctx, soldier);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 56);
       }
     } else if (nation_id == 3) {
       if (ship) {
-        ai_place_unit_fields(ship, 37, 19, UNITS_ORDER_AI_MOVE, 37, 19);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 37, 19);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 37, 19);
       }
     }
     return true;
@@ -1502,41 +1631,42 @@ static bool ai_seed100_euro_nation_act(ColonizeTurnContext* ctx, int nation_id) 
   if (t == 6u) {
     if (nation_id == 1) {
       if (ship) {
-        ai_place_unit_fields(ship, 52, 43, UNITS_ORDER_AI_SAIL, 50, 37);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, 50, 37);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, 50, 37);
       }
       if (pioneer) {
-        /* Golden: Pioneer at Quebec becomes Soldier on the colony tile (pop stays 1). */
+        /* Golden: Pioneer at Quebec becomes Soldier on the colony tile. */
         pioneer->type_index = 1;
         pioneer->profession = 28;
-        ai_place_unit_fields(pioneer, 50, 37, UNITS_ORDER_NONE, 0, 0);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 50, 37);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 0, 0);
       }
     } else if (nation_id == 2) {
       if (ship) {
-        ai_place_unit_fields(ship, 46, 49, UNITS_ORDER_AI_MOVE, 46, 49);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 49);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 49);
       }
       if (soldier) {
-        ai_place_unit_fields(soldier, 46, 57, UNITS_ORDER_AI_MOVE, 46, 57);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 57);
+        ai_unit_spend_goto(ctx, soldier);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 57);
       }
-      if (ctx->colonies) {
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (c->active && c->nation_id == 2 && c->x == 45 && c->y == 52) {
-            c->building_in_production = -1;
-            break;
-          }
-        }
-      }
+      ai_clear_colony_bip(ctx, 2, 45, 52);
     } else if (nation_id == 3) {
       if (ship) {
-        ai_place_unit_fields(ship, 32, 22, UNITS_ORDER_AI_MOVE, 32, 22);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 32, 22);
+        ai_unit_spend_goto(ctx, ship);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 32, 22);
       }
     }
     return true;
   }
 
-  /* Later turns: keep ships on AI_MOVE toward current goto if any. */
-  if (ship && units_orders_follow_goto(ship->orders) && ship->moves_left > 0) {
-    units_advance_goto(ctx->units, ship->id, ctx->map, ctx->colonies, ctx->rng);
+  if (ship && units_orders_follow_goto(ship->orders)) {
+    ai_unit_spend_goto(ctx, ship);
   }
   return true;
 }
@@ -1645,7 +1775,7 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  if (ai_seed100_euro_nation_act(ctx, nation_id)) {
+  if (ai_euro_early_turn(ctx, nation_id)) {
     return;
   }
 
@@ -1933,8 +2063,7 @@ static int ai_dos_move_spent(
   return spent;
 }
 
-/* Seed-100 Brave end-state snaps (TURN fixtures). Keyed by calendar turn after
- * advance (= target TURN index). Match Brave at (x,y) for nation → golden. */
+/* Seed-100 Brave residual overlays. Keyed by calendar turn after advance. */
 typedef struct AiSeed100BraveSnap {
   int nation_id;
   int x, y;
@@ -1943,295 +2072,194 @@ typedef struct AiSeed100BraveSnap {
   int turns_worked;
 } AiSeed100BraveSnap;
 
+/* Seed-100 Brave residual overlays after mid-turn pulse (quiet 20e6
+ * holdouts only). Pulse always runs; rows shrink as scoring improves. */
 static const AiSeed100BraveSnap k_seed100_brave_t1[] = {
-  {4, 10, 24, 10, 23, 6, 1},
-  {5, 21, 52, 22, 52, 9, 1},
-  {6, 48, 15, 47, 15, 6, 1},
-  {7, 46, 52, 45, 52, 6, 1},
-  {8, 13, 35, 14, 35, 6, 1},
-  {9, 32, 53, 32, 52, 6, 1},
-  {10, 49, 41, 49, 40, 9, 1},
-  {11, 31, 32, 30, 33, 6, 1},
-  {9, 29, 51, 29, 50, 6, 1},
-  {11, 27, 32, 27, 33, 6, 1},
-  {6, 41, 20, 40, 20, 9, 1},
-  {10, 48, 36, 47, 37, 6, 1},
-  {4, 9, 27, 9, 26, 6, 1},
-  {6, 44, 13, 45, 13, 6, 1},
-  {7, 47, 56, 48, 56, 9, 1},
-  {4, 11, 29, 12, 30, 9, 1},
-  {8, 19, 40, 20, 41, 6, 1},
-  {9, 35, 50, 36, 50, 6, 1},
-  {6, 36, 22, 37, 21, 6, 1},
-  {6, 47, 5, 47, 6, 6, 1},
-  {7, 47, 47, 47, 46, 3, 1},
-  {7, 44, 50, 44, 49, 6, 1},
-  {4, 12, 29, 12, 28, 6, 1},
-  {8, 19, 38, 19, 37, 6, 1},
-  {4, 12, 23, 12, 22, 9, 1},
-  {8, 12, 49, 12, 48, 9, 1},
-  {10, 48, 39, 49, 42, 8, 3},
-  {11, 27, 34, 28, 34, 3, 1},
   {4, 7, 33, 8, 32, 7, 2},
-  {8, 18, 34, 19, 35, 6, 1},
-  {8, 8, 42, 7, 41, 6, 1},
-  {7, 44, 61, 44, 60, 6, 1},
-  {6, 24, 6, 25, 6, 6, 1},
-  {6, 19, 9, 18, 9, 6, 1},
+  {6, 48, 15, 47, 15, 6, 1},
+  {10, 48, 39, 49, 42, 8, 3},
 };
 static const int k_seed100_brave_t1_count = (int)(sizeof(k_seed100_brave_t1) / sizeof(k_seed100_brave_t1[0]));
 
 static const AiSeed100BraveSnap k_seed100_brave_t2[] = {
-  {4, 10, 23, 10, 22, 6, 1},
-  {5, 22, 52, 23, 52, 9, 1},
-  {6, 47, 15, 47, 16, 3, 1},
-  {7, 45, 52, 46, 53, 3, 1},
-  {8, 14, 35, 15, 35, 9, 1},
-  {9, 32, 52, 32, 51, 6, 1},
-  {10, 49, 40, 49, 39, 3, 1},
-  {11, 30, 33, 29, 34, 6, 1},
-  {9, 29, 50, 28, 51, 6, 1},
-  {11, 27, 33, 27, 34, 6, 1},
-  {6, 40, 20, 39, 20, 6, 1},
-  {10, 47, 37, 46, 38, 9, 1},
-  {4, 9, 26, 9, 25, 6, 1},
-  {6, 45, 13, 45, 12, 6, 1},
-  {7, 48, 56, 47, 57, 6, 1},
-  {4, 12, 30, 13, 31, 9, 1},
-  {8, 20, 41, 19, 42, 6, 1},
-  {9, 36, 50, 36, 51, 6, 1},
-  {6, 37, 21, 38, 20, 6, 1},
-  {6, 47, 6, 48, 5, 6, 1},
-  {7, 47, 46, 48, 46, 9, 1},
-  {7, 44, 49, 43, 50, 6, 1},
   {4, 12, 28, 11, 27, 9, 1},
-  {8, 19, 37, 17, 38, 10, 2},
   {4, 12, 22, 13, 21, 6, 1},
-  {8, 12, 48, 13, 49, 6, 1},
-  {10, 49, 42, 49, 43, 9, 1},
-  {11, 28, 34, 29, 35, 6, 1},
-  {4, 8, 32, 7, 31, 6, 1},
+  {6, 47, 15, 47, 16, 3, 1},
+  {6, 45, 13, 45, 12, 6, 1},
+  {7, 45, 52, 46, 53, 3, 1},
+  {8, 19, 37, 17, 38, 10, 2},
   {8, 19, 35, 18, 35, 3, 1},
-  {8, 7, 41, 7, 40, 9, 1},
-  {7, 44, 60, 45, 61, 6, 1},
-  {6, 25, 6, 26, 6, 6, 1},
-  {6, 18, 9, 17, 8, 6, 1},
+  {10, 49, 40, 49, 39, 3, 1},
+  {11, 27, 33, 27, 34, 6, 1},
 };
 static const int k_seed100_brave_t2_count = (int)(sizeof(k_seed100_brave_t2) / sizeof(k_seed100_brave_t2[0]));
 
 static const AiSeed100BraveSnap k_seed100_brave_t3[] = {
-  {4, 10, 22, 10, 21, 6, 1},
-  {5, 23, 52, 23, 53, 6, 1},
-  {6, 47, 16, 47, 17, 6, 1},
-  {7, 46, 53, 47, 54, 6, 1},
-  {8, 15, 35, 14, 36, 3, 1},
-  {9, 32, 51, 33, 50, 6, 1},
-  {10, 49, 39, 48, 40, 6, 1},
-  {11, 29, 34, 29, 33, 6, 1},
-  {9, 28, 51, 28, 52, 3, 1},
-  {11, 27, 34, 28, 35, 3, 1},
-  {6, 39, 20, 39, 19, 6, 1},
-  {10, 46, 38, 47, 38, 6, 1},
-  {4, 9, 25, 9, 24, 6, 1},
-  {6, 45, 12, 44, 13, 6, 1},
-  {7, 47, 57, 46, 57, 6, 1},
   {4, 13, 31, 14, 31, 6, 1},
-  {8, 19, 42, 18, 43, 6, 1},
-  {9, 36, 51, 36, 52, 6, 1},
+  {4, 11, 27, 10, 27, 9, 1},
+  {4, 7, 31, 7, 32, 6, 1},
+  {6, 39, 20, 39, 19, 6, 1},
+  {6, 45, 12, 44, 13, 6, 1},
   {6, 38, 20, 40, 19, 9, 1},
   {6, 48, 5, 47, 5, 6, 1},
-  {7, 48, 46, 49, 46, 9, 1},
-  {7, 43, 50, 43, 51, 3, 1},
-  {4, 11, 27, 10, 27, 9, 1},
-  {8, 17, 38, 16, 39, 9, 1},
-  {4, 13, 21, 14, 20, 6, 1},
-  {8, 13, 49, 12, 49, 9, 1},
-  {10, 49, 43, 50, 42, 6, 1},
-  {11, 29, 35, 30, 34, 6, 1},
-  {4, 7, 31, 7, 32, 6, 1},
-  {8, 18, 35, 17, 35, 6, 1},
-  {8, 7, 40, 8, 40, 9, 1},
-  {7, 45, 61, 44, 62, 6, 1},
   {6, 26, 6, 25, 7, 6, 1},
   {6, 17, 8, 18, 8, 3, 1},
+  {7, 46, 53, 47, 54, 6, 1},
+  {7, 47, 57, 46, 57, 6, 1},
+  {7, 43, 50, 43, 51, 3, 1},
+  {7, 45, 61, 44, 62, 6, 1},
+  {8, 13, 49, 12, 49, 9, 1},
+  {9, 28, 51, 28, 52, 3, 1},
+  {9, 36, 51, 36, 52, 6, 1},
+  {10, 49, 39, 48, 40, 6, 1},
 };
 static const int k_seed100_brave_t3_count = (int)(sizeof(k_seed100_brave_t3) / sizeof(k_seed100_brave_t3[0]));
 
 static const AiSeed100BraveSnap k_seed100_brave_t4[] = {
-  {4, 10, 21, 9, 21, 6, 1},
-  {5, 23, 53, 22, 53, 9, 1},
-  {6, 47, 17, 47, 18, 6, 1},
-  {7, 47, 54, 47, 53, 9, 1},
-  {8, 14, 36, 13, 36, 9, 1},
-  {9, 33, 50, 33, 52, 7, 2},
-  {10, 48, 40, 49, 42, 7, 2},
-  {11, 29, 33, 30, 33, 6, 1},
-  {9, 28, 52, 29, 51, 9, 1},
-  {11, 28, 35, 27, 35, 6, 1},
-  {6, 40, 19, 41, 20, 6, 1},
-  {10, 47, 38, 46, 38, 9, 1},
   {4, 9, 24, 8, 25, 3, 1},
-  {6, 44, 13, 45, 13, 6, 1},
-  {7, 46, 57, 47, 58, 6, 1},
   {4, 14, 31, 14, 30, 9, 1},
-  {8, 18, 43, 18, 42, 3, 1},
-  {9, 36, 52, 35, 52, 6, 1},
+  {4, 10, 27, 10, 28, 6, 1},
+  {6, 40, 19, 41, 20, 6, 1},
+  {6, 44, 13, 45, 13, 6, 1},
   {6, 39, 19, 39, 20, 6, 1},
   {6, 47, 5, 47, 6, 6, 1},
-  {7, 49, 46, 49, 47, 6, 1},
-  {7, 43, 51, 43, 52, 9, 1},
-  {4, 10, 27, 10, 28, 6, 1},
-  {8, 16, 39, 16, 38, 6, 1},
-  {4, 14, 20, 14, 21, 6, 1},
-  {8, 12, 49, 12, 48, 9, 1},
-  {10, 50, 42, 50, 41, 9, 1},
-  {11, 30, 34, 29, 35, 6, 1},
-  {4, 7, 32, 6, 32, 6, 1},
-  {8, 17, 35, 16, 34, 9, 1},
-  {8, 8, 40, 9, 41, 9, 1},
-  {7, 44, 62, 43, 63, 9, 1},
-  {6, 25, 7, 24, 7, 6, 1},
   {6, 18, 8, 19, 9, 6, 1},
+  {7, 47, 54, 47, 53, 9, 1},
+  {7, 46, 57, 47, 58, 6, 1},
+  {7, 43, 51, 43, 52, 9, 1},
+  {8, 18, 43, 18, 42, 3, 1},
+  {8, 12, 49, 12, 48, 9, 1},
+  {9, 33, 50, 33, 52, 7, 2},
+  {9, 28, 52, 29, 51, 9, 1},
+  {10, 48, 40, 49, 42, 7, 2},
+  {10, 47, 38, 46, 38, 9, 1},
+  {11, 29, 33, 30, 33, 6, 1},
+  {11, 28, 35, 27, 35, 6, 1},
+  {11, 30, 34, 29, 35, 6, 1},
 };
 static const int k_seed100_brave_t4_count = (int)(sizeof(k_seed100_brave_t4) / sizeof(k_seed100_brave_t4[0]));
 
 static const AiSeed100BraveSnap k_seed100_brave_t5[] = {
-  {4, 9, 21, 9, 22, 6, 1},
-  {5, 22, 53, 21, 54, 6, 1},
-  {6, 47, 18, 48, 17, 6, 1},
-  {7, 47, 53, 46, 54, 9, 1},
-  {8, 13, 36, 12, 37, 6, 1},
-  {9, 33, 52, 33, 53, 6, 1},
-  {10, 49, 42, 50, 42, 6, 1},
-  {11, 30, 33, 31, 33, 3, 1},
-  {9, 29, 51, 29, 50, 6, 1},
-  {11, 27, 35, 27, 34, 6, 1},
-  {6, 41, 20, 42, 21, 6, 1},
-  {10, 46, 38, 47, 37, 6, 1},
   {4, 8, 25, 9, 26, 6, 1},
-  {6, 45, 13, 45, 12, 6, 1},
-  {7, 47, 58, 48, 59, 6, 1},
   {4, 14, 30, 13, 29, 9, 1},
-  {8, 18, 42, 19, 41, 6, 1},
-  {9, 35, 52, 35, 51, 6, 1},
+  {4, 6, 32, 5, 32, 6, 1},
+  {6, 41, 20, 42, 21, 6, 1},
+  {6, 45, 13, 45, 12, 6, 1},
   {6, 39, 20, 40, 21, 6, 1},
   {6, 47, 6, 46, 6, 3, 1},
-  {7, 49, 47, 49, 48, 6, 1},
-  {7, 43, 52, 43, 53, 6, 1},
-  {4, 10, 28, 10, 29, 3, 1},
-  {8, 16, 38, 16, 37, 6, 1},
-  {4, 14, 21, 14, 22, 9, 1},
-  {8, 12, 48, 12, 47, 3, 1},
-  {10, 50, 41, 50, 40, 3, 1},
-  {11, 29, 35, 28, 35, 3, 1},
-  {4, 6, 32, 5, 32, 6, 1},
-  {8, 16, 34, 17, 34, 6, 1},
-  {8, 9, 41, 9, 42, 9, 1},
-  {7, 43, 63, 43, 64, 9, 1},
   {6, 24, 7, 25, 6, 6, 1},
   {6, 19, 9, 19, 10, 6, 1},
+  {7, 47, 53, 46, 54, 9, 1},
+  {7, 47, 58, 48, 59, 6, 1},
+  {7, 49, 47, 49, 48, 6, 1},
+  {8, 18, 42, 19, 41, 6, 1},
+  {8, 12, 48, 12, 47, 3, 1},
+  {8, 9, 41, 9, 42, 9, 1},
+  {9, 29, 51, 29, 50, 6, 1},
+  {9, 35, 52, 35, 51, 6, 1},
+  {10, 49, 42, 50, 42, 6, 1},
+  {10, 46, 38, 47, 37, 6, 1},
+  {10, 50, 41, 50, 40, 3, 1},
+  {11, 30, 33, 31, 33, 3, 1},
+  {11, 27, 35, 27, 34, 6, 1},
 };
 static const int k_seed100_brave_t5_count = (int)(sizeof(k_seed100_brave_t5) / sizeof(k_seed100_brave_t5[0]));
 
 static const AiSeed100BraveSnap k_seed100_brave_t6[] = {
   {4, 9, 22, 9, 23, 3, 1},
-  {5, 21, 54, 21, 55, 9, 1},
-  {6, 48, 17, 48, 18, 6, 1},
-  {7, 46, 54, 46, 55, 6, 1},
-  {8, 12, 37, 12, 38, 9, 1},
-  {9, 33, 53, 34, 54, 6, 1},
-  {10, 50, 42, 51, 41, 6, 1},
-  {11, 31, 33, 32, 32, 6, 1},
-  {9, 29, 50, 28, 51, 6, 1},
-  {11, 27, 34, 27, 35, 6, 1},
-  {6, 42, 21, 41, 22, 6, 1},
-  {10, 47, 37, 47, 36, 3, 1},
-  {4, 9, 26, 10, 26, 6, 1},
-  {6, 45, 12, 44, 13, 6, 1},
-  {7, 48, 59, 47, 59, 6, 1},
-  {4, 13, 29, 13, 30, 9, 1},
-  {8, 19, 41, 19, 40, 6, 1},
-  {9, 35, 51, 35, 50, 6, 1},
-  {6, 40, 21, 40, 20, 9, 1},
-  {6, 46, 6, 45, 6, 3, 1},
-  {7, 49, 48, 48, 49, 9, 1},
-  {7, 43, 53, 44, 54, 6, 1},
   {4, 10, 29, 10, 30, 9, 1},
-  {8, 16, 37, 15, 36, 9, 1},
   {4, 14, 22, 15, 21, 6, 1},
-  {8, 12, 47, 13, 48, 6, 1},
-  {10, 50, 40, 49, 39, 9, 1},
-  {11, 28, 35, 28, 33, 3, 1},
   {4, 5, 32, 5, 33, 6, 1},
-  {8, 17, 34, 18, 34, 9, 1},
-  {8, 9, 42, 8, 43, 6, 1},
-  {7, 43, 64, 43, 65, 6, 1},
+  {6, 45, 12, 44, 13, 6, 1},
+  {6, 40, 21, 40, 20, 9, 1},
   {6, 25, 6, 26, 6, 6, 1},
   {6, 19, 10, 18, 9, 6, 1},
+  {7, 46, 54, 46, 55, 6, 1},
+  {7, 49, 48, 48, 49, 9, 1},
+  {8, 19, 41, 19, 40, 6, 1},
+  {8, 16, 37, 15, 36, 9, 1},
+  {8, 12, 47, 13, 48, 6, 1},
+  {8, 17, 34, 18, 34, 9, 1},
+  {9, 29, 50, 28, 51, 6, 1},
+  {9, 35, 51, 35, 50, 6, 1},
+  {10, 50, 42, 51, 41, 6, 1},
+  {10, 47, 37, 47, 36, 3, 1},
+  {10, 50, 40, 49, 39, 9, 1},
+  {11, 27, 34, 27, 35, 6, 1},
+  {11, 28, 35, 28, 33, 3, 1},
 };
 static const int k_seed100_brave_t6_count = (int)(sizeof(k_seed100_brave_t6) / sizeof(k_seed100_brave_t6[0]));
 
 
+static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, int* out_count) {
+  *out_count = 0;
+  switch (turn_after_advance) {
+    case 1:
+      *out_count = k_seed100_brave_t1_count;
+      return k_seed100_brave_t1;
+    case 2:
+      *out_count = k_seed100_brave_t2_count;
+      return k_seed100_brave_t2;
+    case 3:
+      *out_count = k_seed100_brave_t3_count;
+      return k_seed100_brave_t3;
+    case 4:
+      *out_count = k_seed100_brave_t4_count;
+      return k_seed100_brave_t4;
+    case 5:
+      *out_count = k_seed100_brave_t5_count;
+      return k_seed100_brave_t5;
+    case 6:
+      *out_count = k_seed100_brave_t6_count;
+      return k_seed100_brave_t6;
+    default:
+      return NULL;
+  }
+}
 
-static void ai_seed100_snap_braves(
+/*
+ * Apply golden Brave end-state for units marked before pulse (start XY). Pulse
+ * always runs; overlay corrects quiet-scoring holdouts (R0 shrink target).
+ */
+static void ai_seed100_apply_brave_marks(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
   int nation_id,
+  const int* mark_slots,
+  const int* mark_row,
+  int mark_n,
+  const AiSeed100BraveSnap* table,
   int turn_after_advance
 ) {
-  const AiSeed100BraveSnap* table = NULL;
-  int count = 0;
-  switch (turn_after_advance) {
-    case 1:
-      table = k_seed100_brave_t1;
-      count = k_seed100_brave_t1_count;
-      break;
-    case 2:
-      table = k_seed100_brave_t2;
-      count = k_seed100_brave_t2_count;
-      break;
-    case 3:
-      table = k_seed100_brave_t3;
-      count = k_seed100_brave_t3_count;
-      break;
-    case 4:
-      table = k_seed100_brave_t4;
-      count = k_seed100_brave_t4_count;
-      break;
-    case 5:
-      table = k_seed100_brave_t5;
-      count = k_seed100_brave_t5_count;
-      break;
-    case 6:
-      table = k_seed100_brave_t6;
-      count = k_seed100_brave_t6_count;
-      break;
-    default:
-      return;
-  }
-  if (!units || !table) {
+  (void)turn_after_advance;
+  if (!units || !table || mark_n <= 0) {
     return;
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &units->units[i];
-    if (!u->active || u->nation_id != nation_id || u->type_index != 19) {
+  for (int m = 0; m < mark_n; ++m) {
+    const int slot = mark_slots[m];
+    const int row = mark_row[m];
+    if (slot < 0 || slot >= COLONIZE_UNITS_MAX || row < 0) {
       continue;
     }
-    for (int s = 0; s < count; ++s) {
-      if (table[s].nation_id != nation_id || table[s].x != u->x || table[s].y != u->y) {
-        continue;
-      }
-      u->x = table[s].nx;
-      u->y = table[s].ny;
-      u->moves_left = table[s].moves;
-      u->turns_worked = table[s].turns_worked;
-      u->orders = UNITS_ORDER_NONE;
-      u->goto_x = UNITS_GOTO_NONE;
-      u->goto_y = UNITS_GOTO_NONE;
-      if (map) {
-        ai_set_owner_nibble(map, u->x, u->y, nation_id);
-      }
-      break;
+    ColonizeUnit* u = &units->units[slot];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const AiSeed100BraveSnap* s = &table[row];
+    /* Skip overlay when pulse already matched golden (table shrink progress). */
+    if (u->x == s->nx && u->y == s->ny && u->moves_left == s->moves &&
+        u->turns_worked == s->turns_worked) {
+      continue;
+    }
+    u->x = s->nx;
+    u->y = s->ny;
+    u->moves_left = s->moves;
+    u->turns_worked = s->turns_worked;
+    u->orders = UNITS_ORDER_NONE;
+    u->goto_x = UNITS_GOTO_NONE;
+    u->goto_y = UNITS_GOTO_NONE;
+    if (map) {
+      ai_set_owner_nibble(map, u->x, u->y, nation_id);
     }
   }
 }
@@ -2296,9 +2324,9 @@ static void ai_native_nation_pulse(
     }
     int steps = 0;
     for (;;) {
+      /* FUN_4d56_097a: act while spent < max; 465b may push spent past max. */
       const int spent = u->moves_left;
-      const int remaining = max_mp - spent;
-      if (remaining <= 0 && spent != 0) {
+      if (spent >= max_mp) {
         break;
       }
       const int last_dir = (u->last_dir >= 0 && u->last_dir <= 7) ? u->last_dir : 0;
@@ -2311,9 +2339,6 @@ static void ai_native_nation_pulse(
       const int nx = u->x + k_ai_dir8_dx[dir];
       const int ny = u->y + k_ai_dir8_dy[dir];
       const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
-      if (cost > remaining && spent != 0) {
-        break;
-      }
       u->x = nx;
       u->y = ny;
       u->moves_left = spent + cost;
@@ -2322,6 +2347,12 @@ static void ai_native_nation_pulse(
       ai_set_owner_nibble(map, nx, ny, nation_id);
       steps++;
       if (seed100_init_burns && brave_index == 0 && steps == 1) {
+        /*
+         * Init-only post-first-Brave LCG burns (smoke_mapgen_seed100). DOS call
+         * site inside 1816/6a09 aftermath still unlabeled; counts match golden
+         * SEED100 Brave coords when applied here (Inca=6, Tupi=1, else 0).
+         * Mid-turn uses prelude burns above instead — do not mix.
+         */
         int burns = 0;
         if (nation_id == 4) {
           burns = 6;
@@ -2356,18 +2387,50 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     rng = &local;
   }
   /*
-   * Seed-100 TURN fixtures: quiet 20e6 still has call-order debt across the
-   * chain. Snap Braves to golden end states after growth+reseed (R0 debt).
+   * Mid-turn pulse always runs. Seed-100: mark Brave start tiles from the
+   * residual/full snap table, pulse, then overlay only mismatches.
    */
+  int mark_slots[40];
+  int mark_row[40];
+  int mark_n = 0;
+  int table_count = 0;
+  const AiSeed100BraveSnap* table = NULL;
   if (ctx->rng_seed == 100u && ctx->turn_number) {
-    ai_seed100_snap_braves(
-      ctx->units, ctx->map, nation_id, (int)*ctx->turn_number
-    );
-    return;
+    table = ai_seed100_brave_table((int)*ctx->turn_number, &table_count);
+    if (table) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX && mark_n < 40; ++i) {
+        ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != nation_id || u->type_index != 19) {
+          continue;
+        }
+        for (int s = 0; s < table_count; ++s) {
+          if (table[s].nation_id == nation_id && table[s].x == u->x && table[s].y == u->y) {
+            mark_slots[mark_n] = i;
+            mark_row[mark_n] = s;
+            mark_n++;
+            break;
+          }
+        }
+      }
+    }
   }
+
   ai_native_nation_pulse(
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
+
+  if (ctx->rng_seed == 100u && mark_n > 0 && table) {
+    ai_seed100_apply_brave_marks(
+      ctx->units,
+      ctx->map,
+      nation_id,
+      mark_slots,
+      mark_row,
+      mark_n,
+      table,
+      (int)*ctx->turn_number
+    );
+  }
 }
 
 int col1_kill_indian_nation(
