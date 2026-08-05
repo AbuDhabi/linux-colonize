@@ -596,6 +596,10 @@ bool new_game_begin(
   if (path == NEW_GAME_PATH_AMERICA) {
     ng->phase = NEW_GAME_PHASE_AMERICA_CHOICE;
     new_game_load_choice_section(ng, "AMERICA");
+    /* GAME.TXT @width=160 is tight for FONTINTR; widen so the prompt wraps to 3 lines. */
+    if (ng->dialog_width < 180) {
+      ng->dialog_width = 180;
+    }
     if (ng->option_count == 0) {
       snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Original Americas or Map Editor?");
       ng->prompt_line_count = 1;
@@ -1247,6 +1251,86 @@ static void new_game_fill_rect(ColonizeFramebuffer8* fb, int x, int y, int w, in
   }
 }
 
+/* Word-wrap prompt lines to max_w (pixels), joining file lines into one flow. */
+static void new_game_wrap_prompt_flow(
+  const ColonizeFont* font,
+  char src[][COLONIZE_MSG_LINE_LEN],
+  int src_count,
+  char dst[][COLONIZE_MSG_LINE_LEN],
+  int* dst_count,
+  int max_dst,
+  int max_w
+) {
+  if (!dst || !dst_count) {
+    return;
+  }
+  *dst_count = 0;
+  if (!src || src_count <= 0 || max_dst <= 0) {
+    return;
+  }
+  if (max_w < 20) {
+    max_w = 20;
+  }
+
+  char accum[COLONIZE_MSG_LINE_LEN];
+  accum[0] = '\0';
+
+  for (int i = 0; i < src_count && *dst_count < max_dst; ++i) {
+    const char* p = src[i];
+    if (!p) {
+      continue;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '_' || *p == '^') {
+      p++;
+    }
+    while (*p && *dst_count < max_dst) {
+      while (*p == ' ') {
+        p++;
+      }
+      if (!*p) {
+        break;
+      }
+      const char* start = p;
+      while (*p && *p != ' ') {
+        p++;
+      }
+      char word[COLONIZE_MSG_LINE_LEN];
+      size_t n = (size_t)(p - start);
+      if (n >= sizeof(word)) {
+        n = sizeof(word) - 1;
+      }
+      memcpy(word, start, n);
+      word[n] = '\0';
+
+      const int word_w = new_game_text_width(font, word);
+      if (accum[0]) {
+        const int space_w = new_game_text_width(font, " ");
+        if (new_game_text_width(font, accum) + space_w + word_w > max_w) {
+          str_copy_trunc(dst[*dst_count], COLONIZE_MSG_LINE_LEN, accum);
+          (*dst_count)++;
+          accum[0] = '\0';
+          if (*dst_count >= max_dst) {
+            return;
+          }
+        }
+      }
+      size_t len = strlen(accum);
+      if (accum[0] && len + 1 < sizeof(accum)) {
+        accum[len++] = ' ';
+        accum[len] = '\0';
+      }
+      for (const char* w = word; *w && len + 1 < sizeof(accum); ++w) {
+        accum[len++] = *w;
+      }
+      accum[len] = '\0';
+    }
+  }
+  if (accum[0] && *dst_count < max_dst) {
+    str_copy_trunc(dst[*dst_count], COLONIZE_MSG_LINE_LEN, accum);
+    (*dst_count)++;
+  }
+}
+
 static void new_game_render_list_dialog(
   NewGameWizard* ng,
   ColonizeFramebuffer8* fb,
@@ -1259,7 +1343,27 @@ static void new_game_render_list_dialog(
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad_x = 6;
   const int pad_y = 4;
-  const int prompt_h = ng->prompt_line_count * line_h;
+  const uint8_t shadow = 0;
+
+  int dialog_w = ng->dialog_width;
+  if (dialog_w > fb->width - 4) {
+    dialog_w = fb->width - 4;
+  }
+  const int text_max_w = dialog_w - POPUP_FRAME_INSET * 2 - pad_x * 2;
+
+  char wrapped[8][COLONIZE_MSG_LINE_LEN];
+  int wrapped_count = 0;
+  new_game_wrap_prompt_flow(
+    font, ng->prompt_lines, ng->prompt_line_count, wrapped, &wrapped_count, 8, text_max_w
+  );
+  if (wrapped_count == 0) {
+    wrapped_count = ng->prompt_line_count;
+    for (int i = 0; i < wrapped_count && i < 8; ++i) {
+      str_copy_trunc(wrapped[i], sizeof(wrapped[0]), ng->prompt_lines[i]);
+    }
+  }
+
+  const int prompt_h = wrapped_count * line_h;
   const int options_h = ng->option_count * line_h;
   int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + prompt_h + options_h + pad_y;
   if (ng->phase == NEW_GAME_PHASE_LEADER_NAME) {
@@ -1270,10 +1374,6 @@ static void new_game_render_list_dialog(
   }
   if (dialog_h > fb->height - 4) {
     dialog_h = fb->height - 4;
-  }
-  int dialog_w = ng->dialog_width;
-  if (dialog_w > fb->width - 4) {
-    dialog_w = fb->width - 4;
   }
   int dialog_x = (fb->width - dialog_w) / 2;
   int dialog_y = ng->pref_dialog_y >= 0 ? ng->pref_dialog_y : (fb->height - dialog_h) / 2;
@@ -1300,8 +1400,13 @@ static void new_game_render_list_dialog(
   );
 
   int cy = inner_y + pad_y;
-  for (int i = 0; i < ng->prompt_line_count; ++i) {
-    new_game_draw_markup_line(font, fb, inner_x + pad_x, cy, ng->prompt_lines[i], text_color, hilite_color);
+  for (int i = 0; i < wrapped_count; ++i) {
+    new_game_draw_markup_line_unbold(
+      font, fb, inner_x + pad_x + 1, cy + 1, wrapped[i], shadow, shadow
+    );
+    new_game_draw_markup_line_unbold(
+      font, fb, inner_x + pad_x, cy, wrapped[i], text_color, hilite_color
+    );
     cy += line_h;
   }
 
@@ -1315,15 +1420,23 @@ static void new_game_render_list_dialog(
   if (ng->phase == NEW_GAME_PHASE_LEADER_NAME) {
     char field[NEW_GAME_LEADER_NAME_MAX + 2];
     snprintf(field, sizeof(field), "%s_", ng->leader_name);
-    new_game_draw_markup_line(font, fb, inner_x + pad_x, cy, field, text_color, hilite_color);
+    new_game_draw_markup_line_unbold(
+      font, fb, inner_x + pad_x + 1, cy + 1, field, shadow, shadow
+    );
+    new_game_draw_markup_line_unbold(
+      font, fb, inner_x + pad_x, cy, field, text_color, hilite_color
+    );
     return;
   }
 
   for (int i = 0; i < ng->option_count; ++i) {
     if (i == ng->selection) {
-      new_game_fill_rect(fb, inner_x + 2, cy, inner_w - 4, line_h, select_color);
+      new_game_fill_rect(fb, inner_x + 2, cy - 1, inner_w - 4, line_h, select_color);
     }
-    new_game_draw_markup_line(
+    new_game_draw_markup_line_unbold(
+      font, fb, inner_x + pad_x + 1, cy + 1, ng->options[i], shadow, shadow
+    );
+    new_game_draw_markup_line_unbold(
       font, fb, inner_x + pad_x, cy, ng->options[i], text_color, hilite_color
     );
     cy += line_h;
@@ -2344,7 +2457,8 @@ void new_game_render(
       break;
     case NEW_GAME_PHASE_AMERICA_CHOICE:
     case NEW_GAME_PHASE_MAP_PICK:
-      memset(framebuffer->pixels, 1, (size_t)framebuffer->width * (size_t)framebuffer->height);
+      /* Black field; OPENTILE popup needs OPENMENU/OPENTILE palette (set by caller). */
+      memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
       new_game_render_list_dialog(ng, framebuffer, popup_colors, text_color, hilite_color, select_color);
       break;
     case NEW_GAME_PHASE_LEADER_NAME:
