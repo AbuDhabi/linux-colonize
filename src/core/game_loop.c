@@ -5977,9 +5977,6 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   if (new_game_active(&game->new_game)) {
     ColonizePopupColors popup_cols;
     popup_colors_from_ui(&popup_cols);
-    if (game->menu_bg_ok && game->menu_bg.has_palette) {
-      popup_colors_remap(&popup_cols, &game->palette, &game->menu_bg.palette);
-    }
     /* Hit-test layout is updated during render. */
     NewGameWizard* ng = (NewGameWizard*)&game->new_game;
     ng->ui_font = game->intro_font_ok ? &game->intro_font
@@ -5995,7 +5992,21 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     uint8_t hilite = COLONIZE_COL_HILITE;
     uint8_t select = COLONIZE_COL_SELECT;
     /* Bright selection border on DIFFICUL/NATIONS/CUSTOMIZ own palettes. */
-    if (ng->phase == NEW_GAME_PHASE_DIFFICULTY && ng->difficul_ok) {
+    if (ng->phase == NEW_GAME_PHASE_AMERICA_CHOICE || ng->phase == NEW_GAME_PHASE_MAP_PICK) {
+      /*
+       * Black screen + OPENTILE popup: same palette/colors as @BEGINMENU
+       * (OPENMENU / remapped WOODPANL @COLORS). Do not use terrain palette.
+       */
+      if (game->menu_bg_ok && game->menu_bg.has_palette) {
+        *palette = game->menu_bg.palette;
+      } else if (game->menu_opentile_ok && game->menu_opentile.has_palette) {
+        *palette = game->menu_opentile.palette;
+      }
+      popup_cols = game->menu_popup_colors;
+      basic = game->menu_col_basic;
+      hilite = game->menu_col_hilite;
+      select = game->menu_col_select;
+    } else if (ng->phase == NEW_GAME_PHASE_DIFFICULTY && ng->difficul_ok) {
       hilite = palette_nearest_rgb(&ng->difficul_pik.palette, 0, 255, 0);
       basic = palette_nearest_rgb(&ng->difficul_pik.palette, 0, 180, 0);
     } else if (ng->phase == NEW_GAME_PHASE_NATION && ng->nations_ok) {
