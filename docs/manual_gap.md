@@ -114,7 +114,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Villages on map + Braves | Partial | Map/minimap icons (`ICONS` #10–13 by tech) + placement + quiet pulse / growth; see [ai_transcription.md](ai_transcription.md) |
+| Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays; see [ai_transcription.md](ai_transcription.md) |
 | Meet menus, trade, teach skills | Missing | Parked; adjacent contact bumps alarm + status line only ([ai_transcription.md](ai_transcription.md)) |
 | Missions / convert / incite | Missing | |
 | Alarm, raid, Indian wars | Partial | Runtime alarm friction bumps on adjacent contact; `@RAID*` / wars still deferred |
@@ -142,7 +142,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Partial | `ai.c`; T2 early path on VR_SEED=100 — [ai_transcription.md](ai_transcription.md) |
+| Rival starter fleets + sail to landfall | Partial | `ai_euro_early_turn` / approach sail; T2 on VR_SEED=100 — [ai_transcription.md](ai_transcription.md) |
 | Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found New Amsterdam/Quebec/Isabella (`smoke_ai_turns`); combat / mid-game planner still missing |
 
 ### Win / end sequences

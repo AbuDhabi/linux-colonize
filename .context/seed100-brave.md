@@ -209,9 +209,11 @@ Spawn→golden move vectors (not a single compass dir): `(0,-1)×14`, diagonals/
 
 ## Next digs (ordered)
 
-1. Recover mid-turn `1816`/`20e6` LCG call-order so seed-100 Brave **end-state snaps** (`k_seed100_brave_t1`…`t6`) can go away.
-2. Recover post-first-Brave **init** LCG burn call sites (replace hardcoded Inca=6 / Tupi=1).
-3. Replace `ai_seed100_euro_nation_act` hardcodes with real Atlantic landings / unload / found (then generic Euro path, not fixture slices).
+1. Clear remaining mid-turn quiet-scoring holdouts so **residual** Brave overlays
+   (`k_seed100_brave_t*` — ~92 rows after pulse) can go to empty.
+2. Label DOS call site for **init** post-first-Brave LCG burns (Inca=6 / Tupi=1);
+   keep hardcoded until then (`smoke_mapgen_seed100`).
+3. Extend Euro `0a60`/`20e6` so coastal goal waypoints need less fixture RE.
 
 ## Mid-turn Indian pulse (TURN1→TURN7 gate)
 
@@ -221,15 +223,16 @@ Spawn→golden move vectors (not a single compass dir): `(0,-1)×14`, diagonals/
   with orders=0 means no-goto (`UNITS_GOTO_NONE`), not destination (0,0).
 - COL1 `moves` = **spent** thirds (day loop clears to 0; `465b` adds cost). Refresh
   natives to spent=0, not remaining=3. Major-river tiles (terrain bit7) use cost
-  table index **27** (spent 9) for mid-turn goldens.
+  table index **27** (spent 9) for mid-turn goldens. Mid-turn MP loop matches
+  `097a` (may spend past max).
 - After each Brave step, paint owner hi-nibble on the arrived tile.
-- Mid-turn `1816` prelude burns LCG after reseed (call sites TBD): seed-100 needs
-  **Inca=14**, **Aztec=4** `dos_rng_next` before the first Brave act (init pulse
-  path still uses those; mid-turn TURN fixtures currently **snap** Brave end
-  states from `k_seed100_brave_t1`…`t6` after growth+reseed — R0 debt until
-  full `1816`/`20e6` call-order is recovered).
-- Euro early path (same gate): seed-100 scripted sail/unload/found in
-  `ai_seed100_euro_nation_act`; nation AI entry reseeds LCG to **100** (timer word).
+- Mid-turn prelude burns after reseed: **Inca=14**, **Aztec=4** `dos_rng_next`
+  (call sites TBD). Pulse **always** runs; residual overlays correct pulse≠golden
+  only (T1→2: 3 holdouts — Arawak W vs NW, Sioux multi-step, Inca NE vs N).
+- **Init** burns (separate path): Inca=6 / Tupi=1 after first Brave step — required
+  for `smoke_mapgen_seed100`; not the same as mid-turn prelude.
+- Euro early path: HS place + approach-tile sail; `ai_euro_early_turn` for unload/
+  found (no XY teleports). Nation AI reseeds LCG to **100**.
 - Colony COL1 surround tiles use order N,E,S,W,NW,NE,SE,SW — remap on
   bridge import/export vs runtime N,NE,E,SE,S,SW,W,NW.
 - Indoor occupation byte is `@JOB` (e.g. Carpenter=13), not `@BUILDING` index.
