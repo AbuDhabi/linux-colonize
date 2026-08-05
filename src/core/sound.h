@@ -75,6 +75,16 @@ bool sound_gsound_song_stats(
   uint8_t* out_first_program,
   uint8_t* out_first_channel
 );
+/* Enumerate decoded events (index 0..events-1) for MIDI/export tools. */
+bool sound_gsound_event_at(
+  int id,
+  int index,
+  uint32_t* out_tick,
+  uint8_t* out_status,
+  uint8_t* out_data1,
+  uint8_t* out_data2,
+  uint8_t* out_channel
+);
 /* Render a short offline buffer (mono S16) for smoke tests; returns frames written. */
 int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sample_rate);
 

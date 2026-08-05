@@ -626,6 +626,25 @@ endif()
 
 add_test(NAME smoke_sound COMMAND smoke_sound WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(dump_gsound_wav
+  tools/dump_gsound_wav.c
+  src/core/sound.c
+  src/platform/diagnostics.c
+  src/core/strutil.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(dump_gsound_wav PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(dump_gsound_wav PRIVATE m pthread)
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(dump_gsound_wav PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(dump_gsound_wav PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(dump_gsound_wav PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+endif()
+
 target_include_directories(smoke_game_flow PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
