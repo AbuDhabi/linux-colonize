@@ -286,6 +286,33 @@ bool units_unload_passenger(
 /* First cargo with moves_left > 0, or -1. */
 int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id);
 /*
+ * Pick an adjacent land tile the ship's passengers can enter (8-neighbour).
+ * Prefers tiles nearer to (prefer_x, prefer_y) when prefer coords are valid;
+ * pass prefer_x < 0 to ignore. Returns false if none.
+ */
+bool units_pick_landfall_tile(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int prefer_x,
+  int prefer_y,
+  int* out_x,
+  int* out_y
+);
+/*
+ * Unload every passenger onto dest (must be enterable land adjacent/same).
+ * Wakes sentry cargo. Does not change pool->selected_id. Returns count unloaded.
+ */
+int units_landfall_unload_all(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+);
+/*
  * Colony dock: remove all passengers from the ship onto (x,y), clear sentry.
  * Does not change ship position. Returns number disembarked.
  */

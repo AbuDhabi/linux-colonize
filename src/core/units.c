@@ -1649,7 +1649,6 @@ bool units_unload_passenger(
   if (pax->moves_left <= 0) {
     pax->moves_left = type ? type->movement : 1;
   }
-  pool->selected_id = pax_id;
   diag_info("Unloaded unit %d from ship %d to (%d,%d)", pax_id, ship_id, dest_x, dest_y);
   return true;
 }
@@ -1683,6 +1682,106 @@ int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id) {
     }
   }
   return -1;
+}
+
+bool units_pick_landfall_tile(
+  const ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int prefer_x,
+  int prefer_y,
+  int* out_x,
+  int* out_y
+) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!pool || !ship || !map || !out_x || !out_y || !units_is_sea(pool, ship_id)) {
+    return false;
+  }
+  int pax_type = -1;
+  int pax_id = -1;
+  if (ship->cargo_count > 0) {
+    pax_id = ship->cargo_ids[0];
+    const ColonizeUnit* pax = units_get_const(pool, pax_id);
+    if (pax) {
+      pax_type = pax->type_index;
+    }
+  }
+  if (pax_type < 0) {
+    return false;
+  }
+
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const bool have_prefer = prefer_x >= 0 && prefer_y >= 0;
+  int best_x = -1;
+  int best_y = -1;
+  int best_d = 0x7fffffff;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = ship->x + k_dx[d];
+    const int ny = ship->y + k_dy[d];
+    if (!map_tile_is_land(map, nx, ny) || map_tile_is_water(map, nx, ny)) {
+      continue;
+    }
+    if (!units_can_enter(pool, pax_type, map, nx, ny, pax_id, colonies)) {
+      continue;
+    }
+    int dist = 0;
+    if (have_prefer) {
+      const int dx = nx - prefer_x;
+      const int dy = ny - prefer_y;
+      dist = dx * dx + dy * dy;
+    }
+    if (best_x < 0 || dist < best_d) {
+      best_x = nx;
+      best_y = ny;
+      best_d = dist;
+    }
+  }
+  if (best_x < 0) {
+    return false;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return true;
+}
+
+int units_landfall_unload_all(
+  ColonizeUnitPool* pool,
+  int ship_id,
+  const ColonizeWorldMap* map,
+  int dest_x,
+  int dest_y,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!pool || !ship || !map || !units_is_sea(pool, ship_id) || ship->cargo_count <= 0) {
+    return 0;
+  }
+  const int saved_sel = pool->selected_id;
+  int n = 0;
+  /* Snapshot ids — cargo_ids shift as we unload. */
+  int ids[COLONIZE_UNIT_CARGO_MAX];
+  const int count = ship->cargo_count < COLONIZE_UNIT_CARGO_MAX ? ship->cargo_count
+                                                               : COLONIZE_UNIT_CARGO_MAX;
+  for (int i = 0; i < count; ++i) {
+    ids[i] = ship->cargo_ids[i];
+  }
+  for (int i = 0; i < count; ++i) {
+    ColonizeUnit* pax = units_get(pool, ids[i]);
+    if (!pax || pax->aboard_ship_id != ship_id) {
+      continue;
+    }
+    /* Wake sentry so unload does not leave orders=1 ashore. */
+    if (pax->orders == 1) {
+      pax->orders = 0;
+    }
+    if (units_unload_passenger(pool, ship_id, ids[i], map, dest_x, dest_y, colonies)) {
+      n++;
+    }
+  }
+  pool->selected_id = saved_sel;
+  return n;
 }
 
 int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
