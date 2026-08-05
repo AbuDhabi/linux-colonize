@@ -1129,6 +1129,38 @@ bool sound_gsound_song_stats(
   return found_note || song->event_count > 0;
 }
 
+bool sound_gsound_event_at(
+  int id,
+  int index,
+  uint32_t* out_tick,
+  uint8_t* out_status,
+  uint8_t* out_data1,
+  uint8_t* out_data2,
+  uint8_t* out_channel
+) {
+  SoundSong* song = sound_find_song(id);
+  if (!song || index < 0 || index >= song->event_count) {
+    return false;
+  }
+  const SoundMidiEvent* e = &song->events[index];
+  if (out_tick) {
+    *out_tick = e->tick;
+  }
+  if (out_status) {
+    *out_status = e->status;
+  }
+  if (out_data1) {
+    *out_data1 = e->data1;
+  }
+  if (out_data2) {
+    *out_data2 = e->data2;
+  }
+  if (out_channel) {
+    *out_channel = e->channel;
+  }
+  return true;
+}
+
 int sound_render_offline_mono(int song_id, int16_t* dst, int max_frames, int sample_rate) {
   if (!dst || max_frames <= 0 || !g_sound.inited) {
     return 0;
