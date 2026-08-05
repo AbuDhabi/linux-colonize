@@ -14,7 +14,7 @@ typedef struct ColonizeFont ColonizeFont;
 
 #define COLONIZE_COLONIES_MAX 32
 #define COLONIZE_COLONY_NAME_MAX 28
-#define COLONIZE_COLONY_NAMES_MAX 48
+#define COLONIZE_COLONY_NAMES_MAX 80
 #define COLONIZE_BUILDING_TYPES_MAX 48
 #define COLONIZE_COLONY_POP_MAX 32
 #define COLONIZE_COLONY_FIELD_TILES 8
@@ -89,15 +89,16 @@ typedef struct ColonizeColonyPool {
   ColonizeColony colonies[COLONIZE_COLONIES_MAX];
   int colony_count;
   int next_id;
-  char names[COLONIZE_COLONY_NAMES_MAX][COLONIZE_COLONY_NAME_MAX];
-  int name_count;
-  int name_next;
+  /* Per European nation (0..3) from COLONY.TXT @ENGLISH/@FRENCH/@SPANISH/@DUTCH. */
+  char names[4][COLONIZE_COLONY_NAMES_MAX][COLONIZE_COLONY_NAME_MAX];
+  int name_count[4];
+  int name_next[4];
   ColonizeBuildingType building_types[COLONIZE_BUILDING_TYPES_MAX];
   int building_type_count;
 } ColonizeColonyPool;
 
 void colonies_init(ColonizeColonyPool* pool);
-/* Load colony name list from COLONY.TXT @ENGLISH (or another @section). */
+/* Load per-nation colony names from COLONY.TXT (@ENGLISH/@FRENCH/@SPANISH/@DUTCH). */
 bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path);
 /* Load @BUILDING definitions from NAMES.TXT. */
 bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog* names);

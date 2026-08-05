@@ -504,6 +504,8 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->tax_percent = 0;
   eu->current_crosses = 0;
   eu->needed_crosses = 8;
+  eu->crosses_immigrant_seen = false;
+  eu->crosses_pending_needed_bump = false;
   eu->liberty_bells_total = 0;
   eu->liberty_bells_last_turn = 0;
   eu->harbor_ships = 0;

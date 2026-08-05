@@ -6,6 +6,7 @@
 
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/units.h"
@@ -39,6 +40,10 @@ typedef struct ColonizeTurnContext {
   ColonizeWorldMap* map; /* optional; AI sailing / Brave wander */
   ColonizeCol1Save* col1; /* optional; updated in place when non-NULL */
   bool col1_ok;
+  /* DOS LCG for AI / partial-overspend. Nation turns reseed from rng_seed
+   * (FUN_281f_04ca ← DS:0x83a6 timer word; VR_SEED locks this to 100). */
+  ColonizeDosRng* rng;
+  uint32_t rng_seed;
   char* status;
   size_t status_size;
 } ColonizeTurnContext;

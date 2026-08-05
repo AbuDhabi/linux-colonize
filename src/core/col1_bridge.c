@@ -85,6 +85,27 @@ static bool col1_coord_is_europe(uint8_t x, uint8_t y) {
   return x >= 200 || y >= 200;
 }
 
+/*
+ * COL1 surround-tile order (N,E,S,W,NW,NE,SE,SW) vs runtime (N,NE,E,SE,S,SW,W,NW).
+ * See classic SAV notes (dledgard / CivFanatics).
+ */
+static const int k_col1_tile_to_runtime[8] = {0, 2, 4, 6, 7, 1, 3, 5};
+static const int k_runtime_tile_to_col1[8] = {0, 5, 1, 6, 2, 7, 3, 4};
+
+static int col1_tile_index_to_runtime(int col1_ti) {
+  if (col1_ti < 0 || col1_ti >= 8) {
+    return col1_ti;
+  }
+  return k_col1_tile_to_runtime[col1_ti];
+}
+
+static int col1_tile_index_from_runtime(int runtime_ti) {
+  if (runtime_ti < 0 || runtime_ti >= 8) {
+    return runtime_ti;
+  }
+  return k_runtime_tile_to_col1[runtime_ti];
+}
+
 static int col1_find_human_nation(const ColonizeCol1Save* save) {
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     if (save->player[i].control == 0) {
@@ -268,6 +289,23 @@ static int col1_unit_type_to_runtime(const ColonizeUnitPool* units, uint8_t col1
 
 static int col1_find_ship_root(const ColonizeCol1Unit* units, int count, int start) {
   int i = start;
+  /* Walk prev: DOS Europe fleets often chain ship→pax→pax (ship at head). */
+  for (int guard = 0; guard < count + 2; ++guard) {
+    if (i < 0 || i >= count) {
+      break;
+    }
+    const uint8_t t = units[i].type;
+    if (t >= 13 && t <= 18) {
+      return i;
+    }
+    const int prev = units[i].transport_chain.prev_unit_idx;
+    if (prev < 0 || prev == i) {
+      break;
+    }
+    i = prev;
+  }
+  /* Walk next: pax→…→ship chains from capture / some saves. */
+  i = start;
   for (int guard = 0; guard < count + 2; ++guard) {
     if (i < 0 || i >= count) {
       return -1;
@@ -377,6 +415,22 @@ bool col1_bridge_apply(
         flags = (uint8_t)(flags | MAP_IMPROVE_PLOWED);
       }
       map->improve[i] = flags;
+      /*
+       * Col1 mask low bits carry village/capital occupancy (same as runtime
+       * layer2 & 3). Road in mask is 0x08; DOS AI scoring also checks layer2
+       * bit 0x40 for roads — mirror improve road into that bit.
+       */
+      if (map->layer2) {
+        uint8_t l2 = (uint8_t)(m & 0x03u);
+        if ((m & 0x08u) != 0) {
+          l2 = (uint8_t)(l2 | 0x40u);
+        }
+        map->layer2[i] = l2;
+      }
+    }
+    /* Col1 path = continent (lo) | owner/visitor (hi); runtime layer3 same. */
+    if (map->layer3 && save->map.path) {
+      map->layer3[i] = save->map.path[i];
     }
   }
   if (save->map.seen) {
@@ -387,17 +441,19 @@ bool col1_bridge_apply(
 
   /* Colonies — soft-reset actives, keep name/building catalogs. */
   {
-    const int name_count = colonies->name_count;
-    const int name_next = colonies->name_next;
-    char names_backup[COLONIZE_COLONY_NAMES_MAX][COLONIZE_COLONY_NAME_MAX];
+    int name_count[4];
+    int name_next[4];
+    char names_backup[4][COLONIZE_COLONY_NAMES_MAX][COLONIZE_COLONY_NAME_MAX];
     ColonizeBuildingType buildings_backup[COLONIZE_BUILDING_TYPES_MAX];
     const int building_type_count = colonies->building_type_count;
+    memcpy(name_count, colonies->name_count, sizeof(name_count));
+    memcpy(name_next, colonies->name_next, sizeof(name_next));
     memcpy(names_backup, colonies->names, sizeof(names_backup));
     memcpy(buildings_backup, colonies->building_types, sizeof(buildings_backup));
     colonies_init(colonies);
     memcpy(colonies->names, names_backup, sizeof(names_backup));
-    colonies->name_count = name_count;
-    colonies->name_next = name_next;
+    memcpy(colonies->name_count, name_count, sizeof(name_count));
+    memcpy(colonies->name_next, name_next, sizeof(name_next));
     memcpy(colonies->building_types, buildings_backup, sizeof(buildings_backup));
     colonies->building_type_count = building_type_count;
   }
@@ -418,8 +474,14 @@ bool col1_bridge_apply(
     dst->nation_id = src->nation_id;
     dst->population = src->population;
     dst->hammers = src->hammers;
-    dst->building_in_production =
-      (src->building_in_production == 0xFF) ? -1 : (int)src->building_in_production;
+    /* COL1 Stockade construction id is 6; runtime uses @BUILDING index (0). */
+    if (src->building_in_production == 0xFF) {
+      dst->building_in_production = -1;
+    } else if (src->building_in_production == 6) {
+      dst->building_in_production = colonies_find_building(colonies, "Stockade");
+    } else {
+      dst->building_in_production = (int)src->building_in_production;
+    }
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
       dst->stock[c] = src->stock[c];
     }
@@ -448,7 +510,8 @@ bool col1_bridge_apply(
       if (who < 0 || who >= dst->colonist_count) {
         continue;
       }
-      dst->tiles[ti] = (int8_t)who;
+      const int rti = col1_tile_index_to_runtime(ti);
+      dst->tiles[rti] = (int8_t)who;
       const int occ = (int)src->occupation[who];
       if (occ >= 0 && occ < COLONIZE_FIELD_JOB_COUNT) {
         dst->colonists[who].field_job = occ;
@@ -460,6 +523,47 @@ bool col1_bridge_apply(
         continue;
       }
       const int occ = (int)src->occupation[p];
+      /* Indoor: COL1 occupation is @JOB (craftsman), not @BUILDING index. */
+      const char* bname = NULL;
+      switch (occ) {
+        case 13: /* Carpenter */
+          bname = "Carpenter's Shop";
+          break;
+        case 9: /* Distiller */
+          bname = "Rum Distiller's House";
+          break;
+        case 10:
+          bname = "Tobacconist's House";
+          break;
+        case 11:
+          bname = "Weaver's House";
+          break;
+        case 12:
+          bname = "Fur Trader's House";
+          break;
+        case 14: /* Blacksmith */
+          bname = "Blacksmith's House";
+          break;
+        case 15: /* Gunsmith */
+          bname = "Armory";
+          break;
+        case 17: /* Statesman */
+        case 18: /* Preacher uses Church — Preacher is 16? */
+          bname = "Town Hall";
+          break;
+        case 16: /* Preacher */
+          bname = "Church";
+          break;
+        default:
+          break;
+      }
+      if (bname) {
+        const int bi = colonies_find_building(colonies, bname);
+        if (bi >= 0 && dst->has_building[bi]) {
+          dst->colonists[p].building_type = bi;
+          continue;
+        }
+      }
       if (occ >= 0 && occ < colonies->building_type_count && dst->has_building[occ]) {
         dst->colonists[p].building_type = occ;
       }
@@ -517,10 +621,7 @@ bool col1_bridge_apply(
         }
         continue;
       }
-      if (src->nation_id == (uint8_t)local.human_nation) {
-        continue;
-      }
-      /* Fall through: spawn AI Europe units into the live pool. */
+      /* Human Europe land units (dock immigrants) and AI Europe fleets: spawn. */
     }
     const int ti = col1_unit_type_to_runtime(units, src->type);
     if (ti < 0) {
@@ -538,9 +639,25 @@ bool col1_bridge_apply(
       const ColonizeUnitType* ut = units_type(units, ti);
       u->moves_left = (src->moves == 0 && ut) ? ut->movement : (int)src->moves;
       u->orders = (int)src->orders;
-      u->goto_x = (int)src->goto_x;
-      u->goto_y = (int)src->goto_y;
+      /*
+       * Col1 Braves store goto (0,0) with orders=0 meaning "no goto". Runtime
+       * uses UNITS_GOTO_NONE (0xFF); leave (0,0) alone only when it equals xy.
+       */
+      if (!units_orders_follow_goto(u->orders) && src->goto_x == 0 && src->goto_y == 0 &&
+          !(src->x == 0 && src->y == 0)) {
+        u->goto_x = UNITS_GOTO_NONE;
+        u->goto_y = UNITS_GOTO_NONE;
+      } else {
+        u->goto_x = (int)src->goto_x;
+        u->goto_y = (int)src->goto_y;
+      }
       u->profession = (int)src->profession;
+      u->turns_worked = (int)src->turns_worked;
+      /* DOS unit+0x06 / unknown16[0]: home tribe index for Braves. */
+      u->home_tribe_id = (int)src->unknown16[0];
+      u->col1_unknown15 = src->unknown15;
+      u->col1_unknown16_hi = src->unknown16[1];
+      u->last_dir = (int)(src->unknown18 & 7u);
       /* Commodity hold slots (passengers board separately via transport chain). */
       {
         const uint8_t items[6] = {
@@ -606,6 +723,21 @@ bool col1_bridge_apply(
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     europe->liberty_bells_total = nat->liberty_bells_total;
     europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
+    /* Restore immigrant-crosses FSM from save (dock unit / spent crosses). */
+    europe->crosses_immigrant_seen = false;
+    europe->crosses_pending_needed_bump = false;
+    for (int ui = 0; ui < (int)save->head.unit_count; ++ui) {
+      const ColonizeCol1Unit* uu = &save->unit[ui];
+      if (uu->nation_id == (uint8_t)local.human_nation && col1_coord_is_europe(uu->x, uu->y) &&
+          uu->type < 13) {
+        europe->crosses_immigrant_seen = true;
+        break;
+      }
+    }
+    if (europe->crosses_immigrant_seen && europe->needed_crosses == 9 &&
+        europe->current_crosses == 0) {
+      europe->crosses_pending_needed_bump = true;
+    }
     col1_copy_name24(europe->nation_name, sizeof(europe->nation_name),
                      save->player[local.human_nation].country_name);
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
@@ -699,7 +831,14 @@ bool col1_bridge_capture(
       } else {
         m = (uint8_t)(m & (uint8_t)~0x40u);
       }
+      /* Preserve village/capital occupancy bits from live layer2. */
+      if (map->layer2) {
+        m = (uint8_t)((m & (uint8_t)~0x03u) | (map->layer2[i] & 0x03u));
+      }
       save->map.mask[i] = m;
+    }
+    if (save->map.path && map->layer3) {
+      save->map.path[i] = map->layer3[i];
     }
   }
   if (save->map.seen) {
@@ -755,8 +894,17 @@ bool col1_bridge_capture(
       dst->nation_id = (uint8_t)src->nation_id;
       dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
       dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
-      dst->building_in_production =
-        (uint8_t)(src->building_in_production < 0 ? 0xFF : src->building_in_production);
+      /* COL1 Stockade construction id is 6; none is 0xFF. */
+      if (src->building_in_production < 0) {
+        dst->building_in_production = 0xFF;
+      } else {
+        const int stockade = colonies_find_building(colonies, "Stockade");
+        if (stockade >= 0 && src->building_in_production == stockade) {
+          dst->building_in_production = 6;
+        } else {
+          dst->building_in_production = (uint8_t)src->building_in_production;
+        }
+      }
       for (int p = 0; p < dst->population; ++p) {
         const ColonizeColonist* c = &src->colonists[p];
         int prof = c->profession;
@@ -783,8 +931,15 @@ bool col1_bridge_capture(
         dst->stock[c] = (uint16_t)s;
       }
       for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-        const int who = (int)src->tiles[ti];
-        dst->tiles[ti] = (who >= 0 && who < dst->population) ? (int8_t)who : (int8_t)-1;
+        dst->tiles[ti] = (int8_t)-1;
+      }
+      for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES; ++rti) {
+        const int who = (int)src->tiles[rti];
+        if (who < 0 || who >= dst->population) {
+          continue;
+        }
+        const int cti = col1_tile_index_from_runtime(rti);
+        dst->tiles[cti] = (int8_t)who;
       }
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
     }
@@ -835,15 +990,27 @@ bool col1_bridge_capture(
         dst->orders = 1; /* sentry if aboard */
       } else if (src->orders != 0) {
         dst->orders = (uint8_t)src->orders;
-      } else if (src->goto_x >= 0 && src->goto_x < 255 && src->goto_y >= 0 && src->goto_y < 255 &&
-                 (src->x != src->goto_x || src->y != src->goto_y)) {
-        dst->orders = UNITS_ORDER_GOTO;
       } else {
         dst->orders = 0;
       }
-      dst->goto_x = (uint8_t)(src->goto_x < 0 ? 0xFF : src->goto_x);
-      dst->goto_y = (uint8_t)(src->goto_y < 0 ? 0xFF : src->goto_y);
+      /* Col1 Braves use (0,0) for no-goto; keep that convention on export. */
+      if (src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE || src->goto_x < 0 ||
+          src->goto_y < 0) {
+        dst->goto_x = 0;
+        dst->goto_y = 0;
+      } else {
+        dst->goto_x = (uint8_t)src->goto_x;
+        dst->goto_y = (uint8_t)src->goto_y;
+      }
       dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
+      dst->turns_worked =
+        (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
+      dst->unknown15 = src->col1_unknown15;
+      dst->unknown16[0] =
+        (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
+                                                                    : (src->home_tribe_id & 0xff));
+      dst->unknown16[1] = src->col1_unknown16_hi;
+      dst->unknown18 = (uint8_t)(src->last_dir & 7);
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
       {
         /* Pack goods into nibble fields + amounts. Passengers are not goods. */

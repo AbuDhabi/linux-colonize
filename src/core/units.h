@@ -55,6 +55,10 @@ typedef struct ColonizeUnit {
   int muskets; /* 0 or 50 when armed */
   int horses; /* 0 or 50 when mounted */
   int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
+  int turns_worked; /* COL1 unit+0x16; Brave pulse / labor counter */
+  int last_dir; /* DOS unit+0x0c / Col1 unknown18; facing 0..7 for AI scoring */
+  uint8_t col1_unknown15; /* round-trip padding */
+  uint8_t col1_unknown16_hi; /* DOS unit+0x07; often 0x58 on Braves */
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {
@@ -142,13 +146,21 @@ bool units_resolve_land_combat(
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
 int units_last_combat_outcome(void);
 
-/* @ORDERS indices (NAMES.TXT). */
+/* @ORDERS indices (NAMES.TXT) + Col1 AI order bytes seen in saves. */
 #define UNITS_ORDER_NONE 0
 #define UNITS_ORDER_SENTRY 1
 #define UNITS_ORDER_GOTO 3
 #define UNITS_ORDER_FORTIFY 5
 #define UNITS_ORDER_FORTIFIED 6
+#define UNITS_ORDER_AI_SAIL 11 /* Euro AI ship course (TURN fixtures) */
+#define UNITS_ORDER_AI_MOVE 12 /* Euro AI coastal / land course */
 #define UNITS_GOTO_NONE 0xFF
+
+/* True if orders byte means "follow goto_x/y". */
+static inline bool units_orders_follow_goto(int orders) {
+  return orders == UNITS_ORDER_GOTO || orders == UNITS_ORDER_AI_SAIL ||
+         orders == UNITS_ORDER_AI_MOVE;
+}
 
 void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
 /*
@@ -188,19 +200,21 @@ bool units_next_goto_step(
   int* out_x,
   int* out_y
 );
-/* One adjacent step toward goto (or clear orders if arrived). */
+/* One adjacent step toward goto (or clear orders if arrived). rng may be NULL. */
 bool units_advance_goto_one_step(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
 );
 /* Walk until MP exhausted, arrived, or blocked. Clears orders on arrival. */
 bool units_advance_goto(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
 );
 /* One step for every Go-To unit that can move; returns how many stepped. */
 int units_advance_all_goto_one_step(

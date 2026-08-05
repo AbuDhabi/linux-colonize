@@ -175,6 +175,11 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->tools = 0;
   slot->muskets = 0;
   slot->horses = 0;
+  slot->home_tribe_id = -1;
+  slot->turns_worked = 0;
+  slot->last_dir = 0;
+  slot->col1_unknown15 = 0;
+  slot->col1_unknown16_hi = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
   } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
@@ -188,7 +193,6 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   } else if (strstr(type->name, "Scout") != NULL) {
     slot->horses = UNITS_EQUIP_HORSES;
   }
-  slot->home_tribe_id = -1;
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
@@ -219,6 +223,10 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->muskets = 0;
   unit->horses = 0;
   unit->home_tribe_id = -1;
+  unit->turns_worked = 0;
+  unit->last_dir = 0;
+  unit->col1_unknown15 = 0;
+  unit->col1_unknown16_hi = 0;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -1124,7 +1132,7 @@ bool units_next_goto_step(
   if (!u || !u->active || !units_is_on_map(u) || !map || !out_x || !out_y) {
     return false;
   }
-  if (u->orders != UNITS_ORDER_GOTO) {
+  if (!units_orders_follow_goto(u->orders)) {
     return false;
   }
   const int gx = u->goto_x;
@@ -1194,13 +1202,14 @@ bool units_advance_goto_one_step(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !units_is_on_map(u) || !map) {
     return false;
   }
-  if (u->orders != UNITS_ORDER_GOTO) {
+  if (!units_orders_follow_goto(u->orders)) {
     return false;
   }
   const int gx = u->goto_x;
@@ -1221,7 +1230,7 @@ bool units_advance_goto_one_step(
   if (!units_next_goto_step(pool, unit_id, map, colonies, &nx, &ny)) {
     return false;
   }
-  if (!units_try_move(pool, unit_id, map, nx, ny, colonies, NULL)) {
+  if (!units_try_move(pool, unit_id, map, nx, ny, colonies, rng)) {
     return false;
   }
   u = units_get(pool, unit_id);
@@ -1235,10 +1244,11 @@ bool units_advance_goto(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
-  const ColonizeColonyPool* colonies
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
 ) {
   bool moved = false;
-  while (units_advance_goto_one_step(pool, unit_id, map, colonies)) {
+  while (units_advance_goto_one_step(pool, unit_id, map, colonies, rng)) {
     moved = true;
   }
   return moved;
@@ -1255,10 +1265,10 @@ int units_advance_all_goto_one_step(
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->orders != UNITS_ORDER_GOTO || !units_is_on_map(u)) {
+    if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
       continue;
     }
-    if (units_advance_goto_one_step(pool, u->id, map, colonies)) {
+    if (units_advance_goto_one_step(pool, u->id, map, colonies, NULL)) {
       n++;
     }
   }
@@ -1276,10 +1286,10 @@ int units_advance_all_goto(
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->orders != UNITS_ORDER_GOTO || !units_is_on_map(u)) {
+    if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
       continue;
     }
-    if (units_advance_goto(pool, u->id, map, colonies)) {
+    if (units_advance_goto(pool, u->id, map, colonies, NULL)) {
       n++;
     }
   }

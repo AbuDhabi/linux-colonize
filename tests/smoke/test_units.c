@@ -1063,7 +1063,7 @@ int main(void) {
       return 1;
     }
     const int before_mp = walker->moves_left;
-    units_advance_goto(&pool, uid, &map, NULL);
+    units_advance_goto(&pool, uid, &map, NULL, NULL);
     walker = units_get(&pool, uid);
     if (!walker || (walker->x == lx && walker->y == ly && walker->moves_left >= before_mp)) {
       fprintf(stderr, "advance_goto made no progress\n");

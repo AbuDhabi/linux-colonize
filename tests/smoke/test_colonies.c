@@ -39,7 +39,7 @@ int main(void) {
   CHECK(pool.colony_count == 0, "pool starts empty");
 
   CHECK(colonies_load_names(&pool, "COLONIZE/COLONY.TXT"), "load COLONY.TXT names");
-  CHECK(pool.name_count > 0, "at least one colony name loaded");
+  CHECK(pool.name_count[0] > 0, "at least one English colony name loaded");
 
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
