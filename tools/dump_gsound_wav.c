@@ -1,15 +1,18 @@
+#define _DEFAULT_SOURCE
 /*
  * Offline GSOUND → WAV (and optional Type-0 SMF) dump.
  *
  * Usage:
  *   dump_gsound_wav [--data-dir DIR] [--out-dir DIR] [--seconds N] [--midi]
- *                   [--rename-only] [song_id ...]
+ *                   [--rename-only] [--ab] [song_id ...]
  *
  * Defaults: every decoded BGM song id, one full pass (+2s release tail) into
  * ./ripped_sound as stereo 44.1 kHz PCM WAV (same render path as gameplay).
  * --seconds N forces a fixed length instead of duration_ticks.
  * Filenames: 0xID_Title.wav (titles from GAME.TXT @PICKMUSIC* + known extras).
  * --rename-only renames existing song_XX.wav / 0xXX*.wav without re-rendering.
+ * --ab dumps the four reference songs into .context/music-ab as 0xID_port.wav
+ *   at reference lengths (for tools/compare_music_ab.py).
  */
 #include <ctype.h>
 #include <math.h>
@@ -18,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "core/sound.h"
 #include "platform/diagnostics.h"
@@ -392,14 +396,31 @@ static int song_seconds(uint32_t duration_ticks, int forced_seconds) {
   return sec;
 }
 
+static const struct {
+  int id;
+  int seconds;
+  const char* ref_wav;
+} k_ab_songs[] = {
+  {0x21, 46, "reference_music/wav/02 - Bird Song.wav"},
+  {0x26, 71, "reference_music/wav/07 - Jine the Cavalry.wav"},
+  {0x2b, 72, "reference_music/wav/12 - Hole in the Wall.wav"},
+  {0x37, 48, "reference_music/wav/20 - Indian Victory.wav"},
+};
+
 int main(int argc, char** argv) {
   const char* data_dir = "./COLONIZE";
   const char* out_dir = "./ripped_sound";
   int forced_seconds = 0;
   bool want_midi = false;
   bool rename_only = false;
+  bool ab_mode = false;
   int songs[64];
   int song_count = 0;
+  int ab_seconds[64];
+
+  for (int i = 0; i < 64; ++i) {
+    ab_seconds[i] = 0;
+  }
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "--data-dir") == 0 && i + 1 < argc) {
@@ -412,12 +433,39 @@ int main(int argc, char** argv) {
       want_midi = true;
     } else if (strcmp(argv[i], "--rename-only") == 0) {
       rename_only = true;
+    } else if (strcmp(argv[i], "--ab") == 0) {
+      ab_mode = true;
     } else if (argv[i][0] == '-') {
       fprintf(stderr, "unknown flag %s\n", argv[i]);
       return 1;
     } else {
       if (song_count < (int)(sizeof(songs) / sizeof(songs[0]))) {
         songs[song_count++] = (int)strtol(argv[i], NULL, 0);
+      }
+    }
+  }
+
+  if (ab_mode) {
+    out_dir = "./.context/music-ab";
+    song_count = 0;
+    for (size_t i = 0; i < sizeof(k_ab_songs) / sizeof(k_ab_songs[0]); ++i) {
+      songs[song_count] = k_ab_songs[i].id;
+      ab_seconds[song_count] = k_ab_songs[i].seconds;
+      song_count++;
+    }
+    mkdir(".context", 0755);
+    mkdir(out_dir, 0755);
+    for (size_t i = 0; i < sizeof(k_ab_songs) / sizeof(k_ab_songs[0]); ++i) {
+      char ref_link[512];
+      char abs_ref[1024];
+      snprintf(ref_link, sizeof(ref_link), "%s/0x%02x_ref.wav", out_dir, k_ab_songs[i].id & 0xff);
+      unlink(ref_link);
+      if (realpath(k_ab_songs[i].ref_wav, abs_ref)) {
+        if (symlink(abs_ref, ref_link) != 0) {
+          fprintf(stderr, "warning: symlink %s failed\n", ref_link);
+        }
+      } else {
+        fprintf(stderr, "warning: missing reference %s\n", k_ab_songs[i].ref_wav);
       }
     }
   }
@@ -516,11 +564,19 @@ int main(int argc, char** argv) {
   int max_frames = 0;
   for (int s = 0; s < song_count; ++s) {
     uint32_t dur = 0;
-    if (sound_gsound_song_stats(songs[s], NULL, &dur, NULL, NULL, NULL, NULL)) {
-      const int frames = rate * song_seconds(dur, forced_seconds);
-      if (frames > max_frames) {
-        max_frames = frames;
-      }
+    int sec = forced_seconds;
+    if (ab_mode && ab_seconds[s] > 0) {
+      sec = ab_seconds[s];
+    }
+    if (sec <= 0 && sound_gsound_song_stats(songs[s], NULL, &dur, NULL, NULL, NULL, NULL)) {
+      sec = song_seconds(dur, 0);
+    }
+    if (sec < 1) {
+      sec = 1;
+    }
+    const int frames = rate * sec;
+    if (frames > max_frames) {
+      max_frames = frames;
     }
   }
   if (max_frames < rate) {
@@ -545,7 +601,13 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    const int seconds = song_seconds(dur, forced_seconds);
+    int seconds = forced_seconds;
+    if (ab_mode && ab_seconds[s] > 0) {
+      seconds = ab_seconds[s];
+    }
+    if (seconds <= 0) {
+      seconds = song_seconds(dur, 0);
+    }
     const int frames = rate * seconds;
     memset(buf, 0, (size_t)frames * 2u * sizeof(int16_t));
     sound_play_preview(id);
@@ -559,7 +621,11 @@ int main(int argc, char** argv) {
 
     char stem[160];
     char wav_path[512];
-    dump_song_stem(id, stem, sizeof(stem));
+    if (ab_mode) {
+      snprintf(stem, sizeof(stem), "0x%02x_port", id & 0xff);
+    } else {
+      dump_song_stem(id, stem, sizeof(stem));
+    }
     snprintf(wav_path, sizeof(wav_path), "%s/%s.wav", out_dir, stem);
     if (!write_wav_s16_stereo(wav_path, buf, written, rate)) {
       fprintf(stderr, "failed writing %s\n", wav_path);
