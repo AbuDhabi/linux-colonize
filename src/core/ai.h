@@ -56,4 +56,16 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 /* One native nation (4..11): village growth + DOS Brave pulse. */
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
+/*
+ * Cheat: Kill Indians — despawn all units of nation_id (4..11), remove villages,
+ * clear map owner nibbles on village tiles, reset indian[N-4] slot.
+ * Returns number of villages removed (0 if none / invalid).
+ */
+int col1_kill_indian_nation(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int nation_id
+);
+
 #endif

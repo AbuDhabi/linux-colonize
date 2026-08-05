@@ -2369,3 +2369,83 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
 }
+
+int col1_kill_indian_nation(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int nation_id
+) {
+  if (nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+
+  /* Despawn all units of this nation (iterate carefully — despawn mutates pool). */
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      units_despawn(units, u->id);
+    }
+  }
+
+  int removed = 0;
+  if (col1 && col1->tribe && col1->head.tribe_count > 0) {
+    const uint16_t old_count = col1->head.tribe_count;
+    /* Remap table: old index → new index, or -1 if deleted. */
+    int* remap = (int*)calloc((size_t)old_count, sizeof(int));
+    if (!remap) {
+      return 0;
+    }
+    uint16_t write = 0;
+    for (uint16_t i = 0; i < old_count; ++i) {
+      ColonizeCol1Tribe* t = &col1->tribe[i];
+      if ((int)t->nation_id == nation_id) {
+        if (map) {
+          ai_set_owner_nibble(map, (int)t->x, (int)t->y, 0x0f);
+        }
+        remap[i] = -1;
+        removed++;
+        continue;
+      }
+      if (write != i) {
+        col1->tribe[write] = *t;
+      }
+      remap[i] = (int)write;
+      write++;
+    }
+    col1->head.tribe_count = write;
+
+    /* Remap home_tribe_id for surviving units. */
+    if (units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units->units[i];
+        if (!u->active || u->home_tribe_id < 0) {
+          continue;
+        }
+        if (u->home_tribe_id >= (int)old_count) {
+          u->home_tribe_id = -1;
+          continue;
+        }
+        u->home_tribe_id = remap[u->home_tribe_id];
+      }
+    }
+    free(remap);
+  }
+
+  /* Reset fixed indian[] slot (keep tech). */
+  if (col1) {
+    const int idx = nation_id - 4;
+    ColonizeCol1Indian* ind = &col1->indian[idx];
+    const uint8_t tech = ind->tech;
+    memset(ind, 0, sizeof(*ind));
+    ind->tech = tech;
+    for (int e = 0; e < 4; ++e) {
+      col1->nation[e].relation_by_indian[idx] = 0;
+    }
+  }
+
+  return removed;
+}

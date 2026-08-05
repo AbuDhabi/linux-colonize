@@ -344,6 +344,8 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_REPORT_SCORE:
     case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
     case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
+    case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
+    case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
       return true;
     default:
       return false;

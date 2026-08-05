@@ -8,6 +8,7 @@
 
 #include "core/assets.h"
 #include "core/ai.h"
+#include "core/cheat_list_dialog.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -64,9 +65,12 @@ struct ColonizeGameState {
   ColonizeMsgCatalog map_menu_txt;
   MapMenuBar map_menu;
   PickMusicDialog pick_music;
+  CheatListDialog cheat_list;
   UnitStackPopup unit_stack;
   ColonizeMsgCatalog labels;
   bool labels_ok;
+  ColonizeMsgCatalog debug_txt;
+  bool debug_txt_ok;
   MapPanel map_panel;
   bool map_panel_ok;
   ColonizeMsgCatalog pedia;
@@ -111,6 +115,11 @@ struct ColonizeGameState {
   int debug_mouse_y;
   bool debug_show_mouse_coords; /* DEBUG menu toggle; default on */
   int cheat_unlock_step;   /* 0=expect W, 1=I, 2=N for Alt-WIN */
+  /*
+   * Cheat Reveal Map viewpoint: -2 = normal (human fog), -1 = complete map,
+   * 0..3 = view that European nation's seen bits.
+   */
+  int fog_view;
   UiDragSession ui_drag;
   int map_goto_anchor_x; /* tile under pointer when map goto drag began */
   int map_goto_anchor_y;
@@ -245,6 +254,106 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
     return;
   }
   snprintf(game->status, sizeof(game->status), "%.64s: %.60s", prefix, detail);
+}
+
+/* Fog nation for map paint: special view override, else human. */
+static int game_fog_nation(const ColonizeGameState* game) {
+  if (!game) {
+    return 0;
+  }
+  if (game->fog_view == -1) {
+    return -1; /* Complete Map */
+  }
+  if (game->fog_view >= 0 && game->fog_view <= 3) {
+    return game->fog_view;
+  }
+  return game->human_nation; /* NORMAL (-2) or invalid */
+}
+
+static void game_apply_setview(ColonizeGameState* game, int view_id, const char* label) {
+  if (!game) {
+    return;
+  }
+  game->fog_view = view_id;
+  if (game->col1_ok) {
+    game->col1.head.unknown42[2] = (uint8_t)(view_id == -2 ? 0 : 1);
+  }
+  if (view_id == -2) {
+    set_status(game, "No special view", NULL);
+  } else if (label && label[0]) {
+    set_status(game, "View", label);
+  } else {
+    set_status(game, "Viewpoint changed", NULL);
+  }
+}
+
+static void game_apply_kill_indians(ColonizeGameState* game, int nation_id, const char* label) {
+  if (!game || !game->col1_ok) {
+    set_status(game, "No Indians", NULL);
+    return;
+  }
+  /* Count units before wipe so empty-tribe status is accurate. */
+  int unit_n = 0;
+  if (game->units_ok) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &game->units.units[i];
+      if (u->active && u->nation_id == nation_id) {
+        unit_n++;
+      }
+    }
+  }
+  const int removed = col1_kill_indian_nation(
+    &game->col1,
+    game->units_ok ? &game->units : NULL,
+    game->world_map_ok ? &game->world_map : NULL,
+    nation_id
+  );
+  if (removed <= 0 && unit_n <= 0) {
+    set_status(game, "No Indians of that tribe", label);
+  } else if (label && label[0]) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Killed %s", label);
+    set_status(game, buf, NULL);
+  } else {
+    set_status(game, "Indians killed", NULL);
+  }
+}
+
+static void game_open_cheat_setview(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  if (!cheat_list_open_setview(
+        &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL
+      )) {
+    set_status(game, "Reveal Map unavailable", NULL);
+  }
+}
+
+static void game_open_cheat_kill_indians(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  if (!cheat_list_open_kill_indians(
+        &game->cheat_list, game->names_ok ? &game->names : NULL
+      )) {
+    set_status(game, "Kill Indians unavailable", NULL);
+  }
+}
+
+static void game_apply_cheat_list_result(ColonizeGameState* game) {
+  if (!game || !game->cheat_list.has_result) {
+    return;
+  }
+  const CheatListKind kind = game->cheat_list.result_kind;
+  const int id = game->cheat_list.result_id;
+  const char* label = game->cheat_list.result_label;
+  game->cheat_list.has_result = false;
+  if (kind == CHEAT_LIST_KIND_SETVIEW) {
+    game_apply_setview(game, id, label);
+  } else if (kind == CHEAT_LIST_KIND_KILL_INDIANS) {
+    game_apply_kill_indians(game, id, label);
+  }
 }
 
 /* Nearest palette index to an 8-bit RGB triple (for cross-PIK @COLORS remap). */
@@ -513,6 +622,8 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  /* Restore cheat special-view flag (DOS unknown42[2]); nation-specific view not saved. */
+  game->fog_view = (game->col1.head.unknown42[2] != 0) ? -1 : -2;
   {
     ColonizeSoundOptions opts = sound_get_options();
     opts.background_music = game->col1.head.tut2.background_music != 0;
@@ -1564,16 +1675,19 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_father_loaded = -1;
   game->debug_show_mouse_coords = true;
   game->cheat_unlock_step = 0;
+  game->fog_view = -2;
   col1_save_init(&game->col1);
   game->col1_ok = false;
 
   assets_msg_init(&game->messages);
   assets_msg_init(&game->map_menu_txt);
   assets_msg_init(&game->labels);
+  assets_msg_init(&game->debug_txt);
   assets_msg_init(&game->pedia);
   assets_msg_init(&game->names);
   map_menu_init(&game->map_menu);
   pick_music_init(&game->pick_music);
+  cheat_list_init(&game->cheat_list);
   new_game_init(&game->new_game);
   units_reset(&game->units);
   colonies_init(&game->colonies);
@@ -1629,6 +1743,20 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_info("Loaded LABELS.TXT");
     } else {
       diag_warn("Failed to parse LABELS.TXT");
+    }
+  }
+
+  /* DEBUG.TXT: cheat dialog strings (@SETVIEW, etc.). Optional — fallbacks exist. */
+  game->debug_txt_ok = false;
+  char debug_txt_path[512];
+  if (dos_compat_normalize_asset_path(
+        game->resolved_data_dir, "DEBUG.TXT", debug_txt_path, sizeof(debug_txt_path)
+      )) {
+    if (assets_msg_load_file(&game->debug_txt, debug_txt_path)) {
+      game->debug_txt_ok = true;
+      diag_info("Loaded DEBUG.TXT");
+    } else {
+      diag_warn("Failed to parse DEBUG.TXT");
     }
   }
 
@@ -1946,9 +2074,11 @@ void game_destroy(ColonizeGameState* game) {
   assets_msg_free(&game->messages);
   assets_msg_free(&game->map_menu_txt);
   assets_msg_free(&game->labels);
+  assets_msg_free(&game->debug_txt);
   map_menu_free(&game->map_menu);
   map_panel_free(&game->map_panel);
   pick_music_close(&game->pick_music);
+  cheat_list_close(&game->cheat_list);
   new_game_free(&game->new_game);
   assets_msg_free(&game->pedia);
   assets_msg_free(&game->names);
@@ -1966,6 +2096,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   game->difficulty = ng->difficulty;
   game->human_nation = ng->nation;
   game->active_turn_nation = ng->nation;
+  game->fog_view = -2;
   snprintf(game->leader_name, sizeof(game->leader_name), "%s", ng->leader_name);
 
   char err[256];
@@ -3785,17 +3916,14 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       );
       return true;
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
-      if (game->world_map_ok) {
-        map_reveal_all(&game->world_map, -1);
-        set_status(game, "Map revealed", NULL);
-      } else {
-        set_status(game, "No map", NULL);
-      }
+      game_open_cheat_setview(game);
+      return true;
+    case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
+      game_open_cheat_kill_indians(game);
       return true;
     case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
     case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
     case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
-    case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
     case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
     case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
     case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
@@ -5079,6 +5207,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
+    if (game->cheat_list.open) {
+      cheat_list_handle_input(&game->cheat_list, input);
+      game_apply_cheat_list_result(game);
+      return true;
+    }
+
     if (game->unit_stack.open) {
       int select_id = -1;
       unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
@@ -5098,8 +5232,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
 
-    /* F1 terrain pedia at cursor; F2–F10 adviser / report screens. */
+    /* F1 terrain pedia at cursor; F2–F10 adviser / report screens.
+     * Shift-F4 / Shift-F6 = cheat Reveal Map / Kill Indians when unlocked. */
     if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
+      if (input->shift_held && game->map_menu.cheat_visible) {
+        if (input->last_key == COLONIZE_KEY_F4) {
+          game_open_cheat_setview(game);
+          return true;
+        }
+        if (input->last_key == COLONIZE_KEY_F6) {
+          game_open_cheat_kill_indians(game);
+          return true;
+        }
+      }
       game_handle_report_fkey(game, input->last_key);
       return true;
     }
@@ -6243,7 +6388,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           if (mx < 0 || my < 0 || mx >= game->world_map.width || my >= game->world_map.height) {
             continue;
           }
-          if (!map_tile_seen_by(&game->world_map, mx, my, game->human_nation)) {
+          if (!map_tile_seen_by(&game->world_map, mx, my, game_fog_nation(game))) {
             /* Unexplored: leave black (framebuffer cleared above). */
             continue;
           }
@@ -6360,12 +6505,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           }
           /* Fog transitional edges: PHYS0 104–107 black fringe toward unseen. */
           {
-            const int edges =
-              map_fog_edge_count(&game->world_map, mx, my, game->human_nation);
+            const int fog_n = game_fog_nation(game);
+            const int edges = map_fog_edge_count(&game->world_map, mx, my, fog_n);
             for (int ei = 0; ei < edges; ++ei) {
-              const int mask = map_fog_edge_mask_sprite_at(
-                &game->world_map, mx, my, game->human_nation, ei
-              );
+              const int mask = map_fog_edge_mask_sprite_at(&game->world_map, mx, my, fog_n, ei);
               if (mask >= 0) {
                 blit_map_sprite(
                   &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
@@ -6401,7 +6544,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_x,
       map_origin_y,
       game->world_map_ok ? &game->world_map : NULL,
-      game->human_nation
+      game_fog_nation(game)
     );
   }
 
@@ -6419,7 +6562,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_x,
       map_origin_y,
       game->world_map_ok ? &game->world_map : NULL,
-      game->human_nation
+      game_fog_nation(game)
     );
   }
 
@@ -6443,7 +6586,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_y,
       blink_on,
       game->world_map_ok ? &game->world_map : NULL,
-      game->human_nation
+      game_fog_nation(game)
     );
   }
 
@@ -6493,7 +6636,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->map_cursor_x,
       game->map_cursor_y,
       game->units.selected_id,
-      game->human_nation,
+      game_fog_nation(game),
       game->game_year,
       game->game_autumn,
       game->europe.gold,
@@ -6515,6 +6658,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       popup_colors_from_ui(&popup_cols);
       pick_music_render(
         (PickMusicDialog*)&game->pick_music,
+        hud_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
+    if (game->cheat_list.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      cheat_list_render(
+        (CheatListDialog*)&game->cheat_list,
         hud_font,
         wood,
         &popup_cols,

@@ -50,6 +50,7 @@ add_library(colonize_core STATIC
   src/core/ui_button.c
   src/core/ui_drag.c
   src/core/pick_music.c
+  src/core/cheat_list_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
   src/core/new_game.c
@@ -204,6 +205,7 @@ add_executable(smoke_game_flow
   src/core/ui_button.c
   src/core/ui_drag.c
   src/core/pick_music.c
+  src/core/cheat_list_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
   src/core/new_game.c
@@ -249,6 +251,7 @@ add_executable(smoke_new_game
   src/core/ui_button.c
   src/core/ui_drag.c
   src/core/pick_music.c
+  src/core/cheat_list_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
   src/core/new_game.c
@@ -636,6 +639,18 @@ target_include_directories(smoke_ai PRIVATE
 target_link_libraries(smoke_ai PRIVATE colonize_core)
 
 add_test(NAME smoke_ai COMMAND smoke_ai WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_kill_indians
+  tests/smoke/test_kill_indians.c
+)
+
+target_include_directories(smoke_kill_indians PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_kill_indians PRIVATE colonize_core)
+
+add_test(NAME smoke_kill_indians COMMAND smoke_kill_indians WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_ai_turns
   tests/smoke/test_ai_turns.c
