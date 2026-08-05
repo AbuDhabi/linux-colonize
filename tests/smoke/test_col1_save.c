@@ -17,6 +17,60 @@ static void fill_pattern(uint8_t* p, size_t n, uint8_t seed) {
   }
 }
 
+/* Read → encode → compare to on-disk bytes (save/load bidirectional compatibility). */
+static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* out, char* err, size_t err_size) {
+  col1_save_init(out);
+  if (!col1_save_read_file(path, out, err, err_size)) {
+    fprintf(stderr, "fixture read failed %s: %s\n", path, err);
+    return false;
+  }
+  uint8_t* enc = NULL;
+  size_t enc_n = 0;
+  if (!col1_save_write_memory(out, &enc, &enc_n, err, err_size)) {
+    fprintf(stderr, "fixture encode failed %s: %s\n", path, err);
+    col1_save_free(out);
+    return false;
+  }
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    fprintf(stderr, "cannot open %s\n", path);
+    free(enc);
+    col1_save_free(out);
+    return false;
+  }
+  fseek(f, 0, SEEK_END);
+  long sz = ftell(f);
+  rewind(f);
+  uint8_t* raw = malloc((size_t)sz);
+  if (!raw || sz < 0 || fread(raw, 1, (size_t)sz, f) != (size_t)sz) {
+    fprintf(stderr, "cannot reread %s\n", path);
+    fclose(f);
+    free(raw);
+    free(enc);
+    col1_save_free(out);
+    return false;
+  }
+  fclose(f);
+  if ((size_t)sz != enc_n || memcmp(raw, enc, enc_n) != 0) {
+    fprintf(stderr, "fixture round-trip mismatch %s (%ld vs %zu)\n", path, sz, enc_n);
+    if ((size_t)sz == enc_n) {
+      for (size_t i = 0; i < enc_n; ++i) {
+        if (raw[i] != enc[i]) {
+          fprintf(stderr, "first diff at offset %zu: %02x vs %02x\n", i, raw[i], enc[i]);
+          break;
+        }
+      }
+    }
+    free(raw);
+    free(enc);
+    col1_save_free(out);
+    return false;
+  }
+  free(raw);
+  free(enc);
+  return true;
+}
+
 static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) {
   col1_save_init(save);
   memset(&save->head, 0, sizeof(save->head));
@@ -191,48 +245,28 @@ int main(void) {
   col1_save_free(&loaded);
   col1_save_free(&mem);
 
-  /* Original DOS saves: byte-identical round-trip + bridge apply. */
-  static const char* k_originals[] = {
-    "original_saves/COLONY00.SAV",
-    "original_saves/COLONY01.SAV"
+  /* Fixture Col1 saves: byte-identical round-trip (+ bridge apply for samples). */
+  typedef struct {
+    const char* path;
+    bool expect_colony_sample; /* COLONY00/01 starter gold/units checks */
+  } Col1Fixture;
+  static const Col1Fixture k_fixtures[] = {
+    {"original_saves/COLONY00.SAV", true},
+    {"original_saves/COLONY01.SAV", true},
+    {"test-saves-ai/TURN1.SAV", false},
+    {"test-saves-ai/TURN2.SAV", false},
+    {"test-saves-ai/TURN3.SAV", false},
+    {"test-saves-ai/TURN4.SAV", false},
+    {"test-saves-ai/TURN5.SAV", false},
+    {"test-saves-ai/TURN6.SAV", false},
+    {"test-saves-ai/TURN7.SAV", false},
   };
-  for (size_t oi = 0; oi < sizeof(k_originals) / sizeof(k_originals[0]); ++oi) {
+  for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
+    const Col1Fixture* fix = &k_fixtures[oi];
     ColonizeCol1Save orig;
-    col1_save_init(&orig);
-    if (!col1_save_read_file(k_originals[oi], &orig, err, sizeof(err))) {
-      fprintf(stderr, "original read failed %s: %s\n", k_originals[oi], err);
+    if (!assert_byte_identical_roundtrip(fix->path, &orig, err, sizeof(err))) {
       return 1;
     }
-    uint8_t* enc = NULL;
-    size_t enc_n = 0;
-    if (!col1_save_write_memory(&orig, &enc, &enc_n, err, sizeof(err))) {
-      fprintf(stderr, "original encode failed %s: %s\n", k_originals[oi], err);
-      col1_save_free(&orig);
-      return 1;
-    }
-    FILE* f = fopen(k_originals[oi], "rb");
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    rewind(f);
-    uint8_t* raw = malloc((size_t)sz);
-    if (!raw || fread(raw, 1, (size_t)sz, f) != (size_t)sz) {
-      fprintf(stderr, "cannot reread %s\n", k_originals[oi]);
-      fclose(f);
-      free(raw);
-      free(enc);
-      col1_save_free(&orig);
-      return 1;
-    }
-    fclose(f);
-    if ((size_t)sz != enc_n || memcmp(raw, enc, enc_n) != 0) {
-      fprintf(stderr, "original round-trip mismatch %s\n", k_originals[oi]);
-      free(raw);
-      free(enc);
-      col1_save_free(&orig);
-      return 1;
-    }
-    free(raw);
-    free(enc);
 
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
@@ -253,15 +287,15 @@ int main(void) {
     europe.cargo_count = 16;
     ColonizeCol1BridgeResult br;
     if (!col1_bridge_apply(&orig, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
-      fprintf(stderr, "bridge apply failed %s: %s\n", k_originals[oi], err);
+      fprintf(stderr, "bridge apply failed %s: %s\n", fix->path, err);
       col1_save_free(&orig);
       return 1;
     }
-    if (br.imported_units < 3 || europe.gold != 1000) {
+    if (fix->expect_colony_sample && (br.imported_units < 3 || europe.gold != 1000)) {
       fprintf(
         stderr,
         "bridge apply unexpected %s units=%d gold=%d\n",
-        k_originals[oi],
+        fix->path,
         br.imported_units,
         europe.gold
       );
@@ -282,8 +316,8 @@ int main(void) {
     }
     fprintf(
       stderr,
-      "original %s ok (units=%d year=%u gold=%d)\n",
-      k_originals[oi],
+      "fixture %s ok (units=%d year=%u gold=%d)\n",
+      fix->path,
       br.imported_units,
       br.year,
       europe.gold
@@ -467,7 +501,7 @@ int main(void) {
     assets_msg_free(&names);
   }
 
-  fprintf(stderr, "col1 original saves + bridge ok\n");
+  fprintf(stderr, "col1 fixture saves + bridge ok\n");
   diag_shutdown();
   return 0;
 }
