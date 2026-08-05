@@ -9,6 +9,7 @@
 #include "core/colony_yield.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
+#include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -1707,8 +1708,20 @@ static void colony_screen_draw_transports(
     const ColonizeUnitType* type = units_type(units, u->type_index);
     const int x = COLONY_TRANSPORT_X + 4 + i * COLONY_TRANSPORT_PITCH;
     const int y = COLONY_TRANSPORT_ICON_Y;
-    if (type && type->icon_sprite >= 0) {
-      colony_screen_blit_icon(view, type->icon_sprite, framebuffer, x, y);
+    if (type && type->icon_sprite >= 0 && view->icons_ok) {
+      unit_chrome_blit_unit(
+        framebuffer,
+        font,
+        &view->icons,
+        type->icon_sprite,
+        x,
+        y,
+        units_display_type_index(units, u->id),
+        u->nation_id,
+        u->orders,
+        view->docked_transport_count > 1,
+        false
+      );
       if (view->transport_unit_id == u->id) {
         colony_screen_draw_icon_selection(view, framebuffer, type->icon_sprite, x, y);
       }
@@ -1754,8 +1767,20 @@ static void colony_screen_draw_transports(
           continue;
         }
         const int sprite = units_map_sprite(units, pass->id);
-        if (sprite >= 0) {
-          colony_screen_blit_icon(view, sprite, framebuffer, x, y);
+        if (sprite >= 0 && view->icons_ok) {
+          unit_chrome_blit_unit(
+            framebuffer,
+            font,
+            &view->icons,
+            sprite,
+            x,
+            y,
+            units_display_type_index(units, pass->id),
+            pass->nation_id,
+            pass->orders,
+            false,
+            true
+          );
         }
       }
     }
@@ -2093,14 +2118,27 @@ static void colony_screen_draw_multifunction(
       }
       const int sprite = colony_screen_outside_display_sprite(units, u);
       if (sprite >= 0) {
-        colony_screen_blit_icon(view, sprite, framebuffer, x, y);
-        if (view->selected_outside_unit == u->id) {
-          colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y);
-        }
         const ColonizeSprite* sp =
           (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite]
                                                                : NULL;
-        x += (sp ? sp->width : 12) + 2;
+        const int iw = sp && sp->width > 0 ? sp->width : 12;
+        unit_chrome_blit_unit(
+          framebuffer,
+          font,
+          &view->icons,
+          sprite,
+          x,
+          y,
+          units_display_type_index(units, u->id),
+          u->nation_id,
+          u->orders,
+          false,
+          u->aboard_ship_id >= 0
+        );
+        if (view->selected_outside_unit == u->id) {
+          colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y);
+        }
+        x += iw + 2;
       }
       if (x > px + pane_w - 14) {
         break;

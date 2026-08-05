@@ -1,5 +1,6 @@
 #include "core/font.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 /* Tiny 5x7 glyphs for printable ASCII 32..126 (packed as 5 columns, LSB top). */
@@ -193,6 +194,99 @@ int font_text_width(const ColonizeFont* font, const char* text) {
     }
   }
   return width;
+}
+
+bool font_glyph_ink_bounds(
+  const ColonizeFont* font,
+  unsigned char ch,
+  int* out_min_x,
+  int* out_min_y,
+  int* out_max_x,
+  int* out_max_y
+) {
+  if (!out_min_x || !out_min_y || !out_max_x || !out_max_y) {
+    return false;
+  }
+  int min_x = 0;
+  int min_y = 0;
+  int max_x = -1;
+  int max_y = -1;
+  bool any = false;
+
+  if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+    const int width = font->char_widths[ch];
+    const int height = font->max_height;
+    size_t pos = font->char_offsets[ch];
+    min_x = width;
+    min_y = height;
+    for (int row = 0; row < height; ++row) {
+      int col = 0;
+      while (col < width) {
+        if (pos >= font->section_size) {
+          break;
+        }
+        const uint8_t byte = font->section_data[pos++];
+        for (int shift = 6; shift >= 0; shift -= 2) {
+          const uint8_t shade = (uint8_t)((byte >> shift) & 0x03u);
+          if (shade != 0) {
+            if (col < min_x) {
+              min_x = col;
+            }
+            if (col > max_x) {
+              max_x = col;
+            }
+            if (row < min_y) {
+              min_y = row;
+            }
+            if (row > max_y) {
+              max_y = row;
+            }
+            any = true;
+          }
+          col += 1;
+          if (col >= width) {
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    if (ch < 32 || ch > 126) {
+      ch = '?';
+    }
+    const uint8_t* glyph = FONT5X7[ch - 32];
+    min_x = 5;
+    min_y = 7;
+    for (int col = 0; col < 5; ++col) {
+      uint8_t bits = glyph[col];
+      for (int row = 0; row < 7; ++row) {
+        if (bits & (1u << row)) {
+          if (col < min_x) {
+            min_x = col;
+          }
+          if (col > max_x) {
+            max_x = col;
+          }
+          if (row < min_y) {
+            min_y = row;
+          }
+          if (row > max_y) {
+            max_y = row;
+          }
+          any = true;
+        }
+      }
+    }
+  }
+
+  if (!any) {
+    return false;
+  }
+  *out_min_x = min_x;
+  *out_min_y = min_y;
+  *out_max_x = max_x;
+  *out_max_y = max_y;
+  return true;
 }
 
 void font_draw_text(

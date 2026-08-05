@@ -332,7 +332,7 @@ The pull-down has a horizontal rule between Terrain Types and Colonist Skills.
 
 ### Europe (home port) bring-up
 
-Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map (closes open menus first). Visual layout reference: [`original_screenshots/europe/`](../original_screenshots/europe/).
+Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map (closes open menus first). Visual layout reference: [`original_screenshots/europe/`](../original_screenshots/europe/). Harbor / Expected / Bound ships and dock immigrants draw orders/allegiance chrome (`unit_chrome.c`) behind their `ICONS.SS` sprites.
 
 Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship moves ≥6 — **Unverified vs DOS**):
 
@@ -369,7 +369,7 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 | Area view | `TERRAIN.SS` + `PHYS0.SS` + `ICONS.SS` | Centered 3×3 at **24px** tiles (1.5×); settlement **#0–3**; yields via resource-count strips (fisherman food uses fish **#57**) |
 | Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill behind the 3×3 (equal L/R and T/B margins) |
 | People view | `COLONY.PIK` left (x0–117) | SoL (flag **#123**) / Tory (crown **#124**, right-aligned); colonists + fence units on one row; food→crosses→bells resource strips (fish **#57** first, then grain food) |
-| Transport view | mid (x121–202) | Ship **class** name; holds: color / grey partial / empty cover **#122** (all six covered with no ship); passengers as unit icons |
+| Transport view | mid (x121–202) | Ship **class** name; holds: color / grey partial / empty cover **#122** (all six covered with no ship); docked ships + passengers via `unit_chrome_blit_unit` |
 | Multifunction | right (x207–306) + buttons (x307–318) | Production / Units / Construction (house **#67** / rifle **#68** / hammer **#69**); Production packs all cargo+shortfalls+hammers; Units along pane bottom; Construction shows accumulated hammers |
 | Warehouse | cargo strip `y=180/192` | Unchanged slots (`ICONS.SS` **#22–37**); Exit `x≥305` |
 
@@ -402,6 +402,8 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 
 Unit stats come from `NAMES.TXT` `@UNIT` (icon index, movement, land vs sea via hull field). Map markers use `ICONS.SS` sprites; the `@UNIT` icon field is **1-based** (DOS style), converted to 0-based blit indices on load (e.g. Pioneers `102` → sprite **101**, Caravel `6` → **5**). Cargo strip icons `#22–37` are already 0-based (greys `#38–53`). European colonies blit settlement art **#0–3** (none / stockade / fort / fortress; 21×16, centered on the tile) with a name label under the tile; Indian villages blit **#10–13** by `@TRIBES` tech (tipis / adobe / pyramid / city). Draw order is colonies → villages → units so stacked units stay visible.
 
+**Orders / allegiance chrome** (`unit_chrome.c`, DOS `FUN_112b_01ba`): each unit graphic is a black silhouette shifted 2px left, then a nation-colored orders rectangle (`@ORDERS` letter), then the color sprite. Placement by Col1 type: foot units bottom-right; mounted / Caravel / Merchantman top-left; Galleon–Man-O-War top-right; Treasure / Artillery / Wagon top-center. A second under-rect marks stacks. England fill uses palette **112** (saturated red); NAMES `@COUNTRY` lists 12, which is pink `(255,85,85)` in VGA art palettes. Wired on the main map, sidebar, Europe docks/ships, colony Units + transport panes, and Colonizopedia unit previews.
+
 Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) follow DOS `FUN_465b`: a unit may always enter when it still has its **full** movement allotment (remaining MP then exhausts). With **partial** MP into an over-budget tile, the game rolls `range(1, cost)` and succeeds if `roll ≤ remaining`; the full cost is charged either way (failed rolls leave the unit in place with 0 MP). Go-To pathfinding only commits guaranteed steps (no gambling).
 
 | Key | Action |
@@ -429,7 +431,7 @@ Selected units **blink** (sprite on/off), except while executing **Go-To** (alwa
 Calendar: one turn per year until **1600**, then Spring and Autumn each year. Colony top bar / reports use `game_year` + `game_autumn`. When the Col1 **Autosave** option is set, end-turn writes slot **9** (and slot **8** on decade Spring years).
 
 A **5×3** nation-color box appears in the bottom-right `(315,197)` only while end-of-turn
-nation phases run (`FUN_1984_00aa`): England 12, France 9, Spain 14, Netherlands 13
+nation phases run (`FUN_1984_00aa`): England **112** (saturated red; NAMES lists 12), France 9, Spain 14, Netherlands 13
 (`NAMES.TXT` `@COUNTRY`). Native phases use `@TRIBES` colors. It is hidden during the
 human turn.
 

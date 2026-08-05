@@ -7,6 +7,7 @@
 #include "core/ss.h"
 #include "core/turn.h"
 #include "core/ui_colors.h"
+#include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -503,11 +504,25 @@ static bool map_panel_tile_road(
   return (m & 0x08u) != 0; /* road bit */
 }
 
-static const char* map_panel_order_label(const ColonizeMsgCatalog* names) {
-  const char* line = map_panel_section_line(names, "ORDERS", 0);
+static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int orders_index) {
+  const char* line = map_panel_section_line(names, "ORDERS", orders_index);
   static char buf[24];
   map_panel_csv_field(line ? line : "No Orders", buf, sizeof(buf));
   return buf;
+}
+
+static int map_panel_count_units_at(const ColonizeUnitPool* units, int x, int y) {
+  int n = 0;
+  if (!units) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (units_is_on_map(u) && u->x == x && u->y == y) {
+      n++;
+    }
+  }
+  return n;
 }
 
 static int map_panel_draw_line(
@@ -836,7 +851,22 @@ void map_panel_render(
     }
     const int sel_sprite = units_map_sprite(units, selected->id);
     if (icons && sel_sprite >= 0) {
-      ss_blit_sprite(icons, sel_sprite, framebuffer, text_x + 2, text_y + 1);
+      const int ix = text_x + 2;
+      const int iy = text_y + 1;
+      const int stack_n = map_panel_count_units_at(units, selected->x, selected->y);
+      unit_chrome_blit_unit(
+        framebuffer,
+        font,
+        icons,
+        sel_sprite,
+        ix,
+        iy,
+        units_display_type_index(units, selected->id),
+        selected->nation_id,
+        selected->orders,
+        stack_n > 1,
+        selected->aboard_ship_id >= 0
+      );
     }
     const char* uname = units_display_name(units, selected);
     font_draw_text(font, framebuffer, text_x + 20, text_y + 3, uname, MAP_PANEL_COL_TEXT);
@@ -1056,7 +1086,7 @@ void map_panel_render(
 
     /* Units on the selected tile with order label. */
     if (units) {
-      const char* orders = map_panel_order_label(names);
+      const int tile_n = map_panel_count_units_at(units, info_x, info_y);
       for (int i = 0; i < COLONIZE_UNITS_MAX && text_y + 14 <= y_limit; ++i) {
         const ColonizeUnit* u = &units->units[i];
         if (!units_is_on_map(u) || u->x != info_x || u->y != info_y) {
@@ -1064,8 +1094,21 @@ void map_panel_render(
         }
         const int sprite = units_map_sprite(units, u->id);
         if (icons && sprite >= 0) {
-          ss_blit_sprite(icons, sprite, framebuffer, text_x, text_y);
+          unit_chrome_blit_unit(
+            framebuffer,
+            font,
+            icons,
+            sprite,
+            text_x,
+            text_y,
+            units_display_type_index(units, u->id),
+            u->nation_id,
+            u->orders,
+            tile_n > 1,
+            u->aboard_ship_id >= 0
+          );
         }
+        const char* orders = map_panel_order_label(names, u->orders);
         snprintf(
           line, sizeof(line), "%s %s", units_display_name(units, u), orders
         );

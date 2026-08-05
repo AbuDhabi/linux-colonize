@@ -1541,11 +1541,13 @@ void reports_render(
       );
       break;
     case COLONIZE_REPORT_COLONY:
+      /* When unit icon rows are added, draw with unit_chrome_draw (FUN_112b_01ba). */
       reports_render_colony(
         col1, human, colonies, font, framebuffer, &y, step, line, sizeof(line)
       );
       break;
     case COLONIZE_REPORT_NAVAL:
+      /* When ship icon rows are added, draw with unit_chrome_draw (FUN_112b_01ba). */
       reports_render_naval(
         col1, human, units, europe, font, framebuffer, &y, step, line, sizeof(line)
       );

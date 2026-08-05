@@ -62,7 +62,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
 | Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7 costs; full-MP enter; partial overspend via DOS `range(1,cost)` (charges MP even on fail) |
 | Fortify (F), Sentry (S), Disband, Goto (G) | Partial | **Go-To** via map drag (CURSOR #1 after 1px); paced 10 steps/sec; DOS cost flood / BFS; resumes next turn. Fortify / map Sentry / Disband still Missing |
-| Orders box letters on units | Missing | |
+| Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |

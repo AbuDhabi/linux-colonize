@@ -31,6 +31,15 @@ void ss_blit_sprite(
   int dst_x,
   int dst_y
 );
+/* Like ss_blit_sprite, but every opaque pixel is written as replace_color (shadow underlay). */
+void ss_blit_sprite_color(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y,
+  uint8_t replace_color
+);
 /* Copy sprite pixels only onto framebuffer cells that currently equal match_color (MAPEDIT masked terrain). */
 void ss_blit_sprite_where_dest(
   const ColonizeSpriteSheet* sheet,

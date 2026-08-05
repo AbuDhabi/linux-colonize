@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/strutil.h"
+#include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 
 static void units_trim(char* s) {
@@ -1815,6 +1816,153 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
   return type->icon_sprite;
 }
 
+int units_display_type_index(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* unit = units_get_const(pool, unit_id);
+  if (!unit) {
+    return -1;
+  }
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(pool, unit_id, &tools, &muskets, &horses);
+  /* Col1 @UNIT indices: match equipment → displayed type for chrome placement. */
+  if (muskets > 0 && horses > 0) {
+    const int t = units_find_type(pool, "Dragoons");
+    return t >= 0 ? t : 4;
+  }
+  if (muskets > 0) {
+    const int t = units_find_type(pool, "Soldiers");
+    return t >= 0 ? t : 1;
+  }
+  if (horses > 0) {
+    const int t = units_find_type(pool, "Scouts");
+    return t >= 0 ? t : 5;
+  }
+  if (tools > 0) {
+    const int t = units_find_type(pool, "Pioneers");
+    return t >= 0 ? t : 2;
+  }
+  return unit->type_index;
+}
+
+static int units_count_on_map_tile(const ColonizeUnitPool* pool, int x, int y) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (units_is_on_map(u) && u->x == x && u->y == y) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/* Prefer selected unit on the tile; else highest id (drawn last previously). */
+static int units_top_on_map_tile(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  bool selected_visible
+) {
+  int top = -1;
+  int top_id = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->id == pool->selected_id && !selected_visible && u->orders != UNITS_ORDER_GOTO) {
+      continue;
+    }
+    if (u->id == pool->selected_id) {
+      return u->id;
+    }
+    if (u->id > top_id) {
+      top_id = u->id;
+      top = u->id;
+    }
+  }
+  return top;
+}
+
+void units_render_on_map(
+  const ColonizeUnitPool* pool,
+  const ColonizeSpriteSheet* nation_sheet,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int view_x,
+  int view_y,
+  int view_cols,
+  int view_rows,
+  int tile_w,
+  int tile_h,
+  int origin_x,
+  int origin_y,
+  bool selected_visible
+) {
+  if (!pool || !nation_sheet || !framebuffer) {
+    return;
+  }
+
+  /* One sprite per tile (top unit); stack chrome when more share the tile. */
+  bool visited[COLONIZE_UNITS_MAX];
+  memset(visited, 0, sizeof(visited));
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* unit = &pool->units[i];
+    if (!units_is_on_map(unit) || visited[i]) {
+      continue;
+    }
+    const int sx = unit->x - view_x;
+    const int sy = unit->y - view_y;
+    if (sx < 0 || sy < 0 || sx >= view_cols || sy >= view_rows) {
+      continue;
+    }
+
+    /* Mark all on-map units on this tile visited. */
+    for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+      const ColonizeUnit* u = &pool->units[j];
+      if (units_is_on_map(u) && u->x == unit->x && u->y == unit->y) {
+        visited[j] = true;
+      }
+    }
+
+    const int top_id = units_top_on_map_tile(pool, unit->x, unit->y, selected_visible);
+    if (top_id < 0) {
+      continue;
+    }
+    const ColonizeUnit* top = units_get_const(pool, top_id);
+    if (!top) {
+      continue;
+    }
+
+    const int sprite = units_map_sprite(pool, top->id);
+    if (sprite < 0 || sprite >= nation_sheet->sprite_count) {
+      continue;
+    }
+
+    const int px = origin_x + sx * tile_w;
+    const int py = origin_y + sy * tile_h;
+    const int dtype = units_display_type_index(pool, top->id);
+    const int on_tile = units_count_on_map_tile(pool, top->x, top->y);
+    const bool stacked = on_tile > 1;
+    const bool aboard = top->aboard_ship_id >= 0;
+
+    unit_chrome_blit_unit(
+      framebuffer,
+      font,
+      nation_sheet,
+      sprite,
+      px,
+      py,
+      dtype,
+      top->nation_id,
+      top->orders,
+      stacked,
+      aboard
+    );
+  }
+}
+
 int units_spawn_euro_starter_fleet(
   ColonizeUnitPool* pool,
   int nation_id,
@@ -2141,49 +2289,4 @@ bool units_deploy_colonist(
   }
   pool->selected_id = id;
   return true;
-}
-
-void units_render_on_map(
-  const ColonizeUnitPool* pool,
-  const ColonizeSpriteSheet* nation_sheet,
-  ColonizeFramebuffer8* framebuffer,
-  int view_x,
-  int view_y,
-  int view_cols,
-  int view_rows,
-  int tile_w,
-  int tile_h,
-  int origin_x,
-  int origin_y,
-  bool selected_visible
-) {
-  if (!pool || !nation_sheet || !framebuffer) {
-    return;
-  }
-
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* unit = &pool->units[i];
-    if (!units_is_on_map(unit)) {
-      continue;
-    }
-    /* Blink: omit selected unit on off frames — except Go-To, so pathing stays visible. */
-    if (unit->id == pool->selected_id && !selected_visible &&
-        unit->orders != UNITS_ORDER_GOTO) {
-      continue;
-    }
-    const int sx = unit->x - view_x;
-    const int sy = unit->y - view_y;
-    if (sx < 0 || sy < 0 || sx >= view_cols || sy >= view_rows) {
-      continue;
-    }
-
-    const int sprite = units_map_sprite(pool, unit->id);
-    if (sprite < 0 || sprite >= nation_sheet->sprite_count) {
-      continue;
-    }
-
-    const int px = origin_x + sx * tile_w;
-    const int py = origin_y + sy * tile_h;
-    ss_blit_sprite(nation_sheet, sprite, framebuffer, px, py);
-  }
 }

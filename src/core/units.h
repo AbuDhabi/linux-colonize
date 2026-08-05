@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/font.h"
 #include "core/map.h"
 #include "core/ss.h"
 
@@ -408,10 +409,13 @@ bool units_deploy_colonist(
 );
 
 int units_map_sprite(const ColonizeUnitPool* pool, int unit_id);
+/* Col1 @UNIT index after equipment remap (Scout/Soldier/Dragoon/Pioneer). */
+int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,
   const ColonizeSpriteSheet* nation_sheet,
+  const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
   int view_x,
   int view_y,
