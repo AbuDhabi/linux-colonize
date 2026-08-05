@@ -15,9 +15,10 @@ enum {
   MAP_MENU_COL_TITLE = COLONIZE_COL_BASIC,
   MAP_MENU_COL_TITLE_ACTIVE = COLONIZE_COL_HILITE,
   MAP_MENU_COL_HOTKEY = COLONIZE_COL_HILITE, /* darker yellow / @COLORS hilite */
-  MAP_MENU_COL_PANEL = 4,
-  MAP_MENU_COL_BORDER = 15,
+  MAP_MENU_COL_PANEL = 4, /* solid fallback when WOODTILE unavailable */
+  MAP_MENU_COL_BORDER = 0, /* black outline around pull-down */
   MAP_MENU_COL_RULE = 0, /* black separator under the bar */
+  MAP_MENU_COL_RULE_ITEM = COLONIZE_COL_BASIC, /* green item divider (PEDIA ---) */
   MAP_MENU_COL_ITEM = COLONIZE_COL_BASIC,
   MAP_MENU_COL_ITEM_DISABLED = COLONIZE_COL_GREY,
   MAP_MENU_COL_HOVER = 1
@@ -597,7 +598,8 @@ static void map_menu_dropdown_rect(
     *out_x = x;
   }
   if (out_y) {
-    *out_y = MAP_MENU_BAR_H;
+    /* 1px gap between bar black rule (y=BAR_H-1) and dropdown top border. */
+    *out_y = MAP_MENU_BAR_H + 1;
   }
   if (out_w) {
     *out_w = w;
@@ -727,6 +729,7 @@ MapMenuAction map_menu_handle_input(
   return MAP_MENU_ACTION_NONE;
 }
 
+/* Screen-aligned WOODTILE so bar and pull-down grain continue seamlessly. */
 static void map_menu_tile_wood(
   const ColonizeSpriteSheet* sheet,
   int origin_x,
@@ -742,21 +745,25 @@ static void map_menu_tile_wood(
   if (!tile->pixels || tile->width <= 0 || tile->height <= 0) {
     return;
   }
+  const int tw = tile->width;
+  const int th = tile->height;
   const int x1 = origin_x + rect_w;
   const int y1 = origin_y + rect_h;
-  for (int y = origin_y; y < y1; y += tile->height) {
-    for (int x = origin_x; x < x1; x += tile->width) {
-      for (int sy = 0; sy < tile->height; ++sy) {
+  const int x0 = (origin_x / tw) * tw;
+  const int y0 = (origin_y / th) * th;
+  for (int y = y0; y < y1; y += th) {
+    for (int x = x0; x < x1; x += tw) {
+      for (int sy = 0; sy < th; ++sy) {
         const int fy = y + sy;
         if (fy < origin_y || fy >= y1 || fy < 0 || fy >= framebuffer->height) {
           continue;
         }
-        for (int sx = 0; sx < tile->width; ++sx) {
+        for (int sx = 0; sx < tw; ++sx) {
           const int fx = x + sx;
           if (fx < origin_x || fx >= x1 || fx < 0 || fx >= framebuffer->width) {
             continue;
           }
-          const uint8_t color = tile->pixels[sy * tile->width + sx];
+          const uint8_t color = tile->pixels[sy * tw + sx];
           if (color == COLONIZE_SS_TRANSPARENT) {
             continue;
           }
@@ -807,7 +814,11 @@ void map_menu_render(
   const MapMenuPulldown* open = &bar->menus[bar->open_index];
   int dx, dy, dw, dh;
   map_menu_dropdown_rect(bar, font, bar->open_index, &dx, &dy, &dw, &dh);
-  map_menu_fill_rect(framebuffer, dx, dy, dx + dw - 1, dy + dh - 1, MAP_MENU_COL_PANEL);
+  if (wood_tile && wood_tile->sprite_count > 0) {
+    map_menu_tile_wood(wood_tile, dx, dy, dw, dh, framebuffer);
+  } else {
+    map_menu_fill_rect(framebuffer, dx, dy, dx + dw - 1, dy + dh - 1, MAP_MENU_COL_PANEL);
+  }
   map_menu_hline(framebuffer, dy, dx, dx + dw - 1, MAP_MENU_COL_BORDER);
   map_menu_hline(framebuffer, dy + dh - 1, dx, dx + dw - 1, MAP_MENU_COL_BORDER);
   map_menu_vline(framebuffer, dx, dy, dy + dh - 1, MAP_MENU_COL_BORDER);
@@ -818,7 +829,7 @@ void map_menu_render(
     const int iy = dy + 2 + i * item_h;
     if (open->items[i].separator) {
       const int mid = iy + item_h / 2;
-      map_menu_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_BORDER);
+      map_menu_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_RULE_ITEM);
       continue;
     }
     if (i == bar->hover_item && open->items[i].enabled) {
