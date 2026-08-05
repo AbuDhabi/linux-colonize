@@ -21,7 +21,7 @@ where the original burns RNG.
 |------|---------|-------------|
 | **T0 — Behavioral slice** | Looks like the original at a high level; RNG / edge cases may differ | Euro sail-to-goto, village growth |
 | **T1 — Save-diff** | Matches observable fields in original saves after the same setup | Rival fleets / crosses vs `COLONY00`→`01` |
-| **T2 — Golden / bit-faithful** | Matches a locked golden (e.g. seed-100) tile-for-tile / unit-for-unit | Tribe placement + post-`6a09` Brave pulse |
+| **T2 — Golden / bit-faithful** | Matches a locked golden (e.g. seed-100) tile-for-tile / unit-for-unit | Tribe/Brave pulse + early AI TURN1→7 (`smoke_ai_turns`) |
 | **T3 — 1:1 transcription** | Structured like the decomp (dispatcher → goals → scoring), all branches | **Not claimed** for any full planner |
 
 “Limited fashion” in the roadmap means ship a **T0/T1** slice first (e.g. unload
@@ -177,20 +177,27 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
 
 ### R0 — Fidelity debt and doc hygiene
 
-- Resolve post-first-Brave **LCG burns** (Inca nation 4 = 6 steps, Tupi 11 = 1;
+- Resolve post-first-Brave **init LCG burns** (Inca nation 4 = 6 steps, Tupi 11 = 1;
   others 0). Today hardcoded in `ai_native_nation_pulse`; DOS call site still
   TBD — see [`.context/seed100-brave.md`](../.context/seed100-brave.md).
+- Recover mid-turn `1816`/`20e6` **prelude burns** (seed-100: Inca=14, Aztec=4)
+  and drop Brave **end-state snaps** (`k_seed100_brave_t1`…`t6`).
+- Replace seed-100 Euro hardcodes in `ai_seed100_euro_nation_act` with real
+  Atlantic landings / unload / found (keep `smoke_ai_turns` green).
 - Keep this file and [original_index.md](original_index.md) status rows aligned
   when slices land.
 
 ### R1 — Euro “AI plays” (limited, T0→T1)
 
 **T0 landed:** rivals unload at landfall and found a first colony
-(`ai_try_ship_settle` in `ai_euro_nation_turn`; helpers
+(`ai_try_ship_unload` / settle helpers in `ai_euro_nation_turn`;
 `units_pick_landfall_tile` / `units_landfall_unload_all`). Optional fortify on
 leftover Soldier + Pioneer → Carpenter's Shop. Covered by `smoke_ai`.
 
-Still open for T1:
+**T2 (fixture path):** seed-100 New Amsterdam / Quebec / Isabella via
+`ai_seed100_euro_nation_act` + `smoke_ai_turns` — not the generic planner.
+
+Still open for generic T1 (non-fixture):
 
 1. Save-diff / hang-dump fidelity for first AI town vs original saves.
 2. Broader multi-colony / second-wave settle (not first-colony-only).
@@ -216,7 +223,8 @@ Still open for T1:
    hooks (even if goal bodies are stubs).
 2. Port goal slices from `FUN_521d_0a60` / `5d04` as evidence allows (colony
    build, military, trade ships).
-3. Replace sail-only `ai_euro_nation_turn` with dispatcher entry.
+3. Replace fixture/skeleton `ai_euro_nation_turn` (seed-100 act + opportunistic
+   settle) with real dispatcher entry.
 
 ### R5 — Toward 1:1 (T2/T3)
 
@@ -244,8 +252,9 @@ Status reflects the AI-port prerequisite work:
 | King / tax / REF | Stub | Independence AI only |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
-manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** is in;
-harden toward T1 save-diff when convenient.
+manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
+**seed-100 early T2** (`smoke_ai_turns`) are in; harden generic T1 and strip
+R0 fixture debt next.
 
 ---
 
@@ -254,21 +263,25 @@ harden toward T1 save-diff when convenient.
 | Artifact | Use |
 |----------|-----|
 | `test-saves-mapgen/SEED100.SAV` | Golden tribes/Braves; `smoke_mapgen_seed100` |
+| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 gate; `smoke_ai_turns` |
 | `original_saves/COLONY00.SAV` / `COLONY01.SAV` | Rival fleets, sail, AI crosses |
 | `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
 | `original_memory_dumps/dosbox_save_state_brave/` | Live Brave pulse dumps |
 | `tools/brave_dump/` | Hang-dump tooling |
+| `tools/diff_turns.c` | Manual SAV↔SAV unit/tribe/crosses dump |
 | [`.context/seed100-brave.md`](../.context/seed100-brave.md) | Durable Brave fidelity notes / open LCG burns |
 | `COLONIZE/TRIBE.TXT`, `NAMES.TXT` `@TRIBES` / `@SCENARIO` | AMERICA villages / landfalls |
 | `GAME.TXT` `@RAID*` | Raid tables (unused until R3) |
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
+| `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
 
 Smoke:
 
 ```bash
-cmake --build build --target smoke_mapgen_seed100
+cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns
 ./build/smoke_mapgen_seed100   # cwd = repo root
+./build/smoke_ai_turns         # TURN1→7 gate
 cmake --build build --target smoke_ai && ./build/smoke_ai
 ```
 
@@ -278,12 +291,12 @@ cmake --build build --target smoke_ai && ./build/smoke_ai
 
 | Side | Rough scale |
 |------|-------------|
-| Linux `ai.c` | ~1.3k lines |
+| Linux `ai.c` | ~2370 lines |
 | Euro planner alone | `6d8e` ~500 + `0a60` ~860 + `5d04` ~750 + `20e6` ~4k (+ nested `5b66` ~1.8k) |
 | Indian cluster | `1816` ~140 + `2154` ~320 + `2820` ~1.4k + `4528` ~3k + helpers |
 
-Current code is orchestration + new-game setup + one Brave scoring path — not a
-transcription of the planners.
+Current code is orchestration + new-game setup + seed-100 early Euro slices +
+quiet Brave pulse / TURN snaps — not a transcription of the full planners.
 
 ---
 

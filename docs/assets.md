@@ -423,7 +423,7 @@ Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) fo
 | P | Pioneer selected with moves: plow/clear (20 tools). Otherwise open Colonizopedia |
 | R | Pioneer selected with moves: build road (20 tools). Otherwise unused on map (Europe: recruit) |
 | B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |
-| Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, AI/Indian/King stubs, refresh human movement |
+| Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, Euro/Indian AI + King stub, refresh human movement |
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |
 
 Ship→**non-colony land** with a passenger that has moves left: **landfall unload** (passenger onto tile; ship stays; full landfall confirm dialog deferred). Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain.
@@ -482,7 +482,7 @@ Parameters (DOS words at `DS:0x1e7e`, each 0..3 from NEW WORLD `range(0,3)`; CUS
 
 Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → climate humidity → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`).
 
-RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`). Tribe placement (`FUN_6a09_0006`) uses the **post-axes** LCG state (not the post-mapgen stream): seed → replay 5×`range(0,3)` → `range(1,8)` → indian cargo seeds → capitals/satellites/Braves. Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
+RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`). Tribe placement (`FUN_6a09_0006`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word; not post-mapgen and not a post-axes restore). Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
 
 | Extension | Typical use |
 |-----------|-------------|

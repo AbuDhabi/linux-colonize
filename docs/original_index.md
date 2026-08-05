@@ -140,9 +140,9 @@ one exists.
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
 | `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [ai_transcription.md](ai_transcription.md) |
-| `FUN_4d56_1816` | Indian nation turn | **partial** (quiet Brave pulse + growth; full body parked) |
+| `FUN_4d56_1816` | Indian nation turn | **partial** (quiet Brave pulse + growth + TURN snaps; full body parked) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
-| `FUN_521d_6d8e` | Euro AI dispatcher | **parked** (Linux: sail+crosses only) |
+| `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (skeleton + seed-100 early path / `smoke_ai_turns`) |
 | `FUN_521d_0a60` / `5d04` | Euro unit goals | **parked** |
 | `FUN_521d_20e6` / nested `5b66` | Move scoring | **partial** (quiet NEW WORLD Brave slice) |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |

@@ -176,9 +176,10 @@ Aligned with early manual chapters (short playable loop first):
 ## Takeaway
 
 The port is strong on **shell, map art, navigation, reports / pedia, save, basic
-units / naval passengers, and founding a colony**. It is still thin on almost
-everything the manual treats as the **game**: colony labor / production, Europe
-trade, combat, natives as interactive powers, founding fathers, and independence.
+units / naval passengers, founding a colony, and Europe buy/sell/recruit/hire**.
+It is still thin on combat, natives as interactive powers, founding fathers,
+independence, trade routes, and full Euro/Indian AI beyond the early seed-100
+T2 gate.
 
 ## See also
 

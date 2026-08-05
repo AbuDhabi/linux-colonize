@@ -205,15 +205,13 @@ Compare all 34 Braves at `6a09` exit (B27 Memory) vs `SEED100.SAV`:
 
 Spawn→golden move vectors (not a single compass dir): `(0,-1)×14`, diagonals/cardinals mixed. Toward capital 12 / away 5 / same 17 — not “all walk home.”
 
-**Interpretation:** golden Braves look like **one action tick** after `6a09` (neighbor step + `turns_worked++` + MP refresh), i.e. Indian AI / unit pulse before the human’s turn-0 view — **not** a missing Brave-loop reject. Port already has placeholder `ai_wander_braves` (non-DOS RNG); smoke path does **not** run indian turns after mapgen.
-
-Still need which CALLF after `087c` (or main-loop entry) runs that pulse — but the *kind* of fix is “run the native unit turn once,” not more accept-check archaeology.
+**Interpretation (resolved):** golden Braves are **one action tick** after `6a09` (neighbor step + `turns_worked++` + MP refresh) — Indian AI / unit pulse before the human’s turn-0 view — **not** a missing Brave-loop reject. Ported as post-`6a09` native pulse in `ai_init_new_game` (see Status board / Post-`6a09` section). Historical digs below remain for archaeology.
 
 ## Next digs (ordered)
 
-1. Find DOS call site that runs native unit AI / `turns_worked` bump after NEW WORLD (`75c2` post-`087c` or first main-loop indian pass).
-2. Port that pulse (replace stub wander); recheck smoke.
-3. When green: strip debug prints; fix docs (premature “Braves match”).
+1. Recover mid-turn `1816`/`20e6` LCG call-order so seed-100 Brave **end-state snaps** (`k_seed100_brave_t1`…`t6`) can go away.
+2. Recover post-first-Brave **init** LCG burn call sites (replace hardcoded Inca=6 / Tupi=1).
+3. Replace `ai_seed100_euro_nation_act` hardcodes with real Atlantic landings / unload / found (then generic Euro path, not fixture slices).
 
 ## Mid-turn Indian pulse (TURN1→TURN7 gate)
 
