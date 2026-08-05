@@ -50,7 +50,8 @@ Sectioned OEM text (`@SECTION`, `;` comments, `~` hotkeys). Parsers already exis
 | **`MAPEDIT.TXT` / `MAPMENU.TXT`** | Map-editor UI strings (port only if shipping MAPEDIT-like tools). |
 | **`ERRORS.DB` / `MODULES.DB`** | Error / module string tables (required at bring-up). |
 | **`README.TXT`** | Patch notes (Cathedral min pop 8, Space = free production, etc.) — human guidance, optional to parse. |
-| **`MEMORY.TXT` / `DEBUG.TXT` / `AUTOEXEC.TXT` / `CONFIG.TXT`** | DOS install / memory help samples — **do not load as game data**. |
+| **`MEMORY.TXT` / `AUTOEXEC.TXT` / `CONFIG.TXT`** | DOS install / memory help samples — **do not load as game data**. |
+| **`DEBUG.TXT`** | Cheat dialog copy (`@SETVIEW`, `@CREATE`, …). Port loads it for Reveal Map / future cheats; not for MOTD/install samples. |
 
 **Port rule:** Prefer parsing `NAMES.TXT` / `GAME.TXT` / etc. over duplicating string lists or yield grids in C. Several modules still hardcode name arrays as stubs (`reports.c`, `europe.c` port names); migrate those to the catalogs when touching that code.
 

@@ -83,13 +83,23 @@ int main(void) {
     return 1;
   }
   for (int i = 0; i < bar.menus[cup_i].item_count; ++i) {
-    if (bar.menus[cup_i].items[i].enabled) {
-      fprintf(stderr, "CHEAT item %d should be disabled (%s)\n", i, bar.menus[cup_i].items[i].label);
+    const MapMenuAction a = bar.menus[cup_i].items[i].action;
+    const bool should_enable =
+      (a == MAP_MENU_ACTION_CHEAT_REVEAL_MAP || a == MAP_MENU_ACTION_CHEAT_KILL_INDIANS);
+    if (bar.menus[cup_i].items[i].enabled != should_enable) {
+      fprintf(
+        stderr,
+        "CHEAT item %d enabled=%d expected %d (%s)\n",
+        i,
+        bar.menus[cup_i].items[i].enabled ? 1 : 0,
+        should_enable ? 1 : 0,
+        bar.menus[cup_i].items[i].label
+      );
       map_menu_free(&bar);
       assets_msg_free(&menu_txt);
       return 1;
     }
-    if (bar.menus[cup_i].items[i].action == MAP_MENU_ACTION_UNIMPLEMENTED) {
+    if (a == MAP_MENU_ACTION_UNIMPLEMENTED) {
       fprintf(stderr, "CHEAT item %d unclassified (%s)\n", i, bar.menus[cup_i].items[i].label);
       map_menu_free(&bar);
       assets_msg_free(&menu_txt);

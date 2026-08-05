@@ -78,7 +78,7 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_REPORT_INDIAN,
   MAP_MENU_ACTION_REPORT_SCORE,
 
-  /* CHEAT (@CUP) — present but disabled until implemented */
+  /* CHEAT (@CUP) — Reveal Map + Kill Indians enabled; rest grayed */
   MAP_MENU_ACTION_CHEAT_CREATE_UNIT,
   MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS,
   MAP_MENU_ACTION_CHEAT_REVEAL_MAP,
