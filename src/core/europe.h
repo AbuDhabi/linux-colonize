@@ -170,6 +170,9 @@ typedef struct EuropeScreen {
   int tax_percent;
   uint16_t current_crosses;
   uint16_t needed_crosses;
+  /* After first dock immigrant: defer needed+1 one turn; stop base +2 crosses. */
+  bool crosses_immigrant_seen;
+  bool crosses_pending_needed_bump;
   uint16_t liberty_bells_total;
   uint16_t liberty_bells_last_turn;
   EuropeCargoQuote cargo[EUROPE_CARGO_MAX];

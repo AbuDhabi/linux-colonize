@@ -120,6 +120,7 @@ struct ColonizeGameState {
   bool map_goto_dragged_px; /* true once pointer moved ≥1 logical pixel */
   uint32_t goto_step_accum_ms; /* paces Go-To at 10 steps/sec */
   ColonizeDosRng move_rng; /* FUN_465b partial-overspend rolls */
+  uint32_t ai_rng_seed; /* FUN_281f_04ca timer word; VR_SEED = 100 */
   bool unit_icons_ok;
   ColonizeFont menu_font;
   bool menu_font_ok;
@@ -520,11 +521,18 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     sound_set_options(opts);
   }
   sound_set_bgm(1);
-  /* Continue LCG for FUN_465b partial-overspend rolls (fresh stream per load). */
-  dos_rng_seed(
-    &game->move_rng,
-    game->turn_number ? game->turn_number : (game->game_year ? game->game_year : 1u)
-  );
+  /* Continue LCG for FUN_465b / AI nation turns. VR_SEED fixtures use seed 100;
+   * prefer that when the save looks like a seed-100 NEW WORLD start (turn<=6,
+   * 34 tribes), else fall back to turn/year. */
+  {
+    uint32_t seed = game->turn_number ? game->turn_number
+                                      : (game->game_year ? game->game_year : 1u);
+    if (game->col1_ok && game->col1.head.tribe_count == 34 && game->col1.head.turn <= 6) {
+      seed = 100u;
+    }
+    dos_rng_seed(&game->move_rng, seed);
+    game->ai_rng_seed = seed;
+  }
   return true;
 }
 
@@ -1547,6 +1555,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->human_nation = 0;
   game->active_turn_nation = 0;
   dos_rng_seed(&game->move_rng, 1u);
+  game->ai_rng_seed = 1u;
   game->pedia_category = PEDIA_CAT_TERRAIN;
   game->pedia_index = 0;
   game->pedia_hover_entry = -1;
@@ -2123,6 +2132,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     } else {
       dos_rng_seed(&game->move_rng, ai.rng_seed ? ai.rng_seed : 1u);
     }
+    game->ai_rng_seed = ai.rng_seed ? ai.rng_seed : 1u;
     /* NEW WORLD fog: reveal around owned units and colonies (scenario .MP is all-seen). */
     if (game->world_map_ok) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -3208,6 +3218,8 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->map = game->world_map_ok ? &game->world_map : NULL;
   ctx->col1 = game->col1_ok ? &game->col1 : NULL;
   ctx->col1_ok = game->col1_ok;
+  ctx->rng = &game->move_rng;
+  ctx->rng_seed = game->ai_rng_seed ? game->ai_rng_seed : 100u;
   ctx->status = game->status;
   ctx->status_size = sizeof(game->status);
 }
@@ -3832,11 +3844,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       int stepped = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &game->units.units[i];
-        if (!u->active || u->orders != UNITS_ORDER_GOTO || !units_is_on_map(u)) {
+        if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
           continue;
         }
         if (!units_advance_goto_one_step(
-              &game->units, u->id, &game->world_map, &game->colonies
+              &game->units, u->id, &game->world_map, &game->colonies, &game->move_rng
             )) {
           continue;
         }

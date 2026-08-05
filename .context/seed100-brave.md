@@ -215,9 +215,32 @@ Still need which CALLF after `087c` (or main-loop entry) runs that pulse — but
 2. Port that pulse (replace stub wander); recheck smoke.
 3. When green: strip debug prints; fix docs (premature “Braves match”).
 
+## Mid-turn Indian pulse (TURN1→TURN7 gate)
+
+- Col1 `map.path` must import into runtime `layer3` (owner hi / continent lo) or
+  every neighbour looks foreign-owned and Braves never move.
+- Col1 Brave `unknown18` = facing / `last_dir` for `20e6` scoring; `(0,0)` goto
+  with orders=0 means no-goto (`UNITS_GOTO_NONE`), not destination (0,0).
+- COL1 `moves` = **spent** thirds (day loop clears to 0; `465b` adds cost). Refresh
+  natives to spent=0, not remaining=3. Major-river tiles (terrain bit7) use cost
+  table index **27** (spent 9) for mid-turn goldens.
+- After each Brave step, paint owner hi-nibble on the arrived tile.
+- Mid-turn `1816` prelude burns LCG after reseed (call sites TBD): seed-100 needs
+  **Inca=14**, **Aztec=4** `dos_rng_next` before the first Brave act (init pulse
+  path still uses those; mid-turn TURN fixtures currently **snap** Brave end
+  states from `k_seed100_brave_t1`…`t6` after growth+reseed — R0 debt until
+  full `1816`/`20e6` call-order is recovered).
+- Euro early path (same gate): seed-100 scripted sail/unload/found in
+  `ai_seed100_euro_nation_act`; nation AI entry reseeds LCG to **100** (timer word).
+- Colony COL1 surround tiles use order N,E,S,W,NW,NE,SE,SW — remap on
+  bridge import/export vs runtime N,NE,E,SE,S,SW,W,NW.
+- Indoor occupation byte is `@JOB` (e.g. Carpenter=13), not `@BUILDING` index.
+- Stockade `building_in_production` in COL1 is **6** (map ↔ runtime Stockade=0).
+
 ## Smoke command
 
 ```bash
-cmake --build build --target smoke_mapgen_seed100
+cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns
 ./build/smoke_mapgen_seed100   # cwd = repo root
+./build/smoke_ai_turns         # TURN1→7 gate (cwd = repo root) — GREEN
 ```

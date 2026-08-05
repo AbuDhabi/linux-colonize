@@ -142,8 +142,8 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Partial | `ai.c` Phase 1; [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Partial | **R1 T0:** unload + first colony + fortify/carpenter; combat AI / planner still missing — [ai_transcription.md](ai_transcription.md) |
+| Rival starter fleets + sail to landfall | Partial | `ai.c`; T2 early path on VR_SEED=100 — [ai_transcription.md](ai_transcription.md) |
+| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found New Amsterdam/Quebec/Isabella (`smoke_ai_turns`); combat / mid-game planner still missing |
 
 ### Win / end sequences
 

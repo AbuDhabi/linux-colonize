@@ -637,6 +637,18 @@ target_link_libraries(smoke_ai PRIVATE colonize_core)
 
 add_test(NAME smoke_ai COMMAND smoke_ai WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(smoke_ai_turns
+  tests/smoke/test_ai_turns.c
+)
+
+target_include_directories(smoke_ai_turns PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_ai_turns PRIVATE colonize_core)
+
+add_test(NAME smoke_ai_turns COMMAND smoke_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_sound
   tests/smoke/test_sound.c
   src/core/sound.c

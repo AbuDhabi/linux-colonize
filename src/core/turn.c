@@ -96,7 +96,16 @@ void turn_refresh_moves_for_nation(ColonizeUnitPool* pool, int nation_id) {
     }
     const ColonizeUnitType* type = units_type(pool, u->type_index);
     if (type) {
-      u->moves_left = type->movement;
+      /*
+       * Natives: COL1 moves = DOS spent thirds; day loop clears spent to 0
+       * (decomp ~6357). Brave max allotment is 3 thirds.
+       * Europeans: remaining MP = @UNIT movement.
+       */
+      if (nation_id >= 4) {
+        u->moves_left = 0;
+      } else {
+        u->moves_left = type->movement;
+      }
     }
   }
 }
@@ -320,27 +329,40 @@ static void turn_produce_one_colony(
     delta->food_net = delta->goods[COLONIZE_CARGO_FOOD];
   }
 
-  /* Carpenter hammers: convert lumber toward current project. */
-  if (colony->building_in_production >= 0) {
+  /* Carpenter hammers: convert lumber toward current project (or bank if none). */
+  {
     int lumber_use = 0;
-    const int hammers_add =
-      colony_prod_colony_hammers(pool, colony, &lumber_use);
+    const int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
     if (hammers_add > 0) {
       if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
         lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
       }
-      colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
-      if (delta) {
-        delta->lumber -= lumber_use;
-        delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
+      /* Without a project, still bank hammers when lumber is available (TURN5→6). */
+      int hammers = 0;
+      if (colony->building_in_production >= 0) {
+        colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
+        if (delta) {
+          delta->lumber -= lumber_use;
+          delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
+        }
+        hammers = lumber_use > 0 ? lumber_use : hammers_add;
+      } else if (lumber_use > 0) {
+        colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
+        if (delta) {
+          delta->lumber -= lumber_use;
+          delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
+        }
+        hammers = lumber_use;
+      } else {
+        hammers = hammers_add;
       }
-      const int hammers = lumber_use > 0 ? lumber_use : hammers_add;
       colony->hammers += hammers;
       if (delta) {
         delta->hammers_added = hammers;
       }
 
-      if (colonies_try_complete_building(pool, colony->id)) {
+      if (colony->building_in_production >= 0 &&
+          colonies_try_complete_building(pool, colony->id)) {
         if (delta) {
           delta->building_completed = true;
         }
@@ -383,8 +405,9 @@ void turn_colony_free_production(
   turn_produce_one_colony(pool, colony, map, out ? out : &local, out_delta);
 }
 
-static int turn_count_bells_and_crosses(
+static int turn_count_bells_and_crosses_for_nation(
   const ColonizeColonyPool* pool,
+  int nation_id,
   int* out_bells,
   int* out_crosses
 ) {
@@ -401,7 +424,7 @@ static int turn_count_bells_and_crosses(
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
-    if (!c->active) {
+    if (!c->active || c->nation_id != nation_id) {
       continue;
     }
     bells += colony_prod_colony_bells(pool, c);
@@ -433,11 +456,33 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   }
   int bells = 0;
   int crosses = 0;
-  turn_count_bells_and_crosses(ctx->colonies, &bells, &crosses);
+  turn_count_bells_and_crosses_for_nation(
+    ctx->colonies, ctx->human_nation, &bells, &crosses
+  );
 
   if (ctx->europe) {
     if (ctx->europe->needed_crosses == 0) {
       ctx->europe->needed_crosses = TURN_DEFAULT_NEEDED_CROSSES;
+    }
+    /* Deferred needed+1 one turn after first immigrant (TURN5→TURN6 goldens). */
+    if (ctx->europe->crosses_pending_needed_bump) {
+      unsigned need = (unsigned)ctx->europe->needed_crosses + 1u;
+      if (need > 65535u) {
+        need = 65535u;
+      }
+      ctx->europe->needed_crosses = (uint16_t)need;
+      ctx->europe->crosses_pending_needed_bump = false;
+    }
+    /*
+     * Base +2 crosses per turn until the first dock immigrant arrives; afterward
+     * only colony church crosses accumulate (idle human TURN5–7 stay at 0).
+     */
+    if (!ctx->europe->crosses_immigrant_seen) {
+      unsigned cur = (unsigned)ctx->europe->current_crosses + 2u;
+      if (cur > 65535u) {
+        cur = 65535u;
+      }
+      ctx->europe->current_crosses = (uint16_t)cur;
     }
     ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
     {
@@ -456,15 +501,27 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     }
     while (ctx->europe->needed_crosses > 0 &&
            ctx->europe->current_crosses >= ctx->europe->needed_crosses) {
-      ctx->europe->current_crosses =
-        (uint16_t)(ctx->europe->current_crosses - ctx->europe->needed_crosses);
-      /* Next immigrant costs more crosses (DOS ramps threshold). */
-      unsigned need = (unsigned)ctx->europe->needed_crosses + 4u;
-      if (need > 65535u) {
-        need = 65535u;
-      }
-      ctx->europe->needed_crosses = (uint16_t)need;
+      /* Discard remainder; needed bumps on the following turn. */
+      ctx->europe->current_crosses = 0;
+      ctx->europe->crosses_immigrant_seen = true;
+      ctx->europe->crosses_pending_needed_bump = true;
       turn_push_dock_immigrant(ctx->europe, out);
+      /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
+      if (ctx->units && ctx->europe->dock_count > 0) {
+        const EuropeDockImmigrant* d = &ctx->europe->dock[ctx->europe->dock_count - 1];
+        const int tid = units_find_type(ctx->units, "Colonists");
+        const int type_index = tid >= 0 ? tid : 0;
+        const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
+        ColonizeUnit* u = units_get(ctx->units, id);
+        if (u) {
+          u->nation_id = ctx->human_nation;
+          u->orders = UNITS_ORDER_SENTRY;
+          u->profession = d->profession;
+          u->goto_x = 0;
+          u->goto_y = 0;
+          u->moves_left = 0;
+        }
+      }
     }
     europe_tick_voyages(ctx->europe, ctx->units);
   }

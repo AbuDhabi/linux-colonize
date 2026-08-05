@@ -91,8 +91,10 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
   if (!pool || !colony_txt_path) {
     return false;
   }
-  pool->name_count = 0;
-  pool->name_next = 0;
+  for (int n = 0; n < 4; ++n) {
+    pool->name_count[n] = 0;
+    pool->name_next[n] = 0;
+  }
 
   FILE* f = fopen(colony_txt_path, "r");
   if (!f) {
@@ -101,14 +103,24 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
   }
 
   char line[128];
-  bool in_english = false;
+  int section = -1; /* 0 English, 1 French, 2 Spanish, 3 Dutch */
   while (fgets(line, sizeof(line), f)) {
     colony_trim(line);
     if (line[0] == '@') {
-      in_english = (strncmp(line + 1, "ENGLISH", 7) == 0);
+      if (strncmp(line + 1, "ENGLISH", 7) == 0) {
+        section = 0;
+      } else if (strncmp(line + 1, "FRENCH", 6) == 0) {
+        section = 1;
+      } else if (strncmp(line + 1, "SPANISH", 7) == 0) {
+        section = 2;
+      } else if (strncmp(line + 1, "DUTCH", 5) == 0) {
+        section = 3;
+      } else {
+        section = -1; /* @STOP or unknown */
+      }
       continue;
     }
-    if (!in_english) {
+    if (section < 0 || section > 3) {
       continue;
     }
     if (line[0] == '\0' || line[0] == ';') {
@@ -123,15 +135,25 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path) 
     if (line[0] == '\0') {
       continue;
     }
-    if (pool->name_count >= COLONIZE_COLONY_NAMES_MAX) {
-      break;
+    if (pool->name_count[section] >= COLONIZE_COLONY_NAMES_MAX) {
+      continue;
     }
-    str_copy_trunc(pool->names[pool->name_count], COLONIZE_COLONY_NAME_MAX, line);
-    pool->name_count++;
+    str_copy_trunc(
+      pool->names[section][pool->name_count[section]], COLONIZE_COLONY_NAME_MAX, line
+    );
+    pool->name_count[section]++;
   }
   fclose(f);
-  diag_info("Loaded %d colony names from %s", pool->name_count, colony_txt_path);
-  return pool->name_count > 0;
+  diag_info(
+    "Loaded colony names EN=%d FR=%d SP=%d DU=%d from %s",
+    pool->name_count[0],
+    pool->name_count[1],
+    pool->name_count[2],
+    pool->name_count[3],
+    colony_txt_path
+  );
+  return pool->name_count[0] > 0 || pool->name_count[1] > 0 || pool->name_count[2] > 0 ||
+         pool->name_count[3] > 0;
 }
 
 bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog* names) {
@@ -226,12 +248,19 @@ bool colonies_can_found(
   return true;
 }
 
-static const char* colonies_next_name(ColonizeColonyPool* pool) {
-  if (pool->name_count == 0) {
+static const char* colonies_next_name(ColonizeColonyPool* pool, int nation_id) {
+  if (!pool) {
     return "New Colony";
   }
-  const char* n = pool->names[pool->name_next % pool->name_count];
-  pool->name_next++;
+  if (nation_id < 0 || nation_id > 3) {
+    nation_id = 0;
+  }
+  if (pool->name_count[nation_id] == 0) {
+    return "New Colony";
+  }
+  const char* n =
+    pool->names[nation_id][pool->name_next[nation_id] % pool->name_count[nation_id]];
+  pool->name_next[nation_id]++;
   return n;
 }
 
@@ -304,7 +333,7 @@ int colonies_found(
   for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
     slot->tiles[t] = -1;
   }
-  snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool));
+  snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool, nation_id));
   colonies_grant_starters(pool, slot);
 
   if (tools > 0) {

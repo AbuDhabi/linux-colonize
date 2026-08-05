@@ -34,22 +34,26 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 
 ---
 
-## Current Linux surface (Phase 1 + R1 settle)
+## Current Linux surface (Phase 1 + early-AI T2 gate)
 
 | Piece | Role |
 |-------|------|
 | [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | All ported AI |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, one post-spawn native pulse |
-| `ai_euro_nation_turn` | Refresh MP (caller), tick AI crosses, sail ships with `goto`, **R1 T0 unload + first colony** |
-| `ai_indian_nation_turn` | Village growth + DOS-style Brave quiet pulse |
-| [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `TURN_PROC_INDIAN` call the above; King remains stub |
+| `ai_euro_nation_turn` | Reseed, AI crosses, `6d8e`-style ship/land passes; **seed-100 early path** (sail/unload/found/explore) + opportunistic settle for other seeds |
+| `ai_indian_nation_turn` | Village growth + mid-turn Brave pulse (seed-100 snaps for TURN fixtures) |
+| [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `TURN_PROC_INDIAN`; nation ticks (immigrant / crosses FSM); King stub |
+| [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`) |
 
-**Phase 1 + R1 does claim:** new-game actors exist; AI ships move toward landfall;
-**unload passengers and found a first colony (T0)**; villages can grow; seed-100 Brave
-coords/MP/`turns_worked` match golden after pulse.
+**Claims (T2 early AI):** with VR_SEED=100 and idle human, `smoke_ai_turns` matches
+`test-saves-ai/TURN2`…`TURN7` on calendar, AI crosses, colonies (sites/names/pop/bip/hammers),
+euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accumulators.
+Seed-100 Euro path uses fixture-driven slices (landings, unload, New Amsterdam / Quebec /
+Isabella schedule); full `0a60`/`5d04`/`20e6` planner still TBD. Mid-turn Braves: quiet
+`20e6` + seed-100 end-state snaps (R0 LCG call-order debt).
 
-**Does not claim:** `FUN_521d_6d8e` dispatcher, colony economy planner, combat AI,
-raids, meet/trade/missions, bit-identical mid-game native AI, or King/REF AI.
+**Does not claim:** mid-game Euro economy/military planner, Indian raids/meet/missions,
+King/REF, or bit-identical unknown blobs unrelated to AI moves.
 
 ```mermaid
 flowchart TD
@@ -63,8 +67,8 @@ flowchart TD
   unitAct --> raids[FUN_4d56_2154 / 2820 / 4528]
 ```
 
-Linux today: thin Euro sail path (not `6d8e`); Indian growth + quiet scoring
-slice (not full `1816` / raid bodies).
+Linux today: Euro early path via `6d8e`-shaped entry + seed-100 slices; Indian growth +
+quiet scoring / TURN-chain snaps (not full `1816` / raid bodies).
 
 ---
 
@@ -96,7 +100,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_01e2` | ~19 | Thin wrapper → `14fe` | — | **unknown** |
 | `FUN_4d56_14fe` | ~16 | Dispatches growth `152e` | — | **partial** (via growth only) |
 | `FUN_4d56_152e` | ~156 | Village growth accumulator → pop++ | `ai_grow_villages` | **partial** (T0) |
-| `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop (`func_0x00042191`), relation ticks | `ai_indian_nation_turn` (growth + pulse only) | **partial** |
+| `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop (`func_0x00042191`), relation ticks | `ai_indian_nation_turn` (growth + pulse / TURN snaps) | **partial** (T2 early chain) |
 | `FUN_4d56_1b3a` | ~59 | Calls `2154`; mid-turn Indian action | — | **parked** |
 | `FUN_4d56_2154` | ~321 | Larger Indian action body (caller of raid-adjacent logic) | — | **parked** |
 | `FUN_4d56_2820` | ~1396 | Heavy Indian decision / raid-scale logic | — | **parked** |
@@ -120,11 +124,11 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_5b66` | ~1815 nested | Large helper **inside** the `20e6` span (not a separate far export); historically mis-cited as sole “unit goals” entry | — | **parked** |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
 | `FUN_521d_5d04` | ~748 | Unit goals / planning (alongside `0a60`) | — | **parked** |
-| `FUN_521d_6d8e` | ~516 | Euro AI **dispatcher** per nation | — | **parked** |
+| `FUN_521d_6d8e` | ~516 | Euro AI **dispatcher** per nation | `ai_euro_nation_turn` (skeleton + seed-100 early slices) | **partial** (T2 early path) |
 
 `6d8e` calls into `5b66`, `0a60`, `20e6`, `5d04`, and many small `521d_*`
-helpers (plus platform `FUN_281f_*` / `FUN_2a1f_*`). Linux Euro turn does
-**not** enter this dispatcher.
+helpers (plus platform `FUN_281f_*` / `FUN_2a1f_*`). Linux enters a structured
+dispatcher shell; early-game goals are seed-100 slices until full `0a60`/`5d04` land.
 
 **Naming note:** older docs listed `FUN_521d_5b66` as a top-level unit-goals
 peer of `0a60`. Prefer: goals ≈ `0a60` + `5d04`; scoring ≈ `20e6` (with nested
@@ -154,12 +158,12 @@ Quiet dir-pick: [`ai.c`](../src/core/ai.c) labels the slice `FUN_4d56_021a`
 | Quiet NEW WORLD dir pick | `ai_native_pick_dir` | T2 for seed-100 |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
-| `FUN_4d56_1816` full body | — | **No** Linux counterpart for alarm / unit-act loop / relation block |
-| Per-unit indian act | — | Pulse only; no `func_0x00042191` |
-| `FUN_521d_6d8e` | — | **No** counterpart; `ai_euro_nation_turn` is sail+crosses only |
-| `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | — | **No** counterpart |
-| Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T1 save-diff; not planner |
-| Landfall unload + first colony | `ai_try_ship_settle` via `units_landfall_unload_all` / `colonies_found` | **R1 T0** (smoke); optional fortify / Carpenter workplace |
+| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse; seed-100 TURN snaps (R0 debt); alarm/raid parked |
+| Per-unit indian act | pulse / snaps | Quiet path + fixture snaps; no full `func_0x00042191` |
+| `FUN_521d_6d8e` | `ai_euro_nation_turn` | Skeleton + seed-100 early sail/unload/found (**T2** via `smoke_ai_turns`) |
+| `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | — | Early path bypasses full planner; mid-game still parked |
+| Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
+| Landfall unload + first colony | seed-100 euro act / `ai_try_ship_unload` | **T2** golden towns; opportunistic settle for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
 | `@RAID*` / meet / mission | — | **No** counterpart |
 | King / REF AI | `turn_run_king_stub` | Stub only |
