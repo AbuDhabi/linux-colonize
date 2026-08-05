@@ -320,6 +320,33 @@ int main(void) {
     return 1;
   }
 
+  /* Chrome: 1px gap under bar rule, black dropdown outline. */
+  memset(pixels, 7, sizeof(pixels)); /* non-black sentinel in gap row */
+  map_menu_render(&bar, f, NULL, &fb);
+  {
+    const int dx = bar.menus[game_i].title_x;
+    const int gap_y = MAP_MENU_BAR_H;
+    const int drop_y = MAP_MENU_BAR_H + 1;
+    if (pixels[gap_y * 320 + dx + 4] == 0) {
+      fprintf(stderr, "expected 1px non-black gap between bar rule and dropdown\n");
+      if (font_ok) {
+        ff_free(&font);
+      }
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+    if (pixels[drop_y * 320 + dx + 4] != 0) {
+      fprintf(stderr, "expected black dropdown top border, got %u\n", pixels[drop_y * 320 + dx + 4]);
+      if (font_ok) {
+        ff_free(&font);
+      }
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+  }
+
   /* Save Game is item index 4 under GAME. */
   int save_index = -1;
   for (int i = 0; i < bar.menus[game_i].item_count; ++i) {
@@ -339,8 +366,10 @@ int main(void) {
   }
 
   const int item_h = f ? (f->max_height + 2 < 8 ? 8 : f->max_height + 2) : 8;
+  /* Dropdown sits 1px below the bar rule (MAP_MENU_BAR_H + 1). */
+  const int dropdown_y = MAP_MENU_BAR_H + 1;
   input.mouse_x = bar.menus[game_i].title_x + 8;
-  input.mouse_y = MAP_MENU_BAR_H + 2 + save_index * item_h + 1;
+  input.mouse_y = dropdown_y + 2 + save_index * item_h + 1;
   input.mouse_left_clicked = true;
   action = map_menu_handle_input(&bar, &input, f, false);
   if (action != MAP_MENU_ACTION_SAVE) {
