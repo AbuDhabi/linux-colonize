@@ -14,12 +14,12 @@
 #include "core/units.h"
 
 /*
- * European / Indian AI actors (Phase 1 + R1 settle).
+ * European / Indian AI actors (Phase 1 + early-AI T2 gate).
  *
  * New-game: Col1 template + rival fleets with landfall goto +
- * TRIBE.TXT / procedural villages with Braves.
- * Turn: sail AI ships toward goto; unload + found first colony (T0);
- * tick AI crosses; village growth + FUN_4d56_1816-style Brave pulse.
+ * TRIBE.TXT / procedural villages with Braves + post-`6a09` native pulse.
+ * Turn: sail/unload/found + AI crosses; seed-100 early path (fixture slices);
+ * village growth + Brave pulse (seed-100 TURN snaps = R0 debt).
  * Full FUN_521d_* planner / raids remain parked.
  */
 
@@ -50,7 +50,7 @@ typedef struct AiNewGameParams {
 /* Col1 template, AI fleets, tribes/Braves, fix human unit nation_id. */
 bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size);
 
-/* One European AI nation: refresh already done by caller; sail + crosses. */
+/* One European AI nation: refresh already done by caller; sail/unload/found + crosses. */
 void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
 /* One native nation (4..11): village growth + DOS Brave pulse. */

@@ -19,8 +19,8 @@
  * Spring then Autumn each year (autumn != 0 means Autumn).
  *
  * Pipeline after the human ends their turn:
- *   calendar → colony production → nation ticks → European AI stubs →
- *   Indian stub → King stub → refresh human MP / select next unit
+ *   calendar → colony production → nation ticks → European AI →
+ *   Indian AI → King stub → refresh human MP / select next unit
  */
 
 #define TURN_START_YEAR 1492
@@ -122,10 +122,10 @@ void turn_run_colony_production(
 /* Crosses → dock immigrant; liberty bells counters (human nation + Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 
-/* EN→FR→SP→DU AI stubs (refresh MP only; skip human). */
+/* EN→FR→SP→DU AI nations (skip human); calls ai_euro_nation_turn. */
 void turn_run_european_ai_stubs(ColonizeTurnContext* ctx);
 
-/* Indian / King phase placeholders. */
+/* Indian AI (growth + Brave pulse) / King phase placeholder. */
 void turn_run_indian_stub(ColonizeTurnContext* ctx);
 void turn_run_king_stub(ColonizeTurnContext* ctx);
 

@@ -121,7 +121,7 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | DOS LCG / `range()` | `FUN_1d1d_0e04`, `FUN_19ef_0032` | `src/core/dos_rng.c` |
 | Tribe / Brave / satellite placement | `FUN_6a09_*` | `src/core/ai.c` |
 | Indian AI / growth | `FUN_4d56_*` | `ai.c` (partial) — see [ai_transcription.md](ai_transcription.md) |
-| European AI planner | `FUN_521d_*` | parked / sail+crosses only — see [ai_transcription.md](ai_transcription.md) |
+| European AI planner | `FUN_521d_*` | partial — early T2 slices (seed-100 sail/unload/found); full planner parked — see [ai_transcription.md](ai_transcription.md) |
 | Map tile compositor (masks, draw order) | MAPEDIT `FUN_1a47_*` | `src/core/map.c` |
 | Resource / rumour procedural placement | MAPEDIT `FUN_12ab_*` | `map.c` |
 | Turn / calendar mechanics beyond `@TIMECHANGE` copy | VICEROY + saves | `src/core/turn.c` |

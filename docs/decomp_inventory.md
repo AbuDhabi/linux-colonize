@@ -143,8 +143,8 @@ port I/O in the native build.
 - Colonizopedia: woodcut list screen (`WOODPANL.PIK`) with green entry links in up to
   3 columns, then cargo/unit/terrain/job/building/father/misc articles with
   ICONS / BUILDING / CC-NN / TERRAIN previews
-- Turn progression (`src/core/turn.c`): `@TIMECHANGE` calendar, colony production
-  stub, nation crosses/bells hooks, EN→FR→SP→DU / Indian / King phase stubs,
+- Turn progression (`src/core/turn.c`): `@TIMECHANGE` calendar, colony production,
+  nation crosses/bells hooks, EN→FR→SP→DU Euro AI + Indian AI + King stub,
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
@@ -208,7 +208,7 @@ nation skip were stale.
 
 Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Customize UI: `FUN_733a_0270` on `CUSTOMIZ.PIK` (4 columns × 3 rows; defaults all mid/`1`). Linux port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`) + `NEW_GAME_PHASE_CUSTOMIZE` in `src/core/new_game.c`. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
 
-Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (2×2 masks 6/9) is ported. RNG is exact DOS `FUN_1d1d_0e04` / `FUN_19ef_0032` (`src/core/dos_rng.c`): NEW WORLD draws customize axes (`range(0,3)`) then reseeds before `map_generate`. Tribe placement restores the **post-axes** LCG (seed + 5 axis draws), then `range(1,8)` / cargo / `FUN_6a09` — it does **not** continue the post-mapgen stream. Land mask, latitude/climate paint, forest wander, rivers, and arctic/HS tail bit-match seed 100 terrain. `FUN_6a09` capitals/satellites match SEED100; Braves spawn then take one post-`6a09` native pulse (`FUN_4d56_1816` path in `ai.c`) so coordinates/MP/`turns_worked` match the golden save (34 tribes / 46 units). Golden fidelity: `smoke_mapgen_seed100` vs `test-saves-mapgen/SEED100.SAV` (no seed-special runtime path).
+Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (2×2 masks 6/9) is ported. RNG is exact DOS `FUN_1d1d_0e04` / `FUN_19ef_0032` (`src/core/dos_rng.c`): NEW WORLD draws customize axes (`range(0,3)`) then reseeds before `map_generate`. Tribe placement (`FUN_6a09`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word) — it does **not** continue the post-mapgen stream or restore a post-axes LCG (stale “post-axes restore” docs were wrong for this path). Land mask, latitude/climate paint, forest wander, rivers, and arctic/HS tail bit-match seed 100 terrain. `FUN_6a09` capitals/satellites match SEED100; Braves spawn then take one post-`6a09` native pulse (`FUN_4d56_1816` path in `ai.c`) so coordinates/MP/`turns_worked` match the golden save (34 tribes / 46 units). Golden fidelity: `smoke_mapgen_seed100` vs `test-saves-mapgen/SEED100.SAV` (no seed-special runtime path).
 
 ## Map compositor (MAPEDIT)
 
