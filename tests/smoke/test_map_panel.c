@@ -184,6 +184,7 @@ int main(void) {
     10,
     20,
     -1,
+    0,
     1492,
     0,
     1000,
@@ -324,6 +325,7 @@ int main(void) {
       ship->x,
       ship->y,
       ship->id,
+      0,
       1492,
       0,
       1000,
@@ -391,7 +393,7 @@ int main(void) {
     uint8_t tile_px[16 * 16];
     memset(tile_px, 0, sizeof(tile_px));
     ColonizeFramebuffer8 tile_fb = {.width = 16, .height = 16, .pixels = tile_px};
-    map_panel_render_tribes_on_map(&col1, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0);
+    map_panel_render_tribes_on_map(&col1, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0, NULL, 0);
 
     int opaque = 0;
     for (int i = 0; i < 16 * 16; ++i) {

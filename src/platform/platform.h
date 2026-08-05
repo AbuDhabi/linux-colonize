@@ -24,6 +24,7 @@ typedef enum ColonizeKey {
   COLONIZE_KEY_KP8,
   COLONIZE_KEY_KP9,
   COLONIZE_KEY_S,
+  COLONIZE_KEY_F,
   COLONIZE_KEY_L,
   COLONIZE_KEY_Q,
   COLONIZE_KEY_P,
@@ -69,6 +70,7 @@ typedef struct ColonizeInputState {
   int mouse_y;
   ColonizeKey last_key;
   bool alt_held;           /* Left/Right Alt down this frame */
+  bool shift_held;         /* Left/Right Shift down this frame */
   char text_input[COLONIZE_TEXT_INPUT_MAX]; /* printable chars this frame */
   int text_input_len;
 } ColonizeInputState;

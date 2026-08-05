@@ -369,6 +369,91 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
   return &pool->types[type_index];
 }
 
+static int g_units_last_combat = 0;
+
+int units_last_combat_outcome(void) {
+  return g_units_last_combat;
+}
+
+static int units_foreign_at(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int mover_id,
+  int mover_nation
+) {
+  if (!pool) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->id == mover_id) {
+      continue;
+    }
+    if (mover_nation >= 0 && u->nation_id == mover_nation) {
+      continue;
+    }
+    return u->id;
+  }
+  return -1;
+}
+
+bool units_resolve_land_combat(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng
+) {
+  g_units_last_combat = 0;
+  ColonizeUnit* atk = units_get(pool, attacker_id);
+  ColonizeUnit* def = units_get(pool, defender_id);
+  if (!atk || !def || !atk->active || !def->active) {
+    return false;
+  }
+  if (units_is_sea(pool, attacker_id) || units_is_sea(pool, defender_id)) {
+    return false;
+  }
+  const ColonizeUnitType* at = units_type(pool, atk->type_index);
+  const ColonizeUnitType* dt = units_type(pool, def->type_index);
+  if (!at || !dt) {
+    return false;
+  }
+  int attack = at->attack;
+  int defense = dt->defense;
+  if (def->orders == UNITS_ORDER_FORTIFIED || def->orders == UNITS_ORDER_FORTIFY) {
+    defense *= 2;
+  }
+  if (attack < 0) {
+    attack = 0;
+  }
+  if (defense < 0) {
+    defense = 0;
+  }
+  const int total = attack + defense;
+  bool atk_wins = false;
+  if (total <= 0) {
+    /* Both helpless — attacker takes the tile. */
+    atk_wins = true;
+  } else if (!rng) {
+    /* Deterministic: attacker wins if attack >= defense. */
+    atk_wins = attack >= defense;
+  } else {
+    const int roll = dos_rng_range(rng, 1, total);
+    atk_wins = roll <= attack;
+  }
+  if (atk_wins) {
+    units_despawn(pool, defender_id);
+    g_units_last_combat = 1;
+    return true;
+  }
+  units_despawn(pool, attacker_id);
+  g_units_last_combat = -1;
+  return false;
+}
+
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -391,18 +476,8 @@ bool units_can_enter(
     mover_nation = mover->nation_id;
   }
 
-  /* Friendly stacks OK; foreign on-map unit blocks. */
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->x != x || u->y != y) {
-      continue;
-    }
-    if (u->id == mover_id) {
-      continue;
-    }
-    if (mover_nation >= 0 && u->nation_id == mover_nation) {
-      continue;
-    }
+  /* Friendly stacks OK; foreign on-map unit blocks (combat via units_try_move). */
+  if (units_foreign_at(pool, x, y, mover_id, mover_nation) >= 0) {
     return false;
   }
 
@@ -468,6 +543,7 @@ bool units_try_move(
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng
 ) {
+  g_units_last_combat = 0;
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit || !map) {
     return false;
@@ -486,9 +562,25 @@ bool units_try_move(
   if (dx < -1 || dx > 1 || dy < -1 || dy > 1 || (dx == 0 && dy == 0)) {
     return false;
   }
+
+  const int foe = units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id);
+  if (foe >= 0) {
+    /* Land attack into occupied tile; naval / mixed still blocked. */
+    if (units_is_sea(pool, unit_id) || units_is_sea(pool, foe)) {
+      return false;
+    }
+    if (!units_resolve_land_combat(pool, unit_id, foe, rng)) {
+      return false; /* attacker lost / despawned */
+    }
+    unit = units_get(pool, unit_id);
+    if (!unit) {
+      return false;
+    }
+  }
   if (!units_can_enter(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies)) {
     return false;
   }
+
   const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
   const int remaining = unit->moves_left;
   const ColonizeUnitType* type = units_type(pool, unit->type_index);
@@ -516,6 +608,12 @@ bool units_try_move(
   }
   if (!allow) {
     return false;
+  }
+
+  /* Moving cancels sentry / fortify; Go-To cleared only on arrival elsewhere. */
+  if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+      unit->orders == UNITS_ORDER_FORTIFIED) {
+    unit->orders = UNITS_ORDER_NONE;
   }
 
   unit->x = dest_x;
@@ -564,6 +662,98 @@ void units_clear_orders(ColonizeUnitPool* pool, int unit_id) {
   u->orders = UNITS_ORDER_NONE;
   u->goto_x = UNITS_GOTO_NONE;
   u->goto_y = UNITS_GOTO_NONE;
+}
+
+bool units_orders_skip_turn(const ColonizeUnit* unit) {
+  if (!unit || !unit->active) {
+    return false;
+  }
+  return unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFIED;
+}
+
+bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active) {
+    return false;
+  }
+  if (orders == UNITS_ORDER_FORTIFY || orders == UNITS_ORDER_FORTIFIED) {
+    if (!units_is_on_map(u) || units_is_sea(pool, unit_id)) {
+      return false;
+    }
+  }
+  if (orders == UNITS_ORDER_SENTRY) {
+    /* Map sentry or already aboard (Europe/cargo path uses raw orders=1). */
+    if (!units_is_on_map(u) && u->aboard_ship_id < 0) {
+      return false;
+    }
+  }
+  u->goto_x = UNITS_GOTO_NONE;
+  u->goto_y = UNITS_GOTO_NONE;
+  u->orders = orders;
+  if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
+      orders == UNITS_ORDER_FORTIFIED) {
+    u->moves_left = 0;
+  }
+  return true;
+}
+
+bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active) {
+    return false;
+  }
+  if (u->orders == UNITS_ORDER_FORTIFIED) {
+    return true;
+  }
+  return units_set_orders(pool, unit_id, UNITS_ORDER_FORTIFY);
+}
+
+bool units_order_sentry(ColonizeUnitPool* pool, int unit_id) {
+  return units_set_orders(pool, unit_id, UNITS_ORDER_SENTRY);
+}
+
+bool units_disband(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active) {
+    return false;
+  }
+  /* Unboard passengers first if disbanding a ship — despawn handles cargo in
+   * units_despawn paths; keep simple: refuse sea with cargo for T0. */
+  if (units_is_sea(pool, unit_id) && u->cargo_count > 0) {
+    return false;
+  }
+  if (u->aboard_ship_id >= 0) {
+    /* Leave ship hold then despawn. */
+    ColonizeUnit* ship = units_get(pool, u->aboard_ship_id);
+    if (ship) {
+      for (int i = 0; i < ship->cargo_count; ++i) {
+        if (ship->cargo_ids[i] == unit_id) {
+          for (int j = i; j < ship->cargo_count - 1; ++j) {
+            ship->cargo_ids[j] = ship->cargo_ids[j + 1];
+          }
+          ship->cargo_count--;
+          break;
+        }
+      }
+    }
+    u->aboard_ship_id = -1;
+  }
+  return units_despawn(pool, unit_id);
+}
+
+bool units_wake(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active) {
+    return false;
+  }
+  const int prev = u->orders;
+  units_clear_orders(pool, unit_id);
+  const ColonizeUnitType* type = units_type(pool, u->type_index);
+  if (type) {
+    u->moves_left = type->movement;
+  }
+  return prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
+         prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_GOTO;
 }
 
 bool units_set_goto(
@@ -1897,7 +2087,9 @@ void units_render_on_map(
   int tile_h,
   int origin_x,
   int origin_y,
-  bool selected_visible
+  bool selected_visible,
+  const ColonizeWorldMap* fog_map,
+  int fog_nation
 ) {
   if (!pool || !nation_sheet || !framebuffer) {
     return;
@@ -1910,6 +2102,9 @@ void units_render_on_map(
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* unit = &pool->units[i];
     if (!units_is_on_map(unit) || visited[i]) {
+      continue;
+    }
+    if (fog_map && !map_tile_seen_by(fog_map, unit->x, unit->y, fog_nation)) {
       continue;
     }
     const int sx = unit->x - view_x;

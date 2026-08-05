@@ -161,6 +161,12 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Wait for next unit") == 0) {
       return MAP_MENU_ACTION_WAIT_UNIT;
     }
+    if (strcmp(label, "Fortify") == 0) {
+      return MAP_MENU_ACTION_FORTIFY;
+    }
+    if (strcmp(label, "Sentry") == 0) {
+      return MAP_MENU_ACTION_SENTRY;
+    }
     if (strcmp(label, "Build Colony") == 0) {
       return MAP_MENU_ACTION_BUILD_COLONY;
     }
@@ -178,6 +184,9 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     }
     if (strcmp(label, "No Orders (space bar)") == 0) {
       return MAP_MENU_ACTION_NO_ORDERS;
+    }
+    if (strstr(label, "Disband Unit") != NULL) {
+      return MAP_MENU_ACTION_DISBAND;
     }
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
@@ -312,6 +321,9 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_LOAD_CARGO:
     case MAP_MENU_ACTION_UNLOAD_CARGO:
     case MAP_MENU_ACTION_RETURN_EUROPE:
+    case MAP_MENU_ACTION_FORTIFY:
+    case MAP_MENU_ACTION_SENTRY:
+    case MAP_MENU_ACTION_DISBAND:
     case MAP_MENU_ACTION_NO_ORDERS:
     case MAP_MENU_ACTION_PEDIA_CARGO:
     case MAP_MENU_ACTION_PEDIA_UNIT:
@@ -856,6 +868,12 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Unload Cargo";
     case MAP_MENU_ACTION_RETURN_EUROPE:
       return "Return to Europe";
+    case MAP_MENU_ACTION_FORTIFY:
+      return "Fortify";
+    case MAP_MENU_ACTION_SENTRY:
+      return "Sentry";
+    case MAP_MENU_ACTION_DISBAND:
+      return "Disband Unit";
     case MAP_MENU_ACTION_NO_ORDERS:
       return "No Orders";
     case MAP_MENU_ACTION_PEDIA_CARGO:

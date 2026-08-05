@@ -91,7 +91,7 @@ int main(void) {
   CHECK(colonies_can_found(&pool, &map, land_x, land_y), "can found on land tile");
 
   /* Found without a colonist (type -1) — still gets starter buildings. */
-  const int empty_id = colonies_found(&pool, &map, land_x, land_y, -1, UNITS_JOB_NONE, 0, 0, 0);
+  const int empty_id = colonies_found(&pool, &map, land_x, land_y, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
   CHECK(empty_id >= 0, "colonies_found without founder");
   const ColonizeColony* empty = colonies_get(&pool, empty_id);
   CHECK(empty && empty->population == 0 && empty->colonist_count == 0, "no founder => pop 0");
@@ -113,7 +113,7 @@ int main(void) {
     }
   }
   if (coast_x >= 0) {
-    const int coast_id = colonies_found(&pool, &map, coast_x, coast_y, -1, UNITS_JOB_NONE, 0, 0, 0);
+    const int coast_id = colonies_found(&pool, &map, coast_x, coast_y, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
     CHECK(coast_id >= 0, "found coastal colony");
     const ColonizeColony* coastal = colonies_get(&pool, coast_id);
     CHECK(coastal && !coastal->has_building[docks], "coastal starter excludes Docks");
@@ -135,7 +135,7 @@ int main(void) {
   CHECK(land2_x >= 0, "second land tile");
   const int pioneer_type = 2; /* Pioneers are early in @UNIT; index used only for storage. */
   int cid =
-    colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, UNITS_JOB_PIONEER, 100, 0, 0);
+    colonies_found(&pool, &map, land2_x, land2_y, 0, pioneer_type, UNITS_JOB_PIONEER, 100, 0, 0);
   CHECK(cid >= 0, "colonies_found with founder");
   const ColonizeColony* col = colonies_get(&pool, cid);
   CHECK(col != NULL, "colonies_get returns colony");
@@ -428,7 +428,7 @@ int main(void) {
   }
 
   /* Re-found so map-icon test has a colony. */
-  cid = colonies_found(&pool, &map, land2_x, land2_y, pioneer_type, UNITS_JOB_PIONEER, 0, 0, 0);
+  cid = colonies_found(&pool, &map, land2_x, land2_y, 0, pioneer_type, UNITS_JOB_PIONEER, 0, 0, 0);
   CHECK(cid >= 0, "re-found for map icon");
 
   /* Map marker: ICONS.SS #0–3 colony settlement (not cargo greys #38+). */
@@ -444,7 +444,7 @@ int main(void) {
       uint8_t pixels[16 * 16];
       memset(pixels, 0, sizeof(pixels));
       ColonizeFramebuffer8 fb = {.width = 16, .height = 16, .pixels = pixels};
-      colonies_render_on_map(&pool, &icons, &fb, NULL, land2_x, land2_y, 1, 1, 16, 16, 0, 0);
+      colonies_render_on_map(&pool, &icons, &fb, NULL, land2_x, land2_y, 1, 1, 16, 16, 0, 0, NULL, 0);
 
       int cyan = 0;
       int opaque = 0;

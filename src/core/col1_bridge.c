@@ -367,12 +367,6 @@ bool col1_bridge_apply(
   }
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     map->terrain[i] = col1_tile_to_mp_terrain(save->map.tile[i]);
-    if (save->map.seen) {
-      /* visibility nibble → simple fog: unseen if player bit clear */
-      const uint8_t seen = save->map.seen[i];
-      const bool visible = (seen & (uint8_t)(0x10u << local.human_nation)) != 0;
-      map->layer3[i] = visible ? 0 : 1;
-    }
     if (map->improve && save->map.mask) {
       const uint8_t m = save->map.mask[i];
       uint8_t flags = 0;
@@ -384,6 +378,11 @@ bool col1_bridge_apply(
       }
       map->improve[i] = flags;
     }
+  }
+  if (save->map.seen) {
+    map_seen_from_col1(map, save->map.seen, save->map.tile_count);
+  } else {
+    map_reveal_all(map, -1);
   }
 
   /* Colonies — soft-reset actives, keep name/building catalogs. */
@@ -703,6 +702,9 @@ bool col1_bridge_capture(
       save->map.mask[i] = m;
     }
   }
+  if (save->map.seen) {
+    map_seen_to_col1(map, save->map.seen, save->map.tile_count);
+  }
 
   /* Nations: update human treasury/tax/prices; leave AI blob intact. */
   if (europe) {
@@ -944,4 +946,50 @@ bool col1_bridge_capture(
     err[0] = '\0';
   }
   return true;
+}
+
+bool col1_contact_adjacent_tribe(
+  ColonizeCol1Save* save,
+  int x,
+  int y,
+  int european_nation,
+  char* status_out,
+  size_t status_size
+) {
+  static const char* k_tribe_names[8] = {
+    "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
+  };
+  if (!save || !save->tribe || european_nation < 0 || european_nation > 3) {
+    return false;
+  }
+  bool any = false;
+  const char* first_name = NULL;
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    ColonizeCol1Tribe* tr = &save->tribe[i];
+    const int dx = (int)tr->x - x;
+    const int dy = (int)tr->y - y;
+    if (dx < -1 || dx > 1 || dy < -1 || dy > 1) {
+      continue;
+    }
+    if (tr->alarm[european_nation].friction < 11) {
+      tr->alarm[european_nation].friction++;
+    }
+    const int indian = (int)tr->nation_id - 4;
+    if (indian >= 0 && indian < 8) {
+      if (save->indian[indian].met_by_player[european_nation] == 0) {
+        save->indian[indian].met_by_player[european_nation] = 1;
+        if (!first_name) {
+          first_name = k_tribe_names[indian];
+        }
+      }
+      if (save->indian[indian].alarm_by_player[european_nation] < 11) {
+        save->indian[indian].alarm_by_player[european_nation]++;
+      }
+    }
+    any = true;
+  }
+  if (any && first_name && status_out && status_size > 0) {
+    snprintf(status_out, status_size, "You encounter the %s", first_name);
+  }
+  return any;
 }

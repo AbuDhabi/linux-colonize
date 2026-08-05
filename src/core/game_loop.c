@@ -201,6 +201,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_LEFT: return "LEFT";
     case COLONIZE_KEY_RIGHT: return "RIGHT";
     case COLONIZE_KEY_S: return "S";
+    case COLONIZE_KEY_F: return "F";
     case COLONIZE_KEY_L: return "L";
     case COLONIZE_KEY_Q: return "Q";
     case COLONIZE_KEY_P: return "P";
@@ -2122,6 +2123,23 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     } else {
       dos_rng_seed(&game->move_rng, ai.rng_seed ? ai.rng_seed : 1u);
     }
+    /* NEW WORLD fog: reveal around owned units and colonies (scenario .MP is all-seen). */
+    if (game->world_map_ok) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &game->units.units[i];
+        if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
+          continue;
+        }
+        map_reveal_radius(&game->world_map, u->x, u->y, game->human_nation, 1);
+      }
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &game->colonies.colonies[i];
+        if (!c->active || c->nation_id != game->human_nation) {
+          continue;
+        }
+        map_reveal_radius(&game->world_map, c->x, c->y, game->human_nation, 2);
+      }
+    }
     if (game->units.selected_id >= 0) {
       const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
       if (u) {
@@ -2367,14 +2385,22 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     if (!units_try_move(
           &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
         )) {
-      /* DOS charges MP on failed partial-overspend rolls even when the unit stays. */
-      if (selected->moves_left < mp_before) {
+      if (units_last_combat_outcome() < 0) {
+        set_status(game, "Combat lost", NULL);
+        game_after_unit_action(game);
+      } else if (selected->moves_left < mp_before) {
+        /* DOS charges MP on failed partial-overspend rolls even when the unit stays. */
         set_status(game, "Move failed", NULL);
         game_after_unit_action(game);
       } else {
         set_status(game, "Move blocked", NULL);
       }
       return false;
+    }
+    if (units_last_combat_outcome() > 0) {
+      snprintf(game->status, sizeof(game->status), "Combat won at (%d,%d)", dest_x, dest_y);
+      game_after_unit_action(game);
+      return true;
     }
   }
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
@@ -2391,6 +2417,19 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (!u || !u->active) {
     game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     return;
+  }
+  if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
+    map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
+  }
+  if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
+    char contact[80];
+    contact[0] = '\0';
+    if (col1_contact_adjacent_tribe(
+          &game->col1, u->x, u->y, u->nation_id, contact, sizeof(contact)
+        ) &&
+        contact[0]) {
+      snprintf(game->status, sizeof(game->status), "%s", contact);
+    }
   }
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
@@ -3438,16 +3477,47 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       if (at < 0) {
         set_status(game, "No unit at cursor", NULL);
       } else {
+        units_wake(&game->units, at);
         game->units.selected_id = at;
         const ColonizeUnit* u = units_get_const(&game->units, at);
         const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
-        snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
+        snprintf(game->status, sizeof(game->status), "Activated %s", ut ? ut->name : "unit");
       }
       return true;
     }
     case MAP_MENU_ACTION_WAIT_UNIT:
       game_wait_next_unit(game);
       return true;
+    case MAP_MENU_ACTION_FORTIFY: {
+      const int uid = game->units.selected_id;
+      if (uid < 0 || !units_order_fortify(&game->units, uid)) {
+        set_status(game, "Cannot fortify", NULL);
+      } else {
+        set_status(game, "Fortifying", NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_SENTRY: {
+      const int uid = game->units.selected_id;
+      if (uid < 0 || !units_order_sentry(&game->units, uid)) {
+        set_status(game, "Cannot sentry", NULL);
+      } else {
+        set_status(game, "Sentry", NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_DISBAND: {
+      const int uid = game->units.selected_id;
+      if (uid < 0 || !units_disband(&game->units, uid)) {
+        set_status(game, "Cannot disband", NULL);
+      } else {
+        set_status(game, "Unit disbanded", NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
     case MAP_MENU_ACTION_BUILD_COLONY: {
       const int cx = game->map_cursor_x;
       const int cy = game->map_cursor_y;
@@ -3470,6 +3540,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
             &game->world_map,
             cx,
             cy,
+            game->human_nation,
             type_index,
             profession,
             tools,
@@ -3477,10 +3548,6 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
             horses
           );
           if (cid >= 0) {
-            ColonizeColony* neu = colonies_get_mut(&game->colonies, cid);
-            if (neu) {
-              neu->nation_id = game->human_nation;
-            }
             units_despawn(&game->units, uid);
             const ColonizeColony* col = colonies_get(&game->colonies, cid);
             snprintf(
@@ -3696,9 +3763,16 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         game->debug_show_mouse_coords ? "on" : "off"
       );
       return true;
+    case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
+      if (game->world_map_ok) {
+        map_reveal_all(&game->world_map, -1);
+        set_status(game, "Map revealed", NULL);
+      } else {
+        set_status(game, "No map", NULL);
+      }
+      return true;
     case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
     case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
-    case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
     case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
     case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
     case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
@@ -3746,9 +3820,23 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       if (game->goto_step_accum_ms > 200u) {
         game->goto_step_accum_ms = 0; /* drop backlog after hitch */
       }
-      const int stepped = units_advance_all_goto_one_step(
-        &game->units, &game->world_map, &game->colonies
-      );
+      int stepped = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &game->units.units[i];
+        if (!u->active || u->orders != UNITS_ORDER_GOTO || !units_is_on_map(u)) {
+          continue;
+        }
+        if (!units_advance_goto_one_step(
+              &game->units, u->id, &game->world_map, &game->colonies
+            )) {
+          continue;
+        }
+        stepped++;
+        u = units_get(&game->units, u->id);
+        if (u && u->nation_id >= 0 && u->nation_id <= 3) {
+          map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
+        }
+      }
       if (stepped > 0 && game->units.selected_id >= 0) {
         const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
         if (sel && sel->active && units_is_on_map(sel)) {
@@ -5452,6 +5540,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
+  /* F: fortify selected land unit. */
+  if (input->last_key == COLONIZE_KEY_F && game->world_map_ok && game->units_ok) {
+    const int uid = game->units.selected_id;
+    if (uid >= 0 && units_order_fortify(&game->units, uid)) {
+      set_status(game, "Fortifying", NULL);
+      game_wait_next_unit(game);
+      return true;
+    }
+  }
+
+  /* Shift+D: disband selected unit. Plain D remains dock deploy. */
+  if (input->last_key == COLONIZE_KEY_D && input->shift_held && game->units_ok) {
+    const int uid = game->units.selected_id;
+    if (uid < 0 || !units_disband(&game->units, uid)) {
+      set_status(game, "Cannot disband", NULL);
+    } else {
+      set_status(game, "Unit disbanded", NULL);
+      game_wait_next_unit(game);
+    }
+    return true;
+  }
+
   if (input->last_key == COLONIZE_KEY_D && game->world_map_ok && game->europe_ok) {
     if (game->europe.dock_count <= 0) {
       set_status(game, "No immigrants on dock", NULL);
@@ -5505,6 +5615,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           &game->world_map,
           cx,
           cy,
+          game->human_nation,
           type_index,
           profession,
           tools,
@@ -5512,10 +5623,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           horses
         );
         if (cid >= 0) {
-          ColonizeColony* neu = colonies_get_mut(&game->colonies, cid);
-          if (neu) {
-            neu->nation_id = game->human_nation;
-          }
           units_despawn(&game->units, uid);
           const ColonizeColony* col = colonies_get(&game->colonies, cid);
           snprintf(
@@ -5567,6 +5674,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_S) {
+    /* Selected map unit → sentry; otherwise save (menu Save still works). */
+    if (game->units_ok && game->world_map_ok) {
+      const int uid = game->units.selected_id;
+      const ColonizeUnit* su = units_get_const(&game->units, uid);
+      if (su && su->active && units_is_on_map(su) && !units_is_sea(&game->units, uid)) {
+        if (units_order_sentry(&game->units, uid)) {
+          set_status(game, "Sentry", NULL);
+          game_wait_next_unit(game);
+          return true;
+        }
+      }
+    }
     char err[256];
     diag_info(
       "Save requested: slot=COLONY00 save_dir=%s turn=%u",
@@ -6096,6 +6215,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           if (mx < 0 || my < 0 || mx >= game->world_map.width || my >= game->world_map.height) {
             continue;
           }
+          if (!map_tile_seen_by(&game->world_map, mx, my, game->human_nation)) {
+            /* Unexplored: leave black (framebuffer cleared above). */
+            continue;
+          }
           underlayer = map_coast_underlayer_sprite_at(&game->world_map, mx, my);
           coast_layers = map_phys0_coast_layer_count(&game->world_map, mx, my);
           base_sprite = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(&game->world_map, mx, my);
@@ -6207,6 +6330,21 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               }
             }
           }
+          /* Fog transitional edges: PHYS0 104–107 black fringe toward unseen. */
+          {
+            const int edges =
+              map_fog_edge_count(&game->world_map, mx, my, game->human_nation);
+            for (int ei = 0; ei < edges; ++ei) {
+              const int mask = map_fog_edge_mask_sprite_at(
+                &game->world_map, mx, my, game->human_nation, ei
+              );
+              if (mask >= 0) {
+                blit_map_sprite(
+                  &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+                );
+              }
+            }
+          }
         }
       }
     }
@@ -6233,7 +6371,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       tile_w,
       tile_h,
       map_origin_x,
-      map_origin_y
+      map_origin_y,
+      game->world_map_ok ? &game->world_map : NULL,
+      game->human_nation
     );
   }
 
@@ -6249,7 +6389,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       tile_w,
       tile_h,
       map_origin_x,
-      map_origin_y
+      map_origin_y,
+      game->world_map_ok ? &game->world_map : NULL,
+      game->human_nation
     );
   }
 
@@ -6271,7 +6413,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       tile_h,
       map_origin_x,
       map_origin_y,
-      blink_on
+      blink_on,
+      game->world_map_ok ? &game->world_map : NULL,
+      game->human_nation
     );
   }
 
@@ -6321,6 +6465,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->map_cursor_x,
       game->map_cursor_y,
       game->units.selected_id,
+      game->human_nation,
       game->game_year,
       game->game_autumn,
       game->europe.gold,

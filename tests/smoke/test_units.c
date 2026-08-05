@@ -618,7 +618,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    const int cid = colonies_found(&colonies, &map, cx, cy, -1, UNITS_JOB_NONE, 0, 0, 0);
+    const int cid = colonies_found(&colonies, &map, cx, cy, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
     if (cid < 0) {
       fprintf(stderr, "colonies_found failed\n");
       map_free(&map);
@@ -1171,6 +1171,132 @@ int main(void) {
       }
       units_despawn(&pool, id);
     }
+  }
+
+  /* Fortify / sentry / disband orders. */
+  {
+    const int soldier = units_find_type(&pool, "Soldier");
+    const int sid = units_spawn(&pool, soldier >= 0 ? soldier : pioneer, 12, 12);
+    if (sid < 0) {
+      fprintf(stderr, "orders spawn failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* su = units_get(&pool, sid);
+    su->nation_id = 0;
+    su->moves_left = 3;
+    if (!units_order_fortify(&pool, sid) || su->orders != UNITS_ORDER_FORTIFY ||
+        su->moves_left != 0) {
+      fprintf(stderr, "fortify order failed orders=%d mp=%d\n", su->orders, su->moves_left);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Overnight promotion (same as turn_refresh_moves_for_nation). */
+    su->orders = UNITS_ORDER_FORTIFIED;
+    su->moves_left = 0;
+    if (su->orders != UNITS_ORDER_FORTIFIED || su->moves_left != 0) {
+      fprintf(stderr, "fortify overnight failed orders=%d mp=%d\n", su->orders, su->moves_left);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_wake(&pool, sid) || su->orders != UNITS_ORDER_NONE || su->moves_left <= 0) {
+      fprintf(stderr, "wake fortified failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_order_sentry(&pool, sid) || su->orders != UNITS_ORDER_SENTRY) {
+      fprintf(stderr, "sentry order failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_disband(&pool, sid) || units_get_const(&pool, sid) != NULL) {
+      fprintf(stderr, "disband failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
+  /* Land combat T0: Soldier (atk2) vs Brave (def1) — attacker wins without RNG. */
+  {
+    const int soldier = units_find_type(&pool, "Soldiers");
+    const int brave = units_find_type(&pool, "Braves");
+    if (soldier < 0 || brave < 0) {
+      fprintf(stderr, "missing Soldiers/Braves for combat test\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int ax = -1, ay = -1, dx = -1, dy = -1;
+    for (int y = 1; y < (int)map.height - 1 && ax < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && ax < 0; ++x) {
+        if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 1, y)) {
+          ax = x;
+          ay = y;
+          dx = x + 1;
+          dy = y;
+        }
+      }
+    }
+    if (ax < 0) {
+      fprintf(stderr, "no adjacent land for combat\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int aid = units_spawn(&pool, soldier, ax, ay);
+    const int did = units_spawn_allow_stack(&pool, brave, dx, dy);
+    ColonizeUnit* a = units_get(&pool, aid);
+    ColonizeUnit* d = units_get(&pool, did);
+    if (!a || !d) {
+      fprintf(stderr, "combat spawn failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    a->nation_id = 0;
+    a->moves_left = 3;
+    d->nation_id = 4;
+    d->moves_left = 1;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 1);
+    if (!units_try_move(&pool, aid, &map, dx, dy, NULL, &rng)) {
+      fprintf(stderr, "combat move failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (units_last_combat_outcome() != 1 || units_get_const(&pool, did) != NULL) {
+      fprintf(stderr, "expected attacker win, outcome=%d\n", units_last_combat_outcome());
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    a = units_get(&pool, aid);
+    if (!a || a->x != dx || a->y != dy) {
+      fprintf(stderr, "attacker did not enter tile\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, aid);
   }
 
   fprintf(

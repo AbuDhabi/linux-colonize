@@ -84,6 +84,16 @@ void turn_refresh_moves_for_nation(ColonizeUnitPool* pool, int nation_id) {
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
+    /* Fortify completes overnight → Fortified; stay asleep until woken. */
+    if (u->orders == UNITS_ORDER_FORTIFY) {
+      u->orders = UNITS_ORDER_FORTIFIED;
+      u->moves_left = 0;
+      continue;
+    }
+    if (units_orders_skip_turn(u)) {
+      u->moves_left = 0;
+      continue;
+    }
     const ColonizeUnitType* type = units_type(pool, u->type_index);
     if (type) {
       u->moves_left = type->movement;

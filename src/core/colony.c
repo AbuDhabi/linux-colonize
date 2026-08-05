@@ -268,6 +268,7 @@ int colonies_found(
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int nation_id,
   int founder_type_index,
   int founder_profession,
   int tools,
@@ -297,7 +298,7 @@ int colonies_found(
   slot->id = pool->next_id++;
   slot->x = x;
   slot->y = y;
-  slot->nation_id = 0;
+  slot->nation_id = nation_id;
   slot->building_in_production = -1;
   slot->active = true;
   for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
@@ -1271,7 +1272,9 @@ void colonies_render_on_map(
   int tile_w,
   int tile_h,
   int origin_x,
-  int origin_y
+  int origin_y,
+  const ColonizeWorldMap* fog_map,
+  int fog_nation
 ) {
   if (!pool || !framebuffer) {
     return;
@@ -1282,6 +1285,9 @@ void colonies_render_on_map(
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (!c->active) {
+      continue;
+    }
+    if (fog_map && !map_tile_seen_by(fog_map, c->x, c->y, fog_nation)) {
       continue;
     }
     const int sx = c->x - view_x;

@@ -363,7 +363,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    const int cid = colonies_found(&colonies, &map, fx, fy, 0, -1, 0, 0, 0);
+    const int cid = colonies_found(&colonies, &map, fx, fy, 0, 0, -1, 0, 0, 0);
     ColonizeColony* col = colonies_get_mut(&colonies, cid);
     const int stockade = colonies_find_building(&colonies, "Stockade");
     const int warehouse = colonies_find_building(&colonies, "Warehouse");

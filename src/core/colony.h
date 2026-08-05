@@ -115,12 +115,14 @@ bool colonies_can_found(
  * Found a colony. founder_type_index < 0 skips population (tests).
  * founder_profession is NAMES.TXT @JOB skill (UNITS_JOB_NONE if unskilled).
  * Tools/muskets/horses from the disbanded unit go into the stockpile stub.
+ * nation_id is the owning European power (0..3).
  */
 int colonies_found(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int nation_id,
   int founder_type_index,
   int founder_profession,
   int tools,
@@ -292,7 +294,9 @@ void colonies_render_on_map(
   int tile_w,
   int tile_h,
   int origin_x,
-  int origin_y
+  int origin_y,
+  const ColonizeWorldMap* fog_map,
+  int fog_nation
 );
 
 #endif

@@ -184,11 +184,11 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
 Minimum for rivals to settle the New World without the full planner:
 
 1. Unload passengers at landfall when ship arrives.
-2. Found first AI colony (reuse human found path with AI nation id).
-3. Run colony production for AI nations (today **skipped** for non-human until
-   save-diff says otherwise — revisit with evidence).
-4. Basic land-unit orders (fortify / sentry / simple explore) as save-diff
-   requires.
+2. Found first AI colony via `colonies_found(..., nation_id, ...)`.
+3. Colony production already runs for all active colonies — no nation filter to
+   add unless save-diff says otherwise. Optional T0: assign Pioneer to a
+   workplace after found so Stockade hammers advance.
+4. Basic land-unit orders (fortify / sentry) via existing `units_order_*` APIs.
 
 ### R2 — Indian nation turn beyond quiet pulse
 
@@ -223,21 +223,23 @@ Minimum for rivals to settle the New World without the full planner:
 
 ## Prerequisites
 
-These are **not** AI-module work, but full original AI assumes them. Status from
-[manual_gap.md](manual_gap.md):
+Shared execution surfaces AI will call into (not the DOS planner itself).
+Status reflects the AI-port prerequisite work:
 
-| Subsystem | Why AI needs it |
-|-----------|-----------------|
-| Combat (land / naval / colony defense) | Raid and military goals; foreign-tile scoring |
-| Indian meet / diplomacy / alarm UI | `1816` prelude and contact outcomes |
-| Fog of war / exploration | Explore goals and reveal logic |
-| AI colony economy + construction | Euro planner colony ticks |
-| Founding Fathers / liberty | Euro long-term goals |
-| King / tax / REF | `turn_run_king_stub` replacement; independence AI |
-| Unit orders (fortify, sentry, disband) | Goal execution surface |
+| Subsystem | Status | Notes |
+|-----------|--------|-------|
+| `colonies_found(nation_id)` | **Done** | Owning nation set at found time |
+| Unit orders (fortify, sentry, disband) | **Partial** | Map F / S / Shift+D + ORDERS menu; overnight fortify → fortified |
+| Land combat | **Partial** | T0 attack/defense (+ fortified ×2); naval / colony defense later |
+| Fog of war / `map.seen` | **Partial** | Dedicated plane; reveal on move; cheat Reveal; `.MP` fully seen |
+| Alarm / contact hooks | **Partial** | Adjacent village bumps friction + status; no meet UI / `@RAID*` |
+| AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies (docs formerly claimed skip — stale) |
+| Founding Fathers / liberty | Missing | Euro long-term goals |
+| King / tax / REF | Stub | Independence AI only |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
-manual_gap) after combat and Indian contact.
+manual_gap) after combat and Indian contact. **R1 Euro settle** can start now
+(unload/found using the shared APIs above).
 
 ---
 
