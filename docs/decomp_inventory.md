@@ -2,7 +2,8 @@
 
 For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox memory
 dumps, see [original_index.md](original_index.md). Manual feature coverage vs the
-Linux port: [manual_gap.md](manual_gap.md).
+Linux port: [manual_gap.md](manual_gap.md). European / Indian AI FUN_* inventory and
+1:1 transcription roadmap: [ai_transcription.md](ai_transcription.md).
 
 This repository keeps Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE` under
 [`original_sources_decompiled/`](../original_sources_decompiled/) for reverse-engineering
@@ -167,9 +168,11 @@ Ordered pipeline recovered for the Linux port:
    founding-father election **not** recovered yet
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    Phase 1 (`src/core/ai.c`): refresh MP, tick AI crosses, sail ships with `goto` toward
-   landfall (new-game fleets start on eastern high seas). No founding / combat / colony AI yet.
+   landfall (new-game fleets start on eastern high seas). No founding / combat / colony AI yet;
+   full dispatcher `FUN_521d_6d8e` parked — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — Phase 1: village growth accumulator (`FUN_4d56_152e`-style → pop++),
-   light Brave wander; refresh MP. Raids / contact / full `FUN_4d56_1816` deferred.
+   DOS-faithful quiet Brave pulse (`FUN_4d56_1816` / `FUN_521d_20e6` slice); refresh MP.
+   Raids / contact / rest of `FUN_4d56_1816` deferred.
 7. **King** — stub (tax / REF / independence events deferred)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
 
@@ -180,9 +183,10 @@ difficulty/nation; landfall `goto`);
 AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE procedural
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 
-**Parked (Phase 2+):** full Euro planner `FUN_521d_6d8e` / unit goals `FUN_521d_5b66` /
-`0a60`; unload+found first AI colony; Indian meet/alarm/raid (`@RAID*`); bit-identical
-native move AI.
+**Parked (Phase 2+):** full Euro planner `FUN_521d_6d8e` / unit goals `FUN_521d_0a60` /
+`5d04` / scoring `20e6` (beyond quiet Brave slice); unload+found first AI colony;
+Indian meet/alarm/raid (`@RAID*`); full `FUN_4d56_1816` body. Roadmap and FUN_*
+inventory: [ai_transcription.md](ai_transcription.md).
 
 Evidence:
 

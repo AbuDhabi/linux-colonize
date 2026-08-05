@@ -108,16 +108,16 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Liberty bells / crosses counters | Partial | Accumulators; FF election stub |
 | Full production formulas, spoilage, boycotts | Missing | |
 | Market prices driven by trade volume | Missing | Static bid/ask display only |
-| Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; AI / Indian / King stubs |
+| Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King stub — [ai_transcription.md](ai_transcription.md) |
 
 ### Indians
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Villages on map + Braves | Partial | Map/minimap icons (`ICONS` #10–13 by tech) + placement + light wander / growth |
+| Villages on map + Braves | Partial | Map/minimap icons (`ICONS` #10–13 by tech) + placement + quiet pulse / growth; see [ai_transcription.md](ai_transcription.md) |
 | Meet menus, trade, teach skills | Missing | Parked; wiki natives digest [fandom_col1994.md](fandom_col1994.md) (unverified) |
 | Missions / convert / incite | Missing | |
-| Alarm, raid, Indian wars | Missing | `@RAID*` deferred |
+| Alarm, raid, Indian wars | Missing | `@RAID*` deferred; [ai_transcription.md](ai_transcription.md) R3 |
 
 ### Combat and diplomacy
 
@@ -142,8 +142,8 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Partial | `ai.c` Phase 1 |
-| Unload, found colonies, combat, colony AI | Missing | Parked Phase 2+ |
+| Rival starter fleets + sail to landfall | Partial | `ai.c` Phase 1; [ai_transcription.md](ai_transcription.md) |
+| Unload, found colonies, combat, colony AI | Missing | Parked Phase 2+ (roadmap R1 / R4) |
 
 ### Win / end sequences
 
@@ -169,7 +169,7 @@ Aligned with early manual chapters (short playable loop first):
 7. **Indian contact** — meet / trade / alarm
 8. **Founding Fathers → independence / REF**
 9. **Trade routes** (manual notes mouse; lower priority for core loop)
-10. **Full Euro / Indian AI** + Hall of Fame / end sequences
+10. **Full Euro / Indian AI** + Hall of Fame / end sequences — see [ai_transcription.md](ai_transcription.md)
 
 ---
 
@@ -184,5 +184,6 @@ trade, combat, natives as interactive powers, founding fathers, and independence
 
 - [original_index.md](original_index.md) — decomp / data navigation
 - [decomp_inventory.md](decomp_inventory.md) — bring-up and parked RE
+- [ai_transcription.md](ai_transcription.md) — AI FUN_* inventory and 1:1 roadmap
 - [assets.md](assets.md) — formats and UI wiring
 - [savegame.md](savegame.md) — `COLONY##.SAV` layout

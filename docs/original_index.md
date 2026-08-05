@@ -9,6 +9,7 @@ the deep detail.
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
+| **AI transcription gap** (Euro / Indian FUN_*, roadmap) | [ai_transcription.md](ai_transcription.md) |
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
 | Terrain / field / town-commons yields | [terrain_yields.md](terrain_yields.md) |
 | Settlement building production / skills | [building_production.md](building_production.md) |
@@ -138,11 +139,12 @@ one exists.
 | `FUN_281f_0590` | Fill helper (turn box) | turn indicator draw |
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
-| `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial) |
-| `FUN_4d56_1816` | Full Indian AI | **parked** |
-| `FUN_6a09_0006` | Tribe placement | ai / map gen |
-| `FUN_521d_6d8e` | Euro AI dispatcher | ai stubs; planner **parked** |
-| `FUN_521d_5b66` / `0a60` | Euro unit goals | **parked** |
+| `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [ai_transcription.md](ai_transcription.md) |
+| `FUN_4d56_1816` | Indian nation turn | **partial** (quiet Brave pulse + growth; full body parked) |
+| `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
+| `FUN_521d_6d8e` | Euro AI dispatcher | **parked** (Linux: sail+crosses only) |
+| `FUN_521d_0a60` / `5d04` | Euro unit goals | **parked** |
+| `FUN_521d_20e6` / nested `5b66` | Move scoring | **partial** (quiet NEW WORLD Brave slice) |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |
 | `FUN_1427_065a` | Tile display (reads DS `0x5234`) | [viceroy_tables.md](viceroy_tables.md) |
