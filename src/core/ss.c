@@ -360,6 +360,42 @@ void ss_blit_sprite(
   }
 }
 
+void ss_blit_sprite_color(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* framebuffer,
+  int dst_x,
+  int dst_y,
+  uint8_t replace_color
+) {
+  if (!sheet || !framebuffer || !framebuffer->pixels || sprite_index < 0 ||
+      sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
+  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
+    return;
+  }
+
+  for (int y = 0; y < sprite->height; ++y) {
+    int fy = dst_y + y;
+    if (fy < 0 || fy >= framebuffer->height) {
+      continue;
+    }
+    for (int x = 0; x < sprite->width; ++x) {
+      int fx = dst_x + x;
+      if (fx < 0 || fx >= framebuffer->width) {
+        continue;
+      }
+      uint8_t color = sprite->pixels[y * sprite->width + x];
+      if (color == COLONIZE_SS_TRANSPARENT) {
+        continue;
+      }
+      framebuffer->pixels[fy * framebuffer->width + fx] = replace_color;
+    }
+  }
+}
+
 void ss_blit_sprite_where_dest(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,

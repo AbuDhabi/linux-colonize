@@ -7,6 +7,7 @@
 #include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/ss.h"
+#include "core/unit_chrome.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -1108,6 +1109,67 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+    }
+  }
+
+  /* Orders / allegiance chrome: corner table + @ORDERS letters + nation ink. */
+  {
+    unit_chrome_load_orders(&names);
+    const int caravel_t = units_find_type(&pool, "Caravel");
+    const int frigate_t = units_find_type(&pool, "Frigate");
+    const int treasure_t = units_find_type(&pool, "Treasure");
+    const int dragoon_t = units_find_type(&pool, "Dragoons");
+    if (unit_chrome_corner_for_type(colonist, false) != UNIT_CHROME_CORNER_BOTTOM_RIGHT ||
+        unit_chrome_corner_for_type(caravel_t, false) != UNIT_CHROME_CORNER_TOP_LEFT ||
+        unit_chrome_corner_for_type(frigate_t, false) != UNIT_CHROME_CORNER_TOP_RIGHT ||
+        unit_chrome_corner_for_type(treasure_t, false) != UNIT_CHROME_CORNER_TOP_CENTER ||
+        unit_chrome_corner_for_type(dragoon_t, false) != UNIT_CHROME_CORNER_TOP_LEFT) {
+      fprintf(stderr, "unit_chrome corner table mismatch\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (unit_chrome_order_letter(0, 0) != '-' || unit_chrome_order_letter(1, 0) != 'S' ||
+        unit_chrome_order_letter(3, 0) != 'G') {
+      fprintf(stderr, "unit_chrome order letters mismatch\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Natives always '-'; Sentry letter uses NAMES color-8; England fill is saturated 112. */
+    if (unit_chrome_order_letter(1, 5) != '-' ||
+        unit_chrome_letter_color(0, 1) != (uint8_t)(12 - 8) ||
+        unit_chrome_letter_color(0, 0) != 0 ||
+        unit_chrome_nation_color(0) != 112 || unit_chrome_nation_color(1) != 9) {
+      fprintf(stderr, "unit_chrome letter/nation color mismatch\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Equipment remap: horses → Scout (top-left). */
+    {
+      const int id = units_spawn_allow_stack(&pool, colonist, 10, 10);
+      ColonizeUnit* u = units_get(&pool, id);
+      if (!u) {
+        fprintf(stderr, "chrome remap spawn failed\n");
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      u->horses = 50;
+      const int dtype = units_display_type_index(&pool, id);
+      if (unit_chrome_corner_for_type(dtype, false) != UNIT_CHROME_CORNER_TOP_LEFT) {
+        fprintf(stderr, "horses should display as Scout top-left (dtype=%d)\n", dtype);
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      units_despawn(&pool, id);
     }
   }
 

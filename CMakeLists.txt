@@ -50,6 +50,7 @@ add_library(colonize_core STATIC
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/unit_stack.c
+  src/core/unit_chrome.c
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
@@ -197,6 +198,7 @@ add_executable(smoke_game_flow
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/unit_stack.c
+  src/core/unit_chrome.c
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
@@ -241,6 +243,7 @@ add_executable(smoke_new_game
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/unit_stack.c
+  src/core/unit_chrome.c
   src/core/new_game.c
   src/core/pedia.c
   src/core/reports.c
@@ -431,6 +434,7 @@ add_test(NAME smoke_map_panel COMMAND smoke_map_panel WORKING_DIRECTORY ${CMAKE_
 add_executable(smoke_units
   tests/smoke/test_units.c
   src/core/units.c
+  src/core/unit_chrome.c
   src/core/colony.c
   src/core/colony_yield.c
   src/core/map.c
@@ -456,6 +460,7 @@ add_executable(smoke_colonies
   tests/smoke/test_colonies.c
   src/core/colony.c
   src/core/units.c
+  src/core/unit_chrome.c
   src/core/map.c
   src/core/dos_rng.c
   src/core/strutil.c
@@ -481,6 +486,7 @@ add_executable(smoke_reports
   src/core/col1_save.c
   src/core/colony.c
   src/core/units.c
+  src/core/unit_chrome.c
   src/core/dos_rng.c
   src/core/strutil.c
   src/core/map.c

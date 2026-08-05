@@ -35,6 +35,7 @@
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
 #include "core/ui_drag.h"
+#include "core/unit_chrome.h"
 #include "core/unit_stack.h"
 #include "core/units.h"
 #include "core/version.h"
@@ -834,7 +835,25 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
       }
     }
   } else if (page.preview_kind == PEDIA_PREVIEW_ICON && page.icon_sprite >= 0 && game->unit_icons_ok) {
-    ss_blit_sprite(&game->unit_icons, page.icon_sprite, framebuffer, preview_x, preview_y);
+    if (page.category == PEDIA_CAT_UNIT) {
+      const ColonizeFont* chrome_font = game->colony_font_ok ? &game->colony_font
+        : (game->menu_font_ok ? &game->menu_font : NULL);
+      unit_chrome_blit_unit(
+        framebuffer,
+        chrome_font,
+        &game->unit_icons,
+        page.icon_sprite,
+        preview_x,
+        preview_y,
+        page.index,
+        game->human_nation,
+        UNITS_ORDER_NONE,
+        false,
+        false
+      );
+    } else {
+      ss_blit_sprite(&game->unit_icons, page.icon_sprite, framebuffer, preview_x, preview_y);
+    }
     text_x = preview_x + 48;
   } else if (
     page.preview_kind == PEDIA_PREVIEW_BUILDING && page.building_sprite >= 0 && game->pedia_buildings_ok
@@ -970,7 +989,19 @@ static void europe_render_transit_box(
     if (sh > row_h) {
       row_h = sh;
     }
-    ss_blit_sprite(&game->unit_icons, sprite, framebuffer, x, y);
+    unit_chrome_blit_unit(
+      framebuffer,
+      font,
+      &game->unit_icons,
+      sprite,
+      x,
+      y,
+      ships[i].type_index,
+      game->human_nation,
+      UNITS_ORDER_NONE,
+      ships[i].cargo_count > 0,
+      false
+    );
     if (i == selected_index) {
       europe_draw_box_border(framebuffer, x - 1, y - 1, sw + 2, sh + 2, 14);
     }
@@ -1338,11 +1369,35 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       }
       const int sprite = europe_dock_sprite(&game->units, &eu->dock[i]);
       if (sprite >= 0 && sprite < game->unit_icons.sprite_count) {
-        ss_blit_sprite(&game->unit_icons, sprite, framebuffer, dx, dy);
+        const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
+        const int iw = sp->width > 0 ? sp->width : 16;
+        const int ih = sp->height > 0 ? sp->height : 16;
+        const int orders =
+          eu->dock[i].sentry ? UNITS_ORDER_SENTRY : UNITS_ORDER_NONE;
+        const bool stacked = (i + 1) < eu->dock_count;
+        int dtype = units_find_type(&game->units, eu->dock[i].name);
+        if (dtype < 0) {
+          dtype = units_find_type(&game->units, "Colonists");
+        }
+        if (dtype < 0) {
+          dtype = 0;
+        }
+        unit_chrome_blit_unit(
+          framebuffer,
+          font,
+          &game->unit_icons,
+          sprite,
+          dx,
+          dy,
+          dtype,
+          game->human_nation,
+          orders,
+          stacked,
+          false
+        );
         if (eu->menu == EUROPE_MENU_DOCK && eu->menu_dock_index == i) {
-          const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
           europe_draw_box_border(
-            framebuffer, dx - 1, dy - 1, sp->width + 2, sp->height + 2, 14
+            framebuffer, dx - 1, dy - 1, iw + 2, ih + 2, 14
           );
         }
       }
@@ -1555,6 +1610,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "NAMES.TXT", names_txt, sizeof(names_txt))) {
     if (assets_msg_load_file(&game->names, names_txt)) {
       game->names_ok = true;
+      unit_chrome_load_orders(&game->names);
       game->units_ok = units_load_types(&game->units, &game->names);
       if (!colonies_load_buildings(&game->colonies, &game->names)) {
         diag_warn("Failed to load @BUILDING from NAMES.TXT");
@@ -6120,10 +6176,14 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   }
 
   if (game->units_ok && game->unit_icons_ok) {
-    const bool blink_on = ((game->elapsed_ms / 250u) % 2u) == 0u;
+    /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle). */
+    const bool blink_on = ((game->elapsed_ms / 500u) % 2u) == 0u;
+    const ColonizeFont* chrome_font = game->colony_font_ok ? &game->colony_font
+      : (game->menu_font_ok ? &game->menu_font : NULL);
     units_render_on_map(
       &game->units,
       &game->unit_icons,
+      chrome_font,
       framebuffer,
       view_x,
       view_y,

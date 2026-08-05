@@ -1,0 +1,6 @@
+; comment
+@BEGINMENU
+@width=160
+@options
+Start a Game in NEW WORLD
+LOAD Game

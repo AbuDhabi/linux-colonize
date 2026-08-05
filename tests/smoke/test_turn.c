@@ -172,8 +172,8 @@ int main(void) {
     return 1;
   }
 
-  /* Turn-owner colors: NAMES.TXT @COUNTRY / FUN_43f7_05f4. */
-  if (turn_nation_color(0) != 12 || turn_nation_color(1) != 9 || turn_nation_color(2) != 14 ||
+  /* Turn-owner colors: NAMES.TXT @COUNTRY; England fill uses saturated red 112. */
+  if (turn_nation_color(0) != 112 || turn_nation_color(1) != 9 || turn_nation_color(2) != 14 ||
       turn_nation_color(3) != 13) {
     fprintf(stderr, "european turn colors mismatch\n");
     return 1;

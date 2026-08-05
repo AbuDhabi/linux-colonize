@@ -7,13 +7,8 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
-
-/* NAMES.TXT @COUNTRY / FUN_43f7_05f4 → DS:0x848..0x84b */
-static const uint8_t k_european_colors[4] = {12, 9, 14, 13};
-
-/* NAMES.TXT @TRIBES color field → DS:0x84c..0x853 (nations 4..11) */
-static const uint8_t k_tribe_colors[8] = {97, 149, 54, 87, 67, 111, 118, 71};
 
 static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
   if (ctx && ctx->active_turn_nation) {
@@ -22,13 +17,7 @@ static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 uint8_t turn_nation_color(int nation_id) {
-  if (nation_id >= 0 && nation_id < 4) {
-    return k_european_colors[nation_id];
-  }
-  if (nation_id >= 4 && nation_id <= 11) {
-    return k_tribe_colors[nation_id - 4];
-  }
-  return k_european_colors[0];
+  return unit_chrome_nation_color(nation_id);
 }
 
 void turn_draw_owner_indicator(ColonizeFramebuffer8* framebuffer, int nation_id) {
