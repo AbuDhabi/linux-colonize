@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(COLONIZE_ENABLE_AUDIO "Enable SDL2 audio backend" ON)
+option(COLONIZE_DEBUG_MENU "Include DEBUG map menu (sprite viewer, mouse coords)" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -88,6 +89,12 @@ target_compile_options(colonize_core PRIVATE
 )
 
 target_link_libraries(colonize_core PUBLIC m pthread)
+
+if(COLONIZE_DEBUG_MENU)
+  target_compile_definitions(colonize_core PUBLIC COLONIZE_DEBUG_MENU=1)
+else()
+  target_compile_definitions(colonize_core PUBLIC COLONIZE_DEBUG_MENU=0)
+endif()
 
 if(COLONIZE_HAS_FLUIDSYNTH)
   target_include_directories(colonize_core PUBLIC ${FLUIDSYNTH_INCLUDE_DIRS})
@@ -456,6 +463,19 @@ target_include_directories(smoke_units PRIVATE
 
 add_test(NAME smoke_units COMMAND smoke_units WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(smoke_colony_yield
+  tests/smoke/test_colony_yield.c
+  src/core/colony_yield.c
+  src/core/map.c
+  src/data/viceroy_tables.c
+  src/platform/diagnostics.c
+  src/core/strutil.c
+)
+target_include_directories(smoke_colony_yield PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME smoke_colony_yield COMMAND smoke_colony_yield WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_colonies
   tests/smoke/test_colonies.c
   src/core/colony.c
@@ -523,6 +543,12 @@ add_executable(smoke_map_menu
 target_include_directories(smoke_map_menu PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+if(COLONIZE_DEBUG_MENU)
+  target_compile_definitions(smoke_map_menu PRIVATE COLONIZE_DEBUG_MENU=1)
+else()
+  target_compile_definitions(smoke_map_menu PRIVATE COLONIZE_DEBUG_MENU=0)
+endif()
 
 add_test(NAME smoke_map_menu COMMAND smoke_map_menu WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 

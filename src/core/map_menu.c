@@ -244,7 +244,54 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
-  /* TRADE, CUP — screens / features not wired yet. */
+  if (strcmp(section, "CUP") == 0) {
+    if (strstr(label, "Create Unit")) {
+      return MAP_MENU_ACTION_CHEAT_CREATE_UNIT;
+    }
+    if (strstr(label, "Debug Info Flags")) {
+      return MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS;
+    }
+    if (strstr(label, "Reveal Map")) {
+      return MAP_MENU_ACTION_CHEAT_REVEAL_MAP;
+    }
+    if (strstr(label, "Set Human Player")) {
+      return MAP_MENU_ACTION_CHEAT_SET_HUMAN;
+    }
+    if (strstr(label, "Kill Indians")) {
+      return MAP_MENU_ACTION_CHEAT_KILL_INDIANS;
+    }
+    if (strstr(label, "Advance Revolution Status")) {
+      return MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION;
+    }
+    if (strstr(label, "Sound Test")) {
+      return MAP_MENU_ACTION_CHEAT_SOUND_TEST;
+    }
+    if (strstr(label, "Memory Check")) {
+      return MAP_MENU_ACTION_CHEAT_MEMORY_CHECK;
+    }
+    if (strstr(label, "Show Strategy")) {
+      return MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY;
+    }
+    if (strstr(label, "Show Colony Sites")) {
+      return MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES;
+    }
+    if (strstr(label, "Test Routine")) {
+      return MAP_MENU_ACTION_CHEAT_TEST_ROUTINE;
+    }
+    return MAP_MENU_ACTION_UNIMPLEMENTED;
+  }
+
+  if (strcmp(section, "DEBUG") == 0) {
+    if (strcmp(label, "Sprite Viewer") == 0) {
+      return MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER;
+    }
+    if (strcmp(label, "Show Mouse Coords") == 0) {
+      return MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS;
+    }
+    return MAP_MENU_ACTION_UNIMPLEMENTED;
+  }
+
+  /* TRADE — screens / features not wired yet. */
   return MAP_MENU_ACTION_UNIMPLEMENTED;
 }
 
@@ -283,6 +330,8 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_REPORT_FOREIGN:
     case MAP_MENU_ACTION_REPORT_INDIAN:
     case MAP_MENU_ACTION_REPORT_SCORE:
+    case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
+    case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
       return true;
     default:
       return false;
@@ -302,6 +351,82 @@ void map_menu_free(MapMenuBar* bar) {
   map_menu_init(bar);
 }
 
+static void map_menu_append_item(
+  MapMenuPulldown* menu,
+  const char* label_raw,
+  MapMenuAction action
+) {
+  if (!menu || menu->item_count >= MAP_MENU_MAX_ITEMS || !label_raw) {
+    return;
+  }
+  MapMenuItem* item = &menu->items[menu->item_count++];
+  snprintf(item->label, sizeof(item->label), "%s", label_raw);
+  item->action = action;
+  item->separator = (action == MAP_MENU_ACTION_SEPARATOR);
+  item->enabled = !item->separator && map_menu_action_enabled(action);
+}
+
+static bool map_menu_load_section(
+  MapMenuBar* bar,
+  const ColonizeMsgCatalog* menu_txt,
+  const char* section_name,
+  bool visible
+) {
+  if (!bar || !menu_txt || !section_name || bar->menu_count >= MAP_MENU_MAX_MENUS) {
+    return false;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(menu_txt, section_name);
+  if (!sec || sec->line_count < 1) {
+    return false;
+  }
+  MapMenuPulldown* menu = &bar->menus[bar->menu_count];
+  memset(menu, 0, sizeof(*menu));
+  str_copy_trunc(menu->section_name, sizeof(menu->section_name), section_name);
+  menu->visible = visible;
+
+  char title[MAP_MENU_TITLE_LEN];
+  str_copy_trunc(title, sizeof(title), sec->lines[0]);
+  map_menu_strip_hash_only(title);
+  map_menu_trim(title);
+  str_copy_trunc(menu->title, sizeof(menu->title), title);
+
+  for (int i = 1; i < sec->line_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++i) {
+    char label[MAP_MENU_LABEL_LEN];
+    str_copy_trunc(label, sizeof(label), sec->lines[i]);
+    map_menu_strip_hash_only(label);
+    map_menu_trim(label);
+    if (label[0] == '\0') {
+      continue;
+    }
+    char classify_label[MAP_MENU_LABEL_LEN];
+    snprintf(classify_label, sizeof(classify_label), "%s", label);
+    map_menu_strip_all_markers(classify_label);
+    if (classify_label[0] == '\0') {
+      continue;
+    }
+    map_menu_append_item(menu, label, map_menu_classify(section_name, classify_label));
+  }
+  bar->menu_count++;
+  return true;
+}
+
+#if COLONIZE_DEBUG_MENU
+static bool map_menu_load_debug(MapMenuBar* bar) {
+  if (!bar || bar->menu_count >= MAP_MENU_MAX_MENUS) {
+    return false;
+  }
+  MapMenuPulldown* menu = &bar->menus[bar->menu_count];
+  memset(menu, 0, sizeof(*menu));
+  str_copy_trunc(menu->section_name, sizeof(menu->section_name), "DEBUG");
+  str_copy_trunc(menu->title, sizeof(menu->title), "~DEBUG");
+  menu->visible = true;
+  map_menu_append_item(menu, "Sprite Viewer", MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER);
+  map_menu_append_item(menu, "Show Mouse Coords", MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS);
+  bar->menu_count++;
+  return true;
+}
+#endif
+
 bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
   if (!bar) {
     return false;
@@ -311,50 +436,17 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
     return false;
   }
 
-  /* Display order on the DOS map bar (CHEAT omitted until unlocked). */
-  static const char* k_sections[] = {"GAME", "VIEW", "ORDERS", "REPORTS", "TRADE", "PEDIA"};
-  static const char* k_cheat = "CUP";
-
-  for (size_t s = 0; s < sizeof(k_sections) / sizeof(k_sections[0]); ++s) {
-    const ColonizeMsgSection* sec = assets_msg_find(menu_txt, k_sections[s]);
-    if (!sec || sec->line_count < 1 || bar->menu_count >= MAP_MENU_MAX_MENUS) {
-      continue;
-    }
-    MapMenuPulldown* menu = &bar->menus[bar->menu_count];
-    str_copy_trunc(menu->section_name, sizeof(menu->section_name), k_sections[s]);
-
-    char title[MAP_MENU_TITLE_LEN];
-    str_copy_trunc(title, sizeof(title), sec->lines[0]);
-    map_menu_strip_hash_only(title);
-    map_menu_trim(title);
-    str_copy_trunc(menu->title, sizeof(menu->title), title);
-
-    for (int i = 1; i < sec->line_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++i) {
-      char label[MAP_MENU_LABEL_LEN];
-      str_copy_trunc(label, sizeof(label), sec->lines[i]);
-      map_menu_strip_hash_only(label);
-      map_menu_trim(label);
-      if (label[0] == '\0') {
-        continue;
-      }
-      char classify_label[MAP_MENU_LABEL_LEN];
-      snprintf(classify_label, sizeof(classify_label), "%s", label);
-      map_menu_strip_all_markers(classify_label);
-      if (classify_label[0] == '\0') {
-        continue;
-      }
-      MapMenuItem* item = &menu->items[menu->item_count++];
-      snprintf(item->label, sizeof(item->label), "%s", label);
-      item->action = map_menu_classify(menu->section_name, classify_label);
-      item->separator = (item->action == MAP_MENU_ACTION_SEPARATOR);
-      item->enabled = !item->separator && map_menu_action_enabled(item->action);
-    }
-    bar->menu_count++;
+  /* Left-to-right slots; CHEAT/DEBUG keep fixed positions whether visible. */
+  static const char* k_before_cheat[] = {"GAME", "VIEW", "ORDERS", "REPORTS", "TRADE"};
+  for (size_t s = 0; s < sizeof(k_before_cheat) / sizeof(k_before_cheat[0]); ++s) {
+    map_menu_load_section(bar, menu_txt, k_before_cheat[s], true);
   }
-
-  /* Keep CHEAT data available for later unlock without showing it. */
-  (void)k_cheat;
-  (void)assets_msg_find(menu_txt, k_cheat);
+  map_menu_load_section(bar, menu_txt, "CUP", false);
+  bar->cheat_visible = false;
+#if COLONIZE_DEBUG_MENU
+  map_menu_load_debug(bar);
+#endif
+  map_menu_load_section(bar, menu_txt, "PEDIA", true);
 
   /* Lay out title hit-boxes; PEDIA is placed later above the right panel. */
   int x = 12;
@@ -391,6 +483,25 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
     diag_warn("MENU.TXT produced no map menus");
   }
   return bar->loaded;
+}
+
+void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible) {
+  if (!bar) {
+    return;
+  }
+  bar->cheat_visible = visible;
+  for (int i = 0; i < bar->menu_count; ++i) {
+    MapMenuPulldown* menu = &bar->menus[i];
+    if (strcmp(menu->section_name, "CUP") != 0) {
+      continue;
+    }
+    menu->visible = visible;
+    if (!visible && bar->open_index == i) {
+      bar->open_index = -1;
+      bar->hover_item = -1;
+    }
+    return;
+  }
 }
 
 static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
@@ -503,6 +614,9 @@ static int map_menu_title_at(const MapMenuBar* bar, int x, int y) {
   }
   for (int i = 0; i < bar->menu_count; ++i) {
     const MapMenuPulldown* m = &bar->menus[i];
+    if (!m->visible) {
+      continue;
+    }
     if (x >= m->title_x && x < m->title_x + m->title_w) {
       return i;
     }
@@ -549,6 +663,12 @@ MapMenuAction map_menu_handle_input(
   }
 
   map_menu_layout_titles(bar, font);
+
+  if (bar->open_index >= 0 &&
+      (bar->open_index >= bar->menu_count || !bar->menus[bar->open_index].visible)) {
+    bar->open_index = -1;
+    bar->hover_item = -1;
+  }
 
   if (bar->open_index >= 0) {
     bar->hover_item = map_menu_item_at(bar, font, input->mouse_x, input->mouse_y);
@@ -655,6 +775,9 @@ void map_menu_render(
 
   for (int i = 0; i < bar->menu_count; ++i) {
     const MapMenuPulldown* menu = &bar->menus[i];
+    if (!menu->visible) {
+      continue;
+    }
     const uint8_t color =
       (i == bar->open_index) ? MAP_MENU_COL_TITLE_ACTIVE : MAP_MENU_COL_TITLE;
     font_draw_text_hotkey(
@@ -662,7 +785,8 @@ void map_menu_render(
     );
   }
 
-  if (bar->open_index < 0 || bar->open_index >= bar->menu_count) {
+  if (bar->open_index < 0 || bar->open_index >= bar->menu_count ||
+      !bar->menus[bar->open_index].visible) {
     return;
   }
 
@@ -768,6 +892,32 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Indian Adviser";
     case MAP_MENU_ACTION_REPORT_SCORE:
       return "Colonization Score";
+    case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
+      return "Create Unit";
+    case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
+      return "Debug Info Flags";
+    case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
+      return "Reveal Map";
+    case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
+      return "Set Human Player";
+    case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
+      return "Kill Indians";
+    case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
+      return "Advance Revolution Status";
+    case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
+      return "Sound Test";
+    case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
+      return "Memory Check";
+    case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
+      return "Show Strategy";
+    case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
+      return "Show Colony Sites";
+    case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
+      return "Test Routine";
+    case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
+      return "Sprite Viewer";
+    case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
+      return "Show Mouse Coords";
     default:
       return "unknown";
   }

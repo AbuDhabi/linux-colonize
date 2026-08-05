@@ -666,6 +666,29 @@ static void colony_screen_draw_icon_selection(
   colony_screen_draw_selection_box(framebuffer, x - 1, y - 1, sp->width + 2, sp->height + 2, 10);
 }
 
+/* Selection frame for unit_chrome_blit_unit art (shadow + orders + sprite). */
+static void colony_screen_draw_chrome_selection(
+  const ColonyScreenView* view,
+  ColonizeFramebuffer8* framebuffer,
+  int sprite,
+  int x,
+  int y
+) {
+  if (!view || !view->icons_ok || !framebuffer || sprite < 0 || sprite >= view->icons.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &view->icons.sprites[sprite];
+  if (!sp || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  int fx = 0;
+  int fy = 0;
+  int fw = 0;
+  int fh = 0;
+  unit_chrome_selection_frame(x, y, sp->width, sp->height, &fx, &fy, &fw, &fh);
+  colony_screen_draw_selection_box(framebuffer, fx, fy, fw, fh, 10);
+}
+
 static void colony_screen_blit_icon(
   const ColonyScreenView* view,
   int sprite,
@@ -1723,7 +1746,7 @@ static void colony_screen_draw_transports(
         false
       );
       if (view->transport_unit_id == u->id) {
-        colony_screen_draw_icon_selection(view, framebuffer, type->icon_sprite, x, y);
+        colony_screen_draw_chrome_selection(view, framebuffer, type->icon_sprite, x, y);
       }
     }
   }
@@ -2136,9 +2159,10 @@ static void colony_screen_draw_multifunction(
           u->aboard_ship_id >= 0
         );
         if (view->selected_outside_unit == u->id) {
-          colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y);
+          colony_screen_draw_chrome_selection(view, framebuffer, sprite, x, y);
         }
-        x += iw + 2;
+        /* Pitch accounts for sprite shift so chrome units do not overlap. */
+        x += iw + UNIT_CHROME_SPRITE_DX + 2;
       }
       if (x > px + pane_w - 14) {
         break;

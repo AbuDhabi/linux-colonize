@@ -30,6 +30,20 @@ typedef enum UnitChromeCorner {
 #define UNIT_CHROME_SPRITE_DX 2
 /* Black silhouette underlay relative to the color sprite. */
 #define UNIT_CHROME_SHADOW_DX (-2)
+/* Extra pad so stack under-rect (±2) stays inside selection frames. */
+#define UNIT_CHROME_STACK_PAD 2
+
+/* Inclusive outer frame around chrome unit art (shadow + orders + sprite), 1px margin. */
+void unit_chrome_selection_frame(
+  int x,
+  int y,
+  int sprite_w,
+  int sprite_h,
+  int* out_x,
+  int* out_y,
+  int* out_w,
+  int* out_h
+);
 
 /* Load @ORDERS letter column from NAMES.TXT (fallback table if missing). */
 void unit_chrome_load_orders(const ColonizeMsgCatalog* names);

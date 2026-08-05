@@ -20,8 +20,10 @@ const char* colony_yield_job_name(int field_job);
 
 /*
  * Town commons (colony center): always food + one other commodity.
- * Plow applies to food only; artificial roads ignored for secondary.
- * Special resources apply except Prime Timber (see docs/terrain_yields.md).
+ * Food base = cleared Farmer+2 (forests use parent land); secondary = NAMES+1.
+ * Plow → food; river → food + secondary; Game/Oasis/Wheat → +2 food;
+ * matching specials → +2 secondary (Prime Timber excluded).
+ * See docs/terrain_yields.md.
  */
 typedef struct ColonizeTownCommonsYield {
   int food;

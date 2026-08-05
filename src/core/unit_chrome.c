@@ -180,6 +180,37 @@ static void unit_chrome_draw_box(
   unit_chrome_fill_rect(fb, x + 1, y + 1, w - 2, h - 2, fill);
 }
 
+void unit_chrome_selection_frame(
+  int x,
+  int y,
+  int sprite_w,
+  int sprite_h,
+  int* out_x,
+  int* out_y,
+  int* out_w,
+  int* out_h
+) {
+  if (!out_x || !out_y || !out_w || !out_h) {
+    return;
+  }
+  const int sw = sprite_w > 0 ? sprite_w : 16;
+  const int sh = sprite_h > 0 ? sprite_h : 16;
+  /*
+   * Shadow at x+SPRITE_DX+SHADOW_DX, sprite at x+SPRITE_DX, orders at x.
+   * Stack under-rect may extend ±STACK_PAD from the badge.
+   */
+  const int art_left = x + UNIT_CHROME_SPRITE_DX + UNIT_CHROME_SHADOW_DX;
+  const int art_right = x + UNIT_CHROME_SPRITE_DX + sw;
+  const int left = (art_left < x ? art_left : x) - UNIT_CHROME_STACK_PAD;
+  const int right = art_right + UNIT_CHROME_STACK_PAD;
+  const int top = y - UNIT_CHROME_STACK_PAD;
+  const int bottom = y + sh + UNIT_CHROME_STACK_PAD;
+  *out_x = left - 1;
+  *out_y = top - 1;
+  *out_w = (right - left) + 2;
+  *out_h = (bottom - top) + 2;
+}
+
 void unit_chrome_draw(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,
@@ -257,8 +288,9 @@ void unit_chrome_draw(
     default:
       box_x = right_x;
       box_y = (icon_y - box_h) + sprite_h;
-      stack_x = box_x - 2;
-      stack_y = box_y - 2;
+      /* Peek bottom-right (away from the figure) so the tab stays visible. */
+      stack_x = box_x + 2;
+      stack_y = box_y + 2;
       break;
   }
 
