@@ -202,7 +202,9 @@ Evidence:
 | `FUN_1984_00aa` / `FUN_281f_0590` | 5×3 fill at (0x13b, 0xc5) overlaid on screen |
 | `original_sources_decompiled/viceroy_unpacked.asm` | `TIMECHANGE` / `MULTINEXT` / `SEASONS` string table only (no FUN_* XREF yet) |
 
-AI colony production for non-human Europeans remains **skipped** until save-diff evidence says otherwise; human colonies always tick.
+AI colony production for non-human Europeans already runs through the shared
+`turn_run_colony_production` loop (all active colonies). Older notes claiming a
+nation skip were stale.
 
 ## Map generation (VICEROY)
 
@@ -264,7 +266,7 @@ Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers/resources
 
 ### Remaining gaps
 
-- Fog-of-war / exploration blackness (intentional MAPEDIT gap; game still needs it)
+- Fog-of-war: dedicated `map.seen` is Partial (reveal + black paint); MAPEDIT static view still has no fog by design
 - Roads
 - Coast animation frames; per-tile texture-variation overlays from DOS RAM buffers
 - Resource seed from live game RNG (static map view uses MAPEDIT default seed 100)

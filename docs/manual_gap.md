@@ -45,7 +45,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Difficulty, nation, leader, king audience, sail | Done | Wizard flow functional |
 | Hall of Fame | Partial | Stub / not entered on retire |
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
-| Fog of war / unexplored blackness | Missing | Intentional MAPEDIT gap; game still needs it |
+| Fog of war / unexplored blackness | Partial | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; units/tribes/colonies hidden in fog; Go-To reveals; cheat Reveal. Scenario `.MP` starts fully seen |
 | Zoom / hidden terrain VIEW modes | Missing | Menu stubs |
 | Roads on map | Missing | Not drawn |
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
@@ -61,7 +61,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
 | Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7 costs; full-MP enter; partial overspend via DOS `range(1,cost)` (charges MP even on fail) |
-| Fortify (F), Sentry (S), Disband, Goto (G) | Partial | **Go-To** via map drag (CURSOR #1 after 1px); paced 10 steps/sec; DOS cost flood / BFS; resumes next turn. Fortify / map Sentry / Disband still Missing |
+| Fortify (F), Sentry (S), Disband, Goto (G) | Partial | **Go-To** via map drag; **Fortify** (F / ORDERS; overnight → Fortified); **Sentry** (S when unit selected; menu Save still via menu / S with no unit); **Disband** (Shift+D / ORDERS). Activate wakes sentry/fortified |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
@@ -115,15 +115,15 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons (`ICONS` #10–13 by tech) + placement + quiet pulse / growth; see [ai_transcription.md](ai_transcription.md) |
-| Meet menus, trade, teach skills | Missing | Parked; wiki natives digest [fandom_col1994.md](fandom_col1994.md) (unverified) |
+| Meet menus, trade, teach skills | Missing | Parked; adjacent contact bumps alarm + status line only ([ai_transcription.md](ai_transcription.md)) |
 | Missions / convert / incite | Missing | |
-| Alarm, raid, Indian wars | Missing | `@RAID*` deferred; [ai_transcription.md](ai_transcription.md) R3 |
+| Alarm, raid, Indian wars | Partial | Runtime alarm friction bumps on adjacent contact; `@RAID*` / wars still deferred |
 
 ### Combat and diplomacy
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Missing | Foreign occupant only blocks enter |
+| Land / naval attack | Partial | Land T0: move into foreign unit → attack/defense (+ fortified ×2); loser despawned. Naval / colony capture still Missing |
 | Capture colony | Missing | |
 | Stockade / fort / fortress defense % | Missing | Wiki +100%/+150%/+200% in [fandom_col1994.md](fandom_col1994.md) / [building_production.md](building_production.md); unverified in combat |
 | Rival war / peace / privateers | Missing | |
@@ -143,7 +143,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Partial | `ai.c` Phase 1; [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Missing | Parked Phase 2+ (roadmap R1 / R4) |
+| Unload, found colonies, combat, colony AI | Missing | Shared APIs ready (`colonies_found(nation_id)`, land combat, orders); AI unload/found still R1 in [ai_transcription.md](ai_transcription.md) |
 
 ### Win / end sequences
 

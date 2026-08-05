@@ -201,7 +201,7 @@ int main(void) {
   }
   const bool sample_coastal = map_tile_is_coastal(&map, land_x, land_y);
 
-  const int cid = colonies_found(&pool, &map, land_x, land_y, pioneer, UNITS_JOB_NONE, 100, 0, 0);
+  const int cid = colonies_found(&pool, &map, land_x, land_y, 0, pioneer, UNITS_JOB_NONE, 100, 0, 0);
   if (cid < 0) {
     fprintf(stderr, "colonies_found failed\n");
     ss_free(&terrain);

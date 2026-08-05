@@ -50,6 +50,7 @@ static ColonizeKey map_key(SDL_Keycode key) {
     case SDLK_KP_8: return COLONIZE_KEY_KP8;
     case SDLK_KP_9: return COLONIZE_KEY_KP9;
     case SDLK_s: return COLONIZE_KEY_S;
+    case SDLK_f: return COLONIZE_KEY_F;
     case SDLK_l: return COLONIZE_KEY_L;
     case SDLK_q: return COLONIZE_KEY_Q;
     case SDLK_p: return COLONIZE_KEY_P;
@@ -385,6 +386,7 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
   out_input->mouse_left_down = platform->mouse_left_down;
   out_input->mouse_right_down = platform->mouse_right_down;
   out_input->alt_held = (SDL_GetModState() & KMOD_ALT) != 0;
+  out_input->shift_held = (SDL_GetModState() & KMOD_SHIFT) != 0;
   return true;
 }
 

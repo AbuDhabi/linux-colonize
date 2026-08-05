@@ -98,6 +98,7 @@ void map_panel_render(
   int cursor_x,
   int cursor_y,
   int selected_unit_id,
+  int human_nation,
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
@@ -118,7 +119,9 @@ void map_panel_render_tribes_on_map(
   int tile_w,
   int tile_h,
   int origin_x,
-  int origin_y
+  int origin_y,
+  const ColonizeWorldMap* fog_map,
+  int fog_nation
 );
 
 void map_panel_tile_rect(

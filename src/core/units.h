@@ -124,16 +124,49 @@ bool units_try_move(
   int dest_x,
   int dest_y,
   const ColonizeColonyPool* colonies,
-  ColonizeDosRng* rng /* nullable; required for partial overspend rolls */
+  ColonizeDosRng* rng /* nullable; required for partial overspend / combat rolls */
 );
+
+/*
+ * T0 land combat: attack vs defense (+ fortified ×2). Probability =
+ * attack/(attack+defense). Winner stays; loser despawned. Naval / mixed: no fight.
+ * Returns true if attacker wins (defender removed).
+ */
+bool units_resolve_land_combat(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng
+);
+
+/* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
+int units_last_combat_outcome(void);
 
 /* @ORDERS indices (NAMES.TXT). */
 #define UNITS_ORDER_NONE 0
 #define UNITS_ORDER_SENTRY 1
 #define UNITS_ORDER_GOTO 3
+#define UNITS_ORDER_FORTIFY 5
+#define UNITS_ORDER_FORTIFIED 6
 #define UNITS_GOTO_NONE 0xFF
 
 void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
+/*
+ * Set sentry / fortify / fortified. Clears goto. Land units only for fortify.
+ * Sentry/fortify spend remaining MP (moves_left = 0). Returns false if invalid.
+ */
+bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders);
+/* Fortify: orders=FORTIFY, spend MP; next nation refresh → FORTIFIED. */
+bool units_order_fortify(ColonizeUnitPool* pool, int unit_id);
+/* Sentry on map (or already-aboard). Spends MP. */
+bool units_order_sentry(ColonizeUnitPool* pool, int unit_id);
+/* Despawn unit (map disband). False if missing. */
+bool units_disband(ColonizeUnitPool* pool, int unit_id);
+/* Wake sentry/fortified/fortify-in-progress and restore full MP. */
+bool units_wake(ColonizeUnitPool* pool, int unit_id);
+/* True if unit skips selection until woken (sentry or fortified). */
+bool units_orders_skip_turn(const ColonizeUnit* unit);
+
 /* Set Go-To order (does not move); returns false if unit/dest invalid. */
 bool units_set_goto(
   ColonizeUnitPool* pool,
@@ -425,7 +458,9 @@ void units_render_on_map(
   int tile_h,
   int origin_x,
   int origin_y,
-  bool selected_visible
+  bool selected_visible,
+  const ColonizeWorldMap* fog_map, /* nullable — skip tiles unseen by fog_nation */
+  int fog_nation
 );
 
 #endif

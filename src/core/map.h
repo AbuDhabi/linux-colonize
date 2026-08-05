@@ -39,13 +39,43 @@ typedef struct ColonizeWorldMap {
   uint8_t* layer2;
   uint8_t* layer3;
   uint8_t* improve; /* per-tile flags: MAP_IMPROVE_* */
+  /*
+   * Per-tile exploration (Col1 `map.seen` layout): bit (0x10 << nation) for
+   * European powers 0..3. layer3 remains continent/owner — never fog.
+   */
+  uint8_t* seen;
   size_t tile_count;
 } ColonizeWorldMap;
 
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size);
-/* Allocate empty layers (terrain/layer2/layer3 zeroed). Replaces any prior buffers. */
+/* Allocate empty layers (terrain/layer2/layer3/seen zeroed). Replaces any prior buffers. */
 bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* err, size_t err_size);
 void map_free(ColonizeWorldMap* map);
+
+/* Col1 visibility bit for European nation 0..3. */
+#define MAP_SEEN_NATION_BIT(nation) ((uint8_t)(0x10u << ((nation) & 3)))
+
+bool map_tile_seen_by(const ColonizeWorldMap* map, int x, int y, int nation_id);
+void map_reveal_tile(ColonizeWorldMap* map, int x, int y, int nation_id);
+void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int radius);
+void map_reveal_all(ColonizeWorldMap* map, int nation_id);
+/* Copy Col1 seen[] into map->seen (same byte layout). */
+void map_seen_from_col1(ColonizeWorldMap* map, const uint8_t* col1_seen, size_t count);
+void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t count);
+
+/*
+ * Fog edge on a *seen* tile: PHYS0 104+q (N/E/S/W) colour-0 fringe toward an
+ * unseen cardinal neighbour. Returns sprite index or -1.
+ */
+int map_fog_edge_mask_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+);
+/* Number of fog-edge cardinals (0..4) for a seen tile. */
+int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id);
 
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y);

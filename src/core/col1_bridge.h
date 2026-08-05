@@ -74,4 +74,19 @@ bool col1_bridge_init_template(
   size_t err_size
 );
 
+/*
+ * After a European unit steps onto (x,y): if adjacent to a tribe village,
+ * bump that tribe's alarm for european_nation (0..3) and indian.alarm_by_player.
+ * Writes a short status when a new contact happens (optional).
+ * Returns true if any village was contacted this call.
+ */
+bool col1_contact_adjacent_tribe(
+  ColonizeCol1Save* save,
+  int x,
+  int y,
+  int european_nation,
+  char* status_out,
+  size_t status_size
+);
+
 #endif

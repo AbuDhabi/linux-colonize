@@ -618,11 +618,13 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   uint8_t* layer2 = calloc(tile_count, 1);
   uint8_t* layer3 = calloc(tile_count, 1);
   uint8_t* improve = calloc(tile_count, 1);
-  if (!terrain || !layer2 || !layer3 || !improve) {
+  uint8_t* seen = calloc(tile_count, 1);
+  if (!terrain || !layer2 || !layer3 || !improve || !seen) {
     free(terrain);
     free(layer2);
     free(layer3);
     free(improve);
+    free(seen);
     fclose(f);
     snprintf(err, err_size, "oom loading map %s", path);
     return false;
@@ -635,11 +637,15 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
     free(layer2);
     free(layer3);
     free(improve);
+    free(seen);
     fclose(f);
     snprintf(err, err_size, "truncated map data in %s", path);
     return false;
   }
   fclose(f);
+
+  /* Scenario .MP has no fog plane — start fully explored. */
+  memset(seen, 0xff, tile_count);
 
   out_map->width = width;
   out_map->height = height;
@@ -647,6 +653,7 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
   out_map->layer2 = layer2;
   out_map->layer3 = layer3;
   out_map->improve = improve;
+  out_map->seen = seen;
   out_map->tile_count = tile_count;
 
   diag_info("Loaded map %s (%ux%u, %zu tiles)", path, width, height, tile_count);
@@ -666,11 +673,13 @@ bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* e
   uint8_t* layer2 = calloc(tile_count, 1);
   uint8_t* layer3 = calloc(tile_count, 1);
   uint8_t* improve = calloc(tile_count, 1);
-  if (!terrain || !layer2 || !layer3 || !improve) {
+  uint8_t* seen = calloc(tile_count, 1);
+  if (!terrain || !layer2 || !layer3 || !improve || !seen) {
     free(terrain);
     free(layer2);
     free(layer3);
     free(improve);
+    free(seen);
     if (err && err_size) {
       snprintf(err, err_size, "oom in map_alloc");
     }
@@ -682,6 +691,7 @@ bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* e
   out_map->layer2 = layer2;
   out_map->layer3 = layer3;
   out_map->improve = improve;
+  out_map->seen = seen;
   out_map->tile_count = tile_count;
   if (err && err_size) {
     err[0] = '\0';
@@ -697,7 +707,109 @@ void map_free(ColonizeWorldMap* map) {
   free(map->layer2);
   free(map->layer3);
   free(map->improve);
+  free(map->seen);
   memset(map, 0, sizeof(*map));
+}
+
+bool map_tile_seen_by(const ColonizeWorldMap* map, int x, int y, int nation_id) {
+  if (!map || !map->seen || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return true; /* no fog plane → treat as visible */
+  }
+  if (nation_id < 0 || nation_id > 3) {
+    return true;
+  }
+  return (map->seen[y * map->width + x] & MAP_SEEN_NATION_BIT(nation_id)) != 0;
+}
+
+void map_reveal_tile(ColonizeWorldMap* map, int x, int y, int nation_id) {
+  if (!map || !map->seen || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return;
+  }
+  if (nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  map->seen[y * map->width + x] =
+    (uint8_t)(map->seen[y * map->width + x] | MAP_SEEN_NATION_BIT(nation_id));
+}
+
+void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int radius) {
+  if (!map || radius < 0) {
+    return;
+  }
+  for (int dy = -radius; dy <= radius; ++dy) {
+    for (int dx = -radius; dx <= radius; ++dx) {
+      map_reveal_tile(map, x + dx, y + dy, nation_id);
+    }
+  }
+}
+
+void map_reveal_all(ColonizeWorldMap* map, int nation_id) {
+  if (!map || !map->seen) {
+    return;
+  }
+  if (nation_id < 0 || nation_id > 3) {
+    memset(map->seen, 0xff, map->tile_count);
+    return;
+  }
+  const uint8_t bit = MAP_SEEN_NATION_BIT(nation_id);
+  for (size_t i = 0; i < map->tile_count; ++i) {
+    map->seen[i] = (uint8_t)(map->seen[i] | bit);
+  }
+}
+
+void map_seen_from_col1(ColonizeWorldMap* map, const uint8_t* col1_seen, size_t count) {
+  if (!map || !map->seen || !col1_seen) {
+    return;
+  }
+  const size_t n = count < map->tile_count ? count : map->tile_count;
+  memcpy(map->seen, col1_seen, n);
+}
+
+void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t count) {
+  if (!map || !map->seen || !col1_seen) {
+    return;
+  }
+  const size_t n = count < map->tile_count ? count : map->tile_count;
+  memcpy(col1_seen, map->seen, n);
+}
+
+int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id) {
+  if (!map || !map->seen || !map_tile_seen_by(map, x, y, nation_id)) {
+    return 0;
+  }
+  int count = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+int map_fog_edge_mask_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+) {
+  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
+    return -1;
+  }
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
+      if (seen == index) {
+        return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
+      }
+      ++seen;
+    }
+  }
+  return -1;
 }
 
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y) {

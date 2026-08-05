@@ -435,7 +435,9 @@ void map_panel_render_tribes_on_map(
   int tile_w,
   int tile_h,
   int origin_x,
-  int origin_y
+  int origin_y,
+  const ColonizeWorldMap* fog_map,
+  int fog_nation
 ) {
   if (!col1 || !col1->tribe || !framebuffer || !icons ||
       icons->sprite_count < MAP_PANEL_TRIBE_ICON_BASE + MAP_PANEL_TRIBE_ICON_COUNT) {
@@ -444,6 +446,9 @@ void map_panel_render_tribes_on_map(
 
   for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
     const ColonizeCol1Tribe* t = &col1->tribe[i];
+    if (fog_map && !map_tile_seen_by(fog_map, (int)t->x, (int)t->y, fog_nation)) {
+      continue;
+    }
     const int sx = (int)t->x - view_x;
     const int sy = (int)t->y - view_y;
     if (sx < 0 || sy < 0 || sx >= view_cols || sy >= view_rows) {
@@ -707,6 +712,7 @@ void map_panel_render(
   int cursor_x,
   int cursor_y,
   int selected_unit_id,
+  int human_nation,
   uint16_t game_year,
   uint16_t game_autumn,
   int gold,
@@ -745,6 +751,10 @@ void map_panel_render(
       for (int lx = 0; lx < mw; ++lx) {
         const int tx = origin_x + lx;
         const int ty = origin_y + ly;
+        if (!map_tile_seen_by(map, tx, ty, human_nation)) {
+          map_panel_put(framebuffer, mx + lx, my + ly, 0);
+          continue;
+        }
         map_panel_put(framebuffer, mx + lx, my + ly, map_panel_terrain_color(map, tx, ty));
       }
     }
@@ -753,6 +763,9 @@ void map_panel_render(
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &colonies->colonies[i];
         if (!c->active) {
+          continue;
+        }
+        if (!map_tile_seen_by(map, c->x, c->y, human_nation)) {
           continue;
         }
         const int lx = c->x - origin_x;
@@ -767,6 +780,9 @@ void map_panel_render(
     if (col1 && col1->tribe) {
       for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
         const ColonizeCol1Tribe* t = &col1->tribe[i];
+        if (!map_tile_seen_by(map, (int)t->x, (int)t->y, human_nation)) {
+          continue;
+        }
         const int lx = (int)t->x - origin_x;
         const int ly = (int)t->y - origin_y;
         if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) {
@@ -780,6 +796,9 @@ void map_panel_render(
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units->units[i];
         if (!units_is_on_map(u)) {
+          continue;
+        }
+        if (!map_tile_seen_by(map, u->x, u->y, human_nation)) {
           continue;
         }
         const int lx = u->x - origin_x;
