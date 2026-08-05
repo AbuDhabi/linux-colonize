@@ -497,14 +497,19 @@ static int map_resource_terrain_class(uint8_t terrain_byte) {
  * FUN_12ab_0458: coordinate hash + resource table. DOS coords are 1-based.
  * Ocean (25) yields fish (type 7); arctic/high seas table entries are -1.
  */
-int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
+static int map_resource_type_at_ex(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  bool ignore_settlement
+) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return -1;
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
-  /* Layer2 bit1 marks settlement ownership — skip resources (FUN_12ab_0380). */
   const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
-  if ((layer2 & 2u) != 0) {
+  /* Layer2 bit1 marks settlement ownership — skip resources for sprites (FUN_12ab_0380). */
+  if (!ignore_settlement && (layer2 & 2u) != 0) {
     return -1;
   }
 
@@ -539,6 +544,14 @@ int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
     return -1;
   }
   return resource_type;
+}
+
+int map_resource_type_at(const ColonizeWorldMap* map, int x, int y) {
+  return map_resource_type_at_ex(map, x, y, false);
+}
+
+int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y) {
+  return map_resource_type_at_ex(map, x, y, true);
 }
 
 static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
@@ -1074,7 +1087,7 @@ bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return false;
   }
-  return (map_terrain_overlay(map_get_terrain(map, x, y)) & 0x40u) != 0;
+  return map_byte_has_river(map_get_terrain(map, x, y));
 }
 
 bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y) {

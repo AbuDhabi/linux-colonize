@@ -7,6 +7,9 @@
  * Yield columns match NAMES.TXT @JOB Farmer…Fisherman.
  * Rows match pedia terrain indices (0–7 unforesed, 8–15 forest type,
  * 16–23 forest via &7, 24–28 arctic/ocean/sea/mountains/hills).
+ *
+ * Town commons (center) dual-produce is calibrated to live Col1 observations;
+ * see docs/terrain_yields.md.
  */
 static const int k_unforesed[8][COLONIZE_FIELD_JOB_COUNT] = {
   /* Tundra */ {2, 0, 0, 0, 0, 0, 2, 0, 0},
@@ -30,13 +33,14 @@ static const int k_forested[8][COLONIZE_FIELD_JOB_COUNT] = {
   /* Rain */ {1, 1, 0, 0, 1, 2, 1, 0, 0},
 };
 
-/* Arctic, Ocean, Sea Lane, Mountains, Hills */
+/* Arctic, Ocean, Sea Lane, Mountains, Hills.
+ * Hills Farmer is 2 (Terrain Chart / FreeCol / live Col1); NAMES.TXT lists 1. */
 static const int k_other[5][COLONIZE_FIELD_JOB_COUNT] = {
   {0, 0, 0, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 4, 1, 0},
-  {1, 0, 0, 0, 0, 0, 4, 0, 0},
+  {2, 0, 0, 0, 0, 0, 4, 0, 0},
 };
 
 static const char* k_job_names[COLONIZE_FIELD_JOB_COUNT] = {
@@ -129,12 +133,66 @@ static int colony_yield_resource_job(int resource) {
 }
 
 static int colony_yield_resource_bonus(int resource) {
-  /* NAMES.TXT @RESOURCE values — used as flat +bonus when job matches. */
+  /* NAMES.TXT @RESOURCE values — used as flat yield when job matches on fields. */
   static const int k_bonus[] = {0, 3, 4, 6, 6, 7, 4, 5, 6, 6, 6, 6, 12, 6};
   if (resource < 0 || resource >= (int)(sizeof(k_bonus) / sizeof(k_bonus[0]))) {
     return 0;
   }
   return k_bonus[resource];
+}
+
+static bool colony_yield_is_crop_job(int field_job) {
+  return field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_SUGAR_PLANTER ||
+         field_job == COLONIZE_JOB_TOBACCO_PLANTER || field_job == COLONIZE_JOB_COTTON_PLANTER;
+}
+
+static bool colony_yield_is_road_job(int field_job) {
+  return field_job == COLONIZE_JOB_FUR_TRAPPER || field_job == COLONIZE_JOB_LUMBERJACK ||
+         field_job == COLONIZE_JOB_ORE_MINER || field_job == COLONIZE_JOB_SILVER_MINER;
+}
+
+/*
+ * Minor-river bonus for a field job; major = 2×.
+ * Food/crops +1, furs/lumber +2, ore/silver +1 (FreeCol classic / Col1).
+ */
+static int colony_yield_river_bonus(int field_job, bool major) {
+  int base = 0;
+  switch (field_job) {
+  case COLONIZE_JOB_FARMER:
+  case COLONIZE_JOB_SUGAR_PLANTER:
+  case COLONIZE_JOB_TOBACCO_PLANTER:
+  case COLONIZE_JOB_COTTON_PLANTER:
+  case COLONIZE_JOB_ORE_MINER:
+  case COLONIZE_JOB_SILVER_MINER:
+    base = 1;
+    break;
+  case COLONIZE_JOB_FUR_TRAPPER:
+  case COLONIZE_JOB_LUMBERJACK:
+    base = 2;
+    break;
+  default:
+    return 0;
+  }
+  return major ? (base * 2) : base;
+}
+
+static int colony_yield_road_bonus(int field_job) {
+  return colony_yield_is_road_job(field_job) ? 1 : 0;
+}
+
+/* Road and river do not stack — apply the larger bonus once. */
+static int colony_yield_road_or_river_bonus(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int field_job
+) {
+  const int road = map_tile_has_road(map, x, y) ? colony_yield_road_bonus(field_job) : 0;
+  int river = 0;
+  if (map_tile_has_river(map, x, y)) {
+    river = colony_yield_river_bonus(field_job, map_tile_has_major_river(map, x, y));
+  }
+  return road > river ? road : river;
 }
 
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
@@ -143,7 +201,7 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   int yield = colony_yield_base_for_pedia(pedia, field_job);
-  const int res = map_resource_type_at(map, x, y);
+  const int res = map_resource_type_for_yield(map, x, y);
   if (res >= 0 && colony_yield_resource_job(res) == field_job) {
     const int bonus = colony_yield_resource_bonus(res);
     if (bonus > yield) {
@@ -152,48 +210,26 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
       yield += 2;
     }
   }
-  if (map_tile_is_plowed(map, x, y) &&
-      (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_SUGAR_PLANTER ||
-       field_job == COLONIZE_JOB_TOBACCO_PLANTER || field_job == COLONIZE_JOB_COTTON_PLANTER)) {
+  if (map_tile_is_plowed(map, x, y) && colony_yield_is_crop_job(field_job)) {
     yield += 1;
   }
-  if (map_tile_has_road(map, x, y) &&
-      (field_job == COLONIZE_JOB_FUR_TRAPPER || field_job == COLONIZE_JOB_LUMBERJACK ||
-       field_job == COLONIZE_JOB_ORE_MINER || field_job == COLONIZE_JOB_SILVER_MINER)) {
-    yield += 1;
-  }
+  yield += colony_yield_road_or_river_bonus(map, x, y, field_job);
   return yield;
 }
 
-/* Apply @RESOURCE bonus without plow/road (town-commons secondary / food specials). */
-static int colony_yield_apply_resource(int base, int resource, int field_job) {
-  if (resource < 0 || colony_yield_resource_job(resource) != field_job) {
-    return base;
-  }
-  /* Prime Timber never applies on the town commons. */
-  if (resource == 10 || resource == 11) {
-    return base;
-  }
-  const int bonus = colony_yield_resource_bonus(resource);
-  if (bonus > base) {
-    return bonus;
-  }
-  return base + 2;
-}
-
 /*
- * Town-commons food before specials: forested uses classic dual-produce food
- * (scrub 2, others 3); cleared land uses @UNFORESTED Farmer.
+ * Town-commons food before specials/river/plow:
+ * forested → cleared-parent Farmer + 2; else Farmer + 2 (hills Farmer is 2).
  */
 static int colony_yield_town_commons_food_base(int pedia) {
   if (pedia >= 8 && pedia <= 23) {
-    return ((pedia & 7) == 1) ? 2 : 3; /* Scrub vs other forests */
+    return colony_yield_base_for_pedia(pedia & 7, COLONIZE_JOB_FARMER) + 2;
   }
   if (pedia >= 0 && pedia <= 7) {
-    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER);
+    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER) + 2;
   }
   if (pedia == 28) {
-    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER); /* Hills */
+    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER) + 2;
   }
   return 0;
 }
@@ -240,25 +276,25 @@ void colony_yield_town_commons(
     return;
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
-  const int res = map_resource_type_at(map, x, y);
+  const int res = map_resource_type_for_yield(map, x, y);
   const bool timber = (res == 10 || res == 11);
 
   int food = colony_yield_town_commons_food_base(pedia);
-  /* Plow (artificial) applies to commons food on cleared land. */
+  /* Plow applies to commons food on cleared land. */
   if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
     food += 1;
   }
-  /* Food-oriented specials. Skip Prime Timber. Game also boosts food. */
+  /* River boosts commons food (natural improvement). */
+  if (map_tile_has_river(map, x, y)) {
+    food += colony_yield_river_bonus(
+      COLONIZE_JOB_FARMER,
+      map_tile_has_major_river(map, x, y)
+    );
+  }
+  /* Oasis / Wheat / Game: +2 food on commons (not absolute @RESOURCE). Skip timber. */
   if (!timber && res >= 0) {
-    if (res == 1 || res == 2) { /* Oasis, Wheat */
-      food = colony_yield_apply_resource(food, res, COLONIZE_JOB_FARMER);
-    } else if (res == 9) { /* Game */
-      const int bonus = colony_yield_resource_bonus(9);
-      if (bonus > food) {
-        food = bonus;
-      } else {
-        food += 2;
-      }
+    if (res == 1 || res == 2 || res == 9) {
+      food += 2;
     }
   }
   out->food = food > 0 ? food : 0;
@@ -267,10 +303,15 @@ void colony_yield_town_commons(
   if (sec_job < 0) {
     return;
   }
-  int sec = colony_yield_base_for_pedia(pedia, sec_job);
-  /* No plow / road on commons secondary (artificial improvements ignored). */
-  if (!timber) {
-    sec = colony_yield_apply_resource(sec, res, sec_job);
+  /* NAMES base + implicit center secondary bump (+1). */
+  int sec = colony_yield_base_for_pedia(pedia, sec_job) + 1;
+  /* River on secondary; plow ignored. */
+  if (map_tile_has_river(map, x, y)) {
+    sec += colony_yield_river_bonus(sec_job, map_tile_has_major_river(map, x, y));
+  }
+  /* Matching special (except Prime Timber): +2 additive on commons. */
+  if (!timber && res >= 0 && colony_yield_resource_job(res) == sec_job) {
+    sec += 2;
   }
   out->secondary_job = sec_job;
   out->secondary_cargo = colony_yield_job_cargo(sec_job);

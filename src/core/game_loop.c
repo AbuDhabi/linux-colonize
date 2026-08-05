@@ -109,6 +109,8 @@ struct ColonizeGameState {
   bool mouse_cursor_built; /* SDL color cursor created from CURSOR.SS #0 */
   int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
   int debug_mouse_y;
+  bool debug_show_mouse_coords; /* DEBUG menu toggle; default on */
+  int cheat_unlock_step;   /* 0=expect W, 1=I, 2=N for Alt-WIN */
   UiDragSession ui_drag;
   int map_goto_anchor_x; /* tile under pointer when map goto drag began */
   int map_goto_anchor_y;
@@ -211,6 +213,9 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_H: return "H";
     case COLONIZE_KEY_O: return "O";
     case COLONIZE_KEY_U: return "U";
+    case COLONIZE_KEY_W: return "W";
+    case COLONIZE_KEY_I: return "I";
+    case COLONIZE_KEY_N: return "N";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -614,6 +619,22 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   game->in_debug_atlas = false;
   snprintf(game->status, sizeof(game->status), "%s", reports_title(id));
   diag_info("Opened report %s (%s)", reports_title(id), reports_background_name(id));
+}
+
+static void game_open_debug_atlas(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  game->in_debug_atlas = true;
+  game->in_pedia = false;
+  game->in_europe = false;
+  game->in_colony = false;
+  game->in_report = false;
+  if (game->debug_atlas.count <= 0) {
+    debug_atlas_scan(&game->debug_atlas, game->resolved_data_dir);
+  }
+  debug_atlas_load(&game->debug_atlas, game->resolved_data_dir, 0);
+  diag_info("Entered graphic atlas debug (%d files).", game->debug_atlas.count);
 }
 
 /* Open Colonizopedia list / article. */
@@ -1374,7 +1395,8 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
         const int ih = sp->height > 0 ? sp->height : 16;
         const int orders =
           eu->dock[i].sentry ? UNITS_ORDER_SENTRY : UNITS_ORDER_NONE;
-        const bool stacked = (i + 1) < eu->dock_count;
+        /* Any dock immigrant shows the multi-unit tab when the queue has >1. */
+        const bool stacked = eu->dock_count > 1;
         int dtype = units_find_type(&game->units, eu->dock[i].name);
         if (dtype < 0) {
           dtype = units_find_type(&game->units, "Colonists");
@@ -1396,9 +1418,12 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
           false
         );
         if (eu->menu == EUROPE_MENU_DOCK && eu->menu_dock_index == i) {
-          europe_draw_box_border(
-            framebuffer, dx - 1, dy - 1, iw + 2, ih + 2, 14
-          );
+          int fx = 0;
+          int fy = 0;
+          int fw = 0;
+          int fh = 0;
+          unit_chrome_selection_frame(dx, dy, iw, ih, &fx, &fy, &fw, &fh);
+          europe_draw_box_border(framebuffer, fx, fy, fw, fh, 14);
         }
       }
     }
@@ -1527,6 +1552,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_view = PEDIA_VIEW_LIST;
   game->pedia_return_to_list = false;
   game->pedia_father_loaded = -1;
+  game->debug_show_mouse_coords = true;
+  game->cheat_unlock_step = 0;
   col1_save_init(&game->col1);
   game->col1_ok = false;
 
@@ -3657,6 +3684,31 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     case MAP_MENU_ACTION_REPORT_SCORE:
       game_open_report(game, COLONIZE_REPORT_SCORE);
       return true;
+    case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
+      game_open_debug_atlas(game);
+      return true;
+    case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
+      game->debug_show_mouse_coords = !game->debug_show_mouse_coords;
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Mouse coords: %s",
+        game->debug_show_mouse_coords ? "on" : "off"
+      );
+      return true;
+    case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
+    case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
+    case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
+    case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
+    case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
+    case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
+    case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
+    case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
+    case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
+    case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
+    case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
+      set_status(game, "Cheat not implemented yet", map_menu_action_name(action));
+      return true;
     default:
       set_status(game, "Not implemented yet", NULL);
       return true;
@@ -4801,19 +4853,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_TILDE) {
-    game->in_debug_atlas = true;
-    game->in_pedia = false;
-    game->in_europe = false;
-    game->in_colony = false;
-    game->in_report = false;
-    if (game->debug_atlas.count <= 0) {
-      debug_atlas_scan(&game->debug_atlas, game->resolved_data_dir);
-    }
-    debug_atlas_load(&game->debug_atlas, game->resolved_data_dir, 0);
-    diag_info(
-      "Entered graphic atlas debug (%d files).",
-      game->debug_atlas.count
-    );
+    game_open_debug_atlas(game);
     return true;
   }
 
@@ -4953,6 +4993,33 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
       game_handle_report_fkey(game, input->last_key);
       return true;
+    }
+
+    /* Alt-W/I/N unlocks CHEAT; Alt-W alone turns it off (COLONIZE README). */
+    if (input->alt_held && input->last_key != COLONIZE_KEY_NONE) {
+      const ColonizeKey k = input->last_key;
+      if (k == COLONIZE_KEY_W || k == COLONIZE_KEY_I || k == COLONIZE_KEY_N) {
+        if (game->map_menu.cheat_visible) {
+          if (k == COLONIZE_KEY_W) {
+            map_menu_set_cheat_visible(&game->map_menu, false);
+            game->cheat_unlock_step = 0;
+            set_status(game, "Cheat mode off", NULL);
+          }
+          return true;
+        }
+        if (k == COLONIZE_KEY_W) {
+          game->cheat_unlock_step = 1;
+        } else if (k == COLONIZE_KEY_I && game->cheat_unlock_step == 1) {
+          game->cheat_unlock_step = 2;
+        } else if (k == COLONIZE_KEY_N && game->cheat_unlock_step == 2) {
+          map_menu_set_cheat_visible(&game->map_menu, true);
+          game->cheat_unlock_step = 0;
+          set_status(game, "Cheat mode on", NULL);
+        } else {
+          game->cheat_unlock_step = (k == COLONIZE_KEY_W) ? 1 : 0;
+        }
+        return true;
+      }
     }
 
     const ColonizeFont* menu_font = game->colony_font_ok ? &game->colony_font :
@@ -6294,7 +6361,7 @@ render_log_sample:
     turn_draw_owner_indicator(framebuffer, game->active_turn_nation);
   }
   /* Debug measure: original-resolution pixel under the pointer (for layout). */
-  {
+  if (game->debug_show_mouse_coords) {
     const ColonizeFont* font = game->colony_font_ok ? &game->colony_font
       : (game->menu_font_ok ? &game->menu_font : NULL);
     const int mx = game->debug_mouse_x;

@@ -11,7 +11,8 @@
 
 /*
  * In-game map menu bar from MENU.TXT (@GAME @VIEW @ORDERS @REPORTS @TRADE @PEDIA).
- * @CUP (CHEAT) is loaded but hidden until cheat mode is unlocked.
+ * @CUP (CHEAT) is always loaded into a fixed bar slot but hidden until Alt-W/I/N.
+ * Optional DEBUG pulldown (COLONIZE_DEBUG_MENU) sits after CHEAT with a fixed slot.
  *
  * Layout matches the DOS map display: pull-down titles across the top strip;
  * open a menu to drop a list of items. Mouse-driven (manual: menu bar commands).
@@ -21,6 +22,10 @@
 #define MAP_MENU_MAX_ITEMS 24
 #define MAP_MENU_TITLE_LEN 24
 #define MAP_MENU_LABEL_LEN 40
+
+#ifndef COLONIZE_DEBUG_MENU
+#define COLONIZE_DEBUG_MENU 0
+#endif
 
 typedef enum MapMenuAction {
   MAP_MENU_ACTION_NONE = 0,
@@ -68,7 +73,24 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_REPORT_NAVAL,
   MAP_MENU_ACTION_REPORT_FOREIGN,
   MAP_MENU_ACTION_REPORT_INDIAN,
-  MAP_MENU_ACTION_REPORT_SCORE
+  MAP_MENU_ACTION_REPORT_SCORE,
+
+  /* CHEAT (@CUP) — present but disabled until implemented */
+  MAP_MENU_ACTION_CHEAT_CREATE_UNIT,
+  MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS,
+  MAP_MENU_ACTION_CHEAT_REVEAL_MAP,
+  MAP_MENU_ACTION_CHEAT_SET_HUMAN,
+  MAP_MENU_ACTION_CHEAT_KILL_INDIANS,
+  MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION,
+  MAP_MENU_ACTION_CHEAT_SOUND_TEST,
+  MAP_MENU_ACTION_CHEAT_MEMORY_CHECK,
+  MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY,
+  MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES,
+  MAP_MENU_ACTION_CHEAT_TEST_ROUTINE,
+
+  /* DEBUG (port-only; COLONIZE_DEBUG_MENU) */
+  MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER,
+  MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS
 } MapMenuAction;
 
 typedef struct MapMenuItem {
@@ -85,6 +107,7 @@ typedef struct MapMenuPulldown {
   int item_count;
   int title_x;
   int title_w;
+  bool visible; /* false = reserve layout slot but do not draw/hit */
 } MapMenuPulldown;
 
 typedef struct MapMenuBar {
@@ -99,6 +122,9 @@ typedef struct MapMenuBar {
 void map_menu_init(MapMenuBar* bar);
 void map_menu_free(MapMenuBar* bar);
 bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt);
+
+/* Show/hide the CHEAT title; layout slot stays reserved either way. */
+void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible);
 
 /* True if (x,y) is over the bar or an open dropdown (consumes map clicks). */
 bool map_menu_hit_ui(const MapMenuBar* bar, int x, int y);

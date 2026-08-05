@@ -19,7 +19,7 @@ Key text catalogs:
 | File | Role |
 |------|------|
 | `GAME.TXT` | Dialogs, main menu (`@BEGINMENU`), prompts |
-| `MENU.TXT` | In-game map menu bar (`@GAME` `@VIEW` `@ORDERS` `@REPORTS` `@TRADE` `@PEDIA`, optional `@CUP` cheat) |
+| `MENU.TXT` | In-game map menu bar (`@GAME` `@VIEW` `@ORDERS` `@REPORTS` `@TRADE` `@CUP` cheat, `@PEDIA`; port adds DEBUG when `COLONIZE_DEBUG_MENU`) |
 | `LABELS.TXT` | Short UI labels |
 | `COLONY.TXT` | Colony name lists by nation |
 | `ERRORS.DB` | Error / series name strings |
@@ -272,7 +272,11 @@ Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_t
 
 ### Map menu bar
 
-On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**. The bar uses `WOODTILE.SS` fill (same as the right panel), `FONTTINY.FF`, `@COLORS` basic green with yellow (`~`) hotkeys, and a 1px black rule across the full width. Below the bar the screen splits into a **15×12-tile map viewport** (`x=0..239`, `MAP_PANEL_X` / `MAP_VIEW_*` in `src/core/map_panel.h`) and a **right info panel** (`x=240..319`, 80px) with a 1px black left edge. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map viewport: select an owned unit with moves, else select the tile (owned unit with no moves, empty land, etc.), or open an owned colony. Right-click always selects the tile (and clears unit selection). While a unit is selected, left-click only pans the viewport. Left-click on the panel minimap centers the view on that world tile. The selected tile shows a blinking white outline; over the map viewport the OS pointer uses `CURSOR.SS` #0. The CHEAT (`@CUP`) menu is parsed but hidden until cheat unlock exists.
+On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **VIEW**, **ORDERS**, **REPORTS**, **TRADE**, **COLONIZOPEDIA**, with fixed slots for **CHEAT** (`@CUP`) and (when built with `COLONIZE_DEBUG_MENU`, default ON) **DEBUG** between TRADE and COLONIZOPEDIA. The bar uses `WOODTILE.SS` fill (same as the right panel), `FONTTINY.FF`, `@COLORS` basic green with yellow (`~`) hotkeys, and a 1px black rule across the full width. Below the bar the screen splits into a **15×12-tile map viewport** (`x=0..239`, `MAP_PANEL_X` / `MAP_VIEW_*` in `src/core/map_panel.h`) and a **right info panel** (`x=240..319`, 80px) with a 1px black left edge. Click a title to open its pull-down; click an item to activate it (grayed items are stubs). Esc closes an open menu; Esc with no menu open returns to the title screen. Left-click on the map viewport: select an owned unit with moves, else select the tile (owned unit with no moves, empty land, etc.), or open an owned colony. Right-click always selects the tile (and clears unit selection). While a unit is selected, left-click only pans the viewport. Left-click on the panel minimap centers the view on that world tile. The selected tile shows a blinking white outline; over the map viewport the OS pointer uses `CURSOR.SS` #0.
+
+**CHEAT:** Hidden until unlocked. On the main map, press **Alt-W**, **Alt-I**, **Alt-N** in succession (spells WIN); press **Alt-W** again to hide. Menu items are listed but grayed (not implemented yet). Layout still reserves the CHEAT title slot while hidden so DEBUG does not shift.
+
+**DEBUG** (CMake `COLONIZE_DEBUG_MENU`): **Sprite Viewer** (same as `` ` ``) and **Show Mouse Coords** (toggles the pixel HUD attached to the pointer; on by default).
 
 Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. Trade menu entries still stub.
 

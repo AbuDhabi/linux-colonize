@@ -98,6 +98,11 @@ int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y);
 
 /* Special resource type 0..13, or -1 if none (MAPEDIT procedural). */
 int map_resource_type_at(const ColonizeWorldMap* map, int x, int y);
+/*
+ * Like map_resource_type_at, but still returns the special when layer2 marks
+ * settlement ownership (sprites stay hidden; yields still use the resource).
+ */
+int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
 /* True when terrain byte has a river (major or minor). */
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y);
