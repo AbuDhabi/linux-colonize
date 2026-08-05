@@ -124,8 +124,8 @@ port I/O in the native build.
   CUSTOMIZE → difficulty (`DIFFICUL.PIK`) → nation (`NATIONS.PIK`) → leader name /
   `@NATION{n}A/B` on `WOODPANL.PIK` → king audience → `LEVN0001`–`0010` sail → map.
   NEW WORLD / CUSTOMIZE use `map_generate` (`MapGenParams`); AMERICA loads `.MP`.
-  Hall of Fame still a stub. **Parked:** further pixel-perfect styling vs DOSBox
-  (fonts/ink/shadows/exact title layout); flow is functional.
+  Hall of Fame still a stub. Wizard captions use unbold green `FONTINTR` with
+  black drop-shadow; nation pick remaps England fill onto `NATIONS.PIK` red.
 - Shared wood **popup window** chrome (`src/core/popup.c`): black + mid brown + raised
   bevel from `@COLORS` border0/1/2; title `@BEGINMENU` is the first consumer (`OPENTILE.SS`);
   **GAME → Pick Music** uses the same chrome with `WOODTILE.SS` (`src/core/pick_music.c`)
