@@ -102,7 +102,10 @@ static const uint8_t FONT5X7[95][5] = {
   {0x10,0x08,0x08,0x10,0x08}
 };
 
-/* Original game font uses three green shades; index 0 is transparent. */
+/*
+ * White/gray AA map for ink 15 or 7 (unbold white). Other colors paint every
+ * non-zero shade as solid ink (FONTKING stores body as shade 3).
+ */
 static const uint8_t FF_COLOR_MAP[4] = {0, 0x0F, 0x07, 0x08};
 
 static void put_pixel(ColonizeFramebuffer8* fb, int x, int y, uint8_t color) {
@@ -118,7 +121,8 @@ static void draw_ff_glyph(
   int x,
   int y,
   unsigned char ch,
-  uint8_t color
+  uint8_t color,
+  bool unbold_colored
 ) {
   if (ch >= 128 || font->char_widths[ch] == 0) {
     return;
@@ -141,7 +145,19 @@ static void draw_ff_glyph(
       for (int shift = 6; shift >= 0; shift -= 2) {
         const uint8_t shade = (uint8_t)((byte >> shift) & 0x03u);
         if (shade != 0) {
-          const uint8_t pixel = (color == 15 || color == 7) ? FF_COLOR_MAP[shade] : color;
+          uint8_t pixel;
+          if (color == 15 || color == 7) {
+            pixel = FF_COLOR_MAP[shade];
+          } else if (unbold_colored && shade != 1) {
+            /* Skip soft AA shades — thin colored captions (FONTINTR). */
+            col += 1;
+            if (col >= width) {
+              break;
+            }
+            continue;
+          } else {
+            pixel = color;
+          }
           put_pixel(framebuffer, x + col, y + row, pixel);
         }
         col += 1;
@@ -300,6 +316,42 @@ void font_draw_text(
   font_draw_text_hotkey(font, framebuffer, x, y, text, color, color);
 }
 
+void font_draw_text_unbold(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  if (!framebuffer || !text) {
+    return;
+  }
+  const int line_step = font ? (font->max_height + 2) : 8;
+  int cx = x;
+  for (const char* p = text; *p; ++p) {
+    unsigned char ch = (unsigned char)*p;
+    if (ch == '\n') {
+      y += line_step;
+      cx = x;
+      continue;
+    }
+    if (ch == '~' || ch == '#') {
+      continue;
+    }
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+      draw_ff_glyph(font, framebuffer, cx, y, ch, color, true);
+      cx += font->char_widths[ch];
+      continue;
+    }
+    if (ch < 32 || ch > 126) {
+      ch = '?';
+    }
+    draw_builtin_glyph(framebuffer, cx, y, ch, color);
+    cx += 6;
+  }
+}
+
 void font_draw_text_hotkey(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
@@ -338,7 +390,7 @@ void font_draw_text_hotkey(
     /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
      * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
     if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, use);
+      draw_ff_glyph(font, framebuffer, cx, y, ch, use, false);
       cx += font->char_widths[ch];
       continue;
     }

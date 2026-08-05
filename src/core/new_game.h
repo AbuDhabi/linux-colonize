@@ -94,7 +94,7 @@ typedef struct NewGameWizard {
   const ColonizeMsgCatalog* labels_txt; /* LABELS.TXT for "Click Here When Finished" */
   const ColonizeFont* ui_font; /* FONTINTR — prompts / name / lore */
   const ColonizeFont* tiny_font; /* FONTTINY — customize / finished / difficulty labels */
-  const ColonizeFont* lore_font; /* unused legacy; lore uses ui_font */
+  const ColonizeFont* lore_font; /* FONTINTR — same as ui_font for @NATION lore */
   const ColonizeSpriteSheet* wood_tile; /* OPENTILE for remaining popups (America) */
   const ColonizePikImage* woodpanl; /* WOODPANL.PIK full-screen for name/lore */
 
