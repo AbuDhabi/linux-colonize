@@ -2337,6 +2337,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       set_status(game, "Cannot disembark here", NULL);
       return false;
     }
+    game->units.selected_id = sid;
     snprintf(game->status, sizeof(game->status), "Disembarked to (%d,%d)", dest_x, dest_y);
     game_after_unit_action(game);
     return true;
@@ -2374,6 +2375,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
         set_status(game, "Move blocked", NULL);
         return false;
       }
+      game->units.selected_id = pax_id;
       snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
       game_after_unit_action(game);
       return true;
@@ -3602,17 +3604,24 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       const int sid = game->units.selected_id;
       if (!game->world_map_ok || !game->units_ok || sid < 0 || !units_is_sea(&game->units, sid)) {
         set_status(game, "Select a ship to unload", NULL);
-      } else if (!units_unload(
-                   &game->units,
-                   sid,
-                   &game->world_map,
-                   game->map_cursor_x,
-                   game->map_cursor_y,
-                   &game->colonies
-                 )) {
-        set_status(game, "Cannot unload (need adjacent free land)", NULL);
       } else {
-        set_status(game, "Unit unloaded", NULL);
+        const ColonizeUnit* ship = units_get_const(&game->units, sid);
+        const int pax_id = (ship && ship->cargo_count > 0) ? ship->cargo_ids[0] : -1;
+        if (!units_unload(
+              &game->units,
+              sid,
+              &game->world_map,
+              game->map_cursor_x,
+              game->map_cursor_y,
+              &game->colonies
+            )) {
+          set_status(game, "Cannot unload (need adjacent free land)", NULL);
+        } else {
+          if (pax_id >= 0) {
+            game->units.selected_id = pax_id;
+          }
+          set_status(game, "Unit unloaded", NULL);
+        }
       }
       return true;
     }
@@ -5526,17 +5535,24 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     const int sid = game->units.selected_id;
     if (sid < 0 || !units_is_sea(&game->units, sid)) {
       set_status(game, "Select a ship to unload", NULL);
-    } else if (!units_unload(
-                 &game->units,
-                 sid,
-                 &game->world_map,
-                 game->map_cursor_x,
-                 game->map_cursor_y,
-                 &game->colonies
-               )) {
-      set_status(game, "Cannot unload (need adjacent free land)", NULL);
     } else {
-      set_status(game, "Unit unloaded", NULL);
+      const ColonizeUnit* ship = units_get_const(&game->units, sid);
+      const int pax_id = (ship && ship->cargo_count > 0) ? ship->cargo_ids[0] : -1;
+      if (!units_unload(
+            &game->units,
+            sid,
+            &game->world_map,
+            game->map_cursor_x,
+            game->map_cursor_y,
+            &game->colonies
+          )) {
+        set_status(game, "Cannot unload (need adjacent free land)", NULL);
+      } else {
+        if (pax_id >= 0) {
+          game->units.selected_id = pax_id;
+        }
+        set_status(game, "Unit unloaded", NULL);
+      }
     }
   }
 

@@ -14,12 +14,13 @@
 #include "core/units.h"
 
 /*
- * European / Indian AI actors (Phase 1).
+ * European / Indian AI actors (Phase 1 + R1 settle).
  *
- * New-game: Col1 template + rival fleets in Europe with landfall goto +
+ * New-game: Col1 template + rival fleets with landfall goto +
  * TRIBE.TXT / procedural villages with Braves.
- * Turn: sail AI ships toward goto; tick AI crosses; village growth +
- * FUN_4d56_1816-style Brave pulse. Full FUN_521d_* planner / raids remain parked.
+ * Turn: sail AI ships toward goto; unload + found first colony (T0);
+ * tick AI crosses; village growth + FUN_4d56_1816-style Brave pulse.
+ * Full FUN_521d_* planner / raids remain parked.
  */
 
 #define AI_TRIBE_CAP_AMERICA 84

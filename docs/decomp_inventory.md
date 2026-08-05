@@ -167,9 +167,9 @@ Ordered pipeline recovered for the Linux port:
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election **not** recovered yet
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
-   Phase 1 (`src/core/ai.c`): refresh MP, tick AI crosses, sail ships with `goto` toward
-   landfall (new-game fleets start on eastern high seas). No founding / combat / colony AI yet;
-   full dispatcher `FUN_521d_6d8e` parked — see [ai_transcription.md](ai_transcription.md).
+   Phase 1 + R1 T0 (`src/core/ai.c`): refresh MP, tick AI crosses, sail ships with `goto`
+   toward landfall, unload passengers, found first colony (optional fortify / carpenter).
+   Full dispatcher `FUN_521d_6d8e` parked — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — Phase 1: village growth accumulator (`FUN_4d56_152e`-style → pop++),
    DOS-faithful quiet Brave pulse (`FUN_4d56_1816` / `FUN_521d_20e6` slice); refresh MP.
    Raids / contact / rest of `FUN_4d56_1816` deferred.
@@ -184,7 +184,7 @@ AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE pro
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 
 **Parked (Phase 2+):** full Euro planner `FUN_521d_6d8e` / unit goals `FUN_521d_0a60` /
-`5d04` / scoring `20e6` (beyond quiet Brave slice); unload+found first AI colony;
+`5d04` / scoring `20e6` (beyond quiet Brave slice); R1 T1 save-diff for AI towns;
 Indian meet/alarm/raid (`@RAID*`); full `FUN_4d56_1816` body. Roadmap and FUN_*
 inventory: [ai_transcription.md](ai_transcription.md).
 

@@ -34,23 +34,22 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 
 ---
 
-## Current Linux surface (Phase 1)
+## Current Linux surface (Phase 1 + R1 settle)
 
 | Piece | Role |
 |-------|------|
-| [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) (~1.3k lines) | All ported AI |
+| [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | All ported AI |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, one post-spawn native pulse |
-| `ai_euro_nation_turn` | Refresh MP (caller), tick AI crosses, sail ships with `goto` |
+| `ai_euro_nation_turn` | Refresh MP (caller), tick AI crosses, sail ships with `goto`, **R1 T0 unload + first colony** |
 | `ai_indian_nation_turn` | Village growth + DOS-style Brave quiet pulse |
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `TURN_PROC_INDIAN` call the above; King remains stub |
 
-**Phase 1 does claim:** new-game actors exist; AI ships move toward landfall;
-villages can grow; seed-100 Brave coords/MP/`turns_worked` match golden after
-pulse.
+**Phase 1 + R1 does claim:** new-game actors exist; AI ships move toward landfall;
+**unload passengers and found a first colony (T0)**; villages can grow; seed-100 Brave
+coords/MP/`turns_worked` match golden after pulse.
 
-**Phase 1 does not claim:** `FUN_521d_6d8e` dispatcher, AI unload/found/colony
-economy, combat, raids, meet/trade/missions, bit-identical mid-game native AI,
-or King/REF AI.
+**Does not claim:** `FUN_521d_6d8e` dispatcher, colony economy planner, combat AI,
+raids, meet/trade/missions, bit-identical mid-game native AI, or King/REF AI.
 
 ```mermaid
 flowchart TD
@@ -160,6 +159,7 @@ Quiet dir-pick: [`ai.c`](../src/core/ai.c) labels the slice `FUN_4d56_021a`
 | `FUN_521d_6d8e` | — | **No** counterpart; `ai_euro_nation_turn` is sail+crosses only |
 | `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | — | **No** counterpart |
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T1 save-diff; not planner |
+| Landfall unload + first colony | `ai_try_ship_settle` via `units_landfall_unload_all` / `colonies_found` | **R1 T0** (smoke); optional fortify / Carpenter workplace |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
 | `@RAID*` / meet / mission | — | **No** counterpart |
 | King / REF AI | `turn_run_king_stub` | Stub only |
@@ -181,14 +181,16 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
 
 ### R1 — Euro “AI plays” (limited, T0→T1)
 
-Minimum for rivals to settle the New World without the full planner:
+**T0 landed:** rivals unload at landfall and found a first colony
+(`ai_try_ship_settle` in `ai_euro_nation_turn`; helpers
+`units_pick_landfall_tile` / `units_landfall_unload_all`). Optional fortify on
+leftover Soldier + Pioneer → Carpenter's Shop. Covered by `smoke_ai`.
 
-1. Unload passengers at landfall when ship arrives.
-2. Found first AI colony via `colonies_found(..., nation_id, ...)`.
-3. Colony production already runs for all active colonies — no nation filter to
-   add unless save-diff says otherwise. Optional T0: assign Pioneer to a
-   workplace after found so Stockade hammers advance.
-4. Basic land-unit orders (fortify / sentry) via existing `units_order_*` APIs.
+Still open for T1:
+
+1. Save-diff / hang-dump fidelity for first AI town vs original saves.
+2. Broader multi-colony / second-wave settle (not first-colony-only).
+3. Colony production already runs for all active colonies.
 
 ### R2 — Indian nation turn beyond quiet pulse
 
@@ -238,8 +240,8 @@ Status reflects the AI-port prerequisite work:
 | King / tax / REF | Stub | Independence AI only |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
-manual_gap) after combat and Indian contact. **R1 Euro settle** can start now
-(unload/found using the shared APIs above).
+manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** is in;
+harden toward T1 save-diff when convenient.
 
 ---
 

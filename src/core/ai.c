@@ -6,6 +6,7 @@
 #include <strings.h>
 
 #include "core/col1_bridge.h"
+#include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/map_gen.h"
 #include "core/new_game.h"
@@ -951,6 +952,183 @@ static void ai_sail_ship(ColonizeTurnContext* ctx, ColonizeUnit* ship) {
   units_advance_goto(ctx->units, ship->id, ctx->map, ctx->colonies);
 }
 
+static int ai_chebyshev(int ax, int ay, int bx, int by) {
+  const int dx = ax > bx ? ax - bx : bx - ax;
+  const int dy = ay > by ? ay - by : by - ay;
+  return dx > dy ? dx : dy;
+}
+
+static int ai_nation_colony_count(const ColonizeColonyPool* colonies, int nation_id) {
+  if (!colonies) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id) {
+      n++;
+    }
+  }
+  return n;
+}
+
+static int ai_founder_score(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return -1;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  if (!ut) {
+    return 0;
+  }
+  /* Prefer Pioneer / Free Colonist over armed units for founding. */
+  if (strstr(ut->name, "Pioneer") != NULL) {
+    return 3;
+  }
+  if (strstr(ut->name, "Free Colonist") != NULL || strstr(ut->name, "Colonist") != NULL) {
+    return 2;
+  }
+  if (strstr(ut->name, "Soldier") != NULL || strstr(ut->name, "Scout") != NULL ||
+      strstr(ut->name, "Dragoon") != NULL) {
+    return 0;
+  }
+  return 1;
+}
+
+/* R1 T0: unload near landfall, found first colony, fortify leftovers, assign carpenter. */
+static void ai_try_ship_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship) {
+    return;
+  }
+  if (ship->cargo_count <= 0) {
+    return;
+  }
+  if (ai_unit_in_europe(ship->x, ship->y)) {
+    return;
+  }
+
+  const int gx = ship->goto_x;
+  const int gy = ship->goto_y;
+  const bool have_goto =
+    gx >= 0 && gy >= 0 && gx < 255 && gy < 255 && gx < (int)ctx->map->width &&
+    gy < (int)ctx->map->height;
+  /* Still en route: wait until within 2 of landfall (or no goto). */
+  if (have_goto && ai_chebyshev(ship->x, ship->y, gx, gy) > 2) {
+    return;
+  }
+
+  int lx = -1;
+  int ly = -1;
+  if (!units_pick_landfall_tile(
+        ctx->units,
+        ship->id,
+        ctx->map,
+        ctx->colonies,
+        have_goto ? gx : -1,
+        have_goto ? gy : -1,
+        &lx,
+        &ly
+      )) {
+    return;
+  }
+
+  const int saved_sel = ctx->units->selected_id;
+  const int unloaded =
+    units_landfall_unload_all(ctx->units, ship->id, ctx->map, lx, ly, ctx->colonies);
+  ctx->units->selected_id = saved_sel;
+  if (unloaded <= 0) {
+    return;
+  }
+  units_clear_orders(ctx->units, ship->id);
+  diag_info(
+    "ai nation %d landfall unload %d at (%d,%d) from ship %d",
+    nation_id,
+    unloaded,
+    lx,
+    ly,
+    ship->id
+  );
+
+  if (ai_nation_colony_count(ctx->colonies, nation_id) > 0) {
+    return;
+  }
+  if (!colonies_can_found(ctx->colonies, ctx->map, lx, ly)) {
+    return;
+  }
+
+  int founder_id = -1;
+  int best_score = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!units_is_on_map(u) || u->nation_id != nation_id || u->x != lx || u->y != ly) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    const int score = ai_founder_score(ctx->units, u);
+    if (score > best_score) {
+      best_score = score;
+      founder_id = u->id;
+    }
+  }
+  if (founder_id < 0) {
+    return;
+  }
+
+  ColonizeUnit* founder = units_get(ctx->units, founder_id);
+  if (!founder) {
+    return;
+  }
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(ctx->units, founder_id, &tools, &muskets, &horses);
+  const int cid = colonies_found(
+    ctx->colonies,
+    ctx->map,
+    lx,
+    ly,
+    nation_id,
+    founder->type_index,
+    founder->profession,
+    tools,
+    muskets,
+    horses
+  );
+  if (cid < 0) {
+    return;
+  }
+  units_despawn(ctx->units, founder_id);
+  ctx->units->selected_id = saved_sel;
+  diag_info("ai nation %d founded colony %d at (%d,%d)", nation_id, cid, lx, ly);
+
+  /* Leftover land units on the tile: fortify soldiers. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!units_is_on_map(u) || u->nation_id != nation_id || u->x != lx || u->y != ly) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+    if (ut && (strstr(ut->name, "Soldier") != NULL || strstr(ut->name, "Regular") != NULL)) {
+      units_order_fortify(ctx->units, u->id);
+    }
+  }
+
+  /* Pioneer (now colonist 0) → Carpenter's Shop so Stockade hammers can advance. */
+  {
+    ColonizeColony* col = colonies_get_mut(ctx->colonies, cid);
+    if (col && col->colonist_count > 0) {
+      const int carpenter = colonies_find_building(ctx->colonies, "Carpenter's Shop");
+      if (carpenter >= 0) {
+        colonies_assign_workplace(ctx->colonies, cid, 0, carpenter);
+      }
+    }
+  }
+}
+
 void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || nation_id < 0 || nation_id >= 4) {
     return;
@@ -983,7 +1161,10 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     if (u->aboard_ship_id >= 0) {
       continue;
     }
+    /* Settle before sail so a coastal ship is not stepped away first. */
+    ai_try_ship_settle(ctx, u, nation_id);
     ai_sail_ship(ctx, u);
+    ai_try_ship_settle(ctx, u, nation_id);
   }
 }
 

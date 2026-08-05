@@ -143,7 +143,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Partial | `ai.c` Phase 1; [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Missing | Shared APIs ready (`colonies_found(nation_id)`, land combat, orders); AI unload/found still R1 in [ai_transcription.md](ai_transcription.md) |
+| Unload, found colonies, combat, colony AI | Partial | **R1 T0:** unload + first colony + fortify/carpenter; combat AI / planner still missing — [ai_transcription.md](ai_transcription.md) |
 
 ### Win / end sequences
 
