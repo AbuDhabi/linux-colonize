@@ -87,8 +87,9 @@ Export is read-modify-write against the last loaded Col1 snapshot when present
 (preserves tribes, unknowns, AI blobs). New games create a minimal template on
 first Save.
 
-Verified: `original_saves/COLONY00.SAV` and `COLONY01.SAV` byte-identical
-round-trip through `col1_save_read/write`, and import via `col1_bridge_apply`.
+Verified fixtures (byte-identical round-trip through `col1_save_read/write`,
+and import via `col1_bridge_apply`): `original_saves/COLONY00.SAV`,
+`COLONY01.SAV`, and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
 
 
 ## References
