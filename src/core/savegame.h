@@ -52,6 +52,21 @@ bool savegame_read_col1(
   size_t err_buf_size
 );
 
+/* Prefix-only probe for slot list UI (no map / colony load). */
+typedef struct ColonizeSaveSlotInfo {
+  bool occupied;
+  char leader_name[24];
+  uint16_t year;
+  uint16_t autumn;
+  uint16_t turn;
+} ColonizeSaveSlotInfo;
+
+bool savegame_probe_col1_slot(
+  const char* save_dir,
+  int slot /*0..9*/,
+  ColonizeSaveSlotInfo* out
+);
+
 /* Legacy native POC (COLZ). */
 bool savegame_write(
   const char* save_dir,

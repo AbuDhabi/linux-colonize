@@ -104,6 +104,72 @@ bool savegame_read_col1(
   return col1_save_read_file(path, out_save, err_buf, err_buf_size);
 }
 
+bool savegame_probe_col1_slot(
+  const char* save_dir,
+  int slot,
+  ColonizeSaveSlotInfo* out
+) {
+  if (!out) {
+    return false;
+  }
+  memset(out, 0, sizeof(*out));
+  if (!save_dir || slot < 0 || slot > 9) {
+    return false;
+  }
+
+  char path[640];
+  if (!savegame_colony_slot_path(save_dir, slot, path, sizeof(path))) {
+    return false;
+  }
+
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    return true; /* not occupied */
+  }
+
+  uint8_t buf[COLONIZE_COL1_PREFIX_SIZE];
+  const size_t n = fread(buf, 1, sizeof(buf), f);
+  fclose(f);
+  if (n < sizeof(buf)) {
+    return true;
+  }
+  if (memcmp(buf, COLONIZE_COL1_SIG, 8) != 0) {
+    return true;
+  }
+
+  ColonizeCol1Head head;
+  ColonizeCol1Player players[COLONIZE_COL1_NATION_COUNT];
+  memcpy(&head, buf, sizeof(head));
+  memcpy(players, buf + sizeof(head), sizeof(players));
+
+  int human = 0;
+  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
+    if (players[i].control == 0) {
+      human = i;
+      break;
+    }
+  }
+
+  out->occupied = true;
+  memcpy(out->leader_name, players[human].name, sizeof(out->leader_name));
+  out->leader_name[sizeof(out->leader_name) - 1] = '\0';
+  /* Trim trailing NULs already; strip trailing spaces if any. */
+  for (int i = (int)strlen(out->leader_name) - 1; i >= 0; --i) {
+    if (out->leader_name[i] == ' ' || out->leader_name[i] == '\t') {
+      out->leader_name[i] = '\0';
+    } else {
+      break;
+    }
+  }
+  if (out->leader_name[0] == '\0') {
+    snprintf(out->leader_name, sizeof(out->leader_name), "Governor");
+  }
+  out->year = head.year;
+  out->autumn = head.autumn;
+  out->turn = head.turn;
+  return true;
+}
+
 bool savegame_write(
   const char* save_dir,
   const char* slot_name,
