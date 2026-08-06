@@ -2,69 +2,58 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 5)
+## Status (phase 6)
 
 | Gate | State |
 |------|--------|
-| `smoke_mapgen_seed100` | GREEN (empirical restored) |
-| `smoke_ai_turns` TURN1→7 | GREEN |
-| Brave residual **t2–t6** | **50 rows** — unchanged |
-| Quiet ASM + `54f5` | Annotated |
-| Quiet Linux cutover | **Blocked** — phase 5 LCG-aligned cutover still red |
+| Default (empiricism) | GREEN |
+| `AI_QUIET_ASM=1` | RED — Apache init miss |
+| Residual t2–t6 | 50 rows |
 
-## Phase 5 — Init-pulse LCG audit
+## Empiricism vs DOS quiet
 
-Run: `AI_LCG_AUDIT=1 ./build/smoke_mapgen_seed100` (stderr).
+Quiet ASM (`LAB_521d_4fb4`): `range(1,3)`, river/fa `+1` else `−2f76`, gated `−diff²×2`/fog.  
+**Not** in DOS quiet: base 200, facing +4/−6/+3, home-dist, −0x28, +5, stay. Those are Linux inventions (`FUN_124c_0040` unused in `20e6`).
 
-| Shape | Burns inside pick |
-|-------|-------------------|
-| **Empirical** | stay `range(0,(tech+1)*4)` + `range(1,5)` × accepted |
-| **ASM quiet** | `range(1,3)` × accepted; **no stay** |
+## Phase 6 A/B isolation
 
-Accepted sets match. **Stay surplus = +1 per Brave pick.**
+```bash
+AI_LCG_AUDIT=1 ./build/smoke_mapgen_seed100
+AI_QUIET_ASM=1 AI_LCG_AUDIT=1 ./build/smoke_mapgen_seed100
+```
 
-### Init-pulse totals (empirical)
+### Pulse-enter nexts (init)
 
-| nation | braves | emp_burns | asm_burns | stay_surplus |
-|--------|--------|-----------|-----------|--------------|
-| 4 Inca | 6 | 50 | 44 | 6 |
-| 5 Aztec | 1 | 8 | 7 | 1 |
-| 6 Arawak | 7 | 31 | 24 | 7 |
-| 7 | 5 | 36 | 31 | 5 |
-| 8 | 6 | 33 | 27 | 6 |
-| 9 | 3 | 24 | 21 | 3 |
-| 10 | 3 | 21 | 18 | 3 |
-| 11 Tupi | 3 | 16 | 13 | 3 |
-| **TOTAL** | **34** | **219** | **185** | **34** |
+| nation | emp nexts | asm nexts | delta |
+|--------|-----------|-----------|-------|
+| 4 | 26951 | 26951 | 0 |
+| 5 | 27007 | 27001 | −6 |
+| 6 | 27015 | 27008 | −7 |
+| **7** | **27046** | **27032** | **−14** |
 
-`post_first` Inca=6 / Tupi=1: **does not absorb** stay (wrong timing). Kept unchanged.
+Delta at n=7 = stay surplus from n=4..6 (6+1+7). Same `rng_state` print is misleading (seeded word); **nexts** is the real stream cursor.
 
-### Locked policy (applied in cutover attempt)
+### Critical Brave (golden unit at `(46,52)`)
 
-No stay; `range(1,3)` per accepted dir; keep `post_first`.
+| mode | start | dir | end |
+|------|-------|-----|-----|
+| emp | `(47,53)` | **7** (NW) | `(46,52)` |
+| asm | `(47,53)` | **6** (W) | `(46,53)` |
 
-### Cutover result
+### Classification
 
-Gated ASM + that LCG policy → **same** `missing unit … nation=7 at (46,52)`.  
-Burn count aligned to ASM (`delta=0` by construction) but **XY still wrong**.
+1. **RNG-before:** ASM enters n=7 with 14 fewer nexts (stay).
+2. After forcing +1 next/pick (stay-shaped sync): n=7 nexts **match** (27046) but ASM still picks **dir=6**. Sync reverted (not DOS).
 
-**Finding:** LCG stay surplus was real but **not sufficient**. Next RE: quiet ASM incompleteness vs empiricism-only terms (home-dist / −0x28 / +5 / facing shape), or burns elsewhere in init before Indian pulse.
+**Verdict: dir-only at `(47,53)`** once RNG is equalized — ASM quiet score prefers W over empiricism/golden NW. Next RE: per-dir score dump at `(47,53)` (terrain/facing/fog terms) vs live DOS, not more LCG stay patches.
 
 ## Quiet cutover log
 
 | Phase | Result |
 |-------|--------|
-| 2–4 | formula/fog/gate — Apache miss; reverted |
-| 5 | LCG aligned + gated ASM — same Apache miss; reverted |
+| 2–5 | cutover red; LCG stay insufficient |
+| 6 | A/B: miss is n=7 Brave `(47,53)` dir 6 vs 7 |
 
-## Apache / Sioux spent (parallel)
+## Spent (parallel)
 
-Hang next: `VR_B465R` (`BX==0x1F8`) → AL. See `tools/brave_dump/midturn_465b.md`.
-
-## Smoke
-
-```bash
-cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns
-AI_LCG_AUDIT=1 ./build/smoke_mapgen_seed100
-./build/smoke_mapgen_seed100 && ./build/smoke_ai_turns
-```
+`VR_B465R` → AL. See `tools/brave_dump/midturn_465b.md`.
