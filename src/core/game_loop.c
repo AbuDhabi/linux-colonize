@@ -28,6 +28,7 @@
 #include "core/pick_music.h"
 #include "core/popup.h"
 #include "core/reports.h"
+#include "core/save_load_dialog.h"
 #include "core/savegame.h"
 #include "core/sound.h"
 #include "core/ss.h"
@@ -66,6 +67,7 @@ struct ColonizeGameState {
   MapMenuBar map_menu;
   PickMusicDialog pick_music;
   CheatListDialog cheat_list;
+  SaveLoadDialog save_load;
   UnitStackPopup unit_stack;
   ColonizeMsgCatalog labels;
   bool labels_ok;
@@ -173,6 +175,8 @@ struct ColonizeGameState {
 
 static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
 static void activate_menu_selection(ColonizeGameState* game);
+static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
+static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 
 typedef struct BeginMenuLayout {
   int dialog_x;
@@ -354,6 +358,76 @@ static void game_apply_cheat_list_result(ColonizeGameState* game) {
   } else if (kind == CHEAT_LIST_KIND_KILL_INDIANS) {
     game_apply_kill_indians(game, id, label);
   }
+}
+
+static void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
+  if (!game) {
+    return;
+  }
+  const char* dir = game->config.save_dir ? game->config.save_dir : savegame_default_dir();
+  if (!save_load_open(&game->save_load, mode, dir)) {
+    set_status(game, mode == SAVE_LOAD_MODE_SAVE ? "Save unavailable" : "Load unavailable", NULL);
+  }
+}
+
+static void game_apply_save_load_result(ColonizeGameState* game) {
+  if (!game || !game->save_load.has_result) {
+    return;
+  }
+  const SaveLoadMode mode = game->save_load.result_mode;
+  const int slot = game->save_load.result_slot;
+  game->save_load.has_result = false;
+  char err[256];
+  if (mode == SAVE_LOAD_MODE_SAVE) {
+    diag_info(
+      "Save confirmed: slot=COLONY%02d save_dir=%s turn=%u",
+      slot,
+      game->config.save_dir ? game->config.save_dir : "(null)",
+      game->turn_number
+    );
+    if (!game_save_col1_slot(game, slot, err, sizeof(err))) {
+      set_status(game, "Save failed", err);
+      diag_error("Save failed: %s", err);
+      return;
+    }
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Saved COLONY%02d (turn %u, year %u)",
+      slot,
+      game->turn_number,
+      game->game_year
+    );
+    diag_info("Save succeeded for COLONY%02d (turn %u)", slot, game->turn_number);
+    return;
+  }
+
+  diag_info(
+    "Load confirmed: slot=COLONY%02d save_dir=%s",
+    slot,
+    game->config.save_dir ? game->config.save_dir : "(null)"
+  );
+  if (!game_load_col1_slot(game, slot, err, sizeof(err))) {
+    set_status(game, "Load failed", err);
+    diag_error("Load failed: %s", err);
+    return;
+  }
+  snprintf(
+    game->status,
+    sizeof(game->status),
+    "Loaded COLONY%02d (turn %u, year %u)",
+    slot,
+    game->turn_number,
+    game->game_year
+  );
+  diag_info(
+    "Load succeeded: slot=COLONY%02d turn=%u year=%u units=%d colonies=%d",
+    slot,
+    game->turn_number,
+    game->game_year,
+    game->units.unit_count,
+    game->colonies.colony_count
+  );
 }
 
 /* Nearest palette index to an 8-bit RGB triple (for cross-PIK @COLORS remap). */
@@ -1688,6 +1762,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   map_menu_init(&game->map_menu);
   pick_music_init(&game->pick_music);
   cheat_list_init(&game->cheat_list);
+  save_load_init(&game->save_load);
   new_game_init(&game->new_game);
   units_reset(&game->units);
   colonies_init(&game->colonies);
@@ -2320,19 +2395,7 @@ static void activate_menu_selection(ColonizeGameState* game) {
   }
 
   if (strstr(choice, "LOAD") != NULL || strstr(choice, "Load") != NULL) {
-    char err[256];
-    if (!game_load_col1_slot(game, 0, err, sizeof(err))) {
-      set_status(game, "Load failed", err);
-      diag_error("Menu load failed: %s", err);
-      return;
-    }
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Loaded COLONY00 (turn %u, year %u)",
-      game->turn_number,
-      game->game_year
-    );
+    game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
     return;
   }
 
@@ -3553,33 +3616,11 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       set_status(game, "Not implemented yet", NULL);
       return true;
     case MAP_MENU_ACTION_SAVE: {
-      char err[256];
-      if (!game_save_col1_slot(game, 0, err, sizeof(err))) {
-        set_status(game, "Save failed", err);
-        return true;
-      }
-      snprintf(
-        game->status,
-        sizeof(game->status),
-        "Saved COLONY00 (turn %u, year %u)",
-        game->turn_number,
-        game->game_year
-      );
+      game_open_save_load(game, SAVE_LOAD_MODE_SAVE);
       return true;
     }
     case MAP_MENU_ACTION_LOAD: {
-      char err[256];
-      if (!game_load_col1_slot(game, 0, err, sizeof(err))) {
-        set_status(game, "Load failed", err);
-        return true;
-      }
-      snprintf(
-        game->status,
-        sizeof(game->status),
-        "Loaded COLONY00 (turn %u, year %u)",
-        game->turn_number,
-        game->game_year
-      );
+      game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
       return true;
     }
     case MAP_MENU_ACTION_RETIRE: {
@@ -5139,6 +5180,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (game->in_menu) {
+    if (game->save_load.open) {
+      save_load_handle_input(&game->save_load, input);
+      game_apply_save_load_result(game);
+      return true;
+    }
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
       return false;
     }
@@ -5204,6 +5250,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       pick_music_handle_input(
         &game->pick_music, &game->messages, input, pm_font, game->status, sizeof(game->status)
       );
+      return true;
+    }
+
+    if (game->save_load.open) {
+      save_load_handle_input(&game->save_load, input);
+      game_apply_save_load_result(game);
       return true;
     }
 
@@ -5859,53 +5911,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
       }
     }
-    char err[256];
-    diag_info(
-      "Save requested: slot=COLONY00 save_dir=%s turn=%u",
-      game->config.save_dir ? game->config.save_dir : "(null)",
-      game->turn_number
-    );
-    if (!game_save_col1_slot(game, 0, err, sizeof(err))) {
-      set_status(game, "Save failed", err);
-      diag_error("Save failed: %s", err);
-      return true;
-    }
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Saved COLONY00 (turn %u, year %u)",
-      game->turn_number,
-      game->game_year
-    );
-    diag_info("Save succeeded for COLONY00 (turn %u)", game->turn_number);
+    game_open_save_load(game, SAVE_LOAD_MODE_SAVE);
     return true;
   }
 
   if (input->last_key == COLONIZE_KEY_L) {
-    char err[256];
-    diag_info(
-      "Load requested: slot=COLONY00 save_dir=%s",
-      game->config.save_dir ? game->config.save_dir : "(null)"
-    );
-    if (!game_load_col1_slot(game, 0, err, sizeof(err))) {
-      set_status(game, "Load failed", err);
-      diag_error("Load failed: %s", err);
-      return true;
-    }
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Loaded COLONY00 (turn %u, year %u)",
-      game->turn_number,
-      game->game_year
-    );
-    diag_info(
-      "Load succeeded: turn=%u year=%u units=%d colonies=%d",
-      game->turn_number,
-      game->game_year,
-      game->units.unit_count,
-      game->colonies.colony_count
-    );
+    game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
     return true;
   }
 
@@ -6341,6 +6352,24 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       }
     }
     game_render_begin_menu(game, framebuffer);
+    if (game->save_load.open) {
+      const ColonizeFont* font = game->colony_font_ok ? &game->colony_font :
+                                 (game->menu_font_ok ? &game->menu_font : NULL);
+      const ColonizeSpriteSheet* wood =
+        game->menu_opentile_ok ? &game->menu_opentile :
+        ((game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL);
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      save_load_render(
+        (SaveLoadDialog*)&game->save_load,
+        font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
     goto render_log_sample;
   }
 
@@ -6658,6 +6687,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       popup_colors_from_ui(&popup_cols);
       pick_music_render(
         (PickMusicDialog*)&game->pick_music,
+        hud_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
+    if (game->save_load.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      save_load_render(
+        (SaveLoadDialog*)&game->save_load,
         hud_font,
         wood,
         &popup_cols,

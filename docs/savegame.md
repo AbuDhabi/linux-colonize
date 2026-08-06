@@ -80,8 +80,14 @@ Advanced by `turn_end()` in `src/core/turn.c` (and written back on Save):
 
 Autosave (when `game_options.autosave` is set): slot **9** every turn, slot **8** when entering a decade Spring year.
 
-Save/Load (menu, **S**/**L**, REPORTS path) uses `COLONY00.SAV` in the save directory.
-If missing, Load falls back to `original_saves/COLONY00.SAV` (repo samples).
+Default save directory is `<exe>/saves` (via `savegame_default_dir()`), overridable with `--save-dir`.
+
+Manual Save/Load (map menu, title **LOAD**, **S**/**L**) opens a wood slot popup:
+- **Save** lists slots **0–7** (`COLONY00`–`COLONY07`); confirming overwrites the chosen slot.
+- **Load** lists slots **0–9**; empty slots are not selectable; **8**/**9** are labeled as decade/turn autosaves when present.
+
+Slot rows show `N. Empty` or `N. <leader>  <year>` from a prefix-only probe (`savegame_probe_col1_slot`).
+If the chosen Load file is missing under the save dir, Load falls back to `original_saves/COLONY##.SAV` (repo samples).
 
 Export is read-modify-write against the last loaded Col1 snapshot when present
 (preserves tribes, unknowns, AI blobs). New games create a minimal template on

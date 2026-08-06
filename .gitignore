@@ -4,6 +4,7 @@ test-saves/
 test-saves-bad/
 test-saves-flow/
 test-saves-col1/
+test-saves-slot-ui/
 test-assets/
 colonize-linux.log
 tools/brave_dump/

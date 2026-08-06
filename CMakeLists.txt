@@ -51,6 +51,7 @@ add_library(colonize_core STATIC
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/cheat_list_dialog.c
+  src/core/save_load_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
   src/core/new_game.c
@@ -206,6 +207,7 @@ add_executable(smoke_game_flow
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/cheat_list_dialog.c
+  src/core/save_load_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
   src/core/new_game.c
@@ -252,6 +254,7 @@ add_executable(smoke_new_game
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/cheat_list_dialog.c
+  src/core/save_load_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
   src/core/new_game.c
@@ -333,6 +336,17 @@ if(COLONIZE_HAS_FLUIDSYNTH)
 endif()
 
 add_test(NAME smoke_pick_music COMMAND smoke_pick_music WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_save_load_dialog
+  tests/smoke/test_save_load_dialog.c
+)
+
+target_include_directories(smoke_save_load_dialog PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(smoke_save_load_dialog PRIVATE colonize_core)
+
+add_test(NAME smoke_save_load_dialog COMMAND smoke_save_load_dialog WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_map
   tests/smoke/test_map.c

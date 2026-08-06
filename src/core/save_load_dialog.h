@@ -1,0 +1,71 @@
+#ifndef COLONIZE_SAVE_LOAD_DIALOG_H
+#define COLONIZE_SAVE_LOAD_DIALOG_H
+
+#include <stdbool.h>
+
+#include "core/font.h"
+#include "core/popup.h"
+#include "core/ss.h"
+#include "platform/platform.h"
+
+/*
+ * Save / Load slot picker (DOS COLONY##.SAV slots).
+ * Save: slots 0–7. Load: slots 0–9 (8/9 autosave).
+ * Esc / click-outside / right-click cancels; Enter/Space/click confirms.
+ */
+
+#define SAVE_LOAD_MAX_SLOTS 10
+#define SAVE_LOAD_LABEL_LEN 48
+
+typedef enum SaveLoadMode {
+  SAVE_LOAD_MODE_SAVE = 0,
+  SAVE_LOAD_MODE_LOAD
+} SaveLoadMode;
+
+typedef struct SaveLoadDialog {
+  bool open;
+  SaveLoadMode mode;
+  int selection;
+  int width;
+  char prompt[48];
+  char options[SAVE_LOAD_MAX_SLOTS][SAVE_LOAD_LABEL_LEN];
+  int slot_ids[SAVE_LOAD_MAX_SLOTS]; /* Col1 slot 0..9 */
+  bool slot_occupied[SAVE_LOAD_MAX_SLOTS];
+  int option_count;
+  /* Set when the user confirms; survives close so the caller can apply. */
+  bool has_result;
+  SaveLoadMode result_mode;
+  int result_slot;
+  /* Last computed layout (for hit-testing). */
+  int dialog_x;
+  int dialog_y;
+  int dialog_w;
+  int dialog_h;
+  int list_y0;
+  int line_h;
+} SaveLoadDialog;
+
+void save_load_init(SaveLoadDialog* dlg);
+void save_load_close(SaveLoadDialog* dlg);
+
+/* Probe save_dir and open the picker. Returns false on invalid args. */
+bool save_load_open(SaveLoadDialog* dlg, SaveLoadMode mode, const char* save_dir);
+
+/*
+ * Keyboard / mouse. Returns true if the event was consumed.
+ * On confirm: closes, sets has_result + result_mode/slot.
+ * On cancel: closes without has_result.
+ */
+bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input);
+
+void save_load_render(
+  SaveLoadDialog* dlg,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
+  const ColonizePopupColors* colors,
+  uint8_t text_color,
+  uint8_t select_color,
+  ColonizeFramebuffer8* framebuffer
+);
+
+#endif
