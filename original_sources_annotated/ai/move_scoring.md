@@ -1,12 +1,19 @@
 # Move scoring (`FUN_521d_20e6`) — quiet Brave annotated
 
-## Status (phase 7)
+## Status (phase 8)
 
 | Piece | State |
 |-------|--------|
 | Annotated quiet + `54f5` + fog | **Done** |
 | Linux default | Empiricism (green) |
-| `AI_QUIET_ASM` cutover | Blocked — `(47,53)` fog `+8` prefers W |
+| Far `(43,49)`/`(43,53)` vs SAV | **AGREE** (`probe_far_ocean_4753`) |
+| `AI_QUIET_ASM` cutover | Blocked — fog `+8` prefers W; map-correct |
+| Next DOS hang | [`init_20e6_4753.md`](../../tools/brave_dump/init_20e6_4753.md) |
+
+## Phase 8 — Far ocean
+
+Linux seed-100 terrain matches `SEED100.SAV` at unit/dest/far cells. No map fix;
+do not disable fog to match empiricism.
 
 ## Phase 7 finding (`(47,53)`, matched RNG)
 
@@ -15,7 +22,8 @@
 | 6 W → `(46,53)` | **0** (best) | fog `+8` (far land `(43,53)`) |
 | 7 NW → `(46,52)` | −1 | far `(43,49)` **ocean** → no `+8` |
 
-Facing/base favor d7; **fog `+8` is the flip**. Not an empiricism-home issue. No quiet bug proven without DOS hang on whether fog fires.
+Facing/base favor d7; **fog `+8` is the flip**. Hang sites: `521d:5730` (`+8`),
+`521d:58a5` (write dir to `unit+0x314f`).
 
 ## Quiet ASM (DOS)
 
@@ -27,3 +35,4 @@ Facing/base favor d7; **fog `+8` is the flip**. Not an empiricism-home issue. No
 
 - [`.context/seed100-brave.md`](../../.context/seed100-brave.md)
 - [`quiet_brave_scoring.c`](quiet_brave_scoring.c)
+- [`tools/brave_dump/init_20e6_4753.md`](../../tools/brave_dump/init_20e6_4753.md)

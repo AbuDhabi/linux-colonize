@@ -2,13 +2,36 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 7)
+## Status (phase 8)
 
 | Gate | State |
 |------|--------|
 | Default (empiricism) | GREEN |
-| `AI_QUIET_ASM=1` | RED — dir-only at `(47,53)` |
+| `AI_QUIET_ASM=1` | RED — dir-only at `(47,53)` (fog `+8` → W) |
+| Far ocean/land vs SAV | **AGREE** (no map bug) |
 | Residual t2–t6 | 50 rows |
+
+## Phase 8 — Far-ocean fidelity
+
+```bash
+./build/probe_far_ocean_4753
+```
+
+| Tile | Role | terr | class | ocean |
+|------|------|------|-------|-------|
+| `(47,53)` | unit | `0e` | 14 | no |
+| `(46,52)` | golden NW dest | `22` | 28 | no |
+| `(46,53)` | ASM W dest | `0c` | 12 | no |
+| `(43,49)` | far NW | `19` | 25 | **yes** |
+| `(43,53)` | far W | `0a` | 10 | **no** |
+
+Linux `map_generate(seed=100)` terrain bytes **match** `SEED100.SAV` at all
+probed cells. Fog flip is map-correct; quiet ASM picking W is consistent with
+annotated DOS fog on this map. Empiricism/golden NW still unexplained by quiet
+formula alone — needs live DOS hang (do **not** disable `+8` to green cutover).
+
+**DOS hang recipe:** [`tools/brave_dump/init_20e6_4753.md`](../tools/brave_dump/init_20e6_4753.md)
+(`521d:58a5` dir / `521d:5730` fog `+8`).
 
 ## Phase 7 — Per-dir score dump `(47,53)`
 
@@ -42,7 +65,7 @@ Without fog on d6: d6=−8, d7=−1 → would pick golden NW.
 
 No quiet **formula bug** proven: ocean reject on far `(43,49)` and `+8` on land far match annotated DOS fog. Empiricism lacks fog so picks NW.
 
-**Next RE (DOS hang):** at init Brave `(47,53)`, does live `20e6` apply `+8` for dir 6 and choose W, or skip fog / use another path that yields NW `(46,52)`? Until then keep empiricism default; `AI_QUIET_ASM` + `AI_ASM_STAY_SYNC` audit-only.
+Keep empiricism default; `AI_QUIET_ASM` + `AI_ASM_STAY_SYNC` audit-only until the phase 8 hang answers whether live `20e6` applies `+8`.
 
 ## Empiricism vs DOS quiet
 
@@ -51,4 +74,5 @@ Not DOS quiet: base 200, +4/−6/+3, home, −0x28, +5, stay.
 
 ## Spent (parallel)
 
-`VR_B465R` → AL. See `tools/brave_dump/midturn_465b.md`.
+`VR_B465R` → AL. See `tools/brave_dump/midturn_465b.md`. Fog/dir hang is
+`init_20e6_4753.md` — independent of spent.

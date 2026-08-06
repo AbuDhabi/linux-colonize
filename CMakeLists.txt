@@ -386,6 +386,16 @@ target_link_libraries(smoke_mapgen_seed100 PRIVATE colonize_core)
 
 add_test(NAME smoke_mapgen_seed100 COMMAND smoke_mapgen_seed100 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(probe_far_ocean_4753
+  tools/probe_far_ocean_4753.c
+)
+
+target_include_directories(probe_far_ocean_4753 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(probe_far_ocean_4753 PRIVATE colonize_core)
+
 add_executable(smoke_viceroy_tables
   tests/smoke/test_viceroy_tables.c
   src/data/viceroy_tables.c
