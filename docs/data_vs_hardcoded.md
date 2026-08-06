@@ -23,7 +23,8 @@ When the printed manual / Terrain Chart disagrees with `NAMES.TXT`, **`NAMES.TXT
 | Location | Role |
 |----------|------|
 | `COLONIZE/` | Shipped game data + EXEs. Runtime `--data-dir` root. |
-| `original_sources_decompiled/` | Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE`. Read-only RE reference; **not** compiled. |
+| `original_sources_decompiled/` | Raw Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE`. Read-only RE reference; **not** compiled. Do not rename symbols here. |
+| `original_sources_annotated/` | Labeled / commented working copy of selected clusters (phase 1: AI accessors + nation turns). Prefer this when a symbol exists; fall back to the raw export. **Not** compiled. |
 | `original_memory_dumps/` | DOSBox-X save-states (live VGA / RAM). RE evidence only. |
 | `original_saves/` / `test-saves*` | Col1 binary layout oracles — not “game data catalogs”. |
 | `src/data/` | Baked tables extracted from EXEs (e.g. `viceroy_tables.c`). |
