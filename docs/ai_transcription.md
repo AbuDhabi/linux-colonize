@@ -121,7 +121,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_0000`…`0906` | small | Planner helpers (scores, probes, bookkeeping) | — | **parked** |
 | `FUN_521d_0a60` | ~858 | Unit / colony goal logic | — | **parked** |
 | `FUN_521d_20c6` | nested | Near helper before scoring | — | **parked** |
-| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet + coarse fog; emp default; `(47,53)` NW under ASM; full body parked | **partial** |
+| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet init default + peels; mid-turn emp; full body parked | **partial** |
 | `FUN_521d_5b66` | ~1815 nested | Large helper **inside** the `20e6` span (not a separate far export); historically mis-cited as sole “unit goals” entry | — | **parked** |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
 | `FUN_521d_5d04` | ~748 | Unit goals / planning (alongside `0a60`) | — | **parked** |
@@ -162,7 +162,7 @@ unannotated bodies.
 |----------|-------|-------|
 | `FUN_6a09_0006` | `ai_place_tribes_procedural` / `ai_place_tribes_from_txt` / `ai_spawn_brave_near` | AMERICA via `TRIBE.TXT`; NEW WORLD procedural |
 | Post-`6a09` native pulse | `ai_native_nation_pulse` at end of `ai_init_new_game` | One action per Brave per indian nation |
-| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Default empiricism. Coarse fog plane gates ASM `+8`; `(47,53)`→NW under `AI_QUIET_ASM`. Complete Map irrelevant. Hang parked — see `ai/move_scoring.md` |
+| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Init: quiet ASM default (stay LCG + peels). Mid-turn: empiricism until residuals empty. `AI_EMPIRICISM=1` forces emp |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse + residual overlays (~50 on t2–t6; t1 empty); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
@@ -195,19 +195,12 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   mask fa-flags (road `layer2 0x40` → DOS `&0x0a`), and ocean-transition
   spent=max emptied **t1** and keep cost fidelity. Residual overlays remain on
   **t2–t6 (~50 rows: 5/9/14/9/13)** — quiet-scoring holdouts plus Sioux/Apache
-  spent-only rows (XY match; dump-side `465b` still open). Apache T2 XY fixed
-  via tile-scoped quiet at `(45,52)` (skip facing / river home-base / roll-add);
-  spent still open (`tools/brave_dump/midturn_465b.md`) — hang **parked**.
-  ASM quiet + `LAB_521d_54f5` annotated. **Phase 9:** coarse fog plane
-  `DS:0x9faa` (size `0x10e`) dual-indexed — explore `+8` uses `(x>>2)+(y>>2)*18`,
-  tribe place `(y/5)+(x/5)*18`. Linux `s_ai_coarse_fog` + tribe writes; `+8`
-  gated on explore-byte `==0`. Init `(47,53)`→NW under `AI_QUIET_ASM` (farW
-  explore≠0). Other init Braves still miss — **no default cutover**. Complete
-  Map / Reveal is viewpoint-only (`SEED100` ≡ `SEED100_UNREVEALED`). Far ocean
-  AGREE (`probe_far_ocean_4753`). DOS hang recipes last-resort only
-  ([`init_20e6_4753.md`](../tools/brave_dump/init_20e6_4753.md)).
-  `AI_QUIET_ASM` / `AI_ASM_STAY_SYNC` / `AI_SCORE_DUMP` kept for RE.
-  Mark/apply helpers stay until tables empty.
+  spent-only rows (XY match; dump-side `465b` parked). **Phase 10:** seed-100
+  **init** uses quiet ASM by default (stay LCG + 13 dir peels for matched-RNG
+  scoring holdouts; coarse fog from phase 9). Mid-turn still empiricism until
+  residuals empty (`AI_QUIET_MIDTURN=1` to probe). `AI_EMPIRICISM=1` /
+  `AI_QUIET_ASM=0` force empiricism. Complete Map irrelevant. Hang recipes
+  last-resort only.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
