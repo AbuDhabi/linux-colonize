@@ -48,10 +48,10 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 **Claims (T2 early AI):** with VR_SEED=100 and idle human, `smoke_ai_turns` matches
 `test-saves-ai/TURN2`…`TURN7` on calendar, AI crosses, colonies (sites/names/pop/bip/hammers),
 euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accumulators.
-Seed-100 Euro path uses landfall-derived coastal staging + fixture found/join
-slices; full `0a60`/`5d04`/`20e6` planner still TBD. Mid-turn Braves: quiet
-`20e6` + residual overlays on remaining pulse mismatches (R0 scoring debt;
-**t1 empty**, ~50 rows on t2–t6).
+Seed-100 Euro path uses landfall-derived coastal staging + found-site helper
+(`ai_euro_found_tile_from_landfall`); ship approach / mid-turn waypoints still
+fixture. Mid-turn Braves: quiet `20e6` + residual overlays on remaining pulse
+mismatches (R0 scoring debt; **t1 empty**, ~50 rows on t2–t6).
 
 **Does not claim:** mid-game Euro economy/military planner, Indian raids/meet/missions,
 King/REF, or bit-identical unknown blobs unrelated to AI moves.
@@ -185,14 +185,18 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   prelude-equivalent to mid-turn Inca=14 / Aztec=4.
 - **Mid-turn pulse:** always runs; prelude Inca=14 / Aztec=4; MP loop allows
   spent past max (`097a`). Terrain river costing (`072c` &0x40), tribe-tile
-  spend cap (`06be` / layer2&2), and own-nation −0x28 (skip only river-into-tribe)
-  emptied **t1**. Residual overlays remain on **t2–t6 (~50 rows:
-  6/8/14/9/13)** for quiet-scoring holdouts (e.g. Sioux forest spent 9 vs golden
-  3). Mark/apply helpers stay until those empty.
+  spend cap (`06be` / layer2&2), own-nation −0x28 (skip only river-into-tribe),
+  mask fa-flags (road `layer2 0x40` → DOS `&0x0a`), and ocean-transition
+  spent=max emptied **t1** and keep cost fidelity. Residual overlays remain on
+  **t2–t6 (~50 rows: 6/8/14/9/13)** — quiet-scoring holdouts plus Sioux/Apache
+  spent-only rows (XY match; dump-side `465b` still open). Mark/apply helpers
+  stay until those empty.
 - **Euro early path:** T2 coastal ship gotos from
-  `ai_coastal_staging_from_landfall` (landfall tip + coast snap); unload uses
-  land-adjacency helpers. Atlantic approach table + later-turn found/join
-  waypoints still fixture RE until full ocean `20e6` / `0a60`.
+  `ai_coastal_staging_from_landfall`; found tiles from
+  `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella);
+  Dutch join uses first nation colony (no hardcoded Isabella XY). Atlantic
+  approach table + ship waypoints T3–T6 still fixture RE until full ocean
+  `20e6` / `0a60`.
 - Keep this file and [original_index.md](original_index.md) status rows aligned
   when slices land.
 
@@ -263,8 +267,9 @@ Status reflects the AI-port prerequisite work:
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
 **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (t1 empty, ~50
-Brave residuals, named init burns, landfall coastal staging). Next: empty
-remaining `k_seed100_brave_t*` holdouts, then generic T1 Euro settle.
+Brave residuals, named init burns, landfall coastal staging + found-site
+helper). Next: empty remaining `k_seed100_brave_t*` holdouts (Sioux spent +
+wrong-dir scoring), then generic T1 Euro settle.
 
 ---
 

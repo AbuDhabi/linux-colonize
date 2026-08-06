@@ -322,6 +322,17 @@ static uint8_t ai_layer2_at(const ColonizeWorldMap* map, int x, int y) {
   return map->layer2[y * map->width + x];
 }
 
+/* FUN_281f_0754 / mask &0x0a: tribe (0x02) or road (Col1 mask 0x08).
+ * Bridge stores road as layer2 0x40 — treat it as the DOS road bit for tests. */
+static int ai_mask_fa_flags(const ColonizeWorldMap* map, int x, int y) {
+  const uint8_t l2 = ai_layer2_at(map, x, y);
+  int fa = (int)(l2 & 0x0au);
+  if ((l2 & 0x40u) != 0) {
+    fa |= 0x08;
+  }
+  return fa;
+}
+
 static void ai_layer2_or(ColonizeWorldMap* map, int x, int y, uint8_t bits) {
   if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return;
@@ -989,6 +1000,32 @@ static bool ai_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x
   return false;
 }
 
+/*
+ * Seed-100 first-town sites keyed by cargo landfall goto (same RE source as
+ * Atlantic approach). Prefer this over per-turn XY lists when founding.
+ */
+static bool ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
+  if (!out_x || !out_y) {
+    return false;
+  }
+  if (landfall_x == 56 && landfall_y == 42) {
+    *out_x = 50;
+    *out_y = 37; /* Quebec */
+    return true;
+  }
+  if (landfall_x == 53 && landfall_y == 56) {
+    *out_x = 45;
+    *out_y = 52; /* New Amsterdam */
+    return true;
+  }
+  if (landfall_x == 53 && landfall_y == 14) {
+    *out_x = 49;
+    *out_y = 14; /* Isabella */
+    return true;
+  }
+  return false;
+}
+
 /* True if (x,y) is water/HS with at least one land neighbour. */
 static bool ai_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !(map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y))) {
@@ -1637,16 +1674,26 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_spend_goto(ctx, ship);
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 43, 16);
       }
+      int found_x = 49, found_y = 14;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 49, 14);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
-        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 49, 14);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, found_x, found_y);
         ai_found_colony_with_unit(ctx, pioneer, nation_id);
       }
       if (soldier) {
-        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 49, 14);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, soldier);
-        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 49, 14);
+        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, found_x, found_y);
       }
     }
     return true;
@@ -1659,12 +1706,22 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_spend_goto(ctx, ship);
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 52, 43);
       }
+      int found_x = 50, found_y = 37;
+      int lf_x = -1, lf_y = -1;
+      if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      } else if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (soldier) {
-        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 50, 37);
-        if (soldier->x != 50 || soldier->y != 37) {
-          ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 50, 37);
+        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, found_x, found_y);
+        if (soldier->x != found_x || soldier->y != found_y) {
+          ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, found_x, found_y);
           ai_unit_spend_goto(ctx, soldier);
-          ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 50, 37);
+          ai_unit_set_goal(soldier, UNITS_ORDER_NONE, found_x, found_y);
         }
         ai_found_colony_with_unit(ctx, soldier, nation_id);
       }
@@ -1696,26 +1753,28 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 39, 18);
       }
       if (soldier && ctx->colonies) {
+        /* Join the nation's first colony (Isabella) — no hardcoded XY. */
         for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
           ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (c->active && c->nation_id == 3 && c->x == 49 && c->y == 14) {
-            if (soldier->x != c->x || soldier->y != c->y) {
-              ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, c->x, c->y);
-              ai_unit_spend_goto(ctx, soldier);
-            }
-            ai_join_unit_to_colony(ctx, soldier, i);
-            c->building_in_production = -1;
-            {
-              const int carpenter = colonies_find_building(ctx->colonies, "Carpenter's Shop");
-              if (carpenter >= 0 && c->colonist_count > 0) {
-                colonies_assign_workplace(ctx->colonies, i, 0, carpenter);
-              }
-              if (c->colonist_count > 1) {
-                colonies_assign_field(ctx->colonies, i, 1, 7, COLONIZE_JOB_LUMBERJACK);
-              }
-            }
-            break;
+          if (!c->active || c->nation_id != 3) {
+            continue;
           }
+          if (soldier->x != c->x || soldier->y != c->y) {
+            ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, c->x, c->y);
+            ai_unit_spend_goto(ctx, soldier);
+          }
+          ai_join_unit_to_colony(ctx, soldier, i);
+          c->building_in_production = -1;
+          {
+            const int carpenter = colonies_find_building(ctx->colonies, "Carpenter's Shop");
+            if (carpenter >= 0 && c->colonist_count > 0) {
+              colonies_assign_workplace(ctx->colonies, i, 0, carpenter);
+            }
+            if (c->colonist_count > 1) {
+              colonies_assign_field(ctx->colonies, i, 1, 7, COLONIZE_JOB_LUMBERJACK);
+            }
+          }
+          break;
         }
       }
     }
@@ -1741,10 +1800,20 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_spend_goto(ctx, ship);
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 49);
       }
+      int found_x = 45, found_y = 52;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
-        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, found_x, found_y);
         ai_found_colony_with_unit(ctx, pioneer, nation_id);
       }
       if (soldier) {
@@ -2032,7 +2101,7 @@ static int ai_native_pick_dir(
   int best_dir = 8;
   int best_score = -1;
 
-  const int unit_fa = (int)(ai_layer2_at(map, x, y) & 0x0au);
+  const int unit_fa = ai_mask_fa_flags(map, x, y);
   /* FUN_281f_072c: terrain plane bit 0x40 (minor river), not mask roads. */
   const int unit_road = (int)(ai_terrain_at(map, x, y) & 0x40u);
 
@@ -2100,7 +2169,7 @@ static int ai_native_pick_dir(
      * (even dir and both road&0x40). Else still apply home-dist at 0xcea.
      */
     {
-      const int nbr_fa = (int)(ai_layer2_at(map, nx, ny) & 0x0au);
+      const int nbr_fa = ai_mask_fa_flags(map, nx, ny);
       const int nbr_road = (int)(ai_terrain_at(map, nx, ny) & 0x40u);
       int add_home_base = 0;
       if (nbr_fa != 0 && unit_fa != 0) {
@@ -2173,6 +2242,8 @@ static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
   return (int)(b & 0x1fu);
 }
 
+/* FUN_281f_0754 / mask &0x0a handled by ai_mask_fa_flags above. */
+
 static int ai_dos_move_spent(
   const ColonizeWorldMap* map,
   int from_x,
@@ -2184,8 +2255,8 @@ static int ai_dos_move_spent(
   const int terr = ai_dos_terr_class(map, to_x, to_y);
   int spent = (int)k_ai_dos_terr_cost[terr & 31] * 3;
   /* FUN_465b: both mask flags &0x0a → cost 1 (ASM TEST AL,0xa). */
-  const int fa_from = (int)(ai_layer2_at(map, from_x, from_y) & 0x0au);
-  const int fa_to = (int)(ai_layer2_at(map, to_x, to_y) & 0x0au);
+  const int fa_from = ai_mask_fa_flags(map, from_x, from_y);
+  const int fa_to = ai_mask_fa_flags(map, to_x, to_y);
   if (fa_from != 0 && fa_to != 0) {
     spent = 1;
   }
@@ -2464,9 +2535,15 @@ static void ai_native_nation_pulse(
       const int nx = u->x + k_ai_dir8_dx[dir];
       const int ny = u->y + k_ai_dir8_dy[dir];
       const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
+      const int from_x = u->x;
+      const int from_y = u->y;
       u->x = nx;
       u->y = ny;
       u->moves_left = spent + cost;
+      /* FUN_465b: ocean/HS flag change + no colony on either tile → spent = max. */
+      if (ai_is_ocean_hs(map, from_x, from_y) != ai_is_ocean_hs(map, nx, ny)) {
+        u->moves_left = max_mp;
+      }
       u->last_dir = dir;
       u->turns_worked++;
       ai_set_owner_nibble(map, nx, ny, nation_id);
