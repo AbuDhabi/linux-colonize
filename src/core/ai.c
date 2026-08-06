@@ -3031,10 +3031,11 @@ static const AiSeed100BraveSnap k_emp_brave_t6[] = {
 };
 static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
 
-/* --- Quiet mid-turn residuals (phase 13: only spent-only hang-AL debt) --- */
+/* --- Quiet mid-turn residuals (phase 15: spent-only; hang AL known, post-ADD open) --- */
 static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
-  /* Phase 14: class*3 is 6/9; golden spent=3. Cost head cannot distinguish
-   * TURN1 spent=9; hang AL blocked (VR_B465R/A lack ADD1 stubs). */
+  /* Sioux ADD AL=9 (dump_b465r3); Apache AL≈3 (same dump). Golden spent=3.
+   * T1/T2 tile presence shape matches — do not invent exhaust caps.
+   * Next: VR_B465F force-max probe / post-ADD writer. */
   {7, 45, 52, 46, 53, 3, 1}, /* Apache spent-only */
   {10, 49, 40, 49, 39, 3, 1}, /* Sioux spent-only */
 };

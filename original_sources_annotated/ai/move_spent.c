@@ -27,14 +27,16 @@
  *   465b:05f0  ADD  AL=low(local_40)
  *   465b:0628  MOV  AL=090c(unit)  if ocean(from)!=ocean(dest)
  *              AND 0696(from)<0 AND 0696(dest)<0   (euro settlement gate)
+ *   465b:08f8  CALL 0934 (→1427_155e spent=max_mp) if (088a(unit) OR type==wagon)
+ *              AND 07be(dest)>=0 — Brave (type 19) skips 088a cargo walk
  *
  * Foreign path skips the ADD block (JZ at 05de). Gamble fail after ADD does
- * not undo the ADD (JMP 0bcc). No other 3149 write exists in this function.
+ * not undo the ADD (JMP 0bcc).
  *
- * Consequence for quiet land Braves (no ocean change): final spent == local_40
- * after a spent_before==0 act. Golden spent=3 ⇒ DOS local_40 was 3 at ADD.
- * Linux cost head yields 6/9 on the same TURN2 tiles (see seed100-brave.md);
- * no decomp-cited post-ADD land path can turn 6/9 into 3. Hang AL still required.
+ * Phase 15: dump_b465r3 Sioux ADD AL=9 (= Linux class*3). T1/T2 land pairs
+ * share presence→unowned shape yet golden spent 9 vs 3 — do not invent
+ * exhaust caps from tile contrast. VR_B465F probes stock force-max entry.
+ * Apache on r3 already spent=3 with force stubbed ⇒ AL was 3 at ADD.
  */
 
 #include <stdint.h>
@@ -194,10 +196,9 @@ void move_spent_foreign_combat_parked(int unit_index, int to_x, int to_y) {
  *      && euro_settlement_owner(dest) < 0:
  *        moves_spent = unit_max_mp(unit)   // FUN_281f_090c
  *
- * Quiet land Braves: both ocean_or_hs equal → force never fires under this
- * gate as written. dump_b465r3: Sioux ADD AL=9; golden spent=3 ⇒ something
- * post-ADD still forces max in stock (re-check gate inputs / other writes).
- * Apache on that dump already spent=3 with force-max stubbed ⇒ AL was 3.
+ * Quiet land Braves: dump_b465f3 — force-max body not entered for Sioux T2,
+ * yet end spent=3 after ADD AL=9. Ocean gate is not the mechanism; chase other
+ * 3149 writers / post-465b act path. Apache AL was 3 at ADD (dump_b465r3).
  */
 int move_spent_ocean_force_max(
   int from_x,

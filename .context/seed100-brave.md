@@ -9,8 +9,8 @@ Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 | Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
 | Mid-turn pick (default) | Quiet ASM + stay LCG + mid peels + **2** spent residuals — **green** |
 | Multi-step / Inca tw | Cleared (phase 13) |
-| Spent-only Sioux/Apache | Hang AL: Sioux **9** (post-ADD chase); Apache likely **3** at ADD | Residual + park |
-| Hang EXEs | **Working** — `dump_b465r3` Sioux AL=9; force-max reloc-safe stub |
+| Spent-only Sioux/Apache | Sioux AL=9; force-max **does not fire** (`dump_b465f3` spent=3); other post-ADD writer |
+| Hang EXEs | R ok; F done (no hang, spent=3); stock E4D2 still slow |
 | Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
 
