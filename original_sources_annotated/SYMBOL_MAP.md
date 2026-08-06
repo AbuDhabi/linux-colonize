@@ -28,7 +28,9 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `FUN_4d56_152e` | `village_growth_accum` | `ai/indian_nation_turn.c` | `ai_grow_villages` |
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
 | `func_0x00042191` | `indian_unit_act` (stub) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
-| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir` (empirical; cutover blocked phase 3) |
+| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir` (empirical; cutover blocked phase 4) |
+| `LAB_521d_54f5` gate | `quiet_lab_54f5_gate` | `ai/quiet_brave_scoring.c` | not in Linux (reverted) |
+| military −10 | `quiet_score_military_minus10` | `ai/quiet_brave_scoring.c` | diplomacy stub 0 |
 | (apply step) | `quiet_brave_apply_step` | `ai/indian_nation_turn.c` | `ai_native_apply_step` |
 | `FUN_281f_04d4(1,3)` quiet base | `quiet_score_base` | `ai/quiet_brave_scoring.c` | empiricism uses range(1,5) |
 | quiet terrain ± | `quiet_score_terrain` | `ai/quiet_brave_scoring.c` | empiricism river/fa / home |
@@ -37,8 +39,10 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `LAB_521d_52aa` colony pull | `quiet_score_colony_pull` | `ai/quiet_brave_scoring.c` | no-op early game |
 | `FUN_281f_0302` | `map_tile_in_bounds` | `ai/accessors.c` | map inset |
 | `FUN_281f_074a` / `0x168` | `tile_explore_mask` | `ai/accessors.c` | Euro-only +2; Indians skip |
-| coarse fog `−0x6056` | `coarse_fog_unseen` | `ai/accessors.c` | early ≈ all unseen |
-| `FUN_281f_0682` | `tile_owner_or_presence` | `ai/accessors.c` | owner probe |
+| coarse fog `−0x6056` | `coarse_fog_unseen` (+ early assume helper) | `ai/accessors.c` | early ≈ all unseen |
+| `FUN_281f_0682` / `0314` | `tile_owner_or_presence` | `ai/accessors.c` | **layer2 bit0** then owner |
+| `FUN_281f_06d2` / `0428` | `tile_tribe_or_presence` | `ai/accessors.c` | tribe else presence |
+| `FUN_281f_07e0` | `unit_index_on_tile` | `ai/accessors.c` | Linux unit-pool scan (cutover) |
 | `FUN_281f_078c` | `terrain_class_at` | `ai/accessors.c` | `ai_dos_terr_class` |
 | `FUN_521d_20e6` | `move_scoring` (non-quiet parked) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet only |
 | `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` |

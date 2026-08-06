@@ -2,7 +2,7 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (R0 partial + phase 2/3 annotate)
+## Status (R0 partial + phase 4 annotate)
 
 | Gate | State |
 |------|--------|
@@ -10,41 +10,37 @@ Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 | `smoke_ai_turns` TURN1→7 | GREEN |
 | Brave residual **t1** | **empty** |
 | Brave residual **t2–t6** | **50 rows** (5/9/14/9/13) — unchanged (cutover not landed) |
-| Quiet ASM + fog annotate | **Done** — `original_sources_annotated/ai/quiet_brave_scoring.c` |
-| Quiet Linux cutover | **Blocked** — phase 2 and phase 3 attempts reverted |
+| Quiet ASM + `54f5` gate + fog | **Annotated** — `quiet_brave_scoring.c` |
+| Quiet Linux cutover | **Blocked** — phases 2–4 reverted |
 
 ## Quiet cutover log
 
-- **Phase 2:** base `range(1,3)` + `−2f76`/`+1` + facing `−diff²×2` (no fog) → both smokes fail.
-- **Phase 3:** same + Indian fog (`+8` far unseen, `−2` presence; Euro `+2` skipped) → still fails (e.g. Apache unit missing at expected XY on mapgen). Empiricism restored.
+| Phase | Change | Result |
+|-------|--------|--------|
+| 2 | base+terrain+facing, no fog | Both smokes fail |
+| 3 | + Indian fog ungated | Same; Apache init XY miss |
+| 4 | + `54f5` gate + −10 + `0682` bit0 | Same Apache `(46,52)` miss; reverted |
 
-Next RE before retry: `LAB_521d_54f5` entry conditions, military-neighbor −10 path, coarse fog `−0x6056` / `0682` bit0 fidelity. Do not mix ASM terms onto empirical base-200.
+**Concrete finding:** gate/fog/`0682` alone do not unblock. Next RE: compare per-Brave LCG burn counts on init pulse (empiricism stay+`range(1,5)` vs ASM `range(1,3)`), and whether quiet ASM omits still-load-bearing home/−0x28/+5 terms.
 
 ### Intended ASM LCG (when cutover lands)
 
 Per scored dir 0..7: one `range(1,3)`. Rejected dirs burn nothing. Stay outside loop.
 
-## Scoring / cost ports that emptied t1
+## Apache / Sioux spent (parallel — not scoring)
 
-- Terrain river cost-1 (`072c` &0x40 + cardinal)
-- Tribe-tile spend cap only (`06be` = layer2&2 + owner via `137f_03e4`)
-- Own-nation −0x28 (skip river-into-tribe)
-- Arawak (48,15) home-dist thr `>1`; Inca (8,33) burn roll / no-add
-- `ai_mask_fa_flags`; ocean-transition spent=max
-- Empirical facing +4/−6/+3 still load-bearing in Linux
+| Unit | XY | Spent Linux vs golden |
+|------|-----|------------------------|
+| Apache T2 `(45,52)→(46,53)` | OK (tile bridge) | 6 vs **3** |
+| Sioux T2 `(49,40)→(49,39)` | OK | 9 vs **3** |
 
-## Full quiet `521d:4ea9` (annotated; Linux not cut over)
+Hang-dump next (see `tools/brave_dump/midturn_465b.md`):
 
-Brave type 19 flags `0x38`:
+1. `VR_B465L.EXE` logger → `dump_b465l2` (last BX at ADD1)
+2. `VR_B465R.EXE` hang `BX==0x1F8` (Sioux) → **AL = step cost**
+3. `VR_B465A.EXE` hang `BX==0x1A4` (Apache) → **AL = step cost**
 
-- Base `range(1,3)`; river/fa `+1` else `−2f76[terr]`; facing `−diff²×2`
-- Fog: `+8` coarse-unseen far; Indians skip Euro `+2` explore; `−2` presence
-- Colony-pull no-op early
-
-## Apache / Sioux spent (still open)
-
-- Apache T2: XY OK via tile bridge; spent 6 vs golden 3
-- Sioux T2: XY OK; spent 9 vs golden 3 — `465b` ADD1 hang-dump still open
+`tools/probe_sioux_spent.c` dumps tile/cost for those steps from TURN2.SAV (terrain class ×3 = 9 unless river/fa/tribe-cap). Dump must show why DOS forces 3.
 
 ## T2 residual composition (overlays off)
 

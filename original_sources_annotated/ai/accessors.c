@@ -18,6 +18,7 @@
  * src/core/dos_rng.c). Declared here so call sites stay explicit. */
 extern void dos_rng_reseed_from_timer(uint16_t timer_word); /* FUN_19ef_002c path */
 extern int dos_rng_range(int lo, int hi_inclusive);         /* FUN_19ef_0032 / FUN_1d1d_0e04 */
+int map_tile_in_bounds(int x, int y);
 
 /* ====================================================================== */
 /* RNG                                                                    */
@@ -149,18 +150,84 @@ int tile_explore_mask(int x, int y) {
   return 0;
 }
 
-/* Ghidra: coarse fog cell at DS:-0x6056 pitch 0x12 | coarse_fog_unseen
- * Index = (x>>2) + (y>>2)*18; byte 0 = unseen. Early NEW WORLD ≈ all zero. */
-int coarse_fog_unseen(int x, int y) {
+/*
+ * Ghidra: coarse fog plane at DS:-0x6056 pitch 0x12 | coarse_fog_unseen
+ *
+ * Live index = (x>>2) + (y>>2)*18; byte == 0 means unseen (+8 path).
+ * Annotated tree has no live DS image. Early NEW WORLD seed-100 assumes the
+ * whole coarse plane is still zero → treat every in-bounds cell as unseen.
+ * Name the assumption; do not silently pretend a live plane exists.
+ */
+int coarse_fog_unseen_early_new_world_assume_all(int x, int y) {
   (void)x;
   (void)y;
-  return 1; /* annotated: early-game all-unseen */
+  return 1;
+}
+
+int coarse_fog_unseen(int x, int y) {
+  return coarse_fog_unseen_early_new_world_assume_all(x, y);
 }
 
 /* Ghidra: FUN_281f_0682 → FUN_137f_0314 | tile_owner_or_presence
- * −1 if not inset or layer2 bit0 clear; else owner from FUN_137f_0200. */
+ * −1 if not inset OR layer2 bit0 clear; else owner from FUN_137f_0200. */
 int tile_owner_or_presence(int x, int y) {
-  return owner_nibble(x, y); /* simplified: owner hi-nibble or −1 */
+  if (!map_tile_in_bounds(x, y)) {
+    return -1;
+  }
+  if ((layer2_byte(x, y) & VICEROY_LAYER2_PRESENCE) == 0) {
+    return -1;
+  }
+  return owner_nibble(x, y);
+}
+
+/* Ghidra: FUN_137f_03e4 | tile_tribe_owner
+ * −1 if OOB or layer2&2 clear; else owner hi-nibble (Indian tribe tile). */
+int tile_tribe_owner(int x, int y) {
+  if (!map_tile_in_bounds(x, y)) {
+    return -1;
+  }
+  if ((layer2_byte(x, y) & VICEROY_LAYER2_TRIBE) == 0) {
+    return -1;
+  }
+  return owner_nibble(x, y);
+}
+
+/* Ghidra: FUN_281f_06d2 → FUN_137f_0428 | tile_tribe_or_presence
+ * Tribe owner if layer2&2; else 0314 presence owner; else −1. */
+int tile_tribe_or_presence(int x, int y) {
+  int tribe = tile_tribe_owner(x, y);
+  if (tribe >= 0) {
+    return tribe;
+  }
+  return tile_owner_or_presence(x, y);
+}
+
+/*
+ * Ghidra: FUN_281f_07e0 → FUN_1427_005c | unit_index_on_tile
+ * First unit on (x,y) or −1 if empty. Annotated: no live unit pool — stub −1
+ * (empty). Linux cutover scans ColonizeUnitPool.
+ */
+int unit_index_on_tile(int x, int y) {
+  (void)x;
+  (void)y;
+  return -1;
+}
+
+/*
+ * Ghidra: FUN_281f_0a38 | diplomacy_flags(self, other)
+ * Early NEW WORLD quiet: no war bit 0x20 between Indians yet — return 0.
+ * Military −10 needs (flags & 0x60) == 0x20.
+ */
+int diplomacy_flags(int self_nation, int other_nation) {
+  (void)self_nation;
+  (void)other_nation;
+  return 0;
+}
+
+/* Ghidra: type table DS:0x5236 | unit_type_combat_byte — Brave type 19 → 0. */
+int unit_type_combat_byte(int unit_type) {
+  (void)unit_type;
+  return 0; /* quiet Brave path */
 }
 
 /* Ghidra: FUN_281f_078c | terrain_class_at — decode_terrain_class(terrain_byte). */

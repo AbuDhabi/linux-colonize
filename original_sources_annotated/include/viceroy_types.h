@@ -25,6 +25,7 @@
  * Layer2 / fa-mask bits used by AI costing (FUN_281f_0754 / FUN_137f_0142).
  * DOS TEST AL,0x0a — tribe (0x02) or Col1 road-like (0x08).
  */
+#define VICEROY_LAYER2_PRESENCE     0x01u /* FUN_137f_0314 bit0 gate */
 #define VICEROY_LAYER2_TRIBE        0x02u
 #define VICEROY_LAYER2_FA_ROAD      0x08u
 #define VICEROY_LAYER2_FA_MASK      0x0au

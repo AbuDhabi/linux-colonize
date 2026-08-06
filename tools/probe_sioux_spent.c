@@ -116,6 +116,12 @@ int main(int argc, char** argv) {
       );
     }
   }
+  printf(
+    "Note: Linux ai_dos_move_spent often yields spent=%d (class*3) for Sioux;\n"
+    "golden T2 spent=3. Hang VR_B465R (BX=0x1F8) / VR_B465A (BX=0x1A4) for AL.\n"
+    "See tools/brave_dump/midturn_465b.md.\n",
+    9
+  );
   map_free(&map);
   assets_msg_free(&names);
   col1_save_free(&save);
