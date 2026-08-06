@@ -10,3 +10,5 @@ colonize-linux.log
 tools/brave_dump/
 ripped_sound/
 reference_music/
+dosbox-x-dumps/
+*.pyc
