@@ -152,17 +152,23 @@ Quiet dir-pick: [`ai.c`](../src/core/ai.c) labels the slice `FUN_4d56_021a`
 
 ## Correspondence map
 
+Labeled RE copies of several rows live under
+[`original_sources_annotated/`](../original_sources_annotated/)
+([`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md)). Prefer those
+files when reading control flow; the raw export remains authoritative for
+unannotated bodies.
+
 | Original | Linux | Notes |
 |----------|-------|-------|
 | `FUN_6a09_0006` | `ai_place_tribes_procedural` / `ai_place_tribes_from_txt` / `ai_spawn_brave_near` | AMERICA via `TRIBE.TXT`; NEW WORLD procedural |
 | Post-`6a09` native pulse | `ai_native_nation_pulse` at end of `ai_init_new_game` | One action per Brave per indian nation |
-| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | T2 for seed-100 |
-| Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | |
+| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | T2 for seed-100; annotated slice in `original_sources_annotated/ai/indian_nation_turn.c` |
+| Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
-| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse + residual overlays (~50 on t2–t6; t1 empty); alarm/raid parked |
-| Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden |
-| `FUN_521d_6d8e` | `ai_euro_nation_turn` | Skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`) |
-| `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | early slices | Approach sail + coastal goals; full planner parked |
+| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse + residual overlays (~50 on t2–t6; t1 empty); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
+| Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
+| `FUN_521d_6d8e` | `ai_euro_nation_turn` | Skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`); annotated shell in `euro_dispatcher.c` |
+| `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | early slices | Approach sail + coastal goals; full planner parked — see `ai/move_scoring.md` |
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / `ai_try_ship_unload` | **T2** golden towns; opportunistic settle for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |

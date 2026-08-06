@@ -25,8 +25,10 @@ MADSPACK layouts, or full bring-up checklists.
 ## How to use
 
 1. Identify the subsystem (map gen, colony screen, AI, sound, …).
-2. Open the right **decomp** under [`original_sources_decompiled/`](../original_sources_decompiled/)
-   (usually `viceroy_unpacked.c` or `mapedit.c`).
+2. For **AI / map accessors**, check [`original_sources_annotated/`](../original_sources_annotated/)
+   first ([`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md)); fall back to the raw
+   export under [`original_sources_decompiled/`](../original_sources_decompiled/)
+   (usually `viceroy_unpacked.c` or `mapedit.c`) when the symbol is not annotated yet.
 3. Jump via a known `FUN_*` below, or search by segment prefix / string in `.asm`.
 4. Match the Linux module under `src/core/` and the data file under `COLONIZE/`.
 5. Follow the deep-dive link for formats and port status.
@@ -41,7 +43,8 @@ compiles these files.
 
 | Artifact | Source | Size (approx.) | When to use |
 |----------|--------|----------------|-------------|
-| [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | **Default** for game logic, RTLink overlays, AI, map gen, UI |
+| [`original_sources_annotated/`](../original_sources_annotated/) | Labeled AI / accessor slices | growing | **Prefer** when the symbol is mapped in [`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md) |
+| [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | Raw export — full game logic, RTLink overlays, unannotated AI, map gen, UI |
 | [`mapedit.c`](../original_sources_decompiled/mapedit.c) | `MAPEDIT.EXE` | ~23k lines | Static world-map **feature art** (coasts, transitions, forest/hill/river masks) |
 | `COLONIZE/VICEROY.EXE` | Shipped binary | ~483 KB | Table extraction, file byte offsets (`scripts/extract_viceroy_tables.py`) |
 | `COLONIZE/MAPEDIT.EXE` | Shipped binary | — | Authority for static map compositor rules |
