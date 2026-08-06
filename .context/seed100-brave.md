@@ -2,32 +2,40 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 11 — quiet-ASM mid-turn cutover)
+## Status (phase 12 — `FUN_465b` annotated)
 
 | Gate | State |
 |------|--------|
 | Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
-| Mid-turn pick (default) | Quiet ASM + stay LCG + 104 peels + 8 residuals — **green** |
+| Mid-turn pick (default) | Quiet ASM + stay LCG + 104 peels + residuals — **green** |
+| `FUN_465b_0000` annotation | [`move_spent.c`](../original_sources_annotated/ai/move_spent.c) — **done** |
+| Ocean force-to-max gate | `euro_settlement_owner` (0358) — Linux pulse updated |
+| Spent-only Sioux/Apache | Still residual; hang AL parked (`midturn_465b.md`) |
 | Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
 | Far ocean/land vs SAV | **AGREE** |
 | Complete Map / Reveal | Irrelevant (viewpoint only) |
 | DOS hang campaign | **Parked** |
 
-## Quiet mid-turn inventory (phase 11)
+## Quiet mid-turn inventory (phase 12)
 
-`AI_QUIET_MIDTURN=1` / default quiet, residuals off: classify vs TURN goldens.
+`AI_QUIET_MIDTURN=1` / default quiet. Classify vs TURN goldens.
 
-| Class | Count (t1…t6) | Notes |
-|-------|----------------|-------|
-| Dir-only (scoring) | 104 along golden LCG | Mid peels `(turn,nation,xy)→dir` after scoring burns |
-| Multi-step (non-adjacent end) | 5 | Residual overlay (not peelable) |
-| Spent/tw only (XY match) | 3 | Residual overlay; `465b` parked |
-| Cascade from earlier wrong step | (absorbed) | Partial peel sets cascade; full-path miss set is stable |
+| Class | Count | Rows | Notes |
+|-------|------:|------|-------|
+| Dir-only (scoring) | 104 | peels | Mid peels `(turn,nation,xy)→dir` |
+| Multi-step (non-adjacent end) | 5 | t1 Sioux; t2 Arawak; t3; t4; t6 | Residual overlay |
+| Spent/tw only (XY match) | 3 | t1 Inca; t2 Apache; t2 Sioux | Residual; `465b` cost head alone yields 6/9 |
 
-Quiet residual tables (after peels): **8 rows** — t1:2, t2:3, t3:1, t4:1, t5:0, t6:1.
+Quiet residual tables: **8 rows** — t1:2, t2:3, t3:1, t4:1, t5:0, t6:1.
 
-Empiricism still needs its larger XY overlay set (selected when quiet ASM off).
+### Spent-only RE note
+
+TURN2→3 Apache `(45,52)→(46,53)` and Sioux `(49,40)→(49,39)`: dest has no
+tribe bit; FROM has presence; `class*3` is 6/9; golden spent=3. Same terrain
+class as TURN1 Sioux `(49,41)→(49,40)` which goldens spent=9. No cost-head
+predicate distinguishes them without hang `AL=local_40`. From-presence caps
+were tried and rejected (break TURN1 spent=9).
 
 ```bash
 ./build/smoke_ai_turns
