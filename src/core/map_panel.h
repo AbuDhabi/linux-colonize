@@ -55,6 +55,22 @@ void map_panel_free(MapPanel* panel);
 
 bool map_panel_contains_xy(int mouse_x, int mouse_y);
 
+/*
+ * FUN_6ba1_000c (zoom 0): top-left tile of the main viewport centered on
+ * (center_x, center_y), clamped so the 1-tile map rim is never drawn.
+ * Origin ∈ [1 .. map_size − view_size − 1] when the interior fits the view.
+ */
+void map_panel_clamp_view_origin(
+  int map_w,
+  int map_h,
+  int center_x,
+  int center_y,
+  int view_cols,
+  int view_rows,
+  int* out_view_x,
+  int* out_view_y
+);
+
 void map_panel_minimap_rect(
   const ColonizeWorldMap* map,
   int view_x,

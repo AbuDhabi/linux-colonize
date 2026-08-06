@@ -52,6 +52,14 @@ bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t 
 bool map_alloc(ColonizeWorldMap* out_map, uint8_t width, uint8_t height, char* err, size_t err_size);
 void map_free(ColonizeWorldMap* map);
 
+/*
+ * FUN_137f_000a: true for the playable/visible interior (excludes the 1-tile rim).
+ * Standard Col1 maps are 58×72 stored; visible area is 56×70.
+ */
+bool map_coords_inset(const ColonizeWorldMap* map, int x, int y);
+/* Clamp *x/*y into the inset interior (no-op if map is too small). */
+void map_clamp_coords_inset(const ColonizeWorldMap* map, int* x, int* y);
+
 /* Col1 visibility bit for European nation 0..3. */
 #define MAP_SEEN_NATION_BIT(nation) ((uint8_t)(0x10u << ((nation) & 3)))
 

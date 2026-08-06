@@ -2464,6 +2464,9 @@ static void game_select_tile(ColonizeGameState* game, int x, int y) {
   if (!game) {
     return;
   }
+  if (game->world_map_ok) {
+    map_clamp_coords_inset(&game->world_map, &x, &y);
+  }
   if (game->units_ok) {
     game->units.selected_id = -1;
   }
@@ -5376,22 +5379,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
 
-      int view_x = game->map_view_x - view_cols / 2;
-      int view_y = game->map_view_y - view_rows / 2;
-      const int max_view_x = (int)game->world_map.width - view_cols;
-      const int max_view_y = (int)game->world_map.height - view_rows;
-      if (view_x < 0) {
-        view_x = 0;
-      }
-      if (view_y < 0) {
-        view_y = 0;
-      }
-      if (max_view_x > 0 && view_x > max_view_x) {
-        view_x = max_view_x;
-      }
-      if (max_view_y > 0 && view_y > max_view_y) {
-        view_y = max_view_y;
-      }
+      int view_x = 0;
+      int view_y = 0;
+      map_panel_clamp_view_origin(
+        (int)game->world_map.width,
+        (int)game->world_map.height,
+        game->map_view_x,
+        game->map_view_y,
+        view_cols,
+        view_rows,
+        &view_x,
+        &view_y
+      );
 
       /* Right panel / minimap: left-click centers the view on the clicked tile. */
       if (map_panel_contains_xy(input->mouse_x, input->mouse_y)) {
@@ -5430,7 +5429,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
       const int mx = view_x + (input->mouse_x - map_origin_x) / tile_w;
       const int my = view_y + (input->mouse_y - map_origin_y) / tile_h;
-      if (mx < 0 || my < 0 || mx >= (int)game->world_map.width || my >= (int)game->world_map.height) {
+      if (!map_coords_inset(&game->world_map, mx, my)) {
         if (input->mouse_left_released && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
           game_ui_drag_clear(game);
         }
@@ -5579,8 +5578,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return true;
   }
 
-  const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 1 : 15;
-  const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 1 : 15;
+  const int map_min_x = 1;
+  const int map_min_y = 1;
+  const int map_max_x = game->world_map_ok ? (int)game->world_map.width - 2 : 15;
+  const int map_max_y = game->world_map_ok ? (int)game->world_map.height - 2 : 15;
 
   if (input->last_key == COLONIZE_KEY_ENTER && game->world_map_ok) {
     const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
@@ -5879,11 +5880,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       } else {
         int nx = game->map_cursor_x + dx;
         int ny = game->map_cursor_y + dy;
-        if (nx < 0) {
-          nx = 0;
+        if (nx < map_min_x) {
+          nx = map_min_x;
         }
-        if (ny < 0) {
-          ny = 0;
+        if (ny < map_min_y) {
+          ny = map_min_y;
         }
         if (nx > map_max_x) {
           nx = map_max_x;
@@ -6373,7 +6374,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     goto render_log_sample;
   }
 
-  /* Map view: scrollable world map (13×11 tiles) left of the right info panel. */
+  /* Map view: scrollable world map (15×12 tiles) left of the right info panel. */
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
   const int tile_w = 16;
@@ -6383,26 +6384,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   const int view_cols = MAP_VIEW_TILE_COLS;
   const int view_rows = MAP_VIEW_TILE_ROWS;
 
-  int view_x = game->map_view_x - view_cols / 2;
-  int view_y = game->map_view_y - view_rows / 2;
+  int view_x = 0;
+  int view_y = 0;
   if (game->world_map_ok) {
-    const int max_view_x = (int)game->world_map.width - view_cols;
-    const int max_view_y = (int)game->world_map.height - view_rows;
-    if (view_x < 0) {
-      view_x = 0;
-    }
-    if (view_y < 0) {
-      view_y = 0;
-    }
-    if (max_view_x > 0 && view_x > max_view_x) {
-      view_x = max_view_x;
-    }
-    if (max_view_y > 0 && view_y > max_view_y) {
-      view_y = max_view_y;
-    }
-  } else {
-    view_x = 0;
-    view_y = 0;
+    map_panel_clamp_view_origin(
+      (int)game->world_map.width,
+      (int)game->world_map.height,
+      game->map_view_x,
+      game->map_view_y,
+      view_cols,
+      view_rows,
+      &view_x,
+      &view_y
+    );
   }
 
   if (game->terrain_ok && game->terrain.sprite_count > 0) {

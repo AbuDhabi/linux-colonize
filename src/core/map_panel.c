@@ -205,6 +205,40 @@ bool map_panel_contains_xy(int mouse_x, int mouse_y) {
   return mouse_x >= MAP_PANEL_X && mouse_x < 320 && mouse_y >= MAP_MENU_BAR_H && mouse_y < 200;
 }
 
+void map_panel_clamp_view_origin(
+  int map_w,
+  int map_h,
+  int center_x,
+  int center_y,
+  int view_cols,
+  int view_rows,
+  int* out_view_x,
+  int* out_view_y
+) {
+  /* FUN_6ba1_000c zoom-0: origin ≥ 1 and ≤ map − view − 1 (never show rim). */
+  int ox = center_x - (view_cols > 0 ? view_cols / 2 : 0);
+  int oy = center_y - (view_rows > 0 ? view_rows / 2 : 0);
+  const int min_o = 1;
+  int max_ox = map_w - view_cols - 1;
+  int max_oy = map_h - view_rows - 1;
+  if (max_ox < min_o) {
+    ox = min_o;
+  } else {
+    ox = map_panel_clamp_int(ox, min_o, max_ox);
+  }
+  if (max_oy < min_o) {
+    oy = min_o;
+  } else {
+    oy = map_panel_clamp_int(oy, min_o, max_oy);
+  }
+  if (out_view_x) {
+    *out_view_x = ox;
+  }
+  if (out_view_y) {
+    *out_view_y = oy;
+  }
+}
+
 void map_panel_minimap_rect(
   const ColonizeWorldMap* map,
   int view_x,
@@ -220,8 +254,11 @@ void map_panel_minimap_rect(
 ) {
   const int map_w = (map && map->width > 0) ? (int)map->width : 58;
   const int map_h = (map && map->height > 0) ? (int)map->height : 72;
-  int w = map_w < MAP_PANEL_MINIMAP_W ? map_w : MAP_PANEL_MINIMAP_W;
-  int h = map_h < MAP_PANEL_MINIMAP_H ? map_h : MAP_PANEL_MINIMAP_H;
+  /* Window covers the visible interior (w−2 / h−2), never the 1-tile rim. */
+  const int interior_w = map_w >= 2 ? map_w - 2 : map_w;
+  const int interior_h = map_h >= 2 ? map_h - 2 : map_h;
+  int w = interior_w < MAP_PANEL_MINIMAP_W ? interior_w : MAP_PANEL_MINIMAP_W;
+  int h = interior_h < MAP_PANEL_MINIMAP_H ? interior_h : MAP_PANEL_MINIMAP_H;
 
   /* Center horizontally in the panel interior (leave room for the left rule + brown). */
   const int inner_x0 = MAP_PANEL_X + 2;
@@ -235,8 +272,19 @@ void map_panel_minimap_rect(
   const int view_cy = view_y + (view_rows > 0 ? view_rows / 2 : 0);
   int origin_x = view_cx - w / 2;
   int origin_y = view_cy - h / 2;
-  origin_x = map_panel_clamp_int(origin_x, 0, map_w > w ? map_w - w : 0);
-  origin_y = map_panel_clamp_int(origin_y, 0, map_h > h ? map_h - h : 0);
+  const int min_o = 1;
+  int max_ox = map_w - 1 - w;
+  int max_oy = map_h - 1 - h;
+  if (max_ox < min_o) {
+    origin_x = min_o;
+  } else {
+    origin_x = map_panel_clamp_int(origin_x, min_o, max_ox);
+  }
+  if (max_oy < min_o) {
+    origin_y = min_o;
+  } else {
+    origin_y = map_panel_clamp_int(origin_y, min_o, max_oy);
+  }
 
   if (out_w) {
     *out_w = w;
@@ -279,9 +327,9 @@ bool map_panel_minimap_click(
   if (mouse_x < ox || mouse_y < oy || mouse_x >= ox + mw || mouse_y >= oy + mh) {
     return false;
   }
-  const int tx = origin_x + (mouse_x - ox);
-  const int ty = origin_y + (mouse_y - oy);
-  if (tx < 0 || ty < 0 || tx >= (int)map->width || ty >= (int)map->height) {
+  int tx = origin_x + (mouse_x - ox);
+  int ty = origin_y + (mouse_y - oy);
+  if (!map_coords_inset(map, tx, ty)) {
     return false;
   }
   if (out_tile_x) {
