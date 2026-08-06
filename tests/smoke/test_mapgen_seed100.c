@@ -291,23 +291,48 @@ int main(void) {
     }
   }
 
-  /* Units vs golden (x,y,type,nation). */
+  /* Units vs golden (x,y,type,nation). Report every miss before failing. */
   if (units.unit_count != SEED100_UNIT_COUNT) {
     fprintf(stderr, "unit_count %d expected %d\n", units.unit_count, SEED100_UNIT_COUNT);
     goto fail;
   }
-  for (uint16_t i = 0; i < golden.head.unit_count; ++i) {
-    const ColonizeCol1Unit* g = &golden.unit[i];
-    if (find_unit(&units, g->x, g->y, (int)g->type, (int)g->nation_id) < 0) {
-      fprintf(
-        stderr,
-        "missing unit[%u] type=%u nation=%u at (%u,%u)\n",
-        (unsigned)i,
-        g->type,
-        g->nation_id,
-        g->x,
-        g->y
-      );
+  {
+    int missing = 0;
+    for (uint16_t i = 0; i < golden.head.unit_count; ++i) {
+      const ColonizeCol1Unit* g = &golden.unit[i];
+      if (find_unit(&units, g->x, g->y, (int)g->type, (int)g->nation_id) < 0) {
+        fprintf(
+          stderr,
+          "missing unit[%u] type=%u nation=%u at (%u,%u)\n",
+          (unsigned)i,
+          g->type,
+          g->nation_id,
+          g->x,
+          g->y
+        );
+        missing++;
+      }
+    }
+    if (missing > 0) {
+      /* Also list live Braves for classification. */
+      fprintf(stderr, "live Braves (type=19):\n");
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->type_index != 19) {
+          continue;
+        }
+        fprintf(
+          stderr,
+          "  live n=%d xy=(%d,%d) mp=%d tw=%d last_dir=%d\n",
+          u->nation_id,
+          u->x,
+          u->y,
+          u->moves_left,
+          u->turns_worked,
+          u->last_dir
+        );
+      }
+      fprintf(stderr, "%d golden unit position(s) missing\n", missing);
       goto fail;
     }
   }
