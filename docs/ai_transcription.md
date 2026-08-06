@@ -51,7 +51,7 @@ euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accum
 Seed-100 Euro path uses landfall-derived coastal staging + found-site helper
 (`ai_euro_found_tile_from_landfall`); ship approach / mid-turn waypoints still
 fixture. Mid-turn Braves: quiet ASM + mid peels + residual overlays on
-multi-step/spent holdouts (R0; quiet residuals **8 rows** across t1–t6;
+spent-only holdouts (R0; quiet residuals **2 rows** t2 Apache/Sioux;
 empiricism keeps its larger overlay set via `AI_EMPIRICISM=1`).
 
 **Does not claim:** mid-game Euro economy/military planner, Indian raids/meet/missions,
@@ -166,7 +166,7 @@ unannotated bodies.
 | Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Quiet ASM default (stay LCG + init/mid peels). `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` force emp |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
-| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: 8 multi/spent rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
+| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: **2** spent-only rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
 | `FUN_521d_6d8e` | `ai_euro_nation_turn` | Skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`); annotated shell in `euro_dispatcher.c` |
 | `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | early slices | Approach sail + coastal goals; full planner parked — see `ai/move_scoring.md` |
@@ -197,13 +197,14 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   spent=max emptied **t1** and keep cost fidelity. **Phase 11:** seed-100
   **init and mid-turn** use quiet ASM by default (stay LCG; 13 init peels +
   104 mid-turn peels for matched-RNG scoring holdouts; coarse fog from phase
-  9).   Quiet residual overlays shrunk to **8 multi-step/spent rows**
-  (t1:2 / t2:3 / t3:1 / t4:1 / t5:0 / t6:1). Empiricism mid-turn overlays
-  retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map irrelevant.
-  Hang recipes last-resort only. **Phase 12:** `FUN_465b_0000` annotated in
+  9). **Phase 12:** `FUN_465b_0000` annotated in
   [`move_spent.c`](../original_sources_annotated/ai/move_spent.c); ocean/HS
-  force-to-max uses `euro_settlement_owner` (`FUN_137f_0358`). Spent-only
-  Sioux/Apache still residual (cost head alone → 6/9; hang AL parked).
+  force-to-max uses `euro_settlement_owner` (`FUN_137f_0358`). **Phase 13:**
+  multi-step / Inca tw residuals cleared — river/fa cost=1 peels let the
+  existing `097a` pulse loop continue (`spent < 3`); mis-keyed t3/t6 overlays
+  retired. Quiet residuals **2 spent-only rows** (t2 Apache/Sioux; hang AL
+  parked). Empiricism mid-turn overlays retained under `AI_EMPIRICISM=1` /
+  `AI_QUIET_ASM=0`. Complete Map irrelevant. Hang recipes last-resort only.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
@@ -282,9 +283,9 @@ Status reflects the AI-port prerequisite work:
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
 **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (quiet mid-turn
-default, 8 Brave multi/spent residuals, named init burns, landfall coastal
+default, **2** Brave spent-only residuals, named init burns, landfall coastal
 staging + found-site helper). Next: empty remaining quiet `k_quiet_brave_t*`
-holdouts (multi-step / spent; `465b` parked), then generic T1 Euro settle.
+holdouts (spent-only Apache/Sioux; `465b` hang AL parked), then generic T1 Euro settle.
 
 ---
 
