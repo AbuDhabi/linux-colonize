@@ -1,7 +1,8 @@
 /*
- * Move spent / apply step — FUN_465b_0000 (phase 12).
+ * Move spent / apply step — FUN_465b_0000 (phase 12–14).
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c ~75417–75843
+ * ASM:    CODE_115:465b (viceroy_unpacked.asm)
  * Linux:  src/core/ai.c — ai_dos_move_spent + ocean force-to-max in
  *         ai_native_nation_pulse.
  *
@@ -10,6 +11,30 @@
  * contact tails are labeled PARKED.
  *
  * Reference only — not compiled into the Linux binary.
+ *
+ * =====================================================================
+ * Phase 14 — every local_40 / moves_spent (0x3149) mutation (ASM-cited)
+ * =====================================================================
+ *
+ * local_40 assignments (cost before ADD):
+ *   465b:0051  table[class(dest)]*3     (078c → 2f76 stride 0x10)
+ *   465b:0078  := 1  if both FA (0754) &0x0a
+ *   465b:00b1  := 1  if both river (072c) &0x40 and axis-aligned
+ *   465b:00e4  := min(local_40, 3) if 06be(dest) >= 0   (tribe owner)
+ *   (no further local_40 writes before LAB_465b_05ca on any path)
+ *
+ * moves_spent (unit+0x05 / DS 0x3149) on friendly path (!foreign):
+ *   465b:05f0  ADD  AL=low(local_40)
+ *   465b:0628  MOV  AL=090c(unit)  if ocean(from)!=ocean(dest)
+ *              AND 0696(from)<0 AND 0696(dest)<0   (euro settlement gate)
+ *
+ * Foreign path skips the ADD block (JZ at 05de). Gamble fail after ADD does
+ * not undo the ADD (JMP 0bcc). No other 3149 write exists in this function.
+ *
+ * Consequence for quiet land Braves (no ocean change): final spent == local_40
+ * after a spent_before==0 act. Golden spent=3 ⇒ DOS local_40 was 3 at ADD.
+ * Linux cost head yields 6/9 on the same TURN2 tiles (see seed100-brave.md);
+ * no decomp-cited post-ADD land path can turn 6/9 into 3. Hang AL still required.
  */
 
 #include <stdint.h>
@@ -59,11 +84,10 @@ int euro_settlement_owner(int x, int y) {
  *   if both minor-river & cardinal (from_x==to_x || from_y==to_y) → spent = 1
  *   if tile_tribe_owner(dest) >= 0 && spent > 3 → spent = 3   (06be)
  *
- * Spent-only seed-100 holdouts (Sioux/Apache): class*3 ∈ {6,9} but golden
- * spent=3 with FROM presence set and DEST lacking tribe — not in this head;
- * see midturn_465b.md (hang AL). Linux keeps residual overlays for those rows.
- * Multi-step / Inca tw holdouts were peel/path issues (river cost=1 first), not
- * cost-head bugs — cleared in phase 13 without inventing spent caps.
+ * Phase 14 tile contrast (TURN2 pulse start): Sioux (49,40)→(49,39) and
+ * Apache (45,52)→(46,53) have the same cost-head inputs as TURN1 Sioux
+ * (49,41)→(49,40) spent=9 — FROM presence (l2&1), DEST no tribe, no FA/river
+ * pair — yet goldens spent=3. From-presence caps break TURN1. Need hang AL.
  *
  * Linux: ai_dos_move_spent.
  */
@@ -169,9 +193,9 @@ void move_spent_foreign_combat_parked(int unit_index, int to_x, int to_y) {
  *      && euro_settlement_owner(dest) < 0:
  *        moves_spent = unit_max_mp(unit)   // FUN_281f_090c
  *
- * Linux pulse approximates with ocean_hs change alone (no settlement gate).
- * For quiet Braves on land this rarely fires; settlement gate matters when
- * embarking next to a Euro colony tile that shares the tribe bit.
+ * Linux pulse ports both ocean change and euro_settlement_owner < 0 (phase 12).
+ * Quiet land Braves: both ocean_or_hs equal → force never fires; cannot explain
+ * spent=3 holdouts.
  */
 int move_spent_ocean_force_max(
   int from_x,

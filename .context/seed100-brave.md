@@ -2,17 +2,17 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 13 — multi-step / act loop)
+## Status (phase 14 — spent-only hard stop)
 
 | Gate | State |
 |------|--------|
 | Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
 | Mid-turn pick (default) | Quiet ASM + stay LCG + mid peels + **2** spent residuals — **green** |
-| Multi-step / Inca tw | Cleared via river cost=1 peels (097a continues while spent&lt;3) |
-| Spent-only Sioux/Apache | Still residual; hang AL parked (`midturn_465b.md`) |
+| Multi-step / Inca tw | Cleared (phase 13) |
+| Spent-only Sioux/Apache | Residual; static RE exhausted; hang AL **blocked** (EXE patch missing) |
 | Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
-| DOS hang campaign | **Parked** |
+| DOS hang campaign | Parked — rebuild Sioux/Apache ADD hang before retry |
 
 ## Quiet mid-turn inventory (phase 13)
 
@@ -47,13 +47,27 @@ AI_STEP_AUDIT=1 ./build/smoke_ai_turns   # per-step paths
 ./build/smoke_mapgen_seed100
 ```
 
-## Spent-only RE note (parked)
+## Spent-only RE note (phase 14 hard stop)
 
-TURN2→3 Apache `(45,52)→(46,53)` and Sioux `(49,40)→(49,39)`: dest has no
-tribe bit; FROM has presence; `class*3` is 6/9; golden spent=3. Same terrain
-class as TURN1 Sioux `(49,41)→(49,40)` which goldens spent=9. No cost-head
-predicate distinguishes them without hang `AL=local_40`. From-presence caps
-were tried and rejected (break TURN1 spent=9).
+TURN2 pulse-start contrast (`tools/probe_sioux_spent` / spent_contrast):
+
+| Step | Golden | Linux head | FROM l2 | DEST tribe | Notes |
+|------|-------:|-----------:|---------|------------|-------|
+| `(49,41)→(49,40)` T1 | 9 | 9 | `01` | no | Agree |
+| `(49,40)→(49,39)` T2 | 3 | 9 | `01` | no | Holdout |
+| `(45,52)→(46,53)` T2 | 3 | 6 | `01` | no | Holdout |
+
+Same cost-head shape as the agreeing T1 row (presence on FROM, no tribe/FA/river
+pair on DEST). From-presence caps break T1 spent=9 — rejected.
+
+`FUN_465b` write map (ASM): friendly land path only **ADD local_40** then
+optional ocean force-to-max. No post-ADD land write can turn 6/9 into 3.
+Therefore DOS `local_40` must already be 3 at ADD — need hang **AL**.
+
+Existing `COLONIZE/VR_B465R.EXE` / `VR_B465A.EXE` match stock `VICEROY.EXE`
+`EB FE` sites (no Sioux `CMP BX,1F8` / Apache `1A4` stub at ADD). Prior dumps
+freeze before Indian pulse (Sioux still `(49,40)` spent=9). **Do not invent
+cost caps.** Next spent work: rebuild working ADD1 hang, then port.
 
 ## Quiet ASM init inventory (phase 10)
 

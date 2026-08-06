@@ -3033,7 +3033,8 @@ static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_
 
 /* --- Quiet mid-turn residuals (phase 13: only spent-only hang-AL debt) --- */
 static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
-  /* class*3 is 6/9; golden spent=3. Hang AL=local_40 parked (midturn_465b.md). */
+  /* Phase 14: class*3 is 6/9; golden spent=3. Cost head cannot distinguish
+   * TURN1 spent=9; hang AL blocked (VR_B465R/A lack ADD1 stubs). */
   {7, 45, 52, 46, 53, 3, 1}, /* Apache spent-only */
   {10, 49, 40, 49, 39, 3, 1}, /* Sioux spent-only */
 };

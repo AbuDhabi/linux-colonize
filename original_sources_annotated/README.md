@@ -23,7 +23,7 @@ second runtime.
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 11–13: quiet cutover; peels; 2 spent residuals |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 11–14: quiet cutover; peels; 2 spent residuals (hard stop) |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules
@@ -51,5 +51,6 @@ second runtime.
   foreign gate, ocean force-to-max, ADD/gamble; combat PARKED). Linux ocean gate
   uses `euro_settlement_owner`.
 - Phase 13: Multi-step / Inca tw cleared via river cost=1 peels (`097a` loop).
-  Quiet residuals = **2** spent-only Sioux/Apache (hang AL). Raid bodies / full
+- Phase 14: Spent-only static RE exhausted; `VR_B465R/A` lack ADD1 hang stubs.
+  Quiet residuals = **2** Sioux/Apache (no invented caps). Raid bodies / full
   `20e6` still out of scope.
