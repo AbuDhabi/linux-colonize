@@ -171,7 +171,7 @@ Ordered pipeline recovered for the Linux port:
    `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `smoke_ai_turns`).
    Full mid-game `0a60`/`5d04`/`20e6` planner still open — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
-   overlays (seed-100 TURN1→7); init burns documented in `ai.c` / seed100-brave notes.
+   overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
    (`FUN_4d56_1816` / quiet `20e6`); raids / meet deferred.
 7. **King** — stub (tax / REF / independence events deferred)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
