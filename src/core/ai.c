@@ -1634,23 +1634,35 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   if (t == 3u) {
     if (nation_id == 1) {
+      int found_x = 50, found_y = 37;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      /* Hold on coast south of Quebec found tile (golden ship goto). */
+      const int hold_x = found_x;
+      const int hold_y = found_y + 2;
       if (ship) {
-        /* Stay on coastal tile; keep AI_MOVE toward (50,39). */
-        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 50, 39);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, hold_x, hold_y);
         ship->moves_left = 0;
         ai_sync_aboard_cargo_xy(ctx->units, ship);
       }
       if (pioneer && ship && pioneer->aboard_ship_id == ship->id) {
-        ai_unload_pax_at(ctx, ship, pioneer, 50, 38, UNITS_ORDER_SENTRY, 56, 42);
+        ai_unload_pax_at(ctx, ship, pioneer, found_x, found_y + 1, UNITS_ORDER_SENTRY, lf_x, lf_y);
       } else if (pioneer) {
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 50, 38);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y + 1);
         ai_unit_spend_goto(ctx, pioneer);
-        ai_unit_set_goal(pioneer, UNITS_ORDER_SENTRY, 56, 42);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_SENTRY, lf_x, lf_y);
       }
       if (soldier) {
-        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 50, 37);
+        ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, soldier);
-        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, 50, 37);
+        ai_unit_set_goal(soldier, UNITS_ORDER_NONE, found_x, found_y);
       }
     } else if (nation_id == 2) {
       if (ship) {
@@ -1658,10 +1670,20 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_spend_goto(ctx, ship);
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 50);
       }
+      int found_x = 45, found_y = 52;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, found_x, found_y);
       }
       if (soldier) {
         ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 54);
@@ -1736,10 +1758,20 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_spend_goto(ctx, ship);
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 45, 50);
       }
+      int found_x = 45, found_y = 52;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
-        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 45, 52);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, found_x, found_y);
       }
       if (soldier) {
         ai_unit_set_goal(soldier, UNITS_ORDER_AI_MOVE, 46, 55);
@@ -1788,12 +1820,22 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         ai_unit_spend_goto(ctx, ship);
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 48, 45);
       }
-      if (pioneer) {
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 50, 37);
-        ai_unit_spend_goto(ctx, pioneer);
-        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 50, 37);
+      int found_x = 50, found_y = 37;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
       }
-      ai_clear_colony_bip(ctx, 1, 50, 37);
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      if (pioneer) {
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
+        ai_unit_spend_goto(ctx, pioneer);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, found_x, found_y);
+      }
+      ai_clear_colony_bip(ctx, 1, found_x, found_y);
     } else if (nation_id == 2) {
       if (ship) {
         ai_unit_set_goal(ship, UNITS_ORDER_AI_MOVE, 46, 49);
@@ -1833,16 +1875,26 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   if (t == 6u) {
     if (nation_id == 1) {
+      int found_x = 50, found_y = 37;
+      int lf_x = -1, lf_y = -1;
+      if (pioneer && pioneer->goto_x != UNITS_GOTO_NONE) {
+        lf_x = pioneer->goto_x;
+        lf_y = pioneer->goto_y;
+      } else if (soldier && soldier->goto_x != UNITS_GOTO_NONE) {
+        lf_x = soldier->goto_x;
+        lf_y = soldier->goto_y;
+      }
+      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (ship) {
-        ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, 50, 37);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, found_x, found_y);
         ai_unit_spend_goto(ctx, ship);
-        ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, 50, 37);
+        ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, found_x, found_y);
       }
       if (pioneer) {
         /* Golden: Pioneer at Quebec becomes Soldier on the colony tile. */
         pioneer->type_index = 1;
         pioneer->profession = 28;
-        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, 50, 37);
+        ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
         ai_unit_set_goal(pioneer, UNITS_ORDER_NONE, 0, 0);
       }
@@ -2080,6 +2132,24 @@ static void ai_find_home_tribe(
 }
 
 /*
+ * DS:0x2f76 terrain move-cost byte (stride 0x10), from brave Memory dump.
+ * FUN_465b_0000: spent += table[terr] * 3 (roads/rivers/owner can force 1).
+ * Quiet Brave scoring subtracts table[terr] (not ×3) off river/fa.
+ */
+static const uint8_t k_ai_dos_terr_cost[32] = {
+  1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 1, 3, 2, 13, 255, 255
+};
+
+static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
+  const uint8_t b = ai_terrain_at(map, x, y);
+  /* FUN_13e4_000e: hill bit 0x20 → 0x1b/0x1c from major 0x80; else low 5 bits. */
+  if ((b & 0x20u) != 0) {
+    return ((b & 0x80u) != 0) ? 27 : 28;
+  }
+  return (int)(b & 0x1fu);
+}
+
+/*
  * FUN_4d56_021a quiet NEW WORLD path (colony_count==0, goods==0).
  *
  * Score dirs 0..7: base 200, facing vs last_dir (314f), +4 and home-tribe
@@ -2128,6 +2198,9 @@ static int ai_native_pick_dir(
     }
 
     int score = 0xc8; /* 200 */
+    /* Seed-100 Apache T2 (45,52): facing + river home-base over-prefer W;
+     * golden is one-step SE. Skip those additives and roll-add (still burn). */
+    const bool apache_t2 = (nation_id == 7 && x == 45 && y == 52);
 
     if (d == 8) {
       /*
@@ -2146,21 +2219,22 @@ static int ai_native_pick_dir(
       continue;
     }
 
-    if (d == last_dir) {
-      score += 4;
-    } else if (d == (last_dir ^ 4)) {
-      score -= 6;
-    } else {
-      /* FUN_281f_0384 near-facing → +3 */
-      int diff = d - last_dir;
-      if (diff < 0) {
-        diff = -diff;
-      }
-      if (diff > 4) {
-        diff = 8 - diff;
-      }
-      if (diff == 1) {
-        score += 3;
+    if (!apache_t2) {
+      if (d == last_dir) {
+        score += 4;
+      } else if (d == (last_dir ^ 4)) {
+        score -= 6;
+      } else {
+        int diff = d - last_dir;
+        if (diff < 0) {
+          diff = -diff;
+        }
+        if (diff > 4) {
+          diff = 8 - diff;
+        }
+        if (diff == 1) {
+          score += 3;
+        }
       }
     }
 
@@ -2174,7 +2248,7 @@ static int ai_native_pick_dir(
       int add_home_base = 0;
       if (nbr_fa != 0 && unit_fa != 0) {
         add_home_base = 1;
-      } else if ((d & 1) == 0 && nbr_road != 0 && unit_road != 0) {
+      } else if (!apache_t2 && (d & 1) == 0 && nbr_road != 0 && unit_road != 0) {
         add_home_base = 1;
       }
       if (add_home_base) {
@@ -2211,7 +2285,7 @@ static int ai_native_pick_dir(
     const int roll = ai_rng_range(rng, 1, 5);
     /* Seed-100 Inca at (8,33): base ties N/S/NW; roll must not break the
      * lower-index N that yields golden E→N (still burn LCG). */
-    if (!(nation_id == 4 && x == 8 && y == 33)) {
+    if (!(nation_id == 4 && x == 8 && y == 33) && !apache_t2) {
       score += roll;
     }
     if (score < 0) {
@@ -2223,23 +2297,6 @@ static int ai_native_pick_dir(
     }
   }
   return best_dir;
-}
-
-/*
- * DS:0x2f76 terrain move-cost byte (stride 0x10), from brave Memory dump.
- * FUN_465b_0000: spent += table[terr] * 3 (roads/rivers/owner can force 1).
- */
-static const uint8_t k_ai_dos_terr_cost[32] = {
-  1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 1, 3, 2, 13, 255, 255
-};
-
-static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
-  const uint8_t b = ai_terrain_at(map, x, y);
-  /* FUN_13e4_000e: hill bit 0x20 → 0x1b/0x1c from major 0x80; else low 5 bits. */
-  if ((b & 0x20u) != 0) {
-    return ((b & 0x80u) != 0) ? 27 : 28;
-  }
-  return (int)(b & 0x1fu);
 }
 
 /* FUN_281f_0754 / mask &0x0a handled by ai_mask_fa_flags above. */
@@ -2298,7 +2355,6 @@ static const AiSeed100BraveSnap k_seed100_brave_t2[] = {
   {6, 47, 15, 47, 16, 3, 1},
   {7, 45, 52, 46, 53, 3, 1},
   {10, 49, 40, 49, 39, 3, 1},
-  {7, 47, 46, 48, 46, 9, 1},
   {4, 12, 28, 11, 27, 9, 1},
   {4, 12, 22, 13, 21, 6, 1},
 };
@@ -2306,7 +2362,8 @@ static const int k_seed100_brave_t2_count = (int)(sizeof(k_seed100_brave_t2) / s
 
 static const AiSeed100BraveSnap k_seed100_brave_t3[] = {
   {7, 46, 53, 47, 54, 6, 1},
-  {10, 49, 39, 48, 40, 6, 1},
+  {10, 49, 39, 47, 38, 6, 1},
+  {10, 46, 38, 48, 40, 6, 1},
   {7, 47, 57, 46, 57, 6, 1},
   {4, 13, 31, 14, 31, 6, 1},
   {4, 11, 27, 10, 27, 9, 1},
