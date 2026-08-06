@@ -350,8 +350,8 @@ int euro_settlement_owner(int x, int y) {
  * suppressed (flag 0x80 unless type==wagon 0x0b), and moves_spent < max_mp
  * (FUN_1427_065a allotment — Brave thirds path → 3).
  *
- * Linux mid-turn pulse approximates with spent < max_mp (allows 465b to push
- * spent past max, matching 097a loop behavior).
+ * Linux mid-turn pulse: while spent < max_mp (465b may push past max on the
+ * last add). Cost=1 river/fa steps enable a second/third quiet act (phase 13).
  */
 int unit_has_moves_remaining(int unit_index) {
   if (unit_index < 0 /* || unit_index >= g_unit_count */) {

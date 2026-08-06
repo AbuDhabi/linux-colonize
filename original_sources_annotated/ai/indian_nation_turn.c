@@ -121,6 +121,15 @@ static void indian_alarm_prelude_parked(int indian_index) {
  *   7. Clear act_counter for all units of this nation
  *   8. Act loop: while someone acted, scan units; while has_moves, bump
  *      act_counter; if < 0x15 call indian_unit_act else clear orders
+ *
+ * Act-loop vs Linux pulse (phase 13):
+ *   DOS rescans from unit 0 after each successful act (lowest-index drain).
+ *   Linux drains each Brave in pool order — equivalent for quiet when every
+ *   first step costs >= max_mp, and also when early steps cost 1 (river/fa):
+ *   both keep acting the same unit until spent >= 3 (097a / 1427_13b0).
+ *   Multi-step / Inca tw>=2 goldens need those cost=1 river edges first;
+ *   collapsing them with a diagonal peel (cost 6/9) stops the loop after one
+ *   act and desyncs spent/tw. Not "second act after spent >= max".
  */
 void indian_nation_turn(int indian_index) {
   ai_reseed_from_timer(0);

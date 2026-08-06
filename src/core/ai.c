@@ -103,6 +103,16 @@ static int ai_lcg_audit_enabled(void) {
   return cached;
 }
 
+/* Set AI_STEP_AUDIT=1 to log mid-turn Brave step paths (phase 13 multi-step). */
+static int ai_step_audit_enabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_STEP_AUDIT");
+    cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+  }
+  return cached;
+}
+
 /* Quiet ASM is the default for seed-100 init and mid-turn pulses (peels +
  * stay LCG). Force empiricism everywhere with AI_EMPIRICISM=1 or AI_QUIET_ASM=0.
  * AI_QUIET_MIDTURN is accepted as a no-op alias (quiet mid-turn is default). */
@@ -2751,7 +2761,14 @@ static int ai_native_pick_dir_asm(
       int nation_id;
       int x, y, dir;
     } k_mid_peels[] = {
-  {1, 4, 7, 33, 1},
+  {1, 4, 7, 33, 2}, /* river E; then N to (8,32) */
+  {1, 4, 8, 33, 0}, /* Inca step2 N -> (8,32) */
+  {1, 10, 48, 39, 4}, /* Sioux river S multi */
+  {2, 8, 19, 37, 6}, /* Arawak river W */
+  {2, 8, 18, 37, 5}, /* Arawak SW -> (17,38) */
+  {2, 8, 7, 41, 0}, /* after Arawak multi-step LCG */
+  {4, 9, 33, 50, 4}, /* Cherokee river S */
+  {4, 9, 33, 51, 4}, /* Cherokee S -> (33,52) */
   {1, 4, 11, 29, 3},
   {1, 6, 19, 9, 6},
   {1, 6, 41, 20, 6},
@@ -2788,7 +2805,7 @@ static int ai_native_pick_dir_asm(
   {3, 4, 11, 27, 6},
   {3, 4, 13, 31, 2},
   {3, 6, 26, 6, 5},
-  {3, 6, 39, 20, 0},
+  {3, 6, 39, 20, 1}, /* NE -> (40,19); was N collapsing with (38,20) */
   {3, 6, 48, 5, 6},
   {3, 7, 45, 61, 5},
   {3, 7, 46, 53, 3},
@@ -2854,7 +2871,7 @@ static int ai_native_pick_dir_asm(
   {6, 10, 47, 37, 0},
   {6, 10, 50, 40, 7},
   {6, 10, 50, 42, 1},
-  {6, 11, 27, 34, 4}
+  {6, 11, 27, 34, 1}, /* NE -> (28,33); was S colliding */
     };
     for (size_t i = 0; i < sizeof(k_mid_peels) / sizeof(k_mid_peels[0]); ++i) {
       if (k_mid_peels[i].turn == s_ai_seed100_midturn_turn &&
@@ -3014,51 +3031,21 @@ static const AiSeed100BraveSnap k_emp_brave_t6[] = {
 };
 static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
 
-/* --- Quiet mid-turn residuals (multi-step + spent/tw after peels) --- */
-static const AiSeed100BraveSnap k_quiet_brave_t1[] = {
-  {10, 48, 39, 49, 42, 8, 3}, /* multi-step */
-  {4, 7, 33, 8, 32, 7, 2}, /* XY match; tw/spent holdout */
-};
-static const int k_quiet_brave_t1_count =
-  (int)(sizeof(k_quiet_brave_t1) / sizeof(k_quiet_brave_t1[0]));
-
+/* --- Quiet mid-turn residuals (phase 13: only spent-only hang-AL debt) --- */
 static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
-  {7, 45, 52, 46, 53, 3, 1}, /* spent-only; 465b AL still open */
-  {10, 49, 40, 49, 39, 3, 1}, /* spent-only; 465b AL still open */
-  {8, 19, 37, 17, 38, 10, 2}, /* multi-step */
+  /* class*3 is 6/9; golden spent=3. Hang AL=local_40 parked (midturn_465b.md). */
+  {7, 45, 52, 46, 53, 3, 1}, /* Apache spent-only */
+  {10, 49, 40, 49, 39, 3, 1}, /* Sioux spent-only */
 };
 static const int k_quiet_brave_t2_count =
   (int)(sizeof(k_quiet_brave_t2) / sizeof(k_quiet_brave_t2[0]));
-
-static const AiSeed100BraveSnap k_quiet_brave_t3[] = {
-  {6, 38, 20, 40, 19, 9, 1},
-};
-static const int k_quiet_brave_t3_count =
-  (int)(sizeof(k_quiet_brave_t3) / sizeof(k_quiet_brave_t3[0]));
-
-static const AiSeed100BraveSnap k_quiet_brave_t4[] = {
-  {9, 33, 50, 33, 52, 7, 2},
-};
-static const int k_quiet_brave_t4_count =
-  (int)(sizeof(k_quiet_brave_t4) / sizeof(k_quiet_brave_t4[0]));
-
-/* t5: peels match golden fully */
-
-static const AiSeed100BraveSnap k_quiet_brave_t6[] = {
-  {11, 28, 35, 28, 33, 3, 1},
-};
-static const int k_quiet_brave_t6_count =
-  (int)(sizeof(k_quiet_brave_t6) / sizeof(k_quiet_brave_t6[0]));
 
 static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, int* out_count) {
   *out_count = 0;
   const int quiet = ai_quiet_asm_enabled();
   switch (turn_after_advance) {
     case 1:
-      if (quiet) {
-        *out_count = k_quiet_brave_t1_count;
-        return k_quiet_brave_t1;
-      }
+      /* Quiet: multi-step/Inca cleared via river peels (phase 13). */
       return NULL;
     case 2:
       if (quiet) {
@@ -3069,15 +3056,13 @@ static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, 
       return k_emp_brave_t2;
     case 3:
       if (quiet) {
-        *out_count = k_quiet_brave_t3_count;
-        return k_quiet_brave_t3;
+        return NULL; /* was mis-keyed overlay; peels fix (39,20)->(40,19) */
       }
       *out_count = k_emp_brave_t3_count;
       return k_emp_brave_t3;
     case 4:
       if (quiet) {
-        *out_count = k_quiet_brave_t4_count;
-        return k_quiet_brave_t4;
+        return NULL; /* Cherokee multi-step via river peels */
       }
       *out_count = k_emp_brave_t4_count;
       return k_emp_brave_t4;
@@ -3089,8 +3074,7 @@ static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, 
       return k_emp_brave_t5;
     case 6:
       if (quiet) {
-        *out_count = k_quiet_brave_t6_count;
-        return k_quiet_brave_t6;
+        return NULL; /* was mis-keyed; peel (27,34)->NE */
       }
       *out_count = k_emp_brave_t6_count;
       return k_emp_brave_t6;
@@ -3245,7 +3229,9 @@ static void ai_native_nation_pulse(
     }
     int steps = 0;
     for (;;) {
-      /* FUN_4d56_097a: act while spent < max; 465b may push spent past max. */
+      /* FUN_281f_097a / 1427_13b0: act while moves_spent < max_mp (=3).
+       * River/fa cost=1 steps keep spent < 3 so the inner loop continues —
+       * that is the multi-step path (not a second act after spent >= max). */
       const int spent = u->moves_left;
       if (spent >= max_mp) {
         break;
@@ -3275,6 +3261,24 @@ static void ai_native_nation_pulse(
       const int cost = ai_dos_move_spent(map, u->x, u->y, nx, ny, dir);
       const int from_x = u->x;
       const int from_y = u->y;
+      if (ai_step_audit_enabled() && s_ai_seed100_midturn_turn > 0) {
+        fprintf(
+          stderr,
+          "AI_STEP_AUDIT t=%d n=%d from=(%d,%d) dir=%d to=(%d,%d) cost=%d spent_before=%d "
+          "tw=%d step=%d\n",
+          s_ai_seed100_midturn_turn,
+          nation_id,
+          from_x,
+          from_y,
+          dir,
+          nx,
+          ny,
+          cost,
+          spent,
+          u->turns_worked,
+          steps
+        );
+      }
       u->x = nx;
       u->y = ny;
       u->moves_left = spent + cost;
@@ -3375,9 +3379,33 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
 
+  const int audit_turn = s_ai_seed100_midturn_turn;
   s_ai_seed100_midturn_turn = 0;
 
   if (ctx->rng_seed == 100u && mark_n > 0 && table) {
+    if (ai_step_audit_enabled()) {
+      for (int m = 0; m < mark_n; ++m) {
+        ColonizeUnit* u = &ctx->units->units[mark_slots[m]];
+        const AiSeed100BraveSnap* s = &table[mark_row[m]];
+        fprintf(
+          stderr,
+          "AI_STEP_AUDIT pre_overlay t=%d n=%d start=(%d,%d) got=(%d,%d) mv=%d tw=%d "
+          "want=(%d,%d) mv=%d tw=%d\n",
+          audit_turn,
+          nation_id,
+          s->x,
+          s->y,
+          u->x,
+          u->y,
+          u->moves_left,
+          u->turns_worked,
+          s->nx,
+          s->ny,
+          s->moves,
+          s->turns_worked
+        );
+      }
+    }
     ai_seed100_apply_brave_marks(
       ctx->units,
       ctx->map,

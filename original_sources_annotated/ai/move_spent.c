@@ -62,6 +62,8 @@ int euro_settlement_owner(int x, int y) {
  * Spent-only seed-100 holdouts (Sioux/Apache): class*3 ∈ {6,9} but golden
  * spent=3 with FROM presence set and DEST lacking tribe — not in this head;
  * see midturn_465b.md (hang AL). Linux keeps residual overlays for those rows.
+ * Multi-step / Inca tw holdouts were peel/path issues (river cost=1 first), not
+ * cost-head bugs — cleared in phase 13 without inventing spent caps.
  *
  * Linux: ai_dos_move_spent.
  */
