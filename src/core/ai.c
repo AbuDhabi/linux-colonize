@@ -39,7 +39,23 @@ static const struct {
 
 typedef ColonizeDosRng AiRng;
 
+/* Set AI_LCG_AUDIT=1 to log init-pulse pick_dir burn counts (phase 5). */
+static int ai_lcg_audit_enabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_LCG_AUDIT");
+    cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+  }
+  return cached;
+}
+
+static int s_ai_lcg_in_pick;
+static int s_ai_lcg_pick_burns;
+
 static int ai_rng_range(AiRng* rng, int lo, int hi_inclusive) {
+  if (s_ai_lcg_in_pick) {
+    s_ai_lcg_pick_burns++;
+  }
   return dos_rng_range(rng, lo, hi_inclusive);
 }
 
@@ -2152,14 +2168,12 @@ static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
 /*
  * Quiet NEW WORLD Brave dir-pick (colony_count==0, goods==0).
  *
- * Empirical formula (base 200, facing +4/−6/+3, home-dist, −0x28, +5,
- * range(1,5)) — keeps smoke_mapgen_seed100 / smoke_ai_turns green.
+ * Empirical formula — keeps smoke_mapgen_seed100 / smoke_ai_turns green.
  *
- * ASM LAB_521d_4ea9 + LAB_521d_54f5 (+fog/−10) annotated in
- * quiet_brave_scoring.c. Phase 2–4 Linux cutovers all regressed (same
- * Apache init XY miss). Next RE: LCG stay/burn vs multi-unit pulse, or
- * terms outside quiet path still load-bearing in empiricism. Do not mix
- * ASM terms onto this empirical path.
+ * Phase 5: gated ASM + aligned LCG (no stay; range(1,3); post_first kept)
+ * still missed Apache init `(46,52)`. Burns matched ASM count (delta=0) but
+ * XY still wrong → next gap is scoring terms (home/−0x28/+5 vs quiet
+ * incompleteness), not LCG stay surplus alone. Do not mix ASM onto empiricism.
  */
 static int ai_native_pick_dir(
   AiRng* rng,
@@ -2179,26 +2193,39 @@ static int ai_native_pick_dir(
   /* FUN_281f_072c: terrain plane bit 0x40 (minor river), not mask roads. */
   const int unit_road = (int)(ai_terrain_at(map, x, y) & 0x40u);
 
+  int accepted = 0;
+  int rejected = 0;
+  s_ai_lcg_pick_burns = 0;
+  s_ai_lcg_in_pick = 1;
+
   for (int d = 0; d < 9; ++d) {
     const int nx = x + k_ai_dir8_dx[d];
     const int ny = y + k_ai_dir8_dy[d];
     if (d < 8) {
       if (!ai_map_inset(map, nx, ny)) {
+        rejected++;
         continue;
       }
       const int terr = (int)(ai_terrain_at(map, nx, ny) & 0x1fu);
       /* 078c: reject 0x19/0x1a early; then ocean via 075e; then >=0x18. */
       if (terr == 0x19 || terr == 0x1a || terr >= 0x18) {
+        rejected++;
         continue;
       }
       if (ai_is_ocean_hs(map, nx, ny)) {
+        rejected++;
         continue;
       }
     }
     const int own = (d < 8) ? ai_owner_nibble(map, nx, ny) : ai_owner_nibble(map, x, y);
     /* Foreign-owned → combat path; NEW WORLD empties are unowned or self. */
     if (d < 8 && own >= 0 && own != nation_id) {
+      rejected++;
       continue;
+    }
+
+    if (d < 8) {
+      accepted++;
     }
 
     int score = 0xc8; /* 200 */
@@ -2299,6 +2326,23 @@ static int ai_native_pick_dir(
       best_score = score;
       best_dir = d;
     }
+  }
+  s_ai_lcg_in_pick = 0;
+  if (ai_lcg_audit_enabled()) {
+    fprintf(
+      stderr,
+      "AI_LCG_AUDIT pick n=%d xy=(%d,%d) accepted=%d rejected=%d emp_burns=%d "
+      "asm_burns=%d stay=1 delta=%d best=%d\n",
+      nation_id,
+      x,
+      y,
+      accepted,
+      rejected,
+      s_ai_lcg_pick_burns,
+      accepted,
+      s_ai_lcg_pick_burns - accepted,
+      best_dir
+    );
   }
   return best_dir;
 }
@@ -2519,6 +2563,9 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
   for (int b = 0; b < burns; ++b) {
     (void)dos_rng_next(rng);
   }
+  if (ai_lcg_audit_enabled() && burns > 0) {
+    fprintf(stderr, "AI_LCG_AUDIT post_first_brave n=%d burns=%d\n", nation_id, burns);
+  }
 }
 
 /*
@@ -2585,6 +2632,18 @@ static void ai_native_nation_pulse(
       const int spent = u->moves_left;
       if (spent >= max_mp) {
         break;
+      }
+      if (ai_lcg_audit_enabled() && seed100_init_burns) {
+        fprintf(
+          stderr,
+          "AI_LCG_AUDIT brave_begin n=%d idx=%d xy=(%d,%d) spent=%d step=%d\n",
+          nation_id,
+          brave_index,
+          u->x,
+          u->y,
+          spent,
+          steps
+        );
       }
       const int last_dir = (u->last_dir >= 0 && u->last_dir <= 7) ? u->last_dir : 0;
       const int dir =

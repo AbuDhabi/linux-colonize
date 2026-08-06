@@ -28,11 +28,12 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `FUN_4d56_152e` | `village_growth_accum` | `ai/indian_nation_turn.c` | `ai_grow_villages` |
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
 | `func_0x00042191` | `indian_unit_act` (stub) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
-| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir` (empirical; cutover blocked phase 4) |
+| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir` (empirical; cutover blocked phase 5) |
 | `LAB_521d_54f5` gate | `quiet_lab_54f5_gate` | `ai/quiet_brave_scoring.c` | not in Linux (reverted) |
 | military −10 | `quiet_score_military_minus10` | `ai/quiet_brave_scoring.c` | diplomacy stub 0 |
 | (apply step) | `quiet_brave_apply_step` | `ai/indian_nation_turn.c` | `ai_native_apply_step` |
-| `FUN_281f_04d4(1,3)` quiet base | `quiet_score_base` | `ai/quiet_brave_scoring.c` | empiricism uses range(1,5) |
+| `FUN_281f_04d4(1,3)` quiet base | `quiet_score_base` | `ai/quiet_brave_scoring.c` | empiricism uses range(1,5)+stay |
+| Init LCG audit | `AI_LCG_AUDIT=1` logs | `src/core/ai.c` | stay surplus +34 on init |
 | quiet terrain ± | `quiet_score_terrain` | `ai/quiet_brave_scoring.c` | empiricism river/fa / home |
 | quiet facing `−diff²×2` | `quiet_score_facing` | `ai/quiet_brave_scoring.c` | empiricism +4/−6/+3 |
 | `bVar20` fog/explore | `quiet_score_fog_explore` | `ai/quiet_brave_scoring.c` | not in Linux pick_dir yet |
