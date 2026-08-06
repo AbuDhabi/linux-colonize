@@ -121,7 +121,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_0000`…`0906` | small | Planner helpers (scores, probes, bookkeeping) | — | **parked** |
 | `FUN_521d_0a60` | ~858 | Unit / colony goal logic | — | **parked** |
 | `FUN_521d_20c6` | nested | Near helper before scoring | — | **parked** |
-| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet annotated; emp default; phase 8: far ocean AGREE SAV; hang `init_20e6_4753` | **partial** |
+| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet + coarse fog; emp default; `(47,53)` NW under ASM; full body parked | **partial** |
 | `FUN_521d_5b66` | ~1815 nested | Large helper **inside** the `20e6` span (not a separate far export); historically mis-cited as sole “unit goals” entry | — | **parked** |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
 | `FUN_521d_5d04` | ~748 | Unit goals / planning (alongside `0a60`) | — | **parked** |
@@ -162,7 +162,7 @@ unannotated bodies.
 |----------|-------|-------|
 | `FUN_6a09_0006` | `ai_place_tribes_procedural` / `ai_place_tribes_from_txt` / `ai_spawn_brave_near` | AMERICA via `TRIBE.TXT`; NEW WORLD procedural |
 | Post-`6a09` native pulse | `ai_native_nation_pulse` at end of `ai_init_new_game` | One action per Brave per indian nation |
-| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Default empiricism. Phase 8: far `(43,49)`/`(43,53)` AGREE `SEED100.SAV`; ASM fog `+8`→W map-correct; hang [`init_20e6_4753.md`](../tools/brave_dump/init_20e6_4753.md); no cutover |
+| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Default empiricism. Coarse fog plane gates ASM `+8`; `(47,53)`→NW under `AI_QUIET_ASM`. Complete Map irrelevant. Hang parked — see `ai/move_scoring.md` |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse + residual overlays (~50 on t2–t6; t1 empty); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
@@ -197,19 +197,17 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   **t2–t6 (~50 rows: 5/9/14/9/13)** — quiet-scoring holdouts plus Sioux/Apache
   spent-only rows (XY match; dump-side `465b` still open). Apache T2 XY fixed
   via tile-scoped quiet at `(45,52)` (skip facing / river home-base / roll-add);
-  spent still open (`tools/brave_dump/midturn_465b.md`: next hang `VR_B465R`
-  Sioux `BX==0x1F8` → AL=cost). ASM quiet + `LAB_521d_54f5` annotated;
-  empiricism home/−0x28/+5/base-200 are **not** DOS quiet (`FUN_124c_0040`
-  unused in `20e6`). Phase 5: stay surplus +34; LCG-aligned ASM still missed
-  Apache init XY. Phase 6 A/B: miss is n=7 Brave `(47,53)` emp dir=7 /
-  ASM dir=6; stay −14 nexts at n=7 is real but equalizing still leaves
-  dir=6 (**dir-only**). Phase 7 score dump: fog `+8` on dir 6 (far land
-  `(43,53)`) vs no `+8` on dir 7 (far ocean `(43,49)`) flips W over NW;
-  facing/base favor NW. Phase 8: far ocean/land **AGREE** Linux↔`SEED100.SAV`
-  (`probe_far_ocean_4753`); next hang
-  [`init_20e6_4753.md`](../tools/brave_dump/init_20e6_4753.md) — do not
-  disable fog to green cutover. `AI_QUIET_ASM` / `AI_ASM_STAY_SYNC` /
-  `AI_SCORE_DUMP` kept for RE. Mark/apply helpers stay until tables empty.
+  spent still open (`tools/brave_dump/midturn_465b.md`) — hang **parked**.
+  ASM quiet + `LAB_521d_54f5` annotated. **Phase 9:** coarse fog plane
+  `DS:0x9faa` (size `0x10e`) dual-indexed — explore `+8` uses `(x>>2)+(y>>2)*18`,
+  tribe place `(y/5)+(x/5)*18`. Linux `s_ai_coarse_fog` + tribe writes; `+8`
+  gated on explore-byte `==0`. Init `(47,53)`→NW under `AI_QUIET_ASM` (farW
+  explore≠0). Other init Braves still miss — **no default cutover**. Complete
+  Map / Reveal is viewpoint-only (`SEED100` ≡ `SEED100_UNREVEALED`). Far ocean
+  AGREE (`probe_far_ocean_4753`). DOS hang recipes last-resort only
+  ([`init_20e6_4753.md`](../tools/brave_dump/init_20e6_4753.md)).
+  `AI_QUIET_ASM` / `AI_ASM_STAY_SYNC` / `AI_SCORE_DUMP` kept for RE.
+  Mark/apply helpers stay until tables empty.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
@@ -279,6 +277,7 @@ Status reflects the AI-port prerequisite work:
 | Unit orders (fortify, sentry, disband) | **Partial** | Map F / S / Shift+D + ORDERS menu; overnight fortify → fortified |
 | Land combat | **Partial** | T0 attack/defense (+ fortified ×2); naval / colony defense later |
 | Fog of war / `map.seen` | **Partial** | Dedicated plane; reveal on move; cheat Reveal; `.MP` fully seen |
+| AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** | Adjacent village bumps friction + status; no meet UI / `@RAID*` |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies (docs formerly claimed skip — stale) |
 | Founding Fathers / liberty | Missing | Euro long-term goals |
@@ -303,7 +302,7 @@ wrong-dir scoring), then generic T1 Euro settle.
 | `original_saves/COLONY00.SAV` / `COLONY01.SAV` | Rival fleets, sail, AI crosses |
 | `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
 | `original_memory_dumps/dosbox_save_state_brave/` | Live Brave pulse dumps |
-| `tools/brave_dump/` | Hang-dump tooling; fog/dir: `init_20e6_4753.md`; spent: `midturn_465b.md` |
+| `tools/brave_dump/` | Hang-dump tooling (**parked** / overlay-unsafe). Fog/dir notes: `init_20e6_4753.md`; spent: `midturn_465b.md`. Prefer coarse-fog port + goldens |
 | `tools/diff_turns.c` | Manual SAV↔SAV unit/tribe/crosses dump |
 | [`.context/seed100-brave.md`](../.context/seed100-brave.md) | Durable Brave fidelity notes / open LCG burns |
 | `COLONIZE/TRIBE.TXT`, `NAMES.TXT` `@TRIBES` / `@SCENARIO` | AMERICA villages / landfalls |

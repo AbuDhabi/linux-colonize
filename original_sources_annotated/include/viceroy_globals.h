@@ -26,6 +26,23 @@
 /* Terrain class cost table base (byte[32] ×3 in move_spent_add). */
 #define VICEROY_DS_TERR_COST_TABLE  0x2f76
 
+/*
+ * Coarse fog / tribe-region plane (FUN_1d1d_0dae memset 0x10e @ entry of
+ * FUN_6a09_0006 and FUN_521d_0a60).
+ *
+ * Ghidra often prints DS:-0x6056; unsigned near offset is DS:0x9faa
+ * (0x10000-0x6056). Size 270 = 15×18, pitch VICEROY_COARSE_FOG_PITCH.
+ *
+ * Dual index into the same buffer (both confirmed in .asm):
+ *   Explore / +8 (FUN_521d_20e6): (x>>2) + (y>>2)*pitch   — SAR 2
+ *   Tribe spacing (FUN_6a09):     (y/5) + (x/5)*pitch     — IDIV 5
+ * Tribe /5 marks do NOT clear explore >>2 cells; do not conflate them.
+ */
+#define VICEROY_DS_COARSE_FOG       0x9faa
+#define VICEROY_DS_COARSE_FOG_GHIDRA_NEG 0x6056 /* printed as DS:-0x6056 */
+#define VICEROY_COARSE_FOG_PITCH    0x12
+#define VICEROY_COARSE_FOG_SIZE     0x10e /* 270; memset arg */
+
 /* ---- Unit / tribe pools ------------------------------------------------ */
 
 #define VICEROY_DS_UNITS_BASE       0x3144  /* first unit.x */

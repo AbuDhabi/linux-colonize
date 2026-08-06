@@ -149,6 +149,12 @@ int main(void) {
     printf("DISAGREE: see MISMATCH lines above\n");
   }
 
+  printf(
+    "\nCoarse fog (AI plane, not map.seen): run\n"
+    "  AI_QUIET_ASM=1 AI_LCG_AUDIT=1 AI_ASM_STAY_SYNC=1 ./build/smoke_mapgen_seed100\n"
+    "and look for AI_SCORE_DUMP coarse farW/farNW explore bytes.\n"
+  );
+
   map_free(&linux_map);
   map_free(&sav_map);
   col1_save_free(&golden);

@@ -42,7 +42,9 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `LAB_521d_52aa` colony pull | `quiet_score_colony_pull` | `ai/quiet_brave_scoring.c` | no-op early game |
 | `FUN_281f_0302` | `map_tile_in_bounds` | `ai/accessors.c` | map inset |
 | `FUN_281f_074a` / `0x168` | `tile_explore_mask` | `ai/accessors.c` | Euro-only +2; Indians skip |
-| coarse fog `−0x6056` | `coarse_fog_unseen` (+ early assume helper) | `ai/accessors.c` | early ≈ all unseen |
+| DS:`0x9faa` / `−0x6056` | `VICEROY_DS_COARSE_FOG` (size `0x10e`) | `viceroy_globals.h` | Linux `s_ai_coarse_fog` |
+| explore `(x>>2)+(y>>2)*18` | `coarse_fog_explore_index` / `coarse_fog_unseen` | `ai/accessors.c` | +8 gate in quiet ASM |
+| tribe `(y/5)+(x/5)*18` | `coarse_fog_tribe_index` | `ai/accessors.c` | `ai_coarse_fog_mark_tribe` |
 | `FUN_281f_0682` / `0314` | `tile_owner_or_presence` | `ai/accessors.c` | **layer2 bit0** then owner |
 | `FUN_281f_06d2` / `0428` | `tile_tribe_or_presence` | `ai/accessors.c` | tribe else presence |
 | `FUN_281f_07e0` | `unit_index_on_tile` | `ai/accessors.c` | Linux unit-pool scan (cutover) |
@@ -111,6 +113,7 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 ## Out of scope (still raw export only)
 
 - `FUN_4d56_2154` / `2820` / `4528` raid clusters
-- Full `FUN_521d_20e6` / nested `5b66`
+- Full `FUN_521d_20e6` / nested `5b66` (quiet + coarse fog done)
 - Full `FUN_465b_0000` combat / ocean-transition tail
 - Ghidra database renames / re-export
+- Live DOS hang EXEs (parked; prefer goldens + coarse-fog plane)

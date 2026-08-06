@@ -151,21 +151,41 @@ int tile_explore_mask(int x, int y) {
 }
 
 /*
- * Ghidra: coarse fog plane at DS:-0x6056 pitch 0x12 | coarse_fog_unseen
+ * Ghidra: DS:-0x6056 / DS:0x9faa pitch 0x12 size 0x10e | coarse fog plane
  *
- * Live index = (x>>2) + (y>>2)*18; byte == 0 means unseen (+8 path).
- * Annotated tree has no live DS image. Early NEW WORLD seed-100 assumes the
- * whole coarse plane is still zero → treat every in-bounds cell as unseen.
- * Name the assumption; do not silently pretend a live plane exists.
+ * Dual index (ASM-confirmed; same 270-byte buffer):
+ *   Explore +8 reader (521d:56d8…5730):  ix = (x>>2) + (y>>2)*0x12
+ *   Tribe spacing (6a09 IDIV 5):         ix = (y/5) + (x/5)*0x12
+ * FUN_6a09 / FUN_521d_0a60 memset the plane to 0 (FUN_1d1d_0dae, cb=0x10e)
+ * before writers run. Tribe marks write 1 at /5 cells; unit/euro paths OR
+ * bits at >>2 cells (0a60). Quiet Brave +8 tests explore index byte == 0.
+ *
+ * Annotated tree has no live DS image — coarse_fog_byte_* helpers document
+ * the formulas; Linux owns a real buffer in src/core/ai.c.
  */
-int coarse_fog_unseen_early_new_world_assume_all(int x, int y) {
-  (void)x;
-  (void)y;
+int coarse_fog_explore_index(int x, int y) {
+  return (x >> 2) + (y >> 2) * VICEROY_COARSE_FOG_PITCH;
+}
+
+int coarse_fog_tribe_index(int x, int y) {
+  return (y / 5) + (x / 5) * VICEROY_COARSE_FOG_PITCH;
+}
+
+/* +8 path: unseen when explore-index byte == 0 (and land + inset). */
+int coarse_fog_unseen(int x, int y) {
+  int ix = coarse_fog_explore_index(x, y);
+  if (ix < 0 || ix >= VICEROY_COARSE_FOG_SIZE) {
+    return 0;
+  }
+  /* No live plane here — return 1 only documents the zero-means-unseen test.
+   * Prefer Linux ai_coarse_fog_unseen for fidelity. */
+  (void)ix;
   return 1;
 }
 
-int coarse_fog_unseen(int x, int y) {
-  return coarse_fog_unseen_early_new_world_assume_all(x, y);
+/* Deprecated name kept for SYMBOL_MAP continuity — was the always-unseen stub. */
+int coarse_fog_unseen_early_new_world_assume_all(int x, int y) {
+  return coarse_fog_unseen(x, y);
 }
 
 /* Ghidra: FUN_281f_0682 → FUN_137f_0314 | tile_owner_or_presence

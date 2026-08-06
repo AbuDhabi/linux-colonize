@@ -22,7 +22,7 @@ second runtime.
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 8: far ocean AGREE SAV; fog `+8` hang `init_20e6_4753` |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 9: coarse fog dual index; `(47,53)` NW under ASM; hang parked |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules
@@ -39,9 +39,11 @@ second runtime.
 - When re-exporting from Ghidra, diff against the raw tree; re-apply annotations here by symbol, not by line number.
 - If annotated control flow disagrees with the raw export, the export wins until RE proves otherwise.
 
-## Phase 1 + phase 2 status
+## Phase 1 + phase 2 + phase 9 status
 
 - Phase 1: AI-critical accessors, Indian nation turn entry, Euro dispatcher shell.
 - Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
-  Linux cutover blocked (see `ai/move_scoring.md`). Raid bodies and full
-  `FUN_521d_20e6` remain out of scope.
+- Phase 9: Coarse fog `DS:0x9faa` dual index annotated + Linux buffer; quiet
+  `+8` gated on explore byte. Init `(47,53)` matches NW under `AI_QUIET_ASM`;
+  full Brave XY cutover still blocked. Raid bodies and full `FUN_521d_20e6`
+  remain out of scope. DOS hangs parked.
