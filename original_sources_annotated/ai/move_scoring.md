@@ -1,41 +1,45 @@
-# Move scoring (`FUN_521d_20e6`) — phase 2 notes
+# Move scoring (`FUN_521d_20e6`) — quiet Brave annotated
 
-Phase 1 does **not** annotate the full ~3995-line scorer. This note pins the
-quiet Brave entry so the next slice can be extracted coherently.
+## Status (phase 2)
 
-## Symbol
+| Piece | State |
+|-------|--------|
+| Annotated quiet Brave (`quiet_brave_scoring.c`) | **Done** — ASM `LAB_521d_4ea9` |
+| Linux `ai_native_pick_dir` cutover | **Blocked** — coherent ASM cutover regresses `smoke_mapgen_seed100` / `smoke_ai_turns`; empirical formula restored |
+| Full `20e6` (Euro / combat / ocean) | Parked |
 
-| Ghidra | Role |
-|--------|------|
-| `FUN_521d_20e6` | Direction / move scoring for all unit kinds |
-| Nested `FUN_521d_5b66` | Large helper **inside** the `20e6` span (not a separate far export) |
-| Quiet NEW WORLD Brave | Entry around ASM `521d:4ea9` (type 19, flags `0x38`) |
+## Why cutover failed (2026-08-06)
 
-## Quiet Brave (type 19) — ASM intent vs Linux port
+Replacing empirical base-200 / facing / home / −0x28 / roll(1,5) with ASM
+`range(1,3)` + `−diff²×2` + `−2f76[terr]` (fog still omitted) broke init pulse
+and TURN1→2 Brave XY. Likely causes:
 
-From [`.context/seed100-brave.md`](../../.context/seed100-brave.md):
+1. **LCG burn shape** — ASM burns `range(1,3)` per dir; empiricism burns
+   `range(1,5)` plus different stay handling.
+2. **Missing `bVar20` fog/explore** — annotated but not yet wired with real
+   map-seen / explore-mask accessors in the Linux port.
+3. Historical note: facing-only or facing+−2f76 **on empirical base** also
+   regresses — do not mix.
 
-| Piece | ASM quiet (`521d:4ea9`) | Linux today (`ai_native_pick_dir`) |
-|-------|-------------------------|-------------------------------------|
-| Base | `range(1,3)` | Empirical **200** |
-| Terrain | river-cardinal / fa → **+1**, else **−2f76[terr]** | Facing / home / roll empiricism |
-| Facing | **−diff²×2** | Empirical +4 / −6 / +3 |
-| Extras | neighbor fog/explore (`bVar20`), colony-pull `52aa` | Skipped (no colonies) |
+Next cutover attempt must land **base + terrain + facing + fog** together and
+match DOS LCG call order end-to-end.
 
-**Important:** partial ports of the ASM quiet formula (facing-only, or
-facing+−2f76 on empirical base) **regress** `smoke_mapgen_seed100` / T1.
-Keep empirical bridges until a **coherent** quiet slice lands in
-[`indian_nation_turn.c`](indian_nation_turn.c) and then in `src/core/ai.c`.
+## Formula (Brave flags 0x10\|0x20)
 
-## Phase 2 plan
-
-1. Annotate the quiet Brave-only path inside `20e6` end-to-end (no Euro ships).
-2. Name fog / explore / colony-pull helpers it calls.
-3. Drive Linux off the annotated slice; empty residual overlays.
-4. Only then expand to ocean / Euro land / combat branches.
+```
+score = range(1, 3)
+if (unit_river && dest_river && cardinal) || (unit_fa && dest_fa):
+  score += 1
+else:
+  score -= terr_cost[terr]          # raw DS:0x2f76 byte, not ×3
+score += -facing_diff^2 * 2
+if bVar20: fog/explore neighbor bonuses
+# colony pull no-op when colony_count==0 / Brave combat strength 0
+```
 
 ## Related
 
-- [`docs/ai_transcription.md`](../../docs/ai_transcription.md) — inventory + R0/R5
+- [`quiet_brave_scoring.c`](quiet_brave_scoring.c)
 - [`SYMBOL_MAP.md`](../SYMBOL_MAP.md)
-- Linux: `ai_native_pick_dir`, `ai_dos_move_spent` in `src/core/ai.c`
+- [`.context/seed100-brave.md`](../../.context/seed100-brave.md)
+- [`docs/ai_transcription.md`](../../docs/ai_transcription.md)

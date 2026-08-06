@@ -28,12 +28,21 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `FUN_4d56_152e` | `village_growth_accum` | `ai/indian_nation_turn.c` | `ai_grow_villages` |
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
 | `func_0x00042191` | `indian_unit_act` (stub) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
-| quiet `20e6` / `4d56_021a` | `quiet_brave_pick_dir` | `ai/indian_nation_turn.c` | `ai_native_pick_dir` |
+| quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir` (empirical; ASM cutover blocked) |
 | (apply step) | `quiet_brave_apply_step` | `ai/indian_nation_turn.c` | `ai_native_apply_step` |
+| `FUN_281f_04d4(1,3)` quiet base | `quiet_score_base` | `ai/quiet_brave_scoring.c` | in `ai_native_pick_dir` |
+| quiet terrain ± | `quiet_score_terrain` | `ai/quiet_brave_scoring.c` | in `ai_native_pick_dir` |
+| quiet facing `−diff²×2` | `quiet_score_facing` | `ai/quiet_brave_scoring.c` | in `ai_native_pick_dir` |
+| `bVar20` fog/explore | `quiet_score_fog_explore` | `ai/quiet_brave_scoring.c` | optional in pick_dir |
+| `LAB_521d_52aa` colony pull | `quiet_score_colony_pull` | `ai/quiet_brave_scoring.c` | no-op early game |
+| `FUN_281f_0302` | `map_tile_in_bounds` | `ai/accessors.c` | map inset |
+| `FUN_281f_074a` | `tile_explore_mask` | `ai/accessors.c` | fog/explore |
+| `FUN_281f_0682` | `tile_owner_or_presence` | `ai/accessors.c` | owner probe |
+| `FUN_281f_078c` | `terrain_class_at` | `ai/accessors.c` | `ai_dos_terr_class` |
+| `FUN_521d_20e6` | `move_scoring` (non-quiet parked) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet only |
 | `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` |
 | `FUN_521d_0a60` | `euro_unit_colony_goals` (parked) | `ai/euro_dispatcher.c` | early peels only |
 | `FUN_521d_5d04` | `euro_unit_planning` (parked) | `ai/euro_dispatcher.c` | — |
-| `FUN_521d_20e6` | `move_scoring` (parked) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet slice only |
 | `thunk_FUN_2a1f_0488` | `euro_unit_act` | `ai/euro_dispatcher.c` | `ai_unit_spend_goto` / peels |
 | `thunk_FUN_2a1f_0554` | `euro_nation_colony_pass` | `ai/euro_dispatcher.c` | — |
 | `thunk_FUN_2a1f_0578` / `050c` | `euro_nation_plan_pass` | `ai/euro_dispatcher.c` | — |

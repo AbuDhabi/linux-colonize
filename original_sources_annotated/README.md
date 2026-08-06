@@ -19,7 +19,8 @@ second runtime.
 | [`include/viceroy_types.h`](include/viceroy_types.h) | Unit / tribe / map-plane layouts |
 | [`include/viceroy_globals.h`](include/viceroy_globals.h) | Named DS addresses used by AI |
 | [`ai/accessors.c`](ai/accessors.c) | Map / RNG / move-cost helpers |
-| [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + quiet Brave slice |
+| [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
+| [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
 | [`ai/move_scoring.md`](ai/move_scoring.md) | Notes for full `20e6` (phase 2) |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
@@ -38,8 +39,9 @@ second runtime.
 - When re-exporting from Ghidra, diff against the raw tree; re-apply annotations here by symbol, not by line number.
 - If annotated control flow disagrees with the raw export, the export wins until RE proves otherwise.
 
-## Phase 1 status
+## Phase 1 + phase 2 status
 
-AI-critical accessors, Indian nation turn entry, Euro dispatcher shell, and the
-quiet NEW WORLD Brave dir-pick / spent path. Raid bodies and full `FUN_521d_20e6`
-are out of scope (see [`docs/ai_transcription.md`](../docs/ai_transcription.md)).
+- Phase 1: AI-critical accessors, Indian nation turn entry, Euro dispatcher shell.
+- Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
+  Linux cutover blocked (see `ai/move_scoring.md`). Raid bodies and full
+  `FUN_521d_20e6` remain out of scope.

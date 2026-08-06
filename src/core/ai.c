@@ -2150,12 +2150,16 @@ static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * FUN_4d56_021a quiet NEW WORLD path (colony_count==0, goods==0).
+ * Quiet NEW WORLD Brave dir-pick (colony_count==0, goods==0).
  *
- * Score dirs 0..7: base 200, facing vs last_dir (314f), +4 and home-tribe
- * distance penalty (ASM 0xcea; roads optional), +5 unowned, +range(1,5).
- * No colony → skip capital/mission pull. Dir 8 stay omitted (rejected without
- * promote; does not affect best among 0..7).
+ * Empirical formula (base 200, facing +4/−6/+3, home-dist, −0x28, +5,
+ * range(1,5)) — keeps smoke_mapgen_seed100 / smoke_ai_turns green.
+ *
+ * ASM LAB_521d_4ea9 target is annotated in
+ * original_sources_annotated/ai/quiet_brave_scoring.c (base range(1,3),
+ * −diff²×2, −2f76[terr] / river-fa +1, fog). A coherent Linux cutover to
+ * that formula regresses goldens (LCG burn shape + missing bVar20 fog);
+ * do not reintroduce piecemeal ASM patches here.
  */
 static int ai_native_pick_dir(
   AiRng* rng,

@@ -139,9 +139,30 @@ int decode_terrain_class(uint8_t terrain) {
   return (int)(terrain & VICEROY_TERRAIN_TYPE_MASK);
 }
 
-/* ====================================================================== */
-/* Distance / move cost                                                   */
-/* ====================================================================== */
+/* Ghidra: FUN_281f_0302 | map_tile_in_bounds — inset / valid land probe. */
+int map_tile_in_bounds(int x, int y) {
+  (void)x;
+  (void)y;
+  return 1; /* annotated placeholder */
+}
+
+/* Ghidra: FUN_281f_074a | tile_explore_mask — layer3-ish explore/fog nibble. */
+int tile_explore_mask(int x, int y) {
+  (void)x;
+  (void)y;
+  return 0;
+}
+
+/* Ghidra: FUN_281f_0682 | tile_owner_or_presence — >=0 if claimed/occupied probe. */
+int tile_owner_or_presence(int x, int y) {
+  return owner_nibble(x, y);
+}
+
+/* Ghidra: FUN_281f_078c | terrain_class_at — decode_terrain_class(terrain_byte). */
+int terrain_class_at(int x, int y) {
+  return decode_terrain_class(terrain_byte(x, y));
+}
+
 
 /* Ghidra: FUN_124c_0040 | dos_dist
  * Diagonal-ish distance on absolute deltas: min/2 + max.
