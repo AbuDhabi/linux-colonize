@@ -30,13 +30,16 @@ Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
 ## Sioux T2 spent (still open)
 
-- Unit path `(49,40)→(49,39)` — **XY OK** with pulse; spent **9** (class15×3) vs golden **3**.
+- Unit path `(49,40)→(49,39)` — **XY OK** with pulse; port spent **9** (class15×3) vs golden **3**.
 - Same unit T1 `(49,41)→(49,40)` forest entry golden **9** (formula OK). Both steps: owned→unowned forest, identical `465b` cost shape.
 - `turn_refresh_moves_for_nation` zeros spent before pulse; not a leftover-MP bug.
 - Ruled out (break correct mv=6/9): clamp-to-`max_mp`, adj-tribe / plain-owner cap, claim-exit→max.
 - ASM `465b`: land→land force-to-max only on `0768` ocean/HS differ + no colony; neither tile is ocean.
-- `06be`/`03e4` caps only when dest `layer2&2`; dest tribe=0.
-- **Next:** hang-dump `3149` / `local_40` after this N step (`465b` ADD `00874931`, file offs ~`258771`). Existing `VR_BRAVE*` hangs are post-`6a09` init only.
+- `06be`/`03e4` caps only when dest `layer2&2`; dest tribe=0 (Sioux/Apache). Arawak T2 dest `(47,16)` *is* tribe → cap explains its golden 3.
+- **`dosbox_465n` (post-EOT):** Sioux/Apache/Arawak spent **3** confirmed (= `TURN3`). `VR_B465N` hang never fired (reloc ate nation check).
+- **`dosbox_b465s`:** ADD2 hang was loaded but never hit — Braves use **ADD1** (`258771`).
+- **`dump_b465l` / `dump_b465r`:** froze — ocean patch was `EB 44`→JOIN (skipped continue). R also false-hung on `BX>=0x150` (`BX=08d2`).
+- **Next:** fixed EXEs (`EB 0F`→continue): `VR_B465L` (log BX), `VR_B465R` hang `BX==0x1F8` Sioux, `VR_B465A` Apache `0x1A4`. At hang **AL**=cost. See `tools/brave_dump/midturn_465b.md`.
 
 ## Full quiet `521d:4ea9` (not yet ported)
 
