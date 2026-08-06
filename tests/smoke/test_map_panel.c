@@ -98,12 +98,41 @@ int main(void) {
     assets_msg_free(&labels);
     return 1;
   }
-  if (ox != 0 || oy != 0) {
-    fprintf(stderr, "expected origin 0,0 at top-left of map window, got %d,%d\n", ox, oy);
+  /* DOS inset: window origin ≥ 1 (never includes the 1-tile rim). */
+  if (ox != 1 || oy != 1) {
+    fprintf(stderr, "expected origin 1,1 at NW of visible map, got %d,%d\n", ox, oy);
     map_free(&map);
     map_panel_free(&panel);
     assets_msg_free(&labels);
     return 1;
+  }
+
+  {
+    int vx = -1;
+    int vy = -1;
+    map_panel_clamp_view_origin(58, 72, 0, 0, 15, 12, &vx, &vy);
+    if (vx != 1 || vy != 1) {
+      fprintf(stderr, "view origin NW expected 1,1 got %d,%d\n", vx, vy);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    map_panel_clamp_view_origin(58, 72, 57, 71, 15, 12, &vx, &vy);
+    if (vx != 42 || vy != 59) {
+      fprintf(stderr, "view origin SE expected 42,59 got %d,%d\n", vx, vy);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    if (map_coords_inset(&map, 0, 10) || map_coords_inset(&map, 57, 10) ||
+        !map_coords_inset(&map, 1, 1) || !map_coords_inset(&map, 56, 70)) {
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return fail("map_coords_inset rim/interior mismatch");
+    }
   }
   if (my != MAP_PANEL_MINIMAP_ORIGIN_Y) {
     fprintf(stderr, "minimap y expected %d, got %d\n", MAP_PANEL_MINIMAP_ORIGIN_Y, my);
@@ -133,7 +162,7 @@ int main(void) {
   int tx = -1;
   int ty = -1;
   if (!map_panel_minimap_click(&map, 0, 0, 15, 12, mx + 10, my + 20, &tx, &ty) ||
-      tx != 10 || ty != 20) {
+      tx != 11 || ty != 21) {
     fprintf(stderr, "minimap click map failed: %d,%d\n", tx, ty);
     map_free(&map);
     map_panel_free(&panel);
