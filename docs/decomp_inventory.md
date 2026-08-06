@@ -168,7 +168,8 @@ Ordered pipeline recovered for the Linux port:
    founding-father election **not** recovered yet
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    `ai_euro_nation_turn` (`src/core/ai.c`): reseed from VR_SEED timer word, tick AI crosses,
-   `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `smoke_ai_turns`).
+   `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `smoke_ai_turns`;
+   landfall coastal staging + `ai_euro_found_tile_from_landfall`).
    Full mid-game `0a60`/`5d04`/`20e6` planner still open — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
    overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
