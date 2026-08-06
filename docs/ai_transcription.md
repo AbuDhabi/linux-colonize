@@ -121,7 +121,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_0000`…`0906` | small | Planner helpers (scores, probes, bookkeeping) | — | **parked** |
 | `FUN_521d_0a60` | ~858 | Unit / colony goal logic | — | **parked** |
 | `FUN_521d_20c6` | nested | Near helper before scoring | — | **parked** |
-| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet+`54f5` annotated; empiricism default; `AI_QUIET_ASM` A/B — cutover blocked (phase 6: `(47,53)` dir) | **partial** |
+| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet annotated; emp default; phase 7: fog `+8` flip at `(47,53)` | **partial** |
 | `FUN_521d_5b66` | ~1815 nested | Large helper **inside** the `20e6` span (not a separate far export); historically mis-cited as sole “unit goals” entry | — | **parked** |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
 | `FUN_521d_5d04` | ~748 | Unit goals / planning (alongside `0a60`) | — | **parked** |
@@ -162,7 +162,7 @@ unannotated bodies.
 |----------|-------|-------|
 | `FUN_6a09_0006` | `ai_place_tribes_procedural` / `ai_place_tribes_from_txt` / `ai_spawn_brave_near` | AMERICA via `TRIBE.TXT`; NEW WORLD procedural |
 | Post-`6a09` native pulse | `ai_native_nation_pulse` at end of `ai_init_new_game` | One action per Brave per indian nation |
-| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Default empiricism. `AI_QUIET_ASM=1`: annotated quiet. Phase 6: miss is `(47,53)` dir 6 vs 7 (dir-only after stay sync) |
+| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Default empiricism. Phase 7: at `(47,53)` ASM fog `+8` on W (far land) beats NW (far ocean); no cutover |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse + residual overlays (~50 on t2–t6; t1 empty); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
@@ -203,8 +203,11 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   unused in `20e6`). Phase 5: stay surplus +34; LCG-aligned ASM still missed
   Apache init XY. Phase 6 A/B: miss is n=7 Brave `(47,53)` emp dir=7 /
   ASM dir=6; stay −14 nexts at n=7 is real but equalizing still leaves
-  dir=6 (**dir-only**). Next: per-dir score at that tile. `AI_QUIET_ASM` kept
-  for RE. Mark/apply helpers stay until tables empty.
+  dir=6 (**dir-only**). Phase 7 score dump: fog `+8` on dir 6 (far land
+  `(43,53)`) vs no `+8` on dir 7 (far ocean `(43,49)`) flips W over NW;
+  facing/base favor NW. No quiet formula fix without DOS hang. `AI_QUIET_ASM`
+  / `AI_ASM_STAY_SYNC` / `AI_SCORE_DUMP` kept for RE. Mark/apply helpers stay
+  until tables empty.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
