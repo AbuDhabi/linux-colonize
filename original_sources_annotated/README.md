@@ -22,7 +22,7 @@ second runtime.
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet annotate; empiricism ≠ DOS; phase 6 A/B at `(47,53)` |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 7: fog `+8` at `(47,53)` flips W over NW |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules
