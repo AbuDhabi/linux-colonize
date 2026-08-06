@@ -22,7 +22,7 @@ second runtime.
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 10: quiet init cutover; peels; mid-turn emp hold |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 11: quiet init+mid cutover; peels; spent/multi residuals |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules
@@ -39,10 +39,11 @@ second runtime.
 - When re-exporting from Ghidra, diff against the raw tree; re-apply annotations here by symbol, not by line number.
 - If annotated control flow disagrees with the raw export, the export wins until RE proves otherwise.
 
-## Phase 1 + phase 2 + phase 9–10 status
+## Phase 1 + phase 2 + phase 9–11 status
 
 - Phase 1: AI-critical accessors, Indian nation turn entry, Euro dispatcher shell.
 - Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
 - Phase 9: Coarse fog `DS:0x9faa` dual index + Linux buffer.
-- Phase 10: Seed-100 **init** quiet ASM cutover (stay LCG + peels). Mid-turn
-  still empiricism until residuals empty. Raid bodies / full `20e6` out of scope.
+- Phase 10–11: Seed-100 **init and mid-turn** quiet ASM cutover (stay LCG +
+  peels; quiet residuals = multi/spent only). `AI_EMPIRICISM=1` for legacy.
+  Raid bodies / full `20e6` out of scope.

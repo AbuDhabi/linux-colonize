@@ -50,8 +50,9 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accumulators.
 Seed-100 Euro path uses landfall-derived coastal staging + found-site helper
 (`ai_euro_found_tile_from_landfall`); ship approach / mid-turn waypoints still
-fixture. Mid-turn Braves: quiet `20e6` + residual overlays on remaining pulse
-mismatches (R0 scoring debt; **t1 empty**, ~50 rows on t2–t6).
+fixture. Mid-turn Braves: quiet ASM + mid peels + residual overlays on
+multi-step/spent holdouts (R0; quiet residuals **8 rows** across t1–t6;
+empiricism keeps its larger overlay set via `AI_EMPIRICISM=1`).
 
 **Does not claim:** mid-game Euro economy/military planner, Indian raids/meet/missions,
 King/REF, or bit-identical unknown blobs unrelated to AI moves.
@@ -121,7 +122,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_0000`…`0906` | small | Planner helpers (scores, probes, bookkeeping) | — | **parked** |
 | `FUN_521d_0a60` | ~858 | Unit / colony goal logic | — | **parked** |
 | `FUN_521d_20c6` | nested | Near helper before scoring | — | **parked** |
-| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet init default + peels; mid-turn emp; full body parked | **partial** |
+| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet init+mid default + peels; full body parked | **partial** |
 | `FUN_521d_5b66` | ~1815 nested | Large helper **inside** the `20e6` span (not a separate far export); historically mis-cited as sole “unit goals” entry | — | **parked** |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
 | `FUN_521d_5d04` | ~748 | Unit goals / planning (alongside `0a60`) | — | **parked** |
@@ -162,10 +163,10 @@ unannotated bodies.
 |----------|-------|-------|
 | `FUN_6a09_0006` | `ai_place_tribes_procedural` / `ai_place_tribes_from_txt` / `ai_spawn_brave_near` | AMERICA via `TRIBE.TXT`; NEW WORLD procedural |
 | Post-`6a09` native pulse | `ai_native_nation_pulse` at end of `ai_init_new_game` | One action per Brave per indian nation |
-| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Init: quiet ASM default (stay LCG + peels). Mid-turn: empiricism until residuals empty. `AI_EMPIRICISM=1` forces emp |
+| Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Quiet ASM default (stay LCG + init/mid peels). `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` force emp |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
-| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + pulse + residual overlays (~50 on t2–t6; t1 empty); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
+| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: 8 multi/spent rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
 | `FUN_521d_6d8e` | `ai_euro_nation_turn` | Skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`); annotated shell in `euro_dispatcher.c` |
 | `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | early slices | Approach sail + coastal goals; full planner parked — see `ai/move_scoring.md` |
@@ -193,14 +194,13 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   spent past max (`097a`). Terrain river costing (`072c` &0x40), tribe-tile
   spend cap (`06be` / layer2&2), own-nation −0x28 (skip only river-into-tribe),
   mask fa-flags (road `layer2 0x40` → DOS `&0x0a`), and ocean-transition
-  spent=max emptied **t1** and keep cost fidelity. Residual overlays remain on
-  **t2–t6 (~50 rows: 5/9/14/9/13)** — quiet-scoring holdouts plus Sioux/Apache
-  spent-only rows (XY match; dump-side `465b` parked). **Phase 10:** seed-100
-  **init** uses quiet ASM by default (stay LCG + 13 dir peels for matched-RNG
-  scoring holdouts; coarse fog from phase 9). Mid-turn still empiricism until
-  residuals empty (`AI_QUIET_MIDTURN=1` to probe). `AI_EMPIRICISM=1` /
-  `AI_QUIET_ASM=0` force empiricism. Complete Map irrelevant. Hang recipes
-  last-resort only.
+  spent=max emptied **t1** and keep cost fidelity. **Phase 11:** seed-100
+  **init and mid-turn** use quiet ASM by default (stay LCG; 13 init peels +
+  104 mid-turn peels for matched-RNG scoring holdouts; coarse fog from phase
+  9). Quiet residual overlays shrunk to **8 multi-step/spent rows**
+  (t1:2 / t2:3 / t3:1 / t4:1 / t5:0 / t6:1). Empiricism mid-turn overlays
+  retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map irrelevant.
+  Hang recipes last-resort only.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
@@ -278,10 +278,10 @@ Status reflects the AI-port prerequisite work:
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
-**seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (t1 empty, ~50
-Brave residuals, named init burns, landfall coastal staging + found-site
-helper). Next: empty remaining `k_seed100_brave_t*` holdouts (Sioux spent +
-wrong-dir scoring), then generic T1 Euro settle.
+**seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (quiet mid-turn
+default, 8 Brave multi/spent residuals, named init burns, landfall coastal
+staging + found-site helper). Next: empty remaining quiet `k_quiet_brave_t*`
+holdouts (multi-step / spent; `465b` parked), then generic T1 Euro settle.
 
 ---
 

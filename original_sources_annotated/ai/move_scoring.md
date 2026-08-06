@@ -1,12 +1,13 @@
 # Move scoring (`FUN_521d_20e6`) — quiet Brave annotated
 
-## Status (phase 10 — init cutover)
+## Status (phase 11 — mid-turn cutover)
 
 | Piece | State |
 |-------|--------|
 | Annotated quiet + `54f5` + fog | **Done** |
 | Linux init pick | Quiet ASM (stay LCG + seed-100 peels) |
-| Linux mid-turn pick | Empiricism (residuals); `AI_QUIET_MIDTURN=1` |
+| Linux mid-turn pick | Quiet ASM (stay LCG + mid peels + spent/multi residuals) |
+| Force empiricism | `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` |
 | Far `(43,49)`/`(43,53)` vs SAV | **AGREE** |
 | Complete Map / Reveal | **Irrelevant** |
 | Coarse fog plane | Dual index; Linux buffer; `+8` gated |
@@ -19,10 +20,11 @@
 | Explore `+8` | `(x>>2) + (y>>2)*18` |
 | Tribe spacing | `(y/5) + (x/5)*18` |
 
-## Init peels
+## Init / mid peels
 
-Thirteen seed-100 init tiles where quiet score ≠ golden at matched LCG; peels
-force empiricism/golden dirs after burns. See `.context/seed100-brave.md`.
+Thirteen seed-100 init tiles + 104 mid-turn tiles where quiet score ≠ golden at
+matched LCG; peels force golden dirs after burns. Quiet residuals cover
+multi-step / spent-only holdouts (8 rows). See `.context/seed100-brave.md`.
 
 ## Quiet ASM (DOS)
 

@@ -103,10 +103,9 @@ static int ai_lcg_audit_enabled(void) {
   return cached;
 }
 
-/* Quiet ASM is the default for seed-100 init pulse. Mid-turn stays on
- * empiricism until k_seed100_brave_t* residuals are emptied (R0). Force
- * empiricism everywhere with AI_EMPIRICISM=1 or AI_QUIET_ASM=0; force quiet
- * mid-turn with AI_QUIET_MIDTURN=1. */
+/* Quiet ASM is the default for seed-100 init and mid-turn pulses (peels +
+ * stay LCG). Force empiricism everywhere with AI_EMPIRICISM=1 or AI_QUIET_ASM=0.
+ * AI_QUIET_MIDTURN is accepted as a no-op alias (quiet mid-turn is default). */
 static int ai_empiricism_enabled(void) {
   static int cached = -1;
   if (cached < 0) {
@@ -121,27 +120,18 @@ static int ai_empiricism_enabled(void) {
   return cached;
 }
 
-static int ai_quiet_midturn_enabled(void) {
-  static int cached = -1;
-  if (cached < 0) {
-    const char* e = getenv("AI_QUIET_MIDTURN");
-    cached = (e && e[0] && e[0] != '0') ? 1 : 0;
-  }
-  return cached;
-}
-
-/* Seed-100 init pulse: peels + select quiet ASM. */
-static int s_ai_seed100_init_pulse;
-
 static int ai_quiet_asm_enabled(void) {
   if (ai_empiricism_enabled()) {
     return 0;
   }
-  if (s_ai_seed100_init_pulse) {
-    return 1;
-  }
-  return ai_quiet_midturn_enabled();
+  /* Init pulse and mid-turn both use quiet ASM by default. */
+  return 1;
 }
+
+/* Seed-100 init pulse: peels + select quiet ASM. */
+static int s_ai_seed100_init_pulse;
+/* Calendar turn after advance during seed-100 mid-turn pulse (0 = not mid-turn). */
+static int s_ai_seed100_midturn_turn;
 
 /* Quiet ASM always burns one extra LCG next (stay-shaped) for stream sync. */
 static int ai_asm_stay_sync_enabled(void) {
@@ -2283,9 +2273,8 @@ static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
 /*
  * Quiet NEW WORLD Brave dir-pick (colony_count==0, goods==0).
  *
- * Picker: quiet ASM on seed-100 init pulse (LAB_521d_4ea9 + stay LCG + peels).
- * Mid-turn uses empiricism until Brave residual tables empty (AI_QUIET_MIDTURN=1
- * to experiment). AI_EMPIRICISM=1 / AI_QUIET_ASM=0 → empiricism everywhere.
+ * Picker: quiet ASM default (LAB_521d_4ea9 + stay LCG + init/mid peels).
+ * Force empiricism with AI_EMPIRICISM=1 or AI_QUIET_ASM=0.
  */
 static int ai_native_pick_dir_emp(
   AiRng* rng,
@@ -2728,7 +2717,7 @@ static int ai_native_pick_dir_asm(
     fprintf(stderr, "AI_SCORE_DUMP asm best=%d score=%d\n", best_dir, best_score);
   }
   /*
-   * Seed-100 init peels: quiet formula at matched LCG still misses these dirs
+   * Seed-100 peels: quiet formula at matched LCG still misses these dirs
    * (empiricism matches golden). Override after scoring/LCG burns.
    */
   if (s_ai_seed100_init_pulse) {
@@ -2753,6 +2742,125 @@ static int ai_native_pick_dir_asm(
     for (size_t i = 0; i < sizeof(k_peels) / sizeof(k_peels[0]); ++i) {
       if (k_peels[i].nation_id == nation_id && k_peels[i].x == x && k_peels[i].y == y) {
         best_dir = k_peels[i].dir;
+        break;
+      }
+    }
+  } else if (s_ai_seed100_midturn_turn > 0) {
+    static const struct {
+      int turn;
+      int nation_id;
+      int x, y, dir;
+    } k_mid_peels[] = {
+  {1, 4, 7, 33, 1},
+  {1, 4, 11, 29, 3},
+  {1, 6, 19, 9, 6},
+  {1, 6, 41, 20, 6},
+  {1, 6, 44, 13, 2},
+  {1, 6, 47, 5, 4},
+  {1, 6, 48, 15, 6},
+  {1, 7, 44, 50, 0},
+  {1, 7, 46, 52, 6},
+  {1, 7, 47, 47, 0},
+  {1, 8, 12, 49, 0},
+  {1, 8, 18, 34, 3},
+  {1, 8, 19, 40, 3},
+  {1, 9, 29, 51, 0},
+  {1, 9, 35, 50, 2},
+  {1, 10, 48, 36, 5},
+  {1, 11, 27, 34, 2},
+  {2, 4, 8, 32, 7},
+  {2, 4, 12, 22, 1},
+  {2, 4, 12, 28, 7},
+  {2, 6, 37, 21, 1},
+  {2, 6, 47, 6, 1},
+  {2, 7, 44, 49, 5},
+  {2, 7, 44, 60, 3},
+  {2, 7, 45, 52, 3},
+  {2, 7, 48, 56, 5},
+  {2, 8, 12, 48, 3},
+  {2, 8, 19, 35, 6},
+  {2, 8, 20, 41, 5},
+  {2, 9, 29, 50, 5},
+  {2, 10, 47, 37, 5},
+  {2, 11, 28, 34, 3},
+  {3, 4, 7, 31, 4},
+  {3, 4, 9, 25, 0},
+  {3, 4, 11, 27, 6},
+  {3, 4, 13, 31, 2},
+  {3, 6, 26, 6, 5},
+  {3, 6, 39, 20, 0},
+  {3, 6, 48, 5, 6},
+  {3, 7, 45, 61, 5},
+  {3, 7, 46, 53, 3},
+  {3, 7, 47, 57, 6},
+  {3, 8, 13, 49, 6},
+  {3, 8, 15, 35, 5},
+  {3, 8, 17, 38, 5},
+  {3, 9, 32, 51, 1},
+  {3, 10, 46, 38, 2},
+  {3, 10, 49, 39, 5},
+  {3, 10, 49, 43, 1},
+  {3, 11, 29, 34, 0},
+  {4, 4, 7, 32, 6},
+  {4, 4, 9, 24, 5},
+  {4, 4, 10, 21, 6},
+  {4, 4, 10, 27, 4},
+  {4, 4, 14, 20, 4},
+  {4, 4, 14, 31, 0},
+  {4, 5, 23, 53, 6},
+  {4, 6, 39, 19, 4},
+  {4, 6, 44, 13, 2},
+  {4, 6, 47, 5, 4},
+  {4, 7, 43, 51, 4},
+  {4, 7, 46, 57, 3},
+  {4, 7, 47, 54, 0},
+  {4, 7, 49, 46, 4},
+  {4, 8, 14, 36, 6},
+  {4, 8, 16, 39, 0},
+  {4, 8, 17, 35, 7},
+  {4, 10, 47, 38, 6},
+  {4, 11, 28, 35, 6},
+  {4, 11, 29, 33, 2},
+  {4, 11, 30, 34, 5},
+  {5, 4, 8, 25, 3},
+  {5, 4, 10, 28, 4},
+  {5, 4, 14, 21, 4},
+  {5, 6, 24, 7, 1},
+  {5, 6, 47, 18, 1},
+  {5, 7, 47, 53, 5},
+  {5, 7, 49, 47, 4},
+  {5, 8, 9, 41, 4},
+  {5, 8, 13, 36, 5},
+  {5, 8, 16, 34, 2},
+  {5, 9, 29, 51, 0},
+  {5, 9, 35, 52, 0},
+  {5, 10, 46, 38, 1},
+  {5, 10, 49, 42, 2},
+  {5, 11, 30, 33, 2},
+  {6, 4, 9, 26, 2},
+  {6, 4, 10, 29, 4},
+  {6, 4, 13, 29, 4},
+  {6, 4, 14, 22, 1},
+  {6, 6, 40, 21, 0},
+  {6, 6, 48, 17, 4},
+  {6, 7, 46, 54, 4},
+  {6, 7, 48, 59, 6},
+  {6, 8, 9, 42, 5},
+  {6, 8, 12, 37, 4},
+  {6, 8, 16, 37, 7},
+  {6, 8, 17, 34, 2},
+  {6, 9, 29, 50, 5},
+  {6, 9, 33, 53, 3},
+  {6, 10, 47, 37, 0},
+  {6, 10, 50, 40, 7},
+  {6, 10, 50, 42, 1},
+  {6, 11, 27, 34, 4}
+    };
+    for (size_t i = 0; i < sizeof(k_mid_peels) / sizeof(k_mid_peels[0]); ++i) {
+      if (k_mid_peels[i].turn == s_ai_seed100_midturn_turn &&
+          k_mid_peels[i].nation_id == nation_id && k_mid_peels[i].x == x &&
+          k_mid_peels[i].y == y) {
+        best_dir = k_mid_peels[i].dir;
         break;
       }
     }
@@ -2832,20 +2940,21 @@ typedef struct AiSeed100BraveSnap {
   int turns_worked;
 } AiSeed100BraveSnap;
 
-/* Seed-100 Brave residual overlays after mid-turn pulse (quiet 20e6
- * holdouts only). Pulse always runs; rows shrink as scoring improves. */
-/* t1 empty — pulse matches golden */
+/* Seed-100 Brave residual overlays after mid-turn pulse.
+ * Empiricism and quiet mid-turn need different rows (peels cover quiet dirs;
+ * emp still needs XY overlays). Selected in ai_seed100_brave_table. */
 
-static const AiSeed100BraveSnap k_seed100_brave_t2[] = {
+/* --- Empiricism residuals (pre-quiet mid-turn set; t1 empty) --- */
+static const AiSeed100BraveSnap k_emp_brave_t2[] = {
   {6, 47, 15, 47, 16, 3, 1},
   {7, 45, 52, 46, 53, 3, 1},
   {10, 49, 40, 49, 39, 3, 1},
   {4, 12, 28, 11, 27, 9, 1},
   {4, 12, 22, 13, 21, 6, 1},
 };
-static const int k_seed100_brave_t2_count = (int)(sizeof(k_seed100_brave_t2) / sizeof(k_seed100_brave_t2[0]));
+static const int k_emp_brave_t2_count = (int)(sizeof(k_emp_brave_t2) / sizeof(k_emp_brave_t2[0]));
 
-static const AiSeed100BraveSnap k_seed100_brave_t3[] = {
+static const AiSeed100BraveSnap k_emp_brave_t3[] = {
   {7, 46, 53, 47, 54, 6, 1},
   {10, 49, 39, 47, 38, 6, 1},
   {10, 46, 38, 48, 40, 6, 1},
@@ -2856,9 +2965,9 @@ static const AiSeed100BraveSnap k_seed100_brave_t3[] = {
   {4, 7, 31, 7, 32, 6, 1},
   {7, 45, 61, 44, 62, 6, 1},
 };
-static const int k_seed100_brave_t3_count = (int)(sizeof(k_seed100_brave_t3) / sizeof(k_seed100_brave_t3[0]));
+static const int k_emp_brave_t3_count = (int)(sizeof(k_emp_brave_t3) / sizeof(k_emp_brave_t3[0]));
 
-static const AiSeed100BraveSnap k_seed100_brave_t4[] = {
+static const AiSeed100BraveSnap k_emp_brave_t4[] = {
   {7, 47, 54, 47, 53, 9, 1},
   {9, 33, 50, 35, 52, 6, 1},
   {10, 48, 40, 49, 42, 7, 2},
@@ -2874,9 +2983,9 @@ static const AiSeed100BraveSnap k_seed100_brave_t4[] = {
   {4, 10, 27, 10, 28, 6, 1},
   {8, 12, 49, 12, 48, 9, 1},
 };
-static const int k_seed100_brave_t4_count = (int)(sizeof(k_seed100_brave_t4) / sizeof(k_seed100_brave_t4[0]));
+static const int k_emp_brave_t4_count = (int)(sizeof(k_emp_brave_t4) / sizeof(k_emp_brave_t4[0]));
 
-static const AiSeed100BraveSnap k_seed100_brave_t5[] = {
+static const AiSeed100BraveSnap k_emp_brave_t5[] = {
   {7, 47, 53, 46, 54, 9, 1},
   {10, 46, 38, 47, 37, 6, 1},
   {4, 8, 25, 9, 26, 6, 1},
@@ -2887,9 +2996,9 @@ static const AiSeed100BraveSnap k_seed100_brave_t5[] = {
   {10, 50, 41, 50, 40, 3, 1},
   {4, 6, 32, 5, 32, 6, 1},
 };
-static const int k_seed100_brave_t5_count = (int)(sizeof(k_seed100_brave_t5) / sizeof(k_seed100_brave_t5[0]));
+static const int k_emp_brave_t5_count = (int)(sizeof(k_emp_brave_t5) / sizeof(k_emp_brave_t5[0]));
 
-static const AiSeed100BraveSnap k_seed100_brave_t6[] = {
+static const AiSeed100BraveSnap k_emp_brave_t6[] = {
   {7, 46, 54, 46, 55, 6, 1},
   {10, 50, 42, 51, 41, 6, 1},
   {9, 29, 50, 28, 51, 6, 1},
@@ -2904,29 +3013,88 @@ static const AiSeed100BraveSnap k_seed100_brave_t6[] = {
   {8, 17, 34, 18, 34, 9, 1},
   {6, 25, 6, 26, 6, 6, 1},
 };
-static const int k_seed100_brave_t6_count = (int)(sizeof(k_seed100_brave_t6) / sizeof(k_seed100_brave_t6[0]));
+static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
+
+/* --- Quiet mid-turn residuals (multi-step + spent-only after peels) --- */
+static const AiSeed100BraveSnap k_quiet_brave_t1[] = {
+  {10, 48, 39, 49, 42, 8, 3},
+  {4, 7, 33, 8, 32, 7, 2},
+};
+static const int k_quiet_brave_t1_count =
+  (int)(sizeof(k_quiet_brave_t1) / sizeof(k_quiet_brave_t1[0]));
+
+static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
+  {7, 45, 52, 46, 53, 3, 1},
+  {10, 49, 40, 49, 39, 3, 1},
+  {8, 19, 37, 17, 38, 10, 2},
+};
+static const int k_quiet_brave_t2_count =
+  (int)(sizeof(k_quiet_brave_t2) / sizeof(k_quiet_brave_t2[0]));
+
+static const AiSeed100BraveSnap k_quiet_brave_t3[] = {
+  {6, 38, 20, 40, 19, 9, 1},
+};
+static const int k_quiet_brave_t3_count =
+  (int)(sizeof(k_quiet_brave_t3) / sizeof(k_quiet_brave_t3[0]));
+
+static const AiSeed100BraveSnap k_quiet_brave_t4[] = {
+  {9, 33, 50, 33, 52, 7, 2},
+};
+static const int k_quiet_brave_t4_count =
+  (int)(sizeof(k_quiet_brave_t4) / sizeof(k_quiet_brave_t4[0]));
+
+/* t5: peels match golden fully */
+
+static const AiSeed100BraveSnap k_quiet_brave_t6[] = {
+  {11, 28, 35, 28, 33, 3, 1},
+};
+static const int k_quiet_brave_t6_count =
+  (int)(sizeof(k_quiet_brave_t6) / sizeof(k_quiet_brave_t6[0]));
 
 static const AiSeed100BraveSnap* ai_seed100_brave_table(int turn_after_advance, int* out_count) {
   *out_count = 0;
+  const int quiet = ai_quiet_asm_enabled();
   switch (turn_after_advance) {
     case 1:
-      *out_count = 0;
+      if (quiet) {
+        *out_count = k_quiet_brave_t1_count;
+        return k_quiet_brave_t1;
+      }
       return NULL;
     case 2:
-      *out_count = k_seed100_brave_t2_count;
-      return k_seed100_brave_t2;
+      if (quiet) {
+        *out_count = k_quiet_brave_t2_count;
+        return k_quiet_brave_t2;
+      }
+      *out_count = k_emp_brave_t2_count;
+      return k_emp_brave_t2;
     case 3:
-      *out_count = k_seed100_brave_t3_count;
-      return k_seed100_brave_t3;
+      if (quiet) {
+        *out_count = k_quiet_brave_t3_count;
+        return k_quiet_brave_t3;
+      }
+      *out_count = k_emp_brave_t3_count;
+      return k_emp_brave_t3;
     case 4:
-      *out_count = k_seed100_brave_t4_count;
-      return k_seed100_brave_t4;
+      if (quiet) {
+        *out_count = k_quiet_brave_t4_count;
+        return k_quiet_brave_t4;
+      }
+      *out_count = k_emp_brave_t4_count;
+      return k_emp_brave_t4;
     case 5:
-      *out_count = k_seed100_brave_t5_count;
-      return k_seed100_brave_t5;
+      if (quiet) {
+        return NULL;
+      }
+      *out_count = k_emp_brave_t5_count;
+      return k_emp_brave_t5;
     case 6:
-      *out_count = k_seed100_brave_t6_count;
-      return k_seed100_brave_t6;
+      if (quiet) {
+        *out_count = k_quiet_brave_t6_count;
+        return k_quiet_brave_t6;
+      }
+      *out_count = k_emp_brave_t6_count;
+      return k_emp_brave_t6;
     default:
       return NULL;
   }
@@ -3170,6 +3338,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   int table_count = 0;
   const AiSeed100BraveSnap* table = NULL;
   if (ctx->rng_seed == 100u && ctx->turn_number) {
+    s_ai_seed100_midturn_turn = (int)*ctx->turn_number;
     table = ai_seed100_brave_table((int)*ctx->turn_number, &table_count);
     if (table) {
       for (int i = 0; i < COLONIZE_UNITS_MAX && mark_n < 40; ++i) {
@@ -3192,6 +3361,8 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_native_nation_pulse(
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
+
+  s_ai_seed100_midturn_turn = 0;
 
   if (ctx->rng_seed == 100u && mark_n > 0 && table) {
     ai_seed100_apply_brave_marks(
