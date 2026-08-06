@@ -49,14 +49,31 @@ static int ai_lcg_audit_enabled(void) {
   return cached;
 }
 
+/* Set AI_QUIET_ASM=1 for gated ASM quiet pick (phase 6 A/B; default empiricism). */
+static int ai_quiet_asm_enabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_QUIET_ASM");
+    cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+  }
+  return cached;
+}
+
 static int s_ai_lcg_in_pick;
 static int s_ai_lcg_pick_burns;
+static uint32_t s_ai_lcg_total_nexts;
 
 static int ai_rng_range(AiRng* rng, int lo, int hi_inclusive) {
   if (s_ai_lcg_in_pick) {
     s_ai_lcg_pick_burns++;
   }
+  s_ai_lcg_total_nexts++;
   return dos_rng_range(rng, lo, hi_inclusive);
+}
+
+static uint16_t ai_rng_next_counted(AiRng* rng) {
+  s_ai_lcg_total_nexts++;
+  return dos_rng_next(rng);
 }
 
 static void ai_native_nation_pulse(
@@ -2168,14 +2185,12 @@ static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
 /*
  * Quiet NEW WORLD Brave dir-pick (colony_count==0, goods==0).
  *
- * Empirical formula — keeps smoke_mapgen_seed100 / smoke_ai_turns green.
+ * Default: Linux empiricism (base 200, facing +4/−6/+3, home, −0x28, +5,
+ * range(1,5)+stay) — keeps smokes green. Those terms are NOT DOS quiet ASM.
  *
- * Phase 5: gated ASM + aligned LCG (no stay; range(1,3); post_first kept)
- * still missed Apache init `(46,52)`. Burns matched ASM count (delta=0) but
- * XY still wrong → next gap is scoring terms (home/−0x28/+5 vs quiet
- * incompleteness), not LCG stay surplus alone. Do not mix ASM onto empiricism.
+ * AI_QUIET_ASM=1 → ai_native_pick_dir_asm (annotated LAB_521d_4ea9 + 54f5).
  */
-static int ai_native_pick_dir(
+static int ai_native_pick_dir_emp(
   AiRng* rng,
   const ColonizeWorldMap* map,
   int x,
@@ -2346,6 +2361,199 @@ static int ai_native_pick_dir(
   }
   return best_dir;
 }
+
+
+/* ---- AI_QUIET_ASM=1: gated ASM quiet (phase 4/5 shape) -------------------- */
+
+static int ai_unit_index_on_tile(const ColonizeUnitPool* units, int x, int y) {
+  if (!units) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (u->active && u->aboard_ship_id < 0 && u->x == x && u->y == y) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static int ai_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
+  if (!ai_map_inset(map, x, y)) {
+    return -1;
+  }
+  if ((ai_layer2_at(map, x, y) & 1u) == 0) {
+    return -1;
+  }
+  return ai_owner_nibble(map, x, y);
+}
+
+static int ai_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
+  if (!ai_map_inset(map, x, y)) {
+    return -1;
+  }
+  if ((ai_layer2_at(map, x, y) & 2u) != 0) {
+    return ai_owner_nibble(map, x, y);
+  }
+  return ai_tile_owner_or_presence(map, x, y);
+}
+
+static int ai_lab_54f5_gate(
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  int dest_x,
+  int dest_y,
+  int nation_id
+) {
+  const int own = ai_owner_nibble(map, dest_x, dest_y);
+  if (own == nation_id) {
+    return 1;
+  }
+  if (ai_unit_index_on_tile(units, dest_x, dest_y) < 0 &&
+      ai_tile_tribe_or_presence(map, dest_x, dest_y) < 0) {
+    return 1;
+  }
+  return 0;
+}
+
+static int ai_quiet_fog_explore(
+  const ColonizeWorldMap* map,
+  int score,
+  int unit_x,
+  int unit_y,
+  int dir,
+  int nation_id
+) {
+  const int far_x = unit_x + k_ai_dir8_dx[dir] * 4;
+  const int far_y = unit_y + k_ai_dir8_dy[dir] * 4;
+  if (!ai_is_ocean_hs(map, far_x, far_y) && ai_map_inset(map, far_x, far_y)) {
+    score += 8;
+  }
+  for (int n = 0; n < 8; ++n) {
+    const int nx = far_x + k_ai_dir8_dx[n];
+    const int ny = far_y + k_ai_dir8_dy[n];
+    if (!ai_map_inset(map, nx, ny)) {
+      continue;
+    }
+    (void)nation_id;
+    if (ai_tile_owner_or_presence(map, nx, ny) >= 0) {
+      score -= 2;
+    }
+  }
+  return score;
+}
+
+static int ai_native_pick_dir_asm(
+  AiRng* rng,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  int x,
+  int y,
+  int nation_id,
+  int last_dir
+) {
+  int best_dir = 8;
+  int best_score = -0x3e7;
+  const int unit_fa = ai_mask_fa_flags(map, x, y) != 0;
+  const int unit_river = (int)(ai_terrain_at(map, x, y) & 0x40u) != 0;
+  int accepted = 0;
+  int rejected = 0;
+  s_ai_lcg_pick_burns = 0;
+  s_ai_lcg_in_pick = 1;
+
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + k_ai_dir8_dx[d];
+    const int ny = y + k_ai_dir8_dy[d];
+    if (!ai_map_inset(map, nx, ny)) {
+      rejected++;
+      continue;
+    }
+    const int terr_raw = (int)(ai_terrain_at(map, nx, ny) & 0x1fu);
+    if (terr_raw == 0x19 || terr_raw == 0x1a || terr_raw >= 0x18) {
+      rejected++;
+      continue;
+    }
+    if (ai_is_ocean_hs(map, nx, ny)) {
+      rejected++;
+      continue;
+    }
+    const int own = ai_owner_nibble(map, nx, ny);
+    if (own >= 0 && own != nation_id) {
+      rejected++;
+      continue;
+    }
+    accepted++;
+
+    int score = ai_rng_range(rng, 1, 3);
+    {
+      const int dest_river = (int)(ai_terrain_at(map, nx, ny) & 0x40u) != 0;
+      const int dest_fa = ai_mask_fa_flags(map, nx, ny) != 0;
+      const int cardinal = (d & 1) == 0;
+      if ((unit_river && dest_river && cardinal) || (unit_fa && dest_fa)) {
+        score += 1;
+      } else {
+        const int terr = ai_dos_terr_class(map, nx, ny) & 31;
+        score -= (int)k_ai_dos_terr_cost[terr];
+      }
+    }
+    if (ai_lab_54f5_gate(map, units, nx, ny, nation_id)) {
+      if (last_dir >= 0 && last_dir <= 7) {
+        int diff = last_dir - d;
+        if (diff < 1) {
+          diff = ~diff + 1;
+        }
+        if (diff > 4) {
+          diff = -(diff - 8);
+        }
+        score += diff * diff * -2;
+      }
+      score = ai_quiet_fog_explore(map, score, x, y, d, nation_id);
+    }
+    if (score > best_score) {
+      best_score = score;
+      best_dir = d;
+    }
+  }
+  s_ai_lcg_in_pick = 0;
+  if (ai_lcg_audit_enabled()) {
+    fprintf(
+      stderr,
+      "AI_LCG_AUDIT pick n=%d xy=(%d,%d) accepted=%d rejected=%d emp_burns=%d "
+      "asm_burns=%d stay=0 delta=%d best=%d mode=asm\n",
+      nation_id,
+      x,
+      y,
+      accepted,
+      rejected,
+      s_ai_lcg_pick_burns,
+      accepted,
+      s_ai_lcg_pick_burns - accepted,
+      best_dir
+    );
+  }
+  return best_dir;
+}
+
+static int ai_native_pick_dir(
+  AiRng* rng,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  int x,
+  int y,
+  int nation_id,
+  int home_x,
+  int home_y,
+  int last_dir,
+  int nation_tech
+) {
+  if (ai_quiet_asm_enabled()) {
+    return ai_native_pick_dir_asm(rng, map, units, x, y, nation_id, last_dir);
+  }
+  return ai_native_pick_dir_emp(
+    rng, map, x, y, nation_id, home_x, home_y, last_dir, nation_tech
+  );
+}
+
 
 /* FUN_281f_0754 / mask &0x0a handled by ai_mask_fa_flags above. */
 
@@ -2561,7 +2769,7 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
     burns = 1;
   }
   for (int b = 0; b < burns; ++b) {
-    (void)dos_rng_next(rng);
+    (void)ai_rng_next_counted(rng);
   }
   if (ai_lcg_audit_enabled() && burns > 0) {
     fprintf(stderr, "AI_LCG_AUDIT post_first_brave n=%d burns=%d\n", nation_id, burns);
@@ -2598,8 +2806,19 @@ static void ai_native_nation_pulse(
       prelude = 4;
     }
     for (int b = 0; b < prelude; ++b) {
-      (void)dos_rng_next(rng);
+      (void)ai_rng_next_counted(rng);
     }
+  }
+
+  if (ai_lcg_audit_enabled() && seed100_init_burns) {
+    fprintf(
+      stderr,
+      "AI_AB pulse_enter n=%d nexts=%u rng_state=0x%x mode=%s\n",
+      nation_id,
+      (unsigned)s_ai_lcg_total_nexts,
+      (unsigned)rng->state,
+      ai_quiet_asm_enabled() ? "asm" : "emp"
+    );
   }
 
   /* Clear turns_worked for this nation's Braves (DOS 1816 ~81630). */
@@ -2646,8 +2865,9 @@ static void ai_native_nation_pulse(
         );
       }
       const int last_dir = (u->last_dir >= 0 && u->last_dir <= 7) ? u->last_dir : 0;
-      const int dir =
-        ai_native_pick_dir(rng, map, u->x, u->y, nation_id, hx, hy, last_dir, tech);
+      const int dir = ai_native_pick_dir(
+        rng, map, units, u->x, u->y, nation_id, hx, hy, last_dir, tech
+      );
       if (dir < 0 || dir > 7) {
         u->moves_left = max_mp;
         break;
@@ -2667,6 +2887,20 @@ static void ai_native_nation_pulse(
       u->last_dir = dir;
       u->turns_worked++;
       ai_set_owner_nibble(map, nx, ny, nation_id);
+      if (ai_lcg_audit_enabled() && seed100_init_burns) {
+        fprintf(
+          stderr,
+          "AI_AB step n=%d idx=%d from=(%d,%d) dir=%d to=(%d,%d) cost=%d\n",
+          nation_id,
+          brave_index,
+          from_x,
+          from_y,
+          dir,
+          nx,
+          ny,
+          cost
+        );
+      }
       steps++;
       if (seed100_init_burns && brave_index == 0 && steps == 1) {
         ai_native_post_first_brave_burns(rng, nation_id);

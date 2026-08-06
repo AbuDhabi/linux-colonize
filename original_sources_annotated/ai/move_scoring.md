@@ -1,31 +1,31 @@
 # Move scoring (`FUN_521d_20e6`) — quiet Brave annotated
 
-## Status (phase 5)
+## Status (phase 6)
 
 | Piece | State |
 |-------|--------|
 | Annotated quiet + `54f5` + fog + `0682` bit0 | **Done** |
-| Init-pulse LCG audit | **Done** — stay surplus +34; see `.context/seed100-brave.md` |
-| Linux cutover | **Blocked** — LCG-aligned gated ASM still misses Apache `(46,52)` |
+| Empiricism home/−0x28/+5/base-200 | **Not DOS quiet** — Linux inventions |
+| Linux default | Empirical (smokes green) |
+| `AI_QUIET_ASM=1` | A/B path for init isolation |
 
-## Phase 5 finding
+## Phase 6 isolation
 
-Aligning pick_dir burns to ASM (drop stay; `range(1,3)`; keep `post_first`) does **not** green goldens. Next: scoring-term gap (home/−0x28/+5 vs quiet path), not another fog/gate/LCG-stay pass.
+A/B (`AI_QUIET_ASM` + `AI_LCG_AUDIT`): golden `(46,52)` is n=7 Brave from `(47,53)`.
+Emp dir=7; ASM dir=6. Stay surplus (−14 nexts at n=7) is real but syncing it
+still leaves dir=6 → **dir-only** score gap at that tile. Do not add empiricism
+home/−0x28/+5 into annotated quiet.
 
-## `LAB_521d_54f5` gate
+## Quiet ASM (DOS `LAB_521d_4fb4`, flags `0x10|0x20` at `0x523d`)
 
-```
-(unit_on_dest < 0 && tribe_or_presence(dest) < 0) || owner(dest) == self
-```
+- Base `FUN_281f_04d4(1,3)`
+- River/fa cardinal → `+1`, else `−DS:0x2f76[terr]` (not ×3)
+- `LAB_521d_54f5` gate → facing `−diff²×2`, military −10, `bVar20` fog
+- **No** home-dist (`FUN_124c_0040` unused in `20e6`), **no** −0x28, **no** +5, **no** base 200
 
-## LCG (ASM quiet target)
+## Empiricism (Linux only — keeps goldens)
 
-```
-for d in 0..7:
-  if rejected: continue
-  score_base = range(1, 3)
-# no stay in loop
-```
+Base 200, facing +4/−6/+3, home-dist, −0x28, +5, `range(1,5)` + stay. Do **not** annotate these into quiet ASM.
 
 ## Related
 
