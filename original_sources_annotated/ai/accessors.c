@@ -280,18 +280,8 @@ int dos_dist(int dx, int dy) {
 }
 
 /*
- * Ghidra: FUN_465b_0000 | move_spent_add  (cost portion used by quiet Braves)
- *
- * Full 465b is ~426 lines (combat / colony / foreign-tile branches). The quiet
- * NEW WORLD Brave path only needs the opening cost calculation:
- *
- *   spent = terr_cost_table[class(dest)] * 3
- *   if both tiles have fa-mask & 0x0a → spent = 1
- *   if both have minor-river & move is cardinal → spent = 1
- *   if dest has tribe (layer2&2) and owned and spent > 3 → spent = 3
- *
- * Linux: ai_dos_move_spent. Remaining 465b (ocean-transition force-to-max,
- * foreign combat) still RE-open for Sioux/Apache spent mismatches.
+ * Ghidra: FUN_465b_0000 cost head — see ai/move_spent.c (phase 12 full body).
+ * Kept here so older includes of accessors still resolve the symbol.
  */
 int move_spent_cost_only(
   int unit_index,
@@ -319,17 +309,34 @@ int move_spent_cost_only(
     spent = 1;
   }
 
-  /* FUN_281f_06be / tribe-tile cap: only when dest layer2&2. */
-  if ((layer2_byte(to_x, to_y) & VICEROY_LAYER2_TRIBE) != 0) {
-    if (owner_nibble(to_x, to_y) >= 0 && spent > 3) {
-      spent = 3;
-    }
+  /* FUN_281f_06be → FUN_137f_03e4 | tile_tribe_owner: cap when dest tribe-owned. */
+  if (tile_tribe_owner(to_x, to_y) >= 0 && spent > 3) {
+    spent = 3;
   }
 
   if (spent > 100) {
     spent = 1;
   }
   return spent;
+}
+
+/* Ghidra: FUN_281f_090c | unit_max_mp — Brave allotment thirds path → 3. Stub. */
+int unit_max_mp(int unit_index) {
+  (void)unit_index;
+  return 3;
+}
+
+/*
+ * Ghidra: FUN_281f_0696 → FUN_137f_0358 | euro_settlement_owner
+ * Tribe bit + Euro owner (0..3); Indians / empty → −1.
+ * Used by 465b ocean/HS force-to-max gate (both tiles must be < 0).
+ */
+int euro_settlement_owner(int x, int y) {
+  int own = tile_tribe_owner(x, y);
+  if (own > 3) {
+    return -1;
+  }
+  return own;
 }
 
 /* ====================================================================== */

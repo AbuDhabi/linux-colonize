@@ -197,10 +197,13 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   spent=max emptied **t1** and keep cost fidelity. **Phase 11:** seed-100
   **init and mid-turn** use quiet ASM by default (stay LCG; 13 init peels +
   104 mid-turn peels for matched-RNG scoring holdouts; coarse fog from phase
-  9). Quiet residual overlays shrunk to **8 multi-step/spent rows**
+  9).   Quiet residual overlays shrunk to **8 multi-step/spent rows**
   (t1:2 / t2:3 / t3:1 / t4:1 / t5:0 / t6:1). Empiricism mid-turn overlays
   retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map irrelevant.
-  Hang recipes last-resort only.
+  Hang recipes last-resort only. **Phase 12:** `FUN_465b_0000` annotated in
+  [`move_spent.c`](../original_sources_annotated/ai/move_spent.c); ocean/HS
+  force-to-max uses `euro_settlement_owner` (`FUN_137f_0358`). Spent-only
+  Sioux/Apache still residual (cost head alone → 6/9; hang AL parked).
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6

@@ -22,12 +22,14 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `FUN_137f_0228` | `set_owner_nibble` | `ai/accessors.c` | `ai_set_owner_nibble` |
 | `FUN_13e4_000e` | `decode_terrain_class` | `ai/accessors.c` | `ai_dos_terr_class` |
 | `FUN_124c_0040` | `dos_dist` | `ai/accessors.c` | `ai_dos_dist` |
-| `FUN_465b_0000` | `move_spent_cost_only` (cost head) | `ai/accessors.c` | `ai_dos_move_spent` |
+| `FUN_465b_0000` | `move_spent_add` / `move_spent_cost_head` | `ai/move_spent.c` (+ cost head in `accessors.c`) | `ai_dos_move_spent` + pulse ocean force |
+| `FUN_281f_0696` / `FUN_137f_0358` | `euro_settlement_owner` | `ai/accessors.c` / `move_spent.c` | ocean force-to-max gate |
+| `FUN_281f_090c` | `unit_max_mp` | `ai/accessors.c` | Brave max thirds (=3) |
 | `FUN_281f_097a` | `unit_has_moves_remaining` | `ai/accessors.c` | pulse `spent < max_mp` approx |
 | `FUN_1427_13b0` | `unit_has_moves_remaining` (real body) | `ai/accessors.c` | same |
 | `FUN_4d56_152e` | `village_growth_accum` | `ai/indian_nation_turn.c` | `ai_grow_villages` |
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
-| `func_0x00042191` | `indian_unit_act` (stub) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
+| `func_0x00042191` | `indian_unit_act` (quiet pick+step; alarm PARKED) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
 | quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir_asm` via `AI_QUIET_ASM=1` |
 | Init A/B dumps | `AI_LCG_AUDIT` / `AI_AB` / `AI_SCORE_DUMP` | `src/core/ai.c` | phase 7–8: fog `+8` flips `(47,53)`; far tiles AGREE SAV |
 | `AI_ASM_STAY_SYNC` | audit stay-shaped +1 next | `src/core/ai.c` | matched RNG for score dump only |
@@ -114,6 +116,6 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 
 - `FUN_4d56_2154` / `2820` / `4528` raid clusters
 - Full `FUN_521d_20e6` / nested `5b66` (quiet + coarse fog done)
-- Full `FUN_465b_0000` combat / ocean-transition tail
+- `FUN_465b_0000` foreign combat / diplomacy / colony-contact tails (section 3 PARKED in `move_spent.c`)
 - Ghidra database renames / re-export
-- Live DOS hang EXEs (parked; prefer goldens + coarse-fog plane)
+- Live DOS hang EXEs (parked; prefer goldens + `move_spent.c` + TURN fixtures)

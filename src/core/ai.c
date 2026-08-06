@@ -2917,8 +2917,7 @@ static int ai_dos_move_spent(
   if (river_from != 0 && river_to != 0 && (dir & 1) == 0) {
     spent = 1;
   }
-  /* FUN_465b / 06be: cap spent at 3 only when dest has tribe flag
-   * (layer2 & 2); plain ownership hi-nibble does not cap. */
+  /* FUN_465b / 06be: cap spent at 3 when dest has tribe flag + owner. */
   if ((ai_layer2_at(map, to_x, to_y) & 2u) != 0) {
     const int own = ai_owner_nibble(map, to_x, to_y);
     if (own >= 0 && spent > 3) {
@@ -3015,18 +3014,18 @@ static const AiSeed100BraveSnap k_emp_brave_t6[] = {
 };
 static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
 
-/* --- Quiet mid-turn residuals (multi-step + spent-only after peels) --- */
+/* --- Quiet mid-turn residuals (multi-step + spent/tw after peels) --- */
 static const AiSeed100BraveSnap k_quiet_brave_t1[] = {
-  {10, 48, 39, 49, 42, 8, 3},
-  {4, 7, 33, 8, 32, 7, 2},
+  {10, 48, 39, 49, 42, 8, 3}, /* multi-step */
+  {4, 7, 33, 8, 32, 7, 2}, /* XY match; tw/spent holdout */
 };
 static const int k_quiet_brave_t1_count =
   (int)(sizeof(k_quiet_brave_t1) / sizeof(k_quiet_brave_t1[0]));
 
 static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
-  {7, 45, 52, 46, 53, 3, 1},
-  {10, 49, 40, 49, 39, 3, 1},
-  {8, 19, 37, 17, 38, 10, 2},
+  {7, 45, 52, 46, 53, 3, 1}, /* spent-only; 465b AL still open */
+  {10, 49, 40, 49, 39, 3, 1}, /* spent-only; 465b AL still open */
+  {8, 19, 37, 17, 38, 10, 2}, /* multi-step */
 };
 static const int k_quiet_brave_t2_count =
   (int)(sizeof(k_quiet_brave_t2) / sizeof(k_quiet_brave_t2[0]));
@@ -3279,9 +3278,23 @@ static void ai_native_nation_pulse(
       u->x = nx;
       u->y = ny;
       u->moves_left = spent + cost;
-      /* FUN_465b: ocean/HS flag change + no colony on either tile → spent = max. */
+      /*
+       * FUN_465b LAB_465b_05ca: ocean/HS flag change AND
+       * euro_settlement_owner(from) < 0 AND euro_settlement_owner(dest) < 0
+       * → spent = max_mp (FUN_281f_090c).
+       * euro_settlement = tribe bit + Euro owner 0..3 (FUN_137f_0358).
+       */
       if (ai_is_ocean_hs(map, from_x, from_y) != ai_is_ocean_hs(map, nx, ny)) {
-        u->moves_left = max_mp;
+        const int from_euro_set =
+          ((ai_layer2_at(map, from_x, from_y) & 2u) != 0 &&
+           ai_owner_nibble(map, from_x, from_y) >= 0 &&
+           ai_owner_nibble(map, from_x, from_y) < 4);
+        const int to_euro_set =
+          ((ai_layer2_at(map, nx, ny) & 2u) != 0 && ai_owner_nibble(map, nx, ny) >= 0 &&
+           ai_owner_nibble(map, nx, ny) < 4);
+        if (!from_euro_set && !to_euro_set) {
+          u->moves_left = max_mp;
+        }
       }
       u->last_dir = dir;
       u->turns_worked++;

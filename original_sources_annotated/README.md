@@ -19,10 +19,11 @@ second runtime.
 | [`include/viceroy_types.h`](include/viceroy_types.h) | Unit / tribe / map-plane layouts |
 | [`include/viceroy_globals.h`](include/viceroy_globals.h) | Named DS addresses used by AI |
 | [`ai/accessors.c`](ai/accessors.c) | Map / RNG / move-cost helpers |
+| [`ai/move_spent.c`](ai/move_spent.c) | Phase 12: full `FUN_465b_0000` section map |
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 11: quiet init+mid cutover; peels; spent/multi residuals |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 11–12: quiet cutover; peels; spent/multi residuals |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules
@@ -46,4 +47,7 @@ second runtime.
 - Phase 9: Coarse fog `DS:0x9faa` dual index + Linux buffer.
 - Phase 10–11: Seed-100 **init and mid-turn** quiet ASM cutover (stay LCG +
   peels; quiet residuals = multi/spent only). `AI_EMPIRICISM=1` for legacy.
-  Raid bodies / full `20e6` out of scope.
+- Phase 12: `FUN_465b_0000` annotated end-to-end in `ai/move_spent.c` (cost head,
+  foreign gate, ocean force-to-max, ADD/gamble; combat PARKED). Linux ocean gate
+  uses `euro_settlement_owner`. Spent-only Sioux/Apache residuals remain (hang AL).
+  Raid bodies / full `20e6` still out of scope.
