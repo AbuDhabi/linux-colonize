@@ -87,7 +87,9 @@ int euro_settlement_owner(int x, int y) {
  * Phase 14 tile contrast (TURN2 pulse start): Sioux (49,40)→(49,39) and
  * Apache (45,52)→(46,53) have the same cost-head inputs as TURN1 Sioux
  * (49,41)→(49,40) spent=9 — FROM presence (l2&1), DEST no tribe, no FA/river
- * pair — yet goldens spent=3. From-presence caps break TURN1. Need hang AL.
+ * pair — yet goldens spent=3. From-presence caps break TURN1.
+ * dump_b465r3: Sioux ADD AL=9 (cost head matches Linux); golden 3 is post-ADD.
+ * Apache on same dump spent=3 with force-max stubbed ⇒ AL was 3 at ADD.
  *
  * Linux: ai_dos_move_spent.
  */
@@ -108,9 +110,8 @@ int move_spent_cost_head(int from_x, int from_y, int to_x, int to_y, int dir) {
     spent = 3;
   }
   /*
-   * Spent-only seed-100 holdouts (Sioux/Apache t2): class*3 is 6/9 but golden
-   * spent=3 with presence on FROM and no tribe on DEST. Not explained by the
-   * 465b cost head alone; hang AL still required (midturn_465b.md).
+   * Sioux t2: hang AL=9 — do not invent cost-head caps. Chase post-ADD.
+   * Apache t2: AL likely 3 at ADD (midturn_465b.md dump_b465r3).
    */
   if (spent > 100) {
     spent = 1;
@@ -193,9 +194,10 @@ void move_spent_foreign_combat_parked(int unit_index, int to_x, int to_y) {
  *      && euro_settlement_owner(dest) < 0:
  *        moves_spent = unit_max_mp(unit)   // FUN_281f_090c
  *
- * Linux pulse ports both ocean change and euro_settlement_owner < 0 (phase 12).
- * Quiet land Braves: both ocean_or_hs equal → force never fires; cannot explain
- * spent=3 holdouts.
+ * Quiet land Braves: both ocean_or_hs equal → force never fires under this
+ * gate as written. dump_b465r3: Sioux ADD AL=9; golden spent=3 ⇒ something
+ * post-ADD still forces max in stock (re-check gate inputs / other writes).
+ * Apache on that dump already spent=3 with force-max stubbed ⇒ AL was 3.
  */
 int move_spent_ocean_force_max(
   int from_x,
