@@ -202,9 +202,12 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   force-to-max uses `euro_settlement_owner` (`FUN_137f_0358`). **Phase 13:**
   multi-step / Inca tw residuals cleared — river/fa cost=1 peels let the
   existing `097a` pulse loop continue (`spent < 3`); mis-keyed t3/t6 overlays
-  retired. Quiet residuals **2 spent-only rows** (t2 Apache/Sioux; hang AL
-  parked). Empiricism mid-turn overlays retained under `AI_EMPIRICISM=1` /
-  `AI_QUIET_ASM=0`. Complete Map irrelevant. Hang recipes last-resort only.
+  retired. **Phase 14:** spent-only static RE exhausted (cost head cannot
+  distinguish T1 spent=9 vs T2 spent=3; only ADD+ocean write `0x3149`). Quiet
+  residuals remain **2 spent-only rows**; hang AL blocked — `VR_B465R/A`
+  lack ADD1 Sioux/Apache stubs (see `midturn_465b.md`). Empiricism mid-turn
+  overlays retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map
+  irrelevant. Hang recipes last-resort only (rebuild EXEs first).
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
@@ -285,7 +288,7 @@ manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
 **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (quiet mid-turn
 default, **2** Brave spent-only residuals, named init burns, landfall coastal
 staging + found-site helper). Next: empty remaining quiet `k_quiet_brave_t*`
-holdouts (spent-only Apache/Sioux; `465b` hang AL parked), then generic T1 Euro settle.
+holdouts (spent-only Apache/Sioux; rebuild `465b` ADD1 hang for AL), then generic T1 Euro settle.
 
 ---
 
