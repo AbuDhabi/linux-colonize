@@ -39,6 +39,60 @@ static const struct {
 
 typedef ColonizeDosRng AiRng;
 
+/*
+ * DOS coarse fog / tribe-region plane (DS:0x9faa, size 0x10e).
+ * Dual index: explore +8 uses (x>>2)+(y>>2)*18; tribe spacing uses
+ * (y/5)+(x/5)*18. Not player map.seen / Complete Map.
+ */
+#define AI_COARSE_FOG_PITCH 0x12
+#define AI_COARSE_FOG_SIZE 0x10e
+static uint8_t s_ai_coarse_fog[AI_COARSE_FOG_SIZE];
+
+static void ai_coarse_fog_clear(void) {
+  memset(s_ai_coarse_fog, 0, sizeof(s_ai_coarse_fog));
+}
+
+static int ai_coarse_fog_explore_index(int x, int y) {
+  return (x >> 2) + (y >> 2) * AI_COARSE_FOG_PITCH;
+}
+
+static int ai_coarse_fog_tribe_index(int x, int y) {
+  return (y / 5) + (x / 5) * AI_COARSE_FOG_PITCH;
+}
+
+/* FUN_6a09: store 1 at tribe /5 cell after capital/satellite commit. */
+static void ai_coarse_fog_mark_tribe(int x, int y) {
+  const int ix = ai_coarse_fog_tribe_index(x, y);
+  if (ix >= 0 && ix < AI_COARSE_FOG_SIZE) {
+    s_ai_coarse_fog[ix] = 1;
+  }
+}
+
+/* +8 path: explore-index byte == 0. */
+static int ai_coarse_fog_unseen(int x, int y) {
+  const int ix = ai_coarse_fog_explore_index(x, y);
+  if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
+    return 0;
+  }
+  return s_ai_coarse_fog[ix] == 0;
+}
+
+static uint8_t ai_coarse_fog_explore_byte(int x, int y) {
+  const int ix = ai_coarse_fog_explore_index(x, y);
+  if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
+    return 0xff;
+  }
+  return s_ai_coarse_fog[ix];
+}
+
+static uint8_t ai_coarse_fog_tribe_byte(int x, int y) {
+  const int ix = ai_coarse_fog_tribe_index(x, y);
+  if (ix < 0 || ix >= AI_COARSE_FOG_SIZE) {
+    return 0xff;
+  }
+  return s_ai_coarse_fog[ix];
+}
+
 /* Set AI_LCG_AUDIT=1 to log init-pulse pick_dir burn counts (phase 5). */
 static int ai_lcg_audit_enabled(void) {
   static int cached = -1;
@@ -559,6 +613,7 @@ static bool ai_place_tribes_from_txt(
   int cur_nation = -1;
   bool first_of_nation[8];
   memset(first_of_nation, 1, sizeof(first_of_nation));
+  ai_coarse_fog_clear();
 
   while (fgets(line, sizeof(line), f)) {
     char* s = line;
@@ -600,6 +655,7 @@ static bool ai_place_tribes_from_txt(
     if (!ai_append_tribe(tribes, count, capacity, lx, ly, cur_nation, capital, tech)) {
       break;
     }
+    ai_coarse_fog_mark_tribe(lx, ly);
     if (capital) {
       first_of_nation[indian] = false;
       p->col1->indian[indian].capitol_x = (uint8_t)lx;
@@ -633,9 +689,8 @@ static bool ai_place_tribes_procedural(
     return false;
   }
 
-  /* 15×18 occupancy grid (FUN_1d1d_0dae @ DS:0x9faa). */
-  uint8_t grid[15 * 18];
-  memset(grid, 0, sizeof(grid));
+  /* Shared DOS plane (FUN_1d1d_0dae @ DS:0x9faa); /5 tribe index. */
+  ai_coarse_fog_clear();
   uint8_t nation_tribe_count[8];
   memset(nation_tribe_count, 0, sizeof(nation_tribe_count));
 
@@ -690,7 +745,7 @@ static bool ai_place_tribes_procedural(
       if (gx < 0 || gx > 14 || gy < 0 || gy > 17) {
         continue;
       }
-      if (grid[gx * 18 + gy] != 0 && attempt < 10000) {
+      if (ai_coarse_fog_tribe_byte(x, y) != 0 && attempt < 10000) {
         continue;
       }
       placed = 1;
@@ -711,7 +766,7 @@ static bool ai_place_tribes_procedural(
     p->col1->indian[indian].capitol_x = (uint8_t)px;
     p->col1->indian[indian].capitol_y = (uint8_t)py;
     nation_tribe_count[indian]++;
-    grid[(px / 5) * 18 + (py / 5)] = 1;
+    ai_coarse_fog_mark_tribe(px, py);
     regions_marked++;
   }
 
@@ -734,8 +789,11 @@ static bool ai_place_tribes_procedural(
       if (cx < 0 || cx > 14 || cy < 0 || cy > 17) {
         break;
       }
-      if (grid[cx * 18 + cy] == 0) {
-        found_cell = 1;
+      {
+        const int tix = cy + cx * AI_COARSE_FOG_PITCH;
+        if (tix >= 0 && tix < AI_COARSE_FOG_SIZE && s_ai_coarse_fog[tix] == 0) {
+          found_cell = 1;
+        }
       }
     } while (!found_cell);
 
@@ -782,7 +840,12 @@ static bool ai_place_tribes_procedural(
       }
     }
 
-    grid[cx * 18 + cy] = 1;
+    {
+      const int tix = cy + cx * AI_COARSE_FOG_PITCH;
+      if (tix >= 0 && tix < AI_COARSE_FOG_SIZE) {
+        s_ai_coarse_fog[tix] = 1;
+      }
+    }
     regions_marked++;
   }
 
@@ -2456,7 +2519,8 @@ static int ai_quiet_fog_explore_ex(
   int m2 = 0;
   const int far_x = unit_x + k_ai_dir8_dx[dir] * 4;
   const int far_y = unit_y + k_ai_dir8_dy[dir] * 4;
-  if (!ai_is_ocean_hs(map, far_x, far_y) && ai_map_inset(map, far_x, far_y)) {
+  if (!ai_is_ocean_hs(map, far_x, far_y) && ai_map_inset(map, far_x, far_y) &&
+      ai_coarse_fog_unseen(far_x, far_y)) {
     score += 8;
     p8 = 8;
   }
@@ -2507,6 +2571,17 @@ static int ai_native_pick_dir_asm(
       "AI_SCORE_DUMP begin n=7 xy=(47,53) last_dir=%d mode=asm stay_sync=%d\n",
       last_dir,
       ai_asm_stay_sync_enabled()
+    );
+    fprintf(
+      stderr,
+      "AI_SCORE_DUMP coarse farW=(43,53) explore=%02x tribe=%02x unseen=%d | "
+      "farNW=(43,49) explore=%02x tribe=%02x unseen=%d\n",
+      ai_coarse_fog_explore_byte(43, 53),
+      ai_coarse_fog_tribe_byte(43, 53),
+      ai_coarse_fog_unseen(43, 53),
+      ai_coarse_fog_explore_byte(43, 49),
+      ai_coarse_fog_tribe_byte(43, 49),
+      ai_coarse_fog_unseen(43, 49)
     );
   }
 
