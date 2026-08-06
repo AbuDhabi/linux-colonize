@@ -188,15 +188,18 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   spend cap (`06be` / layer2&2), own-nation −0x28 (skip only river-into-tribe),
   mask fa-flags (road `layer2 0x40` → DOS `&0x0a`), and ocean-transition
   spent=max emptied **t1** and keep cost fidelity. Residual overlays remain on
-  **t2–t6 (~50 rows: 6/8/14/9/13)** — quiet-scoring holdouts plus Sioux/Apache
-  spent-only rows (XY match; dump-side `465b` still open). Mark/apply helpers
-  stay until those empty.
+  **t2–t6 (~50 rows: 5/9/14/9/13)** — quiet-scoring holdouts plus Sioux/Apache
+  spent-only rows (XY match; dump-side `465b` still open). Apache T2 XY fixed
+  via tile-scoped quiet at `(45,52)` (skip facing / river home-base / roll-add);
+  spent still open. ASM facing `−diff²×2` / quiet `−2f76` alone regress T1 —
+  keep empirical facing. Mark/apply helpers stay until tables empty.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
-  `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella);
-  Dutch join uses first nation colony (no hardcoded Isabella XY). Atlantic
-  approach table + ship waypoints T3–T6 still fixture RE until full ocean
-  `20e6` / `0a60`.
+  `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
+  SP pioneer + FR found peels). Dutch join uses first nation colony. Atlantic
+  approach table + T3–T6 **ship** coastal waypoints still fixture (west-explore
+  `spend_goto` misses golden coastal XY by 1–2 tiles until ocean `20e6`).
+  T3 FR ship/unload peeled via found tile (`hold = found+(0,+2)`).
 - Keep this file and [original_index.md](original_index.md) status rows aligned
   when slices land.
 
