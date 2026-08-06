@@ -23,6 +23,10 @@ extern int ocean_or_high_seas(int x, int y);
 extern int owner_nibble(int x, int y);
 extern uint8_t terrain_byte(int x, int y);
 extern int decode_terrain_class(uint8_t terrain);
+extern int map_tile_in_bounds(int x, int y);
+extern int coarse_fog_unseen(int x, int y);
+extern int tile_explore_mask(int x, int y);
+extern int tile_owner_or_presence(int x, int y);
 
 /* Direction deltas at DS:0xbe / 0xb4 — same order as Linux k_ai_dir8_*. */
 static const int k_dir8_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
@@ -97,48 +101,55 @@ int quiet_score_facing(int score, int dir, int last_dir) {
 /*
  * Ghidra: bVar20 block after facing | quiet_score_fog_explore
  *
- * Callees:
- *   FUN_281f_0768 ocean_or_high_seas
- *   FUN_281f_0302 map_inset / in-bounds probe
- *   FUN_281f_074a layer3-ish explore mask
- *   FUN_281f_0682 owner/presence probe
+ * bVar20 init (Brave type 19): starts true (type != wagon 0x12); may clear
+ * later for some Euro paths. NEW WORLD Indian quiet: treat as enabled.
  *
- * Early NEW WORLD Braves: bVar20 typically true (type != wagon 0x12).
- * +8: far probe tile along dir is unseen, not ocean, in-bounds
- * +4: ship-explore west bias (local_34) — usually N/A for Braves
- * Per-neighbor (8): +2 explore, −2 if occupied/owned
+ * Far probe = unit + 4×dir.
+ *   +8 if coarse_fog_unseen(far>>2) && !ocean(far) && inset(far)
+ *   +4 ship west-bias — skipped (local_34 ship flag; Braves N/A)
+ * Neighbor loop around far (8 dirs):
+ *   +2 explore-mask clear — ONLY if nation_id < 4 (Europeans); Indians skip
+ *   −2 if tile_owner_or_presence(nbr) >= 0
+ *   +2f79[terr] if local_6a — NEW WORLD forces local_6a=0; skip
  */
 int quiet_score_fog_explore(
   int score,
   int unit_x,
   int unit_y,
   int dir,
+  int nation_id,
   int enable_fog /* bVar20 */
 ) {
-  if (!enable_fog) {
+  if (!enable_fog || dir < 0 || dir > 7) {
     return score;
   }
-  /* Far cell at 4× delta (ASM: char(dir+0xbe)*4 + unit). */
+
   int far_x = unit_x + k_dir8_dx[dir] * 4;
   int far_y = unit_y + k_dir8_dy[dir] * 4;
-  /*
-   * Ghidra callees (named in accessors.c):
-   *   map_tile_in_bounds / FUN_281f_0302
-   *   ocean_or_high_seas / FUN_281f_0768
-   *   tile_explore_mask / FUN_281f_074a
-   *   tile_owner_or_presence / FUN_281f_0682
-   *
-   * if unseen(far>>2) && !ocean(far) && in_bounds(far): score += 8
-   * for n in 0..7 around far:
-   *   if in_bounds(nbr):
-   *     if explore-mask clear && (!ocean || ship_flag): score += 2
-   *     if owner_or_presence(nbr) >= 0: score -= 2
-   *
-   * Linux cutover still omits this block — landing it changes LCG-adjacent
-   * call order and dir ties; must arrive with base/terrain/facing together.
-   */
-  (void)far_x;
-  (void)far_y;
+
+  if (coarse_fog_unseen(far_x, far_y) && !ocean_or_high_seas(far_x, far_y) &&
+      map_tile_in_bounds(far_x, far_y)) {
+    score += 8;
+  }
+
+  for (int n = 0; n < 8; ++n) {
+    int nx = far_x + k_dir8_dx[n];
+    int ny = far_y + k_dir8_dy[n];
+    if (!map_tile_in_bounds(nx, ny)) {
+      continue;
+    }
+    /* Euro-only +2 explore (uVar11 < 4). */
+    if (nation_id >= 0 && nation_id < 4) {
+      int mask = tile_explore_mask(nx, ny);
+      int euro_bit = 0x10 << (nation_id & 3);
+      if ((mask & euro_bit) == 0 && !ocean_or_high_seas(nx, ny)) {
+        score += 2;
+      }
+    }
+    if (tile_owner_or_presence(nx, ny) >= 0) {
+      score -= 2;
+    }
+  }
   return score;
 }
 
@@ -201,7 +212,7 @@ int quiet_brave_pick_dir_asm(
       score -= 0x10; /* LAB_521d_5070 — usually unreachable after reject */
     }
     score = quiet_score_facing(score, d, last_dir);
-    score = quiet_score_fog_explore(score, x, y, d, enable_fog);
+    score = quiet_score_fog_explore(score, x, y, d, nation_id, enable_fog);
     score = quiet_score_colony_pull(score, colony_count);
 
     if (score > best_score) {

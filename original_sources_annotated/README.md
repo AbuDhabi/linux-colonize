@@ -22,7 +22,7 @@ second runtime.
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Notes for full `20e6` (phase 2) |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet+fog annotate done; Linux cutover blocked (phase 3) |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules

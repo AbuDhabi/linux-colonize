@@ -139,28 +139,40 @@ int decode_terrain_class(uint8_t terrain) {
   return (int)(terrain & VICEROY_TERRAIN_TYPE_MASK);
 }
 
-/* Ghidra: FUN_281f_0302 | map_tile_in_bounds — inset / valid land probe. */
-int map_tile_in_bounds(int x, int y) {
-  (void)x;
-  (void)y;
-  return 1; /* annotated placeholder */
-}
-
-/* Ghidra: FUN_281f_074a | tile_explore_mask — layer3-ish explore/fog nibble. */
+/* Ghidra: FUN_281f_074a → FUN_137f_02f8 | tile_explore_mask
+ * Fourth map plane at DS:0x168 (not layer3 @0x164). Used as
+ * (0x10 << euro_nation) bit test for +2 explore bonus — Europeans only. */
 int tile_explore_mask(int x, int y) {
   (void)x;
   (void)y;
+  /* return g_explore_plane[y * pitch + x]; */
   return 0;
 }
 
-/* Ghidra: FUN_281f_0682 | tile_owner_or_presence — >=0 if claimed/occupied probe. */
+/* Ghidra: coarse fog cell at DS:-0x6056 pitch 0x12 | coarse_fog_unseen
+ * Index = (x>>2) + (y>>2)*18; byte 0 = unseen. Early NEW WORLD ≈ all zero. */
+int coarse_fog_unseen(int x, int y) {
+  (void)x;
+  (void)y;
+  return 1; /* annotated: early-game all-unseen */
+}
+
+/* Ghidra: FUN_281f_0682 → FUN_137f_0314 | tile_owner_or_presence
+ * −1 if not inset or layer2 bit0 clear; else owner from FUN_137f_0200. */
 int tile_owner_or_presence(int x, int y) {
-  return owner_nibble(x, y);
+  return owner_nibble(x, y); /* simplified: owner hi-nibble or −1 */
 }
 
 /* Ghidra: FUN_281f_078c | terrain_class_at — decode_terrain_class(terrain_byte). */
 int terrain_class_at(int x, int y) {
   return decode_terrain_class(terrain_byte(x, y));
+}
+
+/* Ghidra: FUN_281f_0302 → FUN_137f_000a | map_tile_in_bounds — inset interior. */
+int map_tile_in_bounds(int x, int y) {
+  (void)x;
+  (void)y;
+  return 1;
 }
 
 

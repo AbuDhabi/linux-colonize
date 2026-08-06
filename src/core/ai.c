@@ -2155,11 +2155,10 @@ static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
  * Empirical formula (base 200, facing +4/−6/+3, home-dist, −0x28, +5,
  * range(1,5)) — keeps smoke_mapgen_seed100 / smoke_ai_turns green.
  *
- * ASM LAB_521d_4ea9 target is annotated in
- * original_sources_annotated/ai/quiet_brave_scoring.c (base range(1,3),
- * −diff²×2, −2f76[terr] / river-fa +1, fog). A coherent Linux cutover to
- * that formula regresses goldens (LCG burn shape + missing bVar20 fog);
- * do not reintroduce piecemeal ASM patches here.
+ * ASM LAB_521d_4ea9 (+fog) is annotated in quiet_brave_scoring.c. Phase 2
+ * (no fog) and phase 3 (+Indian fog) Linux cutovers both regressed goldens;
+ * restored here. Next: 54f5 gate / military −10 / coarse-fog fidelity.
+ * Do not mix ASM terms onto this empirical path.
  */
 static int ai_native_pick_dir(
   AiRng* rng,
