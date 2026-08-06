@@ -2,17 +2,19 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (R0 partial)
+## Status (R0 partial + phase-2 annotate)
 
 | Gate | State |
 |------|--------|
 | `smoke_mapgen_seed100` | GREEN |
 | `smoke_ai_turns` TURN1→7 | GREEN |
 | Brave residual **t1** | **empty** |
-| Brave residual **t2–t6** | **50 rows** (5/9/14/9/13) |
+| Brave residual **t2–t6** | **50 rows** (5/9/14/9/13) — unchanged after phase 2 |
 | Init post-first-Brave burns | Named `ai_native_post_first_brave_burns` (Inca=6, Tupi=1) |
 | Euro T2 coastal | `ai_coastal_staging_from_landfall` |
 | Euro found sites | `ai_euro_found_tile_from_landfall` (T3–T6 SP/FR/DU found peels) |
+| Quiet ASM annotate | **Done** — `original_sources_annotated/ai/quiet_brave_scoring.c` |
+| Quiet Linux cutover | **Blocked** — ASM formula regresses goldens; empiricism kept |
 
 ## Scoring / cost ports that emptied t1
 
@@ -21,7 +23,21 @@ Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 - Own-nation −0x28 (skip river-into-tribe)
 - Arawak (48,15) home-dist thr `>1`; Inca (8,33) burn roll / no-add
 - `ai_mask_fa_flags`; ocean-transition spent=max
-- Empirical facing +4/−6/+3 still load-bearing (ASM `−diff²×2` alone regresses T1 / mapgen)
+- Empirical facing +4/−6/+3 still load-bearing in Linux
+
+## Full quiet `521d:4ea9` (annotated; Linux not cut over)
+
+Brave type 19 has `523d` flags `0x38` (has `0x10|0x20`):
+
+- Base `range(1,3)` (not 200)
+- River-cardinal or fa → **+1**, else **−2f76[terr]** (not ×3)
+- Facing **−diff²×2**
+- `bVar20` neighbor fog/explore bonuses; colony-pull `52aa` (no-op early)
+
+Annotated in `original_sources_annotated/ai/quiet_brave_scoring.c`. **2026-08-06:**
+Linux cutover of base+terrain+facing (fog omitted) failed both smokes — reverted.
+Need fog + matching LCG order in one coherent landing. Do not mix ASM terms
+onto empirical base-200.
 
 ## Apache T2 (direction fixed; spent open)
 
@@ -36,21 +52,7 @@ Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 - Ruled out (break correct mv=6/9): clamp-to-`max_mp`, adj-tribe / plain-owner cap, claim-exit→max.
 - ASM `465b`: land→land force-to-max only on `0768` ocean/HS differ + no colony; neither tile is ocean.
 - `06be`/`03e4` caps only when dest `layer2&2`; dest tribe=0 (Sioux/Apache). Arawak T2 dest `(47,16)` *is* tribe → cap explains its golden 3.
-- **`dosbox_465n` (post-EOT):** Sioux/Apache/Arawak spent **3** confirmed (= `TURN3`). `VR_B465N` hang never fired (reloc ate nation check).
-- **`dosbox_b465s`:** ADD2 hang was loaded but never hit — Braves use **ADD1** (`258771`).
-- **`dump_b465l` / `dump_b465r`:** froze — ocean patch was `EB 44`→JOIN (skipped continue). R also false-hung on `BX>=0x150` (`BX=08d2`).
-- **Next:** fixed EXEs (`EB 0F`→continue): `VR_B465L` (log BX), `VR_B465R` hang `BX==0x1F8` Sioux, `VR_B465A` Apache `0x1A4`. At hang **AL**=cost. See `tools/brave_dump/midturn_465b.md`.
-
-## Full quiet `521d:4ea9` (not yet ported)
-
-Brave type 19 has `523d` flags `0x38` (has `0x10|0x20`):
-
-- Base `range(1,3)` (not 200)
-- River-cardinal or fa → **+1**, else **−2f76[terr]** (not ×3)
-- Facing **−diff²×2**
-- `bVar20` neighbor fog/explore bonuses; colony-pull `52aa`
-
-Partial ports (facing-only, facing+−2f76 on empirical base) **regress** T1 / `smoke_mapgen_seed100`. Keep empirical base-200 + tile bridges until a coherent full quiet port.
+- **Next:** hang-dump `465b` ADD1 path (`AL`=cost at Sioux/Apache sites). Annotated cost head is `move_spent_cost_only` in `original_sources_annotated/ai/accessors.c` — full 465b tail still RE-open.
 
 ## T2 residual composition (overlays off)
 
@@ -59,7 +61,7 @@ Partial ports (facing-only, facing+−2f76 on empirical base) **regress** T1 / `
 | mv-only (XY OK) | 2 | Apache + Sioux spent |
 | wrong-dir | 3 | Arawak (47,15), Inca (12,28), Inca (12,22) |
 
-Extra quiet_bridge tile scopes for those three **did not** pick golden dirs (Arawak worsened). Prefer global ASM quiet over more exceptions.
+Unchanged by phase 2 (cutover not landed). Prefer global ASM quiet+fog over more tile exceptions.
 
 ## Euro peel
 
