@@ -2,17 +2,17 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 14 — spent-only hard stop)
+## Status (phase 14 hard stop + hang EXE rebuild)
 
 | Gate | State |
 |------|--------|
 | Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
 | Mid-turn pick (default) | Quiet ASM + stay LCG + mid peels + **2** spent residuals — **green** |
 | Multi-step / Inca tw | Cleared (phase 13) |
-| Spent-only Sioux/Apache | Residual; static RE exhausted; hang AL **blocked** (EXE patch missing) |
+| Spent-only Sioux/Apache | Hang AL: Sioux **9** (post-ADD chase); Apache likely **3** at ADD | Residual + park |
+| Hang EXEs | **Working** — `dump_b465r3` Sioux AL=9; force-max reloc-safe stub |
 | Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
-| DOS hang campaign | Parked — rebuild Sioux/Apache ADD hang before retry |
 
 ## Quiet mid-turn inventory (phase 13)
 
@@ -61,13 +61,14 @@ Same cost-head shape as the agreeing T1 row (presence on FROM, no tribe/FA/river
 pair on DEST). From-presence caps break T1 spent=9 — rejected.
 
 `FUN_465b` write map (ASM): friendly land path only **ADD local_40** then
-optional ocean force-to-max. No post-ADD land write can turn 6/9 into 3.
-Therefore DOS `local_40` must already be 3 at ADD — need hang **AL**.
+optional ocean force-to-max. Hang `dump_b465r3`: Sioux ADD **AL=9** (matches
+Linux head). Golden spent=3 ⇒ post-ADD write (force-max / clamp), not cost
+head. Apache already spent=3 on same dump with force-max stubbed out ⇒ Apache
+AL was 3 at ADD (confirm `VR_B465A`).
 
-Existing `COLONIZE/VR_B465R.EXE` / `VR_B465A.EXE` match stock `VICEROY.EXE`
-`EB FE` sites (no Sioux `CMP BX,1F8` / Apache `1A4` stub at ADD). Prior dumps
-freeze before Indian pulse (Sioux still `(49,40)` spent=9). **Do not invent
-cost caps.** Next spent work: rebuild working ADD1 hang, then port.
+Hang EXEs: ADD1 `CALL` → force-max window stub at `0x3F31F` (reloc-safe).
+Cave `0x3ECD0` → EMS `evm0015`. Recipe: [`tools/brave_dump/midturn_465b.md`](../tools/brave_dump/midturn_465b.md).
+**Do not invent Sioux cost-head caps.**
 
 ## Quiet ASM init inventory (phase 10)
 
