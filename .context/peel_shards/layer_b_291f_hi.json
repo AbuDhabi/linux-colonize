@@ -1,0 +1,253 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_291f_hi",
+  "functions": {
+    "FUN_291f_0cca": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_41ce (Train expert dialog; job list + gold)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0ce6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_0836 (Europe window frame setup)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d10": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_086c (Load Europe screen art / PIK bring-up)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d1e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_2bfe (Harbor ship context menu; sail/sell/unload)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d2c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_4884 (Recruit dialog; 3 pool slots + passage)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d3a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_08a4 (Draw market cargo name/price caption)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d56": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_14e2 (Blit one dock immigrant unit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d72": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1b9e (Enter Europe UI mode 10)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d9c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_127c (Draw Bound For New World ship panel)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0daa": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_3694 (Dock immigrant info / embark bark dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0db8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1bd2 (Drag-start bark dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0dd4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_18fc (Full Europe-screen redraw)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0de2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_15aa (Draw docks immigrant panel)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0df0": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_0e16 (Blit one market cargo cell + highlight)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0dfe": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1956 (Europe overlay teardown)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e0c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_06c4 (Resolve Nth harbor ship index)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e28": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_3746 (Dock immigrant action mega-dialog; board/orders)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e36": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_285c (Transfer cargo between ship holds)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e44": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1960 (Toggle/refresh highlighted panel by mode)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e60": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_4e8e (Europe mouse/drag input dispatcher)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e6e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1f66 (Clear top market strip; init row Y)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e7c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1382 (Draw Expected Soon ship panel)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e8a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1f7e (Advance market row Y cursor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0e98": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_30aa (Hold-slot click: load/unload cargo)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0eb4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1f8e (Blit market strip panel)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0eda": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f3f_0006 (CRC/LFSR step; shift+XOR poly on LSB)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0ee8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_008a (Report footer/title strip blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0ef6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_1438 (Economic Adviser header chrome; REPORT5)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f04": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_1b94 (Colony Adviser header chrome; REPORT6)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f12": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_20b4 (Unit disposition report header; column labels)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f20": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_1bec (Colony Adviser F6; pop/build/garrison rows)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f2e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_1550 (Economic Adviser colony cargo-stock rows)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f3c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_0d3e (Labor Adviser detail; profession colony placements)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f4a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_0000 (Report plate bring-up; art+palette into 2da8)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f58": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_3f41_1e80 (Naval/military-in-colony report header chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f66": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_4345_0982 (Compute next liberty-bell threshold)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f82": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_49dd_02d0 (Resolve tile tip string; orders/colony/terrain)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0f9c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_41f2_0b70 (Score→difficulty gold rebate + treasure dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0faa": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_41f2_000e (Present nation-score report title dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0fc4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7314_015e (Extract next comma field; advance cursor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0fec": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_4345_0342 (Apply elected founding-father effects)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "41 EMS far thunks (210d_0dab/0d91 + JMPF). By target segment: 38fd×25 (Europe trade UI: train/recruit/harbor/market/docks/mouse), 3f41×9 (adviser report chrome/bodies), 4345×2 (liberty-bell / FF effects), 41f2×2 (score/title dialogs), 3f3f×1 (CRC/LFSR), 49dd×1 (tile tip), 7314×1 (comma field). Roles from labeled target catalog entries. Shard only — no seed/catalog edit."
+}

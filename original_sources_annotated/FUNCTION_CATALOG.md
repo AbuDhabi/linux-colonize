@@ -1579,16 +1579,16 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_00e4` | 34460 | 10 | thunk | Far thunk → FUN_2b5a_0b34 (contextual ORDERS menu enable) | inferred |  |
 | `FUN_291f_00f0` | 34470 | 10 | thunk | Far thunk → FUN_2b5a_3802 (map input poll loop) | inferred |  |
 | `FUN_291f_0108` | 34480 | 10 | thunk | Far thunk → FUN_2b5a_223a (Colony Report Options dialog) | inferred |  |
-| `FUN_291f_0120` | 34490 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0120` | 34490 | 10 | thunk | Far thunk → FUN_6f74_37fc (Tip/help dialog variant (DS:0x2008 mode) via 32a4+2580) | inferred |  |
 | `FUN_291f_012c` | 34500 | 10 | thunk | Far thunk → FUN_7a65_0008 (label viewport tile (hidden-terrain chrome)) | inferred |  |
 | `FUN_291f_013a` | 34510 | 10 | thunk | Far thunk → FUN_4b58_05c6 (set/clear menu-item hidden flag bit1) | inferred |  |
 | `FUN_291f_0146` | 34520 | 10 | thunk | Far thunk → FUN_4b58_0552 (set/clear menu-item disabled flag bit0) | inferred |  |
-| `FUN_291f_0152` | 34530 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_015e` | 34540 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0152` | 34530 | 10 | thunk | Far thunk → FUN_4b58_05f6 (Clear hidden bit on every item under every menu) | inferred |  |
+| `FUN_291f_015e` | 34540 | 10 | thunk | Far thunk → FUN_4b58_0582 (Clear disabled bit on every item under every menu) | inferred |  |
 | `FUN_291f_016a` | 34550 | 10 | thunk | Far thunk → FUN_6f74_2580 (modal dialog input loop) | inferred |  |
 | `FUN_291f_0176` | 34560 | 10 | thunk | Far thunk → FUN_6f74_0a00 (append labeled option/button node) | inferred |  |
 | `FUN_291f_0182` | 34570 | 10 | thunk | Far thunk → FUN_6f74_32a4 (parse @-directive dialog script) | inferred |  |
-| `FUN_291f_018e` | 34580 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_018e` | 34580 | 10 | thunk | Far thunk → FUN_6ba1_000c (Compute viewport origin/size/tile-px from zoom+camera; clamp rim) | inferred |  |
 | `FUN_291f_019c` | 34590 | 10 | thunk | Far thunk → FUN_6f74_3760 (set side-art style then flush/run dialog) | inferred |  |
 | `FUN_291f_01a8` | 34600 | 10 | thunk | Far thunk → FUN_7ada_01aa (DOS INT21 AH=49 free mem block) | inferred |  |
 | `FUN_291f_01b6` | 34610 | 10 | thunk | Far thunk → FUN_6f74_08fa (set/clear option disabled bit0) | inferred |  |
@@ -1603,25 +1603,25 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_023c` | 34700 | 10 | thunk | Far thunk → FUN_6f74_06d0 (alloc+init dialog box record) | inferred |  |
 | `FUN_291f_0248` | 34710 | 10 | thunk | Far thunk → FUN_4d56_00e0 (Indian AI act chain →01e2/14fe) | inferred |  |
 | `FUN_291f_0254` | 34720 | 10 | thunk | Far thunk → FUN_364b_1e64 (destroy colony; compact table + fix refs) | inferred |  |
-| `FUN_291f_0262` | 34730 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_026e` | 34740 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_027a` | 34750 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0288` | 34760 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0296` | 34770 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_02a4` | 34780 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_02b2` | 34790 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_02c0` | 34800 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0262` | 34730 | 10 | thunk | Far thunk → FUN_6f74_3704 (Set/clear one bit in dialog checkbox mask (DS:0x1f54)) | inferred |  |
+| `FUN_291f_026e` | 34740 | 10 | thunk | Far thunk → FUN_6f74_36fc (Clear dialog checkbox bitmask (DS:0x1f54)) | inferred |  |
+| `FUN_291f_027a` | 34750 | 10 | thunk | Far thunk → FUN_7b04_001e (Max of DOS free probe (0002) vs XMS UMB size (2100_000e)) | inferred |  |
+| `FUN_291f_0288` | 34760 | 10 | thunk | Far thunk → FUN_6afa_0168 (LFSR-order present each viewport tile (dissolve refresh)) | inferred |  |
+| `FUN_291f_0296` | 34770 | 10 | thunk | Far thunk → FUN_6afa_0132 (Blit full map viewport buffer to screen (240×192)) | inferred |  |
+| `FUN_291f_02a4` | 34780 | 10 | thunk | Far thunk → FUN_6ba1_1028 (Optional letterbox fill then viewport tile blit (0d6c)) | inferred |  |
+| `FUN_291f_02b2` | 34790 | 10 | thunk | Far thunk → FUN_479b_0bd0 (Goto-colony order body (path, dock, unload/load)) | inferred |  |
+| `FUN_291f_02c0` | 34800 | 10 | thunk | Far thunk → FUN_647e_090a (Colonist-slot picker dialog for current colony) | inferred |  |
 | `FUN_291f_02ce` | 34810 | 10 | thunk | Far thunk → FUN_647e_0000 (bind colony record pointer) | inferred |  |
-| `FUN_291f_02dc` | 34820 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_02dc` | 34820 | 10 | thunk | Far thunk → FUN_647e_0796 (Colony list picker dialog; returns selected idx) | inferred |  |
 | `FUN_291f_02ea` | 34830 | 10 | thunk | Far thunk → FUN_48d3_015e (spiral-find High Seas; set sail/goto) | inferred |  |
-| `FUN_291f_02f8` | 34840 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0306` | 34850 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_02f8` | 34840 | 10 | thunk | Far thunk → FUN_647e_01c6 (Paginated colony-select dialog for unit) | inferred |  |
+| `FUN_291f_0306` | 34850 | 10 | thunk | Far thunk → FUN_6f74_372e (Test one bit in dialog checkbox mask (DS:0x1f54)) | inferred |  |
 | `FUN_291f_0320` | 34860 | 10 | thunk | Far thunk → FUN_7562_04e8 (manual Load slot picker then load) | inferred |  |
-| `FUN_291f_032e` | 34870 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_032e` | 34870 | 10 | thunk | Far thunk → FUN_7562_030a (Manual Save slot picker (slots 0-7) then write) | inferred |  |
 | `FUN_291f_033c` | 34880 | 10 | thunk | Far thunk → FUN_6f74_092a (set/clear option flag bit1) | inferred |  |
-| `FUN_291f_0348` | 34890 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0356` | 34900 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0364` | 34910 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0348` | 34890 | 10 | thunk | Far thunk → FUN_43f7_1528 (REF arrival announce; set 0x5382 bit1 (force present)) | inferred |  |
+| `FUN_291f_0356` | 34900 | 10 | thunk | Far thunk → FUN_43f7_1a26 (Declare independence: crown setup, wipe other Euros, REF pools, war flag) | inferred |  |
+| `FUN_291f_0364` | 34910 | 10 | thunk | Far thunk → FUN_43f7_0218 (Crown-nation bootstrap: fold status≠0 Euro into peer; set DS:0x53d2) | inferred |  |
 | `FUN_291f_03aa` | 34920 | 10 | thunk | Far thunk → FUN_41f2_0092 (nation score + optional report UI) | inferred |  |
 | `FUN_291f_03b8` | 34930 | 10 | thunk | Far thunk → FUN_3f41_2548 (Foreign Affairs Advisor F8) | inferred |  |
 | `FUN_291f_03c6` | 34940 | 10 | thunk | Far thunk → FUN_3f41_220c (unit disposition list) | inferred |  |
@@ -1634,91 +1634,91 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0428` | 35010 | 10 | thunk | Far thunk → FUN_6cb2_0eac (Colonizopedia terrain article) | inferred |  |
 | `FUN_291f_0436` | 35020 | 10 | thunk | Far thunk → FUN_6f74_3848 (number-entry dialog; stash at 9cc8) | inferred |  |
 | `FUN_291f_044e` | 35030 | 10 | thunk | Far thunk → FUN_4720_049e (embark/naval order UI dispatch) | inferred |  |
-| `FUN_291f_045c` | 35040 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0468` | 35050 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0472` | 35060 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_047e` | 35070 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_048a` | 35080 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0496` | 35090 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_045c` | 35040 | 10 | thunk | Far thunk → FUN_4b58_051a (Set/clear menu disabled flag (bit0 at menu+0xc)) | inferred |  |
+| `FUN_291f_0468` | 35050 | 10 | thunk | Far thunk → FUN_1b5e_0000 (Update soft mouse cursor hotspot/shape from 17×17 mask (1c36 + 1b8f blit)) | inferred |  |
+| `FUN_291f_0472` | 35060 | 10 | thunk | Far thunk → FUN_4b58_0d94 (Modal menu loop: mouse/kbd navigate titles+items, select cmd into bar root) | inferred |  |
+| `FUN_291f_047e` | 35070 | 10 | thunk | Far thunk → FUN_4b58_13ac (Hit-test mouse on menu titles; open matching pulldown via 0d94) | inferred |  |
+| `FUN_291f_048a` | 35080 | 10 | thunk | Far thunk → FUN_4b58_14de (Find enabled item matching hotkey across menus; return command id) | inferred |  |
+| `FUN_291f_0496` | 35090 | 10 | thunk | Far thunk → FUN_4b58_144a (Open pulldown by menu-title hotkey match, then run 0d94) | inferred |  |
 | `FUN_291f_04a2` | 35100 | 10 | thunk | Far thunk → FUN_1ae7_0032 (drain BIOS keyboard buffer) | inferred |  |
-| `FUN_291f_04ba` | 35110 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_04d4` | 35120 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_04e0` | 35130 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_04ec` | 35140 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0504` | 35150 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0510` | 35160 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_051c` | 35170 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0534` | 35180 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0540` | 35190 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_054c` | 35200 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0558` | 35210 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0564` | 35220 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_057c` | 35230 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_04ba` | 35110 | 10 | thunk | Far thunk → FUN_479b_0972 (Unit goto/move order tick; may enter colony) | inferred |  |
+| `FUN_291f_04d4` | 35120 | 10 | thunk | Far thunk → FUN_2f2b_2b66 (Draw vertical multifunction tab buttons) | inferred |  |
+| `FUN_291f_04e0` | 35130 | 10 | thunk | Far thunk → FUN_2f2b_171c (Draw settlement building strip (15 slots)) | inferred |  |
+| `FUN_291f_04ec` | 35140 | 10 | thunk | Far thunk → FUN_2f2b_284c (Draw right multifunction pane by mode DS:0x337) | inferred |  |
+| `FUN_291f_0504` | 35150 | 10 | thunk | Far thunk → FUN_2f2b_0722 (Draw one warehouse cargo-type amount label) | inferred |  |
+| `FUN_291f_0510` | 35160 | 10 | thunk | Far thunk → FUN_2f2b_05b0 (Tiny far stub into colony chrome) | inferred |  |
+| `FUN_291f_051c` | 35170 | 10 | thunk | Far thunk → FUN_2f2b_2f26 (Arm native-trade session pointers (0xbb8/9cce/9cd0)) | inferred |  |
+| `FUN_291f_0534` | 35180 | 10 | thunk | Far thunk → FUN_2f2b_0ba8 (Draw colony area-view (5x5 map panel); trust ASM over corrupt C tail) | inferred |  |
+| `FUN_291f_0540` | 35190 | 10 | thunk | Far thunk → FUN_2f2b_4284 (Select colonist; enter assign/profession mode (8d54=6)) | inferred |  |
+| `FUN_291f_054c` | 35200 | 10 | thunk | Far thunk → FUN_2f2b_2f3e (Assign colonist to workplace/job (XREF-clear; decomp messy)) | inferred |  |
+| `FUN_291f_0558` | 35210 | 10 | thunk | Far thunk → FUN_2f2b_1cce (Draw Production multifunction cargo/shortfall strip) | inferred |  |
+| `FUN_291f_0564` | 35220 | 10 | thunk | Far thunk → FUN_2f2b_11b2 (Draw outside/fence unit strip) | inferred |  |
+| `FUN_291f_057c` | 35230 | 10 | thunk | Far thunk → FUN_2f2b_2054 (Measure text extent for colony UI button/label) | inferred |  |
 | `FUN_291f_0594` | 35240 | 10 | thunk | Far thunk → FUN_2f2b_4da6 (unload cargo hold→warehouse) | inferred |  |
-| `FUN_291f_05a0` | 35250 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05ac` | 35260 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05b8` | 35270 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05c4` | 35280 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05d0` | 35290 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05dc` | 35300 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05e8` | 35310 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_05f4` | 35320 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0600` | 35330 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_060c` | 35340 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0618` | 35350 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0630` | 35360 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0648` | 35370 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0654` | 35380 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0660` | 35390 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_066c` | 35400 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0678` | 35410 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0684` | 35420 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0690` | 35430 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_069c` | 35440 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_06b4` | 35450 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_06c0` | 35460 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_06cc` | 35470 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_06d8` | 35480 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_06e4` | 35490 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_06f0` | 35500 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0708` | 35510 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0714` | 35520 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0720` | 35530 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_072c` | 35540 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0738` | 35550 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0744` | 35560 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0750` | 35570 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_075c` | 35580 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0768` | 35590 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0774` | 35600 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_078c` | 35610 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0798` | 35620 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_05a0` | 35250 | 10 | thunk | Far thunk → FUN_2f2b_42be (Enter colony drag/select mode (8d54=7)) | inferred |  |
+| `FUN_291f_05ac` | 35260 | 10 | thunk | Far thunk → FUN_2f2b_289e (Warehouse cargo-strip X pos / selection marker) | inferred |  |
+| `FUN_291f_05b8` | 35270 | 10 | thunk | Far thunk → FUN_2f2b_2484 (layout rect for transport hold slot N) | inferred |  |
+| `FUN_291f_05c4` | 35280 | 10 | thunk | Far thunk → FUN_2f2b_17d0 (draw people band; colonists + SoL/Tory meters) | inferred |  |
+| `FUN_291f_05d0` | 35290 | 10 | thunk | Far thunk → FUN_2f2b_6372 (colony keyboard dispatcher N/M/B/L/U/…) | inferred |  |
+| `FUN_291f_05dc` | 35300 | 10 | thunk | Far thunk → FUN_2f2b_2c3c (draw multifunction mode-selector chrome) | inferred |  |
+| `FUN_291f_05e8` | 35310 | 10 | thunk | Far thunk → FUN_2f2b_0434 (init settlement building-slot layout maps) | inferred |  |
+| `FUN_291f_05f4` | 35320 | 10 | thunk | Far thunk → FUN_2f2b_42f2 (clear drag/select chrome @0x344) | inferred |  |
+| `FUN_291f_0600` | 35330 | 10 | thunk | Far thunk → FUN_2f2b_3fa6 (area-tile click: select or assign colonist) | inferred |  |
+| `FUN_291f_060c` | 35340 | 10 | thunk | Far thunk → FUN_2f2b_24b2 (draw transport / ship-hold pane) | inferred |  |
+| `FUN_291f_0618` | 35350 | 10 | thunk | Far thunk → FUN_2f2b_011e (colony build/order gate; prereq/error codes) | inferred |  |
+| `FUN_291f_0630` | 35360 | 10 | thunk | Far thunk → FUN_2f2b_0842 (draw area-view tile tooltip terrain/feature) | inferred |  |
+| `FUN_291f_0648` | 35370 | 10 | thunk | Far thunk → FUN_2f2b_2c92 (full colony-screen redraw; all panel thunks) | inferred |  |
+| `FUN_291f_0654` | 35380 | 10 | thunk | Far thunk → FUN_2f2b_28d6 (draw warehouse cargo strip; 16 types + Exit) | inferred |  |
+| `FUN_291f_0660` | 35390 | 10 | thunk | Far thunk → FUN_2f2b_208c (draw framed invertible button/label) | inferred |  |
+| `FUN_291f_066c` | 35400 | 10 | thunk | Far thunk → FUN_2f2b_14d4 (draw one settlement building; icon + badge) | inferred |  |
+| `FUN_291f_0678` | 35410 | 10 | thunk | Far thunk → FUN_2f2b_5e44 (construction BUY remaining project; gold+tools) | inferred |  |
+| `FUN_291f_0684` | 35420 | 10 | thunk | Far thunk → FUN_2f2b_2d0e (post-drag chrome refresh) | inferred |  |
+| `FUN_291f_0690` | 35430 | 10 | thunk | Far thunk → FUN_2f2b_5a68 (construction CHANGE menu row; name/cost) | inferred |  |
+| `FUN_291f_069c` | 35440 | 10 | thunk | Far thunk → FUN_2f2b_2d1c (toggle numbers DS:0x334; refresh active pane) | inferred |  |
+| `FUN_291f_06b4` | 35450 | 10 | thunk | Far thunk → FUN_2f2b_5746 (docked-unit orders popup; sentry/fortify/…) | inferred |  |
+| `FUN_291f_06c0` | 35460 | 10 | thunk | Far thunk → FUN_2f2b_13c2 (resolve building-type badge amount + sprite outs) | inferred |  |
+| `FUN_291f_06cc` | 35470 | 10 | thunk | Far thunk → FUN_2f2b_40a0 (colony click region hit-test; panel codes) | inferred |  |
+| `FUN_291f_06d8` | 35480 | 10 | thunk | Far thunk → FUN_2f2b_1e46 (draw Units multifunction pane; docked grid) | inferred |  |
+| `FUN_291f_06e4` | 35490 | 10 | thunk | Far thunk → FUN_2f2b_12cc (draw colonists assigned to one workplace) | inferred |  |
+| `FUN_291f_06f0` | 35500 | 10 | thunk | Far thunk → FUN_2f2b_0332 (reorder colonist slot tables after sort) | inferred |  |
+| `FUN_291f_0708` | 35510 | 10 | thunk | Far thunk → FUN_2f2b_21da (draw Construction BUY / CHANGE buttons) | inferred |  |
+| `FUN_291f_0714` | 35520 | 10 | thunk | Far thunk → FUN_2f2b_548e (people-band click; select, drag, or confirm) | inferred |  |
+| `FUN_291f_0720` | 35530 | 10 | thunk | Far thunk → FUN_2f2b_4fec (transfer cargo between unit holds) | inferred |  |
+| `FUN_291f_072c` | 35540 | 10 | thunk | Far thunk → FUN_2f2b_5bd2 (construction CHANGE project picker popup) | inferred |  |
+| `FUN_291f_0738` | 35550 | 10 | thunk | Far thunk → FUN_2f2b_2d90 (force numbers-on + full pane refresh) | inferred |  |
+| `FUN_291f_0744` | 35560 | 10 | thunk | Far thunk → FUN_2f2b_628a (colony mouse/click dispatcher by panel region) | inferred |  |
+| `FUN_291f_0750` | 35570 | 10 | thunk | Far thunk → FUN_2f2b_348c (field-jobs / Leave-as profession popup) | inferred |  |
+| `FUN_291f_075c` | 35580 | 10 | thunk | Far thunk → FUN_2f2b_2262 (refresh Construction CHANGE button highlight) | inferred |  |
+| `FUN_291f_0768` | 35590 | 10 | thunk | Far thunk → FUN_2f2b_4424 (warehouse capacity / cargo-limits popup) | inferred |  |
+| `FUN_291f_0774` | 35600 | 10 | thunk | Far thunk → FUN_2f2b_05b6 (colony wood-panel blit/setup) | inferred |  |
+| `FUN_291f_078c` | 35610 | 10 | thunk | Far thunk → FUN_2f2b_2e2a (alternate numbers-on full refresh path) | inferred |  |
+| `FUN_291f_0798` | 35620 | 10 | thunk | Far thunk → FUN_2f2b_22b6 (draw Construction hammer progress bars) | inferred |  |
 | `FUN_291f_07b0` | 35630 | 10 | thunk | Far thunk → FUN_2f2b_2e92 (modal dialog frame helper) | inferred |  |
-| `FUN_291f_07bc` | 35640 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_07c8` | 35650 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_07bc` | 35640 | 10 | thunk | Far thunk → FUN_2f2b_05ee (draw building/project name label at slot) | inferred |  |
+| `FUN_291f_07c8` | 35650 | 10 | thunk | Far thunk → FUN_2f2b_51ec (people-band confirm / Leave-as entry) | inferred |  |
 | `FUN_291f_07d4` | 35660 | 10 | thunk | Far thunk → FUN_2f2b_2eb2 (print dialog string-table line) | inferred |  |
-| `FUN_291f_07ec` | 35670 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_07f8` | 35680 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0804` | 35690 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_081c` | 35700 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0828` | 35710 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0834` | 35720 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0840` | 35730 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0858` | 35740 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0864` | 35750 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0870` | 35760 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_07ec` | 35670 | 10 | thunk | Far thunk → FUN_2f2b_0a3e (blit colony chrome rect via 281f_0444) | inferred |  |
+| `FUN_291f_07f8` | 35680 | 10 | thunk | Far thunk → FUN_2f2b_4b62 (load cargo warehouse→hold; amount dialog) | inferred |  |
+| `FUN_291f_0804` | 35690 | 10 | thunk | Far thunk → FUN_2f2b_0a74 (draw area-view surrounding map unit icons) | inferred |  |
+| `FUN_291f_081c` | 35700 | 10 | thunk | Far thunk → FUN_2f2b_2ec6 (open 3-button message dialog wrapper) | inferred |  |
+| `FUN_291f_0828` | 35710 | 10 | thunk | Far thunk → FUN_2f2b_2b2c (unit-chrome sprite rect helper) | inferred |  |
+| `FUN_291f_0834` | 35720 | 10 | thunk | Far thunk → FUN_2f2b_16f2 (draw settlement empty/placeholder sprite if table flag) | inferred |  |
+| `FUN_291f_0840` | 35730 | 10 | thunk | Far thunk → FUN_2f2b_0fce (draw colony top-bar name + date/nation string) | inferred |  |
+| `FUN_291f_0858` | 35740 | 10 | thunk | Far thunk → FUN_2f2b_55da (transport hold-slot click / drag handler) | inferred |  |
+| `FUN_291f_0864` | 35750 | 10 | thunk | Far thunk → FUN_2f2b_2eea (cargo-type confirm dialog wrapper) | inferred |  |
+| `FUN_291f_0870` | 35760 | 10 | thunk | Far thunk → FUN_1d05_0000 (insertion-sort parallel byte keys + byte payload arrays) | inferred |  |
 | `FUN_291f_087a` | 35770 | 10 | thunk | Far thunk → FUN_7939_000c (resource open helper) | inferred |  |
 | `FUN_291f_0888` | 35780 | 10 | thunk | Far thunk → FUN_6b22_00ea (tribe overlay for map viewport) | inferred |  |
 | `FUN_291f_0896` | 35790 | 10 | thunk | Far thunk → FUN_6b22_0248 (colony overlay for map viewport) | inferred |  |
-| `FUN_291f_08a4` | 35800 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_08a4` | 35800 | 10 | thunk | Far thunk → FUN_6ba1_10ae (temp DS:0x18a radius mode; refresh via 1028; clear) | inferred |  |
 | `FUN_291f_08b2` | 35810 | 10 | thunk | Far thunk → FUN_1bc3_0006 (vertical byte-fill in buffer) | inferred |  |
 | `FUN_291f_08bc` | 35820 | 10 | thunk | Far thunk → FUN_1bbc_000c (horizontal byte-fill in buffer) | inferred |  |
 | `FUN_291f_08c6` | 35830 | 10 | thunk | Far thunk → FUN_6f74_0c32 (append body text line to flow list) | inferred |  |
 | `FUN_291f_08d2` | 35840 | 10 | thunk | Far thunk → FUN_6f74_0c22 (set dialog body wrap-width) | inferred |  |
 | `FUN_291f_08de` | 35850 | 10 | thunk | Far thunk → FUN_6cb2_1820 (Colonizopedia cargo/goods article) | inferred |  |
 | `FUN_291f_08ec` | 35860 | 10 | thunk | Far thunk → FUN_6f74_09e2 (set current selected option ptr) | inferred |  |
-| `FUN_291f_08f8` | 35870 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0902` | 35880 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_08f8` | 35870 | 10 | thunk | Far thunk → FUN_1b78_0000 (update soft mouse cursor hotspot/shape from 16×16 sprite) | inferred |  |
+| `FUN_291f_0902` | 35880 | 10 | thunk | Far thunk → FUN_6cb2_1ba8 (build Colonizopedia colony-building article) | inferred |  |
 | `FUN_291f_0910` | 35890 | 10 | thunk | Far thunk → FUN_6f74_309c (expand %STRING/%NUMBER/… placeholders) | inferred |  |
 | `FUN_291f_091c` | 35900 | 10 | thunk | Far thunk → FUN_7314_0106 (next line from open string resource) | inferred |  |
 | `FUN_291f_0928` | 35910 | 10 | thunk | Far thunk → FUN_7314_001a (open string resource; find @-entry) | inferred |  |
@@ -1727,14 +1727,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0950` | 35940 | 10 | thunk | Far thunk → FUN_364b_0688 (colony EOT production/SoL tick) | inferred |  |
 | `FUN_291f_095e` | 35950 | 10 | thunk | Far thunk → FUN_6b7e_01f6 (save camera center/zoom for nation slot) | inferred |  |
 | `FUN_291f_096c` | 35960 | 10 | thunk | Far thunk → FUN_6b7e_0218 (restore camera center/zoom for nation slot) | inferred |  |
-| `FUN_291f_097a` | 35970 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0988` | 35980 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0996` | 35990 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_09a4` | 36000 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_09b2` | 36010 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_09c0` | 36020 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_09ce` | 36030 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_09dc` | 36040 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_097a` | 35970 | 10 | thunk | Far thunk → FUN_364b_0114 (complete construction; apply upgrades/flags; reset hammers) | inferred |  |
+| `FUN_291f_0988` | 35980 | 10 | thunk | Far thunk → FUN_364b_033a (area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7) | inferred |  |
+| `FUN_291f_0996` | 35990 | 10 | thunk | Far thunk → FUN_364b_1b76 (gate: colony warehouse/trade slot usable for nation) | inferred |  |
+| `FUN_291f_09a4` | 36000 | 10 | thunk | Far thunk → FUN_364b_1b1a (bind colony; place unit into colonist slot) | inferred |  |
+| `FUN_291f_09b2` | 36010 | 10 | thunk | Far thunk → FUN_364b_1ba8 (found colony: bump 539e; init colony record via DS:0x8542) | inferred |  |
+| `FUN_291f_09c0` | 36020 | 10 | thunk | Far thunk → FUN_364b_0636 (customs-house auto-sell gate for cargo type) | inferred |  |
+| `FUN_291f_09ce` | 36030 | 10 | thunk | Far thunk → FUN_364b_03f6 (coastal fort fire: spawn attacks vs enemy ships on adjacent ocean) | inferred |  |
+| `FUN_291f_09dc` | 36040 | 10 | thunk | Far thunk → FUN_364b_0000 (colony message/confirm dialog; may set mode 337) | inferred |  |
 | `FUN_291f_09ea` | 36050 | 10 | thunk | Far thunk → FUN_38fd_0040 (Europe ask: euro_price−1) | inferred |  |
 | `FUN_291f_09f8` | 36060 | 10 | thunk | Far thunk → FUN_4345_0a22 (accrue liberty bells; FF election) | inferred |  |
 | `FUN_291f_0a06` | 36070 | 10 | thunk | Far thunk → FUN_478c_00d0 (undo last unit spawn if colonist 0x17) | inferred |  |
@@ -1756,87 +1756,87 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0ae0` | 36230 | 10 | thunk | Far thunk → FUN_38fd_3dc8 (apply tax delta; may boycott) | inferred |  |
 | `FUN_291f_0aee` | 36240 | 10 | thunk | Far thunk → FUN_48d3_0002 (landfall/goto duration roll) | inferred |  |
 | `FUN_291f_0afc` | 36250 | 10 | thunk | Far thunk → FUN_38fd_46d4 (roll next dock immigrant profession) | inferred |  |
-| `FUN_291f_0b0a` | 36260 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0b0a` | 36260 | 10 | thunk | Far thunk → FUN_38fd_1cf4 (exit Europe drag/sound mode) | inferred |  |
 | `FUN_291f_0b18` | 36270 | 10 | thunk | Far thunk → FUN_38fd_199e (force-refresh Europe panels) | inferred |  |
 | `FUN_291f_0b26` | 36280 | 10 | thunk | Far thunk → FUN_38fd_0718 (spawn purchased unit into Europe harbor) | inferred |  |
-| `FUN_291f_0b34` | 36290 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0b42` | 36300 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0b50` | 36310 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0b5e` | 36320 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0b34` | 36290 | 10 | thunk | Far thunk → FUN_38fd_584a (recruit-passage / immigration pressure score) | inferred |  |
+| `FUN_291f_0b42` | 36300 | 10 | thunk | Far thunk → FUN_38fd_1fa2 (buy cargo dialog / execute buy flow) | inferred |  |
+| `FUN_291f_0b50` | 36310 | 10 | thunk | Far thunk → FUN_38fd_19d8 (Europe text blit wrapper) | inferred |  |
+| `FUN_291f_0b5e` | 36320 | 10 | thunk | Far thunk → FUN_38fd_0f5e (cargo-slot rect constants) | inferred |  |
 | `FUN_291f_0b6c` | 36330 | 10 | thunk | Far thunk → FUN_38fd_6024 (new-game init Europe market state, all 4 nations) | inferred | docs/savegame.md |
-| `FUN_291f_0b7a` | 36340 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0b88` | 36350 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0b96` | 36360 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0bb2` | 36370 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0bc0` | 36380 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0bdc` | 36390 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0bea` | 36400 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0b7a` | 36340 | 10 | thunk | Far thunk → FUN_38fd_5be8 (king tax-raise proposal dialog) | inferred |  |
+| `FUN_291f_0b88` | 36350 | 10 | thunk | Far thunk → FUN_38fd_2a92 (sell/scrap harbor ship dialog) | inferred |  |
+| `FUN_291f_0b96` | 36360 | 10 | thunk | Far thunk → FUN_38fd_19f8 (Europe string-table text blit by index) | inferred |  |
+| `FUN_291f_0bb2` | 36370 | 10 | thunk | Far thunk → FUN_38fd_4b50 (purchase ship/artillery dialog) | inferred |  |
+| `FUN_291f_0bc0` | 36380 | 10 | thunk | Far thunk → FUN_38fd_1456 (refresh Bound + Expected ship panels) | inferred |  |
+| `FUN_291f_0bdc` | 36390 | 10 | thunk | Far thunk → FUN_38fd_1a0c (short Europe dialog open/close wrapper) | inferred |  |
+| `FUN_291f_0bea` | 36400 | 10 | thunk | Far thunk → FUN_38fd_07c6 (recount harbor ships; clamp selection) | inferred |  |
 | `FUN_291f_0c06` | 36410 | 10 | thunk | Far thunk → FUN_38fd_2dfe (pay to lift cargo boycott) | inferred |  |
 | `FUN_291f_0c14` | 36420 | 10 | thunk | Far thunk → FUN_38fd_1d80 (buy volume: update tons/gold ledgers) | inferred |  |
-| `FUN_291f_0c22` | 36430 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0c30` | 36440 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0c22` | 36430 | 10 | thunk | Far thunk → FUN_38fd_1a30 (buy/sell confirm dialog text: cargo × price) | inferred |  |
+| `FUN_291f_0c30` | 36440 | 10 | thunk | Far thunk → FUN_38fd_146c (dock immigrant layout / scaling helper) | inferred |  |
 | `FUN_291f_0c3e` | 36450 | 10 | thunk | Far thunk → FUN_38fd_0016 (Europe effective price = base+adj) | inferred |  |
-| `FUN_291f_0c5a` | 36460 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0c68` | 36470 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0c76` | 36480 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0c84` | 36490 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0ca0` | 36500 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0cae` | 36510 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0cbc` | 36520 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0cca` | 36530 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0c5a` | 36460 | 10 | thunk | Far thunk → FUN_38fd_1aba (hit-test Europe regions to panel/mode code) | inferred |  |
+| `FUN_291f_0c68` | 36470 | 10 | thunk | Far thunk → FUN_38fd_0d48 (market cargo cell layout / scaling helper) | inferred |  |
+| `FUN_291f_0c76` | 36480 | 10 | thunk | Far thunk → FUN_38fd_081c (init harbor unit count + Europe selection state) | inferred |  |
+| `FUN_291f_0c84` | 36490 | 10 | thunk | Far thunk → FUN_38fd_5930 (Europe EOT FF cargo gift / grant) | inferred |  |
+| `FUN_291f_0ca0` | 36500 | 10 | thunk | Far thunk → FUN_38fd_4f6e (Europe keyboard/hotkey input dispatcher) | inferred |  |
+| `FUN_291f_0cae` | 36510 | 10 | thunk | Far thunk → FUN_38fd_2edc (loading-panel ship click / selection handler) | inferred |  |
+| `FUN_291f_0cbc` | 36520 | 10 | thunk | Far thunk → FUN_38fd_0058 (market dynamics: adjust euro_price[] / pressure from colony ledgers) | inferred |  |
+| `FUN_291f_0cca` | 36530 | 10 | thunk | Far thunk → FUN_38fd_41ce (Train expert dialog; job list + gold) | inferred |  |
 | `FUN_291f_0cd8` | 36540 | 10 | thunk | Far thunk → FUN_38fd_05e8 (test cargo boycott bit) | inferred |  |
-| `FUN_291f_0ce6` | 36550 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0ce6` | 36550 | 10 | thunk | Far thunk → FUN_38fd_0836 (Europe window frame setup) | inferred |  |
 | `FUN_291f_0d02` | 36560 | 10 | thunk | Far thunk → FUN_38fd_23c4 (sell cargo dialog / execute sell+tax) | inferred |  |
-| `FUN_291f_0d10` | 36570 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0d1e` | 36580 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0d2c` | 36590 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0d3a` | 36600 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0d56` | 36610 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0d72` | 36620 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0d10` | 36570 | 10 | thunk | Far thunk → FUN_38fd_086c (Load Europe screen art / PIK bring-up) | inferred |  |
+| `FUN_291f_0d1e` | 36580 | 10 | thunk | Far thunk → FUN_38fd_2bfe (Harbor ship context menu; sail/sell/unload) | inferred |  |
+| `FUN_291f_0d2c` | 36590 | 10 | thunk | Far thunk → FUN_38fd_4884 (Recruit dialog; 3 pool slots + passage) | inferred |  |
+| `FUN_291f_0d3a` | 36600 | 10 | thunk | Far thunk → FUN_38fd_08a4 (Draw market cargo name/price caption) | inferred |  |
+| `FUN_291f_0d56` | 36610 | 10 | thunk | Far thunk → FUN_38fd_14e2 (Blit one dock immigrant unit) | inferred |  |
+| `FUN_291f_0d72` | 36620 | 10 | thunk | Far thunk → FUN_38fd_1b9e (Enter Europe UI mode 10) | inferred |  |
 | `FUN_291f_0d80` | 36630 | 10 | thunk | Far thunk → FUN_38fd_0666 (resolve Nth harbor unit index) | inferred |  |
 | `FUN_291f_0d8e` | 36640 | 10 | thunk | Far thunk → FUN_38fd_1ebc (apply buy: debit gold, add harbor tons) | inferred |  |
-| `FUN_291f_0d9c` | 36650 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0daa` | 36660 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0db8` | 36670 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0d9c` | 36650 | 10 | thunk | Far thunk → FUN_38fd_127c (Draw Bound For New World ship panel) | inferred |  |
+| `FUN_291f_0daa` | 36660 | 10 | thunk | Far thunk → FUN_38fd_3694 (Dock immigrant info / embark bark dialog) | inferred |  |
+| `FUN_291f_0db8` | 36670 | 10 | thunk | Far thunk → FUN_38fd_1bd2 (Drag-start bark dialog) | inferred |  |
 | `FUN_291f_0dc6` | 36680 | 10 | thunk | Far thunk → FUN_38fd_1f0c (apply sell: pull hold tons toward quote) | inferred |  |
-| `FUN_291f_0dd4` | 36690 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0de2` | 36700 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0df0` | 36710 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0dfe` | 36720 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e0c` | 36730 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e28` | 36740 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e36` | 36750 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e44` | 36760 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0dd4` | 36690 | 10 | thunk | Far thunk → FUN_38fd_18fc (Full Europe-screen redraw) | inferred |  |
+| `FUN_291f_0de2` | 36700 | 10 | thunk | Far thunk → FUN_38fd_15aa (Draw docks immigrant panel) | inferred |  |
+| `FUN_291f_0df0` | 36710 | 10 | thunk | Far thunk → FUN_38fd_0e16 (Blit one market cargo cell + highlight) | inferred |  |
+| `FUN_291f_0dfe` | 36720 | 10 | thunk | Far thunk → FUN_38fd_1956 (Europe overlay teardown) | inferred |  |
+| `FUN_291f_0e0c` | 36730 | 10 | thunk | Far thunk → FUN_38fd_06c4 (Resolve Nth harbor ship index) | inferred |  |
+| `FUN_291f_0e28` | 36740 | 10 | thunk | Far thunk → FUN_38fd_3746 (Dock immigrant action mega-dialog; board/orders) | inferred |  |
+| `FUN_291f_0e36` | 36750 | 10 | thunk | Far thunk → FUN_38fd_285c (Transfer cargo between ship holds) | inferred |  |
+| `FUN_291f_0e44` | 36760 | 10 | thunk | Far thunk → FUN_38fd_1960 (Toggle/refresh highlighted panel by mode) | inferred |  |
 | `FUN_291f_0e52` | 36770 | 10 | thunk | Far thunk → FUN_38fd_1c64 (enter Europe drag mode 8) | inferred |  |
-| `FUN_291f_0e60` | 36780 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e6e` | 36790 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e7c` | 36800 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e8a` | 36810 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e98` | 36820 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0eb4` | 36830 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0e60` | 36780 | 10 | thunk | Far thunk → FUN_38fd_4e8e (Europe mouse/drag input dispatcher) | inferred |  |
+| `FUN_291f_0e6e` | 36790 | 10 | thunk | Far thunk → FUN_38fd_1f66 (Clear top market strip; init row Y) | inferred |  |
+| `FUN_291f_0e7c` | 36800 | 10 | thunk | Far thunk → FUN_38fd_1382 (Draw Expected Soon ship panel) | inferred |  |
+| `FUN_291f_0e8a` | 36810 | 10 | thunk | Far thunk → FUN_38fd_1f7e (Advance market row Y cursor) | inferred |  |
+| `FUN_291f_0e98` | 36820 | 10 | thunk | Far thunk → FUN_38fd_30aa (Hold-slot click: load/unload cargo) | inferred |  |
+| `FUN_291f_0eb4` | 36830 | 10 | thunk | Far thunk → FUN_38fd_1f8e (Blit market strip panel) | inferred |  |
 | `FUN_291f_0ec2` | 36840 | 10 | thunk | Far thunk → FUN_48d3_0346 (retarget stack after landfall/colony-goto) | inferred |  |
 | `FUN_291f_0ed0` | 36850 | 10 | thunk | Far thunk → FUN_1cf8_000a (insertion-sort parallel word+byte arrays) | inferred |  |
-| `FUN_291f_0eda` | 36860 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0ee8` | 36870 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0ef6` | 36880 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f04` | 36890 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f12` | 36900 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f20` | 36910 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f2e` | 36920 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f3c` | 36930 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f4a` | 36940 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f58` | 36950 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0f66` | 36960 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0eda` | 36860 | 10 | thunk | Far thunk → FUN_3f3f_0006 (CRC/LFSR step; shift+XOR poly on LSB) | inferred |  |
+| `FUN_291f_0ee8` | 36870 | 10 | thunk | Far thunk → FUN_3f41_008a (Report footer/title strip blit) | inferred |  |
+| `FUN_291f_0ef6` | 36880 | 10 | thunk | Far thunk → FUN_3f41_1438 (Economic Adviser header chrome; REPORT5) | inferred |  |
+| `FUN_291f_0f04` | 36890 | 10 | thunk | Far thunk → FUN_3f41_1b94 (Colony Adviser header chrome; REPORT6) | inferred |  |
+| `FUN_291f_0f12` | 36900 | 10 | thunk | Far thunk → FUN_3f41_20b4 (Unit disposition report header; column labels) | inferred |  |
+| `FUN_291f_0f20` | 36910 | 10 | thunk | Far thunk → FUN_3f41_1bec (Colony Adviser F6; pop/build/garrison rows) | inferred |  |
+| `FUN_291f_0f2e` | 36920 | 10 | thunk | Far thunk → FUN_3f41_1550 (Economic Adviser colony cargo-stock rows) | inferred |  |
+| `FUN_291f_0f3c` | 36930 | 10 | thunk | Far thunk → FUN_3f41_0d3e (Labor Adviser detail; profession colony placements) | inferred |  |
+| `FUN_291f_0f4a` | 36940 | 10 | thunk | Far thunk → FUN_3f41_0000 (Report plate bring-up; art+palette into 2da8) | inferred |  |
+| `FUN_291f_0f58` | 36950 | 10 | thunk | Far thunk → FUN_3f41_1e80 (Naval/military-in-colony report header chrome) | inferred |  |
+| `FUN_291f_0f66` | 36960 | 10 | thunk | Far thunk → FUN_4345_0982 (Compute next liberty-bell threshold) | inferred |  |
 | `FUN_291f_0f74` | 36970 | 10 | thunk | Far thunk → FUN_4345_024a (FF election / announcement UI screen) | inferred |  |
-| `FUN_291f_0f82` | 36980 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0f82` | 36980 | 10 | thunk | Far thunk → FUN_49dd_02d0 (Resolve tile tip string; orders/colony/terrain) | inferred |  |
 | `FUN_291f_0f8e` | 36990 | 10 | thunk | Far thunk → FUN_41f2_0f56 (high-score table load/insert/save + UI) | inferred |  |
-| `FUN_291f_0f9c` | 37000 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0faa` | 37010 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0f9c` | 37000 | 10 | thunk | Far thunk → FUN_41f2_0b70 (Score→difficulty gold rebate + treasure dialog) | inferred |  |
+| `FUN_291f_0faa` | 37010 | 10 | thunk | Far thunk → FUN_41f2_000e (Present nation-score report title dialog) | inferred |  |
 | `FUN_291f_0fb8` | 37020 | 10 | thunk | Far thunk → FUN_7314_0000 (close config/name file handle) | inferred |  |
-| `FUN_291f_0fc4` | 37030 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0fc4` | 37030 | 10 | thunk | Far thunk → FUN_7314_015e (Extract next comma field; advance cursor) | inferred |  |
 | `FUN_291f_0fd0` | 37040 | 10 | thunk | Far thunk → FUN_78d8_0054 (advance resource stream: load via 78ef, bump cursor) | inferred |  |
 | `FUN_291f_0fde` | 37050 | 10 | thunk | Far thunk → FUN_78d8_0000 (reset resource-stream cursor/remain from DS:0x23c6) | inferred |  |
-| `FUN_291f_0fec` | 37060 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0fec` | 37060 | 10 | thunk | Far thunk → FUN_4345_0342 (Apply elected founding-father effects) | inferred |  |
 
 ### Segment `2a1f` (294 defs) — mixed — Map-gen dispatch / helpers (also Euro act thunks)
 
