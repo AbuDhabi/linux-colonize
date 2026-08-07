@@ -9737,6 +9737,666 @@
         "purpose": "Far thunk \u2192 FUN_4d56_2154 (larger Indian action/raid body)",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_281f_009c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_0270 (poll overlay; clear if past deadline)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00a6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_02ae (set status-strip layout globals x/y/w/h)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00ec": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1262_00da (drain pending key/mouse event queue)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01b4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0032 (strcat dest \u2190 \", \")",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_02bc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_112b_01ba (unit chrome: silhouette + orders box + letter)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_02da": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_112b_0060 (unit display icon from type + profession)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_02f8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1c56_0004 (scaled/dithered sprite blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_044e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7944_000e (resource open/load by name)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_065e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15b3_024e (nation alt-name ptr; no independence remap)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a88": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_14aa (walk building parent chain to root id)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a92": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0544 (read nation treasury dword)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ace": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_14d6 (building/job id \u2192 table byte DS:0x2ca)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0af6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0596 (subtract from nation treasury)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0baa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1568 (count workers in building / \u2212unit if stockade)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c90": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0668 (set/clear layer2 bit0x10 on town tile)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d78": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4cc6_07c2 (Indian contact/alarm distance score)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_095e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6b7e_01f6 (save camera center/zoom for nation slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_096c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6b7e_0218 (restore camera center/zoom for nation slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f74": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4345_024a (FF election / announcement UI screen)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c05_0004": {
+        "system": "platform",
+        "purpose": "Normalize far ptr \u2192 seg+=(off>>4), off&=0xf",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0842": {
+        "system": "platform",
+        "purpose": "strlen \u2014 scan to NUL (SCASB)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0c56": {
+        "system": "platform",
+        "purpose": "strchr \u2014 find char in string (else null)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_051a": {
+        "system": "platform",
+        "purpose": "Lookup AL in CS:0x4e9c[24]; hit \u2192 A000+(idx\u00d74)<<8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_1695": {
+        "system": "platform",
+        "purpose": "Unvectored-call diagnostic: patch hex via 37d9/45d3 then JMP 37ad",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_1dbd": {
+        "system": "platform",
+        "purpose": "If AX bit15 overlay slot set: clear flag + optional 2d5a commit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_238c": {
+        "system": "platform",
+        "purpose": "Far no-op stub (NOP; RETF)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_2b22": {
+        "system": "platform",
+        "purpose": "Walk CS:0x3952 overlay chain; XOR bit15 + 2ae5 until sentinel",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_2e59": {
+        "system": "platform",
+        "purpose": "Add DX to CX far-ptr table entries at [SI\u00d74] (reloc fixup)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_2fd2": {
+        "system": "platform",
+        "purpose": "Classify [BP+0x18] far code via opcode probes (302e\u20263322)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_3147": {
+        "system": "platform",
+        "purpose": "Seed reloc slot 0x2fca from BP via XLAT 0x3171 + seg 0x397f",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_3179": {
+        "system": "platform",
+        "purpose": "Accumulate reloc offsets into 0x2fc6 via XLAT 0x31b4; maybe SS\u21920x2fc8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_31c4": {
+        "system": "platform",
+        "purpose": "ES:[BX+DI-1] ES: prefix \u2192 fill 0x2fc8 then 322c reloc write",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_3254": {
+        "system": "platform",
+        "purpose": "Probe CALLF/CALL/JMPF opcode patterns at DX:AX (recurse on JMPF)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_3791": {
+        "system": "platform",
+        "purpose": "Pack BX:DX into 37cd/cf; JMPF via [37d5] (2-arg resident dispatch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_37ad": {
+        "system": "platform",
+        "purpose": "Pack BX:DX:DI into 37cd..; JMPF via [37d5] (3-arg resident dispatch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_37d9": {
+        "system": "platform",
+        "purpose": "Build map-address diagnostic (hex-patch via 45d3 into template)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_391d": {
+        "system": "platform",
+        "purpose": "Write hex word(s) into diagnostic buffer via 45d3 (+ optional seg:0xe)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01e6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0478 (append 2f74[idx\u00d70x10] label)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0dcc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1984_010a (toggle focus blink; refresh focus chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_013a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_05c6 (set/clear menu-item hidden flag bit1)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0146": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_0552 (set/clear menu-item disabled flag bit0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0224": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_112a (alloc custom hit-target node at dialog+0x64)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1000_002c": {
+        "system": "ui",
+        "purpose": "Intern string into table arena (strlen\u2192bump-alloc\u2192strcpy); return index (bump DS:0x2d52)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1000_0062": {
+        "system": "ui",
+        "purpose": "Return ptr to Nth NUL-terminated string in table (base DS:0x2d42)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_12d6_0000": {
+        "system": "ui",
+        "purpose": "Mouse-gated blit offscreen (DS:0x2dac/0x2dae) \u2192 VGA A000",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_12dd_0002": {
+        "system": "ui",
+        "purpose": "Clipped blit dispatch: tiled 1bf5 if clip-rect DS:0x82e else solid fill 1b9e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_12dd_0064": {
+        "system": "ui",
+        "purpose": "Clipped blit dispatch: tiled 1bf5 if clip-rect DS:0x82c else solid fill 1b9e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_12e9_0006": {
+        "system": "ui",
+        "purpose": "Empty no-op stub (byte source for 12e9_008c pitched fill; body vacant in decomp)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_12e9_008c": {
+        "system": "ui",
+        "purpose": "Fill pitched dest rect row-by-row with bytes from 12e9_0006 (1a4e pitch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_19f6_0002": {
+        "system": "ui",
+        "purpose": "Overlay decimal digits of AX into zero-padded dest string (width DX; strcat \"0\"@0x368)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_19f6_00b0": {
+        "system": "ui",
+        "purpose": "Copy string (*skip leading '*'); path-join via 1b4e if localize flag DS:0x36c",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_19f6_00fa": {
+        "system": "ui",
+        "purpose": "Format path/string via 00b0 into stack buf then open via 1d1d_04da",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_19f6_0138": {
+        "system": "ui",
+        "purpose": "Thin wrapper \u2192 1b22_0022 (DOS file-exists probe)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a0a_0004": {
+        "system": "ui",
+        "purpose": "Init palette-cycle anim: seed 8 timers, sum lengths, set period/enable DS:0x372",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a0a_007a": {
+        "system": "ui",
+        "purpose": "Tick palette-cycle: rotate RGB triples in anim list then DAC write (1c2e_0022)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a0a_01a6": {
+        "system": "ui",
+        "purpose": "Page-flip memcpy between VGA A000 offs FD50\u2194FF00 (len 0x60; direction by param)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a4e_0008": {
+        "system": "ui",
+        "purpose": "Pitched buffer offset: pitch*y + base + x (BX\u2192pitch/base)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a4e_001c": {
+        "system": "ui",
+        "purpose": "Clip rect against viewport; return 0 if any pixels remain visible",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1acb_0006": {
+        "system": "ui",
+        "purpose": "Hit-test mouse xy (DS:0x7e8/0x7ea) inside [AX..BX]\u00d7[DX..param] rect",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1acb_0030": {
+        "system": "ui",
+        "purpose": "Reset mouse/input latch (clear prev-xy/edges; poll 1a58_038b into DS:0x7e6)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1acb_0056": {
+        "system": "ui",
+        "purpose": "Sample mouse/buttons; set move/click/edge flags (DS:0x7ec..0x7f6)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1acb_011a": {
+        "system": "ui",
+        "purpose": "Busy-wait until custom timer word (DS:0x7fc/0x7fe) changes",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b5e_0000": {
+        "system": "ui",
+        "purpose": "Update soft mouse cursor hotspot/shape from 17\u00d717 mask (1c36 + 1b8f blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b70_0002": {
+        "system": "ui",
+        "purpose": "Bind mouse cursor shape to current viewport (1a58_054f/0568/0599 @2da8..2dae)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b78_0000": {
+        "system": "ui",
+        "purpose": "Update soft mouse cursor hotspot/shape from 16\u00d716 sprite (1c36 + optional 1cd8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b8f_0006": {
+        "system": "ui",
+        "purpose": "Pitched buffer rect copy (word/byte rows; 1a4e+1c05 far ptrs)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b9e_000a": {
+        "system": "ui",
+        "purpose": "Solid-color pitched rect fill (clip via 1a4e_001c; color=param_1)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1baa_0006": {
+        "system": "ui",
+        "purpose": "Pitched buffer rect blit/copy variant (src/dst pitches; sibling of 1b8f)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bb9_000a": {
+        "system": "ui",
+        "purpose": "Put pixel via pitch helper (1a4e_0008) \u2190 BL",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bbb_0006": {
+        "system": "ui",
+        "purpose": "Get pixel via pitch helper (1a4e_0008)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bbc_000c": {
+        "system": "ui",
+        "purpose": "Horizontal span fill in pitched buffer (clipped to width)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bc3_0006": {
+        "system": "ui",
+        "purpose": "Vertical span fill in pitched buffer (stride=pitch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bca_0002": {
+        "system": "ui",
+        "purpose": "Rectangle outline via two H fills (1bbc) + two V fills (1bc3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bd4_0006": {
+        "system": "ui",
+        "purpose": "Color-replace param_2\u2192param_1 across pitched rect",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1bf5_0000": {
+        "system": "ui",
+        "purpose": "Tiled rect blit loop: stamp src tile across dest via repeated 1baa_0006",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c11_000c": {
+        "system": "ui",
+        "purpose": "Decode 2-bit packed glyphs from font sheet into pitched buffer at xy",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c28_000a": {
+        "system": "ui",
+        "purpose": "Store text-draw color nibbles at DS:0x269e..0x26a1 (AL/DL/BL/param)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c2a_0006": {
+        "system": "ui",
+        "purpose": "Sum string pixel-width from glyph-width table (param_2+ch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c2e_000e": {
+        "system": "ui",
+        "purpose": "Wait for VGA vertical retrace (port 0x3da bit3 edge)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c36_000a": {
+        "system": "ui",
+        "purpose": "RLE soft-sprite blit from object table (+0x36); skip transparent -3",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c56_0004": {
+        "system": "ui",
+        "purpose": "Scaled/dithered RLE sprite blit (percent scale table \u2192 dest)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c83_0002": {
+        "system": "ui",
+        "purpose": "Fill dest rect size/pos from sprite dims \u00d7 percent scale",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c89_0006": {
+        "system": "ui",
+        "purpose": "RLE soft-sprite underlay blit (write only where dest==0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1caa_0004": {
+        "system": "ui",
+        "purpose": "Scaled RLE underlay blit (dest==0 only; sibling of 1c56)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1cd8_0004": {
+        "system": "ui",
+        "purpose": "RLE silhouette fill: paint solid color param_1 via sprite mask",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d11_0000": {
+        "system": "ui",
+        "purpose": "Stash INT10 mode word at DS:0x83aa; optionally invoke INT10",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d11_001c": {
+        "system": "ui",
+        "purpose": "Mode13h far-buffer \u2192 A000 blit (pitch 0x140; bank wrap 0x7000)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4720_0006": {
+        "system": "ui",
+        "purpose": "Ship cargo free-space / embark probe (type 0xd..0x12 hold left)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4720_015c": {
+        "system": "ui",
+        "purpose": "Naval-move validity check; set DS:0x9e4e reason; return ok",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4720_049e": {
+        "system": "ui",
+        "purpose": "Dispatch embark/naval order UI by DS:0x9e4e case (0..8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_636c_0000": {
+        "system": "ui",
+        "purpose": "Dual-column compare/report dialog (measure pass then draw)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f30_0004": {
+        "system": "ui",
+        "purpose": "Fill splash rect (DS:0x2da8 box) then video flush 00e2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f30_002e": {
+        "system": "ui",
+        "purpose": "Blit one splash sprite frame (width from obj+0x48/\u22120x4c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f30_0062": {
+        "system": "ui",
+        "purpose": "Splash/image load+blit via resource stream (frames, caption, palette)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_74a4_0000": {
+        "system": "ui",
+        "purpose": "Build map menu bar titles+items from MENU.TXT (4b58 widgets)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_74a4_0b0a": {
+        "system": "ui",
+        "purpose": "Load 12 menu/cursor sprites from resource into glyph scratch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_74a4_0bbe": {
+        "system": "ui",
+        "purpose": "Load menu-cursor resource handle into DS:0x16c/0x16e (via 0b0a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a4c_0000": {
+        "system": "ui",
+        "purpose": "Write VGA DAC RGB range (0x3c8/0x3c9); return PIT ticks elapsed",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a4c_006a": {
+        "system": "ui",
+        "purpose": "Calibrate fade speed (vsync+PIT \u2192 DS:0x802/804/806; arm 0x800)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a65_0008": {
+        "system": "ui",
+        "purpose": "Label viewport tile tip if in-camera (hidden-terrain chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a65_00e2": {
+        "system": "ui",
+        "purpose": "Prefetch dialog id + store 3 numeric substs (DS:0x9cb0) then run",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a65_0124": {
+        "system": "ui",
+        "purpose": "fopen path-pair (by DS:0x25f0) + fprintf 4 args (fmt 0x25df) + fclose",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a7c_000e": {
+        "system": "ui",
+        "purpose": "Load 768-byte VGA palette from resource (name DS:0x25f2) into dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a83_0002": {
+        "system": "ui",
+        "purpose": "Right-shift each of 768 palette RGB bytes by N (dim channels)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a83_002a": {
+        "system": "ui",
+        "purpose": "Fade palette toward target RGB (step until match; timer gate)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a9d_0004": {
+        "system": "ui",
+        "purpose": "Load 0x22-byte dialog string prep buffer into DS:0x929e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7aa1_0002": {
+        "system": "ui",
+        "purpose": "Dismiss message-box handle DS:0x2604 (sound/abort teardown)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7aa1_003a": {
+        "system": "ui",
+        "purpose": "Message box: #\u2192char subst, create+run modal; store handle 0x2604",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ab9_0000": {
+        "system": "ui",
+        "purpose": "Image/resource load attempt; return status (-1 blit / -3 / -10-n)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ab9_00be": {
+        "system": "ui",
+        "purpose": "Handle image-load status: temp-file write, blit, or free buffer",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
