@@ -166,6 +166,46 @@
         "system": "save",
         "confidence": "known",
         "label": "Savegame R/W of units / colonies / tribes / flags"
+      },
+      "275d": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "DOS PATH/env parse / memory sizing / INT21 helpers"
+      },
+      "1a58": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Mouse driver INT 33 show/hide / poll / mode setup"
+      },
+      "3f41": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Report / diplomacy / market UI screens"
+      },
+      "6ba1": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Map tile neighbor masks / viewport blit helpers"
+      },
+      "1009": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Timed turn-chrome / status text overlays"
+      },
+      "4345": {
+        "system": "trade",
+        "confidence": "inferred",
+        "label": "Nation trade flags / FF / Europe-market helpers"
+      },
+      "479b": {
+        "system": "colony",
+        "confidence": "inferred",
+        "label": "Pioneer clear/plow / goto-colony order bodies"
+      },
+      "5bfb": {
+        "system": "ai",
+        "confidence": "inferred",
+        "label": "Indian contact / diplomacy / alarm"
       }
     },
     "mapedit": {
@@ -691,6 +731,30 @@
         "purpose": "Savegame load counterpart to FUN_75c2_0288",
         "confidence": "known",
         "links": "docs/savegame.md"
+      },
+      "FUN_1a58_008c": {
+        "system": "platform",
+        "purpose": "Mouse INT 33 init / cursor mode setup (DS:0x83ac)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_4345_0000": {
+        "system": "trade",
+        "purpose": "Set/clear nation bitflag in Europe-record (nation*0x13c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_0314": {
+        "system": "mapdraw",
+        "purpose": "Build NSEW neighbor presence mask from map plane",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_01a6": {
+        "system": "colony",
+        "purpose": "Pioneer clear/plow work-tick; may grant colony food",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
