@@ -9005,6 +9005,738 @@
         "purpose": "Far thunk \u2192 FUN_1097_067a (clear multi-item layout list)",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_1d1d_07a4": {
+        "system": "platform",
+        "purpose": "strcat \u2014 append null-terminated string onto dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_08fa": {
+        "system": "platform",
+        "purpose": "itoa \u2014 int\u2192string (radix; signed if base 10)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_117e": {
+        "system": "platform",
+        "purpose": "strcpy \u2014 null-terminated string copy (word-aligned)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_007e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_01b8 (itoa base10 then append to status buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0088": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_0222 (truncate last char of status buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00b0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_02cc (draw/clear status text strip)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_010a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0062 (strcat dest \u2190 \"%\")",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01a0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0156 (itoa base2 zero-pad8 then strcat)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01aa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_03d2 (measure+draw string alt-font; rem width)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0204": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1c2a_0006 (string pixel-width via glyph table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0236": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1097_0174 (layout/blit spaced icon row)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_024a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_112b_015c (orders-box rect and/or unit chrome blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0352": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1984_02fc (recenter viewport if rect near edge)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_038e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1262_0128 (wrap selection index into [0, n))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_042e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15b3_0144 (format nation display name into buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0498": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_129f_0300 (store BGM track id at DS:0x9a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0722": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_02a0 (continent_id if in-bounds land; else \u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_07aa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_13f1_00a6 (reveal \u00b15 around colony into explore plane)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_08ee": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0164 (distance to stack head via transport_next)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_092a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0180 (Nth non-transport unit in stack)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_09fc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_038e (test building bit for active colony)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a74": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0f1c (resolve colonist people-band sprite/icon)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a7e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0cbc (write packed colonist specialty nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0aa6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_169c (redraw work-plot of colonist via 06d2)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ac4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_33aa (build-menu hammer cost for item)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ad8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_35d0 (move warehouse cargo onto unit via 30b8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b1e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_05b2 (format nation gold into UI string)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b28": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_08e6 (true if unit type maps to a profession)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b3c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_18ec (compose field yield for one 5\u00d75 work plot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b46": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0d8e (fill leave-as gear cargo-id list; count)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b50": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0b0c (free warehouse headroom for cargo)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b6e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_28c8 (score/assign best work-plot job)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b78": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0902 (default profession for unit type)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b82": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1376 (count colonists with given job)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b96": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_3208 (free unit cargo capacity for type)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0bb4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_3454 (gate: can start job/construction)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0bbe": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1030 (set/clear colony flag bit at +0x84)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0bc8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0924 (Nth profession-capable unit in colony)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c0e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0e18 (colonist profession: slot or outside unit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c36": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1068 (assign colony colonist to job)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c4a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_096e (unit id \u2192 profession-capable ordinal +colony+0x1f)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c54": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0e52 (colonist workplace/job read)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c9a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0002 (gate workplace/job id)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0cae": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0e8c (set workplace/job)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0cb8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1604 (colony production-panel layout sizes)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0cc2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_32f8 (decode build-menu index \u2192 kind+idx)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0cd6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1d4c (building/manufacturing yield for colonist)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ce0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_06a6 (colonist-slot on town-area tile)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d1c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0c7a (read packed colonist specialty nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d30": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1646 (find 5\u00d75 work-plot cell for colonist)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d3a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0a50 (warehouse capacity 100\u00d7(1+expansion))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d44": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_06d2 (shared world-map / pedia draw entry)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d4e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_334a (play build-menu item sound)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_01b6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_08fa (set/clear option disabled bit0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_01d0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_479b_0f60 (unload best cargo unit\u2192colony)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_01de": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_479b_11a4 (load best cargo colony\u2192unit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_023c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_06d0 (alloc+init dialog box record)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02ce": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_647e_0000 (bind colony record pointer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_033c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_092a (set/clear option flag bit1)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03aa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_41f2_0092 (nation score + optional report UI)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03b8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_2548 (Foreign Affairs Advisor F8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03c6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_220c (unit disposition list)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03d4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1ed8 (Naval Adviser body)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03e2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1710 (Economic Adviser F5)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03f0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_10d8 (Labor Adviser F4)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_03fe": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_06d0 (Religious Adviser F2)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_040c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_0618 (Continental Congress report F3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_041a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_010a (Indian Adviser report F9)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0428": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6cb2_0eac (Colonizopedia terrain article)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0436": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_3848 (number-entry dialog; stash at 9cc8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08c6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_0c32 (append body text line to flow list)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08d2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_0c22 (set dialog body wrap-width)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08de": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6cb2_1820 (Colonizopedia cargo/goods article)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08ec": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_09e2 (set current selected option ptr)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0934": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6cb2_05ce (Colonizopedia colonist-skill article)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0942": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6cb2_07e6 (Colonizopedia unit-type article)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a20": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_478c_002c (spawn colonist unit type 0x17)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a2e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1dfa (sell volume: ledgers + tax gold)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a3c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_647e_060e (remove colonist slot; compact)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0316": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4cc6_03f8 (best Euro threat nation+score near tribe)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_077e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7a65_00e2 (dialog id + 3 numeric substs then run)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_08a8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_14f4 (nearest unit of nation by dos_dist)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_08bc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0d38 (unit/stack cargo+combat query dispatcher)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_08d0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0fc0 (true if mounted type)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0902": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0fec (true if armed combat type)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0920": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_10be (ship passenger embark/capacity bookkeeping)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_09c8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_157e_004a (unit base combat\u00d78 + vet/Drake/damage)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_09dc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_157e_015e (full engagement strength w/ fort/terrain)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a56": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15dc_006a (Indian nation class/tier 1/2/3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0aba": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0556 (add to nation treasury w/ clamp)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c68": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_3040 (read unit cargo/passenger qty byte)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c7c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0484 (fort size class \u2192 capacity 8/12/32)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0e08": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1984_029e (recenter viewport on tile + chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02ea": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_48d3_015e (spiral-find High Seas; set sail/goto)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0afc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_46d4 (roll next dock immigrant profession)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b26": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0718 (spawn purchased unit into Europe harbor)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c14": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1d80 (buy volume: update tons/gold ledgers)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c3e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0016 (Europe effective price = base+adj)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d8e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1ebc (apply buy: debit gold, add harbor tons)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0dc6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1f0c (apply sell: pull hold tons toward quote)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ec2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_48d3_0346 (retarget stack after landfall/colony-goto)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ed0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1cf8_000a (insertion-sort parallel word+byte arrays)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0150": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_465b_0c1e (step unit in dir8 via move_spent_add)",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; ai/move_spent.c"
+      },
+      "FUN_281f_0370": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_124c_0040 (DOS distance helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ab0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_039e (count owned buildings along parent chain)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ba0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0410 (walk building parent chain to root)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0bd2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_268e (fill 5\u00d75 work-plot flag cache)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0bf0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_13ac (count colonists by specialty)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c04": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_1f72 (recompute colony production totals)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c22": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_3956 (full colony-view refresh compose)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c5e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0470 (work-radius size from fortification)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c72": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_26e4 (fill 5\u00d75 native-contact caches)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ccc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_09c0 (recount colony unit tallies)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0cfe": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0302 (test building-present bit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d08": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0c52 (cargo exceeds warehouse capacity?)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d84": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4cc6_0356 (nearest village to xy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_01c2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_479b_01a6 (pioneer clear/plow work-tick)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0216": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_479b_0526 (pioneer road work-tick)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_07b0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2e92 (modal dialog frame helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_07d4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2eb2 (print dialog string-table line)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09f8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4345_0a22 (accrue liberty bells; FF election)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0434": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_4d56_2154 (larger Indian action/raid body)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {

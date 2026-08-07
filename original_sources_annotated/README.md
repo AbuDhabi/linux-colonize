@@ -60,8 +60,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 138 · inferred 2239 · unknown 3 |
-| Purpose one-liners | 1343 / 2380 |
+| Confidence | known 139 · inferred 2238 · unknown 3 |
+| Purpose one-liners | 1465 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -71,10 +71,10 @@ Catalog confidence is **not** the same as AI port status in
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
 Purpose one-liners are **not** Layer A. Mid/high-value Layer B closed through
-`15eb` map/pedia draw and mid-size DOS platform helpers (`275d` PATH/env,
-config parse, heap/abort). Layer C closed for Euro/Indian AI, mapgen,
-turn/EOT, move-spent `465b`, and map/colony UI thunks (`2b5a_3b68` ∪
-`2f2b_51ec`). Remaining backlog is mostly megaseg thunk/platform bulk.
+`15eb` map/pedia draw and mid-size DOS platform helpers. Layer C closed through
+colony keyboard/mouse dispatchers, Indian raid `4d56_4528`, and colony sim
+ticks. Remaining backlog is mostly megaseg thunk/platform bulk plus small
+Europe/menu C crumbs.
 
 ### Roadmap (committed order)
 
@@ -116,8 +116,11 @@ turn/EOT, move-spent `465b`, and map/colony UI thunks (`2b5a_3b68` ∪
      foreign tails).
    - **Done:** map unit-order ∪ colony people-band
      `FUN_2b5a_3b68` ∪ `FUN_2f2b_51ec` (47 thunks).
-   - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) #1+
-     (colony keyboard/mouse dispatchers; Europe input; sim ticks).
+   - **Done:** colony keyboard/mouse `FUN_2f2b_6372` ∪ `FUN_2f2b_628a` (79);
+     Indian raid `FUN_4d56_4528` excl (24); colony sim ticks
+     `FUN_5952_035e` ∪ `FUN_364b_0688` excl (19).
+   - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
+     Europe input leftovers (~14) then map menu `2b5a_2464` (~23).
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
