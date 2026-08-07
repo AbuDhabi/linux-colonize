@@ -426,6 +426,151 @@
         "system": "ui",
         "confidence": "inferred",
         "label": "Map tip blit + parameterized dialog text (6f74)"
+      },
+      "1000": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "String-table index / Nth-string lookup"
+      },
+      "12dd": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Clipped blit dispatch (rect vs raw)"
+      },
+      "12e9": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Buffer fill via pitch helpers"
+      },
+      "1a4e": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Blit pitch offset + viewport rect clip"
+      },
+      "1ae3": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Stack clear + BIOS INT16 key-ready"
+      },
+      "1ae7": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "BIOS INT16 keyboard read / queue flush"
+      },
+      "1afb": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "String LF-terminate / NUL truncate"
+      },
+      "1b2c": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "DOS char-stream string get / put"
+      },
+      "1b32": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Filename extension / basename helpers"
+      },
+      "1b70": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Mouse viewport / region setup (1a58)"
+      },
+      "1bdd": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Temp numbered file create / write slots"
+      },
+      "1c2e": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "VGA vsync wait + DAC palette write"
+      },
+      "1d11": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "INT10 mode set + Mode13h far-buffer blit"
+      },
+      "2088": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "XMS detect (INT2F) + init handle table"
+      },
+      "2103": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "XMS handle alloc / free list"
+      },
+      "67f4": {
+        "system": "mapgen",
+        "confidence": "inferred",
+        "label": "Coast/neighbor bitmasks + continent tallies"
+      },
+      "7421": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Startup config fread + argv parse"
+      },
+      "79ec": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource stream progress pump / dispatch"
+      },
+      "7a4c": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "VGA DAC write + PIT fade-speed calibrate"
+      },
+      "7a83": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Palette RGB fade / channel shift"
+      },
+      "7aa1": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Parameterized dialog / message box (# subst)"
+      },
+      "7ab9": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Image/resource load + blit error codes"
+      },
+      "7acf": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Far-buffer alloc into handle struct"
+      },
+      "7b04": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS free-memory probe (INT21) + size max"
+      },
+      "12d6": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Mouse-gated blit to VGA A000"
+      },
+      "682a": {
+        "system": "mapgen",
+        "confidence": "known",
+        "label": "Map fertility / bonus value writer"
+      },
+      "2100": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "XMS size query via multiplex entry"
+      },
+      "79db": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Chunked DOS file read into far buffer"
+      },
+      "7ad6": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Far-buffer free / clear handle struct"
       }
     },
     "mapedit": {
@@ -1163,6 +1308,30 @@
         "system": "platform",
         "purpose": "Wire compressed stream I/O (callbacks + heap buffer + consume loop)",
         "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2088_0048": {
+        "system": "platform",
+        "purpose": "Detect XMS via INT2F and install multiplex entry at DS:0x26e8",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_67f4_0088": {
+        "system": "mapgen",
+        "purpose": "Build 15x18 coast/neighbor bitmasks and per-continent terrain tallies post-flood-fill",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c2e_0022": {
+        "system": "ui",
+        "purpose": "Wait VGA retrace then program DAC RGB palette via 0x3c8/0x3c9",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1ae7_0016": {
+        "system": "platform",
+        "purpose": "BIOS INT16 read next key (AH/AL); paired with 1ae3 key-ready / flush",
+        "confidence": "known",
         "links": ""
       }
     },
