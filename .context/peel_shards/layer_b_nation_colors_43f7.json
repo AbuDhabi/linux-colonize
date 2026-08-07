@@ -1,0 +1,127 @@
+{
+  "layer": "B",
+  "chunk": "nation_country_colors_43f7",
+  "functions": {
+    "FUN_43f7_0004": {
+      "system": "ui",
+      "purpose": "Pop-weighted nation SoL aggregate over owned colonies",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_0082": {
+      "system": "ui",
+      "purpose": "REF/war unit-type id for class+nation (peace vs independence)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_0108": {
+      "system": "ui",
+      "purpose": "Eliminate nation: move treasury/relations, scrub units, status=2",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_0188": {
+      "system": "ui",
+      "purpose": "Sink nation ships not docked in a colony (types 0x0d–0x12)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_0218": {
+      "system": "ui",
+      "purpose": "Crown-nation bootstrap: fold status≠0 Euro into peer; set DS:0x53d2",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_0512": {
+      "system": "ui",
+      "purpose": "Purge non-player units at (x,y); capture/surrender msgs",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_05ea": {
+      "system": "ui",
+      "purpose": "Set DS:0x848[crown nation] @COUNTRY color to 0x0f",
+      "confidence": "known",
+      "links": "src/core/turn.c"
+    },
+    "FUN_43f7_060a": {
+      "system": "ui",
+      "purpose": "Colony garrison/defense score for REF landing target pick",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_06a6": {
+      "system": "ui",
+      "purpose": "Crown turn: spawn irregulars near player colonies when REF empty",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_0982": {
+      "system": "ui",
+      "purpose": "REF invasion wave: Man-O-War + pool units at target colony",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_10f0": {
+      "system": "ui",
+      "purpose": "Foreign-intervention landing (ally expedition near colony)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_1528": {
+      "system": "ui",
+      "purpose": "REF arrival announce; set 0x5382 bit1 (force present)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_160a": {
+      "system": "ui",
+      "purpose": "Independence rename cinematic: animate new nation name letters",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_1a26": {
+      "system": "ui",
+      "purpose": "Declare independence: crown setup, wipe other Euros, REF pools, war flag",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_1d42": {
+      "system": "ui",
+      "purpose": "Tax→REF funding: grow expeditionary pools + notify",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_1eca": {
+      "system": "ui",
+      "purpose": "Promote veterans to Continental Army/Cavalry when colony SoL>50%",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_2022": {
+      "system": "ui",
+      "purpose": "Independence-war nation turn: REF grow/land or intervene hire",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_2244": {
+      "system": "ui",
+      "purpose": "Human-turn mercenary hire offer",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_2424": {
+      "system": "ui",
+      "purpose": "Nation SoL refresh + threshold chrome",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_43f7_2564": {
+      "system": "ui",
+      "purpose": "Declare-independence prompt (SoL≥50% gate + confirm)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "Segment 43f7 is Nation/@COUNTRY colors in MODULE_MAP, but bodies are independence/REF/SoL UI around the color table. Anchor FUN_43f7_05f4 (known) writes DS:0x848..0x84b; 05ea paints crown slot 0x0f. Nation status at nation*0x34+0x543f: 0=colonial, 1=crown/REF controller, 2=eliminated. War flag 0x5382 bit0; REF-present bit1. REF pools DS:0x53da/dc/de/e0; foreign-intervention pools 0x53e2/e4/e6/e8; crown id 0x53d2; allies 0x53d4/0x53d6. EMS thunks 2a1f_0070..0134 / 291f_0348..0364 map 1:1 onto these bodies. 2244/2424 purposes match existing far-thunk labels. 20/20 labeled; catalog seed untouched."
+}

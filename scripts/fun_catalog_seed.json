@@ -6479,6 +6479,1284 @@
         "purpose": "Load dialog chrome/palette colors into DS:0x1f3c..0x1f4e",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_6cb2_0000": {
+        "system": "ui",
+        "purpose": "Free Colonizopedia index triple-buffers (DS:1ea6/1eaa/1eae) via 291f_01a8",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a32"
+      },
+      "FUN_6cb2_0058": {
+        "system": "ui",
+        "purpose": "Alloc index triple-buffers (word titles + type/idx bytes); clear a5aa",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a40; FUN_281f_029a"
+      },
+      "FUN_6cb2_00c0": {
+        "system": "ui",
+        "purpose": "Append one encyclopedia list entry (title ptr, cat type, index)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6cb2_00fc": {
+        "system": "ui",
+        "purpose": "Swap two encyclopedia list entries across the triple arrays",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6cb2_0178": {
+        "system": "ui",
+        "purpose": "Bubble-sort encyclopedia list by title string (1d1d_103e)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_09de"
+      },
+      "FUN_6cb2_0276": {
+        "system": "ui",
+        "purpose": "Map list index \u2192 3-col grid xy (24/page, scroll via a5ac)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a16"
+      },
+      "FUN_6cb2_02c4": {
+        "system": "ui",
+        "purpose": "Hit-test cursor vs list grid; \u22122/\u22123 = Exit / page-chrome",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a24"
+      },
+      "FUN_6cb2_033a": {
+        "system": "ui",
+        "purpose": "Format list-row title; terrain 8\u201315 append forest suffix (2db0)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a4e"
+      },
+      "FUN_6cb2_039c": {
+        "system": "ui",
+        "purpose": "Init article title paint (colors + format into 833c)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0998; FUN_281f_0422"
+      },
+      "FUN_6cb2_03bc": {
+        "system": "ui",
+        "purpose": "Flush/finish article compositor (flag 1f56|0x20, restore clip)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_09c2; FUN_281f_0444"
+      },
+      "FUN_6cb2_0424": {
+        "system": "ui",
+        "purpose": "Begin article compositor (optional side-art 1ec4 + 200px box)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_09d0; FUN_291f_087a"
+      },
+      "FUN_6cb2_048c": {
+        "system": "ui",
+        "purpose": "Draw related sprite strip + name (job/cargo icon row)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_09fa"
+      },
+      "FUN_6cb2_05ce": {
+        "system": "ui",
+        "purpose": "Build Colonizopedia colonist-skill article (JOB + related icons)",
+        "confidence": "inferred",
+        "links": "FUN_291f_0934; feeds 6f74 subst via 281f_0438"
+      },
+      "FUN_6cb2_07e6": {
+        "system": "ui",
+        "purpose": "Build Colonizopedia unit-type article (5230 table + cargo sprites)",
+        "confidence": "inferred",
+        "links": "FUN_291f_0942"
+      },
+      "FUN_6cb2_0eac": {
+        "system": "ui",
+        "purpose": "Build Colonizopedia terrain article (3\u00d73 tile preview + yields)",
+        "confidence": "inferred",
+        "links": "FUN_291f_0428; docs/assets.md Colonizopedia"
+      },
+      "FUN_6cb2_1820": {
+        "system": "ui",
+        "purpose": "Build Colonizopedia cargo/goods article (\u2212715e + building chain)",
+        "confidence": "inferred",
+        "links": "FUN_291f_08de"
+      },
+      "FUN_6cb2_1ba8": {
+        "system": "ui",
+        "purpose": "Build Colonizopedia colony-building article (\u2212707e + parent/good)",
+        "confidence": "inferred",
+        "links": "FUN_291f_0902"
+      },
+      "FUN_6cb2_1f28": {
+        "system": "ui",
+        "purpose": "Build Colonizopedia founding-father article (\u221269ae title+body)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0062"
+      },
+      "FUN_6cb2_214a": {
+        "system": "ui",
+        "purpose": "Paint encyclopedia list (3-col titles, highlight, Exit chrome)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_09ec; WOODPANL list UI"
+      },
+      "FUN_6cb2_2322": {
+        "system": "ui",
+        "purpose": "Fill encyclopedia index for one category 0\u20136 (or via 00c0)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a08; Ghidra switch overlapped"
+      },
+      "FUN_6cb2_24b8": {
+        "system": "ui",
+        "purpose": "Colonizopedia browser: fill/sort/list loop \u2192 article by cat type",
+        "confidence": "inferred",
+        "links": "docs/assets.md Colonizopedia; cat7=all"
+      },
+      "FUN_4b58_0000": {
+        "system": "ui",
+        "purpose": "Normalize menu font-height byte (remap 6\u21925)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4b58_0016": {
+        "system": "ui",
+        "purpose": "Pack 6-word menu style/color record into buffer",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_02de"
+      },
+      "FUN_4b58_004a": {
+        "system": "ui",
+        "purpose": "Menu chrome fill: tiled blit (281f_00c4) if mode=7+tile src, else solid rect (281f_00ba)",
+        "confidence": "inferred",
+        "links": "FUN_281f_00ba; FUN_281f_00c4"
+      },
+      "FUN_4b58_00ae": {
+        "system": "ui",
+        "purpose": "Measure menu label width after stripping '~' hotkey markup",
+        "confidence": "inferred",
+        "links": "FUN_281f_0204; thunk_FUN_2a1f_030e"
+      },
+      "FUN_4b58_0104": {
+        "system": "ui",
+        "purpose": "Draw menu label text with ~hotkey color highlight (01f0/01fa)",
+        "confidence": "inferred",
+        "links": "FUN_281f_01f0; FUN_281f_01fa; thunk_FUN_2a1f_0332"
+      },
+      "FUN_4b58_023e": {
+        "system": "ui",
+        "purpose": "Resolve ~hotkey scan/char code from label (~F specials, case-fold via 0x27ed)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_034a"
+      },
+      "FUN_4b58_02f6": {
+        "system": "ui",
+        "purpose": "Alloc/init menu-bar root (styles from DS:0x149c palette, empty menu list)",
+        "confidence": "inferred",
+        "links": "FUN_281f_029a; FUN_2a1f_02d2"
+      },
+      "FUN_4b58_043e": {
+        "system": "ui",
+        "purpose": "Find menu node by id in bar's linked menu list",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_02f6"
+      },
+      "FUN_4b58_0484": {
+        "system": "ui",
+        "purpose": "Find menu-item node by command id across all menus",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0302"
+      },
+      "FUN_4b58_051a": {
+        "system": "ui",
+        "purpose": "Set/clear menu disabled flag (bit0 at menu+0xc)",
+        "confidence": "inferred",
+        "links": "FUN_291f_045c"
+      },
+      "FUN_4b58_0552": {
+        "system": "ui",
+        "purpose": "Set/clear menu-item disabled flag (bit0); used by map ORDERS enable",
+        "confidence": "inferred",
+        "links": "FUN_291f_0146; FUN_2b5a"
+      },
+      "FUN_4b58_0582": {
+        "system": "ui",
+        "purpose": "Clear disabled bit on every item under every menu",
+        "confidence": "inferred",
+        "links": "FUN_291f_015e"
+      },
+      "FUN_4b58_05c6": {
+        "system": "ui",
+        "purpose": "Set/clear menu-item hidden flag (bit1); used by map ORDERS enable",
+        "confidence": "inferred",
+        "links": "FUN_291f_013a; FUN_2b5a"
+      },
+      "FUN_4b58_05f6": {
+        "system": "ui",
+        "purpose": "Clear hidden bit on every item under every menu",
+        "confidence": "inferred",
+        "links": "FUN_291f_0152"
+      },
+      "FUN_4b58_063a": {
+        "system": "ui",
+        "purpose": "Append titled menu node to bar (layout x, hotkey, link into +0x38 list)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_031a; FUN_74a4_0000"
+      },
+      "FUN_4b58_07d6": {
+        "system": "ui",
+        "purpose": "Append menu-item (label+cmd id) under a menu; empty label \u2192 disabled separator",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_033e; FUN_74a4_0000"
+      },
+      "FUN_4b58_093c": {
+        "system": "ui",
+        "purpose": "Draw menu-bar strip + enabled titles (004a fill, text blit); optional 00e2 flush",
+        "confidence": "inferred",
+        "links": "FUN_4b58_004a; FUN_281f_00e2; thunk_FUN_281f_0e52"
+      },
+      "FUN_4b58_0a64": {
+        "system": "ui",
+        "purpose": "Compute pulldown popup layout rects from item count; clamp to 320\u00d7200",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_02ea"
+      },
+      "FUN_4b58_0b7a": {
+        "system": "ui",
+        "purpose": "Draw open pulldown: outline (00ce), fill (004a), item labels/checks, 00e2 flush",
+        "confidence": "inferred",
+        "links": "FUN_281f_00ba; FUN_281f_00ce; thunk_FUN_2a1f_0326"
+      },
+      "FUN_4b58_0d94": {
+        "system": "ui",
+        "purpose": "Modal menu loop: mouse/kbd navigate titles+items, select cmd into bar root",
+        "confidence": "inferred",
+        "links": "thunk_FUN_291f_0472; FUN_4b58_0b7a"
+      },
+      "FUN_4b58_13ac": {
+        "system": "ui",
+        "purpose": "Hit-test mouse on menu titles; open matching pulldown via 0d94",
+        "confidence": "inferred",
+        "links": "FUN_291f_047e; FUN_4b58_0d94"
+      },
+      "FUN_4b58_144a": {
+        "system": "ui",
+        "purpose": "Open pulldown by menu-title hotkey match, then run 0d94",
+        "confidence": "inferred",
+        "links": "FUN_291f_0496; FUN_4b58_0d94"
+      },
+      "FUN_4b58_14de": {
+        "system": "ui",
+        "purpose": "Find enabled item matching hotkey across menus; return command id",
+        "confidence": "inferred",
+        "links": "FUN_291f_048a"
+      },
+      "FUN_4b58_15a4": {
+        "system": "ui",
+        "purpose": "Load menu color/style nibbles from sprite table into DS:0x149c..0x14b8 palette",
+        "confidence": "inferred",
+        "links": "FUN_281f_0254; FUN_2a1f_0372"
+      },
+      "FUN_104b_0010": {
+        "system": "ui",
+        "purpose": "Append N spaces onto dest (loop 1009_0420 / DS:0x50)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0032": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \", \" (DS:0x52)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0042": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \": \" (DS:0x55)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0052": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \".  \" (DS:0x58)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0062": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"%\" (DS:0x5c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0072": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"(\" (DS:0x5e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0082": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \")\" (DS:0x60)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0092": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"{\" (DS:0x62)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_00a2": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"}\" (DS:0x64)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_00b2": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"+\" (DS:0x66)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_00c2": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"-\" (DS:0x68)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_00d2": {
+        "system": "ui",
+        "purpose": "strcat dest \u2190 \"x\" (DS:0x6a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_00e2": {
+        "system": "ui",
+        "purpose": "Resolve string-table idx then strcat onto dest (1000_0062\u21921d1d_11b4)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_00fc": {
+        "system": "ui",
+        "purpose": "Wrap string-table entry in {\u2026} then strcat onto dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_012e": {
+        "system": "ui",
+        "purpose": "itoa(int,base10) then strcat onto dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0156": {
+        "system": "ui",
+        "purpose": "itoa(base2) zero-pad to width 8 (\"0\"@0x6c) then strcat onto dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_01be": {
+        "system": "ui",
+        "purpose": "itoa(long,base10) then strcat onto dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_01e8": {
+        "system": "ui",
+        "purpose": "Format long then append \"$\" (01be + DS:0x6e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0216": {
+        "system": "ui",
+        "purpose": "Measure string width\u22121 (primary font DS:0x89e/0x8a0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0232": {
+        "system": "ui",
+        "purpose": "Measure string width\u22121 (alt font DS:0x268a/0x268c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_024e": {
+        "system": "ui",
+        "purpose": "Draw string at xy with color 0 (primary font)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0288": {
+        "system": "ui",
+        "purpose": "Set text colors then draw string (primary font)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_02c2": {
+        "system": "ui",
+        "purpose": "Color+measure+draw string (primary); return remaining width",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0318": {
+        "system": "ui",
+        "purpose": "Center string in width then draw via 0288",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_035c": {
+        "system": "ui",
+        "purpose": "Draw string at xy with color 0 (alt font)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_039a": {
+        "system": "ui",
+        "purpose": "Draw string at xy with color 0 (alt font; 1c11 path)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_03d2": {
+        "system": "ui",
+        "purpose": "Measure+draw string (alt font, color 0); return remaining width",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0430": {
+        "system": "ui",
+        "purpose": "Center string in width then draw via 039a (alt font)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_104b_0478": {
+        "system": "ui",
+        "purpose": "Append 2f74[idx\u00d70x10] label (neg\u21922e0a); idx 8..23 also space+2db0 suffix",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_0004": {
+        "system": "ui",
+        "purpose": "Compute multi-item row pitch/spacing and leftover margin",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_00de": {
+        "system": "ui",
+        "purpose": "Draw positive int (optional backdrop clear) with given text color",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_0174": {
+        "system": "ui",
+        "purpose": "Layout/blit spaced icon row (1c36) with optional count labels",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_02da": {
+        "system": "ui",
+        "purpose": "Hit-test which spaced-row item index is under cursor",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_0394": {
+        "system": "ui",
+        "purpose": "Layout/blit multi-group item rows from DS:0x2ce0 list tables",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_067a": {
+        "system": "ui",
+        "purpose": "Clear multi-item layout list (DS:0x2ce0=0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1097_0682": {
+        "system": "ui",
+        "purpose": "Append item (id/count/alt @2cf4/2cce/2ce2) to layout list",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1101_000e": {
+        "system": "ui",
+        "purpose": "Allocate glyph-blit scratch buffer (7ada_01a0\u2190*0x2674)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1101_0026": {
+        "system": "ui",
+        "purpose": "Remap glyph sheet row (9/0x11\u21928; else if >7 subtract 0xf)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1101_0050": {
+        "system": "ui",
+        "purpose": "Opaque 16\u00d716 glyph blit from sheet row into dest bitmap",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1101_00b4": {
+        "system": "ui",
+        "purpose": "Transparent 16\u00d716 glyph blit (write only where dest==0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1101_0126": {
+        "system": "ui",
+        "purpose": "Scaled opaque glyph blit (subsample by 1<<zoom)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1101_01dc": {
+        "system": "ui",
+        "purpose": "Scaled transparent glyph blit (subsample; skip nonzero dest)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_05a8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_74a4_0000 (build game menu bar titles+items)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_059a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6a9f_00d8 (compute/clamp minimap scroll origin)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1262_00da": {
+        "system": "ui",
+        "purpose": "Drain pending key/mouse event queue",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_129f_0318": {
+        "system": "sound",
+        "purpose": "Set BGM track id + gate play",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0574": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_41f2_14a8 (end-game score \u2192 rebate + HoF)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0550": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_5bfb_00f8 (rank Euro nations by strength)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0676": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4d56_1b3a (mid-turn Indian action)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b8d_0004": {
+        "system": "ui",
+        "purpose": "Filled-rect blit wrapper\u21921b9e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1b70_003a": {
+        "system": "ui",
+        "purpose": "Video restore/flush around blit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0142": {
+        "system": "mapdraw",
+        "purpose": "Nearest colony by nation/continent; set active",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0644": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3844_00f2 (nation EOT: treasure/ships/Europe/colonies)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0638": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_521d_6d8e (Euro AI dispatcher per nation)",
+        "confidence": "known",
+        "links": "ai/euro_dispatcher.c; src/core/ai.c"
+      },
+      "FUN_281f_0668": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_43f7_2244 (human-turn mercenary hire offer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_062c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3b68 (map UI Move/View Pieces loop)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_038b": {
+        "system": "platform",
+        "purpose": "Poll mouse xy/buttons (INT33); merge sticky flags",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_061e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3844_0442 (year-end Euro chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_12fd_006c": {
+        "system": "ui",
+        "purpose": "Once-only discovery/event opcode dispatch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_05fa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_55b6 (Europe screen entry + event loop)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_07a0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_13f1_02f8 (reveal exploration bits around unit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a58": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3844_0004 (EOT treasure tick)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_07be": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0a76 (colony index at map xy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a9e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4962_0606 (tally nation profession counts)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a90": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_5e52 (Europe nation EOT market/tax/pool)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a82": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_48d3_06ba (Europe-exit landfall; tax treasures)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0950": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_0688 (colony EOT production/SoL tick)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a74": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4962_0018 (census units/colonies/cargo)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a66": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_43f7_2424 (nation SoL refresh + threshold chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0aee": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_48d3_0002 (landfall/goto duration roll)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ae0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_3dc8 (apply tax delta; may boycott)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0aba": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_75c2_20e2 (endgame/victory announce dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ac8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_0404 (format nation name into dialog subst)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0aac": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_78d8_00c4 (reload resource far-ptrs from stream)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0422": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7314_0208 (load nth string from dual-id resource)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a10": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15b3_00d0 (clear diplomacy bit both directions)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ad4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_378a (set side-art style=8 then flush dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_056a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1984_04f6 (tear down status chrome strip/overlays)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0004": {
+        "system": "ui",
+        "purpose": "Pop-weighted nation SoL aggregate over owned colonies",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0082": {
+        "system": "ui",
+        "purpose": "REF/war unit-type id for class+nation (peace vs independence)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0108": {
+        "system": "ui",
+        "purpose": "Eliminate nation: move treasury/relations, scrub units, status=2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0188": {
+        "system": "ui",
+        "purpose": "Sink nation ships not docked in a colony (types 0x0d\u20130x12)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0218": {
+        "system": "ui",
+        "purpose": "Crown-nation bootstrap: fold status\u22600 Euro into peer; set DS:0x53d2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0512": {
+        "system": "ui",
+        "purpose": "Purge non-player units at (x,y); capture/surrender msgs",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_05ea": {
+        "system": "ui",
+        "purpose": "Set DS:0x848[crown nation] @COUNTRY color to 0x0f",
+        "confidence": "known",
+        "links": "src/core/turn.c"
+      },
+      "FUN_43f7_060a": {
+        "system": "ui",
+        "purpose": "Colony garrison/defense score for REF landing target pick",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_06a6": {
+        "system": "ui",
+        "purpose": "Crown turn: spawn irregulars near player colonies when REF empty",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_0982": {
+        "system": "ui",
+        "purpose": "REF invasion wave: Man-O-War + pool units at target colony",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_10f0": {
+        "system": "ui",
+        "purpose": "Foreign-intervention landing (ally expedition near colony)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_1528": {
+        "system": "ui",
+        "purpose": "REF arrival announce; set 0x5382 bit1 (force present)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_160a": {
+        "system": "ui",
+        "purpose": "Independence rename cinematic: animate new nation name letters",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_1a26": {
+        "system": "ui",
+        "purpose": "Declare independence: crown setup, wipe other Euros, REF pools, war flag",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_1d42": {
+        "system": "ui",
+        "purpose": "Tax\u2192REF funding: grow expeditionary pools + notify",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_1eca": {
+        "system": "ui",
+        "purpose": "Promote veterans to Continental Army/Cavalry when colony SoL>50%",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_2022": {
+        "system": "ui",
+        "purpose": "Independence-war nation turn: REF grow/land or intervene hire",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_2244": {
+        "system": "ui",
+        "purpose": "Human-turn mercenary hire offer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_2424": {
+        "system": "ui",
+        "purpose": "Nation SoL refresh + threshold chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_43f7_2564": {
+        "system": "ui",
+        "purpose": "Declare-independence prompt (SoL\u226550% gate + confirm)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_733a_002c": {
+        "system": "ui",
+        "purpose": "Draw one CUSTOMIZE cell; highlight + category/value labels if selected",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0b9e; FUN_733a_0512 sibling"
+      },
+      "FUN_733a_01a4": {
+        "system": "ui",
+        "purpose": "Paint CUSTOMIZE chrome (title + 4\u00d73 cell redraw)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0bba; FUN_733a_0270"
+      },
+      "FUN_733a_04d0": {
+        "system": "ui",
+        "purpose": "Map difficulty index \u2192 DIFFICUL.PIK cell origin",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0b90; FUN_733a_0000 sibling"
+      },
+      "FUN_733a_06a4": {
+        "system": "ui",
+        "purpose": "Paint difficulty chrome (title + five DIFFICUL cells)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0bf2; FUN_733a_0790"
+      },
+      "FUN_733a_0790": {
+        "system": "ui",
+        "purpose": "Difficulty-select modal event loop (keys/mouse \u2192 DS:0x53a6)",
+        "confidence": "inferred",
+        "links": "FUN_733a_0270 sibling; src/core/new_game.c"
+      },
+      "FUN_733a_0992": {
+        "system": "ui",
+        "purpose": "Map nation index \u2192 NATIONS.PIK 2\u00d72 cell origin",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0bc8; FUN_733a_0000 sibling"
+      },
+      "FUN_733a_09c6": {
+        "system": "ui",
+        "purpose": "Draw one nation-pick cell; highlight + name/bonus if selected",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0bd6; FUN_733a_0512 sibling"
+      },
+      "FUN_733a_0b3e": {
+        "system": "ui",
+        "purpose": "Paint nation-pick chrome (title + four NATIONS cells)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0b58; FUN_733a_0c2a"
+      },
+      "FUN_733a_0c2a": {
+        "system": "ui",
+        "purpose": "Nation-select modal event loop (keys/mouse \u2192 DS:0x5398)",
+        "confidence": "inferred",
+        "links": "FUN_733a_0270 sibling; src/core/new_game.c"
+      },
+      "FUN_1262_0002": {
+        "system": "ui",
+        "purpose": "Read Shift-key state bits (BDA 40:17 & 3)",
+        "confidence": "inferred",
+        "links": "FUN_281f_03a2"
+      },
+      "FUN_1262_0012": {
+        "system": "ui",
+        "purpose": "Clear tip-overlay rect (0x2da8\u2026) + video flush",
+        "confidence": "inferred",
+        "links": "FUN_281f_03b6"
+      },
+      "FUN_1262_003c": {
+        "system": "ui",
+        "purpose": "Busy-wait for next key/mouse event (BGM pump via 129f_00f6)",
+        "confidence": "inferred",
+        "links": "FUN_1262_0060 sibling"
+      },
+      "FUN_1262_0060": {
+        "system": "ui",
+        "purpose": "Wait for key/mouse with UI pump (timeout / abort flags)",
+        "confidence": "inferred",
+        "links": "FUN_281f_03c0"
+      },
+      "FUN_1262_00f6": {
+        "system": "ui",
+        "purpose": "Mouse hit-test: cursor (0x7e8/0x7ea) inside x,y,w,h rect",
+        "confidence": "inferred",
+        "links": "FUN_281f_03ca"
+      },
+      "FUN_1262_0128": {
+        "system": "ui",
+        "purpose": "Wrap selection index into [0, n)",
+        "confidence": "inferred",
+        "links": "FUN_281f_038e"
+      },
+      "FUN_1262_0142": {
+        "system": "ui",
+        "purpose": "Bind tip-string far ptr (seg:off 0x7a:0x1a0a)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0398; FUN_1a29_021b"
+      },
+      "FUN_1262_0152": {
+        "system": "ui",
+        "purpose": "Present tip overlay by kind (1=clear; 2\u20134 colony/nation text)",
+        "confidence": "inferred",
+        "links": "FUN_1262_02fe"
+      },
+      "FUN_1262_02fe": {
+        "system": "ui",
+        "purpose": "Mouse-move / tooltip debounce tick (dwell \u2192 tip kinds 1..10)",
+        "confidence": "inferred",
+        "links": "FUN_281f_03ac"
+      },
+      "FUN_12fd_000e": {
+        "system": "ui",
+        "purpose": "Set/clear discovery/event bit in DS:0x540a",
+        "confidence": "inferred",
+        "links": "FUN_12fd_0048 sibling"
+      },
+      "FUN_12fd_0048": {
+        "system": "ui",
+        "purpose": "Test discovery/event bit at DS:0x540a",
+        "confidence": "inferred",
+        "links": "FUN_281f_051a"
+      },
+      "FUN_129f_0008": {
+        "system": "sound",
+        "purpose": "Pick next BGM/event id until \u2260 current (DS:0x96)",
+        "confidence": "inferred",
+        "links": "FUN_129f_00f6"
+      },
+      "FUN_129f_00f6": {
+        "system": "sound",
+        "purpose": "Idle BGM/sound pump: service pending track/event + gate play",
+        "confidence": "inferred",
+        "links": "FUN_129f_0318 sibling; FUN_12d8_000e"
+      },
+      "FUN_129f_02cc": {
+        "system": "sound",
+        "purpose": "Queue sound/event id if changed",
+        "confidence": "inferred",
+        "links": "FUN_281f_048e"
+      },
+      "FUN_129f_0300": {
+        "system": "sound",
+        "purpose": "Store BGM track id at DS:0x9a",
+        "confidence": "inferred",
+        "links": "FUN_281f_0498; FUN_129f_0318"
+      },
+      "FUN_129f_030c": {
+        "system": "sound",
+        "purpose": "Store pending/next BGM id at DS:0x98",
+        "confidence": "inferred",
+        "links": "FUN_281f_04a2"
+      },
+      "FUN_129f_034c": {
+        "system": "sound",
+        "purpose": "Play SFX/BGM if sound enabled else only store id",
+        "confidence": "inferred",
+        "links": "FUN_281f_04b6"
+      },
+      "FUN_2059_0006": {
+        "system": "sound",
+        "purpose": "Sound driver load/init poll entry (via DS:0xa654)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0f56; FUN_2059_000a sibling"
+      },
+      "FUN_2059_005f": {
+        "system": "sound",
+        "purpose": "Sound driver unload/shutdown entry (via DS:0xa65c)",
+        "confidence": "inferred",
+        "links": "FUN_281f_05d8; FUN_2059_000a sibling"
+      },
+      "FUN_1a58_000d": {
+        "system": "platform",
+        "purpose": "Show mouse cursor (INT33 AH=1 / soft nest\u21920456); nest DS:0xa899",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_0054": {
+        "system": "platform",
+        "purpose": "Hide mouse cursor (INT33 AH=2 / soft nest\u2192042d); nest DS:0xa899",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_01d9": {
+        "system": "platform",
+        "purpose": "Set soft-cursor hotspot DS:0x590/0x592 (params & 0xf)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_026c": {
+        "system": "platform",
+        "purpose": "Soft-cursor move: erase(042d), store scaled xy, redraw(0456); reentrancy DS:0x6d2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_02ce": {
+        "system": "platform",
+        "purpose": "Soft mode: mark cursor dirty (DS:0x58a=0xff, clear 0x58b)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_02e0": {
+        "system": "platform",
+        "purpose": "Soft mode: force-refresh cursor via 026c if visible+pending (DS:0x58b)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_036b": {
+        "system": "platform",
+        "purpose": "Scale INT33 raw CX/DX into DS:0x92fc/0x92fe via shift DS:0x598",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_03ce": {
+        "system": "platform",
+        "purpose": "If soft cursor visible, call 02ce (dirty) before shape rebuild",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_03e2": {
+        "system": "platform",
+        "purpose": "If soft cursor visible, mode blit via DS:0x7e2 (post-shape update)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_042d": {
+        "system": "platform",
+        "purpose": "Erase/restore under soft cursor; JMP DS:0x7da with save buf ES:DI",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_0456": {
+        "system": "platform",
+        "purpose": "Draw soft cursor: clip 16\u00d716 at xy\u2212hotspot, save-under, JMP DS:0x7dc",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_054f": {
+        "system": "platform",
+        "purpose": "Set cursor-shape far ptr + pitch (DS:0x5ac/0x5ae/0x5b0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_0568": {
+        "system": "platform",
+        "purpose": "Set shape source rect (L/T/R/B) + resolve ptr via FUN_1d1c_0000",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_0599": {
+        "system": "platform",
+        "purpose": "Set shape cell origin (x,y); compute linear offsets DS:0x5be/0x5c0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_05be": {
+        "system": "platform",
+        "purpose": "If soft cursor overlaps dirty rect, restore under via DS:0x7de",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1a58_06fd": {
+        "system": "platform",
+        "purpose": "Soft-cursor redraw after dirty blit; JMP DS:0x7e0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_06f0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_0392 (Indian settlement owner or \u22121)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c; ai/move_spent.c"
+      },
+      "FUN_2a1f_016c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_4d56_4528 (Indian settlement enter/raid contact)",
+        "confidence": "inferred",
+        "links": "ai/move_spent.c \u00a73; docs/ai_transcription.md"
+      },
+      "FUN_2a1f_015e": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_5f7a_0662 (dispatch colony native-trade session)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0998": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_36ca (parse+run+free dialog; return choice)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_09f0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4cc6_0304 (find tribe index at (x,y) or \u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a4c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15dc_0032 (bind current tribe/Indian context)",
+        "confidence": "known",
+        "links": "include/viceroy_globals.h"
+      },
+      "FUN_281f_06dc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_0200 (owner_nibble; 0xf \u2192 \u22121)",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_0826": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0c9a (euro visibility bitmask at tile)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c; ai/move_spent.c \u00a76"
+      },
+      "FUN_281f_0970": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0bfe (true if 8-adj has presence/colony of nation)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_291f_0a14": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_5fef_1b0e (main combat engagement for move-into)",
+        "confidence": "inferred",
+        "links": "ai/move_spent.c \u00a73"
+      },
+      "FUN_281f_07d6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_09ac (stack_or_nation_flag)",
+        "confidence": "known",
+        "links": "ai/move_spent.c; ai/unit_mp.c"
+      },
+      "FUN_281f_08e4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0644 (tile_stack_head)",
+        "confidence": "known",
+        "links": "ai/move_spent.c; ai/unit_mp.c"
+      },
+      "FUN_281f_088a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_1284 (stack_has_ship)",
+        "confidence": "known",
+        "links": "ai/move_spent.c; ai/unit_mp.c"
+      },
+      "FUN_281f_08f8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_12c6 (set orders byte for whole stack)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_0966": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_1330 (has moves + on-map + not sentry/fortified)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_086c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_08ea (select unit: tile refresh + reveal)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_02ee": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0002 (walk transport_next to stack head)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_0056": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_00b4 (wait/restore then disarm overlay)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0074": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_01a2 (string-table idx \u2192 append status buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_006a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_017e (append string onto status buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0060": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_0402 (arm timed overlay then draw)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_075e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_0598 (procedural lost-city/rumour on unowned land)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_2a1f_0178": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_65dd_0004 (lost-city/rumour RNG outcome resolve)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0984": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_09dc (8-adj foreign same-continent owner probe)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_2a1f_0192": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_5bfb_3180 (adj ship/unit combat loot around (x,y))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0186": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_5fef_1908 (treasure capture: ransom/gold/remove)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {

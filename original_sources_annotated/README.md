@@ -56,8 +56,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 116 · inferred 2261 · unknown 3 |
-| Purpose one-liners | 922 / 2380 |
+| Confidence | known 123 · inferred 2254 · unknown 3 |
+| Purpose one-liners | 1135 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -66,12 +66,11 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Mid/high-value Layer B closed for game
-logic, map accessors/fog, trade/diplo UI, pathfinding, unit-order UI, map
-viewport, and dialog compositor `6f74`. Layer C closed for Euro/Indian AI
-entries and NEW WORLD mapgen `FUN_684c_08c0`. Remaining backlog is mostly
-thunk/platform/`15eb` mapdraw bulk and leftover dialog widgets (`6cb2`/`4b58`/
-`104b`).
+Purpose one-liners are **not** Layer A. Mid/high-value Layer B closed through
+dialog widgets, nation/independence UI (`43f7`), CUSTOMIZE/input/sound, and
+mouse driver. Layer C closed for Euro/Indian AI, mapgen, turn/EOT, and
+move-spent `465b`. Remaining backlog is mostly thunk/platform/`15eb` mapdraw
+bulk.
 
 ### Roadmap (committed order)
 
@@ -94,13 +93,22 @@ thunk/platform/`15eb` mapdraw bulk and leftover dialog widgets (`6cb2`/`4b58`/
      (52).
    - **Done:** map viewport `6ba1`/`6a9f`/`6afa`/`6b22`/`6b7e` (42+3 via C);
      dialog compositor `6f74` (57/58 incl. known `1198`).
-   - **Next (optional):** dialog widgets `6cb2`/`4b58`/`104b`, or thunks only
-     as hops need them. MAPEDIT stays parked.
+   - **Done:** Colonizopedia panels `6cb2` (21); menu-bar/pulldown `4b58` (24);
+     text/number blit `104b`/`1097`/`1101` (42).
+   - **Done:** nation/independence UI `43f7` (21); CUSTOMIZE `733a` + input
+     `1262` + discovery `12fd` + BGM `129f`/`2059` (28); mouse INT33 `1a58`
+     (18).
+   - **Next (optional):** selective `15eb` mapdraw, platform `275d`, or UI
+     thunk hops (`2b5a`/`2f2b`) as ports need them. MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
    - **Done:** `FUN_684c_08c0` (30 non-thunk bodies + 67 `281f`/`291f` thunks).
-   - **Next:** turn EOT neighborhood, or other known entries as ports need them.
+   - **Done:** turn/EOT neighborhood `FUN_130d_0290` ∪ `FUN_3844_00f2` ∪
+     `FUN_3844_0442` (36 callees).
+   - **Done:** move-spent `FUN_465b_0000` (26 callees — post-ADD chrome /
+     foreign tails).
+   - **Next:** other known entries as ports need them.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
