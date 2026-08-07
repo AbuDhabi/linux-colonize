@@ -319,8 +319,8 @@
       },
       "7562": {
         "system": "save",
-        "confidence": "inferred",
-        "label": "Hall of Fame / score-file format & list UI"
+        "confidence": "known",
+        "label": "COLONY## slot path / list / Save(0-7) / Load(0-9) / autosave"
       },
       "7a05": {
         "system": "platform",
@@ -1449,6 +1449,144 @@
       "FUN_75c2_0940": {
         "system": "save",
         "purpose": "Savegame load counterpart to FUN_75c2_0288",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_75c2_0000": {
+        "system": "save",
+        "purpose": "Paginated directory name picker (10/page, prev/next)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_0204": {
+        "system": "save",
+        "purpose": "Copy options bytes DS:0x830-0x839 into live option/UI words",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_75c2_024c": {
+        "system": "save",
+        "purpose": "Hardcode default option/UI word values (counterpart to 0204)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_75c2_0840": {
+        "system": "save",
+        "purpose": "Prefix/header probe (COLONIZE sig, version, map WxH); slot error codes",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_75c2_10ae": {
+        "system": "save",
+        "purpose": "New-game nation/difficulty setup; mark human nation(s) in player records",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_1380": {
+        "system": "save",
+        "purpose": "Fill one 16-byte unit-type/stat table row from data stream",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_13dc": {
+        "system": "save",
+        "purpose": "Write one 12-byte building-link table record (used by 144c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_1418": {
+        "system": "save",
+        "purpose": "Write one 6-byte companion table record (used by 144c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_144c": {
+        "system": "save",
+        "purpose": "Init building/prereq link tables via 13dc/1418",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_1770": {
+        "system": "save",
+        "purpose": "Bootstrap static catalogs (names, cargos, buildings, default options)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_20e2": {
+        "system": "save",
+        "purpose": "Endgame/victory announce dialog; independence continue flag",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_2324": {
+        "system": "save",
+        "purpose": "Thin new-game flourish wrapper that calls 20e2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_235c": {
+        "system": "save",
+        "purpose": "New-game/world bootstrap: clear header, default map 58x72, spawn units",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_75c2_2758": {
+        "system": "save",
+        "purpose": "After video restore, reapply options via 0204",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_276e": {
+        "system": "save",
+        "purpose": "Reset options to defaults via 024c",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_2778": {
+        "system": "save",
+        "purpose": "Title/main menu loop (New/Load/Options); Load → 7562_04e8",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_75c2_2d28": {
+        "system": "save",
+        "purpose": "768-byte palette snapshot save/restore pair",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_2d46": {
+        "system": "save",
+        "purpose": "Game boot: video/memory/asset init before main loop",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7562_0008": {
+        "system": "save",
+        "purpose": "Build COLONY## path strings for a slot index into DS basename buffers",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_7562_0034": {
+        "system": "save",
+        "purpose": "Direct slot write (path + 75c2_0288); autosave 8/9 and fixed-slot saves",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_7562_0052": {
+        "system": "save",
+        "purpose": "Slot-list builder: probe slots, format Empty/leader+year rows for Save/Load UI",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_7562_030a": {
+        "system": "save",
+        "purpose": "Manual Save slot picker (slots 0-7) then write",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_7562_04e8": {
+        "system": "save",
+        "purpose": "Manual Load slot picker (slots 0-9, skip empty) then load",
         "confidence": "known",
         "links": "docs/savegame.md"
       },
