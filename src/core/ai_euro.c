@@ -102,6 +102,90 @@ static int ai_euro_nearest_military_goal(
   return 1;
 }
 
+/*
+ * Thin E scout explore target (CONTACT scout rings PARKED).
+ * Prefer tribe-adjacent secondary FOUND stand-in (or tribe xy), else farthest
+ * map corner from first own colony (unexplored-ish stand-in).
+ */
+static int ai_euro_scout_explore_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+
+  int ref_x = 0;
+  int ref_y = 0;
+  int have_ref = 0;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == nation_id) {
+        ref_x = c->x;
+        ref_y = c->y;
+        have_ref = 1;
+        break;
+      }
+    }
+  }
+
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
+    int best_d = -1;
+    int bx = 0;
+    int by = 0;
+    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+      int tx = (int)t->x;
+      int ty = (int)t->y;
+      int fx = 0;
+      int fy = 0;
+      if (ctx->map &&
+          ai_goals_pick_founding_tile(
+            ctx->map, ctx->colonies, nation_id, (int)t->x, (int)t->y, &fx, &fy)) {
+        tx = fx;
+        ty = fy;
+      }
+      const int d = have_ref ? (abs(tx - ref_x) + abs(ty - ref_y)) : 0;
+      if (best_d < 0 || d > best_d) {
+        best_d = d;
+        bx = tx;
+        by = ty;
+      }
+    }
+    *out_x = bx;
+    *out_y = by;
+    return 1;
+  }
+
+  /* No tribes: farthest map corner from own colony. */
+  if (ctx->map && ctx->map->width > 0 && ctx->map->height > 0 && have_ref) {
+    const int corners[4][2] = {
+      {0, 0},
+      {ctx->map->width - 1, 0},
+      {0, ctx->map->height - 1},
+      {ctx->map->width - 1, ctx->map->height - 1}
+    };
+    int best_d = -1;
+    int bx = corners[0][0];
+    int by = corners[0][1];
+    for (int i = 0; i < 4; ++i) {
+      const int d = abs(corners[i][0] - ref_x) + abs(corners[i][1] - ref_y);
+      if (d > best_d) {
+        best_d = d;
+        bx = corners[i][0];
+        by = corners[i][1];
+      }
+    }
+    *out_x = bx;
+    *out_y = by;
+    return 1;
+  }
+  return 0;
+}
+
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   if (!u) {
     return;
@@ -385,7 +469,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /* E: foreign colonies MILITARY if at war; thin bind one idle Soldier/Dragoon.
-   * Full scout rings / deep mid-mil scoring — PARKED. */
+   * Full CONTACT scout rings / deep mid-mil scoring — PARKED.
+   * Thin E scout explore: peaceful + own≥1 → idle Scout → tribe/FOUND. */
   if (ctx->colonies && ctx->col1_ok && ctx->col1) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -431,6 +516,47 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       }
       if (pick) {
         ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, pick_gx, pick_gy);
+      }
+    } else {
+      /* Peaceful scout explore rings stand-in (own colonies ≥ 1). */
+      const int own =
+        inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
+      if (own >= 1) {
+        /* Optional secondary FOUND at tribe tiles (F may raise prio later). */
+        if (ctx->col1->tribe) {
+          for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+            const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+            int fx = 0;
+            int fy = 0;
+            if (ai_goals_pick_founding_tile(
+                  ctx->map, ctx->colonies, nation_id, (int)t->x, (int)t->y, &fx, &fy)) {
+              ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 1);
+            } else {
+              ai_goals_upsert_secondary(nation_id, (int)t->x, (int)t->y, AI_GOAL_FOUND, 1);
+            }
+          }
+        }
+        int tx = 0;
+        int ty = 0;
+        if (ai_euro_scout_explore_target(ctx, nation_id, &tx, &ty)) {
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            ColonizeUnit* u = &ctx->units->units[i];
+            if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+              continue;
+            }
+            if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+              continue;
+            }
+            if (units_orders_follow_goto(u->orders)) {
+              continue; /* idle only */
+            }
+            const char* name = units_display_name(ctx->units, u);
+            if (!name || strstr(name, "Scout") == NULL) {
+              continue;
+            }
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+          }
+        }
       }
     }
   }
@@ -1233,9 +1359,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   /* Case 0x0b land: bind primary goal (role-aware scan). */
   const char* uname = units_display_name(ctx->units, u);
   const int is_land_hunter = ai_euro_is_land_war_hunter(uname);
+  const int is_scout = uname && strstr(uname, "Scout") != NULL;
   const int at_war_land =
     ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
   int land_war_hunted = 0;
+  int scout_explored = 0;
 
   /*
    * Thin land war hunt (act-level): idle Soldier/Dragoon/Scout at war move
@@ -1254,6 +1382,23 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hx, hy);
         land_war_hunted = 1;
       }
+    }
+  }
+
+  /*
+   * Thin E scout explore (act-level): peaceful Scout with own≥1 keeps/gets
+   * AI_MOVE toward tribe FOUND / farthest corner; do not yank to COLONY.
+   * Full CONTACT scout rings PARKED.
+   */
+  if (!at_war_land && is_scout &&
+      ai_euro_colony_count(ctx->colonies, nation_id) >= 1) {
+    int tx = 0;
+    int ty = 0;
+    if (ai_euro_scout_explore_target(ctx, nation_id, &tx, &ty)) {
+      if (!ai_euro_land_has_useful_goto(u, ctx->map)) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+      }
+      scout_explored = 1;
     }
   }
 
@@ -1340,8 +1485,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /* Preserve land-war hunt goto; do not yank founders away via hunt (hunters only). */
-  if (goal_code >= 0 && !land_war_hunted) {
+  /* Preserve land-war hunt / scout-explore goto; do not yank via COLONY. */
+  if (goal_code >= 0 && !land_war_hunted && !scout_explored) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 

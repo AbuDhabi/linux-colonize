@@ -260,24 +260,47 @@ int main(void) {
   }
 
   /*
-   * 10f0: REF empty + backup_force > 0 → foreign intervention landing
-   * (crown-hostile nation 2 when human=0 / crown=1). 06a6 may also fire.
+   * 10f0 deepen: REF empty + larger backup_force → up to 2 landings
+   * (prefer Regular+Dragoon mix). Crown-hostile nation 2 when human=0 /
+   * crown=1. 06a6 may also fire. Economy / merc chrome PARKED.
    */
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   /* Crown wave may have captured the port; restore human ownership for landing pick. */
   colonies.colonies[0].nation_id = 0;
-  const uint16_t backup0 = col1.head.backup_force[0];
+  col1.head.backup_force[0] = 4; /* Regular */
+  col1.head.backup_force[1] = 3; /* Dragoon — mix with Regular */
+  col1.head.backup_force[2] = 0;
+  col1.head.backup_force[3] = 2; /* Artillery */
+  const int backup_total_before = (int)col1.head.backup_force[0] +
+                                  (int)col1.head.backup_force[1] +
+                                  (int)col1.head.backup_force[2] +
+                                  (int)col1.head.backup_force[3];
+  const uint16_t backup_reg_before = col1.head.backup_force[0];
+  const uint16_t backup_drg_before = col1.head.backup_force[1];
   const int intervene_before = count_nation(&units, 2);
   const int units_mid = count_active(&units);
   ai_king_nation_turn(&ctx);
-  if (count_nation(&units, 2) <= intervene_before) {
+  const int intervene_spawned = count_nation(&units, 2) - intervene_before;
+  const int backup_total_after = (int)col1.head.backup_force[0] +
+                                 (int)col1.head.backup_force[1] +
+                                 (int)col1.head.backup_force[2] +
+                                 (int)col1.head.backup_force[3];
+  const int backup_drained = backup_total_before - backup_total_after;
+  if (intervene_spawned < 1) {
     return fail("10f0 should spawn intervention (nation 2) when REF empty");
+  }
+  if (intervene_spawned < 2 && backup_drained < 2) {
+    fprintf(stderr, "smoke_ai_king: 10f0 spawned=%d drained=%d (want >=2 either)\n",
+            intervene_spawned, backup_drained);
+    return fail("10f0 deepen should spawn >=2 units or drain backup by 2");
   }
   if (count_active(&units) <= units_mid) {
     return fail("intervention turn should increase unit count");
   }
-  if (col1.head.backup_force[0] >= backup0 && backup0 > 0) {
-    return fail("10f0 should drain backup_force");
+  /* Mix preference: both Regular and Dragoon pools were live → drain one each. */
+  if (col1.head.backup_force[0] != backup_reg_before - 1 ||
+      col1.head.backup_force[1] != backup_drg_before - 1) {
+    return fail("10f0 should prefer Regular+Dragoon mix (drain one of each)");
   }
   if (count_nation(&units, 0) != 0) {
     return fail("intervention must not spawn as human nation");

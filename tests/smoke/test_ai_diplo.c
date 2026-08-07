@@ -1,12 +1,16 @@
-/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, upkeep, ally cost/timer,
- * foreign aid, break penalty, Indian drift, timers. */
+/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, Furs embargo bit,
+ * upkeep, ally cost/timer, foreign aid, break penalty, Indian drift, timers. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
+#include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/turn.h"
 
 #include <stdio.h>
 #include <string.h>
+
+/* War embargo stand-in: Furs = cargo index 4 (distinct from king Sugar bit1). */
+#define AI_DIPLO_SMOKE_EMBARGO_BIT (1u << COLONIZE_CARGO_FURS)
 
 static int fail(const char* msg) {
   fprintf(stderr, "smoke_ai_diplo: FAIL %s\n", msg);
@@ -25,7 +29,8 @@ int main(void) {
 
   /* Pair independence: war(0,1) must not force war(0,2).
    * Thin 153e: first declare drains 100 gold + bumps tax_rate both sides.
-   * Indians dislike war: −5 on relation_by_indian[0..7] both sides. */
+   * Indians dislike war: −5 on relation_by_indian[0..7] both sides.
+   * Wartime embargo: OR Furs (1u<<4) into both boycott_bitmap. */
   col1.nation[0].gold = 250;
   col1.nation[1].gold = 80;
   col1.nation[2].gold = 500;
@@ -66,6 +71,13 @@ int main(void) {
   if (col1.nation[2].tax_rate != 20) {
     return fail("war(0,1) must not bump tax of nation 2");
   }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
+    return fail("declare_war should set Furs boycott bit on both nations");
+  }
+  if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0) {
+    return fail("war(0,1) must not set Furs embargo on nation 2");
+  }
   for (int i = 0; i < 8; ++i) {
     if (col1.nation[0].relation_by_indian[i] != 45) {
       return fail("declare_war should −5 Indian relations for nation 0");
@@ -77,7 +89,7 @@ int main(void) {
       return fail("war(0,1) must not change Indian relations of nation 2");
     }
   }
-  /* Re-declare: no second sting / tax bump / Indian hit. */
+  /* Re-declare: no second sting / tax bump / Indian hit; embargo bit stays. */
   ai_diplo_declare_war(&col1, 0, 1);
   if (col1.nation[0].gold != 150) {
     return fail("re-declare_war should not re-sting gold");
@@ -87,6 +99,9 @@ int main(void) {
   }
   if (col1.nation[0].relation_by_indian[0] != 45) {
     return fail("re-declare_war should not re-hit Indian relations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
+    return fail("re-declare_war should leave Furs embargo bit set");
   }
 
   /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers). */
@@ -180,6 +195,10 @@ int main(void) {
   if (col1.nation[0].unknown26[2] != 8) {
     return fail("form_alliance(0,2) should bump timer toward peer 2");
   }
+  /* Nation 0 still at war with 1 → form_alliance must not lift Furs embargo. */
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
+    return fail("form_alliance must not lift Furs embargo while still at Euro war");
+  }
   col1.nation[0].unknown26[2] = 1; /* timer toward peer 2 */
   /* Keep other peer timers non-zero so expiry does not PEACE-tweak war(0,1). */
   col1.nation[0].unknown26[1] = 5;
@@ -228,6 +247,11 @@ int main(void) {
     /* Clear war(0,1) so nation 0 can run ally path (not war upkeep). */
     ai_diplo_clear_both(&col1, 0, 1, AI_DIPLO_WAR);
     ai_diplo_or_both(&col1, 0, 1, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
+    /* PEACE write alone does not lift embargo (no make_peace path). */
+    if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
+        (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
+      return fail("clearing WAR without form_alliance should leave Furs embargo");
+    }
     col1.nation[0].gold = 100;
     col1.nation[1].gold = 20; /* 20 < 100/2 → aid eligible */
     col1.nation[0].unknown26[1] = 8;
@@ -236,6 +260,11 @@ int main(void) {
     /* form cost 25 each → 75 / 0; timer stays 8 (already live). */
     if (col1.nation[0].gold != 75 || col1.nation[1].gold != 0) {
       return fail("aid setup: form_alliance gold precondition");
+    }
+    /* Alliance clears last Euro war → lift Furs embargo both sides. */
+    if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0 ||
+        (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0) {
+      return fail("form_alliance should clear Furs embargo when no Euro wars remain");
     }
     /* Restore richer donor after form cost for clear aid assertion. */
     col1.nation[0].gold = 100;
@@ -296,14 +325,20 @@ int main(void) {
     }
   }
 
-  /* tax_rate already at cap stays put on first declare. */
+  /* tax_rate already at cap stays put on first declare; embargo set again. */
   col1.nation[2].gold = 200;
   col1.nation[3].gold = 200;
   col1.nation[2].tax_rate = 75;
   col1.nation[3].tax_rate = 75;
+  col1.nation[2].boycott_bitmap = 0;
+  col1.nation[3].boycott_bitmap = 0;
   ai_diplo_declare_war(&col1, 2, 3);
   if (col1.nation[2].tax_rate != 75 || col1.nation[3].tax_rate != 75) {
     return fail("declare_war must not raise tax_rate above 75");
+  }
+  if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
+      (col1.nation[3].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
+    return fail("declare_war(2,3) should set Furs boycott bit on both");
   }
 
   /* Indian relation delta clamps. */

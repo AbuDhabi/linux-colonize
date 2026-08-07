@@ -20,11 +20,14 @@
 
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare.
  * Full 153e trade/military score body, dialogs PARKED.
- * FA 3f41 full body PARKED - thin ally-aid + break trust only. */
+ * FA 3f41 full body PARKED - thin ally-aid + break trust only.
+ * War trade embargo: OR Furs into nation.boycott_bitmap (cargo idx 4);
+ * distinct from king refuse Sugar bit1. Full per-rival 153e trade PARKED. */
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
+#define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
 #define AI_DIPLO_ALLY_GOLD_COST 25u
 #define AI_DIPLO_ALLY_TREATY_MIN 8u
 #define AI_DIPLO_ALLY_AID_GOLD 10u
@@ -72,6 +75,60 @@ static void ai_diplo_war_tax_bump(ColonizeCol1Save* col1, int nation_a, int nati
       next = (uint8_t)AI_DIPLO_WAR_TAX_CAP;
     }
     nat->tax_rate = next;
+  }
+}
+
+/* Thin wartime trade embargo: OR Furs boycott bit on both nations. */
+static void ai_diplo_war_embargo_set(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    nat->boycott_bitmap =
+      (uint16_t)(nat->boycott_bitmap | AI_DIPLO_WAR_EMBARGO_CARGO_BIT);
+  }
+}
+
+static int ai_diplo_at_war_with_any_euro(const ColonizeCol1Save* col1, int nation) {
+  if (!col1 || nation < 0 || nation >= 4) {
+    return 0;
+  }
+  for (int other = 0; other < 4; ++other) {
+    if (other == nation) {
+      continue;
+    }
+    if (ai_diplo_at_war(col1, nation, other)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Lift Furs embargo when a nation has no remaining Euro×Euro wars.
+ * No dedicated make_peace API; form_alliance clears WAR. Other PEACE
+ * writes / Fugger FF may still clear bits — full 153e trade PARKED.
+ */
+static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    if (ai_diplo_at_war_with_any_euro(col1, n)) {
+      continue;
+    }
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    nat->boycott_bitmap =
+      (uint16_t)(nat->boycott_bitmap & (uint16_t)~AI_DIPLO_WAR_EMBARGO_CARGO_BIT);
   }
 }
 
@@ -355,12 +412,16 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     ai_diplo_war_tax_bump(col1, nation_a, nation_b);
     /* Indians dislike Euro×Euro war (scalar stand-in; full 15b3 PARKED). */
     ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
+    /* Wartime trade embargo stand-in: Furs boycott bit both sides. */
+    ai_diplo_war_embargo_set(col1, nation_a, nation_b);
   }
 }
 
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
+  /* Lift Furs embargo if neither side remains at Euro war (no make_peace API). */
+  ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
   /* Thin alliance treasury cost: 25 gold each side (floor 0). */
   ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
   /* Treaty timer: if peer slot is 0, set to 8 so alliance persists a few ticks. */
