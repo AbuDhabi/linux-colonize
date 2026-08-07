@@ -30,21 +30,21 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1009_0004` | 449 | 20 | ui | unknown | inferred |  |
-| `FUN_1009_0036` | 469 | 39 | ui | unknown | inferred |  |
-| `FUN_1009_00b4` | 508 | 42 | ui | unknown | inferred |  |
-| `FUN_1009_017e` | 550 | 10 | ui | unknown | inferred |  |
-| `FUN_1009_01a2` | 560 | 13 | ui | unknown | inferred |  |
-| `FUN_1009_01b8` | 573 | 12 | ui | unknown | inferred |  |
-| `FUN_1009_01d8` | 585 | 12 | ui | unknown | inferred |  |
-| `FUN_1009_01fc` | 597 | 13 | ui | unknown | inferred |  |
-| `FUN_1009_0222` | 610 | 16 | ui | unknown | inferred |  |
-| `FUN_1009_0244` | 626 | 19 | ui | unknown | inferred |  |
-| `FUN_1009_0270` | 645 | 23 | ui | unknown | inferred |  |
-| `FUN_1009_02ae` | 668 | 14 | ui | unknown | inferred |  |
-| `FUN_1009_02cc` | 682 | 42 | ui | unknown | inferred |  |
-| `FUN_1009_0402` | 724 | 10 | ui | unknown | inferred |  |
-| `FUN_1009_0420` | 734 | 9 | ui | unknown | inferred |  |
+| `FUN_1009_0004` | 449 | 20 | ui | Map overlay style→ink/attr (1/2→0x95, 3→0xc, else→0x44) | inferred |  |
+| `FUN_1009_0036` | 469 | 39 | ui | Wait until overlay deadline or key; then flush key queue | inferred |  |
+| `FUN_1009_00b4` | 508 | 42 | ui | Wait/restore then disarm overlay; clear buf + flags | inferred |  |
+| `FUN_1009_017e` | 550 | 10 | ui | Append string onto status buffer at DS:0x2d54 | inferred |  |
+| `FUN_1009_01a2` | 560 | 13 | ui | Resolve string-table idx then append to status buffer | inferred |  |
+| `FUN_1009_01b8` | 573 | 12 | ui | itoa(int,base10) then append to status buffer | inferred |  |
+| `FUN_1009_01d8` | 585 | 12 | ui | itoa(long,base10) then append to status buffer | inferred |  |
+| `FUN_1009_01fc` | 597 | 13 | ui | Format long + suffix@0x6e then append to status buffer | inferred |  |
+| `FUN_1009_0222` | 610 | 16 | ui | Truncate last char of status buffer if non-empty | inferred |  |
+| `FUN_1009_0244` | 626 | 19 | ui | Arm timed overlay: flags + style + deadline=now+delta | inferred |  |
+| `FUN_1009_0270` | 645 | 23 | ui | Poll overlay: if past deadline, clear via 00b4; return 1 | inferred |  |
+| `FUN_1009_02ae` | 668 | 14 | ui | Set status-strip layout globals (x/y/w/h) | inferred |  |
+| `FUN_1009_02cc` | 682 | 42 | ui | Draw/clear status text in strip (color, center blit) | inferred |  |
+| `FUN_1009_0402` | 724 | 10 | ui | Arm timed overlay then immediately draw (0244+02cc; 1984_043a) | inferred |  |
+| `FUN_1009_0420` | 734 | 9 | ui | strcat dest ← string at DS:0x50 (pad/append helper) | inferred |  |
 
 ### Segment `104b` (29 defs) — ui — Text / number blit helpers (1d1d_11b4)
 

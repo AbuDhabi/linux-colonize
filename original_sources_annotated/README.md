@@ -66,8 +66,8 @@ Catalog confidence is **not** the same as AI port status in
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
 Purpose one-liners are **not** Layer A. Layer B underway (SAVEGAME + colony +
-Europe + turn chrome closed); remaining purpose backlog is status overlays /
-other mid-size leftovers / Layer C.
+Europe + turn chrome + status overlays closed); remaining purpose backlog is
+turn leftovers / other mid-size systems / Layer C.
 
 ### Roadmap (committed order)
 
@@ -78,9 +78,8 @@ other mid-size leftovers / Layer C.
      `7562` cluster label (was mis-tagged HoF).
    - **Done:** colony (`2f2b`/`647e`/`479b`); Europe trade `4345` (13/13) +
      `38fd` (81/81); turn chrome `1984` (18/18); combat residual `465b`
-     (2/2; `65dd` already closed).
-   - **Next:** prefer status overlays `1009` (follow-on from `1984`), else turn
-     leftovers `130d`/`3844`, or start **Layer C** 1-hop from
+     (2/2; `65dd` already closed); status overlays `1009` (15/15).
+   - **Next:** turn leftovers `130d`/`3844`, or start **Layer C** 1-hop from
      `FUN_521d_6d8e` / `FUN_4d56_1816`. MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries (`FUN_521d_6d8e`, `FUN_4d56_1816`,
    turn EOT).
