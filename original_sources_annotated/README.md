@@ -61,7 +61,7 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
 | Confidence | known 148 · inferred 2229 · unknown 3 |
-| Purpose one-liners | 1674 / 2380 |
+| Purpose one-liners | 1726 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -70,10 +70,10 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Non-mega platform crumbs and small UI
-are purpose-closed. Layer C closed through boot init and BGM pick hops.
-Remaining backlog is mostly megaseg thunk/mapgen/platform bulk plus a few
-mid-size UI/menu Layer C hops.
+Purpose one-liners are **not** Layer A. Non-mega platform/UI crumbs are
+purpose-closed. Layer C closed through embark/naval, title menu, pedia index,
+and RM* archive hops. Remaining backlog is mostly megaseg bulk plus a handful
+of small (≥8) UI/menu 1-hops.
 
 ### Roadmap (committed order)
 
@@ -106,7 +106,7 @@ mid-size UI/menu Layer C hops.
    - **Done:** small UI leftovers (68 — blit/cursor/RLE/splash/menu/tips).
    - **Done:** small platform leftovers (59 — timer/LCG/XMS/resource/stream).
    - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (embark/title-menu C; megaseg bulk deferred).
+     (small ≥8 Layer C hops; megaseg bulk deferred).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -123,8 +123,10 @@ mid-size UI/menu Layer C hops.
    - **Done:** Europe input ∪ colony assign/entry crumbs (19); map menu
      `FUN_2b5a_2464` (23).
    - **Done:** boot `FUN_75c2_2d46` (26); BGM `FUN_129f_0008` (14).
+   - **Done:** embark/naval `FUN_4720_049e` (16); title menu `FUN_75c2_2778`
+     (15); pedia index `FUN_6cb2_2322` excl (11); RM* `FUN_78ef_0002` excl (10).
    - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     embark `4720_049e` (~16) / title menu `75c2_2778` (~15).
+     map-key `2b5a_3252` (~9) and remaining ≥8 hops, then megaseg bulk.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 

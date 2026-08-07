@@ -1,0 +1,104 @@
+{
+  "layer": "C",
+  "chunk": "1hop_FUN_4720_049e",
+  "entry": "FUN_4720_049e",
+  "functions": {
+    "FUN_281f_0132": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_104b_024e (draw string at xy color0)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_02c6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_112b_0002 (profession→ICONS.SS index)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0736": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_137f_02e0 (explore_plane_ptr map accessor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0772": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7a05_03ce (heap-size abort if over DS:0x2476)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0db8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_00e8 (set focus tile if in-map)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0dc2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_043a (arm timed status overlay then draw)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0dd6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_045a (append status-bar string from 0x2dba)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0df4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_053a (unit status chrome nation+type+verb)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0f6c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_2b5a_001e (European Status bring-up dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0208": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_48d3_007a (landfall arrival stack goto/unload)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_044e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_4720_049e (embark/naval order UI dispatch)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0c06": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_2dfe (pay to lift cargo boycott)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0cd8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_05e8 (test cargo boycott bit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d02": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_23c4 (sell cargo dialog / execute sell+tax)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0142": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_465b_0000 (move spent cost/ADD/post-ADD chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0210": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6662_0f74 (unit goto next-step director)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "1-hop EMS+JMPF callees of FUN_4720_049e (embark/naval order UI by DS:0x9e4e case 0..8). Cases use text/icon draw (0132/02c6), layout abort (0772), status chrome (0db8/0dc2/0dd6/0df4), Euro Status (0f6c), trade boycott/sell (0cd8/0c06/0d02), explore plane (0736), landfall (0208), goto director (0210), move-spent (0142). FUN_291f_044e is the far re-entry thunk to this same dispatch."
+}
