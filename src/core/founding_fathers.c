@@ -7,7 +7,18 @@
  * Rough structural FF election (FUN_4345_0a22 / 0982 / 0342 stand-ins).
  * head.founding_father[i]: -1 unclaimed; 0..3 = owning European nation.
  * nation.founding_fathers[4]: bit i set when nation elected FF i.
+ *
+ * Jakob Fugger (1) boycott forgive stand-in: gold+50 plus clear Sugar
+ * boycott bit (1<<1) and Furs embargo bit (1<<4) on boycott_bitmap;
+ * for the human nation also clear head.unknown46[2] (king tax-refuse).
  */
+
+/* King tax-refuse stand-in byte (ai_king unknown46[2]). */
+#define FF_KING_BOYCOTT_BYTE 2
+/* Sugar cargo idx 1; Furs cargo idx 4 — same bits as king refuse / diplo embargo. */
+#define FF_BOYCOTT_SUGAR_BIT (1u << 1)
+#define FF_BOYCOTT_FURS_BIT (1u << 4)
+#define FF_FUGGER_BOYCOTT_MASK (FF_BOYCOTT_SUGAR_BIT | FF_BOYCOTT_FURS_BIT)
 
 unsigned founding_fathers_bells_needed(unsigned elected_count) {
   /* First at 40, second at 80, … — linear stand-in for FUN_4345_0982. */
@@ -94,6 +105,8 @@ static void apply_tiny_effect(
   ColonizeCol1Save* col1,
   ColonizeCol1Nation* nat,
   EuropeScreen* europe,
+  int nation_id,
+  int human_nation,
   int ff_index
 ) {
   switch (ff_index) {
@@ -102,6 +115,11 @@ static void apply_tiny_effect(
       break;
     case 1: /* Jakob Fugger — boycott forgive stand-in */
       bump_gold(nat, europe, 50u);
+      nat->boycott_bitmap =
+        (uint16_t)(nat->boycott_bitmap & (uint16_t)~FF_FUGGER_BOYCOTT_MASK);
+      if (nation_id == human_nation && col1) {
+        col1->head.unknown46[FF_KING_BOYCOTT_BYTE] = 0;
+      }
       break;
     case 2: /* Peter Minuit — cheap land purchase stand-in */
       bump_gold(nat, europe, 30u);
@@ -140,6 +158,45 @@ static void apply_tiny_effect(
   }
 }
 
+/* Returns true if a founding father was elected for this nation. */
+static bool try_elect_nation(
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int human_nation,
+  EuropeScreen* europe,
+  char* status,
+  size_t status_size
+) {
+  if (!col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  const unsigned needed = founding_fathers_bells_needed(nat->founding_father_count);
+  if ((unsigned)nat->liberty_bells_total < needed) {
+    return false;
+  }
+
+  const int idx = pick_candidate(col1, nat);
+  if (idx < 0) {
+    return false;
+  }
+
+  col1->head.founding_father[idx] = (int8_t)nation_id;
+  nat->founding_fathers[idx / 8] |= (uint8_t)(1u << (idx % 8));
+  if (nat->founding_father_count < 65535u) {
+    nat->founding_father_count++;
+  }
+  nat->next_founding_father = advance_next_candidate(col1, idx);
+
+  apply_tiny_effect(col1, nat, europe, nation_id, human_nation, idx);
+
+  if (status && status_size > 0 && nation_id == human_nation) {
+    snprintf(status, status_size, "Founding Father elected (#%d)", idx);
+  }
+  return true;
+}
+
 void founding_fathers_tick(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -149,32 +206,25 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
   }
 
   ColonizeCol1Save* col1 = ctx->col1;
-  ColonizeCol1Nation* nat = &col1->nation[ctx->human_nation];
-  const unsigned needed = founding_fathers_bells_needed(nat->founding_father_count);
-  if ((unsigned)nat->liberty_bells_total < needed) {
-    return;
-  }
 
-  const int idx = pick_candidate(col1, nat);
-  if (idx < 0) {
-    return;
-  }
+  /* Human first (one elect max). */
+  try_elect_nation(
+    col1,
+    ctx->human_nation,
+    ctx->human_nation,
+    ctx->europe,
+    ctx->status,
+    ctx->status_size
+  );
 
-  col1->head.founding_father[idx] = (int8_t)ctx->human_nation;
-  nat->founding_fathers[idx / 8] |= (uint8_t)(1u << (idx % 8));
-  if (nat->founding_father_count < 65535u) {
-    nat->founding_father_count++;
-  }
-  nat->next_founding_father = advance_next_candidate(col1, idx);
-
-  apply_tiny_effect(col1, nat, ctx->europe, idx);
-
-  if (ctx->status && ctx->status_size > 0) {
-    snprintf(
-      ctx->status,
-      ctx->status_size,
-      "Founding Father elected (#%d)",
-      idx
-    );
+  /* Then each AI Euro nation (control==1), one elect each max. */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (n == ctx->human_nation) {
+      continue;
+    }
+    if (col1->player[n].control != 1) {
+      continue;
+    }
+    try_elect_nation(col1, n, ctx->human_nation, NULL, NULL, 0);
   }
 }

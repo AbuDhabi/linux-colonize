@@ -53,6 +53,40 @@ static int ai_contact_is_missionary(const ColonizeUnitPool* units, const Coloniz
   return name && strstr(name, "Mission") != NULL;
 }
 
+/* Soldier / Scout / Pioneer — encroachment types that raise tribe alarm. */
+static int ai_contact_is_encroacher(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const char* name = units_display_name(units, u);
+  if (!name) {
+    return 0;
+  }
+  return strstr(name, "Soldier") != NULL || strstr(name, "Scout") != NULL ||
+         strstr(name, "Pioneer") != NULL;
+}
+
+/* Bump uint8 friction toward cap 100. */
+static void ai_contact_bump_u8_cap100(uint8_t* v, int amount) {
+  if (!v || amount <= 0) {
+    return;
+  }
+  int n = (int)(*v) + amount;
+  if (n > 100) {
+    n = 100;
+  }
+  *v = (uint8_t)n;
+}
+
+/* Bump uint16 alarm toward cap 100. */
+static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
+  if (!v || amount <= 0) {
+    return;
+  }
+  int n = (int)(*v) + amount;
+  if (n > 100) {
+    n = 100;
+  }
+  *v = (uint16_t)n;
+}
+
 /*
  * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
  * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
@@ -410,10 +444,70 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* Mission clear on high alarm (FUN_4cc6_0000). */
   if (!ctx->col1->tribe) {
     return;
   }
+
+  /*
+   * Encroachment deepen (dialog chrome PARKED): Soldier/Scout/Pioneer within
+   * Chebyshev ≤2 of a tribe with no mission → +2 tribe friction + alarm_by_player
+   * toward that Euro (cap 100).
+   */
+  if (ctx->units) {
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      ColonizeUnit* u = &ctx->units->units[ui];
+      if (!u->active || u->nation_id < 0 || u->nation_id > 3) {
+        continue;
+      }
+      if (units_is_sea(ctx->units, u->id)) {
+        continue;
+      }
+      if (!ai_contact_is_encroacher(ctx->units, u)) {
+        continue;
+      }
+      const int e = u->nation_id;
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+        if ((int)t->nation_id != nation_id) {
+          continue;
+        }
+        if (t->mission != 0xff) {
+          continue; /* mission present → no encroachment bump */
+        }
+        if (ai_contact_dist(u->x, u->y, t->x, t->y) > 2) {
+          continue;
+        }
+        ai_contact_bump_u8_cap100(&t->alarm[e].friction, 2);
+        ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], 2);
+      }
+    }
+  }
+
+  /*
+   * Mission pacifies: tribe with mission + low friction toward mission Euro →
+   * extra −1 friction (and matching alarm_by_player if also low). Dialog PARKED.
+   */
+  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    if (t->mission == 0xff) {
+      continue;
+    }
+    const int euro = (int)t->mission;
+    if (euro < 0 || euro > 3) {
+      continue;
+    }
+    if (t->alarm[euro].friction < 40 && t->alarm[euro].friction > 0) {
+      t->alarm[euro].friction--;
+    }
+    if (ind->alarm_by_player[euro] < 40 && ind->alarm_by_player[euro] > 0) {
+      ind->alarm_by_player[euro]--;
+    }
+  }
+
+  /* Mission clear on high alarm (FUN_4cc6_0000). */
   for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
     ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
     if ((int)t->nation_id != nation_id) {

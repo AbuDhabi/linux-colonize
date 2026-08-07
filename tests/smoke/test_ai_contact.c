@@ -1,4 +1,4 @@
-/* Smoke: Indian meet + friction raid loot (@RAID* kinds). */
+/* Smoke: Indian meet + friction raid loot (@RAID* kinds) + prelude encroachment. */
 #include "core/ai_contact.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -167,6 +167,48 @@ int main(void) {
   ai_contact_indian_prelude(&ctx, 4);
   if (col1.tribe[0].mission != 0xff) {
     return fail("prelude should clear mission on high alarm");
+  }
+
+  /*
+   * Prelude encroachment: Soldier within Chebyshev ≤2 of tribe, no mission →
+   * friction/alarm +2 (cap 100). Flag body sticky so RNG arm does not also bump.
+   */
+  units.type_count = 3;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
+  units.types[2].movement = 1;
+  units.types[2].attack = 2;
+  units.types[2].defense = 1;
+  const int soldier_id = units_spawn_allow_stack(&units, 2, 7, 5); /* Chebyshev 2 from (5,5) */
+  ColonizeUnit* soldier = units_get(&units, soldier_id);
+  if (!soldier) {
+    return fail("spawn soldier");
+  }
+  soldier->nation_id = 0;
+  euro->x = 10;
+  euro->y = 10;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].alarm[0].friction = 10;
+  ind->alarm_by_player[0] = 10;
+  ind->unknown31[3] = (uint8_t)(ind->unknown31[3] | 0x20); /* skip flag-body escalate */
+  ai_contact_indian_prelude(&ctx, 4);
+  if (col1.tribe[0].alarm[0].friction != 12) {
+    return fail("prelude encroachment should bump tribe friction by 2");
+  }
+  if (ind->alarm_by_player[0] != 12) {
+    return fail("prelude encroachment should bump alarm_by_player by 2");
+  }
+
+  /* Mission pacifies: mission present + low friction → extra −1. */
+  col1.tribe[0].mission = 0;
+  col1.tribe[0].alarm[0].friction = 12;
+  ind->alarm_by_player[0] = 12;
+  units_despawn(&units, soldier_id);
+  ai_contact_indian_prelude(&ctx, 4);
+  if (col1.tribe[0].alarm[0].friction != 11) {
+    return fail("prelude mission pacify should decay friction by 1");
+  }
+  if (ind->alarm_by_player[0] != 11) {
+    return fail("prelude mission pacify should decay alarm_by_player by 1");
   }
 
   /* Relation tick should not crash. */

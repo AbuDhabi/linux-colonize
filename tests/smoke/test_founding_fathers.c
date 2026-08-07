@@ -77,8 +77,10 @@ int main(void) {
     return fail("bells were spent (expected gate-only)");
   }
 
-  /* Second elect needs 80; Jakob Fugger (1) tiny gold effect. */
+  /* Second elect needs 80; Jakob Fugger (1) gold + boycott forgive. */
   nat->liberty_bells_total = 80;
+  nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2)); /* Sugar+Furs+Tobacco */
+  col1.head.unknown46[2] = 1; /* king tax-refuse stand-in */
   const uint32_t gold_before = nat->gold;
   founding_fathers_tick(&ctx);
   if (col1.head.founding_father[1] != 0 || nat->founding_father_count != 2) {
@@ -86,6 +88,18 @@ int main(void) {
   }
   if (nat->gold != gold_before + 50u) {
     return fail("Jakob Fugger gold +50 missing");
+  }
+  if ((nat->boycott_bitmap & (1u << 1)) != 0) {
+    return fail("Fugger did not clear Sugar boycott bit");
+  }
+  if ((nat->boycott_bitmap & (1u << 4)) != 0) {
+    return fail("Fugger did not clear Furs embargo bit");
+  }
+  if ((nat->boycott_bitmap & (1u << 2)) == 0) {
+    return fail("Fugger cleared unrelated Tobacco boycott bit");
+  }
+  if (col1.head.unknown46[2] != 0) {
+    return fail("Fugger did not clear human unknown46[2] king refuse");
   }
   if (nat->next_founding_father != 2) {
     return fail("next after Fugger not 2");
@@ -137,6 +151,83 @@ int main(void) {
   }
   if (col1.head.expeditionary_force[0] != 4) {
     return fail("Washington REF regulars -1 missing");
+  }
+
+  /* --- AI Euro nation elect (control==1), same bells threshold. --- */
+  {
+    ColonizeCol1Save ai_col1;
+    col1_save_init(&ai_col1);
+    seed_unclaimed(&ai_col1);
+    ai_col1.player[0].control = 0; /* human */
+    ai_col1.player[1].control = 1; /* AI */
+    ai_col1.player[2].control = 2; /* withdrawn — must not elect */
+    ai_col1.player[3].control = 1;
+
+    ColonizeCol1Nation* human = &ai_col1.nation[0];
+    ColonizeCol1Nation* ai = &ai_col1.nation[1];
+    ColonizeCol1Nation* withdrawn = &ai_col1.nation[2];
+    memset(human, 0, sizeof(*human));
+    memset(ai, 0, sizeof(*ai));
+    memset(withdrawn, 0, sizeof(*withdrawn));
+
+    /* Human below threshold so only AI elects this tick. */
+    human->liberty_bells_total = 0;
+    human->next_founding_father = 0;
+
+    ai->liberty_bells_total = 40;
+    ai->next_founding_father = 2; /* Peter Minuit */
+    ai->founding_father_count = 0;
+    ai->gold = 10;
+
+    withdrawn->liberty_bells_total = 40;
+    withdrawn->next_founding_father = 3;
+
+    ColonizeTurnContext ai_ctx;
+    memset(&ai_ctx, 0, sizeof(ai_ctx));
+    ai_ctx.human_nation = 0;
+    ai_ctx.col1 = &ai_col1;
+    ai_ctx.col1_ok = true;
+
+    founding_fathers_tick(&ai_ctx);
+
+    if (human->founding_father_count != 0) {
+      return fail("AI tick elected for human below threshold");
+    }
+    if (ai_col1.head.founding_father[2] != 1) {
+      return fail("AI nation did not elect Minuit");
+    }
+    if (ai->founding_father_count != 1) {
+      return fail("AI founding_father_count not 1");
+    }
+    if ((ai->founding_fathers[0] & (1u << 2)) == 0) {
+      return fail("AI bitmask bit 2 unset");
+    }
+    if (ai->gold != 40u) {
+      return fail("AI Minuit gold +30 missing");
+    }
+    if (withdrawn->founding_father_count != 0 || ai_col1.head.founding_father[3] != -1) {
+      return fail("withdrawn nation elected FF");
+    }
+
+    /* One elect per nation per tick: second tick needed for another. */
+    ai->liberty_bells_total = 80;
+    ai->next_founding_father = 1; /* Fugger still free */
+    ai->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4));
+    ai_col1.head.unknown46[2] = 1; /* human refuse flag — AI Fugger must not clear */
+    const uint32_t ai_gold_before = ai->gold;
+    founding_fathers_tick(&ai_ctx);
+    if (ai_col1.head.founding_father[1] != 1 || ai->founding_father_count != 2) {
+      return fail("AI second elect not Fugger");
+    }
+    if (ai->gold != ai_gold_before + 50u) {
+      return fail("AI Fugger gold +50 missing");
+    }
+    if ((ai->boycott_bitmap & ((1u << 1) | (1u << 4))) != 0) {
+      return fail("AI Fugger did not clear Sugar/Furs bits");
+    }
+    if (ai_col1.head.unknown46[2] != 1) {
+      return fail("AI Fugger cleared human unknown46[2]");
+    }
   }
 
   printf("smoke_founding_fathers: OK\n");

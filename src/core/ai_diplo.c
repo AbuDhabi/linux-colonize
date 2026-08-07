@@ -111,7 +111,7 @@ static int ai_diplo_at_war_with_any_euro(const ColonizeCol1Save* col1, int natio
 
 /*
  * Lift Furs embargo when a nation has no remaining Euro×Euro wars.
- * No dedicated make_peace API; form_alliance clears WAR. Other PEACE
+ * Call sites: make_peace, form_alliance (clears WAR). Other PEACE
  * writes / Fugger FF may still clear bits — full 153e trade PARKED.
  */
 static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -417,10 +417,25 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   }
 }
 
+/*
+ * Thin make-peace (not full 153e peace dialog / 102a/1092):
+ * clear WAR both ways, set PEACE|MET, lift Furs embargo if no Euro wars remain.
+ * No gold cost (war sting/upkeep already drained treasury). Full 153e PARKED.
+ */
+void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4 ||
+      nation_a == nation_b) {
+    return;
+  }
+  ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
+  ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
+  ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
+}
+
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
-  /* Lift Furs embargo if neither side remains at Euro war (no make_peace API). */
+  /* Lift Furs embargo if neither side remains at Euro war. */
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
   /* Thin alliance treasury cost: 25 gold each side (floor 0). */
   ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
@@ -509,7 +524,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   }
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
-   *  1 skip human; at-war → light upkeep only
+   *  1 skip human; at-war → light upkeep; near-parity → thin make_peace
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
    *  4 13b0 form/break + thin ally aid (FA 3f41 PARKED)
@@ -526,6 +541,15 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     if (bits & AI_DIPLO_WAR) {
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
       ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
+      /*
+       * Thin peace heuristic: near-parity (ally-eligible band) while at war →
+       * make_peace. Full 153e peace dialog PARKED; no gold cost.
+       */
+      if (self > 10 && other > 10 && abs(self - other) < 15) {
+        if (ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
+          ai_diplo_make_peace(ctx->col1, nation_id, peer);
+        }
+      }
       continue;
     }
 

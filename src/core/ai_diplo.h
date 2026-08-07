@@ -23,6 +23,7 @@ void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uin
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
+void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
@@ -31,7 +32,8 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
- * Also thin FA ally-aid while allied (full 3f41 PARKED). */
+ * Also thin FA ally-aid while allied (full 3f41 PARKED);
+ * at-war near-parity → make_peace (full 153e dialog PARKED). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Alias → ai_diplo_treaty_timers (6d8e timer pass). */

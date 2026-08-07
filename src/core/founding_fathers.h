@@ -4,21 +4,24 @@
 #include "core/turn.h"
 
 /*
- * Rough founding-father election from liberty bells (human nation only).
+ * Rough founding-father election from liberty bells.
  *
  * Cost curve (gate, not spend): elect when
  *   liberty_bells_total >= 40 * (founding_father_count + 1)
  * Bells are never decremented — DOS threshold/spend recovery PARKED.
  *
- * Effects: status line + tiny stand-ins for a handful of famous FFs
- * (gold / crosses / tax / bells / REF). Full wiki/decomp table PARKED.
- * Congress debate UI / AI-nation election PARKED.
+ * founding_fathers_tick: at most one elect per nation per call —
+ * human first, then each AI Euro nation (player.control==1).
+ *
+ * Effects: status line (human) + tiny stand-ins for a handful of famous FFs
+ * (gold / crosses / tax / bells / REF / Fugger boycott forgive).
+ * Full wiki/decomp effect table + Congress debate UI PARKED.
  */
 
 /* Bells required to elect the next FF given how many already elected. */
 unsigned founding_fathers_bells_needed(unsigned elected_count);
 
-/* Elect at most one FF for the human nation when the bells threshold is met. */
+/* Elect at most one FF per eligible nation when the bells threshold is met. */
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 
 #endif

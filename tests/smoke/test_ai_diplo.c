@@ -1,5 +1,5 @@
 /* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, Furs embargo bit,
- * upkeep, ally cost/timer, foreign aid, break penalty, Indian drift, timers. */
+ * make_peace, upkeep, ally cost/timer, foreign aid, break penalty, Indian drift. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -102,6 +102,35 @@ int main(void) {
   }
   if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
     return fail("re-declare_war should leave Furs embargo bit set");
+  }
+
+  /* make_peace: clear WAR both ways, set PEACE, lift Furs when no Euro wars remain.
+   * No gold cost. Nation 0 still only at war with 1 here. */
+  {
+    const uint16_t gold0 = col1.nation[0].gold;
+    const uint16_t gold1 = col1.nation[1].gold;
+    ai_diplo_make_peace(&col1, 0, 1);
+    if (ai_diplo_at_war(&col1, 0, 1) || ai_diplo_at_war(&col1, 1, 0)) {
+      return fail("make_peace should clear WAR both ways");
+    }
+    if ((ai_diplo_read(&col1, 0, 1) & AI_DIPLO_PEACE) == 0 ||
+        (ai_diplo_read(&col1, 1, 0) & AI_DIPLO_PEACE) == 0) {
+      return fail("make_peace should set PEACE both ways");
+    }
+    if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0 ||
+        (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0) {
+      return fail("make_peace should clear Furs embargo when no Euro wars remain");
+    }
+    if (col1.nation[0].gold != gold0 || col1.nation[1].gold != gold1) {
+      return fail("make_peace should not change gold (no cost)");
+    }
+  }
+
+  /* Re-war for upkeep / embargo retention tests below. */
+  ai_diplo_declare_war(&col1, 0, 1);
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
+    return fail("re-war after make_peace should set Furs embargo again");
   }
 
   /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers). */
@@ -247,10 +276,10 @@ int main(void) {
     /* Clear war(0,1) so nation 0 can run ally path (not war upkeep). */
     ai_diplo_clear_both(&col1, 0, 1, AI_DIPLO_WAR);
     ai_diplo_or_both(&col1, 0, 1, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
-    /* PEACE write alone does not lift embargo (no make_peace path). */
+    /* Raw PEACE write alone does not lift embargo (must use make_peace / form_alliance). */
     if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
         (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
-      return fail("clearing WAR without form_alliance should leave Furs embargo");
+      return fail("clearing WAR without make_peace/form_alliance should leave Furs embargo");
     }
     col1.nation[0].gold = 100;
     col1.nation[1].gold = 20; /* 20 < 100/2 → aid eligible */
