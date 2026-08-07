@@ -24,19 +24,19 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `137f` | 26 | mapgen | inferred | Map plane accessors (terrain/layer2/3) | [catalog](FUNCTION_CATALOG.md) |
 | `4b58` | 24 | ui | inferred | Window / frame widget draw (281f_00ba family) | [catalog](FUNCTION_CATALOG.md) |
 | `647e` | 23 | colony | inferred | Colony list / select UI (rec*0x4a via DS:0x9e14) | [catalog](FUNCTION_CATALOG.md) |
-| `275d` | 21 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `275d` | 21 | platform | inferred | DOS PATH/env parse / memory sizing / INT21 helpers | [catalog](FUNCTION_CATALOG.md) |
 | `43f7` | 21 | ui | known | Nation / @COUNTRY colors | [catalog](FUNCTION_CATALOG.md) |
 | `4d56` | 21 | ai | known | Indian AI / village growth | [catalog](FUNCTION_CATALOG.md) |
 | `6cb2` | 21 | ui | inferred | Info / dialog text panels (281f compositor) | [catalog](FUNCTION_CATALOG.md) |
 | `75c2` | 20 | save | known | Savegame R/W of units / colonies / tribes / flags | [catalog](FUNCTION_CATALOG.md) |
 | `1984` | 18 | turn | known | Turn-owner chrome | [catalog](FUNCTION_CATALOG.md) |
-| `1a58` | 18 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `3f41` | 18 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6ba1` | 18 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1009` | 15 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `4345` | 13 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `479b` | 13 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `5bfb` | 12 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1a58` | 18 | platform | known | Mouse driver INT 33 show/hide / poll / mode setup | [catalog](FUNCTION_CATALOG.md) |
+| `3f41` | 18 | ui | inferred | Report / diplomacy / market UI screens | [catalog](FUNCTION_CATALOG.md) |
+| `6ba1` | 18 | mapdraw | inferred | Map tile neighbor masks / viewport blit helpers | [catalog](FUNCTION_CATALOG.md) |
+| `1009` | 15 | ui | inferred | Timed turn-chrome / status text overlays | [catalog](FUNCTION_CATALOG.md) |
+| `4345` | 13 | trade | inferred | Nation trade flags / FF / Europe-market helpers | [catalog](FUNCTION_CATALOG.md) |
+| `479b` | 13 | colony | inferred | Pioneer clear/plow / goto-colony order bodies | [catalog](FUNCTION_CATALOG.md) |
+| `5bfb` | 12 | ai | inferred | Indian contact / diplomacy / alarm | [catalog](FUNCTION_CATALOG.md) |
 | `733a` | 12 | ui | known | New-game / CUSTOMIZE UI | [catalog](FUNCTION_CATALOG.md) |
 | `364b` | 11 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `5fef` | 11 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
