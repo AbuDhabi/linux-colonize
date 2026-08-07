@@ -38,16 +38,16 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `479b` | 13 | colony | inferred | Pioneer clear/plow / goto-colony order bodies | [catalog](FUNCTION_CATALOG.md) |
 | `5bfb` | 12 | ai | inferred | Indian contact / diplomacy / alarm | [catalog](FUNCTION_CATALOG.md) |
 | `733a` | 12 | ui | known | New-game / CUSTOMIZE UI | [catalog](FUNCTION_CATALOG.md) |
-| `364b` | 11 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `5fef` | 11 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `364b` | 11 | colony | inferred | Colony found / build screen (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
+| `5fef` | 11 | combat | inferred | Unit/colony combat and Indian raid resolution | [catalog](FUNCTION_CATALOG.md) |
 | `1262` | 10 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `15b3` | 10 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `41f2` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `48d3` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `15b3` | 10 | trade | inferred | Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e) | [catalog](FUNCTION_CATALOG.md) |
+| `41f2` | 9 | ai | known | Tribe growth (Indian-turn growth tick + message UI) | [catalog](FUNCTION_CATALOG.md) |
+| `48d3` | 9 | ai | inferred | Euro landfall goto / unit-order helpers | [catalog](FUNCTION_CATALOG.md) |
 | `49dd` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6b22` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `6b22` | 9 | mapdraw | inferred | Map viewport tribe/colony/unit overlay blit | [catalog](FUNCTION_CATALOG.md) |
 | `7314` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `112b` | 8 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `112b` | 8 | mapdraw | known | Unit orders/allegiance chrome (FUN_112b_01ba) | [catalog](FUNCTION_CATALOG.md) |
 | `684c` | 8 | mapgen | known | Procedural NEW WORLD map gen | [catalog](FUNCTION_CATALOG.md) |
 | `6a9f` | 8 | mapdraw | known | Map viewport tile loop | [catalog](FUNCTION_CATALOG.md) |
 | `1097` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |

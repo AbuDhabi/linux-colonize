@@ -206,6 +206,41 @@
         "system": "ai",
         "confidence": "inferred",
         "label": "Indian contact / diplomacy / alarm"
+      },
+      "112b": {
+        "system": "mapdraw",
+        "confidence": "known",
+        "label": "Unit orders/allegiance chrome (FUN_112b_01ba)"
+      },
+      "41f2": {
+        "system": "ai",
+        "confidence": "known",
+        "label": "Tribe growth (Indian-turn growth tick + message UI)"
+      },
+      "364b": {
+        "system": "colony",
+        "confidence": "inferred",
+        "label": "Colony found / build screen (DS:0x8542)"
+      },
+      "6b22": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Map viewport tribe/colony/unit overlay blit"
+      },
+      "5fef": {
+        "system": "combat",
+        "confidence": "inferred",
+        "label": "Unit/colony combat and Indian raid resolution"
+      },
+      "48d3": {
+        "system": "ai",
+        "confidence": "inferred",
+        "label": "Euro landfall goto / unit-order helpers"
+      },
+      "15b3": {
+        "system": "trade",
+        "confidence": "inferred",
+        "label": "Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e)"
       }
     },
     "mapedit": {
@@ -755,6 +790,30 @@
         "purpose": "Pioneer clear/plow work-tick; may grant colony food",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_112b_01ba": {
+        "system": "mapdraw",
+        "purpose": "Unit chrome: silhouette + nation orders box + letter (+ stack under-rect)",
+        "confidence": "known",
+        "links": "docs/assets.md"
+      },
+      "FUN_41f2_0280": {
+        "system": "ai",
+        "purpose": "Tribe growth tick from Indian nation turn (4d56_1816)",
+        "confidence": "known",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_364b_1ba8": {
+        "system": "colony",
+        "purpose": "Found colony: bump 539e, init colony record via DS:0x8542",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_48d3_048e": {
+        "system": "ai",
+        "purpose": "Spiral-place ship on HS near landfall goto (Euro AI)",
+        "confidence": "inferred",
+        "links": "src/core/ai.c"
       }
     },
     "mapedit": {

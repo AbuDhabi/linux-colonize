@@ -103,18 +103,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1101_0126` | 1575 | 45 | unknown | unknown | unknown |  |
 | `FUN_1101_01dc` | 1620 | 55 | unknown | unknown | unknown |  |
 
-### Segment `112b` (8 defs) — unknown
+### Segment `112b` (8 defs) — mapdraw — Unit orders/allegiance chrome (FUN_112b_01ba)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_112b_0002` | 1675 | 282 | unknown | unknown | unknown |  |
-| `FUN_112b_0060` | 1957 | 40 | unknown | unknown | unknown |  |
-| `FUN_112b_010e` | 1997 | 33 | unknown | unknown | unknown |  |
-| `FUN_112b_015c` | 2030 | 19 | unknown | unknown | unknown |  |
-| `FUN_112b_01ba` | 2049 | 265 | unknown | unknown | unknown |  |
-| `FUN_112b_0790` | 2314 | 183 | unknown | unknown | unknown |  |
-| `FUN_112b_0c64` | 2497 | 102 | unknown | unknown | unknown |  |
-| `FUN_112b_0eb6` | 2599 | 132 | unknown | unknown | unknown |  |
+| `FUN_112b_0002` | 1675 | 282 | mapdraw | unknown | inferred |  |
+| `FUN_112b_0060` | 1957 | 40 | mapdraw | unknown | inferred |  |
+| `FUN_112b_010e` | 1997 | 33 | mapdraw | unknown | inferred |  |
+| `FUN_112b_015c` | 2030 | 19 | mapdraw | unknown | inferred |  |
+| `FUN_112b_01ba` | 2049 | 265 | mapdraw | Unit chrome: silhouette + nation orders box + letter (+ stack under-rect) | known | docs/assets.md |
+| `FUN_112b_0790` | 2314 | 183 | mapdraw | unknown | inferred |  |
+| `FUN_112b_0c64` | 2497 | 102 | mapdraw | unknown | inferred |  |
+| `FUN_112b_0eb6` | 2599 | 132 | mapdraw | unknown | inferred |  |
 
 ### Segment `124c` (7 defs) — platform — Small helpers (e.g. DOS distance)
 
@@ -317,20 +317,20 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_157e_004a` | 8914 | 54 | unknown | unknown | unknown |  |
 | `FUN_157e_015e` | 8968 | 88 | unknown | unknown | unknown |  |
 
-### Segment `15b3` (10 defs) — unknown
+### Segment `15b3` (10 defs) — trade — Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_15b3_0004` | 9056 | 13 | unknown | unknown | unknown |  |
-| `FUN_15b3_0032` | 9069 | 15 | unknown | unknown | unknown |  |
-| `FUN_15b3_0066` | 9084 | 18 | unknown | unknown | unknown |  |
-| `FUN_15b3_00d0` | 9102 | 18 | unknown | unknown | unknown |  |
-| `FUN_15b3_0144` | 9120 | 18 | unknown | unknown | unknown |  |
-| `FUN_15b3_0198` | 9138 | 21 | unknown | unknown | unknown |  |
-| `FUN_15b3_01e0` | 9159 | 21 | unknown | unknown | unknown |  |
-| `FUN_15b3_0228` | 9180 | 13 | unknown | unknown | unknown |  |
-| `FUN_15b3_024e` | 9193 | 13 | unknown | unknown | unknown |  |
-| `FUN_15b3_0274` | 9206 | 13 | unknown | unknown | unknown |  |
+| `FUN_15b3_0004` | 9056 | 13 | trade | unknown | inferred |  |
+| `FUN_15b3_0032` | 9069 | 15 | trade | unknown | inferred |  |
+| `FUN_15b3_0066` | 9084 | 18 | trade | unknown | inferred |  |
+| `FUN_15b3_00d0` | 9102 | 18 | trade | unknown | inferred |  |
+| `FUN_15b3_0144` | 9120 | 18 | trade | unknown | inferred |  |
+| `FUN_15b3_0198` | 9138 | 21 | trade | unknown | inferred |  |
+| `FUN_15b3_01e0` | 9159 | 21 | trade | unknown | inferred |  |
+| `FUN_15b3_0228` | 9180 | 13 | trade | unknown | inferred |  |
+| `FUN_15b3_024e` | 9193 | 13 | trade | unknown | inferred |  |
+| `FUN_15b3_0274` | 9206 | 13 | trade | unknown | inferred |  |
 
 ### Segment `15dc` (5 defs) — unknown
 
@@ -2275,21 +2275,21 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2f2b_6c46` | 55937 | 38 | colony | unknown | inferred |  |
 | `FUN_2f2b_6cd4` | 55975 | 847 | colony | unknown | inferred |  |
 
-### Segment `364b` (11 defs) — unknown
+### Segment `364b` (11 defs) — colony — Colony found / build screen (DS:0x8542)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_364b_0000` | 56822 | 60 | unknown | unknown | unknown |  |
-| `FUN_364b_0114` | 56882 | 95 | unknown | unknown | unknown |  |
-| `FUN_364b_033a` | 56977 | 39 | unknown | unknown | unknown |  |
-| `FUN_364b_03f6` | 57016 | 107 | unknown | unknown | unknown |  |
-| `FUN_364b_0636` | 57123 | 29 | unknown | unknown | unknown |  |
-| `FUN_364b_0688` | 57152 | 803 | unknown | unknown | unknown |  |
-| `FUN_364b_1aec` | 57955 | 15 | unknown | unknown | unknown |  |
-| `FUN_364b_1b1a` | 57970 | 16 | unknown | unknown | unknown |  |
-| `FUN_364b_1b4c` | 57986 | 15 | unknown | unknown | unknown |  |
-| `FUN_364b_1b76` | 58001 | 14 | unknown | unknown | unknown |  |
-| `FUN_364b_1ba8` | 58015 | 253 | unknown | unknown | unknown |  |
+| `FUN_364b_0000` | 56822 | 60 | colony | unknown | inferred |  |
+| `FUN_364b_0114` | 56882 | 95 | colony | unknown | inferred |  |
+| `FUN_364b_033a` | 56977 | 39 | colony | unknown | inferred |  |
+| `FUN_364b_03f6` | 57016 | 107 | colony | unknown | inferred |  |
+| `FUN_364b_0636` | 57123 | 29 | colony | unknown | inferred |  |
+| `FUN_364b_0688` | 57152 | 803 | colony | unknown | inferred |  |
+| `FUN_364b_1aec` | 57955 | 15 | colony | unknown | inferred |  |
+| `FUN_364b_1b1a` | 57970 | 16 | colony | unknown | inferred |  |
+| `FUN_364b_1b4c` | 57986 | 15 | colony | unknown | inferred |  |
+| `FUN_364b_1b76` | 58001 | 14 | colony | unknown | inferred |  |
+| `FUN_364b_1ba8` | 58015 | 253 | colony | Found colony: bump 539e, init colony record via DS:0x8542 | inferred |  |
 
 ### Segment `3844` (3 defs) — unknown
 
@@ -2414,19 +2414,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_3f41_220c` | 70675 | 112 | ui | unknown | inferred |  |
 | `FUN_3f41_2548` | 70787 | 247 | ui | unknown | inferred |  |
 
-### Segment `41f2` (9 defs) — unknown
+### Segment `41f2` (9 defs) — ai — Tribe growth (Indian-turn growth tick + message UI)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_41f2_000e` | 71034 | 16 | unknown | unknown | unknown |  |
-| `FUN_41f2_0048` | 71050 | 18 | unknown | unknown | unknown |  |
-| `FUN_41f2_0092` | 71068 | 346 | unknown | unknown | unknown |  |
-| `FUN_41f2_0266` | 71414 | 329 | unknown | unknown | unknown |  |
-| `FUN_41f2_0280` | 71743 | 342 | unknown | unknown | unknown |  |
-| `FUN_41f2_0294` | 72085 | 330 | unknown | unknown | unknown |  |
-| `FUN_41f2_0b70` | 72415 | 137 | unknown | unknown | unknown |  |
-| `FUN_41f2_0f56` | 72552 | 175 | unknown | unknown | unknown |  |
-| `FUN_41f2_14a8` | 72727 | 72 | unknown | unknown | unknown |  |
+| `FUN_41f2_000e` | 71034 | 16 | ai | unknown | inferred |  |
+| `FUN_41f2_0048` | 71050 | 18 | ai | unknown | inferred |  |
+| `FUN_41f2_0092` | 71068 | 346 | ai | unknown | inferred |  |
+| `FUN_41f2_0266` | 71414 | 329 | ai | unknown | inferred |  |
+| `FUN_41f2_0280` | 71743 | 342 | ai | Tribe growth tick from Indian nation turn (4d56_1816) | known | docs/ai_transcription.md |
+| `FUN_41f2_0294` | 72085 | 330 | ai | unknown | inferred |  |
+| `FUN_41f2_0b70` | 72415 | 137 | ai | unknown | inferred |  |
+| `FUN_41f2_0f56` | 72552 | 175 | ai | unknown | inferred |  |
+| `FUN_41f2_14a8` | 72727 | 72 | ai | unknown | inferred |  |
 
 ### Segment `4345` (13 defs) — trade — Nation trade flags / FF / Europe-market helpers
 
@@ -2514,19 +2514,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_479b_0f60` | 77343 | 92 | colony | unknown | inferred |  |
 | `FUN_479b_11a4` | 77435 | 128 | colony | unknown | inferred |  |
 
-### Segment `48d3` (9 defs) — unknown
+### Segment `48d3` (9 defs) — ai — Euro landfall goto / unit-order helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_48d3_0002` | 77563 | 29 | unknown | unknown | unknown |  |
-| `FUN_48d3_007a` | 77592 | 44 | unknown | unknown | unknown |  |
-| `FUN_48d3_015e` | 77636 | 96 | unknown | unknown | unknown |  |
-| `FUN_48d3_0346` | 77732 | 29 | unknown | unknown | unknown |  |
-| `FUN_48d3_03d0` | 77761 | 25 | unknown | unknown | unknown |  |
-| `FUN_48d3_0434` | 77786 | 24 | unknown | unknown | unknown |  |
-| `FUN_48d3_048e` | 77810 | 95 | unknown | unknown | unknown |  |
-| `FUN_48d3_064e` | 77905 | 38 | unknown | unknown | unknown |  |
-| `FUN_48d3_06ba` | 77943 | 150 | unknown | unknown | unknown |  |
+| `FUN_48d3_0002` | 77563 | 29 | ai | unknown | inferred |  |
+| `FUN_48d3_007a` | 77592 | 44 | ai | unknown | inferred |  |
+| `FUN_48d3_015e` | 77636 | 96 | ai | unknown | inferred |  |
+| `FUN_48d3_0346` | 77732 | 29 | ai | unknown | inferred |  |
+| `FUN_48d3_03d0` | 77761 | 25 | ai | unknown | inferred |  |
+| `FUN_48d3_0434` | 77786 | 24 | ai | unknown | inferred |  |
+| `FUN_48d3_048e` | 77810 | 95 | ai | Spiral-place ship on HS near landfall goto (Euro AI) | inferred | src/core/ai.c |
+| `FUN_48d3_064e` | 77905 | 38 | ai | unknown | inferred |  |
+| `FUN_48d3_06ba` | 77943 | 150 | ai | unknown | inferred |  |
 
 ### Segment `4962` (4 defs) — unknown
 
@@ -2688,21 +2688,21 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_5f7a_020e` | 98885 | 168 | unknown | unknown | unknown |  |
 | `FUN_5f7a_0662` | 99053 | 58 | unknown | unknown | unknown |  |
 
-### Segment `5fef` (11 defs) — unknown
+### Segment `5fef` (11 defs) — combat — Unit/colony combat and Indian raid resolution
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5fef_0000` | 99111 | 98 | unknown | unknown | unknown |  |
-| `FUN_5fef_016c` | 99209 | 83 | unknown | unknown | unknown |  |
-| `FUN_5fef_0352` | 99292 | 416 | unknown | unknown | unknown |  |
-| `FUN_5fef_0ec0` | 99708 | 30 | unknown | unknown | unknown |  |
-| `FUN_5fef_0f14` | 99738 | 302 | unknown | unknown | unknown |  |
-| `FUN_5fef_16ea` | 100040 | 24 | unknown | unknown | unknown |  |
-| `FUN_5fef_172c` | 100064 | 94 | unknown | unknown | unknown |  |
-| `FUN_5fef_1908` | 100158 | 93 | unknown | unknown | unknown |  |
-| `FUN_5fef_1b0e` | 100251 | 1063 | unknown | unknown | unknown |  |
-| `FUN_5fef_31ea` | 101314 | 224 | unknown | unknown | unknown |  |
-| `FUN_5fef_36fe` | 101538 | 122 | unknown | unknown | unknown |  |
+| `FUN_5fef_0000` | 99111 | 98 | combat | unknown | inferred |  |
+| `FUN_5fef_016c` | 99209 | 83 | combat | unknown | inferred |  |
+| `FUN_5fef_0352` | 99292 | 416 | combat | unknown | inferred |  |
+| `FUN_5fef_0ec0` | 99708 | 30 | combat | unknown | inferred |  |
+| `FUN_5fef_0f14` | 99738 | 302 | combat | unknown | inferred |  |
+| `FUN_5fef_16ea` | 100040 | 24 | combat | unknown | inferred |  |
+| `FUN_5fef_172c` | 100064 | 94 | combat | unknown | inferred |  |
+| `FUN_5fef_1908` | 100158 | 93 | combat | unknown | inferred |  |
+| `FUN_5fef_1b0e` | 100251 | 1063 | combat | unknown | inferred |  |
+| `FUN_5fef_31ea` | 101314 | 224 | combat | unknown | inferred |  |
+| `FUN_5fef_36fe` | 101538 | 122 | combat | unknown | inferred |  |
 
 ### Segment `636c` (1 defs) — unknown
 
@@ -2819,19 +2819,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_6afa_0224` | 108552 | 11 | unknown | unknown | unknown |  |
 | `FUN_6afa_023c` | 108563 | 11 | unknown | unknown | unknown |  |
 
-### Segment `6b22` (9 defs) — unknown
+### Segment `6b22` (9 defs) — mapdraw — Map viewport tribe/colony/unit overlay blit
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_6b22_0002` | 108574 | 47 | unknown | unknown | unknown |  |
-| `FUN_6b22_00ea` | 108621 | 12 | unknown | unknown | unknown |  |
-| `FUN_6b22_0102` | 108633 | 66 | unknown | unknown | unknown |  |
-| `FUN_6b22_0248` | 108699 | 12 | unknown | unknown | unknown |  |
-| `FUN_6b22_034c` | 108711 | 24 | unknown | unknown | unknown |  |
-| `FUN_6b22_03f6` | 108735 | 25 | unknown | unknown | unknown |  |
-| `FUN_6b22_0428` | 108760 | 28 | unknown | unknown | unknown |  |
-| `FUN_6b22_04bc` | 108788 | 56 | unknown | unknown | unknown |  |
-| `FUN_6b22_058e` | 108844 | 73 | unknown | unknown | unknown |  |
+| `FUN_6b22_0002` | 108574 | 47 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_00ea` | 108621 | 12 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_0102` | 108633 | 66 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_0248` | 108699 | 12 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_034c` | 108711 | 24 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_03f6` | 108735 | 25 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_0428` | 108760 | 28 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_04bc` | 108788 | 56 | mapdraw | unknown | inferred |  |
+| `FUN_6b22_058e` | 108844 | 73 | mapdraw | unknown | inferred |  |
 
 ### Segment `6b7e` (5 defs) — unknown
 

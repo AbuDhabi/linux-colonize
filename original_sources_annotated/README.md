@@ -45,12 +45,11 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **C — Call-tree from known entry** | From one known entry (`FUN_684c_08c0`, `FUN_521d_6d8e`, turn EOT, …), label direct callees one hop | Entry’s 1-hop neighborhood catalogued |
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
-Suggested early order after the skeleton: Layer A has labeled large
-clusters through batch three (`291f`/`210d`/`6f74`/`2f2b`/`38fd`,
-`2b5a`/`104b`/`4b58`/`6cb2`/`647e`/`75c2`, then `275d`/`1a58`/`3f41`/
-`6ba1`/`1009`/`4345`/`479b`/`5bfb`). Next Layer A candidates: `364b`,
-`5fef`, `1262`, `15b3`, `41f2`, `48d3`, `49dd`, `6b22`, `7314`. Then
-gameplay call-trees via C. AI port roadmap stays in
+Suggested early order after the skeleton: Layer A has labeled through
+batch four (large clusters + mid-size `112b`/`41f2`/`364b`/`6b22`/`5fef`/
+`48d3`/`15b3`). Deferred unknowns: `1262`, `49dd`, `7314`. Next Layer A
+candidates: `1097`, `4cc6`, `6662`, `6afa`, `7455` (7-def). Then gameplay
+call-trees via C. AI port roadmap stays in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md); the catalog
 only mirrors status.
 
