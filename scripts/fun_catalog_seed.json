@@ -691,6 +691,136 @@
         "system": "ui",
         "confidence": "known",
         "label": "VGA vsync + DAC palette read"
+      },
+      "1aea": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Map keyboard / hotkey dispatch"
+      },
+      "1b5e": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Mouse cursor region update (17x17)"
+      },
+      "1b78": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Mouse cursor region update (16x16)"
+      },
+      "1bf5": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Tiled rect blit loop"
+      },
+      "1c11": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "2-bit packed glyph decode to pitched buffer"
+      },
+      "1c2a": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "String pixel-width via glyph table"
+      },
+      "1c36": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Soft-sprite / cursor RLE blit"
+      },
+      "1c56": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Scaled/dithered sprite blit"
+      },
+      "1c83": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Sprite scale to destination size/pos"
+      },
+      "1c89": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Soft-sprite blit (sibling of 1c36)"
+      },
+      "1caa": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Scaled sprite blit (sibling of 1c56)"
+      },
+      "1cd8": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Soft-sprite blit (3rd sibling)"
+      },
+      "636c": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Dual-column compare / report dialog"
+      },
+      "7a9d": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Dialog string buffer prep (0x929e)"
+      },
+      "1b01": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Buffered far-buffer file/stream read"
+      },
+      "1cf8": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Insertion-sort parallel word+byte arrays"
+      },
+      "1d05": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Insertion-sort parallel byte+byte arrays"
+      },
+      "206d": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Stream buffer fill + far-ptr normalize"
+      },
+      "2074": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Size-budgeted stream read to 1b01"
+      },
+      "3f3f": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "CRC/LFSR step"
+      },
+      "78ef": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource archive open (RM* / ext) + stream setup"
+      },
+      "7939": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource open helper (path + close)"
+      },
+      "7944": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource open helper (sibling)"
+      },
+      "7952": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource open / alloc path"
+      },
+      "798d": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Compressed resource chunk read"
+      },
+      "65dd": {
+        "system": "combat",
+        "confidence": "inferred",
+        "label": "Unit combat outcome resolution (RNG cases)"
       }
     },
     "mapedit": {
@@ -1476,6 +1606,30 @@
         "system": "ui",
         "purpose": "Wait VGA retrace then read DAC RGB palette via 0x3c7/0x3c9",
         "confidence": "known",
+        "links": ""
+      },
+      "FUN_1aea_000c": {
+        "system": "ui",
+        "purpose": "Map keyboard/hotkey dispatch (AX-0x110 switch into colony/mapdraw/sound)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f3f_0006": {
+        "system": "platform",
+        "purpose": "CRC/LFSR step: shift right, XOR poly when LSB set",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_65dd_0004": {
+        "system": "combat",
+        "purpose": "Resolve unit combat outcome from RNG cases on selected unit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_78ef_0002": {
+        "system": "platform",
+        "purpose": "Open RM* resource archive (strip ext), alloc stream, set read budgets",
+        "confidence": "inferred",
         "links": ""
       }
     },
