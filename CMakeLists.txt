@@ -68,6 +68,11 @@ add_library(colonize_core STATIC
   src/core/colony_preview.c
   src/core/turn.c
   src/core/ai.c
+  src/core/ai_goals.c
+  src/core/ai_euro.c
+  src/core/ai_diplo.c
+  src/core/ai_contact.c
+  src/core/ai_king.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -224,6 +229,11 @@ add_executable(smoke_game_flow
   src/core/colony_preview.c
   src/core/turn.c
   src/core/ai.c
+  src/core/ai_goals.c
+  src/core/ai_euro.c
+  src/core/ai_diplo.c
+  src/core/ai_contact.c
+  src/core/ai_king.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -271,6 +281,11 @@ add_executable(smoke_new_game
   src/core/colony_preview.c
   src/core/turn.c
   src/core/ai.c
+  src/core/ai_goals.c
+  src/core/ai_euro.c
+  src/core/ai_diplo.c
+  src/core/ai_contact.c
+  src/core/ai_king.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c

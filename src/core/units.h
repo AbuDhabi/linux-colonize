@@ -143,6 +143,17 @@ bool units_resolve_land_combat(
   ColonizeDosRng* rng
 );
 
+/*
+ * T0 naval combat: same attack/defense roll as land; ships only.
+ * Winner keeps the tile; loser despawned (cargo lost).
+ */
+bool units_resolve_naval_combat(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng
+);
+
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
 int units_last_combat_outcome(void);
 

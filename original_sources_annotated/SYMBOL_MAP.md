@@ -151,12 +151,19 @@ files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] This symbol map
 
-## Out of scope (still raw export only)
+## Out of scope for Layer D deepen (T0 Linux ports exist)
 
-- `FUN_4d56_2154` / `2820` / `4528` raid clusters
-- Full `FUN_521d_20e6` Euro/ocean/combat bodies (quiet + thin map done)
-- Full `FUN_521d_5b66` order/combat arms (entry + thin map done)
-- Full `FUN_521d_5d04` hire/treasury planning
-- `FUN_465b_0000` foreign combat / diplomacy / colony-contact tails (section 3 PARKED in `move_spent.c`)
+Deep extracts below are still thin/parked; Linux T0 counterparts live under `src/core/`:
+
+| Cluster | Linux T0 |
+|---------|----------|
+| `FUN_4d56_2154` / `2820` / `4528` raids | `ai_contact.c` |
+| Euro/ocean `20e6` / full `5b66` / `5d04` | `ai_euro.c` |
+| Goal tables `0000…0906` | `ai_goals.c` |
+| Diplomacy `15b3` / `5bfb` | `ai_diplo.c` |
+| King/REF `43f7_*` | `ai_king.c` |
+| `FUN_465b_0000` combat tails | still PARKED in annotated `move_spent.c` |
+
 - Ghidra database renames / re-export
 - Live DOS hang EXEs except named last resort **VR_B465X** (`dump_b465x3`) for post-`465b` spent writer
+- Bit-perfect T2/T3 for mid-game planners (Full T0/T1 bar is behavioral)

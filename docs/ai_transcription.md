@@ -34,15 +34,21 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 
 ---
 
-## Current Linux surface (Phase 1 + early-AI T2 gate)
+## Current Linux surface (Full T0/T1)
 
 | Piece | Role |
 |-------|------|
-| [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | All ported AI |
-| `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, one post-spawn native pulse |
-| `ai_euro_nation_turn` | Reseed, AI crosses, `6d8e`-style ship/land passes; **seed-100 early path** (`ai_euro_early_turn` sail/unload/found) + opportunistic settle for other seeds |
-| `ai_indian_nation_turn` | Village growth + mid-turn Brave pulse + residual overlays |
-| [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `TURN_PROC_INDIAN`; nation ticks (immigrant / crosses FSM); King stub |
+| [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | Init, seed-100 early Euro fixture, Indian pulse |
+| [`ai_goals.c`](../src/core/ai_goals.c) | Primary/secondary/work goal tables (`521d_0000…0906`) |
+| [`ai_euro.c`](../src/core/ai_euro.c) | Full dispatcher: plan/`5d04` hire, `0a60` goals, `5b66` act, Euro `20e6` step |
+| [`ai_diplo.c`](../src/core/ai_diplo.c) | Euro war/ally + Indian relation deltas (`15b3`/`5bfb` T0) |
+| [`ai_contact.c`](../src/core/ai_contact.c) | Indian prelude/meet/trade/raids (`4d56`/`5bfb`/`@RAID*` T0) |
+| [`ai_king.c`](../src/core/ai_king.c) | Tax events, SoL declare, REF waves, war act (`43f7` T0) |
+| `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, post-spawn native pulse |
+| `ai_euro_nation_turn` | Reseed, AI crosses; seed-100 fixture **or** `ai_euro_dispatcher_turn` (`AI_FULL_DISPATCH=1` / non-100) |
+| `ai_indian_nation_turn` | Growth + Brave pulse + contact/raids |
+| `ai_king_nation_turn` | Replaces king stub in EOT FINISH |
+| [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
 | [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`) |
 
 **Claims (T2 early AI):** with VR_SEED=100 and idle human, `smoke_ai_turns` matches
@@ -50,27 +56,61 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accumulators.
 Seed-100 Euro path uses landfall-derived coastal staging + found-site helper
 (`ai_euro_found_tile_from_landfall`); ship approach / mid-turn waypoints still
-fixture. Mid-turn Braves: quiet ASM + mid peels + residual overlays on
+fixture unless `AI_FULL_DISPATCH=1`. Mid-turn Braves: quiet ASM + mid peels + residual overlays on
 spent-only holdouts (R0; quiet residuals **2 rows** t2 Apache/Sioux;
 empiricism keeps its larger overlay set via `AI_EMPIRICISM=1`).
 
-**Does not claim:** mid-game Euro economy/military planner, Indian raids/meet/missions,
-King/REF, or bit-identical unknown blobs unrelated to AI moves.
+**Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
+state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
+behavioral, not bit-perfect. Shared: `colonies_capture`, `units_resolve_naval_combat`.
 
 ```mermaid
 flowchart TD
   eot[EOT pipeline] --> euro[FUN_521d_6d8e Euro dispatcher]
   eot --> indian[FUN_4d56_1816 Indian nation]
+  eot --> king[ai_king_nation_turn]
   euro --> goals[FUN_521d_0a60 / 5d04 / helpers]
   euro --> score[FUN_521d_20e6 move scoring]
+  euro --> diplo[Euro diplo 5bfb / 15b3]
   indian --> growth[FUN_4d56_152e growth]
   indian --> unitAct["per-unit act thunk ~0x42191"]
   unitAct --> score
   unitAct --> raids[FUN_4d56_2154 / 2820 / 4528]
+  king --> tax[tax / REF funding]
+  king --> ref[REF land / war turn]
 ```
 
-Linux today: Euro early path via `6d8e`-shaped entry + landfall coastal staging;
-Indian growth + quiet scoring / residual overlays (not full `1816` / raid bodies).
+---
+
+## Full T0/T1 surface (acceptance)
+
+**Done means:** every in-scope AI path that mutates game state has a Linux
+counterpart that can run end-to-end at **T0** (harden to T1 save-diff where cheap).
+Not required: seed-100 mid/late T2 goldens, DOS LCG bit-identity, or polished
+meet/king cinematic UI.
+
+| Cluster | Linux entry | Fidelity bar |
+|---------|-------------|--------------|
+| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | T0 plan→act; seed-100 early fixture kept for `smoke_ai_turns` unless `AI_FULL_DISPATCH=1` |
+| Euro unit act + scoring | `ai_euro_unit_act` / `ai_euro_score_move` | T0 goto/unload/found/fortify/combat initiate; ocean without coastal fixtures |
+| Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Treaty bits + war/ally state on Col1 |
+| Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
+| Raids | `ai_raid_*` (`ai_contact.c`) | `@RAID*` / friction-gated attacks change units/colonies |
+| King / tax / REF | `ai_king_nation_turn` (`ai_king.c`) | Tax→REF pools, declare, invasion wave, war turn |
+
+### Shared surfaces (blocking work by phase)
+
+| Surface | Phase that needs it | Linux |
+|---------|---------------------|-------|
+| Land combat (AI-initiated) | 2 | `units_resolve_land_combat` + act |
+| Colony capture | 2 / 5 / 6 | `colonies_capture` |
+| Naval combat T0 | 2 / 6 | `units_resolve_naval_combat` |
+| Diplomacy bytes | 3 | `ai_diplo_read` / `ai_diplo_write` |
+| Meet / alarm / `@RAID*` | 4–5 | `ai_contact_*` + Col1 tribe alarm |
+| SoL / declare / tax events | 6 | `ai_king_*` + nation liberty/tax fields |
+
+R0 Brave spent overlays (**2** quiet rows) stay until a dedicated hang pass — not a
+blocker for Full T0/T1.
 
 ---
 
@@ -97,19 +137,19 @@ Line spans are approximate (next function start − 1). Status:
 
 | Symbol | ~Lines | Purpose (known / inferred) | Linux | Status |
 |--------|-------:|----------------------------|-------|--------|
-| `FUN_4d56_0038` | ~39 | Small helper; calls into `00e0` / map probes | — | **unknown** |
-| `FUN_4d56_00e0` | ~60 | Chains to `01e2` / `14fe` | — | **unknown** |
-| `FUN_4d56_01e2` | ~19 | Thin wrapper → `14fe` | — | **unknown** |
-| `FUN_4d56_14fe` | ~16 | Dispatches growth `152e` | — | **partial** (via growth only) |
+| `FUN_4d56_0038` | ~39 | Small helper; calls into `00e0` / map probes | contact helpers | **partial** (T0 via contact) |
+| `FUN_4d56_00e0` | ~60 | Chains to `01e2` / `14fe` | contact helpers | **partial** (T0) |
+| `FUN_4d56_01e2` | ~19 | Thin wrapper → `14fe` | — | **partial** (T0) |
+| `FUN_4d56_14fe` | ~16 | Dispatches growth `152e` | growth + pulse | **partial** (T0/T2 quiet) |
 | `FUN_4d56_152e` | ~156 | Village growth accumulator → pop++ | `ai_grow_villages` | **partial** (T0) |
-| `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop (`func_0x00042191`), relation ticks | `ai_indian_nation_turn` (growth + pulse / residual overlays) | **partial** (T2 early chain) |
-| `FUN_4d56_1b3a` | ~59 | Calls `2154`; mid-turn Indian action | — | **parked** |
-| `FUN_4d56_2154` | ~321 | Larger Indian action body (caller of raid-adjacent logic) | — | **parked** |
-| `FUN_4d56_2820` | ~1396 | Heavy Indian decision / raid-scale logic | — | **parked** |
-| `FUN_4d56_2aac`…`311e` | nested | Helpers inside `2820` body | — | **parked** |
-| `FUN_4d56_3582` | ~51 | Small helper after `2820` | — | **unknown** |
-| `FUN_4d56_417e` | ~188 | Mid-size helper | — | **unknown** |
-| `FUN_4d56_4528` | ~3073 | Largest Indian cluster (combat/raid-adjacent; needs RE labels) | — | **parked** |
+| `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (T0 full path; T2 quiet) |
+| `FUN_4d56_1b3a` | ~59 | Calls `2154`; mid-turn Indian action | `ai_contact_indian_raids` | **partial** (T0) |
+| `FUN_4d56_2154` | ~321 | Larger Indian action body (caller of raid-adjacent logic) | `ai_contact_indian_raids` | **partial** (T0) |
+| `FUN_4d56_2820` | ~1396 | Heavy Indian decision / raid-scale logic | `ai_contact_indian_raids` / trade | **partial** (T0) |
+| `FUN_4d56_2aac`…`311e` | nested | Helpers inside `2820` body | meet/trade in `ai_contact` | **partial** (T0) |
+| `FUN_4d56_3582` | ~51 | Small helper after `2820` | — | **partial** (T0 folded) |
+| `FUN_4d56_417e` | ~188 | Mid-size helper | — | **partial** (T0 folded) |
+| `FUN_4d56_4528` | ~3073 | Largest Indian cluster (combat/raid-adjacent) | `ai_contact_indian_raids` | **partial** (T0) |
 
 Nation entry `1816` does **not** call `2154`/`2820`/`4528` directly in the
 decomp slice; those are reached from other turn / contact paths. Full Indian
@@ -119,14 +159,14 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 
 | Symbol | ~Lines | Purpose (known / inferred) | Linux | Status |
 |--------|-------:|----------------------------|-------|--------|
-| `FUN_521d_0000`…`0906` | small | Goal-table ops + founding helpers | annotated `ai/euro_goals.c` | **annotated** (not ported) |
-| `FUN_521d_0a60` | ~858 | Unit / colony goal writer | — | **partial** (sectioned annotate; mid-game PARKED) |
-| `FUN_521d_20c6` | nested | Near helper before scoring | — | **parked** |
-| `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet init+mid default + peels; Euro/ocean thin map | **partial** |
-| `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | — | **partial** (thin map `euro_unit_act.md`) |
-| `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
-| `FUN_521d_5d04` | ~748 | Nation planning / hire / treasury (6d8e via `0554`) | — | **parked** |
-| `FUN_521d_6d8e` | ~253 body | Euro AI **dispatcher** per nation | `ai_euro_nation_turn` (skeleton + `ai_euro_early_turn`) | **partial** (T2 early path; annotated shell) |
+| `FUN_521d_0000`…`0906` | small | Goal-table ops + founding helpers | `ai_goals.c` | **partial** (T0 ported) |
+| `FUN_521d_0a60` | ~858 | Unit / colony goal writer | `ai_euro_colony_goals` | **partial** (T0 A–H condensed) |
+| `FUN_521d_20c6` | nested | Near helper before scoring | scoring step | **partial** (T0) |
+| `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet + `ai_euro_score_step` | **partial** (T0 Euro/ocean; T2 quiet) |
+| `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | `ai_euro_unit_act` | **partial** (T0) |
+| `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | hire in planning | **partial** (T0) |
+| `FUN_521d_5d04` | ~748 | Nation planning / hire / treasury (6d8e via `0554`) | `ai_euro_nation_planning` | **partial** (T0) |
+| `FUN_521d_6d8e` | ~253 body | Euro AI **dispatcher** per nation | `ai_euro_dispatcher_turn` (+ seed-100 fixture) | **partial** (T0 full; T2 fixture) |
 
 `6d8e` thunk wiring: `0554`→`5d04`, `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`
 (→`20e6` via `04f4`). Linux still uses seed-100 peels until goal/act bodies port.
@@ -166,17 +206,20 @@ unannotated bodies.
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: **2** spent-only rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
-| `FUN_521d_6d8e` | `ai_euro_nation_turn` | Annotated shell (correct thunk wiring); skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`) |
-| `FUN_521d_0000`…`0906` | — | Annotated in `ai/euro_goals.c` (goal tables + `06ae` founding); not ported |
-| `FUN_521d_0a60` | early peels | Sectioned annotate in `euro_dispatcher.c`; mid-game PARKED — see `ai/move_scoring.md` |
-| `FUN_521d_5d04` | — | PARKED (hire/treasury); 6d8e calls via `0554` before promote/`0a60` |
-| `FUN_521d_5b66` | peels | Thin map `ai/euro_unit_act.md`; Linux `spend_goto` / early peels |
-| `FUN_521d_20e6` (non-quiet) | early slices | Quiet Brave done; Euro/ocean thin map; coastal ship waypoints still fixture |
+| `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | T0 dispatcher; T2 seed-100 fixture |
+| `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
+| `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
+| `FUN_521d_5d04` | `ai_euro_nation_planning` | T0 treasury + Europe hire |
+| `FUN_521d_5b66` | `ai_euro_unit_act` | T0 goto/unload/found/combat |
+| `FUN_521d_20e6` (non-quiet) | `ai_euro_score_step` | T0 adjacent step toward goal |
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
-| Landfall unload + first colony | `ai_euro_early_turn` / `ai_try_ship_unload` | **T2** golden towns; opportunistic settle for other seeds |
+| Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
-| `@RAID*` / meet / mission | — | **No** counterpart |
-| King / REF AI | `turn_run_king_stub` | Stub only |
+| `@RAID*` / meet / mission | `ai_contact_*` | **T0** friction raids + meet/trade/missions |
+| King / REF AI | `ai_king_nation_turn` | **T0** tax / declare / REF / war act |
+| Diplomacy | `ai_diplo_*` | **T0** war/ally + Indian relations |
+| Colony capture | `colonies_capture` | military / REF / Indian raid |
+| Naval combat | `units_resolve_naval_combat` | T0 ship vs ship |
 
 ---
 
@@ -283,13 +326,15 @@ Status reflects the AI-port prerequisite work:
 |-----------|--------|-------|
 | `colonies_found(nation_id)` | **Done** | Owning nation set at found time |
 | Unit orders (fortify, sentry, disband) | **Partial** | Map F / S / Shift+D + ORDERS menu; overnight fortify → fortified |
-| Land combat | **Partial** | T0 attack/defense (+ fortified ×2); naval / colony defense later |
+| Land combat | **Partial** | T0 attack/defense (+ fortified ×2); AI-initiated via act/raids |
+| Colony capture | **Done** (T0) | `colonies_capture` — Euro owner swap; Indian capture abandons |
+| Naval combat | **Partial** (T0) | `units_resolve_naval_combat` |
 | Fog of war / `map.seen` | **Partial** | Dedicated plane; reveal on move; cheat Reveal; `.MP` fully seen |
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
-| Alarm / contact hooks | **Partial** | Adjacent village bumps friction + status; no meet UI / `@RAID*` |
-| AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies (docs formerly claimed skip — stale) |
-| Founding Fathers / liberty | Missing | Euro long-term goals |
-| King / tax / REF | Stub | Independence AI only |
+| Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
+| AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
+| Founding Fathers / liberty | **Partial** | Liberty bells + SoL heuristic for declare; FF election still stub |
+| King / tax / REF | **Partial** (T0) | `ai_king_nation_turn` — tax events, declare, REF waves, war act |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
@@ -332,16 +377,17 @@ cmake --build build --target smoke_ai && ./build/smoke_ai
 
 ---
 
-## Size sense (unfinished work)
+## Size sense
 
 | Side | Rough scale |
 |------|-------------|
-| Linux `ai.c` | ~2370 lines |
-| Euro planner alone | `6d8e` ~500 + `0a60` ~860 + `5d04` ~750 + `20e6` ~4k (+ nested `5b66` ~1.8k) |
-| Indian cluster | `1816` ~140 + `2154` ~320 + `2820` ~1.4k + `4528` ~3k + helpers |
+| Linux `ai.c` + `ai_*.c` | ~3.5k + goals/euro/diplo/contact/king modules |
+| Euro planner (DOS) | `6d8e` ~500 + `0a60` ~860 + `5d04` ~750 + `20e6` ~4k (+ nested `5b66` ~1.8k) |
+| Indian cluster (DOS) | `1816` ~140 + `2154` ~320 + `2820` ~1.4k + `4528` ~3k + helpers |
 
-Current code is orchestration + new-game setup + seed-100 early Euro slices +
-quiet Brave pulse / residual overlays — not a transcription of the full planners.
+Full T0/T1 surface is in: dispatcher + contact + king modules. Remaining work is
+fidelity hardening (T1/T2 goldens, LCG, deeper Layer D extracts) — not missing
+planner arms.
 
 ---
 

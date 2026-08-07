@@ -462,6 +462,54 @@ bool units_resolve_land_combat(
   return false;
 }
 
+bool units_resolve_naval_combat(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng
+) {
+  g_units_last_combat = 0;
+  ColonizeUnit* atk = units_get(pool, attacker_id);
+  ColonizeUnit* def = units_get(pool, defender_id);
+  if (!atk || !def || !atk->active || !def->active) {
+    return false;
+  }
+  if (!units_is_sea(pool, attacker_id) || !units_is_sea(pool, defender_id)) {
+    return false;
+  }
+  const ColonizeUnitType* at = units_type(pool, atk->type_index);
+  const ColonizeUnitType* dt = units_type(pool, def->type_index);
+  if (!at || !dt) {
+    return false;
+  }
+  int attack = at->attack;
+  int defense = dt->defense;
+  if (attack < 0) {
+    attack = 0;
+  }
+  if (defense < 0) {
+    defense = 0;
+  }
+  const int total = attack + defense;
+  bool atk_wins = false;
+  if (total <= 0) {
+    atk_wins = true;
+  } else if (!rng) {
+    atk_wins = attack >= defense;
+  } else {
+    const int roll = dos_rng_range(rng, 1, total);
+    atk_wins = roll <= attack;
+  }
+  if (atk_wins) {
+    units_despawn(pool, defender_id);
+    g_units_last_combat = 1;
+    return true;
+  }
+  units_despawn(pool, attacker_id);
+  g_units_last_combat = -1;
+  return false;
+}
+
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,
