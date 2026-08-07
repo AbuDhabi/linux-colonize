@@ -3,7 +3,8 @@
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c
  *   6d8e ~93073–93325; 0a60 ~87408–88246; 5d04 parked; 5b66 → euro_unit_act.md
- * Linux:  src/core/ai.c — ai_euro_nation_turn / ai_euro_early_turn
+ * Linux:  src/core/ai_euro.c — ai_euro_dispatcher_turn
+ *         src/core/ai.c — ai_euro_nation_turn / ai_euro_early_turn (seed-100)
  *
  * Goal helpers: ai/euro_goals.c. Quiet Brave scoring: ai/quiet_brave_scoring.c.
  * Euro/ocean move scoring: ai/move_scoring.md (thin). Per-unit act: euro_unit_act.md.
@@ -213,8 +214,9 @@ static int unit_is_ship(uint8_t type) {
  * Sticky anti-spin: DS:0x2d12 unit index, DS:0x2d14 act count; >0x14 → clear.
  *
  * Linux: ai_euro_nation_turn reseeds, ticks crosses, then either
- * ai_euro_early_turn (seed-100 fixture peels) or sail + opportunistic unload.
- * Those peels are PORT DEBT toward this dispatcher + real 0a60/5b66.
+ * ai_euro_early_turn (seed-100 fixture) or ai_euro_dispatcher_turn (structural
+ * 6d8e: inventory, treaty timers, 5d04→0342→0a60, any_acted waves, sticky,
+ * ship CONTACT). PORT DEBT: mid 5d04, 0a60 E–H deep, full 20e6/5b66 arms.
  */
 void euro_nation_turn(int nation_id) {
   /* --- 0. Sticky clear + reseed + active nation ------------------------- */
@@ -303,7 +305,7 @@ void euro_nation_turn(int nation_id) {
 /*
  * Linux cross-reference (not DOS):
  *   ai_euro_nation_turn
- *     → if rng_seed==100 && early turn: ai_euro_early_turn (fixture peels)
- *     → else: sail ships, ai_try_ship_unload / found first colony
- * PORT DEBT toward euro_unit_colony_goals + euro_unit_act + real 06ae.
+ *     → if rng_seed==100 && !AI_FULL_DISPATCH: ai_euro_early_turn (fixture)
+ *     → else: ai_euro_dispatcher_turn (ai_euro.c) — structural 6d8e
+ * PORT DEBT: mid-game 5d04 matrix, 0a60 E–H, full 20e6 land/combat, 5b66 case 7.
  */

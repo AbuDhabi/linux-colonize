@@ -91,8 +91,8 @@ meet/king cinematic UI.
 
 | Cluster | Linux entry | Fidelity bar |
 |---------|-------------|--------------|
-| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | T0 plan→act; seed-100 early fixture kept for `smoke_ai_turns` unless `AI_FULL_DISPATCH=1` |
-| Euro unit act + scoring | `ai_euro_unit_act` / `ai_euro_score_move` | T0 goto/unload/found/fortify/combat initiate; ocean without coastal fixtures |
+| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **Partial structural** 6d8e; seed-100 fixture unless `AI_FULL_DISPATCH=1` |
+| Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat PARKED |
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Treaty bits + war/ally state on Col1 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
 | Raids | `ai_raid_*` (`ai_contact.c`) | `@RAID*` / friction-gated attacks change units/colonies |
@@ -166,7 +166,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | `ai_euro_unit_act` | **partial** (T0) |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | hire in planning | **partial** (T0) |
 | `FUN_521d_5d04` | ~748 | Nation planning / hire / treasury (6d8e via `0554`) | `ai_euro_nation_planning` | **partial** (T0) |
-| `FUN_521d_6d8e` | ~253 body | Euro AI **dispatcher** per nation | `ai_euro_dispatcher_turn` (+ seed-100 fixture) | **partial** (T0 full; T2 fixture) |
+| `FUN_521d_6d8e` | ~253 body | Euro AI **dispatcher** per nation | `ai_euro_dispatcher_turn` (+ seed-100 fixture) | **partial** (structural; T2 fixture) |
 
 `6d8e` thunk wiring: `0554`→`5d04`, `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`
 (→`20e6` via `04f4`). Linux still uses seed-100 peels until goal/act bodies port.
@@ -206,7 +206,7 @@ unannotated bodies.
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: **2** spent-only rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
-| `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | T0 dispatcher; T2 seed-100 fixture |
+| `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Partial structural** 6d8e; T2 seed-100 fixture |
 | `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
 | `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
 | `FUN_521d_5d04` | `ai_euro_nation_planning` | T0 treasury + Europe hire |
@@ -295,18 +295,17 @@ Still open for generic T1 (non-fixture):
 3. Teach / trade / missions / convert as separate contact features (manual
    natives chapter) — may live partly outside `ai.c`.
 
-### R4 — Euro dispatcher skeleton
+### R4 — Euro dispatcher skeleton (**partial structural port**)
 
-**Annotation (Layer D early-settle):** `6d8e` thunk wiring corrected; goal
-helpers + sectioned `0a60` in `original_sources_annotated/ai/`; thin maps for
-`5b66` / Euro `20e6`. **Not yet ported** into Linux (fixtures remain).
+**Linux:** `ai_euro_dispatcher_turn` in [`ai_euro.c`](../src/core/ai_euro.c)
+mirrors annotated `euro_nation_turn` phases (inventory → treaty timers →
+`5d04`/`0342`/`0a60` → `any_acted` waves → sticky → ship CONTACT). Goal upsert /
+promote / 16-slot work queue in [`ai_goals.c`](../src/core/ai_goals.c). Seed-100
+keeps `ai_euro_early_turn` unless `AI_FULL_DISPATCH=1`.
 
-1. Port `FUN_521d_6d8e` structure: nation setup, colony/unit inventory, dispatch
-   hooks (even if goal bodies are stubs) — annotated shell ready.
-2. Port goal slices from `FUN_521d_0a60` / helpers (`016a`/`06ae`/…) as evidence
-   allows; `5d04` hire/treasury later.
-3. Replace fixture/skeleton `ai_euro_nation_turn` (`ai_euro_early_turn` + opportunistic
-   settle) with real dispatcher entry.
+**PORT DEBT (PARKED bodies):** mid-game `5d04` hire matrix; `0a60` E–H deep;
+full land/combat `20e6`; `5b66` case 7 economy + combat tails. Odd deviations OK
+(Brave-peel style); not T3 / LCG goldens.
 
 ### R5 — Toward 1:1 (T2/T3)
 

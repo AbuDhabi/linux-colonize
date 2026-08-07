@@ -8,11 +8,12 @@
 #include "core/map.h"
 #include "core/units.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- local helpers (T0; mirror ai.c peels without exporting statics) ---- */
+/* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
+static int s_sticky_unit = -1;
+static int s_sticky_count = 0;
 
 static int ai_euro_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
@@ -40,24 +41,9 @@ static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   u->goto_y = gy;
 }
 
-static int ai_euro_founder_score(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  if (!units || !u) {
-    return 0;
-  }
-  const char* name = units_display_name(units, u);
-  if (!name) {
-    return 1;
-  }
-  if (strstr(name, "Pioneer") || strstr(name, "Hardy")) {
-    return 5;
-  }
-  if (strstr(name, "Soldier") || strstr(name, "Scout")) {
-    return 3;
-  }
-  if (strstr(name, "Colonist") || strstr(name, "Free")) {
-    return 4;
-  }
-  return 2;
+static int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
+  /* Dispatcher ship wave: sea domain (SHIP_A..C stand-in). */
+  return units_is_sea(units, unit_id);
 }
 
 static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, int nation_id) {
@@ -98,54 +84,142 @@ static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int c
   (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id);
 }
 
-/*
- * FUN_521d_5d04 T0 — treasury bump + Europe hire of a free colonist onto a ship
- * still in Europe / returning.
- */
-static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+/* --- inventory (6d8e steps 1–3) ---------------------------------------- */
+
+static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  if (!inv || !ctx) {
     return;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-  /* Difficulty-scaled treasury drip. */
-  const int diff = ctx->col1->head.difficulty;
-  const unsigned bump = 10u + (unsigned)(4 - diff) * 5u;
-  nat->gold += bump;
+  ai_goals_inventory_clear(nation_id);
+  inv->colony_count = ai_euro_colony_count(ctx->colonies, nation_id);
+  /* founding_expansion_urgency stand-in: early game → 8. */
+  inv->urgency = (inv->colony_count < 3) ? 8 : (inv->colony_count < 6 ? 4 : 0);
 
-  const int colonies = ai_euro_colony_count(ctx->colonies, nation_id);
-  if (colonies >= 3) {
-    return; /* mid-game hire pressure later */
-  }
-  if (nat->gold < 300) {
+  if (!ctx->colonies) {
     return;
   }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    /* 5cf6-shaped shortage tallies. */
+    if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
+      inv->tools_short += 20 - c->stock[COLONIZE_CARGO_TOOLS];
+    }
+    if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
+      inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
+    }
+    if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
+      inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
+    }
+    if (c->building_in_production >= 0) {
+      inv->found_flags++;
+    }
+  }
+}
 
-  /* Hire: spawn Free Colonist in Europe aboard nation's ship if present. */
-  ColonizeUnit* ship = NULL;
+static void ai_euro_unit_inventory(ColonizeTurnContext* ctx, int nation_id) {
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  if (!inv || !ctx || !ctx->units) {
+    return;
+  }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    if (units_is_sea(ctx->units, u->id) && ai_euro_in_europe(u->x, u->y)) {
+    /* Wagon (transport) on colony tile → found_flags bit stand-in. */
+    if (units_is_transport(ctx->units, u->id) && ctx->colonies) {
+      if (colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
+        inv->found_flags |= 0x20;
+      }
+    }
+    /* Passenger profession demand. */
+    if (u->aboard_ship_id >= 0 && u->profession >= 0 && u->profession < 16) {
+      if (inv->profession_demand[u->profession] > 0) {
+        inv->profession_demand[u->profession]--;
+      }
+    }
+    const char* name = units_display_name(ctx->units, u);
+    if (name && strstr(name, "Pioneer") && inv->muskets_short > 0) {
+      inv->muskets_short--;
+    }
+  }
+  /* Seed profession demand from tools shortage (LABOR hire preference). */
+  if (inv->tools_short > 0 && inv->profession_demand[0] == 0) {
+    inv->profession_demand[0] = inv->tools_short / 20 + 1; /* farmer/labor stand-in */
+  }
+}
+
+/* --- 5d04 planning / hire ---------------------------------------------- */
+
+static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  const int diff = ctx->col1->head.difficulty;
+  const unsigned bump = 10u + (unsigned)(4 - diff) * 5u + (inv ? (unsigned)inv->urgency : 0u);
+  nat->gold += bump;
+
+  /*
+   * NEW WORLD wagon / mid-game hire matrix — PARKED (DOS 5d04 after early dock).
+   * Early Europe-dock hire only while colony count is low.
+   */
+  const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
+  if (colonies >= 6) {
+    return;
+  }
+  const int hire_cost = 200 + diff * 25;
+  if ((int)nat->gold < hire_cost) {
+    return;
+  }
+
+  ColonizeUnit* ship = NULL;
+  for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (ai_euro_is_ship_type(ctx->units, u->id) && ai_euro_in_europe(u->x, u->y)) {
       ship = u;
       break;
     }
   }
-  if (!ship) {
+  if (!ship || ship->cargo_count >= units_ship_capacity(ctx->units, ship->id)) {
     return;
   }
-  int free_ty = units_find_type(ctx->units, "Free Colonist");
-  if (free_ty < 0) {
-    free_ty = units_find_type(ctx->units, "Colonist");
+
+  /* 5c3c-shaped: prefer demanded profession type, else Free Colonist. */
+  int hire_ty = -1;
+  if (inv) {
+    for (int p = 0; p < 16; ++p) {
+      if (inv->profession_demand[p] > 0) {
+        /* Map crude demand → Free Colonist / Pioneer. */
+        if (inv->tools_short > 0) {
+          hire_ty = units_find_type(ctx->units, "Hardy Pioneer");
+          if (hire_ty < 0) {
+            hire_ty = units_find_type(ctx->units, "Pioneer");
+          }
+        }
+        break;
+      }
+    }
   }
-  if (free_ty < 0) {
+  if (hire_ty < 0) {
+    hire_ty = units_find_type(ctx->units, "Free Colonist");
+  }
+  if (hire_ty < 0) {
+    hire_ty = units_find_type(ctx->units, "Colonist");
+  }
+  if (hire_ty < 0) {
     return;
   }
-  if (ship->cargo_count >= units_ship_capacity(ctx->units, ship->id)) {
-    return;
-  }
-  const int uid = units_spawn(ctx->units, free_ty, ship->x, ship->y);
+
+  const int uid = units_spawn(ctx->units, hire_ty, ship->x, ship->y);
   if (uid < 0) {
     return;
   }
@@ -158,27 +232,33 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     units_despawn(ctx->units, uid);
     return;
   }
-  nat->gold -= 300;
+  nat->gold -= (uint32_t)hire_cost;
+  if (inv && inv->profession_demand[0] > 0) {
+    inv->profession_demand[0]--;
+  }
 }
 
-/* FUN_521d_0a60 phases A–H (T0 condensed). */
+/* --- 0a60 colony goals ------------------------------------------------- */
+
 static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units) {
     return;
   }
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
   ai_goals_clear_work_queue();
 
-  /* B: own units — contact / explore scratch via work queue. */
+  /* A: urgency seed (coarse-fog wipe skipped — Linux fog is separate). */
+  const int urgency = inv ? inv->urgency : 0;
+
+  /* B: own units — CONTACT from adjacent foreign; work queue only for bindable. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
       continue;
     }
-    if (!units_is_on_map(u)) {
+    if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
       continue;
     }
-    ai_goals_upsert_work(u->id, 1, 0, 0);
-    /* Foreign unit adjacent → CONTACT goal. */
     static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
     static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
     for (int d = 0; d < 8; ++d) {
@@ -191,36 +271,40 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       const ColonizeUnit* f = units_get_const(ctx->units, foe);
       if (f && f->nation_id != nation_id) {
         ai_goals_upsert_primary(nation_id, nx, ny, AI_GOAL_CONTACT, 3);
+        ai_goals_upsert_work(u->id, 3, AI_GOAL_CONTACT, 0);
       }
     }
   }
 
-  /* D: own colonies — LABOR if underpopulated. */
+  /* D: own colonies — LABOR from tools shortage / underpop. */
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
         continue;
       }
-      const int code = (c->population < 3) ? AI_GOAL_LABOR : AI_GOAL_COLONY;
-      ai_goals_upsert_primary(nation_id, c->x, c->y, code, (c->population < 3) ? 4 : 2);
-      /* F: nearby settle — FOUND on empty land near colony. */
-      for (int oy = -3; oy <= 3; ++oy) {
-        for (int ox = -3; ox <= 3; ++ox) {
-          if (ox == 0 && oy == 0) {
-            continue;
-          }
-          const int tx = c->x + ox;
-          const int ty = c->y + oy;
-          if (colonies_can_found(ctx->colonies, ctx->map, tx, ty)) {
-            ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_FOUND, 2);
-          }
+      int labor = (c->population < 3);
+      if (inv && inv->tools_short > 0 && c->stock[COLONIZE_CARGO_TOOLS] < 20) {
+        labor = 1;
+      }
+      if (labor) {
+        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, 4 + urgency / 4);
+      } else {
+        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_COLONY, 2);
+      }
+      /* Expand: FOUND via 06ae around colony. */
+      int fx = 0;
+      int fy = 0;
+      if (ai_goals_pick_founding_tile(
+            ctx->map, ctx->colonies, nation_id, c->x, c->y, &fx, &fy)) {
+        if (fx != c->x || fy != c->y) {
+          ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
         }
       }
     }
   }
 
-  /* E: foreign colonies — MILITARY if at war. */
+  /* E: foreign colonies MILITARY if at war (light stub — mid-mil PARKED). */
   if (ctx->colonies && ctx->col1_ok && ctx->col1) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -233,43 +317,117 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* F: tribes — FOUND / MILITARY near villages. */
+  /* F: tribe-adjacent FOUND prio 2; alarmed → MILITARY. */
   if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
     for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-      ai_goals_upsert_secondary(nation_id, t->x, t->y, AI_GOAL_FOUND, 1);
+      int fx = 0;
+      int fy = 0;
+      if (ai_goals_pick_founding_tile(
+            ctx->map, ctx->colonies, nation_id, t->x, t->y, &fx, &fy)) {
+        ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
+      } else {
+        ai_goals_upsert_secondary(nation_id, t->x, t->y, AI_GOAL_FOUND, 1);
+      }
       if (t->alarm[nation_id].friction > 50) {
         ai_goals_upsert_primary(nation_id, t->x, t->y, AI_GOAL_MILITARY, 3);
       }
     }
   }
 
-  /* First colony urgency: FOUND near landfall-ish ship if no colonies. */
-  if (ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+  /* G/H continent stance / bind units→goals — PARKED mid-game. */
+
+  /* First colony: FOUND from ship via 06ae. */
+  if ((inv ? inv->colony_count : 0) == 0) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != nation_id) {
         continue;
       }
-      if (!units_is_sea(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
+      if (!ai_euro_is_ship_type(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
         continue;
       }
-      /* Prefer adjacent land for founding. */
-      static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-      static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-      for (int d = 0; d < 8; ++d) {
-        const int tx = u->x + dx[d];
-        const int ty = u->y + dy[d];
-        if (ctx->colonies && colonies_can_found(ctx->colonies, ctx->map, tx, ty)) {
-          ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_FOUND, 6);
-        }
+      int fx = 0;
+      int fy = 0;
+      if (ai_goals_pick_founding_tile(
+            ctx->map, ctx->colonies, nation_id, u->x, u->y, &fx, &fy)) {
+        ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 6 + urgency / 2);
       }
     }
   }
 }
 
-/* FUN_521d_20e6 Euro/ocean T0 — pick adjacent step toward goal. */
-static int ai_euro_score_step(
+/* --- 20e6 scoring (land Manhattan + ocean/ship branch) ----------------- */
+
+static int ai_euro_ocean_score_step(
+  ColonizeTurnContext* ctx,
+  ColonizeUnit* u,
+  int goal_x,
+  int goal_y,
+  int* out_dx,
+  int* out_dy
+) {
+  /*
+   * Naval/ocean branch of FUN_521d_20e6 (thin extract): prefer water tiles
+   * that reduce Chebyshev/Manhattan distance to goal; avoid land; slight
+   * preference for high-seas / west when goal is west of ship.
+   */
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int best = -999999;
+  int bdx = 0;
+  int bdy = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    if (!map_coords_inset(ctx->map, nx, ny) &&
+        (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height)) {
+      continue;
+    }
+    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+      continue;
+    }
+    const int foe = units_id_at(ctx->units, nx, ny);
+    if (foe >= 0) {
+      const ColonizeUnit* f = units_get_const(ctx->units, foe);
+      if (f && f->nation_id == u->nation_id) {
+        continue;
+      }
+      if (f && !units_is_sea(ctx->units, foe)) {
+        continue;
+      }
+    } else if (!map_tile_is_water(ctx->map, nx, ny)) {
+      /* Allow coastal landfall tile if it is the goal. */
+      if (!(nx == goal_x && ny == goal_y)) {
+        continue;
+      }
+    }
+    int dist = abs(goal_x - nx) + abs(goal_y - ny);
+    int score = 2000 - dist * 12;
+    if (map_tile_is_high_seas(ctx->map, nx, ny)) {
+      score += 5;
+    }
+    if (goal_x < u->x && dx[d] < 0) {
+      score += 4; /* west bias toward New World */
+    }
+    if (ctx->rng) {
+      score += dos_rng_range(ctx->rng, 0, 2);
+    }
+    if (score > best) {
+      best = score;
+      bdx = dx[d];
+      bdy = dy[d];
+    }
+  }
+  if (best < -999990) {
+    return 0;
+  }
+  *out_dx = bdx;
+  *out_dy = bdy;
+  return 1;
+}
+
+static int ai_euro_score_move(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
   int goal_x,
@@ -280,12 +438,14 @@ static int ai_euro_score_step(
   if (!ctx || !ctx->map || !u || !out_dx || !out_dy) {
     return 0;
   }
+  if (units_is_sea(ctx->units, u->id)) {
+    return ai_euro_ocean_score_step(ctx, u, goal_x, goal_y, out_dx, out_dy);
+  }
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   int best = -999999;
   int bdx = 0;
   int bdy = 0;
-  const int sea = units_is_sea(ctx->units, u->id);
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
@@ -293,22 +453,17 @@ static int ai_euro_score_step(
       continue;
     }
     if (!units_can_enter(ctx->units, u->type_index, ctx->map, nx, ny, u->id, ctx->colonies)) {
-      /* Allow combat enter on foreign. */
       const int foe = units_id_at(ctx->units, nx, ny);
       if (foe < 0) {
         continue;
       }
       const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (!f || f->nation_id == u->nation_id) {
-        continue;
-      }
-      if (sea != units_is_sea(ctx->units, foe)) {
+      if (!f || f->nation_id == u->nation_id || units_is_sea(ctx->units, foe)) {
         continue;
       }
     }
     const int dist = abs(goal_x - nx) + abs(goal_y - ny);
     int score = 1000 - dist * 10;
-    /* Slight noise for variety. */
     if (ctx->rng) {
       score += dos_rng_range(ctx->rng, 0, 3);
     }
@@ -326,6 +481,38 @@ static int ai_euro_score_step(
   return 1;
 }
 
+/* Returns non-zero to abort act (DOS 20e6 non-zero return). */
+static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
+  /*
+   * Ships: never retarget here — landfall/sail courses are owned by case 0x0b.
+   * (Sticky clear or arrival wipe must not become a distant FOUND yank.)
+   */
+  if (units_is_sea(ctx->units, u->id)) {
+    return 0;
+  }
+  int gx = u->x;
+  int gy = u->y;
+  int fx = 0;
+  int fy = 0;
+  if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
+    gx = fx;
+    gy = fy;
+  } else if (units_orders_follow_goto(u->orders)) {
+    gx = u->goto_x;
+    gy = u->goto_y;
+  } else {
+    gx = u->x > 2 ? u->x - 2 : 0;
+    gy = u->y;
+  }
+  int dx = 0;
+  int dy = 0;
+  if (!ai_euro_score_move(ctx, u, gx, gy, &dx, &dy)) {
+    return 1;
+  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, gx, gy);
+  return 0;
+}
+
 static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
   if (!ctx || !ctx->units || !u) {
     return;
@@ -339,20 +526,15 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
     return;
   }
   if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4) {
-    if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id) && f->nation_id < 4) {
-      /* Auto-war on intentional attack. */
+    if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       ai_diplo_declare_war(ctx->col1, u->nation_id, f->nation_id);
     }
   }
-  const int sea = units_is_sea(ctx->units, u->id);
-  if (sea) {
+  if (units_is_sea(ctx->units, u->id)) {
     units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
-  } else {
-    if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
-      units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
-    }
+  } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
+    units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
   }
-  /* Colony capture if standing on foreign colony after win. */
   if (u->active && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
@@ -365,28 +547,24 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
 }
 
 static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
-  if (!ctx || !ship || !units_is_sea(ctx->units, ship->id)) {
+  if (!ctx || !ship || !units_is_sea(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
     return;
   }
-  if (ai_euro_in_europe(ship->x, ship->y)) {
-    return;
-  }
-  int fx = 0;
-  int fy = 0;
-  const int have_found = ai_goals_best_found_tile(nation_id, &fx, &fy);
-  /* Unload best founder passenger. */
   int best_id = -1;
   int best_score = 0;
   for (int s = 0; s < ship->cargo_count && s < COLONIZE_UNIT_CARGO_MAX; ++s) {
     const int pid = ship->cargo_ids[s];
-    if (pid < 0) {
-      continue;
-    }
     ColonizeUnit* p = units_get(ctx->units, pid);
     if (!p || !p->active) {
       continue;
     }
-    const int sc = ai_euro_founder_score(ctx->units, p);
+    int sc = 2;
+    const char* name = units_display_name(ctx->units, p);
+    if (name && (strstr(name, "Pioneer") || strstr(name, "Hardy"))) {
+      sc = 5;
+    } else if (name && (strstr(name, "Colonist") || strstr(name, "Free"))) {
+      sc = 4;
+    }
     if (sc > best_score) {
       best_score = sc;
       best_id = pid;
@@ -395,80 +573,116 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
   if (best_id < 0) {
     return;
   }
+
+  int dest_x = 0;
+  int dest_y = 0;
+  int fx = 0;
+  int fy = 0;
+  if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
+    dest_x = fx;
+    dest_y = fy;
+  } else if (!ai_goals_pick_founding_tile(
+               ctx->map, ctx->colonies, nation_id, ship->x, ship->y, &dest_x, &dest_y)) {
+    if (!units_pick_landfall_tile(
+          ctx->units, ship->id, ctx->map, ctx->colonies, -1, -1, &dest_x, &dest_y)) {
+      return;
+    }
+  }
+
+  if (!units_unload_passenger(
+        ctx->units, ship->id, best_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
+    /* Try adjacent landfall if goal tile not adjacent. */
+    if (!units_pick_landfall_tile(
+          ctx->units, ship->id, ctx->map, ctx->colonies, dest_x, dest_y, &dest_x, &dest_y)) {
+      return;
+    }
+    if (!units_unload_passenger(
+          ctx->units, ship->id, best_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
+      return;
+    }
+  }
+
   ColonizeUnit* pax = units_get(ctx->units, best_id);
   if (!pax) {
     return;
   }
-  int dest_x = ship->x;
-  int dest_y = ship->y;
-  if (have_found) {
-    dest_x = fx;
-    dest_y = fy;
-  } else if (!units_pick_landfall_tile(
-               ctx->units, ship->id, ctx->map, ctx->colonies, -1, -1, &dest_x, &dest_y)) {
-    return;
+  if (ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+    int fx2 = pax->x;
+    int fy2 = pax->y;
+    if (ai_goals_pick_founding_tile(
+          ctx->map, ctx->colonies, nation_id, pax->x, pax->y, &fx2, &fy2)) {
+      if (fx2 != pax->x || fy2 != pax->y) {
+        ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, fx2, fy2);
+        return;
+      }
+    }
+    if (colonies_can_found(ctx->colonies, ctx->map, pax->x, pax->y)) {
+      ai_euro_found_with_unit(ctx, pax, nation_id);
+      return;
+    }
   }
-  if (!units_unload_passenger(
-        ctx->units, ship->id, best_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
-    return;
-  }
-  pax = units_get(ctx->units, best_id);
-  if (!pax) {
-    return;
-  }
-  if (ai_euro_colony_count(ctx->colonies, nation_id) == 0 &&
-      colonies_can_found(ctx->colonies, ctx->map, pax->x, pax->y)) {
-    ai_euro_found_with_unit(ctx, pax, nation_id);
-  } else {
-    ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
-  }
+  ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
 }
 
-/* FUN_521d_5b66 T0 per-unit act. */
+/*
+ * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire PARKED (in 5d04).
+ */
 static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
-  if (!ctx || !u || !u->active || u->moves_left <= 0) {
-    return;
-  }
-  if (u->aboard_ship_id >= 0) {
+  if (!ctx || !u || !u->active || u->moves_left <= 0 || u->aboard_ship_id >= 0) {
     return;
   }
 
-  const int is_ship = units_is_sea(ctx->units, u->id);
+  const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
+  const int is_goto = units_orders_follow_goto(u->orders);
 
-  /* Ships: sail toward FOUND / landfall / west explore; unload when coastal. */
+  /*
+   * Early move-scoring gate (~90552): if orders!=goto (or fresh), call 20e6;
+   * non-zero return aborts act. Linux: always score when not already on goto.
+   */
+  if (!is_goto) {
+    if (ai_euro_move_scoring_gate(ctx, u, nation_id)) {
+      return;
+    }
+  }
+
+  /* Case 7 Europe hire — PARKED (handled in 5d04 planning). */
+
   if (is_ship) {
     if (ai_euro_in_europe(u->x, u->y)) {
-      /* Exit Europe toward map: use eastern high seas then west. */
       int hx = 0;
       int hy = 0;
       if (units_find_eastern_high_seas_tile(ctx->units, ctx->map, u->y, &hx, &hy)) {
         u->x = hx;
         u->y = hy;
-        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx > 2 ? hx - 2 : 0, hy);
-      }
-    }
-    int gx = u->goto_x;
-    int gy = u->goto_y;
-    int fx = 0;
-    int fy = 0;
-    if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
-      gx = fx;
-      gy = fy;
-      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, gx, gy);
-    }
-    if (units_orders_follow_goto(u->orders) || u->orders == UNITS_ORDER_AI_SAIL) {
-      int dx = 0;
-      int dy = 0;
-      if (ai_euro_score_step(ctx, u, gx, gy, &dx, &dy)) {
-        const int tx = u->x + dx;
-        const int ty = u->y + dy;
-        const int foe = units_id_at(ctx->units, tx, ty);
-        if (foe >= 0) {
-          ai_euro_try_attack(ctx, u, tx, ty);
+        int fx = 0;
+        int fy = 0;
+        if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
         } else {
-          units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx > 2 ? hx - 8 : 0, hy);
         }
       }
+    }
+
+    /*
+     * Case 0x0b ship sail: preserve landfall/sail goto. advance_goto clears
+     * orders+goto on arrival — station-keep there instead of yanking to a
+     * distant FOUND (AMERICA smoke measures squared dist to goto).
+     */
+    int gx = u->goto_x;
+    int gy = u->goto_y;
+    const int have_goto =
+      gx >= 0 && gy >= 0 && gx < 255 && gy < 255 && gx < ctx->map->width &&
+      gy < ctx->map->height;
+    if (!have_goto) {
+      gx = u->x;
+      gy = u->y;
+      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, gx, gy);
+    } else if (!units_orders_follow_goto(u->orders)) {
+      u->orders = UNITS_ORDER_AI_SAIL;
+    }
+    if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
+      units_advance_goto(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng);
     }
     if (u->active && !ai_euro_in_europe(u->x, u->y)) {
       ai_euro_unload_settle(ctx, u, nation_id);
@@ -476,22 +690,19 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     return;
   }
 
-  /* Land: bind to best matching goal. */
+  /* Case 0x0b land: bind primary goal (priority-ordered table). */
   int goal_x = u->goto_x;
   int goal_y = u->goto_y;
   int goal_code = -1;
-  int best_prio = -1;
   for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
     const AiGoalSlot* g = ai_goals_primary(nation_id, i);
     if (!g || g->code == AI_GOAL_EMPTY) {
       continue;
     }
-    if ((int)g->prio > best_prio) {
-      best_prio = (int)g->prio;
-      goal_x = g->x;
-      goal_y = g->y;
-      goal_code = (int)g->code;
-    }
+    goal_x = g->x;
+    goal_y = g->y;
+    goal_code = (int)g->code;
+    break; /* highest prio is slot 0 after ordered upsert */
   }
 
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
@@ -506,15 +717,16 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
   if (goal_code == AI_GOAL_MILITARY || goal_code == AI_GOAL_CONTACT) {
-    const int foe = units_id_at(ctx->units, goal_x, goal_y);
-    if (foe >= 0 && abs(u->x - goal_x) <= 1 && abs(u->y - goal_y) <= 1) {
-      ai_euro_try_attack(ctx, u, goal_x, goal_y);
-      return;
+    if (abs(u->x - goal_x) <= 1 && abs(u->y - goal_y) <= 1) {
+      const int foe = units_id_at(ctx->units, goal_x, goal_y);
+      if (foe >= 0) {
+        ai_euro_try_attack(ctx, u, goal_x, goal_y);
+        return;
+      }
     }
-    /* Capture foreign colony tile. */
-    if (ctx->colonies) {
+    if (ctx->colonies && u->x == goal_x && u->y == goal_y) {
       const int cid = colonies_id_at(ctx->colonies, goal_x, goal_y);
-      if (cid >= 0 && u->x == goal_x && u->y == goal_y) {
+      if (cid >= 0) {
         ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
         if (c && c->nation_id != nation_id) {
           colonies_capture(ctx->colonies, cid, nation_id);
@@ -524,14 +736,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  if (best_prio >= 0) {
+  if (goal_code >= 0) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
-  if (units_orders_follow_goto(u->orders) || u->orders == UNITS_ORDER_AI_MOVE) {
+  if (units_orders_follow_goto(u->orders)) {
     int dx = 0;
     int dy = 0;
-    if (ai_euro_score_step(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+    if (ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
       const int tx = u->x + dx;
       const int ty = u->y + dy;
       const int foe = units_id_at(ctx->units, tx, ty);
@@ -541,11 +753,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
       }
     }
-  } else if (u->orders == 0 || u->orders == UNITS_ORDER_FORTIFY) {
-    /* Idle near own colony → fortify soldiers. */
+  } else {
+    /* Fortify soldiers near own colony (case 0x0b fortify arm). */
     const char* name = units_display_name(ctx->units, u);
-    if (name && strstr(name, "Soldier")) {
-      units_order_fortify(ctx->units, u->id);
+    if (name && strstr(name, "Soldier") && ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (c->active && c->nation_id == nation_id &&
+            abs(c->x - u->x) <= 1 && abs(c->y - u->y) <= 1) {
+          units_order_fortify(ctx->units, u->id);
+          break;
+        }
+      }
     }
   }
 }
@@ -554,7 +773,6 @@ int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx) {
   if (!ctx) {
     return 1;
   }
-  /* Keep seed-100 fixture path for smoke_ai_turns unless forced. */
   const char* force = getenv("AI_FULL_DISPATCH");
   if (force && force[0] && force[0] != '0') {
     return 1;
@@ -570,35 +788,78 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  /* 6d8e: planning → promote → colony goals → diplo timers → ship then land act. */
+  /* 0. Sticky clear */
+  s_sticky_unit = -1;
+  s_sticky_count = 0;
+
+  /* 1–3. Colony + unit inventory */
+  ai_euro_colony_inventory(ctx, nation_id);
+  ai_euro_unit_inventory(ctx, nation_id);
+
+  /* 4. Treaty timers BEFORE plan (not war RNG). */
+  ai_diplo_treaty_timers(ctx, nation_id);
+
+  /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
   ai_euro_colony_goals(ctx, nation_id);
-  ai_diplo_euro_timers(ctx, nation_id);
 
-  for (int pass = 0; pass < 2; ++pass) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-        continue;
-      }
-      const int is_ship = units_is_sea(ctx->units, u->id);
-      if (pass == 0 && !is_ship) {
-        continue;
-      }
-      if (pass == 1 && is_ship) {
-        continue;
-      }
-      /* Anti-spin: limited steps per unit per turn. */
-      int steps = 0;
-      while (u->active && u->moves_left > 0 && steps < 12) {
-        const int before = u->moves_left;
+  /* Opportunistic balance after plan (separate from timer slot). */
+  ai_diplo_euro_balance(ctx, nation_id);
+
+  /* 6–7. Outer any_acted; wave0 ships; wave1 ships+land; high→low.
+   * Each unit gets one act call per outer iteration (inner while breaks). */
+  int any_acted;
+  int guard = 0;
+  do {
+    any_acted = 0;
+    for (int wave = 0; wave < 2; ++wave) {
+      for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
+        ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        const int is_ship = ai_euro_is_ship_type(ctx->units, u->id);
+        const int in_wave = (wave != 0) || is_ship;
+        if (!in_wave || u->moves_left <= 0) {
+          continue;
+        }
+
+        if (u->id == s_sticky_unit) {
+          s_sticky_count++;
+          if (s_sticky_count > 0x14) {
+            units_clear_orders(ctx->units, u->id);
+            s_sticky_unit = -1;
+            s_sticky_count = 0;
+            continue;
+          }
+        } else {
+          s_sticky_unit = u->id;
+          s_sticky_count = 0;
+        }
+
+        const int was_ship = is_ship;
+        const int before_moves = u->moves_left;
+        const int before_x = u->x;
+        const int before_y = u->y;
         ai_euro_unit_act(ctx, u, nation_id);
-        ++steps;
-        if (!u->active || u->moves_left >= before) {
-          break;
+
+        const int progressed =
+          !u->active || u->moves_left < before_moves || u->x != before_x || u->y != before_y;
+        if (progressed) {
+          any_acted = 1;
+          if (u->active && u->id == s_sticky_unit) {
+            s_sticky_count = 0; /* progress resets anti-spin */
+          }
+        } else if (u->id == s_sticky_unit) {
+          /* no-op act still counts toward sticky via the increment above */
+        }
+
+        if (was_ship && u->active && u->moves_left <= 0) {
+          ai_goals_upsert_primary(nation_id, u->x, u->y, AI_GOAL_CONTACT, 2);
         }
       }
     }
-  }
+    ++guard;
+  } while (any_acted && guard < 64);
 }
