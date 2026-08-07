@@ -789,6 +789,153 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
   }
 }
 
+/* True when ship already has a non-stationary sail/goto course. */
+static int ai_euro_ship_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) {
+  if (!u || !map || !units_orders_follow_goto(u->orders)) {
+    return 0;
+  }
+  if (u->goto_x < 0 || u->goto_y < 0 || u->goto_x >= UNITS_GOTO_NONE ||
+      u->goto_y >= UNITS_GOTO_NONE || u->goto_x >= map->width || u->goto_y >= map->height) {
+    return 0;
+  }
+  return u->goto_x != u->x || u->goto_y != u->y;
+}
+
+/* Water tile adjacent to a coastal colony (ships cannot enter foreign land). */
+static int ai_euro_coastal_water_near(
+  const ColonizeWorldMap* map,
+  int cx,
+  int cy,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y || !map_tile_is_coastal(map, cx, cy)) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = cx + dx[d];
+    const int ny = cy + dy[d];
+    if (!map_tile_is_water(map, nx, ny)) {
+      continue;
+    }
+    const int dist = abs(nx - from_x) + abs(ny - from_y);
+    if (best < 0 || dist < best) {
+      best = dist;
+      bx = nx;
+      by = ny;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Thin naval war hunt (5b66 case 0x0b act-level): nearest enemy sea unit or
+ * coastal water by a foreign Euro colony at war. Full 20e6 combat scoring PARKED.
+ */
+static int ai_euro_naval_war_hunt_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !out_x || !out_y) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
+      continue;
+    }
+    if (!units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
+      continue;
+    }
+    if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
+      continue;
+    }
+    const int dist = abs(f->x - from_x) + abs(f->y - from_y);
+    if (best < 0 || dist < best) {
+      best = dist;
+      bx = f->x;
+      by = f->y;
+    }
+  }
+
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      if (!ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+        continue;
+      }
+      int wx = 0;
+      int wy = 0;
+      if (!ai_euro_coastal_water_near(ctx->map, c->x, c->y, from_x, from_y, &wx, &wy)) {
+        continue;
+      }
+      const int dist = abs(wx - from_x) + abs(wy - from_y);
+      if (best < 0 || dist < best) {
+        best = dist;
+        bx = wx;
+        by = wy;
+      }
+    }
+  }
+
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/* Attack adjacent enemy sea unit while at war (try_move cannot step onto ships). */
+static void ai_euro_naval_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !u || !u->active || !units_is_sea(ctx->units, u->id)) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    const int foe = units_id_at(ctx->units, nx, ny);
+    if (foe < 0 || !units_is_sea(ctx->units, foe)) {
+      continue;
+    }
+    const ColonizeUnit* f = units_get_const(ctx->units, foe);
+    if (!f || f->nation_id == u->nation_id) {
+      continue;
+    }
+    if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4 &&
+        !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+      continue;
+    }
+    ai_euro_try_attack(ctx, u, nx, ny);
+    return;
+  }
+}
+
 static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
   if (!ctx || !ship || !units_is_sea(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
     return;
@@ -910,6 +1057,27 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
 
     /*
+     * Thin naval war hunt (act-level): idle / station-keep ships at war sail
+     * toward nearest foe sea unit or coastal colony water. Adjacent → try_attack.
+     * Deep 20e6 naval combat scoring stays PARKED.
+     */
+    const int at_war =
+      ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
+    if (at_war && !ai_euro_in_europe(u->x, u->y)) {
+      ai_euro_naval_try_adjacent_attack(ctx, u);
+      if (!u->active) {
+        return;
+      }
+      if (!ai_euro_ship_has_useful_goto(u, ctx->map)) {
+        int hx = 0;
+        int hy = 0;
+        if (ai_euro_naval_war_hunt_target(ctx, nation_id, u->x, u->y, &hx, &hy)) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
+        }
+      }
+    }
+
+    /*
      * Case 0x0b ship sail: preserve landfall/sail goto. advance_goto clears
      * orders+goto on arrival — station-keep there instead of yanking to a
      * distant FOUND (AMERICA smoke measures squared dist to goto).
@@ -928,6 +1096,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
     if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
       units_advance_goto(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng);
+    }
+    if (u->active && at_war && !ai_euro_in_europe(u->x, u->y)) {
+      ai_euro_naval_try_adjacent_attack(ctx, u);
     }
     if (u->active && !ai_euro_in_europe(u->x, u->y)) {
       ai_euro_unload_settle(ctx, u, nation_id);

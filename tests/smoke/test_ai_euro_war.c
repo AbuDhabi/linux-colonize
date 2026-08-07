@@ -1,4 +1,4 @@
-/* Smoke: at-war Euro mid-hire / MILITARY bind + G stance (own≥2 → MIL prio 6). */
+/* Smoke: at-war Euro mid-hire / MILITARY bind + G stance + thin naval hunt. */
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
@@ -17,7 +17,7 @@ static int fail(const char* msg) {
   return 1;
 }
 
-int main(void) {
+static int smoke_mid_hire_mil(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -97,6 +97,9 @@ int main(void) {
   const int sid = units_spawn(&units, 3, 5, 5);
   ColonizeUnit* soldier = units_get(&units, sid);
   if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
     return fail("spawn soldier");
   }
   soldier->nation_id = nation;
@@ -107,6 +110,9 @@ int main(void) {
   const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
   ColonizeUnit* ship = units_get(&units, ship_id);
   if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
     return fail("spawn europe ship");
   }
   ship->nation_id = nation;
@@ -125,6 +131,9 @@ int main(void) {
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
     return fail("expected war after declare");
   }
   /* Replenish after war sting so hire_cost (200) is affordable. */
@@ -198,11 +207,164 @@ int main(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: ok (mil_goto=%d boarded=%d gold_spent=%d mil_prio=%d)\n",
+    "smoke_ai_euro_war: mid-hire ok (mil_goto=%d boarded=%d gold_spent=%d mil_prio=%d)\n",
     mil_goto,
     soldier_boarded,
     gold_spent,
     mil_prio
   );
+  return 0;
+}
+
+/* Two nations at war, idle ocean ships — expect AI_SAIL toward foe / closer / combat. */
+static int smoke_naval_war_hunt(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 4;
+  const int own_y = 4;
+  const int foe_x = 10;
+  const int foe_y = 10;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("naval alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 3;
+  units.types[0].defense = 2;
+  units.types[0].cargo = 0;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* warship = units_get(&units, own_id);
+  if (!warship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("spawn own frigate");
+  }
+  warship->nation_id = nation;
+  warship->orders = 0;
+  warship->moves_left = 4;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_ship = units_get(&units, foe_id);
+  if (!foe_ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("spawn foe frigate");
+  }
+  foe_ship->nation_id = foe;
+  foe_ship->orders = 0;
+  foe_ship->moves_left = 0; /* stationary target */
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("naval expected war");
+  }
+
+  ai_goals_reset();
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  warship = units_get(&units, own_id);
+  foe_ship = units_get(&units, foe_id);
+
+  const int combat_done = (warship == NULL || !warship->active) || (foe_ship == NULL || !foe_ship->active);
+  int sail_toward = 0;
+  int moved_closer = 0;
+  if (warship && warship->active) {
+    sail_toward =
+      warship->orders == UNITS_ORDER_AI_SAIL && warship->goto_x == foe_x &&
+      warship->goto_y == foe_y;
+    const int dist1 = foe_ship && foe_ship->active
+                        ? abs(warship->x - foe_ship->x) + abs(warship->y - foe_ship->y)
+                        : 0;
+    moved_closer = dist1 < dist0 || (warship->x != own_x || warship->y != own_y);
+  }
+
+  if (!combat_done && !sail_toward && !moved_closer) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: naval orders=%d goto=(%d,%d) pos=(%d,%d) foe_active=%d\n",
+      warship ? warship->orders : -1,
+      warship ? warship->goto_x : -1,
+      warship ? warship->goto_y : -1,
+      warship ? warship->x : -1,
+      warship ? warship->y : -1,
+      foe_ship && foe_ship->active
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected AI_SAIL toward foe, closer move, or combat");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: naval ok (sail=%d closer=%d combat=%d)\n",
+    sail_toward,
+    moved_closer,
+    combat_done
+  );
+  return 0;
+}
+
+int main(void) {
+  if (smoke_mid_hire_mil() != 0) {
+    return 1;
+  }
+  if (smoke_naval_war_hunt() != 0) {
+    return 1;
+  }
+  fprintf(stderr, "smoke_ai_euro_war: ok\n");
   return 0;
 }
