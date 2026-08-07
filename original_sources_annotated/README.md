@@ -61,7 +61,7 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
 | Confidence | known 139 · inferred 2238 · unknown 3 |
-| Purpose one-liners | 1465 / 2380 |
+| Purpose one-liners | 1575 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -70,11 +70,10 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Mid/high-value Layer B closed through
-`15eb` map/pedia draw and mid-size DOS platform helpers. Layer C closed through
-colony keyboard/mouse dispatchers, Indian raid `4d56_4528`, and colony sim
-ticks. Remaining backlog is mostly megaseg thunk/platform bulk plus small
-Europe/menu C crumbs.
+Purpose one-liners are **not** Layer A. Small UI helpers are purpose-closed.
+Layer C closed through Europe input, map menu mega-dispatch, and colony
+entry/assign crumbs. Remaining backlog is mostly megaseg thunk/platform bulk
+plus small platform crumbs and boot/BGM hops.
 
 ### Roadmap (committed order)
 
@@ -104,8 +103,9 @@ Europe/menu C crumbs.
      (18).
    - **Done:** map/pedia draw `15eb` (105 — all purpose-unknown closed);
      platform mid `275d`/`7314`/`124c`/`2047`/`7a05`/`7ada`/`7b08` (56).
+   - **Done:** small UI leftovers (68 — blit/cursor/RLE/splash/menu/tips).
    - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (megaseg bulk deferred; small UI/platform crumbs lower priority).
+     (platform crumbs; boot/BGM C; megaseg bulk deferred).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -119,8 +119,10 @@ Europe/menu C crumbs.
    - **Done:** colony keyboard/mouse `FUN_2f2b_6372` ∪ `FUN_2f2b_628a` (79);
      Indian raid `FUN_4d56_4528` excl (24); colony sim ticks
      `FUN_5952_035e` ∪ `FUN_364b_0688` excl (19).
+   - **Done:** Europe input ∪ colony assign/entry crumbs (19); map menu
+     `FUN_2b5a_2464` (23).
    - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     Europe input leftovers (~14) then map menu `2b5a_2464` (~23).
+     platform B crumbs (~59) or boot `75c2_2d46` / BGM `129f_0008` hops.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
