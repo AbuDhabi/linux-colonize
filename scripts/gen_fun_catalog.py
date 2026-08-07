@@ -274,6 +274,31 @@ def render_catalog(
     return "\n".join(lines) + "\n"
 
 
+def segment_rollups(
+    defs: list[dict], exe: str, seed: dict
+) -> tuple[dict[str, list[dict]], list[tuple[str, int]]]:
+    """Return by_seg map and sorted list of (seg, defs) still system-unknown."""
+    by_seg: dict[str, list[dict]] = defaultdict(list)
+    for row in defs:
+        by_seg[row["segment"]].append(row)
+    seg_meta = seed.get("segment_systems", {}).get(exe, {})
+    unknown: list[tuple[str, int]] = []
+    for seg, rows in by_seg.items():
+        dominant, _conf = dominant_system(rows, seg_meta.get(seg))
+        if dominant == "unknown":
+            unknown.append((seg, len(rows)))
+    unknown.sort(key=lambda kv: (-kv[1], kv[0]))
+    return by_seg, unknown
+
+
+def conf_counts(defs: list[dict]) -> tuple[int, int, int, int]:
+    known = sum(1 for r in defs if r["confidence"] == "known")
+    inferred = sum(1 for r in defs if r["confidence"] == "inferred")
+    unk = sum(1 for r in defs if r["confidence"] == "unknown")
+    sys_unk = sum(1 for r in defs if r["system"] == "unknown")
+    return known, inferred, unk, sys_unk
+
+
 def render_module_map(
     viceroy: list[dict],
     mapedit: list[dict],
@@ -290,7 +315,37 @@ def render_module_map(
     lines.append("")
     lines.append(
         "Confidence here is for the **segment cluster**, not every function. "
-        "Unlabeled segments stay `unknown` until a catalog peel (layer A) assigns a tag."
+        "Unlabeled segments stay `unknown` until a catalog peel (layer A) assigns a tag. "
+        "Function seeds may override a segment tag (e.g. `281f` thunks, `1427`→ai) — "
+        "that is intentional, not a bug."
+    )
+    lines.append("")
+
+    v_by, v_unk = segment_rollups(viceroy, "viceroy", seed)
+    m_by, m_unk = segment_rollups(mapedit, "mapedit", seed)
+    vk, vi, vu, vs = conf_counts(viceroy)
+    mk, mi, mu, ms = conf_counts(mapedit)
+    v_labeled = len(v_by) - len(v_unk)
+    m_labeled = len(m_by) - len(m_unk)
+
+    lines.append("## Progress")
+    lines.append("")
+    lines.append(
+        f"**VICEROY:** {len(viceroy)} funcs · confidence known={vk} "
+        f"inferred={vi} unknown={vu} · system unknown={vs} · "
+        f"segments {v_labeled} labeled / {len(v_unk)} unknown "
+        f"(of {len(v_by)})."
+    )
+    lines.append("")
+    if v_unk:
+        ids = " ".join(f"`{seg}`" for seg, _n in v_unk)
+        lines.append(f"Remaining unknown segments ({len(v_unk)}): {ids}")
+        lines.append("")
+    lines.append(
+        f"**MAPEDIT (parked):** {len(mapedit)} funcs · confidence known={mk} "
+        f"inferred={mi} unknown={mu} · system unknown={ms} · "
+        f"segments {m_labeled} labeled / {len(m_unk)} unknown "
+        f"(of {len(m_by)})."
     )
     lines.append("")
 

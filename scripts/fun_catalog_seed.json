@@ -917,19 +917,19 @@
       "FUN_4d56_0038": {
         "system": "ai",
         "purpose": "Small Indian AI helper; calls into 00e0 / map probes",
-        "confidence": "unknown",
+        "confidence": "inferred",
         "links": "docs/ai_transcription.md"
       },
       "FUN_4d56_00e0": {
         "system": "ai",
         "purpose": "Chains to 01e2 / 14fe",
-        "confidence": "unknown",
+        "confidence": "inferred",
         "links": "docs/ai_transcription.md"
       },
       "FUN_4d56_01e2": {
         "system": "ai",
         "purpose": "Thin wrapper to 14fe",
-        "confidence": "unknown",
+        "confidence": "inferred",
         "links": "docs/ai_transcription.md"
       },
       "FUN_4d56_14fe": {
@@ -971,13 +971,13 @@
       "FUN_4d56_3582": {
         "system": "ai",
         "purpose": "Small helper after 2820",
-        "confidence": "unknown",
+        "confidence": "inferred",
         "links": "docs/ai_transcription.md"
       },
       "FUN_4d56_417e": {
         "system": "ai",
         "purpose": "Mid-size Indian AI helper",
-        "confidence": "unknown",
+        "confidence": "inferred",
         "links": "docs/ai_transcription.md"
       },
       "FUN_4d56_4528": {
