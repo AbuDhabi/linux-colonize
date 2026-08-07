@@ -278,7 +278,7 @@ static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int c
 /*
  * Thin 5b66 case 7 economy stand-in: Pioneer/Hardy on own colony with tools
  * shortage adds +10 stock[TOOLS] (cap 100) once per act; trims tools_short /
- * urgency. Full wagon / hire / treasury matrix remains PARKED.
+ * urgency. Deeper wagon / hire / treasury matrix remains OPEN (unpark #4).
  */
 static int ai_euro_try_pioneer_tools_delivery(
   ColonizeTurnContext* ctx,
@@ -387,6 +387,83 @@ static void ai_euro_unit_inventory(ColonizeTurnContext* ctx, int nation_id) {
 
 /* --- 5d04 planning / hire ---------------------------------------------- */
 
+static int ai_euro_type_is_wagon_name(const char* name) {
+  if (!name) {
+    return 0;
+  }
+  return strstr(name, "Wagon") != NULL || strstr(name, "Supply Train") != NULL;
+}
+
+static int ai_euro_find_wagon_type(const ColonizeUnitPool* units) {
+  static const char* k_wagon[] = {"Wagon Train", "Supply Train", "Wagon"};
+  if (!units) {
+    return -1;
+  }
+  for (size_t i = 0; i < sizeof(k_wagon) / sizeof(k_wagon[0]); ++i) {
+    const int ty = units_find_type(units, k_wagon[i]);
+    if (ty >= 0) {
+      return ty;
+    }
+  }
+  return -1;
+}
+
+static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id) {
+  if (!units) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(units, u->type_index);
+    if (ty && ai_euro_type_is_wagon_name(ty->name)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* Stock +20 TOOLS on ship holds, else +15 to nearest own colony. Returns delivered. */
+static int ai_euro_tools_cargo_or_colony(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  if (!ctx || !ship) {
+    return 0;
+  }
+  int delivered = 0;
+  if (units_goods_hold_count(ctx->units, ship->id) > 0) {
+    delivered = units_load_goods(ctx->units, ship->id, COLONIZE_CARGO_TOOLS, 20);
+  }
+  if (delivered <= 0 && ctx->colonies) {
+    ColonizeColony* nearest = NULL;
+    int best_d = -1;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      const int d = abs(c->x - ship->x) + abs(c->y - ship->y);
+      if (best_d < 0 || d < best_d) {
+        nearest = c;
+        best_d = d;
+      }
+    }
+    if (nearest) {
+      int stock = nearest->stock[COLONIZE_CARGO_TOOLS] + 15;
+      if (stock > 100) {
+        stock = 100;
+      }
+      nearest->stock[COLONIZE_CARGO_TOOLS] = stock;
+      delivered = 15;
+    }
+  }
+  return delivered;
+}
+
 static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -398,11 +475,11 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   nat->gold += bump;
 
   /*
-   * NEW WORLD wagon / mid-game hire matrix — PARKED (DOS 5d04 after early dock).
-   * Thin mid-hire: Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon;
-   * with colonies>=2 also Artillery (Cannon fallback) when type exists — after Soldier
-   * already aboard, or every other hire turn. Thin tools-cargo stand-in below when
-   * tools_short > 40 (ship holds +20 or nearest-colony +15). Full 5d04 matrix PARKED.
+   * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
+   * Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon;
+   * colonies>=2 also Artillery when type exists. Peace: tools_short>30 + Wagon
+   * type → hire wagon once; else tools_short>20 prefer Pioneer/Hardy + tools
+   * cargo stand-in (ship +20 / colony +15). Deeper matrix OPEN (unpark #4).
    */
   const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
   if (colonies >= 6) {
@@ -471,6 +548,24 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
       hire_ty = art_ty; /* mil type missing — Artillery still a war option */
     }
   }
+  /*
+   * Peace thin wagon / tools matrix: Wagon once when tools_short>30; else
+   * Pioneer/Hardy when tools_short>20; else 5c3c profession_demand → Pioneer.
+   */
+  if (hire_ty < 0 && inv && !at_war) {
+    if (inv->tools_short > 30 && !ai_euro_nation_has_wagon(ctx->units, nation_id)) {
+      const int wagon_ty = ai_euro_find_wagon_type(ctx->units);
+      if (wagon_ty >= 0) {
+        hire_ty = wagon_ty;
+      }
+    }
+    if (hire_ty < 0 && inv->tools_short > 20) {
+      hire_ty = units_find_type(ctx->units, "Hardy Pioneer");
+      if (hire_ty < 0) {
+        hire_ty = units_find_type(ctx->units, "Pioneer");
+      }
+    }
+  }
   /* Peace / fallback: 5c3c-shaped profession demand → Pioneer, else Free Colonist. */
   if (hire_ty < 0 && inv) {
     for (int p = 0; p < 16; ++p) {
@@ -505,6 +600,22 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   pax->nation_id = nation_id;
+
+  const ColonizeUnitType* hired = units_type(ctx->units, hire_ty);
+  const int hired_wagon = hired && ai_euro_type_is_wagon_name(hired->name);
+  const int hired_pioneer =
+    hired &&
+    (strstr(hired->name, "Pioneer") != NULL || strstr(hired->name, "Hardy") != NULL);
+
+  /*
+   * Wagon hire: load TOOLS onto the wagon before boarding (aboard units are
+   * off-map so units_is_transport would fail). Else Pioneer tools ride ship.
+   */
+  int wagon_loaded = 0;
+  if (inv && inv->tools_short > 30 && hired_wagon) {
+    wagon_loaded = units_load_goods(ctx->units, uid, COLONIZE_CARGO_TOOLS, 20);
+  }
+
   if (!units_board_stacked(ctx->units, uid, ship->id)) {
     units_despawn(ctx->units, uid);
     return;
@@ -515,53 +626,28 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /*
-   * Thin NEW WORLD wagon / tools-cargo hire stand-in (full 5d04 wagon matrix PARKED).
-   * When tools_short > 40 and hired Pioneer/Hardy: ensure passenger tools; stock +20
-   * TOOLS onto Europe ship goods holds if transport slots exist; else +15 tools to
-   * nearest own colony (wagon delivery without a wagon unit).
+   * Thin tools-cargo stand-in (threshold lowered from >40 to >20). Pioneer/Hardy:
+   * equip tools + ship hold +20 or nearest-colony +15. Wagon already loaded above;
+   * if wagon load failed, fall back to ship/colony delivery.
    */
-  if (inv && inv->tools_short > 40) {
-    const ColonizeUnitType* hired = units_type(ctx->units, hire_ty);
-    const int hired_pioneer =
-      hired &&
-      (strstr(hired->name, "Pioneer") != NULL || strstr(hired->name, "Hardy") != NULL);
-    if (hired_pioneer) {
+  if (inv && inv->tools_short > 20) {
+    int delivered = 0;
+    if (hired_wagon) {
+      delivered = wagon_loaded;
+      if (delivered <= 0) {
+        delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
+      }
+    } else if (hired_pioneer) {
       if (pax->tools < UNITS_EQUIP_TOOLS_STEP) {
         pax->tools = UNITS_EQUIP_TOOLS_STEP;
       }
-      int delivered = 0;
-      if (units_goods_hold_count(ctx->units, ship->id) > 0) {
-        delivered = units_load_goods(ctx->units, ship->id, COLONIZE_CARGO_TOOLS, 20);
-      }
-      if (delivered <= 0 && ctx->colonies) {
-        ColonizeColony* nearest = NULL;
-        int best_d = -1;
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          ColonizeColony* c = &ctx->colonies->colonies[i];
-          if (!c->active || c->nation_id != nation_id) {
-            continue;
-          }
-          const int d = abs(c->x - ship->x) + abs(c->y - ship->y);
-          if (best_d < 0 || d < best_d) {
-            nearest = c;
-            best_d = d;
-          }
-        }
-        if (nearest) {
-          int stock = nearest->stock[COLONIZE_CARGO_TOOLS] + 15;
-          if (stock > 100) {
-            stock = 100;
-          }
-          nearest->stock[COLONIZE_CARGO_TOOLS] = stock;
-          delivered = 15;
-        }
-      }
-      if (delivered > 0) {
-        if (inv->tools_short > delivered) {
-          inv->tools_short -= delivered;
-        } else {
-          inv->tools_short = 0;
-        }
+      delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
+    }
+    if (delivered > 0) {
+      if (inv->tools_short > delivered) {
+        inv->tools_short -= delivered;
+      } else {
+        inv->tools_short = 0;
       }
     }
   }
@@ -1472,8 +1558,8 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
 }
 
 /*
- * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire/economy PARKED
- * (thin Pioneer tools-delivery stand-in only; full wagon matrix in 5d04).
+ * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire economy thin
+ * (Pioneer tools-delivery here; wagon/tools dock hire lives in 5d04 planning).
  */
 static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !u || !u->active || u->moves_left <= 0 || u->aboard_ship_id >= 0) {
@@ -1493,8 +1579,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /* Case 7 Europe hire / full wagon economy — PARKED (5d04). Thin tools
-   * delivery runs on land Pioneer/Hardy at own colony (below). */
+  /* Case 7 Europe hire / full wagon economy — OPEN deepen in 5d04 planning.
+   * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
 
   if (is_ship) {
     if (ai_euro_in_europe(u->x, u->y)) {
@@ -1672,7 +1758,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Thin tools delivery (case 7 economy stand-in): idle/arriving Pioneer or
    * Hardy on own colony tile with tools_short / stock<20 → +10 TOOLS.
    * Prefer LABOR/COLONY arrive; also covers idle-on-colony before join.
-   * Full wagon matrix PARKED.
+   * Deeper case-7 / 5d04 tails remain OPEN.
    */
   {
     const int is_pioneer =

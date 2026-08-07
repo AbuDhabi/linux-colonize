@@ -27,6 +27,12 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
+/* Thin 102a/1092 status chrome (Contact/King pattern): call existing
+ * declare/make_peace then write ctx->status when human is involved.
+ * AI callers keep using declare_war / make_peace without status. */
+void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
+void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
+
 /* FUN_5bfb_0000/00f8/312e-shaped military score (unpark #5 deepen). */
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
 
@@ -36,7 +42,7 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
  * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
- * at-war near-parity → make_peace (fuller 153e OPEN — unpark #5). */
+ * at-war near-parity → make_peace_ctx (status when human; 102a/1092 chrome). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Thin FA 3f41 goodwill gift: 15g from→to + both treaty timers +2 when
@@ -59,7 +65,7 @@ void ai_diplo_indian_relation_delta(
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 /* Thin stand-in: at war with Indian nation when relation < 50.
- * Fuller Indian×Euro 15b3 matrix OPEN (unpark #5). */
+ * Fuller Indian×Euro 15b3 matrix OPEN (unpark #5); sticky unknown26[8]. */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 #endif

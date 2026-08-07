@@ -1,5 +1,5 @@
 /* Smoke: King/REF SoL, tax→REF, boycott audience, SoL chrome, declare+160a/1528/congress,
- * MoW cargo, 10f0, 2244 merc hire status, 1eca. */
+ * MoW cargo, 10f0, 2244 merc hire status, 1eca widen (Regular + SoL 40–50 vet). */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -107,7 +107,7 @@ int main(void) {
 
   ColonizeUnitPool units;
   units_reset(&units);
-  units.type_count = 7;
+  units.type_count = 8;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 1;
   units.types[0].attack = 3;
@@ -131,10 +131,16 @@ int main(void) {
   units.types[6].movement = 4;
   units.types[6].attack = 5;
   units.types[6].defense = 5;
+  snprintf(units.types[7].name, sizeof(units.types[7].name), "Veteran Soldier");
+  units.types[7].movement = 1;
+  units.types[7].attack = 3;
+  units.types[7].defense = 3;
+  const int ty_regular = 0;
   const int ty_soldier = 4;
   const int ty_dragoon = 2;
   const int ty_cont_army = 5;
   const int ty_cont_cav = 6;
+  const int ty_vet_soldier = 7;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
@@ -456,29 +462,34 @@ int main(void) {
   }
 
   /*
-   * Thin 1eca Continental promote (deep colony-SoL table PARKED):
-   * WoI + SoL>50 → human Soldier → Continental Army; Dragoon → Continental Cavalry
-   * when those types exist (via war_act path).
+   * Thin 1eca widen (deep colony-SoL table PARKED):
+   * WoI + SoL>50 → Soldier → Continental Army; Dragoon → Continental Cavalry;
+   * Regular → Veteran Soldier (Continental Army fallback if no vet type).
    */
   colonies.colonies[0].nation_id = 0;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   const int sid = units_spawn_allow_stack(&units, ty_soldier, 6, 5);
   const int did = units_spawn_allow_stack(&units, ty_dragoon, 7, 5);
-  if (sid < 0 || did < 0) {
-    return fail("1eca setup should spawn human Soldier + Dragoon");
+  const int rid = units_spawn_allow_stack(&units, ty_regular, 8, 5);
+  if (sid < 0 || did < 0 || rid < 0) {
+    return fail("1eca setup should spawn human Soldier + Dragoon + Regular");
   }
   {
     ColonizeUnit* su = units_get(&units, sid);
     ColonizeUnit* du = units_get(&units, did);
-    if (!su || !du) {
+    ColonizeUnit* ru = units_get(&units, rid);
+    if (!su || !du || !ru) {
       return fail("1eca setup unit lookup");
     }
     su->nation_id = 0;
     du->nation_id = 0;
+    ru->nation_id = 0;
   }
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid);
     const ColonizeUnit* du = units_get_const(&units, did);
+    const ColonizeUnit* ru = units_get_const(&units, rid);
     if (!su || !su->active || su->type_index != ty_cont_army) {
       fprintf(stderr, "smoke_ai_king: Soldier type after 1eca: %d (want %d)\n",
               su ? su->type_index : -1, ty_cont_army);
@@ -488,6 +499,57 @@ int main(void) {
       fprintf(stderr, "smoke_ai_king: Dragoon type after 1eca: %d (want %d)\n",
               du ? du->type_index : -1, ty_cont_cav);
       return fail("1eca should promote Dragoon → Continental Cavalry");
+    }
+    if (!ru || !ru->active || ru->type_index != ty_vet_soldier) {
+      fprintf(stderr, "smoke_ai_king: Regular type after 1eca: %d (want %d)\n",
+              ru ? ru->type_index : -1, ty_vet_soldier);
+      return fail("1eca SoL>50 should promote Regular → Veteran Soldier");
+    }
+  }
+
+  /*
+   * SoL 40..50 band: Soldier → Veteran Soldier only (no Continental).
+   * Regular stays Regular. WoI already declared.
+   */
+  col1.colony[0].rebel_dividend = 45;
+  col1.colony[0].rebel_divisor = 100;
+  {
+    const int sol45w = ai_king_sol_percent(&ctx, 0);
+    if (sol45w != 45) {
+      fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 45) for mid-band 1eca\n",
+              sol45w);
+      return fail("1eca mid-band SoL setup");
+    }
+  }
+  colonies.colonies[0].nation_id = 0;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  const int sid2 = units_spawn_allow_stack(&units, ty_soldier, 9, 5);
+  const int rid2 = units_spawn_allow_stack(&units, ty_regular, 10, 5);
+  if (sid2 < 0 || rid2 < 0) {
+    return fail("1eca mid-band setup should spawn Soldier + Regular");
+  }
+  {
+    ColonizeUnit* su = units_get(&units, sid2);
+    ColonizeUnit* ru = units_get(&units, rid2);
+    if (!su || !ru) {
+      return fail("1eca mid-band unit lookup");
+    }
+    su->nation_id = 0;
+    ru->nation_id = 0;
+  }
+  ai_king_nation_turn(&ctx);
+  {
+    const ColonizeUnit* su = units_get_const(&units, sid2);
+    const ColonizeUnit* ru = units_get_const(&units, rid2);
+    if (!su || !su->active || su->type_index != ty_vet_soldier) {
+      fprintf(stderr, "smoke_ai_king: Soldier type SoL45: %d (want %d)\n",
+              su ? su->type_index : -1, ty_vet_soldier);
+      return fail("1eca SoL 40-50 should promote Soldier → Veteran Soldier");
+    }
+    if (!ru || !ru->active || ru->type_index != ty_regular) {
+      fprintf(stderr, "smoke_ai_king: Regular type SoL45: %d (want %d)\n",
+              ru ? ru->type_index : -1, ty_regular);
+      return fail("1eca SoL 40-50 should leave Regular unpromoted");
     }
   }
 
@@ -501,7 +563,7 @@ int main(void) {
   free(map.layer3);
   col1_save_free(&col1);
   fprintf(stderr,
-          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d 1eca=1)\n",
+          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d 1eca=widen)\n",
           sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;
 }

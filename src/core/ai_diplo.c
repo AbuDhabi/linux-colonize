@@ -3,6 +3,7 @@
 #include "core/colony.h"
 #include "core/units.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,11 +13,13 @@
  *
  * nation[a].unknown26[0..3] = treaty timers toward peer
  * nation[a].unknown26[4..7] = diplo flag byte toward peer (15b3 stand-in)
+ * nation[a].unknown26[8]   = Indian hostility sticky (1 once indian_at_war)
  * Exact DS −0x77c4 offset PARKED. Indian×Euro full 15b3 matrix PORT DEBT
  * (thin stand-ins: peaceful drift + war relation hit on Euro×Euro declare).
  */
 
 #define AI_DIPLO_FLAG_BASE 4
+#define AI_DIPLO_INDIAN_HOSTILE_STICKY 8
 
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
  * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
@@ -573,6 +576,56 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   }
 }
 
+/* Rival label for thin status: player.country_name or "rival". */
+static const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
+  if (!col1 || nation < 0 || nation >= 4) {
+    return "rival";
+  }
+  if (col1->player[nation].country_name[0] != '\0') {
+    return col1->player[nation].country_name;
+  }
+  return "rival";
+}
+
+/*
+ * Thin 102a/1092 status when human is a party (Contact/King ctx->status pattern).
+ * Full multi-line dialog widgets PARKED.
+ */
+static void ai_diplo_status_human_pair(
+  ColonizeTurnContext* ctx,
+  int nation_a,
+  int nation_b,
+  const char* fmt
+) {
+  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0 || !fmt) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
+  int rival = -1;
+  if (nation_a == human) {
+    rival = nation_b;
+  } else if (nation_b == human) {
+    rival = nation_a;
+  } else {
+    return;
+  }
+  snprintf(ctx->status, ctx->status_size, fmt, ai_diplo_rival_name(ctx->col1, rival));
+}
+
+void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  if (!ctx || !ctx->col1) {
+    return;
+  }
+  const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
+  ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
+  if (!already) {
+    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "War declared with %s");
+  }
+}
+
 /*
  * Thin make-peace (not full 153e peace dialog / 102a/1092):
  * clear WAR both ways, set PEACE|MET, lift Furs embargo if no Euro wars remain.
@@ -586,6 +639,17 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
+}
+
+void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  if (!ctx || !ctx->col1) {
+    return;
+  }
+  const int was_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
+  ai_diplo_make_peace(ctx->col1, nation_a, nation_b);
+  if (was_war) {
+    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Peace concluded with %s");
+  }
 }
 
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -693,11 +757,11 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   }
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
-   *  1 skip human; at-war → upkeep + privateer prize; near-parity → make_peace
+   *  1 skip human; at-war → upkeep + privateer prize; near-parity → make_peace_ctx
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
    *  4 13b0 form/break + thin ally aid / FA gift (FA 3f41 PARKED)
-   *  5 declare_war → thin 153e gold+tax (full body / dialogs / 12d0 PARKED)
+   *  5 declare_war_ctx → thin 153e gold+tax + human status (102a/1092 chrome)
    *  + thin Indian harassment if any relation_by_indian < 50
    */
   {
@@ -710,6 +774,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     }
     if (hostile) {
       ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+      /* Thin sticky: unknown26[8] once when any indian_at_war (matrix deepen). */
+      if (nat->unknown26[AI_DIPLO_INDIAN_HOSTILE_STICKY] == 0) {
+        nat->unknown26[AI_DIPLO_INDIAN_HOSTILE_STICKY] = 1;
+      }
       if (nat->gold > AI_DIPLO_INDIAN_HARASS_GOLD) {
         nat->gold -= AI_DIPLO_INDIAN_HARASS_GOLD;
       } else {
@@ -742,7 +810,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        */
       if (self > 10 && other > 10 && abs(self - other) < 15) {
         if (ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
-          ai_diplo_make_peace(ctx->col1, nation_id, peer);
+          ai_diplo_make_peace_ctx(ctx, nation_id, peer);
         }
       }
       continue;
@@ -768,7 +836,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     /* 10ec war eligibility. */
     if (self > other * 2 + 20 && self > 30) {
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
-        ai_diplo_declare_war(ctx->col1, nation_id, peer);
+        ai_diplo_declare_war_ctx(ctx, nation_id, peer);
         /* thin 153e sting inside declare_war; full body / 12d0 / dialogs PARKED */
       }
       continue;

@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 /*
  * Rough structural FF election (FUN_4345_0a22 / 0982 / 0342 stand-ins).
@@ -12,12 +13,18 @@
  * boycott bit (1<<1) and Furs embargo bit (1<<4) on boycott_bitmap;
  * for the human nation also clear head.unknown46[2] (king tax-refuse).
  *
- * Deeper hooks (ctx map/colonies/units when present):
+ * Deeper hooks (ctx map/colonies/units/europe/col1 when present):
+ *   Smith (0)     — gold + tools stock on owned colonies
  *   Magellan (5)  — +1 moves_left on nation's sea units (else gold)
  *   Coronado (6)  — map_reveal_radius 2 around owned colonies (else gold)
  *   de Soto (7)   — map_reveal_radius 1 around owned land units (else crosses)
  *   Hudson (8)    — +tools/+furs stock on owned colonies (else gold)
+ *   Washington (11)— Soldier→Veteran/Continental promote + REF pool −1
+ *   Revere (12)   — +25 tools stock on owned colonies (else gold)
+ *   Drake (13)    — +1 moves_left on nation's sea units (else gold)
  *   Jones (14)    — free Frigate (Man-O-War fallback) near coast (else gold)
+ *   Bolivar (18)  — liberty bells + Col1 rebel_dividend SoL bump
+ *   Brewster (20) — crosses + Free Colonist on Europe dock (else crosses)
  * Remaining indices keep tiny gold/crosses/bells/tax stand-ins.
  * Wiki/decomp polish still OPEN (unpark #3); Congress debate UI PARKED.
  */
@@ -32,6 +39,13 @@
 #define FF_CORONADO_REVEAL_RADIUS 2
 #define FF_DESOTO_REVEAL_RADIUS 1
 #define FF_HUDSON_STOCK_BUMP 50
+#define FF_REVERE_TOOLS_BUMP 25
+#define FF_SMITH_TOOLS_BUMP 25
+#define FF_SMITH_GOLD 25u
+#define FF_BREWSTER_CROSSES 15u
+#define FF_BOLIVAR_BELLS 35u
+#define FF_BOLIVAR_SOL_PERCENT 20u
+#define FF_DRAKE_GOLD_FALLBACK 75u
 
 unsigned founding_fathers_bells_needed(unsigned elected_count) {
   /* First at 40, second at 80, … — linear stand-in for FUN_4345_0982. */
@@ -124,8 +138,25 @@ static void bump_stock(ColonizeColony* col, int cargo, int amount) {
   }
 }
 
-/* Magellan: one-shot +1 moves_left on nation's sea units. Returns bumped count. */
-static int effect_magellan_sea_moves(ColonizeUnitPool* units, int nation_id) {
+/* Tools stock on owned colonies. Returns colonies bumped. */
+static int effect_tools_stock(ColonizeColonyPool* colonies, int nation_id, int amount) {
+  if (!colonies || amount <= 0) {
+    return 0;
+  }
+  int touched = 0;
+  for (int i = 0; i < colonies->colony_count; ++i) {
+    ColonizeColony* col = &colonies->colonies[i];
+    if (!col->active || col->nation_id != nation_id) {
+      continue;
+    }
+    bump_stock(col, COLONIZE_CARGO_TOOLS, amount);
+    touched++;
+  }
+  return touched;
+}
+
+/* Magellan / Drake: one-shot +1 moves_left on nation's sea units. */
+static int effect_sea_moves_bump(ColonizeUnitPool* units, int nation_id) {
   if (!units) {
     return 0;
   }
@@ -204,6 +235,86 @@ static int effect_hudson_stock(ColonizeColonyPool* colonies, int nation_id) {
     }
     bump_stock(col, COLONIZE_CARGO_TOOLS, FF_HUDSON_STOCK_BUMP);
     bump_stock(col, COLONIZE_CARGO_FURS, FF_HUDSON_STOCK_BUMP);
+    touched++;
+  }
+  return touched;
+}
+
+/*
+ * Washington: promote own Soldier* → Continental Army / Cont. Army /
+ * Veteran Soldier (king 1eca name-swap stand-in). Returns promote count.
+ */
+static int effect_washington_promote(ColonizeUnitPool* units, int nation_id) {
+  if (!units) {
+    return 0;
+  }
+  int army = units_find_type(units, "Continental Army");
+  if (army < 0) {
+    army = units_find_type(units, "Cont. Army");
+  }
+  if (army < 0) {
+    army = units_find_type(units, "Veteran Soldier");
+  }
+  if (army < 0) {
+    return 0;
+  }
+  int promoted = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const char* name = units_display_name(units, u);
+    if (!name || strstr(name, "Veteran") || strstr(name, "Continental")) {
+      continue;
+    }
+    if (!strstr(name, "Soldier")) {
+      continue;
+    }
+    u->type_index = army;
+    promoted++;
+  }
+  return promoted;
+}
+
+/* Brewster: Free Colonist onto Europe docks when room. */
+static bool effect_brewster_dock(EuropeScreen* europe) {
+  if (!europe || europe->dock_count >= EUROPE_DOCK_MAX) {
+    return false;
+  }
+  EuropeDockImmigrant* d = &europe->dock[europe->dock_count++];
+  memset(d, 0, sizeof(*d));
+  snprintf(d->name, sizeof(d->name), "Free Colonist");
+  d->profession = -1;
+  d->present = true;
+  d->sentry = true;
+  return true;
+}
+
+/* Bolivar: +20% SoL-ish via Col1 rebel_dividend on owned colonies. */
+static int effect_bolivar_rebel(ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || !col1->colony || col1->head.colony_count == 0) {
+    return 0;
+  }
+  int touched = 0;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->nation_id != nation_id) {
+      continue;
+    }
+    const uint32_t div = c->rebel_divisor > 0 ? c->rebel_divisor : 100u;
+    uint32_t bump = (div * FF_BOLIVAR_SOL_PERCENT) / 100u;
+    if (bump == 0) {
+      bump = 1;
+    }
+    if (c->rebel_dividend < 0xffffffffu - bump) {
+      c->rebel_dividend += bump;
+    } else {
+      c->rebel_dividend = 0xffffffffu;
+    }
+    if (c->rebel_dividend > div) {
+      c->rebel_dividend = div;
+    }
     touched++;
   }
   return touched;
@@ -314,8 +425,9 @@ static void apply_effect(
   ColonizeUnitPool* units = ctx ? ctx->units : NULL;
 
   switch (ff_index) {
-    case 0: /* Adam Smith — factory / industry stand-in */
-      bump_gold(nat, europe, 25u);
+    case 0: /* Adam Smith — factory / industry: gold + tools stock */
+      bump_gold(nat, europe, FF_SMITH_GOLD);
+      (void)effect_tools_stock(colonies, nation_id, FF_SMITH_TOOLS_BUMP);
       break;
     case 1: /* Jakob Fugger — boycott forgive stand-in */
       bump_gold(nat, europe, 50u);
@@ -335,7 +447,7 @@ static void apply_effect(
       cut_tax(nat, europe, 1u);
       break;
     case 5: /* Ferdinand Magellan — naval +1 moves (permanent type bonus OPEN) */
-      if (effect_magellan_sea_moves(units, nation_id) <= 0) {
+      if (effect_sea_moves_bump(units, nation_id) <= 0) {
         bump_gold(nat, europe, 35u);
       }
       break;
@@ -360,16 +472,21 @@ static void apply_effect(
     case 10: /* Hernan Cortes — conquest plunder stand-in */
       bump_gold(nat, europe, 100u);
       break;
-    case 11: /* George Washington — veteran / REF pressure stand-in */
+    case 11: /* George Washington — Soldier promote + REF pressure */
+      (void)effect_washington_promote(units, nation_id);
       if (col1 && col1->head.expeditionary_force[0] > 0) {
         col1->head.expeditionary_force[0]--;
       }
       break;
-    case 12: /* Paul Revere — fort / tools stand-in via gold */
-      bump_gold(nat, europe, 25u);
+    case 12: /* Paul Revere — tools stock (musket defense stand-in) */
+      if (effect_tools_stock(colonies, nation_id, FF_REVERE_TOOLS_BUMP) <= 0) {
+        bump_gold(nat, europe, 25u);
+      }
       break;
-    case 13: /* Francis Drake — privateer plunder stand-in */
-      bump_gold(nat, europe, 75u);
+    case 13: /* Francis Drake — privateer: sea moves bump (else gold) */
+      if (effect_sea_moves_bump(units, nation_id) <= 0) {
+        bump_gold(nat, europe, FF_DRAKE_GOLD_FALLBACK);
+      }
       break;
     case 14: /* John Paul Jones — free Frigate / MoW */
       if (!effect_jones_frigate(map, colonies, units, nation_id)) {
@@ -385,14 +502,16 @@ static void apply_effect(
     case 17: /* Thomas Paine — tax-weighted bells stand-in */
       bump_bells(nat, europe, (uint16_t)nat->tax_rate);
       break;
-    case 18: /* Simon Bolivar — SoL / bells stand-in */
-      bump_bells(nat, europe, 20u);
+    case 18: /* Simon Bolivar — SoL / bells + Col1 rebel_dividend */
+      bump_bells(nat, europe, FF_BOLIVAR_BELLS);
+      (void)effect_bolivar_rebel(col1, nation_id);
       break;
     case 19: /* Benjamin Franklin — diplomacy / tax ease stand-in */
       cut_tax(nat, europe, 2u);
       break;
-    case 20: /* William Brewster — immigration help stand-in */
-      bump_crosses(nat, europe, 8u);
+    case 20: /* William Brewster — immigration: crosses + dock colonist */
+      bump_crosses(nat, europe, FF_BREWSTER_CROSSES);
+      (void)effect_brewster_dock(europe);
       break;
     case 21: /* William Penn — crosses / goodwill stand-in */
       bump_crosses(nat, europe, 5u);

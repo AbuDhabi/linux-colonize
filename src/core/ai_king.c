@@ -651,8 +651,8 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
 
 /*
  * FUN_43f7_2022 war act + 1eca promote.
- * Move/combat/capture; Continental promote when SoL>50; 10f0 intervene arm;
- * thin 2244 merc auto-accept.
+ * Move/combat/capture; 1eca SoL bands (40–50 vet / >50 Continental+Regular);
+ * 10f0 intervene arm; thin 2244 merc auto-accept.
  */
 static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
@@ -716,40 +716,89 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   }
 
   /*
-   * Thin 1eca Continental promote when nation SoL>50:
-   *   Soldier* → Continental Army / Cont. Army / Veteran Soldier
-   *   Dragoon|Cavalry* → Continental Cavalry / Cont. Cav. / Veteran Dragoon
-   * Skip names already Veteran/Continental. Deep colony-SoL/count table PARKED.
+   * Thin 1eca promote (deep colony-SoL/count table PARKED):
+   *   SoL>50: Soldier* → Continental Army / Cont. Army / Veteran Soldier
+   *           Dragoon|Cavalry* → Continental Cavalry / Cont. Cav. / Veteran Dragoon
+   *           Regular* → Veteran Soldier / Continental Army (fallback)
+   *   SoL 40..50: Soldier* → Veteran Soldier only (if type exists; no Continental)
+   * Skip names already Veteran/Continental.
+   * Note: armed Regulars often *display* as "Soldier" — classify Regular by type name.
    */
-  if (ai_king_sol_percent(ctx, ctx->human_nation) > 50) {
-    int army = units_find_type(ctx->units, "Continental Army");
-    if (army < 0) {
-      army = units_find_type(ctx->units, "Cont. Army");
-    }
-    if (army < 0) {
-      army = units_find_type(ctx->units, "Veteran Soldier");
-    }
-    int cav = units_find_type(ctx->units, "Continental Cavalry");
-    if (cav < 0) {
-      cav = units_find_type(ctx->units, "Cont. Cav.");
-    }
-    if (cav < 0) {
-      cav = units_find_type(ctx->units, "Veteran Dragoon");
-    }
-    if (army >= 0 || cav >= 0) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != ctx->human_nation) {
-          continue;
+  {
+    const int sol_p = ai_king_sol_percent(ctx, ctx->human_nation);
+    if (sol_p > 50) {
+      int army = units_find_type(ctx->units, "Continental Army");
+      if (army < 0) {
+        army = units_find_type(ctx->units, "Cont. Army");
+      }
+      if (army < 0) {
+        army = units_find_type(ctx->units, "Veteran Soldier");
+      }
+      int cav = units_find_type(ctx->units, "Continental Cavalry");
+      if (cav < 0) {
+        cav = units_find_type(ctx->units, "Cont. Cav.");
+      }
+      if (cav < 0) {
+        cav = units_find_type(ctx->units, "Veteran Dragoon");
+      }
+      int regular_tgt = units_find_type(ctx->units, "Veteran Soldier");
+      if (regular_tgt < 0) {
+        regular_tgt = units_find_type(ctx->units, "Continental Army");
+      }
+      if (regular_tgt < 0) {
+        regular_tgt = units_find_type(ctx->units, "Cont. Army");
+      }
+      if (army >= 0 || cav >= 0 || regular_tgt >= 0) {
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          ColonizeUnit* u = &ctx->units->units[i];
+          if (!u->active || u->nation_id != ctx->human_nation) {
+            continue;
+          }
+          const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+          const char* tname = ut ? ut->name : NULL;
+          const char* name = units_display_name(ctx->units, u);
+          if ((name && (strstr(name, "Veteran") || strstr(name, "Continental"))) ||
+              (tname && (strstr(tname, "Veteran") || strstr(tname, "Continental")))) {
+            continue;
+          }
+          const int is_regular = (tname && strstr(tname, "Regular") != NULL);
+          if (is_regular) {
+            if (regular_tgt >= 0) {
+              u->type_index = regular_tgt;
+            }
+          } else if (army >= 0 &&
+                     ((name && strstr(name, "Soldier")) ||
+                      (tname && strstr(tname, "Soldier")))) {
+            u->type_index = army;
+          } else if (cav >= 0 &&
+                     ((name && (strstr(name, "Dragoon") || strstr(name, "Cavalry"))) ||
+                      (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))))) {
+            u->type_index = cav;
+          }
         }
-        const char* name = units_display_name(ctx->units, u);
-        if (!name || strstr(name, "Veteran") || strstr(name, "Continental")) {
-          continue;
-        }
-        if (army >= 0 && strstr(name, "Soldier")) {
-          u->type_index = army;
-        } else if (cav >= 0 && (strstr(name, "Dragoon") || strstr(name, "Cavalry"))) {
-          u->type_index = cav;
+      }
+    } else if (sol_p >= 40) {
+      const int vet = units_find_type(ctx->units, "Veteran Soldier");
+      if (vet >= 0) {
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          ColonizeUnit* u = &ctx->units->units[i];
+          if (!u->active || u->nation_id != ctx->human_nation) {
+            continue;
+          }
+          const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+          const char* tname = ut ? ut->name : NULL;
+          const char* name = units_display_name(ctx->units, u);
+          if ((name && (strstr(name, "Veteran") || strstr(name, "Continental"))) ||
+              (tname && (strstr(tname, "Veteran") || strstr(tname, "Continental")))) {
+            continue;
+          }
+          /* Mid-band: Soldier type (or Soldier display); not Regular type. */
+          if (tname && strstr(tname, "Regular")) {
+            continue;
+          }
+          if ((name && strstr(name, "Soldier")) || (tname && strstr(tname, "Soldier"))) {
+            u->type_index = vet;
+          }
         }
       }
     }
