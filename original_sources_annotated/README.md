@@ -45,11 +45,11 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **C — Call-tree from known entry** | From one known entry (`FUN_684c_08c0`, `FUN_521d_6d8e`, turn EOT, …), label direct callees one hop | Entry’s 1-hop neighborhood catalogued |
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
-Layer A through batch ten: VICEROY ≥3 complete; most 2-def stubs labeled
-(batch ten). **MAPEDIT is parked** (no new labels this track) — ≥4 already
-exhausted (`1297`/`1ed0`/`2115`/`2309`). VICEROY leftovers are mostly 1-def
-soup plus unclear `205f`. Next: remaining VICEROY 1-def stubs / `205f`, or
-switch to Layer B/C call-trees. AI port roadmap stays in
+Layer A through batch eleven: VICEROY ≥3 and most 2-def stubs done; clear
+1-def VGA/DOS/BIOS/string/blit helpers labeled (batch eleven). **MAPEDIT is
+parked** (no new labels this track). VICEROY leftovers are residual 1-def
+soup (~27) plus unclear `205f`. Next: residual soup / `205f`, or switch to
+Layer B/C call-trees. AI port roadmap stays in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md); the catalog only
 mirrors status.
 

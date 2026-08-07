@@ -551,11 +551,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1acb_0056` | 15095 | 55 | ui | unknown | inferred |  |
 | `FUN_1acb_011a` | 15150 | 20 | ui | unknown | inferred |  |
 
-### Segment `1ade` (1 defs) — unknown
+### Segment `1ade` (1 defs) — ui — VGA vsync + DAC palette write
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1ade_0004` | 15170 | 42 | unknown | unknown | unknown |  |
+| `FUN_1ade_0004` | 15170 | 42 | ui | Wait VGA retrace then program DAC RGB palette via 0x3c8/0x3c9 | known |  |
 
 ### Segment `1ae3` (2 defs) — platform — Stack clear + BIOS INT16 key-ready
 
@@ -590,11 +590,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1b01_000e` | 16259 | 114 | unknown | unknown | unknown |  |
 
-### Segment `1b22` (1 defs) — unknown
+### Segment `1b22` (1 defs) — platform — DOS file-exists probe (INT21 3D/3E) + INT24 wrap
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b22_0022` | 16373 | 55 | unknown | unknown | unknown |  |
+| `FUN_1b22_0022` | 16373 | 55 | platform | DOS file-exists probe (INT21 3D/3E) with INT24 critical-error handler wrap | known |  |
 
 ### Segment `1b2c` (2 defs) — platform — DOS char-stream string get / put
 
@@ -610,17 +610,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1b32_000e` | 16473 | 18 | platform | unknown | inferred |  |
 | `FUN_1b32_005c` | 16491 | 23 | platform | unknown | inferred |  |
 
-### Segment `1b4e` (1 defs) — unknown
+### Segment `1b4e` (1 defs) — platform — Path join: cwd + \ + name
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b4e_0004` | 16514 | 25 | unknown | unknown | unknown |  |
+| `FUN_1b4e_0004` | 16514 | 25 | platform | unknown | inferred |  |
 
-### Segment `1b57` (1 defs) — unknown
+### Segment `1b57` (1 defs) — platform — Ltrim spaces/tabs then strcpy
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b57_0002` | 16539 | 23 | unknown | unknown | unknown |  |
+| `FUN_1b57_0002` | 16539 | 23 | platform | unknown | inferred |  |
 
 ### Segment `1b5e` (1 defs) — unknown
 
@@ -641,71 +641,71 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1b78_0000` | 16655 | 52 | unknown | unknown | unknown |  |
 
-### Segment `1b8b` (1 defs) — unknown
+### Segment `1b8b` (1 defs) — platform — Set BIOS equipment video-mode bits (40:10)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b8b_0004` | 16707 | 16 | unknown | unknown | unknown |  |
+| `FUN_1b8b_0004` | 16707 | 16 | platform | unknown | inferred |  |
 
-### Segment `1b8d` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b8d_0004` | 16723 | 12 | unknown | unknown | unknown |  |
-
-### Segment `1b8f` (1 defs) — unknown
+### Segment `1b8d` (1 defs) — ui — Solid-rect fill thunk → 1b9e
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b8f_0006` | 16735 | 105 | unknown | unknown | unknown |  |
+| `FUN_1b8d_0004` | 16723 | 12 | ui | unknown | inferred |  |
 
-### Segment `1b9e` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b9e_000a` | 16840 | 80 | unknown | unknown | unknown |  |
-
-### Segment `1baa` (1 defs) — unknown
+### Segment `1b8f` (1 defs) — ui — Pitched buffer rect blit/copy
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1baa_0006` | 16920 | 101 | unknown | unknown | unknown |  |
+| `FUN_1b8f_0006` | 16735 | 105 | ui | unknown | inferred |  |
 
-### Segment `1bb9` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bb9_000a` | 17021 | 14 | unknown | unknown | unknown |  |
-
-### Segment `1bbb` (1 defs) — unknown
+### Segment `1b9e` (1 defs) — ui — Solid-color pitched rect fill
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bbb_0006` | 17035 | 13 | unknown | unknown | unknown |  |
+| `FUN_1b9e_000a` | 16840 | 80 | ui | unknown | inferred |  |
 
-### Segment `1bbc` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bbc_000c` | 17048 | 31 | unknown | unknown | unknown |  |
-
-### Segment `1bc3` (1 defs) — unknown
+### Segment `1baa` (1 defs) — ui — Pitched buffer rect blit/copy (variant)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bc3_0006` | 17079 | 31 | unknown | unknown | unknown |  |
+| `FUN_1baa_0006` | 16920 | 101 | ui | unknown | inferred |  |
 
-### Segment `1bca` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bca_0002` | 17110 | 18 | unknown | unknown | unknown |  |
-
-### Segment `1bd4` (1 defs) — unknown
+### Segment `1bb9` (1 defs) — ui — Put pixel via pitch helper (1a4e)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bd4_0006` | 17128 | 40 | unknown | unknown | unknown |  |
+| `FUN_1bb9_000a` | 17021 | 14 | ui | unknown | inferred |  |
+
+### Segment `1bbb` (1 defs) — ui — Get pixel via pitch helper (1a4e)
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1bbb_0006` | 17035 | 13 | ui | unknown | inferred |  |
+
+### Segment `1bbc` (1 defs) — ui — Horizontal span fill in pitched buffer
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1bbc_000c` | 17048 | 31 | ui | unknown | inferred |  |
+
+### Segment `1bc3` (1 defs) — ui — Vertical span fill in pitched buffer
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1bc3_0006` | 17079 | 31 | ui | unknown | inferred |  |
+
+### Segment `1bca` (1 defs) — ui — Rect outline via H/V span fills
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1bca_0002` | 17110 | 18 | ui | unknown | inferred |  |
+
+### Segment `1bd4` (1 defs) — ui — Color replace in pitched rect
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1bd4_0006` | 17128 | 40 | ui | unknown | inferred |  |
 
 ### Segment `1bdd` (2 defs) — platform — Temp numbered file create / write slots
 
@@ -720,17 +720,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1bf5_0000` | 17266 | 52 | unknown | unknown | unknown |  |
 
-### Segment `1c05` (1 defs) — unknown
+### Segment `1c05` (1 defs) — platform — Normalize far pointer (seg:off)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c05_0004` | 17318 | 8 | unknown | unknown | unknown |  |
+| `FUN_1c05_0004` | 17318 | 8 | platform | unknown | inferred |  |
 
-### Segment `1c06` (1 defs) — unknown
+### Segment `1c06` (1 defs) — platform — Parse 0x/0b numeric literal prefix
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c06_000c` | 17326 | 27 | unknown | unknown | unknown |  |
+| `FUN_1c06_000c` | 17326 | 27 | platform | unknown | inferred |  |
 
 ### Segment `1c0c` (3 defs) — platform — Timer / tick word readers (custom + BIOS 046c)
 
@@ -740,11 +740,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1c0c_0012` | 17365 | 8 | platform | unknown | inferred |  |
 | `FUN_1c0c_0022` | 17373 | 10 | platform | unknown | inferred |  |
 
-### Segment `1c10` (1 defs) — unknown
+### Segment `1c10` (1 defs) — platform — Program PIT channel-0 divisor
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c10_0008` | 17383 | 14 | unknown | unknown | unknown |  |
+| `FUN_1c10_0008` | 17383 | 14 | platform | Program PIT channel-0 divisor via ports 0x43/0x40 | known |  |
 
 ### Segment `1c11` (1 defs) — unknown
 
@@ -752,11 +752,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1c11_000c` | 17397 | 128 | unknown | unknown | unknown |  |
 
-### Segment `1c28` (1 defs) — unknown
+### Segment `1c28` (1 defs) — ui — Store text-draw color words at DS:269e
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c28_000a` | 17525 | 17 | unknown | unknown | unknown |  |
+| `FUN_1c28_000a` | 17525 | 17 | ui | unknown | inferred |  |
 
 ### Segment `1c2a` (1 defs) — unknown
 
@@ -1008,23 +1008,23 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2088_000c` | 24477 | 20 | platform | unknown | inferred |  |
 | `FUN_2088_0048` | 24497 | 46 | platform | Detect XMS via INT2F and install multiplex entry at DS:0x26e8 | known |  |
 
-### Segment `2094` (1 defs) — unknown
+### Segment `2094` (1 defs) — platform — Rtrim trailing spaces/tabs
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2094_000a` | 24543 | 27 | unknown | unknown | unknown |  |
+| `FUN_2094_000a` | 24543 | 27 | platform | unknown | inferred |  |
 
-### Segment `209a` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_209a_000a` | 24570 | 44 | unknown | unknown | unknown |  |
-
-### Segment `20a0` (1 defs) — unknown
+### Segment `209a` (1 defs) — platform — Parse hex integer from string
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_20a0_000e` | 24614 | 34 | unknown | unknown | unknown |  |
+| `FUN_209a_000a` | 24570 | 44 | platform | unknown | inferred |  |
+
+### Segment `20a0` (1 defs) — platform — Parse binary integer from string
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_20a0_000e` | 24614 | 34 | platform | unknown | inferred |  |
 
 ### Segment `2100` (1 defs) — platform — XMS size query via multiplex entry
 
@@ -3150,11 +3150,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7a65_00e2` | 123919 | 19 | ui | unknown | inferred |  |
 | `FUN_7a65_0124` | 123938 | 29 | ui | unknown | inferred |  |
 
-### Segment `7a7c` (1 defs) — unknown
+### Segment `7a7c` (1 defs) — ui — Load 768-byte VGA palette from resource
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7a7c_000e` | 123967 | 26 | unknown | unknown | unknown |  |
+| `FUN_7a7c_000e` | 123967 | 26 | ui | unknown | inferred |  |
 
 ### Segment `7a83` (2 defs) — ui — Palette RGB fade / channel shift
 
@@ -3176,11 +3176,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7aa1_0002` | 124129 | 19 | ui | unknown | inferred |  |
 | `FUN_7aa1_003a` | 124148 | 59 | ui | unknown | inferred |  |
 
-### Segment `7ab3` (1 defs) — unknown
+### Segment `7ab3` (1 defs) — ui — VGA vsync + DAC palette read
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7ab3_0008` | 124207 | 44 | unknown | unknown | unknown |  |
+| `FUN_7ab3_0008` | 124207 | 44 | ui | Wait VGA retrace then read DAC RGB palette via 0x3c7/0x3c9 | known |  |
 
 ### Segment `7ab9` (2 defs) — ui — Image/resource load + blit error codes
 
