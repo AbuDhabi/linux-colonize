@@ -35,23 +35,20 @@ bodies are labeled but callees (often thunks) are not.
 
 | Metric | Value | As of |
 |--------|------:|-------|
-| Purpose one-liners | 2377 / 2380 | 2026-08-07 |
-| Purpose unknown | 3 | ″ |
-| Unknown by system | parked `205f`/`1d1c` 3 | ″ |
+| Purpose one-liners | 2380 / 2380 | 2026-08-07 |
+| Purpose unknown | 0 | ″ |
+| Unknown by system | none (VICEROY) | ″ |
 
 ---
 
 ## Open queue (highest value first)
 
-Take from the top. Split into parallel shards when counts are large and
-symbols disjoint. Re-count unlabeled 1-hops before launching (numbers drift).
-
 | # | Status | Layer | Target | ~N | Why |
 |--:|--------|-------|--------|---:|-----|
-| 1 | Done | B | Platform megasegs `1d1d` + `210d` | — | Purpose-closed (182; 4 shards) |
-| 2 | Parked | — | `205f` · `1d1c` · MAPEDIT | 3+ | No Layer A revisit without new evidence |
+| 1 | Done | A/B | Unpark `205f` + `1d1c` | — | All VICEROY systems + purposes labeled |
+| 2 | Parked | — | MAPEDIT | 125+ | No Layer A on MAPEDIT without a dedicated track |
 
-**Layer B VICEROY purposes are closed** aside from the 3 parked stubs. Further light-catalog work is MAPEDIT (parked) or Layer D deep extracts when a port needs them.
+**VICEROY light catalog is closed** (Layers A–C purpose bulk). Remaining work is MAPEDIT (parked) or Layer D deep extracts when a port needs them.
 
 ---
 
@@ -59,6 +56,7 @@ symbols disjoint. Re-count unlabeled 1-hops before launching (numbers drift).
 
 | When | Layer | Batch | N | Notes |
 |------|-------|-------|--:|-------|
+| 2026-08-07 | A/B | Unpark `205f`/`1d1c` | 3 | VGA A000 addr + DS:0x26f0 table lookups; VICEROY 2380/2380 |
 | 2026-08-07 | B | platform megasegs `1d1d`+`210d` (lo/hi×2) | 182 | CRT stdio/DOS + EMS/overlay runtime purpose-closed |
 | 2026-08-07 | B | `2a1f` mapgen megaseg thunk bulk (lo/midlo/mid/midhi/hi) | 195 | EMS far-thunk megaseg purpose-closed |
 | 2026-08-07 | B | `291f` megaseg thunk bulk (lo/midlo/midhi/hi) | 161 | EMS far-thunk megaseg purpose-closed |

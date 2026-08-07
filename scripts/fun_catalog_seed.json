@@ -821,6 +821,16 @@
         "system": "combat",
         "confidence": "inferred",
         "label": "Unit combat outcome resolution (RNG cases)"
+      },
+      "1d1c": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "VGA Mode13h A000 address helper (y\u00d7320+x)"
+      },
+      "205f": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "DS:0x26f0 8-byte record table lookup helpers"
       }
     },
     "mapedit": {
@@ -15209,6 +15219,24 @@
         "purpose": "Far return CS:5dd8 overlay-runtime entry pointer with BX=FFFF",
         "confidence": "known",
         "links": ""
+      },
+      "FUN_1d1c_0000": {
+        "system": "platform",
+        "purpose": "VGA Mode13h: ES=A000, DI=y\u00d7320+x from (CX,DX); used by soft-cursor shape setup",
+        "confidence": "known",
+        "links": "FUN_1a58_0456; FUN_1a58_0568"
+      },
+      "FUN_205f_000c": {
+        "system": "platform",
+        "purpose": "Lookup key in DS:0x26f0[16]\u00d78-byte table; return byte+6 (default 0x4e if miss)",
+        "confidence": "inferred",
+        "links": "FUN_205f_0046; FUN_2a1f_0c50"
+      },
+      "FUN_205f_0046": {
+        "system": "platform",
+        "purpose": "Lookup key in DS:0x26f0[16]\u00d78-byte table; return slot index or -1",
+        "confidence": "inferred",
+        "links": "FUN_205f_000c"
       }
     },
     "mapedit": {
