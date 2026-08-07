@@ -948,6 +948,96 @@
   },
   "functions": {
     "viceroy": {
+      "FUN_1009_0004": {
+        "system": "ui",
+        "purpose": "Map overlay style→ink/attr (1/2→0x95, 3→0xc, else→0x44)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_0036": {
+        "system": "ui",
+        "purpose": "Wait until overlay deadline or key; then flush key queue",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_00b4": {
+        "system": "ui",
+        "purpose": "Wait/restore then disarm overlay; clear buf + flags",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_017e": {
+        "system": "ui",
+        "purpose": "Append string onto status buffer at DS:0x2d54",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_01a2": {
+        "system": "ui",
+        "purpose": "Resolve string-table idx then append to status buffer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_01b8": {
+        "system": "ui",
+        "purpose": "itoa(int,base10) then append to status buffer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_01d8": {
+        "system": "ui",
+        "purpose": "itoa(long,base10) then append to status buffer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_01fc": {
+        "system": "ui",
+        "purpose": "Format long + suffix@0x6e then append to status buffer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_0222": {
+        "system": "ui",
+        "purpose": "Truncate last char of status buffer if non-empty",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_0244": {
+        "system": "ui",
+        "purpose": "Arm timed overlay: flags + style + deadline=now+delta",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_0270": {
+        "system": "ui",
+        "purpose": "Poll overlay: if past deadline, clear via 00b4; return 1",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_02ae": {
+        "system": "ui",
+        "purpose": "Set status-strip layout globals (x/y/w/h)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_02cc": {
+        "system": "ui",
+        "purpose": "Draw/clear status text in strip (color, center blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_0402": {
+        "system": "ui",
+        "purpose": "Arm timed overlay then immediately draw (0244+02cc; 1984_043a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1009_0420": {
+        "system": "ui",
+        "purpose": "strcat dest ← string at DS:0x50 (pad/append helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
       "FUN_2a1f_083e": {
         "system": "mapgen",
         "purpose": "Dispatches into map-gen pipeline",
