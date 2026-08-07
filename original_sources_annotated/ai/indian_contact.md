@@ -27,6 +27,9 @@ Annotated shell (quiet path only for act):
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
 Thin Linux meet arm: when already met and `alarm_by_player >= 55`, skip auto-trade
 and gift/demand and write human status **"Natives refuse to talk."**
+Teach-skill / gift paths reuse the same ≥55 gate with status
+**"Natives refuse to teach."** / **"Natives refuse gifts."** (alarmed Indian
+diplomacy; no invented gold penalties beyond existing gift costs).
 Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
 
 ### Prelude deepen (Linux `ai_contact_indian_prelude`)
@@ -41,6 +44,13 @@ Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
    `alarm_by_player` if also low). Floor 0.
 4. Mission clear when friction or `alarm_by_player` toward mission Euro **> 80**
    (`FUN_4cc6_0000`).
+
+### Meet-pulse mission pacify deepen
+
+Mission owner present and mid-range friction/alarm (**40..80**, below clear) →
+**−2** once per tribe per `ai_contact_indian_meet_trade` call (stronger than
+prelude low-band −1; no free crosses). Source: fandom Alarm — missions slow
+hostility.
 
 ## Call-graph (authoritative vs catalog myths)
 
@@ -74,17 +84,20 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    `UNITS_JOB_SCOUT` (Seasoned); else → tribe-appropriate outdoor `@JOB`
    (see mapping below). One pulse per tribe per call. Human status
    **"Natives teach …"**; teach **widgets** still OPEN (unpark #1).
+   Alarmed (`>= 55`) → refuse teach with **"Natives refuse to teach."**
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in
    for `2aac…311e`); human status **"Trade accepted."**
 7. **Gift / demand** structural stand-in after peaceful meet (`5bfb_102a` /
    `1092` **widgets** still OPEN). Friction = max(`alarm_by_player`, tribe
    `alarm[].friction`):
+   - **Alarmed** (`>= 55`) → refuse gifts; status **"Natives refuse gifts."**
+     (no invented gold penalties)
    - **Low** (`< 40`) + Euro `nation.gold >= 20` → gift/tribute: Euro **−10 gold**,
      friction **−2**; human status **"Gift of gold eases tensions."**
-   - **Mid** (`40..70`) + tools/gold available → demand/payoff: Euro loses **10 tools**
+   - **Mid** (`40..54`) + tools/gold available → demand/payoff: Euro loses **10 tools**
      from nearest colony stock, else **10** from adjacent unit `tools`, else **15 gold**;
      friction **−3**; human status **"Tribute paid; tensions ease."**
-   - **Very high** (`> 70`) → skip (raids handle hostility).
+   - **Very high** covered by alarmed refuse / raids.
 
 Status lines only when `ctx->status` is present and the Euro is the human nation
 (`ctx->human_nation`, else `player.control == 0`). Full DOS dialog chrome stays

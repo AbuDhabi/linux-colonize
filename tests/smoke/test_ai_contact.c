@@ -472,6 +472,94 @@ int main(void) {
     return fail("359c despawn should set status kill line");
   }
 
+  /*
+   * Alarmed teach refuse (≥55 refuse-talk gate): Free Colonist at tribe + high
+   * alarm → no state.learned; human status "Natives refuse to teach."
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 6;
+    euro->y = 5;
+    euro->active = true;
+    euro->profession = UNITS_JOB_NONE;
+    brave->x = 5;
+    brave->y = 5;
+    brave->nation_id = 4;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].x = 5;
+    col1.tribe[0].y = 5;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 60;
+    ind->met_by_player[0] = 1;
+    ind->alarm_by_player[0] = 60;
+    status[0] = '\0';
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].state.learned) {
+      return fail("alarmed teach refuse should not set tribe.state.learned");
+    }
+    if (strstr(status, "refuse") == NULL || strstr(status, "teach") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: teach-refuse status '%s'\n", status);
+      return fail("alarmed teach should set refuse-to-teach status");
+    }
+  }
+
+  /*
+   * Mission pacify deepen (meet pulse): mission owner + mid friction (40..80)
+   * → −2 tribe friction / alarm (prelude low-band −1 unchanged).
+   */
+  {
+    col1.tribe[0].mission = 0;
+    col1.tribe[0].alarm[0].friction = 50;
+    ind->alarm_by_player[0] = 50;
+    col1.tribe[0].state.learned = 1; /* skip teach status overwrite */
+    euro->x = 10;
+    euro->y = 10; /* no adjacent meet/gift side effects */
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].alarm[0].friction != 48) {
+      return fail("meet mission pacify should decay mid friction by 2");
+    }
+    if (ind->alarm_by_player[0] != 48) {
+      return fail("meet mission pacify should decay mid alarm_by_player by 2");
+    }
+  }
+
+  /*
+   * Raid kind gating: empty warehouse + no Euro gold → no STORES/WREAK and no
+   * fake muskets secondary loot (muskets stay 0).
+   */
+  {
+    euro->x = 10;
+    euro->y = 10;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    ind->alarm_by_player[0] = 65;
+    col1.tribe[0].alarm[0].friction = 65;
+    col1.nation[0].gold = 0;
+    c->active = true;
+    c->nation_id = 0;
+    c->x = 5;
+    c->y = 5;
+    c->population = 3;
+    c->colonist_count = 3;
+    c->building_in_production = -1;
+    memset(c->stock, 0, sizeof(c->stock));
+    ai_contact_indian_raids(&ctx, 4);
+    if (c->stock[COLONIZE_CARGO_MUSKETS] != 0) {
+      return fail("empty warehouse raid must not invent muskets loot");
+    }
+    {
+      const int k = ai_contact_last_raid_kind();
+      if (k == AI_RAID_STORES || k == AI_RAID_WREAK || k == AI_RAID_GOLD) {
+        return fail("empty warehouse should not pick STORES/WREAK/GOLD");
+      }
+    }
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

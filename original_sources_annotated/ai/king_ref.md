@@ -26,7 +26,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once thin `1eca` promote (Soldier/Regular + Dragoon/Cavalry; SoL bands); else intervene hire → `10f0` (dual landing structural); thin `2244` merc |
+| Rebel | once `1eca` promote (colony-SoL bands; Soldier/Regular + Dragoon/Cavalry); else intervene hire → `10f0` (≤3 landings @diff≥2); thin `2244` merc |
 
 ## Key symbols → Linux
 
@@ -40,9 +40,9 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | thin status line after successful `0982` spawn (chrome UI PARKED) |
-| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
+| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
 | `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` + hire status (real modal PARKED) |
-| `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (thin widen; deep table PARKED) |
+| `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; deep type-id table PARKED) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
 ## DS / Col1 anchors
@@ -70,6 +70,8 @@ status `"The colonies refuse the tax increase! Tax stays at %u%%."`.
 While `unknown46[2]` is set, further tax years skip hikes and write
 `"Audience: boycott holds — the King cannot raise taxes."`.
 Real accept/refuse modal and dump-goods chrome remain **PARKED**.
+Additional classic boycott cargo bits (wiki dump-goods / `38fd_3dc8` RNG) —
+**PARKED** (only Sugar is named in-file; do not invent a second bit).
 
 ### Thin `1528` REF arrival announce
 
@@ -77,13 +79,14 @@ When `0982` successfully spawns a ship or land unit, write a short arrival
 line to `ctx->status` (if present) and keep `unknown46[1]` REF-present.
 Full arrival chrome / dialog remains PARKED.
 
-### Thin MoW cargo unload (`0982` hold size 2 stand-in)
+### Thin MoW cargo unload (`0982` hold size 3 stand-in)
 
 When the wave drains `expeditionary_force[2]` and spawns a Man-O-War, also
 unload Regulars near the target colony (same crown nation) as if from the
-ship hold: spawn **min(2, force[0])** land Regulars and drain `force[0]`.
+ship hold: spawn **min(3, force[0])** land Regulars and drain `force[0]`.
 If `force[0]` is empty, still guarantee one land from another pool same beat.
-Full embark / `cargo_ids` hold chrome remains PARKED.
+Source: fandom REF AI “man-o-war with 6 units”; full embark / `cargo_ids`
+hold chrome remains PARKED.
 
 ### Thin `2244` Continental merc hire status
 
@@ -94,22 +97,23 @@ spawn one Soldier/Dragoon for the **human** near weakest port, set
 `"Mercenaries join the Continental cause (−300 gold)."`.
 Real hire modal remains **PARKED**.
 
-### Thin `1eca` Continental / veteran promote
+### `1eca` Continental / veteran promote (colony-SoL bias)
 
-During wartime `war_act`:
+During wartime `war_act`, each human land unit uses **colony SoL** from Col1
+`rebel_dividend`/`rebel_divisor` at the unit tile when a matching owned
+colony exists; otherwise nation `0004` aggregate (fallback):
 
-- **SoL > 50:** promote human land units whose type/display name contains
-  **Soldier** (not already Veteran/Continental; not type **Regular**) to
-  `Continental Army` / `Cont. Army` / `Veteran Soldier` (first type that exists);
-  likewise **Dragoon** or **Cavalry** → `Continental Cavalry` / `Cont. Cav.` /
-  `Veteran Dragoon`; type name containing **Regular** → `Veteran Soldier` /
-  `Continental Army` / `Cont. Army` (fallback). Armed Regulars often *display*
-  as "Soldier" — Regular is classified by **type name**.
-- **SoL 40..50:** promote **Soldier** → `Veteran Soldier` only when that type
-  exists (no Continental rename in this band). Regular types are unchanged.
+- **colony SoL > 50:** promote **Soldier** → `Continental Army` / `Cont. Army` /
+  `Veteran Soldier`; **Dragoon**/**Cavalry** → `Continental Cavalry` /
+  `Cont. Cav.` / `Veteran Dragoon`; type **Regular** → `Veteran Soldier` /
+  `Continental Army` / `Cont. Army`. Armed Regulars often *display* as
+  "Soldier" — Regular is classified by **type name**.
+- **colony SoL 40..50:** promote **Soldier** → `Veteran Soldier` only when
+  that type exists (no Continental). Regular types unchanged.
 
-Deep DOS colony-SoL fraction / veteran-profession / type-id table
-(`43f7_1eca`) remains PARKED.
+Source: `FUN_43f7_1eca` / catalog “when colony SoL>50%”. King promote path
+only — **not** FF Washington mass-promote / combat upgrade. Deep
+veteran-profession / type-id table remains PARKED.
 
 ### Thin `160a` independence rename + `2564` congress status
 
@@ -128,13 +132,14 @@ Peacetime before the declare gate: if SoL is **40..49** and `ctx->status`
 is present, write `"Sons of Liberty grow restless (%d%%)."`. Auto-declare
 still requires SoL≥50 + bells≥100.
 
-### Structural `10f0` foreign intervention (dual landing)
+### Structural `10f0` foreign intervention (≤3 landings)
 
 When WoI and REF pools empty and `backup_force` total > 0:
 `ai_king_foreign_intervene` lands up to **two** units near the weakest human
-port for a crown-hostile Euro nation, draining one pool entry per spawn.
+port for a crown-hostile Euro nation (drain one pool entry per spawn);
+**three** when `difficulty ≥ 2` (REF-pressure stand-in).
 If both Regular (`backup[0]`) and Dragoon (`backup[1]`) are > 0, prefer that
-mix (one of each). Otherwise drain up to two available pool types in order
+mix (one of each). Otherwise drain available pool types in order
 (MoW pool still lands a Regular stand-in). Deep economy / merc hire /
 arrival chrome remain PARKED.
 
@@ -142,12 +147,13 @@ arrival chrome remain PARKED.
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → SoL 40–49 chrome → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)
-3. If WoI: wave (`0982` MoW + thin cargo unload / `06a6` + thin `1528` status) → war act (`10f0` ≤2 landings if REF empty + backup, thin `2244` merc, thin `1eca` SoL-band promote)
+3. If WoI: wave (`0982` MoW + thin cargo unload×3 / `06a6` + thin `1528` status) → war act (`10f0` ≤2 landings, third @diff≥2 if REF empty + backup, thin `2244` merc, `1eca` colony-SoL promote)
 
 ## PORT DEBT
 
 - **Done (unpark #2 thin status chrome):** `38fd_5be8` tax audience status (structural refuse + `unknown46[2]` / `boycott_bitmap`); `2564` congress-confirm status + `unknown46[5]`; `2244` merc hire status (auto-accept + `unknown46[3]`)
 - **Still PARKED:** real modal widgets for audience / congress confirm / merc hire; `160a` rename **cinematic** (thin `country_name` done); `1528` arrival **chrome/dialog** (thin status announce done)
-- Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (dual landing + Regular/Dragoon mix + drain done); third landing @ difficulty≥2 still **PARKED**
-- Deep `1eca` colony-SoL / veteran-profession / type-id promote table — **PARKED** (thin widen Done: SoL>50 Soldier/Dragoon/Regular + SoL 40–50 Soldier→Veteran Soldier)
-- Full MoW cargo-hold chrome / embark slots — **PARKED** (thin hold-size-2 Regular unload on `0982` MoW spawn done); seize-landing polish
+- Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + drain done)
+- Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias Done: SoL>50 Soldier/Dragoon/Regular + SoL 40–50 Soldier→Veteran Soldier)
+- Full MoW cargo-hold chrome / embark slots (fandom×6) — **PARKED** (structural hold-size-3 Regular unload on `0982` MoW spawn done); seize-landing polish
+- Extra refuse boycott cargo bits beyond Sugar — **PARKED** (only Sugar named in-file)

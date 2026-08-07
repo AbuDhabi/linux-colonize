@@ -1,4 +1,5 @@
 /* Smoke: Euro second-wave settle + CONTACT scout rings + tools delivery. */
+#include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
@@ -144,7 +145,7 @@ static int smoke_second_wave(void) {
 /*
  * CONTACT scout rings (unpark #4): peaceful nation with own≥1 colony + Scout +
  * tribe beyond adjacent → upsert CONTACT at Manhattan ring 2–4 around tribe;
- * Scout AI_MOVE toward that tile. Deep fog rings PARKED.
+ * Scout AI_MOVE toward that tile. Fog plane optional (prefer unseen when set).
  */
 static int smoke_scout_explore(void) {
   const int nation = 1;
@@ -915,11 +916,566 @@ static int smoke_wagon_hire_once(void) {
   return 0;
 }
 
+/*
+ * Fog-aware CONTACT rings: when map.seen exists, prefer an unseen ring tile
+ * over a closer seen tile (FoW explore — map_tile_seen_by).
+ */
+static int smoke_scout_fog_prefer_unseen(void) {
+  const int nation = 1;
+  const int tribe_x = 10;
+  const int tribe_y = 10;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  map.seen = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+    return fail("fog-scout alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  /* Mark toward-scout ring tiles (closer to scout at 5,5) as seen; leave
+   * far-side ring tiles unseen so fog preference should pick those. */
+  for (int dy = -4; dy <= 4; ++dy) {
+    for (int dx = -4; dx <= 4; ++dx) {
+      const int md = abs(dx) + abs(dy);
+      if (md < 2 || md > 4) {
+        continue;
+      }
+      const int nx = tribe_x + dx;
+      const int ny = tribe_y + dy;
+      if (nx < 0 || ny < 0 || nx >= 16 || ny >= 16) {
+        continue;
+      }
+      const int to_scout = abs(nx - 5) + abs(ny - 5);
+      if (to_scout <= 8) {
+        map_reveal_tile(&map, nx, ny, nation);
+      }
+    }
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int sid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* scout = units_get(&units, sid);
+  if (!scout) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("fog-scout spawn");
+  }
+  scout->nation_id = nation;
+  scout->moves_left = 4;
+  scout->orders = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.head.tribe_count = 1;
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("fog-scout tribe");
+  }
+  col1.tribe[0].x = (uint8_t)tribe_x;
+  col1.tribe[0].y = (uint8_t)tribe_y;
+  col1.tribe[0].nation_id = 4;
+  col1.tribe[0].population = 4;
+  col1.tribe[0].mission = 0xff;
+
+  ai_goals_reset();
+
+  uint32_t turn = 15;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int contact_x = -1;
+  int contact_y = -1;
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* g = ai_goals_primary(nation, i);
+    if (!g || g->code != AI_GOAL_CONTACT) {
+      continue;
+    }
+    contact_x = (int)g->x;
+    contact_y = (int)g->y;
+    break;
+  }
+
+  const int ring_md =
+    (contact_x >= 0) ? (abs(contact_x - tribe_x) + abs(contact_y - tribe_y)) : -1;
+  const int ok_ring = contact_x >= 0 && ring_md >= 2 && ring_md <= 4;
+  const int ok_unseen =
+    ok_ring && !map_tile_seen_by(&map, contact_x, contact_y, nation);
+
+  if (!ok_ring || !ok_unseen) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: fog CONTACT=(%d,%d) ring_md=%d seen=%d\n",
+      contact_x,
+      contact_y,
+      ring_md,
+      ok_ring ? (int)map_tile_seen_by(&map, contact_x, contact_y, nation) : -1
+    );
+    free(col1.tribe);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("expected CONTACT ring on unseen FoW tile");
+  }
+
+  free(col1.tribe);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(map.seen);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: fog CONTACT prefer-unseen ok (goto=(%d,%d))\n",
+    contact_x,
+    contact_y
+  );
+  return 0;
+}
+
+/*
+ * Thin multi-step land 20e6: Soldier with moves_left>=2 on MILITARY goto advances
+ * two tiles in one dispatcher act when path is clear.
+ */
+static int smoke_multistep_military(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("multistep alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 2;
+  c->y = 2;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  ColonizeColony* enemy = &colonies.colonies[1];
+  enemy->id = 1;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 12;
+  enemy->y = 2;
+  enemy->population = 2;
+  enemy->colonist_count = 2;
+  enemy->stock[COLONIZE_CARGO_FOOD] = 20;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int sid = units_spawn(&units, 0, 4, 2);
+  ColonizeUnit* soldier = units_get(&units, sid);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("multistep spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->moves_left = 3;
+  soldier->orders = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 2, AI_GOAL_MILITARY, 6);
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int x0 = soldier->x;
+  ai_euro_dispatcher_turn(&ctx, nation);
+  soldier = units_get(&units, sid);
+  if (!soldier || !soldier->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("multistep soldier inactive");
+  }
+  const int advanced = soldier->x - x0;
+  if (advanced < 2) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: multistep x %d→%d (want ≥2) orders=%d goto=(%d,%d)\n",
+      x0,
+      soldier->x,
+      soldier->orders,
+      soldier->goto_x,
+      soldier->goto_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected MILITARY multi-step advance of 2 tiles");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: MILITARY multi-step ok (x %d→%d)\n",
+    x0,
+    soldier->x
+  );
+  return 0;
+}
+
+/*
+ * Case-7 dock expert once: peace + tools_short high + Europe dock has
+ * Hardy Pioneers → board that type (consume dock); do not invent if absent.
+ */
+static int smoke_dock_expert_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dock-hire alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Hardy Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 0;
+    c->stock[COLONIZE_CARGO_FOOD] = 20;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dock-hire spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Hardy Pioneers");
+  europe.dock[0].profession = 20;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 12;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  const uint32_t gold_before = col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int hardy_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && strstr(ty->name, "Hardy Pioneer")) {
+        hardy_boarded = 1;
+      }
+    }
+  }
+  const int dock_cleared = (europe.dock_count == 0);
+  const int gold_spent = (col1.nation[nation].gold < gold_before + 50u);
+
+  if (!hardy_boarded || !dock_cleared || !gold_spent) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: dock hardy=%d dock_count=%d gold %u→%u cargo=%d\n",
+      hardy_boarded,
+      europe.dock_count,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Hardy Pioneer dock hire + dock consume + gold spend");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: dock Hardy Pioneer hire ok\n");
+  return 0;
+}
+
+/*
+ * 5d04 treasury gate: gold below colonist hire_cost → no Europe hire / tools-cargo.
+ */
+static int smoke_treasury_skip_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("treasury alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 0;
+    c->stock[COLONIZE_CARGO_FOOD] = 20;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("treasury spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0; /* hire_cost=200; bump≈30 → still <200 if gold=0 */
+  col1.nation[nation].gold = 0;
+
+  ai_goals_reset();
+
+  uint32_t turn = 12;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+  ship = units_get(&units, sid);
+  if (ship && ship->cargo_count > 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: treasury cargo=%d gold=%u\n",
+      ship->cargo_count,
+      (unsigned)col1.nation[nation].gold
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected no Europe hire when gold < hire_cost");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: treasury skip-hire ok\n");
+  return 0;
+}
+
 int main(void) {
   if (smoke_second_wave() != 0) {
     return 1;
   }
   if (smoke_scout_explore() != 0) {
+    return 1;
+  }
+  if (smoke_scout_fog_prefer_unseen() != 0) {
     return 1;
   }
   if (smoke_pioneer_tools_delivery() != 0) {
@@ -932,6 +1488,15 @@ int main(void) {
     return 1;
   }
   if (smoke_wagon_hire_once() != 0) {
+    return 1;
+  }
+  if (smoke_multistep_military() != 0) {
+    return 1;
+  }
+  if (smoke_dock_expert_hire() != 0) {
+    return 1;
+  }
+  if (smoke_treasury_skip_hire() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_expand: ok\n");

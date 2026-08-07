@@ -71,7 +71,14 @@ Multi-step `20e6` land combat scoring remains **OPEN**.
 
 Peace + own colonies ≥ 1: idle Scout upserts `AI_GOAL_CONTACT` at a Manhattan
 ring tile (MD 2–4) around the nearest beyond-adjacent tribe and `AI_MOVE`s
-toward it. Deep fog/unknown rings stay **PARKED**.
+toward it. When `map.seen` exists, prefer tiles **not** seen by the nation
+(`map_tile_seen_by` / Col1 FoW bit) — explore intent, not combat bonuses.
+
+### 2c3. Linux thin — multi-step land goto (FOUND / MILITARY)
+
+Toward `AI_GOAL_FOUND` or `AI_GOAL_MILITARY`, after one scored advance, a second
+`advance` is allowed in the same act while `moves_left` remain (thin `20e6`
+multi-step). Full combat multi-step scoring stays **OPEN**.
 
 ### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
 
@@ -83,7 +90,11 @@ Idle / arriving Pioneer or Hardy on an **own** colony tile when
 **5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
 Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
 before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
-cargo. Deeper case-7 hire / treasury matrix remains **OPEN** (unpark #4).
+cargo. Case-7 deepen: prefer Hardy/Expert Pioneer or Master Carpenter already
+on Europe dock (consume dock slot; no free expert spawn). Treasury: skip hire /
+tools-cargo when gold &lt; colonist `hire_cost`; Artillery uses Europe purchase
+**500$** (fall back to Soldier when underfunded). Remaining mid `5d04` wagon
+matrix / deep combat tails stay **OPEN** (unpark #4).
 
 ### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 

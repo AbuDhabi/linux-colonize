@@ -68,4 +68,13 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
  * Fuller Indian×Euro 15b3 matrix OPEN (unpark #5); sticky unknown26[8]. */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
+/* True if any of 8 Indian slots is at war (relation < 50). Contact/diplo helper. */
+int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
+
+/* Read unknown26[8] Indian hostility sticky: 0 clear, 1 at-war, 2 very-low deepen. */
+uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
+
+/* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
+void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
+
 #endif

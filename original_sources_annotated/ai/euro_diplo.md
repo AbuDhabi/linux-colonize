@@ -27,7 +27,7 @@ Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 |------|-----|
 | `nation[a].unknown26[0..3]` | Treaty timers toward peer (6d8e §4) |
 | `nation[a].unknown26[4..7]` | Diplo flag byte toward peer (`15b3` mirror) |
-| `nation[a].unknown26[8]` | Indian hostility sticky (`1` once any `indian_at_war`) |
+| `nation[a].unknown26[8]` | Indian hostility sticky (`0` clear / `1` at-war / `2` very-low deepen) |
 
 Exact DS `−0x77c4` Col1 field rename PARKED.
 
@@ -163,19 +163,36 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 
 ### Thin Indian×Euro matrix stand-in (Linux)
 
-- `ai_diplo_indian_read` / `ai_diplo_indian_at_war` — cell = `relation_by_indian[idx]`;
-  at war when relation **< 50**
-- On `declare_war`: after the usual −5 Indian hit, if a slot is still **< 40**,
-  extra **−10** once per declare (hostile deepen)
-- `ai_diplo_euro_balance`: if any Indian slot is at war, **−2** gold harassment
-  (once per nation tick); also set `unknown26[8]` sticky to **1** once (idempotent)
+Gates reuse contact conventions (not new combat numbers):
+
+| Gate | Value | Source |
+|------|------:|--------|
+| `indian_at_war` | relation **< 50** | contact mission block `alarm≥50` inverted |
+| very-low deepen | relation **< 40** | contact peaceful-gift friction **< 40** inverted |
+| content floor | **100** | mid-content; drift still climbs to 160 |
+| feeler heal | **+2** | contact trade already bumps relation +2 |
+
+API / behavior:
+
+- `ai_diplo_indian_read` / `ai_diplo_indian_at_war` / `ai_diplo_indian_any_at_war`
+- `ai_diplo_indian_hostility_sticky` / `ai_diplo_indian_hostility_sync` —
+  `unknown26[8]`: **0** clear, **1** any at-war, **2** any very-low while at-war
+- On `declare_war`: after −5 Indian hit (+ extra −10 if still **< 40**), sync sticky both sides
+- `ai_diplo_euro_balance` Indian matrix arm (once per nation tick):
+  1. **Peace feeler** — if Euro at peace with all Euro peers, each mid/high slot
+     (`≥ 50` and `< 100`) heals **+2** toward content floor 100 (fandom peace →
+     gifts / improve relations; **no gold** — prefer flags over treasury fiction)
+  2. **Sticky sync** — set / clear / deepen from matrix
+  3. **Harassment** −2 gold if any `indian_at_war`
+  4. Human status chrome: sticky 0→nonzero → `"Natives grow hostile."`;
+     sticky nonzero→0 → `"Relations with natives improve."` (widgets **OPEN**)
 - Full Indian×Euro `15b3` bilateral matrix still **OPEN** (unpark #5)
 
 ## Linux checklist
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → upkeep + privateer prize + near-parity `make_peace_ctx`; Indian harassment −2g + sticky
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → upkeep + privateer prize + near-parity `make_peace_ctx`; Indian feeler + sticky sync + harassment
 4. `ai_diplo_make_peace` / `_ctx` — clear WAR, set PEACE|MET, lift Furs+Tools if no Euro wars; no gold cost; `_ctx` thin status
 5. `ai_diplo_declare_war_ctx` — thin `"War declared with …"` when human involved
 6. `ai_diplo_form_alliance` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Furs embargo if no Euro wars remain
@@ -183,10 +200,12 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 8. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED)
 9. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
 10. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
-11. `ai_diplo_indian_read` / `indian_at_war` — thin matrix cell + harassment + `unknown26[8]` sticky
+11. Indian matrix helpers — read / at_war / any_at_war / sticky sync (0/1/2) + feeler + human status
 
 ## PORT DEBT
 
-- **OPEN (unpark #5):** full Indian×Euro bilateral `15b3` matrix (beyond thin read/at_war / drift / war-hit / harassment / sticky); real `102a`/`1092` dialog **widgets** (thin `ctx->status` chrome **Done**)
-- **Done this pass:** military score weights; colony-gap Tools embargo; war/peace `_ctx` status lines
+- **OPEN (unpark #5):** full Indian×Euro bilateral `15b3` matrix (beyond thin read/at_war /
+  drift / feeler / war-hit / harassment / sticky set-clear-deepen); real `102a`/`1092`
+  dialog **widgets** (thin `ctx->status` chrome **Done**)
+- **Done this pass:** sticky set/clear/deepen + peace feeler + matrix helpers + native status
 - **Still PARKED:** FA `3f41` full body/UI; wartime privateer **unit spawn** / raid path (thin treasury prize only); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens

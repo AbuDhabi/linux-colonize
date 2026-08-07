@@ -22,7 +22,10 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 1. **Gate** — pick target Euro by max(`alarm_by_player`, tribe friction); band ≥ ~40
 2. **Adjacent combat** — `units_resolve_land_combat` vs target-nation land unit
 3. **Colony approach** — Chebyshev walk toward colony ≤6
-4. **Loot outcome** — `@RAID*` kind picker (below); mutates stock / pop / gold
+4. **Loot outcome** — `@RAID*` kind picker (below); mutates stock / pop / gold.
+   Kinds gated on colony stock / Euro gold actually present: empty warehouses
+   do not pick STORES/WREAK or fake muskets secondary loot; GOLD only when
+   target Euro treasury > 0 (no Indian-nation treasury fiction).
 5. **Multi-loot (secondary)** — on successful loot (`kind != NOTHING`):
    - military side-steal: −5 muskets stock, else −1 horse stock, else same from
      target-nation unit gear on the colony tile
