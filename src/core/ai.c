@@ -3031,11 +3031,15 @@ static const AiSeed100BraveSnap k_emp_brave_t6[] = {
 };
 static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
 
-/* --- Quiet mid-turn residuals (phase 15: spent-only; hang AL known, post-ADD open) --- */
+/* --- Quiet mid-turn residuals (spent-only; dump-free search exhausted) ---
+ * Both rows: XY already matches pulse; Linux spent 6/9 vs golden 3.
+ * Re-parse: dump_b465r3 Sioux ADD AL=9; dump_b465f3 force-max not entered;
+ * dump_vrb465x2 Sioux spent=9 without XY ⇒ writer after ADD / after 465b.
+ * Apache "AL≈3" is inference-only (same post-ADD writer can turn 6→3).
+ * Map predicates (ocean-adj dest, capital dist≤1, presence shape) break T1
+ * spent=9 or other cost=6/9 goldens. Hang VR_B465X remains last resort.
+ */
 static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
-  /* Sioux ADD AL=9 (dump_b465r3); Apache AL≈3 (same dump). Golden spent=3.
-   * T1/T2 tile presence shape matches — do not invent exhaust caps.
-   * Next: VR_B465F force-max probe / post-ADD writer. */
   {7, 45, 52, 46, 53, 3, 1}, /* Apache spent-only */
   {10, 49, 40, 49, 39, 3, 1}, /* Sioux spent-only */
 };
