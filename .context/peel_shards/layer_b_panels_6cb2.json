@@ -1,0 +1,133 @@
+{
+  "layer": "B",
+  "chunk": "info_dialog_panels_6cb2",
+  "functions": {
+    "FUN_6cb2_0000": {
+      "system": "ui",
+      "purpose": "Free Colonizopedia index triple-buffers (DS:1ea6/1eaa/1eae) via 291f_01a8",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0a32"
+    },
+    "FUN_6cb2_0058": {
+      "system": "ui",
+      "purpose": "Alloc index triple-buffers (word titles + type/idx bytes); clear a5aa",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0a40; FUN_281f_029a"
+    },
+    "FUN_6cb2_00c0": {
+      "system": "ui",
+      "purpose": "Append one encyclopedia list entry (title ptr, cat type, index)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6cb2_00fc": {
+      "system": "ui",
+      "purpose": "Swap two encyclopedia list entries across the triple arrays",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6cb2_0178": {
+      "system": "ui",
+      "purpose": "Bubble-sort encyclopedia list by title string (1d1d_103e)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_09de"
+    },
+    "FUN_6cb2_0276": {
+      "system": "ui",
+      "purpose": "Map list index → 3-col grid xy (24/page, scroll via a5ac)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0a16"
+    },
+    "FUN_6cb2_02c4": {
+      "system": "ui",
+      "purpose": "Hit-test cursor vs list grid; −2/−3 = Exit / page-chrome",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0a24"
+    },
+    "FUN_6cb2_033a": {
+      "system": "ui",
+      "purpose": "Format list-row title; terrain 8–15 append forest suffix (2db0)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0a4e"
+    },
+    "FUN_6cb2_039c": {
+      "system": "ui",
+      "purpose": "Init article title paint (colors + format into 833c)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0998; FUN_281f_0422"
+    },
+    "FUN_6cb2_03bc": {
+      "system": "ui",
+      "purpose": "Flush/finish article compositor (flag 1f56|0x20, restore clip)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_09c2; FUN_281f_0444"
+    },
+    "FUN_6cb2_0424": {
+      "system": "ui",
+      "purpose": "Begin article compositor (optional side-art 1ec4 + 200px box)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_09d0; FUN_291f_087a"
+    },
+    "FUN_6cb2_048c": {
+      "system": "ui",
+      "purpose": "Draw related sprite strip + name (job/cargo icon row)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_09fa"
+    },
+    "FUN_6cb2_05ce": {
+      "system": "ui",
+      "purpose": "Build Colonizopedia colonist-skill article (JOB + related icons)",
+      "confidence": "inferred",
+      "links": "FUN_291f_0934; feeds 6f74 subst via 281f_0438"
+    },
+    "FUN_6cb2_07e6": {
+      "system": "ui",
+      "purpose": "Build Colonizopedia unit-type article (5230 table + cargo sprites)",
+      "confidence": "inferred",
+      "links": "FUN_291f_0942"
+    },
+    "FUN_6cb2_0eac": {
+      "system": "ui",
+      "purpose": "Build Colonizopedia terrain article (3×3 tile preview + yields)",
+      "confidence": "inferred",
+      "links": "FUN_291f_0428; docs/assets.md Colonizopedia"
+    },
+    "FUN_6cb2_1820": {
+      "system": "ui",
+      "purpose": "Build Colonizopedia cargo/goods article (−715e + building chain)",
+      "confidence": "inferred",
+      "links": "FUN_291f_08de"
+    },
+    "FUN_6cb2_1ba8": {
+      "system": "ui",
+      "purpose": "Build Colonizopedia colony-building article (−707e + parent/good)",
+      "confidence": "inferred",
+      "links": "FUN_291f_0902"
+    },
+    "FUN_6cb2_1f28": {
+      "system": "ui",
+      "purpose": "Build Colonizopedia founding-father article (−69ae title+body)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0062"
+    },
+    "FUN_6cb2_214a": {
+      "system": "ui",
+      "purpose": "Paint encyclopedia list (3-col titles, highlight, Exit chrome)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_09ec; WOODPANL list UI"
+    },
+    "FUN_6cb2_2322": {
+      "system": "ui",
+      "purpose": "Fill encyclopedia index for one category 0–6 (or via 00c0)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0a08; Ghidra switch overlapped"
+    },
+    "FUN_6cb2_24b8": {
+      "system": "ui",
+      "purpose": "Colonizopedia browser: fill/sort/list loop → article by cat type",
+      "confidence": "inferred",
+      "links": "docs/assets.md Colonizopedia; cat7=all"
+    }
+  },
+  "notes": "21/21. Colonizopedia (PEDIA) panels feeding closed dialog compositor 6f74 via 281f_0438/0416. Index: 0058/0000 alloc/free triple buffers; 00c0/00fc/0178 mutate; 0276/02c4/033a/214a list geometry+paint+hit; 2322 fills cat 0–6 (DOS type≠port PEDIA_CAT_* order); 24b8 list driver (param 7=all cats) then dispatches articles. Article builders by 0998 side-art idx: 05ce=skills, 07e6=units, 0eac=terrain 3×3, 1820=cargo, 1ba8=buildings, 1f28=fathers; 048c related icon strip; 0424/039c/03bc begin/title/flush. 2322/24b8 decomp switch tables overlapped other segs—roles from asm jump tables + call graph."
+}

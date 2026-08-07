@@ -1,0 +1,151 @@
+{
+  "layer": "B",
+  "chunk": "window_frame_widgets_4b58",
+  "functions": {
+    "FUN_4b58_0000": {
+      "system": "ui",
+      "purpose": "Normalize menu font-height byte (remap 6→5)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4b58_0016": {
+      "system": "ui",
+      "purpose": "Pack 6-word menu style/color record into buffer",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_02de"
+    },
+    "FUN_4b58_004a": {
+      "system": "ui",
+      "purpose": "Menu chrome fill: tiled blit (281f_00c4) if mode=7+tile src, else solid rect (281f_00ba)",
+      "confidence": "inferred",
+      "links": "FUN_281f_00ba; FUN_281f_00c4"
+    },
+    "FUN_4b58_00ae": {
+      "system": "ui",
+      "purpose": "Measure menu label width after stripping '~' hotkey markup",
+      "confidence": "inferred",
+      "links": "FUN_281f_0204; thunk_FUN_2a1f_030e"
+    },
+    "FUN_4b58_0104": {
+      "system": "ui",
+      "purpose": "Draw menu label text with ~hotkey color highlight (01f0/01fa)",
+      "confidence": "inferred",
+      "links": "FUN_281f_01f0; FUN_281f_01fa; thunk_FUN_2a1f_0332"
+    },
+    "FUN_4b58_023e": {
+      "system": "ui",
+      "purpose": "Resolve ~hotkey scan/char code from label (~F specials, case-fold via 0x27ed)",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_034a"
+    },
+    "FUN_4b58_02f6": {
+      "system": "ui",
+      "purpose": "Alloc/init menu-bar root (styles from DS:0x149c palette, empty menu list)",
+      "confidence": "inferred",
+      "links": "FUN_281f_029a; FUN_2a1f_02d2"
+    },
+    "FUN_4b58_043e": {
+      "system": "ui",
+      "purpose": "Find menu node by id in bar's linked menu list",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_02f6"
+    },
+    "FUN_4b58_0484": {
+      "system": "ui",
+      "purpose": "Find menu-item node by command id across all menus",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_0302"
+    },
+    "FUN_4b58_051a": {
+      "system": "ui",
+      "purpose": "Set/clear menu disabled flag (bit0 at menu+0xc)",
+      "confidence": "inferred",
+      "links": "FUN_291f_045c"
+    },
+    "FUN_4b58_0552": {
+      "system": "ui",
+      "purpose": "Set/clear menu-item disabled flag (bit0); used by map ORDERS enable",
+      "confidence": "inferred",
+      "links": "FUN_291f_0146; FUN_2b5a"
+    },
+    "FUN_4b58_0582": {
+      "system": "ui",
+      "purpose": "Clear disabled bit on every item under every menu",
+      "confidence": "inferred",
+      "links": "FUN_291f_015e"
+    },
+    "FUN_4b58_05c6": {
+      "system": "ui",
+      "purpose": "Set/clear menu-item hidden flag (bit1); used by map ORDERS enable",
+      "confidence": "inferred",
+      "links": "FUN_291f_013a; FUN_2b5a"
+    },
+    "FUN_4b58_05f6": {
+      "system": "ui",
+      "purpose": "Clear hidden bit on every item under every menu",
+      "confidence": "inferred",
+      "links": "FUN_291f_0152"
+    },
+    "FUN_4b58_063a": {
+      "system": "ui",
+      "purpose": "Append titled menu node to bar (layout x, hotkey, link into +0x38 list)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_031a; FUN_74a4_0000"
+    },
+    "FUN_4b58_07d6": {
+      "system": "ui",
+      "purpose": "Append menu-item (label+cmd id) under a menu; empty label → disabled separator",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_033e; FUN_74a4_0000"
+    },
+    "FUN_4b58_093c": {
+      "system": "ui",
+      "purpose": "Draw menu-bar strip + enabled titles (004a fill, text blit); optional 00e2 flush",
+      "confidence": "inferred",
+      "links": "FUN_4b58_004a; FUN_281f_00e2; thunk_FUN_281f_0e52"
+    },
+    "FUN_4b58_0a64": {
+      "system": "ui",
+      "purpose": "Compute pulldown popup layout rects from item count; clamp to 320×200",
+      "confidence": "inferred",
+      "links": "thunk_FUN_2a1f_02ea"
+    },
+    "FUN_4b58_0b7a": {
+      "system": "ui",
+      "purpose": "Draw open pulldown: outline (00ce), fill (004a), item labels/checks, 00e2 flush",
+      "confidence": "inferred",
+      "links": "FUN_281f_00ba; FUN_281f_00ce; thunk_FUN_2a1f_0326"
+    },
+    "FUN_4b58_0d94": {
+      "system": "ui",
+      "purpose": "Modal menu loop: mouse/kbd navigate titles+items, select cmd into bar root",
+      "confidence": "inferred",
+      "links": "thunk_FUN_291f_0472; FUN_4b58_0b7a"
+    },
+    "FUN_4b58_13ac": {
+      "system": "ui",
+      "purpose": "Hit-test mouse on menu titles; open matching pulldown via 0d94",
+      "confidence": "inferred",
+      "links": "FUN_291f_047e; FUN_4b58_0d94"
+    },
+    "FUN_4b58_144a": {
+      "system": "ui",
+      "purpose": "Open pulldown by menu-title hotkey match, then run 0d94",
+      "confidence": "inferred",
+      "links": "FUN_291f_0496; FUN_4b58_0d94"
+    },
+    "FUN_4b58_14de": {
+      "system": "ui",
+      "purpose": "Find enabled item matching hotkey across menus; return command id",
+      "confidence": "inferred",
+      "links": "FUN_291f_048a"
+    },
+    "FUN_4b58_15a4": {
+      "system": "ui",
+      "purpose": "Load menu color/style nibbles from sprite table into DS:0x149c..0x14b8 palette",
+      "confidence": "inferred",
+      "links": "FUN_281f_0254; FUN_2a1f_0372"
+    }
+  },
+  "notes": "Segment 4b58 = map menu-bar / pulldown widget system (fed by 74a4 MENU.TXT loader via 2a1f_031a/033e). Root at 02f6; menus linked at +0x38; items under menu+0x1e. Flags: menu+0xc bit0=disabled; item byte bit0=disabled/separator, bit1=hidden. Draw path uses 281f_00ba (rect fill), 00c4 (tiled fill), 00ce (outline), 00e2 (flush)—MODULE_MAP '281f_00ba family'. Chrome redraw hook: thunk_FUN_281f_0e52→093c. Modal select: 0d94. ORDERS enable/hide via 0552/05c6 (2b5a). Sibling dialog compositor is 6f74. Skipped seed/catalog edits."
+}
