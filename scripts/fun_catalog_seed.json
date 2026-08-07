@@ -1,0 +1,668 @@
+{
+  "_comment": "Human seed overlays for gen_fun_catalog.py. Applied only when confidence is unknown (or when force_seed). Do not put secrets here.",
+  "segment_systems": {
+    "viceroy": {
+      "684c": {
+        "system": "mapgen",
+        "confidence": "known",
+        "label": "Procedural NEW WORLD map gen"
+      },
+      "67bf": {
+        "system": "mapgen",
+        "confidence": "known",
+        "label": "Continent flood-fill IDs"
+      },
+      "733a": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "New-game / CUSTOMIZE UI"
+      },
+      "2a1f": {
+        "system": "mapgen",
+        "confidence": "inferred",
+        "label": "Map-gen dispatch / helpers (also Euro act thunks)"
+      },
+      "281f": {
+        "system": "thunk",
+        "confidence": "inferred",
+        "label": "Far thunks: RNG / map / UI fill helpers"
+      },
+      "1984": {
+        "system": "turn",
+        "confidence": "known",
+        "label": "Turn-owner chrome"
+      },
+      "4d56": {
+        "system": "ai",
+        "confidence": "known",
+        "label": "Indian AI / village growth"
+      },
+      "6a09": {
+        "system": "ai",
+        "confidence": "known",
+        "label": "Tribe placement"
+      },
+      "521d": {
+        "system": "ai",
+        "confidence": "known",
+        "label": "European AI planner"
+      },
+      "6a9f": {
+        "system": "mapdraw",
+        "confidence": "known",
+        "label": "Map viewport tile loop"
+      },
+      "15eb": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "High-density map / pedia draw paths"
+      },
+      "1d1d": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "High-density + platform-adjacent (incl. LCG)"
+      },
+      "1427": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Tile / unit display and MP chrome"
+      },
+      "12d8": {
+        "system": "sound",
+        "confidence": "known",
+        "label": "BGM / event / SFX gating"
+      },
+      "2059": {
+        "system": "sound",
+        "confidence": "known",
+        "label": "Sound driver jump table"
+      },
+      "129f": {
+        "system": "sound",
+        "confidence": "known",
+        "label": "BGM helpers"
+      },
+      "43f7": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Nation / @COUNTRY colors"
+      },
+      "137f": {
+        "system": "mapgen",
+        "confidence": "inferred",
+        "label": "Map plane accessors (terrain/layer2/3)"
+      },
+      "13e4": {
+        "system": "mapgen",
+        "confidence": "inferred",
+        "label": "Terrain class / ocean helpers"
+      },
+      "465b": {
+        "system": "combat",
+        "confidence": "inferred",
+        "label": "Move spent / ADD / combat-adjacent"
+      },
+      "124c": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Small helpers (e.g. DOS distance)"
+      },
+      "19ef": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS LCG range helper"
+      }
+    },
+    "mapedit": {
+      "1a47": {
+        "system": "mapdraw",
+        "confidence": "known",
+        "label": "Tile compositor entry and land/coast/transition/river/hill/forest masks"
+      },
+      "12ab": {
+        "system": "mapdraw",
+        "confidence": "known",
+        "label": "Resources / rumours"
+      },
+      "19b7": {
+        "system": "mapdraw",
+        "confidence": "known",
+        "label": "Terrain class index"
+      }
+    }
+  },
+  "functions": {
+    "viceroy": {
+      "FUN_2a1f_083e": {
+        "system": "mapgen",
+        "purpose": "Dispatches into map-gen pipeline",
+        "confidence": "known",
+        "links": "src/core/map_gen.c; docs/assets.md"
+      },
+      "FUN_684c_08c0": {
+        "system": "mapgen",
+        "purpose": "NEW WORLD procedural map entry",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_684c_02a8": {
+        "system": "mapgen",
+        "purpose": "Land blobs / form thunk",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_684c_0116": {
+        "system": "mapgen",
+        "purpose": "Land blobs / form thunk",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_684c_021c": {
+        "system": "mapgen",
+        "purpose": "Land blobs / form thunk",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_67bf_0000": {
+        "system": "mapgen",
+        "purpose": "Continent flood-fill IDs",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_733a_0000": {
+        "system": "ui",
+        "purpose": "CUSTOMIZE / difficulty-style UI entry",
+        "confidence": "known",
+        "links": "src/core/new_game.c"
+      },
+      "FUN_733a_0270": {
+        "system": "ui",
+        "purpose": "CUSTOMIZE / new-game UI helper",
+        "confidence": "known",
+        "links": "src/core/new_game.c"
+      },
+      "FUN_733a_0512": {
+        "system": "ui",
+        "purpose": "CUSTOMIZE / new-game UI helper",
+        "confidence": "known",
+        "links": "src/core/new_game.c"
+      },
+      "FUN_281f_04d4": {
+        "system": "platform",
+        "purpose": "Wrapped RNG range (calls into libc / LCG)",
+        "confidence": "known",
+        "links": "ai/accessors.c; src/core/dos_rng.c"
+      },
+      "FUN_281f_04ca": {
+        "system": "platform",
+        "purpose": "Reseed LCG from timer word",
+        "confidence": "known",
+        "links": "ai/accessors.c; src/core/ai.c"
+      },
+      "FUN_1d1d_0e04": {
+        "system": "platform",
+        "purpose": "DOS LCG core",
+        "confidence": "known",
+        "links": "src/core/dos_rng.c"
+      },
+      "FUN_19ef_0032": {
+        "system": "platform",
+        "purpose": "DOS LCG range helper",
+        "confidence": "known",
+        "links": "src/core/dos_rng.c"
+      },
+      "FUN_281f_0590": {
+        "system": "ui",
+        "purpose": "Fill helper (turn box)",
+        "confidence": "known",
+        "links": "src/core/turn.c"
+      },
+      "FUN_1984_00aa": {
+        "system": "turn",
+        "purpose": "Nation turn-owner 5x3 at (315,197)",
+        "confidence": "known",
+        "links": "src/core/turn.c"
+      },
+      "FUN_43f7_05f4": {
+        "system": "ui",
+        "purpose": "@COUNTRY to DS color table",
+        "confidence": "known",
+        "links": "src/core/turn.c"
+      },
+      "FUN_4d56_0038": {
+        "system": "ai",
+        "purpose": "Small Indian AI helper; calls into 00e0 / map probes",
+        "confidence": "unknown",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_00e0": {
+        "system": "ai",
+        "purpose": "Chains to 01e2 / 14fe",
+        "confidence": "unknown",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_01e2": {
+        "system": "ai",
+        "purpose": "Thin wrapper to 14fe",
+        "confidence": "unknown",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_14fe": {
+        "system": "ai",
+        "purpose": "Indian unit act / dispatches growth 152e",
+        "confidence": "inferred",
+        "links": "ai/indian_nation_turn.c; src/core/ai.c"
+      },
+      "FUN_4d56_152e": {
+        "system": "ai",
+        "purpose": "Village growth accumulator to pop++",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; src/core/ai.c"
+      },
+      "FUN_4d56_1816": {
+        "system": "ai",
+        "purpose": "Indian nation turn entry (alarm, unit loop, relation ticks)",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; src/core/ai.c"
+      },
+      "FUN_4d56_1b3a": {
+        "system": "ai",
+        "purpose": "Calls 2154; mid-turn Indian action",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2154": {
+        "system": "ai",
+        "purpose": "Larger Indian action body (raid-adjacent)",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2820": {
+        "system": "ai",
+        "purpose": "Heavy Indian decision / raid-scale logic",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_3582": {
+        "system": "ai",
+        "purpose": "Small helper after 2820",
+        "confidence": "unknown",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_417e": {
+        "system": "ai",
+        "purpose": "Mid-size Indian AI helper",
+        "confidence": "unknown",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_4528": {
+        "system": "ai",
+        "purpose": "Largest Indian cluster (combat/raid-adjacent)",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_6a09_0006": {
+        "system": "ai",
+        "purpose": "Tribe capitals, satellites, Brave spawn loop",
+        "confidence": "known",
+        "links": "src/core/ai.c"
+      },
+      "FUN_521d_0a60": {
+        "system": "ai",
+        "purpose": "Euro unit / colony goal logic",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_20e6": {
+        "system": "ai",
+        "purpose": "Direction / move scoring (all unit kinds); quiet Brave slice annotated",
+        "confidence": "known",
+        "links": "ai/quiet_brave_scoring.c; ai/move_scoring.md"
+      },
+      "FUN_521d_5d04": {
+        "system": "ai",
+        "purpose": "Euro unit goals / planning (alongside 0a60)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_6d8e": {
+        "system": "ai",
+        "purpose": "Euro AI dispatcher per nation",
+        "confidence": "known",
+        "links": "ai/euro_dispatcher.c; src/core/ai.c"
+      },
+      "FUN_6a9f_0118": {
+        "system": "mapdraw",
+        "purpose": "Map viewport tile loop",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_15eb_06d2": {
+        "system": "mapdraw",
+        "purpose": "Shared world-map / pedia draw entry",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1427_065a": {
+        "system": "mapdraw",
+        "purpose": "Tile display (reads DS 0x5234); also unit_max_mp real body",
+        "confidence": "known",
+        "links": "ai/unit_mp.c; docs/viceroy_tables.md"
+      },
+      "FUN_1427_13b0": {
+        "system": "ai",
+        "purpose": "unit_has_moves_remaining (behind 281f_097a)",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_1427_155e": {
+        "system": "ai",
+        "purpose": "unit_exhaust_mp (behind 281f_0934)",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_1427_12f6": {
+        "system": "ai",
+        "purpose": "unit_tile_list_refresh post-ADD chrome",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_1427_040c": {
+        "system": "ai",
+        "purpose": "stack_set_xy post-ADD chrome",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_1427_0968": {
+        "system": "ai",
+        "purpose": "stack_facing_refresh post-ADD chrome",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_1427_0ce6": {
+        "system": "ai",
+        "purpose": "unit_post_move_chrome",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_1427_0c72": {
+        "system": "ai",
+        "purpose": "unit_visibility_bits post-ADD chrome",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_12d8_000e": {
+        "system": "sound",
+        "purpose": "BGM / event / SFX gating",
+        "confidence": "known",
+        "links": "src/core/sound.c"
+      },
+      "FUN_2059_000a": {
+        "system": "sound",
+        "purpose": "Sound driver jump table",
+        "confidence": "known",
+        "links": "src/core/sound.c"
+      },
+      "FUN_465b_0000": {
+        "system": "combat",
+        "purpose": "Move spent cost / ADD / post-ADD chrome (combat tails parked)",
+        "confidence": "known",
+        "links": "ai/move_spent.c; src/core/ai.c"
+      },
+      "FUN_124c_0040": {
+        "system": "platform",
+        "purpose": "DOS distance helper",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_010e": {
+        "system": "mapgen",
+        "purpose": "terrain_byte map accessor",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0142": {
+        "system": "mapgen",
+        "purpose": "layer2_byte map accessor",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_01ca": {
+        "system": "mapgen",
+        "purpose": "continent_id real body",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_01ac": {
+        "system": "mapgen",
+        "purpose": "layer3_byte map accessor",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0194": {
+        "system": "mapgen",
+        "purpose": "layer3_ptr map accessor",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0228": {
+        "system": "mapgen",
+        "purpose": "set_owner_nibble",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0358": {
+        "system": "mapgen",
+        "purpose": "euro_settlement_owner real body",
+        "confidence": "known",
+        "links": "ai/accessors.c; ai/move_spent.c"
+      },
+      "FUN_13e4_0074": {
+        "system": "mapgen",
+        "purpose": "ocean_or_high_seas real body",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_13e4_000e": {
+        "system": "mapgen",
+        "purpose": "decode_terrain_class",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_072c": {
+        "system": "mapgen",
+        "purpose": "tile_has_minor_river (via terrain_byte)",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_0754": {
+        "system": "mapgen",
+        "purpose": "tile_fa_flags thunk",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_0768": {
+        "system": "mapgen",
+        "purpose": "ocean_or_high_seas thunk",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_06b4": {
+        "system": "mapgen",
+        "purpose": "continent_id thunk",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_0696": {
+        "system": "mapgen",
+        "purpose": "euro_settlement_owner thunk",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_090c": {
+        "system": "ai",
+        "purpose": "unit_max_mp thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_097a": {
+        "system": "ai",
+        "purpose": "unit_has_moves_remaining thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_0934": {
+        "system": "ai",
+        "purpose": "unit_exhaust_mp thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_0916": {
+        "system": "ai",
+        "purpose": "unit_tile_list_refresh thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_0948": {
+        "system": "ai",
+        "purpose": "stack_set_xy thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_08da": {
+        "system": "ai",
+        "purpose": "stack_facing_refresh thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_084e": {
+        "system": "ai",
+        "purpose": "unit_post_move_chrome thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_07fe": {
+        "system": "ai",
+        "purpose": "unit_visibility_bits thunk",
+        "confidence": "known",
+        "links": "ai/unit_mp.c"
+      },
+      "FUN_281f_0302": {
+        "system": "mapgen",
+        "purpose": "map_tile_in_bounds",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_074a": {
+        "system": "mapgen",
+        "purpose": "tile_explore_mask",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_0682": {
+        "system": "mapgen",
+        "purpose": "tile_owner_or_presence",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_06d2": {
+        "system": "mapgen",
+        "purpose": "tile_tribe_or_presence",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_07e0": {
+        "system": "mapgen",
+        "purpose": "unit_index_on_tile",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_281f_078c": {
+        "system": "mapgen",
+        "purpose": "terrain_class_at",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      }
+    },
+    "mapedit": {
+      "FUN_1a47_0932": {
+        "system": "mapdraw",
+        "purpose": "Tile draw / compositor entry",
+        "confidence": "known",
+        "links": "src/core/map.c; docs/assets.md"
+      },
+      "FUN_1a47_01ae": {
+        "system": "mapdraw",
+        "purpose": "Land mask / coast setup",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1a47_05b2": {
+        "system": "mapdraw",
+        "purpose": "Coastal underlayer",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1a47_0676": {
+        "system": "mapdraw",
+        "purpose": "Masked ocean fill",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1a47_06da": {
+        "system": "mapdraw",
+        "purpose": "Land-land transitions",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1a47_030e": {
+        "system": "mapdraw",
+        "purpose": "River connectivity mask",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1a47_036e": {
+        "system": "mapdraw",
+        "purpose": "Hill connectivity mask",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_1a47_0418": {
+        "system": "mapdraw",
+        "purpose": "Forest connectivity mask",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_12ab_0458": {
+        "system": "mapdraw",
+        "purpose": "Resources / rumours helper",
+        "confidence": "known",
+        "links": "src/core/map.c; docs/assets.md"
+      },
+      "FUN_12ab_0540": {
+        "system": "mapdraw",
+        "purpose": "Resources / rumours helper",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_12ab_0380": {
+        "system": "mapdraw",
+        "purpose": "Resources / rumours helper",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_12ab_0204": {
+        "system": "mapdraw",
+        "purpose": "Resources / rumours helper",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_19b7_0006": {
+        "system": "mapdraw",
+        "purpose": "Terrain class index",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      }
+    }
+  }
+}

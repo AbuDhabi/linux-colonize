@@ -1,21 +1,62 @@
-# Annotated VICEROY sources (phase 1 — AI)
+# Annotated VICEROY / MAPEDIT sources
 
-Readable, labeled working copy of selected VICEROY logic extracted from the
-raw Ghidra export. **Not compiled** into the Linux binary. **Never edit** the
-raw export under [`../original_sources_decompiled/`](../original_sources_decompiled/)
-to “fix” names — put renames here instead.
+Readable working copy and **light function catalog** for the Ghidra exports.
+**Not compiled** into the Linux binary. **Never edit** the raw export under
+[`../original_sources_decompiled/`](../original_sources_decompiled/) to “fix”
+names — put renames and labels here instead.
 
-## Purpose
+## How to look something up
 
-Make AI-critical DOS control flow followable without chasing absolute DS
-offsets (`0x3146`, `0x8d4e`, …) and unlabeled `FUN_*` / `func_0x…` symbols.
-This is RE evidence for porting ([`src/core/ai.c`](../src/core/ai.c)), not a
-second runtime.
+1. **[`MODULE_MAP.md`](MODULE_MAP.md)** — segment prefix → system cluster.
+2. **[`FUNCTION_CATALOG.md`](FUNCTION_CATALOG.md)** — every `FUN_*` (line, size,
+   one-line purpose or `unknown`).
+3. **Deep extracts** (AI today) — files under `ai/` + [`SYMBOL_MAP.md`](SYMBOL_MAP.md).
+4. **Raw export** — `viceroy_unpacked.c` / `.asm` or `mapedit.c` when still
+   unlabeled. Bytes there always win on control-flow conflicts.
+
+Regenerate the catalog after a Ghidra re-export:
+
+```bash
+python3 scripts/gen_fun_catalog.py
+```
+
+Human-filled catalog cells and
+[`scripts/fun_catalog_seed.json`](../scripts/fun_catalog_seed.json) are merged
+by symbol on re-run.
+
+## Light catalog vs deep annotation
+
+| Mode | Artifact | Depth |
+|------|----------|-------|
+| **Light** | `FUNCTION_CATALOG.md` / `MODULE_MAP.md` | System tag + ≤1 sentence purpose + confidence |
+| **Deep** | `ai/*.c`, types/globals, callgraph notes | Provenance headers, renamed locals, control flow |
+
+Default for the whole decomp is **light**. Deepen a cluster only when porting
+needs it (peel layer D).
+
+## Catalog peel protocol (one layer per session)
+
+Each session peels **one** thin layer of ignorance. Do not mix layers.
+
+| Layer | Work | Exit criteria |
+|-------|------|----------------|
+| **A — Segment labeling** | Skim callees/callers + asm strings for the next unlabeled high-def segment; assign a system tag (bulk-apply in seed / catalog) | `MODULE_MAP` row no longer `unknown` |
+| **B — String/XREF pass** | `rg` strings in `.asm` for one game area (`SAVEGAME`, `EUROPE`, colony, combat, …); label hit functions | +N `inferred` / `known` purposes |
+| **C — Call-tree from known entry** | From one known entry (`FUN_684c_08c0`, `FUN_521d_6d8e`, turn EOT, …), label direct callees one hop | Entry’s 1-hop neighborhood catalogued |
+| **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
+
+Suggested early order after the skeleton: largest still-murky segments
+(`210d`, `38fd`, `2f2b`, …) via A/B, then gameplay entries via C. AI port
+roadmap stays in [`docs/ai_transcription.md`](../docs/ai_transcription.md);
+the catalog only mirrors status.
 
 ## Layout
 
 | Path | Role |
 |------|------|
+| [`FUNCTION_CATALOG.md`](FUNCTION_CATALOG.md) | All VICEROY + MAPEDIT `FUN_*` (light) |
+| [`MODULE_MAP.md`](MODULE_MAP.md) | Segment → system cheat sheet + peel summary |
+| [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Deep AI: Ghidra ↔ annotated ↔ Linux |
 | [`include/viceroy_types.h`](include/viceroy_types.h) | Unit / tribe / map-plane layouts |
 | [`include/viceroy_globals.h`](include/viceroy_globals.h) | Named DS addresses used by AI |
 | [`ai/accessors.c`](ai/accessors.c) | Map / RNG / move-cost helpers |
@@ -26,9 +67,8 @@ second runtime.
 | [`ai/brave_spent_callgraph.md`](ai/brave_spent_callgraph.md) | Quiet spent `0x3149` call graph + hang X target |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
 | [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; 2 spent residuals |
-| [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
-## Naming rules
+## Deep naming rules (extracted `.c` only)
 
 1. Every function keeps a provenance header: `/* Ghidra: FUN_…. | annotated_name */`.
 2. Prefer `snake_case` intent names; leave unverified bytes as `unk_*`.
@@ -38,11 +78,15 @@ second runtime.
 
 ## Sync policy
 
-- **Source of truth for bytes:** `original_sources_decompiled/viceroy_unpacked.c` (+ `.asm`).
-- When re-exporting from Ghidra, diff against the raw tree; re-apply annotations here by symbol, not by line number.
-- If annotated control flow disagrees with the raw export, the export wins until RE proves otherwise.
+- **Source of truth for bytes:** `original_sources_decompiled/viceroy_unpacked.c`
+  (+ `.asm`) and `mapedit.c`.
+- When re-exporting from Ghidra, re-run `gen_fun_catalog.py`; re-apply deep
+  annotations by symbol, not by line number.
+- If annotated control flow disagrees with the raw export, the export wins until
+  RE proves otherwise.
+- Catalog labels (`inferred`) are **not** port fidelity claims.
 
-## Phase 1 + phase 2 + phase 9–11 status
+## Deep AI status (phase 1 + 2 + 9–17)
 
 - Phase 1: AI-critical accessors, Indian nation turn entry, Euro dispatcher shell.
 - Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
