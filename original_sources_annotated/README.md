@@ -47,18 +47,17 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 
 ## Catalog peel status and roadmap
 
-**Layer A (VICEROY) is essentially done.** After batch eleven:
+**Layer A (VICEROY) is closed** for segment tagging (batch twelve). Only two
+segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
+`1d1c` (1 def). Live counts are in [`MODULE_MAP.md`](MODULE_MAP.md)
+**Progress**.
 
 | Metric | Value |
 |--------|------:|
 | Functions | 2380 |
-| Segments | 166 (138 labeled / 28 unknown) |
-| Confidence | known 78 · inferred 2273 · unknown 29 |
-| System unknown | 29 funcs |
-
-Exact live numbers and the residual unknown-segment list are auto-emitted in
-[`MODULE_MAP.md`](MODULE_MAP.md) **Progress** on each
-`python3 scripts/gen_fun_catalog.py` run.
+| Segments | 166 (164 labeled / 2 parked unknown) |
+| Confidence | known 79 · inferred 2298 · unknown 3 |
+| System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
 
@@ -66,10 +65,12 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
+Purpose one-liners are **not** Layer A. Most labeled funcs still have purpose
+`unknown`; that backlog is Layers B/C.
+
 ### Roadmap (committed order)
 
-1. **Stop bulk Layer A** for VICEROY. Opportunistic clear 1-def labels only when
-   evidence is obvious; leave opaque `205f` and weak soup alone.
+1. **Layer A VICEROY** — done (park `205f` / `1d1c` unless new evidence appears).
 2. **Layer B next** — string/XREF purpose pass on one game area (prefer
    `SAVEGAME`, colony, or Europe trade). MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries (`FUN_521d_6d8e`, `FUN_4d56_1816`,

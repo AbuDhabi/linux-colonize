@@ -571,11 +571,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1ae7_0016` | 15252 | 32 | platform | BIOS INT16 read next key (AH/AL); paired with 1ae3 key-ready / flush | known |  |
 | `FUN_1ae7_0032` | 15284 | 21 | platform | unknown | inferred |  |
 
-### Segment `1aea` (1 defs) — unknown
+### Segment `1aea` (1 defs) — ui — Map keyboard / hotkey dispatch
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1aea_000c` | 15305 | 919 | unknown | unknown | unknown |  |
+| `FUN_1aea_000c` | 15305 | 919 | ui | Map keyboard/hotkey dispatch (AX-0x110 switch into colony/mapdraw/sound) | inferred |  |
 
 ### Segment `1afb` (2 defs) — platform — String LF-terminate / NUL truncate
 
@@ -584,11 +584,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1afb_000e` | 16224 | 15 | platform | unknown | inferred |  |
 | `FUN_1afb_003c` | 16239 | 20 | platform | unknown | inferred |  |
 
-### Segment `1b01` (1 defs) — unknown
+### Segment `1b01` (1 defs) — platform — Buffered far-buffer file/stream read
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b01_000e` | 16259 | 114 | unknown | unknown | unknown |  |
+| `FUN_1b01_000e` | 16259 | 114 | platform | unknown | inferred |  |
 
 ### Segment `1b22` (1 defs) — platform — DOS file-exists probe (INT21 3D/3E) + INT24 wrap
 
@@ -622,11 +622,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1b57_0002` | 16539 | 23 | platform | unknown | inferred |  |
 
-### Segment `1b5e` (1 defs) — unknown
+### Segment `1b5e` (1 defs) — ui — Mouse cursor region update (17x17)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b5e_0000` | 16562 | 63 | unknown | unknown | unknown |  |
+| `FUN_1b5e_0000` | 16562 | 63 | ui | unknown | inferred |  |
 
 ### Segment `1b70` (2 defs) — ui — Mouse viewport / region setup (1a58)
 
@@ -635,11 +635,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1b70_0002` | 16625 | 13 | ui | unknown | inferred |  |
 | `FUN_1b70_003a` | 16638 | 17 | ui | unknown | inferred |  |
 
-### Segment `1b78` (1 defs) — unknown
+### Segment `1b78` (1 defs) — ui — Mouse cursor region update (16x16)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b78_0000` | 16655 | 52 | unknown | unknown | unknown |  |
+| `FUN_1b78_0000` | 16655 | 52 | ui | unknown | inferred |  |
 
 ### Segment `1b8b` (1 defs) — platform — Set BIOS equipment video-mode bits (40:10)
 
@@ -714,11 +714,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1bdd_0002` | 17168 | 59 | platform | unknown | inferred |  |
 | `FUN_1bdd_00e0` | 17227 | 39 | platform | unknown | inferred |  |
 
-### Segment `1bf5` (1 defs) — unknown
+### Segment `1bf5` (1 defs) — ui — Tiled rect blit loop
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bf5_0000` | 17266 | 52 | unknown | unknown | unknown |  |
+| `FUN_1bf5_0000` | 17266 | 52 | ui | unknown | inferred |  |
 
 ### Segment `1c05` (1 defs) — platform — Normalize far pointer (seg:off)
 
@@ -746,11 +746,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1c10_0008` | 17383 | 14 | platform | Program PIT channel-0 divisor via ports 0x43/0x40 | known |  |
 
-### Segment `1c11` (1 defs) — unknown
+### Segment `1c11` (1 defs) — ui — 2-bit packed glyph decode to pitched buffer
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c11_000c` | 17397 | 128 | unknown | unknown | unknown |  |
+| `FUN_1c11_000c` | 17397 | 128 | ui | unknown | inferred |  |
 
 ### Segment `1c28` (1 defs) — ui — Store text-draw color words at DS:269e
 
@@ -758,11 +758,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1c28_000a` | 17525 | 17 | ui | unknown | inferred |  |
 
-### Segment `1c2a` (1 defs) — unknown
+### Segment `1c2a` (1 defs) — ui — String pixel-width via glyph table
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c2a_0006` | 17542 | 30 | unknown | unknown | unknown |  |
+| `FUN_1c2a_0006` | 17542 | 30 | ui | unknown | inferred |  |
 
 ### Segment `1c2e` (2 defs) — ui — VGA vsync wait + DAC palette write
 
@@ -771,53 +771,53 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1c2e_000e` | 17572 | 16 | ui | unknown | inferred |  |
 | `FUN_1c2e_0022` | 17588 | 46 | ui | Wait VGA retrace then program DAC RGB palette via 0x3c8/0x3c9 | known |  |
 
-### Segment `1c36` (1 defs) — unknown
+### Segment `1c36` (1 defs) — ui — Soft-sprite / cursor RLE blit
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c36_000a` | 17634 | 176 | unknown | unknown | unknown |  |
+| `FUN_1c36_000a` | 17634 | 176 | ui | unknown | inferred |  |
 
-### Segment `1c56` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c56_0004` | 17810 | 231 | unknown | unknown | unknown |  |
-
-### Segment `1c83` (1 defs) — unknown
+### Segment `1c56` (1 defs) — ui — Scaled/dithered sprite blit
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c83_0002` | 18041 | 28 | unknown | unknown | unknown |  |
+| `FUN_1c56_0004` | 17810 | 231 | ui | unknown | inferred |  |
 
-### Segment `1c89` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c89_0006` | 18069 | 176 | unknown | unknown | unknown |  |
-
-### Segment `1caa` (1 defs) — unknown
+### Segment `1c83` (1 defs) — ui — Sprite scale to destination size/pos
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1caa_0004` | 18245 | 231 | unknown | unknown | unknown |  |
+| `FUN_1c83_0002` | 18041 | 28 | ui | unknown | inferred |  |
 
-### Segment `1cd8` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1cd8_0004` | 18476 | 178 | unknown | unknown | unknown |  |
-
-### Segment `1cf8` (1 defs) — unknown
+### Segment `1c89` (1 defs) — ui — Soft-sprite blit (sibling of 1c36)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1cf8_000a` | 18654 | 88 | unknown | unknown | unknown |  |
+| `FUN_1c89_0006` | 18069 | 176 | ui | unknown | inferred |  |
 
-### Segment `1d05` (1 defs) — unknown
+### Segment `1caa` (1 defs) — ui — Scaled sprite blit (sibling of 1c56)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1d05_0000` | 18742 | 85 | unknown | unknown | unknown |  |
+| `FUN_1caa_0004` | 18245 | 231 | ui | unknown | inferred |  |
+
+### Segment `1cd8` (1 defs) — ui — Soft-sprite blit (3rd sibling)
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1cd8_0004` | 18476 | 178 | ui | unknown | inferred |  |
+
+### Segment `1cf8` (1 defs) — platform — Insertion-sort parallel word+byte arrays
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1cf8_000a` | 18654 | 88 | platform | unknown | inferred |  |
+
+### Segment `1d05` (1 defs) — platform — Insertion-sort parallel byte+byte arrays
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_1d05_0000` | 18742 | 85 | platform | unknown | inferred |  |
 
 ### Segment `1d11` (2 defs) — ui — INT10 mode set + Mode13h far-buffer blit
 
@@ -989,17 +989,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_205f_000c` | 24308 | 31 | unknown | unknown | unknown |  |
 | `FUN_205f_0046` | 24339 | 30 | unknown | unknown | unknown |  |
 
-### Segment `206d` (1 defs) — unknown
+### Segment `206d` (1 defs) — platform — Stream buffer fill + far-ptr normalize
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_206d_000a` | 24369 | 52 | unknown | unknown | unknown |  |
+| `FUN_206d_000a` | 24369 | 52 | platform | unknown | inferred |  |
 
-### Segment `2074` (1 defs) — unknown
+### Segment `2074` (1 defs) — platform — Size-budgeted stream read to 1b01
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2074_0008` | 24421 | 56 | unknown | unknown | unknown |  |
+| `FUN_2074_0008` | 24421 | 56 | platform | unknown | inferred |  |
 
 ### Segment `2088` (2 defs) — platform — XMS detect (INT2F) + init handle table
 
@@ -2385,11 +2385,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_5e52` | 68539 | 88 | trade | unknown | inferred |  |
 | `FUN_38fd_6024` | 68627 | 755 | trade | unknown | inferred |  |
 
-### Segment `3f3f` (1 defs) — unknown
+### Segment `3f3f` (1 defs) — platform — CRC/LFSR step
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_3f3f_0006` | 69382 | 15 | unknown | unknown | unknown |  |
+| `FUN_3f3f_0006` | 69382 | 15 | platform | CRC/LFSR step: shift right, XOR poly when LSB set | known |  |
 
 ### Segment `3f41` (18 defs) — ui — Report / diplomacy / market UI screens
 
@@ -2704,11 +2704,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_5fef_31ea` | 101314 | 224 | combat | unknown | inferred |  |
 | `FUN_5fef_36fe` | 101538 | 122 | combat | unknown | inferred |  |
 
-### Segment `636c` (1 defs) — unknown
+### Segment `636c` (1 defs) — ui — Dual-column compare / report dialog
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_636c_0000` | 101660 | 562 | unknown | unknown | unknown |  |
+| `FUN_636c_0000` | 101660 | 562 | ui | unknown | inferred |  |
 
 ### Segment `647e` (23 defs) — colony — Colony list / select UI (rec*0x4a via DS:0x9e14)
 
@@ -2738,11 +2738,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_647e_115c` | 103099 | 58 | colony | unknown | inferred |  |
 | `FUN_647e_1486` | 103157 | 242 | colony | unknown | inferred |  |
 
-### Segment `65dd` (1 defs) — unknown
+### Segment `65dd` (1 defs) — combat — Unit combat outcome resolution (RNG cases)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_65dd_0004` | 103399 | 362 | unknown | unknown | unknown |  |
+| `FUN_65dd_0004` | 103399 | 362 | combat | Resolve unit combat outcome from RNG cases on selected unit | inferred |  |
 
 ### Segment `6662` (7 defs) — ui — Goto pathfinding BFS + path-cost overlay
 
@@ -3065,29 +3065,29 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_78d8_0054` | 122375 | 38 | platform | unknown | inferred |  |
 | `FUN_78d8_00c4` | 122413 | 63 | platform | Load/reload resource far-ptrs from stream; fatal after 3 reloads | inferred |  |
 
-### Segment `78ef` (1 defs) — unknown
+### Segment `78ef` (1 defs) — platform — Resource archive open (RM* / ext) + stream setup
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_78ef_0002` | 122476 | 245 | unknown | unknown | unknown |  |
+| `FUN_78ef_0002` | 122476 | 245 | platform | Open RM* resource archive (strip ext), alloc stream, set read budgets | inferred |  |
 
-### Segment `7939` (1 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7939_000c` | 122721 | 41 | unknown | unknown | unknown |  |
-
-### Segment `7944` (1 defs) — unknown
+### Segment `7939` (1 defs) — platform — Resource open helper (path + close)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7944_000e` | 122762 | 41 | unknown | unknown | unknown |  |
+| `FUN_7939_000c` | 122721 | 41 | platform | unknown | inferred |  |
 
-### Segment `7952` (1 defs) — unknown
+### Segment `7944` (1 defs) — platform — Resource open helper (sibling)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7952_0000` | 122803 | 70 | unknown | unknown | unknown |  |
+| `FUN_7944_000e` | 122762 | 41 | platform | unknown | inferred |  |
+
+### Segment `7952` (1 defs) — platform — Resource open / alloc path
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_7952_0000` | 122803 | 70 | platform | unknown | inferred |  |
 
 ### Segment `7962` (3 defs) — platform — Resource file open / close handle helpers
 
@@ -3097,11 +3097,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7962_020a` | 122970 | 11 | platform | unknown | inferred |  |
 | `FUN_7962_021c` | 122981 | 39 | platform | unknown | inferred |  |
 
-### Segment `798d` (1 defs) — unknown
+### Segment `798d` (1 defs) — platform — Compressed resource chunk read
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_798d_0000` | 123020 | 112 | unknown | unknown | unknown |  |
+| `FUN_798d_0000` | 123020 | 112 | platform | unknown | inferred |  |
 
 ### Segment `79a8` (4 defs) — platform — Compressed resource stream I/O + progress callback
 
@@ -3163,11 +3163,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7a83_0002` | 123993 | 35 | ui | unknown | inferred |  |
 | `FUN_7a83_002a` | 124028 | 84 | ui | unknown | inferred |  |
 
-### Segment `7a9d` (1 defs) — unknown
+### Segment `7a9d` (1 defs) — ui — Dialog string buffer prep (0x929e)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7a9d_0004` | 124112 | 17 | unknown | unknown | unknown |  |
+| `FUN_7a9d_0004` | 124112 | 17 | ui | unknown | inferred |  |
 
 ### Segment `7aa1` (2 defs) — ui — Parameterized dialog / message box (# subst)
 

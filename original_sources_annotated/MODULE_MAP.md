@@ -6,9 +6,9 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 
 ## Progress
 
-**VICEROY:** 2380 funcs · confidence known=78 inferred=2273 unknown=29 · system unknown=29 · segments 138 labeled / 28 unknown (of 166).
+**VICEROY:** 2380 funcs · confidence known=79 inferred=2298 unknown=3 · system unknown=3 · segments 164 labeled / 2 unknown (of 166).
 
-Remaining unknown segments (28): `205f` `1aea` `1b01` `1b5e` `1b78` `1bf5` `1c11` `1c2a` `1c36` `1c56` `1c83` `1c89` `1caa` `1cd8` `1cf8` `1d05` `1d1c` `206d` `2074` `3f3f` `636c` `65dd` `78ef` `7939` `7944` `7952` `798d` `7a9d`
+Remaining unknown segments (2): `205f` `1d1c`
 
 **MAPEDIT (parked):** 557 funcs · confidence known=19 inferred=413 unknown=125 · system unknown=125 · segments 24 labeled / 91 unknown (of 115).
 
@@ -126,13 +126,13 @@ Remaining unknown segments (28): `205f` `1aea` `1b01` `1b5e` `1b78` `1bf5` `1c11
 | `12d6` | 1 | ui | inferred | Mouse-gated blit to VGA A000 | [catalog](FUNCTION_CATALOG.md) |
 | `12d8` | 1 | sound | known | BGM / event / SFX gating | [catalog](FUNCTION_CATALOG.md) |
 | `1ade` | 1 | ui | known | VGA vsync + DAC palette write | [catalog](FUNCTION_CATALOG.md) |
-| `1aea` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1b01` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1aea` | 1 | ui | inferred | Map keyboard / hotkey dispatch | [catalog](FUNCTION_CATALOG.md) |
+| `1b01` | 1 | platform | inferred | Buffered far-buffer file/stream read | [catalog](FUNCTION_CATALOG.md) |
 | `1b22` | 1 | platform | known | DOS file-exists probe (INT21 3D/3E) + INT24 wrap | [catalog](FUNCTION_CATALOG.md) |
 | `1b4e` | 1 | platform | inferred | Path join: cwd + \ + name | [catalog](FUNCTION_CATALOG.md) |
 | `1b57` | 1 | platform | inferred | Ltrim spaces/tabs then strcpy | [catalog](FUNCTION_CATALOG.md) |
-| `1b5e` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1b78` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1b5e` | 1 | ui | inferred | Mouse cursor region update (17x17) | [catalog](FUNCTION_CATALOG.md) |
+| `1b78` | 1 | ui | inferred | Mouse cursor region update (16x16) | [catalog](FUNCTION_CATALOG.md) |
 | `1b8b` | 1 | platform | known | Set BIOS equipment video-mode bits (40:10) | [catalog](FUNCTION_CATALOG.md) |
 | `1b8d` | 1 | ui | inferred | Solid-rect fill thunk → 1b9e | [catalog](FUNCTION_CATALOG.md) |
 | `1b8f` | 1 | ui | inferred | Pitched buffer rect blit/copy | [catalog](FUNCTION_CATALOG.md) |
@@ -144,42 +144,42 @@ Remaining unknown segments (28): `205f` `1aea` `1b01` `1b5e` `1b78` `1bf5` `1c11
 | `1bc3` | 1 | ui | known | Vertical span fill in pitched buffer | [catalog](FUNCTION_CATALOG.md) |
 | `1bca` | 1 | ui | known | Rect outline via H/V span fills | [catalog](FUNCTION_CATALOG.md) |
 | `1bd4` | 1 | ui | inferred | Color replace in pitched rect | [catalog](FUNCTION_CATALOG.md) |
-| `1bf5` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1bf5` | 1 | ui | inferred | Tiled rect blit loop | [catalog](FUNCTION_CATALOG.md) |
 | `1c05` | 1 | platform | known | Normalize far pointer (seg:off) | [catalog](FUNCTION_CATALOG.md) |
 | `1c06` | 1 | platform | inferred | Parse 0x/0b numeric literal prefix | [catalog](FUNCTION_CATALOG.md) |
 | `1c10` | 1 | platform | known | Program PIT channel-0 divisor | [catalog](FUNCTION_CATALOG.md) |
-| `1c11` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1c11` | 1 | ui | inferred | 2-bit packed glyph decode to pitched buffer | [catalog](FUNCTION_CATALOG.md) |
 | `1c28` | 1 | ui | inferred | Store text-draw color words at DS:269e | [catalog](FUNCTION_CATALOG.md) |
-| `1c2a` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1c36` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1c56` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1c83` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1c89` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1caa` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1cd8` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1cf8` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1d05` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1c2a` | 1 | ui | inferred | String pixel-width via glyph table | [catalog](FUNCTION_CATALOG.md) |
+| `1c36` | 1 | ui | inferred | Soft-sprite / cursor RLE blit | [catalog](FUNCTION_CATALOG.md) |
+| `1c56` | 1 | ui | inferred | Scaled/dithered sprite blit | [catalog](FUNCTION_CATALOG.md) |
+| `1c83` | 1 | ui | inferred | Sprite scale to destination size/pos | [catalog](FUNCTION_CATALOG.md) |
+| `1c89` | 1 | ui | inferred | Soft-sprite blit (sibling of 1c36) | [catalog](FUNCTION_CATALOG.md) |
+| `1caa` | 1 | ui | inferred | Scaled sprite blit (sibling of 1c56) | [catalog](FUNCTION_CATALOG.md) |
+| `1cd8` | 1 | ui | inferred | Soft-sprite blit (3rd sibling) | [catalog](FUNCTION_CATALOG.md) |
+| `1cf8` | 1 | platform | inferred | Insertion-sort parallel word+byte arrays | [catalog](FUNCTION_CATALOG.md) |
+| `1d05` | 1 | platform | inferred | Insertion-sort parallel byte+byte arrays | [catalog](FUNCTION_CATALOG.md) |
 | `1d1c` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `206d` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2074` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `206d` | 1 | platform | inferred | Stream buffer fill + far-ptr normalize | [catalog](FUNCTION_CATALOG.md) |
+| `2074` | 1 | platform | inferred | Size-budgeted stream read to 1b01 | [catalog](FUNCTION_CATALOG.md) |
 | `2094` | 1 | platform | inferred | Rtrim trailing spaces/tabs | [catalog](FUNCTION_CATALOG.md) |
 | `209a` | 1 | platform | known | Parse hex integer from string | [catalog](FUNCTION_CATALOG.md) |
 | `20a0` | 1 | platform | known | Parse binary integer from string | [catalog](FUNCTION_CATALOG.md) |
 | `2100` | 1 | platform | known | XMS size query via multiplex entry | [catalog](FUNCTION_CATALOG.md) |
-| `3f3f` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `636c` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `65dd` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `3f3f` | 1 | platform | known | CRC/LFSR step | [catalog](FUNCTION_CATALOG.md) |
+| `636c` | 1 | ui | inferred | Dual-column compare / report dialog | [catalog](FUNCTION_CATALOG.md) |
+| `65dd` | 1 | combat | inferred | Unit combat outcome resolution (RNG cases) | [catalog](FUNCTION_CATALOG.md) |
 | `67bf` | 1 | mapgen | known | Continent flood-fill IDs | [catalog](FUNCTION_CATALOG.md) |
 | `682a` | 1 | mapgen | known | Map fertility / bonus value writer | [catalog](FUNCTION_CATALOG.md) |
 | `6a09` | 1 | ai | known | Tribe placement | [catalog](FUNCTION_CATALOG.md) |
-| `78ef` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7939` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7944` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7952` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `798d` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `78ef` | 1 | platform | inferred | Resource archive open (RM* / ext) + stream setup | [catalog](FUNCTION_CATALOG.md) |
+| `7939` | 1 | platform | inferred | Resource open helper (path + close) | [catalog](FUNCTION_CATALOG.md) |
+| `7944` | 1 | platform | inferred | Resource open helper (sibling) | [catalog](FUNCTION_CATALOG.md) |
+| `7952` | 1 | platform | inferred | Resource open / alloc path | [catalog](FUNCTION_CATALOG.md) |
+| `798d` | 1 | platform | inferred | Compressed resource chunk read | [catalog](FUNCTION_CATALOG.md) |
 | `79db` | 1 | platform | inferred | Chunked DOS file read into far buffer | [catalog](FUNCTION_CATALOG.md) |
 | `7a7c` | 1 | ui | inferred | Load 768-byte VGA palette from resource | [catalog](FUNCTION_CATALOG.md) |
-| `7a9d` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `7a9d` | 1 | ui | inferred | Dialog string buffer prep (0x929e) | [catalog](FUNCTION_CATALOG.md) |
 | `7ab3` | 1 | ui | known | VGA vsync + DAC palette read | [catalog](FUNCTION_CATALOG.md) |
 | `7ad6` | 1 | platform | inferred | Far-buffer free / clear handle struct | [catalog](FUNCTION_CATALOG.md) |
 
