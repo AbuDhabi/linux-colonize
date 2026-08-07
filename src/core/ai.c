@@ -3354,9 +3354,24 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 4 || nation_id > 11) {
     return;
   }
-  ai_grow_villages(ctx, nation_id);
-  /* FUN_4d56_1816: FUN_281f_04ca reseeds from timer word (VR_SEED → 100). */
+  /*
+   * FUN_4d56_1816 phase order (annotated indian_nation_turn / indian_contact.md):
+   *   1 reseed → 2–4 prelude/clamp → 5 growth → 6 relation → 7–8 quiet pulse →
+   *   9 meet/trade + raids (other paths; not inside 14fe).
+   * Pulse LCG burns (Inca=14 / Aztec=4) stay inside ai_native_nation_pulse after
+   * reseed — prelude uses isolated contact RNG only.
+   */
   ai_nation_reseed(ctx);
+
+  /* §2–4 alarm prelude (flags/mission); LCG stream-cost burns remain in pulse. */
+  ai_contact_indian_prelude(ctx, nation_id);
+
+  /* §5 tribe growth. */
+  ai_grow_villages(ctx, nation_id);
+
+  /* §6 relation / goods tick. */
+  ai_contact_indian_relation_tick(ctx, nation_id);
+
   AiRng local;
   AiRng* rng = ctx->rng;
   if (!rng) {
@@ -3394,6 +3409,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
+  /* §7–8 quiet 14fe act loop (+ seed-100 overlays). */
   ai_native_nation_pulse(
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );
@@ -3437,8 +3453,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     );
   }
 
-  /* FUN_4d56_1816 alarm/relations + meet/trade + raids (T0). */
-  ai_contact_indian_prelude(ctx, nation_id);
+  /* §9 meet/trade + raids (5bfb / 4528 paths — not quiet 14fe). */
   ai_contact_indian_meet_trade(ctx, nation_id);
   ai_contact_indian_raids(ctx, nation_id);
 }

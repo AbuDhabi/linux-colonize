@@ -184,7 +184,7 @@ difficulty/nation; landfall `goto`);
 AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE procedural
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 
-**Parked (later):** mid-game Euro planner branches; Indian meet/alarm/raid (`@RAID*`);
+**Parked (later):** mid-game Euro planner branches; deep Indian `2820`/`4528` + meet UI;
 full `1816` body beyond quiet path; King/REF. Early-AI T2 gate is green
 (`test-saves-ai/TURN1`…`TURN7`). Roadmap: [ai_transcription.md](ai_transcription.md).
 

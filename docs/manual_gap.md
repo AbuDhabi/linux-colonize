@@ -117,7 +117,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [ai_transcription.md](ai_transcription.md) |
 | Meet menus, trade, teach skills | Missing | Parked; adjacent contact bumps alarm + status line only ([ai_transcription.md](ai_transcription.md)) |
 | Missions / convert / incite | Missing | |
-| Alarm, raid, Indian wars | Partial | Runtime alarm friction bumps on adjacent contact; `@RAID*` / wars still deferred |
+| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` kinds); deep `2820`/`4528` + dialog UI still deferred |
 
 ### Combat and diplomacy
 
