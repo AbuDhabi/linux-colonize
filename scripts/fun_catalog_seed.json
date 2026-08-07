@@ -136,6 +136,36 @@
         "system": "trade",
         "confidence": "inferred",
         "label": "Nation Europe market / cargo trade (nation*0x13c via 0x84fc)"
+      },
+      "2b5a": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Map selected-unit order / input UI (DS:0x5392)"
+      },
+      "104b": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Text / number blit helpers (1d1d_11b4)"
+      },
+      "4b58": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Window / frame widget draw (281f_00ba family)"
+      },
+      "647e": {
+        "system": "colony",
+        "confidence": "inferred",
+        "label": "Colony list / select UI (rec*0x4a via DS:0x9e14)"
+      },
+      "6cb2": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Info / dialog text panels (281f compositor)"
+      },
+      "75c2": {
+        "system": "save",
+        "confidence": "known",
+        "label": "Savegame R/W of units / colonies / tribes / flags"
       }
     },
     "mapedit": {
@@ -637,6 +667,30 @@
         "purpose": "Colony build / order gate (prereq / error codes)",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_2b5a_303c": {
+        "system": "ui",
+        "purpose": "Map keyboard/input dispatch on DS:0x981e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0000": {
+        "system": "colony",
+        "purpose": "Bind colony record pointer (idx*0x4a to DS:0x9e14)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_75c2_0288": {
+        "system": "save",
+        "purpose": "Savegame write: flags/units/colonies/tribes blobs",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_75c2_0940": {
+        "system": "save",
+        "purpose": "Savegame load counterpart to FUN_75c2_0288",
+        "confidence": "known",
+        "links": "docs/savegame.md"
       }
     },
     "mapedit": {
