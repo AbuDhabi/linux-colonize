@@ -121,7 +121,7 @@ High-value known prefixes:
 | `FUN_1d1d_*` | High-density + platform-adjacent |
 | `FUN_1427_*` | Tile display helpers |
 | `FUN_12d8_*` / `FUN_2059_*` / `FUN_129f_*` | Sound / BGM gating and drivers |
-| `FUN_43f7_*` | Nation / `@COUNTRY` colors |
+| `FUN_43f7_*` | King/REF/tax/independence + `@COUNTRY` colors |
 | `FUN_1a47_*` (MAPEDIT) | Tile compositor / coast / transitions |
 | `FUN_12ab_*` (MAPEDIT) | Resources / rumours |
 | `FUN_19b7_*` (MAPEDIT) | Terrain class index |

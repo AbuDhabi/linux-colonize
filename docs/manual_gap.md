@@ -97,7 +97,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Recruit pool (3) + passage | Done | **R** dialog; passage starts 100, +16 per recruit (Unverified formula) |
 | Dock sentry / board on sail | Partial | Default sentry; Don’t/Board/Move-front menu; full equip/bless later |
 | Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
-| Tax rate / boycotts / king tax events | Missing | King phase stub; wiki checklist in [fandom_col1994.md](fandom_col1994.md) (unverified) |
+| Tax rate / boycotts / king tax events | Partial | Structural tax→REF (`ai_king`); boycott UI PARKED — [ai_transcription.md](ai_transcription.md) R6 |
 
 ### Economy and turn sequence
 
@@ -108,7 +108,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Liberty bells / crosses counters | Partial | Accumulators; FF election stub |
 | Full production formulas, spoilage, boycotts | Missing | |
 | Market prices driven by trade volume | Missing | Static bid/ask display only |
-| Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King stub — [ai_transcription.md](ai_transcription.md) |
+| Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King/REF structural — [ai_transcription.md](ai_transcription.md) |
 
 ### Indians
 
@@ -134,8 +134,8 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | FF election from liberty bells | Missing | Stub in turn pipeline; per-Father wiki effects in [fandom_col1994.md](fandom_col1994.md) (unverified) |
 | Pedia / F3 Congress report | Partial | Data / articles; no election |
-| Sons of Liberty %, declare independence | Missing | Wiki SoL / independence outline in [fandom_col1994.md](fandom_col1994.md) (unverified) |
-| REF invasion / revolution combat | Missing | Wiki REF checklist in [fandom_col1994.md](fandom_col1994.md) (unverified) |
+| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI PARKED — R6 |
+| REF invasion / revolution combat | Partial | REF wave / war act structural; deep `10f0` / chrome PARKED — R6 |
 | F10 Colonization Score | Partial | Schedule exists; win loop incomplete |
 
 ### AI Europeans
