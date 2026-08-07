@@ -80,28 +80,28 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_104b_0430` | 1063 | 17 | ui | unknown | inferred |  |
 | `FUN_104b_0478` | 1080 | 23 | ui | unknown | inferred |  |
 
-### Segment `1097` (7 defs) — unknown
+### Segment `1097` (7 defs) — ui — Multi-item dialog spacing / number layout
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1097_0004` | 1103 | 59 | unknown | unknown | unknown |  |
-| `FUN_1097_00de` | 1162 | 25 | unknown | unknown | unknown |  |
-| `FUN_1097_0174` | 1187 | 73 | unknown | unknown | unknown |  |
-| `FUN_1097_02da` | 1260 | 40 | unknown | unknown | unknown |  |
-| `FUN_1097_0394` | 1300 | 139 | unknown | unknown | unknown |  |
-| `FUN_1097_067a` | 1439 | 11 | unknown | unknown | unknown |  |
-| `FUN_1097_0682` | 1450 | 21 | unknown | unknown | unknown |  |
+| `FUN_1097_0004` | 1103 | 59 | ui | unknown | inferred |  |
+| `FUN_1097_00de` | 1162 | 25 | ui | unknown | inferred |  |
+| `FUN_1097_0174` | 1187 | 73 | ui | unknown | inferred |  |
+| `FUN_1097_02da` | 1260 | 40 | ui | unknown | inferred |  |
+| `FUN_1097_0394` | 1300 | 139 | ui | unknown | inferred |  |
+| `FUN_1097_067a` | 1439 | 11 | ui | unknown | inferred |  |
+| `FUN_1097_0682` | 1450 | 21 | ui | unknown | inferred |  |
 
-### Segment `1101` (6 defs) — unknown
+### Segment `1101` (6 defs) — ui — 16-row glyph/bitmap blit helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1101_000e` | 1471 | 9 | unknown | unknown | unknown |  |
-| `FUN_1101_0026` | 1480 | 15 | unknown | unknown | unknown |  |
-| `FUN_1101_0050` | 1495 | 35 | unknown | unknown | unknown |  |
-| `FUN_1101_00b4` | 1530 | 45 | unknown | unknown | unknown |  |
-| `FUN_1101_0126` | 1575 | 45 | unknown | unknown | unknown |  |
-| `FUN_1101_01dc` | 1620 | 55 | unknown | unknown | unknown |  |
+| `FUN_1101_000e` | 1471 | 9 | ui | unknown | inferred |  |
+| `FUN_1101_0026` | 1480 | 15 | ui | unknown | inferred |  |
+| `FUN_1101_0050` | 1495 | 35 | ui | unknown | inferred |  |
+| `FUN_1101_00b4` | 1530 | 45 | ui | unknown | inferred |  |
+| `FUN_1101_0126` | 1575 | 45 | ui | unknown | inferred |  |
+| `FUN_1101_01dc` | 1620 | 55 | ui | unknown | inferred |  |
 
 ### Segment `112b` (8 defs) — mapdraw — Unit orders/allegiance chrome (FUN_112b_01ba)
 
@@ -128,20 +128,20 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_124c_00f4` | 2813 | 20 | platform | unknown | inferred |  |
 | `FUN_124c_013c` | 2833 | 14 | platform | unknown | inferred |  |
 
-### Segment `1262` (10 defs) — unknown
+### Segment `1262` (10 defs) — ui — Input wait / mouse hit-test / tip overlays
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1262_0002` | 2847 | 8 | unknown | unknown | unknown |  |
-| `FUN_1262_0012` | 2855 | 13 | unknown | unknown | unknown |  |
-| `FUN_1262_003c` | 2868 | 19 | unknown | unknown | unknown |  |
-| `FUN_1262_0060` | 2887 | 42 | unknown | unknown | unknown |  |
-| `FUN_1262_00da` | 2929 | 15 | unknown | unknown | unknown |  |
-| `FUN_1262_00f6` | 2944 | 15 | unknown | unknown | unknown |  |
-| `FUN_1262_0128` | 2959 | 14 | unknown | unknown | unknown |  |
-| `FUN_1262_0142` | 2973 | 9 | unknown | unknown | unknown |  |
-| `FUN_1262_0152` | 2982 | 70 | unknown | unknown | unknown |  |
-| `FUN_1262_02fe` | 3052 | 71 | unknown | unknown | unknown |  |
+| `FUN_1262_0002` | 2847 | 8 | ui | unknown | inferred |  |
+| `FUN_1262_0012` | 2855 | 13 | ui | unknown | inferred |  |
+| `FUN_1262_003c` | 2868 | 19 | ui | unknown | inferred |  |
+| `FUN_1262_0060` | 2887 | 42 | ui | unknown | inferred |  |
+| `FUN_1262_00da` | 2929 | 15 | ui | unknown | inferred |  |
+| `FUN_1262_00f6` | 2944 | 15 | ui | unknown | inferred |  |
+| `FUN_1262_0128` | 2959 | 14 | ui | unknown | inferred |  |
+| `FUN_1262_0142` | 2973 | 9 | ui | unknown | inferred |  |
+| `FUN_1262_0152` | 2982 | 70 | ui | unknown | inferred |  |
+| `FUN_1262_02fe` | 3052 | 71 | ui | unknown | inferred |  |
 
 ### Segment `129f` (7 defs) — sound — BGM helpers
 
@@ -2537,19 +2537,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4962_0606` | 78332 | 46 | unknown | unknown | unknown |  |
 | `FUN_4962_06b6` | 78378 | 48 | unknown | unknown | unknown |  |
 
-### Segment `49dd` (9 defs) — unknown
+### Segment `49dd` (9 defs) — ui — Unit cargo / profession status panels
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_49dd_0000` | 78426 | 22 | unknown | unknown | unknown |  |
-| `FUN_49dd_0086` | 78448 | 9 | unknown | unknown | unknown |  |
-| `FUN_49dd_009c` | 78457 | 17 | unknown | unknown | unknown |  |
-| `FUN_49dd_00f6` | 78474 | 17 | unknown | unknown | unknown |  |
-| `FUN_49dd_0156` | 78491 | 17 | unknown | unknown | unknown |  |
-| `FUN_49dd_01aa` | 78508 | 59 | unknown | unknown | unknown |  |
-| `FUN_49dd_02d0` | 78567 | 39 | unknown | unknown | unknown |  |
-| `FUN_49dd_0386` | 78606 | 41 | unknown | unknown | unknown |  |
-| `FUN_49dd_0424` | 78647 | 750 | unknown | unknown | unknown |  |
+| `FUN_49dd_0000` | 78426 | 22 | ui | unknown | inferred |  |
+| `FUN_49dd_0086` | 78448 | 9 | ui | unknown | inferred |  |
+| `FUN_49dd_009c` | 78457 | 17 | ui | unknown | inferred |  |
+| `FUN_49dd_00f6` | 78474 | 17 | ui | unknown | inferred |  |
+| `FUN_49dd_0156` | 78491 | 17 | ui | unknown | inferred |  |
+| `FUN_49dd_01aa` | 78508 | 59 | ui | unknown | inferred |  |
+| `FUN_49dd_02d0` | 78567 | 39 | ui | unknown | inferred |  |
+| `FUN_49dd_0386` | 78606 | 41 | ui | unknown | inferred |  |
+| `FUN_49dd_0424` | 78647 | 750 | ui | unknown | inferred |  |
 
 ### Segment `4b58` (24 defs) — ui — Window / frame widget draw (281f_00ba family)
 
@@ -2580,17 +2580,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4b58_14de` | 80569 | 58 | ui | unknown | inferred |  |
 | `FUN_4b58_15a4` | 80627 | 147 | ui | unknown | inferred |  |
 
-### Segment `4cc6` (7 defs) — unknown
+### Segment `4cc6` (7 defs) — ai — Indian tribe relations / nearest-village / contact score
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_4cc6_0000` | 80774 | 32 | unknown | unknown | unknown |  |
-| `FUN_4cc6_0092` | 80806 | 20 | unknown | unknown | unknown |  |
-| `FUN_4cc6_00f2` | 80826 | 95 | unknown | unknown | unknown |  |
-| `FUN_4cc6_0304` | 80921 | 23 | unknown | unknown | unknown |  |
-| `FUN_4cc6_0356` | 80944 | 47 | unknown | unknown | unknown |  |
-| `FUN_4cc6_03f8` | 80991 | 200 | unknown | unknown | unknown |  |
-| `FUN_4cc6_07c2` | 81191 | 62 | unknown | unknown | unknown |  |
+| `FUN_4cc6_0000` | 80774 | 32 | ai | unknown | inferred |  |
+| `FUN_4cc6_0092` | 80806 | 20 | ai | unknown | inferred |  |
+| `FUN_4cc6_00f2` | 80826 | 95 | ai | unknown | inferred |  |
+| `FUN_4cc6_0304` | 80921 | 23 | ai | unknown | inferred |  |
+| `FUN_4cc6_0356` | 80944 | 47 | ai | unknown | inferred |  |
+| `FUN_4cc6_03f8` | 80991 | 200 | ai | unknown | inferred |  |
+| `FUN_4cc6_07c2` | 81191 | 62 | ai | Indian contact/alarm distance score (cur_tribe + indian_state + difficulty) | inferred |  |
 
 ### Segment `4d56` (21 defs) — ai — Indian AI / village growth
 
@@ -2652,16 +2652,16 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_521d_5d04` | 92325 | 748 | ai | Euro unit goals / planning (alongside 0a60) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_6d8e` | 93073 | 516 | ai | Euro AI dispatcher per nation | known | ai/euro_dispatcher.c; src/core/ai.c |
 
-### Segment `5952` (6 defs) — unknown
+### Segment `5952` (6 defs) — colony — Colony production / buildings / stock tick (DS:0x8542)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5952_0000` | 93589 | 97 | unknown | unknown | unknown |  |
-| `FUN_5952_0214` | 93686 | 35 | unknown | unknown | unknown |  |
-| `FUN_5952_0280` | 93721 | 28 | unknown | unknown | unknown |  |
-| `FUN_5952_02f4` | 93749 | 11 | unknown | unknown | unknown |  |
-| `FUN_5952_0306` | 93760 | 30 | unknown | unknown | unknown |  |
-| `FUN_5952_035e` | 93790 | 2658 | unknown | unknown | unknown |  |
+| `FUN_5952_0000` | 93589 | 97 | colony | unknown | inferred |  |
+| `FUN_5952_0214` | 93686 | 35 | colony | unknown | inferred |  |
+| `FUN_5952_0280` | 93721 | 28 | colony | unknown | inferred |  |
+| `FUN_5952_02f4` | 93749 | 11 | colony | unknown | inferred |  |
+| `FUN_5952_0306` | 93760 | 30 | colony | unknown | inferred |  |
+| `FUN_5952_035e` | 93790 | 2658 | colony | Colony production/buildings/stock tick on current colony (DS:0x8542) | inferred |  |
 
 ### Segment `5bfb` (12 defs) — ai — Indian contact / diplomacy / alarm
 
@@ -2744,17 +2744,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_65dd_0004` | 103399 | 362 | unknown | unknown | unknown |  |
 
-### Segment `6662` (7 defs) — unknown
+### Segment `6662` (7 defs) — ui — Goto pathfinding BFS + path-cost overlay
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_6662_0000` | 103761 | 34 | unknown | unknown | unknown |  |
-| `FUN_6662_0086` | 103795 | 46 | unknown | unknown | unknown |  |
-| `FUN_6662_00f2` | 103841 | 309 | unknown | unknown | unknown |  |
-| `FUN_6662_0906` | 104150 | 52 | unknown | unknown | unknown |  |
-| `FUN_6662_09ae` | 104202 | 70 | unknown | unknown | unknown |  |
-| `FUN_6662_0b4e` | 104272 | 216 | unknown | unknown | unknown |  |
-| `FUN_6662_0f74` | 104488 | 316 | unknown | unknown | unknown |  |
+| `FUN_6662_0000` | 103761 | 34 | ui | unknown | inferred |  |
+| `FUN_6662_0086` | 103795 | 46 | ui | unknown | inferred |  |
+| `FUN_6662_00f2` | 103841 | 309 | ui | Goto BFS over terr_cost with path-cost overlay and Z/Esc confirm | inferred |  |
+| `FUN_6662_0906` | 104150 | 52 | ui | unknown | inferred |  |
+| `FUN_6662_09ae` | 104202 | 70 | ui | unknown | inferred |  |
+| `FUN_6662_0b4e` | 104272 | 216 | ui | unknown | inferred |  |
+| `FUN_6662_0f74` | 104488 | 316 | ui | unknown | inferred |  |
 
 ### Segment `67bf` (1 defs) — mapgen — Continent flood-fill IDs
 
@@ -2807,17 +2807,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_6a9f_0360` | 108250 | 51 | mapdraw | unknown | inferred |  |
 | `FUN_6a9f_0486` | 108301 | 87 | mapdraw | unknown | inferred |  |
 
-### Segment `6afa` (7 defs) — unknown
+### Segment `6afa` (7 defs) — mapdraw — Map viewport clamp / tile blit helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_6afa_000c` | 108388 | 31 | unknown | unknown | unknown |  |
-| `FUN_6afa_0052` | 108419 | 45 | unknown | unknown | unknown |  |
-| `FUN_6afa_00c8` | 108464 | 15 | unknown | unknown | unknown |  |
-| `FUN_6afa_0132` | 108479 | 13 | unknown | unknown | unknown |  |
-| `FUN_6afa_0168` | 108492 | 60 | unknown | unknown | unknown |  |
-| `FUN_6afa_0224` | 108552 | 11 | unknown | unknown | unknown |  |
-| `FUN_6afa_023c` | 108563 | 11 | unknown | unknown | unknown |  |
+| `FUN_6afa_000c` | 108388 | 31 | mapdraw | unknown | inferred |  |
+| `FUN_6afa_0052` | 108419 | 45 | mapdraw | unknown | inferred |  |
+| `FUN_6afa_00c8` | 108464 | 15 | mapdraw | unknown | inferred |  |
+| `FUN_6afa_0132` | 108479 | 13 | mapdraw | unknown | inferred |  |
+| `FUN_6afa_0168` | 108492 | 60 | mapdraw | unknown | inferred |  |
+| `FUN_6afa_0224` | 108552 | 11 | mapdraw | unknown | inferred |  |
+| `FUN_6afa_023c` | 108563 | 11 | mapdraw | unknown | inferred |  |
 
 ### Segment `6b22` (9 defs) — mapdraw — Map viewport tribe/colony/unit overlay blit
 
@@ -2963,19 +2963,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_6f74_3848` | 117589 | 16 | ui | unknown | inferred |  |
 | `FUN_6f74_388a` | 117605 | 219 | ui | unknown | inferred |  |
 
-### Segment `7314` (9 defs) — unknown
+### Segment `7314` (9 defs) — platform — Config/name file line parse (comma fields)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7314_0000` | 117824 | 14 | unknown | unknown | unknown |  |
-| `FUN_7314_001a` | 117838 | 66 | unknown | unknown | unknown |  |
-| `FUN_7314_0106` | 117904 | 27 | unknown | unknown | unknown |  |
-| `FUN_7314_015e` | 117931 | 28 | unknown | unknown | unknown |  |
-| `FUN_7314_0198` | 117959 | 10 | unknown | unknown | unknown |  |
-| `FUN_7314_01b6` | 117969 | 10 | unknown | unknown | unknown |  |
-| `FUN_7314_01c8` | 117979 | 10 | unknown | unknown | unknown |  |
-| `FUN_7314_01da` | 117989 | 20 | unknown | unknown | unknown |  |
-| `FUN_7314_0208` | 118009 | 64 | unknown | unknown | unknown |  |
+| `FUN_7314_0000` | 117824 | 14 | platform | unknown | inferred |  |
+| `FUN_7314_001a` | 117838 | 66 | platform | unknown | inferred |  |
+| `FUN_7314_0106` | 117904 | 27 | platform | unknown | inferred |  |
+| `FUN_7314_015e` | 117931 | 28 | platform | unknown | inferred |  |
+| `FUN_7314_0198` | 117959 | 10 | platform | unknown | inferred |  |
+| `FUN_7314_01b6` | 117969 | 10 | platform | unknown | inferred |  |
+| `FUN_7314_01c8` | 117979 | 10 | platform | unknown | inferred |  |
+| `FUN_7314_01da` | 117989 | 20 | platform | unknown | inferred |  |
+| `FUN_7314_0208` | 118009 | 64 | platform | unknown | inferred |  |
 
 ### Segment `733a` (12 defs) — ui — New-game / CUSTOMIZE UI
 
@@ -3001,17 +3001,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7421_0188` | 118857 | 27 | unknown | unknown | unknown |  |
 | `FUN_7421_025a` | 118884 | 66 | unknown | unknown | unknown |  |
 
-### Segment `7455` (7 defs) — unknown
+### Segment `7455` (7 defs) — mapgen — Map plane buffer alloc (pitch 0x853a → terrain/L2/L3)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7455_0000` | 118950 | 33 | unknown | unknown | unknown |  |
-| `FUN_7455_0058` | 118983 | 58 | unknown | unknown | unknown |  |
-| `FUN_7455_0122` | 119041 | 20 | unknown | unknown | unknown |  |
-| `FUN_7455_0166` | 119061 | 65 | unknown | unknown | unknown |  |
-| `FUN_7455_02a6` | 119126 | 58 | unknown | unknown | unknown |  |
-| `FUN_7455_03b0` | 119184 | 28 | unknown | unknown | unknown |  |
-| `FUN_7455_0434` | 119212 | 70 | unknown | unknown | unknown |  |
+| `FUN_7455_0000` | 118950 | 33 | mapgen | unknown | inferred |  |
+| `FUN_7455_0058` | 118983 | 58 | mapgen | Allocate terrain/layer2/layer3 map planes from pitch×height | inferred |  |
+| `FUN_7455_0122` | 119041 | 20 | mapgen | unknown | inferred |  |
+| `FUN_7455_0166` | 119061 | 65 | mapgen | unknown | inferred |  |
+| `FUN_7455_02a6` | 119126 | 58 | mapgen | unknown | inferred |  |
+| `FUN_7455_03b0` | 119184 | 28 | mapgen | unknown | inferred |  |
+| `FUN_7455_0434` | 119212 | 70 | mapgen | unknown | inferred |  |
 
 ### Segment `74a4` (3 defs) — unknown
 

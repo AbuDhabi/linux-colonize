@@ -46,10 +46,10 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
 Suggested early order after the skeleton: Layer A has labeled through
-batch four (large clusters + mid-size `112b`/`41f2`/`364b`/`6b22`/`5fef`/
-`48d3`/`15b3`). Deferred unknowns: `1262`, `49dd`, `7314`. Next Layer A
-candidates: `1097`, `4cc6`, `6662`, `6afa`, `7455` (7-def). Then gameplay
-call-trees via C. AI port roadmap stays in
+batch five (deferred `1262`/`49dd`/`7314`, 7-def cluster, `1101`/`5952`).
+Next Layer A candidates (≥5-def unknowns): `130d`, `13f1`, `15dc`,
+`2047`, `6b7e`, `7562`, `7a05`, `7ada`, `7b08`. Then gameplay call-trees
+via C. AI port roadmap stays in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md); the catalog
 only mirrors status.
 

@@ -40,25 +40,25 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `733a` | 12 | ui | known | New-game / CUSTOMIZE UI | [catalog](FUNCTION_CATALOG.md) |
 | `364b` | 11 | colony | inferred | Colony found / build screen (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
 | `5fef` | 11 | combat | inferred | Unit/colony combat and Indian raid resolution | [catalog](FUNCTION_CATALOG.md) |
-| `1262` | 10 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1262` | 10 | ui | inferred | Input wait / mouse hit-test / tip overlays | [catalog](FUNCTION_CATALOG.md) |
 | `15b3` | 10 | trade | inferred | Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e) | [catalog](FUNCTION_CATALOG.md) |
 | `41f2` | 9 | ai | known | Tribe growth (Indian-turn growth tick + message UI) | [catalog](FUNCTION_CATALOG.md) |
 | `48d3` | 9 | ai | inferred | Euro landfall goto / unit-order helpers | [catalog](FUNCTION_CATALOG.md) |
-| `49dd` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `49dd` | 9 | ui | inferred | Unit cargo / profession status panels | [catalog](FUNCTION_CATALOG.md) |
 | `6b22` | 9 | mapdraw | inferred | Map viewport tribe/colony/unit overlay blit | [catalog](FUNCTION_CATALOG.md) |
-| `7314` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `7314` | 9 | platform | inferred | Config/name file line parse (comma fields) | [catalog](FUNCTION_CATALOG.md) |
 | `112b` | 8 | mapdraw | known | Unit orders/allegiance chrome (FUN_112b_01ba) | [catalog](FUNCTION_CATALOG.md) |
 | `684c` | 8 | mapgen | known | Procedural NEW WORLD map gen | [catalog](FUNCTION_CATALOG.md) |
 | `6a9f` | 8 | mapdraw | known | Map viewport tile loop | [catalog](FUNCTION_CATALOG.md) |
-| `1097` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1097` | 7 | ui | inferred | Multi-item dialog spacing / number layout | [catalog](FUNCTION_CATALOG.md) |
 | `124c` | 7 | platform | inferred | Small helpers (e.g. DOS distance) | [catalog](FUNCTION_CATALOG.md) |
 | `129f` | 7 | sound | known | BGM helpers | [catalog](FUNCTION_CATALOG.md) |
-| `4cc6` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6662` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6afa` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7455` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1101` | 6 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `5952` | 6 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `4cc6` | 7 | ai | inferred | Indian tribe relations / nearest-village / contact score | [catalog](FUNCTION_CATALOG.md) |
+| `6662` | 7 | ui | inferred | Goto pathfinding BFS + path-cost overlay | [catalog](FUNCTION_CATALOG.md) |
+| `6afa` | 7 | mapdraw | inferred | Map viewport clamp / tile blit helpers | [catalog](FUNCTION_CATALOG.md) |
+| `7455` | 7 | mapgen | inferred | Map plane buffer alloc (pitch 0x853a → terrain/L2/L3) | [catalog](FUNCTION_CATALOG.md) |
+| `1101` | 6 | ui | inferred | 16-row glyph/bitmap blit helpers | [catalog](FUNCTION_CATALOG.md) |
+| `5952` | 6 | colony | inferred | Colony production / buildings / stock tick (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
 | `130d` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `13f1` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `15dc` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
