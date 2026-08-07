@@ -93,10 +93,14 @@ int main(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
-  /* Meet: adjacent Euro → met_by_player. */
+  /* Meet: adjacent Euro → met_by_player + relation bump. */
+  const uint8_t rel0 = col1.nation[0].relation_by_indian[0];
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!ind->met_by_player[0]) {
     return fail("meet should set met_by_player[0]");
+  }
+  if (col1.nation[0].relation_by_indian[0] <= rel0) {
+    return fail("meet should bump relation_by_indian");
   }
   /* Move Euro away so colony raid is not pre-empted by adjacent combat. */
   euro->x = 10;

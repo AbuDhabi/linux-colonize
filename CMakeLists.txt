@@ -713,6 +713,18 @@ target_link_libraries(smoke_ai_contact PRIVATE colonize_core)
 
 add_test(NAME smoke_ai_contact COMMAND smoke_ai_contact WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(smoke_ai_diplo
+  tests/smoke/test_ai_diplo.c
+)
+
+target_include_directories(smoke_ai_diplo PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_ai_diplo PRIVATE colonize_core)
+
+add_test(NAME smoke_ai_diplo COMMAND smoke_ai_diplo WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_kill_indians
   tests/smoke/test_kill_indians.c
 )
