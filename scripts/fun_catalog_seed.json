@@ -528,6 +528,26 @@
         "system": "platform",
         "confidence": "inferred",
         "label": "EMS page-frame heap / handle allocator"
+      },
+      "1297": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Path/name helpers: digit overlay, *-strip copy, fopen"
+      },
+      "1ed0": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Fatal/abort error text + INT10 video reset"
+      },
+      "2115": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS Ctrl-C/Break / INT21 abort handlers"
+      },
+      "2309": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Compressed resource stream I/O + progress callback"
       }
     }
   },
@@ -1258,6 +1278,30 @@
       "FUN_2074_0288": {
         "system": "ui",
         "purpose": "RGB squared-distance for palette match",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1297_000c": {
+        "system": "platform",
+        "purpose": "Overlay decimal digits of AX into a path template string",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1ed0_0156": {
+        "system": "platform",
+        "purpose": "Fatal abort: INT10 video reset, print error text, exit(3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2115_0100": {
+        "system": "platform",
+        "purpose": "Install 5 far INT abort handlers pointing into this segment",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_2309_004a": {
+        "system": "platform",
+        "purpose": "Wire compressed stream I/O (callbacks + heap buffer + consume loop)",
         "confidence": "inferred",
         "links": ""
       }
