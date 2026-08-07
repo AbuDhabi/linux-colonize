@@ -1,0 +1,74 @@
+{
+  "layer": "C",
+  "chunk": "1hop_2b5a_3252_3ae6",
+  "entries": ["FUN_2b5a_3252", "FUN_2b5a_3ae6"],
+  "functions": {
+    "FUN_210d_1ac4": {
+      "system": "platform",
+      "purpose": "Overlay unmap: capture INT21 vec (+optional IVT hook); maybe 3564; clear 2912.bit0",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_239d": {
+      "system": "platform",
+      "purpose": "BP-stack walk: reloc far-call segs into EMS window by opcode probe",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_2590": {
+      "system": "platform",
+      "purpose": "Scan SS stack via 2492; cache last EMS-window far ptr @CS:398d",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_2aa5": {
+      "system": "platform",
+      "purpose": "If overlay slot matches: 2a6e; if descriptor !bit5: 2d5a commit",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_33e3": {
+      "system": "platform",
+      "purpose": "Round EMS page [6] sizes bytes→paragraphs across ES:[18] slots",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_409c": {
+      "system": "platform",
+      "purpose": "Read CX overlay-stream bytes (≤0x400 chunks via 45f1); CF if short",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_45d3": {
+      "system": "platform",
+      "purpose": "Store AX as 4 hex ASCII digits at ES:DI (via 45da/45e7)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_5808": {
+      "system": "platform",
+      "purpose": "Retain EMS overlay page (set bit2 + ref=1, or INC [6])",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_58c2": {
+      "system": "platform",
+      "purpose": "Walk retained EMS chain (CS:5db9): bytes→paras [6] if !flags&5",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0830": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_14a0 (next unit matching 1410; round-robin)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_01fa": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_479b_076e (found-colony order body)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "11/11 exclusive unlabeled C 1-hops of FUN_2b5a_3252 (extended map-key 0x149+) ∪ FUN_2b5a_3ae6 (Move Pieces frame). Real ASM: 3252 is near jump-table only (3094/3104/32a2/…); 3ae6 order switch calls 291f_* including 01fa→479b_076e build colony (order 7). 281f_0830 is EMS+JMPF→1427_14a0 used from activate/select path (0e52) reached via map-key activate. C decomp of both entries falsely pulls 210d EMS/overlay helpers via polluted switch FWD — labeled from callee bodies/ASM; system=platform per MODULE_MAP. Hex 45d3 anchors 37d9/391d/1695 diagnostics. Shard only; no seed/catalog edits."
+}
