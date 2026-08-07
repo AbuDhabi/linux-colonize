@@ -458,24 +458,24 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1984_0040` | 13848 | 12 | turn | unknown | inferred |  |
-| `FUN_1984_006a` | 13860 | 13 | turn | unknown | inferred |  |
+| `FUN_1984_0040` | 13848 | 12 | turn | Turn-owner fill blit via alt color table (DS:0x360) | inferred |  |
+| `FUN_1984_006a` | 13860 | 13 | turn | Nation turn-owner 5x3 indicator (same chrome as 00aa) | inferred | src/core/turn.c |
 | `FUN_1984_00aa` | 13873 | 13 | turn | Nation turn-owner 5x3 at (315,197) | known | src/core/turn.c |
-| `FUN_1984_00e8` | 13886 | 16 | turn | unknown | inferred |  |
-| `FUN_1984_010a` | 13902 | 49 | turn | unknown | inferred |  |
-| `FUN_1984_029e` | 13951 | 27 | turn | unknown | inferred |  |
-| `FUN_1984_02fc` | 13978 | 43 | turn | unknown | inferred |  |
-| `FUN_1984_03b2` | 14021 | 9 | turn | unknown | inferred |  |
-| `FUN_1984_03ca` | 14030 | 25 | turn | unknown | inferred |  |
-| `FUN_1984_043a` | 14055 | 10 | turn | unknown | inferred |  |
-| `FUN_1984_045a` | 14065 | 11 | turn | unknown | inferred |  |
-| `FUN_1984_046e` | 14076 | 11 | turn | unknown | inferred |  |
-| `FUN_1984_0490` | 14087 | 21 | turn | unknown | inferred |  |
-| `FUN_1984_04f6` | 14108 | 13 | turn | unknown | inferred |  |
-| `FUN_1984_053a` | 14121 | 17 | turn | unknown | inferred |  |
-| `FUN_1984_05b8` | 14138 | 17 | turn | unknown | inferred |  |
-| `FUN_1984_0636` | 14155 | 17 | turn | unknown | inferred |  |
-| `FUN_1984_06b4` | 14172 | 8 | turn | unknown | inferred |  |
+| `FUN_1984_00e8` | 13886 | 16 | turn | If in-map, set focus tile DS:0x8540/0x853e | inferred |  |
+| `FUN_1984_010a` | 13902 | 49 | turn | Toggle focus blink 0x929c; refresh focus-tile map chrome | inferred |  |
+| `FUN_1984_029e` | 13951 | 27 | turn | Recenter viewport on tile; optional blink clear + chrome refresh | inferred |  |
+| `FUN_1984_02fc` | 13978 | 43 | turn | If rect near viewport edge, recenter via 029e; return scrolled | inferred |  |
+| `FUN_1984_03b2` | 14021 | 9 | turn | Ensure viewport contains single tile (x,y) | inferred |  |
+| `FUN_1984_03ca` | 14030 | 25 | turn | Nudge focus by dir8; scroll + refresh chrome | inferred |  |
+| `FUN_1984_043a` | 14055 | 10 | turn | Arm timed status overlay then draw (1009) | inferred |  |
+| `FUN_1984_045a` | 14065 | 11 | turn | Append status-bar string from table 0x2dba[idx] | inferred |  |
+| `FUN_1984_046e` | 14076 | 11 | turn | Status line: verb string + timed overlay at y=0x78 | inferred |  |
+| `FUN_1984_0490` | 14087 | 21 | turn | Present/clear top status strip (7px); optional mouse region | inferred |  |
+| `FUN_1984_04f6` | 14108 | 13 | turn | Tear down status chrome strip and overlays | inferred |  |
+| `FUN_1984_053a` | 14121 | 17 | turn | Unit status chrome (nation+type+verb idx5 + nation name) | inferred |  |
+| `FUN_1984_05b8` | 14138 | 17 | turn | Unit status chrome (same as 053a, verb idx7) | inferred |  |
+| `FUN_1984_0636` | 14155 | 17 | turn | Unit status chrome (same as 053a, verb idx6) | inferred |  |
+| `FUN_1984_06b4` | 14172 | 8 | turn | Stub: always return 0 | inferred |  |
 
 ### Segment `19ef` (4 defs) — platform — DOS LCG range helper
 
@@ -2477,7 +2477,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_465b_0000` | 75417 | 430 | combat | Move spent cost / ADD / post-ADD chrome (combat tails parked) | known | ai/move_spent.c; src/core/ai.c |
-| `FUN_465b_0c1e` | 75847 | 23 | combat | unknown | inferred |  |
+| `FUN_465b_0c1e` | 75847 | 23 | combat | Step unit in dir8 via thunk into move_spent_add (465b_0000) | inferred | ai/move_spent.c; ai/indian_nation_turn.c |
 
 ### Segment `4720` (3 defs) — ui — Ship embark / naval-move validity + order UI (DS:0x9e4e)
 
