@@ -56,8 +56,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 105 · inferred 2272 · unknown 3 |
-| Purpose one-liners | 726 / 2380 |
+| Confidence | known 116 · inferred 2261 · unknown 3 |
+| Purpose one-liners | 922 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -67,11 +67,11 @@ Catalog confidence is **not** the same as AI port status in
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
 Purpose one-liners are **not** Layer A. Mid/high-value Layer B closed for game
-logic, map accessors/fog/mapgen leftovers, trade/diplo UI, pathfinding, and
-map unit-order UI. Layer C 1-hop from Euro/Indian AI entries closed. Remaining
-backlog is mostly thunk/platform/dialog-UI/mapdraw bulk; next useful peels are
-Layer C from `FUN_684c_08c0` and/or dialog compositor clusters as ports need
-them.
+logic, map accessors/fog, trade/diplo UI, pathfinding, unit-order UI, map
+viewport, and dialog compositor `6f74`. Layer C closed for Euro/Indian AI
+entries and NEW WORLD mapgen `FUN_684c_08c0`. Remaining backlog is mostly
+thunk/platform/`15eb` mapdraw bulk and leftover dialog widgets (`6cb2`/`4b58`/
+`104b`).
 
 ### Roadmap (committed order)
 
@@ -92,13 +92,15 @@ them.
      `13f1`/`67f4`/`682a` (37); trade+diplo UI `15b3`/`5f7a`/`3f41` + last
      `521d` (33); path/orders `6662`/`112b`/`49dd` (22); unit-order UI `2b5a`
      (52).
-   - **Next (optional):** Layer C mapgen from `FUN_684c_08c0`, dialog UI
-     (`6f74`/`6cb2`), or thunks only as hops need them. MAPEDIT stays parked.
+   - **Done:** map viewport `6ba1`/`6a9f`/`6afa`/`6b22`/`6b7e` (42+3 via C);
+     dialog compositor `6f74` (57/58 incl. known `1198`).
+   - **Next (optional):** dialog widgets `6cb2`/`4b58`/`104b`, or thunks only
+     as hops need them. MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
-   - **Next:** `FUN_684c_08c0` mapgen neighborhood, turn EOT, or other known
-     entries as ports need them.
+   - **Done:** `FUN_684c_08c0` (30 non-thunk bodies + 67 `281f`/`291f` thunks).
+   - **Next:** turn EOT neighborhood, or other known entries as ports need them.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 

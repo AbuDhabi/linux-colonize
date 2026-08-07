@@ -6,7 +6,7 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 
 ## Progress
 
-**VICEROY:** 2380 funcs · confidence known=105 inferred=2272 unknown=3 · system unknown=3 · segments 164 labeled / 2 unknown (of 166).
+**VICEROY:** 2380 funcs · confidence known=116 inferred=2261 unknown=3 · system unknown=3 · segments 164 labeled / 2 unknown (of 166).
 
 Remaining unknown segments (2): `205f` `1d1c`
 
