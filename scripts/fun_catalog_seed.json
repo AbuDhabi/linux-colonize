@@ -5303,6 +5303,1182 @@
         "purpose": "Map UI main loop: clear selection, then Move/View Pieces frame",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_2a1f_0822": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_684c_02a8 (one land blob / form dispatch)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_2a1f_07dc": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_67bf_0000 (continent flood-fill IDs)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_2a1f_0868": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_1bbb_0006 pitched-byte get (terrain read in mapgen)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_2a1f_0872": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_1bb9_000a pitched-byte put (terrain write in mapgen)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_6ba1_0938": {
+        "system": "mapdraw",
+        "purpose": "Compose/draw one viewport map tile (terrain, features, overlays)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_09fa": {
+        "system": "ui",
+        "purpose": "EMS thunk \u2192 FUN_6cb2_048c (info/dialog panel text + sprite strip)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_07e4": {
+        "system": "platform",
+        "purpose": "strcpy \u2014 null-terminated string copy (word-aligned)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_09c2": {
+        "system": "ui",
+        "purpose": "EMS thunk \u2192 FUN_6cb2_03bc (dialog compositor setup/flush)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_01a0": {
+        "system": "ui",
+        "purpose": "EMS thunk \u2192 FUN_4720_0006 (ship cargo free-space / embark probe)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_06b0": {
+        "system": "combat",
+        "purpose": "EMS thunk \u2192 FUN_5fef_016c (pick cargo slot to plunder)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0704": {
+        "system": "ui",
+        "purpose": "EMS thunk \u2192 FUN_636c_0000 (dual-column compare/report dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0626": {
+        "system": "ai",
+        "purpose": "EMS thunk \u2192 FUN_5bfb_312e (unit combat-power factor)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_06e0": {
+        "system": "combat",
+        "purpose": "EMS thunk \u2192 FUN_5fef_0352 (apply combat outcome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_06d4": {
+        "system": "combat",
+        "purpose": "EMS thunk \u2192 FUN_5fef_172c (post-combat specialty/type change)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0ec6": {
+        "system": "platform",
+        "purpose": "Signed 32-bit division helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0f60": {
+        "system": "platform",
+        "purpose": "32-bit multiply helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_06c8": {
+        "system": "combat",
+        "purpose": "EMS thunk \u2192 FUN_5fef_0f14 (Indian raid colony loot + tension)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_06ec": {
+        "system": "mapgen",
+        "purpose": "EMS page-in stub only (no further far call)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0830": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_684c_03e4 (mountain landlocked / four-diagonal check)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_2a1f_084c": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_684c_04a6 (rivers pass)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_6ba1_0558": {
+        "system": "mapdraw",
+        "purpose": "Blit current map-tile terrain sprite (soft RLE vs scaled by DS:0x186)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_067c": {
+        "system": "mapdraw",
+        "purpose": "Blit current map-tile glyph/bitmap overlay (mode by DS:0x184)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0b48": {
+        "system": "platform",
+        "purpose": "sprintf into buffer (FILE-like DS:0x2d30 \u2192 FUN_1d1d_196e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_022a": {
+        "system": "colony",
+        "purpose": "EMS thunk \u2192 FUN_647e_0522 (read packed colonist-slot nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_021c": {
+        "system": "colony",
+        "purpose": "EMS thunk \u2192 FUN_647e_057a (read packed building/cargo nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0754": {
+        "system": "colony",
+        "purpose": "EMS thunk \u2192 FUN_647e_0040 (resolve slot label ptr)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_11b4": {
+        "system": "platform",
+        "purpose": "strcat \u2014 append null-terminated string onto dest",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_085a": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_684c_009c (archipelago/normal land-blob wander)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_2a1f_0806": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_684c_0116 (continents land-blob wander)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_2a1f_0814": {
+        "system": "mapgen",
+        "purpose": "EMS thunk \u2192 FUN_684c_021c (short cardinal extra-mass wander)",
+        "confidence": "known",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_281f_0484": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1b8d_0004 (filled-rect blit wrapper\u21921b9e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_03ac": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1262_02fe (mouse-move / tooltip debounce tick)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_06c8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_003c (True if |dx|,|dy| within radius mode)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0182": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_012e (format int\u2192string then UI text blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00e2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1b70_003a (video restore/flush around blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_03c0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1262_0060 (wait for key/mouse with UI pump)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0812": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_023a (unlink unit from stack; clear xy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0894": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0d1e (set unit nation low-nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0844": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_02ca (place unit on tile; link stack head)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_09ae": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_042c (set dialog numeric subst far-ptr slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0652": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_37a2 (set secondary side-art then flush dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_04c0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_12d8_000e (BGM / event / SFX gating)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0aec": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_317c (remove unit cargo/passenger slot; compact)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d58": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_30b8 (adjust unit cargo qty by profession)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0254": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1c36_000a (sprite/frame blit from object table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0022": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1000_0062 (nth NUL-terminated string from table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_013c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0288 (set text colors then draw string)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08bc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1bbc_000c (horizontal byte-fill in buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08b2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1bc3_0006 (vertical byte-fill in buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_01a8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7ada_01aa (DOS INT21 AH=49 free mem block)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c86": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0274 (colony SoL/happiness score 0..100)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a06": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_478c_00d0 (undo last unit spawn if colonist 0x17)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_089e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_037e (re-place unit at its current xy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_051a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_12fd_0048 (test discovery/event bit at DS:0x540a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0524": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_12fd_006c (once-only discovery/event opcode dispatch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d9a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1984_03b2 (ensure viewport contains tile (x,y))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_06be": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_03e4 (tile_tribe_owner \u2014 owner if layer2 tribe bit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_02d0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_112b_0eb6 (animate unit tile-to-tile move)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_09ba": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6b7e_0004 (map viewport blit/refresh frame)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_08c6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_03a0 (demote unit to stack bottom)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0248": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4d56_00e0 (Indian AI act chain \u219201e2/14fe)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_095c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_06b4 (allocate/spawn unit into pool and place)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a9c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0d04 (remove colony colonist slot; compact)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0416": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_03d0 (prefetch dialog string-table slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0254": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_1e64 (destroy colony; compact table + fix refs)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_098e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0026 (walk transport_prev to stack tail/bottom)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_083a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0f30 (destroy entire transport stack via 0824)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0e1c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6b7e_00c0 (map overlay/chrome paint pass)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_03ea": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_12d6_0000 (blit VGA rect from offscreen buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0614": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_0142 (nearest colony by nation/continent; set active)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0c18": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_022c (lookup word from remapped id table (\u22120x715e))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_04ac": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_129f_0318 (set BGM track id + gate play)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0704": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_0228 (set_owner_nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_02e4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_004a (one step down stack (read transport_prev))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0608": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_6cd4 (colony screen entry / main-loop teardown)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_048e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_129f_02cc (queue sound/event id if changed)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_07b4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_3960 (nation feature/FF bit test (table \u22120x77f1))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_019c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_3760 (set side-art style then flush/run dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0d12": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_00a2 (any 8-neighbor ocean/high-seas)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00ba": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1b9e_000a (blit/copy rect into video buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00ce": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1bca_0002 (rectangle outline (H+V fills))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_068c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_015e (OR or AND-clear layer2 bits at tile)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0718": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_04b0 (procedural special-resource type from seed)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_070e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_00f6 (terrain_ptr map accessor (DS:0x15c))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_06aa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_137f_0614 (remap terrain type by climate DS:0x18e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01fa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1c11_000c (draw UI text string at xy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_012c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7a65_0008 (label viewport tile (hidden-terrain chrome))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01f0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1c28_000a (set text draw color nibbles DS:0x269e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0100": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0318 (center string then draw via 0288)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0a4a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_647e_001a (bind colonist-slot pointer (slot\u00d710\u2192DS:0x9e18))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01dc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0052 (fill/clear string buffer (0x58))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_016e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_00e2 (resolve string ptr then UI text blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_035c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_124c_000c (clamp value to [lo,hi])",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0322": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_035e (test colony feature bit at DS:0x5dca)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_037a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_124c_007c (Manhattan |dx|+|dy| via 0040)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_04b6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_129f_034c (play SFX if sound enabled else set id)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0808": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_0824 (destroy unit; compact pool + fix stacks)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_0000": {
+        "system": "mapdraw",
+        "purpose": "Return fixed 16\u00d716 map-color sample byte (LUT helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_0034": {
+        "system": "mapdraw",
+        "purpose": "Return map-color sample byte for palette index",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_0068": {
+        "system": "mapdraw",
+        "purpose": "Load terrain\u2192display color LUTs for tile loop / minimap",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_00d8": {
+        "system": "mapdraw",
+        "purpose": "Compute/clamp minimap scroll origin (DS:9ccc/9cca)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_0346": {
+        "system": "mapdraw",
+        "purpose": "Fill minimap tile-index buffer (56\u00d739 via 0118)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_0360": {
+        "system": "mapdraw",
+        "purpose": "Redraw clamped minimap sub-rectangle + optional present",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6a9f_0486": {
+        "system": "mapdraw",
+        "purpose": "Full minimap chrome + tile fill + present",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_000c": {
+        "system": "mapdraw",
+        "purpose": "Clamp x0,y0,x1,y1 into map viewport tile bounds",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_0052": {
+        "system": "mapdraw",
+        "purpose": "Clip (x,y,w,h) into viewport; rewrite w/h (\u22650)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_00c8": {
+        "system": "mapdraw",
+        "purpose": "Blit map-buffer tile rect to screen (tile\u2192px)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_0132": {
+        "system": "mapdraw",
+        "purpose": "Blit full map viewport buffer to screen (240\u00d7192)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_0168": {
+        "system": "mapdraw",
+        "purpose": "LFSR-order present each viewport tile (dissolve refresh)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_0224": {
+        "system": "mapdraw",
+        "purpose": "Present/flip full map viewport",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6afa_023c": {
+        "system": "mapdraw",
+        "purpose": "Present/flip tile-count-sized map region",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_0002": {
+        "system": "mapdraw",
+        "purpose": "Blit fog-visible tribes in map rect (ICONS overlay)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_00ea": {
+        "system": "mapdraw",
+        "purpose": "Tribe overlay for full map viewport",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_0102": {
+        "system": "mapdraw",
+        "purpose": "Blit fog-visible colonies in map rect",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_0248": {
+        "system": "mapdraw",
+        "purpose": "Colony overlay for full map viewport",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_034c": {
+        "system": "mapdraw",
+        "purpose": "Blit one unit icon unless colony occupies tile",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_03f6": {
+        "system": "mapdraw",
+        "purpose": "Toggle/refresh selected-unit overlay blink",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_0428": {
+        "system": "mapdraw",
+        "purpose": "Blit unit overlay or clear same-tile blink",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_04bc": {
+        "system": "mapdraw",
+        "purpose": "Blit fog-visible on-map units in rect",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b22_058e": {
+        "system": "mapdraw",
+        "purpose": "Unit overlay for full map viewport",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b7e_0004": {
+        "system": "mapdraw",
+        "purpose": "Refresh map rect: compose, overlays, minimap; optional present",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b7e_00c0": {
+        "system": "mapdraw",
+        "purpose": "Full map viewport refresh + overlays + minimap/chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b7e_018a": {
+        "system": "mapdraw",
+        "purpose": "Refresh tile under selected unit + blink",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b7e_01f6": {
+        "system": "mapdraw",
+        "purpose": "Save camera center/zoom for nation slot (5394)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6b7e_0218": {
+        "system": "mapdraw",
+        "purpose": "Restore camera center/zoom for nation slot (5394)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_000c": {
+        "system": "mapdraw",
+        "purpose": "Compute viewport origin/size/tile-px from zoom+camera; clamp rim",
+        "confidence": "known",
+        "links": "src/core/map_panel.c"
+      },
+      "FUN_6ba1_01b4": {
+        "system": "mapdraw",
+        "purpose": "Build ocean/coast 8-neighbor edge mask for tile compose",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_0374": {
+        "system": "mapdraw",
+        "purpose": "NSEW hill/mountain neighbor mask (byte&0xa0 match)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_03e4": {
+        "system": "mapdraw",
+        "purpose": "True if neighbor is connective forest (non-scrub)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_041e": {
+        "system": "mapdraw",
+        "purpose": "NSEW connective-forest neighbor mask via 03e4",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_0484": {
+        "system": "mapdraw",
+        "purpose": "NSEW neighbor bit-presence mask from layer2 plane",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_04e4": {
+        "system": "mapdraw",
+        "purpose": "8-neighbor bit-presence mask from layer2 plane",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_05b8": {
+        "system": "mapdraw",
+        "purpose": "Blit base terrain cell (zoom0 sheet vs scaled)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_061c": {
+        "system": "mapdraw",
+        "purpose": "Blit terrain/PHYS overlay sprite at tile pixel",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_06e0": {
+        "system": "mapdraw",
+        "purpose": "Blit diagonal corner/edge terrain transitions",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_0d6c": {
+        "system": "mapdraw",
+        "purpose": "Viewport tile-compose loop (fog gate; per-tile 0938)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_1028": {
+        "system": "mapdraw",
+        "purpose": "Optional letterbox fill then viewport tile blit (0d6c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_10ae": {
+        "system": "mapdraw",
+        "purpose": "Temp DS:0x18a radius mode; refresh via 1028; clear",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6ba1_10be": {
+        "system": "mapdraw",
+        "purpose": "set_owner_nibble 0xf on every tile (unowned init)",
+        "confidence": "known",
+        "links": "src/core/ai.c; ai/accessors.c"
+      },
+      "FUN_6f74_0000": {
+        "system": "ui",
+        "purpose": "Load side-art image into dialog+0x6c/6e and strcpy-init buffer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_0042": {
+        "system": "ui",
+        "purpose": "Bind primary side-art (DS:0x1f5c style) then load via 0000",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_00c2": {
+        "system": "ui",
+        "purpose": "Bind secondary side-art (DS:0x1f5e offset) then load via 0000",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_00ec": {
+        "system": "ui",
+        "purpose": "Bind tertiary side-art (DS:0x1f60 offset) then load via 0000",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_033c": {
+        "system": "ui",
+        "purpose": "Compositor glyph/blit dispatch (mode-7 side-art vs text paint)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_03d0": {
+        "system": "ui",
+        "purpose": "Prefetch dialog string-table slot into subst buffer (idx\u00d70x40\u22120x632e)",
+        "confidence": "inferred",
+        "links": "FUN_2b5a_0000; FUN_281f_0416"
+      },
+      "FUN_6f74_03ec": {
+        "system": "ui",
+        "purpose": "Set dialog subst string slot (strcpy from string-table ptr)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0438"
+      },
+      "FUN_6f74_0404": {
+        "system": "ui",
+        "purpose": "Format nation name into dialog subst string slot",
+        "confidence": "inferred",
+        "links": "FUN_281f_042e\u219215b3_0144"
+      },
+      "FUN_6f74_042c": {
+        "system": "ui",
+        "purpose": "Set dialog numeric subst far-ptr slot (idx\u00d74\u22120x6350)",
+        "confidence": "inferred",
+        "links": "FUN_281f_09ae"
+      },
+      "FUN_6f74_0446": {
+        "system": "ui",
+        "purpose": "Pack 8-word dialog paint/state record (xy/size/colors)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_04f6": {
+        "system": "ui",
+        "purpose": "Apply dialog text color/style from ctx field+10",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_0538": {
+        "system": "ui",
+        "purpose": "Measure markup string width ({bold}/|end/~glyph)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_0642": {
+        "system": "ui",
+        "purpose": "Resolve ~hotkey glyph code from option label (~F / case)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_06d0": {
+        "system": "ui",
+        "purpose": "Alloc+init dialog box record from flags/script attrs",
+        "confidence": "inferred",
+        "links": "FUN_291f_023c"
+      },
+      "FUN_6f74_089a": {
+        "system": "ui",
+        "purpose": "Find option/button node by id in dialog option list",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0a9e"
+      },
+      "FUN_6f74_08fa": {
+        "system": "ui",
+        "purpose": "Set/clear option disabled bit0",
+        "confidence": "inferred",
+        "links": "FUN_291f_01b6"
+      },
+      "FUN_6f74_092a": {
+        "system": "ui",
+        "purpose": "Set/clear option flag bit1",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_095a": {
+        "system": "ui",
+        "purpose": "Clear disabled bit0 on all options in list",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_098a": {
+        "system": "ui",
+        "purpose": "Read option checkbox/toggle state (field+6)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0ac2"
+      },
+      "FUN_6f74_09ba": {
+        "system": "ui",
+        "purpose": "Write option checkbox/toggle state (field+6)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0ada"
+      },
+      "FUN_6f74_09e2": {
+        "system": "ui",
+        "purpose": "Set current selected option ptr (dialog+0x4c/4e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_0a00": {
+        "system": "ui",
+        "purpose": "Append labeled option/button node to dialog option list",
+        "confidence": "inferred",
+        "links": "FUN_291f_0176"
+      },
+      "FUN_6f74_0be8": {
+        "system": "ui",
+        "purpose": "OR option-flags|5 and append hotkey option via 0a00",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_0c22": {
+        "system": "ui",
+        "purpose": "Set dialog body wrap-width (field+0x28)",
+        "confidence": "inferred",
+        "links": "FUN_291f_08d2"
+      },
+      "FUN_6f74_0c32": {
+        "system": "ui",
+        "purpose": "Append body text line (^center / ^^ flags) to flow list",
+        "confidence": "inferred",
+        "links": "FUN_291f_08c6; FUN_6f74_1198"
+      },
+      "FUN_6f74_0d44": {
+        "system": "ui",
+        "purpose": "Append edit-field node (label + buffered input)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0ace"
+      },
+      "FUN_6f74_0f16": {
+        "system": "ui",
+        "purpose": "Font line-height (remap type6\u21925 when no side-art)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_0f3c": {
+        "system": "ui",
+        "purpose": "Append icon/image row node to dialog icon list",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_112a": {
+        "system": "ui",
+        "purpose": "Alloc custom hit-target node at dialog+0x64",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_116c": {
+        "system": "ui",
+        "purpose": "Blit string with dialog color pair (7b29_49e8 @+0x74)",
+        "confidence": "inferred",
+        "links": "FUN_6f74_1198"
+      },
+      "FUN_6f74_14c6": {
+        "system": "ui",
+        "purpose": "Compute dialog geometry: sizes, centering, side-art place",
+        "confidence": "inferred",
+        "links": "FUN_6f74_1198"
+      },
+      "FUN_6f74_1a3c": {
+        "system": "ui",
+        "purpose": "Blit dialog outer frame/border (unless suppressed)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_1a78": {
+        "system": "ui",
+        "purpose": "Draw corner help-\u2018?\u2019 tip when DS:0x1f66 set",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0b0a"
+      },
+      "FUN_6f74_1ae8": {
+        "system": "ui",
+        "purpose": "Blit dialog side-panel art (dialog+0x68)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0ab6"
+      },
+      "FUN_6f74_1b7c": {
+        "system": "ui",
+        "purpose": "Paint option/button column (highlight + labels)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_1e14": {
+        "system": "ui",
+        "purpose": "Paint edit-field column (boxes + buffered text)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_201e": {
+        "system": "ui",
+        "purpose": "Paint icon/image rows (optional selection chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_2278": {
+        "system": "ui",
+        "purpose": "Draw dialog chrome fill + border bevels (2da8 box)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0710"
+      },
+      "FUN_6f74_248e": {
+        "system": "ui",
+        "purpose": "Full paint pass: layout\u2192frame\u2192icons\u2192flow\u2192options\u2192edits",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0af2"
+      },
+      "FUN_6f74_255e": {
+        "system": "ui",
+        "purpose": "Select icon row (+0x50) and redraw icon column",
+        "confidence": "inferred",
+        "links": "thunk_FUN_2a1f_0aaa"
+      },
+      "FUN_6f74_2580": {
+        "system": "ui",
+        "purpose": "Modal dialog input loop (mouse/keys); return choice id",
+        "confidence": "inferred",
+        "links": "FUN_291f_016a"
+      },
+      "FUN_6f74_3084": {
+        "system": "ui",
+        "purpose": "Set dialog script resource triple (DS:0x1f9e/a0/a2)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_309c": {
+        "system": "ui",
+        "purpose": "Expand %STRING/%NUMBER/%HEX/%GOLD/%YEAR placeholders",
+        "confidence": "inferred",
+        "links": "FUN_291f_0910"
+      },
+      "FUN_6f74_32a4": {
+        "system": "ui",
+        "purpose": "Parse @-directive dialog script into box (title/opts/attrs)",
+        "confidence": "inferred",
+        "links": "FUN_291f_0182"
+      },
+      "FUN_6f74_36ca": {
+        "system": "ui",
+        "purpose": "Parse+run+free dialog (32a4\u21922580\u2192free); return choice",
+        "confidence": "inferred",
+        "links": "FUN_281f_0998"
+      },
+      "FUN_6f74_36fc": {
+        "system": "ui",
+        "purpose": "Clear dialog checkbox bitmask (DS:0x1f54)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_3704": {
+        "system": "ui",
+        "purpose": "Set/clear one bit in dialog checkbox mask (DS:0x1f54)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_372e": {
+        "system": "ui",
+        "purpose": "Test one bit in dialog checkbox mask (DS:0x1f54)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_3744": {
+        "system": "ui",
+        "purpose": "Dialog flush/run wrapper \u219236ca via 281f_0998",
+        "confidence": "inferred",
+        "links": "FUN_281f_03fe"
+      },
+      "FUN_6f74_3760": {
+        "system": "ui",
+        "purpose": "Set side-art style DS:0x1f5c then flush/run dialog",
+        "confidence": "inferred",
+        "links": "FUN_291f_019c"
+      },
+      "FUN_6f74_378a": {
+        "system": "ui",
+        "purpose": "Set side-art style=8 then flush/run dialog",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_37a2": {
+        "system": "ui",
+        "purpose": "Set secondary side-art DS:0x1f5e then flush/run",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_37cc": {
+        "system": "ui",
+        "purpose": "Set tertiary side-art DS:0x1f60 then flush/run",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_37f6": {
+        "system": "ui",
+        "purpose": "OR dialog default-flags 0x18 into DS:0x1f56",
+        "confidence": "inferred",
+        "links": "FUN_281f_040a"
+      },
+      "FUN_6f74_37fc": {
+        "system": "ui",
+        "purpose": "Tip/help dialog variant (DS:0x2008 mode) via 32a4+2580",
+        "confidence": "inferred",
+        "links": "FUN_291f_0120"
+      },
+      "FUN_6f74_3848": {
+        "system": "ui",
+        "purpose": "Number-entry dialog helper; stash parsed value at DS:0x9cc8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6f74_388a": {
+        "system": "ui",
+        "purpose": "Load dialog chrome/palette colors into DS:0x1f3c..0x1f4e",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {

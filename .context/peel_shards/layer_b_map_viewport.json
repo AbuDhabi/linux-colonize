@@ -1,0 +1,259 @@
+{
+  "layer": "B",
+  "chunk": "map_viewport_6ba1_6a9f_6afa_6b22_6b7e",
+  "functions": {
+    "FUN_6a9f_0000": {
+      "system": "mapdraw",
+      "purpose": "Return fixed 16×16 map-color sample byte (LUT helper)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6a9f_0034": {
+      "system": "mapdraw",
+      "purpose": "Return map-color sample byte for palette index",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6a9f_0068": {
+      "system": "mapdraw",
+      "purpose": "Load terrain→display color LUTs for tile loop / minimap",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6a9f_00d8": {
+      "system": "mapdraw",
+      "purpose": "Compute/clamp minimap scroll origin (DS:9ccc/9cca)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6a9f_0346": {
+      "system": "mapdraw",
+      "purpose": "Fill minimap tile-index buffer (56×39 via 0118)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6a9f_0360": {
+      "system": "mapdraw",
+      "purpose": "Redraw clamped minimap sub-rectangle + optional present",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6a9f_0486": {
+      "system": "mapdraw",
+      "purpose": "Full minimap chrome + tile fill + present",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_000c": {
+      "system": "mapdraw",
+      "purpose": "Clamp x0,y0,x1,y1 into map viewport tile bounds",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_0052": {
+      "system": "mapdraw",
+      "purpose": "Clip (x,y,w,h) into viewport; rewrite w/h (≥0)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_00c8": {
+      "system": "mapdraw",
+      "purpose": "Blit map-buffer tile rect to screen (tile→px)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_0132": {
+      "system": "mapdraw",
+      "purpose": "Blit full map viewport buffer to screen (240×192)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_0168": {
+      "system": "mapdraw",
+      "purpose": "LFSR-order present each viewport tile (dissolve refresh)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_0224": {
+      "system": "mapdraw",
+      "purpose": "Present/flip full map viewport",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6afa_023c": {
+      "system": "mapdraw",
+      "purpose": "Present/flip tile-count-sized map region",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_0002": {
+      "system": "mapdraw",
+      "purpose": "Blit fog-visible tribes in map rect (ICONS overlay)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_00ea": {
+      "system": "mapdraw",
+      "purpose": "Tribe overlay for full map viewport",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_0102": {
+      "system": "mapdraw",
+      "purpose": "Blit fog-visible colonies in map rect",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_0248": {
+      "system": "mapdraw",
+      "purpose": "Colony overlay for full map viewport",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_034c": {
+      "system": "mapdraw",
+      "purpose": "Blit one unit icon unless colony occupies tile",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_03f6": {
+      "system": "mapdraw",
+      "purpose": "Toggle/refresh selected-unit overlay blink",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_0428": {
+      "system": "mapdraw",
+      "purpose": "Blit unit overlay or clear same-tile blink",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_04bc": {
+      "system": "mapdraw",
+      "purpose": "Blit fog-visible on-map units in rect",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b22_058e": {
+      "system": "mapdraw",
+      "purpose": "Unit overlay for full map viewport",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b7e_0004": {
+      "system": "mapdraw",
+      "purpose": "Refresh map rect: compose, overlays, minimap; optional present",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b7e_00c0": {
+      "system": "mapdraw",
+      "purpose": "Full map viewport refresh + overlays + minimap/chrome",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b7e_018a": {
+      "system": "mapdraw",
+      "purpose": "Refresh tile under selected unit + blink",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b7e_01f6": {
+      "system": "mapdraw",
+      "purpose": "Save camera center/zoom for nation slot (5394)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6b7e_0218": {
+      "system": "mapdraw",
+      "purpose": "Restore camera center/zoom for nation slot (5394)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_000c": {
+      "system": "mapdraw",
+      "purpose": "Compute viewport origin/size/tile-px from zoom+camera; clamp rim",
+      "confidence": "known",
+      "links": "src/core/map_panel.c"
+    },
+    "FUN_6ba1_01b4": {
+      "system": "mapdraw",
+      "purpose": "Build ocean/coast 8-neighbor edge mask for tile compose",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_0374": {
+      "system": "mapdraw",
+      "purpose": "NSEW hill/mountain neighbor mask (byte&0xa0 match)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_03e4": {
+      "system": "mapdraw",
+      "purpose": "True if neighbor is connective forest (non-scrub)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_041e": {
+      "system": "mapdraw",
+      "purpose": "NSEW connective-forest neighbor mask via 03e4",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_0484": {
+      "system": "mapdraw",
+      "purpose": "NSEW neighbor bit-presence mask from layer2 plane",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_04e4": {
+      "system": "mapdraw",
+      "purpose": "8-neighbor bit-presence mask from layer2 plane",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_05b8": {
+      "system": "mapdraw",
+      "purpose": "Blit base terrain cell (zoom0 sheet vs scaled)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_061c": {
+      "system": "mapdraw",
+      "purpose": "Blit terrain/PHYS overlay sprite at tile pixel",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_06e0": {
+      "system": "mapdraw",
+      "purpose": "Blit diagonal corner/edge terrain transitions",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_0d6c": {
+      "system": "mapdraw",
+      "purpose": "Viewport tile-compose loop (fog gate; per-tile 0938)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_1028": {
+      "system": "mapdraw",
+      "purpose": "Optional letterbox fill then viewport tile blit (0d6c)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_10ae": {
+      "system": "mapdraw",
+      "purpose": "Temp DS:0x18a radius mode; refresh via 1028; clear",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_6ba1_10be": {
+      "system": "mapdraw",
+      "purpose": "set_owner_nibble 0xf on every tile (unowned init)",
+      "confidence": "known",
+      "links": "src/core/ai.c; ai/accessors.c"
+    }
+  },
+  "notes": "42/42 labeled; skipped Layer C–owned 0558/067c/0938. Clusters: 6a9f minimap+color LUT (0118 already known tile-index loop); 6afa clamp/blit/present; 6b22 tribe(539a/54ec)/colony(539e/5d46)/unit(539c/3144) overlays; 6b7e refresh orchestrators + camera save/restore; 6ba1 viewport geometry (000c known in map_panel.c), NSEW/8-neighbor masks (0314 already seeded; 0374≈hill/mtn 0xa0, 041e≈forest via 03e4, 0484/04e4 layer2), tile blit helpers, 0d6c compose driver. Thunk map: 032c→00c8, 0344→04bc, 0e38→0360, 08a4→0486, 08ea→0224, 0968→0d6c. system=mapdraw per MODULE_MAP."
+}

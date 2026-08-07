@@ -1,0 +1,410 @@
+{
+  "layer": "C",
+  "chunk": "1hop_FUN_684c_08c0_thunks",
+  "entry": "FUN_684c_08c0",
+  "functions": {
+    "FUN_281f_0484": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1b8d_0004 (filled-rect blit wrapper\u21921b9e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03ac": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1262_02fe (mouse-move / tooltip debounce tick)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_06c8": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_003c (True if |dx|,|dy| within radius mode)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0182": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_104b_012e (format int\u2192string then UI text blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_00e2": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1b70_003a (video restore/flush around blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03c0": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1262_0060 (wait for key/mouse with UI pump)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0812": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_023a (unlink unit from stack; clear xy)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0894": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_0d1e (set unit nation low-nibble)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0844": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_02ca (place unit on tile; link stack head)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_09ae": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_6f74_042c (set dialog numeric subst far-ptr slot)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0652": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_6f74_37a2 (set secondary side-art then flush dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_04c0": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_12d8_000e (BGM / event / SFX gating)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0aec": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_317c (remove unit cargo/passenger slot; compact)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0d58": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_30b8 (adjust unit cargo qty by profession)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0254": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1c36_000a (sprite/frame blit from object table)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0022": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1000_0062 (nth NUL-terminated string from table)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_013c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_104b_0288 (set text colors then draw string)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_08bc": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1bbc_000c (horizontal byte-fill in buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_08b2": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1bc3_0006 (vertical byte-fill in buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_01a8": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_7ada_01aa (DOS INT21 AH=49 free mem block)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0c86": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_0274 (colony SoL/happiness score 0..100)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0a06": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_478c_00d0 (undo last unit spawn if colonist 0x17)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_089e": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_037e (re-place unit at its current xy)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_051a": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_12fd_0048 (test discovery/event bit at DS:0x540a)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0524": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_12fd_006c (once-only discovery/event opcode dispatch)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0d9a": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1984_03b2 (ensure viewport contains tile (x,y))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_06be": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_03e4 (tile_tribe_owner \u2014 owner if layer2 tribe bit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_02d0": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_112b_0eb6 (animate unit tile-to-tile move)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_09ba": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_6b7e_0004 (map viewport blit/refresh frame)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_08c6": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_03a0 (demote unit to stack bottom)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0248": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_4d56_00e0 (Indian AI act chain \u219201e2/14fe)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_095c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_06b4 (allocate/spawn unit into pool and place)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0a9c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_0d04 (remove colony colonist slot; compact)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0416": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_6f74_03d0 (prefetch dialog string-table slot)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0254": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_364b_1e64 (destroy colony; compact table + fix refs)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_098e": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_0026 (walk transport_prev to stack tail/bottom)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_083a": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_0f30 (destroy entire transport stack via 0824)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e1c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_6b7e_00c0 (map overlay/chrome paint pass)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03ea": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_12d6_0000 (blit VGA rect from offscreen buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0614": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_0142 (nearest colony by nation/continent; set active)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0c18": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_022c (lookup word from remapped id table (\u22120x715e))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_04ac": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_129f_0318 (set BGM track id + gate play)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0704": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_0228 (set_owner_nibble)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_02e4": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_004a (one step down stack (read transport_prev))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0608": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_2f2b_6cd4 (colony screen entry / main-loop teardown)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_048e": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_129f_02cc (queue sound/event id if changed)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_07b4": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_3960 (nation feature/FF bit test (table \u22120x77f1))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_019c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_6f74_3760 (set side-art style then flush/run dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0d12": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_00a2 (any 8-neighbor ocean/high-seas)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_00ba": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1b9e_000a (blit/copy rect into video buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_00ce": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1bca_0002 (rectangle outline (H+V fills))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_068c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_015e (OR or AND-clear layer2 bits at tile)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0718": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_04b0 (procedural special-resource type from seed)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_070e": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_00f6 (terrain_ptr map accessor (DS:0x15c))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_06aa": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_137f_0614 (remap terrain type by climate DS:0x18e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_01fa": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1c11_000c (draw UI text string at xy)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_012c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_7a65_0008 (label viewport tile (hidden-terrain chrome))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_01f0": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1c28_000a (set text draw color nibbles DS:0x269e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0100": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_104b_0318 (center string then draw via 0288)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0a4a": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_647e_001a (bind colonist-slot pointer (slot\u00d710\u2192DS:0x9e18))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_01dc": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_104b_0052 (fill/clear string buffer (0x58))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_016e": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_104b_00e2 (resolve string ptr then UI text blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_035c": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_124c_000c (clamp value to [lo,hi])",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0322": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_15eb_035e (test colony feature bit at DS:0x5dca)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_037a": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_124c_007c (Manhattan |dx|+|dy| via 0040)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_04b6": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_129f_034c (play SFX if sound enabled else set id)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0808": {
+      "system": "thunk",
+      "purpose": "Far thunk \u2192 FUN_1427_0824 (destroy unit; compact pool + fix stacks)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "67 EMS far thunks from FUN_684c_08c0 (NEW WORLD mapgen entry). Targets span map accessors (137f), unit chrome (1427), colony/cargo (15eb/364b), dialog (6f74), sound (129f/12d8), UI blit/text (1b*/104b/1c*), discovery (12fd), viewport (6b7e/1984/7a65). FUN_291f_0254 JMPF caseD_7 @ 364b:1e64 (colony destroy)."
+}
