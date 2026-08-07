@@ -305,6 +305,58 @@ int main(void) {
   }
 
   /*
+   * Multi-loot: high friction (≥80) successful colony raid → primary @RAID*
+   * plus secondary drain (−5 muskets stock and −1 tools).
+   */
+  euro->x = 10;
+  euro->y = 10;
+  brave->x = 5;
+  brave->y = 5;
+  brave->moves_left = 3;
+  brave->nation_id = 4;
+  ind->alarm_by_player[0] = 80;
+  col1.tribe[0].alarm[0].friction = 80;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 5;
+  c->y = 5;
+  c->population = 4;
+  c->colonist_count = 4;
+  c->building_in_production = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 12;
+  c->stock[COLONIZE_CARGO_TOOLS] = 8;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 20;
+  c->stock[COLONIZE_CARGO_HORSES] = 4;
+  const int food_ml = c->stock[COLONIZE_CARGO_FOOD];
+  const int tools_ml = c->stock[COLONIZE_CARGO_TOOLS];
+  const int muskets_ml = c->stock[COLONIZE_CARGO_MUSKETS];
+  const int pop_ml = c->population;
+  const uint16_t gold_ml = col1.nation[0].gold;
+  ai_contact_indian_raids(&ctx, 4);
+  {
+    const int kind_ml = ai_contact_last_raid_kind();
+    if (kind_ml == AI_RAID_NOTHING) {
+      return fail("high-friction multi-loot raid should not be NOTHING");
+    }
+    if (c->stock[COLONIZE_CARGO_MUSKETS] != muskets_ml - 5) {
+      return fail("multi-loot should steal 5 muskets stock");
+    }
+    /* Secondary tools −1; WREAK primary also takes tools → −2 total. */
+    const int tools_expect = (kind_ml == AI_RAID_WREAK) ? (tools_ml - 2) : (tools_ml - 1);
+    if (c->stock[COLONIZE_CARGO_TOOLS] != tools_expect) {
+      return fail("high-friction multi-loot should steal tools as secondary cargo");
+    }
+    const int primary_hit = (c->stock[COLONIZE_CARGO_FOOD] < food_ml) ||
+                            (c->population < pop_ml) || (col1.nation[0].gold < gold_ml) ||
+                            (kind_ml == AI_RAID_BURN) || (kind_ml == AI_RAID_SHIP) ||
+                            (kind_ml == AI_RAID_SCALP) || (kind_ml == AI_RAID_STORES) ||
+                            (kind_ml == AI_RAID_WREAK) || (kind_ml == AI_RAID_GOLD);
+    if (!primary_hit) {
+      return fail("multi-loot should apply a primary @RAID* outcome");
+    }
+  }
+
+  /*
    * FUN_4d56_359c: high alarm + Scout adjacent → prefer displace (still active,
    * moved 1–2 tiles). Brave moves_left=0 so combat arm skips before 359c.
    */

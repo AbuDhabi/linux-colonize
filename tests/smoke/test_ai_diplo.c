@@ -1,5 +1,6 @@
 /* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, Furs embargo bit,
- * make_peace, upkeep, ally cost/timer, foreign aid, break penalty, Indian drift. */
+ * make_peace, upkeep, privateer prize, ally cost/timer, foreign aid, FA gift,
+ * break penalty, Indian drift. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -82,12 +83,19 @@ int main(void) {
     if (col1.nation[0].relation_by_indian[i] != 45) {
       return fail("declare_war should −5 Indian relations for nation 0");
     }
-    if (col1.nation[1].relation_by_indian[i] != 35) {
-      return fail("declare_war should −5 Indian relations for nation 1");
+    /* 40 − 5 = 35 < 40 → thin hostile extra −10 → 25 */
+    if (col1.nation[1].relation_by_indian[i] != 25) {
+      return fail("declare_war should −5 then hostile −10 Indian relations for nation 1");
     }
     if (col1.nation[2].relation_by_indian[i] != 100) {
       return fail("war(0,1) must not change Indian relations of nation 2");
     }
+  }
+  if (ai_diplo_indian_read(&col1, 0, 0) != 45 || !ai_diplo_indian_at_war(&col1, 0, 0)) {
+    return fail("indian_read/at_war: nation 0 slot0 should be at war (rel<50)");
+  }
+  if (ai_diplo_indian_at_war(&col1, 2, 0)) {
+    return fail("indian_at_war: nation 2 slot0 should be peaceful (rel=100)");
   }
   /* Re-declare: no second sting / tax bump / Indian hit; embargo bit stays. */
   ai_diplo_declare_war(&col1, 0, 1);
@@ -133,7 +141,9 @@ int main(void) {
     return fail("re-war after make_peace should set Furs embargo again");
   }
 
-  /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers). */
+  /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers).
+   * Neutralize privateer by keeping peer gold equal after upkeep (or both 0).
+   * Raise Indian relations so harassment −2 does not mix into upkeep asserts. */
   {
     ColonizeDosRng rng_up;
     dos_rng_seed(&rng_up, 1);
@@ -144,12 +154,20 @@ int main(void) {
     ctx_up.col1_ok = true;
     ctx_up.rng = &rng_up;
     ctx_up.turn_number = &turn_up;
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[0].relation_by_indian[i] = 100;
+    }
     col1.nation[0].gold = 40;
+    col1.nation[1].gold = 35; /* after −5 upkeep: equal → no privateer */
     ai_diplo_euro_balance(&ctx_up, 0);
     if (col1.nation[0].gold != 35) {
       return fail("euro_balance at-war should drain 5 gold upkeep");
     }
+    if (col1.nation[1].gold != 35) {
+      return fail("euro_balance upkeep must not move gold when treasuries equal");
+    }
     col1.nation[0].gold = 3;
+    col1.nation[1].gold = 0; /* after floor: equal 0 → no privateer */
     ai_diplo_euro_balance(&ctx_up, 0);
     if (col1.nation[0].gold != 0) {
       return fail("euro_balance upkeep should floor gold at 0");
@@ -160,6 +178,72 @@ int main(void) {
     }
     if (col1.nation[2].gold != 500) {
       return fail("euro_balance upkeep must not drain peaceful peer treasury");
+    }
+  }
+
+  /* Thin Indian harassment: relation<50 → −2 gold once per euro_balance tick. */
+  {
+    ColonizeDosRng rng_h;
+    dos_rng_seed(&rng_h, 2);
+    uint32_t turn_h = 2;
+    ColonizeTurnContext ctx_h;
+    memset(&ctx_h, 0, sizeof(ctx_h));
+    ctx_h.col1 = &col1;
+    ctx_h.col1_ok = true;
+    ctx_h.rng = &rng_h;
+    ctx_h.turn_number = &turn_h;
+    /* Peace with all Euros so upkeep/privateer do not fire; only harassment. */
+    ai_diplo_make_peace(&col1, 0, 1);
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[0].relation_by_indian[i] = 40; /* at war vs Indians */
+    }
+    col1.nation[0].gold = 20;
+    ai_diplo_euro_balance(&ctx_h, 0);
+    if (col1.nation[0].gold != 18) {
+      return fail("euro_balance Indian harassment should drain 2 gold");
+    }
+    if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
+      return fail("indian_at_war should remain true at rel 40");
+    }
+    /* Restore Euro war for privateer/upkeep follow-ons; clear Indian hostility. */
+    ai_diplo_declare_war(&col1, 0, 1);
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[0].relation_by_indian[i] = 100;
+      col1.nation[1].relation_by_indian[i] = 100;
+    }
+  }
+
+  /* Thin privateer prize: richer→poorer 8g (separate from 5g upkeep); no units → treasury-only. */
+  {
+    ColonizeDosRng rng_pr;
+    dos_rng_seed(&rng_pr, 4);
+    uint32_t turn_pr = 4;
+    ColonizeTurnContext ctx_pr;
+    memset(&ctx_pr, 0, sizeof(ctx_pr));
+    ctx_pr.col1 = &col1;
+    ctx_pr.col1_ok = true;
+    ctx_pr.rng = &rng_pr;
+    ctx_pr.turn_number = &turn_pr;
+    /* Precondition: still at war(0,1); nation 1 poorer. */
+    if (!ai_diplo_at_war(&col1, 0, 1)) {
+      return fail("privateer setup: nation 0-1 should be at war");
+    }
+    col1.nation[0].gold = 200;
+    col1.nation[1].gold = 50;
+    ai_diplo_euro_balance(&ctx_pr, 1); /* poorer nation tick */
+    /* poorer: 50 − 5 upkeep + 8 prize = 53; richer: 200 − 8 = 192 */
+    if (col1.nation[1].gold != 53) {
+      return fail("euro_balance privateer should add 8 gold to poorer after upkeep");
+    }
+    if (col1.nation[0].gold != 192) {
+      return fail("euro_balance privateer should take 8 gold from richer peer");
+    }
+    /* Donor below 8: no prize (upkeep still applies). Peer is richer but broke. */
+    col1.nation[0].gold = 7;
+    col1.nation[1].gold = 6; /* after −5: 1; peer 7 still richer, donor < 8 */
+    ai_diplo_euro_balance(&ctx_pr, 1);
+    if (col1.nation[1].gold != 1 || col1.nation[0].gold != 7) {
+      return fail("privateer prize should require donor gold >= 8");
     }
   }
 
@@ -319,6 +403,72 @@ int main(void) {
     ai_diplo_euro_balance(&ctx_aid, 0);
     if (col1.nation[0].gold != 49 || col1.nation[1].gold != 0) {
       return fail("foreign aid should require donor gold >= 50");
+    }
+  }
+
+  /* Thin FA goodwill gift (3f41 PARKED): 15g + timer +2; euro_balance when timer==1. */
+  {
+    ColonizeDosRng rng_gift;
+    dos_rng_seed(&rng_gift, 5);
+    uint32_t turn_gift = 5;
+    ColonizeTurnContext ctx_gift;
+    memset(&ctx_gift, 0, sizeof(ctx_gift));
+    ctx_gift.col1 = &col1;
+    ctx_gift.col1_ok = true;
+    ctx_gift.rng = &rng_gift;
+    ctx_gift.turn_number = &turn_gift;
+    /* Still allied 0-1 from aid block. Peer not aid-poor so aid does not steal treasury. */
+    if ((ai_diplo_read(&col1, 0, 1) & AI_DIPLO_ALLY) == 0) {
+      return fail("gift setup: 0-1 should still be allied");
+    }
+    col1.nation[0].gold = 100;
+    col1.nation[1].gold = 60; /* 60 >= 50 → no aid; 60 < 200 → gift-eligible */
+    col1.nation[0].unknown26[1] = 1;
+    col1.nation[1].unknown26[0] = 1;
+    ai_diplo_euro_balance(&ctx_gift, 0);
+    if (col1.nation[0].gold != 85 || col1.nation[1].gold != 75) {
+      return fail("euro_balance should FA-gift 15 gold when allied timer==1");
+    }
+    if (col1.nation[0].unknown26[1] != 3 || col1.nation[1].unknown26[0] != 3) {
+      return fail("FA gift should bump both treaty timers +2");
+    }
+    /* timer now 3: no further gift this visit pattern. */
+    col1.nation[0].gold = 100;
+    col1.nation[1].gold = 60;
+    ai_diplo_euro_balance(&ctx_gift, 0);
+    if (col1.nation[0].gold != 100 || col1.nation[1].gold != 60) {
+      return fail("FA gift should require treaty timer==1");
+    }
+    /* Direct API: peer gold >= donor*2 blocks gift. */
+    col1.nation[0].gold = 100;
+    col1.nation[1].gold = 200;
+    col1.nation[0].unknown26[1] = 4;
+    col1.nation[1].unknown26[0] = 4;
+    ai_diplo_fa_gift(&col1, 0, 1);
+    if (col1.nation[0].gold != 100 || col1.nation[1].gold != 200) {
+      return fail("ai_diplo_fa_gift should require peer gold < donor*2");
+    }
+    if (col1.nation[0].unknown26[1] != 4) {
+      return fail("blocked FA gift must not bump treaty timer");
+    }
+    /* Direct API: donor below 100 blocks. */
+    col1.nation[0].gold = 99;
+    col1.nation[1].gold = 50;
+    ai_diplo_fa_gift(&col1, 0, 1);
+    if (col1.nation[0].gold != 99 || col1.nation[1].gold != 50) {
+      return fail("ai_diplo_fa_gift should require donor gold >= 100");
+    }
+    /* Direct happy path (not via euro_balance). */
+    col1.nation[0].gold = 120;
+    col1.nation[1].gold = 80;
+    col1.nation[0].unknown26[1] = 5;
+    col1.nation[1].unknown26[0] = 5;
+    ai_diplo_fa_gift(&col1, 0, 1);
+    if (col1.nation[0].gold != 105 || col1.nation[1].gold != 95) {
+      return fail("ai_diplo_fa_gift should transfer 15 gold");
+    }
+    if (col1.nation[0].unknown26[1] != 7 || col1.nation[1].unknown26[0] != 7) {
+      return fail("ai_diplo_fa_gift should bump both timers +2");
     }
   }
 

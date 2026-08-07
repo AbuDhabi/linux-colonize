@@ -153,6 +153,90 @@ int main(void) {
     return fail("Washington REF regulars -1 missing");
   }
 
+  /* Force Stuyvesant (3): gold +40. */
+  nat->liberty_bells_total = 280;
+  nat->next_founding_father = 3;
+  {
+    const uint32_t g0 = nat->gold;
+    founding_fathers_tick(&ctx);
+    if (col1.head.founding_father[3] != 0 || nat->founding_father_count != 7) {
+      return fail("Stuyvesant not elected via next");
+    }
+    if (nat->gold != g0 + 40u) {
+      return fail("Stuyvesant gold +40 missing");
+    }
+  }
+
+  /* Force Drake (13): gold +75. */
+  nat->liberty_bells_total = 320;
+  nat->next_founding_father = 13;
+  {
+    const uint32_t g0 = nat->gold;
+    founding_fathers_tick(&ctx);
+    if (col1.head.founding_father[13] != 0 || nat->founding_father_count != 8) {
+      return fail("Drake not elected via next");
+    }
+    if (nat->gold != g0 + 75u) {
+      return fail("Drake gold +75 missing");
+    }
+  }
+
+  /* Force Pocahontas (16): crosses +10. */
+  nat->liberty_bells_total = 360;
+  nat->next_founding_father = 16;
+  {
+    const uint16_t c0 = nat->current_crosses;
+    founding_fathers_tick(&ctx);
+    if (col1.head.founding_father[16] != 0 || nat->founding_father_count != 9) {
+      return fail("Pocahontas not elected via next");
+    }
+    if (nat->current_crosses != (uint16_t)(c0 + 10u)) {
+      return fail("Pocahontas crosses +10 missing");
+    }
+  }
+
+  /* Force Coronado (6): gold +20. */
+  nat->liberty_bells_total = 400;
+  nat->next_founding_father = 6;
+  {
+    const uint32_t g0 = nat->gold;
+    founding_fathers_tick(&ctx);
+    if (col1.head.founding_father[6] != 0 || nat->founding_father_count != 10) {
+      return fail("Coronado not elected via next");
+    }
+    if (nat->gold != g0 + 20u) {
+      return fail("Coronado gold +20 missing");
+    }
+  }
+
+  /* Force John Paul Jones (14): gold +60. */
+  nat->liberty_bells_total = 440;
+  nat->next_founding_father = 14;
+  {
+    const uint32_t g0 = nat->gold;
+    founding_fathers_tick(&ctx);
+    if (col1.head.founding_father[14] != 0 || nat->founding_father_count != 11) {
+      return fail("Jones not elected via next");
+    }
+    if (nat->gold != g0 + 60u) {
+      return fail("Jones gold +60 missing");
+    }
+  }
+
+  /* Force Brebeuf (22): crosses +12. */
+  nat->liberty_bells_total = 480;
+  nat->next_founding_father = 22;
+  {
+    const uint16_t c0 = nat->current_crosses;
+    founding_fathers_tick(&ctx);
+    if (col1.head.founding_father[22] != 0 || nat->founding_father_count != 12) {
+      return fail("Brebeuf not elected via next");
+    }
+    if (nat->current_crosses != (uint16_t)(c0 + 12u)) {
+      return fail("Brebeuf crosses +12 missing");
+    }
+  }
+
   /* --- AI Euro nation elect (control==1), same bells threshold. --- */
   {
     ColonizeCol1Save ai_col1;

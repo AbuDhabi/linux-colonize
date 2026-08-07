@@ -332,7 +332,8 @@ Missionary adjacent convert pulse (`tribe.mission` + crosses); teach-skill sets
 `tribe.state.learned` with cargo/`nation_id` profession map (Scout→Seasoned);
 thin gift (−10g/−2 friction) / demand (tools or gold/−3 friction) stand-in;
 `359c` Scout displace (xy nudge + AI_MOVE; despawn only if blocked);
-prelude encroachment (+2 friction within 2) / mission pacify (−1).
+prelude encroachment (+2 friction within 2) / mission pacify (−1);
+raid multi-loot (−5 muskets/horses; +tools drain if friction≥80).
 Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
 Smoke: `smoke_ai_contact`.
@@ -349,12 +350,16 @@ full `@TRIBES` flavor-good parse; DOS RNG kill/warn branch.
 peaceful Indian relation drift (+1/tick to 160); war −5 Indian relations;
 thin FA aid (ally +10g when richer); break_alliance −20g; alliance timer bump to 8;
 wartime Furs embargo bit on `boycott_bitmap` (lift on alliance if no wars left);
-`ai_diplo_make_peace` + rare near-parity balance peace.
+`ai_diplo_make_peace` + rare near-parity balance peace; wartime privateer prize
+(8g richer→poorer after upkeep); thin FA `ai_diplo_fa_gift` (15g + timer+2 on
+expiring ally).
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
-**PORT DEBT:** full `5bfb_153e` trade body, dialogs, FA `3f41` body, full Indian×Euro
-`15b3` matrix, exact DS `−0x77c4` field rename.
+**PORT DEBT:** full `5bfb_153e` trade body, dialogs, FA `3f41` body, privateer units,
+full Indian×Euro `15b3` matrix, exact DS `−0x77c4` field rename.
+Thin stand-in: `ai_diplo_indian_read` / `indian_at_war` (rel<50); declare hostile
+extra −10 when slot<40 after −5; euro_balance Indian harassment −2g.
 
 ### R4 — Euro dispatcher skeleton (**partial structural port**)
 
@@ -370,9 +375,12 @@ MILITARY goto (`smoke_ai_euro_war`). Thin G stance (≥2 colonies). Thin naval w
 hunt (AI_SAIL toward enemy ship/coast; adjacent naval combat). Thin land war hunt
 (AI_MOVE toward enemy land/colony; adjacent combat). Thin E scout explore (peaceful
 idle Scout → tribe FOUND). Thin mid-hire Artillery when at war with ≥2 colonies.
-**PORT DEBT:** full mid-game `5d04` hire matrix; deep −0x6790 G table; full CONTACT
-scout rings; full land/combat `20e6` scoring; `5b66` case 7 economy tails. Odd
-deviations OK; not T3 / LCG goldens.
+Thin Pioneer tools delivery (+10 stock on short colony). Thin tools-cargo hire when
+`tools_short>40` (ship +20 TOOLS or colony +15). Thin sticky CONTACT re-hunt
+(end of `ai_euro_unit_act`: moves left + adjacent war foe → `try_attack`).
+**PORT DEBT:** full mid-game
+`5d04` hire/wagon matrix; deep −0x6790 G table; full CONTACT scout rings; full
+land/combat `20e6` scoring; deep `5b66` case 7 tails. Odd deviations OK; not T3 / LCG goldens.
 
 ### R5 — Toward 1:1 (T2/T3)
 
@@ -386,17 +394,20 @@ deviations OK; not T3 / LCG goldens.
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
 `1eca` promote); thin `10f0` via `backup_force` (up to 2 landings/call, Regular+Dragoon
-mix); structural tax boycott/refuse (`unknown46[2]` + Sugar boycott bit; UI PARKED);
+mix); thin MoW cargo unload (up to 2 Regulars with ship); structural tax boycott/refuse
+(`unknown46[2]` + Sugar boycott bit; UI PARKED);
 thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
 (`unknown46[3]`, 300 gold → human Soldier); thin `160a` rename
-(`country_name` / europe → "United Colonies").
+(`country_name` / europe → "United Colonies"); thin `1eca` promote Soldier→Continental
+Army and Dragoon/Cavalry→Continental Cavalry when SoL>50; thin SoL 40–49 restless
+status + `unknown46[5]` congress confirm on declare.
 WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 PARKED); REF-present
 `unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
 `smoke_ai_king`.
 
 **PORT DEBT:** `38fd_5be8` boycott UI; player declare confirm; `160a` letter cinematic;
-full merc/arrival chrome; deep `10f0` economy; exact `0x5382` Col1 bit rename / T3.
+full merc/arrival/hold chrome; deep `10f0` economy; deep `1eca` table; exact `0x5382` Col1 bit rename / T3.
 
 ---
 
@@ -416,7 +427,7 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; ~12 tiny effects; Fugger clears boycotts; full table PARKED |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; all 25 tiny effect stand-ins; Fugger clears boycotts; full wiki table PARKED |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; `smoke_ai_king` |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
@@ -448,12 +459,12 @@ stay overlaid until hang X).
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
-| `tests/smoke/test_ai_contact.c` | Meet + raids + teach + gift + 359c + prelude |
-| `tests/smoke/test_ai_diplo.c` | War/ally sting, FA aid, Furs embargo, make_peace |
-| `tests/smoke/test_ai_king.c` | SoL/tax/REF/10f0×2/boycott/1528/160a/2244 |
-| `tests/smoke/test_ai_euro_expand.c` | Second-wave settle + scout explore |
+| `tests/smoke/test_ai_contact.c` | Meet + raids multi-loot + teach + gift + 359c + prelude |
+| `tests/smoke/test_ai_diplo.c` | War/ally, make_peace, privateer, FA gift |
+| `tests/smoke/test_ai_king.c` | REF/MoW cargo×2 + 10f0/boycott/1528/160a/2244/1eca |
+| `tests/smoke/test_ai_euro_expand.c` | Second-wave + scout + tools delivery/cargo hire |
 | `tests/smoke/test_ai_euro_war.c` | Mid-war hire/Artillery + naval/land hunt |
-| `tests/smoke/test_founding_fathers.c` | Human+AI FF elect; Fugger boycott forgive |
+| `tests/smoke/test_founding_fathers.c` | Human+AI FF elect; all 25 tiny effects; Fugger |
 
 Smoke:
 

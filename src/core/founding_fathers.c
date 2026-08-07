@@ -11,6 +11,8 @@
  * Jakob Fugger (1) boycott forgive stand-in: gold+50 plus clear Sugar
  * boycott bit (1<<1) and Furs embargo bit (1<<4) on boycott_bitmap;
  * for the human nation also clear head.unknown46[2] (king tax-refuse).
+ * Remaining indices have tiny gold/crosses/bells/tax stand-ins; full
+ * wiki/decomp effect table PARKED.
  */
 
 /* King tax-refuse stand-in byte (ai_king unknown46[2]). */
@@ -124,8 +126,26 @@ static void apply_tiny_effect(
     case 2: /* Peter Minuit — cheap land purchase stand-in */
       bump_gold(nat, europe, 30u);
       break;
+    case 3: /* Peter Stuyvesant — custom house / trade stand-in */
+      bump_gold(nat, europe, 40u);
+      break;
     case 4: /* Jan de Witt — trade / finance stand-in */
       cut_tax(nat, europe, 1u);
+      break;
+    case 5: /* Ferdinand Magellan — naval voyage stand-in */
+      bump_gold(nat, europe, 35u);
+      break;
+    case 6: /* Francisco Coronado — exploration / map stand-in */
+      bump_gold(nat, europe, 20u);
+      break;
+    case 7: /* Hernando de Soto — rumor / sight stand-in */
+      bump_crosses(nat, europe, 6u);
+      break;
+    case 8: /* Henry Hudson — fur trade stand-in */
+      bump_gold(nat, europe, 45u);
+      break;
+    case 9: /* Sieur De La Salle — claim / expansion stand-in */
+      bump_gold(nat, europe, 20u);
       break;
     case 10: /* Hernan Cortes — conquest plunder stand-in */
       bump_gold(nat, europe, 100u);
@@ -135,8 +155,20 @@ static void apply_tiny_effect(
         col1->head.expeditionary_force[0]--;
       }
       break;
+    case 12: /* Paul Revere — fort / tools stand-in via gold */
+      bump_gold(nat, europe, 25u);
+      break;
+    case 13: /* Francis Drake — privateer plunder stand-in */
+      bump_gold(nat, europe, 75u);
+      break;
+    case 14: /* John Paul Jones — navy / frigate stand-in */
+      bump_gold(nat, europe, 60u);
+      break;
     case 15: /* Thomas Jefferson — liberty bells stand-in */
       bump_bells(nat, europe, 15u);
+      break;
+    case 16: /* Pocahontas — Indian relations stand-in */
+      bump_crosses(nat, europe, 10u);
       break;
     case 17: /* Thomas Paine — tax-weighted bells stand-in */
       bump_bells(nat, europe, (uint16_t)nat->tax_rate);
@@ -152,6 +184,16 @@ static void apply_tiny_effect(
       break;
     case 21: /* William Penn — crosses / goodwill stand-in */
       bump_crosses(nat, europe, 5u);
+      break;
+    case 22: /* Jean de Brebeuf — missionary stand-in */
+      bump_crosses(nat, europe, 12u);
+      break;
+    case 23: /* Juan de Sepulveda — convert / conquest stand-in */
+      bump_gold(nat, europe, 30u);
+      break;
+    case 24: /* Bartolome de las Casas — convert assimilate stand-in */
+      bump_crosses(nat, europe, 8u);
+      cut_tax(nat, europe, 1u);
       break;
     default:
       break;
