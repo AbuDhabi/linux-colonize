@@ -193,10 +193,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_130d_000a` | 6146 | 74 | turn | unknown | inferred |  |
-| `FUN_130d_0172` | 6220 | 18 | turn | unknown | inferred |  |
-| `FUN_130d_019e` | 6238 | 24 | turn | unknown | inferred |  |
-| `FUN_130d_0222` | 6262 | 21 | turn | unknown | inferred |  |
+| `FUN_130d_000a` | 6146 | 74 | turn | Space-split splash text into ≤10 lines and present fullscreen | inferred |  |
+| `FUN_130d_0172` | 6220 | 18 | turn | Autosave slot 8 on decade Spring, else slot 9 | known | docs/savegame.md |
+| `FUN_130d_019e` | 6238 | 24 | turn | Compose demo/autoplay end splash strings → 000a | inferred |  |
+| `FUN_130d_0222` | 6262 | 21 | turn | Compose independence-declared splash strings → 000a | inferred |  |
 | `FUN_130d_0290` | 6283 | 236 | turn | Main game year/turn loop (nations, year/season, chrome) | known |  |
 
 ### Segment `137f` (26 defs) — mapgen — Map plane accessors (terrain/layer2/3)
@@ -736,7 +736,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c0c_0006` | 17353 | 12 | platform | unknown | inferred |  |
+| `FUN_1c0c_0006` | 17353 | 12 | platform | Read custom timer tick word via DS:0x267a far ptr | inferred |  |
 | `FUN_1c0c_0012` | 17365 | 8 | platform | unknown | inferred |  |
 | `FUN_1c0c_0022` | 17373 | 10 | platform | unknown | inferred |  |
 
@@ -866,7 +866,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1d1d_08bc` | 19934 | 77 | platform | unknown | inferred |  |
 | `FUN_1d1d_08fa` | 20011 | 61 | platform | unknown | inferred |  |
 | `FUN_1d1d_0916` | 20072 | 9 | platform | unknown | inferred |  |
-| `FUN_1d1d_092c` | 20081 | 13 | platform | unknown | inferred |  |
+| `FUN_1d1d_092c` | 20081 | 13 | platform | Normalize key code (−0x20 if DS table bit2 at code+0x27ed) | inferred |  |
 | `FUN_1d1d_0942` | 20094 | 24 | platform | unknown | inferred |  |
 | `FUN_1d1d_09a2` | 20118 | 22 | platform | unknown | inferred |  |
 | `FUN_1d1d_09ca` | 20140 | 65 | platform | unknown | inferred |  |
@@ -882,8 +882,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1d1d_0d1a` | 20457 | 31 | platform | unknown | inferred |  |
 | `FUN_1d1d_0d46` | 20488 | 17 | platform | unknown | inferred |  |
 | `FUN_1d1d_0d64` | 20505 | 17 | platform | unknown | inferred |  |
-| `FUN_1d1d_0d82` | 20522 | 37 | platform | unknown | inferred |  |
-| `FUN_1d1d_0dae` | 20559 | 31 | platform | unknown | inferred |  |
+| `FUN_1d1d_0d82` | 20522 | 37 | platform | memcpy (aligned word then tail) | inferred |  |
+| `FUN_1d1d_0dae` | 20559 | 31 | platform | memset / byte-fill (aligned word then tail) | inferred |  |
 | `FUN_1d1d_0ddc` | 20590 | 11 | platform | unknown | inferred |  |
 | `FUN_1d1d_0df2` | 20601 | 12 | platform | unknown | inferred |  |
 | `FUN_1d1d_0e04` | 20613 | 16 | platform | DOS LCG core | known | src/core/dos_rng.c |
@@ -1212,7 +1212,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_00d8` | 30821 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_00e2` | 30831 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_00ec` | 30841 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_00f6` | 30851 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_00f6` | 30851 | 10 | platform | Far thunk → FUN_1ae3_0042 (BIOS INT16 key-ready check) | inferred |  |
 | `FUN_281f_0100` | 30861 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_010a` | 30871 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0114` | 30881 | 10 | thunk | unknown | inferred |  |
@@ -1265,7 +1265,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_02ee` | 31351 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_02f8` | 31361 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0302` | 31371 | 10 | mapgen | map_tile_in_bounds | known | ai/accessors.c |
-| `FUN_281f_030c` | 31381 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_030c` | 31381 | 10 | ai | Indian↔Euro relation word get thunk→15dc_00e0 (DS:0x5b1c) | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_0316` | 31391 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0322` | 31401 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_032c` | 31411 | 10 | thunk | unknown | inferred |  |
@@ -1284,21 +1284,21 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_03c0` | 31541 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_03ca` | 31551 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_03d4` | 31561 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_03e0` | 31571 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_03e0` | 31571 | 10 | platform | Far thunk → FUN_1ae7_0016 (BIOS INT16 read next key) | inferred |  |
 | `FUN_281f_03ea` | 31581 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_03f4` | 31591 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_03fe` | 31601 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_03fe` | 31601 | 10 | ui | Dialog flush/run thunk→6f74_3744→0998 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_040a` | 31611 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0416` | 31621 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0422` | 31631 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_042e` | 31641 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0438` | 31651 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0438` | 31651 | 10 | ui | Set dialog subst string slot thunk→6f74_03ec | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_0444` | 31661 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_044e` | 31671 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_045c` | 31681 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0466` | 31691 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0470` | 31701 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_047a` | 31711 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_045c` | 31681 | 10 | ui | Far thunk → FUN_1acb_011a (wait until custom timer word changes) | inferred |  |
+| `FUN_281f_0466` | 31691 | 10 | ui | Far thunk → FUN_1acb_0056 (sample mouse/keyboard input state) | inferred |  |
+| `FUN_281f_0470` | 31701 | 10 | ui | ui_pump thunk→129f_00f6 | known | original_sources_annotated/ai/indian_nation_turn.c |
+| `FUN_281f_047a` | 31711 | 10 | ui | Far thunk → FUN_1acb_0030 (reset mouse/input latch before act loop) | inferred |  |
 | `FUN_281f_0484` | 31721 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_048e` | 31731 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0498` | 31741 | 10 | thunk | unknown | inferred |  |
@@ -1320,14 +1320,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_053c` | 31901 | 9 | thunk | unknown | inferred |  |
 | `FUN_281f_0546` | 31910 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0550` | 31920 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_055e` | 31930 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_055e` | 31930 | 10 | ui | Far thunk → FUN_49dd_0424 (camera-follow map chrome; human-visible AI) | inferred | ai/euro_dispatcher.c |
 | `FUN_281f_056a` | 31940 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0574` | 31950 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0582` | 31960 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0582` | 31960 | 10 | ai | euro_select_nation_context thunk→38fd_0000 (set nation index + Europe-market base) | inferred | ai/euro_dispatcher.c |
 | `FUN_281f_0590` | 31970 | 10 | ui | Fill helper (turn box) | known | src/core/turn.c |
 | `FUN_281f_059a` | 31980 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_05a8` | 31990 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_05b6` | 32000 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_05b6` | 32000 | 10 | save | Far thunk → FUN_7562_0034 (direct save-slot write / autosave) | inferred |  |
 | `FUN_281f_05c4` | 32010 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_05ce` | 32020 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_05d8` | 32030 | 10 | thunk | unknown | inferred |  |
@@ -1421,21 +1421,21 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0984` | 32920 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_098e` | 32930 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0998` | 32940 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_09a4` | 32950 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_09a4` | 32950 | 10 | ui | Nation name string ptr thunk→15b3_01e0 (dialog subst) | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_09ae` | 32960 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_09ba` | 32970 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_09c8` | 32980 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_09d2` | 32990 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_09dc` | 33000 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_09e6` | 33010 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_09e6` | 33010 | 10 | thunk | Far thunk → FUN_15eb_002c (set active colony pointer + visibility) | inferred |  |
 | `FUN_281f_09f0` | 33020 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_09fc` | 33030 | 20 | thunk | unknown | inferred |  |
 | `FUN_281f_0a10` | 33050 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0a1a` | 33060 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0a1a` | 33060 | 10 | ui | Nation name string ptr thunk→15b3_0198 (dialog subst) | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_0a24` | 33070 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0a2e` | 33080 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0a38` | 33090 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0a42` | 33100 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0a38` | 33090 | 10 | thunk | Far thunk → FUN_15b3_0004 (read nation diplomacy/treaty byte) | inferred |  |
+| `FUN_281f_0a42` | 33100 | 10 | ai | indian_select_nation_context thunk→15dc_0006 (bind 8d52/8d50/8d4e) | known | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_0a4c` | 33110 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0a56` | 33120 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0a60` | 33130 | 10 | thunk | unknown | inferred |  |
@@ -1477,7 +1477,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0bc8` | 33490 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0bd2` | 33500 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0bdc` | 33510 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0be6` | 33520 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0be6` | 33520 | 10 | thunk | Far thunk → FUN_15eb_2ff2 (read unit passenger profession nibble) | inferred |  |
 | `FUN_281f_0bf0` | 33530 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0bfa` | 33540 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0c04` | 33550 | 10 | thunk | unknown | inferred |  |
@@ -1516,12 +1516,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0d4e` | 33880 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0d58` | 33890 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0d62` | 33900 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0d6c` | 33910 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0d6c` | 33910 | 10 | ai | Apply Indian↔Euro relation delta (+dialogs) thunk→4cc6_00f2 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_0d78` | 33920 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0d84` | 33930 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0d9a` | 33940 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0da4` | 33950 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0dae` | 33960 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0dae` | 33960 | 10 | ui | Progress-beat / turn-owner chrome thunk→1984_006a (6d8e section markers) | inferred | ai/euro_dispatcher.c |
 | `FUN_281f_0db8` | 33970 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0dc2` | 33980 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0dcc` | 33990 | 10 | thunk | unknown | inferred |  |
@@ -1838,7 +1838,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0fde` | 37050 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0fec` | 37060 | 10 | thunk | unknown | inferred |  |
 
-### Segment `2a1f` (294 defs) — mapgen — Map-gen dispatch / helpers (also Euro act thunks)
+### Segment `2a1f` (294 defs) — mixed — Map-gen dispatch / helpers (also Euro act thunks)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
@@ -1887,7 +1887,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0246` | 37490 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0254` | 37500 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0262` | 37510 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0270` | 37520 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0270` | 37520 | 10 | ai | indian_relation_tick thunk→4962_06b6 (recount tribes/units/goods) | known | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_2a1f_027e` | 37530 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_028a` | 37540 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0296` | 37550 | 10 | mapgen | unknown | inferred |  |
@@ -1911,37 +1911,37 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0372` | 37730 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0380` | 37740 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_038a` | 37750 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0398` | 37760 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0398` | 37760 | 10 | ai | Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_2a1f_0434` | 37770 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0440` | 37780 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_044c` | 37790 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0458` | 37800 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0464` | 37810 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0470` | 37820 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_047c` | 37830 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0488` | 37840 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0494` | 37850 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04a0` | 37860 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04ac` | 37870 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04b8` | 37880 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04c4` | 37890 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04d0` | 37900 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04dc` | 37910 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04e8` | 37920 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_04f4` | 37930 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0500` | 37940 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_050c` | 37950 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0518` | 37960 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0524` | 37970 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0530` | 37980 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_053c` | 37990 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0548` | 38000 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0554` | 38010 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0560` | 38020 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_056c` | 38030 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0578` | 38040 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0584` | 38050 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0590` | 38060 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0464` | 37810 | 10 | mapgen | Far thunk → FUN_521d_0656 (walk unit stack/chain) | inferred |  |
+| `FUN_2a1f_0470` | 37820 | 10 | mapgen | Far thunk → FUN_521d_016a (upsert primary goal) | inferred |  |
+| `FUN_2a1f_047c` | 37830 | 10 | mapgen | Far thunk → FUN_521d_0906 (probe adjacent contact/claim) | inferred |  |
+| `FUN_2a1f_0488` | 37840 | 10 | mapgen | Far thunk → FUN_521d_5b66 (Euro per-unit act; 6d8e unit loop) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_0494` | 37850 | 10 | mapgen | Far thunk → FUN_521d_03d0 (founding/expansion urgency) | inferred |  |
+| `FUN_2a1f_04a0` | 37860 | 10 | mapgen | Far thunk → FUN_521d_0000 (clear primary goal slot) | inferred |  |
+| `FUN_2a1f_04ac` | 37870 | 10 | mapgen | Far thunk → FUN_521d_06ae (best adjacent founding tile) | inferred |  |
+| `FUN_2a1f_04b8` | 37880 | 10 | mapgen | Far thunk → FUN_521d_001c (invalidate nearby secondary goals) | inferred |  |
+| `FUN_2a1f_04c4` | 37890 | 10 | mapgen | Far thunk → FUN_521d_0214 (upsert secondary goal) | inferred |  |
+| `FUN_2a1f_04d0` | 37900 | 10 | mapgen | Far thunk → FUN_521d_0492 (colony-count balance flags) | inferred |  |
+| `FUN_2a1f_04dc` | 37910 | 10 | mapgen | Far thunk → FUN_521d_5c38 (Europe hire gate stub) | inferred |  |
+| `FUN_2a1f_04e8` | 37920 | 10 | mapgen | Far thunk → FUN_521d_0072 (shift primary goal table) | inferred |  |
+| `FUN_2a1f_04f4` | 37930 | 10 | mapgen | Far thunk → FUN_521d_20e6 (move scoring) | inferred | ai/euro_dispatcher.c; ai/move_scoring.md |
+| `FUN_2a1f_0500` | 37940 | 10 | mapgen | Far thunk → FUN_521d_5c3c (Europe buy/hire unit) | inferred |  |
+| `FUN_2a1f_050c` | 37950 | 10 | mapgen | Far thunk → FUN_521d_0a60 (euro unit/colony goals; 6d8e plan pass) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_0518` | 37960 | 10 | mapgen | Far thunk → FUN_521d_00a8 (shift secondary goal table) | inferred |  |
+| `FUN_2a1f_0524` | 37970 | 10 | mapgen | Far thunk → FUN_521d_02be (upsert AI work-queue entry) | inferred |  |
+| `FUN_2a1f_0530` | 37980 | 10 | mapgen | Far thunk → FUN_521d_5cf6 (refresh colony context; 6d8e inventory) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_053c` | 37990 | 10 | mapgen | Far thunk → FUN_521d_052c (unit desirability score) | inferred |  |
+| `FUN_2a1f_0548` | 38000 | 10 | mapgen | Far thunk → FUN_521d_00de (shift work-queue table) | inferred |  |
+| `FUN_2a1f_0554` | 38010 | 10 | mapgen | Far thunk → FUN_521d_5d04 (euro unit planning; 6d8e colony/plan pass) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_0560` | 38020 | 10 | mapgen | Far thunk → FUN_521d_031c (clear AI work queue) | inferred |  |
+| `FUN_2a1f_056c` | 38030 | 10 | mapgen | Far thunk → FUN_521d_0896 (filter profession by distance/wealth) | inferred |  |
+| `FUN_2a1f_0578` | 38040 | 10 | mapgen | Far thunk → FUN_521d_0342 (promote secondary→primary goals; 6d8e plan pass) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_0584` | 38050 | 10 | mapgen | Far thunk → FUN_521d_0116 (max priority among primary goals) | inferred |  |
+| `FUN_2a1f_0590` | 38060 | 10 | mapgen | Far thunk → FUN_521d_0600 (composite unit priority) | inferred |  |
 | `FUN_2a1f_059c` | 38070 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_05a8` | 38080 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_05b4` | 38090 | 10 | mapgen | unknown | inferred |  |
@@ -2295,9 +2295,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_3844_0004` | 58268 | 37 | turn | unknown | inferred |  |
-| `FUN_3844_00f2` | 58305 | 125 | turn | unknown | inferred |  |
-| `FUN_3844_0442` | 58430 | 265 | turn | unknown | inferred |  |
+| `FUN_3844_0004` | 58268 | 37 | turn | EOT treasure tick (type0/prof 0x1b): after 8 turns outside colony, remove + msg | inferred |  |
+| `FUN_3844_00f2` | 58305 | 125 | turn | Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass | inferred |  |
+| `FUN_3844_0442` | 58430 | 265 | turn | Year-end Euro chrome: independence, diplomacy, calendar events | inferred |  |
 
 ### Segment `38fd` (81 defs) — trade — Nation Europe market / cargo trade (nation*0x13c via 0x84fc)
 
@@ -2622,33 +2622,33 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_521d_0000` | 86772 | 15 | ai | unknown | inferred |  |
-| `FUN_521d_001c` | 86787 | 32 | ai | unknown | inferred |  |
-| `FUN_521d_0072` | 86819 | 19 | ai | unknown | inferred |  |
-| `FUN_521d_00a8` | 86838 | 19 | ai | unknown | inferred |  |
-| `FUN_521d_00de` | 86857 | 18 | ai | unknown | inferred |  |
-| `FUN_521d_0116` | 86875 | 21 | ai | unknown | inferred |  |
-| `FUN_521d_016a` | 86896 | 37 | ai | unknown | inferred |  |
-| `FUN_521d_0214` | 86933 | 38 | ai | unknown | inferred |  |
-| `FUN_521d_02be` | 86971 | 25 | ai | unknown | inferred |  |
-| `FUN_521d_031c` | 86996 | 16 | ai | unknown | inferred |  |
-| `FUN_521d_0342` | 87012 | 27 | ai | unknown | inferred |  |
+| `FUN_521d_0000` | 86772 | 15 | ai | Clear one primary goal-table slot (nation×64) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_001c` | 86787 | 32 | ai | Invalidate nearby secondary goals matching a code | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0072` | 86819 | 19 | ai | Shift primary goal table down to open a slot | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_00a8` | 86838 | 19 | ai | Shift secondary goal table down to open a slot | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_00de` | 86857 | 18 | ai | Shift work-queue table down to open a slot | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0116` | 86875 | 21 | ai | Max priority among matching primary goals | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_016a` | 86896 | 37 | ai | Upsert primary goal (x,y,code,prio) for nation | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0214` | 86933 | 38 | ai | Upsert secondary goal (x,y,code,prio) for nation | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_02be` | 86971 | 25 | ai | Upsert entry into global AI work queue | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_031c` | 86996 | 16 | ai | Clear global AI work-queue table | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0342` | 87012 | 27 | ai | Clear primary goals; promote secondary→primary (6d8e plan pass) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_03a6` | 87039 | 19 | ai | unknown | inferred |  |
-| `FUN_521d_03d0` | 87058 | 40 | ai | unknown | inferred |  |
-| `FUN_521d_0492` | 87098 | 41 | ai | unknown | inferred |  |
-| `FUN_521d_052c` | 87139 | 57 | ai | unknown | inferred |  |
-| `FUN_521d_0600` | 87196 | 23 | ai | unknown | inferred |  |
-| `FUN_521d_0656` | 87219 | 18 | ai | unknown | inferred |  |
-| `FUN_521d_06ae` | 87237 | 82 | ai | unknown | inferred |  |
-| `FUN_521d_0896` | 87319 | 26 | ai | unknown | inferred |  |
-| `FUN_521d_0906` | 87345 | 63 | ai | unknown | inferred |  |
+| `FUN_521d_03d0` | 87058 | 40 | ai | Nation founding / expansion urgency score | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0492` | 87098 | 41 | ai | Colony-count vs target balance flags | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_052c` | 87139 | 57 | ai | Unit desirability score (type + diplo + founding) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0600` | 87196 | 23 | ai | Composite unit priority (052c+0492+03d0) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0656` | 87219 | 18 | ai | Walk unit stack/chain to end (cargo scan) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_06ae` | 87237 | 82 | ai | Pick best adjacent founding / site tile | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0896` | 87319 | 26 | ai | Filter profession/role by distance and colony wealth | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit / colony goal logic | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_20c6` | 88247 | 19 | ai | unknown | inferred |  |
 | `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; ai/move_scoring.md |
-| `FUN_521d_5b66` | 90446 | 1815 | ai | unknown | inferred |  |
-| `FUN_521d_5c38` | 92261 | 8 | ai | unknown | inferred |  |
-| `FUN_521d_5c3c` | 92269 | 47 | ai | unknown | inferred |  |
-| `FUN_521d_5cf6` | 92316 | 9 | ai | unknown | inferred |  |
+| `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); PARKED | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_5c38` | 92261 | 8 | ai | Always-true predicate stub (Europe hire gate) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_5c3c` | 92269 | 47 | ai | Try buy/hire Europe unit if treasury allows | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_5cf6` | 92316 | 9 | ai | Refresh colony context pointer (6d8e inventory) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5d04` | 92325 | 748 | ai | Euro unit goals / planning (alongside 0a60) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_6d8e` | 93073 | 516 | ai | Euro AI dispatcher per nation | known | ai/euro_dispatcher.c; src/core/ai.c |
 

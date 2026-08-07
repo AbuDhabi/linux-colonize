@@ -1,0 +1,260 @@
+{
+  "layer": "C",
+  "chunk": "1hop_FUN_521d_6d8e_thunks_helpers",
+  "entry": "FUN_521d_6d8e",
+  "functions": {
+    "FUN_2a1f_0464": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0656 (walk unit stack/chain)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0470": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_016a (upsert primary goal)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_047c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0906 (probe adjacent contact/claim)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0488": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_5b66 (Euro per-unit act; 6d8e unit loop)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_2a1f_0494": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_03d0 (founding/expansion urgency)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04a0": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0000 (clear primary goal slot)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04ac": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_06ae (best adjacent founding tile)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04b8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_001c (invalidate nearby secondary goals)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04c4": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0214 (upsert secondary goal)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04d0": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0492 (colony-count balance flags)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04dc": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_5c38 (Europe hire gate stub)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04e8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0072 (shift primary goal table)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_04f4": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_20e6 (move scoring)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c; ai/move_scoring.md"
+    },
+    "FUN_2a1f_0500": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_5c3c (Europe buy/hire unit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_050c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0a60 (euro unit/colony goals; 6d8e plan pass)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_2a1f_0518": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_00a8 (shift secondary goal table)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0524": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_02be (upsert AI work-queue entry)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0530": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_5cf6 (refresh colony context; 6d8e inventory)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_2a1f_053c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_052c (unit desirability score)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0548": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_00de (shift work-queue table)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0554": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_5d04 (euro unit planning; 6d8e colony/plan pass)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_2a1f_0560": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_031c (clear AI work queue)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_056c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0896 (filter profession by distance/wealth)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0578": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0342 (promote secondary→primary goals; 6d8e plan pass)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_2a1f_0584": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0116 (max priority among primary goals)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0590": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_521d_0600 (composite unit priority)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0582": {
+      "system": "ai",
+      "purpose": "euro_select_nation_context thunk→38fd_0000 (set nation index + Europe-market base)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_281f_0dae": {
+      "system": "ui",
+      "purpose": "Progress-beat / turn-owner chrome thunk→1984_006a (6d8e section markers)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_281f_09e6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_002c (set active colony pointer + visibility)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0be6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_2ff2 (read unit passenger profession nibble)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0a38": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15b3_0004 (read nation diplomacy/treaty byte)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_047a": {
+      "system": "ui",
+      "purpose": "Far thunk → FUN_1acb_0030 (reset mouse/input latch before act loop)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0466": {
+      "system": "ui",
+      "purpose": "Far thunk → FUN_1acb_0056 (sample mouse/keyboard input state)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_00f6": {
+      "system": "platform",
+      "purpose": "Far thunk → FUN_1ae3_0042 (BIOS INT16 key-ready check)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03e0": {
+      "system": "platform",
+      "purpose": "Far thunk → FUN_1ae7_0016 (BIOS INT16 read next key)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_05b6": {
+      "system": "save",
+      "purpose": "Far thunk → FUN_7562_0034 (direct save-slot write / autosave)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_055e": {
+      "system": "ui",
+      "purpose": "Far thunk → FUN_49dd_0424 (camera-follow map chrome; human-visible AI)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_281f_045c": {
+      "system": "ui",
+      "purpose": "Far thunk → FUN_1acb_011a (wait until custom timer word changes)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_1d1d_0dae": {
+      "system": "platform",
+      "purpose": "memset / byte-fill (aligned word then tail)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_1d1d_0d82": {
+      "system": "platform",
+      "purpose": "memcpy (aligned word then tail)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_1d1d_092c": {
+      "system": "platform",
+      "purpose": "Normalize key code (−0x20 if DS table bit2 at code+0x27ed)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_1c0c_0006": {
+      "system": "platform",
+      "purpose": "Read custom timer tick word via DS:0x267a far ptr",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "Group A: all 26 are EMS page-in (210d_0dab) + JMPF into 521d; system kept mapgen per MODULE_MAP. 6d8e hot path: 0530→5cf6 colony inventory; 0554→5d04 planning; 0578→0342 promote goals; 050c→0a60 colony goals; unit loop 0488→5b66 act; ship follow-up 0470→016a. Roles for 521d bodies from sibling layer_c_521d_ai.json (+ catalog for 20e6/0a60/5d04). Annotated euro_dispatcher.c thunk names disagree with decomp on 0488/0554/0578. Group B: 0582=euro_select_nation_context→38fd_0000; 0dae progress chrome→1984_006a; 09e6/0be6 colony/passenger accessors; 0a38 diplo byte; 047a/0466/045c input latch/sample/wait; 00f6/03e0 INT16; 05b6 autosave; 055e camera chrome; 1d1d memset/memcpy/key-normalize; 1c0c timer word. Skipped 281f_0470 (ui_pump; other shard)."
+}

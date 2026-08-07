@@ -280,7 +280,7 @@
       "7455": {
         "system": "mapgen",
         "confidence": "inferred",
-        "label": "Map plane buffer alloc (pitch 0x853a → terrain/L2/L3)"
+        "label": "Map plane buffer alloc (pitch 0x853a \u2192 terrain/L2/L3)"
       },
       "1101": {
         "system": "ui",
@@ -600,7 +600,7 @@
       "1b8d": {
         "system": "ui",
         "confidence": "inferred",
-        "label": "Solid-rect fill thunk → 1b9e"
+        "label": "Solid-rect fill thunk \u2192 1b9e"
       },
       "1b8f": {
         "system": "ui",
@@ -950,7 +950,7 @@
     "viceroy": {
       "FUN_1009_0004": {
         "system": "ui",
-        "purpose": "Map overlay style→ink/attr (1/2→0x95, 3→0xc, else→0x44)",
+        "purpose": "Map overlay style\u2192ink/attr (1/2\u21920x95, 3\u21920xc, else\u21920x44)",
         "confidence": "inferred",
         "links": ""
       },
@@ -1034,7 +1034,7 @@
       },
       "FUN_1009_0420": {
         "system": "ui",
-        "purpose": "strcat dest ← string at DS:0x50 (pad/append helper)",
+        "purpose": "strcat dest \u2190 string at DS:0x50 (pad/append helper)",
         "confidence": "inferred",
         "links": ""
       },
@@ -2324,7 +2324,7 @@
       },
       "FUN_2f2b_41c0": {
         "system": "colony",
-        "purpose": "People-band hit-test → colonist index",
+        "purpose": "People-band hit-test \u2192 colonist index",
         "confidence": "inferred",
         "links": ""
       },
@@ -2408,13 +2408,13 @@
       },
       "FUN_2f2b_4b62": {
         "system": "colony",
-        "purpose": "Load cargo warehouse→hold (amount dialog)",
+        "purpose": "Load cargo warehouse\u2192hold (amount dialog)",
         "confidence": "inferred",
         "links": "docs/assets.md"
       },
       "FUN_2f2b_4da6": {
         "system": "colony",
-        "purpose": "Unload cargo hold→warehouse",
+        "purpose": "Unload cargo hold\u2192warehouse",
         "confidence": "inferred",
         "links": "docs/assets.md"
       },
@@ -2432,7 +2432,7 @@
       },
       "FUN_2f2b_5746": {
         "system": "colony",
-        "purpose": "Docked-unit orders popup (sentry / fortify / …)",
+        "purpose": "Docked-unit orders popup (sentry / fortify / \u2026)",
         "confidence": "inferred",
         "links": "docs/assets.md"
       },
@@ -2462,7 +2462,7 @@
       },
       "FUN_2f2b_6372": {
         "system": "colony",
-        "purpose": "Colony keyboard dispatcher (N/M/B/L/U/…)",
+        "purpose": "Colony keyboard dispatcher (N/M/B/L/U/\u2026)",
         "confidence": "inferred",
         "links": "docs/assets.md"
       },
@@ -2798,7 +2798,7 @@
       },
       "FUN_75c2_2778": {
         "system": "save",
-        "purpose": "Title/main menu loop (New/Load/Options); Load → 7562_04e8",
+        "purpose": "Title/main menu loop (New/Load/Options); Load \u2192 7562_04e8",
         "confidence": "inferred",
         "links": "docs/savegame.md"
       },
@@ -3038,7 +3038,7 @@
       },
       "FUN_7455_0058": {
         "system": "mapgen",
-        "purpose": "Allocate terrain/layer2/layer3 map planes from pitch×height",
+        "purpose": "Allocate terrain/layer2/layer3 map planes from pitch\u00d7height",
         "confidence": "inferred",
         "links": ""
       },
@@ -3165,6 +3165,498 @@
       "FUN_78ef_0002": {
         "system": "platform",
         "purpose": "Open RM* resource archive (strip ext), alloc stream, set read budgets",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_130d_000a": {
+        "system": "turn",
+        "purpose": "Space-split splash text into \u226410 lines and present fullscreen",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_130d_0172": {
+        "system": "turn",
+        "purpose": "Autosave slot 8 on decade Spring, else slot 9",
+        "confidence": "known",
+        "links": "docs/savegame.md"
+      },
+      "FUN_130d_019e": {
+        "system": "turn",
+        "purpose": "Compose demo/autoplay end splash strings \u2192 000a",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_130d_0222": {
+        "system": "turn",
+        "purpose": "Compose independence-declared splash strings \u2192 000a",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3844_0004": {
+        "system": "turn",
+        "purpose": "EOT treasure tick (type0/prof 0x1b): after 8 turns outside colony, remove + msg",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3844_00f2": {
+        "system": "turn",
+        "purpose": "Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3844_0442": {
+        "system": "turn",
+        "purpose": "Year-end Euro chrome: independence, diplomacy, calendar events",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a42": {
+        "system": "ai",
+        "purpose": "indian_select_nation_context thunk\u219215dc_0006 (bind 8d52/8d50/8d4e)",
+        "confidence": "known",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_030c": {
+        "system": "ai",
+        "purpose": "Indian\u2194Euro relation word get thunk\u219215dc_00e0 (DS:0x5b1c)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_09a4": {
+        "system": "ui",
+        "purpose": "Nation name string ptr thunk\u219215b3_01e0 (dialog subst)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_0438": {
+        "system": "ui",
+        "purpose": "Set dialog subst string slot thunk\u21926f74_03ec",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_0a1a": {
+        "system": "ui",
+        "purpose": "Nation name string ptr thunk\u219215b3_0198 (dialog subst)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_03fe": {
+        "system": "ui",
+        "purpose": "Dialog flush/run thunk\u21926f74_3744\u21920998",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_0d6c": {
+        "system": "ai",
+        "purpose": "Apply Indian\u2194Euro relation delta (+dialogs) thunk\u21924cc6_00f2",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_2a1f_0398": {
+        "system": "ai",
+        "purpose": "Clear euro missions on Indian tribes (alarm) thunk\u21924cc6_0000",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_281f_0470": {
+        "system": "ui",
+        "purpose": "ui_pump thunk\u2192129f_00f6",
+        "confidence": "known",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_2a1f_0270": {
+        "system": "ai",
+        "purpose": "indian_relation_tick thunk\u21924962_06b6 (recount tribes/units/goods)",
+        "confidence": "known",
+        "links": "original_sources_annotated/ai/indian_nation_turn.c"
+      },
+      "FUN_521d_0000": {
+        "system": "ai",
+        "purpose": "Clear one primary goal-table slot (nation\u00d764)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_001c": {
+        "system": "ai",
+        "purpose": "Invalidate nearby secondary goals matching a code",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0072": {
+        "system": "ai",
+        "purpose": "Shift primary goal table down to open a slot",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_00a8": {
+        "system": "ai",
+        "purpose": "Shift secondary goal table down to open a slot",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_00de": {
+        "system": "ai",
+        "purpose": "Shift work-queue table down to open a slot",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0116": {
+        "system": "ai",
+        "purpose": "Max priority among matching primary goals",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_016a": {
+        "system": "ai",
+        "purpose": "Upsert primary goal (x,y,code,prio) for nation",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0214": {
+        "system": "ai",
+        "purpose": "Upsert secondary goal (x,y,code,prio) for nation",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_02be": {
+        "system": "ai",
+        "purpose": "Upsert entry into global AI work queue",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_031c": {
+        "system": "ai",
+        "purpose": "Clear global AI work-queue table",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0342": {
+        "system": "ai",
+        "purpose": "Clear primary goals; promote secondary\u2192primary (6d8e plan pass)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_03d0": {
+        "system": "ai",
+        "purpose": "Nation founding / expansion urgency score",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0492": {
+        "system": "ai",
+        "purpose": "Colony-count vs target balance flags",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_052c": {
+        "system": "ai",
+        "purpose": "Unit desirability score (type + diplo + founding)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0600": {
+        "system": "ai",
+        "purpose": "Composite unit priority (052c+0492+03d0)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0656": {
+        "system": "ai",
+        "purpose": "Walk unit stack/chain to end (cargo scan)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_06ae": {
+        "system": "ai",
+        "purpose": "Pick best adjacent founding / site tile",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0896": {
+        "system": "ai",
+        "purpose": "Filter profession/role by distance and colony wealth",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_0906": {
+        "system": "ai",
+        "purpose": "Probe adjacent tiles for contact / claim profession",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_5b66": {
+        "system": "ai",
+        "purpose": "Euro per-unit act body (often \u2192 move_scoring 20e6); PARKED",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_5c38": {
+        "system": "ai",
+        "purpose": "Always-true predicate stub (Europe hire gate)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_5c3c": {
+        "system": "ai",
+        "purpose": "Try buy/hire Europe unit if treasury allows",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_521d_5cf6": {
+        "system": "ai",
+        "purpose": "Refresh colony context pointer (6d8e inventory)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+      },
+      "FUN_2a1f_0464": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0656 (walk unit stack/chain)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0470": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_016a (upsert primary goal)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_047c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0906 (probe adjacent contact/claim)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0488": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_5b66 (Euro per-unit act; 6d8e unit loop)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_2a1f_0494": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_03d0 (founding/expansion urgency)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04a0": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0000 (clear primary goal slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04ac": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_06ae (best adjacent founding tile)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04b8": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_001c (invalidate nearby secondary goals)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04c4": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0214 (upsert secondary goal)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04d0": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0492 (colony-count balance flags)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04dc": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_5c38 (Europe hire gate stub)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04e8": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0072 (shift primary goal table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_04f4": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_20e6 (move scoring)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c; ai/move_scoring.md"
+      },
+      "FUN_2a1f_0500": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_5c3c (Europe buy/hire unit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_050c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0a60 (euro unit/colony goals; 6d8e plan pass)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_2a1f_0518": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_00a8 (shift secondary goal table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0524": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_02be (upsert AI work-queue entry)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0530": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_5cf6 (refresh colony context; 6d8e inventory)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_2a1f_053c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_052c (unit desirability score)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0548": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_00de (shift work-queue table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0554": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_5d04 (euro unit planning; 6d8e colony/plan pass)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_2a1f_0560": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_031c (clear AI work queue)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_056c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0896 (filter profession by distance/wealth)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0578": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0342 (promote secondary\u2192primary goals; 6d8e plan pass)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_2a1f_0584": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0116 (max priority among primary goals)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0590": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_521d_0600 (composite unit priority)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0582": {
+        "system": "ai",
+        "purpose": "euro_select_nation_context thunk\u219238fd_0000 (set nation index + Europe-market base)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_281f_0dae": {
+        "system": "ui",
+        "purpose": "Progress-beat / turn-owner chrome thunk\u21921984_006a (6d8e section markers)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_281f_09e6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_002c (set active colony pointer + visibility)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0be6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_2ff2 (read unit passenger profession nibble)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a38": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15b3_0004 (read nation diplomacy/treaty byte)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_047a": {
+        "system": "ui",
+        "purpose": "Far thunk \u2192 FUN_1acb_0030 (reset mouse/input latch before act loop)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0466": {
+        "system": "ui",
+        "purpose": "Far thunk \u2192 FUN_1acb_0056 (sample mouse/keyboard input state)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00f6": {
+        "system": "platform",
+        "purpose": "Far thunk \u2192 FUN_1ae3_0042 (BIOS INT16 key-ready check)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_03e0": {
+        "system": "platform",
+        "purpose": "Far thunk \u2192 FUN_1ae7_0016 (BIOS INT16 read next key)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_05b6": {
+        "system": "save",
+        "purpose": "Far thunk \u2192 FUN_7562_0034 (direct save-slot write / autosave)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_055e": {
+        "system": "ui",
+        "purpose": "Far thunk \u2192 FUN_49dd_0424 (camera-follow map chrome; human-visible AI)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_281f_045c": {
+        "system": "ui",
+        "purpose": "Far thunk \u2192 FUN_1acb_011a (wait until custom timer word changes)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0dae": {
+        "system": "platform",
+        "purpose": "memset / byte-fill (aligned word then tail)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0d82": {
+        "system": "platform",
+        "purpose": "memcpy (aligned word then tail)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_092c": {
+        "system": "platform",
+        "purpose": "Normalize key code (\u22120x20 if DS table bit2 at code+0x27ed)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1c0c_0006": {
+        "system": "platform",
+        "purpose": "Read custom timer tick word via DS:0x267a far ptr",
         "confidence": "inferred",
         "links": ""
       }

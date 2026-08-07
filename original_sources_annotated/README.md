@@ -56,7 +56,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 79 · inferred 2298 · unknown 3 |
+| Confidence | known 92 · inferred 2285 · unknown 3 |
+| Purpose one-liners | 452 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -65,9 +66,10 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Layer B underway (SAVEGAME + colony +
-Europe + turn chrome + status overlays closed); remaining purpose backlog is
-turn leftovers / other mid-size systems / Layer C.
+Purpose one-liners are **not** Layer A. Layer B mid-size game areas closed
+(SAVEGAME + colony + Europe + turn chrome/loop + status overlays); Layer C
+1-hop from Euro/Indian AI entries closed. Remaining backlog is other mid-size
+systems / further Layer C entries (e.g. turn EOT neighborhood) / selective D.
 
 ### Roadmap (committed order)
 
@@ -79,10 +81,14 @@ turn leftovers / other mid-size systems / Layer C.
    - **Done:** colony (`2f2b`/`647e`/`479b`); Europe trade `4345` (13/13) +
      `38fd` (81/81); turn chrome `1984` (18/18); combat residual `465b`
      (2/2; `65dd` already closed); status overlays `1009` (15/15).
-   - **Next:** turn leftovers `130d`/`3844`, or start **Layer C** 1-hop from
-     `FUN_521d_6d8e` / `FUN_4d56_1816`. MAPEDIT stays parked.
-3. **Layer C** — one-hop from known entries (`FUN_521d_6d8e`, `FUN_4d56_1816`,
-   turn EOT).
+   - **Done:** turn leftovers `130d` (5/5) + `3844` (3/3) — splash/autosave +
+     Euro EOT treasure/ship-ready/year-end chrome.
+   - **Next (optional):** other mid-size systems as ports need them. MAPEDIT
+     stays parked.
+3. **Layer C** — one-hop from known entries.
+   - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
+     26 `2a1f` act thunks + 16 helpers).
+   - **Next:** turn EOT neighborhood, or other known entries as ports need them.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
