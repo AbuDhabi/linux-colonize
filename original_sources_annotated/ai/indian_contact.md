@@ -16,7 +16,7 @@ Annotated shell (quiet path only for act):
 |---|-------------|-------|
 | 1 | Reseed LCG (`04ca`); set active nation = indian+4 | `ai_nation_reseed` |
 | 2 | Select indian context + chrome | (no-op / turn cursor) |
-| 3 | Alarm prelude (NEW WORLD) | `ai_contact_indian_prelude` — flag body thin; LCG burns stay in pulse |
+| 3 | Alarm prelude (NEW WORLD) | `ai_contact_indian_prelude` — flag body thin (dialog PARKED); encroachment + mission pacify; LCG burns stay in pulse |
 | 4 | Clamp alarm byte ≥ 0 | prelude clamp |
 | 5 | Tribe growth loop (`41f2_0280` / `152e`) | `ai_grow_villages` |
 | 6 | Relation / goods tick (`2a1f_0270` → `4962_06b6`) | `ai_contact_indian_relation_tick` |
@@ -25,6 +25,20 @@ Annotated shell (quiet path only for act):
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
 
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
+Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
+
+### Prelude deepen (Linux `ai_contact_indian_prelude`)
+
+1. Clamp `alarm_by_player` band; thin NEW WORLD flag body (isolated RNG; dialog PARKED).
+2. **Encroachment:** Euro land unit whose display name contains `Soldier` / `Scout` /
+   `Pioneer`, Chebyshev distance ≤ 2 from a tribe of this nation, and
+   `tribe.mission == 0xff` → bump that tribe's `alarm[euro].friction` and
+   `indian.alarm_by_player[euro]` by **+2** each (cap **100**). Per unit×tribe.
+3. **Mission pacifies:** tribe with mission set to Euro `e`, and friction/alarm
+   toward `e` low (`< 40`) → extra **−1** on tribe friction (and on
+   `alarm_by_player` if also low). Floor 0.
+4. Mission clear when friction or `alarm_by_player` toward mission Euro **> 80**
+   (`FUN_4cc6_0000`).
 
 ## Call-graph (authoritative vs catalog myths)
 

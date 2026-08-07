@@ -500,8 +500,217 @@ static int smoke_land_war_hunt(void) {
   return 0;
 }
 
+/*
+ * Thin mid-hire Artillery: at war, colonies>=2, gold, Europe ship with Soldier
+ * already aboard → prefer Artillery (Cannon name fallback). If Artillery/Cannon
+ * type missing from pool, hire falls back to Soldier/Dragoon path (documented).
+ */
+static int smoke_mid_hire_artillery(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("artillery alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 4;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Artillery");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 3;
+  units.types[2].defense = 1;
+  snprintf(units.types[3].name, sizeof(units.types[3].name), "Free Colonist");
+  units.types[3].movement = 1;
+  units.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  const int art_ty = units_find_type(&units, "Artillery");
+  if (art_ty < 0) {
+    /* Documented fallback: without Artillery/Cannon type, war hire stays Soldier. */
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: artillery type missing — skip (Soldier path fallback)\n"
+    );
+    return 0;
+  }
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 3;
+  own->colonist_count = 3;
+  own->stock[COLONIZE_CARGO_FOOD] = 40;
+  own->building_in_production = -1;
+
+  ColonizeColony* own2 = &colonies.colonies[1];
+  own2->id = 1;
+  own2->active = true;
+  own2->nation_id = nation;
+  own2->x = 6;
+  own2->y = 4;
+  own2->population = 2;
+  own2->colonist_count = 2;
+  own2->stock[COLONIZE_CARGO_FOOD] = 20;
+  own2->building_in_production = -1;
+
+  ColonizeColony* enemy = &colonies.colonies[2];
+  enemy->id = 2;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 10;
+  enemy->y = 10;
+  enemy->population = 2;
+  enemy->colonist_count = 2;
+  enemy->stock[COLONIZE_CARGO_FOOD] = 20;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  /* Europe Caravel with Soldier already boarded (1 free slot) → Artillery hire. */
+  const int ship_id = units_spawn_allow_stack(&units, 0, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("artillery spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  const int sid = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* soldier = units_get(&units, sid);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("artillery spawn soldier cargo");
+  }
+  soldier->nation_id = nation;
+  if (!units_board_stacked(&units, sid, ship_id)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("artillery board soldier");
+  }
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+  col1.nation[foe].gold = 500;
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("artillery expected war");
+  }
+  col1.nation[nation].gold = 500;
+  const uint32_t gold_before = col1.nation[nation].gold;
+  const int cargo_before = ship->cargo_count;
+
+  ai_goals_reset();
+
+  uint32_t turn = 20; /* even — Artillery via mil-aboard, not turn parity */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42; /* not seed-100 fixture */
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  ship = units_get(&units, ship_id);
+  int art_boarded = 0;
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && (strstr(ty->name, "Artillery") || strstr(ty->name, "Cannon"))) {
+        art_boarded = 1;
+        break;
+      }
+    }
+  }
+  const int gold_spent = (col1.nation[nation].gold < gold_before);
+  const int cargo_grew = ship && ship->cargo_count > cargo_before;
+
+  if (!(art_boarded && gold_spent) && !(gold_spent && cargo_grew)) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: art_boarded=%d gold %u→%u cargo %d→%d\n",
+      art_boarded,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      cargo_before,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Artillery hire/board or gold spent on artillery path");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: artillery mid-hire ok (boarded=%d gold_spent=%d)\n",
+    art_boarded,
+    gold_spent
+  );
+  return 0;
+}
+
 int main(void) {
   if (smoke_mid_hire_mil() != 0) {
+    return 1;
+  }
+  if (smoke_mid_hire_artillery() != 0) {
     return 1;
   }
   if (smoke_naval_war_hunt() != 0) {

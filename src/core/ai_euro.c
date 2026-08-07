@@ -321,7 +321,9 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — PARKED (DOS 5d04 after early dock).
-   * Thin mid-hire: Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon.
+   * Thin mid-hire: Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon;
+   * with colonies>=2 also Artillery (Cannon fallback) when type exists — after Soldier
+   * already aboard, or every other hire turn. Full 5d04 matrix stays PARKED.
    */
   const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
   if (colonies >= 6) {
@@ -354,8 +356,40 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     static const char* k_mil[] = {
       "Soldier", "Veteran Soldier", "Soldiers", "Dragoon", "Veteran Dragoon", "Dragoons"
     };
-    for (size_t i = 0; i < sizeof(k_mil) / sizeof(k_mil[0]) && hire_ty < 0; ++i) {
-      hire_ty = units_find_type(ctx->units, k_mil[i]);
+    int mil_ty = -1;
+    for (size_t i = 0; i < sizeof(k_mil) / sizeof(k_mil[0]) && mil_ty < 0; ++i) {
+      mil_ty = units_find_type(ctx->units, k_mil[i]);
+    }
+    /* Thin deepen: mid-game Artillery when colonies>=2 and type in pool. */
+    int art_ty = -1;
+    if (colonies >= 2) {
+      art_ty = units_find_type(ctx->units, "Artillery");
+      if (art_ty < 0) {
+        art_ty = units_find_type(ctx->units, "Cannon");
+      }
+    }
+    int mil_aboard = 0;
+    for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+      const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(ctx->units, pax->type_index);
+      if (ty && ai_euro_is_military_name(ty->name)) {
+        mil_aboard = 1;
+        break;
+      }
+    }
+    /* Soldier/Dragoon primary; Artillery when mil already boarded or odd turn. */
+    const unsigned turn =
+      (ctx->turn_number && *ctx->turn_number) ? (unsigned)(*ctx->turn_number) : 0u;
+    const int prefer_art = art_ty >= 0 && (mil_aboard || (turn & 1u));
+    if (prefer_art) {
+      hire_ty = art_ty;
+    } else if (mil_ty >= 0) {
+      hire_ty = mil_ty;
+    } else if (art_ty >= 0) {
+      hire_ty = art_ty; /* mil type missing — Artillery still a war option */
     }
   }
   /* Peace / fallback: 5c3c-shaped profession demand → Pioneer, else Free Colonist. */

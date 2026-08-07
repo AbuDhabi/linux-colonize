@@ -44,12 +44,13 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * ~748 lines — difficulty-scaled treasury bump, colony/dock scan, NEW WORLD
  * wagon (type 0x12), Europe hire loop (→ 5c3c). Called from 6d8e via
  * 2a1f_0554 BEFORE promote/0a60.
- * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon.
- * Full NEW WORLD wagon / 5d04 hire matrix — PARKED.
+ * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon;
+ * colonies>=2 also Artillery (Cannon fallback) when type exists — mil already
+ * aboard or every-other hire turn. Full NEW WORLD wagon / 5d04 matrix — PARKED.
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
-  /* parked deep matrix — thin war hire lives in ai_euro.c; see decomp ~92325 */
+  /* parked deep matrix — thin war hire (+Artillery) in ai_euro.c; ~92325 */
 }
 
 /*

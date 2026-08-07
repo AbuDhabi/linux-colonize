@@ -46,7 +46,7 @@ euro_nation_turn (6d8e)
   §4 treaty timers: 0a38 read + decrement peer timers; peaceful Indian drift
   plan 5d04 / 0342 / 0a60
   [opportunistic] 10ec → 13b0 (ally −25g + timer≥8) → declare_war (thin 153e);
-                  at-war upkeep; ally foreign aid (thin FA)
+                  at-war upkeep; near-parity → make_peace; ally foreign aid (thin FA)
   act 5b66 — combat may declare_war
 ```
 
@@ -76,10 +76,22 @@ Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 - If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
 - No new declare / ally logic for that peer that turn
 
-Embargo lift (thin; no dedicated make_peace API):
+Embargo lift (thin):
 
-- On `ai_diplo_form_alliance` (clears WAR): clear Furs bit on each side that has **no remaining** Euro×Euro war
-- Other PEACE-only writes do **not** lift; Jakob Fugger / FF boycott forgive may clear bits later — full lift chrome **PARKED**
+- On `ai_diplo_make_peace` or `ai_diplo_form_alliance` (both clear WAR): clear Furs bit on each side that has **no remaining** Euro×Euro war
+- Raw PEACE-only writes (clear WAR without those APIs) do **not** lift; Jakob Fugger / FF boycott forgive may clear bits later — full lift chrome **PARKED**
+
+### Thin make-peace (Linux)
+
+`ai_diplo_make_peace(col1, a, b)` — dedicated PEACE path (not ally):
+
+- Clear WAR both directions; OR PEACE|MET
+- Lift Furs embargo via the shared helper when a nation has no remaining Euro wars
+- **No gold cost** (war sting + upkeep already drained treasury; optional 10g each not used)
+- Idempotent if already peaceful (WAR clear + PEACE|MET + lift check)
+- Full `153e` peace dialog / score body (`102a`/`1092`) **PARKED**
+
+`ai_diplo_euro_balance` at-war peer visit: after upkeep, if military scores are in the ally-eligible near-parity band (`self>10`, `other>10`, `|self−other|<15`) and RNG `1/30`, call `make_peace`. No low-gold / long-war gates in this thin pass.
 
 Not ported: full `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`), FA `3f41`, order clear `12d0`. Full `153e` / dialogs remain **PARKED**.
 
@@ -87,7 +99,7 @@ Not ported: full `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`),
 
 On `ai_diplo_form_alliance` (Euro×Euro):
 
-- Clears WAR then lifts Furs embargo if that nation has no other Euro wars (see war sting)
+- Clears WAR then lifts Furs embargo if that nation has no other Euro wars (same helper as make_peace)
 - Each side pays **25** gold if able (floor 0)
 - If either direction's treaty timer (`unknown26[peer]`) is **0**, set it to **≥8** (exactly 8); live timers left alone
 - Flags still clear WAR and set ALLY|PEACE|MET as before
@@ -123,11 +135,12 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid; declare → thin `153e`; at-war → light upkeep
-4. `ai_diplo_form_alliance` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Furs embargo if no Euro wars remain
-5. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty if was allied
-6. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
-7. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid; declare → thin `153e`; at-war → upkeep + near-parity `make_peace`
+4. `ai_diplo_make_peace` — clear WAR, set PEACE|MET, lift Furs if no Euro wars; no gold cost; full `153e` dialog PARKED
+5. `ai_diplo_form_alliance` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Furs embargo if no Euro wars remain
+6. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty if was allied
+7. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
+8. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
 
 ## PORT DEBT
 

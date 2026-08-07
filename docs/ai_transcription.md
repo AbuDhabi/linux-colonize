@@ -331,7 +331,8 @@ high-friction raid → `ai_diplo_indian_relation_delta`; peaceful meet friction 
 Missionary adjacent convert pulse (`tribe.mission` + crosses); teach-skill sets
 `tribe.state.learned` with cargo/`nation_id` profession map (Scout→Seasoned);
 thin gift (−10g/−2 friction) / demand (tools or gold/−3 friction) stand-in;
-`359c` Scout displace (xy nudge + AI_MOVE; despawn only if blocked).
+`359c` Scout displace (xy nudge + AI_MOVE; despawn only if blocked);
+prelude encroachment (+2 friction within 2) / mission pacify (−1).
 Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
 Smoke: `smoke_ai_contact`.
@@ -347,7 +348,8 @@ full `@TRIBES` flavor-good parse; DOS RNG kill/warn branch.
 (100 gold + tax+1 on first declare; 5 gold/turn/peer upkeep); alliance −25 gold/side;
 peaceful Indian relation drift (+1/tick to 160); war −5 Indian relations;
 thin FA aid (ally +10g when richer); break_alliance −20g; alliance timer bump to 8;
-wartime Furs embargo bit on `boycott_bitmap` (lift on alliance if no wars left).
+wartime Furs embargo bit on `boycott_bitmap` (lift on alliance if no wars left);
+`ai_diplo_make_peace` + rare near-parity balance peace.
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
@@ -367,9 +369,10 @@ keeps `ai_euro_early_turn` unless `AI_FULL_DISPATCH=1`.
 MILITARY goto (`smoke_ai_euro_war`). Thin G stance (≥2 colonies). Thin naval war
 hunt (AI_SAIL toward enemy ship/coast; adjacent naval combat). Thin land war hunt
 (AI_MOVE toward enemy land/colony; adjacent combat). Thin E scout explore (peaceful
-idle Scout → tribe FOUND). **PORT DEBT:** mid-game `5d04` hire matrix; deep −0x6790
-G table; full CONTACT scout rings; full land/combat `20e6` scoring; `5b66` case 7
-economy tails. Odd deviations OK; not T3 / LCG goldens.
+idle Scout → tribe FOUND). Thin mid-hire Artillery when at war with ≥2 colonies.
+**PORT DEBT:** full mid-game `5d04` hire matrix; deep −0x6790 G table; full CONTACT
+scout rings; full land/combat `20e6` scoring; `5b66` case 7 economy tails. Odd
+deviations OK; not T3 / LCG goldens.
 
 ### R5 — Toward 1:1 (T2/T3)
 
@@ -413,7 +416,7 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Bells threshold elect; ~12 tiny FF effects; full table PARKED |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; ~12 tiny effects; Fugger clears boycotts; full table PARKED |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; `smoke_ai_king` |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
@@ -445,12 +448,12 @@ stay overlaid until hang X).
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
-| `tests/smoke/test_ai_contact.c` | Meet + raids + teach + gift + 359c displace |
-| `tests/smoke/test_ai_diplo.c` | War/ally sting, FA aid, Furs embargo |
+| `tests/smoke/test_ai_contact.c` | Meet + raids + teach + gift + 359c + prelude |
+| `tests/smoke/test_ai_diplo.c` | War/ally sting, FA aid, Furs embargo, make_peace |
 | `tests/smoke/test_ai_king.c` | SoL/tax/REF/10f0×2/boycott/1528/160a/2244 |
 | `tests/smoke/test_ai_euro_expand.c` | Second-wave settle + scout explore |
-| `tests/smoke/test_ai_euro_war.c` | Mid-war hire + naval/land hunt |
-| `tests/smoke/test_founding_fathers.c` | Liberty-bell FF election + tiny effects |
+| `tests/smoke/test_ai_euro_war.c` | Mid-war hire/Artillery + naval/land hunt |
+| `tests/smoke/test_founding_fathers.c` | Human+AI FF elect; Fugger boycott forgive |
 
 Smoke:
 
