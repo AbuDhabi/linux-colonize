@@ -1,0 +1,240 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_2a1f_lo",
+  "functions": {
+    "FUN_2a1f_0000": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_06d2 (FF congress debate / nominate UI)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_000e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_0126 (Build FF name string into buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_001c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_015a (Pick strongest FF category slot for nation)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_002a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_01a6 (Enumerate/draw FF entries for nation)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0038": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_0000 (Set/clear nation bitflag in Europe-record)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0046": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_005a (Calendar era tier from year thresholds)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0054": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4345_0080 (Count unelected FF of category with weight)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0062": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_1f28 (Build Colonizopedia founding-father article)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0070": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_0082 (REF/war unit-type id for class+nation)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_007e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_1d42 (Tax→REF funding: grow expeditionary pools + notify)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_008c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_0108 (Eliminate nation: move treasury/relations, scrub units)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_009a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_160a (Independence rename cinematic: animate new nation name)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_00a8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_0512 (Purge non-player units at (x,y); capture/surrender msgs)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_00b6": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_0188 (Sink nation ships not docked in a colony)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_00c4": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_1eca (Promote veterans to Continental Army/Cavalry when SoL>50%)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_00d2": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_05ea (Set DS:0x848[crown nation] @COUNTRY color to 0x0f)",
+      "confidence": "inferred",
+      "links": "src/core/turn.c"
+    },
+    "FUN_2a1f_00e0": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_05f4 (@COUNTRY to DS color table)",
+      "confidence": "inferred",
+      "links": "src/core/turn.c"
+    },
+    "FUN_2a1f_00ee": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_060a (Colony garrison/defense score for REF landing target pick)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_00fc": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_0982 (REF invasion wave: Man-O-War + pool units at target colony)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_010a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_10f0 (Foreign-intervention landing near colony)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0118": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_06a6 (Crown turn: spawn irregulars near player colonies when REF empty)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0126": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_2022 (Independence-war nation turn: REF grow/land or intervene hire)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0134": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_43f7_0004 (Pop-weighted nation SoL aggregate over owned colonies)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_01ae": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_4720_015c (Naval-move validity check; set DS:0x9e4e reason)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_01bc": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_478c_0002 (Init unit-spawn scratch block at DS:0x5372)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_01ca": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_478c_007e (Spawn ship unit type 0 or 0x0d)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_01d8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_479b_00ca (Gold-spend gate for pioneer follow-up)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_01e6": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_479b_0158 (Pioneer tools wear-tick; clear order when depleted)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_01f4": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_479b_0000 (Generate/assign next colony name from nation tables)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0202": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_479b_0b84 (Unit-at-colony predicate)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0238": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_48d3_064e (For each ship on tile, spiral-place near landfall goto)",
+      "confidence": "inferred",
+      "links": "docs/ai_transcription.md"
+    },
+    "FUN_2a1f_0246": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_48d3_03d0 (Tick landfall delay; move/act unit when expired)",
+      "confidence": "inferred",
+      "links": "docs/ai_transcription.md"
+    },
+    "FUN_2a1f_0254": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_48d3_0434 (Tile OK for HS landfall ship place?)",
+      "confidence": "inferred",
+      "links": "docs/ai_transcription.md"
+    },
+    "FUN_2a1f_0262": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_48d3_048e (Spiral-place ship on HS near landfall goto)",
+      "confidence": "inferred",
+      "links": "src/core/ai.c"
+    },
+    "FUN_2a1f_027e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6662_0906 (Short-range goto cost via 00f2 when both axes <8)",
+      "confidence": "inferred",
+      "links": "src/core/units.c"
+    },
+    "FUN_2a1f_028a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_49dd_01aa (Sort and blit unit cargo commodity icons into status panel)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0296": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_49dd_0000 (Open unit/tile status panel window)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_02a2": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_49dd_0386 (Resolve unit profession/job name string)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_02ae": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_49dd_0086 (Close/dismiss status panel)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  }
+}

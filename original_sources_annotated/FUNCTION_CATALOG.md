@@ -1842,29 +1842,29 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2a1f_0000` | 37070 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_000e` | 37080 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_001c` | 37090 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_002a` | 37100 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0038` | 37110 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0046` | 37120 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0054` | 37130 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0062` | 37140 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0070` | 37150 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_007e` | 37160 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_008c` | 37170 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_009a` | 37180 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00a8` | 37190 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00b6` | 37200 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00c4` | 37210 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00d2` | 37220 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00e0` | 37230 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00ee` | 37240 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_00fc` | 37250 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_010a` | 37260 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0118` | 37270 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0126` | 37280 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0134` | 37290 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0000` | 37070 | 10 | mapgen | Far thunk → FUN_4345_06d2 (FF congress debate / nominate UI) | inferred |  |
+| `FUN_2a1f_000e` | 37080 | 10 | mapgen | Far thunk → FUN_4345_0126 (Build FF name string into buffer) | inferred |  |
+| `FUN_2a1f_001c` | 37090 | 10 | mapgen | Far thunk → FUN_4345_015a (Pick strongest FF category slot for nation) | inferred |  |
+| `FUN_2a1f_002a` | 37100 | 10 | mapgen | Far thunk → FUN_4345_01a6 (Enumerate/draw FF entries for nation) | inferred |  |
+| `FUN_2a1f_0038` | 37110 | 10 | mapgen | Far thunk → FUN_4345_0000 (Set/clear nation bitflag in Europe-record) | inferred |  |
+| `FUN_2a1f_0046` | 37120 | 10 | mapgen | Far thunk → FUN_4345_005a (Calendar era tier from year thresholds) | inferred |  |
+| `FUN_2a1f_0054` | 37130 | 10 | mapgen | Far thunk → FUN_4345_0080 (Count unelected FF of category with weight) | inferred |  |
+| `FUN_2a1f_0062` | 37140 | 10 | mapgen | Far thunk → FUN_6cb2_1f28 (Build Colonizopedia founding-father article) | inferred |  |
+| `FUN_2a1f_0070` | 37150 | 10 | mapgen | Far thunk → FUN_43f7_0082 (REF/war unit-type id for class+nation) | inferred |  |
+| `FUN_2a1f_007e` | 37160 | 10 | mapgen | Far thunk → FUN_43f7_1d42 (Tax→REF funding: grow expeditionary pools + notify) | inferred |  |
+| `FUN_2a1f_008c` | 37170 | 10 | mapgen | Far thunk → FUN_43f7_0108 (Eliminate nation: move treasury/relations, scrub units) | inferred |  |
+| `FUN_2a1f_009a` | 37180 | 10 | mapgen | Far thunk → FUN_43f7_160a (Independence rename cinematic: animate new nation name) | inferred |  |
+| `FUN_2a1f_00a8` | 37190 | 10 | mapgen | Far thunk → FUN_43f7_0512 (Purge non-player units at (x,y); capture/surrender msgs) | inferred |  |
+| `FUN_2a1f_00b6` | 37200 | 10 | mapgen | Far thunk → FUN_43f7_0188 (Sink nation ships not docked in a colony) | inferred |  |
+| `FUN_2a1f_00c4` | 37210 | 10 | mapgen | Far thunk → FUN_43f7_1eca (Promote veterans to Continental Army/Cavalry when SoL>50%) | inferred |  |
+| `FUN_2a1f_00d2` | 37220 | 10 | mapgen | Far thunk → FUN_43f7_05ea (Set DS:0x848[crown nation] @COUNTRY color to 0x0f) | inferred | src/core/turn.c |
+| `FUN_2a1f_00e0` | 37230 | 10 | mapgen | Far thunk → FUN_43f7_05f4 (@COUNTRY to DS color table) | inferred | src/core/turn.c |
+| `FUN_2a1f_00ee` | 37240 | 10 | mapgen | Far thunk → FUN_43f7_060a (Colony garrison/defense score for REF landing target pick) | inferred |  |
+| `FUN_2a1f_00fc` | 37250 | 10 | mapgen | Far thunk → FUN_43f7_0982 (REF invasion wave: Man-O-War + pool units at target colony) | inferred |  |
+| `FUN_2a1f_010a` | 37260 | 10 | mapgen | Far thunk → FUN_43f7_10f0 (Foreign-intervention landing near colony) | inferred |  |
+| `FUN_2a1f_0118` | 37270 | 10 | mapgen | Far thunk → FUN_43f7_06a6 (Crown turn: spawn irregulars near player colonies when REF empty) | inferred |  |
+| `FUN_2a1f_0126` | 37280 | 10 | mapgen | Far thunk → FUN_43f7_2022 (Independence-war nation turn: REF grow/land or intervene hire) | inferred |  |
+| `FUN_2a1f_0134` | 37290 | 10 | mapgen | Far thunk → FUN_43f7_0004 (Pop-weighted nation SoL aggregate over owned colonies) | inferred |  |
 | `FUN_2a1f_0142` | 37300 | 10 | mapgen | Far thunk → FUN_465b_0000 (move spent cost/ADD/post-ADD chrome) | inferred |  |
 | `FUN_2a1f_0150` | 37310 | 10 | mapgen | Far thunk → FUN_465b_0c1e (step unit in dir8 via move_spent_add) | known | ai/indian_nation_turn.c; ai/move_spent.c |
 | `FUN_2a1f_015e` | 37320 | 10 | mapgen | Far thunk → FUN_5f7a_0662 (dispatch colony native-trade session) | inferred |  |
@@ -1873,49 +1873,49 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0186` | 37350 | 10 | mapgen | Far thunk → FUN_5fef_1908 (treasure capture: ransom/gold/remove) | inferred |  |
 | `FUN_2a1f_0192` | 37360 | 10 | mapgen | Far thunk → FUN_5bfb_3180 (adj ship/unit combat loot around (x,y)) | inferred |  |
 | `FUN_2a1f_01a0` | 37370 | 10 | ui | EMS thunk → FUN_4720_0006 (ship cargo free-space / embark probe) | inferred |  |
-| `FUN_2a1f_01ae` | 37380 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_01bc` | 37390 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_01ca` | 37400 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_01d8` | 37410 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_01e6` | 37420 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_01f4` | 37430 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0202` | 37440 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_01ae` | 37380 | 10 | mapgen | Far thunk → FUN_4720_015c (Naval-move validity check; set DS:0x9e4e reason) | inferred |  |
+| `FUN_2a1f_01bc` | 37390 | 10 | mapgen | Far thunk → FUN_478c_0002 (Init unit-spawn scratch block at DS:0x5372) | inferred |  |
+| `FUN_2a1f_01ca` | 37400 | 10 | mapgen | Far thunk → FUN_478c_007e (Spawn ship unit type 0 or 0x0d) | inferred |  |
+| `FUN_2a1f_01d8` | 37410 | 10 | mapgen | Far thunk → FUN_479b_00ca (Gold-spend gate for pioneer follow-up) | inferred |  |
+| `FUN_2a1f_01e6` | 37420 | 10 | mapgen | Far thunk → FUN_479b_0158 (Pioneer tools wear-tick; clear order when depleted) | inferred |  |
+| `FUN_2a1f_01f4` | 37430 | 10 | mapgen | Far thunk → FUN_479b_0000 (Generate/assign next colony name from nation tables) | inferred |  |
+| `FUN_2a1f_0202` | 37440 | 10 | mapgen | Far thunk → FUN_479b_0b84 (Unit-at-colony predicate) | inferred |  |
 | `FUN_2a1f_0210` | 37450 | 10 | mapgen | Far thunk → FUN_6662_0f74 (unit goto next-step director) | inferred |  |
 | `FUN_2a1f_021c` | 37460 | 10 | colony | EMS thunk → FUN_647e_057a (read packed building/cargo nibble) | inferred |  |
 | `FUN_2a1f_022a` | 37470 | 10 | colony | EMS thunk → FUN_647e_0522 (read packed colonist-slot nibble) | inferred |  |
-| `FUN_2a1f_0238` | 37480 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0246` | 37490 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0254` | 37500 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0262` | 37510 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0238` | 37480 | 10 | mapgen | Far thunk → FUN_48d3_064e (For each ship on tile, spiral-place near landfall goto) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_0246` | 37490 | 10 | mapgen | Far thunk → FUN_48d3_03d0 (Tick landfall delay; move/act unit when expired) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_0254` | 37500 | 10 | mapgen | Far thunk → FUN_48d3_0434 (Tile OK for HS landfall ship place?) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_0262` | 37510 | 10 | mapgen | Far thunk → FUN_48d3_048e (Spiral-place ship on HS near landfall goto) | inferred | src/core/ai.c |
 | `FUN_2a1f_0270` | 37520 | 10 | ai | indian_relation_tick thunk→4962_06b6 (recount tribes/units/goods) | known | original_sources_annotated/ai/indian_nation_turn.c |
-| `FUN_2a1f_027e` | 37530 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_028a` | 37540 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0296` | 37550 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02a2` | 37560 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02ae` | 37570 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02ba` | 37580 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02c6` | 37590 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02d2` | 37600 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02de` | 37610 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02ea` | 37620 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_02f6` | 37630 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0302` | 37640 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_030e` | 37650 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_031a` | 37660 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0326` | 37670 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0332` | 37680 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_033e` | 37690 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_034a` | 37700 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0356` | 37710 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_027e` | 37530 | 10 | mapgen | Far thunk → FUN_6662_0906 (Short-range goto cost via 00f2 when both axes <8) | inferred | src/core/units.c |
+| `FUN_2a1f_028a` | 37540 | 10 | mapgen | Far thunk → FUN_49dd_01aa (Sort and blit unit cargo commodity icons into status panel) | inferred |  |
+| `FUN_2a1f_0296` | 37550 | 10 | mapgen | Far thunk → FUN_49dd_0000 (Open unit/tile status panel window) | inferred |  |
+| `FUN_2a1f_02a2` | 37560 | 10 | mapgen | Far thunk → FUN_49dd_0386 (Resolve unit profession/job name string) | inferred |  |
+| `FUN_2a1f_02ae` | 37570 | 10 | mapgen | Far thunk → FUN_49dd_0086 (Close/dismiss status panel) | inferred |  |
+| `FUN_2a1f_02ba` | 37580 | 10 | mapgen | Far thunk → FUN_49dd_009c (append freeform tip/text line into status panel) | inferred |  |
+| `FUN_2a1f_02c6` | 37590 | 10 | mapgen | Far thunk → FUN_49dd_00f6 (append indexed tip string from table 0x2db0 into status panel) | inferred |  |
+| `FUN_2a1f_02d2` | 37600 | 10 | mapgen | Far thunk → FUN_4b58_02f6 (alloc/init menu-bar root) | inferred |  |
+| `FUN_2a1f_02de` | 37610 | 10 | mapgen | Far thunk → FUN_4b58_0016 (pack 6-word menu style/color record into buffer) | inferred |  |
+| `FUN_2a1f_02ea` | 37620 | 10 | mapgen | Far thunk → FUN_4b58_0a64 (compute pulldown popup layout rects; clamp to 320×200) | inferred |  |
+| `FUN_2a1f_02f6` | 37630 | 10 | mapgen | Far thunk → FUN_4b58_043e (find menu node by id in bar's linked menu list) | inferred |  |
+| `FUN_2a1f_0302` | 37640 | 10 | mapgen | Far thunk → FUN_4b58_0484 (find menu-item node by command id across all menus) | inferred |  |
+| `FUN_2a1f_030e` | 37650 | 10 | mapgen | Far thunk → FUN_4b58_00ae (measure menu label width after stripping '~' hotkey markup) | inferred |  |
+| `FUN_2a1f_031a` | 37660 | 10 | mapgen | Far thunk → FUN_4b58_063a (append titled menu node to bar) | inferred |  |
+| `FUN_2a1f_0326` | 37670 | 10 | mapgen | Far thunk → FUN_4b58_0b7a (draw open pulldown: outline/fill/item labels) | inferred |  |
+| `FUN_2a1f_0332` | 37680 | 10 | mapgen | Far thunk → FUN_4b58_0104 (draw menu label text with ~hotkey color highlight) | inferred |  |
+| `FUN_2a1f_033e` | 37690 | 10 | mapgen | Far thunk → FUN_4b58_07d6 (append menu-item under a menu; empty label → separator) | inferred |  |
+| `FUN_2a1f_034a` | 37700 | 10 | mapgen | Far thunk → FUN_4b58_023e (resolve ~hotkey scan/char code from label) | inferred |  |
+| `FUN_2a1f_0356` | 37710 | 10 | mapgen | Far thunk → FUN_7b08_009e (wrap existing far block as arena; no alloc) | inferred |  |
 | `FUN_2a1f_0364` | 37720 | 10 | mapgen | Far thunk → FUN_7ab9_0000 (image/resource load attempt) | inferred |  |
 | `FUN_2a1f_0372` | 37730 | 10 | mapgen | Far thunk → FUN_78ef_0002 (open RM* resource archive + stream) | inferred |  |
-| `FUN_2a1f_0380` | 37740 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0380` | 37740 | 10 | mapgen | Far thunk → FUN_1aea_000c (map keyboard/hotkey dispatch into colony/mapdraw/sound) | inferred |  |
 | `FUN_2a1f_038a` | 37750 | 10 | mapgen | Far thunk → FUN_7ab9_00be (handle image-load status) | inferred |  |
 | `FUN_2a1f_0398` | 37760 | 10 | ai | Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_2a1f_0434` | 37770 | 10 | mapgen | Far thunk → FUN_4d56_2154 (larger Indian action/raid body) | inferred |  |
-| `FUN_2a1f_0440` | 37780 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_044c` | 37790 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0458` | 37800 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0440` | 37780 | 10 | mapgen | Far thunk → FUN_4d56_0038 (small Indian AI helper; calls into 00e0 / map probes) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_044c` | 37790 | 10 | mapgen | Far thunk → FUN_4d56_2820 (heavy Indian decision / raid-scale logic) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_0458` | 37800 | 10 | mapgen | Far thunk → FUN_5fef_0000 (pick best defender unit at tile by combat score walk) | inferred |  |
 | `FUN_2a1f_0464` | 37810 | 10 | mapgen | Far thunk → FUN_521d_0656 (walk unit stack/chain) | inferred |  |
 | `FUN_2a1f_0470` | 37820 | 10 | mapgen | Far thunk → FUN_521d_016a (upsert primary goal) | inferred | ai/euro_goals.c |
 | `FUN_2a1f_047c` | 37830 | 10 | mapgen | Far thunk → FUN_521d_0906 (probe adjacent contact/claim) | inferred |  |
@@ -1942,49 +1942,49 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0578` | 38040 | 10 | mapgen | Far thunk → FUN_521d_0342 (promote secondary→primary goals; 6d8e plan pass) | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_2a1f_0584` | 38050 | 10 | mapgen | Far thunk → FUN_521d_0116 (max priority among primary goals) | inferred |  |
 | `FUN_2a1f_0590` | 38060 | 10 | mapgen | Far thunk → FUN_521d_0600 (composite unit priority) | inferred |  |
-| `FUN_2a1f_059c` | 38070 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05a8` | 38080 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05b4` | 38090 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05c0` | 38100 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05cc` | 38110 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05d8` | 38120 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05e4` | 38130 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05f0` | 38140 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_05fc` | 38150 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_060a` | 38160 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0618` | 38170 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_059c` | 38070 | 10 | mapgen | Far thunk → FUN_6662_0086 (sign(dx,dy) → 8-way direction index) | inferred | src/core/units.c |
+| `FUN_2a1f_05a8` | 38080 | 10 | mapgen | Far thunk → FUN_5952_035e (colony production/buildings/stock tick) | inferred |  |
+| `FUN_2a1f_05b4` | 38090 | 10 | mapgen | Far thunk → FUN_5952_0214 (gate/set construction project; clear build-busy on fail) | inferred |  |
+| `FUN_2a1f_05c0` | 38100 | 10 | mapgen | Far thunk → FUN_5952_0280 (need building upgrade? cargo stock vs building tier) | inferred |  |
+| `FUN_2a1f_05cc` | 38110 | 10 | mapgen | Far thunk → FUN_5952_02f4 (clear build-busy flag; map index → building id) | inferred |  |
+| `FUN_2a1f_05d8` | 38120 | 10 | mapgen | Far thunk → FUN_5952_0000 (maybe spawn wagon-train link between nearby same-nation colonies) | inferred |  |
+| `FUN_2a1f_05e4` | 38130 | 10 | mapgen | Far thunk → FUN_5952_0306 (set/clear colony specialty cargo from stock/market) | inferred |  |
+| `FUN_2a1f_05f0` | 38140 | 10 | mapgen | Far thunk → FUN_6662_00f2 (goto BFS over terr_cost with path-cost overlay and Z/Esc confirm) | inferred |  |
+| `FUN_2a1f_05fc` | 38150 | 10 | mapgen | Far thunk → FUN_5bfb_153e (large diplomacy/war-declaration body) | inferred |  |
+| `FUN_2a1f_060a` | 38160 | 10 | mapgen | Far thunk → FUN_5bfb_12d0 (clear armed-unit goto/orders adjacent to a colony) | inferred |  |
+| `FUN_2a1f_0618` | 38170 | 10 | mapgen | Far thunk → FUN_5bfb_102a (diplomacy multi-line dialog present) | inferred |  |
 | `FUN_2a1f_0626` | 38180 | 10 | ai | EMS thunk → FUN_5bfb_312e (unit combat-power factor) | inferred |  |
-| `FUN_2a1f_0634` | 38190 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0642` | 38200 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0650` | 38210 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_065e` | 38220 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_066c` | 38230 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_067a` | 38240 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0688` | 38250 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0694` | 38260 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_06a2` | 38270 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0634` | 38190 | 10 | mapgen | Far thunk → FUN_5bfb_0000 (cargo/treasury census outs for diplomacy) | inferred |  |
+| `FUN_2a1f_0642` | 38200 | 10 | mapgen | Far thunk → FUN_5bfb_1092 (diplomacy short 1–2 option dialog present) | inferred |  |
+| `FUN_2a1f_0650` | 38210 | 10 | mapgen | Far thunk → FUN_5bfb_0182 (set diplomacy bit0x40 + human peace/teach dialogs) | inferred |  |
+| `FUN_2a1f_065e` | 38220 | 10 | mapgen | Far thunk → FUN_5bfb_13b0 (form or break alliance between two nations) | inferred |  |
+| `FUN_2a1f_066c` | 38230 | 10 | mapgen | Far thunk → FUN_5bfb_022e (Indian unit contact/meet body) | inferred |  |
+| `FUN_2a1f_067a` | 38240 | 10 | mapgen | Far thunk → FUN_5bfb_10ec (Euro A↔B war/ally eligibility by military balance) | inferred |  |
+| `FUN_2a1f_0688` | 38250 | 10 | mapgen | Far thunk → FUN_6f74_37cc (set tertiary side-art DS:0x1f60 then flush/run) | inferred |  |
+| `FUN_2a1f_0694` | 38260 | 10 | mapgen | Far thunk → FUN_5f7a_020e (native cargo trade: price, pick stock, confirm sell/barter) | inferred |  |
+| `FUN_2a1f_06a2` | 38270 | 10 | mapgen | Far thunk → FUN_5f7a_000e (colony native-meet gold dialog; ±100 treasury) | inferred |  |
 | `FUN_2a1f_06b0` | 38280 | 10 | combat | EMS thunk → FUN_5fef_016c (pick cargo slot to plunder) | inferred |  |
-| `FUN_2a1f_06bc` | 38290 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_06bc` | 38290 | 10 | mapgen | Far thunk → FUN_5fef_16ea (remap specialty id after combat demotion) | inferred |  |
 | `FUN_2a1f_06c8` | 38300 | 10 | combat | EMS thunk → FUN_5fef_0f14 (Indian raid colony loot + tension) | inferred |  |
 | `FUN_2a1f_06d4` | 38310 | 10 | combat | EMS thunk → FUN_5fef_172c (post-combat specialty/type change) | inferred |  |
 | `FUN_2a1f_06e0` | 38320 | 10 | combat | EMS thunk → FUN_5fef_0352 (apply combat outcome) | inferred |  |
 | `FUN_2a1f_06ec` | 38330 | 19 | mapgen | EMS page-in stub only (no further far call) | inferred |  |
 | `FUN_2a1f_0704` | 38349 | 10 | ui | EMS thunk → FUN_636c_0000 (dual-column compare/report dialog) | inferred |  |
 | `FUN_2a1f_0710` | 38359 | 10 | mapgen | Far thunk → FUN_6f74_2278 (dialog chrome fill + border bevels) | inferred |  |
-| `FUN_2a1f_071c` | 38369 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_072a` | 38379 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0738` | 38389 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0746` | 38399 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_071c` | 38369 | 10 | mapgen | Far thunk → FUN_647e_0e80 (cargo/commodity type picker dialog) | inferred |  |
+| `FUN_2a1f_072a` | 38379 | 10 | mapgen | Far thunk → FUN_647e_05aa (write packed building/cargo nibble) | inferred |  |
+| `FUN_2a1f_0738` | 38389 | 10 | mapgen | Far thunk → FUN_647e_05ec (set colonist-slot unit-index; clear dual UI counters) | inferred |  |
+| `FUN_2a1f_0746` | 38399 | 10 | mapgen | Far thunk → FUN_647e_0f2c (add/remove cargo item in colonist warehouse row) | inferred |  |
 | `FUN_2a1f_0754` | 38409 | 10 | colony | EMS thunk → FUN_647e_0040 (resolve slot label ptr) | inferred |  |
-| `FUN_2a1f_0762` | 38419 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0770` | 38429 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_077e` | 38439 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_078c` | 38449 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_079a` | 38459 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_07a8` | 38469 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_07b6` | 38479 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0762` | 38419 | 10 | mapgen | Far thunk → FUN_647e_0094 (gate: unit may join/enter colony) | inferred |  |
+| `FUN_2a1f_0770` | 38429 | 10 | mapgen | Far thunk → FUN_647e_09da (draw colony report panel) | inferred |  |
+| `FUN_2a1f_077e` | 38439 | 10 | mapgen | Far thunk → FUN_647e_1064 (colony-list mouse hit to row/action) | inferred |  |
+| `FUN_2a1f_078c` | 38449 | 10 | mapgen | Far thunk → FUN_647e_04f0 (map building/warehouse index to packed-nibble offset) | inferred |  |
+| `FUN_2a1f_079a` | 38459 | 10 | mapgen | Far thunk → FUN_647e_10d2 (colony-list mouse: rename colony or dismiss) | inferred |  |
+| `FUN_2a1f_07a8` | 38469 | 10 | mapgen | Far thunk → FUN_647e_0dd4 (assign/reassign colonist into selected slot) | inferred |  |
+| `FUN_2a1f_07b6` | 38479 | 10 | mapgen | Far thunk → FUN_647e_0548 (write packed nibble to colonist-slot byte+2) | inferred |  |
 | `FUN_2a1f_07c4` | 38489 | 10 | mapgen | Far thunk → FUN_6f74_3084 (set dialog script resource triple) | inferred |  |
-| `FUN_2a1f_07d0` | 38499 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_07d0` | 38499 | 10 | mapgen | Far thunk → FUN_6662_0b4e (coarse sector BFS toward goto with path-cost overlay) | inferred |  |
 | `FUN_2a1f_07dc` | 38509 | 10 | mapgen | EMS thunk → FUN_67bf_0000 (continent flood-fill IDs) | known | src/core/map_gen.c |
 | `FUN_2a1f_07ea` | 38519 | 10 | mapgen | Far thunk → FUN_67f4_0088 (post-flood-fill coast/neighbor bitmasks + continent tallies) | inferred |  |
 | `FUN_2a1f_07f8` | 38529 | 10 | mapgen | Far thunk → FUN_682a_000c (write per-tile fertility/bonus nibble across map) | inferred |  |
@@ -1998,106 +1998,106 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0868` | 38609 | 10 | mapgen | EMS thunk → FUN_1bbb_0006 pitched-byte get (terrain read in mapgen) | known | src/core/map_gen.c |
 | `FUN_2a1f_0872` | 38619 | 10 | mapgen | EMS thunk → FUN_1bb9_000a pitched-byte put (terrain write in mapgen) | known | src/core/map_gen.c |
 | `FUN_2a1f_087c` | 38629 | 10 | mapgen | Far thunk → FUN_6a09_0006 (tribe capitals, satellites, Brave spawn loop) | inferred | src/core/ai.c |
-| `FUN_2a1f_088a` | 38639 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0896` | 38649 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_08a4` | 38659 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_08b2` | 38669 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_08c0` | 38679 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_08ce` | 38689 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_088a` | 38639 | 10 | mapgen | Far thunk → FUN_7314_0198 (end current config field parse) | inferred |  |
+| `FUN_2a1f_0896` | 38649 | 10 | mapgen | Far thunk → FUN_6a9f_0118 (map viewport tile loop) | inferred | src/core/map.c |
+| `FUN_2a1f_08a4` | 38659 | 10 | mapgen | Far thunk → FUN_6a9f_0486 (full minimap chrome + tile fill + present) | inferred |  |
+| `FUN_2a1f_08b2` | 38669 | 10 | mapgen | Far thunk → FUN_6a9f_0000 (return fixed 16×16 map-color sample byte) | inferred |  |
+| `FUN_2a1f_08c0` | 38679 | 10 | mapgen | Far thunk → FUN_6a9f_0034 (return map-color sample byte for palette index) | inferred |  |
+| `FUN_2a1f_08ce` | 38689 | 10 | mapgen | Far thunk → FUN_6a9f_0346 (fill minimap tile-index buffer) | inferred |  |
 | `FUN_2a1f_08dc` | 38699 | 10 | mapgen | Far thunk → FUN_6a9f_0068 (load terrain→display color LUTs) | inferred |  |
-| `FUN_2a1f_08ea` | 38709 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_08ea` | 38709 | 10 | mapgen | Far thunk → FUN_6afa_0224 (present/flip full map viewport) | inferred |  |
 | `FUN_2a1f_08f8` | 38719 | 10 | mapgen | Far thunk → FUN_6afa_023c (present/flip tile-count map region) | inferred |  |
-| `FUN_2a1f_0906` | 38729 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0906` | 38729 | 10 | mapgen | Far thunk → FUN_6afa_000c (clamp rect into map viewport tile bounds) | inferred |  |
 | `FUN_2a1f_0914` | 38739 | 10 | mapgen | Far thunk → FUN_6afa_0052 (clip rect into viewport; rewrite w/h) | inferred |  |
-| `FUN_2a1f_0922` | 38749 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0930` | 38759 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_093e` | 38769 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_094c` | 38779 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_095a` | 38789 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0922` | 38749 | 10 | mapgen | Far thunk → FUN_6b22_0102 (blit fog-visible colonies in map rect) | inferred |  |
+| `FUN_2a1f_0930` | 38759 | 10 | mapgen | Far thunk → FUN_6b22_0428 (blit unit overlay or clear same-tile blink) | inferred |  |
+| `FUN_2a1f_093e` | 38769 | 10 | mapgen | Far thunk → FUN_6b22_058e (unit overlay for full map viewport) | inferred |  |
+| `FUN_2a1f_094c` | 38779 | 10 | mapgen | Far thunk → FUN_6b22_0002 (blit fog-visible tribes in map rect) | inferred |  |
+| `FUN_2a1f_095a` | 38789 | 10 | mapgen | Far thunk → FUN_6b22_034c (blit one unit icon unless colony occupies tile) | inferred |  |
 | `FUN_2a1f_0968` | 38799 | 10 | mapgen | Far thunk → FUN_6ba1_0d6c (viewport tile-compose loop) | inferred |  |
 | `FUN_2a1f_0976` | 38809 | 10 | mapgen | Far thunk → FUN_6ba1_10be (set_owner_nibble 0xf on every tile; unowned init) | inferred | src/core/ai.c; ai/accessors.c |
-| `FUN_2a1f_0984` | 38819 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_098e` | 38829 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0998` | 38839 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0984` | 38819 | 10 | mapgen | Far thunk → FUN_1caa_0004 (scaled RLE underlay blit) | inferred |  |
+| `FUN_2a1f_098e` | 38829 | 10 | mapgen | Far thunk → FUN_1c89_0006 (RLE soft-sprite underlay blit) | inferred |  |
+| `FUN_2a1f_0998` | 38839 | 10 | mapgen | Far thunk → FUN_6cb2_039c (init article title paint) | inferred |  |
 | `FUN_2a1f_09c2` | 38849 | 10 | ui | EMS thunk → FUN_6cb2_03bc (dialog compositor setup/flush) | inferred |  |
-| `FUN_2a1f_09d0` | 38859 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_09de` | 38869 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_09ec` | 38879 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_09d0` | 38859 | 10 | mapgen | Far thunk → FUN_6cb2_0424 (begin article compositor) | inferred |  |
+| `FUN_2a1f_09de` | 38869 | 10 | mapgen | Far thunk → FUN_6cb2_0178 (bubble-sort encyclopedia list by title) | inferred |  |
+| `FUN_2a1f_09ec` | 38879 | 10 | mapgen | Far thunk → FUN_6cb2_214a (paint encyclopedia list) | inferred |  |
 | `FUN_2a1f_09fa` | 38889 | 10 | ui | EMS thunk → FUN_6cb2_048c (info/dialog panel text + sprite strip) | inferred |  |
-| `FUN_2a1f_0a08` | 38899 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0a16` | 38909 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0a24` | 38919 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0a32` | 38929 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0a40` | 38939 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0a4e` | 38949 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0a08` | 38899 | 10 | mapgen | Far thunk → FUN_6cb2_2322 (fill encyclopedia index for one category) | inferred |  |
+| `FUN_2a1f_0a16` | 38909 | 10 | mapgen | Far thunk → FUN_6cb2_0276 (map list index → 3-col grid xy) | inferred |  |
+| `FUN_2a1f_0a24` | 38919 | 10 | mapgen | Far thunk → FUN_6cb2_02c4 (hit-test cursor vs list grid) | inferred |  |
+| `FUN_2a1f_0a32` | 38929 | 10 | mapgen | Far thunk → FUN_6cb2_0000 (free Colonizopedia index triple-buffers) | inferred |  |
+| `FUN_2a1f_0a40` | 38939 | 10 | mapgen | Far thunk → FUN_6cb2_0058 (alloc index triple-buffers) | inferred |  |
+| `FUN_2a1f_0a4e` | 38949 | 10 | mapgen | Far thunk → FUN_6cb2_033a (format list-row title; terrain forest suffix) | inferred |  |
 | `FUN_2a1f_0a5c` | 38959 | 10 | mapgen | Far thunk → FUN_6f30_0004 (fill splash rect DS:0x2da8 then video flush 00e2) | inferred |  |
 | `FUN_2a1f_0a6a` | 38969 | 10 | mapgen | Far thunk → FUN_7a83_002a (fade palette toward target RGB; timer-gated) | inferred |  |
 | `FUN_2a1f_0a78` | 38979 | 10 | mapgen | Far thunk → FUN_7ab3_0008 (wait VGA retrace; read DAC RGB via 0x3c7/0x3c9) | inferred |  |
 | `FUN_2a1f_0a86` | 38989 | 10 | mapgen | Far thunk → FUN_7952_0000 (open/alloc named resource into far buf) | inferred |  |
 | `FUN_2a1f_0a94` | 38999 | 10 | mapgen | Far thunk → FUN_1b32_000e (ensure filename has extension; strcat default suffix) | inferred |  |
-| `FUN_2a1f_0a9e` | 39009 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0aaa` | 39019 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ab6` | 39029 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ac2` | 39039 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ace` | 39049 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ada` | 39059 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0af2` | 39069 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0afe` | 39079 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b0a` | 39089 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b16` | 39099 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b22` | 39109 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b2e` | 39119 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b3a` | 39129 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b44` | 39139 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b4e` | 39149 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b58` | 39159 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b66` | 39169 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b74` | 39179 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b82` | 39189 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b90` | 39199 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0b9e` | 39209 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0bac` | 39219 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0bba` | 39229 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0bc8` | 39239 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0bd6` | 39249 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0a9e` | 39009 | 10 | mapgen | Far thunk → FUN_6f74_089a (find option/button node by id in dialog option list) | inferred |  |
+| `FUN_2a1f_0aaa` | 39019 | 10 | mapgen | Far thunk → FUN_6f74_255e (select icon row and redraw icon column) | inferred |  |
+| `FUN_2a1f_0ab6` | 39029 | 10 | mapgen | Far thunk → FUN_6f74_1ae8 (blit dialog side-panel art) | inferred |  |
+| `FUN_2a1f_0ac2` | 39039 | 10 | mapgen | Far thunk → FUN_6f74_098a (read option checkbox/toggle state) | inferred |  |
+| `FUN_2a1f_0ace` | 39049 | 10 | mapgen | Far thunk → FUN_6f74_0d44 (append edit-field node) | inferred |  |
+| `FUN_2a1f_0ada` | 39059 | 10 | mapgen | Far thunk → FUN_6f74_09ba (write option checkbox/toggle state) | inferred |  |
+| `FUN_2a1f_0af2` | 39069 | 10 | mapgen | Far thunk → FUN_6f74_248e (full dialog paint pass) | inferred |  |
+| `FUN_2a1f_0afe` | 39079 | 10 | mapgen | Far thunk → FUN_6f74_0be8 (OR option-flags/5 + append hotkey option) | inferred |  |
+| `FUN_2a1f_0b0a` | 39089 | 10 | mapgen | Far thunk → FUN_6f74_1a78 (draw corner help-‘?’ tip) | inferred |  |
+| `FUN_2a1f_0b16` | 39099 | 10 | mapgen | Far thunk → FUN_7314_01b6 (blit/print full config line buffer) | inferred |  |
+| `FUN_2a1f_0b22` | 39109 | 10 | mapgen | Far thunk → FUN_7314_01c8 (blit/print current comma field) | inferred |  |
+| `FUN_2a1f_0b2e` | 39119 | 10 | mapgen | Far thunk → FUN_7314_01da (parse '0'/'1' bit string to byte) | inferred |  |
+| `FUN_2a1f_0b3a` | 39129 | 10 | mapgen | Far thunk → FUN_1c06_000c (parse numeric literal hex/bin/decimal) | inferred |  |
+| `FUN_2a1f_0b44` | 39139 | 10 | mapgen | Far thunk → FUN_1b57_0002 (ltrim spaces/tabs then strcpy) | inferred |  |
+| `FUN_2a1f_0b4e` | 39149 | 10 | mapgen | Far thunk → FUN_1afb_000e (NUL-truncate string at first LF) | inferred |  |
+| `FUN_2a1f_0b58` | 39159 | 10 | mapgen | Far thunk → FUN_733a_0b3e (paint nation-pick chrome) | inferred |  |
+| `FUN_2a1f_0b66` | 39169 | 10 | mapgen | Far thunk → FUN_733a_0790 (difficulty-select modal event loop) | inferred | src/core/new_game.c |
+| `FUN_2a1f_0b74` | 39179 | 10 | mapgen | Far thunk → FUN_733a_0c2a (nation-select modal event loop) | inferred | src/core/new_game.c |
+| `FUN_2a1f_0b82` | 39189 | 10 | mapgen | Far thunk → FUN_733a_0000 (CUSTOMIZE / difficulty-style UI entry) | inferred | src/core/new_game.c |
+| `FUN_2a1f_0b90` | 39199 | 10 | mapgen | Far thunk → FUN_733a_04d0 (map difficulty index → DIFFICUL.PIK cell) | inferred |  |
+| `FUN_2a1f_0b9e` | 39209 | 10 | mapgen | Far thunk → FUN_733a_002c (draw one CUSTOMIZE cell) | inferred |  |
+| `FUN_2a1f_0bac` | 39219 | 10 | mapgen | Far thunk → FUN_733a_0512 (CUSTOMIZE / new-game UI helper) | inferred | src/core/new_game.c |
+| `FUN_2a1f_0bba` | 39229 | 10 | mapgen | Far thunk → FUN_733a_01a4 (paint CUSTOMIZE chrome) | inferred |  |
+| `FUN_2a1f_0bc8` | 39239 | 10 | mapgen | Far thunk → FUN_733a_0992 (map nation index → NATIONS.PIK cell) | inferred |  |
+| `FUN_2a1f_0bd6` | 39249 | 10 | mapgen | Far thunk → FUN_733a_09c6 (draw one nation-pick cell) | inferred |  |
 | `FUN_2a1f_0be4` | 39259 | 10 | mapgen | Far thunk → FUN_733a_0270 (CUSTOMIZE / new-game UI helper) | inferred |  |
-| `FUN_2a1f_0bf2` | 39269 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c00` | 39279 | 9 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c1c` | 39288 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c2a` | 39298 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c38` | 39308 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c46` | 39318 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c50` | 39328 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c64` | 39338 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c72` | 39348 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0bf2` | 39269 | 10 | mapgen | Far thunk → FUN_733a_06a4 (paint difficulty chrome) | inferred |  |
+| `FUN_2a1f_0c00` | 39279 | 9 | mapgen | Far thunk → LAB_733a_0e7a (empty far RETF no-op) | inferred |  |
+| `FUN_2a1f_0c1c` | 39288 | 10 | mapgen | Far thunk → FUN_7421_0054 (argv -opt char dispatch; case-fold via 0x27ed) | inferred |  |
+| `FUN_2a1f_0c2a` | 39298 | 10 | mapgen | Far thunk → FUN_7421_0188 (startup config fread into DS:0x260a..) | inferred |  |
+| `FUN_2a1f_0c38` | 39308 | 10 | mapgen | Far thunk → FUN_75c2_2d46 (game boot: video/memory/asset init) | inferred |  |
+| `FUN_2a1f_0c46` | 39318 | 10 | mapgen | Far thunk → FUN_2085_0004 (init DS:0x26c9 handler block; far stubs → 2b1f) | inferred |  |
+| `FUN_2a1f_0c50` | 39328 | 10 | mapgen | Far thunk → FUN_205f_000c (lookup byte+6 in 8-byte table DS:0x26f0 by key) | inferred |  |
+| `FUN_2a1f_0c64` | 39338 | 10 | mapgen | Far thunk → FUN_7455_0122 (set large-map compact flag DS:0x15a) | inferred |  |
+| `FUN_2a1f_0c72` | 39348 | 10 | mapgen | Far thunk → FUN_7455_0058 (allocate terrain/L2/L3 map planes) | inferred |  |
 | `FUN_2a1f_0c80` | 39358 | 10 | mapgen | Far thunk → FUN_7455_0434 (bootstrap map dims/buffers; default 120×75 or from file) | inferred |  |
 | `FUN_2a1f_0c8e` | 39368 | 10 | mapgen | Far thunk → FUN_7455_0166 (load map planes from file: dims + terrain/L2/L3) | inferred |  |
 | `FUN_2a1f_0c9c` | 39378 | 10 | mapgen | Far thunk → FUN_79db_000c (chunked DOS file read into far buffer) | inferred |  |
-| `FUN_2a1f_0caa` | 39388 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0cb4` | 39398 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0caa` | 39388 | 10 | mapgen | Far thunk → FUN_1b32_005c (replace/append filename extension) | inferred |  |
+| `FUN_2a1f_0cb4` | 39398 | 10 | mapgen | Far thunk → FUN_1b01_000e (buffered far-buffer file/stream read) | inferred |  |
 | `FUN_2a1f_0cbe` | 39408 | 10 | mapgen | Far thunk → FUN_74a4_0bbe (load menu-cursor resource handle) | inferred |  |
-| `FUN_2a1f_0ccc` | 39418 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0ccc` | 39418 | 10 | mapgen | Far thunk → FUN_74a4_0b0a (load 12 menu/cursor sprites) | inferred |  |
 | `FUN_2a1f_0cda` | 39428 | 10 | mapgen | Far thunk → FUN_7562_0008 (build COLONY## path strings for slot) | inferred |  |
-| `FUN_2a1f_0ce8` | 39438 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0cf6` | 39448 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d04` | 39458 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d12` | 39468 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d20` | 39478 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d2e` | 39488 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d3c` | 39498 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d4a` | 39508 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d58` | 39518 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d66` | 39528 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d74` | 39538 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d82` | 39548 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d90` | 39558 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0d9e` | 39568 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0dac` | 39578 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0dba` | 39588 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0dc8` | 39598 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0dd6` | 39608 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0de4` | 39618 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0dee` | 39628 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0ce8` | 39438 | 10 | mapgen | Far thunk → FUN_7562_0052 (Save/Load slot-list builder) | inferred | docs/savegame.md |
+| `FUN_2a1f_0cf6` | 39448 | 10 | mapgen | Far thunk → FUN_75c2_0288 (savegame write: flags/units/colonies/tribes) | inferred | docs/savegame.md |
+| `FUN_2a1f_0d04` | 39458 | 10 | mapgen | Far thunk → FUN_75c2_0840 (savegame header probe; slot error codes) | inferred | docs/savegame.md |
+| `FUN_2a1f_0d12` | 39468 | 10 | mapgen | Far thunk → FUN_75c2_0940 (savegame load counterpart to 0288) | inferred | docs/savegame.md |
+| `FUN_2a1f_0d20` | 39478 | 10 | mapgen | Far thunk → FUN_75c2_1380 (fill unit-type/stat table row) | inferred |  |
+| `FUN_2a1f_0d2e` | 39488 | 10 | mapgen | Far thunk → FUN_75c2_13dc (write building-link table record) | inferred |  |
+| `FUN_2a1f_0d3c` | 39498 | 10 | mapgen | Far thunk → FUN_75c2_10ae (new-game nation/difficulty setup) | inferred |  |
+| `FUN_2a1f_0d4a` | 39508 | 10 | mapgen | Far thunk → FUN_75c2_1418 (write companion table record) | inferred |  |
+| `FUN_2a1f_0d58` | 39518 | 10 | mapgen | Far thunk → FUN_75c2_0204 (copy options into live UI words) | inferred |  |
+| `FUN_2a1f_0d66` | 39528 | 10 | mapgen | Far thunk → FUN_75c2_144c (init building/prereq link tables) | inferred |  |
+| `FUN_2a1f_0d74` | 39538 | 10 | mapgen | Far thunk → FUN_75c2_024c (hardcode default option/UI words) | inferred |  |
+| `FUN_2a1f_0d82` | 39548 | 10 | mapgen | Far thunk → FUN_75c2_1770 (bootstrap static catalogs) | inferred |  |
+| `FUN_2a1f_0d90` | 39558 | 10 | mapgen | Far thunk → FUN_75c2_2758 (reapply options after video restore) | inferred |  |
+| `FUN_2a1f_0d9e` | 39568 | 10 | mapgen | Far thunk → FUN_75c2_276e (reset options to defaults) | inferred |  |
+| `FUN_2a1f_0dac` | 39578 | 10 | mapgen | Far thunk → FUN_75c2_2778 (title/main menu loop) | inferred | docs/savegame.md |
+| `FUN_2a1f_0dba` | 39588 | 10 | mapgen | Far thunk → FUN_75c2_0000 (paginated directory name picker) | inferred |  |
+| `FUN_2a1f_0dc8` | 39598 | 10 | mapgen | Far thunk → FUN_75c2_2324 (new-game flourish wrapper) | inferred |  |
+| `FUN_2a1f_0dd6` | 39608 | 10 | mapgen | Far thunk → FUN_75c2_235c (new-game/world bootstrap) | inferred | docs/savegame.md |
+| `FUN_2a1f_0de4` | 39618 | 10 | mapgen | Far thunk → FUN_1b2c_0040 (write string to DOS char stream) | inferred | FUN_1d1d_0758 |
+| `FUN_2a1f_0dee` | 39628 | 10 | mapgen | Far thunk → FUN_1b2c_0004 (read string from DOS char stream) | inferred | FUN_1d1d_0786 |
 | `FUN_2a1f_0df8` | 39638 | 10 | mapgen | Far thunk → FUN_1bd4_0006 (color-replace across pitched rect) | inferred |  |
 | `FUN_2a1f_0e02` | 39648 | 10 | mapgen | Far thunk → FUN_7acf_0002 (alloc far buffer into BX handle struct) | inferred |  |
 | `FUN_2a1f_0e10` | 39658 | 10 | mapgen | Far thunk → FUN_78d8_0022 (alloc resource-stream buffer @23c6) | inferred |  |
@@ -2113,29 +2113,29 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0e90` | 39758 | 10 | mapgen | Far thunk → FUN_7ada_0022 (DOS heap alloc + high-water tracking) | inferred |  |
 | `FUN_2a1f_0e9e` | 39768 | 10 | mapgen | Far thunk → FUN_7962_0000 (open resource file into handle struct) | inferred |  |
 | `FUN_2a1f_0eac` | 39778 | 10 | mapgen | Far thunk → FUN_7962_021c (close resource handle) | inferred |  |
-| `FUN_2a1f_0eba` | 39788 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ec8` | 39798 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ed6` | 39808 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0ee4` | 39818 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f1a` | 39828 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f26` | 39838 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f30` | 39848 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f3e` | 39858 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f4c` | 39868 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f56` | 39878 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f60` | 39888 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f6a` | 39898 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f74` | 39908 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f7e` | 39918 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f8c` | 39928 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0f96` | 39938 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fa0` | 39948 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fae` | 39958 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fbc` | 39968 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fc6` | 39978 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fd4` | 39988 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fde` | 39998 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0fe8` | 40008 | 179 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0eba` | 39788 | 10 | mapgen | Far thunk → FUN_79a8_004a (wire compressed stream I/O) | inferred |  |
+| `FUN_2a1f_0ec8` | 39798 | 10 | mapgen | Far thunk → FUN_79a8_0014 (invoke progress callback) | inferred |  |
+| `FUN_2a1f_0ed6` | 39808 | 10 | mapgen | Far thunk → FUN_79a8_000a (return far-buffer near offset) | inferred |  |
+| `FUN_2a1f_0ee4` | 39818 | 10 | mapgen | Far thunk → FUN_79ec_0082 (dispatch compress/decompress codec) | inferred |  |
+| `FUN_2a1f_0f1a` | 39828 | 10 | mapgen | Far thunk → FUN_7a05_00a4 (dump resource lines until $ match) | inferred |  |
+| `FUN_2a1f_0f26` | 39838 | 10 | mapgen | Far thunk → FUN_2088_000c (DOS write string to stdout) | inferred |  |
+| `FUN_2a1f_0f30` | 39848 | 10 | mapgen | Far thunk → FUN_7a4c_0000 (write VGA DAC RGB range) | inferred |  |
+| `FUN_2a1f_0f3e` | 39858 | 10 | mapgen | Far thunk → FUN_7a83_0002 (dim palette RGB channels) | inferred |  |
+| `FUN_2a1f_0f4c` | 39868 | 10 | mapgen | Far thunk → FUN_2047_0106 (install INT abort handlers) | inferred |  |
+| `FUN_2a1f_0f56` | 39878 | 10 | mapgen | Far thunk → FUN_2059_0006 (sound driver load/init poll) | inferred | FUN_2059_000a sibling |
+| `FUN_2a1f_0f60` | 39888 | 10 | mapgen | Far thunk → FUN_2047_00b8 (arm abort INT vectors) | inferred |  |
+| `FUN_2a1f_0f6a` | 39898 | 10 | mapgen | Far thunk → FUN_2047_000a (install Ctrl-C/Break abort context) | inferred |  |
+| `FUN_2a1f_0f74` | 39908 | 10 | mapgen | Far thunk → FUN_2047_00e9 (reinstall default abort handlers) | inferred |  |
+| `FUN_2a1f_0f7e` | 39918 | 10 | mapgen | Far thunk → FUN_7ad6_000e (free handle far buffer) | inferred |  |
+| `FUN_2a1f_0f8c` | 39928 | 10 | mapgen | Far thunk → FUN_1bdd_00e0 (read numbered temp file) | inferred | FUN_1bdd_0002; FUN_1b01_000e |
+| `FUN_2a1f_0f96` | 39938 | 10 | mapgen | Far thunk → FUN_1bdd_0002 (create numbered temp file) | inferred | FUN_1bdd_00e0; FUN_19f6_0002 |
+| `FUN_2a1f_0fa0` | 39948 | 10 | mapgen | Far thunk → FUN_7acf_003c (alloc far buffer into handle) | inferred |  |
+| `FUN_2a1f_0fae` | 39958 | 10 | mapgen | Far thunk → FUN_7ada_0006 (run heap callback with reentrancy flag) | inferred |  |
+| `FUN_2a1f_0fbc` | 39968 | 10 | mapgen | Far thunk → FUN_2100_000e (XMS UMB size probe) | inferred |  |
+| `FUN_2a1f_0fc6` | 39978 | 10 | mapgen | Far thunk → FUN_7b04_0002 (DOS free-memory probe) | inferred |  |
+| `FUN_2a1f_0fd4` | 39988 | 10 | mapgen | Far thunk → FUN_2103_004c (XMS release UMB) | inferred |  |
+| `FUN_2a1f_0fde` | 39998 | 10 | mapgen | Far thunk → FUN_2103_000a (XMS request UMB) | inferred |  |
+| `FUN_2a1f_0fe8` | 40008 | 179 | mapgen | Far thunk → FUN_79ec_0004 (resource-stream progress pump) | inferred |  |
 
 ### Segment `2b5a` (53 defs) — ui — Map selected-unit order / input UI (DS:0x5392)
 

@@ -1,0 +1,240 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_2a1f_midhi",
+  "functions": {
+    "FUN_2a1f_0ab6": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_1ae8 (blit dialog side-panel art)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0ac2": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_098a (read option checkbox/toggle state)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0ace": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_0d44 (append edit-field node)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0ada": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_09ba (write option checkbox/toggle state)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0af2": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_248e (full dialog paint pass)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0afe": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_0be8 (OR option-flags|5 + append hotkey option)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b0a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_1a78 (draw corner help-‘?’ tip)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b16": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7314_01b6 (blit/print full config line buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b22": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7314_01c8 (blit/print current comma field)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b2e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7314_01da (parse '0'/'1' bit string to byte)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b3a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1c06_000c (parse numeric literal hex/bin/decimal)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b44": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1b57_0002 (ltrim spaces/tabs then strcpy)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b4e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1afb_000e (NUL-truncate string at first LF)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b58": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_0b3e (paint nation-pick chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b66": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_0790 (difficulty-select modal event loop)",
+      "confidence": "inferred",
+      "links": "src/core/new_game.c"
+    },
+    "FUN_2a1f_0b74": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_0c2a (nation-select modal event loop)",
+      "confidence": "inferred",
+      "links": "src/core/new_game.c"
+    },
+    "FUN_2a1f_0b82": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_0000 (CUSTOMIZE / difficulty-style UI entry)",
+      "confidence": "inferred",
+      "links": "src/core/new_game.c"
+    },
+    "FUN_2a1f_0b90": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_04d0 (map difficulty index → DIFFICUL.PIK cell)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0b9e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_002c (draw one CUSTOMIZE cell)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0bac": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_0512 (CUSTOMIZE / new-game UI helper)",
+      "confidence": "inferred",
+      "links": "src/core/new_game.c"
+    },
+    "FUN_2a1f_0bba": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_01a4 (paint CUSTOMIZE chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0bc8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_0992 (map nation index → NATIONS.PIK cell)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0bd6": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_09c6 (draw one nation-pick cell)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0bf2": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_733a_06a4 (paint difficulty chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c00": {
+      "system": "mapgen",
+      "purpose": "Far thunk → LAB_733a_0e7a (empty far RETF no-op)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c1c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7421_0054 (argv -opt char dispatch; case-fold via 0x27ed)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c2a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7421_0188 (startup config fread into DS:0x260a..)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c38": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_75c2_2d46 (game boot: video/memory/asset init)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c46": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_2085_0004 (init DS:0x26c9 handler block; far stubs → 2b1f)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c50": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_205f_000c (lookup byte+6 in 8-byte table DS:0x26f0 by key)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c64": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7455_0122 (set large-map compact flag DS:0x15a)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0c72": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7455_0058 (allocate terrain/L2/L3 map planes)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0caa": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1b32_005c (replace/append filename extension)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0cb4": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1b01_000e (buffered far-buffer file/stream read)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0ccc": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_74a4_0b0a (load 12 menu/cursor sprites)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0ce8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7562_0052 (Save/Load slot-list builder)",
+      "confidence": "inferred",
+      "links": "docs/savegame.md"
+    },
+    "FUN_2a1f_0cf6": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_75c2_0288 (savegame write: flags/units/colonies/tribes)",
+      "confidence": "inferred",
+      "links": "docs/savegame.md"
+    },
+    "FUN_2a1f_0d04": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_75c2_0840 (savegame header probe; slot error codes)",
+      "confidence": "inferred",
+      "links": "docs/savegame.md"
+    },
+    "FUN_2a1f_0d12": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_75c2_0940 (savegame load counterpart to 0288)",
+      "confidence": "inferred",
+      "links": "docs/savegame.md"
+    }
+  }
+}

@@ -61,7 +61,7 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
 | Confidence | known 148 · inferred 2229 · unknown 3 |
-| Purpose one-liners | 2000 / 2380 |
+| Purpose one-liners | 2195 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -70,9 +70,9 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Mid-size Layer C hops and `281f`/`291f`
-megaseg thunks are purpose-closed. Remaining backlog is mostly `2a1f` mapgen
-(~195) and platform megasegs `1d1d`/`210d` (~92+90).
+Purpose one-liners are **not** Layer A. Mid-size Layer C hops and `281f`/`291f`/
+`2a1f` megaseg thunks are purpose-closed. Remaining backlog is platform megasegs
+`1d1d`/`210d` (~92+90) plus parked `205f`/`1d1c`.
 
 ### Roadmap (committed order)
 
@@ -105,8 +105,9 @@ megaseg thunks are purpose-closed. Remaining backlog is mostly `2a1f` mapgen
    - **Done:** small UI leftovers (68 — blit/cursor/RLE/splash/menu/tips).
    - **Done:** small platform leftovers (59 — timer/LCG/XMS/resource/stream).
    - **Done:** `291f` megaseg thunk bulk (161 — purpose-closed).
+   - **Done:** `2a1f` mapgen megaseg thunk bulk (195 — purpose-closed).
    - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (`2a1f` mapgen next; platform megasegs after).
+     (platform `1d1d`/`210d` next).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -128,8 +129,9 @@ megaseg thunks are purpose-closed. Remaining backlog is mostly `2a1f` mapgen
    - **Done:** remaining mid ≥8 hops (map-key/Move/new-game/splash/dialog/
      map-refresh, 38) + `281f` megaseg thunks (75).
    - **Done:** `291f` megaseg thunks (161) via Layer B address shards.
+   - **Done:** `2a1f` mapgen megaseg thunks (195) via Layer B address shards.
    - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     `2a1f` mapgen-adjacent bulk (~195).
+     platform megasegs `1d1d`+`210d` (~92+90).
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
