@@ -836,133 +836,133 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1d1d_0016` | 18950 | 10 | platform | unknown | inferred |  |
-| `FUN_1d1d_00ca` | 18960 | 23 | platform | unknown | inferred |  |
-| `FUN_1d1d_00ff` | 18983 | 38 | platform | unknown | inferred |  |
-| `FUN_1d1d_0132` | 19021 | 11 | platform | unknown | inferred |  |
-| `FUN_1d1d_0150` | 19032 | 62 | platform | unknown | inferred |  |
-| `FUN_1d1d_0223` | 19094 | 107 | platform | unknown | inferred |  |
-| `FUN_1d1d_0248` | 19201 | 94 | platform | unknown | inferred |  |
-| `FUN_1d1d_030d` | 19295 | 22 | platform | unknown | inferred |  |
-| `FUN_1d1d_0390` | 19317 | 20 | platform | unknown | inferred |  |
-| `FUN_1d1d_03bd` | 19337 | 25 | platform | unknown | inferred |  |
-| `FUN_1d1d_03d0` | 19362 | 28 | platform | unknown | inferred |  |
+| `FUN_1d1d_0016` | 18950 | 10 | platform | delay(ms) — sync BIOS 40:40 tick, lazy-calibrate via 00ca, then spin | known | FUN_1d1d_00ca; FUN_1d1d_0132 |
+| `FUN_1d1d_00ca` | 18960 | 23 | platform | Calibrate delay constants (CS:0012/0014) via two 00ff VBLANK timings | known | FUN_1d1d_00ff; FUN_1d1d_0016 |
+| `FUN_1d1d_00ff` | 18983 | 38 | platform | CRT delay calibrate inner: count loops across CGA/VGA status port 3DAh VBLANK | known | FUN_1d1d_00ca |
+| `FUN_1d1d_0132` | 19021 | 11 | platform | Far wrapper → delay(ms) 0016 | inferred | FUN_1d1d_0016 |
+| `FUN_1d1d_0150` | 19032 | 62 | platform | CRT/_start: INT21 AH=30/4A, BSS/init, 0248 setup, main 281f_0000, exit 030d | known | FUN_1d1d_0248; FUN_1d1d_030d; FUN_281f_0000 |
+| `FUN_1d1d_0223` | 19094 | 107 | platform | abort — cleanup (1242/14c9) then exit vector [0x2774] with code 0xFF | inferred | FUN_1d1d_03d0; FUN_1d1d_1242; FUN_1d1d_14c9 |
+| `FUN_1d1d_0248` | 19201 | 94 | platform | CRT pre-main: hook INT0 (AH=35/25), NO87 env parse, IOCTL AH=44 on std handles, run init tables | known | FUN_1d1d_03bd; FUN_1d1d_0150 |
+| `FUN_1d1d_030d` | 19295 | 22 | platform | exit — run atexit/exit tables (03bd×4), 126a, restore vectors 0390, INT21 AH=4C | known | FUN_1d1d_03bd; FUN_1d1d_0390 |
+| `FUN_1d1d_0390` | 19317 | 20 | platform | On exit: optional FPU callback, restore INT0 (+optional vector) via INT21 AH=25 | known | FUN_1d1d_030d |
+| `FUN_1d1d_03bd` | 19337 | 25 | platform | Walk SI..DI function-pointer table; call each nonzero entry (startup/atexit) | inferred | FUN_1d1d_0248; FUN_1d1d_030d |
+| `FUN_1d1d_03d0` | 19362 | 28 | platform | __chkstk — grow/probe SP by AX above DS:27e6 watermark; else abort/handler | known | FUN_1d1d_0223 |
 | `FUN_1d1d_03f4` | 19390 | 41 | platform | fclose — flush FILE, DOS close handle (1e7a), clear flags | inferred |  |
-| `FUN_1d1d_04ae` | 19431 | 18 | platform | unknown | inferred |  |
+| `FUN_1d1d_04ae` | 19431 | 18 | platform | fopen core — alloc FILE (1e46) then open via 16fc (path/mode/share) | inferred | FUN_1d1d_04da; FUN_1d1d_1e46; FUN_1d1d_16fc |
 | `FUN_1d1d_04da` | 19449 | 9 | platform | fopen(path,mode) — wrapper → 04ae with share/flags=0 | inferred |  |
-| `FUN_1d1d_04f0` | 19458 | 14 | platform | unknown | inferred |  |
-| `FUN_1d1d_0528` | 19472 | 72 | platform | unknown | inferred |  |
-| `FUN_1d1d_060c` | 19544 | 70 | platform | unknown | inferred |  |
+| `FUN_1d1d_04f0` | 19458 | 14 | platform | fprintf(FILE*,fmt,...) — lock 17e4, format 196e, unlock 1857 | inferred | FUN_1d1d_196e; FUN_1d1d_0712; FUN_1d1d_17e4; FUN_1d1d_1857 |
+| `FUN_1d1d_0528` | 19472 | 72 | platform | fread(ptr,size,n,FILE*) — buffered/direct read; EOF/error flag bits | inferred | FUN_1d1d_0d82; FUN_1d1d_1556; FUN_1d1d_1f14 |
+| `FUN_1d1d_060c` | 19544 | 70 | platform | fwrite(ptr,size,n,FILE*) — buffered/direct write; flush 1896 when needed | inferred | FUN_1d1d_0d82; FUN_1d1d_15ec; FUN_1d1d_1896; FUN_1d1d_1ffe |
 | `FUN_1d1d_0712` | 19614 | 14 | platform | printf — format to stdout FILE DS:0x2916 via 196e | inferred |  |
-| `FUN_1d1d_0750` | 19628 | 20 | platform | unknown | inferred |  |
-| `FUN_1d1d_0758` | 19648 | 20 | platform | unknown | inferred |  |
-| `FUN_1d1d_0786` | 19668 | 25 | platform | unknown | inferred |  |
+| `FUN_1d1d_0750` | 19628 | 20 | platform | putchar — putc into stdout FILE at DS:0x2916 | inferred | FUN_1d1d_0758; FUN_1d1d_15ec |
+| `FUN_1d1d_0758` | 19648 | 20 | platform | putc(c,FILE*) — buffer or flush via 15ec | inferred | FUN_1d1d_15ec; FUN_1b2c_0040 |
+| `FUN_1d1d_0786` | 19668 | 25 | platform | getc(FILE*) — from buffer or refill via 1556 | inferred | FUN_1d1d_1556; FUN_1b2c_0004 |
 | `FUN_1d1d_07a4` | 19693 | 56 | platform | strcat — append null-terminated string onto dest | inferred |  |
 | `FUN_1d1d_07e4` | 19749 | 46 | platform | strcpy — null-terminated string copy (word-aligned) | inferred |  |
 | `FUN_1d1d_0816` | 19795 | 44 | platform | strcmp — null-terminated string compare (CMPSB) | inferred |  |
 | `FUN_1d1d_0842` | 19839 | 19 | platform | strlen — scan to NUL (SCASB) | inferred |  |
 | `FUN_1d1d_085e` | 19858 | 46 | platform | strncat — append ≤n chars from src onto dest (NUL-term) | inferred |  |
-| `FUN_1d1d_0894` | 19904 | 30 | platform | unknown | inferred |  |
-| `FUN_1d1d_08bc` | 19934 | 77 | platform | unknown | inferred |  |
+| `FUN_1d1d_0894` | 19904 | 30 | platform | strncpy — copy ≤n chars; pad with NUL if src shorter | inferred |  |
+| `FUN_1d1d_08bc` | 19934 | 77 | platform | strncmp — compare ≤n chars; return <0/0/>0 | inferred |  |
 | `FUN_1d1d_08fa` | 20011 | 61 | platform | itoa — int→string (radix; signed if base 10) | inferred |  |
-| `FUN_1d1d_0916` | 20072 | 9 | platform | unknown | inferred |  |
+| `FUN_1d1d_0916` | 20072 | 9 | platform | ltoa — signed long→string (BL=1 entry into 2526 radix converter) | inferred | FUN_1d1d_2526; FUN_1d1d_08fa |
 | `FUN_1d1d_092c` | 20081 | 13 | platform | Normalize key code (−0x20 if DS table bit2 at code+0x27ed) | inferred |  |
-| `FUN_1d1d_0942` | 20094 | 24 | platform | unknown | inferred |  |
+| `FUN_1d1d_0942` | 20094 | 24 | platform | getenv — scan environ at DS:27d3 for NAME=; return value ptr | inferred | FUN_1d1d_0842; FUN_1d1d_08bc |
 | `FUN_1d1d_09a2` | 20118 | 22 | platform | ftell — FILE pos via 2290 → *out dword; fail → −1 | inferred |  |
-| `FUN_1d1d_09ca` | 20140 | 65 | platform | unknown | inferred |  |
+| `FUN_1d1d_09ca` | 20140 | 65 | platform | fgets(buf,n,FILE*) — read line (stop at LF/EOF); NUL-terminate | inferred | FUN_1d1d_1556 |
 | `FUN_1d1d_0a3e` | 20205 | 35 | platform | fseek — seek FILE (origin; flush 1896 + DOS lseek 1e9a) | inferred |  |
-| `FUN_1d1d_0abe` | 20240 | 11 | platform | unknown | inferred |  |
-| `FUN_1d1d_0ad8` | 20251 | 21 | platform | unknown | inferred |  |
-| `FUN_1d1d_0b1c` | 20272 | 21 | platform | unknown | inferred |  |
+| `FUN_1d1d_0abe` | 20240 | 11 | platform | fsetpos(FILE*,fpos_t*) — fseek to saved dword offset (origin SEEK_SET) | inferred | FUN_1d1d_0a3e |
+| `FUN_1d1d_0ad8` | 20251 | 21 | platform | rewind(FILE*) — flush 1896, clear EOF/error flags, DOS lseek 0 | inferred | FUN_1d1d_1896; FUN_1d1d_1e9a |
+| `FUN_1d1d_0b1c` | 20272 | 21 | platform | setbuf(FILE*,buf) — NULL→_IONBF else 512-byte buffer via setvbuf 2406 | inferred | FUN_1d1d_2406 |
 | `FUN_1d1d_0b48` | 20293 | 28 | platform | sprintf into buffer (FILE-like DS:0x2d30 → FUN_1d1d_196e) | inferred |  |
-| `FUN_1d1d_0ba2` | 20321 | 30 | platform | unknown | inferred |  |
+| `FUN_1d1d_0ba2` | 20321 | 30 | platform | filelength(fd) — lseek CUR/END/restore via 1e9a; return size or −1 | inferred | FUN_1d1d_1e9a |
 | `FUN_1d1d_0c56` | 20351 | 32 | platform | strchr — find char in string (else null) | inferred |  |
-| `FUN_1d1d_0c80` | 20383 | 31 | platform | unknown | inferred |  |
-| `FUN_1d1d_0cc2` | 20414 | 43 | platform | unknown | inferred |  |
-| `FUN_1d1d_0d1a` | 20457 | 31 | platform | unknown | inferred |  |
-| `FUN_1d1d_0d46` | 20488 | 17 | platform | unknown | inferred |  |
+| `FUN_1d1d_0c80` | 20383 | 31 | platform | stricmp/strcmpi — case-insensitive string compare | inferred |  |
+| `FUN_1d1d_0cc2` | 20414 | 43 | platform | strnicmp — case-insensitive compare of ≤n chars | inferred |  |
+| `FUN_1d1d_0d1a` | 20457 | 31 | platform | strrchr — find last occurrence of char in string (else null) | inferred | FUN_1d1d_10ea |
+| `FUN_1d1d_0d46` | 20488 | 17 | platform | strlwr — in-place ASCII A–Z → a–z | inferred | FUN_1d1d_0d64 |
 | `FUN_1d1d_0d64` | 20505 | 17 | platform | strupr — in-place ASCII a–z → A–Z | inferred |  |
 | `FUN_1d1d_0d82` | 20522 | 37 | platform | memcpy (aligned word then tail) | inferred |  |
 | `FUN_1d1d_0dae` | 20559 | 31 | platform | memset / byte-fill (aligned word then tail) | inferred |  |
-| `FUN_1d1d_0ddc` | 20590 | 11 | platform | unknown | inferred |  |
-| `FUN_1d1d_0df2` | 20601 | 12 | platform | unknown | inferred |  |
+| `FUN_1d1d_0ddc` | 20590 | 11 | platform | labs — 32-bit absolute value (NEG DX:AX if sign word < 0) | known |  |
+| `FUN_1d1d_0df2` | 20601 | 12 | platform | srand — seed DOS LCG state at DS:0x28ee/0x28f0 (hi word 0) | known | FUN_1d1d_0e04; FUN_19ef_0008; FUN_19ef_001a |
 | `FUN_1d1d_0e04` | 20613 | 16 | platform | DOS LCG core | known | src/core/dos_rng.c |
-| `FUN_1d1d_0e2c` | 20629 | 12 | platform | unknown | inferred |  |
-| `FUN_1d1d_0e4a` | 20641 | 13 | platform | unknown | inferred |  |
-| `FUN_1d1d_0e58` | 20654 | 19 | platform | unknown | inferred |  |
-| `FUN_1d1d_0e63` | 20673 | 19 | platform | unknown | inferred |  |
-| `FUN_1d1d_0e96` | 20692 | 25 | platform | unknown | inferred |  |
-| `FUN_1d1d_0e9d` | 20717 | 25 | platform | unknown | inferred |  |
+| `FUN_1d1d_0e2c` | 20629 | 12 | platform | searchpath — locate file on PATH (chkstk + 2586 getenv/concat probe) | inferred | FUN_1d1d_2586; FUN_1d1d_03d0; FUN_1d1d_0942 |
+| `FUN_1d1d_0e4a` | 20641 | 13 | platform | unlink/remove — INT21 AH=41 delete file; status via 1500 | known | FUN_1d1d_1500 |
+| `FUN_1d1d_0e58` | 20654 | 19 | platform | findnext — INT21 AH=4F (shared DTA save/restore path with 0e63) | known | FUN_1d1d_0e63; FUN_1d1d_1508 |
+| `FUN_1d1d_0e63` | 20673 | 19 | platform | findfirst — INT21 AH=4E with AH=2F/1A DTA get/set around search | known | FUN_1d1d_0e58; FUN_1d1d_1508 |
+| `FUN_1d1d_0e96` | 20692 | 25 | platform | DOS read — INT21 AH=3F (handle/buf/len); optional [0x2b18] hook | known | FUN_1d1d_0e9d; FUN_1d1d_1508 |
+| `FUN_1d1d_0e9d` | 20717 | 25 | platform | DOS write — INT21 AH=40 (handle/buf/len); optional [0x2b18] hook | known | FUN_1d1d_0e96; FUN_1d1d_1508 |
 | `FUN_1d1d_0ec6` | 20742 | 65 | platform | Signed 32-bit division helper | inferred |  |
 | `FUN_1d1d_0f60` | 20807 | 12 | platform | 32-bit multiply helper | inferred |  |
-| `FUN_1d1d_0f92` | 20819 | 14 | platform | unknown | inferred |  |
+| `FUN_1d1d_0f92` | 20819 | 14 | platform | In-place 32-bit /= — *dividend /= divisor via signed div 0ec6 | inferred | FUN_1d1d_0ec6 |
 | `FUN_1d1d_0fb2` | 20833 | 51 | platform | memcpy — far/huge copy (seg wrap +0x1000 on offs overflow) | inferred |  |
-| `FUN_1d1d_1010` | 20884 | 35 | platform | unknown | inferred |  |
-| `FUN_1d1d_103e` | 20919 | 34 | platform | unknown | inferred |  |
-| `FUN_1d1d_1084` | 20953 | 49 | platform | unknown | inferred |  |
-| `FUN_1d1d_10c0` | 21002 | 33 | platform | unknown | inferred |  |
-| `FUN_1d1d_10ea` | 21035 | 34 | platform | unknown | inferred |  |
-| `FUN_1d1d_1118` | 21069 | 18 | platform | unknown | inferred |  |
+| `FUN_1d1d_1010` | 20884 | 35 | platform | strchr (far) — find first char in string (else null) | inferred | FUN_1d1d_0c56 |
+| `FUN_1d1d_103e` | 20919 | 34 | platform | stricmp (far) — case-insensitive string compare | inferred | FUN_1d1d_0c80 |
+| `FUN_1d1d_1084` | 20953 | 49 | platform | strncmp (far) — compare ≤n chars | inferred | FUN_1d1d_08bc |
+| `FUN_1d1d_10c0` | 21002 | 33 | platform | strncpy (far) — copy ≤n chars; NUL-pad if src shorter | inferred | FUN_1d1d_0894 |
+| `FUN_1d1d_10ea` | 21035 | 34 | platform | strrchr (far) — find last char in string (else null) | inferred | FUN_1d1d_0d1a; FUN_1b32_000e |
+| `FUN_1d1d_1118` | 21069 | 18 | platform | strupr (far) — in-place ASCII a–z → A–Z | inferred | FUN_1d1d_0d64 |
 | `FUN_1d1d_113c` | 21087 | 20 | platform | strlen — count chars until NUL | inferred |  |
 | `FUN_1d1d_117e` | 21107 | 50 | platform | strcpy — null-terminated string copy (word-aligned) | inferred |  |
 | `FUN_1d1d_11b4` | 21157 | 61 | platform | strcat — append null-terminated string onto dest | inferred |  |
 | `FUN_1d1d_11fa` | 21218 | 48 | platform | memset — far byte-fill (word then tail; split at seg end) | inferred |  |
-| `FUN_1d1d_1242` | 21266 | 15 | platform | unknown | inferred |  |
-| `FUN_1d1d_1264` | 21281 | 9 | platform | unknown | inferred |  |
-| `FUN_1d1d_126a` | 21290 | 33 | platform | unknown | inferred |  |
-| `FUN_1d1d_128e` | 21323 | 259 | platform | unknown | inferred |  |
-| `FUN_1d1d_1420` | 21582 | 82 | platform | unknown | inferred |  |
-| `FUN_1d1d_149e` | 21664 | 29 | platform | unknown | inferred |  |
-| `FUN_1d1d_14c9` | 21693 | 30 | platform | unknown | inferred |  |
-| `FUN_1d1d_1500` | 21723 | 14 | platform | unknown | inferred |  |
-| `FUN_1d1d_1508` | 21737 | 15 | platform | unknown | inferred |  |
-| `FUN_1d1d_1515` | 21752 | 13 | platform | unknown | inferred |  |
-| `FUN_1d1d_1528` | 21765 | 32 | platform | unknown | inferred |  |
-| `FUN_1d1d_1556` | 21797 | 49 | platform | unknown | inferred |  |
-| `FUN_1d1d_15ec` | 21846 | 58 | platform | unknown | inferred |  |
-| `FUN_1d1d_16d0` | 21904 | 18 | platform | unknown | inferred |  |
-| `FUN_1d1d_16fc` | 21922 | 76 | platform | unknown | inferred |  |
-| `FUN_1d1d_17e4` | 21998 | 35 | platform | unknown | inferred |  |
-| `FUN_1d1d_1857` | 22033 | 20 | platform | unknown | inferred |  |
-| `FUN_1d1d_1896` | 22053 | 32 | platform | unknown | inferred |  |
-| `FUN_1d1d_1912` | 22085 | 30 | platform | unknown | inferred |  |
-| `FUN_1d1d_196e` | 22115 | 28 | platform | unknown | inferred |  |
+| `FUN_1d1d_1242` | 21266 | 15 | platform | CRT abort emit: write msgs 0xFC then 0xFF via 14c9; optional far hook DS:0x28f2 | inferred | FUN_1d1d_14c9; FUN_1d1d_0223 |
+| `FUN_1d1d_1264` | 21281 | 9 | platform | Abort wrapper — AX=2 then jump FUN_1d1d_0223 | inferred | FUN_1d1d_0223 |
+| `FUN_1d1d_126a` | 21290 | 33 | platform | Validate PSP XOR checksum (0x42 bytes ^0x55); fail → abort + msg 1 | inferred | FUN_1d1d_1242; FUN_1d1d_14c9 |
+| `FUN_1d1d_128e` | 21323 | 259 | platform | CRT startup: INT21 AH=30 DOS ver; build argv/env from PSP; jump app entry | inferred | FUN_1d1d_1420 |
+| `FUN_1d1d_1420` | 21582 | 82 | platform | Build CRT environ[] pointer vector from DOS env block (via 26dc) | inferred | FUN_1d1d_26dc; FUN_1d1d_128e |
+| `FUN_1d1d_149e` | 21664 | 29 | platform | Lookup CRT message string by id in table DS:0x2b42 | inferred | FUN_1d1d_14c9 |
+| `FUN_1d1d_14c9` | 21693 | 30 | platform | Write CRT msg id to stderr (INT21 AH=40 BX=2) after 149e lookup | inferred | FUN_1d1d_149e |
+| `FUN_1d1d_1500` | 21723 | 14 | platform | DOS CF check: success→0 else set errno (1528) and return −1 | inferred | FUN_1d1d_1528; FUN_1d1d_1515 |
+| `FUN_1d1d_1508` | 21737 | 15 | platform | DOS CF check: success→0 else map errno (1528) and return AL | inferred | FUN_1d1d_1528 |
+| `FUN_1d1d_1515` | 21752 | 13 | platform | On DOS CF set errno via 1528; return −1 (else passthrough) | inferred | FUN_1d1d_1528 |
+| `FUN_1d1d_1528` | 21765 | 32 | platform | Map DOS error AL→errno at DS:0x27ac (table DS:0x28fa) | inferred |  |
+| `FUN_1d1d_1556` | 21797 | 49 | platform | getc — buffered FILE get char; refill via DOS read 1f14 | inferred | FUN_1d1d_1f14; FUN_1d1d_2702 |
+| `FUN_1d1d_15ec` | 21846 | 58 | platform | putc — buffered FILE put char; flush via DOS write 1ffe | inferred | FUN_1d1d_1ffe; FUN_1d1d_1e9a |
+| `FUN_1d1d_16d0` | 21904 | 18 | platform | Free FILE heap buffer (flag&8) via 2c44; clear FILE ptrs | inferred | FUN_1d1d_2c44 |
+| `FUN_1d1d_16fc` | 21922 | 76 | platform | fopen mode parse (r/w/a/+ /t/b) then _open 2746; init FILE | inferred | FUN_1d1d_2746; FUN_1d1d_04ae |
+| `FUN_1d1d_17e4` | 21998 | 35 | platform | Ensure stdin/stdout/stderr FILE get 0x200 heap buffer | inferred | FUN_1d1d_2c65 |
+| `FUN_1d1d_1857` | 22033 | 20 | platform | Flush console/device FILE if flag&0x10 + device bit; optional clear buf | inferred | FUN_1d1d_1896 |
+| `FUN_1d1d_1896` | 22053 | 32 | platform | fflush — write FILE buffer via 1ffe; NULL FILE → flushall 1912 | inferred | FUN_1d1d_1ffe; FUN_1d1d_1912; FUN_1d1d_0a3e |
+| `FUN_1d1d_1912` | 22085 | 30 | platform | flushall — fflush each open FILE in table DS:0x290e..0x2a4e | inferred | FUN_1d1d_1896 |
+| `FUN_1d1d_196e` | 22115 | 28 | platform | printf/sprintf engine — dispatch format chars via table DS:0x2a56 | inferred | FUN_1d1d_0712; FUN_1d1d_0b48; FUN_1d1d_1daa |
 | `FUN_1d1d_1d79` | 22143 | 15 | platform | printf va_arg — LODSW next int from [BP+0xa] list | inferred |  |
 | `FUN_1d1d_1d81` | 22158 | 19 | platform | printf va_arg — LODSW×2 next long from [BP+0xa] list | inferred |  |
-| `FUN_1d1d_1daa` | 22177 | 31 | platform | unknown | inferred |  |
+| `FUN_1d1d_1daa` | 22177 | 31 | platform | printf putc — store AL into FILE buffer (or flush via 15ec) | inferred | FUN_1d1d_15ec; FUN_1d1d_1dd4 |
 | `FUN_1d1d_1dd4` | 22208 | 26 | platform | printf emit — write CX chars from ES:DI via putc (1daa) | inferred |  |
 | `FUN_1d1d_1df2` | 22234 | 26 | platform | printf pad — write CX copies of DL via putc (1daa) | inferred |  |
 | `FUN_1d1d_1e0e` | 22260 | 34 | platform | printf itoa — DX:AX÷radix→ASCII digits reverse (STOSB) | inferred |  |
 | `FUN_1d1d_1e3f` | 22294 | 8 | platform | Shared far epilogue — POP DI/SI; leave; RETF | inferred |  |
-| `FUN_1d1d_1e46` | 22302 | 24 | platform | unknown | inferred |  |
+| `FUN_1d1d_1e46` | 22302 | 24 | platform | Alloc free FILE slot from CRT table DS:0x290e..0x2a4e | inferred | FUN_1d1d_04ae; FUN_1d1d_16fc |
 | `FUN_1d1d_1e7a` | 22326 | 21 | platform | DOS INT21 AH=3E close handle; clear fd table byte | inferred |  |
 | `FUN_1d1d_1e9a` | 22347 | 54 | platform | DOS INT21 AH=42 lseek (origin + signed offset checks) | inferred |  |
-| `FUN_1d1d_1f14` | 22401 | 99 | platform | unknown | inferred |  |
-| `FUN_1d1d_1ffe` | 22500 | 95 | platform | unknown | inferred |  |
-| `FUN_1d1d_20b2` | 22595 | 30 | platform | unknown | inferred |  |
-| `FUN_1d1d_20fc` | 22625 | 9 | platform | unknown | inferred |  |
-| `FUN_1d1d_210a` | 22634 | 19 | platform | unknown | inferred |  |
-| `FUN_1d1d_213e` | 22653 | 65 | platform | unknown | inferred |  |
-| `FUN_1d1d_21ca` | 22718 | 32 | platform | unknown | inferred |  |
-| `FUN_1d1d_221b` | 22750 | 20 | platform | unknown | inferred |  |
-| `FUN_1d1d_223c` | 22770 | 34 | platform | unknown | inferred |  |
-| `FUN_1d1d_2290` | 22804 | 80 | platform | unknown | inferred |  |
-| `FUN_1d1d_2406` | 22884 | 48 | platform | unknown | inferred |  |
-| `FUN_1d1d_2526` | 22932 | 70 | platform | unknown | inferred |  |
-| `FUN_1d1d_2586` | 23002 | 48 | platform | unknown | inferred |  |
-| `FUN_1d1d_26dc` | 23050 | 22 | platform | unknown | inferred |  |
-| `FUN_1d1d_2702` | 23072 | 26 | platform | unknown | inferred |  |
-| `FUN_1d1d_2746` | 23098 | 136 | platform | unknown | inferred |  |
-| `FUN_1d1d_28f1` | 23234 | 8 | platform | unknown | inferred |  |
-| `FUN_1d1d_2902` | 23242 | 57 | platform | unknown | inferred |  |
-| `FUN_1d1d_2922` | 23299 | 59 | platform | unknown | inferred |  |
-| `FUN_1d1d_299e` | 23358 | 156 | platform | unknown | inferred |  |
-| `FUN_1d1d_2b32` | 23514 | 54 | platform | unknown | inferred |  |
-| `FUN_1d1d_2c44` | 23568 | 18 | platform | unknown | inferred |  |
-| `FUN_1d1d_2c65` | 23586 | 25 | platform | unknown | inferred |  |
+| `FUN_1d1d_1f14` | 22401 | 99 | platform | DOS INT21 AH=3F read handle; text mode CR/LF→LF translate | inferred | FUN_1d1d_1556; FUN_1d1d_1515 |
+| `FUN_1d1d_1ffe` | 22500 | 95 | platform | DOS write handle; text mode LF→CRLF then INT21 AH=40 | inferred | FUN_1d1d_20b2; FUN_1d1d_210a; FUN_1d1d_1896 |
+| `FUN_1d1d_20b2` | 22595 | 30 | platform | Flush stacked write chunk via INT21 AH=40; fail → 1515 | inferred | FUN_1d1d_1ffe; FUN_1d1d_1515 |
+| `FUN_1d1d_20fc` | 22625 | 9 | platform | Write-fail epilogue → set errno via 1515 | inferred | FUN_1d1d_1515 |
+| `FUN_1d1d_210a` | 22634 | 19 | platform | DOS INT21 AH=40 write CX bytes (binary/raw path); then 1515 | inferred | FUN_1d1d_1ffe; FUN_1d1d_1515 |
+| `FUN_1d1d_213e` | 22653 | 65 | platform | Near-heap grow: expand arena size then AH=4A via 21ca | inferred | FUN_1d1d_21ca; FUN_1d1d_221b; FUN_1d1d_2c65 |
+| `FUN_1d1d_21ca` | 22718 | 32 | platform | DOS INT21 AH=4A resize mem block (paragraphs) | inferred | FUN_1d1d_213e |
+| `FUN_1d1d_221b` | 22750 | 20 | platform | Walk near-heap free-list to 0xFFFE end marker | inferred | FUN_1d1d_213e |
+| `FUN_1d1d_223c` | 22770 | 34 | platform | atoi — parse signed decimal integer from string | inferred |  |
+| `FUN_1d1d_2290` | 22804 | 80 | platform | ftell core — FILE logical pos via lseek 1e9a ± buffer adjust | inferred | FUN_1d1d_09a2; FUN_1d1d_1e9a |
+| `FUN_1d1d_2406` | 22884 | 48 | platform | setvbuf — attach/alloc FILE buffer (_IOFBF/_IONBF/_IOLBF-style) | inferred | FUN_1d1d_1896; FUN_1d1d_16d0; FUN_1d1d_2c65 |
+| `FUN_1d1d_2526` | 22932 | 70 | platform | ultoa/ltoa — convert long to ASCII digits in buffer (radix) | inferred | FUN_1d1d_08fa; FUN_1d1d_196e |
+| `FUN_1d1d_2586` | 23002 | 48 | platform | Search PATH dirs for file then spawn via 2b32; free temp path | inferred | FUN_1d1d_2b32; FUN_1d1d_0942; FUN_1d1d_2c65 |
+| `FUN_1d1d_26dc` | 23050 | 22 | platform | Heap alloc with temp brk=0x400 via 2c65; fail → abort 0223 | inferred | FUN_1d1d_2c65; FUN_1d1d_0223; FUN_1d1d_1420 |
+| `FUN_1d1d_2702` | 23072 | 26 | platform | Alloc/attach default 0x200 FILE buffer (or unbuffered fallback) | inferred | FUN_1d1d_2c65; FUN_1d1d_1556 |
+| `FUN_1d1d_2746` | 23098 | 136 | platform | DOS open/creat (INT21 AH=3D/3C) with share/text flags; fill fd table | inferred | FUN_1d1d_16fc; FUN_1d1d_1515; FUN_1d1d_28f1 |
+| `FUN_1d1d_28f1` | 23234 | 8 | platform | Map DOS open access bits (CX vs mask DS:0x27ae) into CL flags | inferred | FUN_1d1d_2746 |
+| `FUN_1d1d_2902` | 23242 | 57 | platform | Stack free bytes remaining above watermark DS:0x27e6 | inferred | FUN_1d1d_03d0 |
+| `FUN_1d1d_2922` | 23299 | 59 | platform | Near-heap malloc — carve block from free-list (arena DS:0x2778) | inferred | FUN_1d1d_2c65; FUN_1d1d_2c44 |
+| `FUN_1d1d_299e` | 23358 | 156 | platform | spawn/exec setup: env block 2c8e, open COM/EXE, hand off 2f06 | inferred | FUN_1d1d_2c8e; FUN_1d1d_2f06; FUN_1d1d_2746 |
+| `FUN_1d1d_2b32` | 23514 | 54 | platform | exec path: try .COM/.EXE/.BAT suffixes then spawn 299e | inferred | FUN_1d1d_299e; FUN_1d1d_328a |
+| `FUN_1d1d_2c44` | 23568 | 18 | platform | free — mark near-heap block free (size/1; update rover DS:0x2780) | inferred | FUN_1d1d_2c65; FUN_1d1d_2922 |
+| `FUN_1d1d_2c65` | 23586 | 25 | platform | malloc — near-heap alloc via 2922; grow arena 213e on fail | inferred | FUN_1d1d_2922; FUN_1d1d_213e |
 | `FUN_1d1d_2c8e` | 23611 | 168 | platform | Build spawn env block: copy env strings + hex-encode open fds | inferred |  |
 | `FUN_1d1d_2f06` | 23779 | 312 | platform | DOS spawn/exec: MCB walk + AH=48/4A carve; copy env/cmdline | inferred |  |
-| `FUN_1d1d_328a` | 24091 | 30 | platform | unknown | inferred |  |
+| `FUN_1d1d_328a` | 24091 | 30 | platform | DOS INT21 AH=43 get file attrs; −1 if mode&2 and read-only | inferred | FUN_1d1d_2b32 |
 
 ### Segment `2047` (5 defs) — platform — DOS Ctrl-C/Break / INT21 abort handlers
 
@@ -1044,121 +1044,121 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_210d_051a` | 24717 | 44 | platform | Lookup AL in CS:0x4e9c[24]; hit → A000+(idx×4)<<8 | inferred |  |
-| `FUN_210d_0727` | 24761 | 301 | platform | unknown | inferred |  |
+| `FUN_210d_0727` | 24761 | 301 | platform | DOS/EMS bootstrap: INT21 AH=30, INT67 AH=42/43/45, INT21 AH=4A arenas + overlay setup | known | entry; FUN_210d_4c83; FUN_210d_4ce3 |
 | `FUN_210d_0d91` | 25062 | 70 | platform | EMS overlay page-in helper (thunks call before far JMP) | inferred | ai/unit_mp.c; ai/accessors.c |
 | `FUN_210d_0dab` | 25132 | 90 | platform | EMS overlay page-in helper (thunks call before far JMP) | inferred | ai/unit_mp.c; ai/accessors.c |
-| `FUN_210d_1268` | 25222 | 51 | platform | unknown | inferred |  |
-| `FUN_210d_12ad` | 25273 | 27 | platform | unknown | inferred |  |
-| `FUN_210d_1341` | 25300 | 76 | platform | unknown | inferred |  |
-| `FUN_210d_1407` | 25376 | 33 | platform | unknown | inferred |  |
-| `FUN_210d_167b` | 25409 | 9 | platform | unknown | inferred |  |
+| `FUN_210d_1268` | 25222 | 51 | platform | Overlay RETF epilogue: 2607/265a stack EMS scan + illegal-mapping check | inferred | FUN_210d_2607; FUN_210d_265a; FUN_210d_2982 |
+| `FUN_210d_12ad` | 25273 | 27 | platform | Snapshot EMS mapping into CS:3964..396a; set flag bit2 | inferred | FUN_210d_1341 |
+| `FUN_210d_1341` | 25300 | 76 | platform | EMS overlay gate: set 290d.bit6; 2684/12ad scan or illegal-mapping→2982 | inferred | FUN_210d_1268; FUN_210d_2684; FUN_210d_12ad |
+| `FUN_210d_1407` | 25376 | 33 | platform | EMS mapping validate on overlay return (2907 slot / 2684 / 2982) | inferred | FUN_210d_2684; FUN_210d_2982 |
+| `FUN_210d_167b` | 25409 | 9 | platform | Thunk → 3791 resident dispatch (fixed AX/BX/CX/DX diagnostic args) | known | FUN_210d_3791 |
 | `FUN_210d_1695` | 25418 | 22 | platform | Unvectored-call diagnostic: patch hex via 37d9/45d3 then JMP 37ad | inferred |  |
 | `FUN_210d_1ac4` | 25440 | 40 | platform | Overlay unmap: capture INT21 vec (+optional IVT hook); maybe 3564; clear 2912.bit0 | inferred |  |
-| `FUN_210d_1bc4` | 25480 | 46 | platform | unknown | inferred |  |
-| `FUN_210d_1c43` | 25526 | 21 | platform | unknown | inferred |  |
-| `FUN_210d_1c61` | 25547 | 11 | platform | unknown | inferred |  |
-| `FUN_210d_1c75` | 25558 | 11 | platform | unknown | inferred |  |
-| `FUN_210d_1d49` | 25569 | 37 | platform | unknown | inferred |  |
+| `FUN_210d_1bc4` | 25480 | 46 | platform | DOS mem arena ±paras (INT21 AH=4A via 1c43) or measure free; EMS path via 1341 | known | FUN_210d_1c43; FUN_210d_1341; FUN_210d_54d0 |
+| `FUN_210d_1c43` | 25526 | 21 | platform | INT21 AH=4A: resize arena ES:[28f3] to 28f9+AX paragraphs | known | FUN_210d_1bc4 |
+| `FUN_210d_1c61` | 25547 | 11 | platform | Write overlay list-head word (CS:3952) into caller far ptr | inferred |  |
+| `FUN_210d_1c75` | 25558 | 11 | platform | Far wrapper → 1d49 overlay-chain flush | known | FUN_210d_1d49 |
+| `FUN_210d_1d49` | 25569 | 37 | platform | Flush overlay chain (1dbd/2b22) until head≥0x216; clear caseD_b | inferred | FUN_210d_1dbd; FUN_210d_2b22 |
 | `FUN_210d_1dbd` | 25606 | 24 | platform | If AX bit15 overlay slot set: clear flag + optional 2d5a commit | inferred |  |
-| `FUN_210d_2019` | 25630 | 29 | platform | unknown | inferred |  |
+| `FUN_210d_2019` | 25630 | 29 | platform | Retain EMS overlay: set flags + INC [6]; overflow→33e3/58c2 then [6]=0x1000 | inferred | FUN_210d_33e3; FUN_210d_58c2; FUN_210d_5808 |
 | `FUN_210d_238c` | 25659 | 8 | platform | Far no-op stub (NOP; RETF) | inferred |  |
-| `FUN_210d_238e` | 25667 | 16 | platform | unknown | inferred |  |
+| `FUN_210d_238e` | 25667 | 16 | platform | Add DX into word at [BX] if nonzero (reloc delta apply) | known | FUN_210d_3564; FUN_210d_2e59 |
 | `FUN_210d_239d` | 25683 | 69 | platform | BP-stack walk: reloc far-call segs into EMS window by opcode probe | inferred |  |
-| `FUN_210d_2492` | 25752 | 59 | platform | unknown | inferred |  |
+| `FUN_210d_2492` | 25752 | 59 | platform | Normalize ES:DI→seg; classify vs EMS window/overlay slots (else 0xece) | inferred | FUN_210d_2590; FUN_210d_2607 |
 | `FUN_210d_2590` | 25811 | 64 | platform | Scan SS stack via 2492; cache last EMS-window far ptr @CS:398d | inferred |  |
-| `FUN_210d_2607` | 25875 | 49 | platform | unknown | inferred |  |
-| `FUN_210d_265a` | 25924 | 14 | platform | unknown | inferred |  |
-| `FUN_210d_2684` | 25938 | 154 | platform | unknown | inferred |  |
-| `FUN_210d_2a48` | 26092 | 17 | platform | unknown | inferred |  |
-| `FUN_210d_2a6e` | 26109 | 24 | platform | unknown | inferred |  |
+| `FUN_210d_2607` | 25875 | 49 | platform | Walk SS far-ptr chain via 2492 until EMS-window hit | inferred | FUN_210d_2492; FUN_210d_1268 |
+| `FUN_210d_265a` | 25924 | 14 | platform | Arm stack EMS-scan mode (bit2 + save SP) then fall into 2684 | inferred | FUN_210d_2684 |
+| `FUN_210d_2684` | 25938 | 154 | platform | BP/SS stack walk: probe CALLF/JMPF near EMS window; fail→2982/3791 | inferred | FUN_210d_2492; FUN_210d_239d; FUN_210d_2982 |
+| `FUN_210d_2a48` | 26092 | 17 | platform | If overlay slot live with retain list: retain page(s) via 5808 | inferred | FUN_210d_5808 |
+| `FUN_210d_2a6e` | 26109 | 24 | platform | Walk SI overlay back-chain (-1 sentinels); optional 1ebd unmap / 39d9 cb | inferred | FUN_210d_1ebd; FUN_210d_2aa5 |
 | `FUN_210d_2aa5` | 26133 | 14 | platform | If overlay slot matches: 2a6e; if descriptor !bit5: 2d5a commit | inferred |  |
-| `FUN_210d_2ae5` | 26147 | 28 | platform | unknown | inferred |  |
+| `FUN_210d_2ae5` | 26147 | 28 | platform | Release EMS overlay retain (5856); maybe 2d5a commit if flags&0x21 | inferred | FUN_210d_5856; FUN_210d_2d5a; FUN_210d_2b22 |
 | `FUN_210d_2b22` | 26175 | 42 | platform | Walk CS:0x3952 overlay chain; XOR bit15 + 2ae5 until sentinel | inferred |  |
-| `FUN_210d_2b9b` | 26217 | 41 | platform | unknown | inferred |  |
-| `FUN_210d_2c57` | 26258 | 54 | platform | unknown | inferred |  |
-| `FUN_210d_2d5a` | 26312 | 57 | platform | unknown | inferred |  |
+| `FUN_210d_2b9b` | 26217 | 41 | platform | Ensure EMS space (2c57); if flags&6: copy page hdr + stream-read via 409c | inferred | FUN_210d_2c57; FUN_210d_402f; FUN_210d_409c |
+| `FUN_210d_2c57` | 26258 | 54 | platform | Compute EMS page need; loop 40e6 bank/alloc until fit (fail→3791) | inferred | FUN_210d_40e6; FUN_210d_3791 |
+| `FUN_210d_2d5a` | 26312 | 57 | platform | Commit EMS overlay slot: relink retain list / 5699 or 56e5 | inferred | FUN_210d_1dbd; FUN_210d_5699; FUN_210d_56e5 |
 | `FUN_210d_2e59` | 26369 | 29 | platform | Add DX to CX far-ptr table entries at [SI×4] (reloc fixup) | inferred |  |
-| `FUN_210d_2e78` | 26398 | 56 | platform | unknown | inferred |  |
+| `FUN_210d_2e78` | 26398 | 56 | platform | Map EMS physical pages into window (552c/5716); fail→3791 | inferred | FUN_210d_552c; FUN_210d_5716 |
 | `FUN_210d_2fd2` | 26454 | 40 | platform | Classify [BP+0x18] far code via opcode probes (302e…3322) | inferred |  |
-| `FUN_210d_3018` | 26494 | 19 | platform | unknown | inferred |  |
-| `FUN_210d_302e` | 26513 | 19 | platform | unknown | inferred |  |
-| `FUN_210d_3046` | 26532 | 35 | platform | unknown | inferred |  |
-| `FUN_210d_3080` | 26567 | 9 | platform | unknown | inferred |  |
-| `FUN_210d_3094` | 26576 | 78 | platform | unknown | inferred |  |
+| `FUN_210d_3018` | 26494 | 19 | platform | Opcode probe: near CALL (E8) at DI-3 → 3254 | inferred | FUN_210d_3254; FUN_210d_2fd2 |
+| `FUN_210d_302e` | 26513 | 19 | platform | Opcode probe: far CALL (9A) at DI-5 → 3254 | inferred | FUN_210d_3254; FUN_210d_2fd2 |
+| `FUN_210d_3046` | 26532 | 35 | platform | Opcode probe: INT3/INTO/INT 0 at DI → 3080→3254 | inferred | FUN_210d_3080; FUN_210d_2fd2 |
+| `FUN_210d_3080` | 26567 | 9 | platform | Forward to 3254 CALLF/JMPF opcode probe | known | FUN_210d_3254 |
+| `FUN_210d_3094` | 26576 | 78 | platform | Opcode probe: FF/modrm forms → reloc helpers 3147/3179/31c4 + 3254 | inferred | FUN_210d_3147; FUN_210d_3179; FUN_210d_31c4; FUN_210d_3254 |
 | `FUN_210d_3147` | 26654 | 19 | platform | Seed reloc slot 0x2fca from BP via XLAT 0x3171 + seg 0x397f | inferred |  |
 | `FUN_210d_3179` | 26673 | 32 | platform | Accumulate reloc offsets into 0x2fc6 via XLAT 0x31b4; maybe SS→0x2fc8 | inferred |  |
 | `FUN_210d_31c4` | 26705 | 48 | platform | ES:[BX+DI-1] ES: prefix → fill 0x2fc8 then 322c reloc write | inferred |  |
 | `FUN_210d_3254` | 26753 | 65 | platform | Probe CALLF/CALL/JMPF opcode patterns at DX:AX (recurse on JMPF) | inferred |  |
-| `FUN_210d_3322` | 26818 | 38 | platform | unknown | inferred |  |
-| `FUN_210d_3367` | 26856 | 25 | platform | unknown | inferred |  |
+| `FUN_210d_3322` | 26818 | 38 | platform | Opcode probe: walk back ≤4 for ES:MOV (0x8B26) + mask-0x1f checks | inferred | FUN_210d_2fd2 |
+| `FUN_210d_3367` | 26856 | 25 | platform | Opcode probe: RETF+PUSH AX/DX with PUSH CS/imm → 3254 | inferred | FUN_210d_3254; FUN_210d_2fd2 |
 | `FUN_210d_33e3` | 26881 | 17 | platform | Round EMS page [6] sizes bytes→paragraphs across ES:[18] slots | inferred |  |
-| `FUN_210d_3564` | 26898 | 133 | platform | unknown | inferred |  |
+| `FUN_210d_3564` | 26898 | 133 | platform | EMS/DOS arena compact: INT21 AH=48/4A/49 (+set INT21 vec); reload stream; 238e relocs | known | FUN_210d_1ac4; FUN_210d_1bc4; FUN_210d_4052; FUN_210d_238e |
 | `FUN_210d_3791` | 27031 | 17 | platform | Pack BX:DX into 37cd/cf; JMPF via [37d5] (2-arg resident dispatch) | inferred |  |
 | `FUN_210d_37ad` | 27048 | 21 | platform | Pack BX:DX:DI into 37cd..; JMPF via [37d5] (3-arg resident dispatch) | inferred |  |
 | `FUN_210d_37d9` | 27069 | 40 | platform | Build map-address diagnostic (hex-patch via 45d3 into template) | inferred |  |
 | `FUN_210d_391d` | 27109 | 13 | platform | Write hex word(s) into diagnostic buffer via 45d3 (+ optional seg:0xe) | inferred |  |
-| `FUN_210d_3a0f` | 27122 | 97 | platform | unknown | inferred |  |
-| `FUN_210d_3d9b` | 27219 | 178 | platform | unknown | inferred |  |
-| `FUN_210d_3f46` | 27397 | 8 | platform | unknown | inferred |  |
-| `FUN_210d_3fb7` | 27405 | 33 | platform | unknown | inferred |  |
-| `FUN_210d_402f` | 27438 | 16 | platform | unknown | inferred |  |
-| `FUN_210d_4052` | 27454 | 37 | platform | unknown | inferred |  |
+| `FUN_210d_3a0f` | 27122 | 97 | platform | Resolve/open .EXE path (suffix check + INT21 AH=3D) or copy via 275d helpers | inferred | FUN_275d_0a4f; FUN_275d_0909 |
+| `FUN_210d_3d9b` | 27219 | 178 | platform | Alloc/init EMS page-map tables (AL selects path); fill [20..] indices + sizes | inferred | FUN_210d_4a4c; FUN_210d_4454; FUN_210d_4ce3 |
+| `FUN_210d_3f46` | 27397 | 8 | platform | Validate EMS page budget vs CS:4e80/4e82; CF if short | inferred | FUN_210d_40e6 |
+| `FUN_210d_3fb7` | 27405 | 33 | platform | Walk retain chain @[16]: refresh max EMS sizes; clear flags&0xe | inferred | FUN_210d_40e6 |
+| `FUN_210d_402f` | 27438 | 16 | platform | Seed overlay I/O cursor [1a/1c/1e] from page header at 28cf+AX | inferred | FUN_210d_4052; FUN_210d_2b9b |
+| `FUN_210d_4052` | 27454 | 37 | platform | Read CX overlay bytes in ≤0x400 chunks (4e28/466e/4e3b) | inferred | FUN_210d_466e; FUN_210d_409c |
 | `FUN_210d_409c` | 27491 | 46 | platform | Read CX overlay-stream bytes (≤0x400 chunks via 45f1); CF if short | inferred |  |
-| `FUN_210d_40e6` | 27537 | 158 | platform | unknown | inferred |  |
-| `FUN_210d_43f0` | 27695 | 43 | platform | unknown | inferred |  |
-| `FUN_210d_4454` | 27738 | 34 | platform | unknown | inferred |  |
-| `FUN_210d_44db` | 27772 | 22 | platform | unknown | inferred |  |
+| `FUN_210d_40e6` | 27537 | 158 | platform | Allocate/bank EMS pages into window; link page chain + set flags | inferred | FUN_210d_3f46; FUN_210d_3fb7; FUN_210d_2c57 |
+| `FUN_210d_43f0` | 27695 | 43 | platform | Build EMS page LUT (49db) into 46fd×0x400 slots if flags&1 | inferred | FUN_210d_49db; FUN_210d_4e4e |
+| `FUN_210d_4454` | 27738 | 34 | platform | EMS error diagnostic: hex-patch AH/AX via 45da then JMP 37ad ('Pa…') | inferred | FUN_210d_45da; FUN_210d_37ad |
+| `FUN_210d_44db` | 27772 | 22 | platform | EMS status diagnostic: hex-patch via 45da then JMP 37ad ('Te…') | inferred | FUN_210d_45da; FUN_210d_37ad |
 | `FUN_210d_45d3` | 27794 | 27 | platform | Store AX as 4 hex ASCII digits at ES:DI (via 45da/45e7) | inferred |  |
-| `FUN_210d_45da` | 27821 | 26 | platform | unknown | inferred |  |
-| `FUN_210d_45e7` | 27847 | 26 | platform | unknown | inferred |  |
-| `FUN_210d_45f1` | 27873 | 80 | platform | unknown | inferred |  |
-| `FUN_210d_466e` | 27953 | 48 | platform | unknown | inferred |  |
-| `FUN_210d_470f` | 28001 | 26 | platform | unknown | inferred |  |
-| `FUN_210d_4751` | 28027 | 29 | platform | unknown | inferred |  |
-| `FUN_210d_479f` | 28056 | 124 | platform | unknown | inferred |  |
-| `FUN_210d_49c3` | 28180 | 13 | platform | unknown | inferred |  |
-| `FUN_210d_49db` | 28193 | 71 | platform | unknown | inferred |  |
-| `FUN_210d_4a4c` | 28264 | 152 | platform | unknown | inferred |  |
-| `FUN_210d_4c83` | 28416 | 53 | platform | unknown | inferred |  |
-| `FUN_210d_4ce3` | 28469 | 47 | platform | unknown | inferred |  |
-| `FUN_210d_4d4f` | 28516 | 46 | platform | unknown | inferred |  |
-| `FUN_210d_4de3` | 28562 | 20 | platform | unknown | inferred |  |
-| `FUN_210d_4e28` | 28582 | 14 | platform | unknown | inferred |  |
-| `FUN_210d_4e3b` | 28596 | 15 | platform | unknown | inferred |  |
-| `FUN_210d_4e4e` | 28611 | 14 | platform | unknown | inferred |  |
-| `FUN_210d_4fe5` | 28625 | 46 | platform | unknown | inferred |  |
-| `FUN_210d_508b` | 28671 | 117 | platform | unknown | inferred |  |
-| `FUN_210d_5247` | 28788 | 19 | platform | unknown | inferred |  |
-| `FUN_210d_52a6` | 28807 | 13 | platform | unknown | inferred |  |
-| `FUN_210d_52d3` | 28820 | 14 | platform | unknown | inferred |  |
-| `FUN_210d_535c` | 28834 | 9 | platform | unknown | inferred |  |
-| `FUN_210d_5365` | 28843 | 9 | platform | unknown | inferred |  |
-| `FUN_210d_536e` | 28852 | 24 | platform | unknown | inferred |  |
-| `FUN_210d_538c` | 28876 | 22 | platform | unknown | inferred |  |
-| `FUN_210d_53b5` | 28898 | 14 | platform | unknown | inferred |  |
-| `FUN_210d_53cb` | 28912 | 8 | platform | unknown | inferred |  |
-| `FUN_210d_545f` | 28920 | 38 | platform | unknown | inferred |  |
-| `FUN_210d_54d0` | 28958 | 26 | platform | unknown | inferred |  |
-| `FUN_210d_552c` | 28984 | 115 | platform | unknown | inferred |  |
-| `FUN_210d_5699` | 29099 | 35 | platform | unknown | inferred |  |
-| `FUN_210d_56e5` | 29134 | 23 | platform | unknown | inferred |  |
-| `FUN_210d_5716` | 29157 | 72 | platform | unknown | inferred |  |
+| `FUN_210d_45da` | 27821 | 26 | platform | Store AL as 2 hex ASCII digits at ES:DI (high nibble→45e7, then low) | known | FUN_210d_45e7; FUN_210d_45d3 |
+| `FUN_210d_45e7` | 27847 | 26 | platform | Hex nibble→ASCII (DAA) STOSB at ES:DI | known | FUN_210d_45da |
+| `FUN_210d_45f1` | 27873 | 80 | platform | Advance overlay-stream cursor (wrap 0x400); swap EMS map regs; maybe 4454/44db | inferred | FUN_210d_409c; FUN_210d_470f; FUN_210d_4751 |
+| `FUN_210d_466e` | 27953 | 48 | platform | EMS bank transfer: map page (AH=44) + REP MOVSW, or 44db path; advance 1KB index via [BX+0x20] | known | FUN_210d_470f; FUN_210d_4751; FUN_210d_4454; FUN_210d_44db |
+| `FUN_210d_470f` | 28001 | 26 | platform | Build EMS transfer descriptor (paras<<4, handle/ES:DI, copy length) for banked MOVSW path | inferred | FUN_210d_466e |
+| `FUN_210d_4751` | 28027 | 29 | platform | Build alternate EMS/XMS move descriptor (DX high-bits packed into linear addr) for 44db path | inferred | FUN_210d_466e; FUN_210d_44db |
+| `FUN_210d_479f` | 28056 | 124 | platform | Coalesce freed EMS overlay page block into neighbor freelists (1KB pages; flags at [0]) | inferred | FUN_210d_49c3 |
+| `FUN_210d_49c3` | 28180 | 13 | platform | Walk EMS page-link words at [BX+0x20] for CX>>10 steps; return CX&0x3ff remainder | known | FUN_210d_479f |
+| `FUN_210d_49db` | 28193 | 71 | platform | Find free EMS physical page in bitmap 4eb4/4eb6; compute A000-based frame offset | inferred | FUN_210d_4a4c |
+| `FUN_210d_4a4c` | 28264 | 152 | platform | EMS init: detect (4c83), get/set INT67, parse frame/env, map pages via 4454, seed bitmaps | known | FUN_210d_4c83; FUN_210d_4454; FUN_210d_051a; FUN_275d_08ad |
+| `FUN_210d_4c83` | 28416 | 53 | platform | EMS detect: INT21 AH=35 INT67, EMMXXXX0 CMPSW, INT67 AH=46 version≥3.2 + AH=41 page frame | known | FUN_275d_048f; FUN_210d_4a4c |
+| `FUN_210d_4ce3` | 28469 | 47 | platform | XMS detect: DOS≥3, INT2F 4300/4310, driver AX=0 version≥2.00; stash entry at CS:4e84 | known | FUN_275d_048f; FUN_210d_5247 |
+| `FUN_210d_4d4f` | 28516 | 46 | platform | Drain deferred EMS overlay lock queue (flag 0x10): unlink nodes from list at [0x18] | inferred |  |
+| `FUN_210d_4de3` | 28562 | 20 | platform | Cache current EMS overlay page context (seg/handle/page counts) into CS:4e7a..4e82 | inferred |  |
+| `FUN_210d_4e28` | 28582 | 14 | platform | EMS save page map (AH=47 via 4454) when overlay mapped flag [0] bit0 set | known | FUN_210d_4454 |
+| `FUN_210d_4e3b` | 28596 | 15 | platform | EMS restore page map (AH=48 via 4454) when overlay mapped flag [0] bit0 set | known | FUN_210d_4454 |
+| `FUN_210d_4e4e` | 28611 | 14 | platform | Map EMS pages from SI list (AH=50 if ver≥4.0 else AH=44 loop via 4454) | known | FUN_210d_4454 |
+| `FUN_210d_4fe5` | 28625 | 46 | platform | Init overlay heap arena: free-list heads, size, alignment masks from BX bit count | inferred | FUN_210d_508b |
+| `FUN_210d_508b` | 28671 | 117 | platform | Insert/grow overlay heap free block into doubly-linked arena; update free totals | inferred | FUN_210d_5a9d; FUN_210d_536e |
+| `FUN_210d_5247` | 28788 | 19 | platform | Probe DOS ver + UMB link (AH=58); call XMS detect 4ce3; set strategy capability flags | known | FUN_210d_4ce3 |
+| `FUN_210d_52a6` | 28807 | 13 | platform | Largest free memory: XMS UMB query or DOS AH=48 after save/restore strategy (538c/52d3/53b5) | known | FUN_210d_538c; FUN_210d_52d3; FUN_210d_53b5 |
+| `FUN_210d_52d3` | 28820 | 14 | platform | DOS free-memory probe (INT21 AH=48 BX=FFFF) → available paragraphs in AX | known | FUN_210d_52a6 |
+| `FUN_210d_535c` | 28834 | 9 | platform | Grow overlay arena via XMS/UMB alloc callback at 52df (loop through 536e) | inferred | FUN_210d_536e; FUN_210d_508b |
+| `FUN_210d_5365` | 28843 | 9 | platform | Grow overlay arena via DOS AH=48 alloc callback at 5338 (loop through 536e) | inferred | FUN_210d_536e; FUN_210d_508b |
+| `FUN_210d_536e` | 28852 | 24 | platform | Alloc-loop driver: CALL DI allocator, on success register block via 508b until size met | inferred | FUN_210d_508b; FUN_210d_535c; FUN_210d_5365 |
+| `FUN_210d_538c` | 28876 | 22 | platform | Save DOS alloc strategy+UMB link; set first-fit-high + UMB linked (INT21 AH=58) | known | FUN_210d_53b5; FUN_210d_52a6 |
+| `FUN_210d_53b5` | 28898 | 14 | platform | Restore prior DOS alloc strategy + UMB link state (INT21 AH=58 AL=1/3) | known | FUN_210d_538c; FUN_210d_53cb |
+| `FUN_210d_53cb` | 28912 | 8 | platform | Shared POP BX/AX; RET epilogue for DOS AH=58 restore (Ghidra-split from 53b5) | known | FUN_210d_53b5 |
+| `FUN_210d_545f` | 28920 | 38 | platform | Shrink overlay heap free region by AX paragraphs; update freelist via 597f/59ce/5b9d | inferred | FUN_210d_597f; FUN_210d_59ce; FUN_210d_5a9d; FUN_210d_5b9d |
+| `FUN_210d_54d0` | 28958 | 26 | platform | Grow overlay heap free region by AX; splice block via 5a9d/5bcb/5b9d | inferred | FUN_210d_5a9d; FUN_210d_5bcb; FUN_210d_5b9d |
+| `FUN_210d_552c` | 28984 | 115 | platform | Overlay heap compact/coalesce pass: walk freelist, merge neighbors, remap presence bits | inferred | FUN_210d_5bcb; FUN_210d_5c9e; FUN_210d_5d49; FUN_210d_5b26 |
+| `FUN_210d_5699` | 29099 | 35 | platform | Unlink overlay block from freelist links; clear deferred-lock flag 0x10 | inferred | FUN_210d_597f |
+| `FUN_210d_56e5` | 29134 | 23 | platform | Bump overlay block refcount at +6; on wrap call 58c2; set busy flag 0x08 | inferred | FUN_210d_58c2 |
+| `FUN_210d_5716` | 29157 | 72 | platform | Allocate paragraphs from overlay freelist (fit walk, split via 5a9d/5b26, mark presence) | inferred | FUN_210d_59ce; FUN_210d_5a9d; FUN_210d_5b26; FUN_210d_5a76 |
 | `FUN_210d_5808` | 29229 | 35 | platform | Retain EMS overlay page (set bit2 + ref=1, or INC [6]) | inferred |  |
-| `FUN_210d_5856` | 29264 | 46 | platform | unknown | inferred |  |
+| `FUN_210d_5856` | 29264 | 46 | platform | Release overlay block lock/refcount; unlink when count hits 0 (58f9/5afc) | inferred | FUN_210d_58f7; FUN_210d_58f9; FUN_210d_5afc |
 | `FUN_210d_58c2` | 29310 | 16 | platform | Walk retained EMS chain (CS:5db9): bytes→paras [6] if !flags&5 | inferred |  |
-| `FUN_210d_58f7` | 29326 | 10 | platform | unknown | inferred |  |
-| `FUN_210d_58f9` | 29336 | 47 | platform | unknown | inferred |  |
-| `FUN_210d_597f` | 29383 | 31 | platform | unknown | inferred |  |
-| `FUN_210d_59ce` | 29414 | 40 | platform | unknown | inferred |  |
-| `FUN_210d_5a76` | 29454 | 15 | platform | unknown | inferred |  |
-| `FUN_210d_5a9d` | 29469 | 27 | platform | unknown | inferred |  |
-| `FUN_210d_5afc` | 29496 | 8 | platform | unknown | inferred |  |
-| `FUN_210d_5b26` | 29504 | 40 | platform | unknown | inferred |  |
-| `FUN_210d_5b9d` | 29544 | 23 | platform | unknown | inferred |  |
-| `FUN_210d_5bcb` | 29567 | 52 | platform | unknown | inferred |  |
-| `FUN_210d_5c9e` | 29619 | 54 | platform | unknown | inferred |  |
-| `FUN_210d_5d49` | 29673 | 8 | platform | unknown | inferred |  |
-| `FUN_210d_5dd0` | 29681 | 11 | platform | unknown | inferred |  |
+| `FUN_210d_58f7` | 29326 | 10 | platform | Carry-clear stub (always success) gating overlay lock/unlock callers | known | FUN_210d_5856 |
+| `FUN_210d_58f9` | 29336 | 47 | platform | Unlink overlay block from busy/free doubly-linked list; clear flag bit3 | inferred | FUN_210d_5856; FUN_210d_597f |
+| `FUN_210d_597f` | 29383 | 31 | platform | Unlink overlay block from freelist (+0xc/+0xe); repair arena head pointers | inferred | FUN_210d_58f9; FUN_210d_5bcb |
+| `FUN_210d_59ce` | 29414 | 40 | platform | Clear overlay page-presence bit in map; optional EMS notify (2684/265a/2590/2b9b) | inferred | FUN_210d_2684; FUN_210d_265a; FUN_210d_2590; FUN_210d_2b9b |
+| `FUN_210d_5a76` | 29454 | 15 | platform | Set overlay page-presence bit in map for allocated block | inferred | FUN_210d_59ce |
+| `FUN_210d_5a9d` | 29469 | 27 | platform | Insert block onto overlay freelist head; mark free (bit0); refresh max-free cache | inferred | FUN_210d_5afc; FUN_210d_508b |
+| `FUN_210d_5afc` | 29496 | 8 | platform | Compute free size of overlay block (from +2, or distance to arena end) | inferred | FUN_210d_5a9d; FUN_210d_5b26; FUN_210d_5b9d |
+| `FUN_210d_5b26` | 29504 | 40 | platform | Split overlay free block at BX; install new header and rewire +8/+0xa/+0xc links | inferred | FUN_210d_5afc |
+| `FUN_210d_5b9d` | 29544 | 23 | platform | Walk overlay freelist to recompute max free size into 5dad | inferred | FUN_210d_5afc |
+| `FUN_210d_5bcb` | 29567 | 52 | platform | Coalesce adjacent free overlay blocks; unlink absorbed nodes via 597f | inferred | FUN_210d_597f |
+| `FUN_210d_5c9e` | 29619 | 54 | platform | Mark overlay block busy (clear free bit); split remainder back onto freelist | inferred | FUN_210d_5a9d |
+| `FUN_210d_5d49` | 29673 | 8 | platform | Compare overlay block neighbor keys (+6) for coalesce/order eligibility | inferred | FUN_210d_552c |
+| `FUN_210d_5dd0` | 29681 | 11 | platform | Far return CS:5dd8 overlay-runtime entry pointer with BX=FFFF | known |  |
 
 ### Segment `275d` (21 defs) — platform — DOS PATH/env parse / memory sizing / INT21 helpers
 

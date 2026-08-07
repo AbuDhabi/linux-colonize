@@ -14117,6 +14117,1098 @@
         "purpose": "Far thunk \u2192 FUN_79ec_0004 (resource-stream progress pump)",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_1d1d_0016": {
+        "system": "platform",
+        "purpose": "delay(ms) \u2014 sync BIOS 40:40 tick, lazy-calibrate via 00ca, then spin",
+        "confidence": "known",
+        "links": "FUN_1d1d_00ca; FUN_1d1d_0132"
+      },
+      "FUN_1d1d_00ca": {
+        "system": "platform",
+        "purpose": "Calibrate delay constants (CS:0012/0014) via two 00ff VBLANK timings",
+        "confidence": "known",
+        "links": "FUN_1d1d_00ff; FUN_1d1d_0016"
+      },
+      "FUN_1d1d_00ff": {
+        "system": "platform",
+        "purpose": "CRT delay calibrate inner: count loops across CGA/VGA status port 3DAh VBLANK",
+        "confidence": "known",
+        "links": "FUN_1d1d_00ca"
+      },
+      "FUN_1d1d_0132": {
+        "system": "platform",
+        "purpose": "Far wrapper \u2192 delay(ms) 0016",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0016"
+      },
+      "FUN_1d1d_0150": {
+        "system": "platform",
+        "purpose": "CRT/_start: INT21 AH=30/4A, BSS/init, 0248 setup, main 281f_0000, exit 030d",
+        "confidence": "known",
+        "links": "FUN_1d1d_0248; FUN_1d1d_030d; FUN_281f_0000"
+      },
+      "FUN_1d1d_0223": {
+        "system": "platform",
+        "purpose": "abort \u2014 cleanup (1242/14c9) then exit vector [0x2774] with code 0xFF",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_03d0; FUN_1d1d_1242; FUN_1d1d_14c9"
+      },
+      "FUN_1d1d_0248": {
+        "system": "platform",
+        "purpose": "CRT pre-main: hook INT0 (AH=35/25), NO87 env parse, IOCTL AH=44 on std handles, run init tables",
+        "confidence": "known",
+        "links": "FUN_1d1d_03bd; FUN_1d1d_0150"
+      },
+      "FUN_1d1d_030d": {
+        "system": "platform",
+        "purpose": "exit \u2014 run atexit/exit tables (03bd\u00d74), 126a, restore vectors 0390, INT21 AH=4C",
+        "confidence": "known",
+        "links": "FUN_1d1d_03bd; FUN_1d1d_0390"
+      },
+      "FUN_1d1d_0390": {
+        "system": "platform",
+        "purpose": "On exit: optional FPU callback, restore INT0 (+optional vector) via INT21 AH=25",
+        "confidence": "known",
+        "links": "FUN_1d1d_030d"
+      },
+      "FUN_1d1d_03bd": {
+        "system": "platform",
+        "purpose": "Walk SI..DI function-pointer table; call each nonzero entry (startup/atexit)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0248; FUN_1d1d_030d"
+      },
+      "FUN_1d1d_03d0": {
+        "system": "platform",
+        "purpose": "__chkstk \u2014 grow/probe SP by AX above DS:27e6 watermark; else abort/handler",
+        "confidence": "known",
+        "links": "FUN_1d1d_0223"
+      },
+      "FUN_1d1d_04ae": {
+        "system": "platform",
+        "purpose": "fopen core \u2014 alloc FILE (1e46) then open via 16fc (path/mode/share)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_04da; FUN_1d1d_1e46; FUN_1d1d_16fc"
+      },
+      "FUN_1d1d_04f0": {
+        "system": "platform",
+        "purpose": "fprintf(FILE*,fmt,...) \u2014 lock 17e4, format 196e, unlock 1857",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_196e; FUN_1d1d_0712; FUN_1d1d_17e4; FUN_1d1d_1857"
+      },
+      "FUN_1d1d_0528": {
+        "system": "platform",
+        "purpose": "fread(ptr,size,n,FILE*) \u2014 buffered/direct read; EOF/error flag bits",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0d82; FUN_1d1d_1556; FUN_1d1d_1f14"
+      },
+      "FUN_1d1d_060c": {
+        "system": "platform",
+        "purpose": "fwrite(ptr,size,n,FILE*) \u2014 buffered/direct write; flush 1896 when needed",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0d82; FUN_1d1d_15ec; FUN_1d1d_1896; FUN_1d1d_1ffe"
+      },
+      "FUN_1d1d_0750": {
+        "system": "platform",
+        "purpose": "putchar \u2014 putc into stdout FILE at DS:0x2916",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0758; FUN_1d1d_15ec"
+      },
+      "FUN_1d1d_0758": {
+        "system": "platform",
+        "purpose": "putc(c,FILE*) \u2014 buffer or flush via 15ec",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_15ec; FUN_1b2c_0040"
+      },
+      "FUN_1d1d_0786": {
+        "system": "platform",
+        "purpose": "getc(FILE*) \u2014 from buffer or refill via 1556",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1556; FUN_1b2c_0004"
+      },
+      "FUN_1d1d_0894": {
+        "system": "platform",
+        "purpose": "strncpy \u2014 copy \u2264n chars; pad with NUL if src shorter",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_08bc": {
+        "system": "platform",
+        "purpose": "strncmp \u2014 compare \u2264n chars; return <0/0/>0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0916": {
+        "system": "platform",
+        "purpose": "ltoa \u2014 signed long\u2192string (BL=1 entry into 2526 radix converter)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2526; FUN_1d1d_08fa"
+      },
+      "FUN_1d1d_0942": {
+        "system": "platform",
+        "purpose": "getenv \u2014 scan environ at DS:27d3 for NAME=; return value ptr",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0842; FUN_1d1d_08bc"
+      },
+      "FUN_1d1d_09ca": {
+        "system": "platform",
+        "purpose": "fgets(buf,n,FILE*) \u2014 read line (stop at LF/EOF); NUL-terminate",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1556"
+      },
+      "FUN_1d1d_0abe": {
+        "system": "platform",
+        "purpose": "fsetpos(FILE*,fpos_t*) \u2014 fseek to saved dword offset (origin SEEK_SET)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0a3e"
+      },
+      "FUN_1d1d_0ad8": {
+        "system": "platform",
+        "purpose": "rewind(FILE*) \u2014 flush 1896, clear EOF/error flags, DOS lseek 0",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1896; FUN_1d1d_1e9a"
+      },
+      "FUN_1d1d_0b1c": {
+        "system": "platform",
+        "purpose": "setbuf(FILE*,buf) \u2014 NULL\u2192_IONBF else 512-byte buffer via setvbuf 2406",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2406"
+      },
+      "FUN_1d1d_0ba2": {
+        "system": "platform",
+        "purpose": "filelength(fd) \u2014 lseek CUR/END/restore via 1e9a; return size or \u22121",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1e9a"
+      },
+      "FUN_1d1d_0c80": {
+        "system": "platform",
+        "purpose": "stricmp/strcmpi \u2014 case-insensitive string compare",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0cc2": {
+        "system": "platform",
+        "purpose": "strnicmp \u2014 case-insensitive compare of \u2264n chars",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_0d1a": {
+        "system": "platform",
+        "purpose": "strrchr \u2014 find last occurrence of char in string (else null)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_10ea"
+      },
+      "FUN_1d1d_0d46": {
+        "system": "platform",
+        "purpose": "strlwr \u2014 in-place ASCII A\u2013Z \u2192 a\u2013z",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0d64"
+      },
+      "FUN_1d1d_0ddc": {
+        "system": "platform",
+        "purpose": "labs \u2014 32-bit absolute value (NEG DX:AX if sign word < 0)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1d1d_0df2": {
+        "system": "platform",
+        "purpose": "srand \u2014 seed DOS LCG state at DS:0x28ee/0x28f0 (hi word 0)",
+        "confidence": "known",
+        "links": "FUN_1d1d_0e04; FUN_19ef_0008; FUN_19ef_001a"
+      },
+      "FUN_1d1d_0e2c": {
+        "system": "platform",
+        "purpose": "searchpath \u2014 locate file on PATH (chkstk + 2586 getenv/concat probe)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2586; FUN_1d1d_03d0; FUN_1d1d_0942"
+      },
+      "FUN_1d1d_0e4a": {
+        "system": "platform",
+        "purpose": "unlink/remove \u2014 INT21 AH=41 delete file; status via 1500",
+        "confidence": "known",
+        "links": "FUN_1d1d_1500"
+      },
+      "FUN_1d1d_0e58": {
+        "system": "platform",
+        "purpose": "findnext \u2014 INT21 AH=4F (shared DTA save/restore path with 0e63)",
+        "confidence": "known",
+        "links": "FUN_1d1d_0e63; FUN_1d1d_1508"
+      },
+      "FUN_1d1d_0e63": {
+        "system": "platform",
+        "purpose": "findfirst \u2014 INT21 AH=4E with AH=2F/1A DTA get/set around search",
+        "confidence": "known",
+        "links": "FUN_1d1d_0e58; FUN_1d1d_1508"
+      },
+      "FUN_1d1d_0e96": {
+        "system": "platform",
+        "purpose": "DOS read \u2014 INT21 AH=3F (handle/buf/len); optional [0x2b18] hook",
+        "confidence": "known",
+        "links": "FUN_1d1d_0e9d; FUN_1d1d_1508"
+      },
+      "FUN_1d1d_0e9d": {
+        "system": "platform",
+        "purpose": "DOS write \u2014 INT21 AH=40 (handle/buf/len); optional [0x2b18] hook",
+        "confidence": "known",
+        "links": "FUN_1d1d_0e96; FUN_1d1d_1508"
+      },
+      "FUN_1d1d_0f92": {
+        "system": "platform",
+        "purpose": "In-place 32-bit /= \u2014 *dividend /= divisor via signed div 0ec6",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0ec6"
+      },
+      "FUN_1d1d_1010": {
+        "system": "platform",
+        "purpose": "strchr (far) \u2014 find first char in string (else null)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0c56"
+      },
+      "FUN_1d1d_103e": {
+        "system": "platform",
+        "purpose": "stricmp (far) \u2014 case-insensitive string compare",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0c80"
+      },
+      "FUN_1d1d_1084": {
+        "system": "platform",
+        "purpose": "strncmp (far) \u2014 compare \u2264n chars",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_08bc"
+      },
+      "FUN_1d1d_10c0": {
+        "system": "platform",
+        "purpose": "strncpy (far) \u2014 copy \u2264n chars; NUL-pad if src shorter",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0894"
+      },
+      "FUN_1d1d_10ea": {
+        "system": "platform",
+        "purpose": "strrchr (far) \u2014 find last char in string (else null)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0d1a; FUN_1b32_000e"
+      },
+      "FUN_1d1d_1118": {
+        "system": "platform",
+        "purpose": "strupr (far) \u2014 in-place ASCII a\u2013z \u2192 A\u2013Z",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0d64"
+      },
+      "FUN_1d1d_1242": {
+        "system": "platform",
+        "purpose": "CRT abort emit: write msgs 0xFC then 0xFF via 14c9; optional far hook DS:0x28f2",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_14c9; FUN_1d1d_0223"
+      },
+      "FUN_1d1d_1264": {
+        "system": "platform",
+        "purpose": "Abort wrapper \u2014 AX=2 then jump FUN_1d1d_0223",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0223"
+      },
+      "FUN_1d1d_126a": {
+        "system": "platform",
+        "purpose": "Validate PSP XOR checksum (0x42 bytes ^0x55); fail \u2192 abort + msg 1",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1242; FUN_1d1d_14c9"
+      },
+      "FUN_1d1d_128e": {
+        "system": "platform",
+        "purpose": "CRT startup: INT21 AH=30 DOS ver; build argv/env from PSP; jump app entry",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1420"
+      },
+      "FUN_1d1d_1420": {
+        "system": "platform",
+        "purpose": "Build CRT environ[] pointer vector from DOS env block (via 26dc)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_26dc; FUN_1d1d_128e"
+      },
+      "FUN_1d1d_149e": {
+        "system": "platform",
+        "purpose": "Lookup CRT message string by id in table DS:0x2b42",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_14c9"
+      },
+      "FUN_1d1d_14c9": {
+        "system": "platform",
+        "purpose": "Write CRT msg id to stderr (INT21 AH=40 BX=2) after 149e lookup",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_149e"
+      },
+      "FUN_1d1d_1500": {
+        "system": "platform",
+        "purpose": "DOS CF check: success\u21920 else set errno (1528) and return \u22121",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1528; FUN_1d1d_1515"
+      },
+      "FUN_1d1d_1508": {
+        "system": "platform",
+        "purpose": "DOS CF check: success\u21920 else map errno (1528) and return AL",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1528"
+      },
+      "FUN_1d1d_1515": {
+        "system": "platform",
+        "purpose": "On DOS CF set errno via 1528; return \u22121 (else passthrough)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1528"
+      },
+      "FUN_1d1d_1528": {
+        "system": "platform",
+        "purpose": "Map DOS error AL\u2192errno at DS:0x27ac (table DS:0x28fa)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1556": {
+        "system": "platform",
+        "purpose": "getc \u2014 buffered FILE get char; refill via DOS read 1f14",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1f14; FUN_1d1d_2702"
+      },
+      "FUN_1d1d_15ec": {
+        "system": "platform",
+        "purpose": "putc \u2014 buffered FILE put char; flush via DOS write 1ffe",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1ffe; FUN_1d1d_1e9a"
+      },
+      "FUN_1d1d_16d0": {
+        "system": "platform",
+        "purpose": "Free FILE heap buffer (flag&8) via 2c44; clear FILE ptrs",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c44"
+      },
+      "FUN_1d1d_16fc": {
+        "system": "platform",
+        "purpose": "fopen mode parse (r/w/a/+ /t/b) then _open 2746; init FILE",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2746; FUN_1d1d_04ae"
+      },
+      "FUN_1d1d_17e4": {
+        "system": "platform",
+        "purpose": "Ensure stdin/stdout/stderr FILE get 0x200 heap buffer",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c65"
+      },
+      "FUN_1d1d_1857": {
+        "system": "platform",
+        "purpose": "Flush console/device FILE if flag&0x10 + device bit; optional clear buf",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1896"
+      },
+      "FUN_1d1d_1896": {
+        "system": "platform",
+        "purpose": "fflush \u2014 write FILE buffer via 1ffe; NULL FILE \u2192 flushall 1912",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1ffe; FUN_1d1d_1912; FUN_1d1d_0a3e"
+      },
+      "FUN_1d1d_1912": {
+        "system": "platform",
+        "purpose": "flushall \u2014 fflush each open FILE in table DS:0x290e..0x2a4e",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1896"
+      },
+      "FUN_1d1d_196e": {
+        "system": "platform",
+        "purpose": "printf/sprintf engine \u2014 dispatch format chars via table DS:0x2a56",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0712; FUN_1d1d_0b48; FUN_1d1d_1daa"
+      },
+      "FUN_1d1d_1daa": {
+        "system": "platform",
+        "purpose": "printf putc \u2014 store AL into FILE buffer (or flush via 15ec)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_15ec; FUN_1d1d_1dd4"
+      },
+      "FUN_1d1d_1e46": {
+        "system": "platform",
+        "purpose": "Alloc free FILE slot from CRT table DS:0x290e..0x2a4e",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_04ae; FUN_1d1d_16fc"
+      },
+      "FUN_1d1d_1f14": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=3F read handle; text mode CR/LF\u2192LF translate",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1556; FUN_1d1d_1515"
+      },
+      "FUN_1d1d_1ffe": {
+        "system": "platform",
+        "purpose": "DOS write handle; text mode LF\u2192CRLF then INT21 AH=40",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_20b2; FUN_1d1d_210a; FUN_1d1d_1896"
+      },
+      "FUN_1d1d_20b2": {
+        "system": "platform",
+        "purpose": "Flush stacked write chunk via INT21 AH=40; fail \u2192 1515",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1ffe; FUN_1d1d_1515"
+      },
+      "FUN_1d1d_20fc": {
+        "system": "platform",
+        "purpose": "Write-fail epilogue \u2192 set errno via 1515",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1515"
+      },
+      "FUN_1d1d_210a": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=40 write CX bytes (binary/raw path); then 1515",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1ffe; FUN_1d1d_1515"
+      },
+      "FUN_1d1d_213e": {
+        "system": "platform",
+        "purpose": "Near-heap grow: expand arena size then AH=4A via 21ca",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_21ca; FUN_1d1d_221b; FUN_1d1d_2c65"
+      },
+      "FUN_1d1d_21ca": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=4A resize mem block (paragraphs)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_213e"
+      },
+      "FUN_1d1d_221b": {
+        "system": "platform",
+        "purpose": "Walk near-heap free-list to 0xFFFE end marker",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_213e"
+      },
+      "FUN_1d1d_223c": {
+        "system": "platform",
+        "purpose": "atoi \u2014 parse signed decimal integer from string",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_2290": {
+        "system": "platform",
+        "purpose": "ftell core \u2014 FILE logical pos via lseek 1e9a \u00b1 buffer adjust",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_09a2; FUN_1d1d_1e9a"
+      },
+      "FUN_1d1d_2406": {
+        "system": "platform",
+        "purpose": "setvbuf \u2014 attach/alloc FILE buffer (_IOFBF/_IONBF/_IOLBF-style)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_1896; FUN_1d1d_16d0; FUN_1d1d_2c65"
+      },
+      "FUN_1d1d_2526": {
+        "system": "platform",
+        "purpose": "ultoa/ltoa \u2014 convert long to ASCII digits in buffer (radix)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_08fa; FUN_1d1d_196e"
+      },
+      "FUN_1d1d_2586": {
+        "system": "platform",
+        "purpose": "Search PATH dirs for file then spawn via 2b32; free temp path",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2b32; FUN_1d1d_0942; FUN_1d1d_2c65"
+      },
+      "FUN_1d1d_26dc": {
+        "system": "platform",
+        "purpose": "Heap alloc with temp brk=0x400 via 2c65; fail \u2192 abort 0223",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c65; FUN_1d1d_0223; FUN_1d1d_1420"
+      },
+      "FUN_1d1d_2702": {
+        "system": "platform",
+        "purpose": "Alloc/attach default 0x200 FILE buffer (or unbuffered fallback)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c65; FUN_1d1d_1556"
+      },
+      "FUN_1d1d_2746": {
+        "system": "platform",
+        "purpose": "DOS open/creat (INT21 AH=3D/3C) with share/text flags; fill fd table",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_16fc; FUN_1d1d_1515; FUN_1d1d_28f1"
+      },
+      "FUN_1d1d_28f1": {
+        "system": "platform",
+        "purpose": "Map DOS open access bits (CX vs mask DS:0x27ae) into CL flags",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2746"
+      },
+      "FUN_1d1d_2902": {
+        "system": "platform",
+        "purpose": "Stack free bytes remaining above watermark DS:0x27e6",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_03d0"
+      },
+      "FUN_1d1d_2922": {
+        "system": "platform",
+        "purpose": "Near-heap malloc \u2014 carve block from free-list (arena DS:0x2778)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c65; FUN_1d1d_2c44"
+      },
+      "FUN_1d1d_299e": {
+        "system": "platform",
+        "purpose": "spawn/exec setup: env block 2c8e, open COM/EXE, hand off 2f06",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c8e; FUN_1d1d_2f06; FUN_1d1d_2746"
+      },
+      "FUN_1d1d_2b32": {
+        "system": "platform",
+        "purpose": "exec path: try .COM/.EXE/.BAT suffixes then spawn 299e",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_299e; FUN_1d1d_328a"
+      },
+      "FUN_1d1d_2c44": {
+        "system": "platform",
+        "purpose": "free \u2014 mark near-heap block free (size|1; update rover DS:0x2780)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2c65; FUN_1d1d_2922"
+      },
+      "FUN_1d1d_2c65": {
+        "system": "platform",
+        "purpose": "malloc \u2014 near-heap alloc via 2922; grow arena 213e on fail",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2922; FUN_1d1d_213e"
+      },
+      "FUN_1d1d_328a": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=43 get file attrs; \u22121 if mode&2 and read-only",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_2b32"
+      },
+      "FUN_210d_0727": {
+        "system": "platform",
+        "purpose": "DOS/EMS bootstrap: INT21 AH=30, INT67 AH=42/43/45, INT21 AH=4A arenas + overlay setup",
+        "confidence": "known",
+        "links": "entry; FUN_210d_4c83; FUN_210d_4ce3"
+      },
+      "FUN_210d_1268": {
+        "system": "platform",
+        "purpose": "Overlay RETF epilogue: 2607/265a stack EMS scan + illegal-mapping check",
+        "confidence": "inferred",
+        "links": "FUN_210d_2607; FUN_210d_265a; FUN_210d_2982"
+      },
+      "FUN_210d_12ad": {
+        "system": "platform",
+        "purpose": "Snapshot EMS mapping into CS:3964..396a; set flag bit2",
+        "confidence": "inferred",
+        "links": "FUN_210d_1341"
+      },
+      "FUN_210d_1341": {
+        "system": "platform",
+        "purpose": "EMS overlay gate: set 290d.bit6; 2684/12ad scan or illegal-mapping\u21922982",
+        "confidence": "inferred",
+        "links": "FUN_210d_1268; FUN_210d_2684; FUN_210d_12ad"
+      },
+      "FUN_210d_1407": {
+        "system": "platform",
+        "purpose": "EMS mapping validate on overlay return (2907 slot / 2684 / 2982)",
+        "confidence": "inferred",
+        "links": "FUN_210d_2684; FUN_210d_2982"
+      },
+      "FUN_210d_167b": {
+        "system": "platform",
+        "purpose": "Thunk \u2192 3791 resident dispatch (fixed AX/BX/CX/DX diagnostic args)",
+        "confidence": "known",
+        "links": "FUN_210d_3791"
+      },
+      "FUN_210d_1bc4": {
+        "system": "platform",
+        "purpose": "DOS mem arena \u00b1paras (INT21 AH=4A via 1c43) or measure free; EMS path via 1341",
+        "confidence": "known",
+        "links": "FUN_210d_1c43; FUN_210d_1341; FUN_210d_54d0"
+      },
+      "FUN_210d_1c43": {
+        "system": "platform",
+        "purpose": "INT21 AH=4A: resize arena ES:[28f3] to 28f9+AX paragraphs",
+        "confidence": "known",
+        "links": "FUN_210d_1bc4"
+      },
+      "FUN_210d_1c61": {
+        "system": "platform",
+        "purpose": "Write overlay list-head word (CS:3952) into caller far ptr",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_1c75": {
+        "system": "platform",
+        "purpose": "Far wrapper \u2192 1d49 overlay-chain flush",
+        "confidence": "known",
+        "links": "FUN_210d_1d49"
+      },
+      "FUN_210d_1d49": {
+        "system": "platform",
+        "purpose": "Flush overlay chain (1dbd/2b22) until head\u22650x216; clear caseD_b",
+        "confidence": "inferred",
+        "links": "FUN_210d_1dbd; FUN_210d_2b22"
+      },
+      "FUN_210d_2019": {
+        "system": "platform",
+        "purpose": "Retain EMS overlay: set flags + INC [6]; overflow\u219233e3/58c2 then [6]=0x1000",
+        "confidence": "inferred",
+        "links": "FUN_210d_33e3; FUN_210d_58c2; FUN_210d_5808"
+      },
+      "FUN_210d_238e": {
+        "system": "platform",
+        "purpose": "Add DX into word at [BX] if nonzero (reloc delta apply)",
+        "confidence": "known",
+        "links": "FUN_210d_3564; FUN_210d_2e59"
+      },
+      "FUN_210d_2492": {
+        "system": "platform",
+        "purpose": "Normalize ES:DI\u2192seg; classify vs EMS window/overlay slots (else 0xece)",
+        "confidence": "inferred",
+        "links": "FUN_210d_2590; FUN_210d_2607"
+      },
+      "FUN_210d_2607": {
+        "system": "platform",
+        "purpose": "Walk SS far-ptr chain via 2492 until EMS-window hit",
+        "confidence": "inferred",
+        "links": "FUN_210d_2492; FUN_210d_1268"
+      },
+      "FUN_210d_265a": {
+        "system": "platform",
+        "purpose": "Arm stack EMS-scan mode (bit2 + save SP) then fall into 2684",
+        "confidence": "inferred",
+        "links": "FUN_210d_2684"
+      },
+      "FUN_210d_2684": {
+        "system": "platform",
+        "purpose": "BP/SS stack walk: probe CALLF/JMPF near EMS window; fail\u21922982/3791",
+        "confidence": "inferred",
+        "links": "FUN_210d_2492; FUN_210d_239d; FUN_210d_2982"
+      },
+      "FUN_210d_2a48": {
+        "system": "platform",
+        "purpose": "If overlay slot live with retain list: retain page(s) via 5808",
+        "confidence": "inferred",
+        "links": "FUN_210d_5808"
+      },
+      "FUN_210d_2a6e": {
+        "system": "platform",
+        "purpose": "Walk SI overlay back-chain (-1 sentinels); optional 1ebd unmap / 39d9 cb",
+        "confidence": "inferred",
+        "links": "FUN_210d_1ebd; FUN_210d_2aa5"
+      },
+      "FUN_210d_2ae5": {
+        "system": "platform",
+        "purpose": "Release EMS overlay retain (5856); maybe 2d5a commit if flags&0x21",
+        "confidence": "inferred",
+        "links": "FUN_210d_5856; FUN_210d_2d5a; FUN_210d_2b22"
+      },
+      "FUN_210d_2b9b": {
+        "system": "platform",
+        "purpose": "Ensure EMS space (2c57); if flags&6: copy page hdr + stream-read via 409c",
+        "confidence": "inferred",
+        "links": "FUN_210d_2c57; FUN_210d_402f; FUN_210d_409c"
+      },
+      "FUN_210d_2c57": {
+        "system": "platform",
+        "purpose": "Compute EMS page need; loop 40e6 bank/alloc until fit (fail\u21923791)",
+        "confidence": "inferred",
+        "links": "FUN_210d_40e6; FUN_210d_3791"
+      },
+      "FUN_210d_2d5a": {
+        "system": "platform",
+        "purpose": "Commit EMS overlay slot: relink retain list / 5699 or 56e5",
+        "confidence": "inferred",
+        "links": "FUN_210d_1dbd; FUN_210d_5699; FUN_210d_56e5"
+      },
+      "FUN_210d_2e78": {
+        "system": "platform",
+        "purpose": "Map EMS physical pages into window (552c/5716); fail\u21923791",
+        "confidence": "inferred",
+        "links": "FUN_210d_552c; FUN_210d_5716"
+      },
+      "FUN_210d_3018": {
+        "system": "platform",
+        "purpose": "Opcode probe: near CALL (E8) at DI-3 \u2192 3254",
+        "confidence": "inferred",
+        "links": "FUN_210d_3254; FUN_210d_2fd2"
+      },
+      "FUN_210d_302e": {
+        "system": "platform",
+        "purpose": "Opcode probe: far CALL (9A) at DI-5 \u2192 3254",
+        "confidence": "inferred",
+        "links": "FUN_210d_3254; FUN_210d_2fd2"
+      },
+      "FUN_210d_3046": {
+        "system": "platform",
+        "purpose": "Opcode probe: INT3/INTO/INT 0 at DI \u2192 3080\u21923254",
+        "confidence": "inferred",
+        "links": "FUN_210d_3080; FUN_210d_2fd2"
+      },
+      "FUN_210d_3080": {
+        "system": "platform",
+        "purpose": "Forward to 3254 CALLF/JMPF opcode probe",
+        "confidence": "known",
+        "links": "FUN_210d_3254"
+      },
+      "FUN_210d_3094": {
+        "system": "platform",
+        "purpose": "Opcode probe: FF/modrm forms \u2192 reloc helpers 3147/3179/31c4 + 3254",
+        "confidence": "inferred",
+        "links": "FUN_210d_3147; FUN_210d_3179; FUN_210d_31c4; FUN_210d_3254"
+      },
+      "FUN_210d_3322": {
+        "system": "platform",
+        "purpose": "Opcode probe: walk back \u22644 for ES:MOV (0x8B26) + mask-0x1f checks",
+        "confidence": "inferred",
+        "links": "FUN_210d_2fd2"
+      },
+      "FUN_210d_3367": {
+        "system": "platform",
+        "purpose": "Opcode probe: RETF+PUSH AX/DX with PUSH CS/imm \u2192 3254",
+        "confidence": "inferred",
+        "links": "FUN_210d_3254; FUN_210d_2fd2"
+      },
+      "FUN_210d_3564": {
+        "system": "platform",
+        "purpose": "EMS/DOS arena compact: INT21 AH=48/4A/49 (+set INT21 vec); reload stream; 238e relocs",
+        "confidence": "known",
+        "links": "FUN_210d_1ac4; FUN_210d_1bc4; FUN_210d_4052; FUN_210d_238e"
+      },
+      "FUN_210d_3a0f": {
+        "system": "platform",
+        "purpose": "Resolve/open .EXE path (suffix check + INT21 AH=3D) or copy via 275d helpers",
+        "confidence": "inferred",
+        "links": "FUN_275d_0a4f; FUN_275d_0909"
+      },
+      "FUN_210d_3d9b": {
+        "system": "platform",
+        "purpose": "Alloc/init EMS page-map tables (AL selects path); fill [20..] indices + sizes",
+        "confidence": "inferred",
+        "links": "FUN_210d_4a4c; FUN_210d_4454; FUN_210d_4ce3"
+      },
+      "FUN_210d_3f46": {
+        "system": "platform",
+        "purpose": "Validate EMS page budget vs CS:4e80/4e82; CF if short",
+        "confidence": "inferred",
+        "links": "FUN_210d_40e6"
+      },
+      "FUN_210d_3fb7": {
+        "system": "platform",
+        "purpose": "Walk retain chain @[16]: refresh max EMS sizes; clear flags&0xe",
+        "confidence": "inferred",
+        "links": "FUN_210d_40e6"
+      },
+      "FUN_210d_402f": {
+        "system": "platform",
+        "purpose": "Seed overlay I/O cursor [1a/1c/1e] from page header at 28cf+AX",
+        "confidence": "inferred",
+        "links": "FUN_210d_4052; FUN_210d_2b9b"
+      },
+      "FUN_210d_4052": {
+        "system": "platform",
+        "purpose": "Read CX overlay bytes in \u22640x400 chunks (4e28/466e/4e3b)",
+        "confidence": "inferred",
+        "links": "FUN_210d_466e; FUN_210d_409c"
+      },
+      "FUN_210d_40e6": {
+        "system": "platform",
+        "purpose": "Allocate/bank EMS pages into window; link page chain + set flags",
+        "confidence": "inferred",
+        "links": "FUN_210d_3f46; FUN_210d_3fb7; FUN_210d_2c57"
+      },
+      "FUN_210d_43f0": {
+        "system": "platform",
+        "purpose": "Build EMS page LUT (49db) into 46fd\u00d70x400 slots if flags&1",
+        "confidence": "inferred",
+        "links": "FUN_210d_49db; FUN_210d_4e4e"
+      },
+      "FUN_210d_4454": {
+        "system": "platform",
+        "purpose": "EMS error diagnostic: hex-patch AH/AX via 45da then JMP 37ad ('Pa\u2026')",
+        "confidence": "inferred",
+        "links": "FUN_210d_45da; FUN_210d_37ad"
+      },
+      "FUN_210d_44db": {
+        "system": "platform",
+        "purpose": "EMS status diagnostic: hex-patch via 45da then JMP 37ad ('Te\u2026')",
+        "confidence": "inferred",
+        "links": "FUN_210d_45da; FUN_210d_37ad"
+      },
+      "FUN_210d_45da": {
+        "system": "platform",
+        "purpose": "Store AL as 2 hex ASCII digits at ES:DI (high nibble\u219245e7, then low)",
+        "confidence": "known",
+        "links": "FUN_210d_45e7; FUN_210d_45d3"
+      },
+      "FUN_210d_45e7": {
+        "system": "platform",
+        "purpose": "Hex nibble\u2192ASCII (DAA) STOSB at ES:DI",
+        "confidence": "known",
+        "links": "FUN_210d_45da"
+      },
+      "FUN_210d_45f1": {
+        "system": "platform",
+        "purpose": "Advance overlay-stream cursor (wrap 0x400); swap EMS map regs; maybe 4454/44db",
+        "confidence": "inferred",
+        "links": "FUN_210d_409c; FUN_210d_470f; FUN_210d_4751"
+      },
+      "FUN_210d_466e": {
+        "system": "platform",
+        "purpose": "EMS bank transfer: map page (AH=44) + REP MOVSW, or 44db path; advance 1KB index via [BX+0x20]",
+        "confidence": "known",
+        "links": "FUN_210d_470f; FUN_210d_4751; FUN_210d_4454; FUN_210d_44db"
+      },
+      "FUN_210d_470f": {
+        "system": "platform",
+        "purpose": "Build EMS transfer descriptor (paras<<4, handle/ES:DI, copy length) for banked MOVSW path",
+        "confidence": "inferred",
+        "links": "FUN_210d_466e"
+      },
+      "FUN_210d_4751": {
+        "system": "platform",
+        "purpose": "Build alternate EMS/XMS move descriptor (DX high-bits packed into linear addr) for 44db path",
+        "confidence": "inferred",
+        "links": "FUN_210d_466e; FUN_210d_44db"
+      },
+      "FUN_210d_479f": {
+        "system": "platform",
+        "purpose": "Coalesce freed EMS overlay page block into neighbor freelists (1KB pages; flags at [0])",
+        "confidence": "inferred",
+        "links": "FUN_210d_49c3"
+      },
+      "FUN_210d_49c3": {
+        "system": "platform",
+        "purpose": "Walk EMS page-link words at [BX+0x20] for CX>>10 steps; return CX&0x3ff remainder",
+        "confidence": "known",
+        "links": "FUN_210d_479f"
+      },
+      "FUN_210d_49db": {
+        "system": "platform",
+        "purpose": "Find free EMS physical page in bitmap 4eb4/4eb6; compute A000-based frame offset",
+        "confidence": "inferred",
+        "links": "FUN_210d_4a4c"
+      },
+      "FUN_210d_4a4c": {
+        "system": "platform",
+        "purpose": "EMS init: detect (4c83), get/set INT67, parse frame/env, map pages via 4454, seed bitmaps",
+        "confidence": "known",
+        "links": "FUN_210d_4c83; FUN_210d_4454; FUN_210d_051a; FUN_275d_08ad"
+      },
+      "FUN_210d_4c83": {
+        "system": "platform",
+        "purpose": "EMS detect: INT21 AH=35 INT67, EMMXXXX0 CMPSW, INT67 AH=46 version\u22653.2 + AH=41 page frame",
+        "confidence": "known",
+        "links": "FUN_275d_048f; FUN_210d_4a4c"
+      },
+      "FUN_210d_4ce3": {
+        "system": "platform",
+        "purpose": "XMS detect: DOS\u22653, INT2F 4300/4310, driver AX=0 version\u22652.00; stash entry at CS:4e84",
+        "confidence": "known",
+        "links": "FUN_275d_048f; FUN_210d_5247"
+      },
+      "FUN_210d_4d4f": {
+        "system": "platform",
+        "purpose": "Drain deferred EMS overlay lock queue (flag 0x10): unlink nodes from list at [0x18]",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_4de3": {
+        "system": "platform",
+        "purpose": "Cache current EMS overlay page context (seg/handle/page counts) into CS:4e7a..4e82",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_210d_4e28": {
+        "system": "platform",
+        "purpose": "EMS save page map (AH=47 via 4454) when overlay mapped flag [0] bit0 set",
+        "confidence": "known",
+        "links": "FUN_210d_4454"
+      },
+      "FUN_210d_4e3b": {
+        "system": "platform",
+        "purpose": "EMS restore page map (AH=48 via 4454) when overlay mapped flag [0] bit0 set",
+        "confidence": "known",
+        "links": "FUN_210d_4454"
+      },
+      "FUN_210d_4e4e": {
+        "system": "platform",
+        "purpose": "Map EMS pages from SI list (AH=50 if ver\u22654.0 else AH=44 loop via 4454)",
+        "confidence": "known",
+        "links": "FUN_210d_4454"
+      },
+      "FUN_210d_4fe5": {
+        "system": "platform",
+        "purpose": "Init overlay heap arena: free-list heads, size, alignment masks from BX bit count",
+        "confidence": "inferred",
+        "links": "FUN_210d_508b"
+      },
+      "FUN_210d_508b": {
+        "system": "platform",
+        "purpose": "Insert/grow overlay heap free block into doubly-linked arena; update free totals",
+        "confidence": "inferred",
+        "links": "FUN_210d_5a9d; FUN_210d_536e"
+      },
+      "FUN_210d_5247": {
+        "system": "platform",
+        "purpose": "Probe DOS ver + UMB link (AH=58); call XMS detect 4ce3; set strategy capability flags",
+        "confidence": "known",
+        "links": "FUN_210d_4ce3"
+      },
+      "FUN_210d_52a6": {
+        "system": "platform",
+        "purpose": "Largest free memory: XMS UMB query or DOS AH=48 after save/restore strategy (538c/52d3/53b5)",
+        "confidence": "known",
+        "links": "FUN_210d_538c; FUN_210d_52d3; FUN_210d_53b5"
+      },
+      "FUN_210d_52d3": {
+        "system": "platform",
+        "purpose": "DOS free-memory probe (INT21 AH=48 BX=FFFF) \u2192 available paragraphs in AX",
+        "confidence": "known",
+        "links": "FUN_210d_52a6"
+      },
+      "FUN_210d_535c": {
+        "system": "platform",
+        "purpose": "Grow overlay arena via XMS/UMB alloc callback at 52df (loop through 536e)",
+        "confidence": "inferred",
+        "links": "FUN_210d_536e; FUN_210d_508b"
+      },
+      "FUN_210d_5365": {
+        "system": "platform",
+        "purpose": "Grow overlay arena via DOS AH=48 alloc callback at 5338 (loop through 536e)",
+        "confidence": "inferred",
+        "links": "FUN_210d_536e; FUN_210d_508b"
+      },
+      "FUN_210d_536e": {
+        "system": "platform",
+        "purpose": "Alloc-loop driver: CALL DI allocator, on success register block via 508b until size met",
+        "confidence": "inferred",
+        "links": "FUN_210d_508b; FUN_210d_535c; FUN_210d_5365"
+      },
+      "FUN_210d_538c": {
+        "system": "platform",
+        "purpose": "Save DOS alloc strategy+UMB link; set first-fit-high + UMB linked (INT21 AH=58)",
+        "confidence": "known",
+        "links": "FUN_210d_53b5; FUN_210d_52a6"
+      },
+      "FUN_210d_53b5": {
+        "system": "platform",
+        "purpose": "Restore prior DOS alloc strategy + UMB link state (INT21 AH=58 AL=1/3)",
+        "confidence": "known",
+        "links": "FUN_210d_538c; FUN_210d_53cb"
+      },
+      "FUN_210d_53cb": {
+        "system": "platform",
+        "purpose": "Shared POP BX/AX; RET epilogue for DOS AH=58 restore (Ghidra-split from 53b5)",
+        "confidence": "known",
+        "links": "FUN_210d_53b5"
+      },
+      "FUN_210d_545f": {
+        "system": "platform",
+        "purpose": "Shrink overlay heap free region by AX paragraphs; update freelist via 597f/59ce/5b9d",
+        "confidence": "inferred",
+        "links": "FUN_210d_597f; FUN_210d_59ce; FUN_210d_5a9d; FUN_210d_5b9d"
+      },
+      "FUN_210d_54d0": {
+        "system": "platform",
+        "purpose": "Grow overlay heap free region by AX; splice block via 5a9d/5bcb/5b9d",
+        "confidence": "inferred",
+        "links": "FUN_210d_5a9d; FUN_210d_5bcb; FUN_210d_5b9d"
+      },
+      "FUN_210d_552c": {
+        "system": "platform",
+        "purpose": "Overlay heap compact/coalesce pass: walk freelist, merge neighbors, remap presence bits",
+        "confidence": "inferred",
+        "links": "FUN_210d_5bcb; FUN_210d_5c9e; FUN_210d_5d49; FUN_210d_5b26"
+      },
+      "FUN_210d_5699": {
+        "system": "platform",
+        "purpose": "Unlink overlay block from freelist links; clear deferred-lock flag 0x10",
+        "confidence": "inferred",
+        "links": "FUN_210d_597f"
+      },
+      "FUN_210d_56e5": {
+        "system": "platform",
+        "purpose": "Bump overlay block refcount at +6; on wrap call 58c2; set busy flag 0x08",
+        "confidence": "inferred",
+        "links": "FUN_210d_58c2"
+      },
+      "FUN_210d_5716": {
+        "system": "platform",
+        "purpose": "Allocate paragraphs from overlay freelist (fit walk, split via 5a9d/5b26, mark presence)",
+        "confidence": "inferred",
+        "links": "FUN_210d_59ce; FUN_210d_5a9d; FUN_210d_5b26; FUN_210d_5a76"
+      },
+      "FUN_210d_5856": {
+        "system": "platform",
+        "purpose": "Release overlay block lock/refcount; unlink when count hits 0 (58f9/5afc)",
+        "confidence": "inferred",
+        "links": "FUN_210d_58f7; FUN_210d_58f9; FUN_210d_5afc"
+      },
+      "FUN_210d_58f7": {
+        "system": "platform",
+        "purpose": "Carry-clear stub (always success) gating overlay lock/unlock callers",
+        "confidence": "known",
+        "links": "FUN_210d_5856"
+      },
+      "FUN_210d_58f9": {
+        "system": "platform",
+        "purpose": "Unlink overlay block from busy/free doubly-linked list; clear flag bit3",
+        "confidence": "inferred",
+        "links": "FUN_210d_5856; FUN_210d_597f"
+      },
+      "FUN_210d_597f": {
+        "system": "platform",
+        "purpose": "Unlink overlay block from freelist (+0xc/+0xe); repair arena head pointers",
+        "confidence": "inferred",
+        "links": "FUN_210d_58f9; FUN_210d_5bcb"
+      },
+      "FUN_210d_59ce": {
+        "system": "platform",
+        "purpose": "Clear overlay page-presence bit in map; optional EMS notify (2684/265a/2590/2b9b)",
+        "confidence": "inferred",
+        "links": "FUN_210d_2684; FUN_210d_265a; FUN_210d_2590; FUN_210d_2b9b"
+      },
+      "FUN_210d_5a76": {
+        "system": "platform",
+        "purpose": "Set overlay page-presence bit in map for allocated block",
+        "confidence": "inferred",
+        "links": "FUN_210d_59ce"
+      },
+      "FUN_210d_5a9d": {
+        "system": "platform",
+        "purpose": "Insert block onto overlay freelist head; mark free (bit0); refresh max-free cache",
+        "confidence": "inferred",
+        "links": "FUN_210d_5afc; FUN_210d_508b"
+      },
+      "FUN_210d_5afc": {
+        "system": "platform",
+        "purpose": "Compute free size of overlay block (from +2, or distance to arena end)",
+        "confidence": "inferred",
+        "links": "FUN_210d_5a9d; FUN_210d_5b26; FUN_210d_5b9d"
+      },
+      "FUN_210d_5b26": {
+        "system": "platform",
+        "purpose": "Split overlay free block at BX; install new header and rewire +8/+0xa/+0xc links",
+        "confidence": "inferred",
+        "links": "FUN_210d_5afc"
+      },
+      "FUN_210d_5b9d": {
+        "system": "platform",
+        "purpose": "Walk overlay freelist to recompute max free size into 5dad",
+        "confidence": "inferred",
+        "links": "FUN_210d_5afc"
+      },
+      "FUN_210d_5bcb": {
+        "system": "platform",
+        "purpose": "Coalesce adjacent free overlay blocks; unlink absorbed nodes via 597f",
+        "confidence": "inferred",
+        "links": "FUN_210d_597f"
+      },
+      "FUN_210d_5c9e": {
+        "system": "platform",
+        "purpose": "Mark overlay block busy (clear free bit); split remainder back onto freelist",
+        "confidence": "inferred",
+        "links": "FUN_210d_5a9d"
+      },
+      "FUN_210d_5d49": {
+        "system": "platform",
+        "purpose": "Compare overlay block neighbor keys (+6) for coalesce/order eligibility",
+        "confidence": "inferred",
+        "links": "FUN_210d_552c"
+      },
+      "FUN_210d_5dd0": {
+        "system": "platform",
+        "purpose": "Far return CS:5dd8 overlay-runtime entry pointer with BX=FFFF",
+        "confidence": "known",
+        "links": ""
       }
     },
     "mapedit": {

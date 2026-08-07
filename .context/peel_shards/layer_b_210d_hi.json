@@ -1,0 +1,277 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_210d_hi",
+  "functions": {
+    "FUN_210d_466e": {
+      "system": "platform",
+      "purpose": "EMS bank transfer: map page (AH=44) + REP MOVSW, or 44db path; advance 1KB index via [BX+0x20]",
+      "confidence": "known",
+      "links": "FUN_210d_470f; FUN_210d_4751; FUN_210d_4454; FUN_210d_44db"
+    },
+    "FUN_210d_470f": {
+      "system": "platform",
+      "purpose": "Build EMS transfer descriptor (paras<<4, handle/ES:DI, copy length) for banked MOVSW path",
+      "confidence": "inferred",
+      "links": "FUN_210d_466e"
+    },
+    "FUN_210d_4751": {
+      "system": "platform",
+      "purpose": "Build alternate EMS/XMS move descriptor (DX high-bits packed into linear addr) for 44db path",
+      "confidence": "inferred",
+      "links": "FUN_210d_466e; FUN_210d_44db"
+    },
+    "FUN_210d_479f": {
+      "system": "platform",
+      "purpose": "Coalesce freed EMS overlay page block into neighbor freelists (1KB pages; flags at [0])",
+      "confidence": "inferred",
+      "links": "FUN_210d_49c3"
+    },
+    "FUN_210d_49c3": {
+      "system": "platform",
+      "purpose": "Walk EMS page-link words at [BX+0x20] for CX>>10 steps; return CX&0x3ff remainder",
+      "confidence": "known",
+      "links": "FUN_210d_479f"
+    },
+    "FUN_210d_49db": {
+      "system": "platform",
+      "purpose": "Find free EMS physical page in bitmap 4eb4/4eb6; compute A000-based frame offset",
+      "confidence": "inferred",
+      "links": "FUN_210d_4a4c"
+    },
+    "FUN_210d_4a4c": {
+      "system": "platform",
+      "purpose": "EMS init: detect (4c83), get/set INT67, parse frame/env, map pages via 4454, seed bitmaps",
+      "confidence": "known",
+      "links": "FUN_210d_4c83; FUN_210d_4454; FUN_210d_051a; FUN_275d_08ad"
+    },
+    "FUN_210d_4c83": {
+      "system": "platform",
+      "purpose": "EMS detect: INT21 AH=35 INT67, EMMXXXX0 CMPSW, INT67 AH=46 version≥3.2 + AH=41 page frame",
+      "confidence": "known",
+      "links": "FUN_275d_048f; FUN_210d_4a4c"
+    },
+    "FUN_210d_4ce3": {
+      "system": "platform",
+      "purpose": "XMS detect: DOS≥3, INT2F 4300/4310, driver AX=0 version≥2.00; stash entry at CS:4e84",
+      "confidence": "known",
+      "links": "FUN_275d_048f; FUN_210d_5247"
+    },
+    "FUN_210d_4d4f": {
+      "system": "platform",
+      "purpose": "Drain deferred EMS overlay lock queue (flag 0x10): unlink nodes from list at [0x18]",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_4de3": {
+      "system": "platform",
+      "purpose": "Cache current EMS overlay page context (seg/handle/page counts) into CS:4e7a..4e82",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_210d_4e28": {
+      "system": "platform",
+      "purpose": "EMS save page map (AH=47 via 4454) when overlay mapped flag [0] bit0 set",
+      "confidence": "known",
+      "links": "FUN_210d_4454"
+    },
+    "FUN_210d_4e3b": {
+      "system": "platform",
+      "purpose": "EMS restore page map (AH=48 via 4454) when overlay mapped flag [0] bit0 set",
+      "confidence": "known",
+      "links": "FUN_210d_4454"
+    },
+    "FUN_210d_4e4e": {
+      "system": "platform",
+      "purpose": "Map EMS pages from SI list (AH=50 if ver≥4.0 else AH=44 loop via 4454)",
+      "confidence": "known",
+      "links": "FUN_210d_4454"
+    },
+    "FUN_210d_4fe5": {
+      "system": "platform",
+      "purpose": "Init overlay heap arena: free-list heads, size, alignment masks from BX bit count",
+      "confidence": "inferred",
+      "links": "FUN_210d_508b"
+    },
+    "FUN_210d_508b": {
+      "system": "platform",
+      "purpose": "Insert/grow overlay heap free block into doubly-linked arena; update free totals",
+      "confidence": "inferred",
+      "links": "FUN_210d_5a9d; FUN_210d_536e"
+    },
+    "FUN_210d_5247": {
+      "system": "platform",
+      "purpose": "Probe DOS ver + UMB link (AH=58); call XMS detect 4ce3; set strategy capability flags",
+      "confidence": "known",
+      "links": "FUN_210d_4ce3"
+    },
+    "FUN_210d_52a6": {
+      "system": "platform",
+      "purpose": "Largest free memory: XMS UMB query or DOS AH=48 after save/restore strategy (538c/52d3/53b5)",
+      "confidence": "known",
+      "links": "FUN_210d_538c; FUN_210d_52d3; FUN_210d_53b5"
+    },
+    "FUN_210d_52d3": {
+      "system": "platform",
+      "purpose": "DOS free-memory probe (INT21 AH=48 BX=FFFF) → available paragraphs in AX",
+      "confidence": "known",
+      "links": "FUN_210d_52a6"
+    },
+    "FUN_210d_535c": {
+      "system": "platform",
+      "purpose": "Grow overlay arena via XMS/UMB alloc callback at 52df (loop through 536e)",
+      "confidence": "inferred",
+      "links": "FUN_210d_536e; FUN_210d_508b"
+    },
+    "FUN_210d_5365": {
+      "system": "platform",
+      "purpose": "Grow overlay arena via DOS AH=48 alloc callback at 5338 (loop through 536e)",
+      "confidence": "inferred",
+      "links": "FUN_210d_536e; FUN_210d_508b"
+    },
+    "FUN_210d_536e": {
+      "system": "platform",
+      "purpose": "Alloc-loop driver: CALL DI allocator, on success register block via 508b until size met",
+      "confidence": "inferred",
+      "links": "FUN_210d_508b; FUN_210d_535c; FUN_210d_5365"
+    },
+    "FUN_210d_538c": {
+      "system": "platform",
+      "purpose": "Save DOS alloc strategy+UMB link; set first-fit-high + UMB linked (INT21 AH=58)",
+      "confidence": "known",
+      "links": "FUN_210d_53b5; FUN_210d_52a6"
+    },
+    "FUN_210d_53b5": {
+      "system": "platform",
+      "purpose": "Restore prior DOS alloc strategy + UMB link state (INT21 AH=58 AL=1/3)",
+      "confidence": "known",
+      "links": "FUN_210d_538c; FUN_210d_53cb"
+    },
+    "FUN_210d_53cb": {
+      "system": "platform",
+      "purpose": "Shared POP BX/AX; RET epilogue for DOS AH=58 restore (Ghidra-split from 53b5)",
+      "confidence": "known",
+      "links": "FUN_210d_53b5"
+    },
+    "FUN_210d_545f": {
+      "system": "platform",
+      "purpose": "Shrink overlay heap free region by AX paragraphs; update freelist via 597f/59ce/5b9d",
+      "confidence": "inferred",
+      "links": "FUN_210d_597f; FUN_210d_59ce; FUN_210d_5a9d; FUN_210d_5b9d"
+    },
+    "FUN_210d_54d0": {
+      "system": "platform",
+      "purpose": "Grow overlay heap free region by AX; splice block via 5a9d/5bcb/5b9d",
+      "confidence": "inferred",
+      "links": "FUN_210d_5a9d; FUN_210d_5bcb; FUN_210d_5b9d"
+    },
+    "FUN_210d_552c": {
+      "system": "platform",
+      "purpose": "Overlay heap compact/coalesce pass: walk freelist, merge neighbors, remap presence bits",
+      "confidence": "inferred",
+      "links": "FUN_210d_5bcb; FUN_210d_5c9e; FUN_210d_5d49; FUN_210d_5b26"
+    },
+    "FUN_210d_5699": {
+      "system": "platform",
+      "purpose": "Unlink overlay block from freelist links; clear deferred-lock flag 0x10",
+      "confidence": "inferred",
+      "links": "FUN_210d_597f"
+    },
+    "FUN_210d_56e5": {
+      "system": "platform",
+      "purpose": "Bump overlay block refcount at +6; on wrap call 58c2; set busy flag 0x08",
+      "confidence": "inferred",
+      "links": "FUN_210d_58c2"
+    },
+    "FUN_210d_5716": {
+      "system": "platform",
+      "purpose": "Allocate paragraphs from overlay freelist (fit walk, split via 5a9d/5b26, mark presence)",
+      "confidence": "inferred",
+      "links": "FUN_210d_59ce; FUN_210d_5a9d; FUN_210d_5b26; FUN_210d_5a76"
+    },
+    "FUN_210d_5856": {
+      "system": "platform",
+      "purpose": "Release overlay block lock/refcount; unlink when count hits 0 (58f9/5afc)",
+      "confidence": "inferred",
+      "links": "FUN_210d_58f7; FUN_210d_58f9; FUN_210d_5afc"
+    },
+    "FUN_210d_58f7": {
+      "system": "platform",
+      "purpose": "Carry-clear stub (always success) gating overlay lock/unlock callers",
+      "confidence": "known",
+      "links": "FUN_210d_5856"
+    },
+    "FUN_210d_58f9": {
+      "system": "platform",
+      "purpose": "Unlink overlay block from busy/free doubly-linked list; clear flag bit3",
+      "confidence": "inferred",
+      "links": "FUN_210d_5856; FUN_210d_597f"
+    },
+    "FUN_210d_597f": {
+      "system": "platform",
+      "purpose": "Unlink overlay block from freelist (+0xc/+0xe); repair arena head pointers",
+      "confidence": "inferred",
+      "links": "FUN_210d_58f9; FUN_210d_5bcb"
+    },
+    "FUN_210d_59ce": {
+      "system": "platform",
+      "purpose": "Clear overlay page-presence bit in map; optional EMS notify (2684/265a/2590/2b9b)",
+      "confidence": "inferred",
+      "links": "FUN_210d_2684; FUN_210d_265a; FUN_210d_2590; FUN_210d_2b9b"
+    },
+    "FUN_210d_5a76": {
+      "system": "platform",
+      "purpose": "Set overlay page-presence bit in map for allocated block",
+      "confidence": "inferred",
+      "links": "FUN_210d_59ce"
+    },
+    "FUN_210d_5a9d": {
+      "system": "platform",
+      "purpose": "Insert block onto overlay freelist head; mark free (bit0); refresh max-free cache",
+      "confidence": "inferred",
+      "links": "FUN_210d_5afc; FUN_210d_508b"
+    },
+    "FUN_210d_5afc": {
+      "system": "platform",
+      "purpose": "Compute free size of overlay block (from +2, or distance to arena end)",
+      "confidence": "inferred",
+      "links": "FUN_210d_5a9d; FUN_210d_5b26; FUN_210d_5b9d"
+    },
+    "FUN_210d_5b26": {
+      "system": "platform",
+      "purpose": "Split overlay free block at BX; install new header and rewire +8/+0xa/+0xc links",
+      "confidence": "inferred",
+      "links": "FUN_210d_5afc"
+    },
+    "FUN_210d_5b9d": {
+      "system": "platform",
+      "purpose": "Walk overlay freelist to recompute max free size into 5dad",
+      "confidence": "inferred",
+      "links": "FUN_210d_5afc"
+    },
+    "FUN_210d_5bcb": {
+      "system": "platform",
+      "purpose": "Coalesce adjacent free overlay blocks; unlink absorbed nodes via 597f",
+      "confidence": "inferred",
+      "links": "FUN_210d_597f"
+    },
+    "FUN_210d_5c9e": {
+      "system": "platform",
+      "purpose": "Mark overlay block busy (clear free bit); split remainder back onto freelist",
+      "confidence": "inferred",
+      "links": "FUN_210d_5a9d"
+    },
+    "FUN_210d_5d49": {
+      "system": "platform",
+      "purpose": "Compare overlay block neighbor keys (+6) for coalesce/order eligibility",
+      "confidence": "inferred",
+      "links": "FUN_210d_552c"
+    },
+    "FUN_210d_5dd0": {
+      "system": "platform",
+      "purpose": "Far return CS:5dd8 overlay-runtime entry pointer with BX=FFFF",
+      "confidence": "known",
+      "links": ""
+    }
+  },
+  "notes": "45/45 hi-half megaseg_210d (FUN_210d_466e..5dd0). Clusters: (1) EMS bank I/O 466e/470f/4751 + page coalesce 479f/49c3/49db; (2) EMS/XMS bring-up 4a4c/4c83/4ce3 + save/restore/map 4e28/4e3b/4e4e + context 4de3/4d4f; (3) DOS UMB/strategy 5247/538c/53b5/53cb + free probe 52d3/52a6; (4) overlay arena grow 535c/5365/536e/508b/4fe5; (5) overlay heap alloc/free/coalesce 545f..5d49; (6) far entry 5dd0. 53cb is Ghidra-split epilogue of 53b5. Anchors: MODULE_MAP 210d DOS/EMS; 4454 INT67 wrapper (lo shard); platform_crumbs_hi XMS UMB. Shard only."
+}

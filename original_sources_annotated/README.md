@@ -60,8 +60,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 148 · inferred 2229 · unknown 3 |
-| Purpose one-liners | 2195 / 2380 |
+| Confidence | known 189 · inferred 2188 · unknown 3 |
+| Purpose one-liners | 2377 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -70,9 +70,9 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Mid-size Layer C hops and `281f`/`291f`/
-`2a1f` megaseg thunks are purpose-closed. Remaining backlog is platform megasegs
-`1d1d`/`210d` (~92+90) plus parked `205f`/`1d1c`.
+Purpose one-liners are **not** Layer A. VICEROY Layer B purposes are closed aside
+from parked `205f`/`1d1c` (3). Further light work is MAPEDIT (parked) or Layer D
+when a port needs deep extracts.
 
 ### Roadmap (committed order)
 
@@ -106,8 +106,9 @@ Purpose one-liners are **not** Layer A. Mid-size Layer C hops and `281f`/`291f`/
    - **Done:** small platform leftovers (59 — timer/LCG/XMS/resource/stream).
    - **Done:** `291f` megaseg thunk bulk (161 — purpose-closed).
    - **Done:** `2a1f` mapgen megaseg thunk bulk (195 — purpose-closed).
+   - **Done:** platform megasegs `1d1d`+`210d` (182 — purpose-closed).
    - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (platform `1d1d`/`210d` next).
+     (parked `205f`/`1d1c` only; Layer B VICEROY closed).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -130,8 +131,9 @@ Purpose one-liners are **not** Layer A. Mid-size Layer C hops and `281f`/`291f`/
      map-refresh, 38) + `281f` megaseg thunks (75).
    - **Done:** `291f` megaseg thunks (161) via Layer B address shards.
    - **Done:** `2a1f` mapgen megaseg thunks (195) via Layer B address shards.
+   - **Done:** platform megasegs `1d1d`+`210d` (182) via Layer B address shards.
    - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     platform megasegs `1d1d`+`210d` (~92+90).
+     parked only (`205f`/`1d1c`); no further VICEROY purpose bulk.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
