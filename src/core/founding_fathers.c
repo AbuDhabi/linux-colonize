@@ -11,8 +11,8 @@
  * Jakob Fugger (1) boycott forgive stand-in: gold+50 plus clear Sugar
  * boycott bit (1<<1) and Furs embargo bit (1<<4) on boycott_bitmap;
  * for the human nation also clear head.unknown46[2] (king tax-refuse).
- * Remaining indices have tiny gold/crosses/bells/tax stand-ins; full
- * wiki/decomp effect table PARKED.
+ * Remaining indices have tiny gold/crosses/bells/tax stand-ins; deeper
+ * wiki/decomp effect table **OPEN** (unpark #3); Congress debate UI PARKED.
  */
 
 /* King tax-refuse stand-in byte (ai_king unknown46[2]). */

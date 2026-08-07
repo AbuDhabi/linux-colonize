@@ -33,7 +33,7 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
  * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
- * at-war near-parity → make_peace (full 153e dialog PARKED). */
+ * at-war near-parity → make_peace (fuller 153e OPEN — unpark #5). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Thin FA 3f41 goodwill gift: 15g from→to + both treaty timers +2 when
@@ -55,7 +55,8 @@ void ai_diplo_indian_relation_delta(
 /* Thin Indian×Euro matrix cell: relation_by_indian[indian_idx] (0..7). */
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
-/* Thin stand-in: at war with Indian nation when relation < 50. Full 15b3 PARKED. */
+/* Thin stand-in: at war with Indian nation when relation < 50.
+ * Fuller Indian×Euro 15b3 matrix OPEN (unpark #5). */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 #endif

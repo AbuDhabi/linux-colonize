@@ -92,7 +92,7 @@ meet/king cinematic UI.
 | Cluster | Linux entry | Fidelity bar |
 |---------|-------------|--------------|
 | Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **Partial structural** 6d8e; seed-100 fixture unless `AI_FULL_DISPATCH=1` |
-| Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat PARKED |
+| Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat `20e6` **OPEN** (unpark #4) |
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Bilateral peer bytes + war/ally; see R3.5 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
 | Raids | `ai_contact_indian_raids` | `@RAID*` kinds / friction-gated combat + colony loot |
@@ -182,7 +182,7 @@ entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 | `FUN_15b3_0066` / `00d0` | small | OR/clear both directions | `ai_diplo_or_both` / `clear_both` | **partial** |
 | `FUN_5bfb_10ec` | ~63 | War/ally eligibility | `ai_diplo_euro_balance` | **partial** |
 | `FUN_5bfb_13b0` | ~61 | Form/break alliance | `form_alliance` / `break_alliance` | **partial** |
-| `FUN_5bfb_153e` | ~1112 | Large war-declare body | — | **parked** |
+| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + **OPEN** fuller body (unpark #5) | **partial** |
 | `FUN_4cc6_00f2` | — | Indian relation delta | `ai_diplo_indian_relation_delta` | **partial** |
 
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
@@ -193,12 +193,12 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 |--------|-------:|---------|-------|--------|
 | `FUN_43f7_0004` | ~42 | Pop-weighted SoL | `ai_king_sol_percent` | **partial** |
 | `FUN_43f7_1d42` | ~64 | Tax→REF funding | `ai_king_tax_event` | **partial** |
-| `FUN_43f7_2564` / `1a26` | ~200 / ~140 | Declare gate / crown setup | `ai_king_try_declare` (auto; UI PARKED) | **partial** |
+| `FUN_43f7_2564` / `1a26` | ~200 / ~140 | Declare gate / crown setup | `ai_king_try_declare` (auto; confirm UI **OPEN**) | **partial** |
 | `FUN_43f7_060a` | ~37 | Landing / garrison score | `ai_king_weakest_port` | **partial** |
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
-| `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a/2244; cinematic PARKED | **partial** |
+| `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a/2244; merc UI **OPEN**; cinematic PARKED | **partial** |
 
 Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke: `smoke_ai_king`.
 
@@ -234,7 +234,7 @@ unannotated bodies.
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Structural phases (prelude → growth → relation → pulse → meet/raid); quiet T2 overlays; thin maps `indian_contact.md` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
-| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` loot kinds + `5bfb` meet; deep `2820`/`4528` PARKED |
+| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` + `5bfb` meet; player dialogs **OPEN** (unpark #1); deep `2820`/`4528` PARKED |
 | `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Partial structural** 6d8e; T2 seed-100 fixture |
 | `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
 | `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
@@ -255,6 +255,26 @@ unannotated bodies.
 
 Ordered from limited playability toward full 1:1. Each row can be its own PR
 series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
+
+### Unparked queue (2026-08-07)
+
+Structural Full T0/T1 slices landed; these were still labeled **PARKED** despite
+unlocked prerequisites. They are **OPEN** for port — not claimed done. Deep
+line-by-line bodies, hang dumps, MAPEDIT, `COLDIG`, and letter/MoW chrome polish
+remain correctly **PARKED** (see R0 / R5).
+
+| # | Track | Was parked as | Open work (next) | Still parked |
+|--:|-------|---------------|------------------|--------------|
+| 1 | Indian contact UI | dialog / teach UI after thin meet | Player meet/trade/gift/teach dialogs (`5bfb_102a`/`1092`, teach chrome) | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
+| 2 | King / REF UI | audience after structural tax/REF | `38fd_5be8` boycott audience; `2564` declare confirm; `2244` merc hire dialog | `160a` letter cinematic; deep `10f0`/`1eca`; MoW hold chrome; `0x5382` rename |
+| 3 | Founding Fathers | full wiki table | Deeper per-FF effect table (decomp/`@FOUNDING`) | Congress debate UI; bell spend/threshold recovery |
+| 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | Hire/wagon matrix slices; CONTACT scout rings; land/combat `20e6` scoring | Full T3 / LCG goldens; ocean fixture retirement (R5) |
+| 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Indian×Euro bilateral matrix; fuller `153e` trade/military score | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
+| 6 | Doc hygiene | — | [manual_gap.md](manual_gap.md) aligned to structural ports (this pass) | — |
+
+Playability mirror: [manual_gap.md](manual_gap.md). Thin maps under
+`original_sources_annotated/ai/` use **OPEN** for queue rows and **PARKED** only
+for the still-deferred column.
 
 ### R0 — Fidelity debt and doc hygiene (**partial**)
 
@@ -307,7 +327,8 @@ leftover Soldier + Pioneer → Carpenter's Shop. Covered by `smoke_ai`.
 `colony_count < 6`, light H-bind founders→FOUND, founders prefer FOUND over
 LABOR. Smoke: `smoke_ai_euro_expand`. **Mid-war:** Soldier/Dragoon Europe hire +
 one idle military → foreign MILITARY goal (`smoke_ai_euro_war`). Thin **G** stance
-(≥2 colonies: war MILITARY prio 6 / peace FOUND bump). Deep −0x6790 table PARKED.
+(≥2 colonies: war MILITARY prio 6 / peace FOUND bump). Deep −0x6790 / mid-planner
+slices **OPEN** (unpark queue #4) — not T3.
 
 Still open for generic T1 (non-fixture):
 
@@ -338,8 +359,11 @@ Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
 Smoke: `smoke_ai_contact`.
 
-**PORT DEBT:** full `2154`/`2820`/`4528` bodies; player meet/trade/raid/gift dialog UI;
-full `@TRIBES` flavor-good parse; DOS RNG kill/warn branch.
+**OPEN (unpark #1):** player meet/trade/raid/gift/teach dialog UI
+(`5bfb_102a`/`1092`, teach chrome) — structural arms ready.
+
+**Still PARKED:** full `2154`/`2820`/`4528` bodies; full `@TRIBES` flavor-good
+parse; DOS RNG kill/warn branch.
 
 ### R3.5 — Euro diplomacy (`15b3` / `5bfb`) (**partial structural port**)
 
@@ -356,10 +380,13 @@ expiring ally).
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
-**PORT DEBT:** full `5bfb_153e` trade body, dialogs, FA `3f41` body, privateer units,
-full Indian×Euro `15b3` matrix, exact DS `−0x77c4` field rename.
-Thin stand-in: `ai_diplo_indian_read` / `indian_at_war` (rel<50); declare hostile
-extra −10 when slot<40 after −5; euro_balance Indian harassment −2g.
+**OPEN (unpark #5):** fuller `5bfb_153e` trade/military score body; full Indian×Euro
+`15b3` bilateral matrix (beyond thin read/at_war/drift/war-hit/harassment).
+
+**Still PARKED:** FA `3f41` full body/UI; privateer **unit** spawn; exact DS
+`−0x77c4` field rename; quiet Brave diplomacy goldens.
+Thin stand-in today: `ai_diplo_indian_read` / `indian_at_war` (rel<50); declare
+hostile extra −10 when slot<40 after −5; euro_balance Indian harassment −2g.
 
 ### R4 — Euro dispatcher skeleton (**partial structural port**)
 
@@ -378,9 +405,9 @@ idle Scout → tribe FOUND). Thin mid-hire Artillery when at war with ≥2 colon
 Thin Pioneer tools delivery (+10 stock on short colony). Thin tools-cargo hire when
 `tools_short>40` (ship +20 TOOLS or colony +15). Thin sticky CONTACT re-hunt
 (end of `ai_euro_unit_act`: moves left + adjacent war foe → `try_attack`).
-**PORT DEBT:** full mid-game
-`5d04` hire/wagon matrix; deep −0x6790 G table; full CONTACT scout rings; full
-land/combat `20e6` scoring; deep `5b66` case 7 tails. Odd deviations OK; not T3 / LCG goldens.
+**OPEN (unpark #4):** mid-game `5d04` hire/wagon matrix slices; deep −0x6790 G
+table; full CONTACT scout rings; land/combat `20e6` scoring; deeper `5b66`
+case-7 hire tails. Odd deviations OK; not T3 / LCG goldens (those stay R5).
 
 ### R5 — Toward 1:1 (T2/T3)
 
@@ -395,19 +422,23 @@ land/combat `20e6` scoring; deep `5b66` case 7 tails. Odd deviations OK; not T3 
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
 `1eca` promote); thin `10f0` via `backup_force` (up to 2 landings/call, Regular+Dragoon
 mix); thin MoW cargo unload (up to 2 Regulars with ship); structural tax boycott/refuse
-(`unknown46[2]` + Sugar boycott bit; UI PARKED);
+(`unknown46[2]` + Sugar boycott bit; audience UI **OPEN** — unpark #2);
 thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
-(`unknown46[3]`, 300 gold → human Soldier); thin `160a` rename
+(`unknown46[3]`, 300 gold → human Soldier; hire dialog **OPEN**);
+thin `160a` rename
 (`country_name` / europe → "United Colonies"); thin `1eca` promote Soldier→Continental
 Army and Dragoon/Cavalry→Continental Cavalry when SoL>50; thin SoL 40–49 restless
-status + `unknown46[5]` congress confirm on declare.
-WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 PARKED); REF-present
+status + `unknown46[5]` congress confirm on declare (`2564` confirm UI **OPEN**).
+WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-present
 `unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
 `smoke_ai_king`.
 
-**PORT DEBT:** `38fd_5be8` boycott UI; player declare confirm; `160a` letter cinematic;
-full merc/arrival/hold chrome; deep `10f0` economy; deep `1eca` table; exact `0x5382` Col1 bit rename / T3.
+**OPEN (unpark #2):** `38fd_5be8` boycott audience UI; player `2564` declare confirm;
+`2244` merc hire dialog.
+
+**Still PARKED:** `160a` letter cinematic; full merc/arrival/hold chrome; deep `10f0`
+economy; deep `1eca` table; exact `0x5382` Col1 bit rename / T3.
 
 ---
 
@@ -427,16 +458,16 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; all 25 tiny effect stand-ins; Fugger clears boycotts; full wiki table PARKED |
-| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; `smoke_ai_king` |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; all 25 tiny effect stand-ins; Fugger clears boycotts; deeper effect table **OPEN** (unpark #3); Congress UI still PARKED |
+| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience/confirm/merc UI **OPEN** (unpark #2); `smoke_ai_king` |
 
-Suggested manual order still puts **full Euro/Indian AI** late (#10 in
-manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
-**seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (quiet mid-turn
-default, **2** Brave spent-only residuals — call graph annotated
-(`brave_spent_callgraph.md`); post-ADD chrome does not write `0x3149`; overlays
-kept; hang **VR_B465X** last resort). Next: generic T1 Euro settle (spent rows
-stay overlaid until hang X).
+Suggested manual order: prioritize the [Unparked queue](#unparked-queue-2026-08-07)
+(contact UI, king audience, FF effects, mid-planner, Indian×Euro diplo) ahead of
+remaining deep PARKED bodies. **R1 Euro settle (T0)** and **seed-100 early T2**
+(`smoke_ai_turns`) are in; R0 partial (quiet mid-turn default, **2** Brave
+spent-only residuals — call graph annotated (`brave_spent_callgraph.md`);
+post-ADD chrome does not write `0x3149`; overlays kept; hang **VR_B465X** last
+resort). Generic T1 Euro settle + unpark #4 mid-planner share the next Euro path.
 
 ---
 
