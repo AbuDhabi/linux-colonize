@@ -43,11 +43,13 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * Ghidra: FUN_521d_5d04 | euro_nation_planning
  * ~748 lines — difficulty-scaled treasury bump, colony/dock scan, NEW WORLD
  * wagon (type 0x12), Europe hire loop (→ 5c3c). Called from 6d8e via
- * 2a1f_0554 BEFORE promote/0a60. PARKED for later R4 (not early-settle critical).
+ * 2a1f_0554 BEFORE promote/0a60.
+ * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon.
+ * Full NEW WORLD wagon / 5d04 hire matrix — PARKED.
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
-  /* parked — hire/treasury/difficulty; see decomp ~92325 */
+  /* parked deep matrix — thin war hire lives in ai_euro.c; see decomp ~92325 */
 }
 
 /*
@@ -168,10 +170,12 @@ void euro_unit_colony_goals(int nation_id) {
    *     mark units 'A' for tools draft (types 0x0b / 1 / 4, ±prof 0x15)
    */
 
-  /* --- E. Foreign-colony loop — PARKED mid-game military ---------------- */
+  /* --- E. Foreign-colony loop — mid-mil thin (scout rings PARKED) ------- */
   /*
    * decomp ~87762–87989: MILITARY (4), CONTACT scout ring (0),
    * FOUND|MIL_EXPAND (1|7). Early gate: difficulty*turn < 0xb5 && nation<4.
+   * Linux thin: upsert MILITARY on foreign colonies at war; bind one idle
+   * Soldier/Dragoon → nearest MILITARY. Full scout rings still PARKED.
    */
 
   /* --- F. Tribe pass (founding-adjacent) -------------------------------- */

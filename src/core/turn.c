@@ -7,6 +7,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/founding_fathers.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 
@@ -549,8 +550,8 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       nat->liberty_bells_total = ctx->europe->liberty_bells_total;
       nat->liberty_bells_last_turn = ctx->europe->liberty_bells_last_turn;
     }
-    /* Founding-father election remains a stub until cost tables are recovered. */
-    (void)nat->next_founding_father;
+    /* Rough FF election from liberty bells (human); full cost/effects PARKED. */
+    founding_fathers_tick(ctx);
   }
 }
 

@@ -105,7 +105,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Calendar (`@TIMECHANGE`) | Done | Year then Spring/Autumn from 1600 |
 | Food / production / hammers | Partial | Simplified stubs in `turn.c` |
-| Liberty bells / crosses counters | Partial | Accumulators; FF election stub |
+| Liberty bells / crosses counters | Partial | Accumulators; FF election via `founding_fathers_tick` |
 | Full production formulas, spoilage, boycotts | Missing | |
 | Market prices driven by trade volume | Missing | Static bid/ask display only |
 | Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King/REF structural — [ai_transcription.md](ai_transcription.md) |
@@ -132,7 +132,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Missing | Stub in turn pipeline; per-Father wiki effects in [fandom_col1994.md](fandom_col1994.md) (unverified) |
+| FF election from liberty bells | Partial | Rough threshold elect (`founding_fathers`); full effects PARKED |
 | Pedia / F3 Congress report | Partial | Data / articles; no election |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI PARKED — R6 |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; deep `10f0` / chrome PARKED — R6 |

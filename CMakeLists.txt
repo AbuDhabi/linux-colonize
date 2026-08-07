@@ -67,6 +67,7 @@ add_library(colonize_core STATIC
   src/core/colony_craft.c
   src/core/colony_preview.c
   src/core/turn.c
+  src/core/founding_fathers.c
   src/core/ai.c
   src/core/ai_goals.c
   src/core/ai_euro.c
@@ -228,6 +229,7 @@ add_executable(smoke_game_flow
   src/core/colony_craft.c
   src/core/colony_preview.c
   src/core/turn.c
+  src/core/founding_fathers.c
   src/core/ai.c
   src/core/ai_goals.c
   src/core/ai_euro.c
@@ -280,6 +282,7 @@ add_executable(smoke_new_game
   src/core/colony_craft.c
   src/core/colony_preview.c
   src/core/turn.c
+  src/core/founding_fathers.c
   src/core/ai.c
   src/core/ai_goals.c
   src/core/ai_euro.c
@@ -748,6 +751,30 @@ target_include_directories(smoke_ai_euro_expand PRIVATE
 target_link_libraries(smoke_ai_euro_expand PRIVATE colonize_core)
 
 add_test(NAME smoke_ai_euro_expand COMMAND smoke_ai_euro_expand WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_ai_euro_war
+  tests/smoke/test_ai_euro_war.c
+)
+
+target_include_directories(smoke_ai_euro_war PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_ai_euro_war PRIVATE colonize_core)
+
+add_test(NAME smoke_ai_euro_war COMMAND smoke_ai_euro_war WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_founding_fathers
+  tests/smoke/test_founding_fathers.c
+)
+
+target_include_directories(smoke_founding_fathers PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(smoke_founding_fathers PRIVATE colonize_core)
+
+add_test(NAME smoke_founding_fathers COMMAND smoke_founding_fathers WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_kill_indians
   tests/smoke/test_kill_indians.c

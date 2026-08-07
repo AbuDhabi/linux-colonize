@@ -305,7 +305,9 @@ leftover Soldier + Pioneer → Carpenter's Shop. Covered by `smoke_ai`.
 
 **Second-wave settle (partial):** full-dispatch unload/found while
 `colony_count < 6`, light H-bind founders→FOUND, founders prefer FOUND over
-LABOR. Smoke: `smoke_ai_euro_expand`. G continent stance still PARKED.
+LABOR. Smoke: `smoke_ai_euro_expand`. **Mid-war:** Soldier/Dragoon Europe hire +
+one idle military → foreign MILITARY goal (`smoke_ai_euro_war`). G continent
+stance still PARKED.
 
 Still open for generic T1 (non-fixture):
 
@@ -325,7 +327,8 @@ LCG burns stay inside the pulse; prelude uses isolated contact RNG.
 
 **Linux:** [`ai_contact.c`](../src/core/ai_contact.c) — `5bfb` meet/auto-trade,
 `4528`/`5fef`-shaped raid arms with `@RAID*` loot kinds, `359c` Scout stub;
-high-friction raid → `ai_diplo_indian_relation_delta`; peaceful meet friction decay.
+high-friction raid → `ai_diplo_indian_relation_delta`; peaceful meet friction decay;
+Missionary adjacent convert pulse (`tribe.mission` + crosses).
 Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
 Smoke: `smoke_ai_contact`.
@@ -338,7 +341,7 @@ teach/convert chrome.
 **Linux:** [`ai_diplo.c`](../src/core/ai_diplo.c) — peer-correct bilateral flags in
 `nation.unknown26[4+peer]` (timers in `[0..3]`); `treaty_timers` can
 `break_alliance`; `euro_balance` is `10ec`/`13b0`-shaped; thin `153e` war sting
-(100 gold each on first declare). Thin map:
+(100 gold + tax+1 on first declare; 5 gold/turn/peer upkeep). Thin map:
 [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
@@ -354,8 +357,9 @@ promote / 16-slot work queue in [`ai_goals.c`](../src/core/ai_goals.c). Seed-100
 keeps `ai_euro_early_turn` unless `AI_FULL_DISPATCH=1`.
 
 **Second-wave:** unload/found + light H-bind while `colony_count < 6`
-(`smoke_ai_euro_expand`). **PORT DEBT:** mid-game `5d04` hire matrix; G continent
-stance; deep E military; full land/combat `20e6`; `5b66` case 7 economy tails.
+(`smoke_ai_euro_expand`). **Mid-war hire/bind:** Soldier/Dragoon dock hire + one
+MILITARY goto (`smoke_ai_euro_war`). **PORT DEBT:** mid-game `5d04` hire matrix; G continent
+stance; deep E scout rings; full land/combat `20e6`; `5b66` case 7 economy tails.
 Odd deviations OK; not T3 / LCG goldens.
 
 ### R5 — Toward 1:1 (T2/T3)
@@ -397,7 +401,7 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Liberty bells + SoL heuristic for declare; FF election still stub |
+| Founding Fathers / liberty | **Partial** | Bells threshold elect via `founding_fathers_tick`; tiny effects; full table PARKED |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; `smoke_ai_king` |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
@@ -429,10 +433,12 @@ stay overlaid until hang X).
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
-| `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + raid hostility escalate |
-| `tests/smoke/test_ai_diplo.c` | Bilateral war/ally, war gold sting, timer break |
+| `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + raid hostility + Missionary convert |
+| `tests/smoke/test_ai_diplo.c` | Bilateral war/ally, war gold/tax sting, upkeep |
 | `tests/smoke/test_ai_king.c` | SoL, tax→REF, declare, crown wave, `10f0` intervene |
 | `tests/smoke/test_ai_euro_expand.c` | Second-wave settle on full dispatcher |
+| `tests/smoke/test_ai_euro_war.c` | Mid-war Soldier hire + MILITARY goto |
+| `tests/smoke/test_founding_fathers.c` | Liberty-bell FF election threshold |
 
 Smoke:
 

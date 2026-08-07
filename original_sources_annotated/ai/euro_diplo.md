@@ -45,7 +45,7 @@ Exact DS `−0x77c4` Col1 field rename PARKED.
 euro_nation_turn (6d8e)
   §4 treaty timers: 0a38 read + decrement peer timers
   plan 5d04 / 0342 / 0a60
-  [opportunistic] 10ec eligibility → 13b0 form/break → declare_war (thin 153e sting)
+  [opportunistic] 10ec → 13b0 → declare_war (thin 153e gold+tax); at-war upkeep
   act 5b66 — combat may declare_war
 ```
 
@@ -53,7 +53,7 @@ euro_nation_turn (6d8e)
 |--------|-------|------|
 | `FUN_5bfb_10ec` | `2a1f_067a` | Euro A↔B war/ally eligibility by military balance |
 | `FUN_5bfb_13b0` | `2a1f_065e` | Form or break alliance |
-| `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112) — thin sting only |
+| `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112) — thin gold+tax+upkeep |
 | `FUN_5bfb_0000` / `00f8` / `312e` | census / rank / combat factor | Score stand-ins |
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | **PARKED** UI |
 | `FUN_3f41_*` | FA advisor | **PARKED** |
@@ -63,16 +63,23 @@ euro_nation_turn (6d8e)
 On first `ai_diplo_declare_war` (not already at war):
 
 - Drain **100** gold from `nation[a].gold` and `nation[b].gold` (floor 0)
+- Bump each side's `nation[].tax_rate` by **+1**, capped at **75** (same ceiling as king tax path)
 - WAR / PEACE / ALLY / MET flag writes unchanged
 - Relation summary still via mirror (`nation_relation` → −50 while at war)
+- Re-declare does **not** re-sting gold or re-bump tax
 
-Not ported: full `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`), FA `3f41`, order clear `12d0`.
+Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
+
+- If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
+- No new declare / ally logic for that peer that turn
+
+Not ported: full `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`), FA `3f41`, order clear `12d0`. Full `153e` / dialogs remain **PARKED**.
 
 ## Linux checklist
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally or peace tweak
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; declare → thin `153e` gold sting
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; declare → thin `153e` gold+tax; at-war → light upkeep
 4. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
 
 ## PORT DEBT
