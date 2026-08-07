@@ -1,4 +1,5 @@
-/* Smoke: King/REF SoL, tax→REF, boycott, SoL chrome, declare+160a/1528/congress, MoW cargo, 10f0, 2244, 1eca. */
+/* Smoke: King/REF SoL, tax→REF, boycott audience, SoL chrome, declare+160a/1528/congress,
+ * MoW cargo, 10f0, 2244 merc hire status, 1eca. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -198,9 +199,10 @@ int main(void) {
   }
 
   /*
-   * Boycott/refuse stand-in (38fd_5be8 UI PARKED):
-   * tax_rate>=20 + SoL>=30 → unknown46[2], sugar boycott bit, REF grow, no hike.
-   * Next tax year while active: skip further hikes (and no extra REF grow).
+   * Boycott/refuse + thin 38fd_5be8 audience status:
+   * tax_rate>=20 + SoL>=30 → unknown46[2], sugar boycott bit, REF grow, no hike,
+   * audience status line. Next tax year while active: skip further hikes
+   * (hold-audience status; no extra REF grow).
    */
   year = 1558; /* 1536 + 22 */
   autumn = 0;
@@ -210,6 +212,7 @@ int main(void) {
   col1.nation[0].liberty_bells_total = 0; /* keep declare gated */
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   const uint16_t pool_boycott = col1.head.expeditionary_force[0];
+  status[0] = '\0';
   ai_king_nation_turn(&ctx);
   if (col1.head.unknown46[2] == 0) {
     return fail("refuse should set boycott flag unknown46[2]");
@@ -226,11 +229,16 @@ int main(void) {
   if (col1.head.unknown46[0] != 0) {
     return fail("boycott turn should not declare WoI");
   }
+  if (!strstr(status, "refuse") || !strstr(status, "tax increase")) {
+    fprintf(stderr, "smoke_ai_king: refuse audience status: '%s'\n", status);
+    return fail("38fd_5be8 refuse should set audience status line");
+  }
 
   year = 1580; /* next tax year; boycott still active */
   autumn = 0;
   const uint8_t tax_held = col1.nation[0].tax_rate;
   const uint16_t pool_held = col1.head.expeditionary_force[0];
+  status[0] = '\0';
   ai_king_nation_turn(&ctx);
   if (col1.nation[0].tax_rate != tax_held) {
     return fail("active boycott should skip further tax hikes");
@@ -240,6 +248,10 @@ int main(void) {
   }
   if (col1.head.unknown46[2] == 0) {
     return fail("boycott flag should remain set");
+  }
+  if (!strstr(status, "boycott holds") && !strstr(status, "Audience")) {
+    fprintf(stderr, "smoke_ai_king: boycott hold status: '%s'\n", status);
+    return fail("active boycott should set hold-audience status");
   }
 
   /*
@@ -297,7 +309,8 @@ int main(void) {
   if (col1.head.unknown46[5] == 0) {
     return fail("declare should set congress confirm unknown46[5]");
   }
-  /* Thin 160a: rename stand-in (cinematic PARKED). Status may be overwritten by 1528. */
+  /* Thin 160a: rename stand-in (cinematic PARKED). Status may be overwritten by 1528.
+   * Thin 2564 congress: unknown46[5] + country_name prove confirm; wave may clobber status. */
   if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
     fprintf(stderr, "smoke_ai_king: country_name after declare: '%s'\n",
             col1.player[0].country_name);
@@ -399,9 +412,9 @@ int main(void) {
   }
 
   /*
-   * Thin 2244 merc auto-accept (hire dialog PARKED):
+   * Thin 2244 merc auto-accept + hire-dialog status (real modal PARKED):
    * gold>=300 + SoL>50 + !unknown46[3] → spend 300, spawn human Soldier/Dragoon,
-   * set merc-hired flag. Second wartime turn must not hire again.
+   * set merc-hired flag + Continental-cause status. Second wartime turn must not hire again.
    */
   colonies.colonies[0].nation_id = 0;
   col1.nation[0].gold = 450;
@@ -424,9 +437,13 @@ int main(void) {
   if (count_nation(&units, 0) <= human_before) {
     return fail("2244 should spawn human Continental merc");
   }
-  if (!strstr(status, "mercenar") && !strstr(status, "Continental")) {
+  if (!strstr(status, "Mercenaries join") || !strstr(status, "Continental cause")) {
     fprintf(stderr, "smoke_ai_king: status after merc: '%s'\n", status);
-    return fail("2244 should set merc status line");
+    return fail("2244 should set hire-dialog merc status line");
+  }
+  if (!strstr(status, "300") && !strstr(status, "gold")) {
+    fprintf(stderr, "smoke_ai_king: merc gold status: '%s'\n", status);
+    return fail("2244 merc status should mention gold spent");
   }
   const int human_after = count_nation(&units, 0);
   const uint32_t gold_after = col1.nation[0].gold;

@@ -103,13 +103,16 @@ static int ai_euro_nearest_military_goal(
 }
 
 /*
- * Thin E scout explore target (CONTACT scout rings PARKED).
- * Prefer tribe-adjacent secondary FOUND stand-in (or tribe xy), else farthest
- * map corner from first own colony (unexplored-ish stand-in).
+ * CONTACT scout ring (unpark #4 thin): nearest tribe beyond adjacent from
+ * (from_x,from_y) → land tile in Manhattan ring 2..4 around tribe (prefer
+ * toward scout). Deep fog/unknown rings PARKED — tribe stands in for FOG.
+ * No tribes: farthest map corner from first own colony (explore stand-in).
  */
-static int ai_euro_scout_explore_target(
+static int ai_euro_scout_contact_ring_target(
   ColonizeTurnContext* ctx,
   int nation_id,
+  int from_x,
+  int from_y,
   int* out_x,
   int* out_y
 ) {
@@ -120,7 +123,11 @@ static int ai_euro_scout_explore_target(
   int ref_x = 0;
   int ref_y = 0;
   int have_ref = 0;
-  if (ctx->colonies) {
+  if (from_x >= 0 && from_y >= 0) {
+    ref_x = from_x;
+    ref_y = from_y;
+    have_ref = 1;
+  } else if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
       if (c->active && c->nation_id == nation_id) {
@@ -132,35 +139,65 @@ static int ai_euro_scout_explore_target(
     }
   }
 
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
-    int best_d = -1;
-    int bx = 0;
-    int by = 0;
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe && ctx->col1->head.tribe_count > 0 &&
+      from_x >= 0 && from_y >= 0) {
+    int best_tribe_d = -1;
+    int tribe_x = 0;
+    int tribe_y = 0;
     for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-      int tx = (int)t->x;
-      int ty = (int)t->y;
-      int fx = 0;
-      int fy = 0;
-      if (ctx->map &&
-          ai_goals_pick_founding_tile(
-            ctx->map, ctx->colonies, nation_id, (int)t->x, (int)t->y, &fx, &fy)) {
-        tx = fx;
-        ty = fy;
+      const int tx = (int)t->x;
+      const int ty = (int)t->y;
+      const int d = abs(tx - from_x) + abs(ty - from_y);
+      if (d <= 1) {
+        continue; /* already adjacent — no scout ring */
       }
-      const int d = have_ref ? (abs(tx - ref_x) + abs(ty - ref_y)) : 0;
-      if (best_d < 0 || d > best_d) {
-        best_d = d;
-        bx = tx;
-        by = ty;
+      if (best_tribe_d < 0 || d < best_tribe_d) {
+        best_tribe_d = d;
+        tribe_x = tx;
+        tribe_y = ty;
       }
     }
-    *out_x = bx;
-    *out_y = by;
-    return 1;
+    if (best_tribe_d > 1 && ctx->map) {
+      int best_score = -1;
+      int bx = 0;
+      int by = 0;
+      for (int dy = -4; dy <= 4; ++dy) {
+        for (int dx = -4; dx <= 4; ++dx) {
+          const int md = abs(dx) + abs(dy);
+          if (md < 2 || md > 4) {
+            continue;
+          }
+          const int nx = tribe_x + dx;
+          const int ny = tribe_y + dy;
+          if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+            continue;
+          }
+          if (map_tile_is_water(ctx->map, nx, ny)) {
+            continue;
+          }
+          if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+            continue;
+          }
+          /* Prefer ring tiles toward the scout, then tighter ring (md=2). */
+          const int to_scout = abs(nx - from_x) + abs(ny - from_y);
+          const int score = to_scout * 10 + md;
+          if (best_score < 0 || score < best_score) {
+            best_score = score;
+            bx = nx;
+            by = ny;
+          }
+        }
+      }
+      if (best_score >= 0) {
+        *out_x = bx;
+        *out_y = by;
+        return 1;
+      }
+    }
   }
 
-  /* No tribes: farthest map corner from own colony. */
+  /* No beyond-adjacent tribe / no ring tile: farthest map corner. */
   if (ctx->map && ctx->map->width > 0 && ctx->map->height > 0 && have_ref) {
     const int corners[4][2] = {
       {0, 0},
@@ -597,8 +634,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /* E: foreign colonies MILITARY if at war; thin bind one idle Soldier/Dragoon.
-   * Full CONTACT scout rings / deep mid-mil scoring — PARKED.
-   * Thin E scout explore: peaceful + own≥1 → idle Scout → tribe/FOUND. */
+   * CONTACT scout rings (peace + own≥1): idle Scout → ring MD 2–4 around tribe.
+   * Deep fog rings / deep mid-mil scoring — PARKED. */
   if (ctx->colonies && ctx->col1_ok && ctx->col1) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -646,7 +683,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, pick_gx, pick_gy);
       }
     } else {
-      /* Peaceful scout explore rings stand-in (own colonies ≥ 1). */
+      /* Peaceful CONTACT scout rings (own colonies ≥ 1). */
       const int own =
         inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
       if (own >= 1) {
@@ -664,26 +701,28 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             }
           }
         }
-        int tx = 0;
-        int ty = 0;
-        if (ai_euro_scout_explore_target(ctx, nation_id, &tx, &ty)) {
-          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-            ColonizeUnit* u = &ctx->units->units[i];
-            if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-              continue;
-            }
-            if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-              continue;
-            }
-            if (units_orders_follow_goto(u->orders)) {
-              continue; /* idle only */
-            }
-            const char* name = units_display_name(ctx->units, u);
-            if (!name || strstr(name, "Scout") == NULL) {
-              continue;
-            }
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          ColonizeUnit* u = &ctx->units->units[i];
+          if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+            continue;
           }
+          if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+            continue;
+          }
+          if (units_orders_follow_goto(u->orders)) {
+            continue; /* idle only */
+          }
+          const char* name = units_display_name(ctx->units, u);
+          if (!name || strstr(name, "Scout") == NULL) {
+            continue;
+          }
+          int tx = 0;
+          int ty = 0;
+          if (!ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
+            continue;
+          }
+          ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
         }
       }
     }
@@ -1287,13 +1326,34 @@ static int ai_euro_land_war_hunt_target(
   return 1;
 }
 
-/* Attack adjacent enemy land unit while at war. */
-static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+/* Effective defense for thin 20e6 adjacent-foe pick (fortified ×2). */
+static int ai_euro_land_foe_toughness(const ColonizeUnitPool* units, const ColonizeUnit* f) {
+  if (!units || !f) {
+    return 9999;
+  }
+  const ColonizeUnitType* t = units_type(units, f->type_index);
+  int def = t ? t->defense : 0;
+  if (def < 0) {
+    def = 0;
+  }
+  if (ai_euro_land_is_fortified(f)) {
+    def *= 2;
+  }
+  return def;
+}
+
+/*
+ * Best adjacent war foe for land attack (thin 20e6 combat scoring): prefer
+ * lower effective defense / non-fortified. Returns foe unit id or -1.
+ */
+static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
   if (!ctx || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id)) {
-    return;
+    return -1;
   }
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int best_id = -1;
+  int best_tough = 0;
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
@@ -1309,9 +1369,26 @@ static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeU
         !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       continue;
     }
-    ai_euro_try_attack(ctx, u, nx, ny);
+    const int tough = ai_euro_land_foe_toughness(ctx->units, f);
+    if (best_id < 0 || tough < best_tough) {
+      best_id = foe;
+      best_tough = tough;
+    }
+  }
+  return best_id;
+}
+
+/* Attack adjacent enemy land unit while at war (prefer weaker foe). */
+static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
+  if (foe < 0) {
     return;
   }
+  const ColonizeUnit* f = units_get_const(ctx->units, foe);
+  if (!f) {
+    return;
+  }
+  ai_euro_try_attack(ctx, u, f->x, f->y);
 }
 
 static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
@@ -1497,8 +1574,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /*
    * Thin land war hunt (act-level): idle Soldier/Dragoon/Scout at war move
-   * toward nearest foe land unit or enemy colony. Adjacent → try_attack.
-   * Does not steal founders on FOUND. Deep 20e6 land combat scoring PARKED.
+   * toward nearest foe land unit or enemy colony. Adjacent → try_attack
+   * (prefer weaker defense / non-fortified). Does not steal founders on FOUND.
+   * Deeper 20e6 multi-step combat scoring PARKED.
    */
   if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
     ai_euro_land_try_adjacent_attack(ctx, u);
@@ -1516,15 +1594,16 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * Thin E scout explore (act-level): peaceful Scout with own≥1 keeps/gets
-   * AI_MOVE toward tribe FOUND / farthest corner; do not yank to COLONY.
-   * Full CONTACT scout rings PARKED.
+   * CONTACT scout rings (act-level): peaceful Scout with own≥1 keeps/gets
+   * AI_MOVE toward ring tile (MD 2–4) around nearest beyond-adjacent tribe;
+   * upsert CONTACT; do not yank to COLONY. Deep fog rings PARKED.
    */
   if (!at_war_land && is_scout &&
       ai_euro_colony_count(ctx->colonies, nation_id) >= 1) {
     int tx = 0;
     int ty = 0;
-    if (ai_euro_scout_explore_target(ctx, nation_id, &tx, &ty)) {
+    if (ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
+      ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
       if (!ai_euro_land_has_useful_goto(u, ctx->map)) {
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
       }
@@ -1675,29 +1754,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /*
    * Sticky CONTACT re-hunt: if moves remain and an adjacent foreign Euro is
-   * at war, try_attack once more (dispatcher sticky waves still apply).
-   * Deep 20e6 combat scoring PARKED.
+   * at war, try_attack the weakest adjacent foe once more (dispatcher sticky
+   * waves still apply). Deep 20e6 multi-step combat scoring PARKED.
    */
   if (u->active && u->moves_left > 0 && ctx->col1_ok && ctx->col1 &&
       !units_is_sea(ctx->units, u->id)) {
-    static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-    for (int d = 0; d < 8; ++d) {
-      const int nx = u->x + dx8[d];
-      const int ny = u->y + dy8[d];
-      const int foe = units_id_at(ctx->units, nx, ny);
-      if (foe < 0) {
-        continue;
-      }
+    const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
+    if (foe >= 0) {
       const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (!f || f->nation_id < 0 || f->nation_id > 3 || f->nation_id == nation_id) {
-        continue;
+      /* Sticky CONTACT is Euro-peer war only (Indians stay on contact/raid paths). */
+      if (f && f->nation_id >= 0 && f->nation_id <= 3) {
+        ai_euro_try_attack(ctx, u, f->x, f->y);
       }
-      if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
-        continue;
-      }
-      ai_euro_try_attack(ctx, u, nx, ny);
-      break;
     }
   }
 }

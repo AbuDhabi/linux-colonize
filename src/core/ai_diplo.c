@@ -18,17 +18,21 @@
 
 #define AI_DIPLO_FLAG_BASE 4
 
-/* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare.
- * Full 153e trade/military score body, dialogs PARKED.
+/* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
+ * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
  * FA 3f41 full body/UI PARKED - thin ally-aid + FA gift + break trust.
  * War trade embargo: OR Furs into nation.boycott_bitmap (cargo idx 4);
- * distinct from king refuse Sugar bit1. Full per-rival 153e trade PARKED. */
+ * Tools bit when colony counts differ by >=2 (trade war deepen).
+ * Distinct from king refuse Sugar bit1. Full per-rival 153e dialog PARKED. */
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
 #define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
 #define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
+#define AI_DIPLO_WAR_TOOLS_EMBARGO_BIT (1u << COLONIZE_CARGO_TOOLS)
+#define AI_DIPLO_WAR_TRADE_STING 25u
+#define AI_DIPLO_WAR_COLONY_GAP 2
 #define AI_DIPLO_ALLY_GOLD_COST 25u
 #define AI_DIPLO_ALLY_TREATY_MIN 8u
 #define AI_DIPLO_ALLY_AID_GOLD 10u
@@ -101,6 +105,54 @@ static void ai_diplo_war_embargo_set(ColonizeCol1Save* col1, int nation_a, int n
   }
 }
 
+/* Count owned Col1 colonies for nation (153e trade-score stand-in). */
+static int ai_diplo_col1_colony_count(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || !col1->colony || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  int n = 0;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    if ((int)col1->colony[i].nation_id == nation_id) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/*
+ * Unpark #5 153e trade deepen: if |colony_count_a − colony_count_b| ≥ 2,
+ * OR Tools embargo both sides and drain AI_DIPLO_WAR_TRADE_STING from the
+ * richer treasury (floor 0). Full per-rival trade dialog PARKED.
+ */
+static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4) {
+    return;
+  }
+  const int ca = ai_diplo_col1_colony_count(col1, nation_a);
+  const int cb = ai_diplo_col1_colony_count(col1, nation_b);
+  int gap = ca - cb;
+  if (gap < 0) {
+    gap = -gap;
+  }
+  if (gap < AI_DIPLO_WAR_COLONY_GAP) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    nat->boycott_bitmap =
+      (uint16_t)(nat->boycott_bitmap | AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
+  }
+  ColonizeCol1Nation* a = &col1->nation[nation_a];
+  ColonizeCol1Nation* b = &col1->nation[nation_b];
+  ColonizeCol1Nation* rich = (a->gold >= b->gold) ? a : b;
+  if (rich->gold > AI_DIPLO_WAR_TRADE_STING) {
+    rich->gold -= AI_DIPLO_WAR_TRADE_STING;
+  } else {
+    rich->gold = 0;
+  }
+}
+
 static int ai_diplo_at_war_with_any_euro(const ColonizeCol1Save* col1, int nation) {
   if (!col1 || nation < 0 || nation >= 4) {
     return 0;
@@ -117,7 +169,7 @@ static int ai_diplo_at_war_with_any_euro(const ColonizeCol1Save* col1, int natio
 }
 
 /*
- * Lift Furs embargo when a nation has no remaining Euro×Euro wars.
+ * Lift Furs+Tools wartime embargo when a nation has no remaining Euro×Euro wars.
  * Call sites: make_peace, form_alliance (clears WAR). Other PEACE
  * writes / Fugger FF may still clear bits — full 153e trade PARKED.
  */
@@ -125,6 +177,8 @@ static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int natio
   if (!col1) {
     return;
   }
+  const uint16_t lift =
+    (uint16_t)(AI_DIPLO_WAR_EMBARGO_CARGO_BIT | AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
   for (int i = 0; i < 2; ++i) {
     const int n = (i == 0) ? nation_a : nation_b;
     if (n < 0 || n >= 4) {
@@ -134,8 +188,7 @@ static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int natio
       continue;
     }
     ColonizeCol1Nation* nat = &col1->nation[n];
-    nat->boycott_bitmap =
-      (uint16_t)(nat->boycott_bitmap & (uint16_t)~AI_DIPLO_WAR_EMBARGO_CARGO_BIT);
+    nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap & (uint16_t)~lift);
   }
 }
 
@@ -515,6 +568,8 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
     /* Wartime trade embargo stand-in: Furs boycott bit both sides. */
     ai_diplo_war_embargo_set(col1, nation_a, nation_b);
+    /* Unpark #5: colony-gap Tools embargo + extra rich-side sting. */
+    ai_diplo_war_trade_score_sting(col1, nation_a, nation_b);
   }
 }
 
@@ -593,28 +648,41 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
   ai_diplo_indian_peaceful_drift(ctx->col1, nation_id);
 }
 
-static int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units) {
+int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
   int score = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
-    if (t) {
-      score += t->attack + t->defense;
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      if (t) {
+        score += t->attack + t->defense;
+        if (t->domain == COLONIZE_UNIT_DOMAIN_SEA) {
+          score += 3; /* thin naval weight (5bfb_00f8-ish) */
+        }
+      }
     }
   }
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == nation_id) {
-        score += c->population * 2;
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      score += c->population * 2;
+      if (colonies_has_fortification(ctx->colonies, c)) {
+        score += 5;
       }
     }
+  }
+  /* Treasury / trade capacity stand-in (153e military+trade blend). */
+  if (ctx->col1_ok && ctx->col1) {
+    score += (int)(ctx->col1->nation[nation_id].gold / 50u);
   }
   return score;
 }

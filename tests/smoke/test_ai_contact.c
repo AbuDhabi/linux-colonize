@@ -280,19 +280,25 @@ int main(void) {
   }
 
   /*
-   * Gift stand-in (5bfb_102a/1092 UI PARKED): low friction + gold >= 20 →
-   * Euro −10 gold and friction −2.
+   * Gift stand-in (5bfb_102a/1092 widgets OPEN; status chrome thinned):
+   * low friction + gold >= 20 → Euro −10 gold, friction −2, status line.
    */
   col1.tribe[0].nation_id = 4;
   ind->met_by_player[0] = 1;
   ind->alarm_by_player[0] = 10;
   col1.tribe[0].alarm[0].friction = 10;
+  col1.tribe[0].state.learned = 1; /* skip teach overwrite of status */
   col1.nation[0].gold = 50;
   euro->x = 6;
   euro->y = 5;
   brave->x = 5;
   brave->y = 5;
   brave->nation_id = 4;
+  ctx.human_nation = 0;
+  char status[128];
+  status[0] = '\0';
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
   ai_contact_indian_meet_trade(&ctx, 4);
   if (col1.nation[0].gold != 40u) {
     return fail("gift should cost Euro 10 gold");
@@ -302,6 +308,24 @@ int main(void) {
   }
   if (ind->alarm_by_player[0] != 8) {
     return fail("gift should reduce alarm_by_player by 2");
+  }
+  if (strstr(status, "Gift") == NULL) {
+    return fail("gift should set human-facing status line");
+  }
+
+  /*
+   * First-meet status (no gold → gift skips; learned set → teach skips):
+   * "You meet the …"
+   */
+  ind->met_by_player[0] = 0;
+  col1.nation[0].gold = 0;
+  status[0] = '\0';
+  ai_contact_indian_meet_trade(&ctx, 4);
+  if (!ind->met_by_player[0]) {
+    return fail("meet should set met_by_player for status path");
+  }
+  if (strstr(status, "meet") == NULL) {
+    return fail("meet should set human-facing status line");
   }
 
   /*
@@ -379,10 +403,7 @@ int main(void) {
   brave->moves_left = 0;
   ind->alarm_by_player[0] = 90;
   col1.tribe[0].alarm[0].friction = 90;
-  char status[128];
   status[0] = '\0';
-  ctx.status = status;
-  ctx.status_size = sizeof(status);
   const int sx0 = scout->x;
   const int sy0 = scout->y;
   ai_contact_indian_raids(&ctx, 4);

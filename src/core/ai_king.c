@@ -15,12 +15,14 @@
  *
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
- * Tax-boycott/refuse: head.unknown46[2] stand-in (38fd_5be8 UI OPEN — unpark #2).
- *   Cargo freeze: nation.boycott_bitmap (EuropeScreen has no boycott bits).
- * Merc hired this war: head.unknown46[3] stand-in (2244 dialog OPEN — unpark #2).
+ * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience status
+ *   (real modal widgets PARKED). Cargo freeze: nation.boycott_bitmap.
+ * Merc hired this war: head.unknown46[3] + thin 2244 hire-dialog status
+ *   (real modal widgets PARKED).
  * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
  *   unknown46[4] unused — writable Col1 country_name exists.
- * Congress confirm stand-in: head.unknown46[5] set on declare (2564 UI OPEN — unpark #2).
+ * Congress confirm: head.unknown46[5] + thin 2564 congress status on declare
+ *   (real modal widgets PARKED; same-turn 1528 wave may overwrite status).
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -40,7 +42,7 @@
 #define AI_KING_BOYCOTT_BELLS_MIN 80
 /* Sugar = cargo index 1 — one frozen Europe cargo while refuse active. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
-/* Thin 2244 Continental merc aid (player hire dialog OPEN — unpark #2). */
+/* Thin 2244 Continental merc aid (hire-dialog status; real modal PARKED). */
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_SOL_MIN 50
 
@@ -206,10 +208,11 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
  * FUN_43f7_1d42 checklist:
  *  spring-only; first year / interval by difficulty; cap 75%;
  *  sync europe tax; grow REF pools by tax band.
- * Structural boycott/refuse (38fd_5be8 accept-refuse UI PARKED):
+ * Structural boycott/refuse + thin 38fd_5be8 audience status:
  *  when tax_rate >= 20 and (SoL >= 30 or liberty bells high), refuse hike once:
  *  set unknown46[2], freeze one cargo via nation.boycott_bitmap, grow REF
- *  without raising tax. While boycott active, skip further tax hikes.
+ *  without raising tax, write audience-flavored status. While boycott active,
+ *  skip further tax hikes (hold-audience status). Real modal widgets PARKED.
  * Note: TURN_PROC_FINISH may overwrite ctx->status afterward.
  */
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
@@ -238,9 +241,9 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   /* Already refused: no further tax hikes (REF grow-without-hike was once). */
   if (ai_king_boycott_active(ctx->col1)) {
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "Boycott holds; the King cannot raise taxes.");
+      snprintf(ctx->status, ctx->status_size,
+               "Audience: boycott holds — the King cannot raise taxes.");
     }
-    /* 38fd_5be8 boycott / refuse UI PARKED */
     return;
   }
 
@@ -257,11 +260,11 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
     ai_king_set_boycott(ctx->col1, 1);
     nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
     ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+    /* Thin 38fd_5be8 audience status (real accept/refuse modal PARKED). */
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size,
-               "Colonies refuse the tax hike (boycott). Tax stays at %u%%.", nat->tax_rate);
+               "The colonies refuse the tax increase! Tax stays at %u%%.", nat->tax_rate);
     }
-    /* 38fd_5be8 accept-refuse dialog / dump-goods UI PARKED */
     return;
   }
 
@@ -273,11 +276,11 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "The King raises taxes to %u%%.", nat->tax_rate);
   }
-  /* 38fd_5be8 boycott / refuse UI PARKED */
 }
 
 /*
- * FUN_43f7_2564 gate (SoL≥50) + 1a26 declare body (auto; player confirm UI PARKED).
+ * FUN_43f7_2564 gate (SoL≥50) + 1a26 declare body (auto).
+ * Thin congress-confirm status + unknown46[5]; real confirm modal PARKED.
  * Seeds REF by difficulty; thin backup_force as 10f0 foreign-pool stand-in;
  * withdraws other Euros.
  */
@@ -301,7 +304,7 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     return;
   }
   ai_king_set_independence(ctx->col1, 1);
-  /* Thin 2564 congress-confirm stand-in (player confirm dialog PARKED). */
+  /* Thin 2564 congress-confirm stand-in (real confirm modal PARKED). */
   ctx->col1->head.unknown46[AI_KING_CONGRESS_BYTE] = 1;
   const int diff = ctx->col1->head.difficulty;
   ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 + diff * 4);
@@ -324,7 +327,8 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   /*
    * Thin 160a independence rename stand-in (letter-animation cinematic PARKED).
    * Writable Col1 player.country_name (and europe.nation_name if present).
-   * Same-turn 0982/1528 wave may overwrite ctx->status afterward.
+   * Congress status below; same-turn 0982/1528 wave may overwrite if it spawns
+   * (wave only writes status when non-empty arrival — leave congress if empty).
    */
   snprintf(ctx->col1->player[human].country_name,
            sizeof(ctx->col1->player[human].country_name), "%s", AI_KING_INDEP_COUNTRY);
@@ -333,7 +337,7 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
              AI_KING_INDEP_COUNTRY);
   }
   if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "The United Colonies declare independence!");
+    snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
   }
 }
 
@@ -514,7 +518,11 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   ai_king_set_ref_present(ctx->col1, 1);
   /* Tax residual grow while at war (1d42 crumb). */
   force[0] += 1;
-  /* Thin 1528 announce (arrival chrome / dialog PARKED). */
+  /*
+   * Thin 1528 announce (arrival chrome / dialog PARKED).
+   * Only overwrite when a unit actually spawned — leaves thin 2564 congress
+   * status intact if the wave beat is empty.
+   */
   if (spawned && ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "The King's Expeditionary Force has arrived!");
   }
@@ -598,7 +606,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
 /*
  * Thin FUN_43f7_2244 stand-in: auto-accept Continental merc aid once per war
  * when gold>=300 and SoL>50. Spawns Soldier/Dragoon for human near weakest
- * port; player hire dialog PARKED.
+ * port; hire-dialog–flavored status. Real hire modal PARKED.
  */
 static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -634,11 +642,11 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     ctx->europe->gold = (int)nat->gold;
   }
   ai_king_set_merc_hired(ctx->col1, 1);
+  /* Thin 2244 hire-dialog status (real modal widgets PARKED). */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
-             "Continental mercenaries join the cause (−%d gold).", AI_KING_MERC_COST);
+             "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
   }
-  /* 2244 player hire dialog PARKED */
 }
 
 /*
@@ -658,7 +666,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * below may seize the landing pick). In addition to 06a6 in ref_wave.
    */
   ai_king_foreign_intervene(ctx);
-  /* Thin 2244: once-per-war Continental merc for human (dialog PARKED). */
+  /* Thin 2244: once-per-war Continental merc for human (hire status; modal PARKED). */
   ai_king_merc_offer(ctx);
 
   const int crown = ai_king_crown_nation(ctx->human_nation);
@@ -761,8 +769,9 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     ai_king_tax_event(ctx);
     /*
-     * Thin pre-declare SoL chrome (2564 full confirm UI PARKED):
+     * Thin pre-declare SoL chrome:
      * SoL 40..49 → restless status line before the auto-declare gate.
+     * (2564 congress confirm status is written inside try_declare.)
      */
     if (sol >= 40 && sol < 50 && ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
