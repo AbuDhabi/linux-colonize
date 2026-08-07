@@ -571,6 +571,126 @@
         "system": "platform",
         "confidence": "inferred",
         "label": "Far-buffer free / clear handle struct"
+      },
+      "1ade": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "VGA vsync + DAC palette write"
+      },
+      "1b22": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS file-exists probe (INT21 3D/3E) + INT24 wrap"
+      },
+      "1b4e": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Path join: cwd + \\ + name"
+      },
+      "1b57": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Ltrim spaces/tabs then strcpy"
+      },
+      "1b8b": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Set BIOS equipment video-mode bits (40:10)"
+      },
+      "1b8d": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Solid-rect fill thunk → 1b9e"
+      },
+      "1b8f": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Pitched buffer rect blit/copy"
+      },
+      "1b9e": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Solid-color pitched rect fill"
+      },
+      "1baa": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Pitched buffer rect blit/copy (variant)"
+      },
+      "1bb9": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Put pixel via pitch helper (1a4e)"
+      },
+      "1bbb": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Get pixel via pitch helper (1a4e)"
+      },
+      "1bbc": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Horizontal span fill in pitched buffer"
+      },
+      "1bc3": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Vertical span fill in pitched buffer"
+      },
+      "1bca": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Rect outline via H/V span fills"
+      },
+      "1bd4": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Color replace in pitched rect"
+      },
+      "1c05": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Normalize far pointer (seg:off)"
+      },
+      "1c06": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Parse 0x/0b numeric literal prefix"
+      },
+      "1c10": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Program PIT channel-0 divisor"
+      },
+      "1c28": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Store text-draw color words at DS:269e"
+      },
+      "2094": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Rtrim trailing spaces/tabs"
+      },
+      "209a": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Parse hex integer from string"
+      },
+      "20a0": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Parse binary integer from string"
+      },
+      "7a7c": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Load 768-byte VGA palette from resource"
+      },
+      "7ab3": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "VGA vsync + DAC palette read"
       }
     },
     "mapedit": {
@@ -1331,6 +1451,30 @@
       "FUN_1ae7_0016": {
         "system": "platform",
         "purpose": "BIOS INT16 read next key (AH/AL); paired with 1ae3 key-ready / flush",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1ade_0004": {
+        "system": "ui",
+        "purpose": "Wait VGA retrace then program DAC RGB palette via 0x3c8/0x3c9",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1b22_0022": {
+        "system": "platform",
+        "purpose": "DOS file-exists probe (INT21 3D/3E) with INT24 critical-error handler wrap",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1c10_0008": {
+        "system": "platform",
+        "purpose": "Program PIT channel-0 divisor via ports 0x43/0x40",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_7ab3_0008": {
+        "system": "ui",
+        "purpose": "Wait VGA retrace then read DAC RGB palette via 0x3c7/0x3c9",
         "confidence": "known",
         "links": ""
       }
