@@ -1422,6 +1422,486 @@
         "confidence": "inferred",
         "links": "docs/savegame.md"
       },
+      "FUN_38fd_0016": {
+        "system": "trade",
+        "purpose": "Europe effective price = euro_price[cargo] + adj (floor 0)",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_0040": {
+        "system": "trade",
+        "purpose": "Europe ask helper: euro_price[cargo] - 1 (floor 0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_05e8": {
+        "system": "trade",
+        "purpose": "Test cargo boycott bit in nation boycott_bitmap",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_05fc": {
+        "system": "trade",
+        "purpose": "Count Europe-harbor cargo units",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_0666": {
+        "system": "trade",
+        "purpose": "Resolve Nth harbor unit index",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_06c4": {
+        "system": "trade",
+        "purpose": "Resolve Nth harbor ship index",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_07c6": {
+        "system": "trade",
+        "purpose": "Recount harbor ships; clamp selection",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_081c": {
+        "system": "trade",
+        "purpose": "Init harbor unit count + Europe selection state",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_0836": {
+        "system": "trade",
+        "purpose": "Europe window frame setup",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_086c": {
+        "system": "trade",
+        "purpose": "Load Europe screen art / PIK bring-up",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_0f5e": {
+        "system": "trade",
+        "purpose": "Cargo-slot rect constants",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1456": {
+        "system": "trade",
+        "purpose": "Refresh Bound + Expected ship panels",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_18fc": {
+        "system": "trade",
+        "purpose": "Full Europe-screen redraw",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_1956": {
+        "system": "trade",
+        "purpose": "Europe overlay teardown",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1960": {
+        "system": "trade",
+        "purpose": "Toggle/refresh highlighted panel by mode",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_19d8": {
+        "system": "trade",
+        "purpose": "Europe text blit wrapper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_19f8": {
+        "system": "trade",
+        "purpose": "Europe string-table text blit by index",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1a0c": {
+        "system": "trade",
+        "purpose": "Short Europe dialog open/close wrapper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1aba": {
+        "system": "trade",
+        "purpose": "Hit-test Europe regions to panel/mode code",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1b9e": {
+        "system": "trade",
+        "purpose": "Enter Europe UI mode 10",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1c64": {
+        "system": "trade",
+        "purpose": "Enter Europe drag mode 8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1cac": {
+        "system": "trade",
+        "purpose": "Enter Europe drag mode 9",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1cf4": {
+        "system": "trade",
+        "purpose": "Exit Europe drag/sound mode",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1d28": {
+        "system": "trade",
+        "purpose": "Decrement euro_price[cargo] (floor 0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1d44": {
+        "system": "trade",
+        "purpose": "Difficulty/tax-scaled percent helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1d80": {
+        "system": "trade",
+        "purpose": "Buy volume: update tons/gold ledgers",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_1dfa": {
+        "system": "trade",
+        "purpose": "Sell volume: update ledgers + tax-adjusted gold",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_1f66": {
+        "system": "trade",
+        "purpose": "Clear top market strip; init row Y",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1f7e": {
+        "system": "trade",
+        "purpose": "Advance market row Y cursor",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1f8e": {
+        "system": "trade",
+        "purpose": "Blit market strip panel",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_5580": {
+        "system": "trade",
+        "purpose": "Clear drag-pending flag; refresh market strip",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_0058": {
+        "system": "trade",
+        "purpose": "Market dynamics: adjust euro_price[] / pressure from colony ledgers",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_0718": {
+        "system": "trade",
+        "purpose": "Spawn purchased/recruited unit into Europe harbor",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_08a4": {
+        "system": "trade",
+        "purpose": "Draw market cargo name/price caption",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_0a26": {
+        "system": "trade",
+        "purpose": "Draw Europe top status strip (nation/season/gold/tax)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_0b64": {
+        "system": "trade",
+        "purpose": "Draw Europe market cargo strip (16 cells)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_0d48": {
+        "system": "trade",
+        "purpose": "Market cargo cell layout / scaling helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_0e16": {
+        "system": "trade",
+        "purpose": "Blit one market cargo cell (+ highlight)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_0f8c": {
+        "system": "trade",
+        "purpose": "Draw Loading / harbor-ships panel",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_127c": {
+        "system": "trade",
+        "purpose": "Draw Bound For New World ship panel",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_1382": {
+        "system": "trade",
+        "purpose": "Draw Expected Soon ship panel",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_146c": {
+        "system": "trade",
+        "purpose": "Dock immigrant layout / scaling helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_14e2": {
+        "system": "trade",
+        "purpose": "Blit one dock immigrant unit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_15aa": {
+        "system": "trade",
+        "purpose": "Draw docks immigrant panel",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_1660": {
+        "system": "trade",
+        "purpose": "Recruit-button label metrics",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1696": {
+        "system": "trade",
+        "purpose": "Draw one bevelled Europe text button",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1878": {
+        "system": "trade",
+        "purpose": "Draw Recruit / Train / Purchase button column",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_199e": {
+        "system": "trade",
+        "purpose": "Force-refresh Europe panels after mutation",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1a30": {
+        "system": "trade",
+        "purpose": "Buy/sell confirm dialog text (cargo x price)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1bd2": {
+        "system": "trade",
+        "purpose": "Drag-start bark dialog",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_1ebc": {
+        "system": "trade",
+        "purpose": "Apply buy: debit gold, add harbor tons",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_1f0c": {
+        "system": "trade",
+        "purpose": "Apply sell: pull hold tons toward quote",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_1fa2": {
+        "system": "trade",
+        "purpose": "Buy cargo dialog / execute buy flow",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_23c4": {
+        "system": "trade",
+        "purpose": "Sell cargo dialog / execute sell + tax",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_285c": {
+        "system": "trade",
+        "purpose": "Transfer cargo between ship holds",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_2a92": {
+        "system": "trade",
+        "purpose": "Sell/scrap harbor ship dialog",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_2bfe": {
+        "system": "trade",
+        "purpose": "Harbor ship context menu (sail / sell / unload)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_2dfe": {
+        "system": "trade",
+        "purpose": "Pay to lift cargo boycott",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_2edc": {
+        "system": "trade",
+        "purpose": "Loading-panel ship click / selection handler",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_30aa": {
+        "system": "trade",
+        "purpose": "Hold-slot click: load/unload cargo",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_31c6": {
+        "system": "trade",
+        "purpose": "Hold-strip hit-test / drag-target arm",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_3502": {
+        "system": "trade",
+        "purpose": "Market cargo strip click / buy-sell arm",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_3694": {
+        "system": "trade",
+        "purpose": "Dock immigrant info / embark bark dialog",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_3746": {
+        "system": "trade",
+        "purpose": "Dock immigrant action mega-dialog (board / orders); decomp noisy",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_3c86": {
+        "system": "trade",
+        "purpose": "Docks panel click / immigrant select handler",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_3dc8": {
+        "system": "trade",
+        "purpose": "Apply tax delta; may boycott a cargo",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_41ce": {
+        "system": "trade",
+        "purpose": "Train expert dialog (job list + gold)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_44a4": {
+        "system": "trade",
+        "purpose": "King tax-raise event (pay gold + bump tax)",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_4590": {
+        "system": "trade",
+        "purpose": "Tax-pressure / boycott RNG check",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_46d4": {
+        "system": "trade",
+        "purpose": "Roll next dock immigrant profession",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_4884": {
+        "system": "trade",
+        "purpose": "Recruit dialog (3 pool slots + passage cost)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_4b50": {
+        "system": "trade",
+        "purpose": "Purchase ship/artillery dialog",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_4e8e": {
+        "system": "trade",
+        "purpose": "Europe mouse/drag input dispatcher; decomp noisy",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_4f6e": {
+        "system": "trade",
+        "purpose": "Europe keyboard/hotkey input dispatcher; decomp noisy",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_55b6": {
+        "system": "trade",
+        "purpose": "Europe screen entry + main event loop",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_38fd_584a": {
+        "system": "trade",
+        "purpose": "Recruit-passage / immigration pressure score",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_5930": {
+        "system": "trade",
+        "purpose": "Europe EOT FF cargo gift / grant",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_38fd_5be8": {
+        "system": "trade",
+        "purpose": "King tax-raise proposal dialog",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_5e52": {
+        "system": "trade",
+        "purpose": "Europe nation end-of-turn (market + tax + pool)",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_38fd_6024": {
+        "system": "trade",
+        "purpose": "New-game init Europe market state (all 4 nations)",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
       "FUN_2f2b_011e": {
         "system": "colony",
         "purpose": "Colony build / order gate (prereq / error codes)",
@@ -2175,6 +2655,78 @@
       "FUN_4345_0000": {
         "system": "trade",
         "purpose": "Set/clear nation bitflag in Europe-record (nation*0x13c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_003c": {
+        "system": "trade",
+        "purpose": "Invert FF-has check",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_005a": {
+        "system": "trade",
+        "purpose": "Calendar era tier from year thresholds",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_0080": {
+        "system": "trade",
+        "purpose": "Count unelected FF of category with weight",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_00e0": {
+        "system": "trade",
+        "purpose": "Count elected FF of category",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_0126": {
+        "system": "trade",
+        "purpose": "Build FF name string into buffer",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_015a": {
+        "system": "trade",
+        "purpose": "Pick strongest FF category slot for nation",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_01a6": {
+        "system": "trade",
+        "purpose": "Enumerate/draw FF entries for nation",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_024a": {
+        "system": "trade",
+        "purpose": "FF election / announcement UI screen",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_0342": {
+        "system": "trade",
+        "purpose": "Apply elected founding-father effects",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_06d2": {
+        "system": "trade",
+        "purpose": "FF congress debate / nominate UI",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_0982": {
+        "system": "trade",
+        "purpose": "Compute next liberty-bell threshold",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4345_0a22": {
+        "system": "trade",
+        "purpose": "Accrue liberty bells; trigger FF election",
         "confidence": "inferred",
         "links": ""
       },
