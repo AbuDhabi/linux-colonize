@@ -2304,86 +2304,86 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_38fd_0000` | 58695 | 12 | trade | Set current nation index and Europe-market base (nation*0x13c) | inferred | docs/savegame.md |
-| `FUN_38fd_0016` | 58707 | 15 | trade | unknown | inferred |  |
-| `FUN_38fd_0040` | 58722 | 19 | trade | unknown | inferred |  |
-| `FUN_38fd_0058` | 58741 | 269 | trade | unknown | inferred |  |
-| `FUN_38fd_05e8` | 59010 | 10 | trade | unknown | inferred |  |
-| `FUN_38fd_05fc` | 59020 | 28 | trade | unknown | inferred |  |
-| `FUN_38fd_0666` | 59048 | 25 | trade | unknown | inferred |  |
-| `FUN_38fd_06c4` | 59073 | 25 | trade | unknown | inferred |  |
-| `FUN_38fd_0718` | 59098 | 50 | trade | unknown | inferred |  |
-| `FUN_38fd_07c6` | 59148 | 22 | trade | unknown | inferred |  |
-| `FUN_38fd_081c` | 59170 | 16 | trade | unknown | inferred |  |
-| `FUN_38fd_0836` | 59186 | 14 | trade | unknown | inferred |  |
-| `FUN_38fd_086c` | 59200 | 16 | trade | unknown | inferred |  |
-| `FUN_38fd_08a4` | 59216 | 42 | trade | unknown | inferred |  |
-| `FUN_38fd_0a26` | 59258 | 35 | trade | unknown | inferred |  |
-| `FUN_38fd_0b64` | 59293 | 63 | trade | unknown | inferred |  |
-| `FUN_38fd_0d48` | 59356 | 60 | trade | unknown | inferred |  |
-| `FUN_38fd_0e16` | 59416 | 48 | trade | unknown | inferred |  |
-| `FUN_38fd_0f5e` | 59464 | 14 | trade | unknown | inferred |  |
-| `FUN_38fd_0f8c` | 59478 | 106 | trade | unknown | inferred |  |
-| `FUN_38fd_127c` | 59584 | 37 | trade | unknown | inferred |  |
-| `FUN_38fd_1382` | 59621 | 33 | trade | unknown | inferred |  |
-| `FUN_38fd_1456` | 59654 | 11 | trade | unknown | inferred |  |
-| `FUN_38fd_146c` | 59665 | 36 | trade | unknown | inferred |  |
-| `FUN_38fd_14e2` | 59701 | 41 | trade | unknown | inferred |  |
-| `FUN_38fd_15aa` | 59742 | 37 | trade | unknown | inferred |  |
-| `FUN_38fd_1660` | 59779 | 19 | trade | unknown | inferred |  |
-| `FUN_38fd_1696` | 59798 | 82 | trade | unknown | inferred |  |
-| `FUN_38fd_1878` | 59880 | 29 | trade | unknown | inferred |  |
-| `FUN_38fd_18fc` | 59909 | 17 | trade | unknown | inferred |  |
-| `FUN_38fd_1956` | 59926 | 10 | trade | unknown | inferred |  |
-| `FUN_38fd_1960` | 59936 | 28 | trade | unknown | inferred |  |
-| `FUN_38fd_199e` | 59964 | 22 | trade | unknown | inferred |  |
-| `FUN_38fd_19d8` | 59986 | 10 | trade | unknown | inferred |  |
-| `FUN_38fd_19f8` | 59996 | 11 | trade | unknown | inferred |  |
-| `FUN_38fd_1a0c` | 60007 | 11 | trade | unknown | inferred |  |
-| `FUN_38fd_1a30` | 60018 | 28 | trade | unknown | inferred |  |
-| `FUN_38fd_1aba` | 60046 | 42 | trade | unknown | inferred |  |
-| `FUN_38fd_1b9e` | 60088 | 13 | trade | unknown | inferred |  |
-| `FUN_38fd_1bd2` | 60101 | 23 | trade | unknown | inferred |  |
-| `FUN_38fd_1c64` | 60124 | 16 | trade | unknown | inferred |  |
-| `FUN_38fd_1cac` | 60140 | 16 | trade | unknown | inferred |  |
-| `FUN_38fd_1cf4` | 60156 | 14 | trade | unknown | inferred |  |
-| `FUN_38fd_1d28` | 60170 | 16 | trade | unknown | inferred |  |
-| `FUN_38fd_1d44` | 60186 | 18 | trade | unknown | inferred |  |
-| `FUN_38fd_1d80` | 60204 | 43 | trade | unknown | inferred |  |
-| `FUN_38fd_1dfa` | 60247 | 54 | trade | unknown | inferred |  |
-| `FUN_38fd_1ebc` | 60301 | 19 | trade | unknown | inferred |  |
-| `FUN_38fd_1f0c` | 60320 | 23 | trade | unknown | inferred |  |
-| `FUN_38fd_1f66` | 60343 | 12 | trade | unknown | inferred |  |
-| `FUN_38fd_1f7e` | 60355 | 11 | trade | unknown | inferred |  |
-| `FUN_38fd_1f8e` | 60366 | 11 | trade | unknown | inferred |  |
-| `FUN_38fd_1fa2` | 60377 | 130 | trade | unknown | inferred |  |
-| `FUN_38fd_23c4` | 60507 | 143 | trade | unknown | inferred |  |
-| `FUN_38fd_285c` | 60650 | 79 | trade | unknown | inferred |  |
-| `FUN_38fd_2a92` | 60729 | 58 | trade | unknown | inferred |  |
-| `FUN_38fd_2bfe` | 60787 | 117 | trade | unknown | inferred |  |
-| `FUN_38fd_2dfe` | 60904 | 45 | trade | unknown | inferred |  |
-| `FUN_38fd_2edc` | 60949 | 88 | trade | unknown | inferred |  |
-| `FUN_38fd_30aa` | 61037 | 47 | trade | unknown | inferred |  |
-| `FUN_38fd_31c6` | 61084 | 23 | trade | unknown | inferred |  |
-| `FUN_38fd_3502` | 61107 | 73 | trade | unknown | inferred |  |
-| `FUN_38fd_3694` | 61180 | 32 | trade | unknown | inferred |  |
-| `FUN_38fd_3746` | 61212 | 2854 | trade | unknown | inferred |  |
-| `FUN_38fd_3c86` | 64066 | 66 | trade | unknown | inferred |  |
-| `FUN_38fd_3dc8` | 64132 | 184 | trade | unknown | inferred |  |
-| `FUN_38fd_41ce` | 64316 | 139 | trade | unknown | inferred |  |
-| `FUN_38fd_44a4` | 64455 | 61 | trade | unknown | inferred |  |
-| `FUN_38fd_4590` | 64516 | 38 | trade | unknown | inferred |  |
-| `FUN_38fd_46d4` | 64554 | 106 | trade | unknown | inferred |  |
-| `FUN_38fd_4884` | 64660 | 140 | trade | unknown | inferred |  |
-| `FUN_38fd_4b50` | 64800 | 115 | trade | unknown | inferred |  |
-| `FUN_38fd_4e8e` | 64915 | 974 | trade | unknown | inferred |  |
-| `FUN_38fd_4f6e` | 65889 | 2205 | trade | unknown | inferred |  |
-| `FUN_38fd_5580` | 68094 | 20 | trade | unknown | inferred |  |
-| `FUN_38fd_55b6` | 68114 | 134 | trade | unknown | inferred |  |
-| `FUN_38fd_584a` | 68248 | 57 | trade | unknown | inferred |  |
-| `FUN_38fd_5930` | 68305 | 115 | trade | unknown | inferred |  |
-| `FUN_38fd_5be8` | 68420 | 119 | trade | unknown | inferred |  |
-| `FUN_38fd_5e52` | 68539 | 88 | trade | unknown | inferred |  |
-| `FUN_38fd_6024` | 68627 | 755 | trade | unknown | inferred |  |
+| `FUN_38fd_0016` | 58707 | 15 | trade | Europe effective price = euro_price[cargo] + adj (floor 0) | inferred | docs/savegame.md |
+| `FUN_38fd_0040` | 58722 | 19 | trade | Europe ask helper: euro_price[cargo] - 1 (floor 0) | inferred |  |
+| `FUN_38fd_0058` | 58741 | 269 | trade | Market dynamics: adjust euro_price[] / pressure from colony ledgers | inferred | docs/savegame.md |
+| `FUN_38fd_05e8` | 59010 | 10 | trade | Test cargo boycott bit in nation boycott_bitmap | inferred | docs/savegame.md |
+| `FUN_38fd_05fc` | 59020 | 28 | trade | Count Europe-harbor cargo units | inferred |  |
+| `FUN_38fd_0666` | 59048 | 25 | trade | Resolve Nth harbor unit index | inferred |  |
+| `FUN_38fd_06c4` | 59073 | 25 | trade | Resolve Nth harbor ship index | inferred |  |
+| `FUN_38fd_0718` | 59098 | 50 | trade | Spawn purchased/recruited unit into Europe harbor | inferred |  |
+| `FUN_38fd_07c6` | 59148 | 22 | trade | Recount harbor ships; clamp selection | inferred |  |
+| `FUN_38fd_081c` | 59170 | 16 | trade | Init harbor unit count + Europe selection state | inferred |  |
+| `FUN_38fd_0836` | 59186 | 14 | trade | Europe window frame setup | inferred |  |
+| `FUN_38fd_086c` | 59200 | 16 | trade | Load Europe screen art / PIK bring-up | inferred | docs/assets.md |
+| `FUN_38fd_08a4` | 59216 | 42 | trade | Draw market cargo name/price caption | inferred |  |
+| `FUN_38fd_0a26` | 59258 | 35 | trade | Draw Europe top status strip (nation/season/gold/tax) | inferred | docs/assets.md |
+| `FUN_38fd_0b64` | 59293 | 63 | trade | Draw Europe market cargo strip (16 cells) | inferred | docs/assets.md |
+| `FUN_38fd_0d48` | 59356 | 60 | trade | Market cargo cell layout / scaling helper | inferred |  |
+| `FUN_38fd_0e16` | 59416 | 48 | trade | Blit one market cargo cell (+ highlight) | inferred |  |
+| `FUN_38fd_0f5e` | 59464 | 14 | trade | Cargo-slot rect constants | inferred |  |
+| `FUN_38fd_0f8c` | 59478 | 106 | trade | Draw Loading / harbor-ships panel | inferred | docs/assets.md |
+| `FUN_38fd_127c` | 59584 | 37 | trade | Draw Bound For New World ship panel | inferred | docs/assets.md |
+| `FUN_38fd_1382` | 59621 | 33 | trade | Draw Expected Soon ship panel | inferred | docs/assets.md |
+| `FUN_38fd_1456` | 59654 | 11 | trade | Refresh Bound + Expected ship panels | inferred |  |
+| `FUN_38fd_146c` | 59665 | 36 | trade | Dock immigrant layout / scaling helper | inferred |  |
+| `FUN_38fd_14e2` | 59701 | 41 | trade | Blit one dock immigrant unit | inferred |  |
+| `FUN_38fd_15aa` | 59742 | 37 | trade | Draw docks immigrant panel | inferred | docs/assets.md |
+| `FUN_38fd_1660` | 59779 | 19 | trade | Recruit-button label metrics | inferred |  |
+| `FUN_38fd_1696` | 59798 | 82 | trade | Draw one bevelled Europe text button | inferred |  |
+| `FUN_38fd_1878` | 59880 | 29 | trade | Draw Recruit / Train / Purchase button column | inferred | docs/assets.md |
+| `FUN_38fd_18fc` | 59909 | 17 | trade | Full Europe-screen redraw | inferred | docs/assets.md |
+| `FUN_38fd_1956` | 59926 | 10 | trade | Europe overlay teardown | inferred |  |
+| `FUN_38fd_1960` | 59936 | 28 | trade | Toggle/refresh highlighted panel by mode | inferred |  |
+| `FUN_38fd_199e` | 59964 | 22 | trade | Force-refresh Europe panels after mutation | inferred |  |
+| `FUN_38fd_19d8` | 59986 | 10 | trade | Europe text blit wrapper | inferred |  |
+| `FUN_38fd_19f8` | 59996 | 11 | trade | Europe string-table text blit by index | inferred |  |
+| `FUN_38fd_1a0c` | 60007 | 11 | trade | Short Europe dialog open/close wrapper | inferred |  |
+| `FUN_38fd_1a30` | 60018 | 28 | trade | Buy/sell confirm dialog text (cargo x price) | inferred |  |
+| `FUN_38fd_1aba` | 60046 | 42 | trade | Hit-test Europe regions to panel/mode code | inferred |  |
+| `FUN_38fd_1b9e` | 60088 | 13 | trade | Enter Europe UI mode 10 | inferred |  |
+| `FUN_38fd_1bd2` | 60101 | 23 | trade | Drag-start bark dialog | inferred |  |
+| `FUN_38fd_1c64` | 60124 | 16 | trade | Enter Europe drag mode 8 | inferred |  |
+| `FUN_38fd_1cac` | 60140 | 16 | trade | Enter Europe drag mode 9 | inferred |  |
+| `FUN_38fd_1cf4` | 60156 | 14 | trade | Exit Europe drag/sound mode | inferred |  |
+| `FUN_38fd_1d28` | 60170 | 16 | trade | Decrement euro_price[cargo] (floor 0) | inferred |  |
+| `FUN_38fd_1d44` | 60186 | 18 | trade | Difficulty/tax-scaled percent helper | inferred |  |
+| `FUN_38fd_1d80` | 60204 | 43 | trade | Buy volume: update tons/gold ledgers | inferred | docs/savegame.md |
+| `FUN_38fd_1dfa` | 60247 | 54 | trade | Sell volume: update ledgers + tax-adjusted gold | inferred | docs/savegame.md |
+| `FUN_38fd_1ebc` | 60301 | 19 | trade | Apply buy: debit gold, add harbor tons | inferred | docs/savegame.md |
+| `FUN_38fd_1f0c` | 60320 | 23 | trade | Apply sell: pull hold tons toward quote | inferred | docs/savegame.md |
+| `FUN_38fd_1f66` | 60343 | 12 | trade | Clear top market strip; init row Y | inferred |  |
+| `FUN_38fd_1f7e` | 60355 | 11 | trade | Advance market row Y cursor | inferred |  |
+| `FUN_38fd_1f8e` | 60366 | 11 | trade | Blit market strip panel | inferred |  |
+| `FUN_38fd_1fa2` | 60377 | 130 | trade | Buy cargo dialog / execute buy flow | inferred | docs/savegame.md |
+| `FUN_38fd_23c4` | 60507 | 143 | trade | Sell cargo dialog / execute sell + tax | inferred | docs/savegame.md |
+| `FUN_38fd_285c` | 60650 | 79 | trade | Transfer cargo between ship holds | inferred |  |
+| `FUN_38fd_2a92` | 60729 | 58 | trade | Sell/scrap harbor ship dialog | inferred |  |
+| `FUN_38fd_2bfe` | 60787 | 117 | trade | Harbor ship context menu (sail / sell / unload) | inferred |  |
+| `FUN_38fd_2dfe` | 60904 | 45 | trade | Pay to lift cargo boycott | inferred | docs/savegame.md |
+| `FUN_38fd_2edc` | 60949 | 88 | trade | Loading-panel ship click / selection handler | inferred |  |
+| `FUN_38fd_30aa` | 61037 | 47 | trade | Hold-slot click: load/unload cargo | inferred |  |
+| `FUN_38fd_31c6` | 61084 | 23 | trade | Hold-strip hit-test / drag-target arm | inferred |  |
+| `FUN_38fd_3502` | 61107 | 73 | trade | Market cargo strip click / buy-sell arm | inferred |  |
+| `FUN_38fd_3694` | 61180 | 32 | trade | Dock immigrant info / embark bark dialog | inferred |  |
+| `FUN_38fd_3746` | 61212 | 2854 | trade | Dock immigrant action mega-dialog (board / orders); decomp noisy | inferred |  |
+| `FUN_38fd_3c86` | 64066 | 66 | trade | Docks panel click / immigrant select handler | inferred |  |
+| `FUN_38fd_3dc8` | 64132 | 184 | trade | Apply tax delta; may boycott a cargo | inferred | docs/savegame.md |
+| `FUN_38fd_41ce` | 64316 | 139 | trade | Train expert dialog (job list + gold) | inferred | docs/assets.md |
+| `FUN_38fd_44a4` | 64455 | 61 | trade | King tax-raise event (pay gold + bump tax) | inferred | docs/savegame.md |
+| `FUN_38fd_4590` | 64516 | 38 | trade | Tax-pressure / boycott RNG check | inferred |  |
+| `FUN_38fd_46d4` | 64554 | 106 | trade | Roll next dock immigrant profession | inferred |  |
+| `FUN_38fd_4884` | 64660 | 140 | trade | Recruit dialog (3 pool slots + passage cost) | inferred | docs/assets.md |
+| `FUN_38fd_4b50` | 64800 | 115 | trade | Purchase ship/artillery dialog | inferred | docs/assets.md |
+| `FUN_38fd_4e8e` | 64915 | 974 | trade | Europe mouse/drag input dispatcher; decomp noisy | inferred |  |
+| `FUN_38fd_4f6e` | 65889 | 2205 | trade | Europe keyboard/hotkey input dispatcher; decomp noisy | inferred |  |
+| `FUN_38fd_5580` | 68094 | 20 | trade | Clear drag-pending flag; refresh market strip | inferred |  |
+| `FUN_38fd_55b6` | 68114 | 134 | trade | Europe screen entry + main event loop | inferred | docs/assets.md |
+| `FUN_38fd_584a` | 68248 | 57 | trade | Recruit-passage / immigration pressure score | inferred |  |
+| `FUN_38fd_5930` | 68305 | 115 | trade | Europe EOT FF cargo gift / grant | inferred |  |
+| `FUN_38fd_5be8` | 68420 | 119 | trade | King tax-raise proposal dialog | inferred | docs/savegame.md |
+| `FUN_38fd_5e52` | 68539 | 88 | trade | Europe nation end-of-turn (market + tax + pool) | inferred | docs/savegame.md |
+| `FUN_38fd_6024` | 68627 | 755 | trade | New-game init Europe market state (all 4 nations) | inferred | docs/savegame.md |
 
 ### Segment `3f3f` (1 defs) — platform — CRC/LFSR step
 
@@ -2433,18 +2433,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_4345_0000` | 72799 | 22 | trade | Set/clear nation bitflag in Europe-record (nation*0x13c) | inferred |  |
-| `FUN_4345_003c` | 72821 | 14 | trade | unknown | inferred |  |
-| `FUN_4345_005a` | 72835 | 15 | trade | unknown | inferred |  |
-| `FUN_4345_0080` | 72850 | 26 | trade | unknown | inferred |  |
-| `FUN_4345_00e0` | 72876 | 23 | trade | unknown | inferred |  |
-| `FUN_4345_0126` | 72899 | 14 | trade | unknown | inferred |  |
-| `FUN_4345_015a` | 72913 | 28 | trade | unknown | inferred |  |
-| `FUN_4345_01a6` | 72941 | 41 | trade | unknown | inferred |  |
-| `FUN_4345_024a` | 72982 | 62 | trade | unknown | inferred |  |
-| `FUN_4345_0342` | 73044 | 133 | trade | unknown | inferred |  |
-| `FUN_4345_06d2` | 73177 | 116 | trade | unknown | inferred |  |
-| `FUN_4345_0982` | 73293 | 40 | trade | unknown | inferred |  |
-| `FUN_4345_0a22` | 73333 | 144 | trade | unknown | inferred |  |
+| `FUN_4345_003c` | 72821 | 14 | trade | Invert FF-has check | inferred |  |
+| `FUN_4345_005a` | 72835 | 15 | trade | Calendar era tier from year thresholds | inferred |  |
+| `FUN_4345_0080` | 72850 | 26 | trade | Count unelected FF of category with weight | inferred |  |
+| `FUN_4345_00e0` | 72876 | 23 | trade | Count elected FF of category | inferred |  |
+| `FUN_4345_0126` | 72899 | 14 | trade | Build FF name string into buffer | inferred |  |
+| `FUN_4345_015a` | 72913 | 28 | trade | Pick strongest FF category slot for nation | inferred |  |
+| `FUN_4345_01a6` | 72941 | 41 | trade | Enumerate/draw FF entries for nation | inferred |  |
+| `FUN_4345_024a` | 72982 | 62 | trade | FF election / announcement UI screen | inferred |  |
+| `FUN_4345_0342` | 73044 | 133 | trade | Apply elected founding-father effects | inferred |  |
+| `FUN_4345_06d2` | 73177 | 116 | trade | FF congress debate / nominate UI | inferred |  |
+| `FUN_4345_0982` | 73293 | 40 | trade | Compute next liberty-bell threshold | inferred |  |
+| `FUN_4345_0a22` | 73333 | 144 | trade | Accrue liberty bells; trigger FF election | inferred |  |
 
 ### Segment `43f7` (21 defs) — ui — Nation / @COUNTRY colors
 

@@ -65,8 +65,9 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Layer B underway (SAVEGAME + colony
-`2f2b`/`647e`/`479b` done); most other systems still have purpose `unknown`.
+Purpose one-liners are **not** Layer A. Layer B underway (SAVEGAME + colony +
+Europe trade closed); remaining purpose backlog is other mid-size systems /
+Layer C.
 
 ### Roadmap (committed order)
 
@@ -75,9 +76,11 @@ Purpose one-liners are **not** Layer A. Layer B underway (SAVEGAME + colony
    - **Done:** SAVEGAME — all `75c2` + `7562` funcs labeled (slot path/list/Save/Load,
      header probe, write/load blobs, title menu, new-game bootstrap). Corrected
      `7562` cluster label (was mis-tagged HoF).
-   - **Done:** colony screen `2f2b` (75/75) + siblings `647e` list/select UI
-     (23/23) + `479b` pioneer/goto-colony (13/13).
-   - **Next:** Europe trade (`38fd` / `4345`). MAPEDIT stays parked.
+   - **Done:** colony (`2f2b`/`647e`/`479b`); Europe trade `4345` (13/13) +
+     `38fd` (81/81).
+   - **Next:** Layer B mid-size systems still purpose-thin (prefer **turn**
+     `1984` or **combat** `465b`/`65dd`), or start **Layer C** 1-hop from
+     `FUN_521d_6d8e` / `FUN_4d56_1816`. MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries (`FUN_521d_6d8e`, `FUN_4d56_1816`,
    turn EOT).
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
