@@ -1,4 +1,4 @@
-/* Smoke: King/REF SoL, tax→REF, boycott, declare, 1528 announce, 10f0, 2244 merc. */
+/* Smoke: King/REF SoL, tax→REF, boycott, declare+160a rename, 1528, 10f0, 2244. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -210,9 +210,22 @@ int main(void) {
   status[0] = '\0';
   const int units_before = count_active(&units);
 
+  /* Seed a pre-declare country so 160a rename is observable. */
+  snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+  snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
+
   ai_king_nation_turn(&ctx);
   if (col1.head.unknown46[0] == 0) {
     return fail("declare should set WoI flag unknown46[0]");
+  }
+  /* Thin 160a: rename stand-in (cinematic PARKED). Status may be overwritten by 1528. */
+  if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
+    fprintf(stderr, "smoke_ai_king: country_name after declare: '%s'\n",
+            col1.player[0].country_name);
+    return fail("160a declare should rename player.country_name to United Colonies");
+  }
+  if (strcmp(europe.nation_name, "United Colonies") != 0) {
+    return fail("160a declare should sync europe.nation_name");
   }
   if (col1.player[1].control != 2 || col1.player[2].control != 2 ||
       col1.player[3].control != 2) {

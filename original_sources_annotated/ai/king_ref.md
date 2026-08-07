@@ -35,6 +35,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0004` | Pop-weighted SoL | `ai_king_sol_percent` |
 | `1d42` | Tax→REF funding | `ai_king_tax_event` |
 | `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto; UI PARKED) |
+| `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
@@ -52,6 +53,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
 | Tax boycott / refuse | `head.unknown46[2]` (structural; `38fd_5be8` UI PARKED) |
 | Merc hired this war | `head.unknown46[3]` (thin `2244`; hire dialog PARKED) |
+| Independence rename | `player[human].country_name` → `"United Colonies"` (+ `europe.nation_name` if present); `unknown46[4]` unused (name field exists) |
 | Cargo boycott bits | `nation.boycott_bitmap` (EuropeScreen has none) |
 | REF pools `0x53da…` | `head.expeditionary_force[4]` |
 | Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
@@ -80,16 +82,26 @@ SoL > 50, and `unknown46[3]` unset — spend 300 gold (sync Europe if present),
 spawn one Soldier/Dragoon for the **human** near weakest port, set
 `unknown46[3]`. Player hire dialog remains PARKED.
 
+### Thin `160a` independence rename stand-in
+
+On declare (`ai_king_try_declare`): write status
+`"The United Colonies declare independence!"` (if `ctx->status` present);
+set `player[human].country_name` to `"United Colonies"` and sync
+`europe.nation_name` when Europe is attached. Letter-by-letter rename
+cinematic remains PARKED. Same-turn `0982`/`1528` wave may overwrite
+`ctx->status`. `head.unknown46[4]` is **not** used as a renamed flag —
+writable Col1 `country_name` exists.
+
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
-2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force`)
+2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename)
 3. If WoI: wave (`0982`/`06a6` + thin `1528` status) → war act (`10f0` first if REF empty + backup, thin `2244` merc, then `2022`/`1eca`)
 
 ## PORT DEBT
 
 - `38fd_5be8` tax audience / boycott **UI** (structural refuse + `unknown46[2]` / `boycott_bitmap` done)
-- Player `2564` confirm dialog; `160a` rename cinematic
+- Player `2564` confirm dialog; `160a` rename **cinematic** (thin `country_name` stand-in done)
 - `1528` arrival **chrome/dialog** (thin status announce done)
 - `2244` full merc hire **UI** (thin auto-accept + `unknown46[3]` done)
 - Deep `10f0` foreign intervention / `backup_force` — **partial structural** (landing + drain; merc/chrome PARKED)

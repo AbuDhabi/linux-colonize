@@ -57,7 +57,14 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    `UNITS_JOB_SCOUT` (Seasoned); else → tribe-appropriate outdoor `@JOB`
    (see mapping below). One pulse per tribe per call. Teach dialog UI **PARKED**.
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
-7. Gift / demand dialogs **PARKED**
+7. **Gift / demand** structural stand-in after peaceful meet (dialogs `5bfb_102a` /
+   `1092` **PARKED**). Friction = max(`alarm_by_player`, tribe `alarm[].friction`):
+   - **Low** (`< 40`) + Euro `nation.gold >= 20` → gift/tribute: Euro **−10 gold**,
+     friction **−2** (Indians lack easy gold — cost is Euro treasury).
+   - **Mid** (`40..70`) + tools/gold available → demand/payoff: Euro loses **10 tools**
+     from nearest colony stock, else **10** from adjacent unit `tools`, else **15 gold**;
+     friction **−3**.
+   - **Very high** (`> 70`) → skip (raids handle hostility).
 
 ### Teach-skill profession map (Linux)
 
@@ -93,6 +100,6 @@ meet/trade dialog UI remain **PARKED**.
 ## PORT DEBT
 
 - Full `2154` (~321), `2820` (~1.4k), `4528` (~3k)
-- Player meet/trade/raid dialog subst
+- Player meet/trade/raid dialog subst (`5bfb_102a` / `1092` gift/demand UI)
 - Teach dialog UI + full skill-from-`@TRIBES` flavor-good string parse
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2)

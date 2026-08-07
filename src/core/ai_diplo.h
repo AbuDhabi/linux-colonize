@@ -30,7 +30,8 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
  * also thin peaceful Indian relation drift when not at Euro war. */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
-/* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot). */
+/* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
+ * Also thin FA ally-aid while allied (full 3f41 PARKED). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Alias → ai_diplo_treaty_timers (6d8e timer pass). */

@@ -198,7 +198,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
-| `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/2244; `160a` PARKED | **partial** |
+| `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a/2244; cinematic PARKED | **partial** |
 
 Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke: `smoke_ai_king`.
 
@@ -329,12 +329,13 @@ LCG burns stay inside the pulse; prelude uses isolated contact RNG.
 `4528`/`5fef`-shaped raid arms with `@RAID*` loot kinds, `359c` Scout stub;
 high-friction raid → `ai_diplo_indian_relation_delta`; peaceful meet friction decay;
 Missionary adjacent convert pulse (`tribe.mission` + crosses); teach-skill sets
-`tribe.state.learned` with cargo/`nation_id` profession map (Scout→Seasoned).
+`tribe.state.learned` with cargo/`nation_id` profession map (Scout→Seasoned);
+thin gift (−10g/−2 friction) / demand (tools or gold/−3 friction) stand-in.
 Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
 Smoke: `smoke_ai_contact`.
 
-**PORT DEBT:** full `2154`/`2820`/`4528` bodies; player meet/trade/raid dialog UI;
+**PORT DEBT:** full `2154`/`2820`/`4528` bodies; player meet/trade/raid/gift dialog UI;
 full `@TRIBES` flavor-good parse.
 
 ### R3.5 — Euro diplomacy (`15b3` / `5bfb`) (**partial structural port**)
@@ -343,11 +344,12 @@ full `@TRIBES` flavor-good parse.
 `nation.unknown26[4+peer]` (timers in `[0..3]`); `treaty_timers` can
 `break_alliance`; `euro_balance` is `10ec`/`13b0`-shaped; thin `153e` war sting
 (100 gold + tax+1 on first declare; 5 gold/turn/peer upkeep); alliance −25 gold/side;
-peaceful Indian relation drift (+1/tick to 160); war −5 Indian relations.
+peaceful Indian relation drift (+1/tick to 160); war −5 Indian relations;
+thin FA aid (ally +10g when richer); break_alliance −20g; alliance timer bump to 8.
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
-**PORT DEBT:** full `5bfb_153e`, dialogs, FA `3f41`, full Indian×Euro `15b3` matrix,
+**PORT DEBT:** full `5bfb_153e`, dialogs, FA `3f41` body, full Indian×Euro `15b3` matrix,
 exact DS `−0x77c4` field rename.
 
 ### R4 — Euro dispatcher skeleton (**partial structural port**)
@@ -361,7 +363,8 @@ keeps `ai_euro_early_turn` unless `AI_FULL_DISPATCH=1`.
 **Second-wave:** unload/found + light H-bind while `colony_count < 6`
 (`smoke_ai_euro_expand`). **Mid-war hire/bind:** Soldier/Dragoon dock hire + one
 MILITARY goto (`smoke_ai_euro_war`). Thin G stance (≥2 colonies). Thin naval war
-hunt (AI_SAIL toward enemy ship/coast; adjacent naval combat). **PORT DEBT:**
+hunt (AI_SAIL toward enemy ship/coast; adjacent naval combat). Thin land war hunt
+(AI_MOVE toward enemy land/colony; adjacent combat). **PORT DEBT:**
 mid-game `5d04` hire matrix; deep −0x6790 G table; deep E scout rings; full
 land/combat `20e6` scoring; `5b66` case 7 economy tails. Odd deviations OK; not T3 / LCG goldens.
 
@@ -379,13 +382,14 @@ tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
 `1eca` promote); thin `10f0` via `backup_force` foreign landing when REF empty;
 structural tax boycott/refuse (`unknown46[2]` + Sugar boycott bit; UI PARKED);
 thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
-(`unknown46[3]`, 300 gold → human Soldier).
+(`unknown46[3]`, 300 gold → human Soldier); thin `160a` rename
+(`country_name` / europe → "United Colonies").
 WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 PARKED); REF-present
 `unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
 `smoke_ai_king`.
 
-**PORT DEBT:** `38fd_5be8` boycott UI; player declare confirm; `160a` rename;
+**PORT DEBT:** `38fd_5be8` boycott UI; player declare confirm; `160a` letter cinematic;
 full merc/arrival chrome; deep `10f0` economy; exact `0x5382` Col1 bit rename / T3.
 
 ---
@@ -438,11 +442,11 @@ stay overlaid until hang X).
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
-| `tests/smoke/test_ai_contact.c` | Meet + raids + Missionary + teach profession map |
-| `tests/smoke/test_ai_diplo.c` | War/ally sting, Indian drift, alliance gold |
-| `tests/smoke/test_ai_king.c` | SoL/tax/REF/10f0/boycott/1528/2244 merc |
+| `tests/smoke/test_ai_contact.c` | Meet + raids + teach + gift/demand |
+| `tests/smoke/test_ai_diplo.c` | War/ally sting, Indian drift, FA aid, break cost |
+| `tests/smoke/test_ai_king.c` | SoL/tax/REF/10f0/boycott/1528/160a/2244 |
 | `tests/smoke/test_ai_euro_expand.c` | Second-wave settle on full dispatcher |
-| `tests/smoke/test_ai_euro_war.c` | Mid-war hire/MILITARY + naval hunt |
+| `tests/smoke/test_ai_euro_war.c` | Mid-war hire + naval/land hunt |
 | `tests/smoke/test_founding_fathers.c` | Liberty-bell FF election + tiny effects |
 
 Smoke:

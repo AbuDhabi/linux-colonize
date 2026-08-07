@@ -322,4 +322,6 @@ void euro_nation_turn(int nation_id) {
  * PORT DEBT: mid-game 5d04 matrix, 0a60 E–H, full 20e6 land/combat, 5b66 case 7.
  * Linux thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
  * colony water; adjacent → try_attack. Full 20e6 naval scoring PARKED.
+ * Linux thin (5b66): at-war land hunt — idle Soldier/Dragoon/Scout AI_MOVE →
+ * foe land unit / enemy colony; adjacent → try_attack. Full 20e6 land scoring PARKED.
  */

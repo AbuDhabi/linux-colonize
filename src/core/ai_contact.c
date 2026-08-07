@@ -192,6 +192,136 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
+/* Decay alarm_by_player + this nation's tribe frictions by `amount` (floor 0). */
+static void ai_contact_friction_decay(
+  ColonizeCol1Indian* ind,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int e,
+  int amount
+) {
+  if (!ind || amount <= 0 || e < 0 || e > 3) {
+    return;
+  }
+  if ((int)ind->alarm_by_player[e] > amount) {
+    ind->alarm_by_player[e] = (uint16_t)(ind->alarm_by_player[e] - (uint16_t)amount);
+  } else {
+    ind->alarm_by_player[e] = 0;
+  }
+  if (!col1 || !col1->tribe) {
+    return;
+  }
+  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &col1->tribe[ti];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    if ((int)t->alarm[e].friction > amount) {
+      t->alarm[e].friction = (uint8_t)(t->alarm[e].friction - (uint8_t)amount);
+    } else {
+      t->alarm[e].friction = 0;
+    }
+  }
+}
+
+/* Max of alarm_by_player and tribe frictions for this Indian×Euro pair. */
+static int ai_contact_pair_friction(
+  const ColonizeCol1Indian* ind,
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  int e
+) {
+  int friction = ind ? (int)ind->alarm_by_player[e] : 0;
+  if (!col1 || !col1->tribe) {
+    return friction;
+  }
+  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &col1->tribe[ti];
+    if ((int)t->nation_id == nation_id && (int)t->alarm[e].friction > friction) {
+      friction = (int)t->alarm[e].friction;
+    }
+  }
+  return friction;
+}
+
+/*
+ * Gift / demand structural stand-in (5bfb_102a / 1092 dialogs PARKED).
+ * After peaceful meet adjacency:
+ *  - low friction + Euro gold >= 20 → gift: Euro −10 gold, friction −2
+ *  - mid friction (40–70) + tools/gold → demand: −10 tools (nearest colony stock
+ *    or unit) else −15 gold; friction −3
+ *  - very high friction (>70) → skip (raids handle hostility)
+ */
+static void ai_contact_gift_or_demand(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  ColonizeUnit* other,
+  int near_x,
+  int near_y
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !other || e < 0 || e > 3) {
+    return;
+  }
+  if (!ind->met_by_player[e]) {
+    return;
+  }
+  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+  if (friction > 70) {
+    return; /* very high — raids handle hostility */
+  }
+
+  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+
+  /* Low friction gift / tribute. */
+  if (friction < 40) {
+    if (nat->gold < 20u) {
+      return;
+    }
+    nat->gold -= 10u;
+    ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 2);
+    return;
+  }
+
+  /* Mid friction (40–70) demand / payoff. */
+  int paid = 0;
+  if (ctx->colonies) {
+    int best_ci = -1;
+    int best_d = 99;
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id != e) {
+        continue;
+      }
+      if (c->stock[COLONIZE_CARGO_TOOLS] < 10) {
+        continue;
+      }
+      const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
+      if (dist < best_d) {
+        best_d = dist;
+        best_ci = ci;
+      }
+    }
+    if (best_ci >= 0) {
+      ctx->colonies->colonies[best_ci].stock[COLONIZE_CARGO_TOOLS] -= 10;
+      paid = 1;
+    }
+  }
+  if (!paid && other->tools >= 10) {
+    other->tools -= 10;
+    paid = 1;
+  }
+  if (!paid && nat->gold >= 15u) {
+    nat->gold -= 15u;
+    paid = 1;
+  }
+  if (!paid) {
+    return; /* no tools in colony/unit and insufficient gold */
+  }
+  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
+}
+
 /*
  * Missionary adjacent to tribe, relations not hostile → concrete convert state:
  * tribe.mission = euro nation id, slight alarm/friction decay, +1 nation crosses.
@@ -331,7 +461,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    *  1) adjacent Euro → meet
    *  2) optional mission if peaceful; Missionary convert + teach-skill (below)
    *  3) auto-haggle: trade-goods for alarm (2aac…311e stand-in)
-   *  4) gift/demand dialogs PARKED
+   *  4) gift/demand structural stand-in (dialogs 5bfb_102a / 1092 PARKED)
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -381,47 +511,45 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
 
       /* 3. Peaceful auto-trade (nested 2bbc AI buy stand-in). */
-      if (!ctx->colonies || !ind->met_by_player[e]) {
-        continue;
-      }
-      if (ind->alarm_by_player[e] >= 50) {
-        continue; /* too hostile for goods trade */
-      }
-      int best_ci = -1;
-      int best_score = -1;
-      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-        ColonizeColony* c = &ctx->colonies->colonies[ci];
-        if (!c->active || c->nation_id != e) {
-          continue;
-        }
-        const int dist = ai_contact_dist(c->x, c->y, brave->x, brave->y);
-        if (dist > 4 || c->stock[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
-          continue;
-        }
-        /* Prefer closer + more goods (score-ordered haggle stand-in). */
-        const int score = c->stock[COLONIZE_CARGO_TRADE_GOODS] * 4 - dist;
-        if (score > best_score) {
-          best_score = score;
-          best_ci = ci;
-        }
-      }
-      if (best_ci >= 0) {
-        ColonizeColony* c = &ctx->colonies->colonies[best_ci];
-        c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
-        if (ind->alarm_by_player[e] > 0) {
-          ind->alarm_by_player[e]--;
-        }
-        if (ctx->col1->tribe) {
-          for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-            ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-            if ((int)t->nation_id == nation_id && t->alarm[e].friction > 0) {
-              t->alarm[e].friction--;
-            }
+      if (ctx->colonies && ind->met_by_player[e] && ind->alarm_by_player[e] < 50) {
+        int best_ci = -1;
+        int best_score = -1;
+        for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+          ColonizeColony* c = &ctx->colonies->colonies[ci];
+          if (!c->active || c->nation_id != e) {
+            continue;
+          }
+          const int dist = ai_contact_dist(c->x, c->y, brave->x, brave->y);
+          if (dist > 4 || c->stock[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
+            continue;
+          }
+          /* Prefer closer + more goods (score-ordered haggle stand-in). */
+          const int score = c->stock[COLONIZE_CARGO_TRADE_GOODS] * 4 - dist;
+          if (score > best_score) {
+            best_score = score;
+            best_ci = ci;
           }
         }
-        ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
+        if (best_ci >= 0) {
+          ColonizeColony* c = &ctx->colonies->colonies[best_ci];
+          c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+          if (ind->alarm_by_player[e] > 0) {
+            ind->alarm_by_player[e]--;
+          }
+          if (ctx->col1->tribe) {
+            for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+              ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+              if ((int)t->nation_id == nation_id && t->alarm[e].friction > 0) {
+                t->alarm[e].friction--;
+              }
+            }
+          }
+          ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
+        }
       }
-      /* 4. Gift / demand dialogs — PARKED (5bfb_102a / 1092). */
+
+      /* 4. Gift / demand stand-in (5bfb_102a / 1092 dialog UI PARKED). */
+      ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, brave->x, brave->y);
     }
   }
 

@@ -58,6 +58,13 @@ station-keeping get `AI_SAIL` toward the nearest enemy sea unit or coastal water
 beside a foreign colony at war. Adjacent enemy ships call `ai_euro_try_attack` /
 `units_resolve_naval_combat`. Deep `20e6` naval combat scoring stays **PARKED**.
 
+### 2c. Linux thin — land war hunt (act-level)
+
+When at war with a Euro peer, idle land military (Soldier / Dragoon / Scout —
+not fortified, no useful goto) get `AI_MOVE` toward the nearest enemy land unit
+or enemy colony tile. Adjacent → `ai_euro_try_attack`. Does not steal founders on
+FOUND goals. Deep `20e6` land combat scoring stays **PARKED**.
+
 ### 3. Combat / diplomacy tails (PARKED)
 
 Defer with Indian raid clusters / land combat port.

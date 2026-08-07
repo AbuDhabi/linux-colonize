@@ -1,5 +1,5 @@
-/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, upkeep, ally cost,
- * Indian drift, break, timers. */
+/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, upkeep, ally cost/timer,
+ * foreign aid, break penalty, Indian drift, timers. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -119,9 +119,11 @@ int main(void) {
     }
   }
 
-  /* Ally treasury cost: 25 gold each side (floor 0). */
+  /* Ally treasury cost + treaty timer bump (≥8 if was 0); break −20 gold each. */
   col1.nation[2].gold = 100;
   col1.nation[3].gold = 10;
+  col1.nation[2].unknown26[3] = 0;
+  col1.nation[3].unknown26[2] = 0;
   ai_diplo_form_alliance(&col1, 2, 3);
   if ((ai_diplo_read(&col1, 2, 3) & AI_DIPLO_ALLY) == 0) {
     return fail("form_alliance should set ALLY");
@@ -131,6 +133,18 @@ int main(void) {
   }
   if (col1.nation[3].gold != 0) {
     return fail("form_alliance gold cost should floor at 0");
+  }
+  if (col1.nation[2].unknown26[3] != 8 || col1.nation[3].unknown26[2] != 8) {
+    return fail("form_alliance should set treaty timer to 8 when was 0");
+  }
+  col1.nation[2].unknown26[3] = 12; /* live timer must not be lowered */
+  ai_diplo_form_alliance(&col1, 2, 3);
+  if (col1.nation[2].unknown26[3] != 12) {
+    return fail("form_alliance must not lower a live treaty timer");
+  }
+  /* After second form: 75−25=50, 0−25→0; break then −20 each. */
+  if (col1.nation[2].gold != 50) {
+    return fail("second form_alliance should drain another 25 gold");
   }
   ai_diplo_break_alliance(&col1, 2, 3);
   if (ai_diplo_read(&col1, 2, 3) & AI_DIPLO_ALLY) {
@@ -142,13 +156,29 @@ int main(void) {
   if ((ai_diplo_read(&col1, 2, 3) & AI_DIPLO_PEACE) == 0) {
     return fail("break_alliance should leave PEACE");
   }
+  if (col1.nation[2].gold != 30) {
+    return fail("break_alliance should drain 20 gold trust penalty from nation 2");
+  }
+  if (col1.nation[3].gold != 0) {
+    return fail("break_alliance trust penalty should floor at 0");
+  }
+  /* Re-break when not allied: no second penalty. */
+  ai_diplo_break_alliance(&col1, 2, 3);
+  if (col1.nation[2].gold != 30) {
+    return fail("re-break_alliance should not re-apply trust penalty");
+  }
 
-  /* Timer decrement + ally break on expiry. */
+  /* Timer decrement + ally break on expiry (also applies break gold penalty). */
   col1.nation[0].gold = 50;
   col1.nation[2].gold = 50;
+  col1.nation[0].unknown26[2] = 0;
+  col1.nation[2].unknown26[0] = 0;
   ai_diplo_form_alliance(&col1, 0, 2);
   if (col1.nation[0].gold != 25 || col1.nation[2].gold != 25) {
     return fail("form_alliance(0,2) should drain 25 gold each");
+  }
+  if (col1.nation[0].unknown26[2] != 8) {
+    return fail("form_alliance(0,2) should bump timer toward peer 2");
   }
   col1.nation[0].unknown26[2] = 1; /* timer toward peer 2 */
   /* Keep other peer timers non-zero so expiry does not PEACE-tweak war(0,1). */
@@ -174,11 +204,64 @@ int main(void) {
   if (ai_diplo_read(&col1, 0, 2) & AI_DIPLO_ALLY) {
     return fail("timer expiry should break alliance");
   }
+  if (col1.nation[0].gold != 5 || col1.nation[2].gold != 5) {
+    return fail("timer-expiry break should apply −20 gold trust penalty");
+  }
   if (!ai_diplo_at_war(&col1, 0, 1)) {
     return fail("timer pass must not clear war(0,1) when peer-1 timer live");
   }
   if (col1.nation[0].relation_by_indian[0] != rel0_at_war) {
     return fail("treaty_timers must not drift Indian relations while at war");
+  }
+
+  /* Thin FA ally-aid: richer ally gifts 10g when peer < self/2 and self >= 50. */
+  {
+    ColonizeDosRng rng_aid;
+    dos_rng_seed(&rng_aid, 3);
+    uint32_t turn_aid = 3;
+    ColonizeTurnContext ctx_aid;
+    memset(&ctx_aid, 0, sizeof(ctx_aid));
+    ctx_aid.col1 = &col1;
+    ctx_aid.col1_ok = true;
+    ctx_aid.rng = &rng_aid;
+    ctx_aid.turn_number = &turn_aid;
+    /* Clear war(0,1) so nation 0 can run ally path (not war upkeep). */
+    ai_diplo_clear_both(&col1, 0, 1, AI_DIPLO_WAR);
+    ai_diplo_or_both(&col1, 0, 1, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
+    col1.nation[0].gold = 100;
+    col1.nation[1].gold = 20; /* 20 < 100/2 → aid eligible */
+    col1.nation[0].unknown26[1] = 8;
+    col1.nation[1].unknown26[0] = 8;
+    ai_diplo_form_alliance(&col1, 0, 1);
+    /* form cost 25 each → 75 / 0; timer stays 8 (already live). */
+    if (col1.nation[0].gold != 75 || col1.nation[1].gold != 0) {
+      return fail("aid setup: form_alliance gold precondition");
+    }
+    /* Restore richer donor after form cost for clear aid assertion. */
+    col1.nation[0].gold = 100;
+    col1.nation[1].gold = 20;
+    /* Skip human peers: control stays 0. No units → military score 0 → no break/war. */
+    ai_diplo_euro_balance(&ctx_aid, 0);
+    if (col1.nation[0].gold != 90 || col1.nation[1].gold != 30) {
+      return fail("euro_balance should transfer 10 gold foreign aid to poorer ally");
+    }
+    /* Second tick: still eligible (30 < 90/2). */
+    ai_diplo_euro_balance(&ctx_aid, 0);
+    if (col1.nation[0].gold != 80 || col1.nation[1].gold != 40) {
+      return fail("foreign aid should transfer once per euro_balance tick");
+    }
+    /* Peer catches up past half: no further aid (40 >= 80/2). */
+    ai_diplo_euro_balance(&ctx_aid, 0);
+    if (col1.nation[0].gold != 80 || col1.nation[1].gold != 40) {
+      return fail("foreign aid should stop when peer gold >= self/2");
+    }
+    /* Donor below 50: no aid. */
+    col1.nation[0].gold = 49;
+    col1.nation[1].gold = 0;
+    ai_diplo_euro_balance(&ctx_aid, 0);
+    if (col1.nation[0].gold != 49 || col1.nation[1].gold != 0) {
+      return fail("foreign aid should require donor gold >= 50");
+    }
   }
 
   /* Peaceful Indian drift: +1 per slot under 160, cap 160; skip if at war. */
