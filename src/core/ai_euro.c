@@ -56,6 +56,18 @@ static int ai_euro_is_military_name(const char* name) {
          strstr(name, "Regular") != NULL;
 }
 
+/* Soldier / Dragoon / Scout (and Regular) — land war hunt only; not founders. */
+static int ai_euro_is_land_war_hunter(const char* name) {
+  if (!name) {
+    return 0;
+  }
+  return ai_euro_is_military_name(name) || strstr(name, "Scout") != NULL;
+}
+
+static int ai_euro_land_is_fortified(const ColonizeUnit* u) {
+  return u && (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED);
+}
+
 /* Nearest primary MILITARY goal (Manhattan); 1 if found. */
 static int ai_euro_nearest_military_goal(
   int nation_id,
@@ -733,6 +745,15 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   if (units_is_sea(ctx->units, u->id)) {
     return 0;
   }
+  /*
+   * At-war land hunters: defer course to act-level land war hunt (do not
+   * explore-yank idle Soldier/Dragoon/Scout before hunt can set AI_MOVE).
+   */
+  if (ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id) &&
+      ai_euro_is_land_war_hunter(units_display_name(ctx->units, u)) &&
+      !ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
   int gx = u->x;
   int gy = u->y;
   int fx = 0;
@@ -936,6 +957,109 @@ static void ai_euro_naval_try_adjacent_attack(ColonizeTurnContext* ctx, Colonize
   }
 }
 
+/* True when land unit already has a non-stationary AI/goto course. */
+static int ai_euro_land_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map) {
+  if (!u || !map || !units_orders_follow_goto(u->orders)) {
+    return 0;
+  }
+  if (u->goto_x < 0 || u->goto_y < 0 || u->goto_x >= UNITS_GOTO_NONE ||
+      u->goto_y >= UNITS_GOTO_NONE || u->goto_x >= map->width || u->goto_y >= map->height) {
+    return 0;
+  }
+  return u->goto_x != u->x || u->goto_y != u->y;
+}
+
+/*
+ * Thin land war hunt (5b66 case 0x0b act-level): nearest enemy land unit or
+ * foreign Euro colony tile at war. Full 20e6 land combat scoring PARKED.
+ */
+static int ai_euro_land_war_hunt_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !out_x || !out_y) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
+      continue;
+    }
+    if (!units_is_on_map(f) || units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
+      continue;
+    }
+    if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
+      continue;
+    }
+    const int dist = abs(f->x - from_x) + abs(f->y - from_y);
+    if (best < 0 || dist < best) {
+      best = dist;
+      bx = f->x;
+      by = f->y;
+    }
+  }
+
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      if (!ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+        continue;
+      }
+      const int dist = abs(c->x - from_x) + abs(c->y - from_y);
+      if (best < 0 || dist < best) {
+        best = dist;
+        bx = c->x;
+        by = c->y;
+      }
+    }
+  }
+
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/* Attack adjacent enemy land unit while at war. */
+static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id)) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    const int foe = units_id_at(ctx->units, nx, ny);
+    if (foe < 0 || units_is_sea(ctx->units, foe)) {
+      continue;
+    }
+    const ColonizeUnit* f = units_get_const(ctx->units, foe);
+    if (!f || f->nation_id == u->nation_id) {
+      continue;
+    }
+    if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4 &&
+        !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+      continue;
+    }
+    ai_euro_try_attack(ctx, u, nx, ny);
+    return;
+  }
+}
+
 static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
   if (!ctx || !ship || !units_is_sea(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
     return;
@@ -1107,11 +1231,36 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /* Case 0x0b land: bind primary goal (role-aware scan). */
+  const char* uname = units_display_name(ctx->units, u);
+  const int is_land_hunter = ai_euro_is_land_war_hunter(uname);
+  const int at_war_land =
+    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  int land_war_hunted = 0;
+
+  /*
+   * Thin land war hunt (act-level): idle Soldier/Dragoon/Scout at war move
+   * toward nearest foe land unit or enemy colony. Adjacent → try_attack.
+   * Does not steal founders on FOUND. Deep 20e6 land combat scoring PARKED.
+   */
+  if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
+    ai_euro_land_try_adjacent_attack(ctx, u);
+    if (!u->active) {
+      return;
+    }
+    if (!ai_euro_land_has_useful_goto(u, ctx->map)) {
+      int hx = 0;
+      int hy = 0;
+      if (ai_euro_land_war_hunt_target(ctx, nation_id, u->x, u->y, &hx, &hy)) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hx, hy);
+        land_war_hunted = 1;
+      }
+    }
+  }
+
   int goal_x = u->goto_x;
   int goal_y = u->goto_y;
   int goal_code = -1;
   {
-    const char* uname = units_display_name(ctx->units, u);
     const int is_soldier = uname && strstr(uname, "Soldier");
     const int is_founder =
       uname && !is_soldier &&
@@ -1191,7 +1340,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  if (goal_code >= 0) {
+  /* Preserve land-war hunt goto; do not yank founders away via hunt (hunters only). */
+  if (goal_code >= 0 && !land_war_hunted) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
@@ -1221,6 +1371,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
       }
     }
+  }
+
+  if (u->active && at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
+    ai_euro_land_try_adjacent_attack(ctx, u);
   }
 }
 

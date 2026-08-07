@@ -19,14 +19,21 @@
 #define AI_DIPLO_FLAG_BASE 4
 
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare.
- * Full 153e trade/military score body, dialogs, FA 3f41 PARKED. */
+ * Full 153e trade/military score body, dialogs PARKED.
+ * FA 3f41 full body PARKED - thin ally-aid + break trust only. */
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
 #define AI_DIPLO_ALLY_GOLD_COST 25u
+#define AI_DIPLO_ALLY_TREATY_MIN 8u
+#define AI_DIPLO_ALLY_AID_GOLD 10u
+#define AI_DIPLO_ALLY_AID_MIN_TREASURY 50u
+#define AI_DIPLO_BREAK_GOLD_PENALTY 20u
 #define AI_DIPLO_INDIAN_DRIFT_CAP 160u
 #define AI_DIPLO_WAR_INDIAN_HIT 5
+
+static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 
 static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
@@ -97,6 +104,63 @@ static void ai_diplo_ally_treasury_cost(ColonizeCol1Save* col1, int nation_a, in
       nat->gold = 0;
     }
   }
+}
+
+/* Ensure treaty timer toward peer is at least 8 if currently 0 (both dirs). */
+static void ai_diplo_ally_treaty_timer_bump(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  uint8_t* ta = ai_diplo_timer_byte(col1, nation_a, nation_b);
+  uint8_t* tb = ai_diplo_timer_byte(col1, nation_b, nation_a);
+  if (ta && *ta == 0) {
+    *ta = (uint8_t)AI_DIPLO_ALLY_TREATY_MIN;
+  }
+  if (tb && *tb == 0) {
+    *tb = (uint8_t)AI_DIPLO_ALLY_TREATY_MIN;
+  }
+}
+
+/* Break-alliance trust loss: −20 gold each side (floor 0). Tax path unused. */
+static void ai_diplo_break_trust_penalty(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    if (nat->gold > AI_DIPLO_BREAK_GOLD_PENALTY) {
+      nat->gold -= AI_DIPLO_BREAK_GOLD_PENALTY;
+    } else {
+      nat->gold = 0;
+    }
+  }
+}
+
+/*
+ * Thin FA / ally-aid stand-in (full 3f41 PARKED): once per euro_balance peer visit,
+ * if allied and peer gold < self gold/2 and self gold >= 50, transfer 10 gold to ally.
+ */
+static void ai_diplo_ally_foreign_aid(ColonizeCol1Save* col1, int nation_id, int peer) {
+  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
+    return;
+  }
+  ColonizeCol1Nation* self = &col1->nation[nation_id];
+  ColonizeCol1Nation* other = &col1->nation[peer];
+  if (self->gold < AI_DIPLO_ALLY_AID_MIN_TREASURY) {
+    return;
+  }
+  if (other->gold >= self->gold / 2u) {
+    return;
+  }
+  if (self->gold < AI_DIPLO_ALLY_AID_GOLD) {
+    return;
+  }
+  self->gold -= AI_DIPLO_ALLY_AID_GOLD;
+  other->gold += AI_DIPLO_ALLY_AID_GOLD;
 }
 
 /* True if Euro nation is at war with any other Euro (thin hostility gate). */
@@ -299,11 +363,18 @@ void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) 
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
   /* Thin alliance treasury cost: 25 gold each side (floor 0). */
   ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
+  /* Treaty timer: if peer slot is 0, set to 8 so alliance persists a few ticks. */
+  ai_diplo_ally_treaty_timer_bump(col1, nation_a, nation_b);
 }
 
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  const int was_ally = (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_ALLY) != 0;
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_ALLY);
   ai_diplo_or_both(col1, nation_a, nation_b, AI_DIPLO_PEACE);
+  /* Trust loss stand-in (FA 3f41 PARKED): −20 gold each side if they were allied. */
+  if (was_ally) {
+    ai_diplo_break_trust_penalty(col1, nation_a, nation_b);
+  }
 }
 
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
@@ -380,7 +451,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    *  1 skip human; at-war → light upkeep only
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
-   *  4 13b0 form/break
+   *  4 13b0 form/break + thin ally aid (FA 3f41 PARKED)
    *  5 declare_war → thin 153e gold+tax (full body / dialogs / 12d0 PARKED)
    */
   const int self = ai_diplo_military_score(ctx, nation_id);
@@ -395,6 +466,11 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
       ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
       continue;
+    }
+
+    /* Thin FA ally-aid: richer ally may gift 10g once per peer visit. */
+    if (bits & AI_DIPLO_ALLY) {
+      ai_diplo_ally_foreign_aid(ctx->col1, nation_id, peer);
     }
 
     /* 13b0 break: imbalance while allied. */

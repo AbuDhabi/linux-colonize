@@ -18,6 +18,8 @@
  * Tax-boycott/refuse: head.unknown46[2] stand-in (38fd_5be8 UI PARKED).
  *   Cargo freeze: nation.boycott_bitmap (EuropeScreen has no boycott bits).
  * Merc hired this war: head.unknown46[3] stand-in (2244 dialog PARKED).
+ * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
+ *   unknown46[4] unused — writable Col1 country_name exists.
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -26,6 +28,9 @@
 #define AI_KING_REF_PRESENT_BYTE 1
 #define AI_KING_BOYCOTT_BYTE 2
 #define AI_KING_MERC_HIRED_BYTE 3
+/* AI_KING_RENAMED_BYTE 4 reserved if country_name unavailable — not used. */
+
+#define AI_KING_INDEP_COUNTRY "United Colonies"
 
 /* Structural refuse thresholds (exact DOS 38fd_5be8 gates PARKED). */
 #define AI_KING_BOYCOTT_TAX_MIN 20
@@ -312,9 +317,19 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     }
     ctx->col1->player[n].control = 2;
   }
-  /* 160a rename cinematic PARKED */
+  /*
+   * Thin 160a independence rename stand-in (letter-animation cinematic PARKED).
+   * Writable Col1 player.country_name (and europe.nation_name if present).
+   * Same-turn 0982/1528 wave may overwrite ctx->status afterward.
+   */
+  snprintf(ctx->col1->player[human].country_name,
+           sizeof(ctx->col1->player[human].country_name), "%s", AI_KING_INDEP_COUNTRY);
+  if (ctx->europe) {
+    snprintf(ctx->europe->nation_name, sizeof(ctx->europe->nation_name), "%s",
+             AI_KING_INDEP_COUNTRY);
+  }
   if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "Independence! The REF approaches.");
+    snprintf(ctx->status, ctx->status_size, "The United Colonies declare independence!");
   }
 }
 

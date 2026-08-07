@@ -358,11 +358,156 @@ static int smoke_naval_war_hunt(void) {
   return 0;
 }
 
+/* Two nations at war, idle land soldiers — expect AI_MOVE toward foe / closer / combat. */
+static int smoke_land_war_hunt(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 4;
+  const int own_y = 4;
+  const int foe_x = 10;
+  const int foe_y = 10;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("land alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains land */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("spawn own soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 1;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_soldier = units_get(&units, foe_id);
+  if (!foe_soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("spawn foe soldier");
+  }
+  foe_soldier->nation_id = foe;
+  foe_soldier->orders = 0;
+  foe_soldier->moves_left = 0; /* stationary target */
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("land expected war");
+  }
+
+  ai_goals_reset();
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  foe_soldier = units_get(&units, foe_id);
+
+  const int combat_done =
+    (soldier == NULL || !soldier->active) || (foe_soldier == NULL || !foe_soldier->active);
+  int move_toward = 0;
+  int moved_closer = 0;
+  if (soldier && soldier->active) {
+    move_toward =
+      soldier->orders == UNITS_ORDER_AI_MOVE && soldier->goto_x == foe_x &&
+      soldier->goto_y == foe_y;
+    const int dist1 = foe_soldier && foe_soldier->active
+                        ? abs(soldier->x - foe_soldier->x) + abs(soldier->y - foe_soldier->y)
+                        : 0;
+    moved_closer = dist1 < dist0 || (soldier->x != own_x || soldier->y != own_y);
+  }
+
+  if (!combat_done && !move_toward && !moved_closer) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: land orders=%d goto=(%d,%d) pos=(%d,%d) foe_active=%d\n",
+      soldier ? soldier->orders : -1,
+      soldier ? soldier->goto_x : -1,
+      soldier ? soldier->goto_y : -1,
+      soldier ? soldier->x : -1,
+      soldier ? soldier->y : -1,
+      foe_soldier && foe_soldier->active
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected AI_MOVE toward foe, closer move, or combat");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: land ok (move=%d closer=%d combat=%d)\n",
+    move_toward,
+    moved_closer,
+    combat_done
+  );
+  return 0;
+}
+
 int main(void) {
   if (smoke_mid_hire_mil() != 0) {
     return 1;
   }
   if (smoke_naval_war_hunt() != 0) {
+    return 1;
+  }
+  if (smoke_land_war_hunt() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_war: ok\n");

@@ -237,6 +237,31 @@ int main(void) {
     return fail("teach-skill Iroquois nation → Expert Fur Trapper");
   }
 
+  /*
+   * Gift stand-in (5bfb_102a/1092 UI PARKED): low friction + gold >= 20 →
+   * Euro −10 gold and friction −2.
+   */
+  col1.tribe[0].nation_id = 4;
+  ind->met_by_player[0] = 1;
+  ind->alarm_by_player[0] = 10;
+  col1.tribe[0].alarm[0].friction = 10;
+  col1.nation[0].gold = 50;
+  euro->x = 6;
+  euro->y = 5;
+  brave->x = 5;
+  brave->y = 5;
+  brave->nation_id = 4;
+  ai_contact_indian_meet_trade(&ctx, 4);
+  if (col1.nation[0].gold != 40u) {
+    return fail("gift should cost Euro 10 gold");
+  }
+  if (col1.tribe[0].alarm[0].friction != 8) {
+    return fail("gift should reduce tribe friction by 2");
+  }
+  if (ind->alarm_by_player[0] != 8) {
+    return fail("gift should reduce alarm_by_player by 2");
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
