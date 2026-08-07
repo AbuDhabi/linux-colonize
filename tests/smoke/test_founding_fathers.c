@@ -103,6 +103,42 @@ int main(void) {
     return fail("Brewster crosses +8 missing");
   }
 
+  /* Force Jefferson (15): liberty bells +15. */
+  nat->liberty_bells_total = 160;
+  nat->next_founding_father = 15;
+  const uint16_t bells_before = nat->liberty_bells_total;
+  founding_fathers_tick(&ctx);
+  if (col1.head.founding_father[15] != 0 || nat->founding_father_count != 4) {
+    return fail("Jefferson not elected via next");
+  }
+  if (nat->liberty_bells_total != (uint16_t)(bells_before + 15u)) {
+    return fail("Jefferson bells +15 missing");
+  }
+
+  /* Force Jan de Witt (4): tax_rate -1. */
+  nat->tax_rate = 12;
+  nat->liberty_bells_total = 200;
+  nat->next_founding_father = 4;
+  founding_fathers_tick(&ctx);
+  if (col1.head.founding_father[4] != 0 || nat->founding_father_count != 5) {
+    return fail("de Witt not elected via next");
+  }
+  if (nat->tax_rate != 11) {
+    return fail("de Witt tax -1 missing");
+  }
+
+  /* Force Washington (11): REF regulars -1. */
+  col1.head.expeditionary_force[0] = 5;
+  nat->liberty_bells_total = 240;
+  nat->next_founding_father = 11;
+  founding_fathers_tick(&ctx);
+  if (col1.head.founding_father[11] != 0 || nat->founding_father_count != 6) {
+    return fail("Washington not elected via next");
+  }
+  if (col1.head.expeditionary_force[0] != 4) {
+    return fail("Washington REF regulars -1 missing");
+  }
+
   printf("smoke_founding_fathers: OK\n");
   return 0;
 }

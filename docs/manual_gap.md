@@ -97,7 +97,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Recruit pool (3) + passage | Done | **R** dialog; passage starts 100, +16 per recruit (Unverified formula) |
 | Dock sentry / board on sail | Partial | Default sentry; Don’t/Board/Move-front menu; full equip/bless later |
 | Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
-| Tax rate / boycotts / king tax events | Partial | Structural tax→REF (`ai_king`); boycott UI PARKED — [ai_transcription.md](ai_transcription.md) R6 |
+| Tax rate / boycotts / king tax events | Partial | Structural tax→REF + refuse/boycott flag (`ai_king`); audience UI PARKED — R6 |
 
 ### Economy and turn sequence
 

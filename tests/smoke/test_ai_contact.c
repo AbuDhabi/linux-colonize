@@ -199,6 +199,25 @@ int main(void) {
     return fail("missionary convert should bump nation current_crosses");
   }
 
+  /*
+   * Teach-skill pulse: peaceful Free Colonist adjacent to tribe →
+   * tribe.state.learned and Expert Farmer profession stand-in.
+   */
+  units_despawn(&units, miss_id);
+  euro->x = 6;
+  euro->y = 5;
+  euro->profession = UNITS_JOB_NONE;
+  col1.tribe[0].state.learned = 0;
+  col1.tribe[0].alarm[0].friction = 5;
+  ind->alarm_by_player[0] = 5;
+  ai_contact_indian_meet_trade(&ctx, 4);
+  if (!col1.tribe[0].state.learned) {
+    return fail("teach-skill should set tribe.state.learned");
+  }
+  if (euro->profession != 0) {
+    return fail("teach-skill should grant Expert Farmer (@JOB 0) stand-in");
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

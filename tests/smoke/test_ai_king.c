@@ -1,4 +1,4 @@
-/* Smoke: King/REF SoL, tax→REF, declare, invasion wave, 10f0 intervene. */
+/* Smoke: King/REF SoL, tax→REF, boycott refuse, declare, invasion wave, 10f0 intervene. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -144,6 +144,54 @@ int main(void) {
   if (col1.head.unknown46[0] != 0) {
     return fail("tax-only turn should not declare WoI");
   }
+  if (col1.head.unknown46[2] != 0) {
+    return fail("low tax_rate should not set boycott stand-in");
+  }
+
+  /*
+   * Boycott/refuse stand-in (38fd_5be8 UI PARKED):
+   * tax_rate>=20 + SoL>=30 → unknown46[2], sugar boycott bit, REF grow, no hike.
+   * Next tax year while active: skip further hikes (and no extra REF grow).
+   */
+  year = 1558; /* 1536 + 22 */
+  autumn = 0;
+  col1.nation[0].tax_rate = 20;
+  europe.tax_percent = 20;
+  col1.nation[0].boycott_bitmap = 0;
+  col1.nation[0].liberty_bells_total = 0; /* keep declare gated */
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  const uint16_t pool_boycott = col1.head.expeditionary_force[0];
+  ai_king_nation_turn(&ctx);
+  if (col1.head.unknown46[2] == 0) {
+    return fail("refuse should set boycott flag unknown46[2]");
+  }
+  if (col1.nation[0].tax_rate != 20) {
+    return fail("refuse should not hike tax_rate");
+  }
+  if ((col1.nation[0].boycott_bitmap & (1u << 1)) == 0) {
+    return fail("refuse should set nation.boycott_bitmap sugar bit");
+  }
+  if (col1.head.expeditionary_force[0] <= pool_boycott) {
+    return fail("refuse should grow REF once without tax hike");
+  }
+  if (col1.head.unknown46[0] != 0) {
+    return fail("boycott turn should not declare WoI");
+  }
+
+  year = 1580; /* next tax year; boycott still active */
+  autumn = 0;
+  const uint8_t tax_held = col1.nation[0].tax_rate;
+  const uint16_t pool_held = col1.head.expeditionary_force[0];
+  ai_king_nation_turn(&ctx);
+  if (col1.nation[0].tax_rate != tax_held) {
+    return fail("active boycott should skip further tax hikes");
+  }
+  if (col1.head.expeditionary_force[0] != pool_held) {
+    return fail("active boycott should not grow REF again");
+  }
+  if (col1.head.unknown46[2] == 0) {
+    return fail("boycott flag should remain set");
+  }
 
   /* Declare path: autumn skips tax; SoL≥50 + bells≥100. Wave runs same turn. */
   year = 1600;
@@ -210,11 +258,13 @@ int main(void) {
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
+  const int boycott_final = col1.head.unknown46[2];
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
   col1_save_free(&col1);
-  fprintf(stderr, "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d)\n", sol,
-          tax_final, crown_final, intervene_final);
+  fprintf(stderr,
+          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d)\n", sol,
+          tax_final, crown_final, intervene_final, boycott_final);
   return 0;
 }

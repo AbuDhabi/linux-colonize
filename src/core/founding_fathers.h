@@ -10,7 +10,8 @@
  *   liberty_bells_total >= 40 * (founding_father_count + 1)
  * Bells are never decremented — DOS threshold/spend recovery PARKED.
  *
- * Effects: status line + tiny stand-ins for 1–2 famous FFs. Full table PARKED.
+ * Effects: status line + tiny stand-ins for a handful of famous FFs
+ * (gold / crosses / tax / bells / REF). Full wiki/decomp table PARKED.
  * Congress debate UI / AI-nation election PARKED.
  */
 

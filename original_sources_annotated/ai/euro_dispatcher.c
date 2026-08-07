@@ -129,7 +129,8 @@ void euro_nation_colony_goals_pass(int nation_id) {
  *   A nation+fog wipe + urgency seed   B own-unit scan
  *   C clear work queue                 D own-colony (LABOR / work-queue)
  *   E foreign-colony (PARKED mid-mil)  F tribe FOUND/MILITARY
- *   G continent stance (−0x6790) PARKED H bind founders→FOUND (light)
+ *   G continent stance thin (≥2 col); deep −0x6790 PARKED
+ *   H bind founders→FOUND (light)
  *
  * Linux PORT DEBT: ai_euro_early_turn sail/unload/found peels.
  */
@@ -186,7 +187,9 @@ void euro_unit_colony_goals(int nation_id) {
   /* --- G–H. Continent stance + bind units→goals ------------------------- */
   /*
    * G ~88054–88152: rewrite nation×continent stance bytes (−0x6790) ∈ {0,3,4,6}
-   *   — PARKED mid-game (Linux leaves G alone).
+   *   — deep table PARKED. Linux thin (ai_euro_colony_goals): if own≥2,
+   *   at-war → urgency+2 + MILITARY prio 6 on weakest/nearest foe colony;
+   *   peace → bump primary FOUND +1 or idle Scout/Soldier explore→tribe/FOUND.
    * H ~88153–88242: walk primary table; set order chars '1'/'t'/'i'
    *   Linux H-bind (ai_euro_colony_goals): idle land founders
    *   (Pioneer / Free Colonist / Hardy) → primary FOUND goto; do not steal

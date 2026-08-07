@@ -48,11 +48,21 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 |-----|----------------|
 | `0x5382` bit0 war | `head.unknown26` — **no**; use `head.unknown46[0]` WoI |
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
+| Tax boycott / refuse | `head.unknown46[2]` (structural; `38fd_5be8` UI PARKED) |
+| Cargo boycott bits | `nation.boycott_bitmap` (EuropeScreen has none) |
 | REF pools `0x53da…` | `head.expeditionary_force[4]` |
 | Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
 | Crown id `0x53d2` | Non-human Euro nation slot (0 or 1) |
 
 Exact `0x5382` Col1 bit rename PARKED.
+
+### Tax boycott / refuse stand-in (`1d42` + parked `38fd_5be8`)
+
+When a spring tax year would hike and `tax_rate >= 20` and (SoL ≥ 30 or
+liberty bells ≥ 80): **refuse** — do not raise tax; set `unknown46[2]`; OR in
+`nation.boycott_bitmap` bit1 (Sugar); grow REF pools once without a hike.
+While `unknown46[2]` is set, further tax years skip hikes entirely.
+Accept/refuse dialog and dump-goods chrome remain PARKED.
 
 ## Linux `ai_king_nation_turn` checklist
 
@@ -62,7 +72,7 @@ Exact `0x5382` Col1 bit rename PARKED.
 
 ## PORT DEBT
 
-- `38fd_5be8` tax audience / boycott UI
+- `38fd_5be8` tax audience / boycott **UI** (structural refuse + `unknown46[2]` / `boycott_bitmap` done)
 - Player `2564` confirm dialog; `160a` rename cinematic
 - `1528` arrival announce; `2244` merc hire
 - Deep `10f0` foreign intervention / `backup_force` — **partial structural** (landing + drain; merc/chrome PARKED)

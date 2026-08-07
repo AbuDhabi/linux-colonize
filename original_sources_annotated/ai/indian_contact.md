@@ -50,8 +50,15 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    hostile (`alarm_by_player` / tribe friction both < 50) → set
    `tribe.mission = euro nation id`, decay alarm/friction by 1 if > 0, bump
    `nation[euro].current_crosses` by 1. One pulse per tribe per call.
-5. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
-6. Gift / demand dialogs **PARKED**
+5. **Teach-skill pulse** (structural stub): Free Colonist or Scout (display-name
+   match) adjacent to tribe, peaceful band (`alarm_by_player` / tribe friction
+   both < 40), and `tribe.state.learned` clear → set **`tribe.state.learned = 1`**
+   (real Col1 bit). If unit `profession == UNITS_JOB_NONE`: Scout →
+   `UNITS_JOB_SCOUT` (Seasoned); else → `@JOB 0` Expert Farmer (native-teachable
+   stand-in; full skill-from-`@TRIBES` good mapping PARKED). One pulse per tribe
+   per call. Teach dialog UI **PARKED**.
+6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
+7. Gift / demand dialogs **PARKED**
 
 Raid hostility deepen (loot success + high friction → `ai_diplo_indian_relation_delta`):
 see [`indian_raid_outcomes.md`](indian_raid_outcomes.md). Full `2820`/`4528` + player
@@ -61,5 +68,5 @@ meet/trade dialog UI remain **PARKED**.
 
 - Full `2154` (~321), `2820` (~1.4k), `4528` (~3k)
 - Player meet/trade/raid dialog subst
-- Teach-skill stub (tribe `state.learned` / Free Colonist expertise) — not chosen this pass
+- Teach dialog UI + skill choice from tribe/`@TRIBES` traded good (Farmer stand-in only)
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2)

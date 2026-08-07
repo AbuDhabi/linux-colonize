@@ -15,12 +15,22 @@
  *
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
+ * Tax-boycott/refuse: head.unknown46[2] stand-in (38fd_5be8 UI PARKED).
+ *   Cargo freeze: nation.boycott_bitmap (EuropeScreen has no boycott bits).
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
 
 #define AI_KING_WOI_BYTE 0
 #define AI_KING_REF_PRESENT_BYTE 1
+#define AI_KING_BOYCOTT_BYTE 2
+
+/* Structural refuse thresholds (exact DOS 38fd_5be8 gates PARKED). */
+#define AI_KING_BOYCOTT_TAX_MIN 20
+#define AI_KING_BOYCOTT_SOL_MIN 30
+#define AI_KING_BOYCOTT_BELLS_MIN 80
+/* Sugar = cargo index 1 — one frozen Europe cargo while refuse active. */
+#define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
@@ -81,6 +91,40 @@ static void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
   col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = on ? 1 : 0;
 }
 
+static int ai_king_boycott_active(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return 0;
+  }
+  return col1->head.unknown46[AI_KING_BOYCOTT_BYTE] != 0;
+}
+
+static void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {
+  if (!col1) {
+    return;
+  }
+  col1->head.unknown46[AI_KING_BOYCOTT_BYTE] = on ? 1 : 0;
+}
+
+/* Grow REF pools by current tax band (1d42 crumb; no tax_rate change). */
+static void ai_king_grow_ref_from_tax(ColonizeCol1Save* col1, uint8_t tax_rate) {
+  if (!col1) {
+    return;
+  }
+  col1->head.expeditionary_force[0] += 1; /* regulars */
+  if (tax_rate >= 10) {
+    col1->head.expeditionary_force[1] += 1; /* dragoons */
+  }
+  if (tax_rate >= 20) {
+    col1->head.expeditionary_force[2] += (tax_rate % 5 == 0) ? 1 : 0; /* MoW */
+  }
+  if (tax_rate >= 30 && (tax_rate % 10 == 0)) {
+    col1->head.expeditionary_force[3] += 1; /* artillery */
+  }
+  if (col1->head.expeditionary_force[0] > 0) {
+    ai_king_set_ref_present(col1, 1);
+  }
+}
+
 int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4) {
     return 0;
@@ -136,7 +180,10 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
  * FUN_43f7_1d42 checklist:
  *  spring-only; first year / interval by difficulty; cap 75%;
  *  sync europe tax; grow REF pools by tax band.
- * Boycott / 38fd_5be8 accept-refuse UI PARKED.
+ * Structural boycott/refuse (38fd_5be8 accept-refuse UI PARKED):
+ *  when tax_rate >= 20 and (SoL >= 30 or liberty bells high), refuse hike once:
+ *  set unknown46[2], freeze one cargo via nation.boycott_bitmap, grow REF
+ *  without raising tax. While boycott active, skip further tax hikes.
  * Note: TURN_PROC_FINISH may overwrite ctx->status afterward.
  */
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
@@ -161,30 +208,46 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (ctx->game_autumn && *ctx->game_autumn != 0) {
     return; /* spring tax audiences */
   }
+
+  /* Already refused: no further tax hikes (REF grow-without-hike was once). */
+  if (ai_king_boycott_active(ctx->col1)) {
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "Boycott holds; the King cannot raise taxes.");
+    }
+    /* 38fd_5be8 boycott / refuse UI PARKED */
+    return;
+  }
+
   if (nat->tax_rate >= 75) {
     return;
   }
+
+  const int sol = ai_king_sol_percent(ctx, human);
+  const int refuse =
+      (nat->tax_rate >= AI_KING_BOYCOTT_TAX_MIN) &&
+      (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_total >= AI_KING_BOYCOTT_BELLS_MIN);
+  if (refuse) {
+    /* Structural refuse: tax stays; REF still grows once; cargo bit frozen. */
+    ai_king_set_boycott(ctx->col1, 1);
+    nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
+    ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size,
+               "Colonies refuse the tax hike (boycott). Tax stays at %u%%.", nat->tax_rate);
+    }
+    /* 38fd_5be8 accept-refuse dialog / dump-goods UI PARKED */
+    return;
+  }
+
   nat->tax_rate = (uint8_t)(nat->tax_rate + 1);
   if (ctx->europe) {
     ctx->europe->tax_percent = nat->tax_rate;
   }
-  ctx->col1->head.expeditionary_force[0] += 1; /* regulars */
-  if (nat->tax_rate >= 10) {
-    ctx->col1->head.expeditionary_force[1] += 1; /* dragoons */
-  }
-  if (nat->tax_rate >= 20) {
-    ctx->col1->head.expeditionary_force[2] += (nat->tax_rate % 5 == 0) ? 1 : 0; /* MoW */
-  }
-  if (nat->tax_rate >= 30 && (nat->tax_rate % 10 == 0)) {
-    ctx->col1->head.expeditionary_force[3] += 1; /* artillery */
-  }
-  if (ctx->col1->head.expeditionary_force[0] > 0) {
-    ai_king_set_ref_present(ctx->col1, 1);
-  }
+  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "The King raises taxes to %u%%.", nat->tax_rate);
   }
-  /* 38fd_5be8 boycott / refuse PARKED */
+  /* 38fd_5be8 boycott / refuse UI PARKED */
 }
 
 /*

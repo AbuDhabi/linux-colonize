@@ -441,7 +441,111 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* G continent stance (−0x6790) — PARKED mid-game. */
+  /*
+   * G continent stance (thin) — mid-game pressure once established (≥2 colonies).
+   * Deep nation×continent stance table (−0x6790 ∈ {0,3,4,6}) stays PARKED.
+   */
+  {
+    const int own =
+      inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
+    if (own >= 2 && ctx->colonies) {
+      const int at_war =
+        ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
+      if (at_war) {
+        /* Bump founding urgency stand-in + extra MILITARY on weakest/nearest foe. */
+        if (inv) {
+          inv->urgency += 2;
+        }
+        int ref_x = 0;
+        int ref_y = 0;
+        int have_ref = 0;
+        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+          const ColonizeColony* c = &ctx->colonies->colonies[i];
+          if (c->active && c->nation_id == nation_id) {
+            ref_x = c->x;
+            ref_y = c->y;
+            have_ref = 1;
+            break;
+          }
+        }
+        const ColonizeColony* target = NULL;
+        int best_key = -1;
+        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+          const ColonizeColony* c = &ctx->colonies->colonies[i];
+          if (!c->active || c->nation_id == nation_id || c->nation_id < 0 ||
+              c->nation_id > 3) {
+            continue;
+          }
+          if (!ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+            continue;
+          }
+          const int dist =
+            have_ref ? (abs(c->x - ref_x) + abs(c->y - ref_y)) : 0;
+          /* Prefer weaker (low pop), then nearer — pack into one key. */
+          const int key = c->population * 10000 + dist;
+          if (!target || key < best_key) {
+            target = c;
+            best_key = key;
+          }
+        }
+        if (target) {
+          /* Higher than E's foreign MILITARY (5). */
+          ai_goals_upsert_primary(nation_id, target->x, target->y, AI_GOAL_MILITARY, 6);
+        }
+      } else {
+        /* Peaceful: bump one primary FOUND +1, else idle Scout/Soldier → explore. */
+        int bumped = 0;
+        for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+          const AiGoalSlot* s = ai_goals_primary(nation_id, i);
+          if (!s || s->code != AI_GOAL_FOUND) {
+            continue;
+          }
+          ai_goals_upsert_primary(
+            nation_id, s->x, s->y, AI_GOAL_FOUND, (int)s->prio + 1
+          );
+          bumped = 1;
+          break;
+        }
+        if (!bumped) {
+          int tx = 0;
+          int ty = 0;
+          int have_t = 0;
+          /* Prefer tribe-adjacent secondary FOUND stand-in (tribe tile). */
+          if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
+              ctx->col1->head.tribe_count > 0) {
+            tx = ctx->col1->tribe[0].x;
+            ty = ctx->col1->tribe[0].y;
+            have_t = 1;
+          } else if (ai_goals_best_found_tile(nation_id, &tx, &ty)) {
+            have_t = 1;
+          }
+          if (have_t) {
+            for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+              ColonizeUnit* u = &ctx->units->units[i];
+              if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+                continue;
+              }
+              if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+                continue;
+              }
+              if (units_orders_follow_goto(u->orders)) {
+                continue;
+              }
+              const char* name = units_display_name(ctx->units, u);
+              if (!name) {
+                continue;
+              }
+              if (!strstr(name, "Scout") && !ai_euro_is_military_name(name)) {
+                continue;
+              }
+              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
 
   /* Ship FOUND via 06ae: first colony (high prio) or second-wave while < 6. */
   {

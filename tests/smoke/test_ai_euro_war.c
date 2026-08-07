@@ -1,4 +1,4 @@
-/* Smoke: at-war Euro mid-hire (Soldier boarded) and/or MILITARY AI_MOVE bind. */
+/* Smoke: at-war Euro mid-hire / MILITARY bind + G stance (own≥2 → MIL prio 6). */
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
@@ -68,8 +68,20 @@ int main(void) {
   own->stock[COLONIZE_CARGO_FOOD] = 40;
   own->building_in_production = -1;
 
-  ColonizeColony* enemy = &colonies.colonies[1];
-  enemy->id = 1;
+  /* Second own colony — unlocks G continent stance (own ≥ 2). */
+  ColonizeColony* own2 = &colonies.colonies[1];
+  own2->id = 1;
+  own2->active = true;
+  own2->nation_id = nation;
+  own2->x = 6;
+  own2->y = 4;
+  own2->population = 2;
+  own2->colonist_count = 2;
+  own2->stock[COLONIZE_CARGO_FOOD] = 20;
+  own2->building_in_production = -1;
+
+  ColonizeColony* enemy = &colonies.colonies[2];
+  enemy->id = 2;
   enemy->active = true;
   enemy->nation_id = foe;
   enemy->x = 10;
@@ -78,8 +90,8 @@ int main(void) {
   enemy->colonist_count = 2;
   enemy->stock[COLONIZE_CARGO_FOOD] = 20;
   enemy->building_in_production = -1;
-  colonies.colony_count = 2;
-  colonies.next_id = 2;
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
 
   /* Idle Soldier near own colony — expect MILITARY goto toward enemy. */
   const int sid = units_spawn(&units, 3, 5, 5);
@@ -152,6 +164,17 @@ int main(void) {
   }
   const int gold_spent = (col1.nation[nation].gold < gold_before);
 
+  /* G stance: own≥2 + at war → MILITARY primary prio 6 (above E's 5). */
+  const int mil_prio =
+    ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
+  if (mil_prio < 6) {
+    fprintf(stderr, "smoke_ai_euro_war: G stance mil_prio=%d (want ≥6)\n", mil_prio);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected G stance MILITARY prio ≥6 with own≥2 at war");
+  }
+
   if (!mil_goto && !(soldier_boarded && gold_spent)) {
     fprintf(
       stderr,
@@ -175,10 +198,11 @@ int main(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: ok (mil_goto=%d boarded=%d gold_spent=%d)\n",
+    "smoke_ai_euro_war: ok (mil_goto=%d boarded=%d gold_spent=%d mil_prio=%d)\n",
     mil_goto,
     soldier_boarded,
-    gold_spent
+    gold_spent,
+    mil_prio
   );
   return 0;
 }
