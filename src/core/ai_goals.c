@@ -1,6 +1,7 @@
 #include "core/ai_goals.h"
 
 #include "core/colony.h"
+#include "core/colony_yield.h"
 #include "core/map.h"
 
 #include <stdlib.h>
@@ -243,16 +244,20 @@ int ai_goals_pick_founding_tile(
     if (map_tile_is_water(map, nx, ny)) {
       continue;
     }
+    /* Arctic never foundable — skip even if colonies pool is NULL. */
+    if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
+      continue;
+    }
     if (colonies && !colonies_can_found(colonies, map, nx, ny) && dir != 8) {
       continue;
     }
     if (colonies && dir == 8 && !colonies_can_found(colonies, map, nx, ny)) {
       continue;
     }
-    /* Terrain-class yield stand-in + prefer stay / clearer tiles. */
+    /* Food yield stand-in (not raw terrain index — arctic 24 was wrongly preferred). */
     int score = 10;
-    const uint8_t terr = map_get_terrain(map, nx, ny) & 0x1fu;
-    score += (int)terr;
+    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FARMER) * 3;
+    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FISHERMAN);
     if (dir == 8) {
       score += 2;
     }

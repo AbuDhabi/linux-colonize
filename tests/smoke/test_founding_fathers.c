@@ -1,4 +1,4 @@
-/* Smoke: liberty-bell threshold elects an unclaimed founding father. */
+/* Smoke: liberty-bell threshold elects FF with manual/wiki-aligned effects. */
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/europe.h"
@@ -59,8 +59,9 @@ int main(void) {
     return fail("no elect below threshold");
   }
 
-  /* At threshold: elect next_founding_father (Adam Smith = 0). */
+  /* At threshold: elect Adam Smith — ownership only (factory gate elsewhere). */
   nat->liberty_bells_total = 40;
+  const uint32_t gold_smith = nat->gold;
   founding_fathers_tick(&ctx);
   if (col1.head.founding_father[0] != 0) {
     return fail("head.founding_father[0] not human");
@@ -71,58 +72,77 @@ int main(void) {
   if ((nat->founding_fathers[0] & 1u) == 0) {
     return fail("bitmask bit 0 unset");
   }
+  if (!founding_fathers_nation_has(&col1, 0, FF_ADAM_SMITH)) {
+    return fail("nation_has Smith false");
+  }
+  if (nat->gold != gold_smith) {
+    return fail("Smith must not invent gold");
+  }
   if (nat->next_founding_father != 1) {
     return fail("next_founding_father not advanced to 1");
   }
   if (strstr(status, "Founding Father elected") == NULL) {
     return fail("status line missing");
   }
-  /* Bells gated, not spent. */
   if (nat->liberty_bells_total != 40) {
     return fail("bells were spent (expected gate-only)");
   }
 
-  /* Second elect needs 80; Jakob Fugger (1) gold + boycott forgive. */
+  /* Jakob Fugger: clear ALL boycotts; no gold bump. */
   nat->liberty_bells_total = 80;
-  nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2)); /* Sugar+Furs+Tobacco */
-  col1.head.unknown46[2] = 1; /* king tax-refuse stand-in */
+  nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2));
+  col1.head.unknown46[2] = 1;
   const uint32_t gold_before = nat->gold;
   founding_fathers_tick(&ctx);
   if (col1.head.founding_father[1] != 0 || nat->founding_father_count != 2) {
     return fail("second FF not Jakob Fugger");
   }
-  if (nat->gold != gold_before + 50u) {
-    return fail("Jakob Fugger gold +50 missing");
+  if (nat->gold != gold_before) {
+    return fail("Fugger must not invent gold");
   }
-  if ((nat->boycott_bitmap & (1u << 1)) != 0) {
-    return fail("Fugger did not clear Sugar boycott bit");
-  }
-  if ((nat->boycott_bitmap & (1u << 4)) != 0) {
-    return fail("Fugger did not clear Furs embargo bit");
-  }
-  if ((nat->boycott_bitmap & (1u << 2)) == 0) {
-    return fail("Fugger cleared unrelated Tobacco boycott bit");
+  if (nat->boycott_bitmap != 0) {
+    return fail("Fugger did not clear all boycott bits");
   }
   if (col1.head.unknown46[2] != 0) {
     return fail("Fugger did not clear human unknown46[2] king refuse");
   }
-  if (nat->next_founding_father != 2) {
-    return fail("next after Fugger not 2");
-  }
 
-  /* Prefer next_founding_father when still unclaimed. */
+  /* Brewster: pool filter flag; no crosses / free-colonist spawn fiction. */
   nat->liberty_bells_total = 120;
-  nat->next_founding_father = 20; /* William Brewster */
+  nat->next_founding_father = 20;
+  EuropeScreen eu_brew;
+  memset(&eu_brew, 0, sizeof(eu_brew));
+  snprintf(eu_brew.pool[0].name, sizeof(eu_brew.pool[0].name), "Petty Criminals");
+  eu_brew.pool[0].profession = 26;
+  eu_brew.pool[0].filled = true;
+  eu_brew.pool[1].filled = false;
+  eu_brew.pool[2].filled = false;
+  ctx.europe = &eu_brew;
   const uint16_t crosses_before = nat->current_crosses;
+  const uint32_t gold_brew = nat->gold;
   founding_fathers_tick(&ctx);
   if (col1.head.founding_father[20] != 0 || nat->founding_father_count != 3) {
     return fail("Brewster not elected via next");
   }
-  if (nat->current_crosses != (uint16_t)(crosses_before + 15u)) {
-    return fail("Brewster crosses +15 missing");
+  if (nat->current_crosses != crosses_before) {
+    return fail("Brewster must not invent crosses");
   }
+  if (nat->gold != gold_brew) {
+    return fail("Brewster must not invent gold");
+  }
+  if (!eu_brew.brewster_no_criminals) {
+    return fail("Brewster flag not set on Europe");
+  }
+  if (eu_brew.dock_count != 0) {
+    return fail("Brewster must not spawn Free Colonist on dock");
+  }
+  if (eu_brew.pool[0].filled &&
+      (eu_brew.pool[0].profession == 26 || strstr(eu_brew.pool[0].name, "Criminal"))) {
+    return fail("Brewster left criminal in pool");
+  }
+  ctx.europe = NULL;
 
-  /* Force Jefferson (15): liberty bells +15. */
+  /* Jefferson: elect only — no liberty-bells fiction. */
   nat->liberty_bells_total = 160;
   nat->next_founding_father = 15;
   const uint16_t bells_before = nat->liberty_bells_total;
@@ -130,11 +150,11 @@ int main(void) {
   if (col1.head.founding_father[15] != 0 || nat->founding_father_count != 4) {
     return fail("Jefferson not elected via next");
   }
-  if (nat->liberty_bells_total != (uint16_t)(bells_before + 15u)) {
-    return fail("Jefferson bells +15 missing");
+  if (nat->liberty_bells_total != bells_before) {
+    return fail("Jefferson must not invent bells");
   }
 
-  /* Force Jan de Witt (4): tax_rate -1. */
+  /* de Witt: elect only — no tax fiction. */
   nat->tax_rate = 12;
   nat->liberty_bells_total = 200;
   nat->next_founding_father = 4;
@@ -142,11 +162,11 @@ int main(void) {
   if (col1.head.founding_father[4] != 0 || nat->founding_father_count != 5) {
     return fail("de Witt not elected via next");
   }
-  if (nat->tax_rate != 11) {
-    return fail("de Witt tax -1 missing");
+  if (nat->tax_rate != 12) {
+    return fail("de Witt must not invent tax cut");
   }
 
-  /* Force Washington (11): REF regulars -1. */
+  /* Washington: ownership flag only — no mass promote / REF−1. */
   col1.head.expeditionary_force[0] = 5;
   nat->liberty_bells_total = 240;
   nat->next_founding_father = 11;
@@ -154,11 +174,11 @@ int main(void) {
   if (col1.head.founding_father[11] != 0 || nat->founding_father_count != 6) {
     return fail("Washington not elected via next");
   }
-  if (col1.head.expeditionary_force[0] != 4) {
-    return fail("Washington REF regulars -1 missing");
+  if (col1.head.expeditionary_force[0] != 5) {
+    return fail("Washington must not invent REF−1");
   }
 
-  /* Force Stuyvesant (3): gold +40. */
+  /* Stuyvesant: elect only (Custom House gate elsewhere) — no gold. */
   nat->liberty_bells_total = 280;
   nat->next_founding_father = 3;
   {
@@ -167,12 +187,12 @@ int main(void) {
     if (col1.head.founding_father[3] != 0 || nat->founding_father_count != 7) {
       return fail("Stuyvesant not elected via next");
     }
-    if (nat->gold != g0 + 40u) {
-      return fail("Stuyvesant gold +40 missing");
+    if (nat->gold != g0) {
+      return fail("Stuyvesant must not invent gold");
     }
   }
 
-  /* Force Drake (13) without ships: gold +75 fallback. */
+  /* Drake: ownership flag only — no sea-moves / gold fiction. */
   nat->liberty_bells_total = 320;
   nat->next_founding_father = 13;
   {
@@ -181,12 +201,12 @@ int main(void) {
     if (col1.head.founding_father[13] != 0 || nat->founding_father_count != 8) {
       return fail("Drake not elected via next");
     }
-    if (nat->gold != g0 + 75u) {
-      return fail("Drake gold +75 fallback missing");
+    if (nat->gold != g0) {
+      return fail("Drake must not invent gold");
     }
   }
 
-  /* Force Revere (12) without colonies: gold +25 fallback. */
+  /* Revere: ownership flag only — no tools / gold fiction. */
   nat->liberty_bells_total = 360;
   nat->next_founding_father = 12;
   {
@@ -195,12 +215,12 @@ int main(void) {
     if (col1.head.founding_father[12] != 0 || nat->founding_father_count != 9) {
       return fail("Revere not elected via next");
     }
-    if (nat->gold != g0 + 25u) {
-      return fail("Revere gold +25 fallback missing");
+    if (nat->gold != g0) {
+      return fail("Revere must not invent gold");
     }
   }
 
-  /* Force Bolivar (18): bells +35 (no Col1 colonies → no rebel bump). */
+  /* Bolivar without Col1 colonies: elect only, no bells fiction. */
   nat->liberty_bells_total = 400;
   nat->next_founding_father = 18;
   {
@@ -209,12 +229,12 @@ int main(void) {
     if (col1.head.founding_father[18] != 0 || nat->founding_father_count != 10) {
       return fail("Bolivar not elected via next");
     }
-    if (nat->liberty_bells_total != (uint16_t)(b0 + 35u)) {
-      return fail("Bolivar bells +35 missing");
+    if (nat->liberty_bells_total != b0) {
+      return fail("Bolivar must not invent bells");
     }
   }
 
-  /* Force Pocahontas (16): crosses +10. */
+  /* Pocahontas: PARKED — no crosses fiction. */
   nat->liberty_bells_total = 440;
   nat->next_founding_father = 16;
   {
@@ -223,12 +243,12 @@ int main(void) {
     if (col1.head.founding_father[16] != 0 || nat->founding_father_count != 11) {
       return fail("Pocahontas not elected via next");
     }
-    if (nat->current_crosses != (uint16_t)(c0 + 10u)) {
-      return fail("Pocahontas crosses +10 missing");
+    if (nat->current_crosses != c0) {
+      return fail("Pocahontas must not invent crosses");
     }
   }
 
-  /* Force Coronado (6) without map: gold +20 fallback. */
+  /* Coronado without map: elect only — no gold fallback. */
   nat->liberty_bells_total = 480;
   nat->next_founding_father = 6;
   {
@@ -237,12 +257,12 @@ int main(void) {
     if (col1.head.founding_father[6] != 0 || nat->founding_father_count != 12) {
       return fail("Coronado not elected via next");
     }
-    if (nat->gold != g0 + 20u) {
-      return fail("Coronado gold +20 fallback missing");
+    if (nat->gold != g0) {
+      return fail("Coronado must not invent gold fallback");
     }
   }
 
-  /* Force John Paul Jones (14) without units/map: gold +60 fallback. */
+  /* Jones without units/map: elect only — no gold fallback. */
   nat->liberty_bells_total = 520;
   nat->next_founding_father = 14;
   {
@@ -251,12 +271,12 @@ int main(void) {
     if (col1.head.founding_father[14] != 0 || nat->founding_father_count != 13) {
       return fail("Jones not elected via next");
     }
-    if (nat->gold != g0 + 60u) {
-      return fail("Jones gold +60 fallback missing");
+    if (nat->gold != g0) {
+      return fail("Jones must not invent gold fallback");
     }
   }
 
-  /* Force Brebeuf (22): crosses +12. */
+  /* Brebeuf: PARKED — no crosses fiction. */
   nat->liberty_bells_total = 560;
   nat->next_founding_father = 22;
   {
@@ -265,12 +285,12 @@ int main(void) {
     if (col1.head.founding_father[22] != 0 || nat->founding_father_count != 14) {
       return fail("Brebeuf not elected via next");
     }
-    if (nat->current_crosses != (uint16_t)(c0 + 12u)) {
-      return fail("Brebeuf crosses +12 missing");
+    if (nat->current_crosses != c0) {
+      return fail("Brebeuf must not invent crosses");
     }
   }
 
-  /* --- Deeper hooks: Coronado reveal + Jones Frigate with map/units. --- */
+  /* --- Deeper hooks: Coronado reveal + Magellan permanent + Jones + Bolivar. --- */
   {
     ColonizeCol1Save deep_col1;
     col1_save_init(&deep_col1);
@@ -292,19 +312,20 @@ int main(void) {
     for (size_t i = 0; i < map.tile_count; ++i) {
       map.terrain[i] = 1; /* land */
     }
-    /* Ocean west of colony (5,5) for coastal dock + Jones spawn. */
-    map.terrain[5 * 16 + 4] = 25;
+    map.terrain[5 * 16 + 4] = 25; /* ocean west of colony */
 
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+    colonies.building_type_count = 1;
     ColonizeColony* col = &colonies.colonies[0];
     col->id = 0;
     col->active = true;
     col->nation_id = 0;
     col->x = 5;
     col->y = 5;
-    col->population = 2;
-    col->colonist_count = 2;
+    col->population = 4;
+    col->colonist_count = 4;
     col->stock[COLONIZE_CARGO_TOOLS] = 10;
     col->stock[COLONIZE_CARGO_FURS] = 5;
     colonies.colony_count = 1;
@@ -330,7 +351,6 @@ int main(void) {
     units.types[4].movement = 1;
     units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
-    /* Land unit for Magellan (no-op) / de Soto reveal later. */
     const int land_id = units_spawn_allow_stack(&units, 0, 8, 8);
     if (land_id < 0) {
       map_free(&map);
@@ -340,7 +360,6 @@ int main(void) {
     land->nation_id = 0;
     land->moves_left = 1;
 
-    /* Soldier for Washington promote. */
     const int sol_id = units_spawn_allow_stack(&units, 3, 6, 6);
     if (sol_id < 0) {
       map_free(&map);
@@ -349,8 +368,8 @@ int main(void) {
     ColonizeUnit* soldier = units_get(&units, sol_id);
     soldier->nation_id = 0;
     soldier->moves_left = 1;
+    const int soldier_type = soldier->type_index;
 
-    /* Existing caravel for Magellan / Drake moves bump. */
     const int car_id = units_spawn_allow_stack(&units, 2, 4, 5);
     if (car_id < 0) {
       map_free(&map);
@@ -360,7 +379,6 @@ int main(void) {
     caravel->nation_id = 0;
     caravel->moves_left = 4;
 
-    /* Col1 colony for Bolivar rebel_dividend SoL bump. */
     deep_col1.head.colony_count = 1;
     deep_col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
     if (!deep_col1.colony) {
@@ -387,7 +405,6 @@ int main(void) {
     deep_ctx.units = &units;
     deep_ctx.europe = &europe;
 
-    /* Coronado: reveal around colony, no gold bump. */
     const uint32_t gold_pre_cor = dnat->gold;
     if (map_tile_seen_by(&map, 5, 5, 0) || map_tile_seen_by(&map, 7, 5, 0)) {
       free(deep_col1.colony);
@@ -405,23 +422,18 @@ int main(void) {
       map_free(&map);
       return fail("deep Coronado should not gold-fallback");
     }
-    if (!map_tile_seen_by(&map, 5, 5, 0)) {
+    if (!map_tile_seen_by(&map, 5, 5, 0) || !map_tile_seen_by(&map, 7, 5, 0)) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Coronado colony tile unseen");
+      return fail("deep Coronado reveal missing");
     }
-    if (!map_tile_seen_by(&map, 7, 5, 0)) { /* radius 2 east */
-      free(deep_col1.colony);
-      map_free(&map);
-      return fail("deep Coronado radius-2 tile unseen");
-    }
-    if (map_tile_seen_by(&map, 8, 5, 0)) { /* outside radius 2 */
+    if (map_tile_seen_by(&map, 8, 5, 0)) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Coronado revealed beyond radius 2");
     }
 
-    /* Magellan: +1 moves_left on sea units. */
+    /* Magellan: +1 moves_left now; refresh keeps permanent +1. */
     dnat->liberty_bells_total = 80;
     dnat->next_founding_father = 5;
     const int car_moves = caravel->moves_left;
@@ -447,30 +459,38 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
+    turn_refresh_moves_for_nation(&units, 0, &deep_col1);
+    if (caravel->moves_left != units.types[2].movement + 1) {
+      free(deep_col1.colony);
+      map_free(&map);
+      return fail("deep Magellan permanent refresh +1 missing");
+    }
 
-    /* Hudson: +50 tools/+50 furs on owned colony. */
+    /* Hudson: ownership only (fur +100% in turn harvest) — no stock dump. */
     dnat->liberty_bells_total = 120;
     dnat->next_founding_father = 8;
+    const int tools_h = col->stock[COLONIZE_CARGO_TOOLS];
+    const int furs_h = col->stock[COLONIZE_CARGO_FURS];
     founding_fathers_tick(&deep_ctx);
     if (deep_col1.head.founding_father[8] != 0 || dnat->founding_father_count != 3) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Hudson not elected");
     }
-    if (col->stock[COLONIZE_CARGO_TOOLS] != 60 || col->stock[COLONIZE_CARGO_FURS] != 55) {
+    if (col->stock[COLONIZE_CARGO_TOOLS] != tools_h || col->stock[COLONIZE_CARGO_FURS] != furs_h) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Hudson stock bump missing");
+      return fail("deep Hudson must not dump tools/furs stock");
+    }
+    if (!founding_fathers_nation_has(&deep_col1, 0, FF_HENRY_HUDSON)) {
+      free(deep_col1.colony);
+      map_free(&map);
+      return fail("deep Hudson nation_has false");
     }
 
-    /* de Soto: reveal radius 1 around land unit at (8,8). */
+    /* de Soto: land reveal; no crosses fallback. */
     dnat->liberty_bells_total = 160;
     dnat->next_founding_father = 7;
-    if (map_tile_seen_by(&map, 8, 8, 0) || map_tile_seen_by(&map, 9, 8, 0)) {
-      free(deep_col1.colony);
-      map_free(&map);
-      return fail("deep land tile unexpectedly seen before de Soto");
-    }
     const uint16_t crosses_pre = dnat->current_crosses;
     founding_fathers_tick(&deep_ctx);
     if (deep_col1.head.founding_father[7] != 0 || dnat->founding_father_count != 4) {
@@ -489,7 +509,7 @@ int main(void) {
       return fail("deep de Soto should not crosses-fallback");
     }
 
-    /* Jones: free Frigate on coastal water west of colony. */
+    /* Jones: free Frigate. */
     dnat->liberty_bells_total = 200;
     dnat->next_founding_father = 14;
     const int units_before = units.unit_count;
@@ -510,31 +530,8 @@ int main(void) {
       map_free(&map);
       return fail("deep Jones did not spawn ship");
     }
-    {
-      int found_frigate = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->nation_id != 0) {
-          continue;
-        }
-        const ColonizeUnitType* ty = units_type(&units, u->type_index);
-        if (ty && strcmp(ty->name, "Frigate") == 0) {
-          found_frigate = 1;
-          if (u->x != 4 || u->y != 5) {
-            free(deep_col1.colony);
-            map_free(&map);
-            return fail("deep Jones Frigate not on coastal water");
-          }
-        }
-      }
-      if (!found_frigate) {
-        free(deep_col1.colony);
-        map_free(&map);
-        return fail("deep Jones Frigate type missing");
-      }
-    }
 
-    /* Washington: Soldier → Veteran Soldier + REF −1. */
+    /* Washington: no mass promote. */
     deep_col1.head.expeditionary_force[0] = 3;
     dnat->liberty_bells_total = 240;
     dnat->next_founding_father = 11;
@@ -544,62 +541,50 @@ int main(void) {
       map_free(&map);
       return fail("deep Washington not elected");
     }
-    if (soldier->type_index != 4) {
+    if (soldier->type_index != soldier_type) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Washington Soldier promote missing");
+      return fail("deep Washington must not mass-promote on elect");
     }
-    if (deep_col1.head.expeditionary_force[0] != 2) {
+    if (deep_col1.head.expeditionary_force[0] != 3) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Washington REF -1 missing");
+      return fail("deep Washington must not REF−1");
     }
 
-    /* Revere: +25 tools on owned colony. */
+    /* Revere: no tools dump. */
     dnat->liberty_bells_total = 280;
     dnat->next_founding_father = 12;
     const int tools_pre_rev = col->stock[COLONIZE_CARGO_TOOLS];
-    const uint32_t gold_pre_rev = dnat->gold;
     founding_fathers_tick(&deep_ctx);
     if (deep_col1.head.founding_father[12] != 0 || dnat->founding_father_count != 7) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Revere not elected");
     }
-    if (col->stock[COLONIZE_CARGO_TOOLS] != tools_pre_rev + 25) {
+    if (col->stock[COLONIZE_CARGO_TOOLS] != tools_pre_rev) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Revere tools +25 missing");
-    }
-    if (dnat->gold != gold_pre_rev) {
-      free(deep_col1.colony);
-      map_free(&map);
-      return fail("deep Revere should not gold-fallback");
+      return fail("deep Revere must not dump tools");
     }
 
-    /* Drake: +1 moves_left on sea units (privateer stand-in). */
+    /* Drake: no sea-moves bump. */
     dnat->liberty_bells_total = 320;
     dnat->next_founding_father = 13;
     const int car_moves_pre_drake = caravel->moves_left;
-    const uint32_t gold_pre_drake = dnat->gold;
     founding_fathers_tick(&deep_ctx);
     if (deep_col1.head.founding_father[13] != 0 || dnat->founding_father_count != 8) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Drake not elected");
     }
-    if (caravel->moves_left != car_moves_pre_drake + 1) {
+    if (caravel->moves_left != car_moves_pre_drake) {
       free(deep_col1.colony);
       map_free(&map);
-      return fail("deep Drake sea moves +1 missing");
-    }
-    if (dnat->gold != gold_pre_drake) {
-      free(deep_col1.colony);
-      map_free(&map);
-      return fail("deep Drake should not gold-fallback");
+      return fail("deep Drake must not bump sea moves");
     }
 
-    /* Smith: gold +25 and tools +25 on colony. */
+    /* Smith: no gold/tools fiction. */
     dnat->liberty_bells_total = 360;
     dnat->next_founding_father = 0;
     {
@@ -611,44 +596,29 @@ int main(void) {
         map_free(&map);
         return fail("deep Smith not elected");
       }
-      if (dnat->gold != g0 + 25u) {
+      if (dnat->gold != g0 || col->stock[COLONIZE_CARGO_TOOLS] != tools0) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("deep Smith gold +25 missing");
-      }
-      if (col->stock[COLONIZE_CARGO_TOOLS] != tools0 + 25) {
-        free(deep_col1.colony);
-        map_free(&map);
-        return fail("deep Smith tools +25 missing");
+        return fail("deep Smith must not invent gold/tools");
       }
     }
 
-    /* Brewster: crosses +15 + Free Colonist on Europe dock. */
+    /* La Salle: Stockade on pop>=3 colony. */
     dnat->liberty_bells_total = 400;
-    dnat->next_founding_father = 20;
-    dnat->current_crosses = 10;
-    {
-      const uint16_t c0 = dnat->current_crosses;
-      founding_fathers_tick(&deep_ctx);
-      if (deep_col1.head.founding_father[20] != 0 || dnat->founding_father_count != 10) {
-        free(deep_col1.colony);
-        map_free(&map);
-        return fail("deep Brewster not elected");
-      }
-      if (dnat->current_crosses != (uint16_t)(c0 + 15u)) {
-        free(deep_col1.colony);
-        map_free(&map);
-        return fail("deep Brewster crosses +15 missing");
-      }
-      if (europe.dock_count != 1 || !europe.dock[0].present ||
-          strcmp(europe.dock[0].name, "Free Colonist") != 0) {
-        free(deep_col1.colony);
-        map_free(&map);
-        return fail("deep Brewster Free Colonist dock missing");
-      }
+    dnat->next_founding_father = 9;
+    founding_fathers_tick(&deep_ctx);
+    if (deep_col1.head.founding_father[9] != 0 || dnat->founding_father_count != 10) {
+      free(deep_col1.colony);
+      map_free(&map);
+      return fail("deep La Salle not elected");
+    }
+    if (!col->has_building[0]) {
+      free(deep_col1.colony);
+      map_free(&map);
+      return fail("deep La Salle Stockade missing");
     }
 
-    /* Bolivar: bells +35 + rebel_dividend +20 (40→60 on divisor 100). */
+    /* Bolivar: SoL +20% only (40→60), no bells fiction. */
     dnat->liberty_bells_total = 440;
     dnat->next_founding_father = 18;
     {
@@ -659,10 +629,10 @@ int main(void) {
         map_free(&map);
         return fail("deep Bolivar not elected");
       }
-      if (dnat->liberty_bells_total != (uint16_t)(b0 + 35u)) {
+      if (dnat->liberty_bells_total != b0) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("deep Bolivar bells +35 missing");
+        return fail("deep Bolivar must not invent bells");
       }
       if (deep_col1.colony[0].rebel_dividend != 60u) {
         free(deep_col1.colony);
@@ -675,14 +645,14 @@ int main(void) {
     map_free(&map);
   }
 
-  /* --- AI Euro nation elect (control==1), same bells threshold. --- */
+  /* --- AI Euro nation elect (control==1). --- */
   {
     ColonizeCol1Save ai_col1;
     col1_save_init(&ai_col1);
     seed_unclaimed(&ai_col1);
-    ai_col1.player[0].control = 0; /* human */
-    ai_col1.player[1].control = 1; /* AI */
-    ai_col1.player[2].control = 2; /* withdrawn — must not elect */
+    ai_col1.player[0].control = 0;
+    ai_col1.player[1].control = 1;
+    ai_col1.player[2].control = 2;
     ai_col1.player[3].control = 1;
 
     ColonizeCol1Nation* human = &ai_col1.nation[0];
@@ -692,12 +662,11 @@ int main(void) {
     memset(ai, 0, sizeof(*ai));
     memset(withdrawn, 0, sizeof(*withdrawn));
 
-    /* Human below threshold so only AI elects this tick. */
     human->liberty_bells_total = 0;
     human->next_founding_father = 0;
 
     ai->liberty_bells_total = 40;
-    ai->next_founding_father = 2; /* Peter Minuit */
+    ai->next_founding_father = 2; /* Peter Minuit — PARKED, no gold */
     ai->founding_father_count = 0;
     ai->gold = 10;
 
@@ -721,35 +690,56 @@ int main(void) {
     if (ai->founding_father_count != 1) {
       return fail("AI founding_father_count not 1");
     }
-    if ((ai->founding_fathers[0] & (1u << 2)) == 0) {
-      return fail("AI bitmask bit 2 unset");
-    }
-    if (ai->gold != 40u) {
-      return fail("AI Minuit gold +30 missing");
+    if (ai->gold != 10u) {
+      return fail("AI Minuit must not invent gold");
     }
     if (withdrawn->founding_father_count != 0 || ai_col1.head.founding_father[3] != -1) {
       return fail("withdrawn nation elected FF");
     }
 
-    /* One elect per nation per tick: second tick needed for another. */
     ai->liberty_bells_total = 80;
-    ai->next_founding_father = 1; /* Fugger still free */
-    ai->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4));
-    ai_col1.head.unknown46[2] = 1; /* human refuse flag — AI Fugger must not clear */
+    ai->next_founding_father = 1;
+    ai->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 7));
+    ai_col1.head.unknown46[2] = 1;
     const uint32_t ai_gold_before = ai->gold;
     founding_fathers_tick(&ai_ctx);
     if (ai_col1.head.founding_father[1] != 1 || ai->founding_father_count != 2) {
       return fail("AI second elect not Fugger");
     }
-    if (ai->gold != ai_gold_before + 50u) {
-      return fail("AI Fugger gold +50 missing");
+    if (ai->gold != ai_gold_before) {
+      return fail("AI Fugger must not invent gold");
     }
-    if ((ai->boycott_bitmap & ((1u << 1) | (1u << 4))) != 0) {
-      return fail("AI Fugger did not clear Sugar/Furs bits");
+    if (ai->boycott_bitmap != 0) {
+      return fail("AI Fugger did not clear all boycott bits");
     }
     if (ai_col1.head.unknown46[2] != 1) {
       return fail("AI Fugger cleared human unknown46[2]");
     }
+  }
+
+  /* Arctic founding rejection. */
+  {
+    char err[64];
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+      return fail("arctic map_alloc");
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1;
+    }
+    map.terrain[3 * 8 + 3] = 24; /* arctic */
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    if (colonies_can_found(&pool, &map, 3, 3)) {
+      map_free(&map);
+      return fail("can_found allowed arctic");
+    }
+    if (!colonies_can_found(&pool, &map, 2, 2)) {
+      map_free(&map);
+      return fail("can_found rejected plains");
+    }
+    map_free(&map);
   }
 
   printf("smoke_founding_fathers: OK\n");

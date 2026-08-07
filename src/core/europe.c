@@ -273,6 +273,11 @@ void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
   unsigned* st = rng_state ? rng_state : &local;
   int total = 0;
   for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
+    /* Brewster (wiki): no criminals/servants on docks / recruit pool. */
+    if (eu->brewster_no_criminals &&
+        (k_pool_cands[i].profession == 26 || k_pool_cands[i].profession == 25)) {
+      continue;
+    }
     total += k_pool_cands[i].weight;
   }
   if (total <= 0) {
@@ -280,6 +285,10 @@ void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
   }
   int pick = (int)(europe_rng_next(st) % (unsigned)total);
   for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
+    if (eu->brewster_no_criminals &&
+        (k_pool_cands[i].profession == 26 || k_pool_cands[i].profession == 25)) {
+      continue;
+    }
     pick -= k_pool_cands[i].weight;
     if (pick < 0) {
       EuropePoolSlot* p = &eu->pool[slot];

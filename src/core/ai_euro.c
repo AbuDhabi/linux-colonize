@@ -1509,7 +1509,8 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
   int dest_y = 0;
   int fx = 0;
   int fy = 0;
-  if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
+  if (ai_goals_best_found_tile(nation_id, &fx, &fy) &&
+      colonies_can_found(ctx->colonies, ctx->map, fx, fy)) {
     dest_x = fx;
     dest_y = fy;
   } else if (!ai_goals_pick_founding_tile(

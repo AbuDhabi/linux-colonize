@@ -112,10 +112,11 @@ void turn_colony_free_production(
   ColonizeColonyProdDelta* out_delta
 );
 
-/* Production for every active colony (used by turn_end). map may be NULL. */
+/* Production for every active colony (used by turn_end). map/col1 may be NULL. */
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   ColonizeTurnResult* out
 );
 
@@ -129,8 +130,15 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx);
 void turn_run_indian_stub(ColonizeTurnContext* ctx);
 void turn_run_king_stub(ColonizeTurnContext* ctx);
 
-/* Refresh moves for units of one nation (4..11 = natives when nation >= 4). */
-void turn_refresh_moves_for_nation(ColonizeUnitPool* pool, int nation_id);
+/*
+ * Refresh moves for units of one nation (4..11 = natives when nation >= 4).
+ * When col1 is set and the nation owns Magellan, sea units get +1 movement.
+ */
+void turn_refresh_moves_for_nation(
+  ColonizeUnitPool* pool,
+  int nation_id,
+  const ColonizeCol1Save* col1
+);
 
 /* Select next human unit with moves_left > 0; centers not done here. */
 bool turn_select_next_unit(ColonizeUnitPool* pool, int human_nation);

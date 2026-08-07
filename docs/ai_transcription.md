@@ -267,7 +267,7 @@ remain correctly **PARKED** (see R0 / R5).
 |--:|-------|---------------|------------------|--------------|
 | 1 | Indian contact UI | dialog / teach UI after thin meet | Real dialog **widgets**; thin status + alarmed refuse-talk (`alarm>=55`) **Done** | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
 | 2 | King / REF UI | audience after structural tax/REF | Real **modals**; thin status **Done**; `1eca` Regular/mid-SoL widen **Done** | `160a` letter cinematic; deep `10f0`/`1eca` table; MoW hold chrome; `0x5382` rename |
-| 3 | Founding Fathers | full wiki table | Wiki/decomp polish; **11 deep hooks Done** (Magellan/Coronado/de Soto/Hudson/Jones + Smith/Washington/Revere/Drake/Bolivar/Brewster) | Congress debate UI; bell spend/threshold recovery |
+| 3 | Founding Fathers | full wiki table | **Manual-aligned effects** (not treasury fiction); Magellan/Coronado/Jones/Bolivar/Fugger/Hudson/La Salle/Brewster wired or flagged; remaining PARKED combat/diplo/prod hooks | Congress debate UI; bell spend/threshold recovery; Washington/Drake/Revere combat paths |
 | 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | Deep fog rings; case-7; CONTACT rings + foe pick + tools/wagon hire **Done** | Full T3 / LCG goldens; ocean fixture retirement (R5) |
 | 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Full bilateral matrix; war/peace status chrome + score/trade deepen **Done** | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
 | 6 | Doc hygiene | — | [manual_gap.md](manual_gap.md) aligned to structural ports (this pass) | — |
@@ -462,7 +462,7 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; 11 deep hooks + tiny stand-ins; Fugger clears boycotts; wiki polish **OPEN** (unpark #3); Congress UI PARKED |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; remaining PARKED hooks (unpark #3); Congress UI PARKED |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; thin audience/confirm/merc status **Done**; modals **OPEN** (unpark #2); `smoke_ai_king` |
 
 Suggested manual order: prioritize the [Unparked queue](#unparked-queue-2026-08-07)
@@ -499,7 +499,7 @@ resort). Generic T1 Euro settle + unpark #4 mid-planner share the next Euro path
 | `tests/smoke/test_ai_king.c` | REF/MoW cargo×2 + 10f0/boycott/1528/160a/2244/1eca |
 | `tests/smoke/test_ai_euro_expand.c` | Second-wave + scout + tools delivery/cargo hire |
 | `tests/smoke/test_ai_euro_war.c` | Mid-war hire/Artillery + naval/land hunt |
-| `tests/smoke/test_founding_fathers.c` | Human+AI FF elect; all 25 tiny effects; Fugger |
+| `tests/smoke/test_founding_fathers.c` | Human+AI FF elect; manual-aligned effects; no gold fiction; arctic can_found |
 
 Smoke:
 
