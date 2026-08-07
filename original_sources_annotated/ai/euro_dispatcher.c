@@ -128,7 +128,8 @@ void euro_nation_colony_goals_pass(int nation_id) {
  * Phases (decomp ~87408–88243):
  *   A nation+fog wipe + urgency seed   B own-unit scan
  *   C clear work queue                 D own-colony (LABOR / work-queue)
- *   E foreign-colony (PARKED mid-mil)  F tribe FOUND/MILITARY
+ *   E foreign-colony mid-mil thin + scout explore stand-in; deep PARKED
+ *   F tribe FOUND/MILITARY
  *   G continent stance thin (≥2 col); deep −0x6790 PARKED
  *   H bind founders→FOUND (light)
  *
@@ -171,12 +172,15 @@ void euro_unit_colony_goals(int nation_id) {
    *     mark units 'A' for tools draft (types 0x0b / 1 / 4, ±prof 0x15)
    */
 
-  /* --- E. Foreign-colony loop — mid-mil thin (scout rings PARKED) ------- */
+  /* --- E. Foreign-colony loop — mid-mil thin + scout explore stand-in --- */
   /*
    * decomp ~87762–87989: MILITARY (4), CONTACT scout ring (0),
    * FOUND|MIL_EXPAND (1|7). Early gate: difficulty*turn < 0xb5 && nation<4.
    * Linux thin: upsert MILITARY on foreign colonies at war; bind one idle
-   * Soldier/Dragoon → nearest MILITARY. Full scout rings still PARKED.
+   * Soldier/Dragoon → nearest MILITARY. Full CONTACT scout rings PARKED.
+   * Thin E scout explore (peace + own≥1): upsert secondary FOUND prio 1 at
+   * tribe tiles; idle Scout → AI_MOVE toward tribe FOUND / farthest corner.
+   * Act-level preserves that goto (no COLONY yank). Deep mid-mil PARKED.
    */
 
   /* --- F. Tribe pass (founding-adjacent) -------------------------------- */
@@ -324,4 +328,6 @@ void euro_nation_turn(int nation_id) {
  * colony water; adjacent → try_attack. Full 20e6 naval scoring PARKED.
  * Linux thin (5b66): at-war land hunt — idle Soldier/Dragoon/Scout AI_MOVE →
  * foe land unit / enemy colony; adjacent → try_attack. Full 20e6 land scoring PARKED.
+ * Linux thin (0a60/5b66 E): peace + own≥1 idle Scout AI_MOVE → tribe FOUND /
+ * farthest corner; full CONTACT scout rings PARKED.
  */

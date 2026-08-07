@@ -26,7 +26,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once `1eca` promote; else intervene hire → `10f0` (partial structural); thin `2244` merc |
+| Rebel | once `1eca` promote; else intervene hire → `10f0` (dual landing structural); thin `2244` merc |
 
 ## Key symbols → Linux
 
@@ -40,7 +40,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | thin status line after successful `0982` spawn (chrome UI PARKED) |
-| `10f0` | Foreign landing when REF empty + `backup_force` | `ai_king_foreign_intervene` (via `war_act`) |
+| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
 | `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` (dialog PARKED) |
 | `2022` / `1eca` | War act + promote | `ai_king_war_act` |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
@@ -92,11 +92,21 @@ cinematic remains PARKED. Same-turn `0982`/`1528` wave may overwrite
 `ctx->status`. `head.unknown46[4]` is **not** used as a renamed flag —
 writable Col1 `country_name` exists.
 
+### Structural `10f0` foreign intervention (dual landing)
+
+When WoI and REF pools empty and `backup_force` total > 0:
+`ai_king_foreign_intervene` lands up to **two** units near the weakest human
+port for a crown-hostile Euro nation, draining one pool entry per spawn.
+If both Regular (`backup[0]`) and Dragoon (`backup[1]`) are > 0, prefer that
+mix (one of each). Otherwise drain up to two available pool types in order
+(MoW pool still lands a Regular stand-in). Deep economy / merc hire /
+arrival chrome remain PARKED.
+
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename)
-3. If WoI: wave (`0982`/`06a6` + thin `1528` status) → war act (`10f0` first if REF empty + backup, thin `2244` merc, then `2022`/`1eca`)
+3. If WoI: wave (`0982`/`06a6` + thin `1528` status) → war act (`10f0` ≤2 landings if REF empty + backup, thin `2244` merc, then `2022`/`1eca`)
 
 ## PORT DEBT
 
@@ -104,5 +114,5 @@ writable Col1 `country_name` exists.
 - Player `2564` confirm dialog; `160a` rename **cinematic** (thin `country_name` stand-in done)
 - `1528` arrival **chrome/dialog** (thin status announce done)
 - `2244` full merc hire **UI** (thin auto-accept + `unknown46[3]` done)
-- Deep `10f0` foreign intervention / `backup_force` — **partial structural** (landing + drain; merc/chrome PARKED)
+- Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (dual landing + Regular/Dragoon mix + drain done)
 - Multi-unit MoW cargo holds; seize-landing polish

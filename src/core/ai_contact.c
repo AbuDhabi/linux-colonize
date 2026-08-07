@@ -7,6 +7,7 @@
 #include "core/map.h"
 #include "core/units.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -689,6 +690,88 @@ static void ai_contact_apply_raid_loot(
   }
 }
 
+/*
+ * FUN_4d56_359c thin displace: nudge Scout onto free land 1–2 tiles from
+ * current tile, preferring greater Chebyshev distance from (away_x,away_y)
+ * (Brave / tribe contact). Sets AI_MOVE goto at the flee tile. Returns 1 if
+ * moved, 0 if no free land tile (caller may despawn).
+ */
+static int ai_contact_displace_scout(
+  ColonizeTurnContext* ctx,
+  ColonizeUnit* scout,
+  int away_x,
+  int away_y
+) {
+  if (!ctx || !ctx->units || !ctx->map || !scout || !scout->active) {
+    return 0;
+  }
+  const int ox = scout->x;
+  const int oy = scout->y;
+  const int dist0 = ai_contact_dist(ox, oy, away_x, away_y);
+  int best_x = -1;
+  int best_y = -1;
+  int best_score = -1;
+  int fallback_x = -1;
+  int fallback_y = -1;
+  int fallback_score = -1;
+
+  for (int dy = -2; dy <= 2; ++dy) {
+    for (int dx = -2; dx <= 2; ++dx) {
+      const int adx = dx < 0 ? -dx : dx;
+      const int ady = dy < 0 ? -dy : dy;
+      const int cheb = adx > ady ? adx : ady;
+      if (cheb < 1 || cheb > 2) {
+        continue;
+      }
+      const int nx = ox + dx;
+      const int ny = oy + dy;
+      if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+        continue;
+      }
+      if (!map_tile_is_land(ctx->map, nx, ny)) {
+        continue;
+      }
+      if (units_id_at(ctx->units, nx, ny) >= 0) {
+        continue;
+      }
+      if (!units_can_enter(
+            ctx->units, scout->type_index, ctx->map, nx, ny, scout->id, ctx->colonies
+          )) {
+        continue;
+      }
+      const int d = ai_contact_dist(nx, ny, away_x, away_y);
+      const int score = d * 10 + cheb;
+      if (score > fallback_score) {
+        fallback_score = score;
+        fallback_x = nx;
+        fallback_y = ny;
+      }
+      if (d < dist0) {
+        continue;
+      }
+      if (score > best_score) {
+        best_score = score;
+        best_x = nx;
+        best_y = ny;
+      }
+    }
+  }
+
+  if (best_x < 0) {
+    best_x = fallback_x;
+    best_y = fallback_y;
+  }
+  if (best_x < 0) {
+    return 0;
+  }
+  scout->x = best_x;
+  scout->y = best_y;
+  scout->orders = UNITS_ORDER_AI_MOVE;
+  scout->goto_x = best_x;
+  scout->goto_y = best_y;
+  return 1;
+}
+
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -706,7 +789,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * FUN_4d56_4528 / 5fef_0f14-shaped arms (thin):
    *  1 gate → 2 adjacent combat → 3 colony approach → 4 @RAID* loot →
-   *  5 capture → 6 scout 359c stub. Deep 2820 PARKED.
+   *  5 capture → 6 scout 359c displace/despawn. Deep 2820 PARKED.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -821,7 +904,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* 6. FUN_4d56_359c stub: high alarm vs Scouts → despawn (warn/displace PARKED). */
+  /* 6. FUN_4d56_359c: high alarm vs Scouts → prefer displace; despawn if blocked. */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
     if (!brave->active || brave->nation_id != nation_id) {
@@ -843,8 +926,26 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         const char* name = units_display_name(ctx->units, f);
-        if (name && strstr(name, "Scout")) {
+        if (!name || !strstr(name, "Scout")) {
+          continue;
+        }
+        /*
+         * Prefer displace 1–2 tiles away from the Brave (tribe contact).
+         * Dialog warn chrome PARKED; status line only when buffer present.
+         */
+        if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
+          if (ctx->status && ctx->status_size > 0) {
+            snprintf(
+              ctx->status,
+              ctx->status_size,
+              "Natives warn your Scout away from their lands."
+            );
+          }
+        } else {
           units_despawn(ctx->units, foe);
+          if (ctx->status && ctx->status_size > 0) {
+            snprintf(ctx->status, ctx->status_size, "Natives kill your Scout.");
+          }
         }
       }
     }

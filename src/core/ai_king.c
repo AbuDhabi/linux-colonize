@@ -468,9 +468,40 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 }
 
 /*
+ * Try one foreign landing from backup pool k; drain on success.
+ * MoW pool lands a Regular stand-in (naval cargo chrome PARKED).
+ * Returns 1 if a unit spawned, else 0.
+ */
+static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int hy,
+                                 uint16_t* backup, int k) {
+  static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
+  if (!backup || k < 0 || k > 3 || backup[k] == 0) {
+    return 0;
+  }
+  const char* alt = NULL;
+  const char* primary = names[k];
+  if (k == 0) {
+    alt = "Soldier";
+  } else if (k == 1) {
+    alt = "Scout";
+  } else if (k == 2) {
+    /* Naval pool: land a Regular stand-in near port (MoW cargo chrome PARKED). */
+    primary = "Regular";
+    alt = "Soldier";
+  }
+  if (ai_king_spawn_landing(ctx, ally, hx, hy, primary, alt) < 0) {
+    return 0;
+  }
+  backup[k]--;
+  return 1;
+}
+
+/*
  * FUN_43f7_10f0-shaped: foreign-intervention landing when REF empty and
- * backup_force (DOS 0x53e2… stand-in) still has pools. Crown-hostile nation_id
- * (non-human, non-crown). Deep merc hire / arrival chrome PARKED.
+ * backup_force (DOS 0x53e2… stand-in) still has pools. Up to two landings
+ * per call (drain two pool entries / types). Prefer Regular + Dragoon when
+ * both pools > 0. Crown-hostile nation_id (non-human, non-crown).
+ * Deep economy / merc hire / arrival chrome PARKED.
  */
 static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -492,27 +523,22 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
     return;
   }
   const int ally = ai_king_intervention_nation(ctx->human_nation);
-  static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
-  for (int k = 0; k < 4; ++k) {
+  int landings = 0;
+  const int max_landings = 2;
+
+  /* Prefer mixing Regular + Dragoon when both foreign pools are live. */
+  if (backup[0] > 0 && backup[1] > 0) {
+    landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, 0);
+    if (landings < max_landings) {
+      landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, 1);
+    }
+  }
+
+  for (int k = 0; k < 4 && landings < max_landings; ++k) {
     if (backup[k] == 0) {
       continue;
     }
-    const char* alt = NULL;
-    if (k == 0) {
-      alt = "Soldier";
-    } else if (k == 1) {
-      alt = "Scout";
-    } else if (k == 2) {
-      /* Naval pool: land a Regular stand-in near port (MoW cargo chrome PARKED). */
-      if (ai_king_spawn_landing(ctx, ally, hx, hy, "Regular", "Soldier") >= 0) {
-        backup[k]--;
-      }
-      break;
-    }
-    if (ai_king_spawn_landing(ctx, ally, hx, hy, names[k], alt) >= 0) {
-      backup[k]--;
-    }
-    break; /* one landing per intervene beat */
+    landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, k);
   }
 }
 

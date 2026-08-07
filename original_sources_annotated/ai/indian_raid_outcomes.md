@@ -13,7 +13,7 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 | `FUN_4d56_4528` | Settlement enter / raid contact (thunk `2a1f_016c`) |
 | `FUN_5fef_0f14` | Colony raid loot + tension (goods/building/unit/gold) |
 | `FUN_5fef_016c` / `0352` / `0ec0` | Plunder pick / apply outcome / sweep — PARKED deep |
-| `FUN_4d56_359c` | Relation-gated kill / warn / displace by RNG — thin Scout despawn only |
+| `FUN_4d56_359c` | Relation-gated kill / warn / displace by RNG — thin: displace Scout, despawn if blocked |
 | `FUN_4d56_2154` | Larger action body from `5bfb` — raid-adjacent; not `1b3a` |
 
 ## Linux phase arms (`ai_contact_indian_raids`)
@@ -25,7 +25,10 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 5. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon)
 6. **Hostility tick** — successful loot (`kind != NOTHING`) + friction ≥55 →
    `ai_diplo_indian_relation_delta` (−3, or −5 if ≥80). Deep 4528/2820 PARKED.
-7. **Scout hostility** — alarm ≥90 + Scout name → despawn (`359c`-shaped stub)
+7. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
+   prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
+   set `ctx->status` warn line when buffer present; **despawn only if** no free tile.
+   Dialog warn chrome beyond the status line stays **PARKED**.
 8. **PARKED** — full `2820` decision matrix, player haggle, dialog subst, ship harbor deep
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)

@@ -262,6 +262,71 @@ int main(void) {
     return fail("gift should reduce alarm_by_player by 2");
   }
 
+  /*
+   * FUN_4d56_359c: high alarm + Scout adjacent → prefer displace (still active,
+   * moved 1–2 tiles). Brave moves_left=0 so combat arm skips before 359c.
+   */
+  units.type_count = 4;
+  snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
+  units.types[3].movement = 4;
+  units.types[3].attack = 0;
+  units.types[3].defense = 1;
+  const int scout_id = units_spawn_allow_stack(&units, 3, 6, 5);
+  ColonizeUnit* scout = units_get(&units, scout_id);
+  if (!scout) {
+    return fail("spawn scout");
+  }
+  scout->nation_id = 0;
+  scout->horses = 50;
+  euro->x = 10;
+  euro->y = 10;
+  brave->x = 5;
+  brave->y = 5;
+  brave->moves_left = 0;
+  ind->alarm_by_player[0] = 90;
+  col1.tribe[0].alarm[0].friction = 90;
+  char status[128];
+  status[0] = '\0';
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  const int sx0 = scout->x;
+  const int sy0 = scout->y;
+  ai_contact_indian_raids(&ctx, 4);
+  scout = units_get(&units, scout_id);
+  if (!scout || !scout->active) {
+    return fail("359c should displace Scout when free land exists");
+  }
+  if (scout->x == sx0 && scout->y == sy0) {
+    return fail("359c should move Scout 1–2 tiles away");
+  }
+  if (strstr(status, "warn") == NULL) {
+    return fail("359c displace should set status warn line");
+  }
+
+  /*
+   * Blocked displace → despawn: isolate Scout on a land islet (ocean around).
+   */
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  map.terrain[5 * 16 + 5] = 1; /* brave */
+  map.terrain[6 * 16 + 5] = 1; /* scout */
+  scout->x = 6;
+  scout->y = 5;
+  scout->active = true;
+  brave->x = 5;
+  brave->y = 5;
+  brave->moves_left = 0;
+  status[0] = '\0';
+  ai_contact_indian_raids(&ctx, 4);
+  scout = units_get(&units, scout_id);
+  if (scout && scout->active) {
+    return fail("359c should despawn Scout when displace is blocked");
+  }
+  if (strstr(status, "kill") == NULL) {
+    return fail("359c despawn should set status kill line");
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
