@@ -35,9 +35,9 @@ bodies are labeled but callees (often thunks) are not.
 
 | Metric | Value | As of |
 |--------|------:|-------|
-| Purpose one-liners | 1674 / 2380 | 2026-08-07 |
-| Purpose unknown | 706 | ″ |
-| Unknown by system | thunk 282 · mapgen/`2a1f` 221 · platform 200 · parked `205f`/`1d1c` 3 | ″ |
+| Purpose one-liners | 1726 / 2380 | 2026-08-07 |
+| Purpose unknown | 654 | ″ |
+| Unknown by system | thunk 249 · mapgen/`2a1f` 210 · platform 192 · parked `205f`/`1d1c` 3 | ″ |
 
 ---
 
@@ -48,18 +48,18 @@ symbols disjoint. Re-count unlabeled 1-hops before launching (numbers drift).
 
 | # | Status | Layer | Target | ~N | Why |
 |--:|--------|-------|--------|---:|-----|
-| 1 | Done | C/B | Colony/Europe/menu/UI/platform mid+crumbs / boot / BGM | — | Closed through prior batches |
-| 2 | **Next** | C | `FUN_4720_049e` embark/naval order UI dispatch | ~16 | Remaining mid-size game UI hop |
-| 3 | Open | C | `FUN_75c2_2778` title/main menu loop | ~15 | New/Load/Options bring-up |
-| 4 | Deferred | B/C | Megaseg bulk `281f` + `291f` | ~282 thunk unk | Prefer targeted C hops first |
-| 5 | Deferred | B | `2a1f` mapgen-adjacent bulk | ~221 | Prefer hops from mapgen/AI entries |
-| 6 | Deferred | B | Platform megasegs `1d1d` + `210d` rest | ~200 platform | DOS/EMS runtime bulk |
+| 1 | Done | C/B | Mid/high game UI + platform crumbs + boot/BGM + embark/title/pedia/RM | — | Closed through prior batches |
+| 2 | **Next** | C | `FUN_2b5a_3252` extended map-key dispatch | ~9 | Last mid map-UI hop |
+| 3 | Open | C | Small ≥8 hops: `75c2_235c` / `6f74_2580` / `6f30_0062` / `6b7e_0004` / `2b5a_3ae6` | ~8 each | Finish remaining mid-size 1-hops in parallel |
+| 4 | Deferred | B/C | Megaseg bulk `281f` + `291f` | ~249 thunk unk | Prefer targeted C hops first |
+| 5 | Deferred | B | `2a1f` mapgen-adjacent bulk | ~210 | Prefer hops from mapgen/AI entries |
+| 6 | Deferred | B | Platform megasegs `1d1d` + `210d` rest | ~192 | DOS/EMS runtime bulk |
 | 7 | Parked | — | `205f` · `1d1c` · MAPEDIT | 3+ | No Layer A revisit without new evidence |
 
 Suggested parallel batches (examples):
 
-- Embark C `#2` ∪ title-menu C `#3` ∪ remeasured other ≥12 unlabeled hops (exclusive ownership).
-- Or start selective megaseg C hops from remaining known entries with large unlabeled neighborhoods.
+- Map-key C `#2` ∪ union of `#3` hops (exclusive ownership) — closes remaining mid Layer C.
+- Then selective megaseg bulk or Layer D as ports need.
 
 ---
 
@@ -69,18 +69,12 @@ Mark finished peels here so the Open queue stays short. Keep one line per batch.
 
 | When | Layer | Batch | N | Notes |
 |------|-------|-------|--:|-------|
+| 2026-08-07 | C | embark `4720_049e` + title `75c2_2778` + pedia `6cb2_2322` excl + RM `78ef_0002` excl | 52 | Naval UI, title menu, pedia index, archive open 1-hops closed |
 | 2026-08-07 | B+C | platform crumbs lo/hi + boot `75c2_2d46` + BGM `129f_0008` | 99 | Non-mega platform purpose-closed; boot/BGM 1-hop closed |
-| 2026-08-07 | B+C | Europe+colony crumbs C + `2b5a_2464` C + UI B lo/hi | 110 | Europe/menu/colony entry C closed; all small UI purpose-closed |
-| 2026-08-07 | C | colony UI `6372`∪`628a` lo/hi + `4d56_4528` excl + `5952`∪`364b` excl | 122 | Colony dispatchers + raid + sim ticks 1-hop closed |
-| 2026-08-07 | B+C | `15eb` lo/hi + platform mid + `2b5a_3b68`∪`2f2b_51ec` | 208 | `15eb` purpose-closed; platform PATH/config/heap/abort |
-| 2026-08-07 | B+C | `43f7` + CUSTOMIZE/input/sound + `1a58` + `465b_0000` C | ~90 | Nation UI; mouse; move-spent hop |
-| 2026-08-07 | B+C | `6cb2`/`4b58`/text blit + turn/EOT C | ~123 | Dialog widgets; turn neighborhood |
-| earlier | B+C | map viewport + `6f74` + `684c_08c0` C | — | Viewport; dialog compositor; mapgen 1-hop |
-| earlier | B | map accessors / trade-diplo UI / path-orders / `2b5a` | — | Mid sim/UI closeout |
-| earlier | B | AI diplo / combat / `1427` / colony+landfall | — | High-value game logic |
-| earlier | B | SAVEGAME / colony / Europe / turn / combat residual | — | First purpose waves |
-| earlier | C | `4d56_1816` / `521d_6d8e` | — | Indian + Euro AI entries |
-| earlier | A | VICEROY segment systems | 164/166 | Park `205f`/`1d1c` |
+| 2026-08-07 | B+C | Europe+colony crumbs C + `2b5a_2464` C + UI B lo/hi | 110 | Europe/menu/colony entry C; small UI purpose-closed |
+| 2026-08-07 | C | colony UI `6372`∪`628a` + `4d56_4528` + `5952`∪`364b` excl | 122 | Colony dispatchers + raid + sim ticks |
+| 2026-08-07 | B+C | `15eb` + platform mid + `2b5a_3b68`∪`2f2b_51ec` | 208 | `15eb` closed |
+| earlier | — | Prior Layer A/B/C waves | — | See git history / older Done rows |
 
 ---
 
