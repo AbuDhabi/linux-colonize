@@ -1428,6 +1428,216 @@
         "confidence": "inferred",
         "links": ""
       },
+      "FUN_2f2b_6cd4": {
+        "system": "colony",
+        "purpose": "Colony screen entry / bring-up + main loop teardown",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2c92": {
+        "system": "colony",
+        "purpose": "Full colony-screen redraw (all panel thunks)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_0332": {
+        "system": "colony",
+        "purpose": "Reorder colonist slot tables after sort",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_0434": {
+        "system": "colony",
+        "purpose": "Init settlement building-slot layout maps",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_05ee": {
+        "system": "colony",
+        "purpose": "Draw building/project name label at settlement slot",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_0722": {
+        "system": "colony",
+        "purpose": "Draw one warehouse cargo-type amount label",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_0842": {
+        "system": "colony",
+        "purpose": "Draw area-view tile tooltip (terrain/feature text)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_0a74": {
+        "system": "colony",
+        "purpose": "Draw area-view surrounding map unit icons",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_0fce": {
+        "system": "colony",
+        "purpose": "Draw colony top-bar name + date/nation string",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_11b2": {
+        "system": "colony",
+        "purpose": "Draw outside/fence unit strip",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_12cc": {
+        "system": "colony",
+        "purpose": "Draw colonists assigned to one workplace building",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_171c": {
+        "system": "colony",
+        "purpose": "Draw settlement building strip (15 slots)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_17d0": {
+        "system": "colony",
+        "purpose": "Draw people band (colonists + SoL/Tory meters)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_1cce": {
+        "system": "colony",
+        "purpose": "Draw Production multifunction cargo/shortfall strip",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2054": {
+        "system": "colony",
+        "purpose": "Measure text extent for colony UI button/label",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_208c": {
+        "system": "colony",
+        "purpose": "Draw framed invertible button/label",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_21da": {
+        "system": "colony",
+        "purpose": "Draw Construction BUY / CHANGE buttons",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2262": {
+        "system": "colony",
+        "purpose": "Refresh Construction CHANGE button highlight",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_22b6": {
+        "system": "colony",
+        "purpose": "Draw Construction hammer progress bars",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2484": {
+        "system": "colony",
+        "purpose": "Layout rect for transport hold slot N",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_24b2": {
+        "system": "colony",
+        "purpose": "Draw transport / ship-hold pane",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_284c": {
+        "system": "colony",
+        "purpose": "Draw right multifunction pane by mode DS:0x337",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_289e": {
+        "system": "colony",
+        "purpose": "Warehouse cargo-strip X pos / selection marker",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_28d6": {
+        "system": "colony",
+        "purpose": "Draw warehouse cargo strip (16 types + Exit)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2b2c": {
+        "system": "colony",
+        "purpose": "Unit-chrome sprite rect helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2b66": {
+        "system": "colony",
+        "purpose": "Draw vertical multifunction tab buttons",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2c3c": {
+        "system": "colony",
+        "purpose": "Draw multifunction mode-selector chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2d1c": {
+        "system": "colony",
+        "purpose": "Toggle numbers display (DS:0x334) and refresh active pane",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2d90": {
+        "system": "colony",
+        "purpose": "Force numbers-on + full pane refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2e2a": {
+        "system": "colony",
+        "purpose": "Alternate numbers-on full refresh path",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2f26": {
+        "system": "colony",
+        "purpose": "Arm native-trade session pointers (0xbb8/9cce/9cd0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_4284": {
+        "system": "colony",
+        "purpose": "Select colonist; enter assign/profession mode (8d54=6)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_42be": {
+        "system": "colony",
+        "purpose": "Enter colony drag/select mode (8d54=7)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_42f2": {
+        "system": "colony",
+        "purpose": "Clear drag/select chrome (0x344)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_6c46": {
+        "system": "colony",
+        "purpose": "Clear hover dirty-flags; refresh stale panels",
+        "confidence": "inferred",
+        "links": ""
+      },
       "FUN_2b5a_303c": {
         "system": "ui",
         "purpose": "Map keyboard/input dispatch on DS:0x981e",
