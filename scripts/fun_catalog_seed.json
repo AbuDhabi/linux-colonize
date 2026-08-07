@@ -1830,6 +1830,48 @@
         "confidence": "inferred",
         "links": ""
       },
+      "FUN_2f2b_0a3e": {
+        "system": "colony",
+        "purpose": "Blit colony chrome rect (281f_0444)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_0ba8": {
+        "system": "colony",
+        "purpose": "Draw colony area-view (5x5 map panel); trust ASM over corrupt C tail",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_0d89": {
+        "system": "colony",
+        "purpose": "Draw one area-view terrain tile (loop body)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_13c2": {
+        "system": "colony",
+        "purpose": "Resolve building-type badge amount + sprite outs (ASM to RETF)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_14d4": {
+        "system": "colony",
+        "purpose": "Draw one settlement building (icon + production badge)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_16f2": {
+        "system": "colony",
+        "purpose": "Draw settlement empty/placeholder sprite if table flag",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_1e46": {
+        "system": "colony",
+        "purpose": "Draw Units multifunction pane (docked unit grid)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
       "FUN_2b5a_303c": {
         "system": "ui",
         "purpose": "Map keyboard/input dispatch on DS:0x981e",
@@ -1839,6 +1881,138 @@
       "FUN_647e_0000": {
         "system": "colony",
         "purpose": "Bind colony record pointer (idx*0x4a to DS:0x9e14)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_001a": {
+        "system": "colony",
+        "purpose": "Bind colonist-slot pointer (slot*10 to DS:0x9e18)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0040": {
+        "system": "colony",
+        "purpose": "Resolve slot label ptr (nation name or colony name)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0094": {
+        "system": "colony",
+        "purpose": "Gate: unit may join/enter colony",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_01c6": {
+        "system": "colony",
+        "purpose": "Paginated colony-select dialog for unit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_04f0": {
+        "system": "colony",
+        "purpose": "Map building/warehouse index to packed-nibble offset",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0522": {
+        "system": "colony",
+        "purpose": "Read packed nibble from colonist-slot byte+2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0548": {
+        "system": "colony",
+        "purpose": "Write packed nibble to colonist-slot byte+2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_057a": {
+        "system": "colony",
+        "purpose": "Read packed building/cargo nibble",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_05aa": {
+        "system": "colony",
+        "purpose": "Write packed building/cargo nibble",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_05ec": {
+        "system": "colony",
+        "purpose": "Set colonist-slot unit-index; clear dual UI counters",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_060e": {
+        "system": "colony",
+        "purpose": "Remove colonist slot; compact 10-byte slots",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_06c2": {
+        "system": "colony",
+        "purpose": "Delete colony by idx; unlink units; compact records",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0796": {
+        "system": "colony",
+        "purpose": "Colony list picker dialog; returns selected idx",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_090a": {
+        "system": "colony",
+        "purpose": "Colonist-slot picker dialog for current colony",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_09da": {
+        "system": "colony",
+        "purpose": "Draw colony report panel (name, status, cargo rows)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0dd4": {
+        "system": "colony",
+        "purpose": "Assign/reassign colonist into selected slot",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0e80": {
+        "system": "colony",
+        "purpose": "Cargo/commodity type picker dialog (16 goods)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_0f2c": {
+        "system": "colony",
+        "purpose": "Add/remove cargo item in colonist warehouse row",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_1064": {
+        "system": "colony",
+        "purpose": "Colony-list mouse hit to row/action",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_10d2": {
+        "system": "colony",
+        "purpose": "Colony-list mouse: rename colony or dismiss",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_115c": {
+        "system": "colony",
+        "purpose": "Colony view entry: pick/bind colony, input loop",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_647e_1486": {
+        "system": "colony",
+        "purpose": "Confirm-and-delete colony",
         "confidence": "inferred",
         "links": ""
       },
@@ -2013,6 +2187,78 @@
       "FUN_479b_01a6": {
         "system": "colony",
         "purpose": "Pioneer clear/plow work-tick; may grant colony food",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0000": {
+        "system": "colony",
+        "purpose": "Generate/assign next colony name from nation tables",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_00ca": {
+        "system": "colony",
+        "purpose": "Gold-spend gate for pioneer follow-up (tile bit 0x10)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0158": {
+        "system": "colony",
+        "purpose": "Pioneer tools wear-tick (-20); clear order when depleted",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0526": {
+        "system": "colony",
+        "purpose": "Pioneer road work-tick (layer2 bit 8); may grant lumber",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_076e": {
+        "system": "colony",
+        "purpose": "Found-colony order body (name, create at unit tile)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0972": {
+        "system": "colony",
+        "purpose": "Unit goto/move order tick; may enter colony",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0b26": {
+        "system": "colony",
+        "purpose": "Classify ocean/high-seas tile (codes 0/1/2/5)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0b6c": {
+        "system": "colony",
+        "purpose": "Set unit order=fortified (6); refresh chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0b84": {
+        "system": "colony",
+        "purpose": "Unit-at-colony predicate",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0bd0": {
+        "system": "colony",
+        "purpose": "Goto-colony order body (path, dock, unload/load)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_0f60": {
+        "system": "colony",
+        "purpose": "Unload best cargo from unit into colony stockpile",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_479b_11a4": {
+        "system": "colony",
+        "purpose": "Load best cargo from colony onto unit",
         "confidence": "inferred",
         "links": ""
       },

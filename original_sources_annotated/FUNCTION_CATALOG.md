@@ -2207,20 +2207,20 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2f2b_05ee` | 47357 | 43 | colony | Draw building/project name label at settlement slot | inferred |  |
 | `FUN_2f2b_0722` | 47400 | 30 | colony | Draw one warehouse cargo-type amount label | inferred |  |
 | `FUN_2f2b_0842` | 47430 | 63 | colony | Draw area-view tile tooltip (terrain/feature text) | inferred | docs/assets.md |
-| `FUN_2f2b_0a3e` | 47493 | 14 | colony | unknown | inferred |  |
+| `FUN_2f2b_0a3e` | 47493 | 14 | colony | Blit colony chrome rect (281f_0444) | inferred |  |
 | `FUN_2f2b_0a74` | 47507 | 53 | colony | Draw area-view surrounding map unit icons | inferred | docs/assets.md |
-| `FUN_2f2b_0ba8` | 47560 | 161 | colony | unknown | inferred |  |
-| `FUN_2f2b_0d89` | 47721 | 100 | colony | unknown | inferred |  |
+| `FUN_2f2b_0ba8` | 47560 | 161 | colony | Draw colony area-view (5x5 map panel); trust ASM over corrupt C tail | inferred | docs/assets.md |
+| `FUN_2f2b_0d89` | 47721 | 100 | colony | Draw one area-view terrain tile (loop body) | inferred | docs/assets.md |
 | `FUN_2f2b_0fce` | 47821 | 62 | colony | Draw colony top-bar name + date/nation string | inferred | docs/assets.md |
 | `FUN_2f2b_11b2` | 47883 | 64 | colony | Draw outside/fence unit strip | inferred | docs/assets.md |
 | `FUN_2f2b_12cc` | 47947 | 49 | colony | Draw colonists assigned to one workplace building | inferred | docs/assets.md |
-| `FUN_2f2b_13c2` | 47996 | 259 | colony | unknown | inferred |  |
-| `FUN_2f2b_14d4` | 48255 | 101 | colony | unknown | inferred |  |
-| `FUN_2f2b_16f2` | 48356 | 13 | colony | unknown | inferred |  |
+| `FUN_2f2b_13c2` | 47996 | 259 | colony | Resolve building-type badge amount + sprite outs (ASM to RETF) | inferred |  |
+| `FUN_2f2b_14d4` | 48255 | 101 | colony | Draw one settlement building (icon + production badge) | inferred | docs/assets.md |
+| `FUN_2f2b_16f2` | 48356 | 13 | colony | Draw settlement empty/placeholder sprite if table flag | inferred |  |
 | `FUN_2f2b_171c` | 48369 | 31 | colony | Draw settlement building strip (15 slots) | inferred | docs/assets.md |
 | `FUN_2f2b_17d0` | 48400 | 132 | colony | Draw people band (colonists + SoL/Tory meters) | inferred | docs/assets.md |
 | `FUN_2f2b_1cce` | 48532 | 61 | colony | Draw Production multifunction cargo/shortfall strip | inferred | docs/assets.md |
-| `FUN_2f2b_1e46` | 48593 | 115 | colony | unknown | inferred |  |
+| `FUN_2f2b_1e46` | 48593 | 115 | colony | Draw Units multifunction pane (docked unit grid) | inferred | docs/assets.md |
 | `FUN_2f2b_2054` | 48708 | 18 | colony | Measure text extent for colony UI button/label | inferred |  |
 | `FUN_2f2b_208c` | 48726 | 59 | colony | Draw framed invertible button/label | inferred |  |
 | `FUN_2f2b_21da` | 48785 | 21 | colony | Draw Construction BUY / CHANGE buttons | inferred | docs/assets.md |
@@ -2500,19 +2500,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_479b_0000` | 76617 | 56 | colony | unknown | inferred |  |
-| `FUN_479b_00ca` | 76673 | 24 | colony | unknown | inferred |  |
-| `FUN_479b_0158` | 76697 | 25 | colony | unknown | inferred |  |
+| `FUN_479b_0000` | 76617 | 56 | colony | Generate/assign next colony name from nation tables | inferred |  |
+| `FUN_479b_00ca` | 76673 | 24 | colony | Gold-spend gate for pioneer follow-up (tile bit 0x10) | inferred |  |
+| `FUN_479b_0158` | 76697 | 25 | colony | Pioneer tools wear-tick (-20); clear order when depleted | inferred |  |
 | `FUN_479b_01a6` | 76722 | 140 | colony | Pioneer clear/plow work-tick; may grant colony food | inferred |  |
-| `FUN_479b_0526` | 76862 | 99 | colony | unknown | inferred |  |
-| `FUN_479b_076e` | 76961 | 91 | colony | unknown | inferred |  |
-| `FUN_479b_0972` | 77052 | 74 | colony | unknown | inferred |  |
-| `FUN_479b_0b26` | 77126 | 20 | colony | unknown | inferred |  |
-| `FUN_479b_0b6c` | 77146 | 12 | colony | unknown | inferred |  |
-| `FUN_479b_0b84` | 77158 | 21 | colony | unknown | inferred |  |
-| `FUN_479b_0bd0` | 77179 | 164 | colony | unknown | inferred |  |
-| `FUN_479b_0f60` | 77343 | 92 | colony | unknown | inferred |  |
-| `FUN_479b_11a4` | 77435 | 128 | colony | unknown | inferred |  |
+| `FUN_479b_0526` | 76862 | 99 | colony | Pioneer road work-tick (layer2 bit 8); may grant lumber | inferred |  |
+| `FUN_479b_076e` | 76961 | 91 | colony | Found-colony order body (name, create at unit tile) | inferred |  |
+| `FUN_479b_0972` | 77052 | 74 | colony | Unit goto/move order tick; may enter colony | inferred |  |
+| `FUN_479b_0b26` | 77126 | 20 | colony | Classify ocean/high-seas tile (codes 0/1/2/5) | inferred |  |
+| `FUN_479b_0b6c` | 77146 | 12 | colony | Set unit order=fortified (6); refresh chrome | inferred |  |
+| `FUN_479b_0b84` | 77158 | 21 | colony | Unit-at-colony predicate | inferred |  |
+| `FUN_479b_0bd0` | 77179 | 164 | colony | Goto-colony order body (path, dock, unload/load) | inferred |  |
+| `FUN_479b_0f60` | 77343 | 92 | colony | Unload best cargo from unit into colony stockpile | inferred |  |
+| `FUN_479b_11a4` | 77435 | 128 | colony | Load best cargo from colony onto unit | inferred |  |
 
 ### Segment `48d3` (9 defs) — ai — Euro landfall goto / unit-order helpers
 
@@ -2715,28 +2715,28 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_647e_0000` | 102222 | 13 | colony | Bind colony record pointer (idx*0x4a to DS:0x9e14) | inferred |  |
-| `FUN_647e_001a` | 102235 | 15 | colony | unknown | inferred |  |
-| `FUN_647e_0040` | 102250 | 18 | colony | unknown | inferred |  |
-| `FUN_647e_0094` | 102268 | 66 | colony | unknown | inferred |  |
-| `FUN_647e_01c6` | 102334 | 131 | colony | unknown | inferred |  |
-| `FUN_647e_04f0` | 102465 | 13 | colony | unknown | inferred |  |
-| `FUN_647e_0522` | 102478 | 13 | colony | unknown | inferred |  |
-| `FUN_647e_0548` | 102491 | 28 | colony | unknown | inferred |  |
-| `FUN_647e_057a` | 102519 | 18 | colony | unknown | inferred |  |
-| `FUN_647e_05aa` | 102537 | 19 | colony | unknown | inferred |  |
-| `FUN_647e_05ec` | 102556 | 13 | colony | unknown | inferred |  |
-| `FUN_647e_060e` | 102569 | 59 | colony | unknown | inferred |  |
-| `FUN_647e_06c2` | 102628 | 55 | colony | unknown | inferred |  |
-| `FUN_647e_0796` | 102683 | 70 | colony | unknown | inferred |  |
-| `FUN_647e_090a` | 102753 | 40 | colony | unknown | inferred |  |
-| `FUN_647e_09da` | 102793 | 108 | colony | unknown | inferred |  |
-| `FUN_647e_0dd4` | 102901 | 39 | colony | unknown | inferred |  |
-| `FUN_647e_0e80` | 102940 | 36 | colony | unknown | inferred |  |
-| `FUN_647e_0f2c` | 102976 | 63 | colony | unknown | inferred |  |
-| `FUN_647e_1064` | 103039 | 29 | colony | unknown | inferred |  |
-| `FUN_647e_10d2` | 103068 | 31 | colony | unknown | inferred |  |
-| `FUN_647e_115c` | 103099 | 58 | colony | unknown | inferred |  |
-| `FUN_647e_1486` | 103157 | 242 | colony | unknown | inferred |  |
+| `FUN_647e_001a` | 102235 | 15 | colony | Bind colonist-slot pointer (slot*10 to DS:0x9e18) | inferred |  |
+| `FUN_647e_0040` | 102250 | 18 | colony | Resolve slot label ptr (nation name or colony name) | inferred |  |
+| `FUN_647e_0094` | 102268 | 66 | colony | Gate: unit may join/enter colony | inferred |  |
+| `FUN_647e_01c6` | 102334 | 131 | colony | Paginated colony-select dialog for unit | inferred |  |
+| `FUN_647e_04f0` | 102465 | 13 | colony | Map building/warehouse index to packed-nibble offset | inferred |  |
+| `FUN_647e_0522` | 102478 | 13 | colony | Read packed nibble from colonist-slot byte+2 | inferred |  |
+| `FUN_647e_0548` | 102491 | 28 | colony | Write packed nibble to colonist-slot byte+2 | inferred |  |
+| `FUN_647e_057a` | 102519 | 18 | colony | Read packed building/cargo nibble | inferred |  |
+| `FUN_647e_05aa` | 102537 | 19 | colony | Write packed building/cargo nibble | inferred |  |
+| `FUN_647e_05ec` | 102556 | 13 | colony | Set colonist-slot unit-index; clear dual UI counters | inferred |  |
+| `FUN_647e_060e` | 102569 | 59 | colony | Remove colonist slot; compact 10-byte slots | inferred |  |
+| `FUN_647e_06c2` | 102628 | 55 | colony | Delete colony by idx; unlink units; compact records | inferred |  |
+| `FUN_647e_0796` | 102683 | 70 | colony | Colony list picker dialog; returns selected idx | inferred |  |
+| `FUN_647e_090a` | 102753 | 40 | colony | Colonist-slot picker dialog for current colony | inferred |  |
+| `FUN_647e_09da` | 102793 | 108 | colony | Draw colony report panel (name, status, cargo rows) | inferred |  |
+| `FUN_647e_0dd4` | 102901 | 39 | colony | Assign/reassign colonist into selected slot | inferred |  |
+| `FUN_647e_0e80` | 102940 | 36 | colony | Cargo/commodity type picker dialog (16 goods) | inferred |  |
+| `FUN_647e_0f2c` | 102976 | 63 | colony | Add/remove cargo item in colonist warehouse row | inferred |  |
+| `FUN_647e_1064` | 103039 | 29 | colony | Colony-list mouse hit to row/action | inferred |  |
+| `FUN_647e_10d2` | 103068 | 31 | colony | Colony-list mouse: rename colony or dismiss | inferred |  |
+| `FUN_647e_115c` | 103099 | 58 | colony | Colony view entry: pick/bind colony, input loop | inferred |  |
+| `FUN_647e_1486` | 103157 | 242 | colony | Confirm-and-delete colony | inferred |  |
 
 ### Segment `65dd` (1 defs) — combat — Unit combat outcome resolution (RNG cases)
 
