@@ -1,0 +1,325 @@
+{
+  "layer": "B",
+  "chunk": "map_pedia_draw_15eb_hi",
+  "functions": {
+    "FUN_15eb_1068": {
+      "system": "mapdraw",
+      "purpose": "Assign colony colonist to job (reassign/spawn unit/grow pop; warehouse cost adjust)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1376": {
+      "system": "mapdraw",
+      "purpose": "Count active-colony colonists whose current job equals param",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_13ac": {
+      "system": "mapdraw",
+      "purpose": "Count active-colony colonists whose specialty equals param",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_13e2": {
+      "system": "mapdraw",
+      "purpose": "Count colonists working a matching specialty job (<0x13)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_142a": {
+      "system": "mapdraw",
+      "purpose": "Find nth colonist slot with given job byte (or −1)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1476": {
+      "system": "mapdraw",
+      "purpose": "Reseed DOS LCG from active colony tile XY (+0x8d80)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_14aa": {
+      "system": "mapdraw",
+      "purpose": "Walk building parent chain (−0x707b) to root building id",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_14d6": {
+      "system": "mapdraw",
+      "purpose": "Map building/job id → table byte at DS:0x2ca",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_14e4": {
+      "system": "mapdraw",
+      "purpose": "If root building present, return its production-slot index (−0x716e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1526": {
+      "system": "mapdraw",
+      "purpose": "Reverse of 14e4: building id owning production-slot, else −1",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1568": {
+      "system": "mapdraw",
+      "purpose": "Count workers in building (or −unit count when root is stockade)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_15c6": {
+      "system": "mapdraw",
+      "purpose": "Building-upgrade depth for job (0/1/2 via parent −0x707a)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1604": {
+      "system": "mapdraw",
+      "purpose": "Colony production-panel layout sizes (w=200; h from difficulty)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1646": {
+      "system": "mapdraw",
+      "purpose": "Find 5×5 work-plot cell holding colonist id (via 06a6)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_169c": {
+      "system": "mapdraw",
+      "purpose": "Redraw work-plot of colonist via shared 06d2 entry",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_16c4": {
+      "system": "mapdraw",
+      "purpose": "Job at 5×5 plot + out specialty (0e18/0e52); −1 if empty",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_16fe": {
+      "system": "mapdraw",
+      "purpose": "True if map tile terrain-class nibble is in [lo,hi]",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_173e": {
+      "system": "mapdraw",
+      "purpose": "Count of 8 neighbors whose terrain class is in [lo,hi]",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1782": {
+      "system": "mapdraw",
+      "purpose": "True if map tile feature bits match mask (137f_0142)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_17ba": {
+      "system": "mapdraw",
+      "purpose": "Count of 8 neighbors with matching feature-bit mask",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_17fa": {
+      "system": "mapdraw",
+      "purpose": "Resource-vs-job bonus table for field yield (special resources)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_18ec": {
+      "system": "mapdraw",
+      "purpose": "Compose field yield for one 5×5 work plot (terrain/SoL/expert/mods)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1d4c": {
+      "system": "mapdraw",
+      "purpose": "Compose building/manufacturing yield for one colonist (out cargo idx)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_1f72": {
+      "system": "mapdraw",
+      "purpose": "Recompute colony production totals (commons+plots+buildings→warehouse)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_23f2": {
+      "system": "mapdraw",
+      "purpose": "Work-plot threat/feature flags (enemy/village/colony/center/invalid)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_268e": {
+      "system": "mapdraw",
+      "purpose": "Fill 5×5 work-plot flag cache (−0x7210) once per colony view",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_26e4": {
+      "system": "mapdraw",
+      "purpose": "Fill 5×5 native-contact caches; optional map mark via 137f_0228",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_287e": {
+      "system": "mapdraw",
+      "purpose": "Redraw all flagged 5×5 work plots via 06d2",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_28c8": {
+      "system": "mapdraw",
+      "purpose": "Score/assign best work-plot job for colonist (trial 1068+18ec+06d2)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_2ea0": {
+      "system": "mapdraw",
+      "purpose": "Auto-assign unplotted field workers via 28c8 (else job 0x0d)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_2f3c": {
+      "system": "mapdraw",
+      "purpose": "Count map units with nonzero cargo/passenger capacity (0x5237)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_2f8e": {
+      "system": "mapdraw",
+      "purpose": "Nth map unit with cargo/passenger capacity (or −1)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_2ff2": {
+      "system": "mapdraw",
+      "purpose": "Read unit passenger/cargo type nibble at slot (0x3151)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3040": {
+      "system": "mapdraw",
+      "purpose": "Read unit cargo/passenger quantity byte at slot (0x3154)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3054": {
+      "system": "mapdraw",
+      "purpose": "Write unit cargo/passenger quantity byte at slot (0x3154)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_306a": {
+      "system": "mapdraw",
+      "purpose": "Write unit passenger/cargo type nibble at slot (0x3151)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_30b8": {
+      "system": "mapdraw",
+      "purpose": "Adjust unit cargo qty by type (merge/add slots up to 0x5237)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_317c": {
+      "system": "mapdraw",
+      "purpose": "Remove unit cargo/passenger slot; compact; stash qty in 0x8dc4",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3208": {
+      "system": "mapdraw",
+      "purpose": "Free unit cargo capacity for type (empty slots×100 + partials)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_32a0": {
+      "system": "mapdraw",
+      "purpose": "Find unit cargo slot index by type; stash qty in 0x8dc4",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_32f8": {
+      "system": "mapdraw",
+      "purpose": "Decode build-menu index → kind (building/unit) + table idx",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_334a": {
+      "system": "mapdraw",
+      "purpose": "Play build-menu item sound (building −0x707e / unit 0x5230)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_33aa": {
+      "system": "mapdraw",
+      "purpose": "Build-menu hammer cost (+ optional turns out) for item",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3454": {
+      "system": "mapdraw",
+      "purpose": "Gate: can start job/construction (prereqs + warehouse mins)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_35d0": {
+      "system": "mapdraw",
+      "purpose": "Move cargo from colony warehouse onto unit via 30b8",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3620": {
+      "system": "mapdraw",
+      "purpose": "Unload unit cargo slot back into colony warehouse (via 317c)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3650": {
+      "system": "mapdraw",
+      "purpose": "Build-menu eligibility for item (prereqs/pop/FF/coast/already-built)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_38ba": {
+      "system": "mapdraw",
+      "purpose": "Count build-menu items currently eligible (3650 over 0..0x30)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_38e8": {
+      "system": "mapdraw",
+      "purpose": "Nth eligible build-menu item id (via 3650)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3930": {
+      "system": "mapdraw",
+      "purpose": "Colony-area compose: flag cache + redraw + auto-assign + cargo-unit count",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_394c": {
+      "system": "mapdraw",
+      "purpose": "Refresh colony unit lists (09c0) then recompute production (1f72)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3956": {
+      "system": "mapdraw",
+      "purpose": "Full colony-view refresh compose (3930 + 394c)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15eb_3960": {
+      "system": "mapdraw",
+      "purpose": "Nation feature/FF bit test (table −0x77f1)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "Hi half of 15eb is colony area/settlement logic that shares the world-map/pedia draw entry (06d2), not pure blit. Large compose bodies: 1068 job assign; 18ec field-plot yield; 1d4c building yield (Ghidra CF noisy); 1f72 production recompute; 23f2/268e/287e plot-flag cache+redraw; 28c8/2ea0 auto work-plot assign; 3454/3650 build gates; 3930/3956 colony-view refresh. Helpers: colonist/job counters 1376–142a; building chain 14aa–15c6; 5×5 plot find/redraw 1646–16c4; terrain/feature neighbor probes 16fe–17ba; resource bonus 17fa; unit cargo nibble API 2ff2–32a0 (thunks already name 2ff2/30b8/317c); build-menu decode/cost/sound 32f8–33aa; warehouse↔unit cargo 35d0/3620; 3960 FF bit (thunk 281f_07b4). Active colony at DS:0x8542; 5×5 plots via 06a6; warehouse cargo at +0x9a."
+}

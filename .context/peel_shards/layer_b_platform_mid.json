@@ -1,0 +1,343 @@
+{
+  "layer": "B",
+  "chunk": "platform_path_config_heap_abort",
+  "functions": {
+    "FUN_124c_000c": {
+      "system": "platform",
+      "purpose": "Clamp value to [lo,hi]",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_124c_002a": {
+      "system": "platform",
+      "purpose": "Swap two words through near pointers",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_124c_007c": {
+      "system": "platform",
+      "purpose": "DOS-distance between points (abs dx/dy → 0040)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_124c_00c4": {
+      "system": "platform",
+      "purpose": "Chebyshev component: max(|a|,|b|)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_124c_00f4": {
+      "system": "platform",
+      "purpose": "Chebyshev distance between points (max |dx|,|dy|)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_124c_013c": {
+      "system": "platform",
+      "purpose": "True if 8-way dir is ±1 neighbor of given dir",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2047_000a": {
+      "system": "platform",
+      "purpose": "Install Ctrl-C/Break abort context (INT21; save SS:SP at DS:0x26a3)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2047_00b8": {
+      "system": "platform",
+      "purpose": "Arm/save 5 abort INT vectors; set busy flag DS:0x26a2",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2047_00e9": {
+      "system": "platform",
+      "purpose": "If armed: INT21 then reinstall default abort handlers (0106)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2047_0106": {
+      "system": "platform",
+      "purpose": "Install 5 far INT abort handlers pointing to 2047:0103",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2047_011f": {
+      "system": "platform",
+      "purpose": "Read abort-busy flag DS:0x26a2",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0000": {
+      "system": "platform",
+      "purpose": "Size three DOS memory pools into out-word triple (env/EMS vs percent paths)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_023a": {
+      "system": "platform",
+      "purpose": "Query/clamp one memory size via 048f INT21 stub + 02b2 patch",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_02b2": {
+      "system": "platform",
+      "purpose": "Patch INT21 probe stub bytes at DS:0x20235 (0x4e8b/'E')",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_033a": {
+      "system": "platform",
+      "purpose": "Alternate memory-probe stub setup (CX flag merge + 048f)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0443": {
+      "system": "platform",
+      "purpose": "Scale/clamp memory size by percent flags in CX",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_048f": {
+      "system": "platform",
+      "purpose": "Parse env memory-size string (getenv 08ad; comma fields + 05ed)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_05ed": {
+      "system": "platform",
+      "purpose": "Parse unsigned decimal integer from SI (overflow→0xffff)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0624": {
+      "system": "platform",
+      "purpose": "Skip leading spaces at SI",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_062d": {
+      "system": "platform",
+      "purpose": "Copy ≤CX chars SI→DI and NUL-terminate",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_06b3": {
+      "system": "platform",
+      "purpose": "Install INT24 critical-error vectors (8c3/b42) after 080f dispatch init",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_06db": {
+      "system": "platform",
+      "purpose": "Save ES; set INT24 vector words to 8c3/b42",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0700": {
+      "system": "platform",
+      "purpose": "Register far INT24/callback entry in table at DS:0x758",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_07a4": {
+      "system": "platform",
+      "purpose": "Fatal trampoline: load DAT_207c then far-jump 0x8bff",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_080f": {
+      "system": "platform",
+      "purpose": "Dispatch DS:0x758 INT24 handlers whose mask matches AL",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_08ad": {
+      "system": "platform",
+      "purpose": "getenv: find KEY= in env seg *[0x2c], copy value to DI",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0909": {
+      "system": "platform",
+      "purpose": "PATH/search-order dispatcher on letters C/E/P/A",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0a11": {
+      "system": "platform",
+      "purpose": "Build current-drive \"D:\\\" + cwd path into DI (INT21)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0a4f": {
+      "system": "platform",
+      "purpose": "Locate argv0 path after env block (PSP env trail)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0ab8": {
+      "system": "platform",
+      "purpose": "Append path via 0acc then INT21 open/search",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0acc": {
+      "system": "platform",
+      "purpose": "strcat path component; set .exe detect flag DAT_20a5_00b8",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_275d_0b09": {
+      "system": "platform",
+      "purpose": "INT21 canonicalize/build absolute search path (A-letter path)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_0000": {
+      "system": "platform",
+      "purpose": "Close config/name file handle at DS:0x2014 if open",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_001a": {
+      "system": "platform",
+      "purpose": "Open config/name file; seek @section; scan lines for tag match",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_0106": {
+      "system": "platform",
+      "purpose": "Read next config line to DS:0x833c; '_'→space; set field cursor 0xa608",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_015e": {
+      "system": "platform",
+      "purpose": "Extract next comma field into DS:0xa5b8; advance cursor 0xa608",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_0198": {
+      "system": "platform",
+      "purpose": "End current config field parse (291f_0fc4 + 2a1f_0b3a)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_01b6": {
+      "system": "platform",
+      "purpose": "Blit/print full config line buffer DS:0x833c",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_01c8": {
+      "system": "platform",
+      "purpose": "Blit/print current comma field DS:0xa5b8",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_01da": {
+      "system": "platform",
+      "purpose": "Parse '0'/'1' bit string in field 0xa5b8 to byte",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7314_0208": {
+      "system": "platform",
+      "purpose": "Load nth string from dual-id resource (skip n lines)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7a05_0000": {
+      "system": "platform",
+      "purpose": "Load error-text line N from resource into dest (strip ctrls)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7a05_00a4": {
+      "system": "platform",
+      "purpose": "Dump resource lines until \"$…\" match at DS:0x24cb (print each)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7a05_014e": {
+      "system": "platform",
+      "purpose": "Fatal video teardown then INT10 mode reset",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7a05_0180": {
+      "system": "platform",
+      "purpose": "Format/print fatal abort text + hooks; exit via 1d1d_030d(3)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7a05_03ce": {
+      "system": "platform",
+      "purpose": "If size≥DS:0x2476: format addrs, load msgs (0000), abort (0180)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7ada_0006": {
+      "system": "platform",
+      "purpose": "Run heap callback with reentrancy flag DS:0x2672 set",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7ada_0022": {
+      "system": "platform",
+      "purpose": "DOS heap alloc (INT21 AH=48 / 2a1f) with high-water tracking",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7ada_01a0": {
+      "system": "platform",
+      "purpose": "Alloc via 2a1f_0e90 using size cell DS:0x2674",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7ada_01aa": {
+      "system": "platform",
+      "purpose": "DOS INT21 AH=49 free mem block (large→2a1f_0fd4)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7ada_01fa": {
+      "system": "platform",
+      "purpose": "DOS INT21 AH=4A resize mem block; return CF as ±1",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7b08_000e": {
+      "system": "platform",
+      "purpose": "Alloc growable far-buffer arena (2a1f_0e90); init cursor/remain",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7b08_009e": {
+      "system": "platform",
+      "purpose": "Wrap existing far block as arena (no alloc; owned=0)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7b08_00dc": {
+      "system": "platform",
+      "purpose": "Free owned arena (7ada_01aa) and clear far-buffer fields",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7b08_0118": {
+      "system": "platform",
+      "purpose": "Bump-alloc from arena remain; else fatal 281f_0772",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_7b08_0182": {
+      "system": "platform",
+      "purpose": "INT21 shrink arena to used size; return final far size",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "Segment groups: 124c math (clamp/swap/dos_dist/Chebyshev/8-way); 2047 Ctrl-C/Break abort (twin of 2115); 275d PATH/env/memory-size + INT24 table; 7314 comma config/name lines; 7a05 fatal text+INT10; 7ada DOS heap AH=48/49/4A; 7b08 growable far arena. Thunk 281f_037a says Manhattan for 007c but body routes abs deltas through dos_dist 0040. 7ada_01aa AH=49 already labeled via 291f_01a8 thunk."
+}

@@ -7757,6 +7757,1254 @@
         "purpose": "Far thunk \u2192 FUN_5fef_1908 (treasure capture: ransom/gold/remove)",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_15eb_0002": {
+        "system": "mapdraw",
+        "purpose": "Gate workplace/job id: 0 for {0x13,0x19-0x1c}, else 1",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c9a"
+      },
+      "FUN_15eb_002c": {
+        "system": "mapdraw",
+        "purpose": "Bind active colony (DS:0x8542) by index; set a897 visibility flag",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_09e6"
+      },
+      "FUN_15eb_00a2": {
+        "system": "mapdraw",
+        "purpose": "Any 8-neighbor is ocean/high-seas; stash best neighbor xy at 8dba/8dbc",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0d12; src/core/map_gen.c"
+      },
+      "FUN_15eb_0218": {
+        "system": "mapdraw",
+        "purpose": "Remap cargo/id 0x1c\u21920x13 before catalog table lookup",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_022c": {
+        "system": "mapdraw",
+        "purpose": "Cargo catalog title word at id\u00d78\u22120x715e (after 0218 remap)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c18; FUN_6cb2_1820"
+      },
+      "FUN_15eb_0242": {
+        "system": "mapdraw",
+        "purpose": "Cargo catalog secondary word at id\u00d78\u22120x715c (after 0218 remap)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c40; FUN_6cb2_1820"
+      },
+      "FUN_15eb_0258": {
+        "system": "mapdraw",
+        "purpose": "Continent id for colony idx (137f_02a0 on 5d46/5d47 xy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0274": {
+        "system": "mapdraw",
+        "purpose": "Colony SoL % from bells/pop (0..100; +20 FF bonus)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c86"
+      },
+      "FUN_15eb_0302": {
+        "system": "mapdraw",
+        "purpose": "Test building-present bit in active colony mask (+0x8a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0326": {
+        "system": "mapdraw",
+        "purpose": "Set/clear building-present bit in active colony mask (+0x8a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_035e": {
+        "system": "mapdraw",
+        "purpose": "Test building bit in colony record feature mask (\u00d70xca+0x5dca)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0322"
+      },
+      "FUN_15eb_038e": {
+        "system": "mapdraw",
+        "purpose": "Test building bit for active colony index (8dc6\u2192035e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_039e": {
+        "system": "mapdraw",
+        "purpose": "Count owned buildings along parent chain (\u2212707a) from start id",
+        "confidence": "inferred",
+        "links": "FUN_6cb2_1ba8"
+      },
+      "FUN_15eb_03d6": {
+        "system": "mapdraw",
+        "purpose": "Count owned buildings along parent chain for explicit colony idx",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0410": {
+        "system": "mapdraw",
+        "purpose": "Walk building parent chain (\u2212707a) to root id",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0434": {
+        "system": "mapdraw",
+        "purpose": "Highest owned building id still present along parent chain",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0470": {
+        "system": "mapdraw",
+        "purpose": "Work-radius size class 2..4 from fortification chain (#10)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c5e"
+      },
+      "FUN_15eb_0484": {
+        "system": "mapdraw",
+        "purpose": "Map fortification size class to capacity constant (8/12/32)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c7c"
+      },
+      "FUN_15eb_04c0": {
+        "system": "mapdraw",
+        "purpose": "True if (x,y) is colony center or in fort-scaled work radius",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0544": {
+        "system": "mapdraw",
+        "purpose": "Read nation treasury dword (id\u00d70x13c\u22120x77ce)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0556": {
+        "system": "mapdraw",
+        "purpose": "Add to nation treasury with 0..0xF423F clamp",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0596": {
+        "system": "mapdraw",
+        "purpose": "Subtract from nation treasury (negated 0556)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_05b2": {
+        "system": "mapdraw",
+        "purpose": "Format nation gold into UI string (104b_01e8 + 'g')",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_05cc": {
+        "system": "mapdraw",
+        "purpose": "Present nation treasury value via 1009_01fc",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_05e2": {
+        "system": "mapdraw",
+        "purpose": "Map town-area relative (x,y) to 5\u00d75 slot index 0..19 (\u22121 miss)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0620": {
+        "system": "mapdraw",
+        "purpose": "Test layer2 bit0x10 on colony town-area tile (plow/improve)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0668": {
+        "system": "mapdraw",
+        "purpose": "Set/clear layer2 bit0x10 on colony town-area tile",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c90"
+      },
+      "FUN_15eb_06a6": {
+        "system": "mapdraw",
+        "purpose": "Colonist-slot assigned to town-area tile (+0x70) or 0xFF",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_08e6": {
+        "system": "mapdraw",
+        "purpose": "True if unit type maps to a profession (table 0x30e\u22650)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0902": {
+        "system": "mapdraw",
+        "purpose": "Default profession for unit type from table 0x30e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0916": {
+        "system": "mapdraw",
+        "purpose": "Map profession id \u2192 unit type byte (table 0x2f5)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0924": {
+        "system": "mapdraw",
+        "purpose": "Nth profession-capable unit in colony unit list (8d78)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_09c0": {
+        "system": "mapdraw",
+        "purpose": "Recount colony unit tallies into 8d72/74/76 (cap capable@50)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0a50": {
+        "system": "mapdraw",
+        "purpose": "Warehouse capacity 100\u00d7(1+expansion at colony+0x95)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0a76": {
+        "system": "mapdraw",
+        "purpose": "Colony index at map (x,y), or \u22121 (assert if missing)",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_07be"
+      },
+      "FUN_15eb_0aec": {
+        "system": "mapdraw",
+        "purpose": "Job\u2192building-chain start id from table 0x2f4 (or \u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0b0c": {
+        "system": "mapdraw",
+        "purpose": "Free warehouse headroom for cargo after stock/reserve",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0b52": {
+        "system": "mapdraw",
+        "purpose": "Compute cargo shortfall/overflow scratch (\u221271ce/\u221271a6)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0b96": {
+        "system": "mapdraw",
+        "purpose": "Apply stock vs capacity for one cargo into shortfall scratch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0bd4": {
+        "system": "mapdraw",
+        "purpose": "Cargo headroom with building-chain 2/3 production cut",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0c52": {
+        "system": "mapdraw",
+        "purpose": "True if cargo stock+turn exceeds warehouse capacity",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0c7a": {
+        "system": "mapdraw",
+        "purpose": "Read packed colonist specialty nibble (+0x60)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0cbc": {
+        "system": "mapdraw",
+        "purpose": "Write packed colonist specialty nibble (+0x60, clamp 0..15)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0d04": {
+        "system": "mapdraw",
+        "purpose": "Remove colonist slot; compact jobs/specialty/area; \u2212100 pop",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0a9c"
+      },
+      "FUN_15eb_0d8e": {
+        "system": "mapdraw",
+        "purpose": "Fill cargo-id list for leave-as gear (tools/muskets/horses); return count",
+        "confidence": "inferred",
+        "links": "asm switch on prof 0x13..0x18; Ghidra body overlapped"
+      },
+      "FUN_15eb_0e18": {
+        "system": "mapdraw",
+        "purpose": "Colonist profession: slot+0x20 or outside unit via 0924/0902",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c0e"
+      },
+      "FUN_15eb_0e52": {
+        "system": "mapdraw",
+        "purpose": "Colonist workplace/job: slot+0x40 or unit+0x315b",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0c54"
+      },
+      "FUN_15eb_0e8c": {
+        "system": "mapdraw",
+        "purpose": "Set workplace/job (0x17\u21920x15); slot or outside unit",
+        "confidence": "inferred",
+        "links": "thunk_FUN_281f_0cae"
+      },
+      "FUN_15eb_0ed4": {
+        "system": "mapdraw",
+        "purpose": "Map specialty nibble to tier 0..3 (cuts at 4/8/15)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_0f1c": {
+        "system": "mapdraw",
+        "purpose": "Resolve colonist people-band sprite/icon index",
+        "confidence": "inferred",
+        "links": "FUN_112b_0002"
+      },
+      "FUN_15eb_0fea": {
+        "system": "mapdraw",
+        "purpose": "Classify profession change: stay/eject/admit/unit-role (0..3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1030": {
+        "system": "mapdraw",
+        "purpose": "Set/clear colony flag bit in mask at +0x84",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1068": {
+        "system": "mapdraw",
+        "purpose": "Assign colony colonist to job (reassign/spawn unit/grow pop; warehouse cost adjust)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1376": {
+        "system": "mapdraw",
+        "purpose": "Count active-colony colonists whose current job equals param",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_13ac": {
+        "system": "mapdraw",
+        "purpose": "Count active-colony colonists whose specialty equals param",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_13e2": {
+        "system": "mapdraw",
+        "purpose": "Count colonists working a matching specialty job (<0x13)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_142a": {
+        "system": "mapdraw",
+        "purpose": "Find nth colonist slot with given job byte (or \u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1476": {
+        "system": "mapdraw",
+        "purpose": "Reseed DOS LCG from active colony tile XY (+0x8d80)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_14aa": {
+        "system": "mapdraw",
+        "purpose": "Walk building parent chain (\u22120x707b) to root building id",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_14d6": {
+        "system": "mapdraw",
+        "purpose": "Map building/job id \u2192 table byte at DS:0x2ca",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_14e4": {
+        "system": "mapdraw",
+        "purpose": "If root building present, return its production-slot index (\u22120x716e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1526": {
+        "system": "mapdraw",
+        "purpose": "Reverse of 14e4: building id owning production-slot, else \u22121",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1568": {
+        "system": "mapdraw",
+        "purpose": "Count workers in building (or \u2212unit count when root is stockade)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_15c6": {
+        "system": "mapdraw",
+        "purpose": "Building-upgrade depth for job (0/1/2 via parent \u22120x707a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1604": {
+        "system": "mapdraw",
+        "purpose": "Colony production-panel layout sizes (w=200; h from difficulty)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1646": {
+        "system": "mapdraw",
+        "purpose": "Find 5\u00d75 work-plot cell holding colonist id (via 06a6)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_169c": {
+        "system": "mapdraw",
+        "purpose": "Redraw work-plot of colonist via shared 06d2 entry",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_16c4": {
+        "system": "mapdraw",
+        "purpose": "Job at 5\u00d75 plot + out specialty (0e18/0e52); \u22121 if empty",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_16fe": {
+        "system": "mapdraw",
+        "purpose": "True if map tile terrain-class nibble is in [lo,hi]",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_173e": {
+        "system": "mapdraw",
+        "purpose": "Count of 8 neighbors whose terrain class is in [lo,hi]",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1782": {
+        "system": "mapdraw",
+        "purpose": "True if map tile feature bits match mask (137f_0142)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_17ba": {
+        "system": "mapdraw",
+        "purpose": "Count of 8 neighbors with matching feature-bit mask",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_17fa": {
+        "system": "mapdraw",
+        "purpose": "Resource-vs-job bonus table for field yield (special resources)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_18ec": {
+        "system": "mapdraw",
+        "purpose": "Compose field yield for one 5\u00d75 work plot (terrain/SoL/expert/mods)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1d4c": {
+        "system": "mapdraw",
+        "purpose": "Compose building/manufacturing yield for one colonist (out cargo idx)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_1f72": {
+        "system": "mapdraw",
+        "purpose": "Recompute colony production totals (commons+plots+buildings\u2192warehouse)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_23f2": {
+        "system": "mapdraw",
+        "purpose": "Work-plot threat/feature flags (enemy/village/colony/center/invalid)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_268e": {
+        "system": "mapdraw",
+        "purpose": "Fill 5\u00d75 work-plot flag cache (\u22120x7210) once per colony view",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_26e4": {
+        "system": "mapdraw",
+        "purpose": "Fill 5\u00d75 native-contact caches; optional map mark via 137f_0228",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_287e": {
+        "system": "mapdraw",
+        "purpose": "Redraw all flagged 5\u00d75 work plots via 06d2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_28c8": {
+        "system": "mapdraw",
+        "purpose": "Score/assign best work-plot job for colonist (trial 1068+18ec+06d2)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_2ea0": {
+        "system": "mapdraw",
+        "purpose": "Auto-assign unplotted field workers via 28c8 (else job 0x0d)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_2f3c": {
+        "system": "mapdraw",
+        "purpose": "Count map units with nonzero cargo/passenger capacity (0x5237)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_2f8e": {
+        "system": "mapdraw",
+        "purpose": "Nth map unit with cargo/passenger capacity (or \u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_2ff2": {
+        "system": "mapdraw",
+        "purpose": "Read unit passenger/cargo type nibble at slot (0x3151)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3040": {
+        "system": "mapdraw",
+        "purpose": "Read unit cargo/passenger quantity byte at slot (0x3154)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3054": {
+        "system": "mapdraw",
+        "purpose": "Write unit cargo/passenger quantity byte at slot (0x3154)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_306a": {
+        "system": "mapdraw",
+        "purpose": "Write unit passenger/cargo type nibble at slot (0x3151)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_30b8": {
+        "system": "mapdraw",
+        "purpose": "Adjust unit cargo qty by type (merge/add slots up to 0x5237)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_317c": {
+        "system": "mapdraw",
+        "purpose": "Remove unit cargo/passenger slot; compact; stash qty in 0x8dc4",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3208": {
+        "system": "mapdraw",
+        "purpose": "Free unit cargo capacity for type (empty slots\u00d7100 + partials)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_32a0": {
+        "system": "mapdraw",
+        "purpose": "Find unit cargo slot index by type; stash qty in 0x8dc4",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_32f8": {
+        "system": "mapdraw",
+        "purpose": "Decode build-menu index \u2192 kind (building/unit) + table idx",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_334a": {
+        "system": "mapdraw",
+        "purpose": "Play build-menu item sound (building \u22120x707e / unit 0x5230)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_33aa": {
+        "system": "mapdraw",
+        "purpose": "Build-menu hammer cost (+ optional turns out) for item",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3454": {
+        "system": "mapdraw",
+        "purpose": "Gate: can start job/construction (prereqs + warehouse mins)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_35d0": {
+        "system": "mapdraw",
+        "purpose": "Move cargo from colony warehouse onto unit via 30b8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3620": {
+        "system": "mapdraw",
+        "purpose": "Unload unit cargo slot back into colony warehouse (via 317c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3650": {
+        "system": "mapdraw",
+        "purpose": "Build-menu eligibility for item (prereqs/pop/FF/coast/already-built)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_38ba": {
+        "system": "mapdraw",
+        "purpose": "Count build-menu items currently eligible (3650 over 0..0x30)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_38e8": {
+        "system": "mapdraw",
+        "purpose": "Nth eligible build-menu item id (via 3650)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3930": {
+        "system": "mapdraw",
+        "purpose": "Colony-area compose: flag cache + redraw + auto-assign + cargo-unit count",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_394c": {
+        "system": "mapdraw",
+        "purpose": "Refresh colony unit lists (09c0) then recompute production (1f72)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3956": {
+        "system": "mapdraw",
+        "purpose": "Full colony-view refresh compose (3930 + 394c)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15eb_3960": {
+        "system": "mapdraw",
+        "purpose": "Nation feature/FF bit test (table \u22120x77f1)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_124c_000c": {
+        "system": "platform",
+        "purpose": "Clamp value to [lo,hi]",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_124c_002a": {
+        "system": "platform",
+        "purpose": "Swap two words through near pointers",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_124c_007c": {
+        "system": "platform",
+        "purpose": "DOS-distance between points (abs dx/dy \u2192 0040)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_124c_00c4": {
+        "system": "platform",
+        "purpose": "Chebyshev component: max(|a|,|b|)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_124c_00f4": {
+        "system": "platform",
+        "purpose": "Chebyshev distance between points (max |dx|,|dy|)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_124c_013c": {
+        "system": "platform",
+        "purpose": "True if 8-way dir is \u00b11 neighbor of given dir",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2047_000a": {
+        "system": "platform",
+        "purpose": "Install Ctrl-C/Break abort context (INT21; save SS:SP at DS:0x26a3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2047_00b8": {
+        "system": "platform",
+        "purpose": "Arm/save 5 abort INT vectors; set busy flag DS:0x26a2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2047_00e9": {
+        "system": "platform",
+        "purpose": "If armed: INT21 then reinstall default abort handlers (0106)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2047_0106": {
+        "system": "platform",
+        "purpose": "Install 5 far INT abort handlers pointing to 2047:0103",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2047_011f": {
+        "system": "platform",
+        "purpose": "Read abort-busy flag DS:0x26a2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0000": {
+        "system": "platform",
+        "purpose": "Size three DOS memory pools into out-word triple (env/EMS vs percent paths)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_023a": {
+        "system": "platform",
+        "purpose": "Query/clamp one memory size via 048f INT21 stub + 02b2 patch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_02b2": {
+        "system": "platform",
+        "purpose": "Patch INT21 probe stub bytes at DS:0x20235 (0x4e8b/'E')",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_033a": {
+        "system": "platform",
+        "purpose": "Alternate memory-probe stub setup (CX flag merge + 048f)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0443": {
+        "system": "platform",
+        "purpose": "Scale/clamp memory size by percent flags in CX",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_048f": {
+        "system": "platform",
+        "purpose": "Parse env memory-size string (getenv 08ad; comma fields + 05ed)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_05ed": {
+        "system": "platform",
+        "purpose": "Parse unsigned decimal integer from SI (overflow\u21920xffff)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0624": {
+        "system": "platform",
+        "purpose": "Skip leading spaces at SI",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_062d": {
+        "system": "platform",
+        "purpose": "Copy \u2264CX chars SI\u2192DI and NUL-terminate",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_06b3": {
+        "system": "platform",
+        "purpose": "Install INT24 critical-error vectors (8c3/b42) after 080f dispatch init",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_06db": {
+        "system": "platform",
+        "purpose": "Save ES; set INT24 vector words to 8c3/b42",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0700": {
+        "system": "platform",
+        "purpose": "Register far INT24/callback entry in table at DS:0x758",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_07a4": {
+        "system": "platform",
+        "purpose": "Fatal trampoline: load DAT_207c then far-jump 0x8bff",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_080f": {
+        "system": "platform",
+        "purpose": "Dispatch DS:0x758 INT24 handlers whose mask matches AL",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_08ad": {
+        "system": "platform",
+        "purpose": "getenv: find KEY= in env seg *[0x2c], copy value to DI",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0909": {
+        "system": "platform",
+        "purpose": "PATH/search-order dispatcher on letters C/E/P/A",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0a11": {
+        "system": "platform",
+        "purpose": "Build current-drive \"D:\\\" + cwd path into DI (INT21)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0a4f": {
+        "system": "platform",
+        "purpose": "Locate argv0 path after env block (PSP env trail)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0ab8": {
+        "system": "platform",
+        "purpose": "Append path via 0acc then INT21 open/search",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0acc": {
+        "system": "platform",
+        "purpose": "strcat path component; set .exe detect flag DAT_20a5_00b8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_275d_0b09": {
+        "system": "platform",
+        "purpose": "INT21 canonicalize/build absolute search path (A-letter path)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_0000": {
+        "system": "platform",
+        "purpose": "Close config/name file handle at DS:0x2014 if open",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_001a": {
+        "system": "platform",
+        "purpose": "Open config/name file; seek @section; scan lines for tag match",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_0106": {
+        "system": "platform",
+        "purpose": "Read next config line to DS:0x833c; '_'\u2192space; set field cursor 0xa608",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_015e": {
+        "system": "platform",
+        "purpose": "Extract next comma field into DS:0xa5b8; advance cursor 0xa608",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_0198": {
+        "system": "platform",
+        "purpose": "End current config field parse (291f_0fc4 + 2a1f_0b3a)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_01b6": {
+        "system": "platform",
+        "purpose": "Blit/print full config line buffer DS:0x833c",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_01c8": {
+        "system": "platform",
+        "purpose": "Blit/print current comma field DS:0xa5b8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_01da": {
+        "system": "platform",
+        "purpose": "Parse '0'/'1' bit string in field 0xa5b8 to byte",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7314_0208": {
+        "system": "platform",
+        "purpose": "Load nth string from dual-id resource (skip n lines)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a05_0000": {
+        "system": "platform",
+        "purpose": "Load error-text line N from resource into dest (strip ctrls)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a05_00a4": {
+        "system": "platform",
+        "purpose": "Dump resource lines until \"$\u2026\" match at DS:0x24cb (print each)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a05_014e": {
+        "system": "platform",
+        "purpose": "Fatal video teardown then INT10 mode reset",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a05_0180": {
+        "system": "platform",
+        "purpose": "Format/print fatal abort text + hooks; exit via 1d1d_030d(3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7a05_03ce": {
+        "system": "platform",
+        "purpose": "If size\u2265DS:0x2476: format addrs, load msgs (0000), abort (0180)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ada_0006": {
+        "system": "platform",
+        "purpose": "Run heap callback with reentrancy flag DS:0x2672 set",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ada_0022": {
+        "system": "platform",
+        "purpose": "DOS heap alloc (INT21 AH=48 / 2a1f) with high-water tracking",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ada_01a0": {
+        "system": "platform",
+        "purpose": "Alloc via 2a1f_0e90 using size cell DS:0x2674",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ada_01aa": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=49 free mem block (large\u21922a1f_0fd4)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ada_01fa": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=4A resize mem block; return CF as \u00b11",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b08_000e": {
+        "system": "platform",
+        "purpose": "Alloc growable far-buffer arena (2a1f_0e90); init cursor/remain",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b08_009e": {
+        "system": "platform",
+        "purpose": "Wrap existing far block as arena (no alloc; owned=0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b08_00dc": {
+        "system": "platform",
+        "purpose": "Free owned arena (7ada_01aa) and clear far-buffer fields",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b08_0118": {
+        "system": "platform",
+        "purpose": "Bump-alloc from arena remain; else fatal 281f_0772",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b08_0182": {
+        "system": "platform",
+        "purpose": "INT21 shrink arena to used size; return final far size",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0f9c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_0e52 (select/activate unit UI; Move Pieces)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_04a2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1ae7_0032 (drain BIOS keyboard buffer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_07f4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1427_1410 (selectable-with-moves; Europe-dock)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0018": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3ae6 (Move Pieces frame: poll then tick)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_00f0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3802 (map input poll loop)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0f24": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_23ce (Sound Options dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0f30": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_32ee (Enter: open owned colony at focus)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0f54": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_2464 (map menu-command mega-dispatch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0f78": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_26f6 (GAME menu item dispatch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0f90": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_1b5a (activate-unit stack picker)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0fa8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3344 (Enter/Space: colony or clear View Pieces)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0fcc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_36e6 (minimap drag: pan viewport)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ff0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_303c (map keyboard/input dispatch)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0030": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3752 (mouse-up: clear blink/View/end-turn)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0048": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_33ce (mouse hit-test region 1..3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_006c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_0902 (baseline-enable menus; View Pieces)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0078": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_37b2 (mouse-button dispatch by hit region)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0084": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3442 (set mouse cursor from table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0090": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_20f6 (Game Options checkbox dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_00a8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3458 (set cursor wrapper arg 1)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_00c0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_0b08 (order-menu gates: cargo/wagon)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_00cc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_3462 (map click: select/goto/recenter)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_00e4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_0b34 (contextual ORDERS menu enable)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0108": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2b5a_223a (Colony Report Options dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0b32": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15eb_2f8e (Nth cargo-capable unit in stack)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0178": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1009_0420 (strcat dest \u2190 string at DS:0x50)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_011e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0072 (strcat dest \u2190 \"(\")",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_00d8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_01e8 (format long then append \"$\")",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0128": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0082 (strcat dest \u2190 \")\")",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0182": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_32a4 (parse @-directive dialog script)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0928": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7314_001a (open string resource; find @-entry)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0230": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_0f3c (append icon/image row to dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_091c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7314_0106 (next line from open string resource)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0910": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_309c (expand %STRING/%NUMBER/\u2026 placeholders)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09ea": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0040 (Europe ask: euro_price\u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b18": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_199e (force-refresh Europe panels)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d80": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0666 (resolve Nth harbor unit index)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e52": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1c64 (enter Europe drag mode 8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0114": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0216 (measure string width\u22121)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0a60": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_15dc_00a2 (bucket int into quartile 0..3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_01be": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_104b_0042 (strcat dest \u2190 \": \")",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0176": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_0a00 (append labeled option/button node)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_016a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_2580 (modal dialog input loop)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0594": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_4da6 (unload cargo hold\u2192warehouse)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0222": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1097_0682 (append item to layout list)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_022c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1097_0394 (layout/blit multi-group item rows)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0218": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1097_067a (clear multi-item layout list)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
