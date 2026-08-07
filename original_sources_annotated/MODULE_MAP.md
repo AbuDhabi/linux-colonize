@@ -59,22 +59,22 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `7455` | 7 | mapgen | inferred | Map plane buffer alloc (pitch 0x853a → terrain/L2/L3) | [catalog](FUNCTION_CATALOG.md) |
 | `1101` | 6 | ui | inferred | 16-row glyph/bitmap blit helpers | [catalog](FUNCTION_CATALOG.md) |
 | `5952` | 6 | colony | inferred | Colony production / buildings / stock tick (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
-| `130d` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `13f1` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `15dc` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2047` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6b7e` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7562` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7a05` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7ada` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7b08` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `130d` | 5 | turn | known | Main game year/turn loop + intro splash | [catalog](FUNCTION_CATALOG.md) |
+| `13f1` | 5 | mapdraw | inferred | Exploration-bit / fog reveal around units & colonies | [catalog](FUNCTION_CATALOG.md) |
+| `15dc` | 5 | ai | known | Tribe / Indian current-context setters & lookups | [catalog](FUNCTION_CATALOG.md) |
+| `2047` | 5 | platform | known | DOS Ctrl-C/Break / INT21 abort handlers | [catalog](FUNCTION_CATALOG.md) |
+| `6b7e` | 5 | mapdraw | inferred | Map viewport refresh / camera save-restore | [catalog](FUNCTION_CATALOG.md) |
+| `7562` | 5 | save | inferred | Hall of Fame / score-file format & list UI | [catalog](FUNCTION_CATALOG.md) |
+| `7a05` | 5 | platform | inferred | Fatal/abort error text + INT10 video reset | [catalog](FUNCTION_CATALOG.md) |
+| `7ada` | 5 | platform | known | DOS heap alloc / resize / high-water tracking | [catalog](FUNCTION_CATALOG.md) |
+| `7b08` | 5 | platform | inferred | Growable far-buffer / arena alloc helpers | [catalog](FUNCTION_CATALOG.md) |
 | `13e4` | 4 | mapgen | inferred | Terrain class / ocean helpers | [catalog](FUNCTION_CATALOG.md) |
 | `19ef` | 4 | platform | known | DOS LCG range helper | [catalog](FUNCTION_CATALOG.md) |
-| `19f6` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1a29` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1acb` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `478c` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `4962` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `19f6` | 4 | ui | inferred | Decimal number format / localized string blit | [catalog](FUNCTION_CATALOG.md) |
+| `1a29` | 4 | platform | known | DOS timer INT vector install / restore | [catalog](FUNCTION_CATALOG.md) |
+| `1acb` | 4 | ui | inferred | Mouse hit-rect / button edge tracking | [catalog](FUNCTION_CATALOG.md) |
+| `478c` | 4 | colony | inferred | Colonist (type 0x17) / ship unit spawn helpers | [catalog](FUNCTION_CATALOG.md) |
+| `4962` | 4 | ai | inferred | Per-nation unit/colony/cargo census tallies | [catalog](FUNCTION_CATALOG.md) |
 | `78d8` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `79a8` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `12fd` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
