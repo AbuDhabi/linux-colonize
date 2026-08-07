@@ -4,18 +4,18 @@
 #include "core/units.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 /*
- * T0 storage: pack bilateral Euro bits into player[n].diplomacy nibble pairs and
- * head.nation_relation signed scores. Full DOS 0x13c/0x4e matrices are larger;
- * this is enough for planner war/ally gates.
+ * Treaty timers: mirror DOS nation*0x13c peer bytes in unknown26[peer] per nation.
+ * War/ally state still uses nation_relation + player.diplomacy.
  */
 
-static uint8_t* ai_diplo_byte(ColonizeCol1Save* col1, int nation) {
-  if (!col1 || nation < 0 || nation >= 4) {
+static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer) {
+  if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
   }
-  return &col1->player[nation].diplomacy;
+  return &col1->nation[nation].unknown26[peer];
 }
 
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -25,9 +25,7 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) 
   if (nation_a == nation_b) {
     return AI_DIPLO_PEACE | AI_DIPLO_ALLY;
   }
-  /* Encode peer bits in diplomacy: low nibble = vs nation0.. use relation sign. */
   int16_t rel = col1->head.nation_relation[nation_a];
-  (void)nation_b;
   if (rel < -20) {
     return AI_DIPLO_WAR | AI_DIPLO_MET;
   }
@@ -38,11 +36,10 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) 
 }
 
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value) {
-  uint8_t* b = ai_diplo_byte(col1, nation_a);
-  if (!b) {
+  if (!col1 || nation_a < 0 || nation_a >= 4) {
     return;
   }
-  *b = value;
+  col1->player[nation_a].diplomacy = value;
   if (value & AI_DIPLO_WAR) {
     col1->head.nation_relation[nation_a] = -50;
     if (nation_b >= 0 && nation_b < 4) {
@@ -53,7 +50,6 @@ void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t 
   } else {
     col1->head.nation_relation[nation_a] = 0;
   }
-  (void)nation_b;
 }
 
 void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits) {
@@ -95,6 +91,33 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
   ai_diplo_or_both(col1, nation_a, nation_b, AI_DIPLO_PEACE);
 }
 
+void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  /* 6d8e step 4: decrement per-rival treaty timer bytes before planning. */
+  for (int other = 0; other < 4; ++other) {
+    if (other == nation_id) {
+      continue;
+    }
+    uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, other);
+    if (!t) {
+      continue;
+    }
+    if (*t > 0) {
+      (*t)--;
+    }
+    /* Optional bit tweaks when timer hits 0 (thin). */
+    if (*t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 8) == 1) {
+      uint8_t bits = ai_diplo_read(ctx->col1, nation_id, other);
+      if (bits & AI_DIPLO_MET) {
+        bits = (uint8_t)((bits & (uint8_t)~AI_DIPLO_MET) | AI_DIPLO_PEACE);
+        ai_diplo_write(ctx->col1, nation_id, other, bits);
+      }
+    }
+  }
+}
+
 static int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units) {
     return 0;
@@ -121,17 +144,14 @@ static int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id
   return score;
 }
 
-void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id) {
+void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  /* FUN_5bfb_10ec-shaped: if much stronger than peer and not allied, may war. */
+  /* FUN_5bfb-shaped opportunistic war/ally — not the 6d8e timer slot. */
   const int self = ai_diplo_military_score(ctx, nation_id);
   for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation_id) {
-      continue;
-    }
-    if (ctx->col1->player[peer].control == 2) {
+    if (peer == nation_id || ctx->col1->player[peer].control == 2) {
       continue;
     }
     const int other = ai_diplo_military_score(ctx, peer);
@@ -139,19 +159,22 @@ void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     if (self > other * 2 + 20 && self > 30) {
-      /* Occasional war declaration (T0; not LCG-faithful). */
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
         ai_diplo_declare_war(ctx->col1, nation_id, peer);
       }
     } else if (self > 10 && other > 10 && abs(self - other) < 15) {
-      if (!ai_diplo_at_war(ctx->col1, nation_id, peer) &&
-          (ai_diplo_read(ctx->col1, nation_id, peer) & AI_DIPLO_ALLY) == 0) {
+      if ((ai_diplo_read(ctx->col1, nation_id, peer) & AI_DIPLO_ALLY) == 0) {
         if (ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
           ai_diplo_form_alliance(ctx->col1, nation_id, peer);
         }
       }
     }
   }
+}
+
+void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id) {
+  /* Back-compat alias: timer pass only (callers that meant 6d8e step 4). */
+  ai_diplo_treaty_timers(ctx, nation_id);
 }
 
 void ai_diplo_indian_relation_delta(

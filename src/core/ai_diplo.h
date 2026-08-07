@@ -23,10 +23,15 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
-/* Euro dispatcher diplo-timer pass (T0): war/ally by military balance. */
+/* 6d8e step 4: decrement per-rival treaty timer bytes (before planning). */
+void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
+
+/* Opportunistic war/ally by military balance (not the timer slot). */
+void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
+
+/* Alias → ai_diplo_treaty_timers (6d8e timer pass). */
 void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id);
 
-/* Indian↔Euro relation delta on Col1Nation.relation_by_indian. */
 void ai_diplo_indian_relation_delta(
   ColonizeCol1Save* col1,
   int indian_nation,
