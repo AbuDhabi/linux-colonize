@@ -3021,40 +3021,40 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_74a4_0b0a` | 119518 | 39 | ui | unknown | inferred |  |
 | `FUN_74a4_0bbe` | 119557 | 26 | ui | unknown | inferred |  |
 
-### Segment `7562` (5 defs) — save — Hall of Fame / score-file format & list UI
+### Segment `7562` (5 defs) — save — COLONY## slot path / list / Save(0-7) / Load(0-9) / autosave
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7562_0008` | 119583 | 11 | save | unknown | inferred |  |
-| `FUN_7562_0034` | 119594 | 12 | save | unknown | inferred |  |
-| `FUN_7562_0052` | 119606 | 111 | save | unknown | inferred |  |
-| `FUN_7562_030a` | 119717 | 65 | save | unknown | inferred |  |
-| `FUN_7562_04e8` | 119782 | 69 | save | unknown | inferred |  |
+| `FUN_7562_0008` | 119583 | 11 | save | Build COLONY## path strings for a slot index into DS basename buffers | known | docs/savegame.md |
+| `FUN_7562_0034` | 119594 | 12 | save | Direct slot write (path + 75c2_0288); autosave 8/9 and fixed-slot saves | known | docs/savegame.md |
+| `FUN_7562_0052` | 119606 | 111 | save | Slot-list builder: probe slots, format Empty/leader+year rows for Save/Load UI | known | docs/savegame.md |
+| `FUN_7562_030a` | 119717 | 65 | save | Manual Save slot picker (slots 0-7) then write | known | docs/savegame.md |
+| `FUN_7562_04e8` | 119782 | 69 | save | Manual Load slot picker (slots 0-9, skip empty) then load | known | docs/savegame.md |
 
 ### Segment `75c2` (20 defs) — save — Savegame R/W of units / colonies / tribes / flags
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_75c2_0000` | 119851 | 130 | save | unknown | inferred |  |
-| `FUN_75c2_0204` | 119981 | 24 | save | unknown | inferred |  |
-| `FUN_75c2_024c` | 120005 | 22 | save | unknown | inferred |  |
+| `FUN_75c2_0000` | 119851 | 130 | save | Paginated directory name picker (10/page, prev/next) | inferred |  |
+| `FUN_75c2_0204` | 119981 | 24 | save | Copy options bytes DS:0x830-0x839 into live option/UI words | known |  |
+| `FUN_75c2_024c` | 120005 | 22 | save | Hardcode default option/UI word values (counterpart to 0204) | known |  |
 | `FUN_75c2_0288` | 120027 | 94 | save | Savegame write: flags/units/colonies/tribes blobs | known | docs/savegame.md |
-| `FUN_75c2_0840` | 120121 | 67 | save | unknown | inferred |  |
+| `FUN_75c2_0840` | 120121 | 67 | save | Prefix/header probe (COLONIZE sig, version, map WxH); slot error codes | known | docs/savegame.md |
 | `FUN_75c2_0940` | 120188 | 356 | save | Savegame load counterpart to FUN_75c2_0288 | known | docs/savegame.md |
-| `FUN_75c2_10ae` | 120544 | 160 | save | unknown | inferred |  |
-| `FUN_75c2_1380` | 120704 | 31 | save | unknown | inferred |  |
-| `FUN_75c2_13dc` | 120735 | 20 | save | unknown | inferred |  |
-| `FUN_75c2_1418` | 120755 | 19 | save | unknown | inferred |  |
-| `FUN_75c2_144c` | 120774 | 56 | save | unknown | inferred |  |
-| `FUN_75c2_1770` | 120830 | 519 | save | unknown | inferred |  |
-| `FUN_75c2_20e2` | 121349 | 123 | save | unknown | inferred |  |
-| `FUN_75c2_2324` | 121472 | 22 | save | unknown | inferred |  |
-| `FUN_75c2_235c` | 121494 | 191 | save | unknown | inferred |  |
-| `FUN_75c2_2758` | 121685 | 14 | save | unknown | inferred |  |
-| `FUN_75c2_276e` | 121699 | 10 | save | unknown | inferred |  |
-| `FUN_75c2_2778` | 121709 | 245 | save | unknown | inferred |  |
-| `FUN_75c2_2d28` | 121954 | 14 | save | unknown | inferred |  |
-| `FUN_75c2_2d46` | 121968 | 369 | save | unknown | inferred |  |
+| `FUN_75c2_10ae` | 120544 | 160 | save | New-game nation/difficulty setup; mark human nation(s) in player records | inferred |  |
+| `FUN_75c2_1380` | 120704 | 31 | save | Fill one 16-byte unit-type/stat table row from data stream | inferred |  |
+| `FUN_75c2_13dc` | 120735 | 20 | save | Write one 12-byte building-link table record (used by 144c) | inferred |  |
+| `FUN_75c2_1418` | 120755 | 19 | save | Write one 6-byte companion table record (used by 144c) | inferred |  |
+| `FUN_75c2_144c` | 120774 | 56 | save | Init building/prereq link tables via 13dc/1418 | inferred |  |
+| `FUN_75c2_1770` | 120830 | 519 | save | Bootstrap static catalogs (names, cargos, buildings, default options) | inferred |  |
+| `FUN_75c2_20e2` | 121349 | 123 | save | Endgame/victory announce dialog; independence continue flag | inferred |  |
+| `FUN_75c2_2324` | 121472 | 22 | save | Thin new-game flourish wrapper that calls 20e2 | inferred |  |
+| `FUN_75c2_235c` | 121494 | 191 | save | New-game/world bootstrap: clear header, default map 58x72, spawn units | known | docs/savegame.md |
+| `FUN_75c2_2758` | 121685 | 14 | save | After video restore, reapply options via 0204 | inferred |  |
+| `FUN_75c2_276e` | 121699 | 10 | save | Reset options to defaults via 024c | inferred |  |
+| `FUN_75c2_2778` | 121709 | 245 | save | Title/main menu loop (New/Load/Options); Load → 7562_04e8 | inferred | docs/savegame.md |
+| `FUN_75c2_2d28` | 121954 | 14 | save | 768-byte palette snapshot save/restore pair | inferred |  |
+| `FUN_75c2_2d46` | 121968 | 369 | save | Game boot: video/memory/asset init before main loop | inferred |  |
 
 ### Segment `78d8` (4 defs) — platform — Resource stream buffer alloc / cursor / far-ptr load
 

@@ -147,7 +147,11 @@ def apply_merge(
     existing: dict[str, dict],
     seed: dict,
 ) -> None:
-    """Mutate defs: existing catalog wins, then seed fills unknowns, then segment defaults."""
+    """Mutate defs: existing catalog, then function seed (seed wins), then segment defaults.
+
+    Function seeds are intentional Layer B/C overlays and override catalog cells for
+    keys they set (including upgrading segment-bulk `inferred` → `known`).
+    """
     seg_seed = seed.get("segment_systems", {}).get(exe, {})
     fun_seed = seed.get("functions", {}).get(exe, {})
 
@@ -162,13 +166,12 @@ def apply_merge(
                 if val != "":
                     row[k] = val
 
-        # 2) Seed function overlays fill only unknown / empty fields.
+        # 2) Function seed overlays win for keys they set.
         if sym in fun_seed:
             for k in HUMAN_FIELDS:
                 if k not in fun_seed[sym]:
                     continue
-                if row[k] in ("", "unknown"):
-                    row[k] = fun_seed[sym][k]
+                row[k] = fun_seed[sym][k]
 
         # 3) Segment default system when still unknown.
         if row["system"] == "unknown" and seg in seg_seed:

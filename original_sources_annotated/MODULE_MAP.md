@@ -6,7 +6,7 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 
 ## Progress
 
-**VICEROY:** 2380 funcs · confidence known=79 inferred=2298 unknown=3 · system unknown=3 · segments 164 labeled / 2 unknown (of 166).
+**VICEROY:** 2380 funcs · confidence known=88 inferred=2289 unknown=3 · system unknown=3 · segments 164 labeled / 2 unknown (of 166).
 
 Remaining unknown segments (2): `205f` `1d1c`
 
@@ -72,7 +72,7 @@ Remaining unknown segments (2): `205f` `1d1c`
 | `15dc` | 5 | ai | known | Tribe / Indian current-context setters & lookups | [catalog](FUNCTION_CATALOG.md) |
 | `2047` | 5 | platform | known | DOS Ctrl-C/Break / INT21 abort handlers | [catalog](FUNCTION_CATALOG.md) |
 | `6b7e` | 5 | mapdraw | inferred | Map viewport refresh / camera save-restore | [catalog](FUNCTION_CATALOG.md) |
-| `7562` | 5 | save | inferred | Hall of Fame / score-file format & list UI | [catalog](FUNCTION_CATALOG.md) |
+| `7562` | 5 | save | known | COLONY## slot path / list / Save(0-7) / Load(0-9) / autosave | [catalog](FUNCTION_CATALOG.md) |
 | `7a05` | 5 | platform | inferred | Fatal/abort error text + INT10 video reset | [catalog](FUNCTION_CATALOG.md) |
 | `7ada` | 5 | platform | known | DOS heap alloc / resize / high-water tracking | [catalog](FUNCTION_CATALOG.md) |
 | `7b08` | 5 | platform | inferred | Growable far-buffer / arena alloc helpers | [catalog](FUNCTION_CATALOG.md) |
