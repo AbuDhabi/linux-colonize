@@ -35,9 +35,9 @@ bodies are labeled but callees (often thunks) are not.
 
 | Metric | Value | As of |
 |--------|------:|-------|
-| Purpose one-liners | 2000 / 2380 | 2026-08-07 |
-| Purpose unknown | 380 | ″ |
-| Unknown by system | mapgen/`2a1f` 195 · platform 182 · parked `205f`/`1d1c` 3 | ″ |
+| Purpose one-liners | 2195 / 2380 | 2026-08-07 |
+| Purpose unknown | 185 | ″ |
+| Unknown by system | platform/`1d1d`+`210d` 182 · parked `205f`/`1d1c` 3 | ″ |
 
 ---
 
@@ -48,15 +48,14 @@ symbols disjoint. Re-count unlabeled 1-hops before launching (numbers drift).
 
 | # | Status | Layer | Target | ~N | Why |
 |--:|--------|-------|--------|---:|-----|
-| 1 | Done | B | `291f` megaseg thunk bulk | — | Purpose-closed (161; 4 shards) |
-| 2 | **Next** | B | `2a1f` mapgen-adjacent bulk | **~195** | Largest remaining purpose-dark segment |
-| 3 | Open | B | Platform megasegs `1d1d` + `210d` rest | ~92+90 | DOS/EMS CRT + overlay runtime |
-| 4 | Parked | — | `205f` · `1d1c` · MAPEDIT | 3+ | No Layer A revisit without new evidence |
+| 1 | Done | B | `2a1f` mapgen-adjacent bulk | — | Purpose-closed (195; 5 shards) |
+| 2 | **Next** | B | Platform megasegs `1d1d` + `210d` rest | **~92+90** | Last purpose-dark megasegs (DOS/EMS CRT + overlay) |
+| 3 | Parked | — | `205f` · `1d1c` · MAPEDIT | 3+ | No Layer A revisit without new evidence |
 
 Suggested parallel batches (examples):
 
-- Split `2a1f` by address into 4–5 shards (~40 each).
-- Or `2a1f` lo/hi ∪ start of `1d1d` / `210d` if wanting mixed megaseg progress.
+- Split `1d1d` (~92) and `210d` (~90) into 2+2 address shards (~45 each), or four mixed shards.
+- Or finish one megaseg fully (`1d1d` then `210d`) if wanting cleaner Done rows.
 
 ---
 
@@ -64,6 +63,7 @@ Suggested parallel batches (examples):
 
 | When | Layer | Batch | N | Notes |
 |------|-------|-------|--:|-------|
+| 2026-08-07 | B | `2a1f` mapgen megaseg thunk bulk (lo/midlo/mid/midhi/hi) | 195 | EMS far-thunk megaseg purpose-closed |
 | 2026-08-07 | B | `291f` megaseg thunk bulk (lo/midlo/midhi/hi) | 161 | EMS far-thunk megaseg purpose-closed |
 | 2026-08-07 | B+C | mid ≥8 hops (mapkey/move, newgame/splash, dialog/mapref) + `281f` megaseg | 113 | Mid Layer C closed; first megaseg slice purpose-closed |
 | 2026-08-07 | C | embark + title + pedia + RM* | 52 | Naval UI, title menu, pedia index, archive open |

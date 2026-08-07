@@ -1,0 +1,240 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_2a1f_mid",
+  "functions": {
+    "FUN_2a1f_071c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_0e80 (cargo/commodity type picker dialog)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_072a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_05aa (write packed building/cargo nibble)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0738": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_05ec (set colonist-slot unit-index; clear dual UI counters)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0746": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_0f2c (add/remove cargo item in colonist warehouse row)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0762": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_0094 (gate: unit may join/enter colony)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0770": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_09da (draw colony report panel)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_077e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_1064 (colony-list mouse hit to row/action)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_078c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_04f0 (map building/warehouse index to packed-nibble offset)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_079a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_10d2 (colony-list mouse: rename colony or dismiss)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_07a8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_0dd4 (assign/reassign colonist into selected slot)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_07b6": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_647e_0548 (write packed nibble to colonist-slot byte+2)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_07d0": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6662_0b4e (coarse sector BFS toward goto with path-cost overlay)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_088a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7314_0198 (end current config field parse)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0896": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6a9f_0118 (map viewport tile loop)",
+      "confidence": "inferred",
+      "links": "src/core/map.c"
+    },
+    "FUN_2a1f_08a4": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6a9f_0486 (full minimap chrome + tile fill + present)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_08b2": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6a9f_0000 (return fixed 16×16 map-color sample byte)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_08c0": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6a9f_0034 (return map-color sample byte for palette index)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_08ce": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6a9f_0346 (fill minimap tile-index buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_08ea": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6afa_0224 (present/flip full map viewport)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0906": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6afa_000c (clamp rect into map viewport tile bounds)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0922": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6b22_0102 (blit fog-visible colonies in map rect)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0930": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6b22_0428 (blit unit overlay or clear same-tile blink)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_093e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6b22_058e (unit overlay for full map viewport)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_094c": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6b22_0002 (blit fog-visible tribes in map rect)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_095a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6b22_034c (blit one unit icon unless colony occupies tile)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0984": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1caa_0004 (scaled RLE underlay blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_098e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_1c89_0006 (RLE soft-sprite underlay blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0998": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_039c (init article title paint)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_09d0": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_0424 (begin article compositor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_09de": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_0178 (bubble-sort encyclopedia list by title)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_09ec": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_214a (paint encyclopedia list)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a08": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_2322 (fill encyclopedia index for one category)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a16": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_0276 (map list index → 3-col grid xy)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a24": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_02c4 (hit-test cursor vs list grid)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a32": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_0000 (free Colonizopedia index triple-buffers)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a40": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_0058 (alloc index triple-buffers)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a4e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6cb2_033a (format list-row title; terrain forest suffix)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0a9e": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_089a (find option/button node by id in dialog option list)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0aaa": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6f74_255e (select icon row and redraw icon column)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  }
+}
