@@ -17,9 +17,12 @@
 
 #define AI_DIPLO_FLAG_BASE 4
 
-/* Thin FUN_5bfb_153e stand-in: flat treasury friction on war declare.
+/* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare.
  * Full 153e trade/military score body, dialogs, FA 3f41 PARKED. */
 #define AI_DIPLO_WAR_GOLD_STING 100u
+#define AI_DIPLO_WAR_TAX_BUMP 1u
+#define AI_DIPLO_WAR_TAX_CAP 75u
+#define AI_DIPLO_WAR_UPKEEP_GOLD 5u
 
 static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
@@ -36,6 +39,40 @@ static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, in
     } else {
       nat->gold = 0;
     }
+  }
+}
+
+/* Thin 153e side effect: +1 tax_rate both sides, cap 75 (king tax path). */
+static void ai_diplo_war_tax_bump(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    if (nat->tax_rate >= AI_DIPLO_WAR_TAX_CAP) {
+      continue;
+    }
+    uint8_t next = (uint8_t)(nat->tax_rate + AI_DIPLO_WAR_TAX_BUMP);
+    if (next > AI_DIPLO_WAR_TAX_CAP) {
+      next = (uint8_t)AI_DIPLO_WAR_TAX_CAP;
+    }
+    nat->tax_rate = next;
+  }
+}
+
+/* Per-turn light upkeep while at war (euro_balance); floor 0. */
+static void ai_diplo_war_upkeep_drain(ColonizeCol1Nation* nat) {
+  if (!nat || nat->gold == 0) {
+    return;
+  }
+  if (nat->gold > AI_DIPLO_WAR_UPKEEP_GOLD) {
+    nat->gold -= AI_DIPLO_WAR_UPKEEP_GOLD;
+  } else {
+    nat->gold = 0;
   }
 }
 
@@ -173,9 +210,10 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   const int already = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
-  /* Thin 153e-shaped sting: drain nation[].gold both sides (relation via mirror). */
+  /* Thin 153e-shaped sting: gold drain + tax bump both sides (relation via mirror). */
   if (!already) {
     ai_diplo_war_treasury_sting(col1, nation_a, nation_b);
+    ai_diplo_war_tax_bump(col1, nation_a, nation_b);
   }
 }
 
@@ -258,11 +296,11 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   }
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
-   *  1 skip human / at-war
+   *  1 skip human; at-war → light upkeep only
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
    *  4 13b0 form/break
-   *  5 declare_war → thin 153e treasury sting (full body / dialogs / 12d0 PARKED)
+   *  5 declare_war → thin 153e gold+tax (full body / dialogs / 12d0 PARKED)
    */
   const int self = ai_diplo_military_score(ctx, nation_id);
   for (int peer = 0; peer < 4; ++peer) {
@@ -273,6 +311,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, peer);
 
     if (bits & AI_DIPLO_WAR) {
+      /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
+      ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
       continue;
     }
 

@@ -1,4 +1,4 @@
-/* Smoke: bilateral 15b3 diplo bytes, war gold sting, break_alliance, timers, Indian delta. */
+/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, upkeep, break, timers, Indian. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -23,10 +23,14 @@ int main(void) {
   }
 
   /* Pair independence: war(0,1) must not force war(0,2).
-   * Thin 153e sting: first declare drains 100 gold both sides (euro_diplo.md). */
+   * Thin 153e: first declare drains 100 gold + bumps tax_rate both sides. */
   col1.nation[0].gold = 250;
   col1.nation[1].gold = 80;
   col1.nation[2].gold = 500;
+  col1.nation[0].tax_rate = 10;
+  col1.nation[1].tax_rate = 74;
+  col1.nation[2].tax_rate = 20;
+  col1.nation[3].tax_rate = 75; /* cap probe via separate declare later */
   ai_diplo_declare_war(&col1, 0, 1);
   if (!ai_diplo_at_war(&col1, 0, 1) || !ai_diplo_at_war(&col1, 1, 0)) {
     return fail("declare_war should be symmetric for pair 0-1");
@@ -46,10 +50,52 @@ int main(void) {
   if (col1.nation[2].gold != 500) {
     return fail("war(0,1) must not drain gold of nation 2");
   }
-  /* Re-declare: no second sting. */
+  if (col1.nation[0].tax_rate != 11) {
+    return fail("declare_war should bump tax_rate +1 on nation 0");
+  }
+  if (col1.nation[1].tax_rate != 75) {
+    return fail("declare_war tax bump should cap at 75");
+  }
+  if (col1.nation[2].tax_rate != 20) {
+    return fail("war(0,1) must not bump tax of nation 2");
+  }
+  /* Re-declare: no second sting / tax bump. */
   ai_diplo_declare_war(&col1, 0, 1);
   if (col1.nation[0].gold != 150) {
     return fail("re-declare_war should not re-sting gold");
+  }
+  if (col1.nation[0].tax_rate != 11) {
+    return fail("re-declare_war should not re-bump tax");
+  }
+
+  /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers). */
+  {
+    ColonizeDosRng rng_up;
+    dos_rng_seed(&rng_up, 1);
+    uint32_t turn_up = 1;
+    ColonizeTurnContext ctx_up;
+    memset(&ctx_up, 0, sizeof(ctx_up));
+    ctx_up.col1 = &col1;
+    ctx_up.col1_ok = true;
+    ctx_up.rng = &rng_up;
+    ctx_up.turn_number = &turn_up;
+    col1.nation[0].gold = 40;
+    ai_diplo_euro_balance(&ctx_up, 0);
+    if (col1.nation[0].gold != 35) {
+      return fail("euro_balance at-war should drain 5 gold upkeep");
+    }
+    col1.nation[0].gold = 3;
+    ai_diplo_euro_balance(&ctx_up, 0);
+    if (col1.nation[0].gold != 0) {
+      return fail("euro_balance upkeep should floor gold at 0");
+    }
+    ai_diplo_euro_balance(&ctx_up, 0);
+    if (col1.nation[0].gold != 0) {
+      return fail("euro_balance upkeep should no-op when gold already 0");
+    }
+    if (col1.nation[2].gold != 500) {
+      return fail("euro_balance upkeep must not drain peaceful peer treasury");
+    }
   }
 
   /* Ally then break → peace, not war. */
@@ -86,6 +132,16 @@ int main(void) {
   }
   if (ai_diplo_read(&col1, 0, 2) & AI_DIPLO_ALLY) {
     return fail("timer expiry should break alliance");
+  }
+
+  /* tax_rate already at cap stays put on first declare. */
+  col1.nation[2].gold = 200;
+  col1.nation[3].gold = 200;
+  col1.nation[2].tax_rate = 75;
+  col1.nation[3].tax_rate = 75;
+  ai_diplo_declare_war(&col1, 2, 3);
+  if (col1.nation[2].tax_rate != 75 || col1.nation[3].tax_rate != 75) {
+    return fail("declare_war must not raise tax_rate above 75");
   }
 
   /* Indian relation delta clamps. */

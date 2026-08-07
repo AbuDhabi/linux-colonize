@@ -172,6 +172,33 @@ int main(void) {
   /* Relation tick should not crash. */
   ai_contact_indian_relation_tick(&ctx, 4);
 
+  /*
+   * Missionary convert pulse: adjacent Missionary + non-hostile →
+   * tribe.mission = euro id and nation current_crosses++.
+   */
+  units.type_count = 3;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
+  units.types[2].movement = 1;
+  units.types[2].attack = 0;
+  units.types[2].defense = 1;
+  const int miss_id = units_spawn_allow_stack(&units, 2, 6, 5);
+  ColonizeUnit* miss = units_get(&units, miss_id);
+  if (!miss) {
+    return fail("spawn missionary");
+  }
+  miss->nation_id = 0;
+  col1.tribe[0].mission = 0xff;
+  col1.tribe[0].alarm[0].friction = 10;
+  ind->alarm_by_player[0] = 10;
+  const uint16_t crosses0 = col1.nation[0].current_crosses;
+  ai_contact_indian_meet_trade(&ctx, 4);
+  if (col1.tribe[0].mission != 0) {
+    return fail("missionary convert should set tribe.mission to euro nation");
+  }
+  if (col1.nation[0].current_crosses != (uint16_t)(crosses0 + 1)) {
+    return fail("missionary convert should bump nation current_crosses");
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

@@ -32,6 +32,64 @@ static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_i
   return n;
 }
 
+/* True if nation_id is at war with any other European peer (0..3). */
+static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  for (int peer = 0; peer < 4; ++peer) {
+    if (peer == nation_id) {
+      continue;
+    }
+    if (ai_diplo_at_war(col1, nation_id, peer)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int ai_euro_is_military_name(const char* name) {
+  if (!name) {
+    return 0;
+  }
+  return strstr(name, "Soldier") != NULL || strstr(name, "Dragoon") != NULL ||
+         strstr(name, "Regular") != NULL;
+}
+
+/* Nearest primary MILITARY goal (Manhattan); 1 if found. */
+static int ai_euro_nearest_military_goal(
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (nation_id < 0 || nation_id >= 4 || !out_x || !out_y) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* s = ai_goals_primary(nation_id, i);
+    if (!s || s->code != AI_GOAL_MILITARY) {
+      continue;
+    }
+    const int d = abs((int)s->x - from_x) + abs((int)s->y - from_y);
+    if (best < 0 || d < best) {
+      best = d;
+      bx = (int)s->x;
+      by = (int)s->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   if (!u) {
     return;
@@ -167,7 +225,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — PARKED (DOS 5d04 after early dock).
-   * Early Europe-dock hire only while colony count is low.
+   * Thin mid-hire: Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon.
    */
   const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
   if (colonies >= 6) {
@@ -193,12 +251,21 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  /* 5c3c-shaped: prefer demanded profession type, else Free Colonist. */
+  /* At war with any Euro peer → prefer Soldier / Dragoon over settle types. */
   int hire_ty = -1;
-  if (inv) {
+  const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  if (at_war) {
+    static const char* k_mil[] = {
+      "Soldier", "Veteran Soldier", "Soldiers", "Dragoon", "Veteran Dragoon", "Dragoons"
+    };
+    for (size_t i = 0; i < sizeof(k_mil) / sizeof(k_mil[0]) && hire_ty < 0; ++i) {
+      hire_ty = units_find_type(ctx->units, k_mil[i]);
+    }
+  }
+  /* Peace / fallback: 5c3c-shaped profession demand → Pioneer, else Free Colonist. */
+  if (hire_ty < 0 && inv) {
     for (int p = 0; p < 16; ++p) {
       if (inv->profession_demand[p] > 0) {
-        /* Map crude demand → Free Colonist / Pioneer. */
         if (inv->tools_short > 0) {
           hire_ty = units_find_type(ctx->units, "Hardy Pioneer");
           if (hire_ty < 0) {
@@ -219,7 +286,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  const int uid = units_spawn(ctx->units, hire_ty, ship->x, ship->y);
+  /* Same-tile Europe spawn → stacked board (units_board requires adjacency). */
+  const int uid = units_spawn_allow_stack(ctx->units, hire_ty, ship->x, ship->y);
   if (uid < 0) {
     return;
   }
@@ -228,7 +296,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   pax->nation_id = nation_id;
-  if (!units_board(ctx->units, uid, ship->id)) {
+  if (!units_board_stacked(ctx->units, uid, ship->id)) {
     units_despawn(ctx->units, uid);
     return;
   }
@@ -304,7 +372,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* E: foreign colonies MILITARY if at war (light stub — mid-mil PARKED). */
+  /* E: foreign colonies MILITARY if at war; thin bind one idle Soldier/Dragoon.
+   * Full scout rings / deep mid-mil scoring — PARKED. */
   if (ctx->colonies && ctx->col1_ok && ctx->col1) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -313,6 +382,43 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       }
       if (ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
         ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_MILITARY, 5);
+      }
+    }
+    /* Thin E deepen: one idle Soldier/Dragoon → nearest foreign MILITARY. */
+    if (ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+      ColonizeUnit* pick = NULL;
+      int pick_gx = 0;
+      int pick_gy = 0;
+      int pick_d = -1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+          continue;
+        }
+        if (units_orders_follow_goto(u->orders)) {
+          continue; /* idle only */
+        }
+        if (!ai_euro_is_military_name(units_display_name(ctx->units, u))) {
+          continue;
+        }
+        int gx = 0;
+        int gy = 0;
+        if (!ai_euro_nearest_military_goal(nation_id, u->x, u->y, &gx, &gy)) {
+          continue;
+        }
+        const int d = abs(gx - u->x) + abs(gy - u->y);
+        if (pick_d < 0 || d < pick_d) {
+          pick = u;
+          pick_gx = gx;
+          pick_gy = gy;
+          pick_d = d;
+        }
+      }
+      if (pick) {
+        ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, pick_gx, pick_gy);
       }
     }
   }
