@@ -1,0 +1,68 @@
+{
+  "layer": "C",
+  "chunk": "1hop_FUN_4d56_1816",
+  "entry": "FUN_4d56_1816",
+  "functions": {
+    "FUN_281f_0a42": {
+      "system": "ai",
+      "purpose": "indian_select_nation_context thunk→15dc_0006 (bind 8d52/8d50/8d4e)",
+      "confidence": "known",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_030c": {
+      "system": "ai",
+      "purpose": "Indian↔Euro relation word get thunk→15dc_00e0 (DS:0x5b1c)",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_09a4": {
+      "system": "ui",
+      "purpose": "Nation name string ptr thunk→15b3_01e0 (dialog subst)",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_0438": {
+      "system": "ui",
+      "purpose": "Set dialog subst string slot thunk→6f74_03ec",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_0a1a": {
+      "system": "ui",
+      "purpose": "Nation name string ptr thunk→15b3_0198 (dialog subst)",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_03fe": {
+      "system": "ui",
+      "purpose": "Dialog flush/run thunk→6f74_3744→0998",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_0d6c": {
+      "system": "ai",
+      "purpose": "Apply Indian↔Euro relation delta (+dialogs) thunk→4cc6_00f2",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_2a1f_0398": {
+      "system": "ai",
+      "purpose": "Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000",
+      "confidence": "inferred",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_281f_0470": {
+      "system": "ui",
+      "purpose": "ui_pump thunk→129f_00f6",
+      "confidence": "known",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    },
+    "FUN_2a1f_0270": {
+      "system": "ai",
+      "purpose": "indian_relation_tick thunk→4962_06b6 (recount tribes/units/goods)",
+      "confidence": "known",
+      "links": "original_sources_annotated/ai/indian_nation_turn.c"
+    }
+  },
+  "notes": "All ten are EMS page-in + far JMP thunks (210d_0d91/0dab then JMPF). Annotated extern names used for 0a42/0470/0270 (known). Alarm prelude (NEW WORLD): 030c relation probe → 09a4/0a1a+0438+03fe dialog → 0d6c ±100 relation deltas → 0398 mission clear. Catalog systems: AI helpers retagged ai (like 097a/0934); dialog/pump retagged ui. mapgen on 2a1f_* overridden — bodies are AI relation/mission, not mapgen."
+}
