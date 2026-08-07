@@ -35,9 +35,9 @@ bodies are labeled but callees (often thunks) are not.
 
 | Metric | Value | As of |
 |--------|------:|-------|
-| Purpose one-liners | 1343 / 2380 | 2026-08-07 |
-| Purpose unknown | 1037 | ″ |
-| Unknown by system | thunk 436 · platform 292 · mapgen/`2a1f` 238 · ui 68 · parked `205f`/`1d1c` 3 | ″ |
+| Purpose one-liners | 1465 / 2380 | 2026-08-07 |
+| Purpose unknown | 915 | ″ |
+| Unknown by system | thunk 319 · platform 289 · mapgen/`2a1f` 236 · ui 68 · parked `205f`/`1d1c` 3 | ″ |
 
 ---
 
@@ -48,30 +48,25 @@ symbols disjoint. Re-count unlabeled 1-hops before launching (numbers drift).
 
 | # | Status | Layer | Target | ~N | Why |
 |--:|--------|-------|--------|---:|-----|
-| 1 | **Next** | C | `FUN_2f2b_6372` colony keyboard dispatcher | ~63 | Largest remaining colony 1-hop; mostly `281f`/`291f` thunks into labeled `2f2b`/`15eb` |
-| 2 | Open | C | `FUN_2f2b_628a` colony mouse/panel dispatcher | ~44 | Complements #1; same colony-screen neighborhood |
-| 3 | Open | C | `FUN_38fd_4f6e` Europe keyboard dispatcher | ~61 | Trade UI input; Europe bodies already purpose-closed |
-| 4 | Open | C | `FUN_38fd_3746` Europe dock immigrant mega-dialog | ~53 | Board/orders path; noisy decomp — resolve via ASM |
-| 5 | Open | C | `FUN_38fd_4e8e` Europe mouse/drag dispatcher | ~31 | Complements #3–4 |
-| 6 | Open | C | `FUN_5952_035e` colony production/buildings/stock tick | ~41 | Simulation tick; port-relevant |
-| 7 | Open | C | `FUN_4d56_4528` Indian combat/raid cluster | ~31 | AI/combat fidelity; extends closed `4d56_1816` hop |
-| 8 | Open | C | `FUN_2b5a_2464` map menu-command mega-dispatch | ~29 | GAME/VIEW/ORDERS; complements closed `2b5a_3b68` |
-| 9 | Open | C | `FUN_364b_0688` colony EOT production/SoL/construction | ~28 | Turn/colony sim |
-| 10 | Open | C | `FUN_2f2b_348c` / `FUN_2f2b_2f3e` field-jobs / assign workplace | ~24+21 | Colonist job UI |
-| 11 | Open | C | `FUN_2f2b_6cd4` colony screen entry | ~9 | Mostly closed by earlier peels; finish leftover thunks when touching colony |
-| 12 | Open | B | Small UI leftovers (`19f6`/`1acb`/`1a0a`/`4720`/`6f30`/`74a4`/`7a65`/…) | ~68 | Sweep remaining purpose-dark UI crumbs |
-| 13 | Open | B | Small platform leftovers (`1a29`/`19ef`/`78d8`/`7962`/`79a8`/`7421`/…) | ~40 | Non-mega DOS helpers after mid platform closed |
-| 14 | Deferred | B/C | Megaseg bulk `281f` + `291f` (remaining thunks) | ~400+ | Label via Layer C hops (#1–11) first; bulk only if a port needs a cold symbol |
-| 15 | Deferred | B | `2a1f` mapgen-adjacent bulk | ~238 | Prefer hops from mapgen/AI entries over segment sweep |
-| 16 | Deferred | B | Platform megasegs `1d1d` + `210d` | ~232 | DOS/EMS runtime; port only when bringing up loaders |
-| 17 | Parked | — | `205f` (opaque table) · `1d1c` (empty stub) · MAPEDIT | 3+ | No Layer A revisit without new evidence |
+| 1 | Done | C | `FUN_2f2b_6372` colony keyboard dispatcher | 0 | Closed via colony UI C batch (union w/ #2) |
+| 2 | Done | C | `FUN_2f2b_628a` colony mouse/panel dispatcher | 0 | Closed via colony UI C batch |
+| 3 | **Next** | C | `FUN_38fd_4f6e` ∪ `3746` ∪ `4e8e` Europe input | **14** | Union shrunk after colony shared thunks; finish leftover Europe hops |
+| 4 | Open | C | `FUN_2b5a_2464` map menu-command mega-dispatch | ~23 | GAME/VIEW/ORDERS; complements closed `2b5a_3b68` |
+| 5 | Done | C | `FUN_5952_035e` colony production tick | 0 | Closed (excl leftovers + shared via colony) |
+| 6 | Done | C | `FUN_4d56_4528` Indian combat/raid cluster | 0 | Closed (excl 24 + shared via colony) |
+| 7 | Done | C | `FUN_364b_0688` colony EOT production tick | 0 | Closed with #5 |
+| 8 | Open | C | `FUN_2f2b_2f3e` / `FUN_2f2b_6cd4` assign + colony entry crumbs | ~5+5 | `348c` already 0; finish tiny leftovers |
+| 9 | Open | B | Small UI leftovers (`19f6`/`1acb`/`1a0a`/`4720`/`6f30`/`74a4`/`7a65`/…) | ~68 | Sweep remaining purpose-dark UI crumbs |
+| 10 | Open | B | Small platform leftovers (`1a29`/`19ef`/`78d8`/`7962`/`79a8`/`7421`/…) | ~40 | Non-mega DOS helpers after mid platform closed |
+| 11 | Deferred | B/C | Megaseg bulk `281f` + `291f` (remaining thunks) | ~300+ | Prefer Layer C hops first |
+| 12 | Deferred | B | `2a1f` mapgen-adjacent bulk | ~236 | Prefer hops from mapgen/AI entries |
+| 13 | Deferred | B | Platform megasegs `1d1d` + `210d` | ~232 | DOS/EMS runtime; port when bringing up loaders |
+| 14 | Parked | — | `205f` (opaque table) · `1d1c` (empty stub) · MAPEDIT | 3+ | No Layer A revisit without new evidence |
 
 Suggested parallel batches (examples):
 
-- Colony UI C: `#1` ∪ `#2` (disjoint if ownership assigned for any shared thunk).
-- Europe UI C: `#3` ∪ `#4` ∪ `#5`.
-- Sim ticks C: `#6` ∪ `#7` ∪ `#9`.
-- Crumb B: `#12` ∪ `#13`.
+- Europe leftovers C: `#3` (14) ∪ map menu `#4` (23) ∪ colony crumbs `#8` (~10).
+- Crumb B: `#9` ∪ `#10`.
 
 ---
 
@@ -81,6 +76,7 @@ Mark finished peels here so the Open queue stays short. Keep one line per batch.
 
 | When | Layer | Batch | N | Notes |
 |------|-------|-------|--:|-------|
+| 2026-08-07 | C | colony UI `6372`∪`628a` lo/hi + `4d56_4528` excl + `5952`∪`364b` excl | 122 | Colony dispatchers + raid + sim ticks 1-hop closed; Europe union →14 |
 | 2026-08-07 | B+C | `15eb` lo/hi + platform mid + `2b5a_3b68`∪`2f2b_51ec` | 208 | `15eb` purpose-closed; platform PATH/config/heap/abort; map/colony UI thunks |
 | 2026-08-07 | B+C | `43f7` + CUSTOMIZE/input/sound + `1a58` + `465b_0000` C | ~90 | Nation UI; mouse; move-spent hop |
 | 2026-08-07 | B+C | `6cb2`/`4b58`/text blit + turn/EOT C | ~123 | Dialog widgets; turn neighborhood |

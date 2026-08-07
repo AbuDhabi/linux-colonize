@@ -1,0 +1,152 @@
+{
+  "layer": "C",
+  "chunk": "1hop_FUN_4d56_4528_excl",
+  "entry": "FUN_4d56_4528",
+  "functions": {
+    "FUN_281f_0316": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_4cc6_03f8 (best Euro threat nation+score near tribe)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_077e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7a65_00e2 (dialog id + 3 numeric substs then run)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_08a8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_14f4 (nearest unit of nation by dos_dist)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_08bc": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0d38 (unit/stack cargo+combat query dispatcher)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_08d0": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0fc0 (true if mounted type)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0902": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0fec (true if armed combat type)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0920": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_10be (ship passenger embark/capacity bookkeeping)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_09c8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_157e_004a (unit base combat×8 + vet/Drake/damage)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_09dc": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_157e_015e (full engagement strength w/ fort/terrain)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0a56": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15dc_006a (Indian nation class/tier 1/2/3)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0aba": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_0556 (add to nation treasury w/ clamp)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0c68": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_3040 (read unit cargo/passenger qty byte)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0c7c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_0484 (fort size class → capacity 8/12/32)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e08": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_029e (recenter viewport on tile + chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_02ea": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_48d3_015e (spiral-find High Seas; set sail/goto)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0afc": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_46d4 (roll next dock immigrant profession)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0b26": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_0718 (spawn purchased unit into Europe harbor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0c14": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1d80 (buy volume: update tons/gold ledgers)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0c3e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_0016 (Europe effective price = base+adj)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0d8e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1ebc (apply buy: debit gold, add harbor tons)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0dc6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_38fd_1f0c (apply sell: pull hold tons toward quote)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0ec2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_48d3_0346 (retarget stack after landfall/colony-goto)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0ed0": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1cf8_000a (insertion-sort parallel word+byte arrays)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0150": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_465b_0c1e (step unit in dir8 via move_spent_add)",
+      "confidence": "known",
+      "links": "ai/indian_nation_turn.c; ai/move_spent.c"
+    }
+  },
+  "notes": "Exclusive 24 EMS far thunks from FUN_4d56_4528 (Indian settlement enter/raid). All are 210d_0d91/0dab + JMPF. Clusters: combat score (157e), unit chrome queries (1427), threat/tier (4cc6/15dc), cargo/treasury/fort (15eb), loot↔Europe trade (38fd), sail/landfall retarget (48d3), dialog subst (7a65_00e2 heavy), step move (465b_0c1e). 2a1f keeps mapgen system; annotated as step_unit_in_dir."
+}
