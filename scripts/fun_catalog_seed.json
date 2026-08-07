@@ -406,6 +406,26 @@
         "system": "turn",
         "confidence": "inferred",
         "label": "Euro EOT treasure / ship-ready unit chrome"
+      },
+      "12fd": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Once-only discovery/event dispatch (bitset DS:0x540a)"
+      },
+      "4720": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Ship embark / naval-move validity + order UI (DS:0x9e4e)"
+      },
+      "74a4": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Map menu bar load from MENU.TXT (4b58 widgets)"
+      },
+      "7a65": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Map tip blit + parameterized dialog text (6f74)"
       }
     },
     "mapedit": {
@@ -453,6 +473,61 @@
         "system": "platform",
         "confidence": "known",
         "label": "Mouse driver INT 33 show/hide / init / poll"
+      },
+      "2074": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "VGA palette RGB match / slot allocator"
+      },
+      "1b56": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Minimap terrain palette cache + viewport blit"
+      },
+      "1cc9": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS conventional heap (MCB INT21)"
+      },
+      "1842": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Config/text file open + line/comma-field parse"
+      },
+      "19f9": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Map plane buffer alloc / .MP load-save / clear"
+      },
+      "1865": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Clamp / swap / approx distance / facing helpers"
+      },
+      "130b": {
+        "system": "mapdraw",
+        "confidence": "known",
+        "label": "16x16 sprite blit + color-0 mask blit"
+      },
+      "187b": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Viewport rect clip and blit helpers"
+      },
+      "212d": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "EMS INT67 page map + INT21 env helpers"
+      },
+      "1f45": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Growable far-buffer / arena on 1cc9"
+      },
+      "2145": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "EMS page-frame heap / handle allocator"
       }
     }
   },
@@ -1160,6 +1235,30 @@
         "system": "platform",
         "purpose": "Mouse INT 33 probe/init (presence flag)",
         "confidence": "known",
+        "links": ""
+      },
+      "FUN_212d_00d4": {
+        "system": "platform",
+        "purpose": "EMS page-map via INT 67",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1cc9_0004": {
+        "system": "platform",
+        "purpose": "DOS MCB heap alloc/split (INT 21)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_130b_0048": {
+        "system": "mapdraw",
+        "purpose": "16x16 opaque sprite blit (coast underlayer path)",
+        "confidence": "known",
+        "links": "src/core/map.c"
+      },
+      "FUN_2074_0288": {
+        "system": "ui",
+        "purpose": "RGB squared-distance for palette match",
+        "confidence": "inferred",
         "links": ""
       }
     }

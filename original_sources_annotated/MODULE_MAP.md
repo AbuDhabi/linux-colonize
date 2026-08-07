@@ -77,18 +77,18 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `4962` | 4 | ai | inferred | Per-nation unit/colony/cargo census tallies | [catalog](FUNCTION_CATALOG.md) |
 | `78d8` | 4 | platform | inferred | Resource stream buffer alloc / cursor / far-ptr load | [catalog](FUNCTION_CATALOG.md) |
 | `79a8` | 4 | platform | inferred | Compressed resource stream I/O + progress callback | [catalog](FUNCTION_CATALOG.md) |
-| `12fd` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `12fd` | 3 | ui | inferred | Once-only discovery/event dispatch (bitset DS:0x540a) | [catalog](FUNCTION_CATALOG.md) |
 | `157e` | 3 | combat | inferred | Unit combat strength / engagement modifiers | [catalog](FUNCTION_CATALOG.md) |
 | `1a0a` | 3 | ui | inferred | VGA page-flip / palette-cycle animation | [catalog](FUNCTION_CATALOG.md) |
 | `1c0c` | 3 | platform | known | Timer / tick word readers (custom + BIOS 046c) | [catalog](FUNCTION_CATALOG.md) |
 | `2059` | 3 | sound | known | Sound driver jump table | [catalog](FUNCTION_CATALOG.md) |
 | `3844` | 3 | turn | inferred | Euro EOT treasure / ship-ready unit chrome | [catalog](FUNCTION_CATALOG.md) |
-| `4720` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `4720` | 3 | ui | inferred | Ship embark / naval-move validity + order UI (DS:0x9e4e) | [catalog](FUNCTION_CATALOG.md) |
 | `5f7a` | 3 | trade | inferred | Colony native-trade / cargo sell & buy | [catalog](FUNCTION_CATALOG.md) |
 | `6f30` | 3 | ui | inferred | Splash / image load+blit via resource stream | [catalog](FUNCTION_CATALOG.md) |
-| `74a4` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `74a4` | 3 | ui | inferred | Map menu bar load from MENU.TXT (4b58 widgets) | [catalog](FUNCTION_CATALOG.md) |
 | `7962` | 3 | platform | inferred | Resource file open / close handle helpers | [catalog](FUNCTION_CATALOG.md) |
-| `7a65` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `7a65` | 3 | ui | inferred | Map tip blit + parameterized dialog text (6f74) | [catalog](FUNCTION_CATALOG.md) |
 | `1000` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `12dd` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `12e9` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
@@ -187,17 +187,17 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `16d7` | 24 | ui | inferred | Text layout / flow-wrap compositor (~ color switches) | [catalog](FUNCTION_CATALOG.md) |
 | `1f65` | 23 | platform | known | Mouse driver INT 33 show/hide / init / poll | [catalog](FUNCTION_CATALOG.md) |
 | `1a47` | 17 | mapdraw | known | Tile compositor entry and land/coast/transition/river/hill/forest masks | [catalog](FUNCTION_CATALOG.md) |
-| `2074` | 10 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1b56` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1cc9` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1842` | 8 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `19f9` | 8 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1865` | 7 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `130b` | 6 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `187b` | 6 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `212d` | 6 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1f45` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2145` | 5 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `2074` | 10 | ui | inferred | VGA palette RGB match / slot allocator | [catalog](FUNCTION_CATALOG.md) |
+| `1b56` | 9 | mapdraw | inferred | Minimap terrain palette cache + viewport blit | [catalog](FUNCTION_CATALOG.md) |
+| `1cc9` | 9 | platform | known | DOS conventional heap (MCB INT21) | [catalog](FUNCTION_CATALOG.md) |
+| `1842` | 8 | platform | inferred | Config/text file open + line/comma-field parse | [catalog](FUNCTION_CATALOG.md) |
+| `19f9` | 8 | mapdraw | inferred | Map plane buffer alloc / .MP load-save / clear | [catalog](FUNCTION_CATALOG.md) |
+| `1865` | 7 | platform | inferred | Clamp / swap / approx distance / facing helpers | [catalog](FUNCTION_CATALOG.md) |
+| `130b` | 6 | mapdraw | known | 16x16 sprite blit + color-0 mask blit | [catalog](FUNCTION_CATALOG.md) |
+| `187b` | 6 | ui | inferred | Viewport rect clip and blit helpers | [catalog](FUNCTION_CATALOG.md) |
+| `212d` | 6 | platform | known | EMS INT67 page map + INT21 env helpers | [catalog](FUNCTION_CATALOG.md) |
+| `1f45` | 5 | platform | inferred | Growable far-buffer / arena on 1cc9 | [catalog](FUNCTION_CATALOG.md) |
+| `2145` | 5 | platform | inferred | EMS page-frame heap / handle allocator | [catalog](FUNCTION_CATALOG.md) |
 | `1297` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `19b7` | 4 | mapdraw | known | Terrain class index | [catalog](FUNCTION_CATALOG.md) |
 | `1ed0` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
