@@ -987,11 +987,181 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
   return 0;
 }
 
+/*
+ * 5d04 treasury: at war, prefer Artillery but gold < Europe purchase 500$ →
+ * fall back to Soldier hire (hire_cost), not unpaid Artillery fiction.
+ */
+static int smoke_artillery_treasury_fallback(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("art-treasury alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Artillery");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 7;
+  units.types[2].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 3 + i;
+    c->y = 3;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_FOOD] = 20;
+    c->building_in_production = -1;
+  }
+  ColonizeColony* fc = &colonies.colonies[2];
+  fc->id = 2;
+  fc->active = true;
+  fc->nation_id = foe;
+  fc->x = 12;
+  fc->y = 12;
+  fc->population = 2;
+  fc->colonist_count = 2;
+  fc->stock[COLONIZE_CARGO_FOOD] = 20;
+  fc->building_in_production = -1;
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-treasury spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  /* Pre-board a Soldier so prefer_art path triggers (mil aboard). */
+  const int mid = units_spawn_allow_stack(&units, 0, 200, 200);
+  ColonizeUnit* mil = units_get(&units, mid);
+  if (!mil || !units_board_stacked(&units, mid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-treasury board soldier");
+  }
+  mil = units_get(&units, mid);
+  if (mil) {
+    mil->nation_id = nation;
+  }
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 250;
+  col1.nation[foe].gold = 100;
+
+  ai_goals_reset();
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  uint32_t turn = 11; /* odd → prefer_art when mil aboard */
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  /* After war sting: ≥ hire_cost 200, < Artillery purchase 500$. */
+  col1.nation[nation].gold = 250;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int art_boarded = 0;
+  int soldier_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (!ty) {
+        continue;
+      }
+      if (strstr(ty->name, "Artillery")) {
+        art_boarded = 1;
+      }
+      if (strstr(ty->name, "Soldier")) {
+        soldier_boarded++;
+      }
+    }
+  }
+
+  if (art_boarded || soldier_boarded < 2) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: art_treasury art=%d soldiers=%d cargo=%d gold=%u\n",
+      art_boarded,
+      soldier_boarded,
+      ship ? ship->cargo_count : -1,
+      (unsigned)col1.nation[nation].gold
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Soldier fallback hire, not Artillery under 500$");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Artillery treasury fallback→Soldier ok\n");
+  return 0;
+}
+
 int main(void) {
   if (smoke_mid_hire_mil() != 0) {
     return 1;
   }
   if (smoke_mid_hire_artillery() != 0) {
+    return 1;
+  }
+  if (smoke_artillery_treasury_fallback() != 0) {
     return 1;
   }
   if (smoke_naval_war_hunt() != 0) {

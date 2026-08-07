@@ -237,7 +237,17 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       const int e = other->nation_id;
-      /* Peaceful meet band (alarm/friction < 40); hostile → no teach. */
+      /*
+       * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
+       * high alarm/friction → refuse teach (status thinned; widgets OPEN).
+       */
+      if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
+        if (ai_contact_euro_is_human(ctx, e)) {
+          ai_contact_set_status(ctx, "Natives refuse to teach.");
+        }
+        break; /* one refuse pulse per tribe per call */
+      }
+      /* Peaceful meet band (alarm/friction < 40); mid band → no teach. */
       if (ind->alarm_by_player[e] >= 40 || t->alarm[e].friction >= 40) {
         continue;
       }
@@ -331,11 +341,13 @@ static int ai_contact_pair_friction(
 /*
  * Gift / demand structural stand-in (5bfb_102a / 1092 dialog widgets OPEN).
  * After peaceful meet adjacency:
+ *  - alarmed (≥55 refuse-talk gate) → refuse gift; no extra gold penalty
  *  - low friction + Euro gold >= 20 → gift: Euro −10 gold, friction −2
  *  - mid friction (40–70) + tools/gold → demand: −10 tools (nearest colony stock
  *    or unit) else −15 gold; friction −3
  *  - very high friction (>70) → skip (raids handle hostility)
  * Human-facing paths set a thin status line when ctx->status is present.
+ * Source: fandom Alarm — alarmed natives may refuse trade/gifts.
  */
 static void ai_contact_gift_or_demand(
   ColonizeTurnContext* ctx,
@@ -353,12 +365,19 @@ static void ai_contact_gift_or_demand(
     return;
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
-  if (friction > 70) {
-    return; /* very high — raids handle hostility */
+  const int human = ai_contact_euro_is_human(ctx, e);
+  /*
+   * Same ≥55 gate as refuse-talk: alarmed → no gift/demand (existing gift costs
+   * only; no invented gold penalties). Cite: alarmed Indian diplomacy.
+   */
+  if (friction >= 55 || ind->alarm_by_player[e] >= 55) {
+    if (human) {
+      ai_contact_set_status(ctx, "Natives refuse gifts.");
+    }
+    return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
   }
 
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-  const int human = ai_contact_euro_is_human(ctx, e);
 
   /* Low friction gift / tribute. */
   if (friction < 40) {
@@ -373,7 +392,7 @@ static void ai_contact_gift_or_demand(
     return;
   }
 
-  /* Mid friction (40–70) demand / payoff. */
+  /* Mid friction (40–54) demand / payoff; ≥55 refused above. */
   int paid = 0;
   if (ctx->colonies) {
     int best_ci = -1;
@@ -464,6 +483,45 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
         nat->current_crosses++;
       }
       break; /* one convert pulse per tribe per call */
+    }
+  }
+}
+
+/*
+ * Meet-pulse mission pacify deepen: mission owner present and mid-range
+ * friction/alarm (40..80, below FUN_4cc6_0000 clear) → −2 tribe friction and
+ * matching alarm_by_player (floor 0). Once per tribe per call.
+ * Magnitude stays near prelude low-band −1; no free crosses.
+ * Source: fandom Alarm — missions slow hostility / pacify.
+ */
+static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id || t->mission == 0xff) {
+      continue;
+    }
+    const int euro = (int)t->mission;
+    if (euro < 0 || euro > 3) {
+      continue;
+    }
+    const int fr = (int)t->alarm[euro].friction;
+    const int al = (int)ind->alarm_by_player[euro];
+    /* Mid-range only; low-band stays prelude −1; >80 → mission clear. */
+    if ((fr < 40 || fr > 80) && (al < 40 || al > 80)) {
+      continue;
+    }
+    if (fr >= 40 && fr <= 80) {
+      t->alarm[euro].friction = (uint8_t)(fr >= 2 ? fr - 2 : 0);
+    }
+    if (al >= 40 && al <= 80) {
+      ind->alarm_by_player[euro] = (uint16_t)(al >= 2 ? al - 2 : 0);
     }
   }
 }
@@ -734,31 +792,64 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   /* 2b. Missionary adjacent to tribe → mission owner + crosses (convert widgets OPEN). */
   ai_contact_missionary_convert(ctx, nation_id);
 
+  /*
+   * 2b2. Mission pacify deepen (meet pulse): mid-range alarm/friction toward
+   * mission Euro → −2 once (prelude keeps low-band −1). Cite: fandom Alarm —
+   * missions slow hostility. No free crosses. Clear at >80 stays in prelude.
+   */
+  ai_contact_mission_pacify_meet(ctx, nation_id);
+
   /* 2c. Peaceful Free Colonist/Scout at tribe → state.learned + optional skill. */
   ai_contact_teach_skill(ctx, nation_id);
+}
+
+/* True if colony warehouse has any cargo the STORES arm can actually drain. */
+static int ai_contact_colony_has_stores(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  return c->stock[COLONIZE_CARGO_FOOD] > 0 || c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0 ||
+         c->stock[COLONIZE_CARGO_TOOLS] > 0 || c->stock[COLONIZE_CARGO_MUSKETS] > 0;
+}
+
+/* True if WREAK can mutate food/tools/building-in-production. */
+static int ai_contact_colony_has_wreak_target(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  return c->stock[COLONIZE_CARGO_FOOD] > 0 || c->stock[COLONIZE_CARGO_TOOLS] > 0 ||
+         c->building_in_production >= 0;
 }
 
 static AiRaidKind ai_contact_pick_raid_kind(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
+  int target_euro,
   int max_alarm,
   ColonizeDosRng* rng
 ) {
-  /* Banded picker mirroring @RAID* message outcomes (not DOS bit-identity). */
+  /*
+   * Banded picker mirroring @RAID* message outcomes (not DOS bit-identity).
+   * Gate kinds on colony stock / gold actually present so empty warehouses
+   * do not fake STORES/WREAK/muskets loot (5fef_0f14-shaped). No Indian-nation
+   * treasury fiction — GOLD drains Euro gold only when present.
+   */
   if (max_alarm < 45) {
     return AI_RAID_NOTHING;
   }
   const int roll = rng ? dos_rng_range(rng, 0, 99) : (max_alarm % 100);
-  if (max_alarm >= 85 && roll < 15) {
+  if (max_alarm >= 85 && roll < 15 && ai_contact_colony_has_wreak_target(c)) {
     return AI_RAID_WREAK;
   }
-  if (max_alarm >= 70 && roll < 25) {
+  if (max_alarm >= 70 && roll < 25 && c && c->population > 1) {
     return AI_RAID_SCALP;
   }
   if (max_alarm >= 60 && roll < 20 && c && c->building_in_production >= 0) {
     return AI_RAID_BURN;
   }
-  if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1) {
+  if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1 &&
+      target_euro >= 0 && target_euro < 4 &&
+      ctx->col1->nation[target_euro].gold > 0) {
     return AI_RAID_GOLD;
   }
   if (max_alarm >= 50 && roll < 12 && c && ctx && ctx->map) {
@@ -774,14 +865,25 @@ static AiRaidKind ai_contact_pick_raid_kind(
       }
     }
   }
-  return AI_RAID_STORES;
+  /* STORES only when warehouse actually holds lootable cargo. */
+  if (ai_contact_colony_has_stores(c)) {
+    return AI_RAID_STORES;
+  }
+  if (c && c->population > 1 && max_alarm >= 70) {
+    return AI_RAID_SCALP;
+  }
+  if (c && c->building_in_production >= 0 && max_alarm >= 60) {
+    return AI_RAID_BURN;
+  }
+  return AI_RAID_NOTHING;
 }
 
 /*
  * Secondary multi-loot after a successful primary @RAID* (kind != NOTHING).
- *  - Military side-steal: −5 muskets stock, else −1 horse stock, else same from
- *    target-nation unit gear on the colony tile.
- *  - High friction (≥80): also drain tools (−1) as a second cargo type.
+ *  - Military side-steal: only if warehouse/unit actually holds muskets/horses
+ *    (−5 muskets stock, else −1 horse stock, else same from target-nation unit
+ *    gear on the colony tile). Empty warehouses do not fake muskets loot.
+ *  - High friction (≥80): also drain tools (−1) when stock present.
  * Full 5fef_0f14 / 4528 dialog PARKED.
  */
 static void ai_contact_raid_secondary_loot(
@@ -817,6 +919,7 @@ static void ai_contact_raid_secondary_loot(
       }
     }
   }
+  /* else: empty warehouse + no unit gear → no fake military loot */
 
   if (max_alarm >= 80 && c->stock[COLONIZE_CARGO_TOOLS] > 0) {
     c->stock[COLONIZE_CARGO_TOOLS]--;
@@ -1098,7 +1201,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         if (brave->x == c->x && brave->y == c->y) {
-          const AiRaidKind kind = ai_contact_pick_raid_kind(ctx, c, max_alarm, rng);
+          const AiRaidKind kind = ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng);
           ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
           if (c->population <= 1 && max_alarm >= 70) {
             colonies_capture(ctx->colonies, best_cid, nation_id);

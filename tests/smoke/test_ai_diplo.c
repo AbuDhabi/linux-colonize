@@ -1,6 +1,6 @@
 /* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, Furs embargo bit,
  * make_peace, upkeep, privateer prize, ally cost/timer, foreign aid, FA gift,
- * break penalty, Indian drift, war/peace ctx status chrome. */
+ * break penalty, Indian drift/feeler/sticky sync, war/peace ctx status chrome. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -184,7 +184,7 @@ int main(void) {
   }
 
   /* Thin Indian harassment: relation<50 → −2 gold once per euro_balance tick.
-   * Also sets unknown26[8] Indian hostility sticky once. */
+   * Sticky sync: set 1 at-war, deepen 2 when very-low (<40), clear when none. */
   {
     ColonizeDosRng rng_h;
     dos_rng_seed(&rng_h, 2);
@@ -198,7 +198,7 @@ int main(void) {
     /* Peace with all Euros so upkeep/privateer do not fire; only harassment. */
     ai_diplo_make_peace(&col1, 0, 1);
     for (int i = 0; i < 8; ++i) {
-      col1.nation[0].relation_by_indian[i] = 40; /* at war vs Indians */
+      col1.nation[0].relation_by_indian[i] = 40; /* at war vs Indians, not very-low */
     }
     col1.nation[0].unknown26[8] = 0;
     col1.nation[0].gold = 20;
@@ -206,16 +206,35 @@ int main(void) {
     if (col1.nation[0].gold != 18) {
       return fail("euro_balance Indian harassment should drain 2 gold");
     }
-    if (col1.nation[0].unknown26[8] != 1) {
+    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 1) {
       return fail("indian_at_war should set unknown26[8] hostility sticky once");
     }
-    if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
-      return fail("indian_at_war should remain true at rel 40");
+    if (!ai_diplo_indian_any_at_war(&col1, 0) || !ai_diplo_indian_at_war(&col1, 0, 0)) {
+      return fail("indian_at_war/any_at_war should remain true at rel 40");
     }
-    /* Second tick: sticky stays 1 (idempotent). */
+    /* Second tick: sticky stays 1 (idempotent at rel 40). */
     ai_diplo_euro_balance(&ctx_h, 0);
-    if (col1.nation[0].unknown26[8] != 1) {
+    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 1) {
       return fail("Indian hostility sticky must stay set");
+    }
+    /* Very-low deepen: relation < 40 → sticky 2. */
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[0].relation_by_indian[i] = 30;
+    }
+    ai_diplo_indian_hostility_sync(&col1, 0);
+    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 2) {
+      return fail("sticky should deepen to 2 when any relation < 40");
+    }
+    /* Clear when all slots recover above at-war floor. */
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[0].relation_by_indian[i] = 100;
+    }
+    ai_diplo_indian_hostility_sync(&col1, 0);
+    if (ai_diplo_indian_hostility_sticky(&col1, 0) != 0) {
+      return fail("sticky should clear when no indian_at_war slots remain");
+    }
+    if (ai_diplo_indian_any_at_war(&col1, 0)) {
+      return fail("any_at_war should be false after recover");
     }
     /* Restore Euro war for privateer/upkeep follow-ons; clear Indian hostility. */
     ai_diplo_declare_war(&col1, 0, 1);
@@ -223,6 +242,8 @@ int main(void) {
       col1.nation[0].relation_by_indian[i] = 100;
       col1.nation[1].relation_by_indian[i] = 100;
     }
+    ai_diplo_indian_hostility_sync(&col1, 0);
+    ai_diplo_indian_hostility_sync(&col1, 1);
   }
 
   /* Thin privateer prize: richer→poorer 8g (separate from 5g upkeep); no units → treasury-only. */
@@ -513,6 +534,135 @@ int main(void) {
     ai_diplo_treaty_timers(&ctx_d, 3);
     if (col1.nation[3].relation_by_indian[0] != 102) {
       return fail("Indian drift should apply +1 each treaty_timers tick");
+    }
+  }
+
+  /*
+   * Unpark #5: peace feeler — once per euro_balance, Euro at peace with peers,
+   * mid/high Indian slots (≥50, <100) heal +2 toward content floor 100.
+   * Hostile slots (<50) untouched; Euro×Euro war skips feeler.
+   */
+  {
+    ColonizeDosRng rng_f;
+    dos_rng_seed(&rng_f, 6);
+    uint32_t turn_f = 6;
+    ColonizeTurnContext ctx_f;
+    memset(&ctx_f, 0, sizeof(ctx_f));
+    ctx_f.col1 = &col1;
+    ctx_f.col1_ok = true;
+    ctx_f.rng = &rng_f;
+    ctx_f.turn_number = &turn_f;
+    /* Ensure nation 3 has no Euro wars (declare 2-3 may still be live). */
+    ai_diplo_make_peace(&col1, 2, 3);
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[3].relation_by_indian[i] = 90;
+    }
+    col1.nation[3].relation_by_indian[0] = 40; /* at-war slot: no feeler */
+    col1.nation[3].relation_by_indian[1] = 99; /* near floor: clamp to 100 */
+    col1.nation[3].relation_by_indian[2] = 100; /* already at floor */
+    col1.nation[3].unknown26[8] = 1;
+    col1.nation[3].gold = 50; /* harassment will −2 (slot0 at war) */
+    ai_diplo_euro_balance(&ctx_f, 3);
+    if (col1.nation[3].relation_by_indian[0] != 40) {
+      return fail("peace feeler must not heal indian_at_war slots");
+    }
+    if (col1.nation[3].relation_by_indian[1] != 100) {
+      return fail("peace feeler should clamp heal to content floor 100");
+    }
+    if (col1.nation[3].relation_by_indian[2] != 100) {
+      return fail("peace feeler should leave slots already at floor");
+    }
+    if (col1.nation[3].relation_by_indian[3] != 92) {
+      return fail("peace feeler should +2 mid relations toward 100");
+    }
+    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 1) {
+      return fail("feeler tick should keep sticky while slot0 still at war");
+    }
+    if (col1.nation[3].gold != 48) {
+      return fail("feeler tick with at-war Indian should still harass −2g");
+    }
+    /* Clear last hostile slot → sticky clears; no further harassment. */
+    col1.nation[3].relation_by_indian[0] = 80;
+    col1.nation[3].gold = 50;
+    ai_diplo_euro_balance(&ctx_f, 3);
+    if (col1.nation[3].relation_by_indian[0] != 82) {
+      return fail("peace feeler should +2 recovered mid slot");
+    }
+    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 0) {
+      return fail("sticky should clear after feeler when no at-war slots");
+    }
+    if (col1.nation[3].gold != 50) {
+      return fail("no Indian harassment when sticky cleared / no at-war");
+    }
+    /* Euro×Euro war: feeler skipped (relations unchanged). */
+    col1.nation[2].gold = 200;
+    col1.nation[3].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[3].relation_by_indian[i] = 90;
+    }
+    ai_diplo_declare_war(&col1, 2, 3);
+    /* declare −5 → 85; sticky sync from hit */
+    const uint8_t after_war = col1.nation[3].relation_by_indian[3];
+    ai_diplo_euro_balance(&ctx_f, 3);
+    if (col1.nation[3].relation_by_indian[3] != after_war) {
+      return fail("peace feeler must skip while Euro at war with peers");
+    }
+    ai_diplo_make_peace(&col1, 2, 3);
+  }
+
+  /*
+   * Unpark #5: human status chrome when Indian sticky rises/clears.
+   */
+  {
+    ColonizeCol1Save st;
+    col1_save_init(&st);
+    memset(st.nation, 0, sizeof(st.nation));
+    for (int i = 0; i < 4; ++i) {
+      st.player[i].control = 0;
+    }
+    char status[128];
+    status[0] = '\0';
+    ColonizeDosRng rng_st;
+    dos_rng_seed(&rng_st, 7);
+    uint32_t turn_st = 7;
+    ColonizeTurnContext ctx_st;
+    memset(&ctx_st, 0, sizeof(ctx_st));
+    ctx_st.col1 = &st;
+    ctx_st.col1_ok = true;
+    ctx_st.rng = &rng_st;
+    ctx_st.turn_number = &turn_st;
+    ctx_st.human_nation = 0;
+    ctx_st.status = status;
+    ctx_st.status_size = sizeof(status);
+    for (int i = 0; i < 8; ++i) {
+      st.nation[0].relation_by_indian[i] = 40;
+    }
+    st.nation[0].unknown26[8] = 0;
+    st.nation[0].gold = 30;
+    ai_diplo_euro_balance(&ctx_st, 0);
+    if (strcmp(status, "Natives grow hostile.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: indian sticky status '%s'\n", status);
+      return fail("euro_balance should status when sticky rises for human");
+    }
+    /* Clear hostility → improve status. */
+    for (int i = 0; i < 8; ++i) {
+      st.nation[0].relation_by_indian[i] = 80;
+    }
+    status[0] = '\0';
+    ai_diplo_euro_balance(&ctx_st, 0);
+    if (strcmp(status, "Relations with natives improve.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: indian clear status '%s'\n", status);
+      return fail("euro_balance should status when sticky clears for human");
+    }
+    /* AI nation tick must not overwrite human status. */
+    snprintf(status, sizeof(status), "keep");
+    for (int i = 0; i < 8; ++i) {
+      st.nation[1].relation_by_indian[i] = 30;
+    }
+    st.nation[1].unknown26[8] = 0;
+    ai_diplo_euro_balance(&ctx_st, 1);
+    if (strcmp(status, "keep") != 0) {
+      return fail("indian sticky status must only write for human nation");
     }
   }
 

@@ -265,11 +265,11 @@ remain correctly **PARKED** (see R0 / R5).
 
 | # | Track | Was parked as | Open work (next) | Still parked |
 |--:|-------|---------------|------------------|--------------|
-| 1 | Indian contact UI | dialog / teach UI after thin meet | Real dialog **widgets**; thin status + alarmed refuse-talk (`alarm>=55`) **Done** | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
-| 2 | King / REF UI | audience after structural tax/REF | Real **modals**; thin status **Done**; `1eca` Regular/mid-SoL widen **Done** | `160a` letter cinematic; deep `10f0`/`1eca` table; MoW hold chrome; `0x5382` rename |
+| 1 | Indian contact UI | dialog / teach UI after thin meet | Real dialog **widgets**; alarmed refuse teach/gift + mission pacify + raid stock gate **Done** | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
+| 2 | King / REF UI | audience after structural tax/REF | Real **modals**; `10f0`×3 (diff≥2) + colony-SoL `1eca` + MoW unload×3 **Done** | `160a` letter cinematic; MoW×6 chrome; `0x5382` rename |
 | 3 | Founding Fathers | full wiki table | **Manual-aligned effects** (not treasury fiction); Magellan/Coronado/Jones/Bolivar/Fugger/Hudson/La Salle/Brewster wired or flagged; remaining PARKED combat/diplo/prod hooks | Congress debate UI; bell spend/threshold recovery; Washington/Drake/Revere combat paths |
-| 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | Deep fog rings; case-7; CONTACT rings + foe pick + tools/wagon hire **Done** | Full T3 / LCG goldens; ocean fixture retirement (R5) |
-| 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Full bilateral matrix; war/peace status chrome + score/trade deepen **Done** | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
+| 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | FoW CONTACT rings + 2-step FOUND/MIL land + treasury/dock case-7 hire **Done** | Full T3 / LCG goldens; ocean fixture retirement (R5); full `5d04` matrix |
+| 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Sticky 0/1/2 + peace feeler + exported helpers/status **Done** | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
 | 6 | Doc hygiene | — | [manual_gap.md](manual_gap.md) aligned to structural ports (this pass) | — |
 
 Playability mirror: [manual_gap.md](manual_gap.md). Thin maps under
@@ -361,7 +361,8 @@ Smoke: `smoke_ai_contact`.
 
 **OPEN (unpark #1):** real dialog **widgets** (`5bfb_102a`/`1092`, teach chrome).
 Thin human-facing `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid);
-alarmed refuse-talk when `alarm_by_player >= 55` **Done**.
+alarmed refuse-talk / teach / gift when `alarm_by_player >= 55` **Done**;
+mid-range mission pacify (−2) **Done**; raid kinds gated on real warehouse/gold stock **Done**.
 
 **Still PARKED:** full `2154`/`2820`/`4528` bodies; full `@TRIBES` flavor-good
 parse; DOS RNG kill/warn branch.
@@ -383,7 +384,8 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smo
 
 **OPEN (unpark #5):** full Indian×Euro `15b3` bilateral matrix; war/peace **widgets**.
 Military score weights + colony-gap Tools embargo + war/peace `_ctx` status chrome
-+ `unknown26[8]` Indian hostility sticky **Done**.
++ `unknown26[8]` sticky 0/1/2 sync + peace feeler (+2 toward 100) + exported
+matrix helpers / native-hostility status **Done**.
 
 **Still PARKED:** FA `3f41` full body/UI; privateer **unit** spawn; exact DS
 `−0x77c4` field rename; quiet Brave diplomacy goldens.
@@ -405,12 +407,15 @@ idle Scout → tribe FOUND). Thin mid-hire Artillery when at war with ≥2 colon
 Thin Pioneer tools delivery (+10 stock on short colony). Thin tools-cargo hire when
 `tools_short>40` (ship +20 TOOLS or colony +15). Thin sticky CONTACT re-hunt
 (end of `ai_euro_unit_act`: moves left + adjacent war foe → `try_attack`).
-Thin CONTACT scout rings (peace Scout → CONTACT goal Manhattan 2–4 around tribe).
-Thin land adjacent-foe pick (prefer weaker / non-fortified defense).
+Thin CONTACT scout rings (peace Scout → CONTACT; FoW-prefer unseen tiles when
+`map.seen` exists). Thin land adjacent-foe pick (prefer weaker / non-fortified defense).
 Thin `5d04` tools/wagon hire (peace: Pioneer when `tools_short>20`; Wagon Train once when `>30`).
-**OPEN (unpark #4):** remaining `5d04` treasury tails; deep −0x6790 G
-table; deep fog CONTACT rings; multi-step land `20e6`; deeper `5b66`
-case-7 hire tails. Odd deviations OK; not T3 / LCG goldens (those stay R5).
+Thin 2-step FOUND/MILITARY land advances while `moves_left` remain.
+Thin case-7 treasury gate (skip hire below colonist `hire_cost`; Artillery 500$;
+dock Hardy/Expert Pioneer or Master Carpenter only when already on Europe dock).
+**OPEN (unpark #4):** remaining full `5d04` wagon/mid matrix; deep combat multi-step
+`20e6`; ocean/naval `20e6`; deep −0x6790 G table. Odd deviations OK; not T3 / LCG
+goldens (those stay R5).
 
 ### R5 — Toward 1:1 (T2/T3)
 
@@ -423,15 +428,17 @@ case-7 hire tails. Odd deviations OK; not T3 / LCG goldens (those stay R5).
 
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
-`1eca` promote); thin `10f0` via `backup_force` (up to 2 landings/call, Regular+Dragoon
-mix); thin MoW cargo unload (up to 2 Regulars with ship); structural tax boycott/refuse
+`1eca` promote); thin `10f0` via `backup_force` (up to 2 landings, or **3** when `difficulty≥2`,
+Regular+Dragoon mix); thin MoW cargo unload (up to **3** Regulars with ship);
+structural tax boycott/refuse
 (`unknown46[2]` + Sugar boycott bit; thin audience status **Done** — unpark #2 widgets remain);
 thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
 (`unknown46[3]`, 300 gold → human Soldier; thin hire status **Done**);
 thin `160a` rename
-(`country_name` / europe → "United Colonies"); thin `1eca` promote Soldier→Continental
-Army and Dragoon/Cavalry→Continental Cavalry when SoL>50; Regular (type name)→Veteran/Continental
-when SoL>50; Soldier→Veteran Soldier when SoL 40–50; thin SoL 40–49 restless
+(`country_name` / europe → "United Colonies"); thin `1eca` promote biased by
+**colony** SoL at unit tile (`rebel_dividend`/`divisor`) with nation SoL fallback —
+Soldier→Continental / Dragoon→Cont. Cavalry when SoL>50; Soldier→Veteran when SoL 40–50;
+thin SoL 40–49 restless
 status + `unknown46[5]` congress confirm + congress status on declare
 (`2564` confirm **modal** still OPEN).
 WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-present
@@ -441,8 +448,9 @@ WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-pr
 
 **OPEN (unpark #2):** real `38fd_5be8` / `2564` / `2244` **modals** (status chrome Done).
 
-**Still PARKED:** `160a` letter cinematic; full merc/arrival/hold chrome; deep `10f0`
-economy (third landing); deep `1eca` colony-SoL table; exact `0x5382` Col1 bit rename / T3.
+**Still PARKED:** `160a` letter cinematic; full merc/arrival/hold chrome (MoW×6);
+extra refuse boycott cargos beyond Sugar; deep `1eca` type-id table; exact `0x5382`
+Col1 bit rename / T3.
 
 ---
 

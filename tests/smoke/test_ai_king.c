@@ -1,5 +1,5 @@
 /* Smoke: King/REF SoL, tax→REF, boycott audience, SoL chrome, declare+160a/1528/congress,
- * MoW cargo, 10f0, 2244 merc hire status, 1eca widen (Regular + SoL 40–50 vet). */
+ * MoW cargo×3, 10f0 (dual + third@diff≥2), 2244 merc, 1eca colony-SoL bias. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -85,6 +85,8 @@ int main(void) {
     return fail("alloc colony");
   }
   col1.colony[0].nation_id = 0;
+  col1.colony[0].x = 5;
+  col1.colony[0].y = 5;
   col1.colony[0].population = 4;
   col1.colony[0].rebel_dividend = 60;
   col1.colony[0].rebel_divisor = 100;
@@ -340,16 +342,16 @@ int main(void) {
     return fail("REF/irregular must not spawn as human nation");
   }
   /*
-   * Thin MoW cargo unload (hold size 2 stand-in; full cargo chrome PARKED):
-   * declare seeds force[2]>0 + force[0]≥2 → same-beat MoW + ≥2 land Regulars.
+   * Thin MoW cargo unload (hold size 3 stand-in; full cargo chrome PARKED):
+   * declare seeds force[2]>0 + force[0]≥3 → same-beat MoW + ≥3 land Regulars.
    */
   {
     const int crown_sea = count_nation_sea(&units, 1);
     const int crown_land = count_nation_land(&units, 1);
-    if (crown_sea < 1 || crown_land < 2) {
-      fprintf(stderr, "smoke_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥2 land)\n",
+    if (crown_sea < 1 || crown_land < 3) {
+      fprintf(stderr, "smoke_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥3 land)\n",
               crown_sea, crown_land);
-      return fail("0982 MoW spawn should unload ≥2 land cargo (or ship+land)");
+      return fail("0982 MoW spawn should unload ≥3 land cargo (or ship+land)");
     }
   }
   /* Thin 1528: successful 0982 spawn writes arrival status (chrome PARKED). */
@@ -416,6 +418,34 @@ int main(void) {
   if (count_nation(&units, 0) != 0) {
     return fail("intervention must not spawn as human nation");
   }
+
+  /*
+   * 10f0 third landing: difficulty≥2 + REF empty + backup pools → up to 3
+   * landings (Regular+Dragoon mix then next pool). Same spawn patterns; no gold.
+   */
+  col1.head.difficulty = 2;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  colonies.colonies[0].nation_id = 0;
+  col1.head.backup_force[0] = 3;
+  col1.head.backup_force[1] = 3;
+  col1.head.backup_force[2] = 0;
+  col1.head.backup_force[3] = 2;
+  {
+    const int backup_before3 = (int)col1.head.backup_force[0] + (int)col1.head.backup_force[1] +
+                               (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3];
+    const int intervene_before3 = count_nation(&units, 2);
+    ai_king_nation_turn(&ctx);
+    const int intervene_spawned3 = count_nation(&units, 2) - intervene_before3;
+    const int backup_after3 = (int)col1.head.backup_force[0] + (int)col1.head.backup_force[1] +
+                              (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3];
+    const int drained3 = backup_before3 - backup_after3;
+    if (intervene_spawned3 < 3 && drained3 < 3) {
+      fprintf(stderr, "smoke_ai_king: 10f0@diff2 spawned=%d drained=%d (want >=3 either)\n",
+              intervene_spawned3, drained3);
+      return fail("10f0 difficulty≥2 should spawn/drain up to 3 landings");
+    }
+  }
+  col1.head.difficulty = 0; /* restore for later checks */
 
   /*
    * Thin 2244 merc auto-accept + hire-dialog status (real modal PARKED):
@@ -553,6 +583,83 @@ int main(void) {
     }
   }
 
+  /*
+   * 1eca colony-SoL bias (FUN_43f7_1eca / catalog colony SoL>50%):
+   * Nation aggregate mid/low, but unit on a high-SoL Col1 colony tile promotes
+   * to Continental; unit on low-SoL colony tile does not. King promote path —
+   * not FF Washington mass-promote. No treasury bumps.
+   */
+  {
+    ColonizeCol1Colony* grown = calloc(2, sizeof(ColonizeCol1Colony));
+    if (!grown) {
+      return fail("alloc 1eca colony-SoL colonies");
+    }
+    grown[0] = col1.colony[0];
+    free(col1.colony);
+    col1.colony = grown;
+    col1.head.colony_count = 2;
+    /* Low SoL off the weakest-port tile so crown combat cannot delete the probe. */
+    col1.colony[0].x = 3;
+    col1.colony[0].y = 3;
+    col1.colony[0].nation_id = 0;
+    col1.colony[0].population = 4;
+    col1.colony[0].rebel_dividend = 30;
+    col1.colony[0].rebel_divisor = 100;
+    col1.colony[1].x = 11;
+    col1.colony[1].y = 5;
+    col1.colony[1].nation_id = 0;
+    col1.colony[1].population = 1;
+    col1.colony[1].rebel_dividend = 70;
+    col1.colony[1].rebel_divisor = 100;
+  }
+  {
+    const int sol_nat = ai_king_sol_percent(&ctx, 0);
+    /* (30*4 + 70*1)/5 = 38 — nation alone would not Continental-promote. */
+    if (sol_nat != 38) {
+      fprintf(stderr, "smoke_ai_king: unexpected nation SoL %d (want 38) for colony-SoL\n",
+              sol_nat);
+      return fail("1eca colony-SoL nation aggregate setup");
+    }
+  }
+  colonies.colonies[0].nation_id = 0;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  /* Park crown movers so war_act combat cannot delete the SoL probe units. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id == 1) {
+      u->moves_left = 0;
+    }
+  }
+  const int sid_hi = units_spawn_allow_stack(&units, ty_soldier, 11, 5);
+  const int sid_lo = units_spawn_allow_stack(&units, ty_soldier, 3, 3);
+  if (sid_hi < 0 || sid_lo < 0) {
+    return fail("1eca colony-SoL setup should spawn Soldiers on both colonies");
+  }
+  {
+    ColonizeUnit* hi = units_get(&units, sid_hi);
+    ColonizeUnit* lo = units_get(&units, sid_lo);
+    if (!hi || !lo) {
+      return fail("1eca colony-SoL unit lookup");
+    }
+    hi->nation_id = 0;
+    lo->nation_id = 0;
+  }
+  ai_king_nation_turn(&ctx);
+  {
+    const ColonizeUnit* hi = units_get_const(&units, sid_hi);
+    const ColonizeUnit* lo = units_get_const(&units, sid_lo);
+    if (!hi || !hi->active || hi->type_index != ty_cont_army) {
+      fprintf(stderr, "smoke_ai_king: high-SoL colony Soldier type: %d (want %d)\n",
+              hi ? hi->type_index : -1, ty_cont_army);
+      return fail("1eca colony-SoL>50 at tile should promote Soldier → Continental Army");
+    }
+    if (!lo || !lo->active || lo->type_index != ty_soldier) {
+      fprintf(stderr, "smoke_ai_king: low-SoL colony Soldier type: %d (want %d)\n",
+              lo ? lo->type_index : -1, ty_soldier);
+      return fail("1eca low colony-SoL should leave Soldier unpromoted");
+    }
+  }
+
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
@@ -563,7 +670,8 @@ int main(void) {
   free(map.layer3);
   col1_save_free(&col1);
   fprintf(stderr,
-          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d 1eca=widen)\n",
+          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d "
+          "1eca=colony-SoL)\n",
           sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;
 }

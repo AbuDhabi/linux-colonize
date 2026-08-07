@@ -40,11 +40,18 @@
 #define AI_KING_BOYCOTT_TAX_MIN 20
 #define AI_KING_BOYCOTT_SOL_MIN 30
 #define AI_KING_BOYCOTT_BELLS_MIN 80
-/* Sugar = cargo index 1 — one frozen Europe cargo while refuse active. */
+/* Sugar = cargo index 1 — one frozen Europe cargo while refuse active.
+ * PARK: additional classic boycott cargos (wiki dump-goods / 38fd_3dc8 RNG)
+ * remain PARKED — only Sugar is named in-file; do not invent a second bit. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
 /* Thin 2244 Continental merc aid (hire-dialog status; real modal PARKED). */
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_SOL_MIN 50
+/* Thin MoW cargo hold: structural unload count (full 6-slot chrome PARKED; fandom). */
+#define AI_KING_MOW_HOLD_UNLOAD 3
+/* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
+#define AI_KING_INTERVENE_LANDINGS_BASE 2
+#define AI_KING_INTERVENE_DIFF_THIRD 2
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
@@ -184,6 +191,31 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
     return sol;
   }
   return 0;
+}
+
+/*
+ * FUN_43f7_1eca colony-SoL bias (catalog: promote when colony SoL>50%).
+ * Prefer Col1 rebel_dividend/divisor at the unit tile; else nation SoL (0004).
+ * King promote path only — not FF Washington mass-promote / combat upgrade.
+ */
+static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, int x, int y) {
+  if (!ctx || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+      if ((int)c->nation_id != nation_id) {
+        continue;
+      }
+      if ((int)c->x != x || (int)c->y != y) {
+        continue;
+      }
+      const uint32_t div = c->rebel_divisor > 0 ? c->rebel_divisor : 1;
+      return (int)(((uint64_t)c->rebel_dividend * 100ull) / (uint64_t)div);
+    }
+  }
+  return ai_king_sol_percent(ctx, nation_id);
 }
 
 /* Linux WoI stand-in for DOS 0x5382 bit0. */
@@ -400,8 +432,8 @@ static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int 
 /*
  * FUN_43f7_0982 (pools>0) / 06a6 (empty): REF wave arms.
  * Thin 1528: status arrival line when 0982 spawns (chrome UI PARKED).
- * Thin MoW cargo: when force[2] drained, unload up to 2 Regulars from force[0]
- * (hold size 2 stand-in). Full multi-unit cargo-hold chrome PARKED.
+ * Thin MoW cargo: when force[2] drained, unload up to AI_KING_MOW_HOLD_UNLOAD
+ * Regulars from force[0] (hold-size-3 structural; fandom MoW×6 chrome PARKED).
  */
 static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map) {
@@ -470,10 +502,13 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (mow_spawned) {
     /*
      * Thin MoW cargo unload near target colony (same crown):
-     * hold size 2 stand-in — spawn min(2, force[0]) Regulars; drain force[0].
-     * Embark slots / cargo_ids chrome remain PARKED.
+     * hold size AI_KING_MOW_HOLD_UNLOAD stand-in — spawn
+     * min(hold, force[0]) Regulars; drain force[0].
+     * Source: fandom REF AI “man-o-war with 6 units”; full embark /
+     * cargo_ids chrome remain PARKED (structural deepen only).
      */
-    const int unload = (force[0] >= 2) ? 2 : (int)force[0];
+    const int unload =
+        (force[0] >= AI_KING_MOW_HOLD_UNLOAD) ? AI_KING_MOW_HOLD_UNLOAD : (int)force[0];
     int landed = 0;
     for (int n = 0; n < unload; ++n) {
       if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, "Regular", "Soldier")) {
@@ -560,9 +595,9 @@ static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int
 /*
  * FUN_43f7_10f0-shaped: foreign-intervention landing when REF empty and
  * backup_force (DOS 0x53e2… stand-in) still has pools. Up to two landings
- * per call (drain two pool entries / types). Prefer Regular + Dragoon when
- * both pools > 0. Crown-hostile nation_id (non-human, non-crown).
- * Deep economy / merc hire / arrival chrome PARKED.
+ * per call; third when difficulty ≥ AI_KING_INTERVENE_DIFF_THIRD (REF
+ * pressure). Prefer Regular + Dragoon when both pools > 0. Crown-hostile
+ * nation_id (non-human, non-crown). Deep economy / merc hire / arrival chrome PARKED.
  */
 static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -585,7 +620,10 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   }
   const int ally = ai_king_intervention_nation(ctx->human_nation);
   int landings = 0;
-  const int max_landings = 2;
+  const int diff = ctx->col1->head.difficulty;
+  const int max_landings =
+      (diff >= AI_KING_INTERVENE_DIFF_THIRD) ? (AI_KING_INTERVENE_LANDINGS_BASE + 1)
+                                            : AI_KING_INTERVENE_LANDINGS_BASE;
 
   /* Prefer mixing Regular + Dragoon when both foreign pools are live. */
   if (backup[0] > 0 && backup[1] > 0) {
@@ -651,8 +689,8 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
 
 /*
  * FUN_43f7_2022 war act + 1eca promote.
- * Move/combat/capture; 1eca SoL bands (40–50 vet / >50 Continental+Regular);
- * 10f0 intervene arm; thin 2244 merc auto-accept.
+ * Move/combat/capture; 1eca colony-SoL bands (40–50 vet / >50 Continental+Regular);
+ * 10f0 intervene arm (≤3 @ difficulty≥2); thin 2244 merc auto-accept.
  */
 static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
@@ -716,89 +754,78 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   }
 
   /*
-   * Thin 1eca promote (deep colony-SoL/count table PARKED):
-   *   SoL>50: Soldier* → Continental Army / Cont. Army / Veteran Soldier
+   * FUN_43f7_1eca promote (catalog: Continental when colony SoL>50%):
+   * Per-unit SoL from Col1 rebel_dividend/divisor at the unit tile
+   * (ai_king_colony_sol_at); nation 0004 aggregate only as fallback.
+   *   colony SoL>50: Soldier* → Continental Army / Cont. Army / Veteran Soldier
    *           Dragoon|Cavalry* → Continental Cavalry / Cont. Cav. / Veteran Dragoon
    *           Regular* → Veteran Soldier / Continental Army (fallback)
-   *   SoL 40..50: Soldier* → Veteran Soldier only (if type exists; no Continental)
+   *   colony SoL 40..50: Soldier* → Veteran Soldier only (if type exists; no Continental)
    * Skip names already Veteran/Continental.
    * Note: armed Regulars often *display* as "Soldier" — classify Regular by type name.
+   * King promote path only — not FF Washington mass-promote (combat upgrade PARKED).
+   * Deep veteran-profession / type-id table remains PARKED.
    */
   {
-    const int sol_p = ai_king_sol_percent(ctx, ctx->human_nation);
-    if (sol_p > 50) {
-      int army = units_find_type(ctx->units, "Continental Army");
-      if (army < 0) {
-        army = units_find_type(ctx->units, "Cont. Army");
+    int army = units_find_type(ctx->units, "Continental Army");
+    if (army < 0) {
+      army = units_find_type(ctx->units, "Cont. Army");
+    }
+    if (army < 0) {
+      army = units_find_type(ctx->units, "Veteran Soldier");
+    }
+    int cav = units_find_type(ctx->units, "Continental Cavalry");
+    if (cav < 0) {
+      cav = units_find_type(ctx->units, "Cont. Cav.");
+    }
+    if (cav < 0) {
+      cav = units_find_type(ctx->units, "Veteran Dragoon");
+    }
+    int regular_tgt = units_find_type(ctx->units, "Veteran Soldier");
+    if (regular_tgt < 0) {
+      regular_tgt = units_find_type(ctx->units, "Continental Army");
+    }
+    if (regular_tgt < 0) {
+      regular_tgt = units_find_type(ctx->units, "Cont. Army");
+    }
+    const int vet = units_find_type(ctx->units, "Veteran Soldier");
+    const int human = ctx->human_nation;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != human) {
+        continue;
       }
-      if (army < 0) {
-        army = units_find_type(ctx->units, "Veteran Soldier");
+      const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+      const char* tname = ut ? ut->name : NULL;
+      const char* name = units_display_name(ctx->units, u);
+      if ((name && (strstr(name, "Veteran") || strstr(name, "Continental"))) ||
+          (tname && (strstr(tname, "Veteran") || strstr(tname, "Continental")))) {
+        continue;
       }
-      int cav = units_find_type(ctx->units, "Continental Cavalry");
-      if (cav < 0) {
-        cav = units_find_type(ctx->units, "Cont. Cav.");
-      }
-      if (cav < 0) {
-        cav = units_find_type(ctx->units, "Veteran Dragoon");
-      }
-      int regular_tgt = units_find_type(ctx->units, "Veteran Soldier");
-      if (regular_tgt < 0) {
-        regular_tgt = units_find_type(ctx->units, "Continental Army");
-      }
-      if (regular_tgt < 0) {
-        regular_tgt = units_find_type(ctx->units, "Cont. Army");
-      }
-      if (army >= 0 || cav >= 0 || regular_tgt >= 0) {
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          ColonizeUnit* u = &ctx->units->units[i];
-          if (!u->active || u->nation_id != ctx->human_nation) {
-            continue;
+      /* 1eca: bias threshold with colony SoL at tile (Washington FF path is separate). */
+      const int sol_p = ai_king_colony_sol_at(ctx, human, u->x, u->y);
+      const int is_regular = (tname && strstr(tname, "Regular") != NULL);
+      if (sol_p > 50) {
+        if (is_regular) {
+          if (regular_tgt >= 0) {
+            u->type_index = regular_tgt;
           }
-          const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
-          const char* tname = ut ? ut->name : NULL;
-          const char* name = units_display_name(ctx->units, u);
-          if ((name && (strstr(name, "Veteran") || strstr(name, "Continental"))) ||
-              (tname && (strstr(tname, "Veteran") || strstr(tname, "Continental")))) {
-            continue;
-          }
-          const int is_regular = (tname && strstr(tname, "Regular") != NULL);
-          if (is_regular) {
-            if (regular_tgt >= 0) {
-              u->type_index = regular_tgt;
-            }
-          } else if (army >= 0 &&
-                     ((name && strstr(name, "Soldier")) ||
-                      (tname && strstr(tname, "Soldier")))) {
-            u->type_index = army;
-          } else if (cav >= 0 &&
-                     ((name && (strstr(name, "Dragoon") || strstr(name, "Cavalry"))) ||
-                      (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))))) {
-            u->type_index = cav;
-          }
+        } else if (army >= 0 &&
+                   ((name && strstr(name, "Soldier")) ||
+                    (tname && strstr(tname, "Soldier")))) {
+          u->type_index = army;
+        } else if (cav >= 0 &&
+                   ((name && (strstr(name, "Dragoon") || strstr(name, "Cavalry"))) ||
+                    (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))))) {
+          u->type_index = cav;
         }
-      }
-    } else if (sol_p >= 40) {
-      const int vet = units_find_type(ctx->units, "Veteran Soldier");
-      if (vet >= 0) {
-        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-          ColonizeUnit* u = &ctx->units->units[i];
-          if (!u->active || u->nation_id != ctx->human_nation) {
-            continue;
-          }
-          const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
-          const char* tname = ut ? ut->name : NULL;
-          const char* name = units_display_name(ctx->units, u);
-          if ((name && (strstr(name, "Veteran") || strstr(name, "Continental"))) ||
-              (tname && (strstr(tname, "Veteran") || strstr(tname, "Continental")))) {
-            continue;
-          }
-          /* Mid-band: Soldier type (or Soldier display); not Regular type. */
-          if (tname && strstr(tname, "Regular")) {
-            continue;
-          }
-          if ((name && strstr(name, "Soldier")) || (tname && strstr(tname, "Soldier"))) {
-            u->type_index = vet;
-          }
+      } else if (sol_p >= 40) {
+        /* Mid-band: Soldier type (or Soldier display); not Regular type. */
+        if (is_regular || vet < 0) {
+          continue;
+        }
+        if ((name && strstr(name, "Soldier")) || (tname && strstr(tname, "Soldier"))) {
+          u->type_index = vet;
         }
       }
     }

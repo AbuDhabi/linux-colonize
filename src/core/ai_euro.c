@@ -8,6 +8,7 @@
 #include "core/map.h"
 #include "core/units.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -103,9 +104,11 @@ static int ai_euro_nearest_military_goal(
 }
 
 /*
- * CONTACT scout ring (unpark #4 thin): nearest tribe beyond adjacent from
- * (from_x,from_y) → land tile in Manhattan ring 2..4 around tribe (prefer
- * toward scout). Deep fog/unknown rings PARKED — tribe stands in for FOG.
+ * CONTACT scout ring (unpark #4): nearest tribe beyond adjacent from
+ * (from_x,from_y) → land tile in Manhattan ring 2..4 around tribe.
+ * FoW deepen: when map.seen exists, prefer tiles NOT seen by this nation
+ * (map_tile_seen_by / Col1 fog bit) — explore CONTACT, not combat bonus.
+ * Fall back to toward-scout / tighter-ring scoring when fog absent or all seen.
  * No tribes: farthest map corner from first own colony (explore stand-in).
  */
 static int ai_euro_scout_contact_ring_target(
@@ -159,6 +162,7 @@ static int ai_euro_scout_contact_ring_target(
       }
     }
     if (best_tribe_d > 1 && ctx->map) {
+      const int use_fog = ctx->map->seen != NULL;
       int best_score = -1;
       int bx = 0;
       int by = 0;
@@ -179,9 +183,15 @@ static int ai_euro_scout_contact_ring_target(
           if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
             continue;
           }
-          /* Prefer ring tiles toward the scout, then tighter ring (md=2). */
+          /*
+           * FoW: unseen tiles score first (explore CONTACT). Then prefer
+           * toward scout, then tighter ring (md=2). Cite Col1 seen bit /
+           * map_tile_seen_by — not invented combat bonuses.
+           */
+          const int unseen =
+            use_fog && !map_tile_seen_by(ctx->map, nx, ny, nation_id) ? 0 : 1;
           const int to_scout = abs(nx - from_x) + abs(ny - from_y);
-          const int score = to_scout * 10 + md;
+          const int score = unseen * 1000 + to_scout * 10 + md;
           if (best_score < 0 || score < best_score) {
             best_score = score;
             bx = nx;
@@ -425,6 +435,88 @@ static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id
   return 0;
 }
 
+/*
+ * Europe purchase table Artillery gold (europe_init_purchase_table /
+ * original_screenshots/europe/purchase.png) — used for 5d04 war Artillery hire.
+ */
+#define AI_EURO_ARTILLERY_PURCHASE_GOLD 500
+
+/* Europe dock plurals / @JOB experts for case-7 tools hire (only if present). */
+static int ai_euro_dock_name_is_tools_expert(const char* name) {
+  if (!name || !name[0]) {
+    return 0;
+  }
+  return strstr(name, "Hardy Pioneer") != NULL || strstr(name, "Expert Pioneer") != NULL ||
+         strstr(name, "Master Carpenter") != NULL;
+}
+
+/* Resolve dock immigrant name → unit type (strip trailing 's' for pool plurals). */
+static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char* dock_name) {
+  if (!units || !dock_name || !dock_name[0]) {
+    return -1;
+  }
+  int ty = units_find_type(units, dock_name);
+  if (ty >= 0) {
+    return ty;
+  }
+  char buf[48];
+  snprintf(buf, sizeof(buf), "%s", dock_name);
+  const size_t len = strlen(buf);
+  if (len > 1 && (buf[len - 1] == 's' || buf[len - 1] == 'S')) {
+    buf[len - 1] = '\0';
+    ty = units_find_type(units, buf);
+    if (ty >= 0) {
+      return ty;
+    }
+  }
+  if (strstr(dock_name, "Hardy Pioneer") || strstr(dock_name, "Expert Pioneer")) {
+    ty = units_find_type(units, "Hardy Pioneer");
+    if (ty < 0) {
+      ty = units_find_type(units, "Pioneer");
+    }
+    return ty;
+  }
+  if (strstr(dock_name, "Master Carpenter")) {
+    ty = units_find_type(units, "Master Carpenter");
+    if (ty < 0) {
+      ty = units_find_type(units, "Free Colonist");
+    }
+    return ty;
+  }
+  return -1;
+}
+
+/* First dock slot matching Hardy/Expert Pioneer or Master Carpenter; -1 if none. */
+static int ai_euro_dock_find_tools_expert(const EuropeScreen* eu) {
+  if (!eu) {
+    return -1;
+  }
+  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+    if (!eu->dock[i].present) {
+      continue;
+    }
+    if (ai_euro_dock_name_is_tools_expert(eu->dock[i].name)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* Remove dock[idx] (shift); returns 1 on success. */
+static int ai_euro_dock_remove_at(EuropeScreen* eu, int idx) {
+  if (!eu || idx < 0 || idx >= eu->dock_count || idx >= EUROPE_DOCK_MAX) {
+    return 0;
+  }
+  for (int i = idx + 1; i < eu->dock_count; ++i) {
+    eu->dock[i - 1] = eu->dock[i];
+  }
+  eu->dock_count--;
+  if (eu->dock_count >= 0 && eu->dock_count < EUROPE_DOCK_MAX) {
+    memset(&eu->dock[eu->dock_count], 0, sizeof(eu->dock[0]));
+  }
+  return 1;
+}
+
 /* Stock +20 TOOLS on ship holds, else +15 to nearest own colony. Returns delivered. */
 static int ai_euro_tools_cargo_or_colony(
   ColonizeTurnContext* ctx,
@@ -479,15 +571,20 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon;
    * colonies>=2 also Artillery when type exists. Peace: tools_short>30 + Wagon
    * type → hire wagon once; else tools_short>20 prefer Pioneer/Hardy + tools
-   * cargo stand-in (ship +20 / colony +15). Deeper matrix OPEN (unpark #4).
+   * cargo stand-in (ship +20 / colony +15). Case-7 deepen: prefer Hardy/Expert
+   * Pioneer or Master Carpenter already on Europe dock (no free spawn fiction).
+   * Treasury gate (5d04 / Europe hire): skip hire + tools-cargo when gold is
+   * below the real cost already used in code (colonist hire_cost, or Artillery
+   * purchase 500$ from Europe purchase table).
    */
   const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
   if (colonies >= 6) {
     return;
   }
+  /* Colonist / Soldier Europe hire stand-in already used by this planner. */
   const int hire_cost = 200 + diff * 25;
   if ((int)nat->gold < hire_cost) {
-    return;
+    return; /* 5d04 treasury: too poor for Europe hire / tools-cargo */
   }
 
   ColonizeUnit* ship = NULL;
@@ -507,6 +604,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
 
   /* At war with any Euro peer → prefer Soldier / Dragoon over settle types. */
   int hire_ty = -1;
+  int from_dock = 0;
+  int dock_idx = -1;
   const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
   if (at_war) {
     static const char* k_mil[] = {
@@ -539,13 +638,36 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     /* Soldier/Dragoon primary; Artillery when mil already boarded or odd turn. */
     const unsigned turn =
       (ctx->turn_number && *ctx->turn_number) ? (unsigned)(*ctx->turn_number) : 0u;
-    const int prefer_art = art_ty >= 0 && (mil_aboard || (turn & 1u));
+    int prefer_art = art_ty >= 0 && (mil_aboard || (turn & 1u));
+    /*
+     * 5d04 treasury: Artillery needs Europe purchase gold (500$), not the
+     * colonist hire_cost. Fall back to Soldier/Dragoon when underfunded.
+     */
+    if (prefer_art && (int)nat->gold < AI_EURO_ARTILLERY_PURCHASE_GOLD) {
+      prefer_art = 0;
+    }
     if (prefer_art) {
       hire_ty = art_ty;
     } else if (mil_ty >= 0) {
       hire_ty = mil_ty;
-    } else if (art_ty >= 0) {
+    } else if (art_ty >= 0 && (int)nat->gold >= AI_EURO_ARTILLERY_PURCHASE_GOLD) {
       hire_ty = art_ty; /* mil type missing — Artillery still a war option */
+    }
+  }
+  /*
+   * Peace case-7 / 5d04: when tools_short high, prefer Expert/Hardy Pioneer or
+   * Master Carpenter already on Europe dock (NAMES/pool names). Only if present —
+   * do not spawn free experts as fiction. Else wagon / Pioneer matrix below.
+   */
+  if (hire_ty < 0 && inv && !at_war && inv->tools_short > 20 && ctx->europe) {
+    dock_idx = ai_euro_dock_find_tools_expert(ctx->europe);
+    if (dock_idx >= 0) {
+      const int dock_ty =
+        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
+      if (dock_ty >= 0) {
+        hire_ty = dock_ty;
+        from_dock = 1;
+      }
     }
   }
   /*
@@ -590,6 +712,22 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
+  /*
+   * Per-type treasury gate before spawn / tools-cargo (5d04 / Europe hire).
+   * Artillery: purchase table 500$. Others: hire_cost already gated above.
+   */
+  {
+    const ColonizeUnitType* pending = units_type(ctx->units, hire_ty);
+    int pay = hire_cost;
+    if (pending &&
+        (strstr(pending->name, "Artillery") != NULL || strstr(pending->name, "Cannon") != NULL)) {
+      pay = AI_EURO_ARTILLERY_PURCHASE_GOLD;
+    }
+    if ((int)nat->gold < pay) {
+      return;
+    }
+  }
+
   /* Same-tile Europe spawn → stacked board (units_board requires adjacency). */
   const int uid = units_spawn_allow_stack(ctx->units, hire_ty, ship->x, ship->y);
   if (uid < 0) {
@@ -600,12 +738,20 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   pax->nation_id = nation_id;
+  if (from_dock && ctx->europe && dock_idx >= 0 && dock_idx < ctx->europe->dock_count) {
+    pax->profession = ctx->europe->dock[dock_idx].profession;
+  }
 
   const ColonizeUnitType* hired = units_type(ctx->units, hire_ty);
   const int hired_wagon = hired && ai_euro_type_is_wagon_name(hired->name);
   const int hired_pioneer =
     hired &&
     (strstr(hired->name, "Pioneer") != NULL || strstr(hired->name, "Hardy") != NULL);
+  const int hired_artillery =
+    hired &&
+    (strstr(hired->name, "Artillery") != NULL || strstr(hired->name, "Cannon") != NULL);
+  const int pay =
+    hired_artillery ? AI_EURO_ARTILLERY_PURCHASE_GOLD : hire_cost;
 
   /*
    * Wagon hire: load TOOLS onto the wagon before boarding (aboard units are
@@ -620,7 +766,14 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     units_despawn(ctx->units, uid);
     return;
   }
-  nat->gold -= (uint32_t)hire_cost;
+  /* Consume dock immigrant only after successful board (no free duplicate). */
+  if (from_dock && ctx->europe) {
+    (void)ai_euro_dock_remove_at(ctx->europe, dock_idx);
+  }
+  nat->gold -= (uint32_t)pay;
+  if (ctx->europe) {
+    ctx->europe->gold = (int)nat->gold;
+  }
   if (inv && inv->profession_demand[0] > 0) {
     inv->profession_demand[0]--;
   }
@@ -629,6 +782,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * Thin tools-cargo stand-in (threshold lowered from >40 to >20). Pioneer/Hardy:
    * equip tools + ship hold +20 or nearest-colony +15. Wagon already loaded above;
    * if wagon load failed, fall back to ship/colony delivery.
+   * Master Carpenter dock hire skips tools equip (builder, not pioneer).
    */
   if (inv && inv->tools_short > 20) {
     int delivered = 0;
@@ -641,6 +795,9 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
       if (pax->tools < UNITS_EQUIP_TOOLS_STEP) {
         pax->tools = UNITS_EQUIP_TOOLS_STEP;
       }
+      delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
+    } else if (from_dock) {
+      /* Dock carpenter / expert: tools cargo only (no pioneer equip fiction). */
       delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
     }
     if (delivered > 0) {
@@ -720,8 +877,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /* E: foreign colonies MILITARY if at war; thin bind one idle Soldier/Dragoon.
-   * CONTACT scout rings (peace + own≥1): idle Scout → ring MD 2–4 around tribe.
-   * Deep fog rings / deep mid-mil scoring — PARKED. */
+   * CONTACT scout rings (peace + own≥1): idle Scout → ring MD 2–4 around tribe
+   * (fog-aware when map.seen exists). Deep mid-mil scoring — PARKED. */
   if (ctx->colonies && ctx->col1_ok && ctx->col1) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -1580,7 +1737,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /* Case 7 Europe hire / full wagon economy — OPEN deepen in 5d04 planning.
+  /* Case 7 Europe hire / wagon economy: treasury + dock expert tails in 5d04.
    * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
 
   if (is_ship) {
@@ -1683,7 +1840,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   /*
    * CONTACT scout rings (act-level): peaceful Scout with own≥1 keeps/gets
    * AI_MOVE toward ring tile (MD 2–4) around nearest beyond-adjacent tribe;
-   * upsert CONTACT; do not yank to COLONY. Deep fog rings PARKED.
+   * upsert CONTACT; do not yank to COLONY. Fog prefer via scout_contact_ring_target.
    */
   if (!at_war_land && is_scout &&
       ai_euro_colony_count(ctx->colonies, nation_id) >= 1) {
@@ -1759,7 +1916,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Thin tools delivery (case 7 economy stand-in): idle/arriving Pioneer or
    * Hardy on own colony tile with tools_short / stock<20 → +10 TOOLS.
    * Prefer LABOR/COLONY arrive; also covers idle-on-colony before join.
-   * Deeper case-7 / 5d04 tails remain OPEN.
+   * Dock expert hire / Artillery treasury gates live in 5d04 planning.
    */
   {
     const int is_pioneer =
@@ -1807,17 +1964,35 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
+  /*
+   * Land goto advance (thin 20e6 multi-step): one scored step; when goal is
+   * FOUND or MILITARY and moves_left remain after the first advance, allow a
+   * second step in the same act. Structural only — not full combat scoring.
+   */
   if (units_orders_follow_goto(u->orders)) {
-    int dx = 0;
-    int dy = 0;
-    if (ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+    const int multi =
+      (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY) ? 2 : 1;
+    for (int step = 0; step < multi; ++step) {
+      if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
+        break;
+      }
+      if (u->x == u->goto_x && u->y == u->goto_y) {
+        break;
+      }
+      int dx = 0;
+      int dy = 0;
+      if (!ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+        break;
+      }
       const int tx = u->x + dx;
       const int ty = u->y + dy;
       const int foe = units_id_at(ctx->units, tx, ty);
       if (foe >= 0) {
         ai_euro_try_attack(ctx, u, tx, ty);
-      } else {
-        units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
+        break;
+      }
+      if (!units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng)) {
+        break;
       }
     }
   } else {
