@@ -361,6 +361,51 @@
         "system": "ai",
         "confidence": "inferred",
         "label": "Per-nation unit/colony/cargo census tallies"
+      },
+      "78d8": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource stream buffer alloc / cursor / far-ptr load"
+      },
+      "79a8": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Compressed resource stream I/O + progress callback"
+      },
+      "1c0c": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Timer / tick word readers (custom + BIOS 046c)"
+      },
+      "1a0a": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "VGA page-flip / palette-cycle animation"
+      },
+      "157e": {
+        "system": "combat",
+        "confidence": "inferred",
+        "label": "Unit combat strength / engagement modifiers"
+      },
+      "5f7a": {
+        "system": "trade",
+        "confidence": "inferred",
+        "label": "Colony native-trade / cargo sell & buy"
+      },
+      "7962": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Resource file open / close handle helpers"
+      },
+      "6f30": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Splash / image load+blit via resource stream"
+      },
+      "3844": {
+        "system": "turn",
+        "confidence": "inferred",
+        "label": "Euro EOT treasure / ship-ready unit chrome"
       }
     },
     "mapedit": {
@@ -378,6 +423,36 @@
         "system": "mapdraw",
         "confidence": "known",
         "label": "Terrain class index"
+      },
+      "2388": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS CRT / runtime: INT21 I/O, env parse, strlen/strcpy family"
+      },
+      "1000": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "MAPEDIT main UI hub: menus, viewport, terrain chrome"
+      },
+      "133d": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Dialog / window layout and compositor"
+      },
+      "18ad": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Text / number blit and string-table helpers"
+      },
+      "16d7": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Text layout / flow-wrap compositor (~ color switches)"
+      },
+      "1f65": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "Mouse driver INT 33 show/hide / init / poll"
       }
     }
   },
@@ -982,6 +1057,18 @@
         "purpose": "Census units/colonies/cargo tallies for one nation",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_78d8_00c4": {
+        "system": "platform",
+        "purpose": "Load/reload resource far-ptrs from stream; fatal after 3 reloads",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79a8_004a": {
+        "system": "platform",
+        "purpose": "Wire compressed stream I/O (callbacks + heap buffer + consume loop)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
@@ -1062,6 +1149,18 @@
         "purpose": "Terrain class index",
         "confidence": "known",
         "links": "src/core/map.c"
+      },
+      "FUN_2388_0684": {
+        "system": "platform",
+        "purpose": "strlen (scan to NUL)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1f65_0086": {
+        "system": "platform",
+        "purpose": "Mouse INT 33 probe/init (presence flag)",
+        "confidence": "known",
+        "links": ""
       }
     }
   }

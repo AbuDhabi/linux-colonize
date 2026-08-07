@@ -75,19 +75,19 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `1acb` | 4 | ui | inferred | Mouse hit-rect / button edge tracking | [catalog](FUNCTION_CATALOG.md) |
 | `478c` | 4 | colony | inferred | Colonist (type 0x17) / ship unit spawn helpers | [catalog](FUNCTION_CATALOG.md) |
 | `4962` | 4 | ai | inferred | Per-nation unit/colony/cargo census tallies | [catalog](FUNCTION_CATALOG.md) |
-| `78d8` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `79a8` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `78d8` | 4 | platform | inferred | Resource stream buffer alloc / cursor / far-ptr load | [catalog](FUNCTION_CATALOG.md) |
+| `79a8` | 4 | platform | inferred | Compressed resource stream I/O + progress callback | [catalog](FUNCTION_CATALOG.md) |
 | `12fd` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `157e` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1a0a` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1c0c` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `157e` | 3 | combat | inferred | Unit combat strength / engagement modifiers | [catalog](FUNCTION_CATALOG.md) |
+| `1a0a` | 3 | ui | inferred | VGA page-flip / palette-cycle animation | [catalog](FUNCTION_CATALOG.md) |
+| `1c0c` | 3 | platform | known | Timer / tick word readers (custom + BIOS 046c) | [catalog](FUNCTION_CATALOG.md) |
 | `2059` | 3 | sound | known | Sound driver jump table | [catalog](FUNCTION_CATALOG.md) |
-| `3844` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `3844` | 3 | turn | inferred | Euro EOT treasure / ship-ready unit chrome | [catalog](FUNCTION_CATALOG.md) |
 | `4720` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `5f7a` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6f30` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `5f7a` | 3 | trade | inferred | Colony native-trade / cargo sell & buy | [catalog](FUNCTION_CATALOG.md) |
+| `6f30` | 3 | ui | inferred | Splash / image load+blit via resource stream | [catalog](FUNCTION_CATALOG.md) |
 | `74a4` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7962` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `7962` | 3 | platform | inferred | Resource file open / close handle helpers | [catalog](FUNCTION_CATALOG.md) |
 | `7a65` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `1000` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `12dd` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
@@ -179,13 +179,13 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 
 | Segment | Defs | System | Confidence | Cluster label | Catalog |
 |---------|-----:|--------|------------|---------------|---------|
-| `2388` | 98 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1000` | 61 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `133d` | 56 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `18ad` | 28 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `2388` | 98 | platform | known | DOS CRT / runtime: INT21 I/O, env parse, strlen/strcpy family | [catalog](FUNCTION_CATALOG.md) |
+| `1000` | 61 | ui | inferred | MAPEDIT main UI hub: menus, viewport, terrain chrome | [catalog](FUNCTION_CATALOG.md) |
+| `133d` | 56 | ui | inferred | Dialog / window layout and compositor | [catalog](FUNCTION_CATALOG.md) |
+| `18ad` | 28 | ui | inferred | Text / number blit and string-table helpers | [catalog](FUNCTION_CATALOG.md) |
 | `12ab` | 26 | mapdraw | known | Resources / rumours | [catalog](FUNCTION_CATALOG.md) |
-| `16d7` | 24 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1f65` | 23 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `16d7` | 24 | ui | inferred | Text layout / flow-wrap compositor (~ color switches) | [catalog](FUNCTION_CATALOG.md) |
+| `1f65` | 23 | platform | known | Mouse driver INT 33 show/hide / init / poll | [catalog](FUNCTION_CATALOG.md) |
 | `1a47` | 17 | mapdraw | known | Tile compositor entry and land/coast/transition/river/hill/forest masks | [catalog](FUNCTION_CATALOG.md) |
 | `2074` | 10 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `1b56` | 9 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |

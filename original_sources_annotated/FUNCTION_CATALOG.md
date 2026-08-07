@@ -309,13 +309,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1427_14f4` | 8847 | 33 | mapdraw | unknown | inferred |  |
 | `FUN_1427_155e` | 8880 | 13 | ai | unit_exhaust_mp (behind 281f_0934) | known | ai/unit_mp.c |
 
-### Segment `157e` (3 defs) — unknown
+### Segment `157e` (3 defs) — combat — Unit combat strength / engagement modifiers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_157e_0008` | 8893 | 21 | unknown | unknown | unknown |  |
-| `FUN_157e_004a` | 8914 | 54 | unknown | unknown | unknown |  |
-| `FUN_157e_015e` | 8968 | 88 | unknown | unknown | unknown |  |
+| `FUN_157e_0008` | 8893 | 21 | combat | unknown | inferred |  |
+| `FUN_157e_004a` | 8914 | 54 | combat | unknown | inferred |  |
+| `FUN_157e_015e` | 8968 | 88 | combat | unknown | inferred |  |
 
 ### Segment `15b3` (10 defs) — trade — Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e)
 
@@ -495,13 +495,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_19f6_00fa` | 14291 | 12 | ui | unknown | inferred |  |
 | `FUN_19f6_0138` | 14303 | 9 | ui | unknown | inferred |  |
 
-### Segment `1a0a` (3 defs) — unknown
+### Segment `1a0a` (3 defs) — ui — VGA page-flip / palette-cycle animation
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1a0a_0004` | 14312 | 30 | unknown | unknown | unknown |  |
-| `FUN_1a0a_007a` | 14342 | 83 | unknown | unknown | unknown |  |
-| `FUN_1a0a_01a6` | 14425 | 22 | unknown | unknown | unknown |  |
+| `FUN_1a0a_0004` | 14312 | 30 | ui | unknown | inferred |  |
+| `FUN_1a0a_007a` | 14342 | 83 | ui | unknown | inferred |  |
+| `FUN_1a0a_01a6` | 14425 | 22 | ui | unknown | inferred |  |
 
 ### Segment `1a29` (4 defs) — platform — DOS timer INT vector install / restore
 
@@ -732,13 +732,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1c06_000c` | 17326 | 27 | unknown | unknown | unknown |  |
 
-### Segment `1c0c` (3 defs) — unknown
+### Segment `1c0c` (3 defs) — platform — Timer / tick word readers (custom + BIOS 046c)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c0c_0006` | 17353 | 12 | unknown | unknown | unknown |  |
-| `FUN_1c0c_0012` | 17365 | 8 | unknown | unknown | unknown |  |
-| `FUN_1c0c_0022` | 17373 | 10 | unknown | unknown | unknown |  |
+| `FUN_1c0c_0006` | 17353 | 12 | platform | unknown | inferred |  |
+| `FUN_1c0c_0012` | 17365 | 8 | platform | unknown | inferred |  |
+| `FUN_1c0c_0022` | 17373 | 10 | platform | unknown | inferred |  |
 
 ### Segment `1c10` (1 defs) — unknown
 
@@ -2291,13 +2291,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_364b_1b76` | 58001 | 14 | colony | unknown | inferred |  |
 | `FUN_364b_1ba8` | 58015 | 253 | colony | Found colony: bump 539e, init colony record via DS:0x8542 | inferred |  |
 
-### Segment `3844` (3 defs) — unknown
+### Segment `3844` (3 defs) — turn — Euro EOT treasure / ship-ready unit chrome
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_3844_0004` | 58268 | 37 | unknown | unknown | unknown |  |
-| `FUN_3844_00f2` | 58305 | 125 | unknown | unknown | unknown |  |
-| `FUN_3844_0442` | 58430 | 265 | unknown | unknown | unknown |  |
+| `FUN_3844_0004` | 58268 | 37 | turn | unknown | inferred |  |
+| `FUN_3844_00f2` | 58305 | 125 | turn | unknown | inferred |  |
+| `FUN_3844_0442` | 58430 | 265 | turn | unknown | inferred |  |
 
 ### Segment `38fd` (81 defs) — trade — Nation Europe market / cargo trade (nation*0x13c via 0x84fc)
 
@@ -2680,13 +2680,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_5bfb_312e` | 98433 | 24 | ai | unknown | inferred |  |
 | `FUN_5bfb_3180` | 98457 | 352 | ai | unknown | inferred |  |
 
-### Segment `5f7a` (3 defs) — unknown
+### Segment `5f7a` (3 defs) — trade — Colony native-trade / cargo sell & buy
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5f7a_000e` | 98809 | 76 | unknown | unknown | unknown |  |
-| `FUN_5f7a_020e` | 98885 | 168 | unknown | unknown | unknown |  |
-| `FUN_5f7a_0662` | 99053 | 58 | unknown | unknown | unknown |  |
+| `FUN_5f7a_000e` | 98809 | 76 | trade | unknown | inferred |  |
+| `FUN_5f7a_020e` | 98885 | 168 | trade | unknown | inferred |  |
+| `FUN_5f7a_0662` | 99053 | 58 | trade | unknown | inferred |  |
 
 ### Segment `5fef` (11 defs) — combat — Unit/colony combat and Indian raid resolution
 
@@ -2892,13 +2892,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_6cb2_2322` | 111278 | 1252 | ui | unknown | inferred |  |
 | `FUN_6cb2_24b8` | 112530 | 2067 | ui | unknown | inferred |  |
 
-### Segment `6f30` (3 defs) — unknown
+### Segment `6f30` (3 defs) — ui — Splash / image load+blit via resource stream
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_6f30_0004` | 114597 | 12 | unknown | unknown | unknown |  |
-| `FUN_6f30_002e` | 114609 | 14 | unknown | unknown | unknown |  |
-| `FUN_6f30_0062` | 114623 | 147 | unknown | unknown | unknown |  |
+| `FUN_6f30_0004` | 114597 | 12 | ui | unknown | inferred |  |
+| `FUN_6f30_002e` | 114609 | 14 | ui | unknown | inferred |  |
+| `FUN_6f30_0062` | 114623 | 147 | ui | unknown | inferred |  |
 
 ### Segment `6f74` (58 defs) — ui — Text layout / flow-wrap dialog compositor (incl. FUN_6f74_1198)
 
@@ -3056,14 +3056,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_75c2_2d28` | 121954 | 14 | save | unknown | inferred |  |
 | `FUN_75c2_2d46` | 121968 | 369 | save | unknown | inferred |  |
 
-### Segment `78d8` (4 defs) — unknown
+### Segment `78d8` (4 defs) — platform — Resource stream buffer alloc / cursor / far-ptr load
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_78d8_0000` | 122337 | 17 | unknown | unknown | unknown |  |
-| `FUN_78d8_0022` | 122354 | 21 | unknown | unknown | unknown |  |
-| `FUN_78d8_0054` | 122375 | 38 | unknown | unknown | unknown |  |
-| `FUN_78d8_00c4` | 122413 | 63 | unknown | unknown | unknown |  |
+| `FUN_78d8_0000` | 122337 | 17 | platform | unknown | inferred |  |
+| `FUN_78d8_0022` | 122354 | 21 | platform | unknown | inferred |  |
+| `FUN_78d8_0054` | 122375 | 38 | platform | unknown | inferred |  |
+| `FUN_78d8_00c4` | 122413 | 63 | platform | Load/reload resource far-ptrs from stream; fatal after 3 reloads | inferred |  |
 
 ### Segment `78ef` (1 defs) — unknown
 
@@ -3089,13 +3089,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_7952_0000` | 122803 | 70 | unknown | unknown | unknown |  |
 
-### Segment `7962` (3 defs) — unknown
+### Segment `7962` (3 defs) — platform — Resource file open / close handle helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7962_0000` | 122873 | 97 | unknown | unknown | unknown |  |
-| `FUN_7962_020a` | 122970 | 11 | unknown | unknown | unknown |  |
-| `FUN_7962_021c` | 122981 | 39 | unknown | unknown | unknown |  |
+| `FUN_7962_0000` | 122873 | 97 | platform | unknown | inferred |  |
+| `FUN_7962_020a` | 122970 | 11 | platform | unknown | inferred |  |
+| `FUN_7962_021c` | 122981 | 39 | platform | unknown | inferred |  |
 
 ### Segment `798d` (1 defs) — unknown
 
@@ -3103,14 +3103,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_798d_0000` | 123020 | 112 | unknown | unknown | unknown |  |
 
-### Segment `79a8` (4 defs) — unknown
+### Segment `79a8` (4 defs) — platform — Compressed resource stream I/O + progress callback
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_79a8_000a` | 123132 | 8 | unknown | unknown | unknown |  |
-| `FUN_79a8_0014` | 123140 | 14 | unknown | unknown | unknown |  |
-| `FUN_79a8_002a` | 123154 | 15 | unknown | unknown | unknown |  |
-| `FUN_79a8_004a` | 123169 | 190 | unknown | unknown | unknown |  |
+| `FUN_79a8_000a` | 123132 | 8 | platform | unknown | inferred |  |
+| `FUN_79a8_0014` | 123140 | 14 | platform | unknown | inferred |  |
+| `FUN_79a8_002a` | 123154 | 15 | platform | unknown | inferred |  |
+| `FUN_79a8_004a` | 123169 | 190 | platform | Wire compressed stream I/O (callbacks + heap buffer + consume loop) | inferred |  |
 
 ### Segment `79db` (1 defs) — unknown
 
@@ -3233,71 +3233,71 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 557 functions in `mapedit.c` (cdecl/stdcall + unannotated stubs). Address space is **MAPEDIT-only** — do not equate offsets with the other EXE.
 
-### Segment `1000` (61 defs) — unknown
+### Segment `1000` (61 defs) — ui — MAPEDIT main UI hub: menus, viewport, terrain chrome
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1000_0002` | 81 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0004` | 89 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0006` | 97 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0008` | 105 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_000a` | 113 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_000c` | 121 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_000e` | 129 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0010` | 137 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0012` | 145 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0014` | 153 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0016` | 161 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0018` | 169 | 24 | unknown | unknown | unknown |  |
-| `FUN_1000_0060` | 193 | 29 | unknown | unknown | unknown |  |
-| `FUN_1000_00b6` | 222 | 48 | unknown | unknown | unknown |  |
-| `FUN_1000_0186` | 270 | 8 | unknown | unknown | unknown |  |
-| `FUN_1000_0196` | 278 | 88 | unknown | unknown | unknown |  |
-| `FUN_1000_056a` | 366 | 100 | unknown | unknown | unknown |  |
-| `FUN_1000_0750` | 466 | 17 | unknown | unknown | unknown |  |
-| `FUN_1000_077e` | 483 | 16 | unknown | unknown | unknown |  |
-| `FUN_1000_07a6` | 499 | 23 | unknown | unknown | unknown |  |
-| `FUN_1000_082c` | 522 | 9 | unknown | unknown | unknown |  |
-| `FUN_1000_0842` | 531 | 22 | unknown | unknown | unknown |  |
-| `FUN_1000_08e2` | 553 | 19 | unknown | unknown | unknown |  |
-| `FUN_1000_094e` | 572 | 128 | unknown | unknown | unknown |  |
-| `FUN_1000_0ce0` | 700 | 17 | unknown | unknown | unknown |  |
-| `FUN_1000_0d2a` | 717 | 18 | unknown | unknown | unknown |  |
-| `FUN_1000_0d9e` | 735 | 17 | unknown | unknown | unknown |  |
-| `FUN_1000_0e14` | 752 | 93 | unknown | unknown | unknown |  |
-| `FUN_1000_10cc` | 845 | 82 | unknown | unknown | unknown |  |
-| `FUN_1000_11ee` | 927 | 15 | unknown | unknown | unknown |  |
-| `FUN_1000_1226` | 942 | 64 | unknown | unknown | unknown |  |
-| `FUN_1000_1310` | 1006 | 25 | unknown | unknown | unknown |  |
-| `FUN_1000_1404` | 1031 | 28 | unknown | unknown | unknown |  |
-| `FUN_1000_145e` | 1059 | 43 | unknown | unknown | unknown |  |
-| `FUN_1000_1514` | 1102 | 30 | unknown | unknown | unknown |  |
-| `FUN_1000_157a` | 1132 | 11 | unknown | unknown | unknown |  |
-| `FUN_1000_1582` | 1143 | 24 | unknown | unknown | unknown |  |
-| `FUN_1000_15cc` | 1167 | 23 | unknown | unknown | unknown |  |
-| `FUN_1000_15fc` | 1190 | 30 | unknown | unknown | unknown |  |
-| `FUN_1000_1670` | 1220 | 75 | unknown | unknown | unknown |  |
-| `FUN_1000_17e0` | 1295 | 170 | unknown | unknown | unknown |  |
-| `FUN_1000_1b84` | 1465 | 25 | unknown | unknown | unknown |  |
-| `FUN_1000_1be0` | 1490 | 57 | unknown | unknown | unknown |  |
-| `FUN_1000_1d28` | 1547 | 35 | unknown | unknown | unknown |  |
-| `FUN_1000_1db6` | 1582 | 127 | unknown | unknown | unknown |  |
-| `FUN_1000_1f7e` | 1709 | 10 | unknown | unknown | unknown |  |
-| `FUN_1000_1f8e` | 1719 | 53 | unknown | unknown | unknown |  |
-| `FUN_1000_2082` | 1772 | 22 | unknown | unknown | unknown |  |
-| `FUN_1000_20e0` | 1794 | 32 | unknown | unknown | unknown |  |
-| `FUN_1000_2124` | 1826 | 100 | unknown | unknown | unknown |  |
-| `FUN_1000_229c` | 1926 | 14 | unknown | unknown | unknown |  |
-| `FUN_1000_22b0` | 1940 | 18 | unknown | unknown | unknown |  |
-| `FUN_1000_22e4` | 1958 | 29 | unknown | unknown | unknown |  |
-| `FUN_1000_2336` | 1987 | 104 | unknown | unknown | unknown |  |
-| `FUN_1000_247a` | 2091 | 49 | unknown | unknown | unknown |  |
-| `FUN_1000_2516` | 2140 | 142 | unknown | unknown | unknown |  |
-| `FUN_1000_27de` | 2282 | 10 | unknown | unknown | unknown |  |
-| `FUN_1000_27f6` | 2292 | 13 | unknown | unknown | unknown |  |
-| `FUN_1000_2828` | 2305 | 27 | unknown | unknown | unknown |  |
-| `FUN_1000_2872` | 2332 | 28 | unknown | unknown | unknown |  |
-| `FUN_1000_28d8` | 2360 | 60 | unknown | unknown | unknown |  |
+| `FUN_1000_0002` | 81 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0004` | 89 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0006` | 97 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0008` | 105 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_000a` | 113 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_000c` | 121 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_000e` | 129 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0010` | 137 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0012` | 145 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0014` | 153 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0016` | 161 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0018` | 169 | 24 | ui | unknown | inferred |  |
+| `FUN_1000_0060` | 193 | 29 | ui | unknown | inferred |  |
+| `FUN_1000_00b6` | 222 | 48 | ui | unknown | inferred |  |
+| `FUN_1000_0186` | 270 | 8 | ui | unknown | inferred |  |
+| `FUN_1000_0196` | 278 | 88 | ui | unknown | inferred |  |
+| `FUN_1000_056a` | 366 | 100 | ui | unknown | inferred |  |
+| `FUN_1000_0750` | 466 | 17 | ui | unknown | inferred |  |
+| `FUN_1000_077e` | 483 | 16 | ui | unknown | inferred |  |
+| `FUN_1000_07a6` | 499 | 23 | ui | unknown | inferred |  |
+| `FUN_1000_082c` | 522 | 9 | ui | unknown | inferred |  |
+| `FUN_1000_0842` | 531 | 22 | ui | unknown | inferred |  |
+| `FUN_1000_08e2` | 553 | 19 | ui | unknown | inferred |  |
+| `FUN_1000_094e` | 572 | 128 | ui | unknown | inferred |  |
+| `FUN_1000_0ce0` | 700 | 17 | ui | unknown | inferred |  |
+| `FUN_1000_0d2a` | 717 | 18 | ui | unknown | inferred |  |
+| `FUN_1000_0d9e` | 735 | 17 | ui | unknown | inferred |  |
+| `FUN_1000_0e14` | 752 | 93 | ui | unknown | inferred |  |
+| `FUN_1000_10cc` | 845 | 82 | ui | unknown | inferred |  |
+| `FUN_1000_11ee` | 927 | 15 | ui | unknown | inferred |  |
+| `FUN_1000_1226` | 942 | 64 | ui | unknown | inferred |  |
+| `FUN_1000_1310` | 1006 | 25 | ui | unknown | inferred |  |
+| `FUN_1000_1404` | 1031 | 28 | ui | unknown | inferred |  |
+| `FUN_1000_145e` | 1059 | 43 | ui | unknown | inferred |  |
+| `FUN_1000_1514` | 1102 | 30 | ui | unknown | inferred |  |
+| `FUN_1000_157a` | 1132 | 11 | ui | unknown | inferred |  |
+| `FUN_1000_1582` | 1143 | 24 | ui | unknown | inferred |  |
+| `FUN_1000_15cc` | 1167 | 23 | ui | unknown | inferred |  |
+| `FUN_1000_15fc` | 1190 | 30 | ui | unknown | inferred |  |
+| `FUN_1000_1670` | 1220 | 75 | ui | unknown | inferred |  |
+| `FUN_1000_17e0` | 1295 | 170 | ui | unknown | inferred |  |
+| `FUN_1000_1b84` | 1465 | 25 | ui | unknown | inferred |  |
+| `FUN_1000_1be0` | 1490 | 57 | ui | unknown | inferred |  |
+| `FUN_1000_1d28` | 1547 | 35 | ui | unknown | inferred |  |
+| `FUN_1000_1db6` | 1582 | 127 | ui | unknown | inferred |  |
+| `FUN_1000_1f7e` | 1709 | 10 | ui | unknown | inferred |  |
+| `FUN_1000_1f8e` | 1719 | 53 | ui | unknown | inferred |  |
+| `FUN_1000_2082` | 1772 | 22 | ui | unknown | inferred |  |
+| `FUN_1000_20e0` | 1794 | 32 | ui | unknown | inferred |  |
+| `FUN_1000_2124` | 1826 | 100 | ui | unknown | inferred |  |
+| `FUN_1000_229c` | 1926 | 14 | ui | unknown | inferred |  |
+| `FUN_1000_22b0` | 1940 | 18 | ui | unknown | inferred |  |
+| `FUN_1000_22e4` | 1958 | 29 | ui | unknown | inferred |  |
+| `FUN_1000_2336` | 1987 | 104 | ui | unknown | inferred |  |
+| `FUN_1000_247a` | 2091 | 49 | ui | unknown | inferred |  |
+| `FUN_1000_2516` | 2140 | 142 | ui | unknown | inferred |  |
+| `FUN_1000_27de` | 2282 | 10 | ui | unknown | inferred |  |
+| `FUN_1000_27f6` | 2292 | 13 | ui | unknown | inferred |  |
+| `FUN_1000_2828` | 2305 | 27 | ui | unknown | inferred |  |
+| `FUN_1000_2872` | 2332 | 28 | ui | unknown | inferred |  |
+| `FUN_1000_28d8` | 2360 | 60 | ui | unknown | inferred |  |
 
 ### Segment `1297` (4 defs) — unknown
 
@@ -3358,95 +3358,95 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1334_0036` | 3180 | 20 | unknown | unknown | unknown |  |
 | `FUN_1334_006c` | 3200 | 33 | unknown | unknown | unknown |  |
 
-### Segment `133d` (56 defs) — unknown
+### Segment `133d` (56 defs) — ui — Dialog / window layout and compositor
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_133d_000e` | 3233 | 20 | unknown | unknown | unknown |  |
-| `FUN_133d_0050` | 3253 | 32 | unknown | unknown | unknown |  |
-| `FUN_133d_00d0` | 3285 | 15 | unknown | unknown | unknown |  |
-| `FUN_133d_00fa` | 3300 | 15 | unknown | unknown | unknown |  |
-| `FUN_133d_0124` | 3315 | 100 | unknown | unknown | unknown |  |
-| `FUN_133d_034a` | 3415 | 31 | unknown | unknown | unknown |  |
-| `FUN_133d_03de` | 3446 | 9 | unknown | unknown | unknown |  |
-| `FUN_133d_03fa` | 3455 | 13 | unknown | unknown | unknown |  |
-| `FUN_133d_043a` | 3468 | 13 | unknown | unknown | unknown |  |
-| `FUN_133d_0454` | 3481 | 23 | unknown | unknown | unknown |  |
-| `FUN_133d_0494` | 3504 | 29 | unknown | unknown | unknown |  |
-| `FUN_133d_0504` | 3533 | 27 | unknown | unknown | unknown |  |
-| `FUN_133d_0546` | 3560 | 54 | unknown | unknown | unknown |  |
-| `FUN_133d_0650` | 3614 | 33 | unknown | unknown | unknown |  |
-| `FUN_133d_06de` | 3647 | 99 | unknown | unknown | unknown |  |
-| `FUN_133d_08a8` | 3746 | 36 | unknown | unknown | unknown |  |
-| `FUN_133d_0908` | 3782 | 17 | unknown | unknown | unknown |  |
-| `FUN_133d_0938` | 3799 | 16 | unknown | unknown | unknown |  |
-| `FUN_133d_0968` | 3815 | 25 | unknown | unknown | unknown |  |
-| `FUN_133d_0998` | 3840 | 17 | unknown | unknown | unknown |  |
-| `FUN_133d_09c8` | 3857 | 14 | unknown | unknown | unknown |  |
-| `FUN_133d_09f0` | 3871 | 13 | unknown | unknown | unknown |  |
-| `FUN_133d_0a0e` | 3884 | 101 | unknown | unknown | unknown |  |
-| `FUN_133d_0bf6` | 3985 | 21 | unknown | unknown | unknown |  |
-| `FUN_133d_0c30` | 4006 | 9 | unknown | unknown | unknown |  |
-| `FUN_133d_0c40` | 4015 | 76 | unknown | unknown | unknown |  |
-| `FUN_133d_0d52` | 4091 | 90 | unknown | unknown | unknown |  |
-| `FUN_133d_0f24` | 4181 | 16 | unknown | unknown | unknown |  |
-| `FUN_133d_0f4a` | 4197 | 106 | unknown | unknown | unknown |  |
-| `FUN_133d_1138` | 4303 | 20 | unknown | unknown | unknown |  |
-| `FUN_133d_117a` | 4323 | 9 | unknown | unknown | unknown |  |
-| `FUN_133d_11a6` | 4332 | 126 | unknown | unknown | unknown |  |
-| `FUN_133d_14d4` | 4458 | 266 | unknown | unknown | unknown |  |
-| `FUN_133d_1a4a` | 4724 | 18 | unknown | unknown | unknown |  |
-| `FUN_133d_1a86` | 4742 | 29 | unknown | unknown | unknown |  |
-| `FUN_133d_1af6` | 4771 | 29 | unknown | unknown | unknown |  |
-| `FUN_133d_1b8a` | 4800 | 92 | unknown | unknown | unknown |  |
-| `FUN_133d_1e22` | 4892 | 82 | unknown | unknown | unknown |  |
-| `FUN_133d_202c` | 4974 | 69 | unknown | unknown | unknown |  |
-| `FUN_133d_2286` | 5043 | 50 | unknown | unknown | unknown |  |
-| `FUN_133d_249c` | 5093 | 40 | unknown | unknown | unknown |  |
-| `FUN_133d_256c` | 5133 | 16 | unknown | unknown | unknown |  |
-| `FUN_133d_258e` | 5149 | 522 | unknown | unknown | unknown |  |
-| `FUN_133d_3092` | 5671 | 13 | unknown | unknown | unknown |  |
-| `FUN_133d_30aa` | 5684 | 92 | unknown | unknown | unknown |  |
-| `FUN_133d_32b2` | 5776 | 186 | unknown | unknown | unknown |  |
-| `FUN_133d_36d8` | 5962 | 18 | unknown | unknown | unknown |  |
-| `FUN_133d_3712` | 5980 | 17 | unknown | unknown | unknown |  |
-| `FUN_133d_373c` | 5997 | 11 | unknown | unknown | unknown |  |
-| `FUN_133d_376e` | 6008 | 12 | unknown | unknown | unknown |  |
-| `FUN_133d_3798` | 6020 | 12 | unknown | unknown | unknown |  |
-| `FUN_133d_37b0` | 6032 | 12 | unknown | unknown | unknown |  |
-| `FUN_133d_37da` | 6044 | 12 | unknown | unknown | unknown |  |
-| `FUN_133d_380a` | 6056 | 25 | unknown | unknown | unknown |  |
-| `FUN_133d_3856` | 6081 | 16 | unknown | unknown | unknown |  |
-| `FUN_133d_3898` | 6097 | 34 | unknown | unknown | unknown |  |
+| `FUN_133d_000e` | 3233 | 20 | ui | unknown | inferred |  |
+| `FUN_133d_0050` | 3253 | 32 | ui | unknown | inferred |  |
+| `FUN_133d_00d0` | 3285 | 15 | ui | unknown | inferred |  |
+| `FUN_133d_00fa` | 3300 | 15 | ui | unknown | inferred |  |
+| `FUN_133d_0124` | 3315 | 100 | ui | unknown | inferred |  |
+| `FUN_133d_034a` | 3415 | 31 | ui | unknown | inferred |  |
+| `FUN_133d_03de` | 3446 | 9 | ui | unknown | inferred |  |
+| `FUN_133d_03fa` | 3455 | 13 | ui | unknown | inferred |  |
+| `FUN_133d_043a` | 3468 | 13 | ui | unknown | inferred |  |
+| `FUN_133d_0454` | 3481 | 23 | ui | unknown | inferred |  |
+| `FUN_133d_0494` | 3504 | 29 | ui | unknown | inferred |  |
+| `FUN_133d_0504` | 3533 | 27 | ui | unknown | inferred |  |
+| `FUN_133d_0546` | 3560 | 54 | ui | unknown | inferred |  |
+| `FUN_133d_0650` | 3614 | 33 | ui | unknown | inferred |  |
+| `FUN_133d_06de` | 3647 | 99 | ui | unknown | inferred |  |
+| `FUN_133d_08a8` | 3746 | 36 | ui | unknown | inferred |  |
+| `FUN_133d_0908` | 3782 | 17 | ui | unknown | inferred |  |
+| `FUN_133d_0938` | 3799 | 16 | ui | unknown | inferred |  |
+| `FUN_133d_0968` | 3815 | 25 | ui | unknown | inferred |  |
+| `FUN_133d_0998` | 3840 | 17 | ui | unknown | inferred |  |
+| `FUN_133d_09c8` | 3857 | 14 | ui | unknown | inferred |  |
+| `FUN_133d_09f0` | 3871 | 13 | ui | unknown | inferred |  |
+| `FUN_133d_0a0e` | 3884 | 101 | ui | unknown | inferred |  |
+| `FUN_133d_0bf6` | 3985 | 21 | ui | unknown | inferred |  |
+| `FUN_133d_0c30` | 4006 | 9 | ui | unknown | inferred |  |
+| `FUN_133d_0c40` | 4015 | 76 | ui | unknown | inferred |  |
+| `FUN_133d_0d52` | 4091 | 90 | ui | unknown | inferred |  |
+| `FUN_133d_0f24` | 4181 | 16 | ui | unknown | inferred |  |
+| `FUN_133d_0f4a` | 4197 | 106 | ui | unknown | inferred |  |
+| `FUN_133d_1138` | 4303 | 20 | ui | unknown | inferred |  |
+| `FUN_133d_117a` | 4323 | 9 | ui | unknown | inferred |  |
+| `FUN_133d_11a6` | 4332 | 126 | ui | unknown | inferred |  |
+| `FUN_133d_14d4` | 4458 | 266 | ui | unknown | inferred |  |
+| `FUN_133d_1a4a` | 4724 | 18 | ui | unknown | inferred |  |
+| `FUN_133d_1a86` | 4742 | 29 | ui | unknown | inferred |  |
+| `FUN_133d_1af6` | 4771 | 29 | ui | unknown | inferred |  |
+| `FUN_133d_1b8a` | 4800 | 92 | ui | unknown | inferred |  |
+| `FUN_133d_1e22` | 4892 | 82 | ui | unknown | inferred |  |
+| `FUN_133d_202c` | 4974 | 69 | ui | unknown | inferred |  |
+| `FUN_133d_2286` | 5043 | 50 | ui | unknown | inferred |  |
+| `FUN_133d_249c` | 5093 | 40 | ui | unknown | inferred |  |
+| `FUN_133d_256c` | 5133 | 16 | ui | unknown | inferred |  |
+| `FUN_133d_258e` | 5149 | 522 | ui | unknown | inferred |  |
+| `FUN_133d_3092` | 5671 | 13 | ui | unknown | inferred |  |
+| `FUN_133d_30aa` | 5684 | 92 | ui | unknown | inferred |  |
+| `FUN_133d_32b2` | 5776 | 186 | ui | unknown | inferred |  |
+| `FUN_133d_36d8` | 5962 | 18 | ui | unknown | inferred |  |
+| `FUN_133d_3712` | 5980 | 17 | ui | unknown | inferred |  |
+| `FUN_133d_373c` | 5997 | 11 | ui | unknown | inferred |  |
+| `FUN_133d_376e` | 6008 | 12 | ui | unknown | inferred |  |
+| `FUN_133d_3798` | 6020 | 12 | ui | unknown | inferred |  |
+| `FUN_133d_37b0` | 6032 | 12 | ui | unknown | inferred |  |
+| `FUN_133d_37da` | 6044 | 12 | ui | unknown | inferred |  |
+| `FUN_133d_380a` | 6056 | 25 | ui | unknown | inferred |  |
+| `FUN_133d_3856` | 6081 | 16 | ui | unknown | inferred |  |
+| `FUN_133d_3898` | 6097 | 34 | ui | unknown | inferred |  |
 
-### Segment `16d7` (24 defs) — unknown
+### Segment `16d7` (24 defs) — ui — Text layout / flow-wrap compositor (~ color switches)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_16d7_0008` | 6131 | 15 | unknown | unknown | unknown |  |
-| `FUN_16d7_001e` | 6146 | 15 | unknown | unknown | unknown |  |
-| `FUN_16d7_0052` | 6161 | 25 | unknown | unknown | unknown |  |
-| `FUN_16d7_00b6` | 6186 | 22 | unknown | unknown | unknown |  |
-| `FUN_16d7_010c` | 6208 | 47 | unknown | unknown | unknown |  |
-| `FUN_16d7_0246` | 6255 | 45 | unknown | unknown | unknown |  |
-| `FUN_16d7_02fe` | 6300 | 41 | unknown | unknown | unknown |  |
-| `FUN_16d7_0446` | 6341 | 34 | unknown | unknown | unknown |  |
-| `FUN_16d7_048c` | 6375 | 44 | unknown | unknown | unknown |  |
-| `FUN_16d7_0522` | 6419 | 20 | unknown | unknown | unknown |  |
-| `FUN_16d7_055a` | 6439 | 17 | unknown | unknown | unknown |  |
-| `FUN_16d7_058a` | 6456 | 37 | unknown | unknown | unknown |  |
-| `FUN_16d7_05ce` | 6493 | 17 | unknown | unknown | unknown |  |
-| `FUN_16d7_05fe` | 6510 | 37 | unknown | unknown | unknown |  |
-| `FUN_16d7_0642` | 6547 | 79 | unknown | unknown | unknown |  |
-| `FUN_16d7_07de` | 6626 | 79 | unknown | unknown | unknown |  |
-| `FUN_16d7_0944` | 6705 | 51 | unknown | unknown | unknown |  |
-| `FUN_16d7_0a6c` | 6756 | 56 | unknown | unknown | unknown |  |
-| `FUN_16d7_0b82` | 6812 | 91 | unknown | unknown | unknown |  |
-| `FUN_16d7_0d9c` | 6903 | 294 | unknown | unknown | unknown |  |
-| `FUN_16d7_13b4` | 7197 | 43 | unknown | unknown | unknown |  |
-| `FUN_16d7_1452` | 7240 | 42 | unknown | unknown | unknown |  |
-| `FUN_16d7_14e6` | 7282 | 58 | unknown | unknown | unknown |  |
-| `FUN_16d7_15ac` | 7340 | 38 | unknown | unknown | unknown |  |
+| `FUN_16d7_0008` | 6131 | 15 | ui | unknown | inferred |  |
+| `FUN_16d7_001e` | 6146 | 15 | ui | unknown | inferred |  |
+| `FUN_16d7_0052` | 6161 | 25 | ui | unknown | inferred |  |
+| `FUN_16d7_00b6` | 6186 | 22 | ui | unknown | inferred |  |
+| `FUN_16d7_010c` | 6208 | 47 | ui | unknown | inferred |  |
+| `FUN_16d7_0246` | 6255 | 45 | ui | unknown | inferred |  |
+| `FUN_16d7_02fe` | 6300 | 41 | ui | unknown | inferred |  |
+| `FUN_16d7_0446` | 6341 | 34 | ui | unknown | inferred |  |
+| `FUN_16d7_048c` | 6375 | 44 | ui | unknown | inferred |  |
+| `FUN_16d7_0522` | 6419 | 20 | ui | unknown | inferred |  |
+| `FUN_16d7_055a` | 6439 | 17 | ui | unknown | inferred |  |
+| `FUN_16d7_058a` | 6456 | 37 | ui | unknown | inferred |  |
+| `FUN_16d7_05ce` | 6493 | 17 | ui | unknown | inferred |  |
+| `FUN_16d7_05fe` | 6510 | 37 | ui | unknown | inferred |  |
+| `FUN_16d7_0642` | 6547 | 79 | ui | unknown | inferred |  |
+| `FUN_16d7_07de` | 6626 | 79 | ui | unknown | inferred |  |
+| `FUN_16d7_0944` | 6705 | 51 | ui | unknown | inferred |  |
+| `FUN_16d7_0a6c` | 6756 | 56 | ui | unknown | inferred |  |
+| `FUN_16d7_0b82` | 6812 | 91 | ui | unknown | inferred |  |
+| `FUN_16d7_0d9c` | 6903 | 294 | ui | unknown | inferred |  |
+| `FUN_16d7_13b4` | 7197 | 43 | ui | unknown | inferred |  |
+| `FUN_16d7_1452` | 7240 | 42 | ui | unknown | inferred |  |
+| `FUN_16d7_14e6` | 7282 | 58 | ui | unknown | inferred |  |
+| `FUN_16d7_15ac` | 7340 | 38 | ui | unknown | inferred |  |
 
 ### Segment `1842` (8 defs) — unknown
 
@@ -3492,38 +3492,38 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_18a2_0068` | 7851 | 16 | unknown | unknown | unknown |  |
 | `FUN_18a2_00b0` | 7867 | 9 | unknown | unknown | unknown |  |
 
-### Segment `18ad` (28 defs) — unknown
+### Segment `18ad` (28 defs) — ui — Text / number blit and string-table helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_18ad_0032` | 7876 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_0042` | 7885 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_0052` | 7894 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_0062` | 7903 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_0072` | 7912 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_0082` | 7921 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_0092` | 7930 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_00a2` | 7939 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_00b2` | 7948 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_00c2` | 7957 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_00d2` | 7966 | 9 | unknown | unknown | unknown |  |
-| `FUN_18ad_00e2` | 7975 | 10 | unknown | unknown | unknown |  |
-| `FUN_18ad_00fc` | 7985 | 12 | unknown | unknown | unknown |  |
-| `FUN_18ad_012e` | 7997 | 12 | unknown | unknown | unknown |  |
-| `FUN_18ad_0156` | 8009 | 27 | unknown | unknown | unknown |  |
-| `FUN_18ad_01be` | 8036 | 13 | unknown | unknown | unknown |  |
-| `FUN_18ad_01e8` | 8049 | 10 | unknown | unknown | unknown |  |
-| `FUN_18ad_0216` | 8059 | 12 | unknown | unknown | unknown |  |
-| `FUN_18ad_0232` | 8071 | 12 | unknown | unknown | unknown |  |
-| `FUN_18ad_024e` | 8083 | 13 | unknown | unknown | unknown |  |
-| `FUN_18ad_0288` | 8096 | 14 | unknown | unknown | unknown |  |
-| `FUN_18ad_02c2` | 8110 | 16 | unknown | unknown | unknown |  |
-| `FUN_18ad_0318` | 8126 | 17 | unknown | unknown | unknown |  |
-| `FUN_18ad_035c` | 8143 | 12 | unknown | unknown | unknown |  |
-| `FUN_18ad_039a` | 8155 | 12 | unknown | unknown | unknown |  |
-| `FUN_18ad_03d2` | 8167 | 15 | unknown | unknown | unknown |  |
-| `FUN_18ad_0430` | 8182 | 17 | unknown | unknown | unknown |  |
-| `FUN_18ad_0478` | 8199 | 22 | unknown | unknown | unknown |  |
+| `FUN_18ad_0032` | 7876 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_0042` | 7885 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_0052` | 7894 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_0062` | 7903 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_0072` | 7912 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_0082` | 7921 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_0092` | 7930 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_00a2` | 7939 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_00b2` | 7948 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_00c2` | 7957 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_00d2` | 7966 | 9 | ui | unknown | inferred |  |
+| `FUN_18ad_00e2` | 7975 | 10 | ui | unknown | inferred |  |
+| `FUN_18ad_00fc` | 7985 | 12 | ui | unknown | inferred |  |
+| `FUN_18ad_012e` | 7997 | 12 | ui | unknown | inferred |  |
+| `FUN_18ad_0156` | 8009 | 27 | ui | unknown | inferred |  |
+| `FUN_18ad_01be` | 8036 | 13 | ui | unknown | inferred |  |
+| `FUN_18ad_01e8` | 8049 | 10 | ui | unknown | inferred |  |
+| `FUN_18ad_0216` | 8059 | 12 | ui | unknown | inferred |  |
+| `FUN_18ad_0232` | 8071 | 12 | ui | unknown | inferred |  |
+| `FUN_18ad_024e` | 8083 | 13 | ui | unknown | inferred |  |
+| `FUN_18ad_0288` | 8096 | 14 | ui | unknown | inferred |  |
+| `FUN_18ad_02c2` | 8110 | 16 | ui | unknown | inferred |  |
+| `FUN_18ad_0318` | 8126 | 17 | ui | unknown | inferred |  |
+| `FUN_18ad_035c` | 8143 | 12 | ui | unknown | inferred |  |
+| `FUN_18ad_039a` | 8155 | 12 | ui | unknown | inferred |  |
+| `FUN_18ad_03d2` | 8167 | 15 | ui | unknown | inferred |  |
+| `FUN_18ad_0430` | 8182 | 17 | ui | unknown | inferred |  |
+| `FUN_18ad_0478` | 8199 | 22 | ui | unknown | inferred |  |
 
 ### Segment `18f9` (2 defs) — unknown
 
@@ -3935,33 +3935,33 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1f45_010a` | 15120 | 34 | unknown | unknown | unknown |  |
 | `FUN_1f45_0174` | 15154 | 33 | unknown | unknown | unknown |  |
 
-### Segment `1f65` (23 defs) — unknown
+### Segment `1f65` (23 defs) — platform — Mouse driver INT 33 show/hide / init / poll
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1f65_0007` | 15187 | 36 | unknown | unknown | unknown |  |
-| `FUN_1f65_004e` | 15223 | 28 | unknown | unknown | unknown |  |
-| `FUN_1f65_0086` | 15251 | 91 | unknown | unknown | unknown |  |
-| `FUN_1f65_01f4` | 15342 | 12 | unknown | unknown | unknown |  |
-| `FUN_1f65_0222` | 15354 | 28 | unknown | unknown | unknown |  |
-| `FUN_1f65_02c3` | 15382 | 11 | unknown | unknown | unknown |  |
-| `FUN_1f65_038a` | 15393 | 35 | unknown | unknown | unknown |  |
-| `FUN_1f65_03f8` | 15428 | 82 | unknown | unknown | unknown |  |
-| `FUN_1f65_045d` | 15510 | 58 | unknown | unknown | unknown |  |
-| `FUN_1f65_04bf` | 15568 | 14 | unknown | unknown | unknown |  |
-| `FUN_1f65_04d1` | 15582 | 22 | unknown | unknown | unknown |  |
-| `FUN_1f65_0500` | 15604 | 31 | unknown | unknown | unknown |  |
-| `FUN_1f65_055c` | 15635 | 19 | unknown | unknown | unknown |  |
-| `FUN_1f65_057c` | 15654 | 36 | unknown | unknown | unknown |  |
-| `FUN_1f65_05bf` | 15690 | 15 | unknown | unknown | unknown |  |
-| `FUN_1f65_05d7` | 15705 | 15 | unknown | unknown | unknown |  |
-| `FUN_1f65_064a` | 15720 | 13 | unknown | unknown | unknown |  |
-| `FUN_1f65_066f` | 15733 | 47 | unknown | unknown | unknown |  |
-| `FUN_1f65_075e` | 15780 | 14 | unknown | unknown | unknown |  |
-| `FUN_1f65_0777` | 15794 | 18 | unknown | unknown | unknown |  |
-| `FUN_1f65_07a8` | 15812 | 15 | unknown | unknown | unknown |  |
-| `FUN_1f65_07cd` | 15827 | 22 | unknown | unknown | unknown |  |
-| `FUN_1f65_0903` | 15849 | 13 | unknown | unknown | unknown |  |
+| `FUN_1f65_0007` | 15187 | 36 | platform | unknown | inferred |  |
+| `FUN_1f65_004e` | 15223 | 28 | platform | unknown | inferred |  |
+| `FUN_1f65_0086` | 15251 | 91 | platform | Mouse INT 33 probe/init (presence flag) | known |  |
+| `FUN_1f65_01f4` | 15342 | 12 | platform | unknown | inferred |  |
+| `FUN_1f65_0222` | 15354 | 28 | platform | unknown | inferred |  |
+| `FUN_1f65_02c3` | 15382 | 11 | platform | unknown | inferred |  |
+| `FUN_1f65_038a` | 15393 | 35 | platform | unknown | inferred |  |
+| `FUN_1f65_03f8` | 15428 | 82 | platform | unknown | inferred |  |
+| `FUN_1f65_045d` | 15510 | 58 | platform | unknown | inferred |  |
+| `FUN_1f65_04bf` | 15568 | 14 | platform | unknown | inferred |  |
+| `FUN_1f65_04d1` | 15582 | 22 | platform | unknown | inferred |  |
+| `FUN_1f65_0500` | 15604 | 31 | platform | unknown | inferred |  |
+| `FUN_1f65_055c` | 15635 | 19 | platform | unknown | inferred |  |
+| `FUN_1f65_057c` | 15654 | 36 | platform | unknown | inferred |  |
+| `FUN_1f65_05bf` | 15690 | 15 | platform | unknown | inferred |  |
+| `FUN_1f65_05d7` | 15705 | 15 | platform | unknown | inferred |  |
+| `FUN_1f65_064a` | 15720 | 13 | platform | unknown | inferred |  |
+| `FUN_1f65_066f` | 15733 | 47 | platform | unknown | inferred |  |
+| `FUN_1f65_075e` | 15780 | 14 | platform | unknown | inferred |  |
+| `FUN_1f65_0777` | 15794 | 18 | platform | unknown | inferred |  |
+| `FUN_1f65_07a8` | 15812 | 15 | platform | unknown | inferred |  |
+| `FUN_1f65_07cd` | 15827 | 22 | platform | unknown | inferred |  |
+| `FUN_1f65_0903` | 15849 | 13 | platform | unknown | inferred |  |
 
 ### Segment `1ffe` (1 defs) — unknown
 
@@ -4262,106 +4262,106 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_2378_0004` | 18845 | 175 | unknown | unknown | unknown |  |
 
-### Segment `2388` (98 defs) — unknown
+### Segment `2388` (98 defs) — platform — DOS CRT / runtime: INT21 I/O, env parse, strlen/strcpy family
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2388_00f1` | 19020 | 109 | unknown | unknown | unknown |  |
-| `FUN_2388_0116` | 19129 | 94 | unknown | unknown | unknown |  |
-| `FUN_2388_01db` | 19223 | 22 | unknown | unknown | unknown |  |
-| `FUN_2388_025e` | 19245 | 20 | unknown | unknown | unknown |  |
-| `FUN_2388_028b` | 19265 | 25 | unknown | unknown | unknown |  |
-| `FUN_2388_029e` | 19290 | 28 | unknown | unknown | unknown |  |
-| `FUN_2388_02c2` | 19318 | 41 | unknown | unknown | unknown |  |
-| `FUN_2388_037c` | 19359 | 18 | unknown | unknown | unknown |  |
-| `FUN_2388_03a8` | 19377 | 9 | unknown | unknown | unknown |  |
-| `FUN_2388_03be` | 19386 | 72 | unknown | unknown | unknown |  |
-| `FUN_2388_04a2` | 19458 | 70 | unknown | unknown | unknown |  |
-| `FUN_2388_05a8` | 19528 | 14 | unknown | unknown | unknown |  |
-| `FUN_2388_05e6` | 19542 | 56 | unknown | unknown | unknown |  |
-| `FUN_2388_0626` | 19598 | 46 | unknown | unknown | unknown |  |
-| `FUN_2388_0658` | 19644 | 44 | unknown | unknown | unknown |  |
-| `FUN_2388_0684` | 19688 | 19 | unknown | unknown | unknown |  |
-| `FUN_2388_06a0` | 19707 | 46 | unknown | unknown | unknown |  |
-| `FUN_2388_06d6` | 19753 | 30 | unknown | unknown | unknown |  |
-| `FUN_2388_06fe` | 19783 | 77 | unknown | unknown | unknown |  |
-| `FUN_2388_073c` | 19860 | 61 | unknown | unknown | unknown |  |
-| `FUN_2388_0758` | 19921 | 9 | unknown | unknown | unknown |  |
-| `FUN_2388_0762` | 19930 | 22 | unknown | unknown | unknown |  |
-| `FUN_2388_078a` | 19952 | 65 | unknown | unknown | unknown |  |
-| `FUN_2388_07fe` | 20017 | 35 | unknown | unknown | unknown |  |
-| `FUN_2388_087e` | 20052 | 11 | unknown | unknown | unknown |  |
-| `FUN_2388_0898` | 20063 | 21 | unknown | unknown | unknown |  |
-| `FUN_2388_08dc` | 20084 | 21 | unknown | unknown | unknown |  |
-| `FUN_2388_0908` | 20105 | 28 | unknown | unknown | unknown |  |
-| `FUN_2388_0962` | 20133 | 30 | unknown | unknown | unknown |  |
-| `FUN_2388_09e8` | 20163 | 32 | unknown | unknown | unknown |  |
-| `FUN_2388_0a12` | 20195 | 43 | unknown | unknown | unknown |  |
-| `FUN_2388_0a6a` | 20238 | 17 | unknown | unknown | unknown |  |
-| `FUN_2388_0a88` | 20255 | 17 | unknown | unknown | unknown |  |
-| `FUN_2388_0aa6` | 20272 | 13 | unknown | unknown | unknown |  |
-| `FUN_2388_0ab4` | 20285 | 19 | unknown | unknown | unknown |  |
-| `FUN_2388_0abf` | 20304 | 19 | unknown | unknown | unknown |  |
-| `FUN_2388_0af2` | 20323 | 25 | unknown | unknown | unknown |  |
-| `FUN_2388_0af9` | 20348 | 25 | unknown | unknown | unknown |  |
-| `FUN_2388_0b22` | 20373 | 65 | unknown | unknown | unknown |  |
-| `FUN_2388_0bbc` | 20438 | 12 | unknown | unknown | unknown |  |
-| `FUN_2388_0bee` | 20450 | 56 | unknown | unknown | unknown |  |
-| `FUN_2388_0c4a` | 20506 | 51 | unknown | unknown | unknown |  |
-| `FUN_2388_0ca8` | 20557 | 35 | unknown | unknown | unknown |  |
-| `FUN_2388_0cd6` | 20592 | 34 | unknown | unknown | unknown |  |
-| `FUN_2388_0d1c` | 20626 | 49 | unknown | unknown | unknown |  |
-| `FUN_2388_0d58` | 20675 | 33 | unknown | unknown | unknown |  |
-| `FUN_2388_0d82` | 20708 | 34 | unknown | unknown | unknown |  |
-| `FUN_2388_0db0` | 20742 | 18 | unknown | unknown | unknown |  |
-| `FUN_2388_0dd4` | 20760 | 20 | unknown | unknown | unknown |  |
-| `FUN_2388_0dec` | 20780 | 50 | unknown | unknown | unknown |  |
-| `FUN_2388_0e22` | 20830 | 61 | unknown | unknown | unknown |  |
-| `FUN_2388_0e68` | 20891 | 48 | unknown | unknown | unknown |  |
-| `FUN_2388_0eb0` | 20939 | 96 | unknown | unknown | unknown |  |
-| `FUN_2388_0f7a` | 21035 | 15 | unknown | unknown | unknown |  |
-| `FUN_2388_0f9c` | 21050 | 9 | unknown | unknown | unknown |  |
-| `FUN_2388_0fa2` | 21059 | 33 | unknown | unknown | unknown |  |
-| `FUN_2388_0fc6` | 21092 | 259 | unknown | unknown | unknown |  |
-| `FUN_2388_1158` | 21351 | 82 | unknown | unknown | unknown |  |
-| `FUN_2388_11d6` | 21433 | 29 | unknown | unknown | unknown |  |
-| `FUN_2388_1201` | 21462 | 30 | unknown | unknown | unknown |  |
-| `FUN_2388_1238` | 21492 | 14 | unknown | unknown | unknown |  |
-| `FUN_2388_1240` | 21506 | 15 | unknown | unknown | unknown |  |
-| `FUN_2388_124d` | 21521 | 13 | unknown | unknown | unknown |  |
-| `FUN_2388_1260` | 21534 | 32 | unknown | unknown | unknown |  |
-| `FUN_2388_128e` | 21566 | 49 | unknown | unknown | unknown |  |
-| `FUN_2388_1324` | 21615 | 58 | unknown | unknown | unknown |  |
-| `FUN_2388_1408` | 21673 | 18 | unknown | unknown | unknown |  |
-| `FUN_2388_1434` | 21691 | 76 | unknown | unknown | unknown |  |
-| `FUN_2388_151c` | 21767 | 35 | unknown | unknown | unknown |  |
-| `FUN_2388_158f` | 21802 | 20 | unknown | unknown | unknown |  |
-| `FUN_2388_15ce` | 21822 | 32 | unknown | unknown | unknown |  |
-| `FUN_2388_164a` | 21854 | 30 | unknown | unknown | unknown |  |
-| `FUN_2388_16a6` | 21884 | 29 | unknown | unknown | unknown |  |
-| `FUN_2388_1b7e` | 21913 | 24 | unknown | unknown | unknown |  |
-| `FUN_2388_1bb2` | 21937 | 21 | unknown | unknown | unknown |  |
-| `FUN_2388_1bd2` | 21958 | 54 | unknown | unknown | unknown |  |
-| `FUN_2388_1c4c` | 22012 | 99 | unknown | unknown | unknown |  |
-| `FUN_2388_1d36` | 22111 | 95 | unknown | unknown | unknown |  |
-| `FUN_2388_1dea` | 22206 | 30 | unknown | unknown | unknown |  |
-| `FUN_2388_1e34` | 22236 | 9 | unknown | unknown | unknown |  |
-| `FUN_2388_1e42` | 22245 | 19 | unknown | unknown | unknown |  |
-| `FUN_2388_1e76` | 22264 | 34 | unknown | unknown | unknown |  |
-| `FUN_2388_1eca` | 22298 | 16 | unknown | unknown | unknown |  |
-| `FUN_2388_1ef6` | 22314 | 80 | unknown | unknown | unknown |  |
-| `FUN_2388_206c` | 22394 | 48 | unknown | unknown | unknown |  |
-| `FUN_2388_212c` | 22442 | 37 | unknown | unknown | unknown |  |
-| `FUN_2388_2158` | 22479 | 70 | unknown | unknown | unknown |  |
-| `FUN_2388_21b8` | 22549 | 22 | unknown | unknown | unknown |  |
-| `FUN_2388_21de` | 22571 | 26 | unknown | unknown | unknown |  |
-| `FUN_2388_2222` | 22597 | 136 | unknown | unknown | unknown |  |
-| `FUN_2388_23cd` | 22733 | 8 | unknown | unknown | unknown |  |
-| `FUN_2388_23de` | 22741 | 57 | unknown | unknown | unknown |  |
-| `FUN_2388_23fe` | 22798 | 18 | unknown | unknown | unknown |  |
-| `FUN_2388_241f` | 22816 | 22 | unknown | unknown | unknown |  |
-| `FUN_2388_2448` | 22838 | 65 | unknown | unknown | unknown |  |
-| `FUN_2388_24d4` | 22903 | 32 | unknown | unknown | unknown |  |
-| `FUN_2388_2525` | 22935 | 20 | unknown | unknown | unknown |  |
-| `FUN_2388_2546` | 22955 | 58 | unknown | unknown | unknown |  |
+| `FUN_2388_00f1` | 19020 | 109 | platform | unknown | inferred |  |
+| `FUN_2388_0116` | 19129 | 94 | platform | unknown | inferred |  |
+| `FUN_2388_01db` | 19223 | 22 | platform | unknown | inferred |  |
+| `FUN_2388_025e` | 19245 | 20 | platform | unknown | inferred |  |
+| `FUN_2388_028b` | 19265 | 25 | platform | unknown | inferred |  |
+| `FUN_2388_029e` | 19290 | 28 | platform | unknown | inferred |  |
+| `FUN_2388_02c2` | 19318 | 41 | platform | unknown | inferred |  |
+| `FUN_2388_037c` | 19359 | 18 | platform | unknown | inferred |  |
+| `FUN_2388_03a8` | 19377 | 9 | platform | unknown | inferred |  |
+| `FUN_2388_03be` | 19386 | 72 | platform | unknown | inferred |  |
+| `FUN_2388_04a2` | 19458 | 70 | platform | unknown | inferred |  |
+| `FUN_2388_05a8` | 19528 | 14 | platform | unknown | inferred |  |
+| `FUN_2388_05e6` | 19542 | 56 | platform | unknown | inferred |  |
+| `FUN_2388_0626` | 19598 | 46 | platform | unknown | inferred |  |
+| `FUN_2388_0658` | 19644 | 44 | platform | unknown | inferred |  |
+| `FUN_2388_0684` | 19688 | 19 | platform | strlen (scan to NUL) | known |  |
+| `FUN_2388_06a0` | 19707 | 46 | platform | unknown | inferred |  |
+| `FUN_2388_06d6` | 19753 | 30 | platform | unknown | inferred |  |
+| `FUN_2388_06fe` | 19783 | 77 | platform | unknown | inferred |  |
+| `FUN_2388_073c` | 19860 | 61 | platform | unknown | inferred |  |
+| `FUN_2388_0758` | 19921 | 9 | platform | unknown | inferred |  |
+| `FUN_2388_0762` | 19930 | 22 | platform | unknown | inferred |  |
+| `FUN_2388_078a` | 19952 | 65 | platform | unknown | inferred |  |
+| `FUN_2388_07fe` | 20017 | 35 | platform | unknown | inferred |  |
+| `FUN_2388_087e` | 20052 | 11 | platform | unknown | inferred |  |
+| `FUN_2388_0898` | 20063 | 21 | platform | unknown | inferred |  |
+| `FUN_2388_08dc` | 20084 | 21 | platform | unknown | inferred |  |
+| `FUN_2388_0908` | 20105 | 28 | platform | unknown | inferred |  |
+| `FUN_2388_0962` | 20133 | 30 | platform | unknown | inferred |  |
+| `FUN_2388_09e8` | 20163 | 32 | platform | unknown | inferred |  |
+| `FUN_2388_0a12` | 20195 | 43 | platform | unknown | inferred |  |
+| `FUN_2388_0a6a` | 20238 | 17 | platform | unknown | inferred |  |
+| `FUN_2388_0a88` | 20255 | 17 | platform | unknown | inferred |  |
+| `FUN_2388_0aa6` | 20272 | 13 | platform | unknown | inferred |  |
+| `FUN_2388_0ab4` | 20285 | 19 | platform | unknown | inferred |  |
+| `FUN_2388_0abf` | 20304 | 19 | platform | unknown | inferred |  |
+| `FUN_2388_0af2` | 20323 | 25 | platform | unknown | inferred |  |
+| `FUN_2388_0af9` | 20348 | 25 | platform | unknown | inferred |  |
+| `FUN_2388_0b22` | 20373 | 65 | platform | unknown | inferred |  |
+| `FUN_2388_0bbc` | 20438 | 12 | platform | unknown | inferred |  |
+| `FUN_2388_0bee` | 20450 | 56 | platform | unknown | inferred |  |
+| `FUN_2388_0c4a` | 20506 | 51 | platform | unknown | inferred |  |
+| `FUN_2388_0ca8` | 20557 | 35 | platform | unknown | inferred |  |
+| `FUN_2388_0cd6` | 20592 | 34 | platform | unknown | inferred |  |
+| `FUN_2388_0d1c` | 20626 | 49 | platform | unknown | inferred |  |
+| `FUN_2388_0d58` | 20675 | 33 | platform | unknown | inferred |  |
+| `FUN_2388_0d82` | 20708 | 34 | platform | unknown | inferred |  |
+| `FUN_2388_0db0` | 20742 | 18 | platform | unknown | inferred |  |
+| `FUN_2388_0dd4` | 20760 | 20 | platform | unknown | inferred |  |
+| `FUN_2388_0dec` | 20780 | 50 | platform | unknown | inferred |  |
+| `FUN_2388_0e22` | 20830 | 61 | platform | unknown | inferred |  |
+| `FUN_2388_0e68` | 20891 | 48 | platform | unknown | inferred |  |
+| `FUN_2388_0eb0` | 20939 | 96 | platform | unknown | inferred |  |
+| `FUN_2388_0f7a` | 21035 | 15 | platform | unknown | inferred |  |
+| `FUN_2388_0f9c` | 21050 | 9 | platform | unknown | inferred |  |
+| `FUN_2388_0fa2` | 21059 | 33 | platform | unknown | inferred |  |
+| `FUN_2388_0fc6` | 21092 | 259 | platform | unknown | inferred |  |
+| `FUN_2388_1158` | 21351 | 82 | platform | unknown | inferred |  |
+| `FUN_2388_11d6` | 21433 | 29 | platform | unknown | inferred |  |
+| `FUN_2388_1201` | 21462 | 30 | platform | unknown | inferred |  |
+| `FUN_2388_1238` | 21492 | 14 | platform | unknown | inferred |  |
+| `FUN_2388_1240` | 21506 | 15 | platform | unknown | inferred |  |
+| `FUN_2388_124d` | 21521 | 13 | platform | unknown | inferred |  |
+| `FUN_2388_1260` | 21534 | 32 | platform | unknown | inferred |  |
+| `FUN_2388_128e` | 21566 | 49 | platform | unknown | inferred |  |
+| `FUN_2388_1324` | 21615 | 58 | platform | unknown | inferred |  |
+| `FUN_2388_1408` | 21673 | 18 | platform | unknown | inferred |  |
+| `FUN_2388_1434` | 21691 | 76 | platform | unknown | inferred |  |
+| `FUN_2388_151c` | 21767 | 35 | platform | unknown | inferred |  |
+| `FUN_2388_158f` | 21802 | 20 | platform | unknown | inferred |  |
+| `FUN_2388_15ce` | 21822 | 32 | platform | unknown | inferred |  |
+| `FUN_2388_164a` | 21854 | 30 | platform | unknown | inferred |  |
+| `FUN_2388_16a6` | 21884 | 29 | platform | unknown | inferred |  |
+| `FUN_2388_1b7e` | 21913 | 24 | platform | unknown | inferred |  |
+| `FUN_2388_1bb2` | 21937 | 21 | platform | unknown | inferred |  |
+| `FUN_2388_1bd2` | 21958 | 54 | platform | unknown | inferred |  |
+| `FUN_2388_1c4c` | 22012 | 99 | platform | unknown | inferred |  |
+| `FUN_2388_1d36` | 22111 | 95 | platform | unknown | inferred |  |
+| `FUN_2388_1dea` | 22206 | 30 | platform | unknown | inferred |  |
+| `FUN_2388_1e34` | 22236 | 9 | platform | unknown | inferred |  |
+| `FUN_2388_1e42` | 22245 | 19 | platform | unknown | inferred |  |
+| `FUN_2388_1e76` | 22264 | 34 | platform | unknown | inferred |  |
+| `FUN_2388_1eca` | 22298 | 16 | platform | unknown | inferred |  |
+| `FUN_2388_1ef6` | 22314 | 80 | platform | unknown | inferred |  |
+| `FUN_2388_206c` | 22394 | 48 | platform | unknown | inferred |  |
+| `FUN_2388_212c` | 22442 | 37 | platform | unknown | inferred |  |
+| `FUN_2388_2158` | 22479 | 70 | platform | unknown | inferred |  |
+| `FUN_2388_21b8` | 22549 | 22 | platform | unknown | inferred |  |
+| `FUN_2388_21de` | 22571 | 26 | platform | unknown | inferred |  |
+| `FUN_2388_2222` | 22597 | 136 | platform | unknown | inferred |  |
+| `FUN_2388_23cd` | 22733 | 8 | platform | unknown | inferred |  |
+| `FUN_2388_23de` | 22741 | 57 | platform | unknown | inferred |  |
+| `FUN_2388_23fe` | 22798 | 18 | platform | unknown | inferred |  |
+| `FUN_2388_241f` | 22816 | 22 | platform | unknown | inferred |  |
+| `FUN_2388_2448` | 22838 | 65 | platform | unknown | inferred |  |
+| `FUN_2388_24d4` | 22903 | 32 | platform | unknown | inferred |  |
+| `FUN_2388_2525` | 22935 | 20 | platform | unknown | inferred |  |
+| `FUN_2388_2546` | 22955 | 58 | platform | unknown | inferred |  |
 
