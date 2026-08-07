@@ -241,6 +241,56 @@
         "system": "trade",
         "confidence": "inferred",
         "label": "Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e)"
+      },
+      "1262": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Input wait / mouse hit-test / tip overlays"
+      },
+      "49dd": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Unit cargo / profession status panels"
+      },
+      "7314": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Config/name file line parse (comma fields)"
+      },
+      "1097": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Multi-item dialog spacing / number layout"
+      },
+      "4cc6": {
+        "system": "ai",
+        "confidence": "inferred",
+        "label": "Indian tribe relations / nearest-village / contact score"
+      },
+      "6662": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Goto pathfinding BFS + path-cost overlay"
+      },
+      "6afa": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Map viewport clamp / tile blit helpers"
+      },
+      "7455": {
+        "system": "mapgen",
+        "confidence": "inferred",
+        "label": "Map plane buffer alloc (pitch 0x853a → terrain/L2/L3)"
+      },
+      "1101": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "16-row glyph/bitmap blit helpers"
+      },
+      "5952": {
+        "system": "colony",
+        "confidence": "inferred",
+        "label": "Colony production / buildings / stock tick (DS:0x8542)"
       }
     },
     "mapedit": {
@@ -814,6 +864,30 @@
         "purpose": "Spiral-place ship on HS near landfall goto (Euro AI)",
         "confidence": "inferred",
         "links": "src/core/ai.c"
+      },
+      "FUN_7455_0058": {
+        "system": "mapgen",
+        "purpose": "Allocate terrain/layer2/layer3 map planes from pitch×height",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5952_035e": {
+        "system": "colony",
+        "purpose": "Colony production/buildings/stock tick on current colony (DS:0x8542)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4cc6_07c2": {
+        "system": "ai",
+        "purpose": "Indian contact/alarm distance score (cur_tribe + indian_state + difficulty)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6662_00f2": {
+        "system": "ui",
+        "purpose": "Goto BFS over terr_cost with path-cost overlay and Z/Esc confirm",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
