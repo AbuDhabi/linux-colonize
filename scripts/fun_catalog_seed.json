@@ -11981,6 +11981,972 @@
         "purpose": "Far thunk \u2192 FUN_1ae3_0006 (zero-fill stack from watermark up to SP)",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_291f_0120": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_37fc (Tip/help dialog variant (DS:0x2008 mode) via 32a4+2580)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0152": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_05f6 (Clear hidden bit on every item under every menu)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_015e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_0582 (Clear disabled bit on every item under every menu)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_018e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6ba1_000c (Compute viewport origin/size/tile-px from zoom+camera; clamp rim)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0262": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_3704 (Set/clear one bit in dialog checkbox mask (DS:0x1f54))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_026e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_36fc (Clear dialog checkbox bitmask (DS:0x1f54))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_027a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7b04_001e (Max of DOS free probe (0002) vs XMS UMB size (2100_000e))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0288": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6afa_0168 (LFSR-order present each viewport tile (dissolve refresh))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0296": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6afa_0132 (Blit full map viewport buffer to screen (240\u00d7192))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02a4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6ba1_1028 (Optional letterbox fill then viewport tile blit (0d6c))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02b2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_479b_0bd0 (Goto-colony order body (path, dock, unload/load))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02c0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_647e_090a (Colonist-slot picker dialog for current colony)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02dc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_647e_0796 (Colony list picker dialog; returns selected idx)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_02f8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_647e_01c6 (Paginated colony-select dialog for unit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0306": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6f74_372e (Test one bit in dialog checkbox mask (DS:0x1f54))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_032e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7562_030a (Manual Save slot picker (slots 0-7) then write)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0348": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_43f7_1528 (REF arrival announce; set 0x5382 bit1 (force present))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0356": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_43f7_1a26 (Declare independence: crown setup, wipe other Euros, REF pools, war flag)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0364": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_43f7_0218 (Crown-nation bootstrap: fold status\u22600 Euro into peer; set DS:0x53d2)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_045c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_051a (Set/clear menu disabled flag (bit0 at menu+0xc))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0468": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1b5e_0000 (Update soft mouse cursor hotspot/shape from 17\u00d717 mask (1c36 + 1b8f blit))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0472": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_0d94 (Modal menu loop: mouse/kbd navigate titles+items, select cmd into bar root)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_047e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_13ac (Hit-test mouse on menu titles; open matching pulldown via 0d94)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_048a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_14de (Find enabled item matching hotkey across menus; return command id)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0496": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4b58_144a (Open pulldown by menu-title hotkey match, then run 0d94)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_04ba": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_479b_0972 (Unit goto/move order tick; may enter colony)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_04d4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2b66 (Draw vertical multifunction tab buttons)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_04e0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_171c (Draw settlement building strip (15 slots))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_04ec": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_284c (Draw right multifunction pane by mode DS:0x337)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0504": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0722 (Draw one warehouse cargo-type amount label)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0510": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_05b0 (Tiny far stub into colony chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_051c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2f26 (Arm native-trade session pointers (0xbb8/9cce/9cd0))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0534": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0ba8 (Draw colony area-view (5x5 map panel); trust ASM over corrupt C tail)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0540": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_4284 (Select colonist; enter assign/profession mode (8d54=6))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_054c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2f3e (Assign colonist to workplace/job (XREF-clear; decomp messy))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0558": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_1cce (Draw Production multifunction cargo/shortfall strip)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0564": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_11b2 (Draw outside/fence unit strip)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_057c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2054 (Measure text extent for colony UI button/label)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05a0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_42be (Enter colony drag/select mode (8d54=7))",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05ac": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_289e (Warehouse cargo-strip X pos / selection marker)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05b8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2484 (layout rect for transport hold slot N)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05c4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_17d0 (draw people band; colonists + SoL/Tory meters)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05d0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_6372 (colony keyboard dispatcher N/M/B/L/U/\u2026)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05dc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2c3c (draw multifunction mode-selector chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05e8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0434 (init settlement building-slot layout maps)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_05f4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_42f2 (clear drag/select chrome @0x344)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0600": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_3fa6 (area-tile click: select or assign colonist)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_060c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_24b2 (draw transport / ship-hold pane)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0618": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_011e (colony build/order gate; prereq/error codes)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0630": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0842 (draw area-view tile tooltip terrain/feature)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0648": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2c92 (full colony-screen redraw; all panel thunks)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0654": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_28d6 (draw warehouse cargo strip; 16 types + Exit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0660": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_208c (draw framed invertible button/label)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_066c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_14d4 (draw one settlement building; icon + badge)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0678": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_5e44 (construction BUY remaining project; gold+tools)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0684": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2d0e (post-drag chrome refresh)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0690": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_5a68 (construction CHANGE menu row; name/cost)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_069c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2d1c (toggle numbers DS:0x334; refresh active pane)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_06b4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_5746 (docked-unit orders popup; sentry/fortify/\u2026)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_06c0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_13c2 (resolve building-type badge amount + sprite outs)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_06cc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_40a0 (colony click region hit-test; panel codes)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_06d8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_1e46 (draw Units multifunction pane; docked grid)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_06e4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_12cc (draw colonists assigned to one workplace)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_06f0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0332 (reorder colonist slot tables after sort)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0708": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_21da (draw Construction BUY / CHANGE buttons)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0714": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_548e (people-band click; select, drag, or confirm)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0720": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_4fec (transfer cargo between unit holds)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_072c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_5bd2 (construction CHANGE project picker popup)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0738": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2d90 (force numbers-on + full pane refresh)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0744": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_628a (colony mouse/click dispatcher by panel region)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0750": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_348c (field-jobs / Leave-as profession popup)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_075c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2262 (refresh Construction CHANGE button highlight)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0768": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_4424 (warehouse capacity / cargo-limits popup)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0774": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_05b6 (colony wood-panel blit/setup)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_078c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2e2a (alternate numbers-on full refresh path)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0798": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_22b6 (draw Construction hammer progress bars)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_07bc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_05ee (draw building/project name label at slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_07c8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_51ec (people-band confirm / Leave-as entry)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_07ec": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0a3e (blit colony chrome rect via 281f_0444)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_07f8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_4b62 (load cargo warehouse\u2192hold; amount dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0804": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0a74 (draw area-view surrounding map unit icons)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_081c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2ec6 (open 3-button message dialog wrapper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0828": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2b2c (unit-chrome sprite rect helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0834": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_16f2 (draw settlement empty/placeholder sprite if table flag)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0840": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_0fce (draw colony top-bar name + date/nation string)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0858": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_55da (transport hold-slot click / drag handler)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0864": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_2f2b_2eea (cargo-type confirm dialog wrapper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0870": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1d05_0000 (insertion-sort parallel byte keys + byte payload arrays)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08a4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6ba1_10ae (temp DS:0x18a radius mode; refresh via 1028; clear)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_08f8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1b78_0000 (update soft mouse cursor hotspot/shape from 16\u00d716 sprite)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0902": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_6cb2_1ba8 (build Colonizopedia colony-building article)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_097a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_0114 (complete construction; apply upgrades/flags; reset hammers)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0988": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_033a (area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0996": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_1b76 (gate: colony warehouse/trade slot usable for nation)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09a4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_1b1a (bind colony; place unit into colonist slot)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09b2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_1ba8 (found colony: bump 539e; init colony record via DS:0x8542)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09c0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_0636 (customs-house auto-sell gate for cargo type)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09ce": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_03f6 (coastal fort fire: spawn attacks vs enemy ships on adjacent ocean)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_09dc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_364b_0000 (colony message/confirm dialog; may set mode 337)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b0a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1cf4 (exit Europe drag/sound mode)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b34": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_584a (recruit-passage / immigration pressure score)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b42": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1fa2 (buy cargo dialog / execute buy flow)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b50": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_19d8 (Europe text blit wrapper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b5e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0f5e (cargo-slot rect constants)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b7a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_5be8 (king tax-raise proposal dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b88": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_2a92 (sell/scrap harbor ship dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0b96": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_19f8 (Europe string-table text blit by index)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0bb2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_4b50 (purchase ship/artillery dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0bc0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1456 (refresh Bound + Expected ship panels)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0bdc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1a0c (short Europe dialog open/close wrapper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0bea": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_07c6 (recount harbor ships; clamp selection)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c22": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1a30 (buy/sell confirm dialog text: cargo \u00d7 price)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c30": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_146c (dock immigrant layout / scaling helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c5a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1aba (hit-test Europe regions to panel/mode code)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c68": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0d48 (market cargo cell layout / scaling helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c76": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_081c (init harbor unit count + Europe selection state)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0c84": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_5930 (Europe EOT FF cargo gift / grant)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ca0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_4f6e (Europe keyboard/hotkey input dispatcher)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0cae": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_2edc (loading-panel ship click / selection handler)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0cbc": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0058 (market dynamics: adjust euro_price[] / pressure from colony ledgers)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0cca": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_41ce (Train expert dialog; job list + gold)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ce6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0836 (Europe window frame setup)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d10": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_086c (Load Europe screen art / PIK bring-up)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d1e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_2bfe (Harbor ship context menu; sail/sell/unload)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d2c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_4884 (Recruit dialog; 3 pool slots + passage)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d3a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_08a4 (Draw market cargo name/price caption)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d56": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_14e2 (Blit one dock immigrant unit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d72": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1b9e (Enter Europe UI mode 10)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0d9c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_127c (Draw Bound For New World ship panel)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0daa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_3694 (Dock immigrant info / embark bark dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0db8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1bd2 (Drag-start bark dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0dd4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_18fc (Full Europe-screen redraw)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0de2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_15aa (Draw docks immigrant panel)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0df0": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_0e16 (Blit one market cargo cell + highlight)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0dfe": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1956 (Europe overlay teardown)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e0c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_06c4 (Resolve Nth harbor ship index)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e28": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_3746 (Dock immigrant action mega-dialog; board/orders)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e36": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_285c (Transfer cargo between ship holds)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e44": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1960 (Toggle/refresh highlighted panel by mode)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e60": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_4e8e (Europe mouse/drag input dispatcher)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e6e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1f66 (Clear top market strip; init row Y)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e7c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1382 (Draw Expected Soon ship panel)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e8a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1f7e (Advance market row Y cursor)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0e98": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_30aa (Hold-slot click: load/unload cargo)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0eb4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_38fd_1f8e (Blit market strip panel)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0eda": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f3f_0006 (CRC/LFSR step; shift+XOR poly on LSB)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ee8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_008a (Report footer/title strip blit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0ef6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1438 (Economic Adviser header chrome; REPORT5)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f04": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1b94 (Colony Adviser header chrome; REPORT6)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f12": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_20b4 (Unit disposition report header; column labels)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f20": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1bec (Colony Adviser F6; pop/build/garrison rows)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f2e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1550 (Economic Adviser colony cargo-stock rows)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f3c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_0d3e (Labor Adviser detail; profession colony placements)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f4a": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_0000 (Report plate bring-up; art+palette into 2da8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f58": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_3f41_1e80 (Naval/military-in-colony report header chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f66": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4345_0982 (Compute next liberty-bell threshold)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f82": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_49dd_02d0 (Resolve tile tip string; orders/colony/terrain)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0f9c": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_41f2_0b70 (Score\u2192difficulty gold rebate + treasure dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0faa": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_41f2_000e (Present nation-score report title dialog)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0fc4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7314_015e (Extract next comma field; advance cursor)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_291f_0fec": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_4345_0342 (Apply elected founding-father effects)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
