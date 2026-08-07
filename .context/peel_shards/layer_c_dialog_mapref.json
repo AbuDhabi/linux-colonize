@@ -1,0 +1,80 @@
+{
+  "layer": "C",
+  "chunk": "1hop_6f74_2580_6b7e_0004",
+  "entries": ["FUN_6f74_2580", "FUN_6b7e_0004"],
+  "functions": {
+    "FUN_1d1d_113c": {
+      "system": "platform",
+      "purpose": "strlen — count chars until NUL",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_032c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6afa_00c8 (blit map-buffer tile rect to screen)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0344": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6b22_04bc (blit fog-visible on-map units in rect)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e38": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6a9f_0360 (redraw clamped minimap sub-rect)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0888": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6b22_00ea (tribe overlay for map viewport)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0896": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6b22_0248 (colony overlay for map viewport)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_291f_0fb8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7314_0000 (close config/name file handle)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0364": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7ab9_0000 (image/resource load attempt)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_038a": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_7ab9_00be (handle image-load status)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_08f8": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6afa_023c (present/flip tile-count map region)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0914": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6afa_0052 (clip rect into viewport; rewrite w/h)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_2a1f_0968": {
+      "system": "mapgen",
+      "purpose": "Far thunk → FUN_6ba1_0d6c (viewport tile-compose loop)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "12/12 exclusive 1-hop of FUN_6f74_2580 (modal dialog input) + FUN_6b7e_0004 (map rect refresh). CRT: 1d1d_113c is strlen (scan to NUL). Map refresh pipeline via EMS+JMPF: 2a1f_0914→6afa_0052 clip → 2a1f_0968→6ba1_0d6c compose → 291f_0888/0896→6b22 tribe/colony overlays → 281f_032c→6afa_00c8 blit → 281f_0344→6b22_04bc units → 281f_0e38→6a9f_0360 minimap → optional 2a1f_08f8→6afa_023c present. Dialog: 291f_0fb8→7314_0000 close name-file at loop entry; 2a1f_0364/038a→7ab9 load/handle side-art when flag&8 clear; 1d1d_113c on edit-buffer backspace. Anchors: layer_b_map_viewport + layer_b_dialog_6f74 + 7314/7ab9 crumbs. Shard only; no seed/catalog edits."
+}

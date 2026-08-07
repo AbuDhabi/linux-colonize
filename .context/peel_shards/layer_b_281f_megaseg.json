@@ -1,0 +1,457 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_281f_thunks",
+  "functions": {
+    "FUN_281f_0000": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7421_025a (startup argv parse; set skip-XMS then init)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_000e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1000_0000 (init string-table arena; reset bump DS:0x2d52)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0018": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1000_002c (intern string into table arena; return index)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_002c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7b08_0118 (bump-alloc from arena remain; else fatal)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0092": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1009_0244 (arm timed overlay: flags+style+deadline)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_00c4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1bf5_0000 (tiled rect blit loop via repeated 1baa_0006)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0164": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_104b_00d2 (strcat dest ← \"x\")",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_018c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_104b_039a (draw string at xy with color 0 (alt font))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0196": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_104b_0010 (append N spaces onto dest)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_01c8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_104b_0430 (center string in width then draw via 039a)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_01d2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_104b_01be (itoa(long,base10) then strcat onto dest)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_020e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1097_02da (hit-test spaced-row item index under cursor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0240": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1097_0004 (compute multi-item row pitch/spacing+margin)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_025e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1101_0050 (opaque 16×16 glyph blit from sheet row)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0268": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1101_00b4 (transparent 16×16 glyph blit (dest==0))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0272": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1101_0126 (scaled opaque glyph blit (1<<zoom))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_027c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1101_000e (allocate glyph-blit scratch buffer)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0286": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1101_01dc (scaled transparent glyph blit)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0290": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1a4e_0008 (pitched buffer offset: pitch*y+base+x)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0366": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_124c_002a (swap two words through near pointers)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03a2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1262_0002 (read Shift-key state bits (BDA 40:17))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03b6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1262_0012 (clear tip-overlay rect + video flush)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03ca": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1262_00f6 (mouse hit-test cursor inside x,y,w,h)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_03d4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_7a05_014e (fatal video teardown then INT10 reset)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_04fc": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_12dd_0002 (clipped blit: tiled 1bf5 or solid 1b9e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0506": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_12dd_0064 (clipped blit: tiled 1bf5 or solid 1b9e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0510": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_12e9_008c (fill pitched dest rect row-by-row)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_052e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6f30_0062 (splash/image load+blit via resource stream)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_05d8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_2059_005f (sound driver unload/shutdown entry)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_05e2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_2047_011f (read abort-busy flag DS:0x26a2)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_05ec": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_75c2_2d28 (768-byte palette snapshot save/restore)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_06a0": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_137f_0194 (layer3_ptr map accessor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_06e6": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_137f_044a (enemy Euro fort/colony owner vs nation)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_06fa": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_137f_00c0 (true if (x,y) inside camera viewport)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0740": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_137f_012a (layer2_ptr map accessor)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_07c8": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_364b_1b4c (refresh colony warehouse-capacity slots)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_07ea": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_04d6 (reorder tile stack by type priority)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_081c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0f0e (continent_id at unit's tile)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0858": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0f64 (get profession low nibble (315b))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0862": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0f74 (set profession low nibble (315b))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0876": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0f8e (get profession high nibble (315b))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0880": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0362 (move unit on map: unlink then place)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_08b2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0fa0 (set profession high nibble (315b))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0952": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1427_0bce (if no tribe on tile, neighbor probe)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0a24": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15b3_0228 (nation name string ptr (no indep remap))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0a2e": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15b3_0274 (nation name-record base (rebel→player))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0a6a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_17fa (resource-vs-job bonus table for yield)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0ae2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_38ba (count eligible build-menu items)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0b00": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_0aec (job→building-chain start id (or −1))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0b0a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_0fea (classify profession change (0..3))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0b14": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_03d6 (count owned buildings along parent chain)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0b5a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_05cc (present nation treasury via 1009_01fc)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0b64": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_38e8 (Nth eligible build-menu item id)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0b8c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_3650 (build-menu eligibility for item)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0bfa": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_394c (refresh colony unit lists + production)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0c2c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_32a0 (find unit cargo slot index by type)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0c40": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_0242 (cargo catalog secondary word at id×8)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0ca4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_3054 (write unit cargo/passenger qty byte)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0cea": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_306a (write unit passenger/cargo type nibble)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0cf4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_142a (find nth colonist slot with given job)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0d26": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_0326 (set/clear building-present bit in colony)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0d62": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_15eb_1476 (reseed DOS LCG from colony tile XY)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0da4": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_03ca (nudge focus by dir8; scroll+chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0de0": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_046e (status line: verb string + timed overlay)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0dea": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_0490 (present/clear top status strip (7px))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0dfe": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_05b8 (unit status chrome (verb idx7))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e12": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1984_0636 (unit status chrome (verb idx6))",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e2a": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_6b22_03f6 (toggle/refresh selected-unit overlay blink)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e46": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_49dd_0156 (draw status-panel footer/help strip)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e52": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_4b58_093c (draw menu-bar strip + enabled titles)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e7c": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_19f6_00b0 (copy/localize string; path-join if flag)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0e86": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_19f6_00fa (format path via 00b0 then open file)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0ec2": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1a29_0209 (arm custom timer alarm reload/elapsed)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0ecc": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1a4e_001c (clip rect vs viewport; nonzero if visible)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_281f_0ee0": {
+      "system": "thunk",
+      "purpose": "Far thunk → FUN_1ae3_0006 (zero-fill stack from watermark up to SP)",
+      "confidence": "inferred",
+      "links": ""
+    }
+  },
+  "notes": "75 EMS far thunks (210d page-in + JMPF). By target segment: 1000×2, 1009×1, 104b×5, 1097×2, 1101×5, 124c×1, 1262×3, 12dd×2, 12e9×1, 137f×4, 1427×8, 15b3×2, 15eb×16, 1984×5, 19f6×2, 1a29×1, 1a4e×2, 1ae3×1, 1bf5×1, 2047×1, 2059×1, 364b×1, 49dd×1, 4b58×1, 6b22×1, 6f30×1, 7421×1, 75c2×1, 7a05×1, 7b08×1. 000e→1000:0000 (Ghidra caseD_21): init string-table arena + reset bump. Excluded mid-C siblings 032c/0344/0830/0e38/0e90/0e9a. Shard only — no seed/catalog edit."
+}
