@@ -303,11 +303,14 @@ leftover Soldier + Pioneer → Carpenter's Shop. Covered by `smoke_ai`.
 **T2 (fixture path):** seed-100 New Amsterdam / Quebec / Isabella via
 `ai_euro_early_turn` + `smoke_ai_turns` — not the generic planner.
 
+**Second-wave settle (partial):** full-dispatch unload/found while
+`colony_count < 6`, light H-bind founders→FOUND, founders prefer FOUND over
+LABOR. Smoke: `smoke_ai_euro_expand`. G continent stance still PARKED.
+
 Still open for generic T1 (non-fixture):
 
 1. Save-diff / hang-dump fidelity for first AI town vs original saves.
-2. Broader multi-colony / second-wave settle (not first-colony-only).
-3. Colony production already runs for all active colonies.
+2. Colony production already runs for all active colonies.
 
 ### R2 — Indian nation turn beyond quiet pulse (**partial structural**)
 
@@ -321,7 +324,8 @@ LCG burns stay inside the pulse; prelude uses isolated contact RNG.
 ### R3 — Contact and raids (**partial structural port**)
 
 **Linux:** [`ai_contact.c`](../src/core/ai_contact.c) — `5bfb` meet/auto-trade,
-`4528`/`5fef`-shaped raid arms with `@RAID*` loot kinds, `359c` Scout stub.
+`4528`/`5fef`-shaped raid arms with `@RAID*` loot kinds, `359c` Scout stub;
+high-friction raid → `ai_diplo_indian_relation_delta`; peaceful meet friction decay.
 Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
 Smoke: `smoke_ai_contact`.
@@ -333,7 +337,8 @@ teach/convert chrome.
 
 **Linux:** [`ai_diplo.c`](../src/core/ai_diplo.c) — peer-correct bilateral flags in
 `nation.unknown26[4+peer]` (timers in `[0..3]`); `treaty_timers` can
-`break_alliance`; `euro_balance` is `10ec`/`13b0`-shaped. Thin map:
+`break_alliance`; `euro_balance` is `10ec`/`13b0`-shaped; thin `153e` war sting
+(100 gold each on first declare). Thin map:
 [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
@@ -348,9 +353,10 @@ mirrors annotated `euro_nation_turn` phases (inventory → treaty timers →
 promote / 16-slot work queue in [`ai_goals.c`](../src/core/ai_goals.c). Seed-100
 keeps `ai_euro_early_turn` unless `AI_FULL_DISPATCH=1`.
 
-**PORT DEBT (PARKED bodies):** mid-game `5d04` hire matrix; `0a60` E–H deep;
-full land/combat `20e6`; `5b66` case 7 economy + combat tails. Odd deviations OK
-(Brave-peel style); not T3 / LCG goldens.
+**Second-wave:** unload/found + light H-bind while `colony_count < 6`
+(`smoke_ai_euro_expand`). **PORT DEBT:** mid-game `5d04` hire matrix; G continent
+stance; deep E military; full land/combat `20e6`; `5b66` case 7 economy tails.
+Odd deviations OK; not T3 / LCG goldens.
 
 ### R5 — Toward 1:1 (T2/T3)
 
@@ -363,14 +369,15 @@ full land/combat `20e6`; `5b66` case 7 economy + combat tails. Odd deviations OK
 
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
-`1eca` promote). WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 PARKED);
-REF-present `unknown46[1]`; crown units use non-human Euro nation_id. Thin map:
+`1eca` promote); thin `10f0` via `backup_force` foreign landing when REF empty.
+WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 PARKED); REF-present
+`unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
 `smoke_ai_king`.
 
 **PORT DEBT:** `38fd_5be8` boycott UI; player declare confirm; `160a` rename;
-`2244` merc hire; `1528` arrival chrome; deep `10f0` / `backup_force`; exact
-`0x5382` Col1 bit rename / T3.
+`2244` merc hire; `1528` arrival chrome; deep `10f0` economy; exact `0x5382`
+Col1 bit rename / T3.
 
 ---
 
@@ -422,9 +429,10 @@ stay overlaid until hang X).
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
-| `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + prelude mission clear |
-| `tests/smoke/test_ai_diplo.c` | Bilateral war/ally, timer break, Indian delta clamp |
-| `tests/smoke/test_ai_king.c` | SoL, tax→REF, declare WoI + pools, crown wave |
+| `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + raid hostility escalate |
+| `tests/smoke/test_ai_diplo.c` | Bilateral war/ally, war gold sting, timer break |
+| `tests/smoke/test_ai_king.c` | SoL, tax→REF, declare, crown wave, `10f0` intervene |
+| `tests/smoke/test_ai_euro_expand.c` | Second-wave settle on full dispatcher |
 
 Smoke:
 

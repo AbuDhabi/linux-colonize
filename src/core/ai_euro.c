@@ -335,23 +335,56 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* G/H continent stance / bind units→goals — PARKED mid-game. */
+  /* G continent stance (−0x6790) — PARKED mid-game. */
 
-  /* First colony: FOUND from ship via 06ae. */
-  if ((inv ? inv->colony_count : 0) == 0) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id) {
-        continue;
+  /* Ship FOUND via 06ae: first colony (high prio) or second-wave while < 6. */
+  {
+    const int colonies = inv ? inv->colony_count : 0;
+    if (colonies < 6) {
+      const int found_prio = (colonies == 0) ? (6 + urgency / 2) : 4;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != nation_id) {
+          continue;
+        }
+        if (!ai_euro_is_ship_type(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
+          continue;
+        }
+        int fx = 0;
+        int fy = 0;
+        if (ai_goals_pick_founding_tile(
+              ctx->map, ctx->colonies, nation_id, u->x, u->y, &fx, &fy)) {
+          ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, found_prio);
+        }
       }
-      if (!ai_euro_is_ship_type(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
-        continue;
-      }
-      int fx = 0;
-      int fy = 0;
-      if (ai_goals_pick_founding_tile(
-            ctx->map, ctx->colonies, nation_id, u->x, u->y, &fx, &fy)) {
-        ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 6 + urgency / 2);
+    }
+  }
+
+  /* H: light bind — idle land founders → primary FOUND (do not steal Soldiers). */
+  {
+    int fx = 0;
+    int fy = 0;
+    if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+          continue;
+        }
+        if (units_orders_follow_goto(u->orders)) {
+          continue; /* idle only */
+        }
+        const char* name = units_display_name(ctx->units, u);
+        if (!name || strstr(name, "Soldier")) {
+          continue;
+        }
+        if (!strstr(name, "Pioneer") && !strstr(name, "Hardy") &&
+            !strstr(name, "Free Colonist") && !strstr(name, "Colonist")) {
+          continue;
+        }
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy);
       }
     }
   }
@@ -606,7 +639,8 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
   if (!pax) {
     return;
   }
-  if (ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+  /* First colony + second-wave settle while under 6 colonies. */
+  if (ai_euro_colony_count(ctx->colonies, nation_id) < 6) {
     int fx2 = pax->x;
     int fy2 = pax->y;
     if (ai_goals_pick_founding_tile(
@@ -621,6 +655,7 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       return;
     }
   }
+  /* Else goto best expand FOUND / landfall dest already chosen above. */
   ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
 }
 
@@ -690,19 +725,58 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     return;
   }
 
-  /* Case 0x0b land: bind primary goal (priority-ordered table). */
+  /* Case 0x0b land: bind primary goal (role-aware scan). */
   int goal_x = u->goto_x;
   int goal_y = u->goto_y;
   int goal_code = -1;
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-    if (!g || g->code == AI_GOAL_EMPTY) {
-      continue;
+  {
+    const char* uname = units_display_name(ctx->units, u);
+    const int is_soldier = uname && strstr(uname, "Soldier");
+    const int is_founder =
+      uname && !is_soldier &&
+      (strstr(uname, "Pioneer") || strstr(uname, "Hardy") || strstr(uname, "Free Colonist") ||
+       strstr(uname, "Colonist"));
+
+    /* Soldiers: MILITARY/CONTACT first; founders: FOUND over LABOR/COLONY. */
+    if (is_soldier) {
+      for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+        const AiGoalSlot* g = ai_goals_primary(nation_id, i);
+        if (!g || g->code == AI_GOAL_EMPTY) {
+          continue;
+        }
+        if (g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT) {
+          goal_x = g->x;
+          goal_y = g->y;
+          goal_code = (int)g->code;
+          break;
+        }
+      }
+    } else if (is_founder) {
+      for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+        const AiGoalSlot* g = ai_goals_primary(nation_id, i);
+        if (!g || g->code == AI_GOAL_EMPTY) {
+          continue;
+        }
+        if (g->code == AI_GOAL_FOUND || g->code == AI_GOAL_MIL_EXPAND) {
+          goal_x = g->x;
+          goal_y = g->y;
+          goal_code = (int)g->code;
+          break;
+        }
+      }
     }
-    goal_x = g->x;
-    goal_y = g->y;
-    goal_code = (int)g->code;
-    break; /* highest prio is slot 0 after ordered upsert */
+    if (goal_code < 0) {
+      for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+        const AiGoalSlot* g = ai_goals_primary(nation_id, i);
+        if (!g || g->code == AI_GOAL_EMPTY) {
+          continue;
+        }
+        goal_x = g->x;
+        goal_y = g->y;
+        goal_code = (int)g->code;
+        break; /* highest prio is slot 0 after ordered upsert */
+      }
+    }
   }
 
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {

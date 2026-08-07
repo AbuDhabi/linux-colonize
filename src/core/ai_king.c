@@ -15,6 +15,7 @@
  *
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
+ * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
 
@@ -23,6 +24,54 @@
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
+}
+
+/* Crown-hostile Euro slot for 10f0 landings (not human, not crown). */
+static int ai_king_intervention_nation(int human_nation) {
+  const int crown = ai_king_crown_nation(human_nation);
+  for (int n = 0; n < 4; ++n) {
+    if (n != human_nation && n != crown) {
+      return n;
+    }
+  }
+  return crown;
+}
+
+static int ai_king_force_total(const uint16_t force[4]) {
+  if (!force) {
+    return 0;
+  }
+  return (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
+}
+
+/*
+ * Spawn one land unit near (hx,hy) for nation_id — shared by 06a6 / 10f0.
+ * Returns unit id or -1.
+ */
+static int ai_king_spawn_landing(ColonizeTurnContext* ctx, int nation_id, int hx, int hy,
+                                 const char* type_name, const char* alt_name) {
+  if (!ctx || !ctx->units || nation_id < 0) {
+    return -1;
+  }
+  int ty = units_find_type(ctx->units, type_name);
+  if (ty < 0 && alt_name) {
+    ty = units_find_type(ctx->units, alt_name);
+  }
+  if (ty < 0) {
+    return -1;
+  }
+  const int uid = units_spawn_allow_stack(ctx->units, ty, hx, hy + 1);
+  if (uid < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(ctx->units, uid);
+  if (u) {
+    u->nation_id = nation_id;
+    u->orders = UNITS_ORDER_AI_MOVE;
+    u->goto_x = hx;
+    u->goto_y = hy;
+  }
+  return uid;
 }
 
 static void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
@@ -140,7 +189,8 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
 
 /*
  * FUN_43f7_2564 gate (SoL≥50) + 1a26 declare body (auto; player confirm UI PARKED).
- * Seeds REF by difficulty; withdraws other Euros. backup_force / 10f0 PARKED.
+ * Seeds REF by difficulty; thin backup_force as 10f0 foreign-pool stand-in;
+ * withdraws other Euros.
  */
 static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -167,6 +217,11 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   ctx->col1->head.expeditionary_force[1] = (uint16_t)(4 + diff * 2);
   ctx->col1->head.expeditionary_force[2] = (uint16_t)(2 + diff);
   ctx->col1->head.expeditionary_force[3] = (uint16_t)(2 + diff);
+  /* backup_force: DOS 0x53e2… foreign-intervention pools — 10f0 stand-in. */
+  ctx->col1->head.backup_force[0] = (uint16_t)(2 + diff);
+  ctx->col1->head.backup_force[1] = (uint16_t)(1 + (diff > 0 ? 1 : 0));
+  ctx->col1->head.backup_force[2] = (uint16_t)(diff > 1 ? 1 : 0);
+  ctx->col1->head.backup_force[3] = 1;
   ai_king_set_ref_present(ctx->col1, 1);
   /* 0218-shaped: fold other Euro AI as withdrawn. */
   for (int n = 0; n < 4; ++n) {
@@ -175,7 +230,7 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     }
     ctx->col1->player[n].control = 2;
   }
-  /* 160a rename cinematic PARKED; 10f0 backup_force PARKED */
+  /* 160a rename cinematic PARKED */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "Independence! The REF approaches.");
   }
@@ -229,23 +284,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
       return;
     }
-    int ty = units_find_type(ctx->units, "Regular");
-    if (ty < 0) {
-      ty = units_find_type(ctx->units, "Soldier");
-    }
-    if (ty < 0) {
-      return;
-    }
-    const int uid = units_spawn_allow_stack(ctx->units, ty, hx, hy + 1);
-    if (uid >= 0) {
-      ColonizeUnit* u = units_get(ctx->units, uid);
-      if (u) {
-        u->nation_id = crown;
-        u->orders = UNITS_ORDER_AI_MOVE;
-        u->goto_x = hx;
-        u->goto_y = hy;
-      }
-    }
+    (void)ai_king_spawn_landing(ctx, crown, hx, hy, "Regular", "Soldier");
     return;
   }
 
@@ -325,8 +364,57 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 }
 
 /*
+ * FUN_43f7_10f0-shaped: foreign-intervention landing when REF empty and
+ * backup_force (DOS 0x53e2… stand-in) still has pools. Crown-hostile nation_id
+ * (non-human, non-crown). Deep merc hire / arrival chrome PARKED.
+ */
+static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
+    return;
+  }
+  if (!ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  uint16_t* backup = ctx->col1->head.backup_force;
+  if (ai_king_force_total(ctx->col1->head.expeditionary_force) > 0) {
+    return;
+  }
+  if (ai_king_force_total(backup) <= 0) {
+    return;
+  }
+  int hx = 0;
+  int hy = 0;
+  if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
+    return;
+  }
+  const int ally = ai_king_intervention_nation(ctx->human_nation);
+  static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
+  for (int k = 0; k < 4; ++k) {
+    if (backup[k] == 0) {
+      continue;
+    }
+    const char* alt = NULL;
+    if (k == 0) {
+      alt = "Soldier";
+    } else if (k == 1) {
+      alt = "Scout";
+    } else if (k == 2) {
+      /* Naval pool: land a Regular stand-in near port (MoW cargo chrome PARKED). */
+      if (ai_king_spawn_landing(ctx, ally, hx, hy, "Regular", "Soldier") >= 0) {
+        backup[k]--;
+      }
+      break;
+    }
+    if (ai_king_spawn_landing(ctx, ally, hx, hy, names[k], alt) >= 0) {
+      backup[k]--;
+    }
+    break; /* one landing per intervene beat */
+  }
+}
+
+/*
  * FUN_43f7_2022 war act + 1eca promote.
- * Move/combat/capture; Continental promote when SoL>50.
+ * Move/combat/capture; Continental promote when SoL>50; 10f0 intervene arm.
  */
 static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
@@ -335,6 +423,12 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ai_king_independence_declared(ctx->col1)) {
     return;
   }
+  /*
+   * Rebel arm first: 10f0 while human ports still exist (crown move/capture
+   * below may seize the landing pick). In addition to 06a6 in ref_wave.
+   */
+  ai_king_foreign_intervene(ctx);
+
   const int crown = ai_king_crown_nation(ctx->human_nation);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
@@ -401,7 +495,6 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       }
     }
   }
-  /* 10f0 foreign intervention PARKED */
 }
 
 void ai_king_nation_turn(ColonizeTurnContext* ctx) {
