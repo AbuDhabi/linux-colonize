@@ -3031,13 +3031,14 @@ static const AiSeed100BraveSnap k_emp_brave_t6[] = {
 };
 static const int k_emp_brave_t6_count = (int)(sizeof(k_emp_brave_t6) / sizeof(k_emp_brave_t6[0]));
 
-/* --- Quiet mid-turn residuals (spent-only; dump-free search exhausted) ---
+/* --- Quiet mid-turn residuals (spent-only; call-graph annotation parked) ---
  * Both rows: XY already matches pulse; Linux spent 6/9 vs golden 3.
  * Re-parse: dump_b465r3 Sioux ADD AL=9; dump_b465f3 force-max not entered;
  * dump_vrb465x2 Sioux spent=9 without XY ⇒ writer after ADD / after 465b.
- * Apache "AL≈3" is inference-only (same post-ADD writer can turn 6→3).
- * Map predicates (ocean-adj dest, capital dist≤1, presence shape) break T1
- * spent=9 or other cost=6/9 goldens. Hang VR_B465X remains last resort.
+ * Post-ADD chrome (0916→12f6, 0948→040c, …) does not write 0x3149; in-465b
+ * 0934 paths ruled out for lone Brave. No T1-safe port rule — keep overlays.
+ * Hang target: VR_B465X / dump_b465x3 (spent at 465b RETF?). See
+ * original_sources_annotated/ai/brave_spent_callgraph.md.
  */
 static const AiSeed100BraveSnap k_quiet_brave_t2[] = {
   {7, 45, 52, 46, 53, 3, 1}, /* Apache spent-only */
