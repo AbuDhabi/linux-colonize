@@ -1,4 +1,4 @@
-/* Smoke: King/REF SoL, tax→REF, declare, invasion wave. */
+/* Smoke: King/REF SoL, tax→REF, declare, invasion wave, 10f0 intervene. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -42,6 +42,7 @@ int main(void) {
   col1.head.difficulty = 0;
   memset(col1.head.unknown46, 0, sizeof(col1.head.unknown46));
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
   for (int i = 0; i < 4; ++i) {
     col1.player[i].control = 0;
     memset(&col1.nation[i], 0, sizeof(col1.nation[i]));
@@ -176,13 +177,44 @@ int main(void) {
   if (col1.head.unknown46[1] == 0) {
     return fail("wave should set REF-present unknown46[1]");
   }
+  /* Declare should seed thin backup_force (10f0 stand-in). */
+  if (col1.head.backup_force[0] == 0 && col1.head.backup_force[1] == 0 &&
+      col1.head.backup_force[2] == 0 && col1.head.backup_force[3] == 0) {
+    return fail("declare should seed backup_force for 10f0");
+  }
+
+  /*
+   * 10f0: REF empty + backup_force > 0 → foreign intervention landing
+   * (crown-hostile nation 2 when human=0 / crown=1). 06a6 may also fire.
+   */
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  /* Crown wave may have captured the port; restore human ownership for landing pick. */
+  colonies.colonies[0].nation_id = 0;
+  const uint16_t backup0 = col1.head.backup_force[0];
+  const int intervene_before = count_nation(&units, 2);
+  const int units_mid = count_active(&units);
+  ai_king_nation_turn(&ctx);
+  if (count_nation(&units, 2) <= intervene_before) {
+    return fail("10f0 should spawn intervention (nation 2) when REF empty");
+  }
+  if (count_active(&units) <= units_mid) {
+    return fail("intervention turn should increase unit count");
+  }
+  if (col1.head.backup_force[0] >= backup0 && backup0 > 0) {
+    return fail("10f0 should drain backup_force");
+  }
+  if (count_nation(&units, 0) != 0) {
+    return fail("intervention must not spawn as human nation");
+  }
 
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
+  const int intervene_final = count_nation(&units, 2);
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
   col1_save_free(&col1);
-  fprintf(stderr, "smoke_ai_king: ok (sol=%d tax=%u crown=%d)\n", sol, tax_final, crown_final);
+  fprintf(stderr, "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d)\n", sol,
+          tax_final, crown_final, intervene_final);
   return 0;
 }

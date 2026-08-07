@@ -1,4 +1,4 @@
-/* Smoke: bilateral 15b3 diplo bytes, break_alliance, timers, Indian delta. */
+/* Smoke: bilateral 15b3 diplo bytes, war gold sting, break_alliance, timers, Indian delta. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -22,7 +22,11 @@ int main(void) {
     col1.player[i].diplomacy = 0;
   }
 
-  /* Pair independence: war(0,1) must not force war(0,2). */
+  /* Pair independence: war(0,1) must not force war(0,2).
+   * Thin 153e sting: first declare drains 100 gold both sides (euro_diplo.md). */
+  col1.nation[0].gold = 250;
+  col1.nation[1].gold = 80;
+  col1.nation[2].gold = 500;
   ai_diplo_declare_war(&col1, 0, 1);
   if (!ai_diplo_at_war(&col1, 0, 1) || !ai_diplo_at_war(&col1, 1, 0)) {
     return fail("declare_war should be symmetric for pair 0-1");
@@ -32,6 +36,20 @@ int main(void) {
   }
   if (ai_diplo_read(&col1, 0, 1) & AI_DIPLO_PEACE) {
     return fail("at-war pair should not keep PEACE");
+  }
+  if (col1.nation[0].gold != 150) {
+    return fail("declare_war should drain 100 gold from nation 0");
+  }
+  if (col1.nation[1].gold != 0) {
+    return fail("declare_war gold sting should floor at 0");
+  }
+  if (col1.nation[2].gold != 500) {
+    return fail("war(0,1) must not drain gold of nation 2");
+  }
+  /* Re-declare: no second sting. */
+  ai_diplo_declare_war(&col1, 0, 1);
+  if (col1.nation[0].gold != 150) {
+    return fail("re-declare_war should not re-sting gold");
   }
 
   /* Ally then break → peace, not war. */

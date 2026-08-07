@@ -93,7 +93,7 @@ int main(void) {
   ctx.col1_ok = true;
   ctx.rng_seed = 42;
 
-  /* Meet: adjacent Euro → met_by_player + relation bump. */
+  /* Meet: adjacent Euro → met_by_player + relation bump; peaceful friction decay. */
   const uint8_t rel0 = col1.nation[0].relation_by_indian[0];
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!ind->met_by_player[0]) {
@@ -128,6 +128,7 @@ int main(void) {
   brave->moves_left = 3;
 
   const int food0 = c->stock[COLONIZE_CARGO_FOOD];
+  const uint8_t rel_pre_raid = col1.nation[0].relation_by_indian[0];
   ai_contact_indian_raids(&ctx, 4);
   const int kind = ai_contact_last_raid_kind();
   if (kind < AI_RAID_NOTHING || kind > AI_RAID_GOLD) {
@@ -153,6 +154,11 @@ int main(void) {
              ai_contact_last_raid_kind() != AI_RAID_BURN &&
              ai_contact_last_raid_kind() != AI_RAID_NOTHING) {
     return fail("expected colony stock/pop change for raid kind");
+  }
+  /* High-friction successful raid → Indian×Euro hostility via relation_delta. */
+  if (ai_contact_last_raid_kind() != AI_RAID_NOTHING &&
+      col1.nation[0].relation_by_indian[0] >= rel_pre_raid) {
+    return fail("high-friction raid should escalate Indian×Euro hostility");
   }
 
   /* Prelude mission clear on high alarm. */

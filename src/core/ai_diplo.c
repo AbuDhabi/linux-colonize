@@ -17,6 +17,28 @@
 
 #define AI_DIPLO_FLAG_BASE 4
 
+/* Thin FUN_5bfb_153e stand-in: flat treasury friction on war declare.
+ * Full 153e trade/military score body, dialogs, FA 3f41 PARKED. */
+#define AI_DIPLO_WAR_GOLD_STING 100u
+
+static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    if (nat->gold > AI_DIPLO_WAR_GOLD_STING) {
+      nat->gold -= AI_DIPLO_WAR_GOLD_STING;
+    } else {
+      nat->gold = 0;
+    }
+  }
+}
+
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
@@ -148,8 +170,13 @@ int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
 }
 
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  const int already = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
+  /* Thin 153e-shaped sting: drain nation[].gold both sides (relation via mirror). */
+  if (!already) {
+    ai_diplo_war_treasury_sting(col1, nation_a, nation_b);
+  }
 }
 
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -230,13 +257,12 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   /*
-   * FUN_5bfb_10ec / 13b0 checklist (not full 153e):
+   * FUN_5bfb_10ec / 13b0 checklist:
    *  1 skip human / at-war
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
    *  4 13b0 form/break
-   *  5 declare state only — dialogs / 12d0 PARKED
-   *  6 deep 153e trade/treasury war body PARKED
+   *  5 declare_war → thin 153e treasury sting (full body / dialogs / 12d0 PARKED)
    */
   const int self = ai_diplo_military_score(ctx, nation_id);
   for (int peer = 0; peer < 4; ++peer) {
@@ -262,7 +288,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     if (self > other * 2 + 20 && self > 30) {
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
         ai_diplo_declare_war(ctx->col1, nation_id, peer);
-        /* 153e / 12d0 / dialogs PARKED */
+        /* thin 153e sting inside declare_war; full body / 12d0 / dialogs PARKED */
       }
       continue;
     }

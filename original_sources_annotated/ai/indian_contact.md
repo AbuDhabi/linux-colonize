@@ -43,9 +43,14 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
 ## Meet / trade `5bfb_022e` checklist (Linux)
 
 1. Adjacent Euro land unit → set `met_by_player`, relation bump
-2. Optional mission assign if friction low (teach/convert **UI PARKED**)
-3. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
-4. Gift / demand dialogs **PARKED**
+2. Peaceful meet (alarm/friction < 40): slight tribe `alarm[].friction` decay (−1)
+3. Optional mission assign if friction low (teach/convert **UI PARKED**)
+4. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
+5. Gift / demand dialogs **PARKED**
+
+Raid hostility deepen (loot success + high friction → `ai_diplo_indian_relation_delta`):
+see [`indian_raid_outcomes.md`](indian_raid_outcomes.md). Full `2820`/`4528` + player
+meet/trade dialog UI remain **PARKED**.
 
 ## PORT DEBT
 

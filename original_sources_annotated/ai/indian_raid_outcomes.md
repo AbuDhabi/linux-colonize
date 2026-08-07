@@ -23,8 +23,10 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 3. **Colony approach** — Chebyshev walk toward colony ≤6
 4. **Loot outcome** — `@RAID*` kind picker (below); mutates stock / pop / gold
 5. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon)
-6. **Scout hostility** — alarm ≥90 + Scout name → despawn (`359c`-shaped stub)
-7. **PARKED** — full `2820` decision matrix, player haggle, dialog subst, ship harbor deep
+6. **Hostility tick** — successful loot (`kind != NOTHING`) + friction ≥55 →
+   `ai_diplo_indian_relation_delta` (−3, or −5 if ≥80). Deep 4528/2820 PARKED.
+7. **Scout hostility** — alarm ≥90 + Scout name → despawn (`359c`-shaped stub)
+8. **PARKED** — full `2820` decision matrix, player haggle, dialog subst, ship harbor deep
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)
 

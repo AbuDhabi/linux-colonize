@@ -163,13 +163,19 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
         if (ctx->col1->tribe) {
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
             ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-            if ((int)t->nation_id == nation_id && t->mission == 0xff &&
-                ai_contact_dist(t->x, t->y, brave->x, brave->y) <= 3) {
-              if (t->alarm[e].friction < 30) {
-                t->mission = (uint8_t)e; /* mission offer; convert UI PARKED */
-              }
-              break;
+            if ((int)t->nation_id != nation_id ||
+                ai_contact_dist(t->x, t->y, brave->x, brave->y) > 3) {
+              continue;
             }
+            /* Peaceful meet: slight friction decay on tribe alarm. */
+            if (ind->alarm_by_player[e] < 40 && t->alarm[e].friction > 0 &&
+                t->alarm[e].friction < 40) {
+              t->alarm[e].friction--;
+            }
+            if (t->mission == 0xff && t->alarm[e].friction < 30) {
+              t->mission = (uint8_t)e; /* mission offer; convert UI PARKED */
+            }
+            break;
           }
         }
       }
@@ -461,6 +467,14 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                   (uint8_t)(t->alarm[target_euro].friction + 2);
               }
             }
+          }
+          /*
+           * High-friction successful raid → escalate Indian×Euro hostility
+           * (4cc6_00f2 via ai_diplo). Full 4528/2820 dialog PARKED.
+           */
+          if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
+            const int host = (max_alarm >= 80) ? -5 : -3;
+            ai_diplo_indian_relation_delta(ctx->col1, nation_id, target_euro, host);
           }
         } else {
           int sdx = (c->x > brave->x) - (c->x < brave->x);

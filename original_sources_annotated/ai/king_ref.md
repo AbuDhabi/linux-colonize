@@ -26,7 +26,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once `1eca` promote; else intervene hire → `10f0` (**PARKED** deep) |
+| Rebel | once `1eca` promote; else intervene hire → `10f0` (partial structural) |
 
 ## Key symbols → Linux
 
@@ -38,6 +38,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
+| `10f0` | Foreign landing when REF empty + `backup_force` | `ai_king_foreign_intervene` (via `war_act`) |
 | `2022` / `1eca` | War act + promote | `ai_king_war_act` |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
@@ -48,7 +49,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0x5382` bit0 war | `head.unknown26` — **no**; use `head.unknown46[0]` WoI |
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
 | REF pools `0x53da…` | `head.expeditionary_force[4]` |
-| Foreign pools `0x53e2…` | `head.backup_force[4]` — **PARKED** (`10f0`) |
+| Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
 | Crown id `0x53d2` | Non-human Euro nation slot (0 or 1) |
 
 Exact `0x5382` Col1 bit rename PARKED.
@@ -56,13 +57,13 @@ Exact `0x5382` Col1 bit rename PARKED.
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
-2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`)
-3. If WoI: wave (`0982`/`06a6`) → war act (`2022`/`1eca`)
+2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force`)
+3. If WoI: wave (`0982`/`06a6`) → war act (`10f0` first if REF empty + backup, then `2022`/`1eca`)
 
 ## PORT DEBT
 
 - `38fd_5be8` tax audience / boycott UI
 - Player `2564` confirm dialog; `160a` rename cinematic
 - `1528` arrival announce; `2244` merc hire
-- Deep `10f0` foreign intervention / `backup_force`
+- Deep `10f0` foreign intervention / `backup_force` — **partial structural** (landing + drain; merc/chrome PARKED)
 - Multi-unit MoW cargo holds; seize-landing polish
