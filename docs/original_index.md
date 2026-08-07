@@ -6,6 +6,7 @@ the deep detail.
 
 | Topic | Deep dive |
 |-------|-----------|
+| **Decomp function catalog** (all `FUN_*`, light) | [`../original_sources_annotated/FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) · [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
@@ -25,13 +26,19 @@ MADSPACK layouts, or full bring-up checklists.
 ## How to use
 
 1. Identify the subsystem (map gen, colony screen, AI, sound, …).
-2. For **AI / map accessors**, check [`original_sources_annotated/`](../original_sources_annotated/)
-   first ([`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md)); fall back to the raw
-   export under [`original_sources_decompiled/`](../original_sources_decompiled/)
-   (usually `viceroy_unpacked.c` or `mapedit.c`) when the symbol is not annotated yet.
-3. Jump via a known `FUN_*` below, or search by segment prefix / string in `.asm`.
-4. Match the Linux module under `src/core/` and the data file under `COLONIZE/`.
-5. Follow the deep-dive link for formats and port status.
+2. Look up the `FUN_*` (or its segment) in the light catalog:
+   [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) →
+   [`FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md).
+3. If the symbol has a **deep** extract (AI today), prefer
+   [`original_sources_annotated/`](../original_sources_annotated/)
+   ([`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md)).
+4. Otherwise open the raw export under
+   [`original_sources_decompiled/`](../original_sources_decompiled/)
+   (`viceroy_unpacked.c` / `.asm` or `mapedit.c`).
+5. Match the Linux module under `src/core/` and the data file under `COLONIZE/`.
+6. Follow the deep-dive link for formats and port status.
+
+Regenerate the catalog after re-export: `python3 scripts/gen_fun_catalog.py`.
 
 ---
 
@@ -43,8 +50,9 @@ compiles these files.
 
 | Artifact | Source | Size (approx.) | When to use |
 |----------|--------|----------------|-------------|
-| [`original_sources_annotated/`](../original_sources_annotated/) | Labeled AI / accessor slices | growing | **Prefer** when the symbol is mapped in [`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md) |
-| [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | Raw export — full game logic, RTLink overlays, unannotated AI, map gen, UI |
+| [`FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) / [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) | Light labels for **all** `FUN_*` | ~2380 VICEROY + ~557 MAPEDIT | **First stop** for any unknown symbol / segment |
+| [`original_sources_annotated/`](../original_sources_annotated/) `ai/` + [`SYMBOL_MAP.md`](../original_sources_annotated/SYMBOL_MAP.md) | Deep AI / accessor slices | growing | Prefer when the symbol is deeply mapped |
+| [`viceroy_unpacked.c`](../original_sources_decompiled/viceroy_unpacked.c) / [`.asm`](../original_sources_decompiled/viceroy_unpacked.asm) | Unpacked `VICEROY.EXE` | ~125k / ~305k lines | Raw export — full game logic, RTLink overlays, map gen, UI |
 | [`mapedit.c`](../original_sources_decompiled/mapedit.c) | `MAPEDIT.EXE` | ~23k lines | Static world-map **feature art** (coasts, transitions, forest/hill/river masks) |
 | `COLONIZE/VICEROY.EXE` | Shipped binary | ~483 KB | Table extraction, file byte offsets (`scripts/extract_viceroy_tables.py`) |
 | `COLONIZE/MAPEDIT.EXE` | Shipped binary | — | Authority for static map compositor rules |
@@ -91,7 +99,10 @@ rg -n 'PICKMUSIC\|CUSTOMIZ\|SAVEGAME' original_sources_decompiled/viceroy_unpack
 Start with the **segment prefix** (`684c` = map-gen cluster), then the offset within
 that segment.
 
-### Segment-prefix cheat sheet (VICEROY unpacked)
+### Segment-prefix cheat sheet
+
+**Full table** (every segment with def counts): [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md).
+High-value known prefixes:
 
 | Prefix | Cluster (known use) |
 |--------|---------------------|
@@ -110,14 +121,9 @@ that segment.
 | `FUN_1427_*` | Tile display helpers |
 | `FUN_12d8_*` / `FUN_2059_*` / `FUN_129f_*` | Sound / BGM gating and drivers |
 | `FUN_43f7_*` | Nation / `@COUNTRY` colors |
-
-### MAPEDIT (separate EXE)
-
-| Prefix | Cluster |
-|--------|---------|
-| `FUN_1a47_*` | Tile compositor entry and land/coast/transition/river/hill/forest masks |
-| `FUN_12ab_*` | Resources / rumours |
-| `FUN_19b7_*` | Terrain class index |
+| `FUN_1a47_*` (MAPEDIT) | Tile compositor / coast / transitions |
+| `FUN_12ab_*` (MAPEDIT) | Resources / rumours |
+| `FUN_19b7_*` (MAPEDIT) | Terrain class index |
 
 Full bring-up narrative and fidelity notes → [decomp_inventory.md](decomp_inventory.md).
 
@@ -134,7 +140,7 @@ one exists.
 |---------|---------|--------------|
 | `FUN_2a1f_083e` | Dispatches into map-gen pipeline | [map_gen.c](../src/core/map_gen.c), [assets.md](assets.md) |
 | `FUN_684c_08c0` | NEW WORLD procedural map entry | `map_generate` / `MapGenParams` |
-| `FUN_684c_02a8` / `0116` / `085a` / `021c` | Land blobs / form thunks | map_gen |
+| `FUN_684c_02a8` / `0116` / `021c` | Land blobs / form thunks | map_gen |
 | `FUN_67bf_0000` | Continent flood-fill IDs | map_gen (IDs not written to layer2 in v1) |
 | `FUN_733a_0000` / `0270` / `0512` | CUSTOMIZE / difficulty-style UI | [new_game.c](../src/core/new_game.c) |
 | `FUN_281f_04d4` | Wrapped RNG (calls into libc) | `dos_rng` (`FUN_1d1d_0e04`) |
@@ -340,6 +346,7 @@ Layout and bridge → [savegame.md](savegame.md).
 |------|---------|
 | `COLONIZE/Colonization.pdf` | Official manual + tech supplement — feature gaps in [manual_gap.md](manual_gap.md) |
 | `scripts/extract_viceroy_tables.py` | Pull static tables from `VICEROY.EXE` → `src/data/viceroy_tables.c` ([viceroy_tables.md](viceroy_tables.md)) |
+| `scripts/gen_fun_catalog.py` | Regenerate light `FUN_*` catalog + module map ([FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md)) |
 | `data/soundfonts/` | FluidSynth bank for `GSOUND.COL` playback |
 | `test-assets*`, `test-saves*` | Minimal TXT/DB and save fixtures for smoke tests |
 | `src/platform/dos_compat/` | DOS typedef stubs for incremental extraction — not a full runtime |
@@ -351,6 +358,7 @@ Layout and bridge → [savegame.md](savegame.md).
 | Question | Start here |
 |----------|------------|
 | Should this value come from a data file or C? | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
+| Where is this `FUN_*`? | [FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md) / [MODULE_MAP.md](../original_sources_annotated/MODULE_MAP.md) |
 | How does NEW WORLD map gen work? | `FUN_684c_08c0` in `original_sources_decompiled/viceroy_unpacked.c` → `src/core/map_gen.c` |
 | Why does coast/forest art look wrong? | `original_sources_decompiled/mapedit.c` `FUN_1a47_*` → `src/core/map.c` + [assets.md](assets.md) |
 | What does this `.PIK` / `.SS` decode as? | [assets.md](assets.md) |

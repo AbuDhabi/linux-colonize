@@ -7,8 +7,9 @@ test-saves-col1/
 test-saves-slot-ui/
 test-assets/
 colonize-linux.log
-tools/brave_dump/
 ripped_sound/
 reference_music/
 dosbox-x-dumps/
 *.pyc
+tools/brave_dump/shots
+**/__pycache__/**
