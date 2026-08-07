@@ -1,4 +1,4 @@
-/* Smoke: King/REF SoL, tax→REF, boycott refuse, declare, invasion wave, 10f0 intervene. */
+/* Smoke: King/REF SoL, tax→REF, boycott, declare, 1528 announce, 10f0, 2244 merc. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -109,6 +109,8 @@ int main(void) {
   uint16_t year = 1536;
   uint16_t autumn = 0;
   uint32_t turn = 1;
+  char status[128];
+  status[0] = '\0';
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.human_nation = 0;
@@ -121,6 +123,8 @@ int main(void) {
   ctx.game_year = &year;
   ctx.game_autumn = &autumn;
   ctx.turn_number = &turn;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
 
   const int sol = ai_king_sol_percent(&ctx, 0);
   if (sol != 60) {
@@ -197,10 +201,13 @@ int main(void) {
   year = 1600;
   autumn = 1;
   col1.nation[0].liberty_bells_total = 200;
+  col1.nation[0].gold = 0; /* merc gated until dedicated 2244 check */
+  europe.gold = 0;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   col1.player[1].control = 0;
   col1.player[2].control = 0;
   col1.player[3].control = 0;
+  status[0] = '\0';
   const int units_before = count_active(&units);
 
   ai_king_nation_turn(&ctx);
@@ -221,6 +228,11 @@ int main(void) {
   if (count_nation(&units, 0) != 0) {
     return fail("REF/irregular must not spawn as human nation");
   }
+  /* Thin 1528: successful 0982 spawn writes arrival status (chrome PARKED). */
+  if (!strstr(status, "Expeditionary Force") && !strstr(status, "arrived")) {
+    fprintf(stderr, "smoke_ai_king: status after wave: '%s'\n", status);
+    return fail("0982 wave should set thin 1528 arrival status");
+  }
   /* Pools seeded on declare then drained; still expect REF-present stand-in. */
   if (col1.head.unknown46[1] == 0) {
     return fail("wave should set REF-present unknown46[1]");
@@ -229,6 +241,9 @@ int main(void) {
   if (col1.head.backup_force[0] == 0 && col1.head.backup_force[1] == 0 &&
       col1.head.backup_force[2] == 0 && col1.head.backup_force[3] == 0) {
     return fail("declare should seed backup_force for 10f0");
+  }
+  if (col1.head.unknown46[3] != 0) {
+    return fail("no gold → 2244 merc flag should stay clear");
   }
 
   /*
@@ -255,16 +270,57 @@ int main(void) {
     return fail("intervention must not spawn as human nation");
   }
 
+  /*
+   * Thin 2244 merc auto-accept (hire dialog PARKED):
+   * gold>=300 + SoL>50 + !unknown46[3] → spend 300, spawn human Soldier/Dragoon,
+   * set merc-hired flag. Second wartime turn must not hire again.
+   */
+  colonies.colonies[0].nation_id = 0;
+  col1.nation[0].gold = 450;
+  europe.gold = 450;
+  status[0] = '\0';
+  const int human_before = count_nation(&units, 0);
+  const uint32_t gold_before = col1.nation[0].gold;
+  ai_king_nation_turn(&ctx);
+  if (col1.head.unknown46[3] == 0) {
+    return fail("2244 should set merc-hired unknown46[3]");
+  }
+  if (col1.nation[0].gold != gold_before - 300) {
+    fprintf(stderr, "smoke_ai_king: gold after merc %u (want %u)\n",
+            (unsigned)col1.nation[0].gold, (unsigned)(gold_before - 300));
+    return fail("2244 should spend 300 gold");
+  }
+  if (europe.gold != (int)col1.nation[0].gold) {
+    return fail("2244 should sync europe.gold");
+  }
+  if (count_nation(&units, 0) <= human_before) {
+    return fail("2244 should spawn human Continental merc");
+  }
+  if (!strstr(status, "mercenar") && !strstr(status, "Continental")) {
+    fprintf(stderr, "smoke_ai_king: status after merc: '%s'\n", status);
+    return fail("2244 should set merc status line");
+  }
+  const int human_after = count_nation(&units, 0);
+  const uint32_t gold_after = col1.nation[0].gold;
+  ai_king_nation_turn(&ctx);
+  if (col1.nation[0].gold != gold_after) {
+    return fail("merc flag should block second 2244 spend");
+  }
+  if (count_nation(&units, 0) != human_after) {
+    return fail("merc flag should block second human merc spawn");
+  }
+
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
   const int boycott_final = col1.head.unknown46[2];
+  const int merc_final = col1.head.unknown46[3];
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
   col1_save_free(&col1);
   fprintf(stderr,
-          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d)\n", sol,
-          tax_final, crown_final, intervene_final, boycott_final);
+          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d)\n",
+          sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;
 }

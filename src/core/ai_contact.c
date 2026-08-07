@@ -56,7 +56,8 @@ static int ai_contact_is_missionary(const ColonizeUnitPool* units, const Coloniz
  * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
  * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
  * optionally grant a native-teachable profession on the unit.
- * Teach dialog UI PARKED.
+ * Teach dialog UI PARKED. Full @TRIBES good-string parse PARKED — static
+ * cargo / nation_id maps below.
  */
 static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* name = units_display_name(units, u);
@@ -64,6 +65,76 @@ static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const 
     return 0;
   }
   return strstr(name, "Free Colonist") != NULL || strstr(name, "Scout") != NULL;
+}
+
+/* Warehouse cargo → outdoor @JOB (indices align food..silver). -1 unmapped. */
+static int ai_contact_profession_from_cargo(int cargo) {
+  switch (cargo) {
+    case COLONIZE_CARGO_FOOD:
+      return COLONIZE_JOB_FARMER;
+    case COLONIZE_CARGO_SUGAR:
+      return COLONIZE_JOB_SUGAR_PLANTER;
+    case COLONIZE_CARGO_TOBACCO:
+      return COLONIZE_JOB_TOBACCO_PLANTER;
+    case COLONIZE_CARGO_COTTON:
+      return COLONIZE_JOB_COTTON_PLANTER;
+    case COLONIZE_CARGO_FURS:
+      return COLONIZE_JOB_FUR_TRAPPER;
+    case COLONIZE_CARGO_LUMBER:
+      return COLONIZE_JOB_LUMBERJACK;
+    case COLONIZE_CARGO_ORE:
+      return COLONIZE_JOB_ORE_MINER;
+    case COLONIZE_CARGO_SILVER:
+      return COLONIZE_JOB_SILVER_MINER;
+    default:
+      return -1;
+  }
+}
+
+/*
+ * Rough Col1 nation_id (4..11) → primary taught skill. Order matches
+ * NAMES.TXT @TRIBES (Inca..Tupi). Fish has no cargo id — nation only.
+ * Returns -1 if out of band (caller falls back to Farmer).
+ */
+static int ai_contact_profession_from_nation(int nation_id) {
+  static const int k_by_indian[8] = {
+      COLONIZE_JOB_SILVER_MINER,    /* 4 Inca */
+      COLONIZE_JOB_ORE_MINER,       /* 5 Aztec */
+      COLONIZE_JOB_FISHERMAN,       /* 6 Arawak */
+      COLONIZE_JOB_FUR_TRAPPER,     /* 7 Iroquois */
+      COLONIZE_JOB_TOBACCO_PLANTER, /* 8 Cherokee */
+      COLONIZE_JOB_COTTON_PLANTER,  /* 9 Apache */
+      COLONIZE_JOB_FUR_TRAPPER,     /* 10 Sioux */
+      COLONIZE_JOB_SUGAR_PLANTER,   /* 11 Tupi */
+  };
+  const int idx = nation_id - 4;
+  if (idx < 0 || idx >= 8) {
+    return -1;
+  }
+  return k_by_indian[idx];
+}
+
+/*
+ * Resolve taught profession for an unskilled Free Colonist.
+ * Prefer tribe.last_sold when it is a raw cargo 1..7 (sugar..silver) — food(0)
+ * is left alone so zeroed Col1 tribes still take the nation map. Else nation
+ * table; else Expert Farmer.
+ */
+static int ai_contact_taught_profession(const ColonizeCol1Tribe* t) {
+  if (!t) {
+    return COLONIZE_JOB_FARMER;
+  }
+  if (t->last_sold >= COLONIZE_CARGO_SUGAR && t->last_sold <= COLONIZE_CARGO_SILVER) {
+    const int from_cargo = ai_contact_profession_from_cargo((int)t->last_sold);
+    if (from_cargo >= 0) {
+      return from_cargo;
+    }
+  }
+  const int from_nation = ai_contact_profession_from_nation((int)t->nation_id);
+  if (from_nation >= 0) {
+    return from_nation;
+  }
+  return COLONIZE_JOB_FARMER;
 }
 
 static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
@@ -104,16 +175,16 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       }
       t->state.learned = 1;
       /*
-       * Optional expertise: unskilled Free Colonist → Expert Farmer (@JOB 0),
-       * a native-teachable skill per manual Skills Chart. Plain Scout →
-       * Seasoned Scout. Already-skilled units keep profession.
+       * Optional expertise: unskilled Free Colonist → tribe-appropriate
+       * outdoor skill (cargo / nation map); Plain Scout → Seasoned Scout.
+       * Already-skilled units keep profession.
        */
       if (other->profession == UNITS_JOB_NONE) {
         const char* name = units_display_name(ctx->units, other);
         if (name && strstr(name, "Scout") != NULL) {
           other->profession = UNITS_JOB_SCOUT;
         } else {
-          other->profession = 0; /* Expert Farmer stand-in */
+          other->profession = ai_contact_taught_profession(t);
         }
       }
       break; /* one teach pulse per tribe per call */

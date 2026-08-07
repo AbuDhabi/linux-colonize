@@ -320,4 +320,6 @@ void euro_nation_turn(int nation_id) {
  *     → else: ai_euro_dispatcher_turn (ai_euro.c) — structural 6d8e
  *       treaty timers + ai_diplo_euro_balance (see ai/euro_diplo.md)
  * PORT DEBT: mid-game 5d04 matrix, 0a60 E–H, full 20e6 land/combat, 5b66 case 7.
+ * Linux thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
+ * colony water; adjacent → try_attack. Full 20e6 naval scoring PARKED.
  */

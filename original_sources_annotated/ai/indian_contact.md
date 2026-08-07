@@ -50,15 +50,41 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    hostile (`alarm_by_player` / tribe friction both < 50) → set
    `tribe.mission = euro nation id`, decay alarm/friction by 1 if > 0, bump
    `nation[euro].current_crosses` by 1. One pulse per tribe per call.
-5. **Teach-skill pulse** (structural stub): Free Colonist or Scout (display-name
+5. **Teach-skill pulse** (structural deepen): Free Colonist or Scout (display-name
    match) adjacent to tribe, peaceful band (`alarm_by_player` / tribe friction
    both < 40), and `tribe.state.learned` clear → set **`tribe.state.learned = 1`**
    (real Col1 bit). If unit `profession == UNITS_JOB_NONE`: Scout →
-   `UNITS_JOB_SCOUT` (Seasoned); else → `@JOB 0` Expert Farmer (native-teachable
-   stand-in; full skill-from-`@TRIBES` good mapping PARKED). One pulse per tribe
-   per call. Teach dialog UI **PARKED**.
+   `UNITS_JOB_SCOUT` (Seasoned); else → tribe-appropriate outdoor `@JOB`
+   (see mapping below). One pulse per tribe per call. Teach dialog UI **PARKED**.
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
 7. Gift / demand dialogs **PARKED**
+
+### Teach-skill profession map (Linux)
+
+Prefer `tribe.last_sold` when it is raw cargo **1..7** (sugar..silver) → matching
+field job. Food(0) is **not** treated as an override so zeroed Col1 tribes still
+hit the nation table. Else static map by `tribe.nation_id` (4..11 = `@TRIBES`
+order). Unmapped → Expert Farmer. Full `@TRIBES` flavor-good string parse
+(**Jewelled Relics**, …) remains **PARKED**.
+
+| Driver | Value | Profession (`@JOB`) |
+|--------|-------|---------------------|
+| `last_sold` | Sugar (1) | Sugar Planter (1) |
+| `last_sold` | Tobacco (2) | Tobacco Planter (2) |
+| `last_sold` | Cotton (3) | Cotton Planter (3) |
+| `last_sold` | Furs (4) | Fur Trapper (4) |
+| `last_sold` | Lumber (5) | Lumberjack (5) |
+| `last_sold` | Ore (6) | Ore Miner (6) |
+| `last_sold` | Silver (7) | Silver Miner (7) |
+| nation 4 | Inca | Silver Miner (7) |
+| nation 5 | Aztec | Ore Miner (6) |
+| nation 6 | Arawak | Fisherman (8) |
+| nation 7 | Iroquois | Fur Trapper (4) |
+| nation 8 | Cherokee | Tobacco Planter (2) |
+| nation 9 | Apache | Cotton Planter (3) |
+| nation 10 | Sioux | Fur Trapper (4) |
+| nation 11 | Tupi | Sugar Planter (1) |
+| fallback | — | Farmer (0) / Scout→Seasoned |
 
 Raid hostility deepen (loot success + high friction → `ai_diplo_indian_relation_delta`):
 see [`indian_raid_outcomes.md`](indian_raid_outcomes.md). Full `2820`/`4528` + player
@@ -68,5 +94,5 @@ meet/trade dialog UI remain **PARKED**.
 
 - Full `2154` (~321), `2820` (~1.4k), `4528` (~3k)
 - Player meet/trade/raid dialog subst
-- Teach dialog UI + skill choice from tribe/`@TRIBES` traded good (Farmer stand-in only)
+- Teach dialog UI + full skill-from-`@TRIBES` flavor-good string parse
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2)

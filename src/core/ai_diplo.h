@@ -26,7 +26,8 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
-/* 6d8e step 4: decrement per-rival treaty timer bytes (before planning). */
+/* 6d8e step 4: decrement per-rival treaty timer bytes (before planning);
+ * also thin peaceful Indian relation drift when not at Euro war. */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot). */

@@ -51,6 +51,13 @@ switch (orders) cases 7..0x0b
 
 Post-act primary upsert for exhausted ships lives in **`6d8e`**, not here.
 
+### 2b. Linux thin — naval war hunt (act-level)
+
+When nation is at war with a Euro peer, ships **not in Europe** that are idle /
+station-keeping get `AI_SAIL` toward the nearest enemy sea unit or coastal water
+beside a foreign colony at war. Adjacent enemy ships call `ai_euro_try_attack` /
+`units_resolve_naval_combat`. Deep `20e6` naval combat scoring stays **PARKED**.
+
 ### 3. Combat / diplomacy tails (PARKED)
 
 Defer with Indian raid clusters / land combat port.

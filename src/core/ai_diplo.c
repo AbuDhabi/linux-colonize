@@ -12,7 +12,8 @@
  *
  * nation[a].unknown26[0..3] = treaty timers toward peer
  * nation[a].unknown26[4..7] = diplo flag byte toward peer (15b3 stand-in)
- * Exact DS −0x77c4 offset PARKED. Indian×Euro full 15b3 matrix PORT DEBT.
+ * Exact DS −0x77c4 offset PARKED. Indian×Euro full 15b3 matrix PORT DEBT
+ * (thin stand-ins: peaceful drift + war relation hit on Euro×Euro declare).
  */
 
 #define AI_DIPLO_FLAG_BASE 4
@@ -23,6 +24,9 @@
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
+#define AI_DIPLO_ALLY_GOLD_COST 25u
+#define AI_DIPLO_INDIAN_DRIFT_CAP 160u
+#define AI_DIPLO_WAR_INDIAN_HIT 5
 
 static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
@@ -73,6 +77,77 @@ static void ai_diplo_war_upkeep_drain(ColonizeCol1Nation* nat) {
     nat->gold -= AI_DIPLO_WAR_UPKEEP_GOLD;
   } else {
     nat->gold = 0;
+  }
+}
+
+/* Thin alliance treasury cost: each side pays 25 if able (floor 0). */
+static void ai_diplo_ally_treasury_cost(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    ColonizeCol1Nation* nat = &col1->nation[n];
+    if (nat->gold > AI_DIPLO_ALLY_GOLD_COST) {
+      nat->gold -= AI_DIPLO_ALLY_GOLD_COST;
+    } else {
+      nat->gold = 0;
+    }
+  }
+}
+
+/* True if Euro nation is at war with any other Euro (thin hostility gate). */
+static int ai_diplo_euro_at_war_any(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  for (int peer = 0; peer < 4; ++peer) {
+    if (peer == nation_id) {
+      continue;
+    }
+    if (ai_diplo_at_war(col1, nation_id, peer)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Peaceful Indian×Euro relation drift (not full 15b3 matrix).
+ * Per tick: for each of 8 Indian slots, if < 160 and Euro not at war → +1 (cap 160).
+ */
+static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  if (ai_diplo_euro_at_war_any(col1, nation_id)) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  for (int i = 0; i < 8; ++i) {
+    uint8_t r = nat->relation_by_indian[i];
+    if (r < AI_DIPLO_INDIAN_DRIFT_CAP) {
+      nat->relation_by_indian[i] = (uint8_t)(r + 1u);
+    }
+  }
+}
+
+/* Indians dislike Euro×Euro war: −5 on all 8 Indian relation slots (both sides). */
+static void ai_diplo_war_indian_relation_hit(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    for (int idx = 0; idx < 8; ++idx) {
+      ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_WAR_INDIAN_HIT);
+    }
   }
 }
 
@@ -214,12 +289,16 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!already) {
     ai_diplo_war_treasury_sting(col1, nation_a, nation_b);
     ai_diplo_war_tax_bump(col1, nation_a, nation_b);
+    /* Indians dislike Euro×Euro war (scalar stand-in; full 15b3 PARKED). */
+    ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
   }
 }
 
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
+  /* Thin alliance treasury cost: 25 gold each side (floor 0). */
+  ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
 }
 
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -262,6 +341,8 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
       }
     }
   }
+  /* Peaceful Indian relation drift (thin; full Indian×Euro 15b3 PORT DEBT). */
+  ai_diplo_indian_peaceful_drift(ctx->col1, nation_id);
 }
 
 static int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {

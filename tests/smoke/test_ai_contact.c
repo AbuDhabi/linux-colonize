@@ -201,21 +201,40 @@ int main(void) {
 
   /*
    * Teach-skill pulse: peaceful Free Colonist adjacent to tribe →
-   * tribe.state.learned and Expert Farmer profession stand-in.
+   * tribe.state.learned and tribe-appropriate profession.
+   * last_sold cargo (furs) drives Expert Fur Trapper over nation default.
    */
   units_despawn(&units, miss_id);
   euro->x = 6;
   euro->y = 5;
   euro->profession = UNITS_JOB_NONE;
   col1.tribe[0].state.learned = 0;
+  col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
   col1.tribe[0].alarm[0].friction = 5;
   ind->alarm_by_player[0] = 5;
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!col1.tribe[0].state.learned) {
     return fail("teach-skill should set tribe.state.learned");
   }
-  if (euro->profession != 0) {
-    return fail("teach-skill should grant Expert Farmer (@JOB 0) stand-in");
+  if (euro->profession != COLONIZE_JOB_FUR_TRAPPER) {
+    return fail("teach-skill last_sold furs → Expert Fur Trapper");
+  }
+
+  /* Nation map: clear cargo override; Iroquois (7) → Fur Trapper. */
+  euro->profession = UNITS_JOB_NONE;
+  col1.tribe[0].state.learned = 0;
+  col1.tribe[0].last_sold = 0;
+  col1.tribe[0].nation_id = 7;
+  ColonizeCol1Indian* iroq = &col1.indian[3];
+  memset(iroq, 0, sizeof(*iroq));
+  iroq->alarm_by_player[0] = 5;
+  col1.tribe[0].alarm[0].friction = 5;
+  ai_contact_indian_meet_trade(&ctx, 7);
+  if (!col1.tribe[0].state.learned) {
+    return fail("teach-skill nation map should set tribe.state.learned");
+  }
+  if (euro->profession != COLONIZE_JOB_FUR_TRAPPER) {
+    return fail("teach-skill Iroquois nation → Expert Fur Trapper");
   }
 
   free(map.terrain);

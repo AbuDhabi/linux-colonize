@@ -26,7 +26,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once `1eca` promote; else intervene hire → `10f0` (partial structural) |
+| Rebel | once `1eca` promote; else intervene hire → `10f0` (partial structural); thin `2244` merc |
 
 ## Key symbols → Linux
 
@@ -38,7 +38,9 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
+| `1528` | REF arrival announce | thin status line after successful `0982` spawn (chrome UI PARKED) |
 | `10f0` | Foreign landing when REF empty + `backup_force` | `ai_king_foreign_intervene` (via `war_act`) |
+| `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` (dialog PARKED) |
 | `2022` / `1eca` | War act + promote | `ai_king_war_act` |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
@@ -49,6 +51,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0x5382` bit0 war | `head.unknown26` — **no**; use `head.unknown46[0]` WoI |
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
 | Tax boycott / refuse | `head.unknown46[2]` (structural; `38fd_5be8` UI PARKED) |
+| Merc hired this war | `head.unknown46[3]` (thin `2244`; hire dialog PARKED) |
 | Cargo boycott bits | `nation.boycott_bitmap` (EuropeScreen has none) |
 | REF pools `0x53da…` | `head.expeditionary_force[4]` |
 | Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
@@ -64,16 +67,30 @@ liberty bells ≥ 80): **refuse** — do not raise tax; set `unknown46[2]`; OR i
 While `unknown46[2]` is set, further tax years skip hikes entirely.
 Accept/refuse dialog and dump-goods chrome remain PARKED.
 
+### Thin `1528` REF arrival announce
+
+When `0982` successfully spawns a ship or land unit, write a short arrival
+line to `ctx->status` (if present) and keep `unknown46[1]` REF-present.
+Full arrival chrome / dialog remains PARKED.
+
+### Thin `2244` Continental merc auto-accept
+
+During wartime `war_act` (including the declare turn): if human gold ≥ 300,
+SoL > 50, and `unknown46[3]` unset — spend 300 gold (sync Europe if present),
+spawn one Soldier/Dragoon for the **human** near weakest port, set
+`unknown46[3]`. Player hire dialog remains PARKED.
+
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force`)
-3. If WoI: wave (`0982`/`06a6`) → war act (`10f0` first if REF empty + backup, then `2022`/`1eca`)
+3. If WoI: wave (`0982`/`06a6` + thin `1528` status) → war act (`10f0` first if REF empty + backup, thin `2244` merc, then `2022`/`1eca`)
 
 ## PORT DEBT
 
 - `38fd_5be8` tax audience / boycott **UI** (structural refuse + `unknown46[2]` / `boycott_bitmap` done)
 - Player `2564` confirm dialog; `160a` rename cinematic
-- `1528` arrival announce; `2244` merc hire
+- `1528` arrival **chrome/dialog** (thin status announce done)
+- `2244` full merc hire **UI** (thin auto-accept + `unknown46[3]` done)
 - Deep `10f0` foreign intervention / `backup_force` — **partial structural** (landing + drain; merc/chrome PARKED)
 - Multi-unit MoW cargo holds; seize-landing polish

@@ -43,9 +43,10 @@ Exact DS `−0x77c4` Col1 field rename PARKED.
 
 ```
 euro_nation_turn (6d8e)
-  §4 treaty timers: 0a38 read + decrement peer timers
+  §4 treaty timers: 0a38 read + decrement peer timers; peaceful Indian drift
   plan 5d04 / 0342 / 0a60
-  [opportunistic] 10ec → 13b0 → declare_war (thin 153e gold+tax); at-war upkeep
+  [opportunistic] 10ec → 13b0 (ally −25g) → declare_war (thin 153e gold+tax+Indian −5);
+                  at-war upkeep
   act 5b66 — combat may declare_war
 ```
 
@@ -64,9 +65,10 @@ On first `ai_diplo_declare_war` (not already at war):
 
 - Drain **100** gold from `nation[a].gold` and `nation[b].gold` (floor 0)
 - Bump each side's `nation[].tax_rate` by **+1**, capped at **75** (same ceiling as king tax path)
+- **−5** on each of `nation[].relation_by_indian[0..7]` for both warring Euros (Indians dislike Euro×Euro war; scalar via `ai_diplo_indian_relation_delta`, clamp 0..255)
 - WAR / PEACE / ALLY / MET flag writes unchanged
 - Relation summary still via mirror (`nation_relation` → −50 while at war)
-- Re-declare does **not** re-sting gold or re-bump tax
+- Re-declare does **not** re-sting gold, re-bump tax, or re-hit Indian relations
 
 Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 
@@ -75,16 +77,33 @@ Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 
 Not ported: full `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`), FA `3f41`, order clear `12d0`. Full `153e` / dialogs remain **PARKED**.
 
+### Thin alliance treasury cost (Linux)
+
+On `ai_diplo_form_alliance` (Euro×Euro):
+
+- Each side pays **25** gold if able (floor 0)
+- Flags still clear WAR and set ALLY|PEACE|MET as before
+- Full `13b0` gold/score gates **PARKED**
+
+### Thin peaceful Indian relation drift (Linux)
+
+Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
+
+- If the Euro nation is at war with **any** other Euro → no-op
+- Else for each of 8 `relation_by_indian[i]`: if `< 160`, **+1** (cap **160**)
+- Stand-in only; full Indian×Euro `15b3` bilateral matrix remains **PORT DEBT** / **PARKED**
+
 ## Linux checklist
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
-2. `ai_diplo_treaty_timers` — decrement; on expiry break ally or peace tweak
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; declare → thin `153e` gold+tax; at-war → light upkeep
-4. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
+2. `ai_diplo_treaty_timers` — decrement; on expiry break ally or peace tweak; peaceful Indian drift
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; declare → thin `153e` gold+tax+Indian hit; at-war → light upkeep
+4. `ai_diplo_form_alliance` — ALLY flags + 25 gold each side
+5. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
 
 ## PORT DEBT
 
 - Full `153e` body, dialogs, FA UI, name tables `15b3_0144…`
-- Indian×Euro bilateral `15b3` matrix
+- Indian×Euro bilateral `15b3` matrix (**PARKED**; thin drift / war-hit scalars only)
 - Exact save-field rename for `−0x77c4`
 - Quiet Brave `diplomacy_flags` −10 goldens

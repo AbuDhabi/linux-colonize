@@ -17,6 +17,7 @@
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
  * Tax-boycott/refuse: head.unknown46[2] stand-in (38fd_5be8 UI PARKED).
  *   Cargo freeze: nation.boycott_bitmap (EuropeScreen has no boycott bits).
+ * Merc hired this war: head.unknown46[3] stand-in (2244 dialog PARKED).
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -24,6 +25,7 @@
 #define AI_KING_WOI_BYTE 0
 #define AI_KING_REF_PRESENT_BYTE 1
 #define AI_KING_BOYCOTT_BYTE 2
+#define AI_KING_MERC_HIRED_BYTE 3
 
 /* Structural refuse thresholds (exact DOS 38fd_5be8 gates PARKED). */
 #define AI_KING_BOYCOTT_TAX_MIN 20
@@ -31,6 +33,9 @@
 #define AI_KING_BOYCOTT_BELLS_MIN 80
 /* Sugar = cargo index 1 — one frozen Europe cargo while refuse active. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
+/* Thin 2244 Continental merc aid (player hire dialog PARKED). */
+#define AI_KING_MERC_COST 300
+#define AI_KING_MERC_SOL_MIN 50
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
@@ -103,6 +108,20 @@ static void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {
     return;
   }
   col1->head.unknown46[AI_KING_BOYCOTT_BYTE] = on ? 1 : 0;
+}
+
+static int ai_king_merc_hired(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return 0;
+  }
+  return col1->head.unknown46[AI_KING_MERC_HIRED_BYTE] != 0;
+}
+
+static void ai_king_set_merc_hired(ColonizeCol1Save* col1, int on) {
+  if (!col1) {
+    return;
+  }
+  col1->head.unknown46[AI_KING_MERC_HIRED_BYTE] = on ? 1 : 0;
 }
 
 /* Grow REF pools by current tax band (1d42 crumb; no tax_rate change). */
@@ -327,7 +346,8 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
 
 /*
  * FUN_43f7_0982 (pools>0) / 06a6 (empty): REF wave arms.
- * 1528 announce / multi-unit cargo holds PARKED.
+ * Thin 1528: status arrival line when 0982 spawns (chrome UI PARKED).
+ * Multi-unit cargo holds PARKED.
  */
 static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map) {
@@ -358,6 +378,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (cid < 0) {
     return;
   }
+  int spawned = 0;
   int ship_ty = units_find_type(ctx->units, "Man-O-War");
   if (ship_ty < 0) {
     ship_ty = units_find_type(ctx->units, "Galleon");
@@ -386,6 +407,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
         ship->goto_y = sy;
       }
       force[2]--;
+      spawned = 1;
     }
   }
   const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
@@ -418,12 +440,16 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       u->goto_y = ty;
     }
     force[k]--;
+    spawned = 1;
     break; /* one land type per wave beat */
   }
   ai_king_set_ref_present(ctx->col1, 1);
   /* Tax residual grow while at war (1d42 crumb). */
   force[0] += 1;
-  /* 1528 announce PARKED */
+  /* Thin 1528 announce (arrival chrome / dialog PARKED). */
+  if (spawned && ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size, "The King's Expeditionary Force has arrived!");
+  }
 }
 
 /*
@@ -476,8 +502,55 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
 }
 
 /*
+ * Thin FUN_43f7_2244 stand-in: auto-accept Continental merc aid once per war
+ * when gold>=300 and SoL>50. Spawns Soldier/Dragoon for human near weakest
+ * port; player hire dialog PARKED.
+ */
+static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
+    return;
+  }
+  if (!ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
+  if (ai_king_merc_hired(ctx->col1)) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  if (nat->gold < AI_KING_MERC_COST) {
+    return;
+  }
+  if (ai_king_sol_percent(ctx, human) <= AI_KING_MERC_SOL_MIN) {
+    return;
+  }
+  int hx = 0;
+  int hy = 0;
+  if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
+    return;
+  }
+  if (ai_king_spawn_landing(ctx, human, hx, hy, "Soldier", "Dragoon") < 0) {
+    return;
+  }
+  nat->gold -= (uint32_t)AI_KING_MERC_COST;
+  if (ctx->europe) {
+    ctx->europe->gold = (int)nat->gold;
+  }
+  ai_king_set_merc_hired(ctx->col1, 1);
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size,
+             "Continental mercenaries join the cause (−%d gold).", AI_KING_MERC_COST);
+  }
+  /* 2244 player hire dialog PARKED */
+}
+
+/*
  * FUN_43f7_2022 war act + 1eca promote.
- * Move/combat/capture; Continental promote when SoL>50; 10f0 intervene arm.
+ * Move/combat/capture; Continental promote when SoL>50; 10f0 intervene arm;
+ * thin 2244 merc auto-accept.
  */
 static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
@@ -491,6 +564,8 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * below may seize the landing pick). In addition to 06a6 in ref_wave.
    */
   ai_king_foreign_intervene(ctx);
+  /* Thin 2244: once-per-war Continental merc for human (dialog PARKED). */
+  ai_king_merc_offer(ctx);
 
   const int crown = ai_king_crown_nation(ctx->human_nation);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
