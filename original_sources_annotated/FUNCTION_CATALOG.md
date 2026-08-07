@@ -107,14 +107,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_112b_0002` | 1675 | 282 | mapdraw | unknown | inferred |  |
-| `FUN_112b_0060` | 1957 | 40 | mapdraw | unknown | inferred |  |
-| `FUN_112b_010e` | 1997 | 33 | mapdraw | unknown | inferred |  |
-| `FUN_112b_015c` | 2030 | 19 | mapdraw | unknown | inferred |  |
+| `FUN_112b_0002` | 1675 | 282 | mapdraw | Profession → ICONS.SS index (AX+0x52; specials for 0x13..0x1c) | inferred | docs/assets.md |
+| `FUN_112b_0060` | 1957 | 40 | mapdraw | Unit display icon from type@5232 + profession overrides (via 0002) | inferred | docs/assets.md |
+| `FUN_112b_010e` | 1997 | 33 | mapdraw | Pick stack unit for chrome (prefer ship 0xd–0x12) then icon via 0060 | inferred | docs/assets.md |
+| `FUN_112b_015c` | 2030 | 19 | mapdraw | Orders-box rect (bit0) and/or color sprite blit (bit1) for unit chrome | inferred | docs/assets.md |
 | `FUN_112b_01ba` | 2049 | 265 | mapdraw | Unit chrome: silhouette + nation orders box + letter (+ stack under-rect) | known | docs/assets.md |
-| `FUN_112b_0790` | 2314 | 183 | mapdraw | unknown | inferred |  |
-| `FUN_112b_0c64` | 2497 | 102 | mapdraw | unknown | inferred |  |
-| `FUN_112b_0eb6` | 2599 | 132 | mapdraw | unknown | inferred |  |
+| `FUN_112b_0790` | 2314 | 183 | mapdraw | Tribe/village map chrome: silhouette, relation bars, optional name | inferred |  |
+| `FUN_112b_0c64` | 2497 | 102 | mapdraw | Colony map chrome: nation fill, fort tier, pop/name text | inferred |  |
+| `FUN_112b_0eb6` | 2599 | 132 | mapdraw | Animate unit tile-to-tile move with per-frame 01ba chrome redraw | inferred | docs/assets.md |
 
 ### Segment `124c` (7 defs) — platform — Small helpers (e.g. DOS distance)
 
@@ -203,50 +203,50 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_137f_000a` | 6519 | 16 | mapgen | unknown | inferred |  |
-| `FUN_137f_003c` | 6535 | 26 | mapgen | unknown | inferred |  |
-| `FUN_137f_00c0` | 6561 | 18 | mapgen | unknown | inferred |  |
-| `FUN_137f_00f6` | 6579 | 10 | mapgen | unknown | inferred |  |
+| `FUN_137f_000a` | 6519 | 16 | mapgen | map_tile_in_bounds — inset interior (1..pitch-2, 1..height-2) | known | ai/accessors.c |
+| `FUN_137f_003c` | 6535 | 26 | mapgen | True if /dx/,/dy/ within radius mode (cardinal/diag bands) | inferred |  |
+| `FUN_137f_00c0` | 6561 | 18 | mapgen | True if (x,y) inside camera/scroll viewport bounds | inferred |  |
+| `FUN_137f_00f6` | 6579 | 10 | mapgen | terrain_ptr map accessor (DS:0x15c) | inferred | ai/accessors.c |
 | `FUN_137f_010e` | 6589 | 11 | mapgen | terrain_byte map accessor | known | ai/accessors.c |
-| `FUN_137f_012a` | 6600 | 10 | mapgen | unknown | inferred |  |
+| `FUN_137f_012a` | 6600 | 10 | mapgen | layer2_ptr map accessor (DS:0x160) | inferred | ai/accessors.c |
 | `FUN_137f_0142` | 6610 | 11 | mapgen | layer2_byte map accessor | known | ai/accessors.c |
-| `FUN_137f_015e` | 6621 | 19 | mapgen | unknown | inferred |  |
+| `FUN_137f_015e` | 6621 | 19 | mapgen | OR or AND-clear layer2 bits at tile | inferred | ai/accessors.c |
 | `FUN_137f_0194` | 6640 | 10 | mapgen | layer3_ptr map accessor | known | ai/accessors.c |
 | `FUN_137f_01ac` | 6650 | 11 | mapgen | layer3_byte map accessor | known | ai/accessors.c |
 | `FUN_137f_01ca` | 6661 | 11 | mapgen | continent_id real body | known | ai/accessors.c |
-| `FUN_137f_01dc` | 6672 | 15 | mapgen | unknown | inferred |  |
-| `FUN_137f_0200` | 6687 | 16 | mapgen | unknown | inferred |  |
+| `FUN_137f_01dc` | 6672 | 15 | mapgen | set_continent_nibble — write layer3 low nibble | inferred | ai/accessors.c |
+| `FUN_137f_0200` | 6687 | 16 | mapgen | owner_nibble — layer3 high nibble; 0xf → −1 | known | ai/accessors.c |
 | `FUN_137f_0228` | 6703 | 26 | mapgen | set_owner_nibble | known | ai/accessors.c |
-| `FUN_137f_02a0` | 6729 | 20 | mapgen | unknown | inferred |  |
-| `FUN_137f_02e0` | 6749 | 10 | mapgen | unknown | inferred |  |
-| `FUN_137f_02f8` | 6759 | 11 | mapgen | unknown | inferred |  |
-| `FUN_137f_0314` | 6770 | 23 | mapgen | unknown | inferred |  |
+| `FUN_137f_02a0` | 6729 | 20 | mapgen | continent_id if in-bounds land (not ocean/HS); else −1 | inferred | ai/accessors.c |
+| `FUN_137f_02e0` | 6749 | 10 | mapgen | explore_plane_ptr map accessor (DS:0x168) | inferred | ai/accessors.c |
+| `FUN_137f_02f8` | 6759 | 11 | mapgen | tile_explore_mask — explore-plane byte at tile | known | ai/accessors.c |
+| `FUN_137f_0314` | 6770 | 23 | mapgen | tile_owner_or_presence — owner if layer2 presence bit | known | ai/accessors.c |
 | `FUN_137f_0358` | 6793 | 21 | mapgen | euro_settlement_owner real body | known | ai/accessors.c; ai/move_spent.c |
-| `FUN_137f_0392` | 6814 | 26 | mapgen | unknown | inferred |  |
-| `FUN_137f_03e4` | 6840 | 23 | mapgen | unknown | inferred |  |
-| `FUN_137f_0428` | 6863 | 14 | mapgen | unknown | inferred |  |
-| `FUN_137f_044a` | 6877 | 28 | mapgen | unknown | inferred |  |
-| `FUN_137f_04b0` | 6905 | 44 | mapgen | unknown | inferred |  |
-| `FUN_137f_0598` | 6949 | 25 | mapgen | unknown | inferred |  |
-| `FUN_137f_0614` | 6974 | 28 | mapgen | unknown | inferred |  |
+| `FUN_137f_0392` | 6814 | 26 | mapgen | Indian settlement owner (tribe bit, owner≥4); else −1 | inferred | ai/accessors.c |
+| `FUN_137f_03e4` | 6840 | 23 | mapgen | tile_tribe_owner — owner if layer2 tribe bit | known | ai/accessors.c |
+| `FUN_137f_0428` | 6863 | 14 | mapgen | tile_tribe_or_presence — tribe owner else presence owner | known | ai/accessors.c |
+| `FUN_137f_044a` | 6877 | 28 | mapgen | Enemy Euro fort/colony owner vs nation when war bit set | inferred |  |
+| `FUN_137f_04b0` | 6905 | 44 | mapgen | Procedural special-resource type from seed DS:0x190 | inferred |  |
+| `FUN_137f_0598` | 6949 | 25 | mapgen | Procedural lost-city/rumour present on unowned land | inferred |  |
+| `FUN_137f_0614` | 6974 | 28 | mapgen | Remap terrain type by climate setting DS:0x18e | inferred |  |
 
 ### Segment `13e4` (4 defs) — mapgen — Terrain class / ocean helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_13e4_000e` | 7002 | 13 | mapgen | decode_terrain_class | known | ai/accessors.c |
-| `FUN_13e4_003a` | 7015 | 18 | mapgen | unknown | inferred |  |
+| `FUN_13e4_003a` | 7015 | 18 | mapgen | terrain_class_at — decode_terrain_class(terrain_byte) | known | ai/accessors.c |
 | `FUN_13e4_0074` | 7033 | 14 | mapgen | ocean_or_high_seas real body | known | ai/accessors.c |
-| `FUN_13e4_00a2` | 7047 | 15 | mapgen | unknown | inferred |  |
+| `FUN_13e4_00a2` | 7047 | 15 | mapgen | True if terrain type is forest (8–23) | inferred | ai/accessors.c |
 
 ### Segment `13f1` (5 defs) — mapdraw — Exploration-bit / fog reveal around units & colonies
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_13f1_000a` | 7062 | 34 | mapdraw | unknown | inferred |  |
-| `FUN_13f1_00a6` | 7096 | 37 | mapdraw | unknown | inferred |  |
-| `FUN_13f1_0158` | 7133 | 75 | mapdraw | unknown | inferred |  |
-| `FUN_13f1_02b4` | 7208 | 20 | mapdraw | unknown | inferred |  |
+| `FUN_13f1_000a` | 7062 | 34 | mapdraw | OR nation explore bit; claim/UI side effects on tile | inferred | ai/accessors.c |
+| `FUN_13f1_00a6` | 7096 | 37 | mapdraw | Reveal ±5 around colony into nation explore plane | inferred | ai/accessors.c |
+| `FUN_13f1_0158` | 7133 | 75 | mapdraw | Fog-reveal radius around point for Euro nation | inferred | ai/accessors.c |
+| `FUN_13f1_02b4` | 7208 | 20 | mapdraw | Unit fog reveal (ship vs land radius into 0158) | inferred | ai/accessors.c |
 | `FUN_13f1_02f8` | 7228 | 13 | mapdraw | Reveal exploration bits around unit (post-spawn/move) | inferred | ai/accessors.c |
 
 ### Segment `1427` (55 defs) — mixed — Tile / unit display and MP chrome
@@ -321,16 +321,16 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_15b3_0004` | 9056 | 13 | trade | unknown | inferred |  |
-| `FUN_15b3_0032` | 9069 | 15 | trade | unknown | inferred |  |
-| `FUN_15b3_0066` | 9084 | 18 | trade | unknown | inferred |  |
-| `FUN_15b3_00d0` | 9102 | 18 | trade | unknown | inferred |  |
-| `FUN_15b3_0144` | 9120 | 18 | trade | unknown | inferred |  |
-| `FUN_15b3_0198` | 9138 | 21 | trade | unknown | inferred |  |
-| `FUN_15b3_01e0` | 9159 | 21 | trade | unknown | inferred |  |
-| `FUN_15b3_0228` | 9180 | 13 | trade | unknown | inferred |  |
-| `FUN_15b3_024e` | 9193 | 13 | trade | unknown | inferred |  |
-| `FUN_15b3_0274` | 9206 | 13 | trade | unknown | inferred |  |
+| `FUN_15b3_0004` | 9056 | 13 | trade | Read bilateral diplomacy byte (Euro nation×0x13c / Indian×0x4e) | inferred | FUN_281f_0a38 |
+| `FUN_15b3_0032` | 9069 | 15 | trade | Write bilateral diplomacy byte (Euro×0x13c / Indian×0x4e) | inferred |  |
+| `FUN_15b3_0066` | 9084 | 18 | trade | OR diplomacy bit both directions; assert symmetry | inferred | FUN_281f_0a10 sibling; switch case→0066 |
+| `FUN_15b3_00d0` | 9102 | 18 | trade | Clear diplomacy bit both directions; assert symmetry | inferred | FUN_281f_0a10 |
+| `FUN_15b3_0144` | 9120 | 18 | trade | Format nation display name into buffer (table −0x72be; id3 special) | inferred |  |
+| `FUN_15b3_0198` | 9138 | 21 | trade | Nation name string ptr (independence rebel/loyal remap) | inferred | FUN_281f_0a1a |
+| `FUN_15b3_01e0` | 9159 | 21 | trade | Nation alt-name string ptr (independence remap; dialog subst) | inferred | FUN_281f_09a4 |
+| `FUN_15b3_0228` | 9180 | 13 | trade | Nation name string ptr without independence remap | inferred | FUN_281f_0a24 |
+| `FUN_15b3_024e` | 9193 | 13 | trade | Nation alt-name string ptr without independence remap | inferred |  |
+| `FUN_15b3_0274` | 9206 | 13 | trade | Nation name-record base (0x5426+n×0x34; rebel→player remap) | inferred | FUN_281f_0a2e |
 
 ### Segment `15dc` (5 defs) — ai — Tribe / Indian current-context setters & lookups
 
@@ -2141,59 +2141,59 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2b5a_0000` | 40187 | 10 | ui | unknown | inferred |  |
-| `FUN_2b5a_001e` | 40197 | 40 | ui | unknown | inferred |  |
-| `FUN_2b5a_0070` | 40237 | 1844 | ui | unknown | inferred |  |
-| `FUN_2b5a_0722` | 42081 | 24 | ui | unknown | inferred |  |
-| `FUN_2b5a_0902` | 42105 | 41 | ui | unknown | inferred |  |
-| `FUN_2b5a_0b08` | 42146 | 18 | ui | unknown | inferred |  |
-| `FUN_2b5a_0b34` | 42164 | 103 | ui | unknown | inferred |  |
-| `FUN_2b5a_0e52` | 42267 | 73 | ui | unknown | inferred |  |
-| `FUN_2b5a_0f92` | 42340 | 24 | ui | unknown | inferred |  |
-| `FUN_2b5a_1112` | 42364 | 63 | ui | unknown | inferred |  |
-| `FUN_2b5a_123e` | 42427 | 93 | ui | unknown | inferred |  |
-| `FUN_2b5a_1454` | 42520 | 89 | ui | unknown | inferred |  |
-| `FUN_2b5a_199e` | 42609 | 76 | ui | unknown | inferred |  |
-| `FUN_2b5a_1b5a` | 42685 | 109 | ui | unknown | inferred |  |
-| `FUN_2b5a_1dfc` | 42794 | 31 | ui | unknown | inferred |  |
-| `FUN_2b5a_1e66` | 42825 | 47 | ui | unknown | inferred |  |
-| `FUN_2b5a_1f36` | 42872 | 38 | ui | unknown | inferred |  |
-| `FUN_2b5a_1fc0` | 42910 | 24 | ui | unknown | inferred |  |
-| `FUN_2b5a_20f6` | 42934 | 60 | ui | unknown | inferred |  |
-| `FUN_2b5a_223a` | 42994 | 64 | ui | unknown | inferred |  |
-| `FUN_2b5a_23ce` | 43058 | 62 | ui | unknown | inferred |  |
-| `FUN_2b5a_2464` | 43120 | 1672 | ui | unknown | inferred |  |
-| `FUN_2b5a_268c` | 44792 | 27 | ui | unknown | inferred |  |
-| `FUN_2b5a_26f6` | 44819 | 68 | ui | unknown | inferred |  |
-| `FUN_2b5a_2866` | 44887 | 18 | ui | unknown | inferred |  |
-| `FUN_2b5a_3036` | 44905 | 9 | ui | unknown | inferred |  |
+| `FUN_2b5a_0000` | 40187 | 10 | ui | Prefetch two options-dialog string slots (0x80c/0x810 via 6f74_03d0) | inferred |  |
+| `FUN_2b5a_001e` | 40197 | 40 | ui | European Status bring-up: nation blob copy + dialog (12fd/6f74) | inferred |  |
+| `FUN_2b5a_0070` | 40237 | 1844 | ui | Selected-unit ORDERS mega-dispatch/dialog hub (DS:0x5392; decomp noisy) | inferred |  |
+| `FUN_2b5a_0722` | 42081 | 24 | ui | Show Hidden Terrain: label every viewport tile via 7a65_0008 | inferred |  |
+| `FUN_2b5a_0902` | 42105 | 41 | ui | Baseline-enable map menu widgets; set View Pieces (5390=1) | inferred |  |
+| `FUN_2b5a_0b08` | 42146 | 18 | ui | Order-menu gates: cargo-capable? / wagon type==2? | inferred |  |
+| `FUN_2b5a_0b34` | 42164 | 103 | ui | Contextual ORDERS menu enable/disable for selected unit (Move Pieces) | inferred |  |
+| `FUN_2b5a_0e52` | 42267 | 73 | ui | Select/activate unit UI: chrome, Move Pieces, optional ORDERS hub 0070 | inferred |  |
+| `FUN_2b5a_0f92` | 42340 | 24 | ui | Set map zoom level 0..3 (DS:0x184); recompute viewport + refresh | inferred |  |
+| `FUN_2b5a_1112` | 42364 | 63 | ui | Fortify order (314c=5); optional adjacent-native contact; exhaust MP | inferred |  |
+| `FUN_2b5a_123e` | 42427 | 93 | ui | Clear/Plow order (314c=8) → pioneer work body 479b_01a6 | inferred |  |
+| `FUN_2b5a_1454` | 42520 | 89 | ui | Build Road order (314c=9) → pioneer road body 479b_0526 | inferred |  |
+| `FUN_2b5a_199e` | 42609 | 76 | ui | Focus-tile click: enter colony/village or confirm-disband unit | inferred |  |
+| `FUN_2b5a_1b5a` | 42685 | 109 | ui | Activate-unit stack picker dialog; select unit and clear orders | inferred |  |
+| `FUN_2b5a_1dfc` | 42794 | 31 | ui | Go-To order (314c=3): colony-select dialog or sail/Europe fallback | inferred |  |
+| `FUN_2b5a_1e66` | 42825 | 47 | ui | Begin Trade Route order (314c=2) via colony/slot pickers | inferred |  |
+| `FUN_2b5a_1f36` | 42872 | 38 | ui | Redraw map at each zoom tier 0..3 (VIEW zoom apply) | inferred |  |
+| `FUN_2b5a_1fc0` | 42910 | 24 | ui | Redraw map walking zoom index downward to 0 | inferred |  |
+| `FUN_2b5a_20f6` | 42934 | 60 | ui | Game Options checkbox dialog → pack bits into DS:0x5382/0x5383 | inferred |  |
+| `FUN_2b5a_223a` | 42994 | 64 | ui | Colony Report Options dialog → pack bits into DS:0x5384/0x5385 | inferred |  |
+| `FUN_2b5a_23ce` | 43058 | 62 | ui | Sound Options dialog → DS:0xa0/a2/a4 + 0x5386 sound flags | inferred |  |
+| `FUN_2b5a_2464` | 43120 | 1672 | ui | Map menu-command mega-dispatch (GAME/VIEW/ORDERS/…; decomp noisy) | inferred |  |
+| `FUN_2b5a_268c` | 44792 | 27 | ui | Seven-checkbox options dialog → pack bits into DS:0x894 | inferred |  |
+| `FUN_2b5a_26f6` | 44819 | 68 | ui | GAME menu item dispatch (options/save/…) then ORDERS menu refresh | inferred |  |
+| `FUN_2b5a_2866` | 44887 | 18 | ui | Activate unit at focus tile (1b5a) then refresh ORDERS menu | inferred |  |
+| `FUN_2b5a_3036` | 44905 | 9 | ui | Thin wrapper → contextual ORDERS menu refresh (0b34) | inferred |  |
 | `FUN_2b5a_303c` | 44914 | 93 | ui | Map keyboard/input dispatch on DS:0x981e | inferred |  |
-| `FUN_2b5a_3094` | 45007 | 44 | ui | unknown | inferred |  |
-| `FUN_2b5a_30ce` | 45051 | 31 | ui | unknown | inferred |  |
-| `FUN_2b5a_3104` | 45082 | 18 | ui | unknown | inferred |  |
-| `FUN_2b5a_311c` | 45100 | 19 | ui | unknown | inferred |  |
-| `FUN_2b5a_313e` | 45119 | 22 | ui | unknown | inferred |  |
-| `FUN_2b5a_3145` | 45141 | 31 | ui | unknown | inferred |  |
-| `FUN_2b5a_3154` | 45172 | 21 | ui | unknown | inferred |  |
-| `FUN_2b5a_316e` | 45193 | 21 | ui | unknown | inferred |  |
-| `FUN_2b5a_3188` | 45214 | 19 | ui | unknown | inferred |  |
-| `FUN_2b5a_3194` | 45233 | 19 | ui | unknown | inferred |  |
-| `FUN_2b5a_31be` | 45252 | 21 | ui | unknown | inferred |  |
-| `FUN_2b5a_321c` | 45273 | 78 | ui | unknown | inferred |  |
-| `FUN_2b5a_3252` | 45351 | 489 | ui | unknown | inferred |  |
-| `FUN_2b5a_32a2` | 45840 | 30 | ui | unknown | inferred |  |
-| `FUN_2b5a_32ee` | 45870 | 24 | ui | unknown | inferred |  |
-| `FUN_2b5a_3344` | 45894 | 33 | ui | unknown | inferred |  |
-| `FUN_2b5a_33ce` | 45927 | 25 | ui | unknown | inferred |  |
-| `FUN_2b5a_3442` | 45952 | 11 | ui | unknown | inferred |  |
-| `FUN_2b5a_3458` | 45963 | 9 | ui | unknown | inferred |  |
-| `FUN_2b5a_3462` | 45972 | 150 | ui | unknown | inferred |  |
-| `FUN_2b5a_36e6` | 46122 | 22 | ui | unknown | inferred |  |
-| `FUN_2b5a_3752` | 46144 | 35 | ui | unknown | inferred |  |
-| `FUN_2b5a_37b2` | 46179 | 34 | ui | unknown | inferred |  |
-| `FUN_2b5a_3802` | 46213 | 200 | ui | unknown | inferred |  |
-| `FUN_2b5a_3ae6` | 46413 | 403 | ui | unknown | inferred |  |
-| `FUN_2b5a_3b68` | 46816 | 291 | ui | unknown | inferred |  |
+| `FUN_2b5a_3094` | 45007 | 44 | ui | Move/View Pieces chord: toggle 5383.0x20 + status chrome; advance b92 | inferred |  |
+| `FUN_2b5a_30ce` | 45051 | 31 | ui | Move/View Pieces chord tail (b92 stage / key 0x117/0x131) | inferred |  |
+| `FUN_2b5a_3104` | 45082 | 18 | ui | Esc/cancel map modal: dialog flush then clear DS:0x53c2 | inferred |  |
+| `FUN_2b5a_311c` | 45100 | 19 | ui | Nudge viewport center Y −1 (scroll up) + chrome refresh | inferred |  |
+| `FUN_2b5a_313e` | 45119 | 22 | ui | Nudge viewport center Y +1 (scroll down) + chrome refresh | inferred |  |
+| `FUN_2b5a_3145` | 45141 | 31 | ui | Clamp/set viewport center Y from prior compare; refresh chrome | inferred |  |
+| `FUN_2b5a_3154` | 45172 | 21 | ui | Nudge viewport center X −1 (scroll left) + chrome refresh | inferred |  |
+| `FUN_2b5a_316e` | 45193 | 21 | ui | Nudge viewport center X +1 (scroll right) + chrome refresh | inferred |  |
+| `FUN_2b5a_3188` | 45214 | 19 | ui | Page viewport up by DS:0x188 + chrome refresh | inferred |  |
+| `FUN_2b5a_3194` | 45233 | 19 | ui | Page viewport down by DS:0x188 + chrome refresh | inferred |  |
+| `FUN_2b5a_31be` | 45252 | 21 | ui | Page viewport right by DS:0x188 + chrome refresh | inferred |  |
+| `FUN_2b5a_321c` | 45273 | 78 | ui | Numpad/arrow scroll dispatch (0x34..0x39/0x110) → pan helpers | inferred |  |
+| `FUN_2b5a_3252` | 45351 | 489 | ui | Extended map-key dispatch (0x149+): wait/activate, build colony, … | inferred |  |
+| `FUN_2b5a_32a2` | 45840 | 30 | ui | Post-key commit: dir8 move or unit-act, then ORDERS menu refresh | inferred |  |
+| `FUN_2b5a_32ee` | 45870 | 24 | ui | Enter: open owned colony at focus tile (else ignore) | inferred |  |
+| `FUN_2b5a_3344` | 45894 | 33 | ui | Enter/Space: open colony or clear View Pieces / end-turn latch | inferred |  |
+| `FUN_2b5a_33ce` | 45927 | 25 | ui | Mouse hit-test: map / right panel / minimap region code 1..3 | inferred |  |
+| `FUN_2b5a_3442` | 45952 | 11 | ui | Set mouse cursor from table entry DS:0x83a | inferred |  |
+| `FUN_2b5a_3458` | 45963 | 9 | ui | Thin wrapper → set cursor (3442) with arg 1 | inferred |  |
+| `FUN_2b5a_3462` | 45972 | 150 | ui | Map click: select unit/colony, set Go-To, or recenter viewport | inferred |  |
+| `FUN_2b5a_36e6` | 46122 | 22 | ui | Minimap drag: pan viewport center to mapped tile | inferred |  |
+| `FUN_2b5a_3752` | 46144 | 35 | ui | Mouse-up edge: clear focus blink / View Pieces / end-turn latch | inferred |  |
+| `FUN_2b5a_37b2` | 46179 | 34 | ui | Mouse-button dispatch by hit region (33ce) → click/drag handlers | inferred |  |
+| `FUN_2b5a_3802` | 46213 | 200 | ui | Map input poll loop: sample key/mouse → 303c / menu / click paths | inferred |  |
+| `FUN_2b5a_3ae6` | 46413 | 403 | ui | Move Pieces frame: poll input (3802) then tick active unit order | inferred |  |
+| `FUN_2b5a_3b68` | 46816 | 291 | ui | Map UI main loop: clear selection, then Move/View Pieces frame | inferred |  |
 
 ### Segment `2f2b` (75 defs) — colony — Colony screen / build / colonist logic (DS:0x8542)
 
@@ -2395,24 +2395,24 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_3f41_0000` | 69397 | 27 | ui | unknown | inferred |  |
-| `FUN_3f41_008a` | 69424 | 27 | ui | unknown | inferred |  |
-| `FUN_3f41_010a` | 69451 | 160 | ui | unknown | inferred |  |
-| `FUN_3f41_0618` | 69611 | 39 | ui | unknown | inferred |  |
-| `FUN_3f41_06d0` | 69650 | 174 | ui | unknown | inferred |  |
-| `FUN_3f41_0ae6` | 69824 | 90 | ui | unknown | inferred |  |
-| `FUN_3f41_0d3e` | 69914 | 144 | ui | unknown | inferred |  |
-| `FUN_3f41_10d8` | 70058 | 123 | ui | unknown | inferred |  |
-| `FUN_3f41_1438` | 70181 | 31 | ui | unknown | inferred |  |
-| `FUN_3f41_1550` | 70212 | 69 | ui | unknown | inferred |  |
-| `FUN_3f41_1710` | 70281 | 145 | ui | unknown | inferred |  |
-| `FUN_3f41_1b94` | 70426 | 17 | ui | unknown | inferred |  |
-| `FUN_3f41_1bec` | 70443 | 95 | ui | unknown | inferred |  |
-| `FUN_3f41_1e80` | 70538 | 17 | ui | unknown | inferred |  |
-| `FUN_3f41_1ed8` | 70555 | 75 | ui | unknown | inferred |  |
-| `FUN_3f41_20b4` | 70630 | 45 | ui | unknown | inferred |  |
-| `FUN_3f41_220c` | 70675 | 112 | ui | unknown | inferred |  |
-| `FUN_3f41_2548` | 70787 | 247 | ui | unknown | inferred |  |
+| `FUN_3f41_0000` | 69397 | 27 | ui | Report plate bring-up (load art + palette into 2da8 box) | inferred | docs/assets.md |
+| `FUN_3f41_008a` | 69424 | 27 | ui | Report footer/title strip blit (default y=0xb8) | inferred |  |
+| `FUN_3f41_010a` | 69451 | 160 | ui | Indian Adviser report (F9): tribe rows, villages, converts | inferred | docs/assets.md |
+| `FUN_3f41_0618` | 69611 | 39 | ui | Continental Congress report (F3): title + tax line | inferred | docs/assets.md |
+| `FUN_3f41_06d0` | 69650 | 174 | ui | Religious Adviser (F2): crosses, SoL bars, FF list | inferred | docs/assets.md |
+| `FUN_3f41_0ae6` | 69824 | 90 | ui | Mid-entry of 06d0 FF-list tail (Ghidra split) | inferred |  |
+| `FUN_3f41_0d3e` | 69914 | 144 | ui | Labor Adviser detail: one profession’s colony placements | inferred |  |
+| `FUN_3f41_10d8` | 70058 | 123 | ui | Labor Adviser (F4): profession grid; click→0d3e | inferred | docs/assets.md |
+| `FUN_3f41_1438` | 70181 | 31 | ui | Economic Adviser header chrome (REPORT5 plate) | inferred | docs/assets.md |
+| `FUN_3f41_1550` | 70212 | 69 | ui | Economic Adviser colony cargo-stock rows | inferred |  |
+| `FUN_3f41_1710` | 70281 | 145 | ui | Economic Adviser (F5): cargo buy/sell ledger table | inferred | docs/assets.md |
+| `FUN_3f41_1b94` | 70426 | 17 | ui | Colony Adviser header chrome (REPORT6 plate) | inferred | docs/assets.md |
+| `FUN_3f41_1bec` | 70443 | 95 | ui | Colony Adviser (F6): per-colony pop/build/garrison rows | inferred | docs/assets.md |
+| `FUN_3f41_1e80` | 70538 | 17 | ui | Naval/military-in-colony report header chrome | inferred |  |
+| `FUN_3f41_1ed8` | 70555 | 75 | ui | Naval Adviser body: combat units docked per colony | inferred | docs/assets.md |
+| `FUN_3f41_20b4` | 70630 | 45 | ui | Unit disposition report header (column labels) | inferred |  |
+| `FUN_3f41_220c` | 70675 | 112 | ui | Unit disposition list (land/naval; orders/dest chrome) | inferred |  |
+| `FUN_3f41_2548` | 70787 | 247 | ui | Foreign Affairs Advisor (F8): euro rivals, war, strength | inferred | docs/assets.md |
 
 ### Segment `41f2` (9 defs) — ai — Tribe growth (Indian-turn growth tick + message UI)
 
@@ -2541,15 +2541,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_49dd_0000` | 78426 | 22 | ui | unknown | inferred |  |
-| `FUN_49dd_0086` | 78448 | 9 | ui | unknown | inferred |  |
-| `FUN_49dd_009c` | 78457 | 17 | ui | unknown | inferred |  |
-| `FUN_49dd_00f6` | 78474 | 17 | ui | unknown | inferred |  |
-| `FUN_49dd_0156` | 78491 | 17 | ui | unknown | inferred |  |
-| `FUN_49dd_01aa` | 78508 | 59 | ui | unknown | inferred |  |
-| `FUN_49dd_02d0` | 78567 | 39 | ui | unknown | inferred |  |
-| `FUN_49dd_0386` | 78606 | 41 | ui | unknown | inferred |  |
-| `FUN_49dd_0424` | 78647 | 750 | ui | unknown | inferred |  |
+| `FUN_49dd_0000` | 78426 | 22 | ui | Open unit/tile status panel window (281f frame at 0x49dd) | inferred |  |
+| `FUN_49dd_0086` | 78448 | 9 | ui | Close/dismiss status panel (281f_00e2) | inferred |  |
+| `FUN_49dd_009c` | 78457 | 17 | ui | Append one freeform tip/text line into status panel | inferred |  |
+| `FUN_49dd_00f6` | 78474 | 17 | ui | Append indexed tip string from table 0x2db0 into status panel | inferred |  |
+| `FUN_49dd_0156` | 78491 | 17 | ui | Draw status-panel footer/help strip (0x2dbe + optional advance) | inferred |  |
+| `FUN_49dd_01aa` | 78508 | 59 | ui | Sort and blit unit cargo commodity icons into status panel | inferred |  |
+| `FUN_49dd_02d0` | 78567 | 39 | ui | Resolve tile tip string (orders table / colony name / terrain) | inferred |  |
+| `FUN_49dd_0386` | 78606 | 41 | ui | Resolve unit profession/job name string (with type specials) | inferred |  |
+| `FUN_49dd_0424` | 78647 | 750 | ui | Compose map unit/tile status panel (MP, orders, cargo, colony, tribe) | inferred | ai/euro_dispatcher.c |
 
 ### Segment `4b58` (24 defs) — ui — Window / frame widget draw (281f_00ba family)
 
@@ -2633,7 +2633,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_521d_02be` | 86971 | 25 | ai | Upsert entry into global AI work queue | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_031c` | 86996 | 16 | ai | Clear global AI work-queue table | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_0342` | 87012 | 27 | ai | Clear primary goals; promote secondary→primary (6d8e plan pass) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_03a6` | 87039 | 19 | ai | unknown | inferred |  |
+| `FUN_521d_03a6` | 87039 | 19 | ai | Clear all 16 primary goal slots for nation (0xff @ 0x9eac) | inferred | ai/euro_dispatcher.c |
 | `FUN_521d_03d0` | 87058 | 40 | ai | Nation founding / expansion urgency score | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_0492` | 87098 | 41 | ai | Colony-count vs target balance flags | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_052c` | 87139 | 57 | ai | Unit desirability score (type + diplo + founding) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
@@ -2643,7 +2643,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_521d_0896` | 87319 | 26 | ai | Filter profession/role by distance and colony wealth | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit / colony goal logic | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_20c6` | 88247 | 19 | ai | unknown | inferred |  |
+| `FUN_521d_20c6` | 88247 | 19 | ai | Stamp unit orders=0x0B goto with dest (DL,BL)+param | inferred | ai/move_scoring.md; near FUN_521d_20e6 |
 | `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; ai/move_scoring.md |
 | `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); PARKED | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5c38` | 92261 | 8 | ai | Always-true predicate stub (Europe hire gate) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
@@ -2684,9 +2684,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5f7a_000e` | 98809 | 76 | trade | unknown | inferred |  |
-| `FUN_5f7a_020e` | 98885 | 168 | trade | unknown | inferred |  |
-| `FUN_5f7a_0662` | 99053 | 58 | trade | unknown | inferred |  |
+| `FUN_5f7a_000e` | 98809 | 76 | trade | Colony native-meet gold dialog (type-5 path; ±100 treasury) | inferred |  |
+| `FUN_5f7a_020e` | 98885 | 168 | trade | Native cargo trade: price, pick stock, confirm sell/barter | inferred |  |
+| `FUN_5f7a_0662` | 99053 | 58 | trade | Dispatch colony native-trade session (000e vs 020e) | inferred |  |
 
 ### Segment `5fef` (11 defs) — combat — Unit/colony combat and Indian raid resolution
 
@@ -2748,13 +2748,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_6662_0000` | 103761 | 34 | ui | unknown | inferred |  |
-| `FUN_6662_0086` | 103795 | 46 | ui | unknown | inferred |  |
+| `FUN_6662_0000` | 103761 | 34 | ui | Probe 2×2 for land/sea tile matching mode (281f_0768 / coast bit) | inferred |  |
+| `FUN_6662_0086` | 103795 | 46 | ui | Sign(dx,dy) → 8-way direction index (tables 0xb4/0xbe) | inferred | src/core/units.c |
 | `FUN_6662_00f2` | 103841 | 309 | ui | Goto BFS over terr_cost with path-cost overlay and Z/Esc confirm | inferred |  |
-| `FUN_6662_0906` | 104150 | 52 | ui | unknown | inferred |  |
-| `FUN_6662_09ae` | 104202 | 70 | ui | unknown | inferred |  |
-| `FUN_6662_0b4e` | 104272 | 216 | ui | unknown | inferred |  |
-| `FUN_6662_0f74` | 104488 | 316 | ui | unknown | inferred |  |
+| `FUN_6662_0906` | 104150 | 52 | ui | Short-range goto cost via 00f2 when both axes <8; else −1 | inferred | src/core/units.c |
+| `FUN_6662_09ae` | 104202 | 70 | ui | Pick neighboring ÷4 sector toward land/sea connectivity bitmask | inferred |  |
+| `FUN_6662_0b4e` | 104272 | 216 | ui | Coarse sector BFS (15×18) toward goto with path-cost overlay/Z/Esc | inferred |  |
+| `FUN_6662_0f74` | 104488 | 316 | ui | Unit goto next-step director: adjacent / near flood / far sector BFS | inferred | src/core/units.c |
 
 ### Segment `67bf` (1 defs) — mapgen — Continent flood-fill IDs
 
@@ -2766,26 +2766,26 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_67f4_0008` | 104967 | 43 | mapgen | unknown | inferred |  |
+| `FUN_67f4_0008` | 104967 | 43 | mapgen | Scan 2×2 for ocean-match tile; return continent_id + coords | inferred |  |
 | `FUN_67f4_0088` | 105010 | 137 | mapgen | Build 15x18 coast/neighbor bitmasks and per-continent terrain tallies post-flood-fill | inferred |  |
 
 ### Segment `682a` (1 defs) — mapgen — Map fertility / bonus value writer
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_682a_000c` | 105147 | 87 | mapgen | unknown | inferred |  |
+| `FUN_682a_000c` | 105147 | 87 | mapgen | Write per-tile fertility/bonus nibble across the map | inferred |  |
 
 ### Segment `684c` (8 defs) — mapgen — Procedural NEW WORLD map gen
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_684c_0004` | 105234 | 25 | mapgen | unknown | inferred |  |
-| `FUN_684c_009c` | 105259 | 23 | mapgen | unknown | inferred |  |
+| `FUN_684c_0004` | 105234 | 25 | mapgen | Stamp land mask at (x,y) and optional +E/+S neighbours | inferred | src/core/map_gen.c |
+| `FUN_684c_009c` | 105259 | 23 | mapgen | Archipelago/normal land-blob wander (diagonal steps) | inferred | src/core/map_gen.c |
 | `FUN_684c_0116` | 105282 | 39 | mapgen | Land blobs / form thunk | known | src/core/map_gen.c |
 | `FUN_684c_021c` | 105321 | 26 | mapgen | Land blobs / form thunk | known | src/core/map_gen.c |
 | `FUN_684c_02a8` | 105347 | 66 | mapgen | Land blobs / form thunk | known | src/core/map_gen.c |
-| `FUN_684c_03e4` | 105413 | 25 | mapgen | unknown | inferred |  |
-| `FUN_684c_04a6` | 105438 | 164 | mapgen | unknown | inferred |  |
+| `FUN_684c_03e4` | 105413 | 25 | mapgen | True if mountain is landlocked (four diagonals non-ocean) | inferred | src/core/map_gen.c |
+| `FUN_684c_04a6` | 105438 | 164 | mapgen | Rivers pass — random walks painting river bits | inferred | src/core/map_gen.c |
 | `FUN_684c_08c0` | 105602 | 2089 | mapgen | NEW WORLD procedural map entry | known | src/core/map_gen.c |
 
 ### Segment `6a09` (1 defs) — ai — Tribe placement
@@ -3005,13 +3005,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7455_0000` | 118950 | 33 | mapgen | unknown | inferred |  |
+| `FUN_7455_0000` | 118950 | 33 | mapgen | Mirror pitch/height/plane far-ptrs into mapgen scratch | inferred |  |
 | `FUN_7455_0058` | 118983 | 58 | mapgen | Allocate terrain/layer2/layer3 map planes from pitch×height | inferred |  |
-| `FUN_7455_0122` | 119041 | 20 | mapgen | unknown | inferred |  |
-| `FUN_7455_0166` | 119061 | 65 | mapgen | unknown | inferred |  |
-| `FUN_7455_02a6` | 119126 | 58 | mapgen | unknown | inferred |  |
-| `FUN_7455_03b0` | 119184 | 28 | mapgen | unknown | inferred |  |
-| `FUN_7455_0434` | 119212 | 70 | mapgen | unknown | inferred |  |
+| `FUN_7455_0122` | 119041 | 20 | mapgen | Set large-map compact flag DS:0x15a from plane budget | inferred |  |
+| `FUN_7455_0166` | 119061 | 65 | mapgen | Load map planes from file (dims + terrain/L2/L3) | inferred |  |
+| `FUN_7455_02a6` | 119126 | 58 | mapgen | Save map planes to file | inferred |  |
+| `FUN_7455_03b0` | 119184 | 28 | mapgen | Set dims; memset terrain=ocean, layer2/3=0 | inferred |  |
+| `FUN_7455_0434` | 119212 | 70 | mapgen | Bootstrap map dims/buffers (default 120×75 or from file) | inferred |  |
 
 ### Segment `74a4` (3 defs) — ui — Map menu bar load from MENU.TXT (4b58 widgets)
 

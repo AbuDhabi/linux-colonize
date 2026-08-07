@@ -4439,6 +4439,870 @@
         "purpose": "Set/clear colony specialty cargo (0x8d) from stock/market",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_137f_000a": {
+        "system": "mapgen",
+        "purpose": "map_tile_in_bounds \u2014 inset interior (1..pitch-2, 1..height-2)",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_003c": {
+        "system": "mapgen",
+        "purpose": "True if |dx|,|dy| within radius mode (cardinal/diag bands)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_137f_00c0": {
+        "system": "mapgen",
+        "purpose": "True if (x,y) inside camera/scroll viewport bounds",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_137f_00f6": {
+        "system": "mapgen",
+        "purpose": "terrain_ptr map accessor (DS:0x15c)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_012a": {
+        "system": "mapgen",
+        "purpose": "layer2_ptr map accessor (DS:0x160)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_015e": {
+        "system": "mapgen",
+        "purpose": "OR or AND-clear layer2 bits at tile",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_01dc": {
+        "system": "mapgen",
+        "purpose": "set_continent_nibble \u2014 write layer3 low nibble",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0200": {
+        "system": "mapgen",
+        "purpose": "owner_nibble \u2014 layer3 high nibble; 0xf \u2192 \u22121",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_02a0": {
+        "system": "mapgen",
+        "purpose": "continent_id if in-bounds land (not ocean/HS); else \u22121",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_02e0": {
+        "system": "mapgen",
+        "purpose": "explore_plane_ptr map accessor (DS:0x168)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_02f8": {
+        "system": "mapgen",
+        "purpose": "tile_explore_mask \u2014 explore-plane byte at tile",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0314": {
+        "system": "mapgen",
+        "purpose": "tile_owner_or_presence \u2014 owner if layer2 presence bit",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0392": {
+        "system": "mapgen",
+        "purpose": "Indian settlement owner (tribe bit, owner\u22654); else \u22121",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_03e4": {
+        "system": "mapgen",
+        "purpose": "tile_tribe_owner \u2014 owner if layer2 tribe bit",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_0428": {
+        "system": "mapgen",
+        "purpose": "tile_tribe_or_presence \u2014 tribe owner else presence owner",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_137f_044a": {
+        "system": "mapgen",
+        "purpose": "Enemy Euro fort/colony owner vs nation when war bit set",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_137f_04b0": {
+        "system": "mapgen",
+        "purpose": "Procedural special-resource type from seed DS:0x190",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_137f_0598": {
+        "system": "mapgen",
+        "purpose": "Procedural lost-city/rumour present on unowned land",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_137f_0614": {
+        "system": "mapgen",
+        "purpose": "Remap terrain type by climate setting DS:0x18e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_13e4_003a": {
+        "system": "mapgen",
+        "purpose": "terrain_class_at \u2014 decode_terrain_class(terrain_byte)",
+        "confidence": "known",
+        "links": "ai/accessors.c"
+      },
+      "FUN_13e4_00a2": {
+        "system": "mapgen",
+        "purpose": "True if terrain type is forest (8\u201323)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_13f1_000a": {
+        "system": "mapdraw",
+        "purpose": "OR nation explore bit; claim/UI side effects on tile",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_13f1_00a6": {
+        "system": "mapdraw",
+        "purpose": "Reveal \u00b15 around colony into nation explore plane",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_13f1_0158": {
+        "system": "mapdraw",
+        "purpose": "Fog-reveal radius around point for Euro nation",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_13f1_02b4": {
+        "system": "mapdraw",
+        "purpose": "Unit fog reveal (ship vs land radius into 0158)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_67f4_0008": {
+        "system": "mapgen",
+        "purpose": "Scan 2\u00d72 for ocean-match tile; return continent_id + coords",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_682a_000c": {
+        "system": "mapgen",
+        "purpose": "Write per-tile fertility/bonus nibble across the map",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_684c_0004": {
+        "system": "mapgen",
+        "purpose": "Stamp land mask at (x,y) and optional +E/+S neighbours",
+        "confidence": "inferred",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_684c_009c": {
+        "system": "mapgen",
+        "purpose": "Archipelago/normal land-blob wander (diagonal steps)",
+        "confidence": "inferred",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_684c_03e4": {
+        "system": "mapgen",
+        "purpose": "True if mountain is landlocked (four diagonals non-ocean)",
+        "confidence": "inferred",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_684c_04a6": {
+        "system": "mapgen",
+        "purpose": "Rivers pass \u2014 random walks painting river bits",
+        "confidence": "inferred",
+        "links": "src/core/map_gen.c"
+      },
+      "FUN_7455_0000": {
+        "system": "mapgen",
+        "purpose": "Mirror pitch/height/plane far-ptrs into mapgen scratch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7455_0122": {
+        "system": "mapgen",
+        "purpose": "Set large-map compact flag DS:0x15a from plane budget",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7455_0166": {
+        "system": "mapgen",
+        "purpose": "Load map planes from file (dims + terrain/L2/L3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7455_02a6": {
+        "system": "mapgen",
+        "purpose": "Save map planes to file",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7455_03b0": {
+        "system": "mapgen",
+        "purpose": "Set dims; memset terrain=ocean, layer2/3=0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7455_0434": {
+        "system": "mapgen",
+        "purpose": "Bootstrap map dims/buffers (default 120\u00d775 or from file)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15b3_0004": {
+        "system": "trade",
+        "purpose": "Read bilateral diplomacy byte (Euro nation\u00d70x13c / Indian\u00d70x4e)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a38"
+      },
+      "FUN_15b3_0032": {
+        "system": "trade",
+        "purpose": "Write bilateral diplomacy byte (Euro\u00d70x13c / Indian\u00d70x4e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15b3_0066": {
+        "system": "trade",
+        "purpose": "OR diplomacy bit both directions; assert symmetry",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a10 sibling; switch case\u21920066"
+      },
+      "FUN_15b3_00d0": {
+        "system": "trade",
+        "purpose": "Clear diplomacy bit both directions; assert symmetry",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a10"
+      },
+      "FUN_15b3_0144": {
+        "system": "trade",
+        "purpose": "Format nation display name into buffer (table \u22120x72be; id3 special)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15b3_0198": {
+        "system": "trade",
+        "purpose": "Nation name string ptr (independence rebel/loyal remap)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a1a"
+      },
+      "FUN_15b3_01e0": {
+        "system": "trade",
+        "purpose": "Nation alt-name string ptr (independence remap; dialog subst)",
+        "confidence": "inferred",
+        "links": "FUN_281f_09a4"
+      },
+      "FUN_15b3_0228": {
+        "system": "trade",
+        "purpose": "Nation name string ptr without independence remap",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a24"
+      },
+      "FUN_15b3_024e": {
+        "system": "trade",
+        "purpose": "Nation alt-name string ptr without independence remap",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_15b3_0274": {
+        "system": "trade",
+        "purpose": "Nation name-record base (0x5426+n\u00d70x34; rebel\u2192player remap)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a2e"
+      },
+      "FUN_5f7a_000e": {
+        "system": "trade",
+        "purpose": "Colony native-meet gold dialog (type-5 path; \u00b1100 treasury)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5f7a_020e": {
+        "system": "trade",
+        "purpose": "Native cargo trade: price, pick stock, confirm sell/barter",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5f7a_0662": {
+        "system": "trade",
+        "purpose": "Dispatch colony native-trade session (000e vs 020e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_0000": {
+        "system": "ui",
+        "purpose": "Report plate bring-up (load art + palette into 2da8 box)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_008a": {
+        "system": "ui",
+        "purpose": "Report footer/title strip blit (default y=0xb8)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_010a": {
+        "system": "ui",
+        "purpose": "Indian Adviser report (F9): tribe rows, villages, converts",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_0618": {
+        "system": "ui",
+        "purpose": "Continental Congress report (F3): title + tax line",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_06d0": {
+        "system": "ui",
+        "purpose": "Religious Adviser (F2): crosses, SoL bars, FF list",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_0ae6": {
+        "system": "ui",
+        "purpose": "Mid-entry of 06d0 FF-list tail (Ghidra split)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_0d3e": {
+        "system": "ui",
+        "purpose": "Labor Adviser detail: one profession\u2019s colony placements",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_10d8": {
+        "system": "ui",
+        "purpose": "Labor Adviser (F4): profession grid; click\u21920d3e",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_1438": {
+        "system": "ui",
+        "purpose": "Economic Adviser header chrome (REPORT5 plate)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_1550": {
+        "system": "ui",
+        "purpose": "Economic Adviser colony cargo-stock rows",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_1710": {
+        "system": "ui",
+        "purpose": "Economic Adviser (F5): cargo buy/sell ledger table",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_1b94": {
+        "system": "ui",
+        "purpose": "Colony Adviser header chrome (REPORT6 plate)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_1bec": {
+        "system": "ui",
+        "purpose": "Colony Adviser (F6): per-colony pop/build/garrison rows",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_1e80": {
+        "system": "ui",
+        "purpose": "Naval/military-in-colony report header chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_1ed8": {
+        "system": "ui",
+        "purpose": "Naval Adviser body: combat units docked per colony",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_3f41_20b4": {
+        "system": "ui",
+        "purpose": "Unit disposition report header (column labels)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_220c": {
+        "system": "ui",
+        "purpose": "Unit disposition list (land/naval; orders/dest chrome)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_3f41_2548": {
+        "system": "ui",
+        "purpose": "Foreign Affairs Advisor (F8): euro rivals, war, strength",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_521d_03a6": {
+        "system": "ai",
+        "purpose": "Clear all 16 primary goal slots for nation (0xff @ 0x9eac)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_521d_20c6": {
+        "system": "ai",
+        "purpose": "Stamp unit orders=0x0B goto with dest (DL,BL)+param",
+        "confidence": "inferred",
+        "links": "ai/move_scoring.md; near FUN_521d_20e6"
+      },
+      "FUN_6662_0000": {
+        "system": "ui",
+        "purpose": "Probe 2\u00d72 for land/sea tile matching mode (281f_0768 / coast bit)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6662_0086": {
+        "system": "ui",
+        "purpose": "Sign(dx,dy) \u2192 8-way direction index (tables 0xb4/0xbe)",
+        "confidence": "inferred",
+        "links": "src/core/units.c"
+      },
+      "FUN_6662_0906": {
+        "system": "ui",
+        "purpose": "Short-range goto cost via 00f2 when both axes <8; else \u22121",
+        "confidence": "inferred",
+        "links": "src/core/units.c"
+      },
+      "FUN_6662_09ae": {
+        "system": "ui",
+        "purpose": "Pick neighboring \u00f74 sector toward land/sea connectivity bitmask",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6662_0b4e": {
+        "system": "ui",
+        "purpose": "Coarse sector BFS (15\u00d718) toward goto with path-cost overlay/Z/Esc",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_6662_0f74": {
+        "system": "ui",
+        "purpose": "Unit goto next-step director: adjacent / near flood / far sector BFS",
+        "confidence": "inferred",
+        "links": "src/core/units.c"
+      },
+      "FUN_112b_0002": {
+        "system": "mapdraw",
+        "purpose": "Profession \u2192 ICONS.SS index (AX+0x52; specials for 0x13..0x1c)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_112b_0060": {
+        "system": "mapdraw",
+        "purpose": "Unit display icon from type@5232 + profession overrides (via 0002)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_112b_010e": {
+        "system": "mapdraw",
+        "purpose": "Pick stack unit for chrome (prefer ship 0xd\u20130x12) then icon via 0060",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_112b_015c": {
+        "system": "mapdraw",
+        "purpose": "Orders-box rect (bit0) and/or color sprite blit (bit1) for unit chrome",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_112b_0790": {
+        "system": "mapdraw",
+        "purpose": "Tribe/village map chrome: silhouette, relation bars, optional name",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_112b_0c64": {
+        "system": "mapdraw",
+        "purpose": "Colony map chrome: nation fill, fort tier, pop/name text",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_112b_0eb6": {
+        "system": "mapdraw",
+        "purpose": "Animate unit tile-to-tile move with per-frame 01ba chrome redraw",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_49dd_0000": {
+        "system": "ui",
+        "purpose": "Open unit/tile status panel window (281f frame at 0x49dd)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_0086": {
+        "system": "ui",
+        "purpose": "Close/dismiss status panel (281f_00e2)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_009c": {
+        "system": "ui",
+        "purpose": "Append one freeform tip/text line into status panel",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_00f6": {
+        "system": "ui",
+        "purpose": "Append indexed tip string from table 0x2db0 into status panel",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_0156": {
+        "system": "ui",
+        "purpose": "Draw status-panel footer/help strip (0x2dbe + optional advance)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_01aa": {
+        "system": "ui",
+        "purpose": "Sort and blit unit cargo commodity icons into status panel",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_02d0": {
+        "system": "ui",
+        "purpose": "Resolve tile tip string (orders table / colony name / terrain)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_0386": {
+        "system": "ui",
+        "purpose": "Resolve unit profession/job name string (with type specials)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_49dd_0424": {
+        "system": "ui",
+        "purpose": "Compose map unit/tile status panel (MP, orders, cargo, colony, tribe)",
+        "confidence": "inferred",
+        "links": "ai/euro_dispatcher.c"
+      },
+      "FUN_2b5a_0000": {
+        "system": "ui",
+        "purpose": "Prefetch two options-dialog string slots (0x80c/0x810 via 6f74_03d0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_001e": {
+        "system": "ui",
+        "purpose": "European Status bring-up: nation blob copy + dialog (12fd/6f74)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0070": {
+        "system": "ui",
+        "purpose": "Selected-unit ORDERS mega-dispatch/dialog hub (DS:0x5392; decomp noisy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0722": {
+        "system": "ui",
+        "purpose": "Show Hidden Terrain: label every viewport tile via 7a65_0008",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0902": {
+        "system": "ui",
+        "purpose": "Baseline-enable map menu widgets; set View Pieces (5390=1)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0b08": {
+        "system": "ui",
+        "purpose": "Order-menu gates: cargo-capable? / wagon type==2?",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0b34": {
+        "system": "ui",
+        "purpose": "Contextual ORDERS menu enable/disable for selected unit (Move Pieces)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0e52": {
+        "system": "ui",
+        "purpose": "Select/activate unit UI: chrome, Move Pieces, optional ORDERS hub 0070",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_0f92": {
+        "system": "ui",
+        "purpose": "Set map zoom level 0..3 (DS:0x184); recompute viewport + refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1112": {
+        "system": "ui",
+        "purpose": "Fortify order (314c=5); optional adjacent-native contact; exhaust MP",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_123e": {
+        "system": "ui",
+        "purpose": "Clear/Plow order (314c=8) \u2192 pioneer work body 479b_01a6",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1454": {
+        "system": "ui",
+        "purpose": "Build Road order (314c=9) \u2192 pioneer road body 479b_0526",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_199e": {
+        "system": "ui",
+        "purpose": "Focus-tile click: enter colony/village or confirm-disband unit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1b5a": {
+        "system": "ui",
+        "purpose": "Activate-unit stack picker dialog; select unit and clear orders",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1dfc": {
+        "system": "ui",
+        "purpose": "Go-To order (314c=3): colony-select dialog or sail/Europe fallback",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1e66": {
+        "system": "ui",
+        "purpose": "Begin Trade Route order (314c=2) via colony/slot pickers",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1f36": {
+        "system": "ui",
+        "purpose": "Redraw map at each zoom tier 0..3 (VIEW zoom apply)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_1fc0": {
+        "system": "ui",
+        "purpose": "Redraw map walking zoom index downward to 0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_20f6": {
+        "system": "ui",
+        "purpose": "Game Options checkbox dialog \u2192 pack bits into DS:0x5382/0x5383",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_223a": {
+        "system": "ui",
+        "purpose": "Colony Report Options dialog \u2192 pack bits into DS:0x5384/0x5385",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_23ce": {
+        "system": "ui",
+        "purpose": "Sound Options dialog \u2192 DS:0xa0/a2/a4 + 0x5386 sound flags",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_2464": {
+        "system": "ui",
+        "purpose": "Map menu-command mega-dispatch (GAME/VIEW/ORDERS/\u2026; decomp noisy)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_268c": {
+        "system": "ui",
+        "purpose": "Seven-checkbox options dialog \u2192 pack bits into DS:0x894",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_26f6": {
+        "system": "ui",
+        "purpose": "GAME menu item dispatch (options/save/\u2026) then ORDERS menu refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_2866": {
+        "system": "ui",
+        "purpose": "Activate unit at focus tile (1b5a) then refresh ORDERS menu",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3036": {
+        "system": "ui",
+        "purpose": "Thin wrapper \u2192 contextual ORDERS menu refresh (0b34)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3094": {
+        "system": "ui",
+        "purpose": "Move/View Pieces chord: toggle 5383.0x20 + status chrome; advance b92",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_30ce": {
+        "system": "ui",
+        "purpose": "Move/View Pieces chord tail (b92 stage / key 0x117|0x131)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3104": {
+        "system": "ui",
+        "purpose": "Esc/cancel map modal: dialog flush then clear DS:0x53c2",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_311c": {
+        "system": "ui",
+        "purpose": "Nudge viewport center Y \u22121 (scroll up) + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_313e": {
+        "system": "ui",
+        "purpose": "Nudge viewport center Y +1 (scroll down) + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3145": {
+        "system": "ui",
+        "purpose": "Clamp/set viewport center Y from prior compare; refresh chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3154": {
+        "system": "ui",
+        "purpose": "Nudge viewport center X \u22121 (scroll left) + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_316e": {
+        "system": "ui",
+        "purpose": "Nudge viewport center X +1 (scroll right) + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3188": {
+        "system": "ui",
+        "purpose": "Page viewport up by DS:0x188 + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3194": {
+        "system": "ui",
+        "purpose": "Page viewport down by DS:0x188 + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_31be": {
+        "system": "ui",
+        "purpose": "Page viewport right by DS:0x188 + chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_321c": {
+        "system": "ui",
+        "purpose": "Numpad/arrow scroll dispatch (0x34..0x39/0x110) \u2192 pan helpers",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3252": {
+        "system": "ui",
+        "purpose": "Extended map-key dispatch (0x149+): wait/activate, build colony, \u2026",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_32a2": {
+        "system": "ui",
+        "purpose": "Post-key commit: dir8 move or unit-act, then ORDERS menu refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_32ee": {
+        "system": "ui",
+        "purpose": "Enter: open owned colony at focus tile (else ignore)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3344": {
+        "system": "ui",
+        "purpose": "Enter/Space: open colony or clear View Pieces / end-turn latch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_33ce": {
+        "system": "ui",
+        "purpose": "Mouse hit-test: map / right panel / minimap region code 1..3",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3442": {
+        "system": "ui",
+        "purpose": "Set mouse cursor from table entry DS:0x83a",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3458": {
+        "system": "ui",
+        "purpose": "Thin wrapper \u2192 set cursor (3442) with arg 1",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3462": {
+        "system": "ui",
+        "purpose": "Map click: select unit/colony, set Go-To, or recenter viewport",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_36e6": {
+        "system": "ui",
+        "purpose": "Minimap drag: pan viewport center to mapped tile",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3752": {
+        "system": "ui",
+        "purpose": "Mouse-up edge: clear focus blink / View Pieces / end-turn latch",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_37b2": {
+        "system": "ui",
+        "purpose": "Mouse-button dispatch by hit region (33ce) \u2192 click/drag handlers",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3802": {
+        "system": "ui",
+        "purpose": "Map input poll loop: sample key/mouse \u2192 303c / menu / click paths",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3ae6": {
+        "system": "ui",
+        "purpose": "Move Pieces frame: poll input (3802) then tick active unit order",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2b5a_3b68": {
+        "system": "ui",
+        "purpose": "Map UI main loop: clear selection, then Move/View Pieces frame",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {

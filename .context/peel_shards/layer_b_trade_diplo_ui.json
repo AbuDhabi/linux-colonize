@@ -1,0 +1,205 @@
+{
+  "layer": "B",
+  "chunk": "trade_15b3_5f7a_diplo_ui_3f41_521d_rest",
+  "functions": {
+    "FUN_15b3_0004": {
+      "system": "trade",
+      "purpose": "Read bilateral diplomacy byte (Euro nation×0x13c / Indian×0x4e)",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a38"
+    },
+    "FUN_15b3_0032": {
+      "system": "trade",
+      "purpose": "Write bilateral diplomacy byte (Euro×0x13c / Indian×0x4e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15b3_0066": {
+      "system": "trade",
+      "purpose": "OR diplomacy bit both directions; assert symmetry",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a10 sibling; switch case→0066"
+    },
+    "FUN_15b3_00d0": {
+      "system": "trade",
+      "purpose": "Clear diplomacy bit both directions; assert symmetry",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a10"
+    },
+    "FUN_15b3_0144": {
+      "system": "trade",
+      "purpose": "Format nation display name into buffer (table −0x72be; id3 special)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15b3_0198": {
+      "system": "trade",
+      "purpose": "Nation name string ptr (independence rebel/loyal remap)",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a1a"
+    },
+    "FUN_15b3_01e0": {
+      "system": "trade",
+      "purpose": "Nation alt-name string ptr (independence remap; dialog subst)",
+      "confidence": "inferred",
+      "links": "FUN_281f_09a4"
+    },
+    "FUN_15b3_0228": {
+      "system": "trade",
+      "purpose": "Nation name string ptr without independence remap",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a24"
+    },
+    "FUN_15b3_024e": {
+      "system": "trade",
+      "purpose": "Nation alt-name string ptr without independence remap",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_15b3_0274": {
+      "system": "trade",
+      "purpose": "Nation name-record base (0x5426+n×0x34; rebel→player remap)",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a2e"
+    },
+    "FUN_5f7a_000e": {
+      "system": "trade",
+      "purpose": "Colony native-meet gold dialog (type-5 path; ±100 treasury)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_5f7a_020e": {
+      "system": "trade",
+      "purpose": "Native cargo trade: price, pick stock, confirm sell/barter",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_5f7a_0662": {
+      "system": "trade",
+      "purpose": "Dispatch colony native-trade session (000e vs 020e)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_0000": {
+      "system": "ui",
+      "purpose": "Report plate bring-up (load art + palette into 2da8 box)",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_008a": {
+      "system": "ui",
+      "purpose": "Report footer/title strip blit (default y=0xb8)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_010a": {
+      "system": "ui",
+      "purpose": "Indian Adviser report (F9): tribe rows, villages, converts",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_0618": {
+      "system": "ui",
+      "purpose": "Continental Congress report (F3): title + tax line",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_06d0": {
+      "system": "ui",
+      "purpose": "Religious Adviser (F2): crosses, SoL bars, FF list",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_0ae6": {
+      "system": "ui",
+      "purpose": "Mid-entry of 06d0 FF-list tail (Ghidra split)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_0d3e": {
+      "system": "ui",
+      "purpose": "Labor Adviser detail: one profession’s colony placements",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_10d8": {
+      "system": "ui",
+      "purpose": "Labor Adviser (F4): profession grid; click→0d3e",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_1438": {
+      "system": "ui",
+      "purpose": "Economic Adviser header chrome (REPORT5 plate)",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_1550": {
+      "system": "ui",
+      "purpose": "Economic Adviser colony cargo-stock rows",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_1710": {
+      "system": "ui",
+      "purpose": "Economic Adviser (F5): cargo buy/sell ledger table",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_1b94": {
+      "system": "ui",
+      "purpose": "Colony Adviser header chrome (REPORT6 plate)",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_1bec": {
+      "system": "ui",
+      "purpose": "Colony Adviser (F6): per-colony pop/build/garrison rows",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_1e80": {
+      "system": "ui",
+      "purpose": "Naval/military-in-colony report header chrome",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_1ed8": {
+      "system": "ui",
+      "purpose": "Naval Adviser body: combat units docked per colony",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_3f41_20b4": {
+      "system": "ui",
+      "purpose": "Unit disposition report header (column labels)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_220c": {
+      "system": "ui",
+      "purpose": "Unit disposition list (land/naval; orders/dest chrome)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_3f41_2548": {
+      "system": "ui",
+      "purpose": "Foreign Affairs Advisor (F8): euro rivals, war, strength",
+      "confidence": "inferred",
+      "links": "docs/assets.md"
+    },
+    "FUN_521d_03a6": {
+      "system": "ai",
+      "purpose": "Clear all 16 primary goal slots for nation (0xff @ 0x9eac)",
+      "confidence": "inferred",
+      "links": "ai/euro_dispatcher.c"
+    },
+    "FUN_521d_20c6": {
+      "system": "ai",
+      "purpose": "Stamp unit orders=0x0B goto with dest (DL,BL)+param",
+      "confidence": "inferred",
+      "links": "ai/move_scoring.md; near FUN_521d_20e6"
+    }
+  },
+  "notes": "33/33. Style-matched closed Europe 38fd/4345 one-liners + MODULE_MAP. 15b3: bilateral diplo byte R/W/OR/clear + name-table ptrs (Euro×0x13c / Indian×0x4e; independence remaps on 0198/01e0). 5f7a: colony native-trade sell/buy. 3f41: F2–F9 report bodies via 291f thunks (0000 plate, 008a footer; 0ae6 Ghidra-split of 06d0). 521d leftovers beside labeled 20e6: 03a6 clears primary goal table; 20c6 writes goto order 0x0B."
+}
