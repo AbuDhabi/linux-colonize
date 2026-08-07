@@ -253,69 +253,69 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1427_0002` | 7241 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0026` | 7261 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_1427_004a` | 7281 | 14 | mapdraw | unknown | inferred |  |
-| `FUN_1427_005c` | 7295 | 45 | mapdraw | unknown | inferred |  |
-| `FUN_1427_012e` | 7340 | 26 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0164` | 7366 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0180` | 7382 | 27 | mapdraw | unknown | inferred |  |
-| `FUN_1427_01dc` | 7409 | 17 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0204` | 7426 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_1427_023a` | 7446 | 32 | mapdraw | unknown | inferred |  |
-| `FUN_1427_02ca` | 7478 | 35 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0362` | 7513 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_1427_037e` | 7523 | 12 | mapdraw | unknown | inferred |  |
-| `FUN_1427_03a0` | 7535 | 30 | mapdraw | unknown | inferred |  |
+| `FUN_1427_0002` | 7241 | 20 | mapdraw | Walk transport_next to stack head/top | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0026` | 7261 | 20 | mapdraw | Walk transport_prev to stack tail/bottom | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_004a` | 7281 | 14 | mapdraw | One step down stack (read transport_prev) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_005c` | 7295 | 45 | mapdraw | unit_index_on_tile: stack-head unit at (x,y) or −1 | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_012e` | 7340 | 26 | mapdraw | Nth unit in stack from head | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0164` | 7366 | 16 | mapdraw | Distance to stack head via transport_next | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0180` | 7382 | 27 | mapdraw | Nth non-transport unit in stack (5237==0) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_01dc` | 7409 | 17 | mapdraw | Count units in transport stack | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0204` | 7426 | 20 | mapdraw | Count units of given type in stack | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_023a` | 7446 | 32 | mapdraw | Unlink unit from stack; clear xy to 0xff | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_02ca` | 7478 | 35 | mapdraw | Place unit on tile; link into stack head | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0362` | 7513 | 10 | mapdraw | Move unit on map: unlink then place (023a+02ca) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_037e` | 7523 | 12 | mapdraw | Re-place unit at its current xy via 0362 | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_03a0` | 7535 | 30 | mapdraw | Demote unit to stack bottom | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_040c` | 7565 | 17 | ai | stack_set_xy post-ADD chrome | known | ai/unit_mp.c |
-| `FUN_1427_043e` | 7582 | 30 | mapdraw | unknown | inferred |  |
-| `FUN_1427_04d6` | 7612 | 69 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0644` | 7681 | 10 | mapdraw | unknown | inferred |  |
+| `FUN_1427_043e` | 7582 | 30 | mapdraw | Swap two units' transport link order | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_04d6` | 7612 | 69 | mapdraw | Reorder tile stack (transports/treasure/type priority) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0644` | 7681 | 10 | mapdraw | tile_stack_head: 04d6 reorder then 0002 | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_065a` | 7691 | 19 | mapdraw | Tile display (reads DS 0x5234); also unit_max_mp real body | known | ai/unit_mp.c; docs/viceroy_tables.md |
-| `FUN_1427_06b4` | 7710 | 66 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0824` | 7776 | 67 | mapdraw | unknown | inferred |  |
-| `FUN_1427_08ea` | 7843 | 24 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0954` | 7867 | 15 | mapdraw | unknown | inferred |  |
+| `FUN_1427_06b4` | 7710 | 66 | mapdraw | Allocate/spawn unit into pool and place on tile | inferred |  |
+| `FUN_1427_0824` | 7776 | 67 | mapdraw | Destroy unit; compact pool and fix stack indices | inferred |  |
+| `FUN_1427_08ea` | 7843 | 24 | mapdraw | Select unit: tile refresh + reveal; set DS:0x5392 | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0954` | 7867 | 15 | mapdraw | Clear unit 3147 hi-nibble (keep nation); facing/vis reset | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_0968` | 7882 | 15 | ai | stack_facing_refresh post-ADD chrome | known | ai/unit_mp.c |
-| `FUN_1427_0992` | 7897 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_1427_09ac` | 7912 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_1427_09dc` | 7927 | 45 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0ab0` | 7972 | 25 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0b08` | 7997 | 37 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0bce` | 8034 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0bfe` | 8050 | 31 | mapdraw | unknown | inferred |  |
+| `FUN_1427_0992` | 7897 | 15 | mapdraw | OR nation visibility bit (0x10<<n) into unit 3147 | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_09ac` | 7912 | 15 | mapdraw | stack_or_nation_flag: OR nation bit across stack | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_09dc` | 7927 | 45 | mapdraw | 8-adj foreign same-continent owner probe → DS:0x8cfa | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0ab0` | 7972 | 25 | mapdraw | 8-adj foreign presence-owner probe → DS:0x8cfa | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0b08` | 7997 | 37 | mapdraw | 8-adj foreign presence/tribe same-continent → 0x8cfa | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0bce` | 8034 | 16 | mapdraw | If no tribe on tile, run 0b08 neighbor probe | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0bfe` | 8050 | 31 | mapdraw | True if 8-adj has presence/colony of nation | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_0c72` | 8081 | 16 | ai | unit_visibility_bits post-ADD chrome | known | ai/unit_mp.c |
-| `FUN_1427_0c9a` | 8097 | 26 | mapdraw | unknown | inferred |  |
+| `FUN_1427_0c9a` | 8097 | 26 | mapdraw | Build euro visibility bitmask at tile (owner+adj) | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_0ce6` | 8123 | 21 | ai | unit_post_move_chrome | known | ai/unit_mp.c |
-| `FUN_1427_0d1e` | 8144 | 17 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0d38` | 8161 | 297 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0f0e` | 8458 | 11 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0f30` | 8469 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0f64` | 8491 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0f74` | 8501 | 13 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0f8e` | 8514 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0fa0` | 8524 | 11 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0fc0` | 8535 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_1427_0fec` | 8550 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_1427_101c` | 8566 | 40 | mapdraw | unknown | inferred |  |
-| `FUN_1427_10be` | 8606 | 78 | mapdraw | unknown | inferred |  |
-| `FUN_1427_1284` | 8684 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_1427_12c6` | 8706 | 16 | mapdraw | unknown | inferred |  |
+| `FUN_1427_0d1e` | 8144 | 17 | mapdraw | Set unit nation low-nibble (3147 & 0xf) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_0d38` | 8161 | 297 | mapdraw | Unit/stack cargo+combat query dispatcher (opcode arg) | inferred |  |
+| `FUN_1427_0f0e` | 8458 | 11 | mapdraw | Continent_id at unit's tile (137f_02a0) | inferred |  |
+| `FUN_1427_0f30` | 8469 | 22 | mapdraw | Destroy entire transport stack via 0824 | inferred |  |
+| `FUN_1427_0f64` | 8491 | 10 | mapdraw | Get profession low nibble (unit+0x17 / 315b) | inferred |  |
+| `FUN_1427_0f74` | 8501 | 13 | mapdraw | Set profession low nibble (315b) | inferred |  |
+| `FUN_1427_0f8e` | 8514 | 10 | mapdraw | Get profession high nibble (315b>>4) | inferred |  |
+| `FUN_1427_0fa0` | 8524 | 11 | mapdraw | Set profession high nibble (315b) | inferred |  |
+| `FUN_1427_0fc0` | 8535 | 15 | mapdraw | True if mounted type (dragoon/scout/mtd braves) | inferred |  |
+| `FUN_1427_0fec` | 8550 | 16 | mapdraw | True if armed combat type (soldier/dragoon/arty/…) | inferred |  |
+| `FUN_1427_101c` | 8566 | 40 | mapdraw | Ship cargo refresh walk on tile; return unit head | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_10be` | 8606 | 78 | mapdraw | Ship passenger embark/capacity bookkeeping (5237) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_1284` | 8684 | 22 | mapdraw | stack_has_ship: any type 0x0d..0x12 in stack | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_12c6` | 8706 | 16 | mapdraw | Set orders byte (314c) for whole stack | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_12f6` | 8722 | 19 | ai | unit_tile_list_refresh post-ADD chrome | known | ai/unit_mp.c |
-| `FUN_1427_1330` | 8741 | 25 | mapdraw | unknown | inferred |  |
+| `FUN_1427_1330` | 8741 | 25 | mapdraw | Has moves + on-map + not sentry/fortified | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_13b0` | 8766 | 20 | ai | unit_has_moves_remaining (behind 281f_097a) | known | ai/unit_mp.c |
-| `FUN_1427_1410` | 8786 | 31 | mapdraw | unknown | inferred |  |
-| `FUN_1427_14a0` | 8817 | 30 | mapdraw | unknown | inferred |  |
-| `FUN_1427_14f4` | 8847 | 33 | mapdraw | unknown | inferred |  |
+| `FUN_1427_1410` | 8786 | 31 | mapdraw | Selectable-with-moves (1330 + Europe-dock special) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_14a0` | 8817 | 30 | mapdraw | Next unit index matching 1410 (round-robin) | inferred | original_sources_annotated/ai/unit_mp.c |
+| `FUN_1427_14f4` | 8847 | 33 | mapdraw | Nearest unit of nation by dos_dist; dist→0x8cf8 | inferred |  |
 | `FUN_1427_155e` | 8880 | 13 | ai | unit_exhaust_mp (behind 281f_0934) | known | ai/unit_mp.c |
 
 ### Segment `157e` (3 defs) — combat — Unit combat strength / engagement modifiers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_157e_0008` | 8893 | 21 | combat | unknown | inferred |  |
-| `FUN_157e_004a` | 8914 | 54 | combat | unknown | inferred |  |
-| `FUN_157e_015e` | 8968 | 88 | combat | unknown | inferred |  |
+| `FUN_157e_0008` | 8893 | 21 | combat | Count village defense bonus probes (3×15eb_038e → 0..3) | inferred |  |
+| `FUN_157e_004a` | 8914 | 54 | combat | Unit base combat×8 from type table 5235/5236 + vet/Drake/damage mods | known | docs/viceroy_tables.md |
+| `FUN_157e_015e` | 8968 | 88 | combat | Full engagement strength: 004a × colony fort / village / terrain mods | inferred |  |
 
 ### Segment `15b3` (10 defs) — trade — Nation bilateral flags / name tables (Euro 0x13c, Indian 0x4e)
 
@@ -336,11 +336,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_15dc_0006` | 9219 | 16 | ai | unknown | inferred |  |
+| `FUN_15dc_0006` | 9219 | 16 | ai | Bind current Indian nation context (8d52/8d50/state@5ad6) | known | ai/indian_nation_turn.c; FUN_281f_0a42 |
 | `FUN_15dc_0032` | 9235 | 18 | ai | Bind current tribe/Indian context from tribe index | known | include/viceroy_globals.h |
-| `FUN_15dc_006a` | 9253 | 18 | ai | unknown | inferred |  |
-| `FUN_15dc_00a2` | 9271 | 17 | ai | unknown | inferred |  |
-| `FUN_15dc_00e0` | 9288 | 10 | ai | unknown | inferred |  |
+| `FUN_15dc_006a` | 9253 | 18 | ai | Indian nation class/tier from state+2 (returns 1/2/3) | inferred | FUN_281f_0a56 |
+| `FUN_15dc_00a2` | 9271 | 17 | ai | Bucket integer into quartile 0..3 (<25/50/75) | inferred | FUN_281f_0a60 |
+| `FUN_15dc_00e0` | 9288 | 10 | ai | Get Indian↔Euro relation word at DS:0x5b1c[i][e] | known | ai/indian_nation_turn.c; FUN_281f_030c |
 
 ### Segment `15eb` (107 defs) — mapdraw — High-density map / pedia draw paths
 
@@ -2279,16 +2279,16 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_364b_0000` | 56822 | 60 | colony | unknown | inferred |  |
-| `FUN_364b_0114` | 56882 | 95 | colony | unknown | inferred |  |
-| `FUN_364b_033a` | 56977 | 39 | colony | unknown | inferred |  |
-| `FUN_364b_03f6` | 57016 | 107 | colony | unknown | inferred |  |
-| `FUN_364b_0636` | 57123 | 29 | colony | unknown | inferred |  |
-| `FUN_364b_0688` | 57152 | 803 | colony | unknown | inferred |  |
-| `FUN_364b_1aec` | 57955 | 15 | colony | unknown | inferred |  |
-| `FUN_364b_1b1a` | 57970 | 16 | colony | unknown | inferred |  |
-| `FUN_364b_1b4c` | 57986 | 15 | colony | unknown | inferred |  |
-| `FUN_364b_1b76` | 58001 | 14 | colony | unknown | inferred |  |
+| `FUN_364b_0000` | 56822 | 60 | colony | Colony message/confirm dialog (title from DS:0x8542+2; may set mode 337) | inferred |  |
+| `FUN_364b_0114` | 56882 | 95 | colony | Complete construction project; apply upgrades/flags and reset hammers | inferred |  |
+| `FUN_364b_033a` | 56977 | 39 | colony | Area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7 | inferred |  |
+| `FUN_364b_03f6` | 57016 | 107 | colony | Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean | inferred |  |
+| `FUN_364b_0636` | 57123 | 29 | colony | Customs-house auto-sell gate for cargo type | inferred |  |
+| `FUN_364b_0688` | 57152 | 803 | colony | Colony EOT production/stock/SoL/construction tick (DS:0x8542) | inferred |  |
+| `FUN_364b_1aec` | 57955 | 15 | colony | Bind colony; assign unit into workplace via 2f3e | inferred |  |
+| `FUN_364b_1b1a` | 57970 | 16 | colony | Bind colony; place unit into colonist slot (0c36) | inferred |  |
+| `FUN_364b_1b4c` | 57986 | 15 | colony | Refresh colony warehouse-capacity slots from pop/buildings | inferred |  |
+| `FUN_364b_1b76` | 58001 | 14 | colony | Gate: colony warehouse/trade slot usable for nation | inferred |  |
 | `FUN_364b_1ba8` | 58015 | 253 | colony | Found colony: bump 539e, init colony record via DS:0x8542 | inferred |  |
 
 ### Segment `3844` (3 defs) — turn — Euro EOT treasure / ship-ready unit chrome
@@ -2418,15 +2418,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_41f2_000e` | 71034 | 16 | ai | unknown | inferred |  |
-| `FUN_41f2_0048` | 71050 | 18 | ai | unknown | inferred |  |
-| `FUN_41f2_0092` | 71068 | 346 | ai | unknown | inferred |  |
-| `FUN_41f2_0266` | 71414 | 329 | ai | unknown | inferred |  |
+| `FUN_41f2_000e` | 71034 | 16 | ai | Present nation-score report title dialog (2da8 box) | inferred |  |
+| `FUN_41f2_0048` | 71050 | 18 | ai | Advance score-report text cursor (2d0e/2d10) + draw line | inferred |  |
+| `FUN_41f2_0092` | 71068 | 346 | ai | Nation score compute + optional full report UI | inferred |  |
+| `FUN_41f2_0266` | 71414 | 329 | ai | Mid-entry of 0092 colonist-score loop (Ghidra split) | inferred |  |
 | `FUN_41f2_0280` | 71743 | 342 | ai | Tribe growth tick from Indian nation turn (4d56_1816) | known | docs/ai_transcription.md |
-| `FUN_41f2_0294` | 72085 | 330 | ai | unknown | inferred |  |
-| `FUN_41f2_0b70` | 72415 | 137 | ai | unknown | inferred |  |
-| `FUN_41f2_0f56` | 72552 | 175 | ai | unknown | inferred |  |
-| `FUN_41f2_14a8` | 72727 | 72 | ai | unknown | inferred |  |
+| `FUN_41f2_0294` | 72085 | 330 | ai | Village pop init/cap (tribe create 0038 + growth 152e) | inferred | ai/indian_nation_turn.c |
+| `FUN_41f2_0b70` | 72415 | 137 | ai | Score→difficulty-scaled gold rebate + treasure dialog | inferred |  |
+| `FUN_41f2_0f56` | 72552 | 175 | ai | High-score table load/insert/save + present UI | inferred |  |
+| `FUN_41f2_14a8` | 72727 | 72 | ai | End-game score snapshot → rebate(0b70) + HoF(0f56) | inferred |  |
 
 ### Segment `4345` (13 defs) — trade — Nation trade flags / FF / Europe-market helpers
 
@@ -2491,10 +2491,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_478c_0002` | 76530 | 19 | colony | unknown | inferred |  |
-| `FUN_478c_002c` | 76549 | 23 | colony | unknown | inferred |  |
-| `FUN_478c_007e` | 76572 | 22 | colony | unknown | inferred |  |
-| `FUN_478c_00d0` | 76594 | 23 | colony | unknown | inferred |  |
+| `FUN_478c_0002` | 76530 | 19 | colony | Init unit-spawn scratch block at DS:0x5372 | inferred |  |
+| `FUN_478c_002c` | 76549 | 23 | colony | Spawn colonist unit (type 0x17, prof 0x2d) | inferred |  |
+| `FUN_478c_007e` | 76572 | 22 | colony | Spawn ship unit (type 0 or 0x0d) | inferred |  |
+| `FUN_478c_00d0` | 76594 | 23 | colony | Undo last unit spawn if it was colonist 0x17 | inferred |  |
 
 ### Segment `479b` (13 defs) — colony — Pioneer clear/plow / goto-colony order bodies
 
@@ -2518,24 +2518,24 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_48d3_0002` | 77563 | 29 | ai | unknown | inferred |  |
-| `FUN_48d3_007a` | 77592 | 44 | ai | unknown | inferred |  |
-| `FUN_48d3_015e` | 77636 | 96 | ai | unknown | inferred |  |
-| `FUN_48d3_0346` | 77732 | 29 | ai | unknown | inferred |  |
-| `FUN_48d3_03d0` | 77761 | 25 | ai | unknown | inferred |  |
-| `FUN_48d3_0434` | 77786 | 24 | ai | unknown | inferred |  |
+| `FUN_48d3_0002` | 77563 | 29 | ai | Landfall/goto duration roll (1 or 2 turns; docks/colony count) | inferred | docs/ai_transcription.md |
+| `FUN_48d3_007a` | 77592 | 44 | ai | Landfall arrival: stack goto/unload setup from active unit tile | inferred | docs/ai_transcription.md |
+| `FUN_48d3_015e` | 77636 | 96 | ai | Spiral-find nearest High Seas tile; set sail/goto order | inferred | docs/ai_transcription.md |
+| `FUN_48d3_0346` | 77732 | 29 | ai | Retarget stacked units after landfall/colony-goto arrival | inferred | docs/ai_transcription.md |
+| `FUN_48d3_03d0` | 77761 | 25 | ai | Tick landfall delay (315a); move/act unit when expired | inferred | docs/ai_transcription.md |
+| `FUN_48d3_0434` | 77786 | 24 | ai | Tile OK for HS landfall ship place? (bounds, HS, owner) | inferred | docs/ai_transcription.md |
 | `FUN_48d3_048e` | 77810 | 95 | ai | Spiral-place ship on HS near landfall goto (Euro AI) | inferred | src/core/ai.c |
-| `FUN_48d3_064e` | 77905 | 38 | ai | unknown | inferred |  |
-| `FUN_48d3_06ba` | 77943 | 150 | ai | unknown | inferred |  |
+| `FUN_48d3_064e` | 77905 | 38 | ai | For each ship on tile, spiral-place near landfall goto (048e) | inferred | docs/ai_transcription.md |
+| `FUN_48d3_06ba` | 77943 | 150 | ai | Europe-exit landfall: tax treasures; focus arriving ship | inferred | docs/ai_transcription.md |
 
 ### Segment `4962` (4 defs) — ai — Per-nation unit/colony/cargo census tallies
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_4962_0006` | 78093 | 18 | ai | unknown | inferred |  |
+| `FUN_4962_0006` | 78093 | 18 | ai | Saturating byte add (cap 0xff) for census counters | inferred |  |
 | `FUN_4962_0018` | 78111 | 221 | ai | Census units/colonies/cargo tallies for one nation | inferred |  |
-| `FUN_4962_0606` | 78332 | 46 | ai | unknown | inferred |  |
-| `FUN_4962_06b6` | 78378 | 48 | ai | unknown | inferred |  |
+| `FUN_4962_0606` | 78332 | 46 | ai | Tally nation profession counts from units + colony jobs | inferred |  |
+| `FUN_4962_06b6` | 78378 | 48 | ai | Indian relation-tick census (tribes/units/goods recount) | known | ai/indian_nation_turn.c; FUN_2a1f_0270 |
 
 ### Segment `49dd` (9 defs) — ui — Unit cargo / profession status panels
 
@@ -2584,12 +2584,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_4cc6_0000` | 80774 | 32 | ai | unknown | inferred |  |
-| `FUN_4cc6_0092` | 80806 | 20 | ai | unknown | inferred |  |
-| `FUN_4cc6_00f2` | 80826 | 95 | ai | unknown | inferred |  |
-| `FUN_4cc6_0304` | 80921 | 23 | ai | unknown | inferred |  |
-| `FUN_4cc6_0356` | 80944 | 47 | ai | unknown | inferred |  |
-| `FUN_4cc6_03f8` | 80991 | 200 | ai | unknown | inferred |  |
+| `FUN_4cc6_0000` | 80774 | 32 | ai | Clear Euro missions on tribes of an Indian nation (alarm) | known | ai/indian_nation_turn.c; FUN_2a1f_0398 |
+| `FUN_4cc6_0092` | 80806 | 20 | ai | Set war/alarm bit0x40 vs Indian + clear missions | inferred |  |
+| `FUN_4cc6_00f2` | 80826 | 95 | ai | Apply Indian↔Euro relation delta (+dialogs/war roll) | known | ai/indian_nation_turn.c; FUN_281f_0d6c |
+| `FUN_4cc6_0304` | 80921 | 23 | ai | Find tribe index at map (x,y) or -1 | inferred |  |
+| `FUN_4cc6_0356` | 80944 | 47 | ai | Nearest village to (x,y); optional nation/terrain filter; sets 8db8 | inferred |  |
+| `FUN_4cc6_03f8` | 80991 | 200 | ai | Best Euro threat nation+score near a tribe (units/colonies) | inferred |  |
 | `FUN_4cc6_07c2` | 81191 | 62 | ai | Indian contact/alarm distance score (cur_tribe + indian_state + difficulty) | inferred |  |
 
 ### Segment `4d56` (21 defs) — ai — Indian AI / village growth
@@ -2605,16 +2605,16 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4d56_1b3a` | 81684 | 59 | ai | Calls 2154; mid-turn Indian action | inferred | docs/ai_transcription.md |
 | `FUN_4d56_2154` | 81743 | 321 | ai | Larger Indian action body (raid-adjacent) | inferred | docs/ai_transcription.md |
 | `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2aac` | 82286 | 39 | ai | unknown | inferred |  |
-| `FUN_4d56_2af6` | 82325 | 29 | ai | unknown | inferred |  |
-| `FUN_4d56_2b92` | 82354 | 222 | ai | unknown | inferred |  |
-| `FUN_4d56_2bbc` | 82576 | 210 | ai | unknown | inferred |  |
-| `FUN_4d56_2e92` | 82786 | 53 | ai | unknown | inferred |  |
-| `FUN_4d56_2f96` | 82839 | 189 | ai | unknown | inferred |  |
-| `FUN_4d56_306c` | 83028 | 193 | ai | unknown | inferred |  |
-| `FUN_4d56_311e` | 83221 | 239 | ai | unknown | inferred |  |
+| `FUN_4d56_2aac` | 82286 | 39 | ai | Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse | inferred | docs/ai_transcription.md |
+| `FUN_4d56_2af6` | 82325 | 29 | ai | Abort trade close: clear tribe last-goods flags, reshuffle demand → 3582 | inferred | docs/ai_transcription.md |
+| `FUN_4d56_2b92` | 82354 | 222 | ai | Player Indian buy-offer loop: price good, accept/haggle/reject dialog | inferred | docs/ai_transcription.md |
+| `FUN_4d56_2bbc` | 82576 | 210 | ai | AI/non-human Indian buy-offer loop (same pricing, auto choices) | inferred | docs/ai_transcription.md |
+| `FUN_4d56_2e92` | 82786 | 53 | ai | Trade no-deal exit (invalid good/capacity) → 311e demand or close | inferred | docs/ai_transcription.md |
+| `FUN_4d56_2f96` | 82839 | 189 | ai | Trade haggle (choice 2): bump offer/tension, resume buy dialog loop | inferred | docs/ai_transcription.md |
+| `FUN_4d56_306c` | 83028 | 193 | ai | Trade hard-bargain (choice 3): worse terms + tension, resume loop | inferred | docs/ai_transcription.md |
+| `FUN_4d56_311e` | 83221 | 239 | ai | Indian counter-demand: pick tribute goods + priced buy-back dialog | inferred | docs/ai_transcription.md |
 | `FUN_4d56_3582` | 83460 | 21 | ai | Small helper after 2820 | inferred | docs/ai_transcription.md |
-| `FUN_4d56_359c` | 83481 | 30 | ai | unknown | inferred |  |
+| `FUN_4d56_359c` | 83481 | 30 | ai | Relation-gated Indian attack on unit: kill / warn / displace by RNG | inferred | docs/ai_transcription.md |
 | `FUN_4d56_417e` | 83511 | 188 | ai | Mid-size Indian AI helper | inferred | docs/ai_transcription.md |
 | `FUN_4d56_4528` | 83699 | 3073 | ai | Largest Indian cluster (combat/raid-adjacent) | inferred | docs/ai_transcription.md |
 
@@ -2656,29 +2656,29 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5952_0000` | 93589 | 97 | colony | unknown | inferred |  |
-| `FUN_5952_0214` | 93686 | 35 | colony | unknown | inferred |  |
-| `FUN_5952_0280` | 93721 | 28 | colony | unknown | inferred |  |
-| `FUN_5952_02f4` | 93749 | 11 | colony | unknown | inferred |  |
-| `FUN_5952_0306` | 93760 | 30 | colony | unknown | inferred |  |
+| `FUN_5952_0000` | 93589 | 97 | colony | Maybe spawn wagon-train link between nearby same-nation colonies | inferred |  |
+| `FUN_5952_0214` | 93686 | 35 | colony | Gate/set construction project (0x94); clear build-busy on fail | inferred |  |
+| `FUN_5952_0280` | 93721 | 28 | colony | Need building upgrade? (cargo stock vs building tier) | inferred |  |
+| `FUN_5952_02f4` | 93749 | 11 | colony | Clear build-busy flag; map index → building id (+0x1f) | inferred |  |
+| `FUN_5952_0306` | 93760 | 30 | colony | Set/clear colony specialty cargo (0x8d) from stock/market | inferred |  |
 | `FUN_5952_035e` | 93790 | 2658 | colony | Colony production/buildings/stock tick on current colony (DS:0x8542) | inferred |  |
 
 ### Segment `5bfb` (12 defs) — ai — Indian contact / diplomacy / alarm
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5bfb_0000` | 96448 | 58 | ai | unknown | inferred |  |
-| `FUN_5bfb_00f8` | 96506 | 30 | ai | unknown | inferred |  |
-| `FUN_5bfb_0182` | 96536 | 29 | ai | unknown | inferred |  |
-| `FUN_5bfb_022e` | 96565 | 540 | ai | unknown | inferred |  |
-| `FUN_5bfb_102a` | 97105 | 24 | ai | unknown | inferred |  |
-| `FUN_5bfb_1092` | 97129 | 22 | ai | unknown | inferred |  |
-| `FUN_5bfb_10ec` | 97151 | 63 | ai | unknown | inferred |  |
-| `FUN_5bfb_12d0` | 97214 | 46 | ai | unknown | inferred |  |
-| `FUN_5bfb_13b0` | 97260 | 61 | ai | unknown | inferred |  |
-| `FUN_5bfb_153e` | 97321 | 1112 | ai | unknown | inferred |  |
-| `FUN_5bfb_312e` | 98433 | 24 | ai | unknown | inferred |  |
-| `FUN_5bfb_3180` | 98457 | 352 | ai | unknown | inferred |  |
+| `FUN_5bfb_0000` | 96448 | 58 | ai | Cargo/treasury census outs for diplomacy (nation filter) | inferred | FUN_2a1f_0634 |
+| `FUN_5bfb_00f8` | 96506 | 30 | ai | Rank four Euro nations by strength into order table | inferred |  |
+| `FUN_5bfb_0182` | 96536 | 29 | ai | Set diplomacy bit0x40 + human peace/teach dialogs | inferred | FUN_2a1f_0650 |
+| `FUN_5bfb_022e` | 96565 | 540 | ai | Indian unit contact/meet body (first contact, gifts, demand) | inferred | FUN_2a1f_066c |
+| `FUN_5bfb_102a` | 97105 | 24 | ai | Diplomacy multi-line dialog present (N option pumps) | inferred | FUN_2a1f_0618 |
+| `FUN_5bfb_1092` | 97129 | 22 | ai | Diplomacy short 1–2 option dialog present | inferred | FUN_2a1f_0642 |
+| `FUN_5bfb_10ec` | 97151 | 63 | ai | Euro A↔B war/ally eligibility by military balance | inferred | FUN_2a1f_067a |
+| `FUN_5bfb_12d0` | 97214 | 46 | ai | Clear armed-unit goto/orders adjacent to a colony | inferred | FUN_2a1f_060a |
+| `FUN_5bfb_13b0` | 97260 | 61 | ai | Form or break alliance (bit0x40) between two nations | inferred | FUN_2a1f_065e |
+| `FUN_5bfb_153e` | 97321 | 1112 | ai | Large diplomacy/war-declaration body (trade/military score) | inferred | FUN_2a1f_05fc |
+| `FUN_5bfb_312e` | 98433 | 24 | ai | Unit combat-power factor (type/HP modifiers) | inferred | FUN_2a1f_0626 |
+| `FUN_5bfb_3180` | 98457 | 352 | ai | Adjacent ship/unit combat loot resolution around (x,y) | inferred | FUN_2a1f_0192 |
 
 ### Segment `5f7a` (3 defs) — trade — Colony native-trade / cargo sell & buy
 
@@ -2692,17 +2692,17 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_5fef_0000` | 99111 | 98 | combat | unknown | inferred |  |
-| `FUN_5fef_016c` | 99209 | 83 | combat | unknown | inferred |  |
-| `FUN_5fef_0352` | 99292 | 416 | combat | unknown | inferred |  |
-| `FUN_5fef_0ec0` | 99708 | 30 | combat | unknown | inferred |  |
-| `FUN_5fef_0f14` | 99738 | 302 | combat | unknown | inferred |  |
-| `FUN_5fef_16ea` | 100040 | 24 | combat | unknown | inferred |  |
-| `FUN_5fef_172c` | 100064 | 94 | combat | unknown | inferred |  |
-| `FUN_5fef_1908` | 100158 | 93 | combat | unknown | inferred |  |
-| `FUN_5fef_1b0e` | 100251 | 1063 | combat | unknown | inferred |  |
-| `FUN_5fef_31ea` | 101314 | 224 | combat | unknown | inferred |  |
-| `FUN_5fef_36fe` | 101538 | 122 | combat | unknown | inferred |  |
+| `FUN_5fef_0000` | 99111 | 98 | combat | Pick best defender unit at tile by combat score walk | inferred |  |
+| `FUN_5fef_016c` | 99209 | 83 | combat | Pick cargo slot to plunder (human menu or AI goods-value sort) | inferred |  |
+| `FUN_5fef_0352` | 99292 | 416 | combat | Apply combat outcome: capture/convert, type strip, naval loot, destroy | inferred |  |
+| `FUN_5fef_0ec0` | 99708 | 30 | combat | Sweep units applying 0352 vs target; compact indices after kills | inferred |  |
+| `FUN_5fef_0f14` | 99738 | 302 | combat | Indian raid loot from colony (goods/building/unit/gold) + tension | inferred |  |
+| `FUN_5fef_16ea` | 100040 | 24 | combat | Remap specialty id after combat demotion (vet→colonist path) | inferred |  |
+| `FUN_5fef_172c` | 100064 | 94 | combat | Post-combat soldier/dragoon specialty or type change (promote/strip) | inferred |  |
+| `FUN_5fef_1908` | 100158 | 93 | combat | Treasure capture: ransom dialog, credit gold, remove treasure unit | inferred |  |
+| `FUN_5fef_1b0e` | 100251 | 1063 | combat | Main combat engagement: odds, RNG, win/lose tails for move-into | inferred |  |
+| `FUN_5fef_31ea` | 101314 | 224 | combat | Nested post-win Indian fallout: treasure spawn, war, tension | inferred |  |
+| `FUN_5fef_36fe` | 101538 | 122 | combat | Nested empty-tile combat chrome: clear colony/village UI at xy | inferred |  |
 
 ### Segment `636c` (1 defs) — ui — Dual-column compare / report dialog
 

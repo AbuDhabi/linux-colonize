@@ -56,8 +56,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 92 · inferred 2285 · unknown 3 |
-| Purpose one-liners | 452 / 2380 |
+| Confidence | known 98 · inferred 2279 · unknown 3 |
+| Purpose one-liners | 582 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -66,10 +66,11 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Layer B mid-size game areas closed
-(SAVEGAME + colony + Europe + turn chrome/loop + status overlays); Layer C
-1-hop from Euro/Indian AI entries closed. Remaining backlog is other mid-size
-systems / further Layer C entries (e.g. turn EOT neighborhood) / selective D.
+Purpose one-liners are **not** Layer A. High-value Layer B game systems closed
+(SAVEGAME, colony, Europe, turn, combat, Indian diplo/growth, unit MP chrome,
+landfall); Layer C 1-hop from Euro/Indian AI entries closed. Remaining backlog
+is mostly thunk/platform/UI/mapdraw bulk, plus selective mid-size (`15b3`,
+dialog UI) / Layer C when non-thunk neighborhoods appear / selective D.
 
 ### Roadmap (committed order)
 
@@ -83,8 +84,11 @@ systems / further Layer C entries (e.g. turn EOT neighborhood) / selective D.
      (2/2; `65dd` already closed); status overlays `1009` (15/15).
    - **Done:** turn leftovers `130d` (5/5) + `3844` (3/3) — splash/autosave +
      Euro EOT treasure/ship-ready/year-end chrome.
-   - **Next (optional):** other mid-size systems as ports need them. MAPEDIT
-     stays parked.
+   - **Done:** Indian diplo/growth `5bfb`/`4cc6`/`15dc`/`41f2`/`4962` (33);
+     combat `5fef`/`157e` + remaining `4d56` (23); unit MP chrome `1427` (47);
+     colony leftovers `364b`/`5952`/`478c` + Euro landfall `48d3` (27).
+   - **Next (optional):** trade names `15b3` / selective UI, or thunks only as
+     Layer C needs them. MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).

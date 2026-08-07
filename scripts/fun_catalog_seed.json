@@ -3659,6 +3659,786 @@
         "purpose": "Read custom timer tick word via DS:0x267a far ptr",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_15dc_0006": {
+        "system": "ai",
+        "purpose": "Bind current Indian nation context (8d52/8d50/state@5ad6)",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; FUN_281f_0a42"
+      },
+      "FUN_15dc_006a": {
+        "system": "ai",
+        "purpose": "Indian nation class/tier from state+2 (returns 1/2/3)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a56"
+      },
+      "FUN_15dc_00a2": {
+        "system": "ai",
+        "purpose": "Bucket integer into quartile 0..3 (<25/50/75)",
+        "confidence": "inferred",
+        "links": "FUN_281f_0a60"
+      },
+      "FUN_15dc_00e0": {
+        "system": "ai",
+        "purpose": "Get Indian\u2194Euro relation word at DS:0x5b1c[i][e]",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; FUN_281f_030c"
+      },
+      "FUN_41f2_000e": {
+        "system": "ai",
+        "purpose": "Present nation-score report title dialog (2da8 box)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_41f2_0048": {
+        "system": "ai",
+        "purpose": "Advance score-report text cursor (2d0e/2d10) + draw line",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_41f2_0092": {
+        "system": "ai",
+        "purpose": "Nation score compute + optional full report UI",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_41f2_0266": {
+        "system": "ai",
+        "purpose": "Mid-entry of 0092 colonist-score loop (Ghidra split)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_41f2_0294": {
+        "system": "ai",
+        "purpose": "Village pop init/cap (tribe create 0038 + growth 152e)",
+        "confidence": "inferred",
+        "links": "ai/indian_nation_turn.c"
+      },
+      "FUN_41f2_0b70": {
+        "system": "ai",
+        "purpose": "Score\u2192difficulty-scaled gold rebate + treasure dialog",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_41f2_0f56": {
+        "system": "ai",
+        "purpose": "High-score table load/insert/save + present UI",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_41f2_14a8": {
+        "system": "ai",
+        "purpose": "End-game score snapshot \u2192 rebate(0b70) + HoF(0f56)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4962_0006": {
+        "system": "ai",
+        "purpose": "Saturating byte add (cap 0xff) for census counters",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4962_0606": {
+        "system": "ai",
+        "purpose": "Tally nation profession counts from units + colony jobs",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4962_06b6": {
+        "system": "ai",
+        "purpose": "Indian relation-tick census (tribes/units/goods recount)",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; FUN_2a1f_0270"
+      },
+      "FUN_4cc6_0000": {
+        "system": "ai",
+        "purpose": "Clear Euro missions on tribes of an Indian nation (alarm)",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; FUN_2a1f_0398"
+      },
+      "FUN_4cc6_0092": {
+        "system": "ai",
+        "purpose": "Set war/alarm bit0x40 vs Indian + clear missions",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4cc6_00f2": {
+        "system": "ai",
+        "purpose": "Apply Indian\u2194Euro relation delta (+dialogs/war roll)",
+        "confidence": "known",
+        "links": "ai/indian_nation_turn.c; FUN_281f_0d6c"
+      },
+      "FUN_4cc6_0304": {
+        "system": "ai",
+        "purpose": "Find tribe index at map (x,y) or -1",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4cc6_0356": {
+        "system": "ai",
+        "purpose": "Nearest village to (x,y); optional nation/terrain filter; sets 8db8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4cc6_03f8": {
+        "system": "ai",
+        "purpose": "Best Euro threat nation+score near a tribe (units/colonies)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5bfb_0000": {
+        "system": "ai",
+        "purpose": "Cargo/treasury census outs for diplomacy (nation filter)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0634"
+      },
+      "FUN_5bfb_00f8": {
+        "system": "ai",
+        "purpose": "Rank four Euro nations by strength into order table",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5bfb_0182": {
+        "system": "ai",
+        "purpose": "Set diplomacy bit0x40 + human peace/teach dialogs",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0650"
+      },
+      "FUN_5bfb_022e": {
+        "system": "ai",
+        "purpose": "Indian unit contact/meet body (first contact, gifts, demand)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_066c"
+      },
+      "FUN_5bfb_102a": {
+        "system": "ai",
+        "purpose": "Diplomacy multi-line dialog present (N option pumps)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0618"
+      },
+      "FUN_5bfb_1092": {
+        "system": "ai",
+        "purpose": "Diplomacy short 1\u20132 option dialog present",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0642"
+      },
+      "FUN_5bfb_10ec": {
+        "system": "ai",
+        "purpose": "Euro A\u2194B war/ally eligibility by military balance",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_067a"
+      },
+      "FUN_5bfb_12d0": {
+        "system": "ai",
+        "purpose": "Clear armed-unit goto/orders adjacent to a colony",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_060a"
+      },
+      "FUN_5bfb_13b0": {
+        "system": "ai",
+        "purpose": "Form or break alliance (bit0x40) between two nations",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_065e"
+      },
+      "FUN_5bfb_153e": {
+        "system": "ai",
+        "purpose": "Large diplomacy/war-declaration body (trade/military score)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_05fc"
+      },
+      "FUN_5bfb_312e": {
+        "system": "ai",
+        "purpose": "Unit combat-power factor (type/HP modifiers)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0626"
+      },
+      "FUN_5bfb_3180": {
+        "system": "ai",
+        "purpose": "Adjacent ship/unit combat loot resolution around (x,y)",
+        "confidence": "inferred",
+        "links": "FUN_2a1f_0192"
+      },
+      "FUN_157e_0008": {
+        "system": "combat",
+        "purpose": "Count village defense bonus probes (3\u00d715eb_038e \u2192 0..3)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_157e_004a": {
+        "system": "combat",
+        "purpose": "Unit base combat\u00d78 from type table 5235/5236 + vet/Drake/damage mods",
+        "confidence": "known",
+        "links": "docs/viceroy_tables.md"
+      },
+      "FUN_157e_015e": {
+        "system": "combat",
+        "purpose": "Full engagement strength: 004a \u00d7 colony fort / village / terrain mods",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_4d56_2aac": {
+        "system": "ai",
+        "purpose": "Indian trade dispatch: route selected good \u2192 2e92/2bbc/2b92 or refuse",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2af6": {
+        "system": "ai",
+        "purpose": "Abort trade close: clear tribe last-goods flags, reshuffle demand \u2192 3582",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2b92": {
+        "system": "ai",
+        "purpose": "Player Indian buy-offer loop: price good, accept/haggle/reject dialog",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2bbc": {
+        "system": "ai",
+        "purpose": "AI/non-human Indian buy-offer loop (same pricing, auto choices)",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2e92": {
+        "system": "ai",
+        "purpose": "Trade no-deal exit (invalid good/capacity) \u2192 311e demand or close",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_2f96": {
+        "system": "ai",
+        "purpose": "Trade haggle (choice 2): bump offer/tension, resume buy dialog loop",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_306c": {
+        "system": "ai",
+        "purpose": "Trade hard-bargain (choice 3): worse terms + tension, resume loop",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_311e": {
+        "system": "ai",
+        "purpose": "Indian counter-demand: pick tribute goods + priced buy-back dialog",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_4d56_359c": {
+        "system": "ai",
+        "purpose": "Relation-gated Indian attack on unit: kill / warn / displace by RNG",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_5fef_0000": {
+        "system": "combat",
+        "purpose": "Pick best defender unit at tile by combat score walk",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_016c": {
+        "system": "combat",
+        "purpose": "Pick cargo slot to plunder (human menu or AI goods-value sort)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_0352": {
+        "system": "combat",
+        "purpose": "Apply combat outcome: capture/convert, type strip, naval loot, destroy",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_0ec0": {
+        "system": "combat",
+        "purpose": "Sweep units applying 0352 vs target; compact indices after kills",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_0f14": {
+        "system": "combat",
+        "purpose": "Indian raid loot from colony (goods/building/unit/gold) + tension",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_16ea": {
+        "system": "combat",
+        "purpose": "Remap specialty id after combat demotion (vet\u2192colonist path)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_172c": {
+        "system": "combat",
+        "purpose": "Post-combat soldier/dragoon specialty or type change (promote/strip)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_1908": {
+        "system": "combat",
+        "purpose": "Treasure capture: ransom dialog, credit gold, remove treasure unit",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_1b0e": {
+        "system": "combat",
+        "purpose": "Main combat engagement: odds, RNG, win/lose tails for move-into",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_31ea": {
+        "system": "combat",
+        "purpose": "Nested post-win Indian fallout: treasure spawn, war, tension",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5fef_36fe": {
+        "system": "combat",
+        "purpose": "Nested empty-tile combat chrome: clear colony/village UI at xy",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0002": {
+        "system": "mapdraw",
+        "purpose": "Walk transport_next to stack head/top",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0026": {
+        "system": "mapdraw",
+        "purpose": "Walk transport_prev to stack tail/bottom",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_004a": {
+        "system": "mapdraw",
+        "purpose": "One step down stack (read transport_prev)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_005c": {
+        "system": "mapdraw",
+        "purpose": "unit_index_on_tile: stack-head unit at (x,y) or \u22121",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_012e": {
+        "system": "mapdraw",
+        "purpose": "Nth unit in stack from head",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0164": {
+        "system": "mapdraw",
+        "purpose": "Distance to stack head via transport_next",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0180": {
+        "system": "mapdraw",
+        "purpose": "Nth non-transport unit in stack (5237==0)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_01dc": {
+        "system": "mapdraw",
+        "purpose": "Count units in transport stack",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0204": {
+        "system": "mapdraw",
+        "purpose": "Count units of given type in stack",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_023a": {
+        "system": "mapdraw",
+        "purpose": "Unlink unit from stack; clear xy to 0xff",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_02ca": {
+        "system": "mapdraw",
+        "purpose": "Place unit on tile; link into stack head",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0362": {
+        "system": "mapdraw",
+        "purpose": "Move unit on map: unlink then place (023a+02ca)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_037e": {
+        "system": "mapdraw",
+        "purpose": "Re-place unit at its current xy via 0362",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_03a0": {
+        "system": "mapdraw",
+        "purpose": "Demote unit to stack bottom",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_043e": {
+        "system": "mapdraw",
+        "purpose": "Swap two units' transport link order",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_04d6": {
+        "system": "mapdraw",
+        "purpose": "Reorder tile stack (transports/treasure/type priority)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0644": {
+        "system": "mapdraw",
+        "purpose": "tile_stack_head: 04d6 reorder then 0002",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_06b4": {
+        "system": "mapdraw",
+        "purpose": "Allocate/spawn unit into pool and place on tile",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0824": {
+        "system": "mapdraw",
+        "purpose": "Destroy unit; compact pool and fix stack indices",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_08ea": {
+        "system": "mapdraw",
+        "purpose": "Select unit: tile refresh + reveal; set DS:0x5392",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0954": {
+        "system": "mapdraw",
+        "purpose": "Clear unit 3147 hi-nibble (keep nation); facing/vis reset",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0992": {
+        "system": "mapdraw",
+        "purpose": "OR nation visibility bit (0x10<<n) into unit 3147",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_09ac": {
+        "system": "mapdraw",
+        "purpose": "stack_or_nation_flag: OR nation bit across stack",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_09dc": {
+        "system": "mapdraw",
+        "purpose": "8-adj foreign same-continent owner probe \u2192 DS:0x8cfa",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0ab0": {
+        "system": "mapdraw",
+        "purpose": "8-adj foreign presence-owner probe \u2192 DS:0x8cfa",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0b08": {
+        "system": "mapdraw",
+        "purpose": "8-adj foreign presence/tribe same-continent \u2192 0x8cfa",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0bce": {
+        "system": "mapdraw",
+        "purpose": "If no tribe on tile, run 0b08 neighbor probe",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0bfe": {
+        "system": "mapdraw",
+        "purpose": "True if 8-adj has presence/colony of nation",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0c9a": {
+        "system": "mapdraw",
+        "purpose": "Build euro visibility bitmask at tile (owner+adj)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0d1e": {
+        "system": "mapdraw",
+        "purpose": "Set unit nation low-nibble (3147 & 0xf)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_0d38": {
+        "system": "mapdraw",
+        "purpose": "Unit/stack cargo+combat query dispatcher (opcode arg)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0f0e": {
+        "system": "mapdraw",
+        "purpose": "Continent_id at unit's tile (137f_02a0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0f30": {
+        "system": "mapdraw",
+        "purpose": "Destroy entire transport stack via 0824",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0f64": {
+        "system": "mapdraw",
+        "purpose": "Get profession low nibble (unit+0x17 / 315b)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0f74": {
+        "system": "mapdraw",
+        "purpose": "Set profession low nibble (315b)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0f8e": {
+        "system": "mapdraw",
+        "purpose": "Get profession high nibble (315b>>4)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0fa0": {
+        "system": "mapdraw",
+        "purpose": "Set profession high nibble (315b)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0fc0": {
+        "system": "mapdraw",
+        "purpose": "True if mounted type (dragoon/scout/mtd braves)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_0fec": {
+        "system": "mapdraw",
+        "purpose": "True if armed combat type (soldier/dragoon/arty/\u2026)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1427_101c": {
+        "system": "mapdraw",
+        "purpose": "Ship cargo refresh walk on tile; return unit head",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_10be": {
+        "system": "mapdraw",
+        "purpose": "Ship passenger embark/capacity bookkeeping (5237)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_1284": {
+        "system": "mapdraw",
+        "purpose": "stack_has_ship: any type 0x0d..0x12 in stack",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_12c6": {
+        "system": "mapdraw",
+        "purpose": "Set orders byte (314c) for whole stack",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_1330": {
+        "system": "mapdraw",
+        "purpose": "Has moves + on-map + not sentry/fortified",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_1410": {
+        "system": "mapdraw",
+        "purpose": "Selectable-with-moves (1330 + Europe-dock special)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_14a0": {
+        "system": "mapdraw",
+        "purpose": "Next unit index matching 1410 (round-robin)",
+        "confidence": "inferred",
+        "links": "original_sources_annotated/ai/unit_mp.c"
+      },
+      "FUN_1427_14f4": {
+        "system": "mapdraw",
+        "purpose": "Nearest unit of nation by dos_dist; dist\u21920x8cf8",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_0000": {
+        "system": "colony",
+        "purpose": "Colony message/confirm dialog (title from DS:0x8542+2; may set mode 337)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_0114": {
+        "system": "colony",
+        "purpose": "Complete construction project; apply upgrades/flags and reset hammers",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_033a": {
+        "system": "colony",
+        "purpose": "Area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_03f6": {
+        "system": "colony",
+        "purpose": "Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_0636": {
+        "system": "colony",
+        "purpose": "Customs-house auto-sell gate for cargo type",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_0688": {
+        "system": "colony",
+        "purpose": "Colony EOT production/stock/SoL/construction tick (DS:0x8542)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_1aec": {
+        "system": "colony",
+        "purpose": "Bind colony; assign unit into workplace via 2f3e",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_1b1a": {
+        "system": "colony",
+        "purpose": "Bind colony; place unit into colonist slot (0c36)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_1b4c": {
+        "system": "colony",
+        "purpose": "Refresh colony warehouse-capacity slots from pop/buildings",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_364b_1b76": {
+        "system": "colony",
+        "purpose": "Gate: colony warehouse/trade slot usable for nation",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_478c_0002": {
+        "system": "colony",
+        "purpose": "Init unit-spawn scratch block at DS:0x5372",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_478c_002c": {
+        "system": "colony",
+        "purpose": "Spawn colonist unit (type 0x17, prof 0x2d)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_478c_007e": {
+        "system": "colony",
+        "purpose": "Spawn ship unit (type 0 or 0x0d)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_478c_00d0": {
+        "system": "colony",
+        "purpose": "Undo last unit spawn if it was colonist 0x17",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_48d3_0002": {
+        "system": "ai",
+        "purpose": "Landfall/goto duration roll (1 or 2 turns; docks/colony count)",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_007a": {
+        "system": "ai",
+        "purpose": "Landfall arrival: stack goto/unload setup from active unit tile",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_015e": {
+        "system": "ai",
+        "purpose": "Spiral-find nearest High Seas tile; set sail/goto order",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_0346": {
+        "system": "ai",
+        "purpose": "Retarget stacked units after landfall/colony-goto arrival",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_03d0": {
+        "system": "ai",
+        "purpose": "Tick landfall delay (315a); move/act unit when expired",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_0434": {
+        "system": "ai",
+        "purpose": "Tile OK for HS landfall ship place? (bounds, HS, owner)",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_064e": {
+        "system": "ai",
+        "purpose": "For each ship on tile, spiral-place near landfall goto (048e)",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_48d3_06ba": {
+        "system": "ai",
+        "purpose": "Europe-exit landfall: tax treasures; focus arriving ship",
+        "confidence": "inferred",
+        "links": "docs/ai_transcription.md"
+      },
+      "FUN_5952_0000": {
+        "system": "colony",
+        "purpose": "Maybe spawn wagon-train link between nearby same-nation colonies",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5952_0214": {
+        "system": "colony",
+        "purpose": "Gate/set construction project (0x94); clear build-busy on fail",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5952_0280": {
+        "system": "colony",
+        "purpose": "Need building upgrade? (cargo stock vs building tier)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5952_02f4": {
+        "system": "colony",
+        "purpose": "Clear build-busy flag; map index \u2192 building id (+0x1f)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_5952_0306": {
+        "system": "colony",
+        "purpose": "Set/clear colony specialty cargo (0x8d) from stock/market",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
