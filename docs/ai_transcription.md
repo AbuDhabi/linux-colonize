@@ -119,22 +119,20 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 
 | Symbol | ~Lines | Purpose (known / inferred) | Linux | Status |
 |--------|-------:|----------------------------|-------|--------|
-| `FUN_521d_0000`…`0906` | small | Planner helpers (scores, probes, bookkeeping) | — | **parked** |
-| `FUN_521d_0a60` | ~858 | Unit / colony goal logic | — | **parked** |
+| `FUN_521d_0000`…`0906` | small | Goal-table ops + founding helpers | annotated `ai/euro_goals.c` | **annotated** (not ported) |
+| `FUN_521d_0a60` | ~858 | Unit / colony goal writer | — | **partial** (sectioned annotate; mid-game PARKED) |
 | `FUN_521d_20c6` | nested | Near helper before scoring | — | **parked** |
-| `FUN_521d_20e6` | ~3995 | Direction / move scoring (all unit kinds) | quiet init+mid default + peels; full body parked | **partial** |
-| `FUN_521d_5b66` | ~1815 nested | Large helper **inside** the `20e6` span (not a separate far export); historically mis-cited as sole “unit goals” entry | — | **parked** |
+| `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet init+mid default + peels; Euro/ocean thin map | **partial** |
+| `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | — | **partial** (thin map `euro_unit_act.md`) |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | — | **parked** |
-| `FUN_521d_5d04` | ~748 | Unit goals / planning (alongside `0a60`) | — | **parked** |
-| `FUN_521d_6d8e` | ~516 | Euro AI **dispatcher** per nation | `ai_euro_nation_turn` (skeleton + `ai_euro_early_turn`) | **partial** (T2 early path) |
+| `FUN_521d_5d04` | ~748 | Nation planning / hire / treasury (6d8e via `0554`) | — | **parked** |
+| `FUN_521d_6d8e` | ~253 body | Euro AI **dispatcher** per nation | `ai_euro_nation_turn` (skeleton + `ai_euro_early_turn`) | **partial** (T2 early path; annotated shell) |
 
-`6d8e` calls into `5b66`, `0a60`, `20e6`, `5d04`, and many small `521d_*`
-helpers (plus platform `FUN_281f_*` / `FUN_2a1f_*`). Linux enters a structured
-dispatcher shell; early-game goals are seed-100 slices until full `0a60`/`5d04` land.
+`6d8e` thunk wiring: `0554`→`5d04`, `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`
+(→`20e6` via `04f4`). Linux still uses seed-100 peels until goal/act bodies port.
 
-**Naming note:** older docs listed `FUN_521d_5b66` as a top-level unit-goals
-peer of `0a60`. Prefer: goals ≈ `0a60` + `5d04`; scoring ≈ `20e6` (with nested
-`5b66`).
+**Naming note:** `5b66` is **not** nested inside `20e6` and is not the unit-goals
+entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 
 ### Shared move / terrain helpers (AI-adjacent)
 
@@ -168,8 +166,12 @@ unannotated bodies.
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: **2** spent-only rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
-| `FUN_521d_6d8e` | `ai_euro_nation_turn` | Skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`); annotated shell in `euro_dispatcher.c` |
-| `FUN_521d_0a60` / `5d04` / `20e6` (non-quiet) | early slices | Approach sail + coastal goals; full planner parked — see `ai/move_scoring.md` |
+| `FUN_521d_6d8e` | `ai_euro_nation_turn` | Annotated shell (correct thunk wiring); skeleton + `ai_euro_early_turn` sail/unload/found (**T2** via `smoke_ai_turns`) |
+| `FUN_521d_0000`…`0906` | — | Annotated in `ai/euro_goals.c` (goal tables + `06ae` founding); not ported |
+| `FUN_521d_0a60` | early peels | Sectioned annotate in `euro_dispatcher.c`; mid-game PARKED — see `ai/move_scoring.md` |
+| `FUN_521d_5d04` | — | PARKED (hire/treasury); 6d8e calls via `0554` before promote/`0a60` |
+| `FUN_521d_5b66` | peels | Thin map `ai/euro_unit_act.md`; Linux `spend_goto` / early peels |
+| `FUN_521d_20e6` (non-quiet) | early slices | Quiet Brave done; Euro/ocean thin map; coastal ship waypoints still fixture |
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / `ai_try_ship_unload` | **T2** golden towns; opportunistic settle for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
@@ -252,17 +254,21 @@ Still open for generic T1 (non-fixture):
 
 ### R4 — Euro dispatcher skeleton
 
+**Annotation (Layer D early-settle):** `6d8e` thunk wiring corrected; goal
+helpers + sectioned `0a60` in `original_sources_annotated/ai/`; thin maps for
+`5b66` / Euro `20e6`. **Not yet ported** into Linux (fixtures remain).
+
 1. Port `FUN_521d_6d8e` structure: nation setup, colony/unit inventory, dispatch
-   hooks (even if goal bodies are stubs).
-2. Port goal slices from `FUN_521d_0a60` / `5d04` as evidence allows (colony
-   build, military, trade ships).
+   hooks (even if goal bodies are stubs) — annotated shell ready.
+2. Port goal slices from `FUN_521d_0a60` / helpers (`016a`/`06ae`/…) as evidence
+   allows; `5d04` hire/treasury later.
 3. Replace fixture/skeleton `ai_euro_nation_turn` (`ai_euro_early_turn` + opportunistic
    settle) with real dispatcher entry.
 
 ### R5 — Toward 1:1 (T2/T3)
 
-1. Remaining `FUN_521d_20e6` branches (Euro combat, explore, colony tiles).
-2. Nested `5b66` and small `521d_*` helpers.
+1. Remaining `FUN_521d_20e6` branches (Euro combat, explore, ocean/ship, colony tiles).
+2. Full `5b66` order/combat arms (thin map done) and remaining `5d04`.
 3. Full `4d56` large bodies + nested `2820` helpers.
 4. Golden / hang-dump coverage for mid-game turns (not only seed-100 turn 0).
 

@@ -1,7 +1,7 @@
 # Symbol map — Ghidra ↔ annotated ↔ Linux
 
-Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
-`original_sources_decompiled/viceroy_unpacked.c`.
+Phase 1 AI-critical symbols + Euro early-settle Layer D. Prefer annotated
+files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c`.
 
 ## Functions
 
@@ -58,13 +58,37 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `FUN_281f_06d2` / `0428` | `tile_tribe_or_presence` | `ai/accessors.c` | tribe else presence |
 | `FUN_281f_07e0` | `unit_index_on_tile` | `ai/accessors.c` | Linux unit-pool scan (cutover) |
 | `FUN_281f_078c` | `terrain_class_at` | `ai/accessors.c` | `ai_dos_terr_class` |
-| `FUN_521d_20e6` | `move_scoring` (non-quiet parked) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet only |
+| `FUN_521d_0000` | `clear_primary_goal_slot` | `ai/euro_goals.c` | — |
+| `FUN_521d_001c` | `invalidate_nearby_secondary_goals` | `ai/euro_goals.c` | — |
+| `FUN_521d_0072` | `primary_goal_shift_down` | `ai/euro_goals.c` | — |
+| `FUN_521d_00a8` | `secondary_goal_shift_down` | `ai/euro_goals.c` | — |
+| `FUN_521d_00de` | `work_queue_shift_down` | `ai/euro_goals.c` | — |
+| `FUN_521d_0116` | `max_primary_goal_priority` | `ai/euro_goals.c` | — |
+| `FUN_521d_016a` | `upsert_primary_goal` | `ai/euro_goals.c` | — |
+| `FUN_521d_0214` | `upsert_secondary_goal` | `ai/euro_goals.c` | — |
+| `FUN_521d_02be` | `upsert_work_queue` | `ai/euro_goals.c` | — |
+| `FUN_521d_031c` | `clear_work_queue` | `ai/euro_goals.c` | — |
+| `FUN_521d_0342` | `promote_secondary_to_primary` | `ai/euro_goals.c` | — |
+| `FUN_521d_03a6` | `clear_secondary_goal_slots` | `ai/euro_goals.c` | — |
+| `FUN_521d_03d0` | `founding_expansion_urgency` | `ai/euro_goals.c` | — |
+| `FUN_521d_0492` | `colony_count_balance_flags` | `ai/euro_goals.c` | — |
+| `FUN_521d_052c` | `unit_desirability_score` | `ai/euro_goals.c` | — |
+| `FUN_521d_0600` | `composite_unit_priority` | `ai/euro_goals.c` | — |
+| `FUN_521d_0656` | `walk_unit_stack_to_end` | `ai/euro_goals.c` | — |
+| `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_found_tile_from_landfall` (PORT DEBT) |
+| `FUN_521d_0896` | `filter_profession_by_distance_wealth` | `ai/euro_goals.c` | — |
+| `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | — |
+| `FUN_521d_20e6` | `move_scoring` (Euro/ocean thin; quiet done) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet only |
 | `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` |
-| `FUN_521d_0a60` | `euro_unit_colony_goals` (parked) | `ai/euro_dispatcher.c` | early peels only |
-| `FUN_521d_5d04` | `euro_unit_planning` (parked) | `ai/euro_dispatcher.c` | — |
-| `thunk_FUN_2a1f_0488` | `euro_unit_act` | `ai/euro_dispatcher.c` | `ai_unit_spend_goto` / peels |
-| `thunk_FUN_2a1f_0554` | `euro_nation_colony_pass` | `ai/euro_dispatcher.c` | — |
-| `thunk_FUN_2a1f_0578` / `050c` | `euro_nation_plan_pass` | `ai/euro_dispatcher.c` | — |
+| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game PARKED) | `ai/euro_dispatcher.c` | early peels only |
+| `FUN_521d_5d04` | `euro_nation_planning` (parked) | `ai/euro_dispatcher.c` | — |
+| `FUN_521d_5b66` | `euro_unit_act` (thin map) | `ai/euro_dispatcher.c` + `ai/euro_unit_act.md` | `ai_unit_spend_goto` / peels |
+| `thunk_FUN_2a1f_0488` | → `euro_unit_act` / `5b66` | `ai/euro_dispatcher.c` | peels |
+| `thunk_FUN_2a1f_0554` | → `euro_nation_planning` / `5d04` | `ai/euro_dispatcher.c` | — |
+| `thunk_FUN_2a1f_0578` | → `promote_secondary_to_primary` / `0342` | `ai/euro_dispatcher.c` | — |
+| `thunk_FUN_2a1f_050c` | → `euro_unit_colony_goals` / `0a60` | `ai/euro_dispatcher.c` | — |
+| `thunk_FUN_2a1f_04f4` | → `move_scoring` / `20e6` | `ai/euro_unit_act.md` | — |
+| `thunk_FUN_2a1f_04ac` | → `pick_best_adjacent_founding_tile` / `06ae` | `ai/euro_goals.c` | — |
 
 ## DS addresses / globals
 
@@ -94,6 +118,10 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `0x8d4a` | `VICEROY_DS_CUR_TRIBE_PTR` | Current tribe pointer |
 | `0x8d4e` | `VICEROY_DS_INDIAN_STATE_PTR` | Per-Indian nation state |
 | `0x8d50` / `0x8d52` | `VICEROY_DS_CUR_INDIAN_*` | Alarm / contact helpers |
+| `0x98b0` | `VICEROY_DS_AI_PRIMARY_GOALS` | Primary goals nation×64×4 (−0x6750) |
+| `0x9eaa` | `VICEROY_DS_AI_SECONDARY_GOALS` | Secondary goals nation×16×4 (−0x6156) |
+| `0xa0dc` | `VICEROY_DS_AI_WORK_QUEUE` | Work queue 16×6 (−0x5f24) |
+| `0x9faa` | `VICEROY_DS_COARSE_FOG` | Coarse fog plane (also −0x6056) |
 
 ## Map / terrain bits
 
@@ -107,7 +135,7 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | layer2 `&0x02` | `VICEROY_LAYER2_TRIBE` | tribe tile |
 | layer3 high nibble `0xf` | `VICEROY_OWNER_UNOWNED` | owner −1 |
 
-## Phase 1 done checklist
+## Phase checklist
 
 - [x] `original_sources_annotated/README.md` + docs pointers
 - [x] `include/viceroy_types.h` + `include/viceroy_globals.h`
@@ -117,14 +145,18 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 - [x] `indian_unit_act` as `FUN_4d56_14fe` (Ghidra `func_0x00042191` collision noted)
 - [x] Post-ADD chrome → `FUN_1427_*` + `0x3149` R/W table (`move_spent.c` §6, `unit_mp.c`)
 - [x] `ai/brave_spent_callgraph.md`
-- [x] `euro_nation_turn` dispatcher shell + parked goal/scoring stubs
-- [x] `ai/move_scoring.md` for phase 2 quiet `20e6`
+- [x] `euro_nation_turn` dispatcher shell (thunk wiring corrected)
+- [x] `ai/euro_goals.c` goal tables + founding helpers
+- [x] `FUN_521d_0a60` sectioned (mid-game PARKED)
+- [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] This symbol map
 
 ## Out of scope (still raw export only)
 
 - `FUN_4d56_2154` / `2820` / `4528` raid clusters
-- Full `FUN_521d_20e6` / nested `5b66` (quiet + coarse fog done)
+- Full `FUN_521d_20e6` Euro/ocean/combat bodies (quiet + thin map done)
+- Full `FUN_521d_5b66` order/combat arms (entry + thin map done)
+- Full `FUN_521d_5d04` hire/treasury planning
 - `FUN_465b_0000` foreign combat / diplomacy / colony-contact tails (section 3 PARKED in `move_spent.c`)
 - Ghidra database renames / re-export
 - Live DOS hang EXEs except named last resort **VR_B465X** (`dump_b465x3`) for post-`465b` spent writer

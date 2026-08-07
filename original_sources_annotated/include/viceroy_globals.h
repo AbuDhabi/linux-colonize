@@ -89,6 +89,36 @@
 #define VICEROY_DS_EURO_STICKY_UNIT 0x2d12
 #define VICEROY_DS_EURO_STICKY_CNT  0x2d14
 
+/*
+ * Euro AI goal tables (FUN_521d_* helpers; written by 0a60, consumed by act).
+ * Ghidra often prints signed DS negatives; unsigned near offsets below.
+ *
+ * Primary:  nation × 64 slots × 4 bytes  @ DS:0x98b0  (Ghidra −0x6750)
+ * Secondary:nation × 16 slots × 4 bytes  @ DS:0x9eaa  (Ghidra −0x6156)
+ * Work queue:        16 slots × 6 bytes  @ DS:0xa0dc  (Ghidra −0x5f24)
+ *
+ * Slot layout (primary/secondary): x, y, code (0xff empty), priority.
+ * Work-queue slot: int16 id, int16 score, uint8 flag_a, uint8 flag_b.
+ */
+#define VICEROY_DS_AI_PRIMARY_GOALS   0x98b0
+#define VICEROY_DS_AI_SECONDARY_GOALS 0x9eaa
+#define VICEROY_DS_AI_WORK_QUEUE      0xa0dc
+#define VICEROY_AI_PRIMARY_SLOTS      0x40
+#define VICEROY_AI_SECONDARY_SLOTS    0x10
+#define VICEROY_AI_WORK_QUEUE_SLOTS   0x10
+#define VICEROY_AI_GOAL_STRIDE        4
+#define VICEROY_AI_WORK_STRIDE        6
+#define VICEROY_AI_GOAL_EMPTY         0xff
+
+/* Soft goal-code labels from 0a60 upsert call sites (param code byte). */
+#define VICEROY_AI_GOAL_CONTACT       0 /* foreign ship / presence claim */
+#define VICEROY_AI_GOAL_FOUND         1 /* founding / settle-adjacent */
+#define VICEROY_AI_GOAL_LABOR         3 /* colony tools/labor demand */
+#define VICEROY_AI_GOAL_MILITARY      4 /* military pressure on colony */
+#define VICEROY_AI_GOAL_COLONY_BUILD  5 /* colony cargo/build (else of 8) */
+#define VICEROY_AI_GOAL_MIL_EXPAND    7 /* mil-expand peer of FOUND */
+#define VICEROY_AI_GOAL_COLONY_CARGO  8 /* colony +0x1b bit1 set → code 8 */
+
 /* ---- Helpers for annotated C (documentation macros) -------------------- */
 
 /*

@@ -1917,18 +1917,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_044c` | 37790 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0458` | 37800 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0464` | 37810 | 10 | mapgen | Far thunk → FUN_521d_0656 (walk unit stack/chain) | inferred |  |
-| `FUN_2a1f_0470` | 37820 | 10 | mapgen | Far thunk → FUN_521d_016a (upsert primary goal) | inferred |  |
+| `FUN_2a1f_0470` | 37820 | 10 | mapgen | Far thunk → FUN_521d_016a (upsert primary goal) | inferred | ai/euro_goals.c |
 | `FUN_2a1f_047c` | 37830 | 10 | mapgen | Far thunk → FUN_521d_0906 (probe adjacent contact/claim) | inferred |  |
-| `FUN_2a1f_0488` | 37840 | 10 | mapgen | Far thunk → FUN_521d_5b66 (Euro per-unit act; 6d8e unit loop) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_0488` | 37840 | 10 | mapgen | Far thunk → FUN_521d_5b66 (Euro per-unit act; 6d8e unit loop) | inferred | ai/euro_dispatcher.c; ai/euro_unit_act.md |
 | `FUN_2a1f_0494` | 37850 | 10 | mapgen | Far thunk → FUN_521d_03d0 (founding/expansion urgency) | inferred |  |
 | `FUN_2a1f_04a0` | 37860 | 10 | mapgen | Far thunk → FUN_521d_0000 (clear primary goal slot) | inferred |  |
-| `FUN_2a1f_04ac` | 37870 | 10 | mapgen | Far thunk → FUN_521d_06ae (best adjacent founding tile) | inferred |  |
+| `FUN_2a1f_04ac` | 37870 | 10 | mapgen | Far thunk → FUN_521d_06ae (best adjacent founding tile) | inferred | ai/euro_goals.c; ai/move_scoring.md |
 | `FUN_2a1f_04b8` | 37880 | 10 | mapgen | Far thunk → FUN_521d_001c (invalidate nearby secondary goals) | inferred |  |
 | `FUN_2a1f_04c4` | 37890 | 10 | mapgen | Far thunk → FUN_521d_0214 (upsert secondary goal) | inferred |  |
 | `FUN_2a1f_04d0` | 37900 | 10 | mapgen | Far thunk → FUN_521d_0492 (colony-count balance flags) | inferred |  |
 | `FUN_2a1f_04dc` | 37910 | 10 | mapgen | Far thunk → FUN_521d_5c38 (Europe hire gate stub) | inferred |  |
 | `FUN_2a1f_04e8` | 37920 | 10 | mapgen | Far thunk → FUN_521d_0072 (shift primary goal table) | inferred |  |
-| `FUN_2a1f_04f4` | 37930 | 10 | mapgen | Far thunk → FUN_521d_20e6 (move scoring) | inferred | ai/euro_dispatcher.c; ai/move_scoring.md |
+| `FUN_2a1f_04f4` | 37930 | 10 | mapgen | Far thunk → FUN_521d_20e6 (move scoring) | inferred | ai/euro_unit_act.md; ai/move_scoring.md |
 | `FUN_2a1f_0500` | 37940 | 10 | mapgen | Far thunk → FUN_521d_5c3c (Europe buy/hire unit) | inferred |  |
 | `FUN_2a1f_050c` | 37950 | 10 | mapgen | Far thunk → FUN_521d_0a60 (euro unit/colony goals; 6d8e plan pass) | inferred | ai/euro_dispatcher.c |
 | `FUN_2a1f_0518` | 37960 | 10 | mapgen | Far thunk → FUN_521d_00a8 (shift secondary goal table) | inferred |  |
@@ -1939,7 +1939,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0554` | 38010 | 10 | mapgen | Far thunk → FUN_521d_5d04 (euro unit planning; 6d8e colony/plan pass) | inferred | ai/euro_dispatcher.c |
 | `FUN_2a1f_0560` | 38020 | 10 | mapgen | Far thunk → FUN_521d_031c (clear AI work queue) | inferred |  |
 | `FUN_2a1f_056c` | 38030 | 10 | mapgen | Far thunk → FUN_521d_0896 (filter profession by distance/wealth) | inferred |  |
-| `FUN_2a1f_0578` | 38040 | 10 | mapgen | Far thunk → FUN_521d_0342 (promote secondary→primary goals; 6d8e plan pass) | inferred | ai/euro_dispatcher.c |
+| `FUN_2a1f_0578` | 38040 | 10 | mapgen | Far thunk → FUN_521d_0342 (promote secondary→primary goals; 6d8e plan pass) | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_2a1f_0584` | 38050 | 10 | mapgen | Far thunk → FUN_521d_0116 (max priority among primary goals) | inferred |  |
 | `FUN_2a1f_0590` | 38060 | 10 | mapgen | Far thunk → FUN_521d_0600 (composite unit priority) | inferred |  |
 | `FUN_2a1f_059c` | 38070 | 10 | mapgen | unknown | inferred |  |
@@ -2622,35 +2622,35 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_521d_0000` | 86772 | 15 | ai | Clear one primary goal-table slot (nation×64) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_001c` | 86787 | 32 | ai | Invalidate nearby secondary goals matching a code | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0072` | 86819 | 19 | ai | Shift primary goal table down to open a slot | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_00a8` | 86838 | 19 | ai | Shift secondary goal table down to open a slot | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_00de` | 86857 | 18 | ai | Shift work-queue table down to open a slot | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0116` | 86875 | 21 | ai | Max priority among matching primary goals | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_016a` | 86896 | 37 | ai | Upsert primary goal (x,y,code,prio) for nation | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0214` | 86933 | 38 | ai | Upsert secondary goal (x,y,code,prio) for nation | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_02be` | 86971 | 25 | ai | Upsert entry into global AI work queue | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_031c` | 86996 | 16 | ai | Clear global AI work-queue table | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0342` | 87012 | 27 | ai | Clear primary goals; promote secondary→primary (6d8e plan pass) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_03a6` | 87039 | 19 | ai | Clear all 16 primary goal slots for nation (0xff @ 0x9eac) | inferred | ai/euro_dispatcher.c |
-| `FUN_521d_03d0` | 87058 | 40 | ai | Nation founding / expansion urgency score | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0492` | 87098 | 41 | ai | Colony-count vs target balance flags | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_052c` | 87139 | 57 | ai | Unit desirability score (type + diplo + founding) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0600` | 87196 | 23 | ai | Composite unit priority (052c+0492+03d0) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0656` | 87219 | 18 | ai | Walk unit stack/chain to end (cargo scan) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_06ae` | 87237 | 82 | ai | Pick best adjacent founding / site tile | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0896` | 87319 | 26 | ai | Filter profession/role by distance and colony wealth | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit / colony goal logic | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_0000` | 86772 | 15 | ai | Clear one primary goal-table slot (nation×64) | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_001c` | 86787 | 32 | ai | Invalidate nearby secondary goals matching a code | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0072` | 86819 | 19 | ai | Shift primary goal table down to open a slot | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_00a8` | 86838 | 19 | ai | Shift secondary goal table down to open a slot | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_00de` | 86857 | 18 | ai | Shift work-queue table down to open a slot | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0116` | 86875 | 21 | ai | Max priority among matching primary goals | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_016a` | 86896 | 37 | ai | Upsert primary goal (x,y,code,prio) for nation | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0214` | 86933 | 38 | ai | Upsert secondary goal (x,y,code,prio) for nation | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_02be` | 86971 | 25 | ai | Upsert entry into global AI work queue | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_031c` | 86996 | 16 | ai | Clear global AI work-queue table | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0342` | 87012 | 27 | ai | Clear primary goals; promote secondary→primary (6d8e plan pass) | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_03a6` | 87039 | 19 | ai | Clear all 16 secondary goal slots for nation (0xff) | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_03d0` | 87058 | 40 | ai | Nation founding / expansion urgency score | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0492` | 87098 | 41 | ai | Colony-count vs target balance flags | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_052c` | 87139 | 57 | ai | Unit desirability score (type + diplo + founding) | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0600` | 87196 | 23 | ai | Composite unit priority (052c+0492+03d0) | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0656` | 87219 | 18 | ai | Walk unit stack/chain to end (cargo scan) | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_06ae` | 87237 | 82 | ai | Pick best adjacent founding / site tile | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0896` | 87319 | 26 | ai | Filter profession/role by distance and colony wealth | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | known | ai/euro_goals.c; ai/euro_dispatcher.c |
+| `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit/colony goal writer (sectioned; mid-game PARKED) | known | ai/euro_dispatcher.c; ai/euro_goals.c |
 | `FUN_521d_20c6` | 88247 | 19 | ai | Stamp unit orders=0x0B goto with dest (DL,BL)+param | inferred | ai/move_scoring.md; near FUN_521d_20e6 |
-| `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; ai/move_scoring.md |
-| `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); PARKED | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; ai/move_scoring.md; ai/euro_goals.c |
+| `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); thin map | inferred | ai/euro_dispatcher.c; ai/euro_unit_act.md |
 | `FUN_521d_5c38` | 92261 | 8 | ai | Always-true predicate stub (Europe hire gate) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5c3c` | 92269 | 47 | ai | Try buy/hire Europe unit if treasury allows | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5cf6` | 92316 | 9 | ai | Refresh colony context pointer (6d8e inventory) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_5d04` | 92325 | 748 | ai | Euro unit goals / planning (alongside 0a60) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_6d8e` | 93073 | 516 | ai | Euro AI dispatcher per nation | known | ai/euro_dispatcher.c; src/core/ai.c |
+| `FUN_521d_5d04` | 92325 | 748 | ai | Euro nation planning / hire / treasury (PARKED; 6d8e via 0554) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_6d8e` | 93073 | 516 | ai | Euro AI dispatcher per nation (thunk wiring corrected) | known | ai/euro_dispatcher.c; src/core/ai.c |
 
 ### Segment `5952` (6 defs) — colony — Colony production / buildings / stock tick (DS:0x8542)
 

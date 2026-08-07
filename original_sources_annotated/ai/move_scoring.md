@@ -41,3 +41,39 @@ few cascade fixes). See `.context/seed100-brave.md`.
 - Base `range(1,3)`; river/fa `+1` else `−2f76`
 - Gated facing / coarse fog
 - Stay-shaped LCG burn after each pick (Linux stream sync)
+
+## Euro / ocean / founding (thin section-map — PARKED body)
+
+Full `FUN_521d_20e6` ~2180 lines (`viceroy_unpacked.c` ~88266–90445). Quiet
+Brave slice is annotated; **Euro ship / ocean / combat branches stay PARKED**.
+
+### Callers
+
+| From | Via | Notes |
+|------|-----|-------|
+| `FUN_521d_5b66` | `2a1f_04f4` | Per-unit act entry; non-zero return aborts act |
+| (not `6d8e` directly) | — | Dispatcher calls `5b66`, which scores |
+
+### Founding tile pick (`FUN_521d_06ae`)
+
+| Item | Detail |
+|------|--------|
+| Thunk | `2a1f_04ac` → `FUN_521d_06ae` |
+| Annotated | `pick_best_adjacent_founding_tile` in [`euro_goals.c`](euro_goals.c) |
+| Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
+| Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
+| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` / coastal staging fixtures |
+
+Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
+
+### Ocean / ship scoring (early-settle gap)
+
+Naval band in `20e6` is often `type ∈ (0x0c, 0x13)` — wider than dispatcher
+`SHIP_A..C` (`0x0a..0x0c`). Atlantic approach and T3–T6 coastal ship waypoints
+in Linux are still **fixture tables**. Retiring them needs the ocean/HS branch
+of `20e6` (not the quiet Brave path). Until then:
+
+- Seed-100 landfall gotos: `ai_coastal_staging_from_landfall` (T2)
+- Mid-turn ship XY: fixture waypoints (1–2 tiles off golden until ocean score)
+
+Combat / explore / colony-tile Euro arms: **PARKED** (R5).

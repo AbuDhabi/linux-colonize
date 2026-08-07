@@ -56,7 +56,7 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 123 · inferred 2254 · unknown 3 |
+| Confidence | known 138 · inferred 2239 · unknown 3 |
 | Purpose one-liners | 1135 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
@@ -130,8 +130,10 @@ the catalog only mirrors light-label status.
 | [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + `14fe` act |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
 | [`ai/brave_spent_callgraph.md`](ai/brave_spent_callgraph.md) | Quiet spent `0x3149` call graph + hang X target |
-| [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; 2 spent residuals |
+| [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell + sectioned `0a60` |
+| [`ai/euro_goals.c`](ai/euro_goals.c) | Goal tables + founding helpers (`0000`…`0906`) |
+| [`ai/euro_unit_act.md`](ai/euro_unit_act.md) | Thin section-map for `FUN_521d_5b66` |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; Euro/ocean thin map; 2 spent residuals |
 
 ## Deep naming rules (extracted `.c` only)
 
@@ -151,7 +153,7 @@ the catalog only mirrors light-label status.
   RE proves otherwise.
 - Catalog labels (`inferred`) are **not** port fidelity claims.
 
-## Deep AI status (phase 1 + 2 + 9–17)
+## Deep AI status (phase 1 + 2 + 9–17 + Euro early-settle D)
 
 - Phase 1: AI-critical accessors, Indian nation turn entry, Euro dispatcher shell.
 - Phase 2: Quiet Brave `LAB_521d_4ea9` annotated in `ai/quiet_brave_scoring.c`.
@@ -166,5 +168,8 @@ the catalog only mirrors light-label status.
   residuals = **2** Sioux/Apache (post-ADD; hang X last resort).
 - Call-graph annotation: `14fe` act resolved; post-ADD chrome → `FUN_1427_*`
   with `0x3149` R/W table — chrome does not write spent for Brave; hang
-  **VR_B465X** remains the named localizer. Raid bodies / full `20e6` still
-  out of scope.
+  **VR_B465X** remains the named localizer.
+- **Euro early-settle Layer D:** `6d8e` thunk wiring corrected (`0554`→`5d04`,
+  `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`); goal helpers in `euro_goals.c`;
+  sectioned `0a60`; thin maps for `5b66` + Euro/ocean `20e6`/`06ae`. Full
+  `5d04` / `5b66` bodies / non-quiet `20e6` still PARKED. Raid bodies out of scope.

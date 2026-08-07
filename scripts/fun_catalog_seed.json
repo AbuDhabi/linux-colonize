@@ -1316,25 +1316,25 @@
       },
       "FUN_521d_0a60": {
         "system": "ai",
-        "purpose": "Euro unit / colony goal logic",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "purpose": "Euro unit/colony goal writer (sectioned; mid-game PARKED)",
+        "confidence": "known",
+        "links": "ai/euro_dispatcher.c; ai/euro_goals.c"
       },
       "FUN_521d_20e6": {
         "system": "ai",
         "purpose": "Direction / move scoring (all unit kinds); quiet Brave slice annotated",
         "confidence": "known",
-        "links": "ai/quiet_brave_scoring.c; ai/move_scoring.md"
+        "links": "ai/quiet_brave_scoring.c; ai/move_scoring.md; ai/euro_goals.c"
       },
       "FUN_521d_5d04": {
         "system": "ai",
-        "purpose": "Euro unit goals / planning (alongside 0a60)",
+        "purpose": "Euro nation planning / hire / treasury (PARKED; 6d8e via 0554)",
         "confidence": "inferred",
         "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
       },
       "FUN_521d_6d8e": {
         "system": "ai",
-        "purpose": "Euro AI dispatcher per nation",
+        "purpose": "Euro AI dispatcher per nation (thunk wiring corrected)",
         "confidence": "known",
         "links": "ai/euro_dispatcher.c; src/core/ai.c"
       },
@@ -3273,122 +3273,122 @@
       "FUN_521d_0000": {
         "system": "ai",
         "purpose": "Clear one primary goal-table slot (nation\u00d764)",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_001c": {
         "system": "ai",
         "purpose": "Invalidate nearby secondary goals matching a code",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0072": {
         "system": "ai",
         "purpose": "Shift primary goal table down to open a slot",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_00a8": {
         "system": "ai",
         "purpose": "Shift secondary goal table down to open a slot",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_00de": {
         "system": "ai",
         "purpose": "Shift work-queue table down to open a slot",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0116": {
         "system": "ai",
         "purpose": "Max priority among matching primary goals",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_016a": {
         "system": "ai",
         "purpose": "Upsert primary goal (x,y,code,prio) for nation",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0214": {
         "system": "ai",
         "purpose": "Upsert secondary goal (x,y,code,prio) for nation",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_02be": {
         "system": "ai",
         "purpose": "Upsert entry into global AI work queue",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_031c": {
         "system": "ai",
         "purpose": "Clear global AI work-queue table",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0342": {
         "system": "ai",
         "purpose": "Clear primary goals; promote secondary\u2192primary (6d8e plan pass)",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_03d0": {
         "system": "ai",
         "purpose": "Nation founding / expansion urgency score",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0492": {
         "system": "ai",
         "purpose": "Colony-count vs target balance flags",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_052c": {
         "system": "ai",
         "purpose": "Unit desirability score (type + diplo + founding)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0600": {
         "system": "ai",
         "purpose": "Composite unit priority (052c+0492+03d0)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0656": {
         "system": "ai",
         "purpose": "Walk unit stack/chain to end (cargo scan)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_06ae": {
         "system": "ai",
         "purpose": "Pick best adjacent founding / site tile",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0896": {
         "system": "ai",
         "purpose": "Filter profession/role by distance and colony wealth",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_0906": {
         "system": "ai",
         "purpose": "Probe adjacent tiles for contact / claim profession",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_5b66": {
         "system": "ai",
-        "purpose": "Euro per-unit act body (often \u2192 move_scoring 20e6); PARKED",
+        "purpose": "Euro per-unit act body (often \u2192 move_scoring 20e6); thin map",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_dispatcher.c; ai/euro_unit_act.md"
       },
       "FUN_521d_5c38": {
         "system": "ai",
@@ -3418,7 +3418,7 @@
         "system": "mapgen",
         "purpose": "Far thunk \u2192 FUN_521d_016a (upsert primary goal)",
         "confidence": "inferred",
-        "links": ""
+        "links": "ai/euro_goals.c"
       },
       "FUN_2a1f_047c": {
         "system": "mapgen",
@@ -3430,7 +3430,7 @@
         "system": "mapgen",
         "purpose": "Far thunk \u2192 FUN_521d_5b66 (Euro per-unit act; 6d8e unit loop)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c"
+        "links": "ai/euro_dispatcher.c; ai/euro_unit_act.md"
       },
       "FUN_2a1f_0494": {
         "system": "mapgen",
@@ -3448,7 +3448,7 @@
         "system": "mapgen",
         "purpose": "Far thunk \u2192 FUN_521d_06ae (best adjacent founding tile)",
         "confidence": "inferred",
-        "links": ""
+        "links": "ai/euro_goals.c; ai/move_scoring.md"
       },
       "FUN_2a1f_04b8": {
         "system": "mapgen",
@@ -3484,7 +3484,7 @@
         "system": "mapgen",
         "purpose": "Far thunk \u2192 FUN_521d_20e6 (move scoring)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; ai/move_scoring.md"
+        "links": "ai/euro_unit_act.md; ai/move_scoring.md"
       },
       "FUN_2a1f_0500": {
         "system": "mapgen",
@@ -3550,7 +3550,7 @@
         "system": "mapgen",
         "purpose": "Far thunk \u2192 FUN_521d_0342 (promote secondary\u2192primary goals; 6d8e plan pass)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c"
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_2a1f_0584": {
         "system": "mapgen",
@@ -4850,9 +4850,9 @@
       },
       "FUN_521d_03a6": {
         "system": "ai",
-        "purpose": "Clear all 16 primary goal slots for nation (0xff @ 0x9eac)",
-        "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c"
+        "purpose": "Clear all 16 secondary goal slots for nation (0xff)",
+        "confidence": "known",
+        "links": "ai/euro_goals.c; ai/euro_dispatcher.c"
       },
       "FUN_521d_20c6": {
         "system": "ai",
