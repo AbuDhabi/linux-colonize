@@ -10397,6 +10397,600 @@
         "purpose": "Handle image-load status: temp-file write, blit, or free buffer",
         "confidence": "inferred",
         "links": ""
+      },
+      "FUN_19ef_0008": {
+        "system": "platform",
+        "purpose": "Seed DOS LCG from BIOS timer word (40:6c via 1c0c_0012), masked 0x7fff",
+        "confidence": "known",
+        "links": "FUN_1d1d_0df2; FUN_1c0c_0012; FUN_19ef_0032"
+      },
+      "FUN_19ef_001a": {
+        "system": "platform",
+        "purpose": "Seed DOS LCG from caller word (mask 0x7fff \u2192 1d1d_0df2)",
+        "confidence": "known",
+        "links": "FUN_1d1d_0df2"
+      },
+      "FUN_19ef_002c": {
+        "system": "platform",
+        "purpose": "Near wrapper: reseed LCG from BIOS timer (calls 19ef_0008)",
+        "confidence": "known",
+        "links": "FUN_19ef_0008"
+      },
+      "FUN_1a29_015b": {
+        "system": "platform",
+        "purpose": "Install IRQ0 timer: save INT8, hook CS handler, PIT 0x7a8, point 267a\u219292e8 ticks",
+        "confidence": "known",
+        "links": "FUN_1c10_0008; FUN_1c0c_0006; FUN_1c0c_0022"
+      },
+      "FUN_1a29_01d1": {
+        "system": "platform",
+        "purpose": "Restore prior INT8 + default PIT; retarget 267a to BIOS 40:6c",
+        "confidence": "known",
+        "links": "FUN_1a29_015b; FUN_1c10_0008"
+      },
+      "FUN_1a29_0209": {
+        "system": "platform",
+        "purpose": "Arm custom timer alarm: set reload DS:0x92f6, clear elapsed 0x92f4",
+        "confidence": "inferred",
+        "links": "FUN_1a29_015b"
+      },
+      "FUN_1a29_021b": {
+        "system": "platform",
+        "purpose": "Install far timer-tick callback at DS:0x92e4/0x92e6; clear tick latches",
+        "confidence": "inferred",
+        "links": "FUN_1262_0142"
+      },
+      "FUN_1ae3_0006": {
+        "system": "platform",
+        "purpose": "Zero-fill stack from DS:0x27e6 watermark up to SP; return bytes cleared",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1ae3_0042": {
+        "system": "platform",
+        "purpose": "BIOS INT16 AH=01 key-ready: 1 if ZF clear, else 0",
+        "confidence": "known",
+        "links": "FUN_281f_00f6; FUN_1ae7_0016"
+      },
+      "FUN_1ae7_0032": {
+        "system": "platform",
+        "purpose": "Drain BIOS keyboard buffer (loop INT16 ready\u2192read until empty)",
+        "confidence": "known",
+        "links": "FUN_291f_04a2; FUN_1ae3_0042; FUN_1ae7_0016"
+      },
+      "FUN_1afb_000e": {
+        "system": "platform",
+        "purpose": "NUL-truncate string at first LF (strchr 0x0A then write 0)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_10ea"
+      },
+      "FUN_1afb_003c": {
+        "system": "platform",
+        "purpose": "Append LF+NUL at end of string (strlen then write 0x0A,0)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_113c"
+      },
+      "FUN_1b01_000e": {
+        "system": "platform",
+        "purpose": "Buffered far-buffer file/stream read (seek/copy/refill; fail \u2192 1d1d_0ec6)",
+        "confidence": "inferred",
+        "links": "FUN_2074_0008; FUN_1bdd_00e0"
+      },
+      "FUN_1b2c_0004": {
+        "system": "platform",
+        "purpose": "Read NUL-terminated string from DOS char stream (max ~79; trailing getc)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0786"
+      },
+      "FUN_1b2c_0040": {
+        "system": "platform",
+        "purpose": "Write NUL-terminated string to DOS char stream then Ctrl-Z (0x1A)",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_0758"
+      },
+      "FUN_1b32_000e": {
+        "system": "platform",
+        "purpose": "Ensure filename has extension: if no '.', strcat default then suffix",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_10ea; FUN_1d1d_11b4"
+      },
+      "FUN_1b32_005c": {
+        "system": "platform",
+        "purpose": "Replace/append filename extension (truncate at '.', strcat new ext)",
+        "confidence": "inferred",
+        "links": "FUN_1b32_000e"
+      },
+      "FUN_1b4e_0004": {
+        "system": "platform",
+        "purpose": "Path join: getcwd + optional '\\' + name into out buffer",
+        "confidence": "inferred",
+        "links": "FUN_1d1d_117e; FUN_1d1d_11b4"
+      },
+      "FUN_1b57_0002": {
+        "system": "platform",
+        "purpose": "Ltrim leading spaces/tabs then strcpy back into dest",
+        "confidence": "inferred",
+        "links": "FUN_2094_000a; FUN_1d1d_117e"
+      },
+      "FUN_1b8b_0004": {
+        "system": "platform",
+        "purpose": "Set BIOS equipment video bits at 40:10 (mono 0x30 if AX==7 else 0x20)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_1bdd_0002": {
+        "system": "platform",
+        "purpose": "Create numbered temp file into free slot (0..9); write payload; return slot",
+        "confidence": "inferred",
+        "links": "FUN_1bdd_00e0; FUN_19f6_0002"
+      },
+      "FUN_1bdd_00e0": {
+        "system": "platform",
+        "purpose": "Read numbered temp file via 1b01 into dests; free slot and delete if ok",
+        "confidence": "inferred",
+        "links": "FUN_1bdd_0002; FUN_1b01_000e"
+      },
+      "FUN_1c06_000c": {
+        "system": "platform",
+        "purpose": "Parse numeric literal: 0x\u2192hex, 0b\u2192bin, else default decimal atoi",
+        "confidence": "inferred",
+        "links": "FUN_209a_000a; FUN_20a0_000e"
+      },
+      "FUN_1c0c_0012": {
+        "system": "platform",
+        "purpose": "Read BIOS timer dword at 40:6c/6e",
+        "confidence": "known",
+        "links": "FUN_1c0c_0006; FUN_19ef_0008"
+      },
+      "FUN_1c0c_0022": {
+        "system": "platform",
+        "purpose": "Read custom IRQ0 tick dword at DS:0x8338/0x833a",
+        "confidence": "inferred",
+        "links": "FUN_1a29_015b; FUN_1c0c_0006"
+      },
+      "FUN_1cf8_000a": {
+        "system": "platform",
+        "purpose": "Insertion-sort parallel word keys + byte payload arrays",
+        "confidence": "inferred",
+        "links": "FUN_291f_0ed0; FUN_1d05_0000"
+      },
+      "FUN_1d05_0000": {
+        "system": "platform",
+        "purpose": "Insertion-sort parallel byte keys + byte payload arrays",
+        "confidence": "inferred",
+        "links": "FUN_1cf8_000a"
+      },
+      "FUN_206d_000a": {
+        "system": "platform",
+        "purpose": "Copy into stream output buffer (size-budgeted); normalize far write ptr",
+        "confidence": "inferred",
+        "links": "FUN_1c05_0004"
+      },
+      "FUN_2074_0008": {
+        "system": "platform",
+        "purpose": "Size-budgeted stream read into far dest via 1b01; update remaining/total",
+        "confidence": "inferred",
+        "links": "FUN_1b01_000e"
+      },
+      "FUN_2088_000c": {
+        "system": "platform",
+        "purpose": "DOS write string to stdout (AH=40 handle 1) then CR/LF",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2094_000a": {
+        "system": "platform",
+        "purpose": "Rtrim trailing spaces/tabs from string in place",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_209a_000a": {
+        "system": "platform",
+        "purpose": "Parse hex integer from string (A\u2013F + digits via ctype 0x27ed)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_20a0_000e": {
+        "system": "platform",
+        "purpose": "Parse binary integer from string (0/1 digits only)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2100_000e": {
+        "system": "platform",
+        "purpose": "XMS UMB size probe (AH=10 DX=FFFF; return DX<<4 on BL=B0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2103_000a": {
+        "system": "platform",
+        "purpose": "XMS Request UMB (AH=10); push handle into table DS:0xa66a (max 16)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2103_004c": {
+        "system": "platform",
+        "purpose": "Remove UMB handle from table then XMS Release UMB (AH=11)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7421_0188": {
+        "system": "platform",
+        "purpose": "Startup config fread: open + seven word reads into DS:0x260a..0x2616",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7421_025a": {
+        "system": "platform",
+        "purpose": "Startup argv parse (-opts); set DS:0x26e6 skip-XMS then run init",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_78d8_0000": {
+        "system": "platform",
+        "purpose": "Reset resource-stream cursor/remain from base buffer DS:0x23c6",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_78d8_0022": {
+        "system": "platform",
+        "purpose": "Alloc resource-stream far buffer (281f_029a) then reset via 0000",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_78d8_0054": {
+        "system": "platform",
+        "purpose": "Advance stream: load via 78ef then bump cursor / shrink remain",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7939_000c": {
+        "system": "platform",
+        "purpose": "Resource open helper: path+prefix 0x23fa, open/read chunks, close",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7944_000e": {
+        "system": "platform",
+        "purpose": "Resource open helper sibling: path+prefix 0x2402, extra chunk read",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7952_0000": {
+        "system": "platform",
+        "purpose": "Resource open/alloc path: fopen, heap alloc, one-chunk load; return buf",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7962_0000": {
+        "system": "platform",
+        "purpose": "Open resource file into handle struct (read-header vs write-create paths)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7962_020a": {
+        "system": "platform",
+        "purpose": "Store codec/type byte at resource-handle +0x2b",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7962_021c": {
+        "system": "platform",
+        "purpose": "Close resource handle (optional rewind seek + fclose); clear open flag",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_798d_0000": {
+        "system": "platform",
+        "purpose": "Compressed resource chunk read (seek/size; wire 79a8_004a consume)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79a8_000a": {
+        "system": "platform",
+        "purpose": "Return near offset of far buffer ptr (stream-callback wire helper)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79a8_0014": {
+        "system": "platform",
+        "purpose": "Invoke progress callback at DS:0x245e if installed",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79a8_002a": {
+        "system": "platform",
+        "purpose": "Install stream heap buffer + progress callback (DS:0x245a..0x2460)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79db_000c": {
+        "system": "platform",
+        "purpose": "Chunked DOS file write from far buffer (AH=40, \u22640xF000 slices)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79ec_0004": {
+        "system": "platform",
+        "purpose": "Resource-stream progress pump: src\u2192dst callbacks until remain drained",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_79ec_0082": {
+        "system": "platform",
+        "purpose": "Dispatch compress/decompress codec by mode (DS:0x26cc..0x26e0 table)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7acf_0002": {
+        "system": "platform",
+        "purpose": "Alloc far buffer into handle via 281f_029a; store size+ptr or fail 0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7acf_003c": {
+        "system": "platform",
+        "purpose": "Alloc far buffer into handle via 7ada_0022 (DX:AX size); sibling of 0002",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7ad6_000e": {
+        "system": "platform",
+        "purpose": "Free handle far buffer (7ada_01aa) and zero size/ptr fields",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b04_0002": {
+        "system": "platform",
+        "purpose": "DOS free-memory probe (INT21 AH=48 BX=FFFF) \u2192 available bytes",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_7b04_001e": {
+        "system": "platform",
+        "purpose": "Max of DOS free probe (0002) vs XMS UMB size (2100_000e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0398": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1262_0142 (bind tip-string far ptr)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_03f4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1ade_0004 (VGA retrace + program DAC palette)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_04f2": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1a58_0054 (hide mouse cursor)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0546": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_130d_0290 (main game year/turn loop)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_05c4": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1a58_008c (mouse INT33 init / cursor mode)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_05ce": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1a29_01d1 (restore prior INT8 + default PIT)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0e5e": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1984_06b4 (stub: always return 0)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0e68": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_19ef_0008 (seed DOS LCG from BIOS timer)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0e72": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1c0c_0012 (read BIOS timer dword at 40:6c/6e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0eae": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1a0a_0004 (init palette-cycle anim timers)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0eb8": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1a29_015b (install IRQ0 timer / PIT hook)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0ed6": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_1d11_0000 (stash INT10 mode; optional set)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0372": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_78ef_0002 (open RM* resource archive + stream)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_07c4": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_6f74_3084 (set dialog script resource triple)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_08dc": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_6a9f_0068 (load terrain\u2192display color LUTs)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0a86": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7952_0000 (open/alloc named resource into far buf)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0cbe": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_74a4_0bbe (load menu-cursor resource handle)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e02": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7acf_0002 (alloc far buffer into BX handle struct)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e10": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_78d8_0022 (alloc resource-stream buffer @23c6)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e1e": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_1b70_0002 (bind mouse cursor shape to viewport)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e28": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7a7c_000e (load 768-byte VGA palette from resource)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e36": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_1b8b_0004 (set BIOS equipment video bits @40:10)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e40": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7a4c_006a (calibrate fade speed via vsync+PIT)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e4e": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7aa1_0002 (dismiss message-box handle 0x2604)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e5c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7a9d_0004 (load dialog string prep buf \u21920x929e)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0e6a": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_7aa1_003a (message box: create+run modal)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_03f4": {
+        "system": "platform",
+        "purpose": "fclose \u2014 flush FILE, DOS close handle (1e7a), clear flags",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_04da": {
+        "system": "platform",
+        "purpose": "fopen(path,mode) \u2014 wrapper \u2192 04ae with share/flags=0",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1d79": {
+        "system": "platform",
+        "purpose": "printf va_arg \u2014 LODSW next int from [BP+0xa] list",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1d81": {
+        "system": "platform",
+        "purpose": "printf va_arg \u2014 LODSW\u00d72 next long from [BP+0xa] list",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1dd4": {
+        "system": "platform",
+        "purpose": "printf emit \u2014 write CX chars from ES:DI via putc (1daa)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1df2": {
+        "system": "platform",
+        "purpose": "printf pad \u2014 write CX copies of DL via putc (1daa)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1e0e": {
+        "system": "platform",
+        "purpose": "printf itoa \u2014 DX:AX\u00f7radix\u2192ASCII digits reverse (STOSB)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1e3f": {
+        "system": "platform",
+        "purpose": "Shared far epilogue \u2014 POP DI/SI; leave; RETF",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1e7a": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=3E close handle; clear fd table byte",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_1e9a": {
+        "system": "platform",
+        "purpose": "DOS INT21 AH=42 lseek (origin + signed offset checks)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_2c8e": {
+        "system": "platform",
+        "purpose": "Build spawn env block: copy env strings + hex-encode open fds",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_1d1d_2f06": {
+        "system": "platform",
+        "purpose": "DOS spawn/exec: MCB walk + AH=48/4A carve; copy env/cmdline",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_281f_0048": {
+        "system": "thunk",
+        "purpose": "Far thunk \u2192 FUN_7b08_000e (alloc growable far-buffer arena)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2a1f_0c9c": {
+        "system": "mapgen",
+        "purpose": "Far thunk \u2192 FUN_79db_000c (chunked DOS file read into far buffer)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {
