@@ -130,6 +130,12 @@ static void indian_alarm_prelude_parked(int indian_index) {
  *   Multi-step / Inca tw>=2 goldens need those cost=1 river edges first;
  *   collapsing them with a diagonal peel (cost 6/9) stops the loop after one
  *   act and desyncs spent/tw. Not "second act after spent >= max".
+ *
+ * Spent residuals (phase 17 dump-free):
+ *   Quiet path: 14fe → (dir!=8) 2a1f_0150 → 465b_0c1e → 465b ADD.
+ *   After ADD, only ocean force writes 3149 inside 465b (ruled out for Sioux).
+ *   0934/155e from 14fe stay, 1816 act≥0x15, or 465b cargo/wagon do not fire
+ *   on these rows. Writer localization needs hang X (RETF spent) / E (155e).
  */
 void indian_nation_turn(int indian_index) {
   ai_reseed_from_timer(0);

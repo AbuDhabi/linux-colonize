@@ -202,12 +202,14 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
   force-to-max uses `euro_settlement_owner` (`FUN_137f_0358`). **Phase 13:**
   multi-step / Inca tw residuals cleared — river/fa cost=1 peels let the
   existing `097a` pulse loop continue (`spent < 3`); mis-keyed t3/t6 overlays
-  retired. **Phase 14:** spent-only static RE exhausted (cost head cannot
-  distinguish T1 spent=9 vs T2 spent=3; only ADD+ocean write `0x3149`). Quiet
-  residuals remain **2 spent-only rows**; hang AL blocked — `VR_B465R/A`
-  lack ADD1 Sioux/Apache stubs (see `midturn_465b.md`). Empiricism mid-turn
-  overlays retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map
-  irrelevant. Hang recipes last-resort only (rebuild EXEs first).
+  retired. **Phase 14–17:** spent-only static RE + dump-free predicates
+  exhausted (cost head cannot distinguish T1 spent=9 vs T2 spent=3; ocean
+  force-max ruled out via `dump_b465f3`; `dump_vrb465x2` shows spent=9 without
+  XY ⇒ writer after ADD/`465b` return; ocean-adj / capital-dist clamps break
+  T1). Quiet residuals remain **2 spent-only rows** in `k_quiet_brave_t2`.
+  Hang **`VR_B465X` → `dump_b465x3`** is the last-resort localizer (see
+  `tools/brave_dump/midturn_465b.md`). Empiricism mid-turn overlays retained
+  under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map irrelevant.
 - **Euro early path:** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
@@ -286,9 +288,9 @@ Status reflects the AI-port prerequisite work:
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
 **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (quiet mid-turn
-default, **2** Brave spent-only residuals, named init burns, landfall coastal
-staging + found-site helper). Next: empty remaining quiet `k_quiet_brave_t*`
-holdouts (spent-only Apache/Sioux; rebuild `465b` ADD1 hang for AL), then generic T1 Euro settle.
+default, **2** Brave spent-only residuals — dump-free exhausted, hang X last
+resort; named init burns, landfall coastal staging + found-site helper). Next:
+generic T1 Euro settle (spent rows stay overlaid until hang X).
 
 ---
 
@@ -298,6 +300,7 @@ holdouts (spent-only Apache/Sioux; rebuild `465b` ADD1 hang for AL), then generi
 |----------|-----|
 | `test-saves-mapgen/SEED100.SAV` | Golden tribes/Braves; `smoke_mapgen_seed100`; far-ocean probe |
 | `tools/probe_far_ocean_4753.c` | Phase 8: far tiles Linux ↔ SAV ocean/land |
+| `tools/probe_sioux_spent.c` | T1/T2 Brave cost-head + neighborhood oracle (spent residuals) |
 | `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 gate; `smoke_ai_turns` |
 | `original_saves/COLONY00.SAV` / `COLONY01.SAV` | Rival fleets, sail, AI crosses |
 | `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |

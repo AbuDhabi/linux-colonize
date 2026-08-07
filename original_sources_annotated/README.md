@@ -51,6 +51,6 @@ second runtime.
   foreign gate, ocean force-to-max, ADD/gamble; combat PARKED). Linux ocean gate
   uses `euro_settlement_owner`.
 - Phase 13: Multi-step / Inca tw cleared via river cost=1 peels (`097a` loop).
-- Phase 14: Spent-only static RE exhausted; `VR_B465R/A` lack ADD1 hang stubs.
-  Quiet residuals = **2** Sioux/Apache (no invented caps). Raid bodies / full
+- Phase 14–17: Spent-only static RE + dump-free predicates exhausted; quiet
+  residuals = **2** Sioux/Apache (post-ADD; hang X last resort). Raid bodies / full
   `20e6` still out of scope.

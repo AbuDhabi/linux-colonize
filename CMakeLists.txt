@@ -396,6 +396,16 @@ target_include_directories(probe_far_ocean_4753 PRIVATE
 
 target_link_libraries(probe_far_ocean_4753 PRIVATE colonize_core)
 
+add_executable(probe_sioux_spent
+  tools/probe_sioux_spent.c
+)
+
+target_include_directories(probe_sioux_spent PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(probe_sioux_spent PRIVATE colonize_core)
+
 add_executable(smoke_viceroy_tables
   tests/smoke/test_viceroy_tables.c
   src/data/viceroy_tables.c

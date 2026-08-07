@@ -2,15 +2,15 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 14 hard stop + hang EXE rebuild)
+## Status (phase 17 — dump-free spent search exhausted)
 
 | Gate | State |
 |------|--------|
 | Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
 | Mid-turn pick (default) | Quiet ASM + stay LCG + mid peels + **2** spent residuals — **green** |
 | Multi-step / Inca tw | Cleared (phase 13) |
-| Spent-only Sioux/Apache | Sioux AL=9; force-max **does not fire** (`dump_b465f3` spent=3); other post-ADD writer |
-| Hang EXEs | R ok; F done (no hang, spent=3); stock E4D2 still slow |
+| Spent-only Sioux/Apache | **Post-ADD writer** (not cost-head). Dump-free predicates exhausted |
+| Hang EXEs | R/F done; X broken builds informative; **`dump_b465x3` still last resort** |
 | Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
 
@@ -21,7 +21,7 @@ Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 | Dir-only (scoring) | ~110 | peels | Mid peels `(turn,nation,xy)→dir` |
 | Multi-step (cleared) | 0 | — | River-first peels; pulse already loops |
 | Mis-keyed overlays (retired) | 0 | was t3/t6 | Wrong unit’s end snapped onto neighbor |
-| Spent-only (XY match) | 2 | t2 Apache; t2 Sioux | Hang AL; do not invent cost caps |
+| Spent-only (XY match) | 2 | t2 Apache; t2 Sioux | Post-ADD; keep overlays |
 
 Quiet residual table: **2 rows** (both t2 spent-only).
 
@@ -35,7 +35,7 @@ Quiet residual table: **2 rows** (both t2 spent-only).
 | t3 `(38,20)→(40,19)` | Mis-keyed | Real: `(39,20)→(40,19)`, `(38,20)→(39,19)` | Fix `(39,20)` peel N→NE |
 | t4 `(33,50)→(33,52)` tw2/mv7 | One N | Need river S | Peel S twice |
 | t6 `(28,35)→(28,33)` | Mis-keyed | Real: `(27,34)→(28,33)`, `(28,35)→(27,35)` | Fix `(27,34)` peel S→NE |
-| t2 Apache/Sioux spent | XY ok, spent 6/9 vs 3 | 465b AL unknown | Residual + park |
+| t2 Apache/Sioux spent | XY ok, spent 6/9 vs 3 | post-ADD `0x3149` writer | Residual + park |
 
 `097a` does **not** allow a further act after `spent >= max_mp`. Multi-step is
 `cost=1` then another pick while `spent < 3`.
@@ -45,30 +45,65 @@ Quiet residual table: **2 rows** (both t2 spent-only).
 AI_EMPIRICISM=1 ./build/smoke_ai_turns
 AI_STEP_AUDIT=1 ./build/smoke_ai_turns   # per-step paths
 ./build/smoke_mapgen_seed100
+./build/probe_sioux_spent                # T1/T2 cost-head + neighborhood oracle
 ```
 
-## Spent-only RE note (phase 14 hard stop)
+## Spent-only — dump-free conclusion (phase 17)
 
-TURN2 pulse-start contrast (`tools/probe_sioux_spent` / spent_contrast):
+TURN2 pulse-start contrast (`tools/probe_sioux_spent`):
 
 | Step | Golden | Linux head | FROM l2 | DEST tribe | Notes |
 |------|-------:|-----------:|---------|------------|-------|
-| `(49,41)→(49,40)` T1 | 9 | 9 | `01` | no | Agree |
+| `(49,41)→(49,40)` T1 | 9 | 9 | `01` | no | Agree — must stay 9 |
 | `(49,40)→(49,39)` T2 | 3 | 9 | `01` | no | Holdout |
 | `(45,52)→(46,53)` T2 | 3 | 6 | `01` | no | Holdout |
+| `(47,46)→(48,46)` T2 | 9 | 9 | `01` | no | Control — same presence shape, stays 9 |
 
 Same cost-head shape as the agreeing T1 row (presence on FROM, no tribe/FA/river
 pair on DEST). From-presence caps break T1 spent=9 — rejected.
 
-`FUN_465b` write map (ASM): friendly land path only **ADD local_40** then
-optional ocean force-to-max. Hang `dump_b465r3`: Sioux ADD **AL=9** (matches
-Linux head). Golden spent=3 ⇒ post-ADD write (force-max / clamp), not cost
-head. Apache already spent=3 on same dump with force-max stubbed out ⇒ Apache
-AL was 3 at ADD (confirm `VR_B465A`).
+### Existing dumps (re-parsed, no new hangs)
 
-Hang EXEs: ADD1 `CALL` → force-max window stub at `0x3F31F` (reloc-safe).
-Cave `0x3ECD0` → EMS `evm0015`. Recipe: [`tools/brave_dump/midturn_465b.md`](../tools/brave_dump/midturn_465b.md).
-**Do not invent Sioux cost-head caps.**
+| Dump | Finding |
+|------|---------|
+| `dump_b465r3` | Sioux ADD **AL=9** (= Linux). Apache already at `(46,53)` spent=3 |
+| `dump_b465f3` | Force-max **not entered**; Sioux ends `(49,39)` spent=3. Distrust Apache path on F |
+| `dump_vrb465x2` | Broken X: Sioux `(49,40)` **spent=9** without XY commit ⇒ writer **after** ADD chrome / after `465b` return |
+
+**Apache “AL≈3”** (old r3 inference: force stubbed + already spent=3) is **not** proof of a
+cost-head mismatch — the same unknown post-ADD writer that turns Sioux 9→3 can turn
+Apache 6→3. SAV/DOS terrain → head **6** for Apache SE.
+
+### `0x3149` writers reachable from quiet act (static)
+
+| Site | Role | Quiet Brave? |
+|------|------|--------------|
+| `465b:05f0` ADD | cost ADD | yes |
+| `465b:0628` ocean force | spent=max_mp | **ruled out** (f3) |
+| `465b:08f8` → `0934`/`155e` | cargo/wagon + `07be(dest)≥0` | no (type 19; lone stack) |
+| `465b:0bd1` act>0x13 → `0934` | anti-spin | no (act=1) |
+| `1816` act≥0x15 → `0934` | loop clear | no |
+| `14fe` dir==8 → `0934` | stay exhaust | no (XY moves) |
+| `1427_155e` via colony `15eb` | recruit | wrong context |
+
+Prime remaining suspect: **conditional `0934`/`155e` after `465b` returns** (or an
+unlabeled thunk). Call-site needs hang X/E.
+
+### Dump-free predicates tried (all reject)
+
+| Predicate | Result |
+|-----------|--------|
+| Dest ocean-adjacent + cost>max | Breaks T1 Sioux + many cost=6/9 goldens |
+| Dest capital `dos_dist≤1` + cost>max | Breaks T1 Sioux `(49,40)` (capital at `(50,40)`) |
+| FROM presence / DEST unowned | Same shape as T2 control `(47,46)→(48,46)` which stays 9 |
+
+**Keep** `k_quiet_brave_t2` overlays. Next evidence: rebuild **`VR_B465X`** →
+`dump_b465x3` (spent at `465b` RETF already 3 or still 9?).
+
+`FUN_465b` write map (ASM): friendly land path only **ADD local_40** then
+optional ocean force-to-max. **Do not invent Sioux cost-head caps.**
+
+Hang recipes: [`tools/brave_dump/midturn_465b.md`](../tools/brave_dump/midturn_465b.md).
 
 ## Quiet ASM init inventory (phase 10)
 

@@ -33,10 +33,17 @@
  * Foreign path skips the ADD block (JZ at 05de). Gamble fail after ADD does
  * not undo the ADD (JMP 0bcc).
  *
- * Phase 15: dump_b465r3 Sioux ADD AL=9 (= Linux class*3). T1/T2 land pairs
+ * Phase 15–17: dump_b465r3 Sioux ADD AL=9 (= Linux class*3). T1/T2 land pairs
  * share presence→unowned shape yet golden spent 9 vs 3 — do not invent
- * exhaust caps from tile contrast. VR_B465F probes stock force-max entry.
- * Apache on r3 already spent=3 with force stubbed ⇒ AL was 3 at ADD.
+ * exhaust caps from tile contrast. dump_b465f3: stock force-max NOT entered
+ * for Sioux T2 (still ends spent=3). dump_vrb465x2: Sioux spent=9 without XY
+ * ⇒ writer after ADD / after 465b return.
+ * Apache "AL≈3" from r3 (already at dest spent=3 with force stubbed) is
+ * inference-only — same post-ADD writer can turn head=6→3. SAV head for
+ * Apache SE is 6.
+ *
+ * Dump-free predicates (ocean-adj dest, capital dist≤1) break T1 spent=9.
+ * Keep Linux k_quiet_brave_t2 overlays. Hang VR_B465X last resort.
  */
 
 #include <stdint.h>
@@ -91,7 +98,8 @@ int euro_settlement_owner(int x, int y) {
  * (49,41)→(49,40) spent=9 — FROM presence (l2&1), DEST no tribe, no FA/river
  * pair — yet goldens spent=3. From-presence caps break TURN1.
  * dump_b465r3: Sioux ADD AL=9 (cost head matches Linux); golden 3 is post-ADD.
- * Apache on same dump spent=3 with force-max stubbed ⇒ AL was 3 at ADD.
+ * Apache SAV head=6; "AL≈3" inference retired (post-ADD can clamp 6→3 too).
+ * Control T2 (47,46)→(48,46) same presence shape stays spent=9.
  *
  * Linux: ai_dos_move_spent.
  */
@@ -112,8 +120,8 @@ int move_spent_cost_head(int from_x, int from_y, int to_x, int to_y, int dir) {
     spent = 3;
   }
   /*
-   * Sioux t2: hang AL=9 — do not invent cost-head caps. Chase post-ADD.
-   * Apache t2: AL likely 3 at ADD (midturn_465b.md dump_b465r3).
+   * Sioux/Apache t2: chase post-ADD / after-465b writer (0934/155e suspect).
+   * Do not invent cost-head caps.
    */
   if (spent > 100) {
     spent = 1;
@@ -197,8 +205,11 @@ void move_spent_foreign_combat_parked(int unit_index, int to_x, int to_y) {
  *        moves_spent = unit_max_mp(unit)   // FUN_281f_090c
  *
  * Quiet land Braves: dump_b465f3 — force-max body not entered for Sioux T2,
- * yet end spent=3 after ADD AL=9. Ocean gate is not the mechanism; chase other
- * 3149 writers / post-465b act path. Apache AL was 3 at ADD (dump_b465r3).
+ * yet end spent=3 after ADD AL=9. Ocean gate is not the mechanism.
+ * dump_vrb465x2: spent=9 without XY ⇒ writer after this window / after return.
+ * Surviving quiet path to spent=max_mp: FUN_281f_0934 → FUN_1427_155e, but
+ * cargo/wagon (08f8), act>0x13, and 1816 act≥0x15 are all ruled out for these
+ * rows. Unlabeled post-465b caller remains — hang X/E last resort.
  */
 int move_spent_ocean_force_max(
   int from_x,
