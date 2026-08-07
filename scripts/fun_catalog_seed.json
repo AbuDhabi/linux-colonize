@@ -291,6 +291,76 @@
         "system": "colony",
         "confidence": "inferred",
         "label": "Colony production / buildings / stock tick (DS:0x8542)"
+      },
+      "130d": {
+        "system": "turn",
+        "confidence": "known",
+        "label": "Main game year/turn loop + intro splash"
+      },
+      "13f1": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Exploration-bit / fog reveal around units & colonies"
+      },
+      "15dc": {
+        "system": "ai",
+        "confidence": "known",
+        "label": "Tribe / Indian current-context setters & lookups"
+      },
+      "2047": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS Ctrl-C/Break / INT21 abort handlers"
+      },
+      "6b7e": {
+        "system": "mapdraw",
+        "confidence": "inferred",
+        "label": "Map viewport refresh / camera save-restore"
+      },
+      "7562": {
+        "system": "save",
+        "confidence": "inferred",
+        "label": "Hall of Fame / score-file format & list UI"
+      },
+      "7a05": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Fatal/abort error text + INT10 video reset"
+      },
+      "7ada": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS heap alloc / resize / high-water tracking"
+      },
+      "7b08": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "Growable far-buffer / arena alloc helpers"
+      },
+      "19f6": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Decimal number format / localized string blit"
+      },
+      "1a29": {
+        "system": "platform",
+        "confidence": "known",
+        "label": "DOS timer INT vector install / restore"
+      },
+      "1acb": {
+        "system": "ui",
+        "confidence": "inferred",
+        "label": "Mouse hit-rect / button edge tracking"
+      },
+      "478c": {
+        "system": "colony",
+        "confidence": "inferred",
+        "label": "Colonist (type 0x17) / ship unit spawn helpers"
+      },
+      "4962": {
+        "system": "ai",
+        "confidence": "inferred",
+        "label": "Per-nation unit/colony/cargo census tallies"
       }
     },
     "mapedit": {
@@ -886,6 +956,30 @@
       "FUN_6662_00f2": {
         "system": "ui",
         "purpose": "Goto BFS over terr_cost with path-cost overlay and Z/Esc confirm",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_130d_0290": {
+        "system": "turn",
+        "purpose": "Main game year/turn loop (nations, year/season, chrome)",
+        "confidence": "known",
+        "links": ""
+      },
+      "FUN_13f1_02f8": {
+        "system": "mapdraw",
+        "purpose": "Reveal exploration bits around unit (post-spawn/move)",
+        "confidence": "inferred",
+        "links": "ai/accessors.c"
+      },
+      "FUN_15dc_0032": {
+        "system": "ai",
+        "purpose": "Bind current tribe/Indian context from tribe index",
+        "confidence": "known",
+        "links": "include/viceroy_globals.h"
+      },
+      "FUN_4962_0018": {
+        "system": "ai",
+        "purpose": "Census units/colonies/cargo tallies for one nation",
         "confidence": "inferred",
         "links": ""
       }
