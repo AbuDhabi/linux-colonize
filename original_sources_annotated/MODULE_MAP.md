@@ -6,9 +6,7 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 
 ## Progress
 
-**VICEROY:** 2380 funcs · confidence known=189 inferred=2188 unknown=3 · system unknown=3 · segments 164 labeled / 2 unknown (of 166).
-
-Remaining unknown segments (2): `205f` `1d1c`
+**VICEROY:** 2380 funcs · confidence known=190 inferred=2190 unknown=0 · system unknown=0 · segments 166 labeled / 0 unknown (of 166).
 
 **MAPEDIT (parked):** 557 funcs · confidence known=19 inferred=413 unknown=125 · system unknown=125 · segments 24 labeled / 91 unknown (of 115).
 
@@ -110,7 +108,7 @@ Remaining unknown segments (2): `205f` `1d1c`
 | `1bdd` | 2 | platform | inferred | Temp numbered file create / write slots | [catalog](FUNCTION_CATALOG.md) |
 | `1c2e` | 2 | ui | known | VGA vsync wait + DAC palette write | [catalog](FUNCTION_CATALOG.md) |
 | `1d11` | 2 | ui | known | INT10 mode set + Mode13h far-buffer blit | [catalog](FUNCTION_CATALOG.md) |
-| `205f` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `205f` | 2 | platform | inferred | DS:0x26f0 8-byte record table lookup helpers | [catalog](FUNCTION_CATALOG.md) |
 | `2088` | 2 | platform | known | XMS detect (INT2F) + init handle table | [catalog](FUNCTION_CATALOG.md) |
 | `2103` | 2 | platform | known | XMS handle alloc / free list | [catalog](FUNCTION_CATALOG.md) |
 | `465b` | 2 | combat | inferred | Move spent / ADD / combat-adjacent | [catalog](FUNCTION_CATALOG.md) |
@@ -159,7 +157,7 @@ Remaining unknown segments (2): `205f` `1d1c`
 | `1cd8` | 1 | ui | inferred | Soft-sprite blit (3rd sibling) | [catalog](FUNCTION_CATALOG.md) |
 | `1cf8` | 1 | platform | inferred | Insertion-sort parallel word+byte arrays | [catalog](FUNCTION_CATALOG.md) |
 | `1d05` | 1 | platform | inferred | Insertion-sort parallel byte+byte arrays | [catalog](FUNCTION_CATALOG.md) |
-| `1d1c` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1d1c` | 1 | platform | known | VGA Mode13h A000 address helper (y×320+x) | [catalog](FUNCTION_CATALOG.md) |
 | `206d` | 1 | platform | inferred | Stream buffer fill + far-ptr normalize | [catalog](FUNCTION_CATALOG.md) |
 | `2074` | 1 | platform | inferred | Size-budgeted stream read to 1b01 | [catalog](FUNCTION_CATALOG.md) |
 | `2094` | 1 | platform | inferred | Rtrim trailing spaces/tabs | [catalog](FUNCTION_CATALOG.md) |

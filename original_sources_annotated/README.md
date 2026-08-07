@@ -51,18 +51,16 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 [`docs/catalog_peel_ranking.md`](../docs/catalog_peel_ranking.md).
 Update that file when a batch finishes.
 
-**Layer A (VICEROY) is closed** for segment tagging (batch twelve). Only two
-segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
-`1d1c` (1 def). Live counts are in [`MODULE_MAP.md`](MODULE_MAP.md)
-**Progress**.
+**Layer A (VICEROY) is closed** for segment tagging — all 166 segments labeled.
+Live counts are in [`MODULE_MAP.md`](MODULE_MAP.md) **Progress**.
 
 | Metric | Value |
 |--------|------:|
 | Functions | 2380 |
-| Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 189 · inferred 2188 · unknown 3 |
-| Purpose one-liners | 2377 / 2380 |
-| System unknown | 3 funcs (`205f`×2 + `1d1c`) |
+| Segments | 166 (166 labeled / 0 unknown) |
+| Confidence | known 190 · inferred 2190 · unknown 0 |
+| Purpose one-liners | 2380 / 2380 |
+| System unknown | 0 |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
 
@@ -70,13 +68,13 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. VICEROY Layer B purposes are closed aside
-from parked `205f`/`1d1c` (3). Further light work is MAPEDIT (parked) or Layer D
-when a port needs deep extracts.
+Purpose one-liners are **not** Layer A. **VICEROY Layer B purposes are closed**
+(2380/2380). Further light work is MAPEDIT (parked) or Layer D when a port needs
+deep extracts.
 
 ### Roadmap (committed order)
 
-1. **Layer A VICEROY** — done (park `205f` / `1d1c` unless new evidence appears).
+1. **Layer A VICEROY** — done (all segments labeled; `205f`/`1d1c` unparked).
 2. **Layer B** — purpose one-liners from structure / strings / docs.
    - **Done:** SAVEGAME — all `75c2` + `7562` funcs labeled (slot path/list/Save/Load,
      header probe, write/load blobs, title menu, new-game bootstrap). Corrected
@@ -107,8 +105,9 @@ when a port needs deep extracts.
    - **Done:** `291f` megaseg thunk bulk (161 — purpose-closed).
    - **Done:** `2a1f` mapgen megaseg thunk bulk (195 — purpose-closed).
    - **Done:** platform megasegs `1d1d`+`210d` (182 — purpose-closed).
+   - **Done:** unpark `205f`/`1d1c` (3 — VGA A000 addr + DS:0x26f0 table).
    - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (parked `205f`/`1d1c` only; Layer B VICEROY closed).
+     (VICEROY Layer B closed; MAPEDIT parked / Layer D on demand).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -132,8 +131,9 @@ when a port needs deep extracts.
    - **Done:** `291f` megaseg thunks (161) via Layer B address shards.
    - **Done:** `2a1f` mapgen megaseg thunks (195) via Layer B address shards.
    - **Done:** platform megasegs `1d1d`+`210d` (182) via Layer B address shards.
+   - **Done:** unpark `205f`/`1d1c` (3).
    - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     parked only (`205f`/`1d1c`); no further VICEROY purpose bulk.
+     VICEROY light catalog closed; MAPEDIT parked / Layer D on demand.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 

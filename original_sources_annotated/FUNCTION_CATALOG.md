@@ -826,11 +826,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1d11_0000` | 18827 | 17 | ui | Stash INT10 mode word at DS:0x83aa; optionally invoke INT10 | inferred |  |
 | `FUN_1d11_001c` | 18844 | 70 | ui | Mode13h far-buffer → A000 blit (pitch 0x140; bank wrap 0x7000) | inferred |  |
 
-### Segment `1d1c` (1 defs) — unknown
+### Segment `1d1c` (1 defs) — platform — VGA Mode13h A000 address helper (y×320+x)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1d1c_0000` | 18914 | 36 | unknown | unknown | unknown |  |
+| `FUN_1d1c_0000` | 18914 | 36 | platform | VGA Mode13h: ES=A000, DI=y×320+x from (CX,DX); used by soft-cursor shape setup | known | FUN_1a58_0456; FUN_1a58_0568 |
 
 ### Segment `1d1d` (127 defs) — platform — High-density + platform-adjacent (incl. LCG)
 
@@ -982,12 +982,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2059_000a` | 24275 | 20 | sound | Sound driver jump table | known | src/core/sound.c |
 | `FUN_2059_005f` | 24295 | 13 | sound | Sound driver unload/shutdown entry (via DS:0xa65c) | inferred | FUN_281f_05d8; FUN_2059_000a sibling |
 
-### Segment `205f` (2 defs) — unknown
+### Segment `205f` (2 defs) — platform — DS:0x26f0 8-byte record table lookup helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_205f_000c` | 24308 | 31 | unknown | unknown | unknown |  |
-| `FUN_205f_0046` | 24339 | 30 | unknown | unknown | unknown |  |
+| `FUN_205f_000c` | 24308 | 31 | platform | Lookup key in DS:0x26f0[16]×8-byte table; return byte+6 (default 0x4e if miss) | inferred | FUN_205f_0046; FUN_2a1f_0c50 |
+| `FUN_205f_0046` | 24339 | 30 | platform | Lookup key in DS:0x26f0[16]×8-byte table; return slot index or -1 | inferred | FUN_205f_000c |
 
 ### Segment `206d` (1 defs) — platform — Stream buffer fill + far-ptr normalize
 
