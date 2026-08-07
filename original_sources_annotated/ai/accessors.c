@@ -235,8 +235,9 @@ int unit_index_on_tile(int x, int y) {
 
 /*
  * Ghidra: FUN_281f_0a38 | diplomacy_flags(self, other)
- * Early NEW WORLD quiet: no war bit 0x20 between Indians yet — return 0.
- * Military −10 needs (flags & 0x60) == 0x20.
+ * Early NEW WORLD quiet: stub returns 0 (military −10 never fires here).
+ * Live Linux pairwise bytes: ai_diplo_read (nation.unknown26[4+peer];
+ * see ai/euro_diplo.md). Annotated-only build keeps stub 0.
  */
 int diplomacy_flags(int self_nation, int other_nation) {
   (void)self_nation;

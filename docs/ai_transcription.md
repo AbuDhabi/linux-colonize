@@ -41,7 +41,7 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 | [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | Init, seed-100 early Euro fixture, Indian pulse |
 | [`ai_goals.c`](../src/core/ai_goals.c) | Primary/secondary/work goal tables (`521d_0000…0906`) |
 | [`ai_euro.c`](../src/core/ai_euro.c) | Full dispatcher: plan/`5d04` hire, `0a60` goals, `5b66` act, Euro `20e6` step |
-| [`ai_diplo.c`](../src/core/ai_diplo.c) | Euro war/ally + Indian relation deltas (`15b3`/`5bfb` T0) |
+| [`ai_diplo.c`](../src/core/ai_diplo.c) | Bilateral `15b3` + `5bfb` war/ally (`euro_diplo.md` partial structural) |
 | [`ai_contact.c`](../src/core/ai_contact.c) | Indian prelude/meet/trade/raids (`4d56`/`5bfb`/`@RAID*` partial structural) |
 | [`ai_king.c`](../src/core/ai_king.c) | Tax events, SoL declare, REF waves, war act (`43f7` T0) |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, post-spawn native pulse |
@@ -93,7 +93,7 @@ meet/king cinematic UI.
 |---------|-------------|--------------|
 | Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **Partial structural** 6d8e; seed-100 fixture unless `AI_FULL_DISPATCH=1` |
 | Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat PARKED |
-| Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Treaty bits + war/ally state on Col1 |
+| Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Bilateral peer bytes + war/ally; see R3.5 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
 | Raids | `ai_contact_indian_raids` | `@RAID*` kinds / friction-gated combat + colony loot |
 | King / tax / REF | `ai_king_nation_turn` (`ai_king.c`) | Tax→REF pools, declare, invasion wave, war turn |
@@ -174,6 +174,19 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 **Naming note:** `5b66` is **not** nested inside `20e6` and is not the unit-goals
 entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 
+### Diplomacy — `FUN_15b3_*` / `FUN_5bfb_*` (Euro war/ally)
+
+| Symbol | ~Lines | Purpose | Linux | Status |
+|--------|-------:|---------|-------|--------|
+| `FUN_15b3_0004` / `0032` | small | Bilateral read/write (Euro×`0x13c`+peer) | `ai_diplo_read` / `write` | **partial** (structural) |
+| `FUN_15b3_0066` / `00d0` | small | OR/clear both directions | `ai_diplo_or_both` / `clear_both` | **partial** |
+| `FUN_5bfb_10ec` | ~63 | War/ally eligibility | `ai_diplo_euro_balance` | **partial** |
+| `FUN_5bfb_13b0` | ~61 | Form/break alliance | `form_alliance` / `break_alliance` | **partial** |
+| `FUN_5bfb_153e` | ~1112 | Large war-declare body | — | **parked** |
+| `FUN_4cc6_00f2` | — | Indian relation delta | `ai_diplo_indian_relation_delta` | **partial** |
+
+Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
+
 ### Shared move / terrain helpers (AI-adjacent)
 
 | Symbol | Role in AI | Linux |
@@ -217,7 +230,7 @@ unannotated bodies.
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
 | King / REF AI | `ai_king_nation_turn` | **T0** tax / declare / REF / war act |
-| Diplomacy | `ai_diplo_*` | **T0** war/ally + Indian relations |
+| Diplomacy | `ai_diplo_*` | **Partial structural** bilateral `15b3` + `10ec`/`13b0` balance |
 | Colony capture | `colonies_capture` | military / REF / Indian raid |
 | Naval combat | `units_resolve_naval_combat` | T0 ship vs ship |
 
@@ -301,6 +314,17 @@ Smoke: `smoke_ai_contact`.
 **PORT DEBT:** full `2154`/`2820`/`4528` bodies; player meet/trade/raid dialog UI;
 teach/convert chrome.
 
+### R3.5 — Euro diplomacy (`15b3` / `5bfb`) (**partial structural port**)
+
+**Linux:** [`ai_diplo.c`](../src/core/ai_diplo.c) — peer-correct bilateral flags in
+`nation.unknown26[4+peer]` (timers in `[0..3]`); `treaty_timers` can
+`break_alliance`; `euro_balance` is `10ec`/`13b0`-shaped. Thin map:
+[`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
+`smoke_ai_diplo`.
+
+**PORT DEBT:** full `5bfb_153e`, dialogs, FA `3f41`, Indian×Euro `15b3` matrix,
+exact DS `−0x77c4` field rename.
+
 ### R4 — Euro dispatcher skeleton (**partial structural port**)
 
 **Linux:** `ai_euro_dispatcher_turn` in [`ai_euro.c`](../src/core/ai_euro.c)
@@ -371,14 +395,16 @@ stay overlaid until hang X).
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
 | `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + prelude mission clear |
+| `tests/smoke/test_ai_diplo.c` | Bilateral war/ally, timer break, Indian delta clamp |
 
 Smoke:
 
 ```bash
-cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact
+cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo
 ./build/smoke_mapgen_seed100   # cwd = repo root
 ./build/smoke_ai_turns         # TURN1→7 gate
 ./build/smoke_ai_contact       # Indian meet/raid structural
+./build/smoke_ai_diplo         # Euro bilateral diplo
 cmake --build build --target smoke_ai && ./build/smoke_ai
 ```
 

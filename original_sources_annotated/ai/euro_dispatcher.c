@@ -307,5 +307,6 @@ void euro_nation_turn(int nation_id) {
  *   ai_euro_nation_turn
  *     → if rng_seed==100 && !AI_FULL_DISPATCH: ai_euro_early_turn (fixture)
  *     → else: ai_euro_dispatcher_turn (ai_euro.c) — structural 6d8e
+ *       treaty timers + ai_diplo_euro_balance (see ai/euro_diplo.md)
  * PORT DEBT: mid-game 5d04 matrix, 0a60 E–H, full 20e6 land/combat, 5b66 case 7.
  */
