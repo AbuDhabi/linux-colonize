@@ -111,6 +111,31 @@
         "system": "platform",
         "confidence": "known",
         "label": "DOS LCG range helper"
+      },
+      "291f": {
+        "system": "thunk",
+        "confidence": "inferred",
+        "label": "Far thunks: EMS page-in then overlay JMPF (2f2b/38fd/6f74/...)"
+      },
+      "210d": {
+        "system": "platform",
+        "confidence": "inferred",
+        "label": "DOS/EMS runtime: INT 21/67, bank switch, overlay page helpers"
+      },
+      "6f74": {
+        "system": "ui",
+        "confidence": "known",
+        "label": "Text layout / flow-wrap dialog compositor (incl. FUN_6f74_1198)"
+      },
+      "2f2b": {
+        "system": "colony",
+        "confidence": "inferred",
+        "label": "Colony screen / build / colonist logic (DS:0x8542)"
+      },
+      "38fd": {
+        "system": "trade",
+        "confidence": "inferred",
+        "label": "Nation Europe market / cargo trade (nation*0x13c via 0x84fc)"
       }
     },
     "mapedit": {
@@ -582,6 +607,36 @@
         "purpose": "terrain_class_at",
         "confidence": "known",
         "links": "ai/accessors.c"
+      },
+      "FUN_210d_0d91": {
+        "system": "platform",
+        "purpose": "EMS overlay page-in helper (thunks call before far JMP)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c; ai/accessors.c"
+      },
+      "FUN_210d_0dab": {
+        "system": "platform",
+        "purpose": "EMS overlay page-in helper (thunks call before far JMP)",
+        "confidence": "inferred",
+        "links": "ai/unit_mp.c; ai/accessors.c"
+      },
+      "FUN_6f74_1198": {
+        "system": "ui",
+        "purpose": "Flow-wrap text layout for dialog / wood-panel body",
+        "confidence": "known",
+        "links": "src/core/new_game.c; docs/assets.md"
+      },
+      "FUN_38fd_0000": {
+        "system": "trade",
+        "purpose": "Set current nation index and Europe-market base (nation*0x13c)",
+        "confidence": "inferred",
+        "links": "docs/savegame.md"
+      },
+      "FUN_2f2b_011e": {
+        "system": "colony",
+        "purpose": "Colony build / order gate (prereq / error codes)",
+        "confidence": "inferred",
+        "links": ""
       }
     },
     "mapedit": {

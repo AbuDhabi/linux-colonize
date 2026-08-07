@@ -10,13 +10,13 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 |---------|-----:|--------|------------|---------------|---------|
 | `281f` | 371 | thunk | inferred | Far thunks: RNG / map / UI fill helpers | [catalog](FUNCTION_CATALOG.md) |
 | `2a1f` | 294 | mapgen | inferred | Map-gen dispatch / helpers (also Euro act thunks) | [catalog](FUNCTION_CATALOG.md) |
-| `291f` | 271 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `291f` | 271 | thunk | inferred | Far thunks: EMS page-in then overlay JMPF (2f2b/38fd/6f74/...) | [catalog](FUNCTION_CATALOG.md) |
 | `1d1d` | 127 | platform | inferred | High-density + platform-adjacent (incl. LCG) | [catalog](FUNCTION_CATALOG.md) |
-| `210d` | 116 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `210d` | 116 | platform | inferred | DOS/EMS runtime: INT 21/67, bank switch, overlay page helpers | [catalog](FUNCTION_CATALOG.md) |
 | `15eb` | 107 | mapdraw | inferred | High-density map / pedia draw paths | [catalog](FUNCTION_CATALOG.md) |
-| `38fd` | 81 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2f2b` | 75 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `6f74` | 58 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `38fd` | 81 | trade | inferred | Nation Europe market / cargo trade (nation*0x13c via 0x84fc) | [catalog](FUNCTION_CATALOG.md) |
+| `2f2b` | 75 | colony | inferred | Colony screen / build / colonist logic (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
+| `6f74` | 58 | ui | known | Text layout / flow-wrap dialog compositor (incl. FUN_6f74_1198) | [catalog](FUNCTION_CATALOG.md) |
 | `1427` | 55 | mapdraw | inferred | Tile / unit display and MP chrome | [catalog](FUNCTION_CATALOG.md) |
 | `2b5a` | 53 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `104b` | 29 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |

@@ -45,10 +45,12 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **C — Call-tree from known entry** | From one known entry (`FUN_684c_08c0`, `FUN_521d_6d8e`, turn EOT, …), label direct callees one hop | Entry’s 1-hop neighborhood catalogued |
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
-Suggested early order after the skeleton: largest still-murky segments
-(`210d`, `38fd`, `2f2b`, …) via A/B, then gameplay entries via C. AI port
-roadmap stays in [`docs/ai_transcription.md`](../docs/ai_transcription.md);
-the catalog only mirrors status.
+Suggested early order after the skeleton: Layer A has labeled `291f`
+(thunk), `210d` (platform), `6f74` (ui), `2f2b` (colony), `38fd` (trade).
+Next Layer A candidates: `2b5a`, `104b`, `4b58`, `647e`, `6cb2`. Then
+gameplay call-trees via C. AI port roadmap stays in
+[`docs/ai_transcription.md`](../docs/ai_transcription.md); the catalog only
+mirrors status.
 
 ## Layout
 
