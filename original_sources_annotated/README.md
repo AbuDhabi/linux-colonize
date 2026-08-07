@@ -46,11 +46,12 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
 Suggested early order after the skeleton: Layer A has labeled `291f`
-(thunk), `210d` (platform), `6f74` (ui), `2f2b` (colony), `38fd` (trade).
-Next Layer A candidates: `2b5a`, `104b`, `4b58`, `647e`, `6cb2`. Then
-gameplay call-trees via C. AI port roadmap stays in
-[`docs/ai_transcription.md`](../docs/ai_transcription.md); the catalog only
-mirrors status.
+(thunk), `210d` (platform), `6f74` (ui), `2f2b` (colony), `38fd` (trade),
+then `2b5a`/`104b`/`4b58`/`6cb2` (ui), `647e` (colony), `75c2` (save).
+Next Layer A candidates: `275d` (still unknown), then `1a58`, `3f41`,
+`6ba1`, `1009`, `4345`, `479b`. Then gameplay call-trees via C. AI port
+roadmap stays in [`docs/ai_transcription.md`](../docs/ai_transcription.md);
+the catalog only mirrors status.
 
 ## Layout
 

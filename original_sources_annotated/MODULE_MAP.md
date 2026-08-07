@@ -18,17 +18,17 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `2f2b` | 75 | colony | inferred | Colony screen / build / colonist logic (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
 | `6f74` | 58 | ui | known | Text layout / flow-wrap dialog compositor (incl. FUN_6f74_1198) | [catalog](FUNCTION_CATALOG.md) |
 | `1427` | 55 | mapdraw | inferred | Tile / unit display and MP chrome | [catalog](FUNCTION_CATALOG.md) |
-| `2b5a` | 53 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `104b` | 29 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `2b5a` | 53 | ui | inferred | Map selected-unit order / input UI (DS:0x5392) | [catalog](FUNCTION_CATALOG.md) |
+| `104b` | 29 | ui | inferred | Text / number blit helpers (1d1d_11b4) | [catalog](FUNCTION_CATALOG.md) |
 | `521d` | 29 | ai | known | European AI planner | [catalog](FUNCTION_CATALOG.md) |
 | `137f` | 26 | mapgen | inferred | Map plane accessors (terrain/layer2/3) | [catalog](FUNCTION_CATALOG.md) |
-| `4b58` | 24 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `647e` | 23 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `4b58` | 24 | ui | inferred | Window / frame widget draw (281f_00ba family) | [catalog](FUNCTION_CATALOG.md) |
+| `647e` | 23 | colony | inferred | Colony list / select UI (rec*0x4a via DS:0x9e14) | [catalog](FUNCTION_CATALOG.md) |
 | `275d` | 21 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `43f7` | 21 | ui | known | Nation / @COUNTRY colors | [catalog](FUNCTION_CATALOG.md) |
 | `4d56` | 21 | ai | known | Indian AI / village growth | [catalog](FUNCTION_CATALOG.md) |
-| `6cb2` | 21 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `75c2` | 20 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `6cb2` | 21 | ui | inferred | Info / dialog text panels (281f compositor) | [catalog](FUNCTION_CATALOG.md) |
+| `75c2` | 20 | save | known | Savegame R/W of units / colonies / tribes / flags | [catalog](FUNCTION_CATALOG.md) |
 | `1984` | 18 | turn | known | Turn-owner chrome | [catalog](FUNCTION_CATALOG.md) |
 | `1a58` | 18 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `3f41` | 18 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |

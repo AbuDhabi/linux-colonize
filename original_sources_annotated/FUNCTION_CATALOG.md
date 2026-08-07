@@ -46,39 +46,39 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1009_0402` | 724 | 10 | unknown | unknown | unknown |  |
 | `FUN_1009_0420` | 734 | 9 | unknown | unknown | unknown |  |
 
-### Segment `104b` (29 defs) — unknown
+### Segment `104b` (29 defs) — ui — Text / number blit helpers (1d1d_11b4)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_104b_0010` | 743 | 14 | unknown | unknown | unknown |  |
-| `FUN_104b_0032` | 757 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_0042` | 766 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_0052` | 775 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_0062` | 784 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_0072` | 793 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_0082` | 802 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_0092` | 811 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_00a2` | 820 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_00b2` | 829 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_00c2` | 838 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_00d2` | 847 | 9 | unknown | unknown | unknown |  |
-| `FUN_104b_00e2` | 856 | 10 | unknown | unknown | unknown |  |
-| `FUN_104b_00fc` | 866 | 12 | unknown | unknown | unknown |  |
-| `FUN_104b_012e` | 878 | 12 | unknown | unknown | unknown |  |
-| `FUN_104b_0156` | 890 | 27 | unknown | unknown | unknown |  |
-| `FUN_104b_01be` | 917 | 13 | unknown | unknown | unknown |  |
-| `FUN_104b_01e8` | 930 | 10 | unknown | unknown | unknown |  |
-| `FUN_104b_0216` | 940 | 12 | unknown | unknown | unknown |  |
-| `FUN_104b_0232` | 952 | 12 | unknown | unknown | unknown |  |
-| `FUN_104b_024e` | 964 | 13 | unknown | unknown | unknown |  |
-| `FUN_104b_0288` | 977 | 14 | unknown | unknown | unknown |  |
-| `FUN_104b_02c2` | 991 | 16 | unknown | unknown | unknown |  |
-| `FUN_104b_0318` | 1007 | 17 | unknown | unknown | unknown |  |
-| `FUN_104b_035c` | 1024 | 12 | unknown | unknown | unknown |  |
-| `FUN_104b_039a` | 1036 | 12 | unknown | unknown | unknown |  |
-| `FUN_104b_03d2` | 1048 | 15 | unknown | unknown | unknown |  |
-| `FUN_104b_0430` | 1063 | 17 | unknown | unknown | unknown |  |
-| `FUN_104b_0478` | 1080 | 23 | unknown | unknown | unknown |  |
+| `FUN_104b_0010` | 743 | 14 | ui | unknown | inferred |  |
+| `FUN_104b_0032` | 757 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_0042` | 766 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_0052` | 775 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_0062` | 784 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_0072` | 793 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_0082` | 802 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_0092` | 811 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_00a2` | 820 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_00b2` | 829 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_00c2` | 838 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_00d2` | 847 | 9 | ui | unknown | inferred |  |
+| `FUN_104b_00e2` | 856 | 10 | ui | unknown | inferred |  |
+| `FUN_104b_00fc` | 866 | 12 | ui | unknown | inferred |  |
+| `FUN_104b_012e` | 878 | 12 | ui | unknown | inferred |  |
+| `FUN_104b_0156` | 890 | 27 | ui | unknown | inferred |  |
+| `FUN_104b_01be` | 917 | 13 | ui | unknown | inferred |  |
+| `FUN_104b_01e8` | 930 | 10 | ui | unknown | inferred |  |
+| `FUN_104b_0216` | 940 | 12 | ui | unknown | inferred |  |
+| `FUN_104b_0232` | 952 | 12 | ui | unknown | inferred |  |
+| `FUN_104b_024e` | 964 | 13 | ui | unknown | inferred |  |
+| `FUN_104b_0288` | 977 | 14 | ui | unknown | inferred |  |
+| `FUN_104b_02c2` | 991 | 16 | ui | unknown | inferred |  |
+| `FUN_104b_0318` | 1007 | 17 | ui | unknown | inferred |  |
+| `FUN_104b_035c` | 1024 | 12 | ui | unknown | inferred |  |
+| `FUN_104b_039a` | 1036 | 12 | ui | unknown | inferred |  |
+| `FUN_104b_03d2` | 1048 | 15 | ui | unknown | inferred |  |
+| `FUN_104b_0430` | 1063 | 17 | ui | unknown | inferred |  |
+| `FUN_104b_0478` | 1080 | 23 | ui | unknown | inferred |  |
 
 ### Segment `1097` (7 defs) — unknown
 
@@ -2137,63 +2137,63 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0fde` | 39998 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0fe8` | 40008 | 179 | mapgen | unknown | inferred |  |
 
-### Segment `2b5a` (53 defs) — unknown
+### Segment `2b5a` (53 defs) — ui — Map selected-unit order / input UI (DS:0x5392)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2b5a_0000` | 40187 | 10 | unknown | unknown | unknown |  |
-| `FUN_2b5a_001e` | 40197 | 40 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0070` | 40237 | 1844 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0722` | 42081 | 24 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0902` | 42105 | 41 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0b08` | 42146 | 18 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0b34` | 42164 | 103 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0e52` | 42267 | 73 | unknown | unknown | unknown |  |
-| `FUN_2b5a_0f92` | 42340 | 24 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1112` | 42364 | 63 | unknown | unknown | unknown |  |
-| `FUN_2b5a_123e` | 42427 | 93 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1454` | 42520 | 89 | unknown | unknown | unknown |  |
-| `FUN_2b5a_199e` | 42609 | 76 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1b5a` | 42685 | 109 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1dfc` | 42794 | 31 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1e66` | 42825 | 47 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1f36` | 42872 | 38 | unknown | unknown | unknown |  |
-| `FUN_2b5a_1fc0` | 42910 | 24 | unknown | unknown | unknown |  |
-| `FUN_2b5a_20f6` | 42934 | 60 | unknown | unknown | unknown |  |
-| `FUN_2b5a_223a` | 42994 | 64 | unknown | unknown | unknown |  |
-| `FUN_2b5a_23ce` | 43058 | 62 | unknown | unknown | unknown |  |
-| `FUN_2b5a_2464` | 43120 | 1672 | unknown | unknown | unknown |  |
-| `FUN_2b5a_268c` | 44792 | 27 | unknown | unknown | unknown |  |
-| `FUN_2b5a_26f6` | 44819 | 68 | unknown | unknown | unknown |  |
-| `FUN_2b5a_2866` | 44887 | 18 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3036` | 44905 | 9 | unknown | unknown | unknown |  |
-| `FUN_2b5a_303c` | 44914 | 93 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3094` | 45007 | 44 | unknown | unknown | unknown |  |
-| `FUN_2b5a_30ce` | 45051 | 31 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3104` | 45082 | 18 | unknown | unknown | unknown |  |
-| `FUN_2b5a_311c` | 45100 | 19 | unknown | unknown | unknown |  |
-| `FUN_2b5a_313e` | 45119 | 22 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3145` | 45141 | 31 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3154` | 45172 | 21 | unknown | unknown | unknown |  |
-| `FUN_2b5a_316e` | 45193 | 21 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3188` | 45214 | 19 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3194` | 45233 | 19 | unknown | unknown | unknown |  |
-| `FUN_2b5a_31be` | 45252 | 21 | unknown | unknown | unknown |  |
-| `FUN_2b5a_321c` | 45273 | 78 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3252` | 45351 | 489 | unknown | unknown | unknown |  |
-| `FUN_2b5a_32a2` | 45840 | 30 | unknown | unknown | unknown |  |
-| `FUN_2b5a_32ee` | 45870 | 24 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3344` | 45894 | 33 | unknown | unknown | unknown |  |
-| `FUN_2b5a_33ce` | 45927 | 25 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3442` | 45952 | 11 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3458` | 45963 | 9 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3462` | 45972 | 150 | unknown | unknown | unknown |  |
-| `FUN_2b5a_36e6` | 46122 | 22 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3752` | 46144 | 35 | unknown | unknown | unknown |  |
-| `FUN_2b5a_37b2` | 46179 | 34 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3802` | 46213 | 200 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3ae6` | 46413 | 403 | unknown | unknown | unknown |  |
-| `FUN_2b5a_3b68` | 46816 | 291 | unknown | unknown | unknown |  |
+| `FUN_2b5a_0000` | 40187 | 10 | ui | unknown | inferred |  |
+| `FUN_2b5a_001e` | 40197 | 40 | ui | unknown | inferred |  |
+| `FUN_2b5a_0070` | 40237 | 1844 | ui | unknown | inferred |  |
+| `FUN_2b5a_0722` | 42081 | 24 | ui | unknown | inferred |  |
+| `FUN_2b5a_0902` | 42105 | 41 | ui | unknown | inferred |  |
+| `FUN_2b5a_0b08` | 42146 | 18 | ui | unknown | inferred |  |
+| `FUN_2b5a_0b34` | 42164 | 103 | ui | unknown | inferred |  |
+| `FUN_2b5a_0e52` | 42267 | 73 | ui | unknown | inferred |  |
+| `FUN_2b5a_0f92` | 42340 | 24 | ui | unknown | inferred |  |
+| `FUN_2b5a_1112` | 42364 | 63 | ui | unknown | inferred |  |
+| `FUN_2b5a_123e` | 42427 | 93 | ui | unknown | inferred |  |
+| `FUN_2b5a_1454` | 42520 | 89 | ui | unknown | inferred |  |
+| `FUN_2b5a_199e` | 42609 | 76 | ui | unknown | inferred |  |
+| `FUN_2b5a_1b5a` | 42685 | 109 | ui | unknown | inferred |  |
+| `FUN_2b5a_1dfc` | 42794 | 31 | ui | unknown | inferred |  |
+| `FUN_2b5a_1e66` | 42825 | 47 | ui | unknown | inferred |  |
+| `FUN_2b5a_1f36` | 42872 | 38 | ui | unknown | inferred |  |
+| `FUN_2b5a_1fc0` | 42910 | 24 | ui | unknown | inferred |  |
+| `FUN_2b5a_20f6` | 42934 | 60 | ui | unknown | inferred |  |
+| `FUN_2b5a_223a` | 42994 | 64 | ui | unknown | inferred |  |
+| `FUN_2b5a_23ce` | 43058 | 62 | ui | unknown | inferred |  |
+| `FUN_2b5a_2464` | 43120 | 1672 | ui | unknown | inferred |  |
+| `FUN_2b5a_268c` | 44792 | 27 | ui | unknown | inferred |  |
+| `FUN_2b5a_26f6` | 44819 | 68 | ui | unknown | inferred |  |
+| `FUN_2b5a_2866` | 44887 | 18 | ui | unknown | inferred |  |
+| `FUN_2b5a_3036` | 44905 | 9 | ui | unknown | inferred |  |
+| `FUN_2b5a_303c` | 44914 | 93 | ui | Map keyboard/input dispatch on DS:0x981e | inferred |  |
+| `FUN_2b5a_3094` | 45007 | 44 | ui | unknown | inferred |  |
+| `FUN_2b5a_30ce` | 45051 | 31 | ui | unknown | inferred |  |
+| `FUN_2b5a_3104` | 45082 | 18 | ui | unknown | inferred |  |
+| `FUN_2b5a_311c` | 45100 | 19 | ui | unknown | inferred |  |
+| `FUN_2b5a_313e` | 45119 | 22 | ui | unknown | inferred |  |
+| `FUN_2b5a_3145` | 45141 | 31 | ui | unknown | inferred |  |
+| `FUN_2b5a_3154` | 45172 | 21 | ui | unknown | inferred |  |
+| `FUN_2b5a_316e` | 45193 | 21 | ui | unknown | inferred |  |
+| `FUN_2b5a_3188` | 45214 | 19 | ui | unknown | inferred |  |
+| `FUN_2b5a_3194` | 45233 | 19 | ui | unknown | inferred |  |
+| `FUN_2b5a_31be` | 45252 | 21 | ui | unknown | inferred |  |
+| `FUN_2b5a_321c` | 45273 | 78 | ui | unknown | inferred |  |
+| `FUN_2b5a_3252` | 45351 | 489 | ui | unknown | inferred |  |
+| `FUN_2b5a_32a2` | 45840 | 30 | ui | unknown | inferred |  |
+| `FUN_2b5a_32ee` | 45870 | 24 | ui | unknown | inferred |  |
+| `FUN_2b5a_3344` | 45894 | 33 | ui | unknown | inferred |  |
+| `FUN_2b5a_33ce` | 45927 | 25 | ui | unknown | inferred |  |
+| `FUN_2b5a_3442` | 45952 | 11 | ui | unknown | inferred |  |
+| `FUN_2b5a_3458` | 45963 | 9 | ui | unknown | inferred |  |
+| `FUN_2b5a_3462` | 45972 | 150 | ui | unknown | inferred |  |
+| `FUN_2b5a_36e6` | 46122 | 22 | ui | unknown | inferred |  |
+| `FUN_2b5a_3752` | 46144 | 35 | ui | unknown | inferred |  |
+| `FUN_2b5a_37b2` | 46179 | 34 | ui | unknown | inferred |  |
+| `FUN_2b5a_3802` | 46213 | 200 | ui | unknown | inferred |  |
+| `FUN_2b5a_3ae6` | 46413 | 403 | ui | unknown | inferred |  |
+| `FUN_2b5a_3b68` | 46816 | 291 | ui | unknown | inferred |  |
 
 ### Segment `2f2b` (75 defs) — colony — Colony screen / build / colonist logic (DS:0x8542)
 
@@ -2551,34 +2551,34 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_49dd_0386` | 78606 | 41 | unknown | unknown | unknown |  |
 | `FUN_49dd_0424` | 78647 | 750 | unknown | unknown | unknown |  |
 
-### Segment `4b58` (24 defs) — unknown
+### Segment `4b58` (24 defs) — ui — Window / frame widget draw (281f_00ba family)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_4b58_0000` | 79397 | 15 | unknown | unknown | unknown |  |
-| `FUN_4b58_0016` | 79412 | 15 | unknown | unknown | unknown |  |
-| `FUN_4b58_004a` | 79427 | 25 | unknown | unknown | unknown |  |
-| `FUN_4b58_00ae` | 79452 | 19 | unknown | unknown | unknown |  |
-| `FUN_4b58_0104` | 79471 | 49 | unknown | unknown | unknown |  |
-| `FUN_4b58_023e` | 79520 | 45 | unknown | unknown | unknown |  |
-| `FUN_4b58_02f6` | 79565 | 43 | unknown | unknown | unknown |  |
-| `FUN_4b58_043e` | 79608 | 34 | unknown | unknown | unknown |  |
-| `FUN_4b58_0484` | 79642 | 44 | unknown | unknown | unknown |  |
-| `FUN_4b58_051a` | 79686 | 24 | unknown | unknown | unknown |  |
-| `FUN_4b58_0552` | 79710 | 16 | unknown | unknown | unknown |  |
-| `FUN_4b58_0582` | 79726 | 37 | unknown | unknown | unknown |  |
-| `FUN_4b58_05c6` | 79763 | 16 | unknown | unknown | unknown |  |
-| `FUN_4b58_05f6` | 79779 | 37 | unknown | unknown | unknown |  |
-| `FUN_4b58_063a` | 79816 | 77 | unknown | unknown | unknown |  |
-| `FUN_4b58_07d6` | 79893 | 79 | unknown | unknown | unknown |  |
-| `FUN_4b58_093c` | 79972 | 52 | unknown | unknown | unknown |  |
-| `FUN_4b58_0a64` | 80024 | 56 | unknown | unknown | unknown |  |
-| `FUN_4b58_0b7a` | 80080 | 92 | unknown | unknown | unknown |  |
-| `FUN_4b58_0d94` | 80172 | 312 | unknown | unknown | unknown |  |
-| `FUN_4b58_13ac` | 80484 | 43 | unknown | unknown | unknown |  |
-| `FUN_4b58_144a` | 80527 | 42 | unknown | unknown | unknown |  |
-| `FUN_4b58_14de` | 80569 | 58 | unknown | unknown | unknown |  |
-| `FUN_4b58_15a4` | 80627 | 147 | unknown | unknown | unknown |  |
+| `FUN_4b58_0000` | 79397 | 15 | ui | unknown | inferred |  |
+| `FUN_4b58_0016` | 79412 | 15 | ui | unknown | inferred |  |
+| `FUN_4b58_004a` | 79427 | 25 | ui | unknown | inferred |  |
+| `FUN_4b58_00ae` | 79452 | 19 | ui | unknown | inferred |  |
+| `FUN_4b58_0104` | 79471 | 49 | ui | unknown | inferred |  |
+| `FUN_4b58_023e` | 79520 | 45 | ui | unknown | inferred |  |
+| `FUN_4b58_02f6` | 79565 | 43 | ui | unknown | inferred |  |
+| `FUN_4b58_043e` | 79608 | 34 | ui | unknown | inferred |  |
+| `FUN_4b58_0484` | 79642 | 44 | ui | unknown | inferred |  |
+| `FUN_4b58_051a` | 79686 | 24 | ui | unknown | inferred |  |
+| `FUN_4b58_0552` | 79710 | 16 | ui | unknown | inferred |  |
+| `FUN_4b58_0582` | 79726 | 37 | ui | unknown | inferred |  |
+| `FUN_4b58_05c6` | 79763 | 16 | ui | unknown | inferred |  |
+| `FUN_4b58_05f6` | 79779 | 37 | ui | unknown | inferred |  |
+| `FUN_4b58_063a` | 79816 | 77 | ui | unknown | inferred |  |
+| `FUN_4b58_07d6` | 79893 | 79 | ui | unknown | inferred |  |
+| `FUN_4b58_093c` | 79972 | 52 | ui | unknown | inferred |  |
+| `FUN_4b58_0a64` | 80024 | 56 | ui | unknown | inferred |  |
+| `FUN_4b58_0b7a` | 80080 | 92 | ui | unknown | inferred |  |
+| `FUN_4b58_0d94` | 80172 | 312 | ui | unknown | inferred |  |
+| `FUN_4b58_13ac` | 80484 | 43 | ui | unknown | inferred |  |
+| `FUN_4b58_144a` | 80527 | 42 | ui | unknown | inferred |  |
+| `FUN_4b58_14de` | 80569 | 58 | ui | unknown | inferred |  |
+| `FUN_4b58_15a4` | 80627 | 147 | ui | unknown | inferred |  |
 
 ### Segment `4cc6` (7 defs) — unknown
 
@@ -2710,33 +2710,33 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_636c_0000` | 101660 | 562 | unknown | unknown | unknown |  |
 
-### Segment `647e` (23 defs) — unknown
+### Segment `647e` (23 defs) — colony — Colony list / select UI (rec*0x4a via DS:0x9e14)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_647e_0000` | 102222 | 13 | unknown | unknown | unknown |  |
-| `FUN_647e_001a` | 102235 | 15 | unknown | unknown | unknown |  |
-| `FUN_647e_0040` | 102250 | 18 | unknown | unknown | unknown |  |
-| `FUN_647e_0094` | 102268 | 66 | unknown | unknown | unknown |  |
-| `FUN_647e_01c6` | 102334 | 131 | unknown | unknown | unknown |  |
-| `FUN_647e_04f0` | 102465 | 13 | unknown | unknown | unknown |  |
-| `FUN_647e_0522` | 102478 | 13 | unknown | unknown | unknown |  |
-| `FUN_647e_0548` | 102491 | 28 | unknown | unknown | unknown |  |
-| `FUN_647e_057a` | 102519 | 18 | unknown | unknown | unknown |  |
-| `FUN_647e_05aa` | 102537 | 19 | unknown | unknown | unknown |  |
-| `FUN_647e_05ec` | 102556 | 13 | unknown | unknown | unknown |  |
-| `FUN_647e_060e` | 102569 | 59 | unknown | unknown | unknown |  |
-| `FUN_647e_06c2` | 102628 | 55 | unknown | unknown | unknown |  |
-| `FUN_647e_0796` | 102683 | 70 | unknown | unknown | unknown |  |
-| `FUN_647e_090a` | 102753 | 40 | unknown | unknown | unknown |  |
-| `FUN_647e_09da` | 102793 | 108 | unknown | unknown | unknown |  |
-| `FUN_647e_0dd4` | 102901 | 39 | unknown | unknown | unknown |  |
-| `FUN_647e_0e80` | 102940 | 36 | unknown | unknown | unknown |  |
-| `FUN_647e_0f2c` | 102976 | 63 | unknown | unknown | unknown |  |
-| `FUN_647e_1064` | 103039 | 29 | unknown | unknown | unknown |  |
-| `FUN_647e_10d2` | 103068 | 31 | unknown | unknown | unknown |  |
-| `FUN_647e_115c` | 103099 | 58 | unknown | unknown | unknown |  |
-| `FUN_647e_1486` | 103157 | 242 | unknown | unknown | unknown |  |
+| `FUN_647e_0000` | 102222 | 13 | colony | Bind colony record pointer (idx*0x4a to DS:0x9e14) | inferred |  |
+| `FUN_647e_001a` | 102235 | 15 | colony | unknown | inferred |  |
+| `FUN_647e_0040` | 102250 | 18 | colony | unknown | inferred |  |
+| `FUN_647e_0094` | 102268 | 66 | colony | unknown | inferred |  |
+| `FUN_647e_01c6` | 102334 | 131 | colony | unknown | inferred |  |
+| `FUN_647e_04f0` | 102465 | 13 | colony | unknown | inferred |  |
+| `FUN_647e_0522` | 102478 | 13 | colony | unknown | inferred |  |
+| `FUN_647e_0548` | 102491 | 28 | colony | unknown | inferred |  |
+| `FUN_647e_057a` | 102519 | 18 | colony | unknown | inferred |  |
+| `FUN_647e_05aa` | 102537 | 19 | colony | unknown | inferred |  |
+| `FUN_647e_05ec` | 102556 | 13 | colony | unknown | inferred |  |
+| `FUN_647e_060e` | 102569 | 59 | colony | unknown | inferred |  |
+| `FUN_647e_06c2` | 102628 | 55 | colony | unknown | inferred |  |
+| `FUN_647e_0796` | 102683 | 70 | colony | unknown | inferred |  |
+| `FUN_647e_090a` | 102753 | 40 | colony | unknown | inferred |  |
+| `FUN_647e_09da` | 102793 | 108 | colony | unknown | inferred |  |
+| `FUN_647e_0dd4` | 102901 | 39 | colony | unknown | inferred |  |
+| `FUN_647e_0e80` | 102940 | 36 | colony | unknown | inferred |  |
+| `FUN_647e_0f2c` | 102976 | 63 | colony | unknown | inferred |  |
+| `FUN_647e_1064` | 103039 | 29 | colony | unknown | inferred |  |
+| `FUN_647e_10d2` | 103068 | 31 | colony | unknown | inferred |  |
+| `FUN_647e_115c` | 103099 | 58 | colony | unknown | inferred |  |
+| `FUN_647e_1486` | 103157 | 242 | colony | unknown | inferred |  |
 
 ### Segment `65dd` (1 defs) — unknown
 
@@ -2866,31 +2866,31 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_6ba1_10ae` | 109926 | 14 | unknown | unknown | unknown |  |
 | `FUN_6ba1_10be` | 109940 | 50 | unknown | unknown | unknown |  |
 
-### Segment `6cb2` (21 defs) — unknown
+### Segment `6cb2` (21 defs) — ui — Info / dialog text panels (281f compositor)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_6cb2_0000` | 109990 | 31 | unknown | unknown | unknown |  |
-| `FUN_6cb2_0058` | 110021 | 37 | unknown | unknown | unknown |  |
-| `FUN_6cb2_00c0` | 110058 | 18 | unknown | unknown | unknown |  |
-| `FUN_6cb2_00fc` | 110076 | 30 | unknown | unknown | unknown |  |
-| `FUN_6cb2_0178` | 110106 | 63 | unknown | unknown | unknown |  |
-| `FUN_6cb2_0276` | 110169 | 21 | unknown | unknown | unknown |  |
-| `FUN_6cb2_02c4` | 110190 | 40 | unknown | unknown | unknown |  |
-| `FUN_6cb2_033a` | 110230 | 22 | unknown | unknown | unknown |  |
-| `FUN_6cb2_039c` | 110252 | 10 | unknown | unknown | unknown |  |
-| `FUN_6cb2_03bc` | 110262 | 24 | unknown | unknown | unknown |  |
-| `FUN_6cb2_0424` | 110286 | 22 | unknown | unknown | unknown |  |
-| `FUN_6cb2_048c` | 110308 | 44 | unknown | unknown | unknown |  |
-| `FUN_6cb2_05ce` | 110352 | 99 | unknown | unknown | unknown |  |
-| `FUN_6cb2_07e6` | 110451 | 186 | unknown | unknown | unknown |  |
-| `FUN_6cb2_0eac` | 110637 | 273 | unknown | unknown | unknown |  |
-| `FUN_6cb2_1820` | 110910 | 113 | unknown | unknown | unknown |  |
-| `FUN_6cb2_1ba8` | 111023 | 107 | unknown | unknown | unknown |  |
-| `FUN_6cb2_1f28` | 111130 | 39 | unknown | unknown | unknown |  |
-| `FUN_6cb2_214a` | 111169 | 109 | unknown | unknown | unknown |  |
-| `FUN_6cb2_2322` | 111278 | 1252 | unknown | unknown | unknown |  |
-| `FUN_6cb2_24b8` | 112530 | 2067 | unknown | unknown | unknown |  |
+| `FUN_6cb2_0000` | 109990 | 31 | ui | unknown | inferred |  |
+| `FUN_6cb2_0058` | 110021 | 37 | ui | unknown | inferred |  |
+| `FUN_6cb2_00c0` | 110058 | 18 | ui | unknown | inferred |  |
+| `FUN_6cb2_00fc` | 110076 | 30 | ui | unknown | inferred |  |
+| `FUN_6cb2_0178` | 110106 | 63 | ui | unknown | inferred |  |
+| `FUN_6cb2_0276` | 110169 | 21 | ui | unknown | inferred |  |
+| `FUN_6cb2_02c4` | 110190 | 40 | ui | unknown | inferred |  |
+| `FUN_6cb2_033a` | 110230 | 22 | ui | unknown | inferred |  |
+| `FUN_6cb2_039c` | 110252 | 10 | ui | unknown | inferred |  |
+| `FUN_6cb2_03bc` | 110262 | 24 | ui | unknown | inferred |  |
+| `FUN_6cb2_0424` | 110286 | 22 | ui | unknown | inferred |  |
+| `FUN_6cb2_048c` | 110308 | 44 | ui | unknown | inferred |  |
+| `FUN_6cb2_05ce` | 110352 | 99 | ui | unknown | inferred |  |
+| `FUN_6cb2_07e6` | 110451 | 186 | ui | unknown | inferred |  |
+| `FUN_6cb2_0eac` | 110637 | 273 | ui | unknown | inferred |  |
+| `FUN_6cb2_1820` | 110910 | 113 | ui | unknown | inferred |  |
+| `FUN_6cb2_1ba8` | 111023 | 107 | ui | unknown | inferred |  |
+| `FUN_6cb2_1f28` | 111130 | 39 | ui | unknown | inferred |  |
+| `FUN_6cb2_214a` | 111169 | 109 | ui | unknown | inferred |  |
+| `FUN_6cb2_2322` | 111278 | 1252 | ui | unknown | inferred |  |
+| `FUN_6cb2_24b8` | 112530 | 2067 | ui | unknown | inferred |  |
 
 ### Segment `6f30` (3 defs) — unknown
 
@@ -3031,30 +3031,30 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7562_030a` | 119717 | 65 | unknown | unknown | unknown |  |
 | `FUN_7562_04e8` | 119782 | 69 | unknown | unknown | unknown |  |
 
-### Segment `75c2` (20 defs) — unknown
+### Segment `75c2` (20 defs) — save — Savegame R/W of units / colonies / tribes / flags
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_75c2_0000` | 119851 | 130 | unknown | unknown | unknown |  |
-| `FUN_75c2_0204` | 119981 | 24 | unknown | unknown | unknown |  |
-| `FUN_75c2_024c` | 120005 | 22 | unknown | unknown | unknown |  |
-| `FUN_75c2_0288` | 120027 | 94 | unknown | unknown | unknown |  |
-| `FUN_75c2_0840` | 120121 | 67 | unknown | unknown | unknown |  |
-| `FUN_75c2_0940` | 120188 | 356 | unknown | unknown | unknown |  |
-| `FUN_75c2_10ae` | 120544 | 160 | unknown | unknown | unknown |  |
-| `FUN_75c2_1380` | 120704 | 31 | unknown | unknown | unknown |  |
-| `FUN_75c2_13dc` | 120735 | 20 | unknown | unknown | unknown |  |
-| `FUN_75c2_1418` | 120755 | 19 | unknown | unknown | unknown |  |
-| `FUN_75c2_144c` | 120774 | 56 | unknown | unknown | unknown |  |
-| `FUN_75c2_1770` | 120830 | 519 | unknown | unknown | unknown |  |
-| `FUN_75c2_20e2` | 121349 | 123 | unknown | unknown | unknown |  |
-| `FUN_75c2_2324` | 121472 | 22 | unknown | unknown | unknown |  |
-| `FUN_75c2_235c` | 121494 | 191 | unknown | unknown | unknown |  |
-| `FUN_75c2_2758` | 121685 | 14 | unknown | unknown | unknown |  |
-| `FUN_75c2_276e` | 121699 | 10 | unknown | unknown | unknown |  |
-| `FUN_75c2_2778` | 121709 | 245 | unknown | unknown | unknown |  |
-| `FUN_75c2_2d28` | 121954 | 14 | unknown | unknown | unknown |  |
-| `FUN_75c2_2d46` | 121968 | 369 | unknown | unknown | unknown |  |
+| `FUN_75c2_0000` | 119851 | 130 | save | unknown | inferred |  |
+| `FUN_75c2_0204` | 119981 | 24 | save | unknown | inferred |  |
+| `FUN_75c2_024c` | 120005 | 22 | save | unknown | inferred |  |
+| `FUN_75c2_0288` | 120027 | 94 | save | Savegame write: flags/units/colonies/tribes blobs | known | docs/savegame.md |
+| `FUN_75c2_0840` | 120121 | 67 | save | unknown | inferred |  |
+| `FUN_75c2_0940` | 120188 | 356 | save | Savegame load counterpart to FUN_75c2_0288 | known | docs/savegame.md |
+| `FUN_75c2_10ae` | 120544 | 160 | save | unknown | inferred |  |
+| `FUN_75c2_1380` | 120704 | 31 | save | unknown | inferred |  |
+| `FUN_75c2_13dc` | 120735 | 20 | save | unknown | inferred |  |
+| `FUN_75c2_1418` | 120755 | 19 | save | unknown | inferred |  |
+| `FUN_75c2_144c` | 120774 | 56 | save | unknown | inferred |  |
+| `FUN_75c2_1770` | 120830 | 519 | save | unknown | inferred |  |
+| `FUN_75c2_20e2` | 121349 | 123 | save | unknown | inferred |  |
+| `FUN_75c2_2324` | 121472 | 22 | save | unknown | inferred |  |
+| `FUN_75c2_235c` | 121494 | 191 | save | unknown | inferred |  |
+| `FUN_75c2_2758` | 121685 | 14 | save | unknown | inferred |  |
+| `FUN_75c2_276e` | 121699 | 10 | save | unknown | inferred |  |
+| `FUN_75c2_2778` | 121709 | 245 | save | unknown | inferred |  |
+| `FUN_75c2_2d28` | 121954 | 14 | save | unknown | inferred |  |
+| `FUN_75c2_2d46` | 121968 | 369 | save | unknown | inferred |  |
 
 ### Segment `78d8` (4 defs) — unknown
 
