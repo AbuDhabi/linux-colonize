@@ -2596,9 +2596,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_4d56_0038` | 81253 | 39 | ai | Small Indian AI helper; calls into 00e0 / map probes | unknown | docs/ai_transcription.md |
-| `FUN_4d56_00e0` | 81292 | 60 | ai | Chains to 01e2 / 14fe | unknown | docs/ai_transcription.md |
-| `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | unknown | docs/ai_transcription.md |
+| `FUN_4d56_0038` | 81253 | 39 | ai | Small Indian AI helper; calls into 00e0 / map probes | inferred | docs/ai_transcription.md |
+| `FUN_4d56_00e0` | 81292 | 60 | ai | Chains to 01e2 / 14fe | inferred | docs/ai_transcription.md |
+| `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_152e` | 81387 | 156 | ai | Village growth accumulator to pop++ | known | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn entry (alarm, unit loop, relation ticks) | known | ai/indian_nation_turn.c; src/core/ai.c |
@@ -2613,9 +2613,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4d56_2f96` | 82839 | 189 | ai | unknown | inferred |  |
 | `FUN_4d56_306c` | 83028 | 193 | ai | unknown | inferred |  |
 | `FUN_4d56_311e` | 83221 | 239 | ai | unknown | inferred |  |
-| `FUN_4d56_3582` | 83460 | 21 | ai | Small helper after 2820 | unknown | docs/ai_transcription.md |
+| `FUN_4d56_3582` | 83460 | 21 | ai | Small helper after 2820 | inferred | docs/ai_transcription.md |
 | `FUN_4d56_359c` | 83481 | 30 | ai | unknown | inferred |  |
-| `FUN_4d56_417e` | 83511 | 188 | ai | Mid-size Indian AI helper | unknown | docs/ai_transcription.md |
+| `FUN_4d56_417e` | 83511 | 188 | ai | Mid-size Indian AI helper | inferred | docs/ai_transcription.md |
 | `FUN_4d56_4528` | 83699 | 3073 | ai | Largest Indian cluster (combat/raid-adjacent) | inferred | docs/ai_transcription.md |
 
 ### Segment `521d` (29 defs) — ai — European AI planner

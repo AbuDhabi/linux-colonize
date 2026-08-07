@@ -45,13 +45,40 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **C — Call-tree from known entry** | From one known entry (`FUN_684c_08c0`, `FUN_521d_6d8e`, turn EOT, …), label direct callees one hop | Entry’s 1-hop neighborhood catalogued |
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
-Layer A through batch eleven: VICEROY ≥3 and most 2-def stubs done; clear
-1-def VGA/DOS/BIOS/string/blit helpers labeled (batch eleven). **MAPEDIT is
-parked** (no new labels this track). VICEROY leftovers are residual 1-def
-soup (~27) plus unclear `205f`. Next: residual soup / `205f`, or switch to
-Layer B/C call-trees. AI port roadmap stays in
-[`docs/ai_transcription.md`](../docs/ai_transcription.md); the catalog only
-mirrors status.
+## Catalog peel status and roadmap
+
+**Layer A (VICEROY) is essentially done.** After batch eleven:
+
+| Metric | Value |
+|--------|------:|
+| Functions | 2380 |
+| Segments | 166 (138 labeled / 28 unknown) |
+| Confidence | known 78 · inferred 2273 · unknown 29 |
+| System unknown | 29 funcs |
+
+Exact live numbers and the residual unknown-segment list are auto-emitted in
+[`MODULE_MAP.md`](MODULE_MAP.md) **Progress** on each
+`python3 scripts/gen_fun_catalog.py` run.
+
+**MAPEDIT is parked** (no new Layer A labels on this track).
+
+Catalog confidence is **not** the same as AI port status in
+[`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
+light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
+
+### Roadmap (committed order)
+
+1. **Stop bulk Layer A** for VICEROY. Opportunistic clear 1-def labels only when
+   evidence is obvious; leave opaque `205f` and weak soup alone.
+2. **Layer B next** — string/XREF purpose pass on one game area (prefer
+   `SAVEGAME`, colony, or Europe trade). MAPEDIT stays parked.
+3. **Layer C** — one-hop from known entries (`FUN_521d_6d8e`, `FUN_4d56_1816`,
+   turn EOT).
+4. **Layer D** — selective deep extracts when a port needs them (same bar as
+   `ai/`).
+
+AI port roadmap stays in [`docs/ai_transcription.md`](../docs/ai_transcription.md);
+the catalog only mirrors light-label status.
 
 ## Layout
 

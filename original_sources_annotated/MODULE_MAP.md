@@ -2,7 +2,15 @@
 
 Cheat sheet for Ghidra segment prefixes (`FUN_<seg>_<off>`). Per-function detail: [`FUNCTION_CATALOG.md`](FUNCTION_CATALOG.md). Deep AI labels: [`SYMBOL_MAP.md`](SYMBOL_MAP.md).
 
-Confidence here is for the **segment cluster**, not every function. Unlabeled segments stay `unknown` until a catalog peel (layer A) assigns a tag.
+Confidence here is for the **segment cluster**, not every function. Unlabeled segments stay `unknown` until a catalog peel (layer A) assigns a tag. Function seeds may override a segment tag (e.g. `281f` thunks, `1427`→ai) — that is intentional, not a bug.
+
+## Progress
+
+**VICEROY:** 2380 funcs · confidence known=78 inferred=2273 unknown=29 · system unknown=29 · segments 138 labeled / 28 unknown (of 166).
+
+Remaining unknown segments (28): `205f` `1aea` `1b01` `1b5e` `1b78` `1bf5` `1c11` `1c2a` `1c36` `1c56` `1c83` `1c89` `1caa` `1cd8` `1cf8` `1d05` `1d1c` `206d` `2074` `3f3f` `636c` `65dd` `78ef` `7939` `7944` `7952` `798d` `7a9d`
+
+**MAPEDIT (parked):** 557 funcs · confidence known=19 inferred=413 unknown=125 · system unknown=125 · segments 24 labeled / 91 unknown (of 115).
 
 ## VICEROY
 
