@@ -46,13 +46,14 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * 2a1f_0554 BEFORE promote/0a60.
  * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon;
  * colonies>=2 also Artillery (Cannon fallback) when type exists — mil already
- * aboard or every-other hire turn. Thin tools-cargo stand-in: tools_short>40 +
- * Pioneer hire → ship hold +20 TOOLS or nearest-colony +15 (wagon matrix **OPEN**).
- * Full NEW WORLD wagon / 5d04 matrix — **OPEN** (unpark #4; not T3).
+ * aboard or every-other hire turn. Peace tools matrix (thin): tools_short>30 +
+ * Wagon Train/Supply Train/Wagon type → hire wagon once (TOOLS on wagon);
+ * else tools_short>20 prefer Pioneer/Hardy + ship +20 TOOLS or colony +15.
+ * Deeper NEW WORLD wagon / 5d04 matrix — **OPEN** (unpark #4; not T3).
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
-  /* OPEN mid matrix — thin war hire (+Artillery) + tools-cargo in ai_euro.c */
+  /* OPEN mid matrix — thin war hire + wagon-once / tools>20 in ai_euro.c */
 }
 
 /*

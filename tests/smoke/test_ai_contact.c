@@ -419,6 +419,32 @@ int main(void) {
   }
 
   /*
+   * Thin alarmed refuse-talk (2154 deep PARKED): met + alarm>=55 → skip trade/gift,
+   * human status "Natives refuse to talk."
+   */
+  {
+    col1.nation[0].gold = 100;
+    ind->met_by_player[0] = 1;
+    ind->alarm_by_player[0] = 60;
+    col1.tribe[0].alarm[0].friction = 60;
+    euro->x = 6;
+    euro->y = 5;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 1;
+    status[0] = '\0';
+    const uint32_t gold0 = col1.nation[0].gold;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != gold0) {
+      return fail("alarmed refuse-talk should not gift/trade gold");
+    }
+    if (strstr(status, "refuse") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: alarmed status '%s'\n", status);
+      return fail("alarmed meet should set refuse-to-talk status");
+    }
+  }
+
+  /*
    * Blocked displace → despawn: isolate Scout on a land islet (ocean around).
    */
   for (int i = 0; i < 256; ++i) {
@@ -432,6 +458,10 @@ int main(void) {
   brave->x = 5;
   brave->y = 5;
   brave->moves_left = 0;
+  euro->x = 10; /* clear scout tile */
+  euro->y = 10;
+  ind->alarm_by_player[0] = 90; /* 359c gate */
+  col1.tribe[0].alarm[0].friction = 90;
   status[0] = '\0';
   ai_contact_indian_raids(&ctx, 4);
   scout = units_get(&units, scout_id);

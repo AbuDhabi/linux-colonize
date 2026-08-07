@@ -26,7 +26,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once thin `1eca` promote (Soldier + Dragoon/Cavalry); else intervene hire → `10f0` (dual landing structural); thin `2244` merc |
+| Rebel | once thin `1eca` promote (Soldier/Regular + Dragoon/Cavalry; SoL bands); else intervene hire → `10f0` (dual landing structural); thin `2244` merc |
 
 ## Key symbols → Linux
 
@@ -42,7 +42,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `1528` | REF arrival announce | thin status line after successful `0982` spawn (chrome UI PARKED) |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
 | `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` + hire status (real modal PARKED) |
-| `2022` / `1eca` | War act + Continental promote | `ai_king_war_act` (thin; deep table PARKED) |
+| `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (thin widen; deep table PARKED) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
 ## DS / Col1 anchors
@@ -94,14 +94,22 @@ spawn one Soldier/Dragoon for the **human** near weakest port, set
 `"Mercenaries join the Continental cause (−300 gold)."`.
 Real hire modal remains **PARKED**.
 
-### Thin `1eca` Continental promote
+### Thin `1eca` Continental / veteran promote
 
-During wartime `war_act` when nation SoL > 50: promote human land units
-whose display name contains **Soldier** (not already Veteran/Continental) to
-`Continental Army` / `Cont. Army` / `Veteran Soldier` (first type that exists);
-likewise **Dragoon** or **Cavalry** → `Continental Cavalry` / `Cont. Cav.` /
-`Veteran Dragoon`. Deep DOS colony-SoL fraction / veteran-profession / type-id
-table (`43f7_1eca`) remains PARKED.
+During wartime `war_act`:
+
+- **SoL > 50:** promote human land units whose type/display name contains
+  **Soldier** (not already Veteran/Continental; not type **Regular**) to
+  `Continental Army` / `Cont. Army` / `Veteran Soldier` (first type that exists);
+  likewise **Dragoon** or **Cavalry** → `Continental Cavalry` / `Cont. Cav.` /
+  `Veteran Dragoon`; type name containing **Regular** → `Veteran Soldier` /
+  `Continental Army` / `Cont. Army` (fallback). Armed Regulars often *display*
+  as "Soldier" — Regular is classified by **type name**.
+- **SoL 40..50:** promote **Soldier** → `Veteran Soldier` only when that type
+  exists (no Continental rename in this band). Regular types are unchanged.
+
+Deep DOS colony-SoL fraction / veteran-profession / type-id table
+(`43f7_1eca`) remains PARKED.
 
 ### Thin `160a` independence rename + `2564` congress status
 
@@ -134,12 +142,12 @@ arrival chrome remain PARKED.
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → SoL 40–49 chrome → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)
-3. If WoI: wave (`0982` MoW + thin cargo unload / `06a6` + thin `1528` status) → war act (`10f0` ≤2 landings if REF empty + backup, thin `2244` merc, thin `1eca` Soldier/Dragoon promote)
+3. If WoI: wave (`0982` MoW + thin cargo unload / `06a6` + thin `1528` status) → war act (`10f0` ≤2 landings if REF empty + backup, thin `2244` merc, thin `1eca` SoL-band promote)
 
 ## PORT DEBT
 
 - **Done (unpark #2 thin status chrome):** `38fd_5be8` tax audience status (structural refuse + `unknown46[2]` / `boycott_bitmap`); `2564` congress-confirm status + `unknown46[5]`; `2244` merc hire status (auto-accept + `unknown46[3]`)
 - **Still PARKED:** real modal widgets for audience / congress confirm / merc hire; `160a` rename **cinematic** (thin `country_name` done); `1528` arrival **chrome/dialog** (thin status announce done)
-- Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (dual landing + Regular/Dragoon mix + drain done)
-- Deep `1eca` colony-SoL / veteran-profession / type-id promote table — **PARKED** (thin Soldier + Dragoon/Cavalry name promote done)
+- Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (dual landing + Regular/Dragoon mix + drain done); third landing @ difficulty≥2 still **PARKED**
+- Deep `1eca` colony-SoL / veteran-profession / type-id promote table — **PARKED** (thin widen Done: SoL>50 Soldier/Dragoon/Regular + SoL 40–50 Soldier→Veteran Soldier)
 - Full MoW cargo-hold chrome / embark slots — **PARKED** (thin hold-size-2 Regular unload on `0982` MoW spawn done); seize-landing polish

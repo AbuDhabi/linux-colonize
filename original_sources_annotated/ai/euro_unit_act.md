@@ -79,7 +79,11 @@ Idle / arriving Pioneer or Hardy on an **own** colony tile when
 `tools_short > 0` or colony `stock[TOOLS] < 20`: add **+10** tools
 (cap 100) once per act; trim inventory `tools_short` and may decrement
 `urgency`. Wired in `ai_euro_unit_act` just before LABOR/COLONY join.
-Full case-7 hire / wagon / treasury matrix is **OPEN** (unpark #4).
+
+**5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
+Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
+before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
+cargo. Deeper case-7 hire / treasury matrix remains **OPEN** (unpark #4).
 
 ### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 

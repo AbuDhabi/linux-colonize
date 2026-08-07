@@ -674,6 +674,17 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
 
+      /*
+       * Thin alarmed meet arm (2154/2820 deep PARKED): high friction → refuse
+       * talk (no auto-trade / gift/demand); human gets status chrome.
+       */
+      if (ind->met_by_player[e] && ind->alarm_by_player[e] >= 55) {
+        if (human) {
+          ai_contact_set_status(ctx, "Natives refuse to talk.");
+        }
+        continue;
+      }
+
       /* 3. Peaceful auto-trade (nested 2bbc AI buy stand-in). */
       if (ctx->colonies && ind->met_by_player[e] && ind->alarm_by_player[e] < 50) {
         int best_ci = -1;

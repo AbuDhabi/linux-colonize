@@ -25,6 +25,8 @@ Annotated shell (quiet path only for act):
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
 
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
+Thin Linux meet arm: when already met and `alarm_by_player >= 55`, skip auto-trade
+and gift/demand and write human status **"Natives refuse to talk."**
 Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
 
 ### Prelude deepen (Linux `ai_contact_indian_prelude`)

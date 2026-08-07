@@ -14,8 +14,9 @@
  * human first, then each AI Euro nation (player.control==1).
  *
  * Effects: status line (human) + stand-ins for all 25 FFs. Deeper structural
- * hooks when ctx has map/colonies/units (Coronado reveal, Jones frigate,
- * Magellan sea moves, Hudson stock, de Soto unit reveal); remaining wiki/
+ * hooks when ctx has map/colonies/units/europe/col1 (Coronado reveal, Jones
+ * frigate, Magellan/Drake sea moves, Hudson/Revere/Smith stock, de Soto
+ * reveal, Washington promote, Brewster dock, Bolivar SoL); remaining wiki/
  * decomp polish still OPEN (unpark #3). Congress debate UI PARKED.
  */
 

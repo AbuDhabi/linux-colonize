@@ -1,6 +1,6 @@
 /* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, Furs embargo bit,
  * make_peace, upkeep, privateer prize, ally cost/timer, foreign aid, FA gift,
- * break penalty, Indian drift. */
+ * break penalty, Indian drift, war/peace ctx status chrome. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -183,7 +183,8 @@ int main(void) {
     }
   }
 
-  /* Thin Indian harassment: relation<50 → −2 gold once per euro_balance tick. */
+  /* Thin Indian harassment: relation<50 → −2 gold once per euro_balance tick.
+   * Also sets unknown26[8] Indian hostility sticky once. */
   {
     ColonizeDosRng rng_h;
     dos_rng_seed(&rng_h, 2);
@@ -199,13 +200,22 @@ int main(void) {
     for (int i = 0; i < 8; ++i) {
       col1.nation[0].relation_by_indian[i] = 40; /* at war vs Indians */
     }
+    col1.nation[0].unknown26[8] = 0;
     col1.nation[0].gold = 20;
     ai_diplo_euro_balance(&ctx_h, 0);
     if (col1.nation[0].gold != 18) {
       return fail("euro_balance Indian harassment should drain 2 gold");
     }
+    if (col1.nation[0].unknown26[8] != 1) {
+      return fail("indian_at_war should set unknown26[8] hostility sticky once");
+    }
     if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
       return fail("indian_at_war should remain true at rel 40");
+    }
+    /* Second tick: sticky stays 1 (idempotent). */
+    ai_diplo_euro_balance(&ctx_h, 0);
+    if (col1.nation[0].unknown26[8] != 1) {
+      return fail("Indian hostility sticky must stay set");
     }
     /* Restore Euro war for privateer/upkeep follow-ons; clear Indian hostility. */
     ai_diplo_declare_war(&col1, 0, 1);
@@ -620,6 +630,84 @@ int main(void) {
     if (score != 19) {
       fprintf(stderr, "smoke_ai_diplo: military_score %d (want 19)\n", score);
       return fail("unpark #5 military_score weights");
+    }
+  }
+
+  /*
+   * Unpark #5: thin war/peace status chrome (102a/1092 stand-in).
+   * declare_war_ctx / make_peace_ctx write when human is a party.
+   */
+  {
+    ColonizeCol1Save st;
+    col1_save_init(&st);
+    memset(st.nation, 0, sizeof(st.nation));
+    for (int i = 0; i < 4; ++i) {
+      st.player[i].control = 0;
+      st.player[i].country_name[0] = '\0';
+    }
+    snprintf(st.player[1].country_name, sizeof(st.player[1].country_name), "France");
+    st.nation[0].gold = 200;
+    st.nation[1].gold = 200;
+    char status[128];
+    status[0] = '\0';
+    ColonizeTurnContext ctx_st;
+    memset(&ctx_st, 0, sizeof(ctx_st));
+    ctx_st.col1 = &st;
+    ctx_st.col1_ok = true;
+    ctx_st.human_nation = 0;
+    ctx_st.status = status;
+    ctx_st.status_size = sizeof(status);
+
+    ai_diplo_declare_war_ctx(&ctx_st, 1, 0);
+    if (!ai_diplo_at_war(&st, 0, 1)) {
+      return fail("declare_war_ctx should set WAR");
+    }
+    if (strcmp(status, "War declared with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: war status '%s'\n", status);
+      return fail("declare_war_ctx should set War declared with country_name");
+    }
+    /* Re-declare: no status rewrite. */
+    snprintf(status, sizeof(status), "keep");
+    ai_diplo_declare_war_ctx(&ctx_st, 1, 0);
+    if (strcmp(status, "keep") != 0) {
+      return fail("re-declare_war_ctx should not rewrite status");
+    }
+
+    ai_diplo_make_peace_ctx(&ctx_st, 0, 1);
+    if (ai_diplo_at_war(&st, 0, 1)) {
+      return fail("make_peace_ctx should clear WAR");
+    }
+    if (strcmp(status, "Peace concluded with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: peace status '%s'\n", status);
+      return fail("make_peace_ctx should set Peace concluded with country_name");
+    }
+
+    /* Fallback label when country_name empty. */
+    st.player[2].country_name[0] = '\0';
+    st.nation[0].gold = 200;
+    st.nation[2].gold = 200;
+    status[0] = '\0';
+    ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
+    if (strcmp(status, "War declared with rival") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: rival status '%s'\n", status);
+      return fail("declare_war_ctx should fall back to rival");
+    }
+
+    /* AI-only pair: no status write. */
+    snprintf(status, sizeof(status), "untouched");
+    st.nation[1].gold = 200;
+    st.nation[2].gold = 200;
+    ai_diplo_declare_war_ctx(&ctx_st, 1, 2);
+    if (strcmp(status, "untouched") != 0) {
+      return fail("declare_war_ctx must not write status for AI-only pairs");
+    }
+
+    /* Bare declare_war / make_peace remain status-free. */
+    snprintf(status, sizeof(status), "bare");
+    ai_diplo_make_peace(&st, 0, 2);
+    ai_diplo_declare_war(&st, 0, 2);
+    if (strcmp(status, "bare") != 0) {
+      return fail("bare declare_war must not touch ctx status");
     }
   }
 

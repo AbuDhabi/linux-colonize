@@ -265,11 +265,11 @@ remain correctly **PARKED** (see R0 / R5).
 
 | # | Track | Was parked as | Open work (next) | Still parked |
 |--:|-------|---------------|------------------|--------------|
-| 1 | Indian contact UI | dialog / teach UI after thin meet | Real dialog **widgets** (`5bfb_102a`/`1092`); thin `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid) | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
-| 2 | King / REF UI | audience after structural tax/REF | Real audience/confirm/merc **modals**; thin status chrome **Done** (refuse/hold/congress/merc) | `160a` letter cinematic; deep `10f0`/`1eca`; MoW hold chrome; `0x5382` rename |
-| 3 | Founding Fathers | full wiki table | Remaining wiki/decomp polish; Magellan permanent move bonus; **5 deep hooks Done** (Coronado/Jones/Magellan/Hudson/de Soto) | Congress debate UI; bell spend/threshold recovery |
-| 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | Hire/wagon `5d04` matrix; deep fog rings; CONTACT rings + land adjacent-foe pick **Done** | Full T3 / LCG goldens; ocean fixture retirement (R5) |
-| 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Full bilateral `15b3` matrix; dialogs; military/trade score deepen **partial Done** (weights + colony-gap Tools embargo) | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
+| 1 | Indian contact UI | dialog / teach UI after thin meet | Real dialog **widgets**; thin status + alarmed refuse-talk (`alarm>=55`) **Done** | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
+| 2 | King / REF UI | audience after structural tax/REF | Real **modals**; thin status **Done**; `1eca` Regular/mid-SoL widen **Done** | `160a` letter cinematic; deep `10f0`/`1eca` table; MoW hold chrome; `0x5382` rename |
+| 3 | Founding Fathers | full wiki table | Wiki/decomp polish; **11 deep hooks Done** (Magellan/Coronado/de Soto/Hudson/Jones + Smith/Washington/Revere/Drake/Bolivar/Brewster) | Congress debate UI; bell spend/threshold recovery |
+| 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | Deep fog rings; case-7; CONTACT rings + foe pick + tools/wagon hire **Done** | Full T3 / LCG goldens; ocean fixture retirement (R5) |
+| 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Full bilateral matrix; war/peace status chrome + score/trade deepen **Done** | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
 | 6 | Doc hygiene | — | [manual_gap.md](manual_gap.md) aligned to structural ports (this pass) | — |
 
 Playability mirror: [manual_gap.md](manual_gap.md). Thin maps under
@@ -360,7 +360,8 @@ Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact
 Smoke: `smoke_ai_contact`.
 
 **OPEN (unpark #1):** real dialog **widgets** (`5bfb_102a`/`1092`, teach chrome).
-Thin human-facing `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid).
+Thin human-facing `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid);
+alarmed refuse-talk when `alarm_by_player >= 55` **Done**.
 
 **Still PARKED:** full `2154`/`2820`/`4528` bodies; full `@TRIBES` flavor-good
 parse; DOS RNG kill/warn branch.
@@ -380,9 +381,9 @@ expiring ally).
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
 `smoke_ai_diplo`.
 
-**OPEN (unpark #5):** full Indian×Euro `15b3` bilateral matrix; war/peace dialogs.
-Military score weights (sea/fort/gold) + colony-gap Tools embargo +25g trade sting
-**partial Done**; thin read/at_war/drift/war-hit/harassment remain.
+**OPEN (unpark #5):** full Indian×Euro `15b3` bilateral matrix; war/peace **widgets**.
+Military score weights + colony-gap Tools embargo + war/peace `_ctx` status chrome
++ `unknown26[8]` Indian hostility sticky **Done**.
 
 **Still PARKED:** FA `3f41` full body/UI; privateer **unit** spawn; exact DS
 `−0x77c4` field rename; quiet Brave diplomacy goldens.
@@ -406,7 +407,8 @@ Thin Pioneer tools delivery (+10 stock on short colony). Thin tools-cargo hire w
 (end of `ai_euro_unit_act`: moves left + adjacent war foe → `try_attack`).
 Thin CONTACT scout rings (peace Scout → CONTACT goal Manhattan 2–4 around tribe).
 Thin land adjacent-foe pick (prefer weaker / non-fortified defense).
-**OPEN (unpark #4):** mid-game `5d04` hire/wagon matrix slices; deep −0x6790 G
+Thin `5d04` tools/wagon hire (peace: Pioneer when `tools_short>20`; Wagon Train once when `>30`).
+**OPEN (unpark #4):** remaining `5d04` treasury tails; deep −0x6790 G
 table; deep fog CONTACT rings; multi-step land `20e6`; deeper `5b66`
 case-7 hire tails. Odd deviations OK; not T3 / LCG goldens (those stay R5).
 
@@ -428,7 +430,8 @@ thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
 (`unknown46[3]`, 300 gold → human Soldier; thin hire status **Done**);
 thin `160a` rename
 (`country_name` / europe → "United Colonies"); thin `1eca` promote Soldier→Continental
-Army and Dragoon/Cavalry→Continental Cavalry when SoL>50; thin SoL 40–49 restless
+Army and Dragoon/Cavalry→Continental Cavalry when SoL>50; Regular (type name)→Veteran/Continental
+when SoL>50; Soldier→Veteran Soldier when SoL 40–50; thin SoL 40–49 restless
 status + `unknown46[5]` congress confirm + congress status on declare
 (`2564` confirm **modal** still OPEN).
 WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-present
@@ -439,7 +442,7 @@ WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-pr
 **OPEN (unpark #2):** real `38fd_5be8` / `2564` / `2244` **modals** (status chrome Done).
 
 **Still PARKED:** `160a` letter cinematic; full merc/arrival/hold chrome; deep `10f0`
-economy; deep `1eca` table; exact `0x5382` Col1 bit rename / T3.
+economy (third landing); deep `1eca` colony-SoL table; exact `0x5382` Col1 bit rename / T3.
 
 ---
 
@@ -459,7 +462,7 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; 5 deep hooks (Coronado/Jones/Magellan/Hudson/de Soto) + tiny stand-ins; Fugger clears boycotts; wiki polish **OPEN** (unpark #3); Congress UI PARKED |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; 11 deep hooks + tiny stand-ins; Fugger clears boycotts; wiki polish **OPEN** (unpark #3); Congress UI PARKED |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; thin audience/confirm/merc status **Done**; modals **OPEN** (unpark #2); `smoke_ai_king` |
 
 Suggested manual order: prioritize the [Unparked queue](#unparked-queue-2026-08-07)
