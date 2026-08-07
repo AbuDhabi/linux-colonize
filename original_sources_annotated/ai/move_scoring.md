@@ -77,5 +77,6 @@ of `20e6` (not the quiet Brave path). Until then:
 - Seed-100 landfall gotos: `ai_coastal_staging_from_landfall` (T2)
 - Mid-turn ship XY: fixture waypoints (1–2 tiles off golden until ocean score)
 
-Combat / land Euro arms: **OPEN** (unpark #4). Ocean/ship / explore / colony-tile
-deep T3 still R5.
+Combat / land Euro arms: **OPEN** (unpark #4). Thin adjacent-foe pick prefers
+weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`). Ocean/ship /
+deep fog explore / colony-tile deep T3 still R5.

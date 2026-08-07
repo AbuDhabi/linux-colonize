@@ -6,8 +6,10 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/turn.h"
+#include "core/units.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* War embargo stand-in: Furs = cargo index 4 (distinct from king Sugar bit1). */
@@ -530,6 +532,95 @@ int main(void) {
   ai_diplo_indian_relation_delta(&col1, 4, 0, -20);
   if (col1.nation[0].relation_by_indian[0] != 0) {
     return fail("indian delta should clamp at 0");
+  }
+
+  /*
+   * Unpark #5: 153e trade deepen — colony gap ≥2 → Tools embargo + 25g from richer.
+   * Military score: units + pop*2 + gold/50 (+ sea/fort weights).
+   */
+  {
+    ColonizeCol1Save tw;
+    col1_save_init(&tw);
+    memset(tw.nation, 0, sizeof(tw.nation));
+    for (int i = 0; i < 4; ++i) {
+      tw.player[i].control = 0;
+    }
+    tw.head.colony_count = 3;
+    tw.colony = calloc(3, sizeof(ColonizeCol1Colony));
+    if (!tw.colony) {
+      return fail("trade-war alloc colonies");
+    }
+    tw.colony[0].nation_id = 0;
+    tw.colony[1].nation_id = 0;
+    tw.colony[2].nation_id = 1; /* gap 2−1=1 — need gap≥2 */
+    /* Rebuild: nation0 has 3, nation1 has 0 → gap 3. */
+    tw.colony[2].nation_id = 0;
+    tw.nation[0].gold = 400;
+    tw.nation[1].gold = 50;
+    ai_diplo_declare_war(&tw, 0, 1);
+    if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0 ||
+        (tw.nation[1].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0) {
+      free(tw.colony);
+      return fail("colony-gap declare should set Tools embargo");
+    }
+    /* 400 − 100 sting − 25 trade = 275 */
+    if (tw.nation[0].gold != 275) {
+      fprintf(stderr, "smoke_ai_diplo: rich gold after trade war %u (want 275)\n",
+              (unsigned)tw.nation[0].gold);
+      free(tw.colony);
+      return fail("colony-gap declare should drain extra 25 from richer");
+    }
+    if (tw.nation[1].gold != 0) {
+      free(tw.colony);
+      return fail("poorer still floored by 100 sting");
+    }
+    ai_diplo_make_peace(&tw, 0, 1);
+    if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) != 0 ||
+        (tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_FURS)) != 0) {
+      free(tw.colony);
+      return fail("make_peace should lift Furs+Tools embargo");
+    }
+    free(tw.colony);
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 2;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+    units.types[0].attack = 2;
+    units.types[0].defense = 2;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+    units.types[1].attack = 1;
+    units.types[1].defense = 1;
+    units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    const int sid = units_spawn(&units, 0, 1, 1);
+    const int ship = units_spawn(&units, 1, 2, 2);
+    if (sid < 0 || ship < 0) {
+      return fail("military score spawn");
+    }
+    units.units[sid].nation_id = 0;
+    units.units[ship].nation_id = 0;
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].population = 4;
+    colonies.colony_count = 1;
+    ColonizeCol1Save sc;
+    col1_save_init(&sc);
+    sc.nation[0].gold = 100; /* +2 from gold/50 */
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.units = &units;
+    ctx.colonies = &colonies;
+    ctx.col1 = &sc;
+    ctx.col1_ok = true;
+    /* soldier 2+2=4, ship 1+1+3=5, pop 4*2=8, gold 100/50=2 → 19 */
+    const int score = ai_diplo_military_score(&ctx, 0);
+    if (score != 19) {
+      fprintf(stderr, "smoke_ai_diplo: military_score %d (want 19)\n", score);
+      return fail("unpark #5 military_score weights");
+    }
   }
 
   fprintf(stderr, "smoke_ai_diplo: ok\n");

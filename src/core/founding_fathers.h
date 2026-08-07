@@ -13,9 +13,10 @@
  * founding_fathers_tick: at most one elect per nation per call —
  * human first, then each AI Euro nation (player.control==1).
  *
- * Effects: status line (human) + tiny stand-ins for many famous FFs
- * (gold / crosses / tax / bells / REF / Fugger boycott forgive).
- * Deeper wiki/decomp effect table **OPEN** (unpark #3); Congress debate UI PARKED.
+ * Effects: status line (human) + stand-ins for all 25 FFs. Deeper structural
+ * hooks when ctx has map/colonies/units (Coronado reveal, Jones frigate,
+ * Magellan sea moves, Hudson stock, de Soto unit reveal); remaining wiki/
+ * decomp polish still OPEN (unpark #3). Congress debate UI PARKED.
  */
 
 /* Bells required to elect the next FF given how many already elected. */

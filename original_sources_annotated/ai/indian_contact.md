@@ -48,7 +48,7 @@ Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb` neighborhood** (~96088) after meet/diplo scoring | Not from `1b3a` |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | Full body PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | Not quiet `14fe` |
-| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | Dialog UI **OPEN** (unpark #1) |
+| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | Status chrome thinned; widgets **OPEN** (unpark #1) |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
 
 Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
@@ -56,9 +56,10 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
 
 ## Meet / trade `5bfb_022e` checklist (Linux)
 
-1. Adjacent Euro land unit → set `met_by_player`, relation bump
+1. Adjacent Euro land unit → set `met_by_player`, relation bump; human-facing
+   `ctx->status` **"You meet the …"** (tribe `@TRIBES` short name)
 2. Peaceful meet (alarm/friction < 40): slight tribe `alarm[].friction` decay (−1)
-3. Optional mission assign if friction low (teach/convert UI **OPEN** — unpark #1)
+3. Optional mission assign if friction low (teach/convert **widgets** still OPEN)
 4. **Missionary convert pulse** (structural deepen): Euro unit whose display name
    contains `"Mission"` adjacent to a tribe of this nation, and relations not
    hostile (`alarm_by_player` / tribe friction both < 50) → set
@@ -69,16 +70,23 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    both < 40), and `tribe.state.learned` clear → set **`tribe.state.learned = 1`**
    (real Col1 bit). If unit `profession == UNITS_JOB_NONE`: Scout →
    `UNITS_JOB_SCOUT` (Seasoned); else → tribe-appropriate outdoor `@JOB`
-   (see mapping below). One pulse per tribe per call. Teach dialog UI **OPEN** (unpark #1).
-6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in for `2aac…311e`)
-7. **Gift / demand** structural stand-in after peaceful meet (dialogs `5bfb_102a` /
-   `1092` **OPEN** — unpark #1). Friction = max(`alarm_by_player`, tribe `alarm[].friction`):
+   (see mapping below). One pulse per tribe per call. Human status
+   **"Natives teach …"**; teach **widgets** still OPEN (unpark #1).
+6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in
+   for `2aac…311e`); human status **"Trade accepted."**
+7. **Gift / demand** structural stand-in after peaceful meet (`5bfb_102a` /
+   `1092` **widgets** still OPEN). Friction = max(`alarm_by_player`, tribe
+   `alarm[].friction`):
    - **Low** (`< 40`) + Euro `nation.gold >= 20` → gift/tribute: Euro **−10 gold**,
-     friction **−2** (Indians lack easy gold — cost is Euro treasury).
+     friction **−2**; human status **"Gift of gold eases tensions."**
    - **Mid** (`40..70`) + tools/gold available → demand/payoff: Euro loses **10 tools**
      from nearest colony stock, else **10** from adjacent unit `tools`, else **15 gold**;
-     friction **−3**.
+     friction **−3**; human status **"Tribute paid; tensions ease."**
    - **Very high** (`> 70`) → skip (raids handle hostility).
+
+Status lines only when `ctx->status` is present and the Euro is the human nation
+(`ctx->human_nation`, else `player.control == 0`). Full DOS dialog chrome stays
+**PARKED**; unpark #1 remains **OPEN** for real widgets.
 
 ### Teach-skill profession map (Linux)
 
@@ -109,12 +117,13 @@ order). Unmapped → Expert Farmer. Full `@TRIBES` flavor-good string parse
 
 Raid hostility deepen (loot success + high friction → `ai_diplo_indian_relation_delta`):
 see [`indian_raid_outcomes.md`](indian_raid_outcomes.md). Full `2820`/`4528` bodies
-remain **PARKED**. Player meet/trade/gift/teach dialog UI is **OPEN** (unpark #1;
-structural arms ready).
+remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **widgets**
+still **OPEN** (unpark #1). Full DOS dialog **PARKED**.
 
 ## PORT DEBT
 
 - Full `2154` (~321), `2820` (~1.4k), `4528` (~3k) — **PARKED** (deep bodies)
-- **OPEN (unpark #1):** player meet/trade/raid dialog subst (`5bfb_102a` / `1092` gift/demand UI); teach dialog UI
+- **OPEN (unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
+  (`5bfb_102a` / `1092`, teach chrome); status lines already thinned
 - Full skill-from-`@TRIBES` flavor-good string parse — still PARKED
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2) — still PARKED

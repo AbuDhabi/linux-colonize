@@ -63,8 +63,15 @@ beside a foreign colony at war. Adjacent enemy ships call `ai_euro_try_attack` /
 
 When at war with a Euro peer, idle land military (Soldier / Dragoon / Scout —
 not fortified, no useful goto) get `AI_MOVE` toward the nearest enemy land unit
-or enemy colony tile. Adjacent → `ai_euro_try_attack`. Does not steal founders on
-FOUND goals. Deep `20e6` land combat scoring is **OPEN** (unpark #4).
+or enemy colony tile. Adjacent → `ai_euro_try_attack`, preferring the foe with
+lower effective defense (fortified ×2). Does not steal founders on FOUND goals.
+Multi-step `20e6` land combat scoring remains **OPEN**.
+
+### 2c2. Linux thin — CONTACT scout rings (0a60 E / act)
+
+Peace + own colonies ≥ 1: idle Scout upserts `AI_GOAL_CONTACT` at a Manhattan
+ring tile (MD 2–4) around the nearest beyond-adjacent tribe and `AI_MOVE`s
+toward it. Deep fog/unknown rings stay **PARKED**.
 
 ### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
 

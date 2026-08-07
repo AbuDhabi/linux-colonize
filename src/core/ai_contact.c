@@ -23,6 +23,39 @@ static int ai_contact_dist(int x0, int y0, int x1, int y1) {
   return dx > dy ? dx : dy;
 }
 
+/* Prefer human Euro for player-facing status chrome (unpark #1; widgets OPEN). */
+static int ai_contact_euro_is_human(const ColonizeTurnContext* ctx, int e) {
+  if (!ctx || e < 0 || e > 3) {
+    return 0;
+  }
+  if (ctx->human_nation >= 0 && ctx->human_nation <= 3) {
+    return e == ctx->human_nation;
+  }
+  if (ctx->col1_ok && ctx->col1) {
+    return ctx->col1->player[e].control == 0;
+  }
+  return 0;
+}
+
+static void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
+  if (!ctx || !ctx->status || ctx->status_size == 0 || !msg) {
+    return;
+  }
+  snprintf(ctx->status, ctx->status_size, "%s", msg);
+}
+
+/* @TRIBES order (Inca..Tupi); matches col1_bridge encounter labels. */
+static const char* ai_contact_tribe_name(int nation_id) {
+  static const char* k_names[8] = {
+      "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
+  };
+  const int idx = nation_id - 4;
+  if (idx < 0 || idx >= 8) {
+    return "natives";
+  }
+  return k_names[idx];
+}
+
 /* Isolated from quiet-pulse LCG (seed-100 TURN goldens). */
 static void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out) {
   uint32_t seed = 0xC07Au ^ (uint32_t)(nation_id * 97);
@@ -91,8 +124,8 @@ static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
  * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
  * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
  * optionally grant a native-teachable profession on the unit.
- * Teach dialog UI PARKED. Full @TRIBES good-string parse PARKED — static
- * cargo / nation_id maps below.
+ * Teach dialog widgets still OPEN (unpark #1); status line thinned.
+ * Full @TRIBES good-string parse PARKED — static cargo / nation_id maps below.
  */
 static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* name = units_display_name(units, u);
@@ -214,12 +247,28 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        * outdoor skill (cargo / nation map); Plain Scout → Seasoned Scout.
        * Already-skilled units keep profession.
        */
+      int taught_scout = 0;
       if (other->profession == UNITS_JOB_NONE) {
         const char* name = units_display_name(ctx->units, other);
         if (name && strstr(name, "Scout") != NULL) {
           other->profession = UNITS_JOB_SCOUT;
+          taught_scout = 1;
         } else {
           other->profession = ai_contact_taught_profession(t);
+        }
+      }
+      if (ai_contact_euro_is_human(ctx, e)) {
+        if (taught_scout) {
+          ai_contact_set_status(ctx, "Natives teach Seasoned Scout.");
+        } else {
+          char line[96];
+          snprintf(
+            line,
+            sizeof(line),
+            "Natives teach %s skills.",
+            ai_contact_tribe_name(nation_id)
+          );
+          ai_contact_set_status(ctx, line);
         }
       }
       break; /* one teach pulse per tribe per call */
@@ -280,12 +329,13 @@ static int ai_contact_pair_friction(
 }
 
 /*
- * Gift / demand structural stand-in (5bfb_102a / 1092 dialogs PARKED).
+ * Gift / demand structural stand-in (5bfb_102a / 1092 dialog widgets OPEN).
  * After peaceful meet adjacency:
  *  - low friction + Euro gold >= 20 → gift: Euro −10 gold, friction −2
  *  - mid friction (40–70) + tools/gold → demand: −10 tools (nearest colony stock
  *    or unit) else −15 gold; friction −3
  *  - very high friction (>70) → skip (raids handle hostility)
+ * Human-facing paths set a thin status line when ctx->status is present.
  */
 static void ai_contact_gift_or_demand(
   ColonizeTurnContext* ctx,
@@ -308,6 +358,7 @@ static void ai_contact_gift_or_demand(
   }
 
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  const int human = ai_contact_euro_is_human(ctx, e);
 
   /* Low friction gift / tribute. */
   if (friction < 40) {
@@ -316,6 +367,9 @@ static void ai_contact_gift_or_demand(
     }
     nat->gold -= 10u;
     ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 2);
+    if (human) {
+      ai_contact_set_status(ctx, "Gift of gold eases tensions.");
+    }
     return;
   }
 
@@ -355,12 +409,15 @@ static void ai_contact_gift_or_demand(
     return; /* no tools in colony/unit and insufficient gold */
   }
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
+  if (human) {
+    ai_contact_set_status(ctx, "Tribute paid; tensions ease.");
+  }
 }
 
 /*
  * Missionary adjacent to tribe, relations not hostile → concrete convert state:
  * tribe.mission = euro nation id, slight alarm/friction decay, +1 nation crosses.
- * Teach/convert dialog UI + full 2820/4528 PARKED.
+ * Teach/convert dialog widgets OPEN (unpark #1); full 2820/4528 PARKED.
  */
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
@@ -556,7 +613,8 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    *  1) adjacent Euro → meet
    *  2) optional mission if peaceful; Missionary convert + teach-skill (below)
    *  3) auto-haggle: trade-goods for alarm (2aac…311e stand-in)
-   *  4) gift/demand structural stand-in (dialogs 5bfb_102a / 1092 PARKED)
+   *  4) gift/demand structural stand-in (dialogs 5bfb_102a / 1092 widgets OPEN)
+   * Human-facing arms write thin ctx->status lines; full DOS dialog PARKED.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -580,11 +638,22 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       const int e = other->nation_id;
+      const int human = ai_contact_euro_is_human(ctx, e);
 
       /* 1–2. First meet. */
       if (!ind->met_by_player[e]) {
         ind->met_by_player[e] = 1;
         ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 5);
+        if (human) {
+          char line[96];
+          snprintf(
+            line,
+            sizeof(line),
+            "You meet the %s.",
+            ai_contact_tribe_name(nation_id)
+          );
+          ai_contact_set_status(ctx, line);
+        }
         if (ctx->col1->tribe) {
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
             ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -598,7 +667,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
               t->alarm[e].friction--;
             }
             if (t->mission == 0xff && t->alarm[e].friction < 30) {
-              t->mission = (uint8_t)e; /* mission offer; convert UI PARKED */
+              t->mission = (uint8_t)e; /* mission offer; convert widgets OPEN */
             }
             break;
           }
@@ -640,15 +709,18 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
             }
           }
           ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
+          if (human) {
+            ai_contact_set_status(ctx, "Trade accepted.");
+          }
         }
       }
 
-      /* 4. Gift / demand stand-in (5bfb_102a / 1092 dialog UI PARKED). */
+      /* 4. Gift / demand stand-in (5bfb_102a / 1092 status thinned; widgets OPEN). */
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, brave->x, brave->y);
     }
   }
 
-  /* 2b. Missionary adjacent to tribe → mission owner + crosses (convert UI PARKED). */
+  /* 2b. Missionary adjacent to tribe → mission owner + crosses (convert widgets OPEN). */
   ai_contact_missionary_convert(ctx, nation_id);
 
   /* 2c. Peaceful Free Colonist/Scout at tribe → state.learned + optional skill. */
@@ -1037,6 +1109,10 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
             const int host = (max_alarm >= 80) ? -5 : -3;
             ai_diplo_indian_relation_delta(ctx->col1, nation_id, target_euro, host);
+          }
+          /* Thin raid outcome status for human target (full @RAID* dialog PARKED). */
+          if (kind != AI_RAID_NOTHING && ai_contact_euro_is_human(ctx, target_euro)) {
+            ai_contact_set_status(ctx, "Natives raid your colony.");
           }
         } else {
           int sdx = (c->x > brave->x) - (c->x < brave->x);

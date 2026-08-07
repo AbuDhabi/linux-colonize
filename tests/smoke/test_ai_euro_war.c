@@ -838,6 +838,155 @@ static int smoke_mid_hire_artillery(void) {
   return 0;
 }
 
+/*
+ * Thin 20e6 land adjacent-foe pick: Soldier between fortified high-defense foe
+ * (N) and weak Free Colonist (S). Prefer the weaker/non-fortified target.
+ * Old first-dir scan would hit N first.
+ */
+static int smoke_land_adjacent_foe_prefer_weak(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("adj-foe alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 8;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 0;
+  units.types[1].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-foe spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 1; /* one adjacent fight only — no re-hunt onto fortified */
+
+  /* Strong fortified foe to the north (first octant dir) — should NOT be preferred. */
+  const int strong_id = units_spawn(&units, 0, own_x, own_y - 1);
+  ColonizeUnit* strong = units_get(&units, strong_id);
+  if (!strong) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-foe spawn strong");
+  }
+  strong->nation_id = foe_nat;
+  strong->orders = UNITS_ORDER_FORTIFIED;
+  strong->moves_left = 0;
+
+  /* Weak colonist to the south — preferred target. */
+  const int weak_id = units_spawn(&units, 1, own_x, own_y + 1);
+  ColonizeUnit* weak = units_get(&units, weak_id);
+  if (!weak) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-foe spawn weak");
+  }
+  weak->nation_id = foe_nat;
+  weak->orders = 0;
+  weak->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  /* No RNG → deterministic: attack 8 >= defense 1 → attacker wins vs weak. */
+  ai_goals_reset();
+
+  uint32_t turn = 41;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  strong = units_get(&units, strong_id);
+  weak = units_get(&units, weak_id);
+
+  const int weak_dead = weak == NULL || !weak->active;
+  const int strong_alive = strong && strong->active;
+  const int own_alive = soldier && soldier->active;
+
+  if (!weak_dead || !strong_alive || !own_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: adj-foe own=%d weak_dead=%d strong_alive=%d\n",
+      own_alive,
+      weak_dead,
+      strong_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected attack on weak colonist, fortified Soldier left alone");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer-weak ok\n");
+  return 0;
+}
+
 int main(void) {
   if (smoke_mid_hire_mil() != 0) {
     return 1;
@@ -852,6 +1001,9 @@ int main(void) {
     return 1;
   }
   if (smoke_sticky_contact_rehunt() != 0) {
+    return 1;
+  }
+  if (smoke_land_adjacent_foe_prefer_weak() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_war: ok\n");

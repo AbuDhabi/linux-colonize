@@ -2,7 +2,7 @@
 
 Maps settlement-raid / loot clusters for a **reasonable** Linux port in
 `ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) stays PARKED;
-player raid/warn dialog chrome is **OPEN** (unpark #1).
+player raid/warn **status chrome thinned**; **widgets** still **OPEN** (unpark #1).
 
 Related: [`indian_contact.md`](indian_contact.md). Peels:
 `.context/peel_shards/layer_c_4d56_4528.json`, `layer_b_combat_raid.json`.
@@ -30,12 +30,14 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 6. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon)
 7. **Hostility tick** — successful loot (`kind != NOTHING`) + friction ≥55 →
    `ai_diplo_indian_relation_delta` (−3, or −5 if ≥80). Deep 4528/2820 PARKED.
+   Human target also gets thin status **"Natives raid your colony."** (full
+   `@RAID*` dialog widgets still OPEN / DOS body PARKED).
 8. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
    prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
    set `ctx->status` warn line when buffer present; **despawn only if** no free tile.
-   Dialog warn chrome beyond the status line is **OPEN** (unpark #1).
-9. **PARKED** — full `2820` decision matrix, player haggle deep, ship harbor deep
-   (player dialog chrome itself is **OPEN** — unpark #1)
+   Dialog warn **widgets** beyond the status line still **OPEN** (unpark #1).
+9. **PARKED** — full `2820` decision matrix, player haggle deep, ship harbor deep;
+   full DOS dialog chrome. Status-line chrome for raid/warn is **thinned**.
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)
 
@@ -55,5 +57,5 @@ UI strings, not numeric tables. Linux uses the **kind enum** to pick loot:
 
 - Sectioned `4528` with threat / combat / loot / dialog clusters named
 - `5fef_0f14` line-faithful goods picker
-- Dialog subst **OPEN** (unpark #1; structural raid arms ready)
+- Status chrome **thinned**; dialog **widgets** still **OPEN** (unpark #1)
 - Full `4528` / `5fef` line-faithful bodies still PARKED

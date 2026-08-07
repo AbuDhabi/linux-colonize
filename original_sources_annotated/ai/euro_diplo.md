@@ -95,7 +95,10 @@ Embargo lift (thin):
 
 `ai_diplo_euro_balance` at-war peer visit: after upkeep, if military scores are in the ally-eligible near-parity band (`self>10`, `other>10`, `|self−other|<15`) and RNG `1/30`, call `make_peace`. No low-gold / long-war gates in this thin pass.
 
-**OPEN (unpark #5):** fuller `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`). Still PARKED: FA `3f41`, order clear `12d0` deep, privateer units.
+**OPEN (unpark #5):** fuller `5bfb_153e` — Linux deepen: military score weights
+(sea +3, fort +5, gold/50); declare colony-gap ≥2 → Tools embargo + 25g from richer;
+peace/ally lift Furs+Tools. Dialogs (`102a`/`1092`) still thin/OPEN. Still PARKED: FA
+`3f41`, order clear `12d0` deep, privateer units, exact `−0x77c4`.
 
 ### Thin alliance treasury + treaty timer (Linux)
 

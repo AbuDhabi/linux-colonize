@@ -27,6 +27,9 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
+/* FUN_5bfb_0000/00f8/312e-shaped military score (unpark #5 deepen). */
+int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
+
 /* 6d8e step 4: decrement per-rival treaty timer bytes (before planning);
  * also thin peaceful Indian relation drift when not at Euro war. */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);

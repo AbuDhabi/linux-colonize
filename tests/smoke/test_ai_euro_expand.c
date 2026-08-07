@@ -1,4 +1,4 @@
-/* Smoke: Euro second-wave settle + thin E peaceful Scout explore + tools delivery. */
+/* Smoke: Euro second-wave settle + CONTACT scout rings + tools delivery. */
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
@@ -142,8 +142,9 @@ static int smoke_second_wave(void) {
 }
 
 /*
- * Thin E scout explore: peaceful nation with own≥1 colony + Scout + tribe;
- * dispatcher should give Scout AI_MOVE toward tribe / FOUND tile.
+ * CONTACT scout rings (unpark #4): peaceful nation with own≥1 colony + Scout +
+ * tribe beyond adjacent → upsert CONTACT at Manhattan ring 2–4 around tribe;
+ * Scout AI_MOVE toward that tile. Deep fog rings PARKED.
  */
 static int smoke_scout_explore(void) {
   const int nation = 1;
@@ -237,43 +238,49 @@ static int smoke_scout_explore(void) {
 
   ai_euro_dispatcher_turn(&ctx, nation);
 
-  /* Expected explore tile: founding-adjacent to tribe, else tribe xy. */
-  int expect_x = tribe_x;
-  int expect_y = tribe_y;
-  int fx = 0;
-  int fy = 0;
-  if (ai_goals_pick_founding_tile(&map, &colonies, nation, tribe_x, tribe_y, &fx, &fy)) {
-    expect_x = fx;
-    expect_y = fy;
+  scout = units_get(&units, sid);
+  int contact_x = -1;
+  int contact_y = -1;
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* g = ai_goals_primary(nation, i);
+    if (!g || g->code != AI_GOAL_CONTACT) {
+      continue;
+    }
+    contact_x = (int)g->x;
+    contact_y = (int)g->y;
+    break;
   }
 
+  const int ring_md =
+    (contact_x >= 0) ? (abs(contact_x - tribe_x) + abs(contact_y - tribe_y)) : -1;
+  const int ok_contact = contact_x >= 0 && ring_md >= 2 && ring_md <= 4;
   const int ok_move =
-    scout->active && scout->orders == UNITS_ORDER_AI_MOVE &&
-    scout->goto_x == expect_x && scout->goto_y == expect_y;
-  /* Also accept if Scout already stepped closer while keeping that goto. */
+    scout && scout->active && scout->orders == UNITS_ORDER_AI_MOVE &&
+    scout->goto_x == contact_x && scout->goto_y == contact_y;
   const int ok_closer =
-    scout->active && scout->orders == UNITS_ORDER_AI_MOVE &&
-    scout->goto_x == expect_x && scout->goto_y == expect_y &&
-    (abs(scout->x - expect_x) + abs(scout->y - expect_y)) <
-      (abs(5 - expect_x) + abs(5 - expect_y));
+    ok_move &&
+    (abs(scout->x - contact_x) + abs(scout->y - contact_y)) <
+      (abs(5 - contact_x) + abs(5 - contact_y));
 
-  if (!ok_move && !ok_closer) {
+  if (!ok_contact || (!ok_move && !ok_closer)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: scout orders=%d goto=(%d,%d) pos=(%d,%d) expect=(%d,%d)\n",
-      scout->orders,
-      scout->goto_x,
-      scout->goto_y,
-      scout->x,
-      scout->y,
-      expect_x,
-      expect_y
+      "smoke_ai_euro_expand: scout orders=%d goto=(%d,%d) pos=(%d,%d) "
+      "CONTACT=(%d,%d) ring_md=%d\n",
+      scout ? scout->orders : -1,
+      scout ? scout->goto_x : -1,
+      scout ? scout->goto_y : -1,
+      scout ? scout->x : -1,
+      scout ? scout->y : -1,
+      contact_x,
+      contact_y,
+      ring_md
     );
     free(col1.tribe);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Scout AI_MOVE toward tribe/FOUND");
+    return fail("expected Scout AI_MOVE toward CONTACT ring (MD 2–4) around tribe");
   }
 
   free(col1.tribe);
@@ -282,11 +289,12 @@ static int smoke_scout_explore(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: scout-explore ok (goto=(%d,%d) pos=(%d,%d))\n",
+    "smoke_ai_euro_expand: CONTACT scout-ring ok (goto=(%d,%d) pos=(%d,%d) ring_md=%d)\n",
     scout->goto_x,
     scout->goto_y,
     scout->x,
-    scout->y
+    scout->y,
+    ring_md
   );
   return 0;
 }
