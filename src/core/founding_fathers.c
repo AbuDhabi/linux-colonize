@@ -45,23 +45,95 @@ static int16_t advance_next_candidate(const ColonizeCol1Save* col1, int elected_
   return -1;
 }
 
+static void bump_gold(ColonizeCol1Nation* nat, EuropeScreen* europe, uint32_t amount) {
+  if (nat->gold < 0xffffffffu - amount) {
+    nat->gold += amount;
+  } else {
+    nat->gold = 0xffffffffu;
+  }
+  if (europe) {
+    europe->gold = (int)nat->gold;
+  }
+}
+
+static void bump_crosses(ColonizeCol1Nation* nat, EuropeScreen* europe, uint16_t amount) {
+  if (nat->current_crosses < 65535u - amount) {
+    nat->current_crosses = (uint16_t)(nat->current_crosses + amount);
+  } else {
+    nat->current_crosses = 65535u;
+  }
+  if (europe) {
+    europe->current_crosses = nat->current_crosses;
+  }
+}
+
+static void bump_bells(ColonizeCol1Nation* nat, EuropeScreen* europe, uint16_t amount) {
+  if (nat->liberty_bells_total < 65535u - amount) {
+    nat->liberty_bells_total = (uint16_t)(nat->liberty_bells_total + amount);
+  } else {
+    nat->liberty_bells_total = 65535u;
+  }
+  if (europe) {
+    europe->liberty_bells_total = nat->liberty_bells_total;
+  }
+}
+
+static void cut_tax(ColonizeCol1Nation* nat, EuropeScreen* europe, uint8_t amount) {
+  if (nat->tax_rate > amount) {
+    nat->tax_rate = (uint8_t)(nat->tax_rate - amount);
+  } else {
+    nat->tax_rate = 0;
+  }
+  if (europe) {
+    europe->tax_percent = nat->tax_rate;
+  }
+}
+
 /* Tiny stand-ins only — full wiki/decomp effect table PARKED. */
-static void apply_tiny_effect(ColonizeCol1Nation* nat, EuropeScreen* europe, int ff_index) {
+static void apply_tiny_effect(
+  ColonizeCol1Save* col1,
+  ColonizeCol1Nation* nat,
+  EuropeScreen* europe,
+  int ff_index
+) {
   switch (ff_index) {
+    case 0: /* Adam Smith — factory / industry stand-in */
+      bump_gold(nat, europe, 25u);
+      break;
     case 1: /* Jakob Fugger — boycott forgive stand-in */
-      if (nat->gold < 0xffffffffu - 50u) {
-        nat->gold += 50u;
+      bump_gold(nat, europe, 50u);
+      break;
+    case 2: /* Peter Minuit — cheap land purchase stand-in */
+      bump_gold(nat, europe, 30u);
+      break;
+    case 4: /* Jan de Witt — trade / finance stand-in */
+      cut_tax(nat, europe, 1u);
+      break;
+    case 10: /* Hernan Cortes — conquest plunder stand-in */
+      bump_gold(nat, europe, 100u);
+      break;
+    case 11: /* George Washington — veteran / REF pressure stand-in */
+      if (col1 && col1->head.expeditionary_force[0] > 0) {
+        col1->head.expeditionary_force[0]--;
       }
       break;
+    case 15: /* Thomas Jefferson — liberty bells stand-in */
+      bump_bells(nat, europe, 15u);
+      break;
+    case 17: /* Thomas Paine — tax-weighted bells stand-in */
+      bump_bells(nat, europe, (uint16_t)nat->tax_rate);
+      break;
+    case 18: /* Simon Bolivar — SoL / bells stand-in */
+      bump_bells(nat, europe, 20u);
+      break;
+    case 19: /* Benjamin Franklin — diplomacy / tax ease stand-in */
+      cut_tax(nat, europe, 2u);
+      break;
     case 20: /* William Brewster — immigration help stand-in */
-      if (nat->current_crosses < 65535u - 8u) {
-        nat->current_crosses = (uint16_t)(nat->current_crosses + 8u);
-      } else {
-        nat->current_crosses = 65535u;
-      }
-      if (europe) {
-        europe->current_crosses = nat->current_crosses;
-      }
+      bump_crosses(nat, europe, 8u);
+      break;
+    case 21: /* William Penn — crosses / goodwill stand-in */
+      bump_crosses(nat, europe, 5u);
       break;
     default:
       break;
@@ -95,7 +167,7 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
   }
   nat->next_founding_father = advance_next_candidate(col1, idx);
 
-  apply_tiny_effect(nat, ctx->europe, idx);
+  apply_tiny_effect(col1, nat, ctx->europe, idx);
 
   if (ctx->status && ctx->status_size > 0) {
     snprintf(

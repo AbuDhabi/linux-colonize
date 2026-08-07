@@ -53,6 +53,75 @@ static int ai_contact_is_missionary(const ColonizeUnitPool* units, const Coloniz
 }
 
 /*
+ * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
+ * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
+ * optionally grant a native-teachable profession on the unit.
+ * Teach dialog UI PARKED.
+ */
+static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const char* name = units_display_name(units, u);
+  if (!name) {
+    return 0;
+  }
+  return strstr(name, "Free Colonist") != NULL || strstr(name, "Scout") != NULL;
+}
+
+static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    if (t->state.learned) {
+      continue; /* village already taught its skill (Col1 one-shot) */
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int oid = units_id_at(ctx->units, t->x + dx[d], t->y + dy[d]);
+      if (oid < 0) {
+        continue;
+      }
+      ColonizeUnit* other = units_get(ctx->units, oid);
+      if (!other || other->nation_id < 0 || other->nation_id > 3) {
+        continue;
+      }
+      if (!ai_contact_is_teachable_learner(ctx->units, other)) {
+        continue;
+      }
+      const int e = other->nation_id;
+      /* Peaceful meet band (alarm/friction < 40); hostile → no teach. */
+      if (ind->alarm_by_player[e] >= 40 || t->alarm[e].friction >= 40) {
+        continue;
+      }
+      t->state.learned = 1;
+      /*
+       * Optional expertise: unskilled Free Colonist → Expert Farmer (@JOB 0),
+       * a native-teachable skill per manual Skills Chart. Plain Scout →
+       * Seasoned Scout. Already-skilled units keep profession.
+       */
+      if (other->profession == UNITS_JOB_NONE) {
+        const char* name = units_display_name(ctx->units, other);
+        if (name && strstr(name, "Scout") != NULL) {
+          other->profession = UNITS_JOB_SCOUT;
+        } else {
+          other->profession = 0; /* Expert Farmer stand-in */
+        }
+      }
+      break; /* one teach pulse per tribe per call */
+    }
+  }
+}
+
+/*
  * Missionary adjacent to tribe, relations not hostile → concrete convert state:
  * tribe.mission = euro nation id, slight alarm/friction decay, +1 nation crosses.
  * Teach/convert dialog UI + full 2820/4528 PARKED.
@@ -189,7 +258,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * FUN_5bfb_022e checklist:
    *  1) adjacent Euro → meet
-   *  2) optional mission if peaceful; Missionary convert pulse (below)
+   *  2) optional mission if peaceful; Missionary convert + teach-skill (below)
    *  3) auto-haggle: trade-goods for alarm (2aac…311e stand-in)
    *  4) gift/demand dialogs PARKED
    */
@@ -287,6 +356,9 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
 
   /* 2b. Missionary adjacent to tribe → mission owner + crosses (convert UI PARKED). */
   ai_contact_missionary_convert(ctx, nation_id);
+
+  /* 2c. Peaceful Free Colonist/Scout at tribe → state.learned + optional skill. */
+  ai_contact_teach_skill(ctx, nation_id);
 }
 
 static AiRaidKind ai_contact_pick_raid_kind(
