@@ -1638,6 +1638,198 @@
         "confidence": "inferred",
         "links": ""
       },
+      "FUN_2f2b_40a0": {
+        "system": "colony",
+        "purpose": "Colony click region hit-test (panel codes)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_41c0": {
+        "system": "colony",
+        "purpose": "People-band hit-test → colonist index",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_56ce": {
+        "system": "colony",
+        "purpose": "Drag-mode router (people band vs transport hold)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_4a1c": {
+        "system": "colony",
+        "purpose": "Multifunction tab click (Production/Units/Construction)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_3fa6": {
+        "system": "colony",
+        "purpose": "Area-tile click: select or assign colonist",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_44d4": {
+        "system": "colony",
+        "purpose": "Settlement building-slot click / assign handler",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_47bc": {
+        "system": "colony",
+        "purpose": "Area-view click / assign handler",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_548e": {
+        "system": "colony",
+        "purpose": "People-band click (select, drag, or confirm)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_55da": {
+        "system": "colony",
+        "purpose": "Transport hold-slot click / drag handler",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_60dc": {
+        "system": "colony",
+        "purpose": "Warehouse cargo-strip click / drag handler",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_59a0": {
+        "system": "colony",
+        "purpose": "Units-pane click (select docked unit / open orders)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_5fc6": {
+        "system": "colony",
+        "purpose": "Construction BUY/CHANGE button hit + dispatch",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_5a68": {
+        "system": "colony",
+        "purpose": "Construction CHANGE menu row (name / cost)",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_5e44": {
+        "system": "colony",
+        "purpose": "Construction BUY remaining project (gold + tools)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_5bd2": {
+        "system": "colony",
+        "purpose": "Construction CHANGE project picker popup",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_4b62": {
+        "system": "colony",
+        "purpose": "Load cargo warehouse→hold (amount dialog)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_4da6": {
+        "system": "colony",
+        "purpose": "Unload cargo hold→warehouse",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_4fec": {
+        "system": "colony",
+        "purpose": "Transfer cargo between unit holds",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_4424": {
+        "system": "colony",
+        "purpose": "Warehouse capacity / cargo-limits popup",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_5746": {
+        "system": "colony",
+        "purpose": "Docked-unit orders popup (sentry / fortify / …)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_348c": {
+        "system": "colony",
+        "purpose": "Field-jobs / Leave-as profession popup",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2f3e": {
+        "system": "colony",
+        "purpose": "Assign colonist to workplace/job (XREF-clear; decomp messy)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_51ec": {
+        "system": "colony",
+        "purpose": "People-band confirm / Leave-as entry (XREF-clear; decomp messy)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_628a": {
+        "system": "colony",
+        "purpose": "Colony mouse/click dispatcher by panel region",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_6372": {
+        "system": "colony",
+        "purpose": "Colony keyboard dispatcher (N/M/B/L/U/…)",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_2d0e": {
+        "system": "colony",
+        "purpose": "Post-drag chrome refresh",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2e92": {
+        "system": "colony",
+        "purpose": "Modal dialog frame helper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2eb2": {
+        "system": "colony",
+        "purpose": "Print dialog string-table line",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2ec6": {
+        "system": "colony",
+        "purpose": "Open 3-button message dialog wrapper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_2eea": {
+        "system": "colony",
+        "purpose": "Cargo-type confirm dialog wrapper",
+        "confidence": "inferred",
+        "links": ""
+      },
+      "FUN_2f2b_05b6": {
+        "system": "colony",
+        "purpose": "Colony wood-panel blit/setup",
+        "confidence": "inferred",
+        "links": "docs/assets.md"
+      },
+      "FUN_2f2b_05b0": {
+        "system": "colony",
+        "purpose": "Tiny far stub into colony chrome",
+        "confidence": "inferred",
+        "links": ""
+      },
       "FUN_2b5a_303c": {
         "system": "ui",
         "purpose": "Map keyboard/input dispatch on DS:0x981e",

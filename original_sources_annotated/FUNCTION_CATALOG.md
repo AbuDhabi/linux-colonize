@@ -2202,8 +2202,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2f2b_011e` | 47107 | 93 | colony | Colony build / order gate (prereq / error codes) | inferred |  |
 | `FUN_2f2b_0332` | 47200 | 59 | colony | Reorder colonist slot tables after sort | inferred |  |
 | `FUN_2f2b_0434` | 47259 | 73 | colony | Init settlement building-slot layout maps | inferred | docs/assets.md |
-| `FUN_2f2b_05b0` | 47332 | 9 | colony | unknown | inferred |  |
-| `FUN_2f2b_05b6` | 47341 | 16 | colony | unknown | inferred |  |
+| `FUN_2f2b_05b0` | 47332 | 9 | colony | Tiny far stub into colony chrome | inferred |  |
+| `FUN_2f2b_05b6` | 47341 | 16 | colony | Colony wood-panel blit/setup | inferred | docs/assets.md |
 | `FUN_2f2b_05ee` | 47357 | 43 | colony | Draw building/project name label at settlement slot | inferred |  |
 | `FUN_2f2b_0722` | 47400 | 30 | colony | Draw one warehouse cargo-type amount label | inferred |  |
 | `FUN_2f2b_0842` | 47430 | 63 | colony | Draw area-view tile tooltip (terrain/feature text) | inferred | docs/assets.md |
@@ -2235,43 +2235,43 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2f2b_2b66` | 49180 | 39 | colony | Draw vertical multifunction tab buttons | inferred |  |
 | `FUN_2f2b_2c3c` | 49219 | 56 | colony | Draw multifunction mode-selector chrome | inferred |  |
 | `FUN_2f2b_2c92` | 49275 | 23 | colony | Full colony-screen redraw (all panel thunks) | inferred | docs/assets.md |
-| `FUN_2f2b_2d0e` | 49298 | 10 | colony | unknown | inferred |  |
+| `FUN_2f2b_2d0e` | 49298 | 10 | colony | Post-drag chrome refresh | inferred |  |
 | `FUN_2f2b_2d1c` | 49308 | 33 | colony | Toggle numbers display (DS:0x334) and refresh active pane | inferred |  |
 | `FUN_2f2b_2d90` | 49341 | 37 | colony | Force numbers-on + full pane refresh | inferred |  |
 | `FUN_2f2b_2e2a` | 49378 | 27 | colony | Alternate numbers-on full refresh path | inferred |  |
-| `FUN_2f2b_2e92` | 49405 | 10 | colony | unknown | inferred |  |
-| `FUN_2f2b_2eb2` | 49415 | 11 | colony | unknown | inferred |  |
-| `FUN_2f2b_2ec6` | 49426 | 11 | colony | unknown | inferred |  |
-| `FUN_2f2b_2eea` | 49437 | 21 | colony | unknown | inferred |  |
+| `FUN_2f2b_2e92` | 49405 | 10 | colony | Modal dialog frame helper | inferred |  |
+| `FUN_2f2b_2eb2` | 49415 | 11 | colony | Print dialog string-table line | inferred |  |
+| `FUN_2f2b_2ec6` | 49426 | 11 | colony | Open 3-button message dialog wrapper | inferred |  |
+| `FUN_2f2b_2eea` | 49437 | 21 | colony | Cargo-type confirm dialog wrapper | inferred |  |
 | `FUN_2f2b_2f26` | 49458 | 23 | colony | Arm native-trade session pointers (0xbb8/9cce/9cd0) | inferred |  |
-| `FUN_2f2b_2f3e` | 49481 | 985 | colony | unknown | inferred |  |
-| `FUN_2f2b_348c` | 50466 | 441 | colony | unknown | inferred |  |
-| `FUN_2f2b_3fa6` | 50907 | 47 | colony | unknown | inferred |  |
-| `FUN_2f2b_40a0` | 50954 | 54 | colony | unknown | inferred |  |
-| `FUN_2f2b_41c0` | 51008 | 45 | colony | unknown | inferred |  |
+| `FUN_2f2b_2f3e` | 49481 | 985 | colony | Assign colonist to workplace/job (XREF-clear; decomp messy) | inferred | docs/assets.md |
+| `FUN_2f2b_348c` | 50466 | 441 | colony | Field-jobs / Leave-as profession popup | inferred | docs/assets.md |
+| `FUN_2f2b_3fa6` | 50907 | 47 | colony | Area-tile click: select or assign colonist | inferred | docs/assets.md |
+| `FUN_2f2b_40a0` | 50954 | 54 | colony | Colony click region hit-test (panel codes) | inferred | docs/assets.md |
+| `FUN_2f2b_41c0` | 51008 | 45 | colony | People-band hit-test → colonist index | inferred |  |
 | `FUN_2f2b_4284` | 51053 | 19 | colony | Select colonist; enter assign/profession mode (8d54=6) | inferred | docs/assets.md |
 | `FUN_2f2b_42be` | 51072 | 13 | colony | Enter colony drag/select mode (8d54=7) | inferred | docs/assets.md |
 | `FUN_2f2b_42f2` | 51085 | 14 | colony | Clear drag/select chrome (0x344) | inferred |  |
-| `FUN_2f2b_4424` | 51099 | 40 | colony | unknown | inferred |  |
-| `FUN_2f2b_44d4` | 51139 | 174 | colony | unknown | inferred |  |
-| `FUN_2f2b_47bc` | 51313 | 100 | colony | unknown | inferred |  |
-| `FUN_2f2b_4a1c` | 51413 | 73 | colony | unknown | inferred |  |
-| `FUN_2f2b_4b62` | 51486 | 79 | colony | unknown | inferred |  |
-| `FUN_2f2b_4da6` | 51565 | 79 | colony | unknown | inferred |  |
-| `FUN_2f2b_4fec` | 51644 | 78 | colony | unknown | inferred |  |
-| `FUN_2f2b_51ec` | 51722 | 458 | colony | unknown | inferred |  |
-| `FUN_2f2b_548e` | 52180 | 67 | colony | unknown | inferred |  |
-| `FUN_2f2b_55da` | 52247 | 47 | colony | unknown | inferred |  |
-| `FUN_2f2b_56ce` | 52294 | 27 | colony | unknown | inferred |  |
-| `FUN_2f2b_5746` | 52321 | 120 | colony | unknown | inferred |  |
-| `FUN_2f2b_59a0` | 52441 | 49 | colony | unknown | inferred |  |
-| `FUN_2f2b_5a68` | 52490 | 59 | colony | unknown | inferred |  |
-| `FUN_2f2b_5bd2` | 52549 | 134 | colony | unknown | inferred |  |
-| `FUN_2f2b_5e44` | 52683 | 77 | colony | unknown | inferred |  |
-| `FUN_2f2b_5fc6` | 52760 | 53 | colony | unknown | inferred |  |
-| `FUN_2f2b_60dc` | 52813 | 71 | colony | unknown | inferred |  |
-| `FUN_2f2b_628a` | 52884 | 1478 | colony | unknown | inferred |  |
-| `FUN_2f2b_6372` | 54362 | 1575 | colony | unknown | inferred |  |
+| `FUN_2f2b_4424` | 51099 | 40 | colony | Warehouse capacity / cargo-limits popup | inferred |  |
+| `FUN_2f2b_44d4` | 51139 | 174 | colony | Settlement building-slot click / assign handler | inferred | docs/assets.md |
+| `FUN_2f2b_47bc` | 51313 | 100 | colony | Area-view click / assign handler | inferred | docs/assets.md |
+| `FUN_2f2b_4a1c` | 51413 | 73 | colony | Multifunction tab click (Production/Units/Construction) | inferred | docs/assets.md |
+| `FUN_2f2b_4b62` | 51486 | 79 | colony | Load cargo warehouse→hold (amount dialog) | inferred | docs/assets.md |
+| `FUN_2f2b_4da6` | 51565 | 79 | colony | Unload cargo hold→warehouse | inferred | docs/assets.md |
+| `FUN_2f2b_4fec` | 51644 | 78 | colony | Transfer cargo between unit holds | inferred |  |
+| `FUN_2f2b_51ec` | 51722 | 458 | colony | People-band confirm / Leave-as entry (XREF-clear; decomp messy) | inferred | docs/assets.md |
+| `FUN_2f2b_548e` | 52180 | 67 | colony | People-band click (select, drag, or confirm) | inferred | docs/assets.md |
+| `FUN_2f2b_55da` | 52247 | 47 | colony | Transport hold-slot click / drag handler | inferred | docs/assets.md |
+| `FUN_2f2b_56ce` | 52294 | 27 | colony | Drag-mode router (people band vs transport hold) | inferred | docs/assets.md |
+| `FUN_2f2b_5746` | 52321 | 120 | colony | Docked-unit orders popup (sentry / fortify / …) | inferred | docs/assets.md |
+| `FUN_2f2b_59a0` | 52441 | 49 | colony | Units-pane click (select docked unit / open orders) | inferred | docs/assets.md |
+| `FUN_2f2b_5a68` | 52490 | 59 | colony | Construction CHANGE menu row (name / cost) | inferred |  |
+| `FUN_2f2b_5bd2` | 52549 | 134 | colony | Construction CHANGE project picker popup | inferred | docs/assets.md |
+| `FUN_2f2b_5e44` | 52683 | 77 | colony | Construction BUY remaining project (gold + tools) | inferred | docs/assets.md |
+| `FUN_2f2b_5fc6` | 52760 | 53 | colony | Construction BUY/CHANGE button hit + dispatch | inferred | docs/assets.md |
+| `FUN_2f2b_60dc` | 52813 | 71 | colony | Warehouse cargo-strip click / drag handler | inferred | docs/assets.md |
+| `FUN_2f2b_628a` | 52884 | 1478 | colony | Colony mouse/click dispatcher by panel region | inferred | docs/assets.md |
+| `FUN_2f2b_6372` | 54362 | 1575 | colony | Colony keyboard dispatcher (N/M/B/L/U/…) | inferred | docs/assets.md |
 | `FUN_2f2b_6c46` | 55937 | 38 | colony | Clear hover dirty-flags; refresh stale panels | inferred |  |
 | `FUN_2f2b_6cd4` | 55975 | 847 | colony | Colony screen entry / bring-up + main loop teardown | inferred | docs/assets.md |
 
