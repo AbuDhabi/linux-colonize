@@ -42,10 +42,11 @@ few cascade fixes). See `.context/seed100-brave.md`.
 - Gated facing / coarse fog
 - Stay-shaped LCG burn after each pick (Linux stream sync)
 
-## Euro / ocean / founding (thin section-map — PARKED body)
+## Euro / ocean / founding (thin section-map — mid-planner **OPEN**)
 
 Full `FUN_521d_20e6` ~2180 lines (`viceroy_unpacked.c` ~88266–90445). Quiet
-Brave slice is annotated; **Euro ship / ocean / combat branches stay PARKED**.
+Brave slice is annotated; **land/combat Euro scoring is OPEN** (unpark #4).
+Ocean/ship fixture retirement stays R5 until ocean/HS branch ports.
 
 ### Callers
 
@@ -76,4 +77,5 @@ of `20e6` (not the quiet Brave path). Until then:
 - Seed-100 landfall gotos: `ai_coastal_staging_from_landfall` (T2)
 - Mid-turn ship XY: fixture waypoints (1–2 tiles off golden until ocean score)
 
-Combat / explore / colony-tile Euro arms: **PARKED** (R5).
+Combat / land Euro arms: **OPEN** (unpark #4). Ocean/ship / explore / colony-tile
+deep T3 still R5.

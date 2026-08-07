@@ -34,14 +34,14 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 |--------|------|-------|
 | `0004` | Pop-weighted SoL | `ai_king_sol_percent` |
 | `1d42` | Tax→REF funding | `ai_king_tax_event` |
-| `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto; UI PARKED) |
+| `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto; confirm UI **OPEN**) |
 | `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | thin status line after successful `0982` spawn (chrome UI PARKED) |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
-| `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` (dialog PARKED) |
+| `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` (dialog **OPEN**) |
 | `2022` / `1eca` | War act + Continental promote | `ai_king_war_act` (thin; deep table PARKED) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
@@ -51,8 +51,8 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 |-----|----------------|
 | `0x5382` bit0 war | `head.unknown26` — **no**; use `head.unknown46[0]` WoI |
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
-| Tax boycott / refuse | `head.unknown46[2]` (structural; `38fd_5be8` UI PARKED) |
-| Merc hired this war | `head.unknown46[3]` (thin `2244`; hire dialog PARKED) |
+| Tax boycott / refuse | `head.unknown46[2]` (structural; `38fd_5be8` UI **OPEN**) |
+| Merc hired this war | `head.unknown46[3]` (thin `2244`; hire dialog **OPEN**) |
 | Independence rename | `player[human].country_name` → `"United Colonies"` (+ `europe.nation_name` if present); `unknown46[4]` unused (name field exists) |
 | Cargo boycott bits | `nation.boycott_bitmap` (EuropeScreen has none) |
 | REF pools `0x53da…` | `head.expeditionary_force[4]` |
@@ -61,13 +61,13 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 
 Exact `0x5382` Col1 bit rename PARKED.
 
-### Tax boycott / refuse stand-in (`1d42` + parked `38fd_5be8`)
+### Tax boycott / refuse stand-in (`1d42` + `38fd_5be8` UI **OPEN**)
 
 When a spring tax year would hike and `tax_rate >= 20` and (SoL ≥ 30 or
 liberty bells ≥ 80): **refuse** — do not raise tax; set `unknown46[2]`; OR in
 `nation.boycott_bitmap` bit1 (Sugar); grow REF pools once without a hike.
 While `unknown46[2]` is set, further tax years skip hikes entirely.
-Accept/refuse dialog and dump-goods chrome remain PARKED.
+Accept/refuse dialog and dump-goods chrome are **OPEN** (unpark #2).
 
 ### Thin `1528` REF arrival announce
 
@@ -88,7 +88,7 @@ Full embark / `cargo_ids` hold chrome remains PARKED.
 During wartime `war_act` (including the declare turn): if human gold ≥ 300,
 SoL > 50, and `unknown46[3]` unset — spend 300 gold (sync Europe if present),
 spawn one Soldier/Dragoon for the **human** near weakest port, set
-`unknown46[3]`. Player hire dialog remains PARKED.
+`unknown46[3]`. Player hire dialog is **OPEN** (unpark #2).
 
 ### Thin `1eca` Continental promote
 
@@ -108,7 +108,7 @@ set `player[human].country_name` to `"United Colonies"` and sync
 cinematic remains PARKED. Same-turn `0982`/`1528` wave may overwrite
 `ctx->status`. `head.unknown46[4]` is **not** used as a renamed flag —
 writable Col1 `country_name` exists. `head.unknown46[5]` is set as a thin
-**congress confirm** stand-in (player `2564` dialog PARKED).
+**congress confirm** stand-in (player `2564` dialog **OPEN** — unpark #2).
 
 ### Thin pre-declare SoL chrome
 
@@ -134,10 +134,8 @@ arrival chrome remain PARKED.
 
 ## PORT DEBT
 
-- `38fd_5be8` tax audience / boycott **UI** (structural refuse + `unknown46[2]` / `boycott_bitmap` done)
-- Player `2564` confirm dialog; `160a` rename **cinematic** (thin `country_name` + `unknown46[5]` congress stand-in done)
-- `1528` arrival **chrome/dialog** (thin status announce done)
-- `2244` full merc hire **UI** (thin auto-accept + `unknown46[3]` done)
+- **OPEN (unpark #2):** `38fd_5be8` tax audience / boycott UI (structural refuse + `unknown46[2]` / `boycott_bitmap` done); player `2564` confirm dialog; `2244` merc hire UI (thin auto-accept + `unknown46[3]` done)
+- **Still PARKED:** `160a` rename **cinematic** (thin `country_name` + `unknown46[5]` congress stand-in done); `1528` arrival **chrome/dialog** (thin status announce done)
 - Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (dual landing + Regular/Dragoon mix + drain done)
 - Deep `1eca` colony-SoL / veteran-profession / type-id promote table — **PARKED** (thin Soldier + Dragoon/Cavalry name promote done)
 - Full MoW cargo-hold chrome / embark slots — **PARKED** (thin hold-size-2 Regular unload on `0982` MoW spawn done); seize-landing polish

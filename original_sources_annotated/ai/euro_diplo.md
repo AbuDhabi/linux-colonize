@@ -57,7 +57,7 @@ euro_nation_turn (6d8e)
 | `FUN_5bfb_13b0` | `2a1f_065e` | Form or break alliance |
 | `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112) — thin gold+tax+upkeep |
 | `FUN_5bfb_0000` / `00f8` / `312e` | census / rank / combat factor | Score stand-ins |
-| `FUN_5bfb_102a` / `1092` / `0182` | dialogs | **PARKED** UI |
+| `FUN_5bfb_102a` / `1092` / `0182` | dialogs | **OPEN** (unpark #1 / #5) |
 | `FUN_3f41_*` | FA advisor | **PARKED** (thin ally-aid + FA gift; dialog UI parked) |
 
 ### Thin `153e` war sting (Linux)
@@ -67,7 +67,7 @@ On first `ai_diplo_declare_war` (not already at war):
 - Drain **100** gold from `nation[a].gold` and `nation[b].gold` (floor 0)
 - Bump each side's `nation[].tax_rate` by **+1**, capped at **75** (same ceiling as king tax path)
 - **−5** on each of `nation[].relation_by_indian[0..7]` for both warring Euros (Indians dislike Euro×Euro war; scalar via `ai_diplo_indian_relation_delta`, clamp 0..255)
-- OR **Furs** into both nations' `nation[].boycott_bitmap` — cargo index **4**, bit `(1u << 4)` / `0x0010`. Stand-in for wartime trade embargo (Europe screen freezes that cargo). Distinct from king refuse **Sugar** bit1 (`ai_king`). Full per-rival `153e` trade body **PARKED**
+- OR **Furs** into both nations' `nation[].boycott_bitmap` — cargo index **4**, bit `(1u << 4)` / `0x0010`. Stand-in for wartime trade embargo (Europe screen freezes that cargo). Distinct from king refuse **Sugar** bit1 (`ai_king`). Fuller per-rival `153e` trade body **OPEN** (unpark #5)
 - WAR / PEACE / ALLY / MET flag writes unchanged
 - Relation summary still via mirror (`nation_relation` → −50 while at war)
 - Re-declare does **not** re-sting gold, re-bump tax, re-hit Indian relations, or re-OR the embargo bit (OR is idempotent; gated with other first-declare effects)
@@ -91,11 +91,11 @@ Embargo lift (thin):
 - Lift Furs embargo via the shared helper when a nation has no remaining Euro wars
 - **No gold cost** (war sting + upkeep already drained treasury; optional 10g each not used)
 - Idempotent if already peaceful (WAR clear + PEACE|MET + lift check)
-- Full `153e` peace dialog / score body (`102a`/`1092`) **PARKED**
+- Full `153e` peace dialog / score body (`102a`/`1092`) **OPEN** (unpark #5)
 
 `ai_diplo_euro_balance` at-war peer visit: after upkeep, if military scores are in the ally-eligible near-parity band (`self>10`, `other>10`, `|self−other|<15`) and RNG `1/30`, call `make_peace`. No low-gold / long-war gates in this thin pass.
 
-Not ported: full `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`), FA `3f41`, order clear `12d0`. Full `153e` / dialogs remain **PARKED**.
+**OPEN (unpark #5):** fuller `5bfb_153e` trade/military score body, dialogs (`102a`/`1092`). Still PARKED: FA `3f41`, order clear `12d0` deep, privateer units.
 
 ### Thin alliance treasury + treaty timer (Linux)
 
@@ -146,7 +146,7 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 
 - If the Euro nation is at war with **any** other Euro → no-op
 - Else for each of 8 `relation_by_indian[i]`: if `< 160`, **+1** (cap **160**)
-- Stand-in only; full Indian×Euro `15b3` bilateral matrix remains **PORT DEBT** / **PARKED**
+- Stand-in only; full Indian×Euro `15b3` bilateral matrix is **OPEN** (unpark #5)
 
 ### Thin Indian×Euro matrix stand-in (Linux)
 
@@ -162,18 +162,16 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
 3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift (timer==1); declare → thin `153e`; at-war → upkeep + privateer prize + near-parity `make_peace`; Indian harassment −2g
-4. `ai_diplo_make_peace` — clear WAR, set PEACE|MET, lift Furs if no Euro wars; no gold cost; full `153e` dialog PARKED
+4. `ai_diplo_make_peace` — clear WAR, set PEACE|MET, lift Furs if no Euro wars; no gold cost; full `153e` dialog **OPEN** (unpark #5)
 5. `ai_diplo_form_alliance` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Furs embargo if no Euro wars remain
 6. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty if was allied
-7. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI PARKED)
+7. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED)
 8. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
 9. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
 10. `ai_diplo_indian_read` / `indian_at_war` — thin matrix cell + harassment
 
 ## PORT DEBT
 
-- Full `153e` body (incl. per-rival trade embargo), dialogs, **FA `3f41` full body/UI**, name tables `15b3_0144…`
-- Full wartime privateer **unit spawn** / raid path (thin treasury prize only)
-- Indian×Euro bilateral `15b3` matrix (**PARKED**; thin read/at_war / drift / war-hit / harassment only)
-- Exact save-field rename for `−0x77c4`
-- Quiet Brave `diplomacy_flags` −10 goldens
+- **OPEN (unpark #5):** fuller `153e` body (incl. per-rival trade embargo / military score); Indian×Euro bilateral `15b3` matrix (beyond thin read/at_war / drift / war-hit / harassment)
+- Dialogs `102a`/`1092` for peace/trade — **OPEN** with unpark #1 / #5 player chrome
+- **Still PARKED:** FA `3f41` full body/UI; wartime privateer **unit spawn** / raid path (thin treasury prize only); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens

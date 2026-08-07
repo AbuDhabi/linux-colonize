@@ -1,7 +1,8 @@
 # Indian raid outcomes — thin section-map
 
 Maps settlement-raid / loot clusters for a **reasonable** Linux port in
-`ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) stays PARKED.
+`ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) stays PARKED;
+player raid/warn dialog chrome is **OPEN** (unpark #1).
 
 Related: [`indian_contact.md`](indian_contact.md). Peels:
 `.context/peel_shards/layer_c_4d56_4528.json`, `layer_b_combat_raid.json`.
@@ -32,8 +33,9 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 8. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
    prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
    set `ctx->status` warn line when buffer present; **despawn only if** no free tile.
-   Dialog warn chrome beyond the status line stays **PARKED**.
-9. **PARKED** — full `2820` decision matrix, player haggle, dialog subst, ship harbor deep
+   Dialog warn chrome beyond the status line is **OPEN** (unpark #1).
+9. **PARKED** — full `2820` decision matrix, player haggle deep, ship harbor deep
+   (player dialog chrome itself is **OPEN** — unpark #1)
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)
 
@@ -53,4 +55,5 @@ UI strings, not numeric tables. Linux uses the **kind enum** to pick loot:
 
 - Sectioned `4528` with threat / combat / loot / dialog clusters named
 - `5fef_0f14` line-faithful goods picker
-- Dialog subst still PARKED
+- Dialog subst **OPEN** (unpark #1; structural raid arms ready)
+- Full `4528` / `5fef` line-faithful bodies still PARKED

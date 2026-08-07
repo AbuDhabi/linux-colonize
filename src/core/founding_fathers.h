@@ -8,14 +8,14 @@
  *
  * Cost curve (gate, not spend): elect when
  *   liberty_bells_total >= 40 * (founding_father_count + 1)
- * Bells are never decremented — DOS threshold/spend recovery PARKED.
+ * Bells are never decremented — DOS threshold/spend recovery still PARKED.
  *
  * founding_fathers_tick: at most one elect per nation per call —
  * human first, then each AI Euro nation (player.control==1).
  *
  * Effects: status line (human) + tiny stand-ins for many famous FFs
  * (gold / crosses / tax / bells / REF / Fugger boycott forgive).
- * Full wiki/decomp effect table + Congress debate UI PARKED.
+ * Deeper wiki/decomp effect table **OPEN** (unpark #3); Congress debate UI PARKED.
  */
 
 /* Bells required to elect the next FF given how many already elected. */

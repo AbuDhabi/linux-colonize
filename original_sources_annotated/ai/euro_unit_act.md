@@ -1,9 +1,10 @@
 # Euro per-unit act (`FUN_521d_5b66`) — thin section-map
 
 Layer D early-settle map only. Full body ~1815 lines at
-`viceroy_unpacked.c` ~90446–92260. **PARKED** for line-by-line extract.
+`viceroy_unpacked.c` ~90446–92260. Line-by-line extract still deferred (R5);
+**mid-planner combat / case-7 / land scoring slices are OPEN** (unpark #4).
 
-Linux: `ai_unit_spend_goto` / `ai_euro_early_turn` peels — **PORT DEBT**.
+Linux: `ai_euro_unit_act` + expand/war thin — deepen vs peels (**OPEN**).
 
 ## Entry / wiring
 
@@ -29,17 +30,17 @@ if orders-7 > 5: clear orders (0934); return
 switch (orders) cases 7..0x0b
 ```
 
-### 1. `switch (314c)` arms (all PARKED bodies)
+### 1. `switch (314c)` arms (bodies; mid-planner **OPEN**)
 
 | Lines | Case | Label |
 |-------|------|-------|
-| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **PARKED** economy (Linux: thin Pioneer tools-delivery only; see §2d) |
+| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **OPEN** economy deepen (Linux: thin Pioneer tools-delivery only; see §2d) |
 | 91143–91158 | **8** | short |
 | 91159–91194 | **9** | short |
 | 91195–91362 | **10** | UI/chrome / dialog-ish (`281f_04ac` ≠ `06ae`) |
 | 91363–92150 | **0x0b** | Ship/land act: ocean probe, naval band, dir8 score |
 
-### 2. Case `0x0b` settle-adjacent notes (still PARKED)
+### 2. Case `0x0b` settle-adjacent notes (**OPEN** deepen)
 
 | Lines | Concern |
 |-------|---------|
@@ -56,14 +57,14 @@ Post-act primary upsert for exhausted ships lives in **`6d8e`**, not here.
 When nation is at war with a Euro peer, ships **not in Europe** that are idle /
 station-keeping get `AI_SAIL` toward the nearest enemy sea unit or coastal water
 beside a foreign colony at war. Adjacent enemy ships call `ai_euro_try_attack` /
-`units_resolve_naval_combat`. Deep `20e6` naval combat scoring stays **PARKED**.
+`units_resolve_naval_combat`. Deep `20e6` naval combat scoring stays **PARKED** (ocean/T3).
 
 ### 2c. Linux thin — land war hunt (act-level)
 
 When at war with a Euro peer, idle land military (Soldier / Dragoon / Scout —
 not fortified, no useful goto) get `AI_MOVE` toward the nearest enemy land unit
 or enemy colony tile. Adjacent → `ai_euro_try_attack`. Does not steal founders on
-FOUND goals. Deep `20e6` land combat scoring stays **PARKED**.
+FOUND goals. Deep `20e6` land combat scoring is **OPEN** (unpark #4).
 
 ### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
 
@@ -71,11 +72,11 @@ Idle / arriving Pioneer or Hardy on an **own** colony tile when
 `tools_short > 0` or colony `stock[TOOLS] < 20`: add **+10** tools
 (cap 100) once per act; trim inventory `tools_short` and may decrement
 `urgency`. Wired in `ai_euro_unit_act` just before LABOR/COLONY join.
-Full case-7 hire / wagon / treasury matrix stays **PARKED**.
+Full case-7 hire / wagon / treasury matrix is **OPEN** (unpark #4).
 
-### 3. Combat / diplomacy tails (PARKED)
+### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 
-Defer with Indian raid clusters / land combat port.
+Land combat act tails deepen with unpark #4; Indian raid deep bodies stay PARKED.
 
 ## Naval type band note
 
@@ -96,5 +97,6 @@ with the wider naval cargo band inside `20e6` / `0a60`.
 
 - Sectioned `.c` with provenance headers
 - Ship unload + founding-order arms readable end-to-end
-- Explicit PARKED remainder for combat / case 7 hire (thin tools-delivery only)
+- Explicit **OPEN** remainder for land combat / case 7 hire (thin tools-delivery today)
+- Ocean naval `20e6` + full line-by-line still R5 / PARKED
 - `SYMBOL_MAP` + catalog `links` updated

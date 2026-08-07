@@ -35,7 +35,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_4d56_1816 §6 / FUN_4cc6_00f2-shaped relation tick vs each Euro. */
 void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id);
 
-/* FUN_5bfb_022e meet / auto-trade (teach/convert UI PARKED). */
+/* FUN_5bfb_022e meet / auto-trade (teach/convert UI OPEN — unpark #1). */
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */

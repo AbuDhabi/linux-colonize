@@ -197,4 +197,5 @@ the catalog only mirrors light-label status.
 - **Euro early-settle Layer D:** `6d8e` thunk wiring corrected (`0554`→`5d04`,
   `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`); goal helpers in `euro_goals.c`;
   sectioned `0a60`; thin maps for `5b66` + Euro/ocean `20e6`/`06ae`. Full
-  `5d04` / `5b66` bodies / non-quiet `20e6` still PARKED. Raid bodies out of scope.
+  `5d04` / `5b66` / land `20e6` mid-planner **OPEN** (unpark #4); ocean/T3 + raid
+  deep bodies still PARKED. See `docs/ai_transcription.md` Unparked queue.

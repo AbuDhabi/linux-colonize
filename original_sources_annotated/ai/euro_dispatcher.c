@@ -47,12 +47,12 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon;
  * colonies>=2 also Artillery (Cannon fallback) when type exists — mil already
  * aboard or every-other hire turn. Thin tools-cargo stand-in: tools_short>40 +
- * Pioneer hire → ship hold +20 TOOLS or nearest-colony +15 (wagon matrix PARKED).
- * Full NEW WORLD wagon / 5d04 matrix — PARKED.
+ * Pioneer hire → ship hold +20 TOOLS or nearest-colony +15 (wagon matrix **OPEN**).
+ * Full NEW WORLD wagon / 5d04 matrix — **OPEN** (unpark #4; not T3).
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
-  /* parked deep matrix — thin war hire (+Artillery) + tools-cargo in ai_euro.c */
+  /* OPEN mid matrix — thin war hire (+Artillery) + tools-cargo in ai_euro.c */
 }
 
 /*
@@ -72,7 +72,7 @@ void move_scoring(int unit_index) {
  * Per-unit act body (~1815 lines). Early path often calls move_scoring (20e6).
  * Thin section-map: ai/euro_unit_act.md. NOT nested inside 20e6.
  *
- * PORT DEBT: Linux uses ai_unit_spend_goto / early peels instead.
+ * PORT DEBT / OPEN (unpark #4): deepen beyond peels — land/combat 20e6, case-7 hire.
  */
 void euro_unit_act(int unit_index) {
   ViceroyUnit *u = VICEROY_UNIT_AT(unit_index);
@@ -80,7 +80,7 @@ void euro_unit_act(int unit_index) {
   if (u->moves_spent == 0 || u->orders != 0x0b) {
     move_scoring(unit_index); /* 2a1f_04f4 → 20e6; non-zero return aborts act */
   }
-  /* PARKED: order apply / unload / fortify / combat arms — euro_unit_act.md */
+  /* OPEN mid-planner: order apply / unload / fortify / combat — euro_unit_act.md */
   (void)u;
 }
 
@@ -131,12 +131,13 @@ void euro_nation_colony_goals_pass(int nation_id) {
  * Phases (decomp ~87408–88243):
  *   A nation+fog wipe + urgency seed   B own-unit scan
  *   C clear work queue                 D own-colony (LABOR / work-queue)
- *   E foreign-colony mid-mil thin + scout explore stand-in; deep PARKED
+ *   E foreign-colony mid-mil thin + scout explore stand-in; deep **OPEN** (unpark #4)
  *   F tribe FOUND/MILITARY
- *   G continent stance thin (≥2 col); deep −0x6790 PARKED
+ *   G continent stance thin (≥2 col); deep −0x6790 **OPEN** (unpark #4)
  *   H bind founders→FOUND (light)
  *
- * Linux PORT DEBT: ai_euro_early_turn sail/unload/found peels.
+ * Linux: seed-100 still uses ai_euro_early_turn sail/unload/found peels unless
+ * AI_FULL_DISPATCH=1; mid-planner deepen is **OPEN** (unpark #4).
  */
 
 void euro_unit_colony_goals(int nation_id) {
@@ -180,10 +181,10 @@ void euro_unit_colony_goals(int nation_id) {
    * decomp ~87762–87989: MILITARY (4), CONTACT scout ring (0),
    * FOUND|MIL_EXPAND (1|7). Early gate: difficulty*turn < 0xb5 && nation<4.
    * Linux thin: upsert MILITARY on foreign colonies at war; bind one idle
-   * Soldier/Dragoon → nearest MILITARY. Full CONTACT scout rings PARKED.
+   * Soldier/Dragoon → nearest MILITARY. Full CONTACT scout rings **OPEN** (unpark #4).
    * Thin E scout explore (peace + own≥1): upsert secondary FOUND prio 1 at
    * tribe tiles; idle Scout → AI_MOVE toward tribe FOUND / farthest corner.
-   * Act-level preserves that goto (no COLONY yank). Deep mid-mil PARKED.
+   * Act-level preserves that goto (no COLONY yank). Deep mid-mil **OPEN**.
    */
 
   /* --- F. Tribe pass (founding-adjacent) -------------------------------- */
@@ -194,7 +195,7 @@ void euro_unit_colony_goals(int nation_id) {
   /* --- G–H. Continent stance + bind units→goals ------------------------- */
   /*
    * G ~88054–88152: rewrite nation×continent stance bytes (−0x6790) ∈ {0,3,4,6}
-   *   — deep table PARKED. Linux thin (ai_euro_colony_goals): if own≥2,
+   *   — deep table **OPEN** (unpark #4). Linux thin (ai_euro_colony_goals): if own≥2,
    *   at-war → urgency+2 + MILITARY prio 6 on weakest/nearest foe colony;
    *   peace → bump primary FOUND +1 or idle Scout/Soldier explore→tribe/FOUND.
    * H ~88153–88242: walk primary table; set order chars '1'/'t'/'i'
@@ -236,7 +237,8 @@ static int unit_is_ship(uint8_t type) {
  * Linux: ai_euro_nation_turn reseeds, ticks crosses, then either
  * ai_euro_early_turn (seed-100 fixture) or ai_euro_dispatcher_turn (structural
  * 6d8e: inventory, treaty timers, 5d04→0342→0a60, any_acted waves, sticky,
- * ship CONTACT). PORT DEBT: mid 5d04, 0a60 E–H deep, full 20e6/5b66 arms.
+ * ship CONTACT). Mid-planner **OPEN** (unpark #4): mid 5d04, CONTACT rings,
+ * land/combat 20e6, deeper 5b66 case-7. Full T3 / ocean fixture retirement R5.
  */
 void euro_nation_turn(int nation_id) {
   /* --- 0. Sticky clear + reseed + active nation ------------------------- */
@@ -328,11 +330,11 @@ void euro_nation_turn(int nation_id) {
  *     → if rng_seed==100 && !AI_FULL_DISPATCH: ai_euro_early_turn (fixture)
  *     → else: ai_euro_dispatcher_turn (ai_euro.c) — structural 6d8e
  *       treaty timers + ai_diplo_euro_balance (see ai/euro_diplo.md)
- * PORT DEBT: mid-game 5d04 matrix, 0a60 E–H, full 20e6 land/combat, 5b66 case 7.
+ * PORT DEBT → OPEN (unpark #4): mid-game 5d04 matrix, 0a60 E–H, full 20e6 land/combat, 5b66 case 7.
  * Linux thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
- * colony water; adjacent → try_attack. Full 20e6 naval scoring PARKED.
+ * colony water; adjacent → try_attack. Full 20e6 naval scoring still PARKED (ocean/T3).
  * Linux thin (5b66): at-war land hunt — idle Soldier/Dragoon/Scout AI_MOVE →
- * foe land unit / enemy colony; adjacent → try_attack. Full 20e6 land scoring PARKED.
+ * foe land unit / enemy colony; adjacent → try_attack. Land/combat 20e6 scoring **OPEN**.
  * Linux thin (0a60/5b66 E): peace + own≥1 idle Scout AI_MOVE → tribe FOUND /
- * farthest corner; full CONTACT scout rings PARKED.
+ * farthest corner; full CONTACT scout rings **OPEN**.
  */

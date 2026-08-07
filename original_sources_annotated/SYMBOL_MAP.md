@@ -80,8 +80,8 @@ files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c
 | `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | — |
 | `FUN_521d_20e6` | `move_scoring` (Euro/ocean thin; quiet done) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet only |
 | `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` |
-| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game PARKED) | `ai/euro_dispatcher.c` | early peels only |
-| `FUN_521d_5d04` | `euro_nation_planning` (parked) | `ai/euro_dispatcher.c` | — |
+| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game **OPEN**) | `ai/euro_dispatcher.c` | thin + unpark #4 |
+| `FUN_521d_5d04` | `euro_nation_planning` (**OPEN** mid matrix) | `ai/euro_dispatcher.c` | thin hire + unpark #4 |
 | `FUN_521d_5b66` | `euro_unit_act` (thin map) | `ai/euro_dispatcher.c` + `ai/euro_unit_act.md` | `ai_unit_spend_goto` / peels |
 | `thunk_FUN_2a1f_0488` | → `euro_unit_act` / `5b66` | `ai/euro_dispatcher.c` | peels |
 | `thunk_FUN_2a1f_0554` | → `euro_nation_planning` / `5d04` | `ai/euro_dispatcher.c` | — |
@@ -147,7 +147,7 @@ files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c
 - [x] `ai/brave_spent_callgraph.md`
 - [x] `euro_nation_turn` dispatcher shell (thunk wiring corrected)
 - [x] `ai/euro_goals.c` goal tables + founding helpers
-- [x] `FUN_521d_0a60` sectioned (mid-game PARKED)
+- [x] `FUN_521d_0a60` sectioned (mid-game **OPEN** — unpark #4)
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] This symbol map
 

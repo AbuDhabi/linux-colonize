@@ -15,12 +15,12 @@
  *
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
- * Tax-boycott/refuse: head.unknown46[2] stand-in (38fd_5be8 UI PARKED).
+ * Tax-boycott/refuse: head.unknown46[2] stand-in (38fd_5be8 UI OPEN — unpark #2).
  *   Cargo freeze: nation.boycott_bitmap (EuropeScreen has no boycott bits).
- * Merc hired this war: head.unknown46[3] stand-in (2244 dialog PARKED).
+ * Merc hired this war: head.unknown46[3] stand-in (2244 dialog OPEN — unpark #2).
  * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
  *   unknown46[4] unused — writable Col1 country_name exists.
- * Congress confirm stand-in: head.unknown46[5] set on declare (2564 UI PARKED).
+ * Congress confirm stand-in: head.unknown46[5] set on declare (2564 UI OPEN — unpark #2).
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -34,13 +34,13 @@
 
 #define AI_KING_INDEP_COUNTRY "United Colonies"
 
-/* Structural refuse thresholds (exact DOS 38fd_5be8 gates PARKED). */
+/* Structural refuse thresholds (exact DOS 38fd_5be8 gates still thin). */
 #define AI_KING_BOYCOTT_TAX_MIN 20
 #define AI_KING_BOYCOTT_SOL_MIN 30
 #define AI_KING_BOYCOTT_BELLS_MIN 80
 /* Sugar = cargo index 1 — one frozen Europe cargo while refuse active. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
-/* Thin 2244 Continental merc aid (player hire dialog PARKED). */
+/* Thin 2244 Continental merc aid (player hire dialog OPEN — unpark #2). */
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_SOL_MIN 50
 

@@ -2470,9 +2470,9 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_43f7_1d42` | 74846 | 64 | ai | Tax→REF funding: grow expeditionary pools + notify | inferred | ai/king_ref.md; src/core/ai_king.c |
 | `FUN_43f7_1eca` | 74910 | 66 | ai | Promote veterans to Continental Army/Cavalry when colony SoL>50% | inferred | ai/king_ref.md; src/core/ai_king.c |
 | `FUN_43f7_2022` | 74976 | 98 | ai | Independence-war nation turn: REF grow/land or intervene hire | inferred | ai/king_ref.md; src/core/ai_king.c |
-| `FUN_43f7_2244` | 75074 | 82 | ui | Human-turn mercenary hire offer | inferred | ai/king_ref.md (PARKED) |
+| `FUN_43f7_2244` | 75074 | 82 | ui | Human-turn mercenary hire offer | inferred | ai/king_ref.md (UI OPEN) |
 | `FUN_43f7_2424` | 75156 | 61 | ai | Nation SoL refresh + threshold chrome / war dispatch | inferred | ai/king_ref.md; src/core/ai_king.c |
-| `FUN_43f7_2564` | 75217 | 200 | ui | Declare-independence prompt (SoL≥50% gate + confirm) | inferred | ai/king_ref.md (UI PARKED) |
+| `FUN_43f7_2564` | 75217 | 200 | ui | Declare-independence prompt (SoL≥50% gate + confirm) | inferred | ai/king_ref.md (UI OPEN) |
 
 ### Segment `465b` (2 defs) — combat — Move spent / ADD / combat-adjacent
 
@@ -2644,14 +2644,14 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_521d_06ae` | 87237 | 82 | ai | Pick best adjacent founding / site tile | known | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_521d_0896` | 87319 | 26 | ai | Filter profession/role by distance and colony wealth | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | known | ai/euro_goals.c; ai/euro_dispatcher.c |
-| `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit/colony goal writer (sectioned; mid-game PARKED) | known | ai/euro_dispatcher.c; ai/euro_goals.c |
+| `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit/colony goal writer (sectioned; mid-game OPEN) | known | ai/euro_dispatcher.c; ai/euro_goals.c |
 | `FUN_521d_20c6` | 88247 | 19 | ai | Stamp unit orders=0x0B goto with dest (DL,BL)+param | inferred | ai/move_scoring.md; near FUN_521d_20e6 |
 | `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; ai/move_scoring.md; ai/euro_goals.c |
 | `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); thin map | inferred | ai/euro_dispatcher.c; ai/euro_unit_act.md |
 | `FUN_521d_5c38` | 92261 | 8 | ai | Always-true predicate stub (Europe hire gate) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5c3c` | 92269 | 47 | ai | Try buy/hire Europe unit if treasury allows | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5cf6` | 92316 | 9 | ai | Refresh colony context pointer (6d8e inventory) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
-| `FUN_521d_5d04` | 92325 | 748 | ai | Euro nation planning / hire / treasury (PARKED; 6d8e via 0554) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
+| `FUN_521d_5d04` | 92325 | 748 | ai | Euro nation planning / hire / treasury (OPEN mid; 6d8e via 0554) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_6d8e` | 93073 | 516 | ai | Euro AI dispatcher per nation (thunk wiring corrected) | known | ai/euro_dispatcher.c; src/core/ai.c |
 
 ### Segment `5952` (6 defs) — colony — Colony production / buildings / stock tick (DS:0x8542)
