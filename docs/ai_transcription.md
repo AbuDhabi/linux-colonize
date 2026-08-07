@@ -42,11 +42,11 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 | [`ai_goals.c`](../src/core/ai_goals.c) | Primary/secondary/work goal tables (`521d_0000…0906`) |
 | [`ai_euro.c`](../src/core/ai_euro.c) | Full dispatcher: plan/`5d04` hire, `0a60` goals, `5b66` act, Euro `20e6` step |
 | [`ai_diplo.c`](../src/core/ai_diplo.c) | Euro war/ally + Indian relation deltas (`15b3`/`5bfb` T0) |
-| [`ai_contact.c`](../src/core/ai_contact.c) | Indian prelude/meet/trade/raids (`4d56`/`5bfb`/`@RAID*` T0) |
+| [`ai_contact.c`](../src/core/ai_contact.c) | Indian prelude/meet/trade/raids (`4d56`/`5bfb`/`@RAID*` partial structural) |
 | [`ai_king.c`](../src/core/ai_king.c) | Tax events, SoL declare, REF waves, war act (`43f7` T0) |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, post-spawn native pulse |
 | `ai_euro_nation_turn` | Reseed, AI crosses; seed-100 fixture **or** `ai_euro_dispatcher_turn` (`AI_FULL_DISPATCH=1` / non-100) |
-| `ai_indian_nation_turn` | Growth + Brave pulse + contact/raids |
+| `ai_indian_nation_turn` | `1816` phases: prelude → growth → relation → pulse → meet/raids |
 | `ai_king_nation_turn` | Replaces king stub in EOT FINISH |
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
 | [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`) |
@@ -95,7 +95,7 @@ meet/king cinematic UI.
 | Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat PARKED |
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Treaty bits + war/ally state on Col1 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
-| Raids | `ai_raid_*` (`ai_contact.c`) | `@RAID*` / friction-gated attacks change units/colonies |
+| Raids | `ai_contact_indian_raids` | `@RAID*` kinds / friction-gated combat + colony loot |
 | King / tax / REF | `ai_king_nation_turn` (`ai_king.c`) | Tax→REF pools, declare, invasion wave, war turn |
 
 ### Shared surfaces (blocking work by phase)
@@ -142,14 +142,14 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_01e2` | ~19 | Thin wrapper → `14fe` | — | **partial** (T0) |
 | `FUN_4d56_14fe` | ~16 | Dispatches growth `152e` | growth + pulse | **partial** (T0/T2 quiet) |
 | `FUN_4d56_152e` | ~156 | Village growth accumulator → pop++ | `ai_grow_villages` | **partial** (T0) |
-| `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (T0 full path; T2 quiet) |
-| `FUN_4d56_1b3a` | ~59 | Calls `2154`; mid-turn Indian action | `ai_contact_indian_raids` | **partial** (T0) |
-| `FUN_4d56_2154` | ~321 | Larger Indian action body (caller of raid-adjacent logic) | `ai_contact_indian_raids` | **partial** (T0) |
-| `FUN_4d56_2820` | ~1396 | Heavy Indian decision / raid-scale logic | `ai_contact_indian_raids` / trade | **partial** (T0) |
-| `FUN_4d56_2aac`…`311e` | nested | Helpers inside `2820` body | meet/trade in `ai_contact` | **partial** (T0) |
-| `FUN_4d56_3582` | ~51 | Small helper after `2820` | — | **partial** (T0 folded) |
-| `FUN_4d56_417e` | ~188 | Mid-size helper | — | **partial** (T0 folded) |
-| `FUN_4d56_4528` | ~3073 | Largest Indian cluster (combat/raid-adjacent) | `ai_contact_indian_raids` | **partial** (T0) |
+| `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
+| `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
+| `FUN_4d56_2154` | ~321 | Larger Indian action body; from `5bfb` via `2a1f_0434` | `ai_contact_indian_raids` (thin) | **partial** (structural) |
+| `FUN_4d56_2820` | ~1396 | Heavy decision + nested trade `2aac…311e` | meet/trade auto-haggle | **partial** (T0; deep PARKED) |
+| `FUN_4d56_2aac`…`311e` | nested | Trade buy/haggle/demand helpers | `ai_contact_indian_meet_trade` | **partial** (auto only) |
+| `FUN_4d56_3582` | ~51 | Small helper after `2820` | — | **parked** |
+| `FUN_4d56_417e` | ~188 | Mid-size helper | — | **parked** |
+| `FUN_4d56_4528` | ~3073 | Settlement enter/raid | `ai_contact_indian_raids` + `@RAID*` kinds | **partial** (structural outcomes) |
 
 Nation entry `1816` does **not** call `2154`/`2820`/`4528` directly in the
 decomp slice; those are reached from other turn / contact paths. Full Indian
@@ -204,8 +204,9 @@ unannotated bodies.
 | Quiet NEW WORLD dir pick | `ai_native_pick_dir` | Quiet ASM default (stay LCG + init/mid peels). `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` force emp |
 | Apply step + MP | `ai_native_apply_step` / `ai_dos_move_spent` | Annotated `move_spent_add` / accessors |
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
-| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Growth + quiet pulse + residual overlays (quiet: **2** spent-only rows; emp set via env); alarm/raid parked; annotated entry in `indian_nation_turn.c` |
+| `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Structural phases (prelude → growth → relation → pulse → meet/raid); quiet T2 overlays; thin maps `indian_contact.md` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
+| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` loot kinds + `5bfb` meet; deep `2820`/`4528` PARKED |
 | `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Partial structural** 6d8e; T2 seed-100 fixture |
 | `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
 | `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
@@ -215,7 +216,6 @@ unannotated bodies.
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
-| `@RAID*` / meet / mission | `ai_contact_*` | **T0** friction raids + meet/trade/missions |
 | King / REF AI | `ai_king_nation_turn` | **T0** tax / declare / REF / war act |
 | Diplomacy | `ai_diplo_*` | **T0** war/ally + Indian relations |
 | Colony capture | `colonies_capture` | military / REF / Indian raid |
@@ -281,19 +281,25 @@ Still open for generic T1 (non-fixture):
 2. Broader multi-colony / second-wave settle (not first-colony-only).
 3. Colony production already runs for all active colonies.
 
-### R2 — Indian nation turn beyond quiet pulse
+### R2 — Indian nation turn beyond quiet pulse (**partial structural**)
 
-1. Port more of `FUN_4d56_1816` (alarm flags, relation ticks, unit loop structure).
-2. Identify and name `func_0x00042191` (unit act); port quiet + alarmed branches.
-3. Extend `20e6` / quiet scoring for mid-game (goods, missions, capital pull)
-   without claiming full scoring yet.
+**Linux:** `ai_indian_nation_turn` mirrors annotated `1816` phase order
+(prelude → growth → relation → quiet pulse → post-pulse meet/raids). Seed-100
+LCG burns stay inside the pulse; prelude uses isolated contact RNG.
 
-### R3 — Contact and raids (after meet + combat)
+**Still open:** alarmed branches inside `14fe`; mid-game quiet scoring
+(goods/missions/capital pull); retiring spent overlays.
 
-1. Wire `@RAID*` from `GAME.TXT` once combat and meet UI exist.
-2. RE-label then port slices of `FUN_4d56_2154` / `2820` / `4528`.
-3. Teach / trade / missions / convert as separate contact features (manual
-   natives chapter) — may live partly outside `ai.c`.
+### R3 — Contact and raids (**partial structural port**)
+
+**Linux:** [`ai_contact.c`](../src/core/ai_contact.c) — `5bfb` meet/auto-trade,
+`4528`/`5fef`-shaped raid arms with `@RAID*` loot kinds, `359c` Scout stub.
+Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
+[`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
+Smoke: `smoke_ai_contact`.
+
+**PORT DEBT:** full `2154`/`2820`/`4528` bodies; player meet/trade/raid dialog UI;
+teach/convert chrome.
 
 ### R4 — Euro dispatcher skeleton (**partial structural port**)
 
@@ -360,17 +366,19 @@ stay overlaid until hang X).
 | `tools/diff_turns.c` | Manual SAV↔SAV unit/tribe/crosses dump |
 | [`.context/seed100-brave.md`](../.context/seed100-brave.md) | Durable Brave fidelity notes / open LCG burns |
 | `COLONIZE/TRIBE.TXT`, `NAMES.TXT` `@TRIBES` / `@SCENARIO` | AMERICA villages / landfalls |
-| `GAME.TXT` `@RAID*` | Raid tables (unused until R3) |
+| `GAME.TXT` `@RAID*` | Raid message tags → `AiRaidKind` loot picker in `ai_contact` |
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
+| `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + prelude mission clear |
 
 Smoke:
 
 ```bash
-cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns
+cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact
 ./build/smoke_mapgen_seed100   # cwd = repo root
 ./build/smoke_ai_turns         # TURN1→7 gate
+./build/smoke_ai_contact       # Indian meet/raid structural
 cmake --build build --target smoke_ai && ./build/smoke_ai
 ```
 

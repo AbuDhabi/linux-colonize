@@ -157,7 +157,7 @@ Deep extracts below are still thin/parked; Linux T0 counterparts live under `src
 
 | Cluster | Linux T0 |
 |---------|----------|
-| `FUN_4d56_2154` / `2820` / `4528` raids | `ai_contact.c` |
+| `FUN_4d56_2154` / `2820` / `4528` raids | `ai_contact.c` (partial structural; thin maps) |
 | Euro/ocean `20e6` / full `5b66` / `5d04` | `ai_euro.c` |
 | Goal tables `0000…0906` | `ai_goals.c` |
 | Diplomacy `15b3` / `5bfb` | `ai_diplo.c` |

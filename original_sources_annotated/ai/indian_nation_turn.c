@@ -8,6 +8,8 @@
  * Source: original_sources_decompiled/viceroy_unpacked.c ~81371–81690
  * ASM:    CODE_124:4d56 (14fe, 1816); act CALL mislabeled as 41f2 trampoline
  * Linux:  src/core/ai.c — ai_indian_nation_turn / ai_native_nation_pulse
+ *         src/core/ai_contact.c — prelude / relation / meet / raids
+ * Contact thin maps: ai/indian_contact.md, ai/indian_raid_outcomes.md
  *
  * Reference only — not compiled into the Linux binary.
  */
@@ -202,3 +204,14 @@ void indian_nation_turn(int indian_index) {
 
   indian_select_nation_context(indian_index);
 }
+
+/*
+ * Linux cross-reference (not DOS):
+ *   ai_indian_nation_turn
+ *     → reseed → ai_contact_indian_prelude
+ *     → ai_grow_villages → ai_contact_indian_relation_tick
+ *     → ai_native_nation_pulse (+ seed-100 overlays; Inca=14/Aztec=4 burns)
+ *     → ai_contact_indian_meet_trade → ai_contact_indian_raids
+ * Quiet 14fe only in pulse; alarmed 2154/2820/4528 stay PARKED inside act.
+ * Meet/raid are post-pulse structural stand-ins (see indian_contact.md).
+ */

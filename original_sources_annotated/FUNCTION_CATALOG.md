@@ -2602,8 +2602,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_152e` | 81387 | 156 | ai | Village growth accumulator to pop++ | known | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn entry (alarm, unit loop, relation ticks) | known | ai/indian_nation_turn.c; src/core/ai.c |
-| `FUN_4d56_1b3a` | 81684 | 59 | ai | Calls 2154; mid-turn Indian action | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2154` | 81743 | 321 | ai | Larger Indian action body (raid-adjacent) | inferred | docs/ai_transcription.md |
+| `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, tribe probes, colony ownership — does **not** call 2154 | known | ai/indian_contact.md |
+| `FUN_4d56_2154` | 81743 | 321 | ai | Larger Indian action body (raid-adjacent); called from 5bfb via 2a1f_0434 | inferred | ai/indian_contact.md; docs/ai_transcription.md |
 | `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | docs/ai_transcription.md |
 | `FUN_4d56_2aac` | 82286 | 39 | ai | Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse | inferred | docs/ai_transcription.md |
 | `FUN_4d56_2af6` | 82325 | 29 | ai | Abort trade close: clear tribe last-goods flags, reshuffle demand → 3582 | inferred | docs/ai_transcription.md |
