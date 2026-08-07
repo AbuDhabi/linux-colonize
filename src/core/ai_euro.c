@@ -238,6 +238,47 @@ static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int c
   (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id);
 }
 
+/*
+ * Thin 5b66 case 7 economy stand-in: Pioneer/Hardy on own colony with tools
+ * shortage adds +10 stock[TOOLS] (cap 100) once per act; trims tools_short /
+ * urgency. Full wagon / hire / treasury matrix remains PARKED.
+ */
+static int ai_euro_try_pioneer_tools_delivery(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeColony* c
+) {
+  if (!ctx || !c || !c->active || c->nation_id != nation_id) {
+    return 0;
+  }
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  const int need =
+    (inv && inv->tools_short > 0) || c->stock[COLONIZE_CARGO_TOOLS] < 20;
+  if (!need) {
+    return 0;
+  }
+  int stock = c->stock[COLONIZE_CARGO_TOOLS];
+  if (stock >= 100) {
+    return 0;
+  }
+  stock += 10;
+  if (stock > 100) {
+    stock = 100;
+  }
+  c->stock[COLONIZE_CARGO_TOOLS] = stock;
+  if (inv) {
+    if (inv->tools_short > 10) {
+      inv->tools_short -= 10;
+    } else {
+      inv->tools_short = 0;
+    }
+    if (inv->tools_short == 0 && inv->urgency > 0) {
+      inv->urgency--;
+    }
+  }
+  return 1;
+}
+
 /* --- inventory (6d8e steps 1–3) ---------------------------------------- */
 
 static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
@@ -323,7 +364,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * NEW WORLD wagon / mid-game hire matrix — PARKED (DOS 5d04 after early dock).
    * Thin mid-hire: Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon;
    * with colonies>=2 also Artillery (Cannon fallback) when type exists — after Soldier
-   * already aboard, or every other hire turn. Full 5d04 matrix stays PARKED.
+   * already aboard, or every other hire turn. Thin tools-cargo stand-in below when
+   * tools_short > 40 (ship holds +20 or nearest-colony +15). Full 5d04 matrix PARKED.
    */
   const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
   if (colonies >= 6) {
@@ -433,6 +475,58 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   nat->gold -= (uint32_t)hire_cost;
   if (inv && inv->profession_demand[0] > 0) {
     inv->profession_demand[0]--;
+  }
+
+  /*
+   * Thin NEW WORLD wagon / tools-cargo hire stand-in (full 5d04 wagon matrix PARKED).
+   * When tools_short > 40 and hired Pioneer/Hardy: ensure passenger tools; stock +20
+   * TOOLS onto Europe ship goods holds if transport slots exist; else +15 tools to
+   * nearest own colony (wagon delivery without a wagon unit).
+   */
+  if (inv && inv->tools_short > 40) {
+    const ColonizeUnitType* hired = units_type(ctx->units, hire_ty);
+    const int hired_pioneer =
+      hired &&
+      (strstr(hired->name, "Pioneer") != NULL || strstr(hired->name, "Hardy") != NULL);
+    if (hired_pioneer) {
+      if (pax->tools < UNITS_EQUIP_TOOLS_STEP) {
+        pax->tools = UNITS_EQUIP_TOOLS_STEP;
+      }
+      int delivered = 0;
+      if (units_goods_hold_count(ctx->units, ship->id) > 0) {
+        delivered = units_load_goods(ctx->units, ship->id, COLONIZE_CARGO_TOOLS, 20);
+      }
+      if (delivered <= 0 && ctx->colonies) {
+        ColonizeColony* nearest = NULL;
+        int best_d = -1;
+        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+          ColonizeColony* c = &ctx->colonies->colonies[i];
+          if (!c->active || c->nation_id != nation_id) {
+            continue;
+          }
+          const int d = abs(c->x - ship->x) + abs(c->y - ship->y);
+          if (best_d < 0 || d < best_d) {
+            nearest = c;
+            best_d = d;
+          }
+        }
+        if (nearest) {
+          int stock = nearest->stock[COLONIZE_CARGO_TOOLS] + 15;
+          if (stock > 100) {
+            stock = 100;
+          }
+          nearest->stock[COLONIZE_CARGO_TOOLS] = stock;
+          delivered = 15;
+        }
+      }
+      if (delivered > 0) {
+        if (inv->tools_short > delivered) {
+          inv->tools_short -= delivered;
+        } else {
+          inv->tools_short = 0;
+        }
+      }
+    }
   }
 }
 
@@ -1301,7 +1395,8 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
 }
 
 /*
- * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire PARKED (in 5d04).
+ * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire/economy PARKED
+ * (thin Pioneer tools-delivery stand-in only; full wagon matrix in 5d04).
  */
 static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !u || !u->active || u->moves_left <= 0 || u->aboard_ship_id >= 0) {
@@ -1321,7 +1416,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /* Case 7 Europe hire — PARKED (handled in 5d04 planning). */
+  /* Case 7 Europe hire / full wagon economy — PARKED (5d04). Thin tools
+   * delivery runs on land Pioneer/Hardy at own colony (below). */
 
   if (is_ship) {
     if (ai_euro_in_europe(u->x, u->y)) {
@@ -1492,6 +1588,27 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     ai_euro_found_with_unit(ctx, u, nation_id);
     return;
   }
+
+  /*
+   * Thin tools delivery (case 7 economy stand-in): idle/arriving Pioneer or
+   * Hardy on own colony tile with tools_short / stock<20 → +10 TOOLS.
+   * Prefer LABOR/COLONY arrive; also covers idle-on-colony before join.
+   * Full wagon matrix PARKED.
+   */
+  {
+    const int is_pioneer =
+      uname && (strstr(uname, "Pioneer") || strstr(uname, "Hardy"));
+    if (is_pioneer && ctx->colonies) {
+      const int here = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (here >= 0) {
+        ColonizeColony* oc = colonies_get_mut(ctx->colonies, here);
+        if (oc && oc->nation_id == nation_id) {
+          (void)ai_euro_try_pioneer_tools_delivery(ctx, nation_id, oc);
+        }
+      }
+    }
+  }
+
   if ((goal_code == AI_GOAL_LABOR || goal_code == AI_GOAL_COLONY) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, goal_x, goal_y);
     if (cid >= 0 && u->x == goal_x && u->y == goal_y) {
@@ -1554,6 +1671,34 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   if (u->active && at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
     ai_euro_land_try_adjacent_attack(ctx, u);
+  }
+
+  /*
+   * Sticky CONTACT re-hunt: if moves remain and an adjacent foreign Euro is
+   * at war, try_attack once more (dispatcher sticky waves still apply).
+   * Deep 20e6 combat scoring PARKED.
+   */
+  if (u->active && u->moves_left > 0 && ctx->col1_ok && ctx->col1 &&
+      !units_is_sea(ctx->units, u->id)) {
+    static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    for (int d = 0; d < 8; ++d) {
+      const int nx = u->x + dx8[d];
+      const int ny = u->y + dy8[d];
+      const int foe = units_id_at(ctx->units, nx, ny);
+      if (foe < 0) {
+        continue;
+      }
+      const ColonizeUnit* f = units_get_const(ctx->units, foe);
+      if (!f || f->nation_id < 0 || f->nation_id > 3 || f->nation_id == nation_id) {
+        continue;
+      }
+      if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
+        continue;
+      }
+      ai_euro_try_attack(ctx, u, nx, ny);
+      break;
+    }
   }
 }
 

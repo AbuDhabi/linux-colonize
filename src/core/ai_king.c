@@ -20,6 +20,7 @@
  * Merc hired this war: head.unknown46[3] stand-in (2244 dialog PARKED).
  * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
  *   unknown46[4] unused — writable Col1 country_name exists.
+ * Congress confirm stand-in: head.unknown46[5] set on declare (2564 UI PARKED).
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -29,6 +30,7 @@
 #define AI_KING_BOYCOTT_BYTE 2
 #define AI_KING_MERC_HIRED_BYTE 3
 /* AI_KING_RENAMED_BYTE 4 reserved if country_name unavailable — not used. */
+#define AI_KING_CONGRESS_BYTE 5
 
 #define AI_KING_INDEP_COUNTRY "United Colonies"
 
@@ -299,6 +301,8 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     return;
   }
   ai_king_set_independence(ctx->col1, 1);
+  /* Thin 2564 congress-confirm stand-in (player confirm dialog PARKED). */
+  ctx->col1->head.unknown46[AI_KING_CONGRESS_BYTE] = 1;
   const int diff = ctx->col1->head.difficulty;
   ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 + diff * 4);
   ctx->col1->head.expeditionary_force[1] = (uint16_t)(4 + diff * 2);
@@ -360,9 +364,40 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
 }
 
 /*
+ * Spawn one crown land unit on colony tile (0982 wave / MoW cargo unload).
+ * Returns 1 on success, else 0.
+ */
+static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int x, int y,
+                                   const char* type_name, const char* alt_name) {
+  if (!ctx || !ctx->units || nation_id < 0) {
+    return 0;
+  }
+  int lty = units_find_type(ctx->units, type_name);
+  if (lty < 0 && alt_name) {
+    lty = units_find_type(ctx->units, alt_name);
+  }
+  if (lty < 0) {
+    return 0;
+  }
+  const int uid = units_spawn_allow_stack(ctx->units, lty, x, y);
+  if (uid < 0) {
+    return 0;
+  }
+  ColonizeUnit* u = units_get(ctx->units, uid);
+  if (u) {
+    u->nation_id = nation_id;
+    u->orders = UNITS_ORDER_AI_MOVE;
+    u->goto_x = x;
+    u->goto_y = y;
+  }
+  return 1;
+}
+
+/*
  * FUN_43f7_0982 (pools>0) / 06a6 (empty): REF wave arms.
  * Thin 1528: status arrival line when 0982 spawns (chrome UI PARKED).
- * Multi-unit cargo holds PARKED.
+ * Thin MoW cargo: when force[2] drained, unload up to 2 Regulars from force[0]
+ * (hold size 2 stand-in). Full multi-unit cargo-hold chrome PARKED.
  */
 static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map) {
@@ -386,7 +421,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     return;
   }
 
-  /* 0982: Man-O-War + one land pool type at weakest colony. */
+  /* 0982: Man-O-War + land at weakest colony (MoW cargo unload when ship drains). */
   int tx = 0;
   int ty = 0;
   const int cid = ai_king_weakest_port(ctx, ctx->human_nation, &tx, &ty);
@@ -394,6 +429,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     return;
   }
   int spawned = 0;
+  int mow_spawned = 0;
   int ship_ty = units_find_type(ctx->units, "Man-O-War");
   if (ship_ty < 0) {
     ship_ty = units_find_type(ctx->units, "Galleon");
@@ -423,40 +459,57 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       }
       force[2]--;
       spawned = 1;
+      mow_spawned = 1;
     }
   }
-  const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
-  for (int k = 0; k < 4; ++k) {
-    if (k == 2) {
-      continue;
+
+  if (mow_spawned) {
+    /*
+     * Thin MoW cargo unload near target colony (same crown):
+     * hold size 2 stand-in — spawn min(2, force[0]) Regulars; drain force[0].
+     * Embark slots / cargo_ids chrome remain PARKED.
+     */
+    const int unload = (force[0] >= 2) ? 2 : (int)force[0];
+    int landed = 0;
+    for (int n = 0; n < unload; ++n) {
+      if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, "Regular", "Soldier")) {
+        break;
+      }
+      force[0]--;
+      spawned = 1;
+      landed++;
     }
-    if (force[k] == 0) {
-      continue;
+    /* Guarantee ≥1 land same beat if Regular pool was empty. */
+    if (landed == 0) {
+      static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
+      for (int k = 0; k < 4; ++k) {
+        if (k == 2 || force[k] == 0) {
+          continue;
+        }
+        const char* alt = (k == 0) ? "Soldier" : ((k == 1) ? "Scout" : NULL);
+        if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, names[k], alt)) {
+          continue;
+        }
+        force[k]--;
+        spawned = 1;
+        break;
+      }
     }
-    int lty = units_find_type(ctx->units, names[k]);
-    if (lty < 0 && k == 0) {
-      lty = units_find_type(ctx->units, "Soldier");
+  } else {
+    /* No MoW this beat: one land pool type (pre-cargo path). */
+    static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
+    for (int k = 0; k < 4; ++k) {
+      if (k == 2 || force[k] == 0) {
+        continue;
+      }
+      const char* alt = (k == 0) ? "Soldier" : ((k == 1) ? "Scout" : NULL);
+      if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, names[k], alt)) {
+        continue;
+      }
+      force[k]--;
+      spawned = 1;
+      break; /* one land type per wave beat */
     }
-    if (lty < 0 && k == 1) {
-      lty = units_find_type(ctx->units, "Scout");
-    }
-    if (lty < 0) {
-      continue;
-    }
-    const int uid = units_spawn_allow_stack(ctx->units, lty, tx, ty);
-    if (uid < 0) {
-      break;
-    }
-    ColonizeUnit* u = units_get(ctx->units, uid);
-    if (u) {
-      u->nation_id = crown;
-      u->orders = UNITS_ORDER_AI_MOVE;
-      u->goto_x = tx;
-      u->goto_y = ty;
-    }
-    force[k]--;
-    spawned = 1;
-    break; /* one land type per wave beat */
   }
   ai_king_set_ref_present(ctx->col1, 1);
   /* Tax residual grow while at war (1d42 crumb). */
@@ -654,22 +707,41 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
     }
   }
 
-  /* 1eca: promote soldiers when SoL>50. */
+  /*
+   * Thin 1eca Continental promote when nation SoL>50:
+   *   Soldier* → Continental Army / Cont. Army / Veteran Soldier
+   *   Dragoon|Cavalry* → Continental Cavalry / Cont. Cav. / Veteran Dragoon
+   * Skip names already Veteran/Continental. Deep colony-SoL/count table PARKED.
+   */
   if (ai_king_sol_percent(ctx, ctx->human_nation) > 50) {
-    int vet = units_find_type(ctx->units, "Continental Army");
-    if (vet < 0) {
-      vet = units_find_type(ctx->units, "Veteran Soldier");
+    int army = units_find_type(ctx->units, "Continental Army");
+    if (army < 0) {
+      army = units_find_type(ctx->units, "Cont. Army");
     }
-    if (vet >= 0) {
+    if (army < 0) {
+      army = units_find_type(ctx->units, "Veteran Soldier");
+    }
+    int cav = units_find_type(ctx->units, "Continental Cavalry");
+    if (cav < 0) {
+      cav = units_find_type(ctx->units, "Cont. Cav.");
+    }
+    if (cav < 0) {
+      cav = units_find_type(ctx->units, "Veteran Dragoon");
+    }
+    if (army >= 0 || cav >= 0) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &ctx->units->units[i];
         if (!u->active || u->nation_id != ctx->human_nation) {
           continue;
         }
         const char* name = units_display_name(ctx->units, u);
-        if (name && strstr(name, "Soldier") && !strstr(name, "Veteran") &&
-            !strstr(name, "Continental")) {
-          u->type_index = vet;
+        if (!name || strstr(name, "Veteran") || strstr(name, "Continental")) {
+          continue;
+        }
+        if (army >= 0 && strstr(name, "Soldier")) {
+          u->type_index = army;
+        } else if (cav >= 0 && (strstr(name, "Dragoon") || strstr(name, "Cavalry"))) {
+          u->type_index = cav;
         }
       }
     }
@@ -682,12 +754,19 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   }
   /*
    * FUN_43f7_2424-shaped:
-   *   SoL → peacetime (1d42 tax, 2564/1a26 declare) | wartime (2022 wave+act)
+   *   SoL → peacetime (1d42 tax, SoL chrome, 2564/1a26 declare) | wartime (2022 wave+act)
    */
-  (void)ai_king_sol_percent(ctx, ctx->human_nation);
+  const int sol = ai_king_sol_percent(ctx, ctx->human_nation);
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     ai_king_tax_event(ctx);
+    /*
+     * Thin pre-declare SoL chrome (2564 full confirm UI PARKED):
+     * SoL 40..49 → restless status line before the auto-declare gate.
+     */
+    if (sol >= 40 && sol < 50 && ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
+    }
     ai_king_try_declare(ctx);
   }
 

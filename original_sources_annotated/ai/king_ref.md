@@ -26,7 +26,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Branch | Bodies |
 |--------|--------|
 | Crown | tax residual `1d42`?; pools>0 → `0982` invasion; else `06a6` irregulars |
-| Rebel | once `1eca` promote; else intervene hire → `10f0` (dual landing structural); thin `2244` merc |
+| Rebel | once thin `1eca` promote (Soldier + Dragoon/Cavalry); else intervene hire → `10f0` (dual landing structural); thin `2244` merc |
 
 ## Key symbols → Linux
 
@@ -37,12 +37,12 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto; UI PARKED) |
 | `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
-| `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0) |
+| `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | thin status line after successful `0982` spawn (chrome UI PARKED) |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
 | `2244` | Mercenary hire offer | thin auto-accept once/war via `ai_king_merc_offer` (dialog PARKED) |
-| `2022` / `1eca` | War act + promote | `ai_king_war_act` |
+| `2022` / `1eca` | War act + Continental promote | `ai_king_war_act` (thin; deep table PARKED) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
 
 ## DS / Col1 anchors
@@ -75,12 +75,29 @@ When `0982` successfully spawns a ship or land unit, write a short arrival
 line to `ctx->status` (if present) and keep `unknown46[1]` REF-present.
 Full arrival chrome / dialog remains PARKED.
 
+### Thin MoW cargo unload (`0982` hold size 2 stand-in)
+
+When the wave drains `expeditionary_force[2]` and spawns a Man-O-War, also
+unload Regulars near the target colony (same crown nation) as if from the
+ship hold: spawn **min(2, force[0])** land Regulars and drain `force[0]`.
+If `force[0]` is empty, still guarantee one land from another pool same beat.
+Full embark / `cargo_ids` hold chrome remains PARKED.
+
 ### Thin `2244` Continental merc auto-accept
 
 During wartime `war_act` (including the declare turn): if human gold ≥ 300,
 SoL > 50, and `unknown46[3]` unset — spend 300 gold (sync Europe if present),
 spawn one Soldier/Dragoon for the **human** near weakest port, set
 `unknown46[3]`. Player hire dialog remains PARKED.
+
+### Thin `1eca` Continental promote
+
+During wartime `war_act` when nation SoL > 50: promote human land units
+whose display name contains **Soldier** (not already Veteran/Continental) to
+`Continental Army` / `Cont. Army` / `Veteran Soldier` (first type that exists);
+likewise **Dragoon** or **Cavalry** → `Continental Cavalry` / `Cont. Cav.` /
+`Veteran Dragoon`. Deep DOS colony-SoL fraction / veteran-profession / type-id
+table (`43f7_1eca`) remains PARKED.
 
 ### Thin `160a` independence rename stand-in
 
@@ -90,7 +107,14 @@ set `player[human].country_name` to `"United Colonies"` and sync
 `europe.nation_name` when Europe is attached. Letter-by-letter rename
 cinematic remains PARKED. Same-turn `0982`/`1528` wave may overwrite
 `ctx->status`. `head.unknown46[4]` is **not** used as a renamed flag —
-writable Col1 `country_name` exists.
+writable Col1 `country_name` exists. `head.unknown46[5]` is set as a thin
+**congress confirm** stand-in (player `2564` dialog PARKED).
+
+### Thin pre-declare SoL chrome
+
+Peacetime before the declare gate: if SoL is **40..49** and `ctx->status`
+is present, write `"Sons of Liberty grow restless (%d%%)."`. Auto-declare
+still requires SoL≥50 + bells≥100.
 
 ### Structural `10f0` foreign intervention (dual landing)
 
@@ -105,14 +129,15 @@ arrival chrome remain PARKED.
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
-2. If !WoI: tax (`1d42`) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename)
-3. If WoI: wave (`0982`/`06a6` + thin `1528` status) → war act (`10f0` ≤2 landings if REF empty + backup, thin `2244` merc, then `2022`/`1eca`)
+2. If !WoI: tax (`1d42`) → SoL 40–49 chrome → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)
+3. If WoI: wave (`0982` MoW + thin cargo unload / `06a6` + thin `1528` status) → war act (`10f0` ≤2 landings if REF empty + backup, thin `2244` merc, thin `1eca` Soldier/Dragoon promote)
 
 ## PORT DEBT
 
 - `38fd_5be8` tax audience / boycott **UI** (structural refuse + `unknown46[2]` / `boycott_bitmap` done)
-- Player `2564` confirm dialog; `160a` rename **cinematic** (thin `country_name` stand-in done)
+- Player `2564` confirm dialog; `160a` rename **cinematic** (thin `country_name` + `unknown46[5]` congress stand-in done)
 - `1528` arrival **chrome/dialog** (thin status announce done)
 - `2244` full merc hire **UI** (thin auto-accept + `unknown46[3]` done)
 - Deep `10f0` economy / merc hire / arrival chrome — **PARKED** (dual landing + Regular/Dragoon mix + drain done)
-- Multi-unit MoW cargo holds; seize-landing polish
+- Deep `1eca` colony-SoL / veteran-profession / type-id promote table — **PARKED** (thin Soldier + Dragoon/Cavalry name promote done)
+- Full MoW cargo-hold chrome / embark slots — **PARKED** (thin hold-size-2 Regular unload on `0982` MoW spawn done); seize-landing polish

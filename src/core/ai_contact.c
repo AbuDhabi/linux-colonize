@@ -694,11 +694,58 @@ static AiRaidKind ai_contact_pick_raid_kind(
   return AI_RAID_STORES;
 }
 
+/*
+ * Secondary multi-loot after a successful primary @RAID* (kind != NOTHING).
+ *  - Military side-steal: −5 muskets stock, else −1 horse stock, else same from
+ *    target-nation unit gear on the colony tile.
+ *  - High friction (≥80): also drain tools (−1) as a second cargo type.
+ * Full 5fef_0f14 / 4528 dialog PARKED.
+ */
+static void ai_contact_raid_secondary_loot(
+  ColonizeTurnContext* ctx,
+  ColonizeColony* c,
+  int target_euro,
+  int max_alarm
+) {
+  if (!c) {
+    return;
+  }
+
+  if (c->stock[COLONIZE_CARGO_MUSKETS] >= 5) {
+    c->stock[COLONIZE_CARGO_MUSKETS] -= 5;
+  } else if (c->stock[COLONIZE_CARGO_HORSES] >= 1) {
+    c->stock[COLONIZE_CARGO_HORSES] -= 1;
+  } else if (ctx && ctx->units && target_euro >= 0 && target_euro < 4) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != target_euro) {
+        continue;
+      }
+      if (u->x != c->x || u->y != c->y) {
+        continue;
+      }
+      if (u->muskets >= 5) {
+        u->muskets -= 5;
+        break;
+      }
+      if (u->horses >= 1) {
+        u->horses -= 1;
+        break;
+      }
+    }
+  }
+
+  if (max_alarm >= 80 && c->stock[COLONIZE_CARGO_TOOLS] > 0) {
+    c->stock[COLONIZE_CARGO_TOOLS]--;
+  }
+}
+
 static void ai_contact_apply_raid_loot(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
   int target_euro,
-  AiRaidKind kind
+  AiRaidKind kind,
+  int max_alarm
 ) {
   if (!c) {
     return;
@@ -781,6 +828,10 @@ static void ai_contact_apply_raid_loot(
     break;
   default:
     break;
+  }
+
+  if (kind != AI_RAID_NOTHING) {
+    ai_contact_raid_secondary_loot(ctx, c, target_euro, max_alarm);
   }
 }
 
@@ -965,7 +1016,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         }
         if (brave->x == c->x && brave->y == c->y) {
           const AiRaidKind kind = ai_contact_pick_raid_kind(ctx, c, max_alarm, rng);
-          ai_contact_apply_raid_loot(ctx, c, target_euro, kind);
+          ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
           if (c->population <= 1 && max_alarm >= 70) {
             colonies_capture(ctx->colonies, best_cid, nation_id);
           }

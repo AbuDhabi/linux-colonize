@@ -1,4 +1,4 @@
-/* Smoke: King/REF SoL, tax→REF, boycott, declare+160a rename, 1528, 10f0, 2244. */
+/* Smoke: King/REF SoL, tax→REF, boycott, SoL chrome, declare+160a/1528/congress, MoW cargo, 10f0, 2244, 1eca. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -30,6 +30,35 @@ static int count_nation(const ColonizeUnitPool* units, int nation_id) {
   int n = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     if (units->units[i].active && units->units[i].nation_id == nation_id) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/* Crown sea vs land (MoW cargo unload stand-in). */
+static int count_nation_sea(const ColonizeUnitPool* units, int nation_id) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (units_is_sea(units, u->id)) {
+      n++;
+    }
+  }
+  return n;
+}
+
+static int count_nation_land(const ColonizeUnitPool* units, int nation_id) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (!units_is_sea(units, u->id)) {
       n++;
     }
   }
@@ -77,7 +106,7 @@ int main(void) {
 
   ColonizeUnitPool units;
   units_reset(&units);
-  units.type_count = 4;
+  units.type_count = 7;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 1;
   units.types[0].attack = 3;
@@ -89,6 +118,22 @@ int main(void) {
   units.types[2].movement = 2;
   snprintf(units.types[3].name, sizeof(units.types[3].name), "Artillery");
   units.types[3].movement = 1;
+  snprintf(units.types[4].name, sizeof(units.types[4].name), "Soldier");
+  units.types[4].movement = 1;
+  units.types[4].attack = 2;
+  units.types[4].defense = 2;
+  snprintf(units.types[5].name, sizeof(units.types[5].name), "Continental Army");
+  units.types[5].movement = 1;
+  units.types[5].attack = 4;
+  units.types[5].defense = 4;
+  snprintf(units.types[6].name, sizeof(units.types[6].name), "Continental Cavalry");
+  units.types[6].movement = 4;
+  units.types[6].attack = 5;
+  units.types[6].defense = 5;
+  const int ty_soldier = 4;
+  const int ty_dragoon = 2;
+  const int ty_cont_army = 5;
+  const int ty_cont_cav = 6;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
@@ -197,9 +242,40 @@ int main(void) {
     return fail("boycott flag should remain set");
   }
 
+  /*
+   * Thin pre-declare SoL chrome: SoL 40..49 → restless status; no congress yet.
+   * Autumn skips tax so status is not overwritten by a tax hike line.
+   */
+  year = 1590;
+  autumn = 1;
+  col1.colony[0].rebel_dividend = 45;
+  col1.colony[0].rebel_divisor = 100;
+  col1.nation[0].liberty_bells_total = 50; /* below declare gate */
+  status[0] = '\0';
+  {
+    const int sol45 = ai_king_sol_percent(&ctx, 0);
+    if (sol45 != 45) {
+      fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 45)\n", sol45);
+      return fail("SoL chrome setup");
+    }
+  }
+  ai_king_nation_turn(&ctx);
+  if (col1.head.unknown46[0] != 0) {
+    return fail("SoL 45 should not declare WoI");
+  }
+  if (col1.head.unknown46[5] != 0) {
+    return fail("SoL 45 should not set congress confirm unknown46[5]");
+  }
+  if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
+    fprintf(stderr, "smoke_ai_king: SoL chrome status: '%s'\n", status);
+    return fail("SoL 40-49 should set restless status line");
+  }
+
   /* Declare path: autumn skips tax; SoL≥50 + bells≥100. Wave runs same turn. */
   year = 1600;
   autumn = 1;
+  col1.colony[0].rebel_dividend = 60;
+  col1.colony[0].rebel_divisor = 100;
   col1.nation[0].liberty_bells_total = 200;
   col1.nation[0].gold = 0; /* merc gated until dedicated 2244 check */
   europe.gold = 0;
@@ -217,6 +293,9 @@ int main(void) {
   ai_king_nation_turn(&ctx);
   if (col1.head.unknown46[0] == 0) {
     return fail("declare should set WoI flag unknown46[0]");
+  }
+  if (col1.head.unknown46[5] == 0) {
+    return fail("declare should set congress confirm unknown46[5]");
   }
   /* Thin 160a: rename stand-in (cinematic PARKED). Status may be overwritten by 1528. */
   if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
@@ -240,6 +319,19 @@ int main(void) {
   }
   if (count_nation(&units, 0) != 0) {
     return fail("REF/irregular must not spawn as human nation");
+  }
+  /*
+   * Thin MoW cargo unload (hold size 2 stand-in; full cargo chrome PARKED):
+   * declare seeds force[2]>0 + force[0]≥2 → same-beat MoW + ≥2 land Regulars.
+   */
+  {
+    const int crown_sea = count_nation_sea(&units, 1);
+    const int crown_land = count_nation_land(&units, 1);
+    if (crown_sea < 1 || crown_land < 2) {
+      fprintf(stderr, "smoke_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥2 land)\n",
+              crown_sea, crown_land);
+      return fail("0982 MoW spawn should unload ≥2 land cargo (or ship+land)");
+    }
   }
   /* Thin 1528: successful 0982 spawn writes arrival status (chrome PARKED). */
   if (!strstr(status, "Expeditionary Force") && !strstr(status, "arrived")) {
@@ -346,6 +438,42 @@ int main(void) {
     return fail("merc flag should block second human merc spawn");
   }
 
+  /*
+   * Thin 1eca Continental promote (deep colony-SoL table PARKED):
+   * WoI + SoL>50 → human Soldier → Continental Army; Dragoon → Continental Cavalry
+   * when those types exist (via war_act path).
+   */
+  colonies.colonies[0].nation_id = 0;
+  const int sid = units_spawn_allow_stack(&units, ty_soldier, 6, 5);
+  const int did = units_spawn_allow_stack(&units, ty_dragoon, 7, 5);
+  if (sid < 0 || did < 0) {
+    return fail("1eca setup should spawn human Soldier + Dragoon");
+  }
+  {
+    ColonizeUnit* su = units_get(&units, sid);
+    ColonizeUnit* du = units_get(&units, did);
+    if (!su || !du) {
+      return fail("1eca setup unit lookup");
+    }
+    su->nation_id = 0;
+    du->nation_id = 0;
+  }
+  ai_king_nation_turn(&ctx);
+  {
+    const ColonizeUnit* su = units_get_const(&units, sid);
+    const ColonizeUnit* du = units_get_const(&units, did);
+    if (!su || !su->active || su->type_index != ty_cont_army) {
+      fprintf(stderr, "smoke_ai_king: Soldier type after 1eca: %d (want %d)\n",
+              su ? su->type_index : -1, ty_cont_army);
+      return fail("1eca should promote Soldier → Continental Army");
+    }
+    if (!du || !du->active || du->type_index != ty_cont_cav) {
+      fprintf(stderr, "smoke_ai_king: Dragoon type after 1eca: %d (want %d)\n",
+              du ? du->type_index : -1, ty_cont_cav);
+      return fail("1eca should promote Dragoon → Continental Cavalry");
+    }
+  }
+
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
@@ -356,7 +484,7 @@ int main(void) {
   free(map.layer3);
   col1_save_free(&col1);
   fprintf(stderr,
-          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d)\n",
+          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d 1eca=1)\n",
           sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;
 }

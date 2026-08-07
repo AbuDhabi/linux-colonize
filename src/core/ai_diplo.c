@@ -20,21 +20,28 @@
 
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare.
  * Full 153e trade/military score body, dialogs PARKED.
- * FA 3f41 full body PARKED - thin ally-aid + break trust only.
+ * FA 3f41 full body/UI PARKED - thin ally-aid + FA gift + break trust.
  * War trade embargo: OR Furs into nation.boycott_bitmap (cargo idx 4);
  * distinct from king refuse Sugar bit1. Full per-rival 153e trade PARKED. */
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
+#define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
 #define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
 #define AI_DIPLO_ALLY_GOLD_COST 25u
 #define AI_DIPLO_ALLY_TREATY_MIN 8u
 #define AI_DIPLO_ALLY_AID_GOLD 10u
 #define AI_DIPLO_ALLY_AID_MIN_TREASURY 50u
+#define AI_DIPLO_FA_GIFT_GOLD 15u
+#define AI_DIPLO_FA_GIFT_MIN_TREASURY 100u
+#define AI_DIPLO_FA_GIFT_TIMER_BUMP 2u
 #define AI_DIPLO_BREAK_GOLD_PENALTY 20u
 #define AI_DIPLO_INDIAN_DRIFT_CAP 160u
 #define AI_DIPLO_WAR_INDIAN_HIT 5
+#define AI_DIPLO_INDIAN_AT_WAR_REL 50
+#define AI_DIPLO_INDIAN_HOSTILE_EXTRA 10
+#define AI_DIPLO_INDIAN_HARASS_GOLD 2u
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 
@@ -144,6 +151,51 @@ static void ai_diplo_war_upkeep_drain(ColonizeCol1Nation* nat) {
   }
 }
 
+static int ai_diplo_nation_has_sea_unit(const ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->units || nation_id < 0) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, u->id)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Thin wartime privateer prize stand-in (full privateer unit spawn PARKED):
+ * once per at-war peer visit, transfer 8 gold from the richer treasury to the
+ * poorer. No-op when equal or donor gold < 8.
+ */
+static void ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, int peer) {
+  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
+    return;
+  }
+  ColonizeCol1Nation* self = &col1->nation[nation_id];
+  ColonizeCol1Nation* other = &col1->nation[peer];
+  ColonizeCol1Nation* donor;
+  ColonizeCol1Nation* prize;
+  if (self->gold > other->gold) {
+    donor = self;
+    prize = other;
+  } else if (other->gold > self->gold) {
+    donor = other;
+    prize = self;
+  } else {
+    return;
+  }
+  if (donor->gold < AI_DIPLO_PRIVATEER_PRIZE_GOLD) {
+    return;
+  }
+  donor->gold -= AI_DIPLO_PRIVATEER_PRIZE_GOLD;
+  prize->gold += AI_DIPLO_PRIVATEER_PRIZE_GOLD;
+}
+
 /* Thin alliance treasury cost: each side pays 25 if able (floor 0). */
 static void ai_diplo_ally_treasury_cost(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
@@ -220,6 +272,40 @@ static void ai_diplo_ally_foreign_aid(ColonizeCol1Save* col1, int nation_id, int
   other->gold += AI_DIPLO_ALLY_AID_GOLD;
 }
 
+/*
+ * Thin FA goodwill gift (full 3f41 body/UI PARKED): separate from ally-aid.
+ * When donor gold >= 100 and peer gold < donor*2, transfer 15g and bump both
+ * treaty timers +2 (saturate 255). Caller gates on ALLY + timer==1.
+ */
+void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to) {
+  if (!col1 || from < 0 || from >= 4 || to < 0 || to >= 4 || from == to) {
+    return;
+  }
+  ColonizeCol1Nation* donor = &col1->nation[from];
+  ColonizeCol1Nation* peer = &col1->nation[to];
+  if (donor->gold < AI_DIPLO_FA_GIFT_MIN_TREASURY) {
+    return;
+  }
+  if (peer->gold >= donor->gold * 2u) {
+    return;
+  }
+  if (donor->gold < AI_DIPLO_FA_GIFT_GOLD) {
+    return;
+  }
+  donor->gold -= AI_DIPLO_FA_GIFT_GOLD;
+  peer->gold += AI_DIPLO_FA_GIFT_GOLD;
+  uint8_t* ta = ai_diplo_timer_byte(col1, from, to);
+  uint8_t* tb = ai_diplo_timer_byte(col1, to, from);
+  if (ta) {
+    unsigned next = (unsigned)*ta + AI_DIPLO_FA_GIFT_TIMER_BUMP;
+    *ta = (uint8_t)(next > 255u ? 255u : next);
+  }
+  if (tb) {
+    unsigned next = (unsigned)*tb + AI_DIPLO_FA_GIFT_TIMER_BUMP;
+    *tb = (uint8_t)(next > 255u ? 255u : next);
+  }
+}
+
 /* True if Euro nation is at war with any other Euro (thin hostility gate). */
 static int ai_diplo_euro_at_war_any(const ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id >= 4) {
@@ -268,8 +354,23 @@ static void ai_diplo_war_indian_relation_hit(ColonizeCol1Save* col1, int nation_
     }
     for (int idx = 0; idx < 8; ++idx) {
       ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_WAR_INDIAN_HIT);
+      /* Extra hit once when already hostile after the −5 (thin matrix deepen). */
+      if (ai_diplo_indian_read(col1, n, idx) < 40) {
+        ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_INDIAN_HOSTILE_EXTRA);
+      }
     }
   }
+}
+
+uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
+  if (!col1 || euro_nation < 0 || euro_nation >= 4 || indian_idx < 0 || indian_idx >= 8) {
+    return 0;
+  }
+  return col1->nation[euro_nation].relation_by_indian[indian_idx];
+}
+
+int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
+  return ai_diplo_indian_read(col1, euro_nation, indian_idx) < AI_DIPLO_INDIAN_AT_WAR_REL;
 }
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer) {
@@ -524,12 +625,30 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   }
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
-   *  1 skip human; at-war → light upkeep; near-parity → thin make_peace
+   *  1 skip human; at-war → upkeep + privateer prize; near-parity → make_peace
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
-   *  4 13b0 form/break + thin ally aid (FA 3f41 PARKED)
+   *  4 13b0 form/break + thin ally aid / FA gift (FA 3f41 PARKED)
    *  5 declare_war → thin 153e gold+tax (full body / dialogs / 12d0 PARKED)
+   *  + thin Indian harassment if any relation_by_indian < 50
    */
+  {
+    int hostile = 0;
+    for (int idx = 0; idx < 8; ++idx) {
+      if (ai_diplo_indian_at_war(ctx->col1, nation_id, idx)) {
+        hostile = 1;
+        break;
+      }
+    }
+    if (hostile) {
+      ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+      if (nat->gold > AI_DIPLO_INDIAN_HARASS_GOLD) {
+        nat->gold -= AI_DIPLO_INDIAN_HARASS_GOLD;
+      } else {
+        nat->gold = 0;
+      }
+    }
+  }
   const int self = ai_diplo_military_score(ctx, nation_id);
   for (int peer = 0; peer < 4; ++peer) {
     if (peer == nation_id || ctx->col1->player[peer].control == 2) {
@@ -542,6 +661,14 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
       ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
       /*
+       * Thin privateer prize: richer→poorer 8g once per war peer.
+       * No units in ctx → treasury-only; with units → only if this nation
+       * has a sea unit. Full privateer unit spawn PARKED.
+       */
+      if (!ctx->units || ai_diplo_nation_has_sea_unit(ctx, nation_id)) {
+        ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer);
+      }
+      /*
        * Thin peace heuristic: near-parity (ally-eligible band) while at war →
        * make_peace. Full 153e peace dialog PARKED; no gold cost.
        */
@@ -553,9 +680,13 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
 
-    /* Thin FA ally-aid: richer ally may gift 10g once per peer visit. */
+    /* Thin FA: ally-aid (10g) + expiring-timer goodwill gift (15g, 3f41 PARKED). */
     if (bits & AI_DIPLO_ALLY) {
       ai_diplo_ally_foreign_aid(ctx->col1, nation_id, peer);
+      const uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
+      if (t && *t == 1) {
+        ai_diplo_fa_gift(ctx->col1, nation_id, peer);
+      }
     }
 
     /* 13b0 break: imbalance while allied. */

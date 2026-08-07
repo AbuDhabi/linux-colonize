@@ -46,11 +46,13 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * 2a1f_0554 BEFORE promote/0a60.
  * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon;
  * colonies>=2 also Artillery (Cannon fallback) when type exists — mil already
- * aboard or every-other hire turn. Full NEW WORLD wagon / 5d04 matrix — PARKED.
+ * aboard or every-other hire turn. Thin tools-cargo stand-in: tools_short>40 +
+ * Pioneer hire → ship hold +20 TOOLS or nearest-colony +15 (wagon matrix PARKED).
+ * Full NEW WORLD wagon / 5d04 matrix — PARKED.
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
-  /* parked deep matrix — thin war hire (+Artillery) in ai_euro.c; ~92325 */
+  /* parked deep matrix — thin war hire (+Artillery) + tools-cargo in ai_euro.c */
 }
 
 /*
@@ -228,6 +230,8 @@ static int unit_is_ship(uint8_t type) {
  *   2a1f_0470 → 016a     upsert_primary_goal (also post-ship follow-up)
  *
  * Sticky anti-spin: DS:0x2d12 unit index, DS:0x2d14 act count; >0x14 → clear.
+ * Thin sticky CONTACT re-hunt (Linux): end of `ai_euro_unit_act` — if moves
+ * remain and an adjacent foreign Euro is at war, `try_attack` once more.
  *
  * Linux: ai_euro_nation_turn reseeds, ticks crosses, then either
  * ai_euro_early_turn (seed-100 fixture) or ai_euro_dispatcher_turn (structural

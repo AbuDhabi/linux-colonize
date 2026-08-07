@@ -4,6 +4,7 @@
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -501,6 +502,137 @@ static int smoke_land_war_hunt(void) {
 }
 
 /*
+ * Sticky CONTACT re-hunt: fortified Soldier (hunter adjacent-attack skipped)
+ * with moves left next to a war foe — sticky still try_attacks.
+ */
+static int smoke_sticky_contact_rehunt(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+  const int foe_x = 6;
+  const int foe_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("sticky alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 3;
+  own->y = 3;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sticky spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = UNITS_ORDER_FORTIFIED; /* skip land_try_adjacent_attack */
+  soldier->moves_left = 2;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_u = units_get(&units, foe_id);
+  if (!foe_u) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sticky spawn foe");
+  }
+  foe_u->nation_id = foe;
+  foe_u->orders = 0;
+  foe_u->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+
+  ai_goals_reset();
+
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  foe_u = units_get(&units, foe_id);
+  const int combat_done =
+    (soldier == NULL || !soldier->active) || (foe_u == NULL || !foe_u->active);
+
+  if (!combat_done) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: sticky soldier_active=%d foe_active=%d moves=%d orders=%d\n",
+      soldier && soldier->active,
+      foe_u && foe_u->active,
+      soldier ? soldier->moves_left : -1,
+      soldier ? soldier->orders : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sticky CONTACT re-hunt should attempt combat vs adjacent war foe");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: sticky CONTACT re-hunt ok\n");
+  return 0;
+}
+
+/*
  * Thin mid-hire Artillery: at war, colonies>=2, gold, Europe ship with Soldier
  * already aboard → prefer Artillery (Cannon name fallback). If Artillery/Cannon
  * type missing from pool, hire falls back to Soldier/Dragoon path (documented).
@@ -717,6 +849,9 @@ int main(void) {
     return 1;
   }
   if (smoke_land_war_hunt() != 0) {
+    return 1;
+  }
+  if (smoke_sticky_contact_rehunt() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_war: ok\n");

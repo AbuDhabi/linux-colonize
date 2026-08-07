@@ -46,7 +46,8 @@ euro_nation_turn (6d8e)
   §4 treaty timers: 0a38 read + decrement peer timers; peaceful Indian drift
   plan 5d04 / 0342 / 0a60
   [opportunistic] 10ec → 13b0 (ally −25g + timer≥8) → declare_war (thin 153e);
-                  at-war upkeep; near-parity → make_peace; ally foreign aid (thin FA)
+                  at-war upkeep + privateer prize; near-parity → make_peace;
+                  ally foreign aid + FA gift (thin 3f41)
   act 5b66 — combat may declare_war
 ```
 
@@ -57,7 +58,7 @@ euro_nation_turn (6d8e)
 | `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112) — thin gold+tax+upkeep |
 | `FUN_5bfb_0000` / `00f8` / `312e` | census / rank / combat factor | Score stand-ins |
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | **PARKED** UI |
-| `FUN_3f41_*` | FA advisor | **PARKED** (thin ally-aid only) |
+| `FUN_3f41_*` | FA advisor | **PARKED** (thin ally-aid + FA gift; dialog UI parked) |
 
 ### Thin `153e` war sting (Linux)
 
@@ -74,6 +75,7 @@ On first `ai_diplo_declare_war` (not already at war):
 Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 
 - If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
+- Thin privateer prize (separate from upkeep): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). If `ctx->units` is null → treasury-only stand-in; if units are present → only when **this** nation has any sea unit. Full privateer unit spawn **PARKED**
 - No new declare / ally logic for that peer that turn
 
 Embargo lift (thin):
@@ -123,6 +125,21 @@ In `ai_diplo_euro_balance`, once per allied peer visit (before break check):
 - Transfer **10** gold from this nation to the ally
 - At-war peers skip (upkeep-only path); no aid when donor below 50 or peer already ≥ half
 
+### Thin FA goodwill gift (Linux)
+
+Separate from ally-aid; still a thin `3f41` stand-in (FA dialog UI **PARKED**).
+
+Exported `ai_diplo_fa_gift(col1, from, to)`:
+
+- If donor gold **≥ 100** and peer gold **<** donor gold **× 2**, transfer **15** gold from→to
+- Both treaty timers (`unknown26[peer]`) **+2** (saturate 255)
+- No-op when donor below 100, peer already ≥ donor×2, or bad nation ids
+
+Wired from `ai_diplo_euro_balance` (after ally-aid, before break check):
+
+- When ALLY and this nation's treaty timer toward peer is **1** (expiring) → call `ai_diplo_fa_gift`
+- Goodwill refresh even if peer is not "poor" (unlike the 10g aid path); aid and gift stay independent
+
 ### Thin peaceful Indian relation drift (Linux)
 
 Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
@@ -131,20 +148,32 @@ Called at end of `ai_diplo_treaty_timers` (6d8e §4 path):
 - Else for each of 8 `relation_by_indian[i]`: if `< 160`, **+1** (cap **160**)
 - Stand-in only; full Indian×Euro `15b3` bilateral matrix remains **PORT DEBT** / **PARKED**
 
+### Thin Indian×Euro matrix stand-in (Linux)
+
+- `ai_diplo_indian_read` / `ai_diplo_indian_at_war` — cell = `relation_by_indian[idx]`;
+  at war when relation **< 50**
+- On `declare_war`: after the usual −5 Indian hit, if a slot is still **< 40**,
+  extra **−10** once per declare (hostile deepen)
+- `ai_diplo_euro_balance`: if any Indian slot is at war, **−2** gold harassment
+  (once per nation tick)
+
 ## Linux checklist
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid; declare → thin `153e`; at-war → upkeep + near-parity `make_peace`
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift (timer==1); declare → thin `153e`; at-war → upkeep + privateer prize + near-parity `make_peace`; Indian harassment −2g
 4. `ai_diplo_make_peace` — clear WAR, set PEACE|MET, lift Furs if no Euro wars; no gold cost; full `153e` dialog PARKED
 5. `ai_diplo_form_alliance` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Furs embargo if no Euro wars remain
 6. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty if was allied
-7. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
-8. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
+7. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI PARKED)
+8. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
+9. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
+10. `ai_diplo_indian_read` / `indian_at_war` — thin matrix cell + harassment
 
 ## PORT DEBT
 
 - Full `153e` body (incl. per-rival trade embargo), dialogs, **FA `3f41` full body/UI**, name tables `15b3_0144…`
-- Indian×Euro bilateral `15b3` matrix (**PARKED**; thin drift / war-hit scalars only)
+- Full wartime privateer **unit spawn** / raid path (thin treasury prize only)
+- Indian×Euro bilateral `15b3` matrix (**PARKED**; thin read/at_war / drift / war-hit / harassment only)
 - Exact save-field rename for `−0x77c4`
 - Quiet Brave `diplomacy_flags` −10 goldens

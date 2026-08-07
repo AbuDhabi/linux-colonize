@@ -22,14 +22,18 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
 2. **Adjacent combat** — `units_resolve_land_combat` vs target-nation land unit
 3. **Colony approach** — Chebyshev walk toward colony ≤6
 4. **Loot outcome** — `@RAID*` kind picker (below); mutates stock / pop / gold
-5. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon)
-6. **Hostility tick** — successful loot (`kind != NOTHING`) + friction ≥55 →
+5. **Multi-loot (secondary)** — on successful loot (`kind != NOTHING`):
+   - military side-steal: −5 muskets stock, else −1 horse stock, else same from
+     target-nation unit gear on the colony tile
+   - high friction (≥80): also −1 tools (second cargo type beside primary)
+6. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon)
+7. **Hostility tick** — successful loot (`kind != NOTHING`) + friction ≥55 →
    `ai_diplo_indian_relation_delta` (−3, or −5 if ≥80). Deep 4528/2820 PARKED.
-7. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
+8. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
    prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
    set `ctx->status` warn line when buffer present; **despawn only if** no free tile.
    Dialog warn chrome beyond the status line stays **PARKED**.
-8. **PARKED** — full `2820` decision matrix, player haggle, dialog subst, ship harbor deep
+9. **PARKED** — full `2820` decision matrix, player haggle, dialog subst, ship harbor deep
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)
 

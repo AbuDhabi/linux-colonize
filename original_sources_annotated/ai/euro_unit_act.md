@@ -33,7 +33,7 @@ switch (orders) cases 7..0x0b
 
 | Lines | Case | Label |
 |-------|------|-------|
-| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **PARKED** economy |
+| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **PARKED** economy (Linux: thin Pioneer tools-delivery only; see §2d) |
 | 91143–91158 | **8** | short |
 | 91159–91194 | **9** | short |
 | 91195–91362 | **10** | UI/chrome / dialog-ish (`281f_04ac` ≠ `06ae`) |
@@ -65,6 +65,14 @@ not fortified, no useful goto) get `AI_MOVE` toward the nearest enemy land unit
 or enemy colony tile. Adjacent → `ai_euro_try_attack`. Does not steal founders on
 FOUND goals. Deep `20e6` land combat scoring stays **PARKED**.
 
+### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
+
+Idle / arriving Pioneer or Hardy on an **own** colony tile when
+`tools_short > 0` or colony `stock[TOOLS] < 20`: add **+10** tools
+(cap 100) once per act; trim inventory `tools_short` and may decrement
+`urgency`. Wired in `ai_euro_unit_act` just before LABOR/COLONY join.
+Full case-7 hire / wagon / treasury matrix stays **PARKED**.
+
 ### 3. Combat / diplomacy tails (PARKED)
 
 Defer with Indian raid clusters / land combat port.
@@ -88,5 +96,5 @@ with the wider naval cargo band inside `20e6` / `0a60`.
 
 - Sectioned `.c` with provenance headers
 - Ship unload + founding-order arms readable end-to-end
-- Explicit PARKED remainder for combat / case 7 hire
+- Explicit PARKED remainder for combat / case 7 hire (thin tools-delivery only)
 - `SYMBOL_MAP` + catalog `links` updated

@@ -1,4 +1,4 @@
-/* Smoke: Euro second-wave settle + thin E peaceful Scout explore. */
+/* Smoke: Euro second-wave settle + thin E peaceful Scout explore + tools delivery. */
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
@@ -291,11 +291,282 @@ static int smoke_scout_explore(void) {
   return 0;
 }
 
+/*
+ * Thin Pioneer tools delivery (case 7 economy stand-in): colony tools low,
+ * Pioneer on colony tile; dispatcher/act should bump stock[TOOLS].
+ */
+static int smoke_pioneer_tools_delivery(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("tools alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains land */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_TOOLS] = 5; /* < 20 → tools_short */
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int pid = units_spawn(&units, 0, 4, 4); /* on colony tile */
+  ColonizeUnit* pioneer = units_get(&units, pid);
+  if (!pioneer) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("spawn pioneer on colony");
+  }
+  pioneer->nation_id = nation;
+  pioneer->moves_left = 3;
+  pioneer->orders = 0;
+
+  ai_goals_reset();
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1_ok = false;
+  ctx.rng_seed = 42; /* not seed-100 fixture */
+
+  const int tools_before = c->stock[COLONIZE_CARGO_TOOLS];
+  ai_euro_dispatcher_turn(&ctx, nation);
+  const int tools_after = c->stock[COLONIZE_CARGO_TOOLS];
+
+  if (tools_after < tools_before + 10) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: tools before=%d after=%d (want +10)\n",
+      tools_before,
+      tools_after
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Pioneer tools delivery +10");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: tools-delivery ok (tools %d→%d)\n",
+    tools_before,
+    tools_after
+  );
+  return 0;
+}
+
+/*
+ * Thin NEW WORLD tools-cargo hire stand-in (5d04 wagon matrix PARKED):
+ * tools_short > 40 (3 colonies at tools=0 → short=60), peaceful Europe dock
+ * with gold + free passenger slot → Pioneer hire; side effect is ship hold
+ * +20 TOOLS and/or nearest-colony +15 tools stock.
+ */
+static int smoke_tools_cargo_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("tools-cargo alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains land */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2; /* passenger + goods hold slots */
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  /* Three own colonies with tools=0 → inventory tools_short = 60 (>40). */
+  static const int cx[3] = {4, 6, 8};
+  static const int cy[3] = {4, 6, 8};
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = cx[i];
+    c->y = cy[i];
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_TOOLS] = 0;
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int tools0_before = colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS];
+  const int tools1_before = colonies.colonies[1].stock[COLONIZE_CARGO_TOOLS];
+  const int tools2_before = colonies.colonies[2].stock[COLONIZE_CARGO_TOOLS];
+
+  /* Europe-dock Caravel — hire path boards Pioneer + optional tools cargo. */
+  const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("tools-cargo spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0; /* stay docked; planning hire only */
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0; /* hire_cost = 200 */
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42; /* not seed-100 fixture */
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int pioneer_boarded = 0;
+  int pioneer_tools = 0;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+    if (ty && strstr(ty->name, "Pioneer")) {
+      pioneer_boarded = 1;
+      pioneer_tools = pax->tools;
+      break;
+    }
+  }
+
+  int ship_tools = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_amount[h] < 255 &&
+        ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+      ship_tools += ship->hold_goods_amount[h];
+    }
+  }
+
+  const int colony_tools_rose =
+    colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS] >= tools0_before + 15 ||
+    colonies.colonies[1].stock[COLONIZE_CARGO_TOOLS] >= tools1_before + 15 ||
+    colonies.colonies[2].stock[COLONIZE_CARGO_TOOLS] >= tools2_before + 15;
+
+  /* Side effect: ship TOOLS hold and/or nearest-colony +15; Pioneer carries tools. */
+  const int ok_side =
+    pioneer_boarded &&
+    (ship_tools >= 20 || colony_tools_rose || pioneer_tools >= UNITS_EQUIP_TOOLS_STEP);
+
+  if (!ok_side) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: tools-cargo boarded=%d pax_tools=%d ship_tools=%d "
+      "colony_tools=%d/%d/%d gold=%u\n",
+      pioneer_boarded,
+      pioneer_tools,
+      ship_tools,
+      colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS],
+      colonies.colonies[1].stock[COLONIZE_CARGO_TOOLS],
+      colonies.colonies[2].stock[COLONIZE_CARGO_TOOLS],
+      (unsigned)col1.nation[nation].gold
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Pioneer hire with tools cargo / colony +15 stand-in");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: tools-cargo hire ok (boarded=%d ship_tools=%d "
+    "colony=%d/%d/%d pax_tools=%d)\n",
+    pioneer_boarded,
+    ship_tools,
+    colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS],
+    colonies.colonies[1].stock[COLONIZE_CARGO_TOOLS],
+    colonies.colonies[2].stock[COLONIZE_CARGO_TOOLS],
+    pioneer_tools
+  );
+  return 0;
+}
+
 int main(void) {
   if (smoke_second_wave() != 0) {
     return 1;
   }
   if (smoke_scout_explore() != 0) {
+    return 1;
+  }
+  if (smoke_pioneer_tools_delivery() != 0) {
+    return 1;
+  }
+  if (smoke_tools_cargo_hire() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_expand: ok\n");
