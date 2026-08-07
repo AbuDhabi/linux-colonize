@@ -89,33 +89,33 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `74a4` | 3 | ui | inferred | Map menu bar load from MENU.TXT (4b58 widgets) | [catalog](FUNCTION_CATALOG.md) |
 | `7962` | 3 | platform | inferred | Resource file open / close handle helpers | [catalog](FUNCTION_CATALOG.md) |
 | `7a65` | 3 | ui | inferred | Map tip blit + parameterized dialog text (6f74) | [catalog](FUNCTION_CATALOG.md) |
-| `1000` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `12dd` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `12e9` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1a4e` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1ae3` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1ae7` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1afb` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1b2c` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1b32` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1b70` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1bdd` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1c2e` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `1d11` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1000` | 2 | ui | inferred | String-table index / Nth-string lookup | [catalog](FUNCTION_CATALOG.md) |
+| `12dd` | 2 | ui | inferred | Clipped blit dispatch (rect vs raw) | [catalog](FUNCTION_CATALOG.md) |
+| `12e9` | 2 | ui | inferred | Buffer fill via pitch helpers | [catalog](FUNCTION_CATALOG.md) |
+| `1a4e` | 2 | ui | inferred | Blit pitch offset + viewport rect clip | [catalog](FUNCTION_CATALOG.md) |
+| `1ae3` | 2 | platform | known | Stack clear + BIOS INT16 key-ready | [catalog](FUNCTION_CATALOG.md) |
+| `1ae7` | 2 | platform | known | BIOS INT16 keyboard read / queue flush | [catalog](FUNCTION_CATALOG.md) |
+| `1afb` | 2 | platform | inferred | String LF-terminate / NUL truncate | [catalog](FUNCTION_CATALOG.md) |
+| `1b2c` | 2 | platform | inferred | DOS char-stream string get / put | [catalog](FUNCTION_CATALOG.md) |
+| `1b32` | 2 | platform | inferred | Filename extension / basename helpers | [catalog](FUNCTION_CATALOG.md) |
+| `1b70` | 2 | ui | inferred | Mouse viewport / region setup (1a58) | [catalog](FUNCTION_CATALOG.md) |
+| `1bdd` | 2 | platform | inferred | Temp numbered file create / write slots | [catalog](FUNCTION_CATALOG.md) |
+| `1c2e` | 2 | ui | known | VGA vsync wait + DAC palette write | [catalog](FUNCTION_CATALOG.md) |
+| `1d11` | 2 | ui | known | INT10 mode set + Mode13h far-buffer blit | [catalog](FUNCTION_CATALOG.md) |
 | `205f` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2088` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2103` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `2088` | 2 | platform | known | XMS detect (INT2F) + init handle table | [catalog](FUNCTION_CATALOG.md) |
+| `2103` | 2 | platform | known | XMS handle alloc / free list | [catalog](FUNCTION_CATALOG.md) |
 | `465b` | 2 | combat | inferred | Move spent / ADD / combat-adjacent | [catalog](FUNCTION_CATALOG.md) |
-| `67f4` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7421` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `79ec` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7a4c` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7a83` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7aa1` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7ab9` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7acf` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7b04` | 2 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `12d6` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `67f4` | 2 | mapgen | inferred | Coast/neighbor bitmasks + continent tallies | [catalog](FUNCTION_CATALOG.md) |
+| `7421` | 2 | platform | inferred | Startup config fread + argv parse | [catalog](FUNCTION_CATALOG.md) |
+| `79ec` | 2 | platform | inferred | Resource stream progress pump / dispatch | [catalog](FUNCTION_CATALOG.md) |
+| `7a4c` | 2 | ui | inferred | VGA DAC write + PIT fade-speed calibrate | [catalog](FUNCTION_CATALOG.md) |
+| `7a83` | 2 | ui | inferred | Palette RGB fade / channel shift | [catalog](FUNCTION_CATALOG.md) |
+| `7aa1` | 2 | ui | inferred | Parameterized dialog / message box (# subst) | [catalog](FUNCTION_CATALOG.md) |
+| `7ab9` | 2 | ui | inferred | Image/resource load + blit error codes | [catalog](FUNCTION_CATALOG.md) |
+| `7acf` | 2 | platform | inferred | Far-buffer alloc into handle struct | [catalog](FUNCTION_CATALOG.md) |
+| `7b04` | 2 | platform | known | DOS free-memory probe (INT21) + size max | [catalog](FUNCTION_CATALOG.md) |
+| `12d6` | 1 | ui | inferred | Mouse-gated blit to VGA A000 | [catalog](FUNCTION_CATALOG.md) |
 | `12d8` | 1 | sound | known | BGM / event / SFX gating | [catalog](FUNCTION_CATALOG.md) |
 | `1ade` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `1aea` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
@@ -157,23 +157,23 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `2094` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `209a` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `20a0` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2100` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `2100` | 1 | platform | known | XMS size query via multiplex entry | [catalog](FUNCTION_CATALOG.md) |
 | `3f3f` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `636c` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `65dd` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `67bf` | 1 | mapgen | known | Continent flood-fill IDs | [catalog](FUNCTION_CATALOG.md) |
-| `682a` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `682a` | 1 | mapgen | known | Map fertility / bonus value writer | [catalog](FUNCTION_CATALOG.md) |
 | `6a09` | 1 | ai | known | Tribe placement | [catalog](FUNCTION_CATALOG.md) |
 | `78ef` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `7939` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `7944` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `7952` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `798d` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `79db` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `79db` | 1 | platform | inferred | Chunked DOS file read into far buffer | [catalog](FUNCTION_CATALOG.md) |
 | `7a7c` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `7a9d` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `7ab3` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `7ad6` | 1 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `7ad6` | 1 | platform | inferred | Far-buffer free / clear handle struct | [catalog](FUNCTION_CATALOG.md) |
 
 ## MAPEDIT (separate EXE)
 

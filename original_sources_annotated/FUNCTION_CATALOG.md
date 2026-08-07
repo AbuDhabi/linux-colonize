@@ -19,12 +19,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 2380 functions in `viceroy_unpacked.c` (cdecl/stdcall + unannotated stubs). Address space is **VICEROY-only** — do not equate offsets with the other EXE.
 
-### Segment `1000` (2 defs) — unknown
+### Segment `1000` (2 defs) — ui — String-table index / Nth-string lookup
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1000_002c` | 399 | 17 | unknown | unknown | unknown |  |
-| `FUN_1000_0062` | 416 | 33 | unknown | unknown | unknown |  |
+| `FUN_1000_002c` | 399 | 17 | ui | unknown | inferred |  |
+| `FUN_1000_0062` | 416 | 33 | ui | unknown | inferred |  |
 
 ### Segment `1009` (15 defs) — ui — Timed turn-chrome / status text overlays
 
@@ -155,11 +155,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_129f_0318` | 4903 | 17 | sound | unknown | inferred |  |
 | `FUN_129f_034c` | 4920 | 15 | sound | unknown | inferred |  |
 
-### Segment `12d6` (1 defs) — unknown
+### Segment `12d6` (1 defs) — ui — Mouse-gated blit to VGA A000
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_12d6_0000` | 4935 | 15 | unknown | unknown | unknown |  |
+| `FUN_12d6_0000` | 4935 | 15 | ui | unknown | inferred |  |
 
 ### Segment `12d8` (1 defs) — sound — BGM / event / SFX gating
 
@@ -167,19 +167,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_12d8_000e` | 4950 | 16 | sound | BGM / event / SFX gating | known | src/core/sound.c |
 
-### Segment `12dd` (2 defs) — unknown
+### Segment `12dd` (2 defs) — ui — Clipped blit dispatch (rect vs raw)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_12dd_0002` | 4966 | 21 | unknown | unknown | unknown |  |
-| `FUN_12dd_0064` | 4987 | 20 | unknown | unknown | unknown |  |
+| `FUN_12dd_0002` | 4966 | 21 | ui | unknown | inferred |  |
+| `FUN_12dd_0064` | 4987 | 20 | ui | unknown | inferred |  |
 
-### Segment `12e9` (2 defs) — unknown
+### Segment `12e9` (2 defs) — ui — Buffer fill via pitch helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_12e9_0006` | 5007 | 8 | unknown | unknown | unknown |  |
-| `FUN_12e9_008c` | 5015 | 55 | unknown | unknown | unknown |  |
+| `FUN_12e9_0006` | 5007 | 8 | ui | unknown | inferred |  |
+| `FUN_12e9_008c` | 5015 | 55 | ui | unknown | inferred |  |
 
 ### Segment `12fd` (3 defs) — ui — Once-only discovery/event dispatch (bitset DS:0x540a)
 
@@ -512,12 +512,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1a29_0209` | 14501 | 12 | platform | unknown | inferred |  |
 | `FUN_1a29_021b` | 14513 | 18 | platform | unknown | inferred |  |
 
-### Segment `1a4e` (2 defs) — unknown
+### Segment `1a4e` (2 defs) — ui — Blit pitch offset + viewport rect clip
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1a4e_0008` | 14531 | 13 | unknown | unknown | unknown |  |
-| `FUN_1a4e_001c` | 14544 | 37 | unknown | unknown | unknown |  |
+| `FUN_1a4e_0008` | 14531 | 13 | ui | unknown | inferred |  |
+| `FUN_1a4e_001c` | 14544 | 37 | ui | unknown | inferred |  |
 
 ### Segment `1a58` (18 defs) — platform — Mouse driver INT 33 show/hide / poll / mode setup
 
@@ -557,19 +557,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1ade_0004` | 15170 | 42 | unknown | unknown | unknown |  |
 
-### Segment `1ae3` (2 defs) — unknown
+### Segment `1ae3` (2 defs) — platform — Stack clear + BIOS INT16 key-ready
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1ae3_0006` | 15212 | 24 | unknown | unknown | unknown |  |
-| `FUN_1ae3_0042` | 15236 | 16 | unknown | unknown | unknown |  |
+| `FUN_1ae3_0006` | 15212 | 24 | platform | unknown | inferred |  |
+| `FUN_1ae3_0042` | 15236 | 16 | platform | unknown | inferred |  |
 
-### Segment `1ae7` (2 defs) — unknown
+### Segment `1ae7` (2 defs) — platform — BIOS INT16 keyboard read / queue flush
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1ae7_0016` | 15252 | 32 | unknown | unknown | unknown |  |
-| `FUN_1ae7_0032` | 15284 | 21 | unknown | unknown | unknown |  |
+| `FUN_1ae7_0016` | 15252 | 32 | platform | BIOS INT16 read next key (AH/AL); paired with 1ae3 key-ready / flush | known |  |
+| `FUN_1ae7_0032` | 15284 | 21 | platform | unknown | inferred |  |
 
 ### Segment `1aea` (1 defs) — unknown
 
@@ -577,12 +577,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1aea_000c` | 15305 | 919 | unknown | unknown | unknown |  |
 
-### Segment `1afb` (2 defs) — unknown
+### Segment `1afb` (2 defs) — platform — String LF-terminate / NUL truncate
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1afb_000e` | 16224 | 15 | unknown | unknown | unknown |  |
-| `FUN_1afb_003c` | 16239 | 20 | unknown | unknown | unknown |  |
+| `FUN_1afb_000e` | 16224 | 15 | platform | unknown | inferred |  |
+| `FUN_1afb_003c` | 16239 | 20 | platform | unknown | inferred |  |
 
 ### Segment `1b01` (1 defs) — unknown
 
@@ -596,19 +596,19 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1b22_0022` | 16373 | 55 | unknown | unknown | unknown |  |
 
-### Segment `1b2c` (2 defs) — unknown
+### Segment `1b2c` (2 defs) — platform — DOS char-stream string get / put
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b2c_0004` | 16428 | 24 | unknown | unknown | unknown |  |
-| `FUN_1b2c_0040` | 16452 | 21 | unknown | unknown | unknown |  |
+| `FUN_1b2c_0004` | 16428 | 24 | platform | unknown | inferred |  |
+| `FUN_1b2c_0040` | 16452 | 21 | platform | unknown | inferred |  |
 
-### Segment `1b32` (2 defs) — unknown
+### Segment `1b32` (2 defs) — platform — Filename extension / basename helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b32_000e` | 16473 | 18 | unknown | unknown | unknown |  |
-| `FUN_1b32_005c` | 16491 | 23 | unknown | unknown | unknown |  |
+| `FUN_1b32_000e` | 16473 | 18 | platform | unknown | inferred |  |
+| `FUN_1b32_005c` | 16491 | 23 | platform | unknown | inferred |  |
 
 ### Segment `1b4e` (1 defs) — unknown
 
@@ -628,12 +628,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1b5e_0000` | 16562 | 63 | unknown | unknown | unknown |  |
 
-### Segment `1b70` (2 defs) — unknown
+### Segment `1b70` (2 defs) — ui — Mouse viewport / region setup (1a58)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b70_0002` | 16625 | 13 | unknown | unknown | unknown |  |
-| `FUN_1b70_003a` | 16638 | 17 | unknown | unknown | unknown |  |
+| `FUN_1b70_0002` | 16625 | 13 | ui | unknown | inferred |  |
+| `FUN_1b70_003a` | 16638 | 17 | ui | unknown | inferred |  |
 
 ### Segment `1b78` (1 defs) — unknown
 
@@ -707,12 +707,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1bd4_0006` | 17128 | 40 | unknown | unknown | unknown |  |
 
-### Segment `1bdd` (2 defs) — unknown
+### Segment `1bdd` (2 defs) — platform — Temp numbered file create / write slots
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bdd_0002` | 17168 | 59 | unknown | unknown | unknown |  |
-| `FUN_1bdd_00e0` | 17227 | 39 | unknown | unknown | unknown |  |
+| `FUN_1bdd_0002` | 17168 | 59 | platform | unknown | inferred |  |
+| `FUN_1bdd_00e0` | 17227 | 39 | platform | unknown | inferred |  |
 
 ### Segment `1bf5` (1 defs) — unknown
 
@@ -764,12 +764,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1c2a_0006` | 17542 | 30 | unknown | unknown | unknown |  |
 
-### Segment `1c2e` (2 defs) — unknown
+### Segment `1c2e` (2 defs) — ui — VGA vsync wait + DAC palette write
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c2e_000e` | 17572 | 16 | unknown | unknown | unknown |  |
-| `FUN_1c2e_0022` | 17588 | 46 | unknown | unknown | unknown |  |
+| `FUN_1c2e_000e` | 17572 | 16 | ui | unknown | inferred |  |
+| `FUN_1c2e_0022` | 17588 | 46 | ui | Wait VGA retrace then program DAC RGB palette via 0x3c8/0x3c9 | known |  |
 
 ### Segment `1c36` (1 defs) — unknown
 
@@ -819,12 +819,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1d05_0000` | 18742 | 85 | unknown | unknown | unknown |  |
 
-### Segment `1d11` (2 defs) — unknown
+### Segment `1d11` (2 defs) — ui — INT10 mode set + Mode13h far-buffer blit
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1d11_0000` | 18827 | 17 | unknown | unknown | unknown |  |
-| `FUN_1d11_001c` | 18844 | 70 | unknown | unknown | unknown |  |
+| `FUN_1d11_0000` | 18827 | 17 | ui | unknown | inferred |  |
+| `FUN_1d11_001c` | 18844 | 70 | ui | unknown | inferred |  |
 
 ### Segment `1d1c` (1 defs) — unknown
 
@@ -1001,12 +1001,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_2074_0008` | 24421 | 56 | unknown | unknown | unknown |  |
 
-### Segment `2088` (2 defs) — unknown
+### Segment `2088` (2 defs) — platform — XMS detect (INT2F) + init handle table
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2088_000c` | 24477 | 20 | unknown | unknown | unknown |  |
-| `FUN_2088_0048` | 24497 | 46 | unknown | unknown | unknown |  |
+| `FUN_2088_000c` | 24477 | 20 | platform | unknown | inferred |  |
+| `FUN_2088_0048` | 24497 | 46 | platform | Detect XMS via INT2F and install multiplex entry at DS:0x26e8 | known |  |
 
 ### Segment `2094` (1 defs) — unknown
 
@@ -1026,18 +1026,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_20a0_000e` | 24614 | 34 | unknown | unknown | unknown |  |
 
-### Segment `2100` (1 defs) — unknown
+### Segment `2100` (1 defs) — platform — XMS size query via multiplex entry
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2100_000e` | 24648 | 19 | unknown | unknown | unknown |  |
+| `FUN_2100_000e` | 24648 | 19 | platform | unknown | inferred |  |
 
-### Segment `2103` (2 defs) — unknown
+### Segment `2103` (2 defs) — platform — XMS handle alloc / free list
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2103_000a` | 24667 | 24 | unknown | unknown | unknown |  |
-| `FUN_2103_004c` | 24691 | 26 | unknown | unknown | unknown |  |
+| `FUN_2103_000a` | 24667 | 24 | platform | unknown | inferred |  |
+| `FUN_2103_004c` | 24691 | 26 | platform | unknown | inferred |  |
 
 ### Segment `210d` (116 defs) — platform — DOS/EMS runtime: INT 21/67, bank switch, overlay page helpers
 
@@ -2762,18 +2762,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_67bf_0000` | 104804 | 163 | mapgen | Continent flood-fill IDs | known | src/core/map_gen.c |
 
-### Segment `67f4` (2 defs) — unknown
+### Segment `67f4` (2 defs) — mapgen — Coast/neighbor bitmasks + continent tallies
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_67f4_0008` | 104967 | 43 | unknown | unknown | unknown |  |
-| `FUN_67f4_0088` | 105010 | 137 | unknown | unknown | unknown |  |
+| `FUN_67f4_0008` | 104967 | 43 | mapgen | unknown | inferred |  |
+| `FUN_67f4_0088` | 105010 | 137 | mapgen | Build 15x18 coast/neighbor bitmasks and per-continent terrain tallies post-flood-fill | inferred |  |
 
-### Segment `682a` (1 defs) — unknown
+### Segment `682a` (1 defs) — mapgen — Map fertility / bonus value writer
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_682a_000c` | 105147 | 87 | unknown | unknown | unknown |  |
+| `FUN_682a_000c` | 105147 | 87 | mapgen | unknown | inferred |  |
 
 ### Segment `684c` (8 defs) — mapgen — Procedural NEW WORLD map gen
 
@@ -2994,12 +2994,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_733a_0b3e` | 118601 | 41 | ui | unknown | inferred |  |
 | `FUN_733a_0c2a` | 118642 | 215 | ui | unknown | inferred |  |
 
-### Segment `7421` (2 defs) — unknown
+### Segment `7421` (2 defs) — platform — Startup config fread + argv parse
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7421_0188` | 118857 | 27 | unknown | unknown | unknown |  |
-| `FUN_7421_025a` | 118884 | 66 | unknown | unknown | unknown |  |
+| `FUN_7421_0188` | 118857 | 27 | platform | unknown | inferred |  |
+| `FUN_7421_025a` | 118884 | 66 | platform | unknown | inferred |  |
 
 ### Segment `7455` (7 defs) — mapgen — Map plane buffer alloc (pitch 0x853a → terrain/L2/L3)
 
@@ -3112,18 +3112,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_79a8_002a` | 123154 | 15 | platform | unknown | inferred |  |
 | `FUN_79a8_004a` | 123169 | 190 | platform | Wire compressed stream I/O (callbacks + heap buffer + consume loop) | inferred |  |
 
-### Segment `79db` (1 defs) — unknown
+### Segment `79db` (1 defs) — platform — Chunked DOS file read into far buffer
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_79db_000c` | 123359 | 70 | unknown | unknown | unknown |  |
+| `FUN_79db_000c` | 123359 | 70 | platform | unknown | inferred |  |
 
-### Segment `79ec` (2 defs) — unknown
+### Segment `79ec` (2 defs) — platform — Resource stream progress pump / dispatch
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_79ec_0004` | 123429 | 38 | unknown | unknown | unknown |  |
-| `FUN_79ec_0082` | 123467 | 58 | unknown | unknown | unknown |  |
+| `FUN_79ec_0004` | 123429 | 38 | platform | unknown | inferred |  |
+| `FUN_79ec_0082` | 123467 | 58 | platform | unknown | inferred |  |
 
 ### Segment `7a05` (5 defs) — platform — Fatal/abort error text + INT10 video reset
 
@@ -3135,12 +3135,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7a05_0180` | 123628 | 71 | platform | unknown | inferred |  |
 | `FUN_7a05_03ce` | 123699 | 49 | platform | unknown | inferred |  |
 
-### Segment `7a4c` (2 defs) — unknown
+### Segment `7a4c` (2 defs) — ui — VGA DAC write + PIT fade-speed calibrate
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7a4c_0000` | 123748 | 45 | unknown | unknown | unknown |  |
-| `FUN_7a4c_006a` | 123793 | 88 | unknown | unknown | unknown |  |
+| `FUN_7a4c_0000` | 123748 | 45 | ui | unknown | inferred |  |
+| `FUN_7a4c_006a` | 123793 | 88 | ui | unknown | inferred |  |
 
 ### Segment `7a65` (3 defs) — ui — Map tip blit + parameterized dialog text (6f74)
 
@@ -3156,12 +3156,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_7a7c_000e` | 123967 | 26 | unknown | unknown | unknown |  |
 
-### Segment `7a83` (2 defs) — unknown
+### Segment `7a83` (2 defs) — ui — Palette RGB fade / channel shift
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7a83_0002` | 123993 | 35 | unknown | unknown | unknown |  |
-| `FUN_7a83_002a` | 124028 | 84 | unknown | unknown | unknown |  |
+| `FUN_7a83_0002` | 123993 | 35 | ui | unknown | inferred |  |
+| `FUN_7a83_002a` | 124028 | 84 | ui | unknown | inferred |  |
 
 ### Segment `7a9d` (1 defs) — unknown
 
@@ -3169,12 +3169,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_7a9d_0004` | 124112 | 17 | unknown | unknown | unknown |  |
 
-### Segment `7aa1` (2 defs) — unknown
+### Segment `7aa1` (2 defs) — ui — Parameterized dialog / message box (# subst)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7aa1_0002` | 124129 | 19 | unknown | unknown | unknown |  |
-| `FUN_7aa1_003a` | 124148 | 59 | unknown | unknown | unknown |  |
+| `FUN_7aa1_0002` | 124129 | 19 | ui | unknown | inferred |  |
+| `FUN_7aa1_003a` | 124148 | 59 | ui | unknown | inferred |  |
 
 ### Segment `7ab3` (1 defs) — unknown
 
@@ -3182,25 +3182,25 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_7ab3_0008` | 124207 | 44 | unknown | unknown | unknown |  |
 
-### Segment `7ab9` (2 defs) — unknown
+### Segment `7ab9` (2 defs) — ui — Image/resource load + blit error codes
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7ab9_0000` | 124251 | 38 | unknown | unknown | unknown |  |
-| `FUN_7ab9_00be` | 124289 | 32 | unknown | unknown | unknown |  |
+| `FUN_7ab9_0000` | 124251 | 38 | ui | unknown | inferred |  |
+| `FUN_7ab9_00be` | 124289 | 32 | ui | unknown | inferred |  |
 
-### Segment `7acf` (2 defs) — unknown
-
-| Symbol | Line | Size | System | Purpose | Confidence | Links |
-|--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7acf_0002` | 124321 | 24 | unknown | unknown | unknown |  |
-| `FUN_7acf_003c` | 124345 | 24 | unknown | unknown | unknown |  |
-
-### Segment `7ad6` (1 defs) — unknown
+### Segment `7acf` (2 defs) — platform — Far-buffer alloc into handle struct
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7ad6_000e` | 124369 | 21 | unknown | unknown | unknown |  |
+| `FUN_7acf_0002` | 124321 | 24 | platform | unknown | inferred |  |
+| `FUN_7acf_003c` | 124345 | 24 | platform | unknown | inferred |  |
+
+### Segment `7ad6` (1 defs) — platform — Far-buffer free / clear handle struct
+
+| Symbol | Line | Size | System | Purpose | Confidence | Links |
+|--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_7ad6_000e` | 124369 | 21 | platform | unknown | inferred |  |
 
 ### Segment `7ada` (5 defs) — platform — DOS heap alloc / resize / high-water tracking
 
@@ -3212,12 +3212,12 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_7ada_01aa` | 124501 | 27 | platform | unknown | inferred |  |
 | `FUN_7ada_01fa` | 124528 | 36 | platform | unknown | inferred |  |
 
-### Segment `7b04` (2 defs) — unknown
+### Segment `7b04` (2 defs) — platform — DOS free-memory probe (INT21) + size max
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7b04_0002` | 124564 | 16 | unknown | unknown | unknown |  |
-| `FUN_7b04_001e` | 124580 | 29 | unknown | unknown | unknown |  |
+| `FUN_7b04_0002` | 124564 | 16 | platform | unknown | inferred |  |
+| `FUN_7b04_001e` | 124580 | 29 | platform | unknown | inferred |  |
 
 ### Segment `7b08` (5 defs) — platform — Growable far-buffer / arena alloc helpers
 
