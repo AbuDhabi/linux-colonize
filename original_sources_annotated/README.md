@@ -60,8 +60,8 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 |--------|------:|
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
-| Confidence | known 139 · inferred 2238 · unknown 3 |
-| Purpose one-liners | 1575 / 2380 |
+| Confidence | known 148 · inferred 2229 · unknown 3 |
+| Purpose one-liners | 1674 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -70,10 +70,10 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Small UI helpers are purpose-closed.
-Layer C closed through Europe input, map menu mega-dispatch, and colony
-entry/assign crumbs. Remaining backlog is mostly megaseg thunk/platform bulk
-plus small platform crumbs and boot/BGM hops.
+Purpose one-liners are **not** Layer A. Non-mega platform crumbs and small UI
+are purpose-closed. Layer C closed through boot init and BGM pick hops.
+Remaining backlog is mostly megaseg thunk/mapgen/platform bulk plus a few
+mid-size UI/menu Layer C hops.
 
 ### Roadmap (committed order)
 
@@ -104,8 +104,9 @@ plus small platform crumbs and boot/BGM hops.
    - **Done:** map/pedia draw `15eb` (105 — all purpose-unknown closed);
      platform mid `275d`/`7314`/`124c`/`2047`/`7a05`/`7ada`/`7b08` (56).
    - **Done:** small UI leftovers (68 — blit/cursor/RLE/splash/menu/tips).
+   - **Done:** small platform leftovers (59 — timer/LCG/XMS/resource/stream).
    - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
-     (platform crumbs; boot/BGM C; megaseg bulk deferred).
+     (embark/title-menu C; megaseg bulk deferred).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -121,8 +122,9 @@ plus small platform crumbs and boot/BGM hops.
      `FUN_5952_035e` ∪ `FUN_364b_0688` excl (19).
    - **Done:** Europe input ∪ colony assign/entry crumbs (19); map menu
      `FUN_2b5a_2464` (23).
+   - **Done:** boot `FUN_75c2_2d46` (26); BGM `FUN_129f_0008` (14).
    - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) —
-     platform B crumbs (~59) or boot `75c2_2d46` / BGM `129f_0008` hops.
+     embark `4720_049e` (~16) / title menu `75c2_2778` (~15).
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 

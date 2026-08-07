@@ -481,9 +481,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_19ef_0008` | 14180 | 12 | platform | unknown | inferred |  |
-| `FUN_19ef_001a` | 14192 | 9 | platform | unknown | inferred |  |
-| `FUN_19ef_002c` | 14201 | 9 | platform | unknown | inferred |  |
+| `FUN_19ef_0008` | 14180 | 12 | platform | Seed DOS LCG from BIOS timer word (40:6c via 1c0c_0012), masked 0x7fff | known | FUN_1d1d_0df2; FUN_1c0c_0012; FUN_19ef_0032 |
+| `FUN_19ef_001a` | 14192 | 9 | platform | Seed DOS LCG from caller word (mask 0x7fff → 1d1d_0df2) | known | FUN_1d1d_0df2 |
+| `FUN_19ef_002c` | 14201 | 9 | platform | Near wrapper: reseed LCG from BIOS timer (calls 19ef_0008) | known | FUN_19ef_0008 |
 | `FUN_19ef_0032` | 14210 | 18 | platform | DOS LCG range helper | known | src/core/dos_rng.c |
 
 ### Segment `19f6` (4 defs) — ui — Decimal number format / localized string blit
@@ -507,10 +507,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1a29_015b` | 14447 | 33 | platform | unknown | inferred |  |
-| `FUN_1a29_01d1` | 14480 | 21 | platform | unknown | inferred |  |
-| `FUN_1a29_0209` | 14501 | 12 | platform | unknown | inferred |  |
-| `FUN_1a29_021b` | 14513 | 18 | platform | unknown | inferred |  |
+| `FUN_1a29_015b` | 14447 | 33 | platform | Install IRQ0 timer: save INT8, hook CS handler, PIT 0x7a8, point 267a→92e8 ticks | known | FUN_1c10_0008; FUN_1c0c_0006; FUN_1c0c_0022 |
+| `FUN_1a29_01d1` | 14480 | 21 | platform | Restore prior INT8 + default PIT; retarget 267a to BIOS 40:6c | known | FUN_1a29_015b; FUN_1c10_0008 |
+| `FUN_1a29_0209` | 14501 | 12 | platform | Arm custom timer alarm: set reload DS:0x92f6, clear elapsed 0x92f4 | inferred | FUN_1a29_015b |
+| `FUN_1a29_021b` | 14513 | 18 | platform | Install far timer-tick callback at DS:0x92e4/0x92e6; clear tick latches | inferred | FUN_1262_0142 |
 
 ### Segment `1a4e` (2 defs) — ui — Blit pitch offset + viewport rect clip
 
@@ -561,15 +561,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1ae3_0006` | 15212 | 24 | platform | unknown | inferred |  |
-| `FUN_1ae3_0042` | 15236 | 16 | platform | unknown | inferred |  |
+| `FUN_1ae3_0006` | 15212 | 24 | platform | Zero-fill stack from DS:0x27e6 watermark up to SP; return bytes cleared | inferred |  |
+| `FUN_1ae3_0042` | 15236 | 16 | platform | BIOS INT16 AH=01 key-ready: 1 if ZF clear, else 0 | known | FUN_281f_00f6; FUN_1ae7_0016 |
 
 ### Segment `1ae7` (2 defs) — platform — BIOS INT16 keyboard read / queue flush
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1ae7_0016` | 15252 | 32 | platform | BIOS INT16 read next key (AH/AL); paired with 1ae3 key-ready / flush | known |  |
-| `FUN_1ae7_0032` | 15284 | 21 | platform | unknown | inferred |  |
+| `FUN_1ae7_0032` | 15284 | 21 | platform | Drain BIOS keyboard buffer (loop INT16 ready→read until empty) | known | FUN_291f_04a2; FUN_1ae3_0042; FUN_1ae7_0016 |
 
 ### Segment `1aea` (1 defs) — ui — Map keyboard / hotkey dispatch
 
@@ -581,14 +581,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1afb_000e` | 16224 | 15 | platform | unknown | inferred |  |
-| `FUN_1afb_003c` | 16239 | 20 | platform | unknown | inferred |  |
+| `FUN_1afb_000e` | 16224 | 15 | platform | NUL-truncate string at first LF (strchr 0x0A then write 0) | inferred | FUN_1d1d_10ea |
+| `FUN_1afb_003c` | 16239 | 20 | platform | Append LF+NUL at end of string (strlen then write 0x0A,0) | inferred | FUN_1d1d_113c |
 
 ### Segment `1b01` (1 defs) — platform — Buffered far-buffer file/stream read
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b01_000e` | 16259 | 114 | platform | unknown | inferred |  |
+| `FUN_1b01_000e` | 16259 | 114 | platform | Buffered far-buffer file/stream read (seek/copy/refill; fail → 1d1d_0ec6) | inferred | FUN_2074_0008; FUN_1bdd_00e0 |
 
 ### Segment `1b22` (1 defs) — platform — DOS file-exists probe (INT21 3D/3E) + INT24 wrap
 
@@ -600,27 +600,27 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b2c_0004` | 16428 | 24 | platform | unknown | inferred |  |
-| `FUN_1b2c_0040` | 16452 | 21 | platform | unknown | inferred |  |
+| `FUN_1b2c_0004` | 16428 | 24 | platform | Read NUL-terminated string from DOS char stream (max ~79; trailing getc) | inferred | FUN_1d1d_0786 |
+| `FUN_1b2c_0040` | 16452 | 21 | platform | Write NUL-terminated string to DOS char stream then Ctrl-Z (0x1A) | inferred | FUN_1d1d_0758 |
 
 ### Segment `1b32` (2 defs) — platform — Filename extension / basename helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b32_000e` | 16473 | 18 | platform | unknown | inferred |  |
-| `FUN_1b32_005c` | 16491 | 23 | platform | unknown | inferred |  |
+| `FUN_1b32_000e` | 16473 | 18 | platform | Ensure filename has extension: if no '.', strcat default then suffix | inferred | FUN_1d1d_10ea; FUN_1d1d_11b4 |
+| `FUN_1b32_005c` | 16491 | 23 | platform | Replace/append filename extension (truncate at '.', strcat new ext) | inferred | FUN_1b32_000e |
 
 ### Segment `1b4e` (1 defs) — platform — Path join: cwd + \ + name
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b4e_0004` | 16514 | 25 | platform | unknown | inferred |  |
+| `FUN_1b4e_0004` | 16514 | 25 | platform | Path join: getcwd + optional '\' + name into out buffer | inferred | FUN_1d1d_117e; FUN_1d1d_11b4 |
 
 ### Segment `1b57` (1 defs) — platform — Ltrim spaces/tabs then strcpy
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b57_0002` | 16539 | 23 | platform | unknown | inferred |  |
+| `FUN_1b57_0002` | 16539 | 23 | platform | Ltrim leading spaces/tabs then strcpy back into dest | inferred | FUN_2094_000a; FUN_1d1d_117e |
 
 ### Segment `1b5e` (1 defs) — ui — Mouse cursor region update (17x17)
 
@@ -645,7 +645,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1b8b_0004` | 16707 | 16 | platform | unknown | inferred |  |
+| `FUN_1b8b_0004` | 16707 | 16 | platform | Set BIOS equipment video bits at 40:10 (mono 0x30 if AX==7 else 0x20) | known |  |
 
 ### Segment `1b8d` (1 defs) — ui — Solid-rect fill thunk → 1b9e
 
@@ -711,8 +711,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1bdd_0002` | 17168 | 59 | platform | unknown | inferred |  |
-| `FUN_1bdd_00e0` | 17227 | 39 | platform | unknown | inferred |  |
+| `FUN_1bdd_0002` | 17168 | 59 | platform | Create numbered temp file into free slot (0..9); write payload; return slot | inferred | FUN_1bdd_00e0; FUN_19f6_0002 |
+| `FUN_1bdd_00e0` | 17227 | 39 | platform | Read numbered temp file via 1b01 into dests; free slot and delete if ok | inferred | FUN_1bdd_0002; FUN_1b01_000e |
 
 ### Segment `1bf5` (1 defs) — ui — Tiled rect blit loop
 
@@ -730,15 +730,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1c06_000c` | 17326 | 27 | platform | unknown | inferred |  |
+| `FUN_1c06_000c` | 17326 | 27 | platform | Parse numeric literal: 0x→hex, 0b→bin, else default decimal atoi | inferred | FUN_209a_000a; FUN_20a0_000e |
 
 ### Segment `1c0c` (3 defs) — platform — Timer / tick word readers (custom + BIOS 046c)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_1c0c_0006` | 17353 | 12 | platform | Read custom timer tick word via DS:0x267a far ptr | inferred |  |
-| `FUN_1c0c_0012` | 17365 | 8 | platform | unknown | inferred |  |
-| `FUN_1c0c_0022` | 17373 | 10 | platform | unknown | inferred |  |
+| `FUN_1c0c_0012` | 17365 | 8 | platform | Read BIOS timer dword at 40:6c/6e | known | FUN_1c0c_0006; FUN_19ef_0008 |
+| `FUN_1c0c_0022` | 17373 | 10 | platform | Read custom IRQ0 tick dword at DS:0x8338/0x833a | inferred | FUN_1a29_015b; FUN_1c0c_0006 |
 
 ### Segment `1c10` (1 defs) — platform — Program PIT channel-0 divisor
 
@@ -811,13 +811,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1cf8_000a` | 18654 | 88 | platform | unknown | inferred |  |
+| `FUN_1cf8_000a` | 18654 | 88 | platform | Insertion-sort parallel word keys + byte payload arrays | inferred | FUN_291f_0ed0; FUN_1d05_0000 |
 
 ### Segment `1d05` (1 defs) — platform — Insertion-sort parallel byte+byte arrays
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1d05_0000` | 18742 | 85 | platform | unknown | inferred |  |
+| `FUN_1d05_0000` | 18742 | 85 | platform | Insertion-sort parallel byte keys + byte payload arrays | inferred | FUN_1cf8_000a |
 
 ### Segment `1d11` (2 defs) — ui — INT10 mode set + Mode13h far-buffer blit
 
@@ -847,9 +847,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1d1d_0390` | 19317 | 20 | platform | unknown | inferred |  |
 | `FUN_1d1d_03bd` | 19337 | 25 | platform | unknown | inferred |  |
 | `FUN_1d1d_03d0` | 19362 | 28 | platform | unknown | inferred |  |
-| `FUN_1d1d_03f4` | 19390 | 41 | platform | unknown | inferred |  |
+| `FUN_1d1d_03f4` | 19390 | 41 | platform | fclose — flush FILE, DOS close handle (1e7a), clear flags | inferred |  |
 | `FUN_1d1d_04ae` | 19431 | 18 | platform | unknown | inferred |  |
-| `FUN_1d1d_04da` | 19449 | 9 | platform | unknown | inferred |  |
+| `FUN_1d1d_04da` | 19449 | 9 | platform | fopen(path,mode) — wrapper → 04ae with share/flags=0 | inferred |  |
 | `FUN_1d1d_04f0` | 19458 | 14 | platform | unknown | inferred |  |
 | `FUN_1d1d_0528` | 19472 | 72 | platform | unknown | inferred |  |
 | `FUN_1d1d_060c` | 19544 | 70 | platform | unknown | inferred |  |
@@ -927,16 +927,16 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1d1d_1896` | 22053 | 32 | platform | unknown | inferred |  |
 | `FUN_1d1d_1912` | 22085 | 30 | platform | unknown | inferred |  |
 | `FUN_1d1d_196e` | 22115 | 28 | platform | unknown | inferred |  |
-| `FUN_1d1d_1d79` | 22143 | 15 | platform | unknown | inferred |  |
-| `FUN_1d1d_1d81` | 22158 | 19 | platform | unknown | inferred |  |
+| `FUN_1d1d_1d79` | 22143 | 15 | platform | printf va_arg — LODSW next int from [BP+0xa] list | inferred |  |
+| `FUN_1d1d_1d81` | 22158 | 19 | platform | printf va_arg — LODSW×2 next long from [BP+0xa] list | inferred |  |
 | `FUN_1d1d_1daa` | 22177 | 31 | platform | unknown | inferred |  |
-| `FUN_1d1d_1dd4` | 22208 | 26 | platform | unknown | inferred |  |
-| `FUN_1d1d_1df2` | 22234 | 26 | platform | unknown | inferred |  |
-| `FUN_1d1d_1e0e` | 22260 | 34 | platform | unknown | inferred |  |
-| `FUN_1d1d_1e3f` | 22294 | 8 | platform | unknown | inferred |  |
+| `FUN_1d1d_1dd4` | 22208 | 26 | platform | printf emit — write CX chars from ES:DI via putc (1daa) | inferred |  |
+| `FUN_1d1d_1df2` | 22234 | 26 | platform | printf pad — write CX copies of DL via putc (1daa) | inferred |  |
+| `FUN_1d1d_1e0e` | 22260 | 34 | platform | printf itoa — DX:AX÷radix→ASCII digits reverse (STOSB) | inferred |  |
+| `FUN_1d1d_1e3f` | 22294 | 8 | platform | Shared far epilogue — POP DI/SI; leave; RETF | inferred |  |
 | `FUN_1d1d_1e46` | 22302 | 24 | platform | unknown | inferred |  |
-| `FUN_1d1d_1e7a` | 22326 | 21 | platform | unknown | inferred |  |
-| `FUN_1d1d_1e9a` | 22347 | 54 | platform | unknown | inferred |  |
+| `FUN_1d1d_1e7a` | 22326 | 21 | platform | DOS INT21 AH=3E close handle; clear fd table byte | inferred |  |
+| `FUN_1d1d_1e9a` | 22347 | 54 | platform | DOS INT21 AH=42 lseek (origin + signed offset checks) | inferred |  |
 | `FUN_1d1d_1f14` | 22401 | 99 | platform | unknown | inferred |  |
 | `FUN_1d1d_1ffe` | 22500 | 95 | platform | unknown | inferred |  |
 | `FUN_1d1d_20b2` | 22595 | 30 | platform | unknown | inferred |  |
@@ -960,8 +960,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1d1d_2b32` | 23514 | 54 | platform | unknown | inferred |  |
 | `FUN_1d1d_2c44` | 23568 | 18 | platform | unknown | inferred |  |
 | `FUN_1d1d_2c65` | 23586 | 25 | platform | unknown | inferred |  |
-| `FUN_1d1d_2c8e` | 23611 | 168 | platform | unknown | inferred |  |
-| `FUN_1d1d_2f06` | 23779 | 312 | platform | unknown | inferred |  |
+| `FUN_1d1d_2c8e` | 23611 | 168 | platform | Build spawn env block: copy env strings + hex-encode open fds | inferred |  |
+| `FUN_1d1d_2f06` | 23779 | 312 | platform | DOS spawn/exec: MCB walk + AH=48/4A carve; copy env/cmdline | inferred |  |
 | `FUN_1d1d_328a` | 24091 | 30 | platform | unknown | inferred |  |
 
 ### Segment `2047` (5 defs) — platform — DOS Ctrl-C/Break / INT21 abort handlers
@@ -993,51 +993,51 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_206d_000a` | 24369 | 52 | platform | unknown | inferred |  |
+| `FUN_206d_000a` | 24369 | 52 | platform | Copy into stream output buffer (size-budgeted); normalize far write ptr | inferred | FUN_1c05_0004 |
 
 ### Segment `2074` (1 defs) — platform — Size-budgeted stream read to 1b01
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2074_0008` | 24421 | 56 | platform | unknown | inferred |  |
+| `FUN_2074_0008` | 24421 | 56 | platform | Size-budgeted stream read into far dest via 1b01; update remaining/total | inferred | FUN_1b01_000e |
 
 ### Segment `2088` (2 defs) — platform — XMS detect (INT2F) + init handle table
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2088_000c` | 24477 | 20 | platform | unknown | inferred |  |
+| `FUN_2088_000c` | 24477 | 20 | platform | DOS write string to stdout (AH=40 handle 1) then CR/LF | inferred |  |
 | `FUN_2088_0048` | 24497 | 46 | platform | Detect XMS via INT2F and install multiplex entry at DS:0x26e8 | known |  |
 
 ### Segment `2094` (1 defs) — platform — Rtrim trailing spaces/tabs
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2094_000a` | 24543 | 27 | platform | unknown | inferred |  |
+| `FUN_2094_000a` | 24543 | 27 | platform | Rtrim trailing spaces/tabs from string in place | inferred |  |
 
 ### Segment `209a` (1 defs) — platform — Parse hex integer from string
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_209a_000a` | 24570 | 44 | platform | unknown | inferred |  |
+| `FUN_209a_000a` | 24570 | 44 | platform | Parse hex integer from string (A–F + digits via ctype 0x27ed) | inferred |  |
 
 ### Segment `20a0` (1 defs) — platform — Parse binary integer from string
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_20a0_000e` | 24614 | 34 | platform | unknown | inferred |  |
+| `FUN_20a0_000e` | 24614 | 34 | platform | Parse binary integer from string (0/1 digits only) | inferred |  |
 
 ### Segment `2100` (1 defs) — platform — XMS size query via multiplex entry
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2100_000e` | 24648 | 19 | platform | unknown | inferred |  |
+| `FUN_2100_000e` | 24648 | 19 | platform | XMS UMB size probe (AH=10 DX=FFFF; return DX<<4 on BL=B0) | inferred |  |
 
 ### Segment `2103` (2 defs) — platform — XMS handle alloc / free list
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2103_000a` | 24667 | 24 | platform | unknown | inferred |  |
-| `FUN_2103_004c` | 24691 | 26 | platform | unknown | inferred |  |
+| `FUN_2103_000a` | 24667 | 24 | platform | XMS Request UMB (AH=10); push handle into table DS:0xa66a (max 16) | inferred |  |
+| `FUN_2103_004c` | 24691 | 26 | platform | Remove UMB handle from table then XMS Release UMB (AH=11) | inferred |  |
 
 ### Segment `210d` (116 defs) — platform — DOS/EMS runtime: INT 21/67, bank switch, overlay page helpers
 
@@ -1195,7 +1195,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0018` | 30651 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0022` | 30661 | 10 | thunk | Far thunk → FUN_1000_0062 (nth NUL-terminated string from table) | inferred |  |
 | `FUN_281f_002c` | 30671 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0048` | 30681 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0048` | 30681 | 10 | thunk | Far thunk → FUN_7b08_000e (alloc growable far-buffer arena) | inferred |  |
 | `FUN_281f_0056` | 30691 | 10 | thunk | Far thunk → FUN_1009_00b4 (wait/restore then disarm overlay) | inferred |  |
 | `FUN_281f_0060` | 30701 | 10 | thunk | Far thunk → FUN_1009_0402 (arm timed overlay then draw) | inferred |  |
 | `FUN_281f_006a` | 30711 | 10 | thunk | Far thunk → FUN_1009_017e (append string onto status buffer) | inferred |  |
@@ -1277,7 +1277,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0370` | 31471 | 10 | thunk | Far thunk → FUN_124c_0040 (DOS distance helper) | inferred |  |
 | `FUN_281f_037a` | 31481 | 10 | thunk | Far thunk → FUN_124c_007c (Manhattan /dx/+/dy/ via 0040) | inferred |  |
 | `FUN_281f_038e` | 31491 | 10 | thunk | Far thunk → FUN_1262_0128 (wrap selection index into [0, n)) | inferred |  |
-| `FUN_281f_0398` | 31501 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0398` | 31501 | 10 | thunk | Far thunk → FUN_1262_0142 (bind tip-string far ptr) | inferred |  |
 | `FUN_281f_03a2` | 31511 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_03ac` | 31521 | 10 | thunk | Far thunk → FUN_1262_02fe (mouse-move / tooltip debounce tick) | inferred |  |
 | `FUN_281f_03b6` | 31531 | 10 | thunk | unknown | inferred |  |
@@ -1286,7 +1286,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_03d4` | 31561 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_03e0` | 31571 | 10 | platform | Far thunk → FUN_1ae7_0016 (BIOS INT16 read next key) | inferred |  |
 | `FUN_281f_03ea` | 31581 | 10 | thunk | Far thunk → FUN_12d6_0000 (blit VGA rect from offscreen buffer) | inferred |  |
-| `FUN_281f_03f4` | 31591 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_03f4` | 31591 | 10 | thunk | Far thunk → FUN_1ade_0004 (VGA retrace + program DAC palette) | inferred |  |
 | `FUN_281f_03fe` | 31601 | 10 | ui | Dialog flush/run thunk→6f74_3744→0998 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_040a` | 31611 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0416` | 31621 | 10 | thunk | Far thunk → FUN_6f74_03d0 (prefetch dialog string-table slot) | inferred |  |
@@ -1310,7 +1310,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_04d4` | 31801 | 10 | platform | Wrapped RNG range (calls into libc / LCG) | known | ai/accessors.c; src/core/dos_rng.c |
 | `FUN_281f_04de` | 31811 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_04e8` | 31821 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_04f2` | 31831 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_04f2` | 31831 | 10 | thunk | Far thunk → FUN_1a58_0054 (hide mouse cursor) | inferred |  |
 | `FUN_281f_04fc` | 31841 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0506` | 31851 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0510` | 31861 | 10 | thunk | unknown | inferred |  |
@@ -1318,7 +1318,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0524` | 31881 | 10 | thunk | Far thunk → FUN_12fd_006c (once-only discovery/event opcode dispatch) | inferred |  |
 | `FUN_281f_052e` | 31891 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_053c` | 31901 | 9 | thunk | unknown | inferred |  |
-| `FUN_281f_0546` | 31910 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0546` | 31910 | 10 | thunk | Far thunk → FUN_130d_0290 (main game year/turn loop) | inferred |  |
 | `FUN_281f_0550` | 31920 | 10 | thunk | Far thunk → FUN_5bfb_00f8 (rank Euro nations by strength) | inferred |  |
 | `FUN_281f_055e` | 31930 | 10 | ui | Far thunk → FUN_49dd_0424 (camera-follow map chrome; human-visible AI) | inferred | ai/euro_dispatcher.c |
 | `FUN_281f_056a` | 31940 | 10 | thunk | Far thunk → FUN_1984_04f6 (tear down status chrome strip/overlays) | inferred |  |
@@ -1328,8 +1328,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_059a` | 31980 | 10 | thunk | Far thunk → FUN_6a9f_00d8 (compute/clamp minimap scroll origin) | inferred |  |
 | `FUN_281f_05a8` | 31990 | 10 | thunk | Far thunk → FUN_74a4_0000 (build game menu bar titles+items) | inferred |  |
 | `FUN_281f_05b6` | 32000 | 10 | save | Far thunk → FUN_7562_0034 (direct save-slot write / autosave) | inferred |  |
-| `FUN_281f_05c4` | 32010 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_05ce` | 32020 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_05c4` | 32010 | 10 | thunk | Far thunk → FUN_1a58_008c (mouse INT33 init / cursor mode) | inferred |  |
+| `FUN_281f_05ce` | 32020 | 10 | thunk | Far thunk → FUN_1a29_01d1 (restore prior INT8 + default PIT) | inferred |  |
 | `FUN_281f_05d8` | 32030 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_05e2` | 32040 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_05ec` | 32050 | 10 | thunk | unknown | inferred |  |
@@ -1537,18 +1537,18 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0e38` | 34090 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0e46` | 34100 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0e52` | 34110 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0e5e` | 34120 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0e68` | 34130 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0e72` | 34140 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0e5e` | 34120 | 10 | thunk | Far thunk → FUN_1984_06b4 (stub: always return 0) | inferred |  |
+| `FUN_281f_0e68` | 34130 | 10 | thunk | Far thunk → FUN_19ef_0008 (seed DOS LCG from BIOS timer) | inferred |  |
+| `FUN_281f_0e72` | 34140 | 10 | thunk | Far thunk → FUN_1c0c_0012 (read BIOS timer dword at 40:6c/6e) | inferred |  |
 | `FUN_281f_0e7c` | 34150 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0e86` | 34160 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0e90` | 34170 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0e9a` | 34180 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0eae` | 34190 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0eb8` | 34200 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0eae` | 34190 | 10 | thunk | Far thunk → FUN_1a0a_0004 (init palette-cycle anim timers) | inferred |  |
+| `FUN_281f_0eb8` | 34200 | 10 | thunk | Far thunk → FUN_1a29_015b (install IRQ0 timer / PIT hook) | inferred |  |
 | `FUN_281f_0ec2` | 34210 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0ecc` | 34220 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0ed6` | 34230 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0ed6` | 34230 | 10 | thunk | Far thunk → FUN_1d11_0000 (stash INT10 mode; optional set) | inferred |  |
 | `FUN_281f_0ee0` | 34240 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0f24` | 34250 | 10 | thunk | Far thunk → FUN_2b5a_23ce (Sound Options dialog) | inferred |  |
 | `FUN_281f_0f30` | 34260 | 10 | thunk | Far thunk → FUN_2b5a_32ee (Enter: open owned colony at focus) | inferred |  |
@@ -1908,7 +1908,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_034a` | 37700 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0356` | 37710 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0364` | 37720 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0372` | 37730 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0372` | 37730 | 10 | mapgen | Far thunk → FUN_78ef_0002 (open RM* resource archive + stream) | inferred |  |
 | `FUN_2a1f_0380` | 37740 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_038a` | 37750 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0398` | 37760 | 10 | ai | Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
@@ -1983,7 +1983,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_079a` | 38459 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_07a8` | 38469 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_07b6` | 38479 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_07c4` | 38489 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_07c4` | 38489 | 10 | mapgen | Far thunk → FUN_6f74_3084 (set dialog script resource triple) | inferred |  |
 | `FUN_2a1f_07d0` | 38499 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_07dc` | 38509 | 10 | mapgen | EMS thunk → FUN_67bf_0000 (continent flood-fill IDs) | known | src/core/map_gen.c |
 | `FUN_2a1f_07ea` | 38519 | 10 | mapgen | unknown | inferred |  |
@@ -2004,7 +2004,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_08b2` | 38669 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_08c0` | 38679 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_08ce` | 38689 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_08dc` | 38699 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_08dc` | 38699 | 10 | mapgen | Far thunk → FUN_6a9f_0068 (load terrain→display color LUTs) | inferred |  |
 | `FUN_2a1f_08ea` | 38709 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_08f8` | 38719 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0906` | 38729 | 10 | mapgen | unknown | inferred |  |
@@ -2033,7 +2033,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0a5c` | 38959 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0a6a` | 38969 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0a78` | 38979 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0a86` | 38989 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0a86` | 38989 | 10 | mapgen | Far thunk → FUN_7952_0000 (open/alloc named resource into far buf) | inferred |  |
 | `FUN_2a1f_0a94` | 38999 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0a9e` | 39009 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0aaa` | 39019 | 10 | mapgen | unknown | inferred |  |
@@ -2072,10 +2072,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0c72` | 39348 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0c80` | 39358 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0c8e` | 39368 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0c9c` | 39378 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0c9c` | 39378 | 10 | mapgen | Far thunk → FUN_79db_000c (chunked DOS file read into far buffer) | inferred |  |
 | `FUN_2a1f_0caa` | 39388 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0cb4` | 39398 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0cbe` | 39408 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0cbe` | 39408 | 10 | mapgen | Far thunk → FUN_74a4_0bbe (load menu-cursor resource handle) | inferred |  |
 | `FUN_2a1f_0ccc` | 39418 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0cda` | 39428 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0ce8` | 39438 | 10 | mapgen | unknown | inferred |  |
@@ -2099,15 +2099,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0de4` | 39618 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0dee` | 39628 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0df8` | 39638 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e02` | 39648 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e10` | 39658 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e1e` | 39668 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e28` | 39678 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e36` | 39688 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e40` | 39698 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e4e` | 39708 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e5c` | 39718 | 10 | mapgen | unknown | inferred |  |
-| `FUN_2a1f_0e6a` | 39728 | 10 | mapgen | unknown | inferred |  |
+| `FUN_2a1f_0e02` | 39648 | 10 | mapgen | Far thunk → FUN_7acf_0002 (alloc far buffer into BX handle struct) | inferred |  |
+| `FUN_2a1f_0e10` | 39658 | 10 | mapgen | Far thunk → FUN_78d8_0022 (alloc resource-stream buffer @23c6) | inferred |  |
+| `FUN_2a1f_0e1e` | 39668 | 10 | mapgen | Far thunk → FUN_1b70_0002 (bind mouse cursor shape to viewport) | inferred |  |
+| `FUN_2a1f_0e28` | 39678 | 10 | mapgen | Far thunk → FUN_7a7c_000e (load 768-byte VGA palette from resource) | inferred |  |
+| `FUN_2a1f_0e36` | 39688 | 10 | mapgen | Far thunk → FUN_1b8b_0004 (set BIOS equipment video bits @40:10) | inferred |  |
+| `FUN_2a1f_0e40` | 39698 | 10 | mapgen | Far thunk → FUN_7a4c_006a (calibrate fade speed via vsync+PIT) | inferred |  |
+| `FUN_2a1f_0e4e` | 39708 | 10 | mapgen | Far thunk → FUN_7aa1_0002 (dismiss message-box handle 0x2604) | inferred |  |
+| `FUN_2a1f_0e5c` | 39718 | 10 | mapgen | Far thunk → FUN_7a9d_0004 (load dialog string prep buf →0x929e) | inferred |  |
+| `FUN_2a1f_0e6a` | 39728 | 10 | mapgen | Far thunk → FUN_7aa1_003a (message box: create+run modal) | inferred |  |
 | `FUN_2a1f_0e78` | 39738 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0e82` | 39748 | 10 | mapgen | unknown | inferred |  |
 | `FUN_2a1f_0e90` | 39758 | 10 | mapgen | unknown | inferred |  |
@@ -2998,8 +2998,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7421_0188` | 118857 | 27 | platform | unknown | inferred |  |
-| `FUN_7421_025a` | 118884 | 66 | platform | unknown | inferred |  |
+| `FUN_7421_0188` | 118857 | 27 | platform | Startup config fread: open + seven word reads into DS:0x260a..0x2616 | inferred |  |
+| `FUN_7421_025a` | 118884 | 66 | platform | Startup argv parse (-opts); set DS:0x26e6 skip-XMS then run init | inferred |  |
 
 ### Segment `7455` (7 defs) — mapgen — Map plane buffer alloc (pitch 0x853a → terrain/L2/L3)
 
@@ -3060,9 +3060,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_78d8_0000` | 122337 | 17 | platform | unknown | inferred |  |
-| `FUN_78d8_0022` | 122354 | 21 | platform | unknown | inferred |  |
-| `FUN_78d8_0054` | 122375 | 38 | platform | unknown | inferred |  |
+| `FUN_78d8_0000` | 122337 | 17 | platform | Reset resource-stream cursor/remain from base buffer DS:0x23c6 | inferred |  |
+| `FUN_78d8_0022` | 122354 | 21 | platform | Alloc resource-stream far buffer (281f_029a) then reset via 0000 | inferred |  |
+| `FUN_78d8_0054` | 122375 | 38 | platform | Advance stream: load via 78ef then bump cursor / shrink remain | inferred |  |
 | `FUN_78d8_00c4` | 122413 | 63 | platform | Load/reload resource far-ptrs from stream; fatal after 3 reloads | inferred |  |
 
 ### Segment `78ef` (1 defs) — platform — Resource archive open (RM* / ext) + stream setup
@@ -3075,55 +3075,55 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7939_000c` | 122721 | 41 | platform | unknown | inferred |  |
+| `FUN_7939_000c` | 122721 | 41 | platform | Resource open helper: path+prefix 0x23fa, open/read chunks, close | inferred |  |
 
 ### Segment `7944` (1 defs) — platform — Resource open helper (sibling)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7944_000e` | 122762 | 41 | platform | unknown | inferred |  |
+| `FUN_7944_000e` | 122762 | 41 | platform | Resource open helper sibling: path+prefix 0x2402, extra chunk read | inferred |  |
 
 ### Segment `7952` (1 defs) — platform — Resource open / alloc path
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7952_0000` | 122803 | 70 | platform | unknown | inferred |  |
+| `FUN_7952_0000` | 122803 | 70 | platform | Resource open/alloc path: fopen, heap alloc, one-chunk load; return buf | inferred |  |
 
 ### Segment `7962` (3 defs) — platform — Resource file open / close handle helpers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7962_0000` | 122873 | 97 | platform | unknown | inferred |  |
-| `FUN_7962_020a` | 122970 | 11 | platform | unknown | inferred |  |
-| `FUN_7962_021c` | 122981 | 39 | platform | unknown | inferred |  |
+| `FUN_7962_0000` | 122873 | 97 | platform | Open resource file into handle struct (read-header vs write-create paths) | inferred |  |
+| `FUN_7962_020a` | 122970 | 11 | platform | Store codec/type byte at resource-handle +0x2b | inferred |  |
+| `FUN_7962_021c` | 122981 | 39 | platform | Close resource handle (optional rewind seek + fclose); clear open flag | inferred |  |
 
 ### Segment `798d` (1 defs) — platform — Compressed resource chunk read
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_798d_0000` | 123020 | 112 | platform | unknown | inferred |  |
+| `FUN_798d_0000` | 123020 | 112 | platform | Compressed resource chunk read (seek/size; wire 79a8_004a consume) | inferred |  |
 
 ### Segment `79a8` (4 defs) — platform — Compressed resource stream I/O + progress callback
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_79a8_000a` | 123132 | 8 | platform | unknown | inferred |  |
-| `FUN_79a8_0014` | 123140 | 14 | platform | unknown | inferred |  |
-| `FUN_79a8_002a` | 123154 | 15 | platform | unknown | inferred |  |
+| `FUN_79a8_000a` | 123132 | 8 | platform | Return near offset of far buffer ptr (stream-callback wire helper) | inferred |  |
+| `FUN_79a8_0014` | 123140 | 14 | platform | Invoke progress callback at DS:0x245e if installed | inferred |  |
+| `FUN_79a8_002a` | 123154 | 15 | platform | Install stream heap buffer + progress callback (DS:0x245a..0x2460) | inferred |  |
 | `FUN_79a8_004a` | 123169 | 190 | platform | Wire compressed stream I/O (callbacks + heap buffer + consume loop) | inferred |  |
 
 ### Segment `79db` (1 defs) — platform — Chunked DOS file read into far buffer
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_79db_000c` | 123359 | 70 | platform | unknown | inferred |  |
+| `FUN_79db_000c` | 123359 | 70 | platform | Chunked DOS file write from far buffer (AH=40, ≤0xF000 slices) | inferred |  |
 
 ### Segment `79ec` (2 defs) — platform — Resource stream progress pump / dispatch
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_79ec_0004` | 123429 | 38 | platform | unknown | inferred |  |
-| `FUN_79ec_0082` | 123467 | 58 | platform | unknown | inferred |  |
+| `FUN_79ec_0004` | 123429 | 38 | platform | Resource-stream progress pump: src→dst callbacks until remain drained | inferred |  |
+| `FUN_79ec_0082` | 123467 | 58 | platform | Dispatch compress/decompress codec by mode (DS:0x26cc..0x26e0 table) | inferred |  |
 
 ### Segment `7a05` (5 defs) — platform — Fatal/abort error text + INT10 video reset
 
@@ -3193,14 +3193,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7acf_0002` | 124321 | 24 | platform | unknown | inferred |  |
-| `FUN_7acf_003c` | 124345 | 24 | platform | unknown | inferred |  |
+| `FUN_7acf_0002` | 124321 | 24 | platform | Alloc far buffer into handle via 281f_029a; store size+ptr or fail 0 | inferred |  |
+| `FUN_7acf_003c` | 124345 | 24 | platform | Alloc far buffer into handle via 7ada_0022 (DX:AX size); sibling of 0002 | inferred |  |
 
 ### Segment `7ad6` (1 defs) — platform — Far-buffer free / clear handle struct
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7ad6_000e` | 124369 | 21 | platform | unknown | inferred |  |
+| `FUN_7ad6_000e` | 124369 | 21 | platform | Free handle far buffer (7ada_01aa) and zero size/ptr fields | inferred |  |
 
 ### Segment `7ada` (5 defs) — platform — DOS heap alloc / resize / high-water tracking
 
@@ -3216,8 +3216,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7b04_0002` | 124564 | 16 | platform | unknown | inferred |  |
-| `FUN_7b04_001e` | 124580 | 29 | platform | unknown | inferred |  |
+| `FUN_7b04_0002` | 124564 | 16 | platform | DOS free-memory probe (INT21 AH=48 BX=FFFF) → available bytes | inferred |  |
+| `FUN_7b04_001e` | 124580 | 29 | platform | Max of DOS free probe (0002) vs XMS UMB size (2100_000e) | inferred |  |
 
 ### Segment `7b08` (5 defs) — platform — Growable far-buffer / arena alloc helpers
 
