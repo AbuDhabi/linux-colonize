@@ -47,6 +47,10 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 
 ## Catalog peel status and roadmap
 
+**What to peel next** (stable ranked queue — do not re-sort ad hoc):
+[`docs/catalog_peel_ranking.md`](../docs/catalog_peel_ranking.md).
+Update that file when a batch finishes.
+
 **Layer A (VICEROY) is closed** for segment tagging (batch twelve). Only two
 segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 `1d1c` (1 def). Live counts are in [`MODULE_MAP.md`](MODULE_MAP.md)
@@ -100,8 +104,8 @@ turn/EOT, move-spent `465b`, and map/colony UI thunks (`2b5a_3b68` ∪
      (18).
    - **Done:** map/pedia draw `15eb` (105 — all purpose-unknown closed);
      platform mid `275d`/`7314`/`124c`/`2047`/`7a05`/`7ada`/`7b08` (56).
-   - **Next (optional):** remaining platform megasegs (`281f`/`291f`/`2a1f`/
-     `1d1d`/`210d`) as ports need them. MAPEDIT stays parked.
+   - **Next:** see [catalog peel ranking](../docs/catalog_peel_ranking.md)
+     (megaseg bulk deferred; small UI/platform crumbs lower priority).
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -112,8 +116,8 @@ turn/EOT, move-spent `465b`, and map/colony UI thunks (`2b5a_3b68` ∪
      foreign tails).
    - **Done:** map unit-order ∪ colony people-band
      `FUN_2b5a_3b68` ∪ `FUN_2f2b_51ec` (47 thunks).
-   - **Next:** full colony entry `FUN_2f2b_6cd4` hop (~73) or other known
-     entries as ports need them.
+   - **Next:** [catalog peel ranking](../docs/catalog_peel_ranking.md) #1+
+     (colony keyboard/mouse dispatchers; Europe input; sim ticks).
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
