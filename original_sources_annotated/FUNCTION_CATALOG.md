@@ -2200,58 +2200,58 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_2f2b_011e` | 47107 | 93 | colony | Colony build / order gate (prereq / error codes) | inferred |  |
-| `FUN_2f2b_0332` | 47200 | 59 | colony | unknown | inferred |  |
-| `FUN_2f2b_0434` | 47259 | 73 | colony | unknown | inferred |  |
+| `FUN_2f2b_0332` | 47200 | 59 | colony | Reorder colonist slot tables after sort | inferred |  |
+| `FUN_2f2b_0434` | 47259 | 73 | colony | Init settlement building-slot layout maps | inferred | docs/assets.md |
 | `FUN_2f2b_05b0` | 47332 | 9 | colony | unknown | inferred |  |
 | `FUN_2f2b_05b6` | 47341 | 16 | colony | unknown | inferred |  |
-| `FUN_2f2b_05ee` | 47357 | 43 | colony | unknown | inferred |  |
-| `FUN_2f2b_0722` | 47400 | 30 | colony | unknown | inferred |  |
-| `FUN_2f2b_0842` | 47430 | 63 | colony | unknown | inferred |  |
+| `FUN_2f2b_05ee` | 47357 | 43 | colony | Draw building/project name label at settlement slot | inferred |  |
+| `FUN_2f2b_0722` | 47400 | 30 | colony | Draw one warehouse cargo-type amount label | inferred |  |
+| `FUN_2f2b_0842` | 47430 | 63 | colony | Draw area-view tile tooltip (terrain/feature text) | inferred | docs/assets.md |
 | `FUN_2f2b_0a3e` | 47493 | 14 | colony | unknown | inferred |  |
-| `FUN_2f2b_0a74` | 47507 | 53 | colony | unknown | inferred |  |
+| `FUN_2f2b_0a74` | 47507 | 53 | colony | Draw area-view surrounding map unit icons | inferred | docs/assets.md |
 | `FUN_2f2b_0ba8` | 47560 | 161 | colony | unknown | inferred |  |
 | `FUN_2f2b_0d89` | 47721 | 100 | colony | unknown | inferred |  |
-| `FUN_2f2b_0fce` | 47821 | 62 | colony | unknown | inferred |  |
-| `FUN_2f2b_11b2` | 47883 | 64 | colony | unknown | inferred |  |
-| `FUN_2f2b_12cc` | 47947 | 49 | colony | unknown | inferred |  |
+| `FUN_2f2b_0fce` | 47821 | 62 | colony | Draw colony top-bar name + date/nation string | inferred | docs/assets.md |
+| `FUN_2f2b_11b2` | 47883 | 64 | colony | Draw outside/fence unit strip | inferred | docs/assets.md |
+| `FUN_2f2b_12cc` | 47947 | 49 | colony | Draw colonists assigned to one workplace building | inferred | docs/assets.md |
 | `FUN_2f2b_13c2` | 47996 | 259 | colony | unknown | inferred |  |
 | `FUN_2f2b_14d4` | 48255 | 101 | colony | unknown | inferred |  |
 | `FUN_2f2b_16f2` | 48356 | 13 | colony | unknown | inferred |  |
-| `FUN_2f2b_171c` | 48369 | 31 | colony | unknown | inferred |  |
-| `FUN_2f2b_17d0` | 48400 | 132 | colony | unknown | inferred |  |
-| `FUN_2f2b_1cce` | 48532 | 61 | colony | unknown | inferred |  |
+| `FUN_2f2b_171c` | 48369 | 31 | colony | Draw settlement building strip (15 slots) | inferred | docs/assets.md |
+| `FUN_2f2b_17d0` | 48400 | 132 | colony | Draw people band (colonists + SoL/Tory meters) | inferred | docs/assets.md |
+| `FUN_2f2b_1cce` | 48532 | 61 | colony | Draw Production multifunction cargo/shortfall strip | inferred | docs/assets.md |
 | `FUN_2f2b_1e46` | 48593 | 115 | colony | unknown | inferred |  |
-| `FUN_2f2b_2054` | 48708 | 18 | colony | unknown | inferred |  |
-| `FUN_2f2b_208c` | 48726 | 59 | colony | unknown | inferred |  |
-| `FUN_2f2b_21da` | 48785 | 21 | colony | unknown | inferred |  |
-| `FUN_2f2b_2262` | 48806 | 15 | colony | unknown | inferred |  |
-| `FUN_2f2b_22b6` | 48821 | 78 | colony | unknown | inferred |  |
-| `FUN_2f2b_2484` | 48899 | 16 | colony | unknown | inferred |  |
-| `FUN_2f2b_24b2` | 48915 | 121 | colony | unknown | inferred |  |
-| `FUN_2f2b_284c` | 49036 | 25 | colony | unknown | inferred |  |
-| `FUN_2f2b_289e` | 49061 | 16 | colony | unknown | inferred |  |
-| `FUN_2f2b_28d6` | 49077 | 85 | colony | unknown | inferred |  |
-| `FUN_2f2b_2b2c` | 49162 | 18 | colony | unknown | inferred |  |
-| `FUN_2f2b_2b66` | 49180 | 39 | colony | unknown | inferred |  |
-| `FUN_2f2b_2c3c` | 49219 | 56 | colony | unknown | inferred |  |
-| `FUN_2f2b_2c92` | 49275 | 23 | colony | unknown | inferred |  |
+| `FUN_2f2b_2054` | 48708 | 18 | colony | Measure text extent for colony UI button/label | inferred |  |
+| `FUN_2f2b_208c` | 48726 | 59 | colony | Draw framed invertible button/label | inferred |  |
+| `FUN_2f2b_21da` | 48785 | 21 | colony | Draw Construction BUY / CHANGE buttons | inferred | docs/assets.md |
+| `FUN_2f2b_2262` | 48806 | 15 | colony | Refresh Construction CHANGE button highlight | inferred |  |
+| `FUN_2f2b_22b6` | 48821 | 78 | colony | Draw Construction hammer progress bars | inferred | docs/assets.md |
+| `FUN_2f2b_2484` | 48899 | 16 | colony | Layout rect for transport hold slot N | inferred |  |
+| `FUN_2f2b_24b2` | 48915 | 121 | colony | Draw transport / ship-hold pane | inferred | docs/assets.md |
+| `FUN_2f2b_284c` | 49036 | 25 | colony | Draw right multifunction pane by mode DS:0x337 | inferred | docs/assets.md |
+| `FUN_2f2b_289e` | 49061 | 16 | colony | Warehouse cargo-strip X pos / selection marker | inferred |  |
+| `FUN_2f2b_28d6` | 49077 | 85 | colony | Draw warehouse cargo strip (16 types + Exit) | inferred | docs/assets.md |
+| `FUN_2f2b_2b2c` | 49162 | 18 | colony | Unit-chrome sprite rect helper | inferred |  |
+| `FUN_2f2b_2b66` | 49180 | 39 | colony | Draw vertical multifunction tab buttons | inferred |  |
+| `FUN_2f2b_2c3c` | 49219 | 56 | colony | Draw multifunction mode-selector chrome | inferred |  |
+| `FUN_2f2b_2c92` | 49275 | 23 | colony | Full colony-screen redraw (all panel thunks) | inferred | docs/assets.md |
 | `FUN_2f2b_2d0e` | 49298 | 10 | colony | unknown | inferred |  |
-| `FUN_2f2b_2d1c` | 49308 | 33 | colony | unknown | inferred |  |
-| `FUN_2f2b_2d90` | 49341 | 37 | colony | unknown | inferred |  |
-| `FUN_2f2b_2e2a` | 49378 | 27 | colony | unknown | inferred |  |
+| `FUN_2f2b_2d1c` | 49308 | 33 | colony | Toggle numbers display (DS:0x334) and refresh active pane | inferred |  |
+| `FUN_2f2b_2d90` | 49341 | 37 | colony | Force numbers-on + full pane refresh | inferred |  |
+| `FUN_2f2b_2e2a` | 49378 | 27 | colony | Alternate numbers-on full refresh path | inferred |  |
 | `FUN_2f2b_2e92` | 49405 | 10 | colony | unknown | inferred |  |
 | `FUN_2f2b_2eb2` | 49415 | 11 | colony | unknown | inferred |  |
 | `FUN_2f2b_2ec6` | 49426 | 11 | colony | unknown | inferred |  |
 | `FUN_2f2b_2eea` | 49437 | 21 | colony | unknown | inferred |  |
-| `FUN_2f2b_2f26` | 49458 | 23 | colony | unknown | inferred |  |
+| `FUN_2f2b_2f26` | 49458 | 23 | colony | Arm native-trade session pointers (0xbb8/9cce/9cd0) | inferred |  |
 | `FUN_2f2b_2f3e` | 49481 | 985 | colony | unknown | inferred |  |
 | `FUN_2f2b_348c` | 50466 | 441 | colony | unknown | inferred |  |
 | `FUN_2f2b_3fa6` | 50907 | 47 | colony | unknown | inferred |  |
 | `FUN_2f2b_40a0` | 50954 | 54 | colony | unknown | inferred |  |
 | `FUN_2f2b_41c0` | 51008 | 45 | colony | unknown | inferred |  |
-| `FUN_2f2b_4284` | 51053 | 19 | colony | unknown | inferred |  |
-| `FUN_2f2b_42be` | 51072 | 13 | colony | unknown | inferred |  |
-| `FUN_2f2b_42f2` | 51085 | 14 | colony | unknown | inferred |  |
+| `FUN_2f2b_4284` | 51053 | 19 | colony | Select colonist; enter assign/profession mode (8d54=6) | inferred | docs/assets.md |
+| `FUN_2f2b_42be` | 51072 | 13 | colony | Enter colony drag/select mode (8d54=7) | inferred | docs/assets.md |
+| `FUN_2f2b_42f2` | 51085 | 14 | colony | Clear drag/select chrome (0x344) | inferred |  |
 | `FUN_2f2b_4424` | 51099 | 40 | colony | unknown | inferred |  |
 | `FUN_2f2b_44d4` | 51139 | 174 | colony | unknown | inferred |  |
 | `FUN_2f2b_47bc` | 51313 | 100 | colony | unknown | inferred |  |
@@ -2272,8 +2272,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2f2b_60dc` | 52813 | 71 | colony | unknown | inferred |  |
 | `FUN_2f2b_628a` | 52884 | 1478 | colony | unknown | inferred |  |
 | `FUN_2f2b_6372` | 54362 | 1575 | colony | unknown | inferred |  |
-| `FUN_2f2b_6c46` | 55937 | 38 | colony | unknown | inferred |  |
-| `FUN_2f2b_6cd4` | 55975 | 847 | colony | unknown | inferred |  |
+| `FUN_2f2b_6c46` | 55937 | 38 | colony | Clear hover dirty-flags; refresh stale panels | inferred |  |
+| `FUN_2f2b_6cd4` | 55975 | 847 | colony | Colony screen entry / bring-up + main loop teardown | inferred | docs/assets.md |
 
 ### Segment `364b` (11 defs) — colony — Colony found / build screen (DS:0x8542)
 

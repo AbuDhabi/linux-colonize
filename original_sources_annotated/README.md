@@ -65,8 +65,8 @@ Catalog confidence is **not** the same as AI port status in
 [`docs/ai_transcription.md`](../docs/ai_transcription.md) — a function can be
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
-Purpose one-liners are **not** Layer A. Layer B has started (SAVEGAME done);
-most other systems still have purpose `unknown` — that backlog is Layers B/C.
+Purpose one-liners are **not** Layer A. Layer B underway (SAVEGAME done;
+colony `2f2b` batch 1 done); most other systems still have purpose `unknown`.
 
 ### Roadmap (committed order)
 
@@ -75,8 +75,11 @@ most other systems still have purpose `unknown` — that backlog is Layers B/C.
    - **Done:** SAVEGAME — all `75c2` + `7562` funcs labeled (slot path/list/Save/Load,
      header probe, write/load blobs, title menu, new-game bootstrap). Corrected
      `7562` cluster label (was mis-tagged HoF).
-   - **Next:** colony (`2f2b`) purpose peel (large; expect multi-batch). Then
-     Europe trade (`38fd` / `4345`). MAPEDIT stays parked.
+   - **In progress:** colony (`2f2b`) — **batch 1 done** (~35 redraw / layout /
+     screen-entry helpers + build gate). Remaining ~40 for **batch 2** (large
+     input/assign handlers: `2f3e`, `628a`, `6372`, `348c`, `51ec`, …). Siblings
+     `647e` / `479b` still later. Then Europe trade (`38fd` / `4345`).
+     MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries (`FUN_521d_6d8e`, `FUN_4d56_1816`,
    turn EOT).
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
