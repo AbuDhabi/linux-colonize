@@ -1,0 +1,205 @@
+{
+  "layer": "B",
+  "chunk": "ai_diplo_5bfb_4cc6_15dc_41f2_4962",
+  "functions": {
+    "FUN_15dc_0006": {
+      "system": "ai",
+      "purpose": "Bind current Indian nation context (8d52/8d50/state@5ad6)",
+      "confidence": "known",
+      "links": "ai/indian_nation_turn.c; FUN_281f_0a42"
+    },
+    "FUN_15dc_006a": {
+      "system": "ai",
+      "purpose": "Indian nation class/tier from state+2 (returns 1/2/3)",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a56"
+    },
+    "FUN_15dc_00a2": {
+      "system": "ai",
+      "purpose": "Bucket integer into quartile 0..3 (<25/50/75)",
+      "confidence": "inferred",
+      "links": "FUN_281f_0a60"
+    },
+    "FUN_15dc_00e0": {
+      "system": "ai",
+      "purpose": "Get Indian↔Euro relation word at DS:0x5b1c[i][e]",
+      "confidence": "known",
+      "links": "ai/indian_nation_turn.c; FUN_281f_030c"
+    },
+    "FUN_41f2_000e": {
+      "system": "ai",
+      "purpose": "Present nation-score report title dialog (2da8 box)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_41f2_0048": {
+      "system": "ai",
+      "purpose": "Advance score-report text cursor (2d0e/2d10) + draw line",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_41f2_0092": {
+      "system": "ai",
+      "purpose": "Nation score compute + optional full report UI",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_41f2_0266": {
+      "system": "ai",
+      "purpose": "Mid-entry of 0092 colonist-score loop (Ghidra split)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_41f2_0294": {
+      "system": "ai",
+      "purpose": "Village pop init/cap (tribe create 0038 + growth 152e)",
+      "confidence": "inferred",
+      "links": "ai/indian_nation_turn.c"
+    },
+    "FUN_41f2_0b70": {
+      "system": "ai",
+      "purpose": "Score→difficulty-scaled gold rebate + treasure dialog",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_41f2_0f56": {
+      "system": "ai",
+      "purpose": "High-score table load/insert/save + present UI",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_41f2_14a8": {
+      "system": "ai",
+      "purpose": "End-game score snapshot → rebate(0b70) + HoF(0f56)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4962_0006": {
+      "system": "ai",
+      "purpose": "Saturating byte add (cap 0xff) for census counters",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4962_0606": {
+      "system": "ai",
+      "purpose": "Tally nation profession counts from units + colony jobs",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4962_06b6": {
+      "system": "ai",
+      "purpose": "Indian relation-tick census (tribes/units/goods recount)",
+      "confidence": "known",
+      "links": "ai/indian_nation_turn.c; FUN_2a1f_0270"
+    },
+    "FUN_4cc6_0000": {
+      "system": "ai",
+      "purpose": "Clear Euro missions on tribes of an Indian nation (alarm)",
+      "confidence": "known",
+      "links": "ai/indian_nation_turn.c; FUN_2a1f_0398"
+    },
+    "FUN_4cc6_0092": {
+      "system": "ai",
+      "purpose": "Set war/alarm bit0x40 vs Indian + clear missions",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4cc6_00f2": {
+      "system": "ai",
+      "purpose": "Apply Indian↔Euro relation delta (+dialogs/war roll)",
+      "confidence": "known",
+      "links": "ai/indian_nation_turn.c; FUN_281f_0d6c"
+    },
+    "FUN_4cc6_0304": {
+      "system": "ai",
+      "purpose": "Find tribe index at map (x,y) or -1",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4cc6_0356": {
+      "system": "ai",
+      "purpose": "Nearest village to (x,y); optional nation/terrain filter; sets 8db8",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_4cc6_03f8": {
+      "system": "ai",
+      "purpose": "Best Euro threat nation+score near a tribe (units/colonies)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_5bfb_0000": {
+      "system": "ai",
+      "purpose": "Cargo/treasury census outs for diplomacy (nation filter)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0634"
+    },
+    "FUN_5bfb_00f8": {
+      "system": "ai",
+      "purpose": "Rank four Euro nations by strength into order table",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_5bfb_0182": {
+      "system": "ai",
+      "purpose": "Set diplomacy bit0x40 + human peace/teach dialogs",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0650"
+    },
+    "FUN_5bfb_022e": {
+      "system": "ai",
+      "purpose": "Indian unit contact/meet body (first contact, gifts, demand)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_066c"
+    },
+    "FUN_5bfb_102a": {
+      "system": "ai",
+      "purpose": "Diplomacy multi-line dialog present (N option pumps)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0618"
+    },
+    "FUN_5bfb_1092": {
+      "system": "ai",
+      "purpose": "Diplomacy short 1–2 option dialog present",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0642"
+    },
+    "FUN_5bfb_10ec": {
+      "system": "ai",
+      "purpose": "Euro A↔B war/ally eligibility by military balance",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_067a"
+    },
+    "FUN_5bfb_12d0": {
+      "system": "ai",
+      "purpose": "Clear armed-unit goto/orders adjacent to a colony",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_060a"
+    },
+    "FUN_5bfb_13b0": {
+      "system": "ai",
+      "purpose": "Form or break alliance (bit0x40) between two nations",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_065e"
+    },
+    "FUN_5bfb_153e": {
+      "system": "ai",
+      "purpose": "Large diplomacy/war-declaration body (trade/military score)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_05fc"
+    },
+    "FUN_5bfb_312e": {
+      "system": "ai",
+      "purpose": "Unit combat-power factor (type/HP modifiers)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0626"
+    },
+    "FUN_5bfb_3180": {
+      "system": "ai",
+      "purpose": "Adjacent ship/unit combat loot resolution around (x,y)",
+      "confidence": "inferred",
+      "links": "FUN_2a1f_0192"
+    }
+  },
+  "notes": "15dc: 0006/00e0 known via 0a42/030c thunks (layer_c + seed); 006a=state+2 tier; 00a2=relation quartile via 0a60. 4cc6: 0000/00f2 known via 0398/0d6c; 0092 sets 0a10 bit0x40; 0304/0356 village lookup; 03f8 threat score (sibling of 07c2). 4962: 0006 saturating add used by 0018 census; 0606 profession tallies; 06b6 known relation-tick body. 41f2: 000e/0048/0092/0b70/0f56/14a8 are nation-score report + HoF UI (MODULE_MAP message UI); 0266/0294 are Ghidra mid-splits of 0092 — 4d56 PUSH CS near-calls to same offsets are overlay aliases (0280 already labeled growth tick by that convention; 0294 labeled by create/152e pop use). 5bfb: contact/diplo cluster via 2a1f_* thunks; 022e=Indian meet; 153e=war/diplo; 13b0/0182 alliance bits; 12d0 order clear; 312e/3180 combat helpers."
+}
