@@ -198,11 +198,11 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `212d` | 6 | platform | known | EMS INT67 page map + INT21 env helpers | [catalog](FUNCTION_CATALOG.md) |
 | `1f45` | 5 | platform | inferred | Growable far-buffer / arena on 1cc9 | [catalog](FUNCTION_CATALOG.md) |
 | `2145` | 5 | platform | inferred | EMS page-frame heap / handle allocator | [catalog](FUNCTION_CATALOG.md) |
-| `1297` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1297` | 4 | platform | inferred | Path/name helpers: digit overlay, *-strip copy, fopen | [catalog](FUNCTION_CATALOG.md) |
 | `19b7` | 4 | mapdraw | known | Terrain class index | [catalog](FUNCTION_CATALOG.md) |
-| `1ed0` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2115` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
-| `2309` | 4 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
+| `1ed0` | 4 | platform | inferred | Fatal/abort error text + INT10 video reset | [catalog](FUNCTION_CATALOG.md) |
+| `2115` | 4 | platform | known | DOS Ctrl-C/Break / INT21 abort handlers | [catalog](FUNCTION_CATALOG.md) |
+| `2309` | 4 | platform | inferred | Compressed resource stream I/O + progress callback | [catalog](FUNCTION_CATALOG.md) |
 | `1334` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `18a2` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |
 | `1c21` | 3 | unknown | unknown | — | [catalog](FUNCTION_CATALOG.md) |

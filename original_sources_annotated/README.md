@@ -45,10 +45,10 @@ Each session peels **one** thin layer of ignorance. Do not mix layers.
 | **C — Call-tree from known entry** | From one known entry (`FUN_684c_08c0`, `FUN_521d_6d8e`, turn EOT, …), label direct callees one hop | Entry’s 1-hop neighborhood catalogued |
 | **D — Selective deepen** | Extract annotated stub into `original_sources_annotated/<system>/` (same bar as `ai/`) | `SYMBOL_MAP` (or sibling map) + catalog links updated |
 
-Suggested early order after the skeleton: Layer A through batch eight —
-VICEROY ≥3 complete (deferred `12fd`/`4720`/`74a4`/`7a65` labeled);
-MAPEDIT mid-size wave two done. Next: remaining MAPEDIT ≥4 / tiny
-stubs, tiny VICEROY 1–2 def stubs, or Layer B/C call-trees. AI port
+Suggested early order after the skeleton: Layer A through batch nine —
+VICEROY ≥3 complete; MAPEDIT ≥4 exhausted (`1297`/`1ed0`/`2115`/`2309`).
+Remaining unknowns are mostly ≤3-def / 1–2-def stubs. Next: MAPEDIT ≤3
+stubs, VICEROY tiny stubs, or switch to Layer B/C call-trees. AI port
 roadmap stays in [`docs/ai_transcription.md`](../docs/ai_transcription.md);
 the catalog only mirrors status.
 

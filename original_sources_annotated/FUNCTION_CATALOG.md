@@ -3299,14 +3299,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1000_2872` | 2332 | 28 | ui | unknown | inferred |  |
 | `FUN_1000_28d8` | 2360 | 60 | ui | unknown | inferred |  |
 
-### Segment `1297` (4 defs) — unknown
+### Segment `1297` (4 defs) — platform — Path/name helpers: digit overlay, *-strip copy, fopen
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1297_000c` | 2420 | 44 | unknown | unknown | unknown |  |
-| `FUN_1297_00ba` | 2464 | 19 | unknown | unknown | unknown |  |
-| `FUN_1297_0104` | 2483 | 12 | unknown | unknown | unknown |  |
-| `FUN_1297_0142` | 2495 | 9 | unknown | unknown | unknown |  |
+| `FUN_1297_000c` | 2420 | 44 | platform | Overlay decimal digits of AX into a path template string | inferred |  |
+| `FUN_1297_00ba` | 2464 | 19 | platform | unknown | inferred |  |
+| `FUN_1297_0104` | 2483 | 12 | platform | unknown | inferred |  |
+| `FUN_1297_0142` | 2495 | 9 | platform | unknown | inferred |  |
 
 ### Segment `12ab` (26 defs) — mapdraw — Resources / rumours
 
@@ -3896,14 +3896,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1ec5_0008` | 14559 | 17 | unknown | unknown | unknown |  |
 | `FUN_1ec5_0024` | 14576 | 70 | unknown | unknown | unknown |  |
 
-### Segment `1ed0` (4 defs) — unknown
+### Segment `1ed0` (4 defs) — platform — Fatal/abort error text + INT10 video reset
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1ed0_0008` | 14646 | 38 | unknown | unknown | unknown |  |
-| `FUN_1ed0_00ac` | 14684 | 45 | unknown | unknown | unknown |  |
-| `FUN_1ed0_0156` | 14729 | 84 | unknown | unknown | unknown |  |
-| `FUN_1ed0_03d6` | 14813 | 32 | unknown | unknown | unknown |  |
+| `FUN_1ed0_0008` | 14646 | 38 | platform | unknown | inferred |  |
+| `FUN_1ed0_00ac` | 14684 | 45 | platform | unknown | inferred |  |
+| `FUN_1ed0_0156` | 14729 | 84 | platform | Fatal abort: INT10 video reset, print error text, exit(3) | inferred |  |
+| `FUN_1ed0_03d6` | 14813 | 32 | platform | unknown | inferred |  |
 
 ### Segment `1f16` (2 defs) — unknown
 
@@ -4053,14 +4053,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_2114_0002` | 16834 | 8 | unknown | unknown | unknown |  |
 
-### Segment `2115` (4 defs) — unknown
+### Segment `2115` (4 defs) — platform — DOS Ctrl-C/Break / INT21 abort handlers
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2115_00b2` | 16842 | 32 | unknown | unknown | unknown |  |
-| `FUN_2115_00e3` | 16874 | 15 | unknown | unknown | unknown |  |
-| `FUN_2115_0100` | 16889 | 20 | unknown | unknown | unknown |  |
-| `FUN_2115_0119` | 16909 | 10 | unknown | unknown | unknown |  |
+| `FUN_2115_00b2` | 16842 | 32 | platform | unknown | inferred |  |
+| `FUN_2115_00e3` | 16874 | 15 | platform | unknown | inferred |  |
+| `FUN_2115_0100` | 16889 | 20 | platform | Install 5 far INT abort handlers pointing into this segment | known |  |
+| `FUN_2115_0119` | 16909 | 10 | platform | unknown | inferred |  |
 
 ### Segment `2127` (2 defs) — unknown
 
@@ -4205,14 +4205,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_2302_000a` | 18356 | 23 | unknown | unknown | unknown |  |
 
-### Segment `2309` (4 defs) — unknown
+### Segment `2309` (4 defs) — platform — Compressed resource stream I/O + progress callback
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2309_000a` | 18379 | 8 | unknown | unknown | unknown |  |
-| `FUN_2309_0014` | 18387 | 14 | unknown | unknown | unknown |  |
-| `FUN_2309_002a` | 18401 | 15 | unknown | unknown | unknown |  |
-| `FUN_2309_004a` | 18416 | 164 | unknown | unknown | unknown |  |
+| `FUN_2309_000a` | 18379 | 8 | platform | unknown | inferred |  |
+| `FUN_2309_0014` | 18387 | 14 | platform | unknown | inferred |  |
+| `FUN_2309_002a` | 18401 | 15 | platform | unknown | inferred |  |
+| `FUN_2309_004a` | 18416 | 164 | platform | Wire compressed stream I/O (callbacks + heap buffer + consume loop) | inferred |  |
 
 ### Segment `233e` (1 defs) — unknown
 
