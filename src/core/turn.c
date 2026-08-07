@@ -590,10 +590,7 @@ void turn_run_indian_stub(ColonizeTurnContext* ctx) {
 }
 
 void turn_run_king_stub(ColonizeTurnContext* ctx) {
-  /* Tax audiences / REF / independence events — not yet recovered. */
-  if (ctx) {
-    turn_set_active_nation(ctx, ctx->human_nation);
-  }
+  ai_king_nation_turn(ctx);
 }
 
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {

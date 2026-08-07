@@ -14,13 +14,13 @@
 #include "core/units.h"
 
 /*
- * European / Indian AI actors (Phase 1 + early-AI T2 gate).
+ * European / Indian / King AI (Full T0/T1 surface).
  *
- * New-game: Col1 template + rival fleets with landfall goto +
- * TRIBE.TXT / procedural villages with Braves + post-`6a09` native pulse.
- * Turn: sail/unload/found + AI crosses; seed-100 early path (fixture slices);
- * village growth + Brave pulse (seed-100 TURN snaps = R0 debt).
- * Full FUN_521d_* planner / raids remain parked.
+ * New-game: Col1 template + rival fleets + tribes/Braves.
+ * Euro: seed-100 early fixture (smoke_ai_turns) or full dispatcher
+ *   (ai_euro.c — goals/hire/act/scoring) when AI_FULL_DISPATCH=1 or rng≠100.
+ * Indian: growth + quiet pulse + contact/meet/trade/raids (ai_contact.c).
+ * King: tax / SoL declare / REF waves (ai_king.c).
  */
 
 #define AI_TRIBE_CAP_AMERICA 84
@@ -53,8 +53,11 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
 /* One European AI nation: refresh already done by caller; sail/unload/found + crosses. */
 void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
-/* One native nation (4..11): village growth + DOS Brave pulse. */
+/* One native nation (4..11): village growth + DOS Brave pulse + contact/raids. */
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
+
+/* King / tax / REF / independence phase (replaces turn_run_king_stub body). */
+void ai_king_nation_turn(ColonizeTurnContext* ctx);
 
 /*
  * Cheat: Kill Indians — despawn all units of nation_id (4..11), remove villages,

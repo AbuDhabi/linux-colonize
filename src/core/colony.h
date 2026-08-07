@@ -190,6 +190,9 @@ bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeCo
 /* Remove colony and warehouse cargo; on-tile units are left alone. */
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);
 
+/* Capture colony for a new European owner (T0 military / REF / raids). */
+bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id);
+
 /* Fill out_roles with affordable eject roles for this colonist; returns count. */
 int colonies_list_eject_roles(
   const ColonizeColonyPool* pool,

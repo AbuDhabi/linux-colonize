@@ -125,7 +125,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 /* EN→FR→SP→DU AI nations (skip human); calls ai_euro_nation_turn. */
 void turn_run_european_ai_stubs(ColonizeTurnContext* ctx);
 
-/* Indian AI (growth + Brave pulse) / King phase placeholder. */
+/* Indian AI (growth + Brave pulse + contact) / King phase (tax/REF). */
 void turn_run_indian_stub(ColonizeTurnContext* ctx);
 void turn_run_king_stub(ColonizeTurnContext* ctx);
 

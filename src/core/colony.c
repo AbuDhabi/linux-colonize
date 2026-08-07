@@ -798,6 +798,22 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   return true;
 }
 
+bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !col->active) {
+    return false;
+  }
+  if (new_nation_id < 0 || new_nation_id > 11) {
+    return false;
+  }
+  /* Indian capture: abandon (natives don't run Euro colonies T0). */
+  if (new_nation_id >= 4) {
+    return colonies_abandon(pool, colony_id);
+  }
+  col->nation_id = new_nation_id;
+  return true;
+}
+
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool) {

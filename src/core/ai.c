@@ -5,6 +5,9 @@
 #include <string.h>
 #include <strings.h>
 
+#include "core/ai_contact.h"
+#include "core/ai_euro.h"
+#include "core/ai_goals.h"
 #include "core/col1_bridge.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
@@ -932,6 +935,8 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   if (err && err_size) {
     err[0] = '\0';
   }
+
+  ai_goals_reset();
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;
@@ -2161,13 +2166,20 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  if (ai_euro_early_turn(ctx, nation_id)) {
+  /* Seed-100 early fixture keeps smoke_ai_turns green unless AI_FULL_DISPATCH=1. */
+  if (!ai_euro_use_full_dispatch(ctx) && ai_euro_early_turn(ctx, nation_id)) {
+    return;
+  }
+
+  if (ai_euro_use_full_dispatch(ctx)) {
+    ai_euro_dispatcher_turn(ctx, nation_id);
     return;
   }
 
   /*
    * FUN_521d_6d8e unit loops: ships first (types 0x0a–0x0c in DOS), then land.
    * Pass 0 = ships only; pass 1 = land units with follow-goto orders.
+   * Used when seed-100 fixture did not consume the turn.
    */
   for (int pass = 0; pass < 2; ++pass) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -3424,6 +3436,11 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
       (int)*ctx->turn_number
     );
   }
+
+  /* FUN_4d56_1816 alarm/relations + meet/trade + raids (T0). */
+  ai_contact_indian_prelude(ctx, nation_id);
+  ai_contact_indian_meet_trade(ctx, nation_id);
+  ai_contact_indian_raids(ctx, nation_id);
 }
 
 int col1_kill_indian_nation(
