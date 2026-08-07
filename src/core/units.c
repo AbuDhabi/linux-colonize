@@ -1774,7 +1774,7 @@ bool units_pick_landfall_tile(
   const bool have_prefer = prefer_x >= 0 && prefer_y >= 0;
   int best_x = -1;
   int best_y = -1;
-  int best_d = 0x7fffffff;
+  int best_score = -0x7fffffff;
   for (int d = 0; d < 8; ++d) {
     const int nx = ship->x + k_dx[d];
     const int ny = ship->y + k_dy[d];
@@ -1784,16 +1784,20 @@ bool units_pick_landfall_tile(
     if (!units_can_enter(pool, pax_type, map, nx, ny, pax_id, colonies)) {
       continue;
     }
-    int dist = 0;
+    /* Settle landfall: skip arctic / occupied (colonies_can_found). */
+    if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
+      continue;
+    }
+    int score = 10;
     if (have_prefer) {
       const int dx = nx - prefer_x;
       const int dy = ny - prefer_y;
-      dist = dx * dx + dy * dy;
+      score -= (dx * dx + dy * dy);
     }
-    if (best_x < 0 || dist < best_d) {
+    if (best_x < 0 || score > best_score) {
       best_x = nx;
       best_y = ny;
-      best_d = dist;
+      best_score = score;
     }
   }
   if (best_x < 0) {

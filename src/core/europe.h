@@ -203,6 +203,8 @@ typedef struct EuropeScreen {
   bool last_exit_east;
   bool last_exit_valid;
   bool open_on_dock; /* set when Expected→Harbor this tick */
+  /* William Brewster: exclude Petty Criminals / Indentured Servants from pool. */
+  bool brewster_no_criminals;
   char status[160];
 } EuropeScreen;
 

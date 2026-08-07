@@ -242,6 +242,10 @@ bool colonies_can_found(
   if (!map_tile_is_land(map, x, y)) {
     return false;
   }
+  /* Arctic (pedia 24) is not colonizable — classic Col1 / manual. */
+  if (map_pedia_terrain_index_at(map, x, y) == 24) {
+    return false;
+  }
   if (colonies_id_at(pool, x, y) >= 0) {
     return false;
   }

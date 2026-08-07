@@ -119,6 +119,7 @@ static int count_nation_cargo(const ColonizeUnitPool* units, int nation) {
 static bool place_ai_ship_for_settle(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
   int nation
 ) {
   ColonizeUnit* ship = NULL;
@@ -139,7 +140,7 @@ static bool place_ai_ship_for_settle(
   int gy = ship->goto_y;
   if (gx < 0 || gy < 0 || gx >= 255 || gy >= 255 || gx >= (int)map->width ||
       gy >= (int)map->height) {
-    /* Goto cleared — use current position as search center. */
+    /* Goto cleared / Europe sentinel — use current position as search center. */
     gx = ship->x;
     gy = ship->y;
   }
@@ -150,32 +151,46 @@ static bool place_ai_ship_for_settle(
   int best_wy = -1;
   int best_lx = -1;
   int best_ly = -1;
-  int best_d = 0x7fffffff;
-  /* Scan a box around landfall for water that borders enterable land. */
-  for (int dy = -8; dy <= 8; ++dy) {
-    for (int dx = -8; dx <= 8; ++dx) {
-      const int wx = gx + dx;
-      const int wy = gy + dy;
-      if (!map_tile_is_water(map, wx, wy)) {
-        continue;
-      }
-      for (int e = 0; e < 8; ++e) {
-        const int lx = wx + k_dx[e];
-        const int ly = wy + k_dy[e];
-        if (!map_tile_is_land(map, lx, ly)) {
+  int best_score = -0x7fffffff;
+  /* Prefer water beside foundable (non-arctic) land; scan full map if needed. */
+  for (int pass = 0; pass < 2; ++pass) {
+    const int y0 = (pass == 0) ? gy - 8 : 1;
+    const int y1 = (pass == 0) ? gy + 8 : (int)map->height - 2;
+    const int x0 = (pass == 0) ? gx - 8 : 1;
+    const int x1 = (pass == 0) ? gx + 8 : (int)map->width - 2;
+    for (int wy = y0; wy <= y1; ++wy) {
+      for (int wx = x0; wx <= x1; ++wx) {
+        if (wx < 0 || wy < 0 || wx >= (int)map->width || wy >= (int)map->height) {
           continue;
         }
-        const int ddx = lx - gx;
-        const int ddy = ly - gy;
-        const int dist = ddx * ddx + ddy * ddy;
-        if (dist < best_d) {
-          best_d = dist;
-          best_wx = wx;
-          best_wy = wy;
-          best_lx = lx;
-          best_ly = ly;
+        if (!map_tile_is_water(map, wx, wy)) {
+          continue;
+        }
+        for (int e = 0; e < 8; ++e) {
+          const int lx = wx + k_dx[e];
+          const int ly = wy + k_dy[e];
+          if (!map_tile_is_land(map, lx, ly)) {
+            continue;
+          }
+          if (colonies && !colonies_can_found(colonies, map, lx, ly)) {
+            continue;
+          }
+          const int ddx = lx - gx;
+          const int ddy = ly - gy;
+          const int dist = ddx * ddx + ddy * ddy;
+          const int score = 100000 - dist;
+          if (score > best_score) {
+            best_score = score;
+            best_wx = wx;
+            best_wy = wy;
+            best_lx = lx;
+            best_ly = ly;
+          }
         }
       }
+    }
+    if (best_wx >= 0) {
+      break;
     }
   }
   if (best_wx < 0) {
@@ -190,9 +205,11 @@ static bool place_ai_ship_for_settle(
       pax->y = best_wy;
     }
   }
-  ship->orders = UNITS_ORDER_GOTO;
-  ship->goto_x = best_lx;
-  ship->goto_y = best_ly;
+  /* Station-keep on coastal water so AI unload sees adjacent foundable land
+   * (do not goto the land tile — advance_goto would burn the turn). */
+  ship->orders = UNITS_ORDER_AI_SAIL;
+  ship->goto_x = best_wx;
+  ship->goto_y = best_wy;
   return true;
 }
 
@@ -492,7 +509,7 @@ static int run_init_and_turns(
       printf("%s settle ok (natural) rival=%d colonies=%d\n", label, rival, rival_cols);
     } else {
       rival = human_nation == 0 ? 1 : 0;
-      if (!place_ai_ship_for_settle(&units, &map, rival)) {
+      if (!place_ai_ship_for_settle(&units, &map, &colonies, rival)) {
         fprintf(stderr, "%s: could not place AI ship for settle (nation %d)\n", label, rival);
         map_free(&map);
         col1_save_free(&col1);
@@ -518,7 +535,7 @@ static int run_init_and_turns(
         assets_msg_free(&names);
         return 1;
       }
-      turn_refresh_moves_for_nation(&units, rival);
+      turn_refresh_moves_for_nation(&units, rival, NULL);
       ai_euro_nation_turn(&ctx, rival);
       if (units.selected_id != human_sel) {
         fprintf(

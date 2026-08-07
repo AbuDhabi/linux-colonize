@@ -76,10 +76,16 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
   snprintf(out, out_size, "%s %u", autumn ? "Autumn" : "Spring", (unsigned)year);
 }
 
-void turn_refresh_moves_for_nation(ColonizeUnitPool* pool, int nation_id) {
+void turn_refresh_moves_for_nation(
+  ColonizeUnitPool* pool,
+  int nation_id,
+  const ColonizeCol1Save* col1
+) {
   if (!pool) {
     return;
   }
+  const bool magellan =
+    col1 && founding_fathers_nation_has(col1, nation_id, FF_FERDINAND_MAGELLAN);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &pool->units[i];
     if (!u->active || u->nation_id != nation_id) {
@@ -100,12 +106,15 @@ void turn_refresh_moves_for_nation(ColonizeUnitPool* pool, int nation_id) {
       /*
        * Natives: COL1 moves = DOS spent thirds; day loop clears spent to 0
        * (decomp ~6357). Brave max allotment is 3 thirds.
-       * Europeans: remaining MP = @UNIT movement.
+       * Europeans: remaining MP = @UNIT movement (+ Magellan sea +1).
        */
       if (nation_id >= 4) {
         u->moves_left = 0;
       } else {
         u->moves_left = type->movement;
+        if (magellan && units_is_sea(pool, u->id)) {
+          u->moves_left += 1;
+        }
       }
     }
   }
@@ -214,6 +223,7 @@ static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
   const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   ColonizeTurnResult* out,
   ColonizeColonyProdDelta* delta
 ) {
@@ -277,20 +287,26 @@ static void turn_produce_one_colony(
       if (yld <= 0) {
         continue;
       }
+      int add = yld;
+      /* Henry Hudson: fur trapper output +100% (fandom_col1994 / manual). */
+      if (c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
+          founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
+        add *= 2;
+      }
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
         continue;
       }
-      colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + yld);
+      colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + add);
       if (delta) {
-        delta->goods[cargo] += yld;
+        delta->goods[cargo] += add;
       }
       if (cargo == COLONIZE_CARGO_FOOD) {
-        field_food += yld;
+        field_food += add;
       } else if (cargo == COLONIZE_CARGO_LUMBER) {
-        field_lumber += yld;
+        field_lumber += add;
       } else if (cargo == COLONIZE_CARGO_ORE) {
-        field_ore += yld;
+        field_ore += add;
       }
     }
   }
@@ -382,6 +398,7 @@ static void turn_produce_one_colony(
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   ColonizeTurnResult* out
 ) {
   if (!pool) {
@@ -389,7 +406,7 @@ void turn_run_colony_production(
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active) {
-      turn_produce_one_colony(pool, &pool->colonies[i], map, out, NULL);
+      turn_produce_one_colony(pool, &pool->colonies[i], map, col1, out, NULL);
     }
   }
 }
@@ -403,7 +420,7 @@ void turn_colony_free_production(
 ) {
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
-  turn_produce_one_colony(pool, colony, map, out ? out : &local, out_delta);
+  turn_produce_one_colony(pool, colony, map, NULL, out ? out : &local, out_delta);
 }
 
 static int turn_count_bells_and_crosses_for_nation(
@@ -571,7 +588,7 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       continue; /* withdrawn */
     }
     turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(ctx->units, n);
+    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
     ai_euro_nation_turn(ctx, n);
   }
 }
@@ -585,7 +602,7 @@ void turn_run_indian_stub(ColonizeTurnContext* ctx) {
   (void)show; /* animation TBD */
   for (int n = 4; n <= 11; ++n) {
     turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(ctx->units, n);
+    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
     ai_indian_nation_turn(ctx, n);
   }
 }
@@ -669,7 +686,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1->head.year = *ctx->game_year;
         ctx->col1->head.autumn = *ctx->game_autumn;
       }
-      turn_run_colony_production(ctx->colonies, ctx->map, &proc->result);
+      turn_run_colony_production(
+        ctx->colonies, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, &proc->result
+      );
       turn_run_nation_ticks(ctx, &proc->result);
       proc->nation_cursor = 0;
       {
@@ -689,7 +708,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
-        turn_refresh_moves_for_nation(ctx->units, n);
+        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
       }
       ai_euro_nation_turn(ctx, n);
       {
@@ -708,7 +727,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
-        turn_refresh_moves_for_nation(ctx->units, n);
+        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
       }
       ai_indian_nation_turn(ctx, n);
       if (n < 11) {
@@ -722,7 +741,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = false;
       turn_run_king_stub(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
-      turn_refresh_moves_for_nation(ctx->units, ctx->human_nation);
+      turn_refresh_moves_for_nation(
+        ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL
+      );
       /* Go-To resumes at 10 steps/sec in game_update so the player can watch. */
       turn_select_next_unit(ctx->units, ctx->human_nation);
       if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {

@@ -1805,6 +1805,10 @@ static bool is_coastal_land(const ColonizeWorldMap* map, int x, int y) {
   if (!map_tile_is_land(map, x, y)) {
     return false;
   }
+  /* Do not landfall on arctic ice. */
+  if (map_pedia_terrain_index_at(map, x, y) == 24) {
+    return false;
+  }
   static const int dx[4] = {1, -1, 0, 0};
   static const int dy[4] = {0, 0, 1, -1};
   for (int i = 0; i < 4; ++i) {
