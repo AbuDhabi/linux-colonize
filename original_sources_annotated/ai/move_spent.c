@@ -7,8 +7,9 @@
  *         ai_native_nation_pulse.
  *
  * Quiet NEW WORLD Braves only exercise the cost head + friendly ADD path
- * (LAB_465b_05ca with foreign_tile=false). Euro combat / diplomacy / colony
- * contact tails are labeled PARKED.
+ * (LAB_465b_05ca with foreign_tile=false). Post-ADD chrome is Section 6
+ * (resolved FUN_1427_*; no Brave 0x3149 write). Euro combat / diplomacy /
+ * colony contact tails are labeled PARKED.
  *
  * Reference only — not compiled into the Linux binary.
  *
@@ -58,8 +59,19 @@ extern int tile_has_minor_river(int x, int y);
 extern int tile_tribe_owner(int x, int y); /* FUN_281f_06be → FUN_137f_03e4 */
 extern int ocean_or_high_seas(int x, int y); /* FUN_281f_0768 */
 extern int unit_index_on_tile(int x, int y); /* FUN_281f_07e0 */
-extern int unit_max_mp(int unit_index); /* FUN_281f_090c */
+extern int unit_max_mp(int unit_index); /* FUN_281f_090c → FUN_1427_065a */
 extern int rng_range(int lo, int hi_inclusive);
+
+/* Post-ADD chrome — real bodies in ai/unit_mp.c (FUN_1427_*). */
+extern void unit_tile_list_refresh(int unit_index);   /* 0916 → 12f6 */
+extern void stack_set_xy(int unit_index, int x, int y); /* 0948 → 040c */
+extern void stack_facing_refresh(int unit_index);     /* 08da → 0968 */
+extern void unit_post_move_chrome(int unit_index);    /* 084e → 0ce6 */
+extern void unit_visibility_bits(int unit_index, int mask); /* 07fe → 0c72 */
+extern void stack_or_nation_flag(int unit_index, int nation); /* 07d6 → 09ac */
+extern int tile_stack_head(void);                     /* 08e4 → 0644 */
+extern int stack_has_ship(int unit_index);            /* 088a → 1284 */
+extern void unit_exhaust_mp(int unit_index);          /* 0934 → 155e */
 
 /*
  * Ghidra: FUN_281f_0696 → FUN_137f_0358 | euro_settlement_owner
@@ -263,6 +275,9 @@ int move_spent_partial_overspend_ok(int remaining, int step_cost, int moves_spen
   return roll <= remaining;
 }
 
+/* Forward: Section 6 body below. */
+void move_spent_post_add_commit(int unit_index, int from_x, int from_y, int to_x, int to_y);
+
 /* ====================================================================== */
 /* Top-level skeleton                                                     */
 /* ====================================================================== */
@@ -309,7 +324,73 @@ void move_spent_add(int unit_index, int to_x, int to_y) {
     return;
   }
 
-  /* Commit xy / owner / chrome: PARKED detail — Linux quiet_brave_apply_step */
+  /* Section 6 — commit xy + post-ADD chrome */
   u->x = (uint8_t)to_x;
   u->y = (uint8_t)to_y;
+  move_spent_post_add_commit(unit_index, from_x, from_y, to_x, to_y);
+}
+
+/* ====================================================================== */
+/* Section 6 — Post-ADD commit chrome (LAB_465b_0673..)                   */
+/* ====================================================================== */
+
+/*
+ * Ordered friendly-path calls after ADD + ocean force (decomp ~75671–75823).
+ * Thunk → real body; 0x3149 R/W for quiet NEW WORLD Brave:
+ *
+ * | Order | Thunk           | Real body      | Annotated                 | 3149 |
+ * |------:|-----------------|----------------|---------------------------|------|
+ * | 1     | FUN_281f_07d6   | FUN_1427_09ac  | stack_or_nation_flag      | no   |
+ * | 2     | FUN_281f_0916   | FUN_1427_12f6  | unit_tile_list_refresh    | no   |
+ * | 3     | FUN_281f_02d0   | (anim)         | move anim if local_a      | no   |
+ * | 4     | FUN_281f_08e4   | FUN_1427_0644  | tile_stack_head (probe)   | no   |
+ * | 5     | FUN_281f_088a   | FUN_1427_1284  | stack_has_ship            | no   |
+ * | 6     | FUN_281f_0934   | FUN_1427_155e  | unit_exhaust_mp           | WRITE|
+ * |       |                 |                | only if 088a OR type==0xc |      |
+ * |       |                 |                | AND 07be(dest)>=0         |      |
+ * |       |                 |                | Brave type 19: **cannot** |      |
+ * | 7     | FUN_281f_08da   | FUN_1427_0968  | stack_facing_refresh      | no   |
+ * | 8     | FUN_281f_0948   | FUN_1427_040c  | stack_set_xy              | no   |
+ * | 9     | FUN_281f_07d6   | FUN_1427_09ac  | stack_or_nation_flag again| no   |
+ * | 10    | FUN_281f_084e   | FUN_1427_0ce6  | unit_post_move_chrome     | no   |
+ * | 11    | FUN_281f_07fe   | FUN_1427_0c72  | unit_visibility_bits      | no   |
+ * | 12    | FUN_281f_09ba   | (reveal)       | 7×7 reveal if local_1c    | no   |
+ * | exit  | FUN_281f_0934   | FUN_1427_155e  | act>0x13 at LAB_465b_0bd1 | WRITE|
+ * |       |                 |                | quiet first act: **no**   |      |
+ *
+ * Money question: none of the post-ADD chrome helpers write 0x3149 except
+ * conditional 0934→155e, which does not fire for lone Brave type 19 on these
+ * T2 holdouts. Writer that turns ADD 9→3 / 6→3 is **after 465b return**
+ * (dump_vrb465x2) — hang VR_B465X target. See ai/brave_spent_callgraph.md.
+ */
+void move_spent_post_add_commit(
+  int unit_index,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+) {
+  ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);
+  int self = (int)u->nation_id;
+
+  /* Visibility / fog chrome may OR nation bits — no spent write. */
+  stack_or_nation_flag(unit_index, /*human nation*/ 0);
+  unit_tile_list_refresh(unit_index);
+
+  (void)tile_stack_head();
+  /* Cargo/wagon exhaust: Brave skips (type!=0x0c, stack_has_ship==0). */
+  if ((stack_has_ship(unit_index) || u->type == 0x0c) /* && 07be(dest)>=0 */) {
+    unit_exhaust_mp(unit_index);
+    u->act_counter = 0;
+  }
+
+  stack_facing_refresh(unit_index);
+  stack_set_xy(unit_index, to_x, to_y);
+  unit_post_move_chrome(unit_index);
+  unit_visibility_bits(unit_index, /*mask from 0826*/ 0);
+
+  (void)from_x;
+  (void)from_y;
+  (void)self;
+  /* Linux quiet_brave_apply_step already set xy/owner; chrome is DOS-only. */
 }

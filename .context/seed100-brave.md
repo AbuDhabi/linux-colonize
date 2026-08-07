@@ -2,15 +2,17 @@
 
 Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 
-## Status (phase 17 — dump-free spent search exhausted)
+## Status (call-graph annotation + phase 17)
 
 | Gate | State |
 |------|--------|
 | Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
 | Mid-turn pick (default) | Quiet ASM + stay LCG + mid peels + **2** spent residuals — **green** |
 | Multi-step / Inca tw | Cleared (phase 13) |
-| Spent-only Sioux/Apache | **Post-ADD writer** (not cost-head). Dump-free predicates exhausted |
-| Hang EXEs | R/F done; X broken builds informative; **`dump_b465x3` still last resort** |
+| Spent-only Sioux/Apache | **Post-ADD / after-`465b` writer**. Chrome helpers do **not** write `0x3149` |
+| Annotation | `ai/brave_spent_callgraph.md` — `14fe` act, post-ADD → `FUN_1427_*`, 3149 table |
+| Port | **Parked** — no T1-safe rule; keep `k_quiet_brave_t2` |
+| Hang EXEs | R/F done; **VR_B465X → `dump_b465x3`** named last resort (spent at RETF?) |
 | Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
 
@@ -87,7 +89,12 @@ Apache 6→3. SAV/DOS terrain → head **6** for Apache SE.
 | `1427_155e` via colony `15eb` | recruit | wrong context |
 
 Prime remaining suspect: **conditional `0934`/`155e` after `465b` returns** (or an
-unlabeled thunk). Call-site needs hang X/E.
+unlabeled thunk). Call-site needs hang X.
+
+Post-ADD chrome (`0916`→`12f6`, `0948`→`040c`, `08da`→`0968`, `084e`→`0ce6`,
+`07fe`→`0c72`, …) verified **no** `0x3149` write. In-`465b` `0934` paths ruled
+out for lone Brave. See
+[`original_sources_annotated/ai/brave_spent_callgraph.md`](../original_sources_annotated/ai/brave_spent_callgraph.md).
 
 ### Dump-free predicates tried (all reject)
 
@@ -97,11 +104,12 @@ unlabeled thunk). Call-site needs hang X/E.
 | Dest capital `dos_dist≤1` + cost>max | Breaks T1 Sioux `(49,40)` (capital at `(50,40)`) |
 | FROM presence / DEST unowned | Same shape as T2 control `(47,46)→(48,46)` which stays 9 |
 
-**Keep** `k_quiet_brave_t2` overlays. Next evidence: rebuild **`VR_B465X`** →
-`dump_b465x3` (spent at `465b` RETF already 3 or still 9?).
+**Keep** `k_quiet_brave_t2` overlays (port-or-park → **park**). Next evidence:
+rebuild **`VR_B465X`** → `dump_b465x3` (spent at `465b` RETF already 3 or still 9?).
 
 `FUN_465b` write map (ASM): friendly land path only **ADD local_40** then
-optional ocean force-to-max. **Do not invent Sioux cost-head caps.**
+optional ocean force-to-max; post-ADD chrome is not a spent writer for Brave.
+**Do not invent Sioux cost-head caps.**
 
 Hang recipes: [`tools/brave_dump/midturn_465b.md`](../tools/brave_dump/midturn_465b.md).
 

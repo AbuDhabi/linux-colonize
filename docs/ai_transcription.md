@@ -288,9 +288,10 @@ Status reflects the AI-port prerequisite work:
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
 **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial (quiet mid-turn
-default, **2** Brave spent-only residuals — dump-free exhausted, hang X last
-resort; named init burns, landfall coastal staging + found-site helper). Next:
-generic T1 Euro settle (spent rows stay overlaid until hang X).
+default, **2** Brave spent-only residuals — call graph annotated
+(`brave_spent_callgraph.md`); post-ADD chrome does not write `0x3149`; overlays
+kept; hang **VR_B465X** last resort). Next: generic T1 Euro settle (spent rows
+stay overlaid until hang X).
 
 ---
 

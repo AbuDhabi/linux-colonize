@@ -24,12 +24,19 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 | `FUN_124c_0040` | `dos_dist` | `ai/accessors.c` | `ai_dos_dist` |
 | `FUN_465b_0000` | `move_spent_add` / `move_spent_cost_head` | `ai/move_spent.c` (+ cost head in `accessors.c`) | `ai_dos_move_spent` + pulse ocean force |
 | `FUN_281f_0696` / `FUN_137f_0358` | `euro_settlement_owner` | `ai/accessors.c` / `move_spent.c` | ocean force-to-max gate |
-| `FUN_281f_090c` | `unit_max_mp` | `ai/accessors.c` | Brave max thirds (=3) |
-| `FUN_281f_097a` | `unit_has_moves_remaining` | `ai/accessors.c` | pulse `spent < max_mp` approx |
-| `FUN_1427_13b0` | `unit_has_moves_remaining` (real body) | `ai/accessors.c` | same |
+| `FUN_281f_090c` / `FUN_1427_065a` | `unit_max_mp` | `ai/unit_mp.c` | Brave table byte (=3) |
+| `FUN_281f_097a` / `FUN_1427_13b0` | `unit_has_moves_remaining` | `ai/unit_mp.c` | pulse `spent < max_mp` |
+| `FUN_281f_0934` / `FUN_1427_155e` | `unit_exhaust_mp` | `ai/unit_mp.c` | spent=max_mp |
+| `FUN_281f_0916` / `FUN_1427_12f6` | `unit_tile_list_refresh` | `ai/unit_mp.c` | post-ADD; no 3149 |
+| `FUN_281f_0948` / `FUN_1427_040c` | `stack_set_xy` | `ai/unit_mp.c` | post-ADD; no 3149 |
+| `FUN_281f_08da` / `FUN_1427_0968` | `stack_facing_refresh` | `ai/unit_mp.c` | post-ADD; no 3149 |
+| `FUN_281f_084e` / `FUN_1427_0ce6` | `unit_post_move_chrome` | `ai/unit_mp.c` | post-ADD; no 3149 |
+| `FUN_281f_07fe` / `FUN_1427_0c72` | `unit_visibility_bits` | `ai/unit_mp.c` | post-ADD; no 3149 |
 | `FUN_4d56_152e` | `village_growth_accum` | `ai/indian_nation_turn.c` | `ai_grow_villages` |
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
-| `func_0x00042191` | `indian_unit_act` (quiet pick+step; alarm PARKED) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
+| `FUN_4d56_14fe` / `func_0x00042191` | `indian_unit_act` (14fe; Ghidra 42191 overlay collision) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
+| `func_0x0004219b` | `indian_pick_dir` | `ai/indian_nation_turn.c` | → `quiet_brave_pick_dir_asm` |
+| (callgraph) | — | `ai/brave_spent_callgraph.md` | spent `0x3149` writers |
 | quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir_asm` via `AI_QUIET_ASM=1` |
 | Init A/B dumps | `AI_LCG_AUDIT` / `AI_AB` / `AI_SCORE_DUMP` | `src/core/ai.c` | phase 7–8: fog `+8` flips `(47,53)`; far tiles AGREE SAV |
 | `AI_ASM_STAY_SYNC` | audit stay-shaped +1 next | `src/core/ai.c` | matched RNG for score dump only |
@@ -107,7 +114,9 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 - [x] AI-hot accessors named in `ai/accessors.c`
 - [x] `indian_nation_turn` structure readable without raw `0x….` in that file
 - [x] Quiet Brave dir-pick / apply-step annotated (with PORT DEBT markers)
-- [x] `indian_unit_act` stub for `func_0x00042191`
+- [x] `indian_unit_act` as `FUN_4d56_14fe` (Ghidra `func_0x00042191` collision noted)
+- [x] Post-ADD chrome → `FUN_1427_*` + `0x3149` R/W table (`move_spent.c` §6, `unit_mp.c`)
+- [x] `ai/brave_spent_callgraph.md`
 - [x] `euro_nation_turn` dispatcher shell + parked goal/scoring stubs
 - [x] `ai/move_scoring.md` for phase 2 quiet `20e6`
 - [x] This symbol map
@@ -118,4 +127,4 @@ Phase 1 AI-critical symbols. Prefer annotated files when listed; otherwise use
 - Full `FUN_521d_20e6` / nested `5b66` (quiet + coarse fog done)
 - `FUN_465b_0000` foreign combat / diplomacy / colony-contact tails (section 3 PARKED in `move_spent.c`)
 - Ghidra database renames / re-export
-- Live DOS hang EXEs (parked; prefer goldens + `move_spent.c` + TURN fixtures)
+- Live DOS hang EXEs except named last resort **VR_B465X** (`dump_b465x3`) for post-`465b` spent writer

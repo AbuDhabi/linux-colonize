@@ -19,11 +19,13 @@ second runtime.
 | [`include/viceroy_types.h`](include/viceroy_types.h) | Unit / tribe / map-plane layouts |
 | [`include/viceroy_globals.h`](include/viceroy_globals.h) | Named DS addresses used by AI |
 | [`ai/accessors.c`](ai/accessors.c) | Map / RNG / move-cost helpers |
-| [`ai/move_spent.c`](ai/move_spent.c) | Phase 12: full `FUN_465b_0000` section map |
-| [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + apply_step wrapper |
+| [`ai/move_spent.c`](ai/move_spent.c) | `FUN_465b_0000` cost / ADD / post-ADD chrome |
+| [`ai/unit_mp.c`](ai/unit_mp.c) | Real `FUN_1427_*` MP / stack chrome behind `281f` thunks |
+| [`ai/indian_nation_turn.c`](ai/indian_nation_turn.c) | `FUN_4d56_1816` + `14fe` act |
 | [`ai/quiet_brave_scoring.c`](ai/quiet_brave_scoring.c) | ASM `LAB_521d_4ea9` quiet Brave scoring |
+| [`ai/brave_spent_callgraph.md`](ai/brave_spent_callgraph.md) | Quiet spent `0x3149` call graph + hang X target |
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Phase 11–14: quiet cutover; peels; 2 spent residuals (hard stop) |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; 2 spent residuals |
 | [`SYMBOL_MAP.md`](SYMBOL_MAP.md) | Ghidra ↔ annotated ↔ Linux |
 
 ## Naming rules
@@ -52,5 +54,8 @@ second runtime.
   uses `euro_settlement_owner`.
 - Phase 13: Multi-step / Inca tw cleared via river cost=1 peels (`097a` loop).
 - Phase 14–17: Spent-only static RE + dump-free predicates exhausted; quiet
-  residuals = **2** Sioux/Apache (post-ADD; hang X last resort). Raid bodies / full
-  `20e6` still out of scope.
+  residuals = **2** Sioux/Apache (post-ADD; hang X last resort).
+- Call-graph annotation: `14fe` act resolved; post-ADD chrome → `FUN_1427_*`
+  with `0x3149` R/W table — chrome does not write spent for Brave; hang
+  **VR_B465X** remains the named localizer. Raid bodies / full `20e6` still
+  out of scope.

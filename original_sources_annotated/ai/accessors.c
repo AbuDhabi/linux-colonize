@@ -320,12 +320,6 @@ int move_spent_cost_only(
   return spent;
 }
 
-/* Ghidra: FUN_281f_090c | unit_max_mp — Brave allotment thirds path → 3. Stub. */
-int unit_max_mp(int unit_index) {
-  (void)unit_index;
-  return 3;
-}
-
 /*
  * Ghidra: FUN_281f_0696 → FUN_137f_0358 | euro_settlement_owner
  * Tribe bit + Euro owner (0..3); Indians / empty → −1.
@@ -339,34 +333,10 @@ int euro_settlement_owner(int x, int y) {
   return own;
 }
 
-/* ====================================================================== */
-/* Unit readiness                                                         */
-/* ====================================================================== */
-
 /*
- * Ghidra: FUN_1427_13b0 | unit_has_moves_remaining  (FUN_281f_097a thunk)
- *
- * True when unit index is live, belongs to g_active_nation_id, is not
- * suppressed (flag 0x80 unless type==wagon 0x0b), and moves_spent < max_mp
- * (FUN_1427_065a allotment — Brave thirds path → 3).
- *
- * Linux mid-turn pulse: while spent < max_mp (465b may push past max on the
- * last add). Cost=1 river/fa steps enable a second/third quiet act (phase 13).
+ * Unit MP / readiness — canonical annotated bodies in ai/unit_mp.c:
+ *   FUN_281f_090c → FUN_1427_065a  unit_max_mp
+ *   FUN_281f_097a → FUN_1427_13b0  unit_has_moves_remaining
+ *   FUN_281f_0934 → FUN_1427_155e  unit_exhaust_mp
+ *   post-ADD chrome thunks → FUN_1427_12f6 / 040c / 0968 / 0ce6 / 0c72 / …
  */
-int unit_has_moves_remaining(int unit_index) {
-  if (unit_index < 0 /* || unit_index >= g_unit_count */) {
-    return 0;
-  }
-  ViceroyUnit *u = VICEROY_UNIT_AT(unit_index);
-  if ((int)u->x < 0) {
-    return 0; /* decomp: x signed check — inactive */
-  }
-  /* nation must match g_active_nation_id at DS:0x5394 */
-  /* if ((u->nation_id) != g_active_nation_id) return 0; */
-  if ((u->unk_04 & 0x80) != 0 && u->type != 0x0b) {
-    return 0;
-  }
-  /* max_mp = FUN_1427_065a(); return u->moves_spent < max_mp; */
-  (void)u;
-  return 0;
-}

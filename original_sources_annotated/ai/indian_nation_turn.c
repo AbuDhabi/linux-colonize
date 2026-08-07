@@ -1,11 +1,12 @@
 /*
- * Indian nation turn — FUN_4d56_1816.
+ * Indian nation turn — FUN_4d56_1816 + quiet unit act FUN_4d56_14fe.
  *
- * Quiet Brave dir-pick lives in quiet_brave_scoring.c (ASM LAB_521d_4ea9).
- * Move spend / ocean force: ai/move_spent.c (FUN_465b_0000).
- * This file keeps nation-turn structure + apply_step.
+ * Quiet Brave dir-pick: quiet_brave_scoring.c (ASM LAB_521d_4ea9).
+ * Move spend / ocean force / post-ADD chrome: ai/move_spent.c (FUN_465b_0000).
+ * MP helpers: ai/unit_mp.c (FUN_1427_* behind FUN_281f_* thunks).
  *
- * Source: original_sources_decompiled/viceroy_unpacked.c ~81543–81690
+ * Source: original_sources_decompiled/viceroy_unpacked.c ~81371–81690
+ * ASM:    CODE_124:4d56 (14fe, 1816); act CALL mislabeled as 41f2 trampoline
  * Linux:  src/core/ai.c — ai_indian_nation_turn / ai_native_nation_pulse
  *
  * Reference only — not compiled into the Linux binary.
@@ -17,12 +18,11 @@
 #include "../include/viceroy_globals.h"
 
 extern void ai_reseed_from_timer(uint16_t timer_word);
-extern int move_spent_cost_only(int unit_index, int from_x, int from_y, int to_x, int to_y,
-                                int dir);
-extern void move_spent_add(int unit_index, int to_x, int to_y); /* full 465b skeleton */
+extern void move_spent_add(int unit_index, int to_x, int to_y);
 extern void set_owner_nibble(int x, int y, int nation_or_ff);
 extern int unit_has_moves_remaining(int unit_index);
-extern int rng_range(int lo, int hi_inclusive);
+extern void unit_exhaust_mp(int unit_index); /* FUN_1427_155e via 0934 */
+extern void unit_clear_orders(int unit_index); /* alias of exhaust_mp */
 
 /* quiet_brave_scoring.c — ASM 521d:4ea9 */
 extern int quiet_brave_pick_dir_asm(int x, int y, int nation_id, int last_dir, int colony_count,
@@ -33,37 +33,60 @@ extern void turn_owner_chrome(uint8_t color);               /* FUN_281f_0590 */
 extern void tribe_growth_tick(int tribe_index);             /* FUN_41f2_0280 */
 extern void ui_pump(void);                                  /* FUN_281f_0470 */
 extern void indian_relation_tick(int indian_index);         /* FUN_2a1f_0270 */
-extern void unit_clear_orders(int unit_index);              /* FUN_281f_0934 */
-extern int diplomacy_distance(int indian_index, int focus_nation); /* FUN_281f_030c */
 
 static const int k_dir8_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
 static const int k_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
 
 /*
- * Ghidra: func_0x00042191 | indian_unit_act
+ * Ghidra: func_0x0004219b (CALL from 14fe) | indian_pick_dir
  *
- * Called from the 1816 act loop while unit_has_moves_remaining.
- * Quiet NEW WORLD: quiet_brave_pick_dir → apply_step (465b spend).
- * Alarmed / raid / mission branches: PARKED (reached via 2154/2820/4528 paths
- * and contact UI — not from this quiet skeleton).
+ * ASM at 14fe: near CALL into overlay-labeled 41f2 trampoline (Ghidra collision);
+ * quiet NEW WORLD body is LAB_521d_4ea9 → quiet_brave_pick_dir_asm.
+ * Returns 0..7 move dir, or 8 = stay/exhaust.
+ */
+int indian_pick_dir(int unit_index) {
+  ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);
+  int last_dir = 0; /* live: facing byte */
+  return quiet_brave_pick_dir_asm(u->x, u->y, u->nation_id, last_dir,
+                                  /*colony_count=*/0, /*fog=*/1);
+}
+
+/*
+ * Ghidra: FUN_2a1f_0150 → FUN_465b_0c1e | step_unit_in_dir
+ *
+ * Computes dest = unit.xy + dir8[dir], then FUN_465b_0000(unit, dest_x, dest_y).
+ */
+void step_unit_in_dir(int unit_index, int dir) {
+  ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);
+  int nx = u->x + k_dir8_dx[dir];
+  int ny = u->y + k_dir8_dy[dir];
+  move_spent_add(unit_index, nx, ny);
+  (void)set_owner_nibble; /* 465b commit sets owner; Linux apply_step mirrors */
+}
+
+/*
+ * Ghidra: FUN_4d56_14fe | indian_unit_act
+ *
+ * Also the behavioral target of Ghidra abs `func_0x00042191` from the 1816 act
+ * loop. ASM shows PUSH CS; CALL into a label Ghidra places inside FUN_41f2_0266
+ * (colony UI) — overlay/segment collision. Structure of 14fe is authoritative:
+ *
+ *   dir = indian_pick_dir(unit)
+ *   if dir == 8: unit_exhaust_mp(unit); return
+ *   else: step_unit_in_dir(unit, dir)   // 2a1f_0150 → 465b
+ *
+ * Alarmed / raid / mission branches: PARKED (2154/2820/4528 — not this path).
  */
 void indian_unit_act(int unit_index) {
-  ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);
-  int last_dir = 0; /* live: facing byte; Linux uses unit->last_dir */
-  int dir = quiet_brave_pick_dir_asm(u->x, u->y, u->nation_id, last_dir,
-                                     /*colony_count=*/0, /*fog=*/1);
+  int dir = indian_pick_dir(unit_index);
+  if (dir == 8) {
+    unit_exhaust_mp(unit_index);
+    return;
+  }
   if (dir < 0 || dir > 7) {
     return;
   }
-  int nx = u->x + k_dir8_dx[dir];
-  int ny = u->y + k_dir8_dy[dir];
-  /* Prefer full move_spent_add when wiring live DS; cost-only + xy for quiet. */
-  (void)move_spent_add;
-  int spent = move_spent_cost_only(unit_index, u->x, u->y, nx, ny, dir);
-  u->moves_spent = (uint8_t)(u->moves_spent + spent);
-  u->x = (uint8_t)nx;
-  u->y = (uint8_t)ny;
-  set_owner_nibble(nx, ny, u->nation_id);
+  step_unit_in_dir(unit_index, dir);
 }
 
 /* Ghidra: FUN_4d56_152e | village_growth_accum — Linux ai_grow_villages (T0). */
@@ -85,14 +108,7 @@ int quiet_brave_pick_dir(int x, int y, int nation_id, int home_x, int home_y, in
 }
 
 void quiet_brave_apply_step(int unit_index, int dir) {
-  ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);
-  int nx = u->x + k_dir8_dx[dir];
-  int ny = u->y + k_dir8_dy[dir];
-  int spent = move_spent_cost_only(unit_index, u->x, u->y, nx, ny, dir);
-  u->moves_spent = (uint8_t)(u->moves_spent + spent);
-  u->x = (uint8_t)nx;
-  u->y = (uint8_t)ny;
-  set_owner_nibble(nx, ny, u->nation_id);
+  step_unit_in_dir(unit_index, dir);
 }
 
 /*
@@ -103,7 +119,6 @@ void quiet_brave_apply_step(int unit_index, int dir) {
  */
 static void indian_alarm_prelude_parked(int indian_index) {
   (void)indian_index;
-  /* parked — seed-100 early AI has no alarm contact yet */
 }
 
 /*
@@ -119,36 +134,32 @@ static void indian_alarm_prelude_parked(int indian_index) {
  *   5. Tribe growth loop: for t in [0, g_tribe_count) matching nation
  *   6. Relation / goods tick (2a1f_0270) over 16 slots then growth word
  *   7. Clear act_counter for all units of this nation
- *   8. Act loop: while someone acted, scan units; while has_moves, bump
- *      act_counter; if < 0x15 call indian_unit_act else clear orders
+ *   8. Act loop (ASM 4d56:1a8c..1b12):
+ *        do {
+ *          acted = 0
+ *          for u in units while !acted:
+ *            while unit_has_moves_remaining(u):
+ *              act_counter++
+ *              if act_counter <= 0x14:  // ASM CMP 0x14 / JBE
+ *                indian_unit_act(u); acted = 1; break
+ *              else:
+ *                unit_exhaust_mp(u); act_counter = 0
+ *        } while (acted)
  *
- * Act-loop vs Linux pulse (phase 13):
- *   DOS rescans from unit 0 after each successful act (lowest-index drain).
- *   Linux drains each Brave in pool order — equivalent for quiet when every
- *   first step costs >= max_mp, and also when early steps cost 1 (river/fa):
- *   both keep acting the same unit until spent >= 3 (097a / 1427_13b0).
- *   Multi-step / Inca tw>=2 goldens need those cost=1 river edges first;
- *   collapsing them with a diagonal peel (cost 6/9) stops the loop after one
- *   act and desyncs spent/tw. Not "second act after spent >= max".
- *
- * Spent residuals (phase 17 dump-free):
- *   Quiet path: 14fe → (dir!=8) 2a1f_0150 → 465b_0c1e → 465b ADD.
- *   After ADD, only ocean force writes 3149 inside 465b (ruled out for Sioux).
- *   0934/155e from 14fe stay, 1816 act≥0x15, or 465b cargo/wagon do not fire
- *   on these rows. Writer localization needs hang X (RETF spent) / E (155e).
+ * Spent residuals (phase 17–18):
+ *   Quiet path: 14fe → (dir!=8) 2a1f_0150 → 465b ADD (+ ocean force ruled out).
+ *   Post-ADD chrome (0916/0948/08da/084e/07fe/…) does NOT write 0x3149.
+ *   Only 0934→155e writes spent=max outside ADD/force — and cargo/stay/act>0x14
+ *   paths do not fire on the T2 holdouts. Hang X still localizes the writer.
  */
 void indian_nation_turn(int indian_index) {
   ai_reseed_from_timer(0);
   int active_nation = indian_index + 4;
-  /* *(int *)0x5394 = active_nation; */
   indian_select_nation_context(indian_index);
-  turn_owner_chrome(0); /* color from DS table at 0x84c + indian_index */
+  turn_owner_chrome(0);
 
   indian_alarm_prelude_parked(indian_index);
 
-  /* Clamp state+7 (signed alarm / tension byte) to >= 0 — decomp 81603–81607. */
-
-  /* Tribe growth: bound is g_tribe_count @ DS:0x539a (not a literal 0). */
   int tribe_count = 0; /* live: *(int *)VICEROY_DS_TRIBE_COUNT */
   for (int t = 0; t < tribe_count; ++t) {
     ViceroyTribe* tr = VICEROY_TRIBE_AT(t);
@@ -158,7 +169,6 @@ void indian_nation_turn(int indian_index) {
     }
   }
 
-  /* Relation tick over 16 word slots at state+0xe, then FUN_2a1f_0270. */
   indian_relation_tick(indian_index);
   ui_pump();
 
@@ -178,12 +188,13 @@ void indian_nation_turn(int indian_index) {
       while (unit_has_moves_remaining(u)) {
         ViceroyUnit* unit = VICEROY_UNIT_AT(u);
         unit->act_counter++;
-        if (unit->act_counter < VICEROY_UNIT_ACT_MAX) {
+        /* ASM: CMP act, 0x14 / JBE → act; else exhaust. Same as < 0x15. */
+        if (unit->act_counter <= 0x14) {
           indian_unit_act(u);
           acted = 1;
-          break; /* decomp: one successful act then rescan from 0 */
+          break;
         }
-        unit_clear_orders(u);
+        unit_exhaust_mp(u);
         unit->act_counter = 0;
       }
     }
