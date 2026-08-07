@@ -120,13 +120,13 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_124c_000c` | 2731 | 14 | platform | unknown | inferred |  |
-| `FUN_124c_002a` | 2745 | 14 | platform | unknown | inferred |  |
+| `FUN_124c_000c` | 2731 | 14 | platform | Clamp value to [lo,hi] | inferred |  |
+| `FUN_124c_002a` | 2745 | 14 | platform | Swap two words through near pointers | inferred |  |
 | `FUN_124c_0040` | 2759 | 17 | platform | DOS distance helper | known | ai/accessors.c |
-| `FUN_124c_007c` | 2776 | 20 | platform | unknown | inferred |  |
-| `FUN_124c_00c4` | 2796 | 17 | platform | unknown | inferred |  |
-| `FUN_124c_00f4` | 2813 | 20 | platform | unknown | inferred |  |
-| `FUN_124c_013c` | 2833 | 14 | platform | unknown | inferred |  |
+| `FUN_124c_007c` | 2776 | 20 | platform | DOS-distance between points (abs dx/dy → 0040) | inferred |  |
+| `FUN_124c_00c4` | 2796 | 17 | platform | Chebyshev component: max(/a/,/b/) | inferred |  |
+| `FUN_124c_00f4` | 2813 | 20 | platform | Chebyshev distance between points (max /dx/,/dy/) | inferred |  |
+| `FUN_124c_013c` | 2833 | 14 | platform | True if 8-way dir is ±1 neighbor of given dir | inferred |  |
 
 ### Segment `1262` (10 defs) — ui — Input wait / mouse hit-test / tip overlays
 
@@ -346,113 +346,113 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_15eb_0002` | 9298 | 12 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_002c` | 9310 | 30 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_00a2` | 9340 | 40 | mapdraw | unknown | inferred |  |
+| `FUN_15eb_0002` | 9298 | 12 | mapdraw | Gate workplace/job id: 0 for {0x13,0x19-0x1c}, else 1 | inferred | thunk_FUN_281f_0c9a |
+| `FUN_15eb_002c` | 9310 | 30 | mapdraw | Bind active colony (DS:0x8542) by index; set a897 visibility flag | inferred | thunk_FUN_281f_09e6 |
+| `FUN_15eb_00a2` | 9340 | 40 | mapdraw | Any 8-neighbor is ocean/high-seas; stash best neighbor xy at 8dba/8dbc | inferred | thunk_FUN_281f_0d12; src/core/map_gen.c |
 | `FUN_15eb_0142` | 9380 | 45 | mapdraw | Nearest colony by nation/continent; set active | inferred |  |
-| `FUN_15eb_0218` | 9425 | 11 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_022c` | 9436 | 12 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0242` | 9448 | 12 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0258` | 9460 | 11 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0274` | 9471 | 34 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0302` | 9505 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0326` | 9515 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_035e` | 9537 | 13 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_038e` | 9550 | 11 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_039e` | 9561 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_03d6` | 9581 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0410` | 9601 | 13 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0434` | 9614 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0470` | 9636 | 14 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0484` | 9650 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_04c0` | 9670 | 30 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0544` | 9700 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0556` | 9710 | 27 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0596` | 9737 | 9 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_05b2` | 9746 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_05cc` | 9756 | 13 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_05e2` | 9769 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0620` | 9789 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0668` | 9808 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_06a6` | 9824 | 17 | mapdraw | unknown | inferred |  |
+| `FUN_15eb_0218` | 9425 | 11 | mapdraw | Remap cargo/id 0x1c→0x13 before catalog table lookup | inferred |  |
+| `FUN_15eb_022c` | 9436 | 12 | mapdraw | Cargo catalog title word at id×8−0x715e (after 0218 remap) | inferred | thunk_FUN_281f_0c18; FUN_6cb2_1820 |
+| `FUN_15eb_0242` | 9448 | 12 | mapdraw | Cargo catalog secondary word at id×8−0x715c (after 0218 remap) | inferred | thunk_FUN_281f_0c40; FUN_6cb2_1820 |
+| `FUN_15eb_0258` | 9460 | 11 | mapdraw | Continent id for colony idx (137f_02a0 on 5d46/5d47 xy) | inferred |  |
+| `FUN_15eb_0274` | 9471 | 34 | mapdraw | Colony SoL % from bells/pop (0..100; +20 FF bonus) | inferred | thunk_FUN_281f_0c86 |
+| `FUN_15eb_0302` | 9505 | 10 | mapdraw | Test building-present bit in active colony mask (+0x8a) | inferred |  |
+| `FUN_15eb_0326` | 9515 | 22 | mapdraw | Set/clear building-present bit in active colony mask (+0x8a) | inferred |  |
+| `FUN_15eb_035e` | 9537 | 13 | mapdraw | Test building bit in colony record feature mask (×0xca+0x5dca) | inferred | thunk_FUN_281f_0322 |
+| `FUN_15eb_038e` | 9550 | 11 | mapdraw | Test building bit for active colony index (8dc6→035e) | inferred |  |
+| `FUN_15eb_039e` | 9561 | 20 | mapdraw | Count owned buildings along parent chain (−707a) from start id | inferred | FUN_6cb2_1ba8 |
+| `FUN_15eb_03d6` | 9581 | 20 | mapdraw | Count owned buildings along parent chain for explicit colony idx | inferred |  |
+| `FUN_15eb_0410` | 9601 | 13 | mapdraw | Walk building parent chain (−707a) to root id | inferred |  |
+| `FUN_15eb_0434` | 9614 | 22 | mapdraw | Highest owned building id still present along parent chain | inferred |  |
+| `FUN_15eb_0470` | 9636 | 14 | mapdraw | Work-radius size class 2..4 from fortification chain (#10) | inferred | thunk_FUN_281f_0c5e |
+| `FUN_15eb_0484` | 9650 | 20 | mapdraw | Map fortification size class to capacity constant (8/12/32) | inferred | thunk_FUN_281f_0c7c |
+| `FUN_15eb_04c0` | 9670 | 30 | mapdraw | True if (x,y) is colony center or in fort-scaled work radius | inferred |  |
+| `FUN_15eb_0544` | 9700 | 10 | mapdraw | Read nation treasury dword (id×0x13c−0x77ce) | inferred |  |
+| `FUN_15eb_0556` | 9710 | 27 | mapdraw | Add to nation treasury with 0..0xF423F clamp | inferred |  |
+| `FUN_15eb_0596` | 9737 | 9 | mapdraw | Subtract from nation treasury (negated 0556) | inferred |  |
+| `FUN_15eb_05b2` | 9746 | 10 | mapdraw | Format nation gold into UI string (104b_01e8 + 'g') | inferred |  |
+| `FUN_15eb_05cc` | 9756 | 13 | mapdraw | Present nation treasury value via 1009_01fc | inferred |  |
+| `FUN_15eb_05e2` | 9769 | 20 | mapdraw | Map town-area relative (x,y) to 5×5 slot index 0..19 (−1 miss) | inferred |  |
+| `FUN_15eb_0620` | 9789 | 19 | mapdraw | Test layer2 bit0x10 on colony town-area tile (plow/improve) | inferred |  |
+| `FUN_15eb_0668` | 9808 | 16 | mapdraw | Set/clear layer2 bit0x10 on colony town-area tile | inferred | thunk_FUN_281f_0c90 |
+| `FUN_15eb_06a6` | 9824 | 17 | mapdraw | Colonist-slot assigned to town-area tile (+0x70) or 0xFF | inferred |  |
 | `FUN_15eb_06d2` | 9841 | 85 | mapdraw | Shared world-map / pedia draw entry | known | src/core/map.c |
-| `FUN_15eb_08e6` | 9926 | 13 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0902` | 9939 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0916` | 9949 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0924` | 9959 | 48 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_09c0` | 10007 | 36 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0a50` | 10043 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0a76` | 10058 | 29 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0aec` | 10087 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0b0c` | 10102 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0b52` | 10122 | 21 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0b96` | 10143 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0bd4` | 10159 | 28 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0c52` | 10187 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0c7a` | 10202 | 18 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0cbc` | 10220 | 28 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0d04` | 10248 | 108 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0d8e` | 10356 | 692 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0e18` | 11048 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0e52` | 11067 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0e8c` | 11083 | 21 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0ed4` | 11104 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0f1c` | 11124 | 39 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_0fea` | 11163 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1030` | 11182 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1068` | 11204 | 134 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1376` | 11338 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_13ac` | 11358 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_13e2` | 11378 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_142a` | 11400 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1476` | 11422 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_14aa` | 11444 | 15 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_14d6` | 11459 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_14e4` | 11469 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1526` | 11488 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1568` | 11507 | 29 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_15c6` | 11536 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1604` | 11555 | 21 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1646` | 11576 | 25 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_169c` | 11601 | 16 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_16c4` | 11617 | 23 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_16fe` | 11640 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_173e` | 11660 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1782` | 11679 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_17ba` | 11699 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_17fa` | 11718 | 53 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_18ec` | 11771 | 234 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1d4c` | 12005 | 469 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_1f72` | 12474 | 221 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_23f2` | 12695 | 109 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_268e` | 12804 | 22 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_26e4` | 12826 | 63 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_287e` | 12889 | 19 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_28c8` | 12908 | 254 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_2ea0` | 13162 | 39 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_2f3c` | 13201 | 20 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_2f8e` | 13221 | 23 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_2ff2` | 13244 | 18 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3040` | 13262 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3054` | 13272 | 11 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_306a` | 13283 | 18 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_30b8` | 13301 | 38 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_317c` | 13339 | 28 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3208` | 13367 | 30 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_32a0` | 13397 | 26 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_32f8` | 13423 | 31 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_334a` | 13454 | 24 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_33aa` | 13478 | 40 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3454` | 13518 | 76 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_35d0` | 13594 | 29 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3620` | 13623 | 18 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3650` | 13641 | 111 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_38ba` | 13752 | 21 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_38e8` | 13773 | 21 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3930` | 13794 | 18 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_394c` | 13812 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3956` | 13822 | 10 | mapdraw | unknown | inferred |  |
-| `FUN_15eb_3960` | 13832 | 16 | mapdraw | unknown | inferred |  |
+| `FUN_15eb_08e6` | 9926 | 13 | mapdraw | True if unit type maps to a profession (table 0x30e≥0) | inferred |  |
+| `FUN_15eb_0902` | 9939 | 10 | mapdraw | Default profession for unit type from table 0x30e | inferred |  |
+| `FUN_15eb_0916` | 9949 | 10 | mapdraw | Map profession id → unit type byte (table 0x2f5) | inferred |  |
+| `FUN_15eb_0924` | 9959 | 48 | mapdraw | Nth profession-capable unit in colony unit list (8d78) | inferred |  |
+| `FUN_15eb_09c0` | 10007 | 36 | mapdraw | Recount colony unit tallies into 8d72/74/76 (cap capable@50) | inferred |  |
+| `FUN_15eb_0a50` | 10043 | 15 | mapdraw | Warehouse capacity 100×(1+expansion at colony+0x95) | inferred |  |
+| `FUN_15eb_0a76` | 10058 | 29 | mapdraw | Colony index at map (x,y), or −1 (assert if missing) | inferred | thunk_FUN_281f_07be |
+| `FUN_15eb_0aec` | 10087 | 15 | mapdraw | Job→building-chain start id from table 0x2f4 (or −1) | inferred |  |
+| `FUN_15eb_0b0c` | 10102 | 20 | mapdraw | Free warehouse headroom for cargo after stock/reserve | inferred |  |
+| `FUN_15eb_0b52` | 10122 | 21 | mapdraw | Compute cargo shortfall/overflow scratch (−71ce/−71a6) | inferred |  |
+| `FUN_15eb_0b96` | 10143 | 16 | mapdraw | Apply stock vs capacity for one cargo into shortfall scratch | inferred |  |
+| `FUN_15eb_0bd4` | 10159 | 28 | mapdraw | Cargo headroom with building-chain 2/3 production cut | inferred |  |
+| `FUN_15eb_0c52` | 10187 | 15 | mapdraw | True if cargo stock+turn exceeds warehouse capacity | inferred |  |
+| `FUN_15eb_0c7a` | 10202 | 18 | mapdraw | Read packed colonist specialty nibble (+0x60) | inferred |  |
+| `FUN_15eb_0cbc` | 10220 | 28 | mapdraw | Write packed colonist specialty nibble (+0x60, clamp 0..15) | inferred |  |
+| `FUN_15eb_0d04` | 10248 | 108 | mapdraw | Remove colonist slot; compact jobs/specialty/area; −100 pop | inferred | thunk_FUN_281f_0a9c |
+| `FUN_15eb_0d8e` | 10356 | 692 | mapdraw | Fill cargo-id list for leave-as gear (tools/muskets/horses); return count | inferred | asm switch on prof 0x13..0x18; Ghidra body overlapped |
+| `FUN_15eb_0e18` | 11048 | 19 | mapdraw | Colonist profession: slot+0x20 or outside unit via 0924/0902 | inferred | thunk_FUN_281f_0c0e |
+| `FUN_15eb_0e52` | 11067 | 16 | mapdraw | Colonist workplace/job: slot+0x40 or unit+0x315b | inferred | thunk_FUN_281f_0c54 |
+| `FUN_15eb_0e8c` | 11083 | 21 | mapdraw | Set workplace/job (0x17→0x15); slot or outside unit | inferred | thunk_FUN_281f_0cae |
+| `FUN_15eb_0ed4` | 11104 | 20 | mapdraw | Map specialty nibble to tier 0..3 (cuts at 4/8/15) | inferred |  |
+| `FUN_15eb_0f1c` | 11124 | 39 | mapdraw | Resolve colonist people-band sprite/icon index | inferred | FUN_112b_0002 |
+| `FUN_15eb_0fea` | 11163 | 19 | mapdraw | Classify profession change: stay/eject/admit/unit-role (0..3) | inferred |  |
+| `FUN_15eb_1030` | 11182 | 22 | mapdraw | Set/clear colony flag bit in mask at +0x84 | inferred |  |
+| `FUN_15eb_1068` | 11204 | 134 | mapdraw | Assign colony colonist to job (reassign/spawn unit/grow pop; warehouse cost adjust) | inferred |  |
+| `FUN_15eb_1376` | 11338 | 20 | mapdraw | Count active-colony colonists whose current job equals param | inferred |  |
+| `FUN_15eb_13ac` | 11358 | 20 | mapdraw | Count active-colony colonists whose specialty equals param | inferred |  |
+| `FUN_15eb_13e2` | 11378 | 22 | mapdraw | Count colonists working a matching specialty job (<0x13) | inferred |  |
+| `FUN_15eb_142a` | 11400 | 22 | mapdraw | Find nth colonist slot with given job byte (or −1) | inferred |  |
+| `FUN_15eb_1476` | 11422 | 22 | mapdraw | Reseed DOS LCG from active colony tile XY (+0x8d80) | inferred |  |
+| `FUN_15eb_14aa` | 11444 | 15 | mapdraw | Walk building parent chain (−0x707b) to root building id | inferred |  |
+| `FUN_15eb_14d6` | 11459 | 10 | mapdraw | Map building/job id → table byte at DS:0x2ca | inferred |  |
+| `FUN_15eb_14e4` | 11469 | 19 | mapdraw | If root building present, return its production-slot index (−0x716e) | inferred |  |
+| `FUN_15eb_1526` | 11488 | 19 | mapdraw | Reverse of 14e4: building id owning production-slot, else −1 | inferred |  |
+| `FUN_15eb_1568` | 11507 | 29 | mapdraw | Count workers in building (or −unit count when root is stockade) | inferred |  |
+| `FUN_15eb_15c6` | 11536 | 19 | mapdraw | Building-upgrade depth for job (0/1/2 via parent −0x707a) | inferred |  |
+| `FUN_15eb_1604` | 11555 | 21 | mapdraw | Colony production-panel layout sizes (w=200; h from difficulty) | inferred |  |
+| `FUN_15eb_1646` | 11576 | 25 | mapdraw | Find 5×5 work-plot cell holding colonist id (via 06a6) | inferred |  |
+| `FUN_15eb_169c` | 11601 | 16 | mapdraw | Redraw work-plot of colonist via shared 06d2 entry | inferred |  |
+| `FUN_15eb_16c4` | 11617 | 23 | mapdraw | Job at 5×5 plot + out specialty (0e18/0e52); −1 if empty | inferred |  |
+| `FUN_15eb_16fe` | 11640 | 20 | mapdraw | True if map tile terrain-class nibble is in [lo,hi] | inferred |  |
+| `FUN_15eb_173e` | 11660 | 19 | mapdraw | Count of 8 neighbors whose terrain class is in [lo,hi] | inferred |  |
+| `FUN_15eb_1782` | 11679 | 20 | mapdraw | True if map tile feature bits match mask (137f_0142) | inferred |  |
+| `FUN_15eb_17ba` | 11699 | 19 | mapdraw | Count of 8 neighbors with matching feature-bit mask | inferred |  |
+| `FUN_15eb_17fa` | 11718 | 53 | mapdraw | Resource-vs-job bonus table for field yield (special resources) | inferred |  |
+| `FUN_15eb_18ec` | 11771 | 234 | mapdraw | Compose field yield for one 5×5 work plot (terrain/SoL/expert/mods) | inferred |  |
+| `FUN_15eb_1d4c` | 12005 | 469 | mapdraw | Compose building/manufacturing yield for one colonist (out cargo idx) | inferred |  |
+| `FUN_15eb_1f72` | 12474 | 221 | mapdraw | Recompute colony production totals (commons+plots+buildings→warehouse) | inferred |  |
+| `FUN_15eb_23f2` | 12695 | 109 | mapdraw | Work-plot threat/feature flags (enemy/village/colony/center/invalid) | inferred |  |
+| `FUN_15eb_268e` | 12804 | 22 | mapdraw | Fill 5×5 work-plot flag cache (−0x7210) once per colony view | inferred |  |
+| `FUN_15eb_26e4` | 12826 | 63 | mapdraw | Fill 5×5 native-contact caches; optional map mark via 137f_0228 | inferred |  |
+| `FUN_15eb_287e` | 12889 | 19 | mapdraw | Redraw all flagged 5×5 work plots via 06d2 | inferred |  |
+| `FUN_15eb_28c8` | 12908 | 254 | mapdraw | Score/assign best work-plot job for colonist (trial 1068+18ec+06d2) | inferred |  |
+| `FUN_15eb_2ea0` | 13162 | 39 | mapdraw | Auto-assign unplotted field workers via 28c8 (else job 0x0d) | inferred |  |
+| `FUN_15eb_2f3c` | 13201 | 20 | mapdraw | Count map units with nonzero cargo/passenger capacity (0x5237) | inferred |  |
+| `FUN_15eb_2f8e` | 13221 | 23 | mapdraw | Nth map unit with cargo/passenger capacity (or −1) | inferred |  |
+| `FUN_15eb_2ff2` | 13244 | 18 | mapdraw | Read unit passenger/cargo type nibble at slot (0x3151) | inferred |  |
+| `FUN_15eb_3040` | 13262 | 10 | mapdraw | Read unit cargo/passenger quantity byte at slot (0x3154) | inferred |  |
+| `FUN_15eb_3054` | 13272 | 11 | mapdraw | Write unit cargo/passenger quantity byte at slot (0x3154) | inferred |  |
+| `FUN_15eb_306a` | 13283 | 18 | mapdraw | Write unit passenger/cargo type nibble at slot (0x3151) | inferred |  |
+| `FUN_15eb_30b8` | 13301 | 38 | mapdraw | Adjust unit cargo qty by type (merge/add slots up to 0x5237) | inferred |  |
+| `FUN_15eb_317c` | 13339 | 28 | mapdraw | Remove unit cargo/passenger slot; compact; stash qty in 0x8dc4 | inferred |  |
+| `FUN_15eb_3208` | 13367 | 30 | mapdraw | Free unit cargo capacity for type (empty slots×100 + partials) | inferred |  |
+| `FUN_15eb_32a0` | 13397 | 26 | mapdraw | Find unit cargo slot index by type; stash qty in 0x8dc4 | inferred |  |
+| `FUN_15eb_32f8` | 13423 | 31 | mapdraw | Decode build-menu index → kind (building/unit) + table idx | inferred |  |
+| `FUN_15eb_334a` | 13454 | 24 | mapdraw | Play build-menu item sound (building −0x707e / unit 0x5230) | inferred |  |
+| `FUN_15eb_33aa` | 13478 | 40 | mapdraw | Build-menu hammer cost (+ optional turns out) for item | inferred |  |
+| `FUN_15eb_3454` | 13518 | 76 | mapdraw | Gate: can start job/construction (prereqs + warehouse mins) | inferred |  |
+| `FUN_15eb_35d0` | 13594 | 29 | mapdraw | Move cargo from colony warehouse onto unit via 30b8 | inferred |  |
+| `FUN_15eb_3620` | 13623 | 18 | mapdraw | Unload unit cargo slot back into colony warehouse (via 317c) | inferred |  |
+| `FUN_15eb_3650` | 13641 | 111 | mapdraw | Build-menu eligibility for item (prereqs/pop/FF/coast/already-built) | inferred |  |
+| `FUN_15eb_38ba` | 13752 | 21 | mapdraw | Count build-menu items currently eligible (3650 over 0..0x30) | inferred |  |
+| `FUN_15eb_38e8` | 13773 | 21 | mapdraw | Nth eligible build-menu item id (via 3650) | inferred |  |
+| `FUN_15eb_3930` | 13794 | 18 | mapdraw | Colony-area compose: flag cache + redraw + auto-assign + cargo-unit count | inferred |  |
+| `FUN_15eb_394c` | 13812 | 10 | mapdraw | Refresh colony unit lists (09c0) then recompute production (1f72) | inferred |  |
+| `FUN_15eb_3956` | 13822 | 10 | mapdraw | Full colony-view refresh compose (3930 + 394c) | inferred |  |
+| `FUN_15eb_3960` | 13832 | 16 | mapdraw | Nation feature/FF bit test (table −0x77f1) | inferred |  |
 
 ### Segment `1984` (18 defs) — turn — Turn-owner chrome
 
@@ -968,11 +968,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_2047_000a` | 24121 | 64 | platform | unknown | inferred |  |
-| `FUN_2047_00b8` | 24185 | 32 | platform | unknown | inferred |  |
-| `FUN_2047_00e9` | 24217 | 15 | platform | unknown | inferred |  |
-| `FUN_2047_0106` | 24232 | 20 | platform | unknown | inferred |  |
-| `FUN_2047_011f` | 24252 | 10 | platform | unknown | inferred |  |
+| `FUN_2047_000a` | 24121 | 64 | platform | Install Ctrl-C/Break abort context (INT21; save SS:SP at DS:0x26a3) | inferred |  |
+| `FUN_2047_00b8` | 24185 | 32 | platform | Arm/save 5 abort INT vectors; set busy flag DS:0x26a2 | inferred |  |
+| `FUN_2047_00e9` | 24217 | 15 | platform | If armed: INT21 then reinstall default abort handlers (0106) | inferred |  |
+| `FUN_2047_0106` | 24232 | 20 | platform | Install 5 far INT abort handlers pointing to 2047:0103 | inferred |  |
+| `FUN_2047_011f` | 24252 | 10 | platform | Read abort-busy flag DS:0x26a2 | inferred |  |
 
 ### Segment `2059` (3 defs) — sound — Sound driver jump table
 
@@ -1164,27 +1164,27 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_275d_0000` | 29692 | 80 | platform | unknown | inferred |  |
-| `FUN_275d_023a` | 29772 | 52 | platform | unknown | inferred |  |
-| `FUN_275d_02b2` | 29824 | 31 | platform | unknown | inferred |  |
-| `FUN_275d_033a` | 29855 | 40 | platform | unknown | inferred |  |
-| `FUN_275d_0443` | 29895 | 28 | platform | unknown | inferred |  |
-| `FUN_275d_048f` | 29923 | 79 | platform | unknown | inferred |  |
-| `FUN_275d_05ed` | 30002 | 34 | platform | unknown | inferred |  |
-| `FUN_275d_0624` | 30036 | 16 | platform | unknown | inferred |  |
-| `FUN_275d_062d` | 30052 | 30 | platform | unknown | inferred |  |
-| `FUN_275d_06b3` | 30082 | 19 | platform | unknown | inferred |  |
-| `FUN_275d_06db` | 30101 | 20 | platform | unknown | inferred |  |
-| `FUN_275d_0700` | 30121 | 68 | platform | unknown | inferred |  |
-| `FUN_275d_07a4` | 30189 | 12 | platform | unknown | inferred |  |
-| `FUN_275d_080f` | 30201 | 34 | platform | unknown | inferred |  |
-| `FUN_275d_08ad` | 30235 | 56 | platform | unknown | inferred |  |
-| `FUN_275d_0909` | 30291 | 124 | platform | unknown | inferred |  |
-| `FUN_275d_0a11` | 30415 | 43 | platform | unknown | inferred |  |
-| `FUN_275d_0a4f` | 30458 | 40 | platform | unknown | inferred |  |
-| `FUN_275d_0ab8` | 30498 | 14 | platform | unknown | inferred |  |
-| `FUN_275d_0acc` | 30512 | 35 | platform | unknown | inferred |  |
-| `FUN_275d_0b09` | 30547 | 84 | platform | unknown | inferred |  |
+| `FUN_275d_0000` | 29692 | 80 | platform | Size three DOS memory pools into out-word triple (env/EMS vs percent paths) | inferred |  |
+| `FUN_275d_023a` | 29772 | 52 | platform | Query/clamp one memory size via 048f INT21 stub + 02b2 patch | inferred |  |
+| `FUN_275d_02b2` | 29824 | 31 | platform | Patch INT21 probe stub bytes at DS:0x20235 (0x4e8b/'E') | inferred |  |
+| `FUN_275d_033a` | 29855 | 40 | platform | Alternate memory-probe stub setup (CX flag merge + 048f) | inferred |  |
+| `FUN_275d_0443` | 29895 | 28 | platform | Scale/clamp memory size by percent flags in CX | inferred |  |
+| `FUN_275d_048f` | 29923 | 79 | platform | Parse env memory-size string (getenv 08ad; comma fields + 05ed) | inferred |  |
+| `FUN_275d_05ed` | 30002 | 34 | platform | Parse unsigned decimal integer from SI (overflow→0xffff) | inferred |  |
+| `FUN_275d_0624` | 30036 | 16 | platform | Skip leading spaces at SI | inferred |  |
+| `FUN_275d_062d` | 30052 | 30 | platform | Copy ≤CX chars SI→DI and NUL-terminate | inferred |  |
+| `FUN_275d_06b3` | 30082 | 19 | platform | Install INT24 critical-error vectors (8c3/b42) after 080f dispatch init | inferred |  |
+| `FUN_275d_06db` | 30101 | 20 | platform | Save ES; set INT24 vector words to 8c3/b42 | inferred |  |
+| `FUN_275d_0700` | 30121 | 68 | platform | Register far INT24/callback entry in table at DS:0x758 | inferred |  |
+| `FUN_275d_07a4` | 30189 | 12 | platform | Fatal trampoline: load DAT_207c then far-jump 0x8bff | inferred |  |
+| `FUN_275d_080f` | 30201 | 34 | platform | Dispatch DS:0x758 INT24 handlers whose mask matches AL | inferred |  |
+| `FUN_275d_08ad` | 30235 | 56 | platform | getenv: find KEY= in env seg *[0x2c], copy value to DI | inferred |  |
+| `FUN_275d_0909` | 30291 | 124 | platform | PATH/search-order dispatcher on letters C/E/P/A | inferred |  |
+| `FUN_275d_0a11` | 30415 | 43 | platform | Build current-drive "D:\" + cwd path into DI (INT21) | inferred |  |
+| `FUN_275d_0a4f` | 30458 | 40 | platform | Locate argv0 path after env block (PSP env trail) | inferred |  |
+| `FUN_275d_0ab8` | 30498 | 14 | platform | Append path via 0acc then INT21 open/search | inferred |  |
+| `FUN_275d_0acc` | 30512 | 35 | platform | strcat path component; set .exe detect flag DAT_20a5_00b8 | inferred |  |
+| `FUN_275d_0b09` | 30547 | 84 | platform | INT21 canonicalize/build absolute search path (A-letter path) | inferred |  |
 
 ### Segment `281f` (371 defs) — mixed — Far thunks: RNG / map / UI fill helpers
 
@@ -1209,15 +1209,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_00ba` | 30791 | 10 | thunk | Far thunk → FUN_1b9e_000a (blit/copy rect into video buffer) | inferred |  |
 | `FUN_281f_00c4` | 30801 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_00ce` | 30811 | 10 | thunk | Far thunk → FUN_1bca_0002 (rectangle outline (H+V fills)) | inferred |  |
-| `FUN_281f_00d8` | 30821 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_00d8` | 30821 | 10 | thunk | Far thunk → FUN_104b_01e8 (format long then append "$") | inferred |  |
 | `FUN_281f_00e2` | 30831 | 10 | thunk | Far thunk → FUN_1b70_003a (video restore/flush around blit) | inferred |  |
 | `FUN_281f_00ec` | 30841 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_00f6` | 30851 | 10 | platform | Far thunk → FUN_1ae3_0042 (BIOS INT16 key-ready check) | inferred |  |
 | `FUN_281f_0100` | 30861 | 10 | thunk | Far thunk → FUN_104b_0318 (center string then draw via 0288) | inferred |  |
 | `FUN_281f_010a` | 30871 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0114` | 30881 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_011e` | 30891 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0128` | 30901 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0114` | 30881 | 10 | thunk | Far thunk → FUN_104b_0216 (measure string width−1) | inferred |  |
+| `FUN_281f_011e` | 30891 | 10 | thunk | Far thunk → FUN_104b_0072 (strcat dest ← "(") | inferred |  |
+| `FUN_281f_0128` | 30901 | 10 | thunk | Far thunk → FUN_104b_0082 (strcat dest ← ")") | inferred |  |
 | `FUN_281f_0132` | 30911 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_013c` | 30921 | 10 | thunk | Far thunk → FUN_104b_0288 (set text colors then draw string) | inferred |  |
 | `FUN_281f_0146` | 30931 | 10 | thunk | unknown | inferred |  |
@@ -1225,14 +1225,14 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_015a` | 30951 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0164` | 30961 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_016e` | 30971 | 10 | thunk | Far thunk → FUN_104b_00e2 (resolve string ptr then UI text blit) | inferred |  |
-| `FUN_281f_0178` | 30981 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0178` | 30981 | 10 | thunk | Far thunk → FUN_1009_0420 (strcat dest ← string at DS:0x50) | inferred |  |
 | `FUN_281f_0182` | 30991 | 10 | thunk | Far thunk → FUN_104b_012e (format int→string then UI text blit) | inferred |  |
 | `FUN_281f_018c` | 31001 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0196` | 31011 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_01a0` | 31021 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_01aa` | 31031 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_01b4` | 31041 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_01be` | 31051 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_01be` | 31051 | 10 | thunk | Far thunk → FUN_104b_0042 (strcat dest ← ": ") | inferred |  |
 | `FUN_281f_01c8` | 31061 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_01d2` | 31071 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_01dc` | 31081 | 10 | thunk | Far thunk → FUN_104b_0052 (fill/clear string buffer (0x58)) | inferred |  |
@@ -1241,9 +1241,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_01fa` | 31111 | 10 | thunk | Far thunk → FUN_1c11_000c (draw UI text string at xy) | inferred |  |
 | `FUN_281f_0204` | 31121 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_020e` | 31131 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0218` | 31141 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0222` | 31151 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_022c` | 31161 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0218` | 31141 | 10 | thunk | Far thunk → FUN_1097_067a (clear multi-item layout list) | inferred |  |
+| `FUN_281f_0222` | 31151 | 10 | thunk | Far thunk → FUN_1097_0682 (append item to layout list) | inferred |  |
+| `FUN_281f_022c` | 31161 | 10 | thunk | Far thunk → FUN_1097_0394 (layout/blit multi-group item rows) | inferred |  |
 | `FUN_281f_0236` | 31171 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0240` | 31181 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_024a` | 31191 | 10 | thunk | unknown | inferred |  |
@@ -1379,7 +1379,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_07d6` | 32490 | 10 | thunk | Far thunk → FUN_1427_09ac (stack_or_nation_flag) | known | ai/move_spent.c; ai/unit_mp.c |
 | `FUN_281f_07e0` | 32500 | 10 | mapgen | unit_index_on_tile | known | ai/accessors.c |
 | `FUN_281f_07ea` | 32510 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_07f4` | 32520 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_07f4` | 32520 | 10 | thunk | Far thunk → FUN_1427_1410 (selectable-with-moves; Europe-dock) | inferred |  |
 | `FUN_281f_07fe` | 32530 | 10 | ai | unit_visibility_bits thunk | known | ai/unit_mp.c |
 | `FUN_281f_0808` | 32540 | 10 | thunk | Far thunk → FUN_1427_0824 (destroy unit; compact pool + fix stacks) | inferred |  |
 | `FUN_281f_0812` | 32550 | 10 | thunk | Far thunk → FUN_1427_023a (unlink unit from stack; clear xy) | inferred |  |
@@ -1438,7 +1438,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0a42` | 33100 | 10 | ai | indian_select_nation_context thunk→15dc_0006 (bind 8d52/8d50/8d4e) | known | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_0a4c` | 33110 | 10 | thunk | Far thunk → FUN_15dc_0032 (bind current tribe/Indian context) | known | include/viceroy_globals.h |
 | `FUN_281f_0a56` | 33120 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0a60` | 33130 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0a60` | 33130 | 10 | thunk | Far thunk → FUN_15dc_00a2 (bucket int into quartile 0..3) | inferred |  |
 | `FUN_281f_0a6a` | 33140 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0a74` | 33150 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0a7e` | 33160 | 10 | thunk | unknown | inferred |  |
@@ -1459,7 +1459,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0b14` | 33310 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0b1e` | 33320 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0b28` | 33330 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0b32` | 33340 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0b32` | 33340 | 10 | thunk | Far thunk → FUN_15eb_2f8e (Nth cargo-capable unit in stack) | inferred |  |
 | `FUN_281f_0b3c` | 33350 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0b46` | 33360 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0b50` | 33370 | 10 | thunk | unknown | inferred |  |
@@ -1550,44 +1550,44 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0ecc` | 34220 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0ed6` | 34230 | 10 | thunk | unknown | inferred |  |
 | `FUN_281f_0ee0` | 34240 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0f24` | 34250 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0f30` | 34260 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0f24` | 34250 | 10 | thunk | Far thunk → FUN_2b5a_23ce (Sound Options dialog) | inferred |  |
+| `FUN_281f_0f30` | 34260 | 10 | thunk | Far thunk → FUN_2b5a_32ee (Enter: open owned colony at focus) | inferred |  |
 | `FUN_281f_0f3c` | 34270 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0f54` | 34280 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0f54` | 34280 | 10 | thunk | Far thunk → FUN_2b5a_2464 (map menu-command mega-dispatch) | inferred |  |
 | `FUN_281f_0f6c` | 34290 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0f78` | 34300 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0f90` | 34310 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0f9c` | 34320 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0fa8` | 34330 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0fcc` | 34340 | 10 | thunk | unknown | inferred |  |
-| `FUN_281f_0ff0` | 34350 | 10 | thunk | unknown | inferred |  |
+| `FUN_281f_0f78` | 34300 | 10 | thunk | Far thunk → FUN_2b5a_26f6 (GAME menu item dispatch) | inferred |  |
+| `FUN_281f_0f90` | 34310 | 10 | thunk | Far thunk → FUN_2b5a_1b5a (activate-unit stack picker) | inferred |  |
+| `FUN_281f_0f9c` | 34320 | 10 | thunk | Far thunk → FUN_2b5a_0e52 (select/activate unit UI; Move Pieces) | inferred |  |
+| `FUN_281f_0fa8` | 34330 | 10 | thunk | Far thunk → FUN_2b5a_3344 (Enter/Space: colony or clear View Pieces) | inferred |  |
+| `FUN_281f_0fcc` | 34340 | 10 | thunk | Far thunk → FUN_2b5a_36e6 (minimap drag: pan viewport) | inferred |  |
+| `FUN_281f_0ff0` | 34350 | 10 | thunk | Far thunk → FUN_2b5a_303c (map keyboard/input dispatch) | inferred |  |
 
 ### Segment `291f` (271 defs) — thunk — Far thunks: EMS page-in then overlay JMPF (2f2b/38fd/6f74/...)
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_291f_0018` | 34360 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0030` | 34370 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0048` | 34380 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_006c` | 34390 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0078` | 34400 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0084` | 34410 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0090` | 34420 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_00a8` | 34430 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_00c0` | 34440 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_00cc` | 34450 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_00e4` | 34460 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_00f0` | 34470 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0108` | 34480 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0018` | 34360 | 10 | thunk | Far thunk → FUN_2b5a_3ae6 (Move Pieces frame: poll then tick) | inferred |  |
+| `FUN_291f_0030` | 34370 | 10 | thunk | Far thunk → FUN_2b5a_3752 (mouse-up: clear blink/View/end-turn) | inferred |  |
+| `FUN_291f_0048` | 34380 | 10 | thunk | Far thunk → FUN_2b5a_33ce (mouse hit-test region 1..3) | inferred |  |
+| `FUN_291f_006c` | 34390 | 10 | thunk | Far thunk → FUN_2b5a_0902 (baseline-enable menus; View Pieces) | inferred |  |
+| `FUN_291f_0078` | 34400 | 10 | thunk | Far thunk → FUN_2b5a_37b2 (mouse-button dispatch by hit region) | inferred |  |
+| `FUN_291f_0084` | 34410 | 10 | thunk | Far thunk → FUN_2b5a_3442 (set mouse cursor from table) | inferred |  |
+| `FUN_291f_0090` | 34420 | 10 | thunk | Far thunk → FUN_2b5a_20f6 (Game Options checkbox dialog) | inferred |  |
+| `FUN_291f_00a8` | 34430 | 10 | thunk | Far thunk → FUN_2b5a_3458 (set cursor wrapper arg 1) | inferred |  |
+| `FUN_291f_00c0` | 34440 | 10 | thunk | Far thunk → FUN_2b5a_0b08 (order-menu gates: cargo/wagon) | inferred |  |
+| `FUN_291f_00cc` | 34450 | 10 | thunk | Far thunk → FUN_2b5a_3462 (map click: select/goto/recenter) | inferred |  |
+| `FUN_291f_00e4` | 34460 | 10 | thunk | Far thunk → FUN_2b5a_0b34 (contextual ORDERS menu enable) | inferred |  |
+| `FUN_291f_00f0` | 34470 | 10 | thunk | Far thunk → FUN_2b5a_3802 (map input poll loop) | inferred |  |
+| `FUN_291f_0108` | 34480 | 10 | thunk | Far thunk → FUN_2b5a_223a (Colony Report Options dialog) | inferred |  |
 | `FUN_291f_0120` | 34490 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_012c` | 34500 | 10 | thunk | Far thunk → FUN_7a65_0008 (label viewport tile (hidden-terrain chrome)) | inferred |  |
 | `FUN_291f_013a` | 34510 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0146` | 34520 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0152` | 34530 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_015e` | 34540 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_016a` | 34550 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0176` | 34560 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0182` | 34570 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_016a` | 34550 | 10 | thunk | Far thunk → FUN_6f74_2580 (modal dialog input loop) | inferred |  |
+| `FUN_291f_0176` | 34560 | 10 | thunk | Far thunk → FUN_6f74_0a00 (append labeled option/button node) | inferred |  |
+| `FUN_291f_0182` | 34570 | 10 | thunk | Far thunk → FUN_6f74_32a4 (parse @-directive dialog script) | inferred |  |
 | `FUN_291f_018e` | 34580 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_019c` | 34590 | 10 | thunk | Far thunk → FUN_6f74_3760 (set side-art style then flush/run dialog) | inferred |  |
 | `FUN_291f_01a8` | 34600 | 10 | thunk | Far thunk → FUN_7ada_01aa (DOS INT21 AH=49 free mem block) | inferred |  |
@@ -1599,7 +1599,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0208` | 34660 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0216` | 34670 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0224` | 34680 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0230` | 34690 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0230` | 34690 | 10 | thunk | Far thunk → FUN_6f74_0f3c (append icon/image row to dialog) | inferred |  |
 | `FUN_291f_023c` | 34700 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0248` | 34710 | 10 | thunk | Far thunk → FUN_4d56_00e0 (Indian AI act chain →01e2/14fe) | inferred |  |
 | `FUN_291f_0254` | 34720 | 10 | thunk | Far thunk → FUN_364b_1e64 (destroy colony; compact table + fix refs) | inferred |  |
@@ -1640,7 +1640,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_047e` | 35070 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_048a` | 35080 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0496` | 35090 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_04a2` | 35100 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_04a2` | 35100 | 10 | thunk | Far thunk → FUN_1ae7_0032 (drain BIOS keyboard buffer) | inferred |  |
 | `FUN_291f_04ba` | 35110 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_04d4` | 35120 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_04e0` | 35130 | 10 | thunk | unknown | inferred |  |
@@ -1654,7 +1654,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0558` | 35210 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0564` | 35220 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_057c` | 35230 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0594` | 35240 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0594` | 35240 | 10 | thunk | Far thunk → FUN_2f2b_4da6 (unload cargo hold→warehouse) | inferred |  |
 | `FUN_291f_05a0` | 35250 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_05ac` | 35260 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_05b8` | 35270 | 10 | thunk | unknown | inferred |  |
@@ -1719,9 +1719,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_08ec` | 35860 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_08f8` | 35870 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0902` | 35880 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0910` | 35890 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_091c` | 35900 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0928` | 35910 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0910` | 35890 | 10 | thunk | Far thunk → FUN_6f74_309c (expand %STRING/%NUMBER/… placeholders) | inferred |  |
+| `FUN_291f_091c` | 35900 | 10 | thunk | Far thunk → FUN_7314_0106 (next line from open string resource) | inferred |  |
+| `FUN_291f_0928` | 35910 | 10 | thunk | Far thunk → FUN_7314_001a (open string resource; find @-entry) | inferred |  |
 | `FUN_291f_0934` | 35920 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0942` | 35930 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0950` | 35940 | 10 | thunk | Far thunk → FUN_364b_0688 (colony EOT production/SoL tick) | inferred |  |
@@ -1735,7 +1735,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_09c0` | 36020 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_09ce` | 36030 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_09dc` | 36040 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_09ea` | 36050 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_09ea` | 36050 | 10 | thunk | Far thunk → FUN_38fd_0040 (Europe ask: euro_price−1) | inferred |  |
 | `FUN_291f_09f8` | 36060 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0a06` | 36070 | 10 | thunk | Far thunk → FUN_478c_00d0 (undo last unit spawn if colonist 0x17) | inferred |  |
 | `FUN_291f_0a14` | 36080 | 10 | thunk | Far thunk → FUN_5fef_1b0e (main combat engagement for move-into) | inferred | ai/move_spent.c §3 |
@@ -1757,7 +1757,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0aee` | 36240 | 10 | thunk | Far thunk → FUN_48d3_0002 (landfall/goto duration roll) | inferred |  |
 | `FUN_291f_0afc` | 36250 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0b0a` | 36260 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0b18` | 36270 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0b18` | 36270 | 10 | thunk | Far thunk → FUN_38fd_199e (force-refresh Europe panels) | inferred |  |
 | `FUN_291f_0b26` | 36280 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0b34` | 36290 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0b42` | 36300 | 10 | thunk | unknown | inferred |  |
@@ -1793,7 +1793,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0d3a` | 36600 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0d56` | 36610 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0d72` | 36620 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0d80` | 36630 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0d80` | 36630 | 10 | thunk | Far thunk → FUN_38fd_0666 (resolve Nth harbor unit index) | inferred |  |
 | `FUN_291f_0d8e` | 36640 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0d9c` | 36650 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0daa` | 36660 | 10 | thunk | unknown | inferred |  |
@@ -1807,7 +1807,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0e28` | 36740 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0e36` | 36750 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0e44` | 36760 | 10 | thunk | unknown | inferred |  |
-| `FUN_291f_0e52` | 36770 | 10 | thunk | unknown | inferred |  |
+| `FUN_291f_0e52` | 36770 | 10 | thunk | Far thunk → FUN_38fd_1c64 (enter Europe drag mode 8) | inferred |  |
 | `FUN_291f_0e60` | 36780 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0e6e` | 36790 | 10 | thunk | unknown | inferred |  |
 | `FUN_291f_0e7c` | 36800 | 10 | thunk | unknown | inferred |  |
@@ -2967,15 +2967,15 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7314_0000` | 117824 | 14 | platform | unknown | inferred |  |
-| `FUN_7314_001a` | 117838 | 66 | platform | unknown | inferred |  |
-| `FUN_7314_0106` | 117904 | 27 | platform | unknown | inferred |  |
-| `FUN_7314_015e` | 117931 | 28 | platform | unknown | inferred |  |
-| `FUN_7314_0198` | 117959 | 10 | platform | unknown | inferred |  |
-| `FUN_7314_01b6` | 117969 | 10 | platform | unknown | inferred |  |
-| `FUN_7314_01c8` | 117979 | 10 | platform | unknown | inferred |  |
-| `FUN_7314_01da` | 117989 | 20 | platform | unknown | inferred |  |
-| `FUN_7314_0208` | 118009 | 64 | platform | unknown | inferred |  |
+| `FUN_7314_0000` | 117824 | 14 | platform | Close config/name file handle at DS:0x2014 if open | inferred |  |
+| `FUN_7314_001a` | 117838 | 66 | platform | Open config/name file; seek @section; scan lines for tag match | inferred |  |
+| `FUN_7314_0106` | 117904 | 27 | platform | Read next config line to DS:0x833c; '_'→space; set field cursor 0xa608 | inferred |  |
+| `FUN_7314_015e` | 117931 | 28 | platform | Extract next comma field into DS:0xa5b8; advance cursor 0xa608 | inferred |  |
+| `FUN_7314_0198` | 117959 | 10 | platform | End current config field parse (291f_0fc4 + 2a1f_0b3a) | inferred |  |
+| `FUN_7314_01b6` | 117969 | 10 | platform | Blit/print full config line buffer DS:0x833c | inferred |  |
+| `FUN_7314_01c8` | 117979 | 10 | platform | Blit/print current comma field DS:0xa5b8 | inferred |  |
+| `FUN_7314_01da` | 117989 | 20 | platform | Parse '0'/'1' bit string in field 0xa5b8 to byte | inferred |  |
+| `FUN_7314_0208` | 118009 | 64 | platform | Load nth string from dual-id resource (skip n lines) | inferred |  |
 
 ### Segment `733a` (12 defs) — ui — New-game / CUSTOMIZE UI
 
@@ -3129,11 +3129,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7a05_0000` | 123525 | 38 | platform | unknown | inferred |  |
-| `FUN_7a05_00a4` | 123563 | 45 | platform | unknown | inferred |  |
-| `FUN_7a05_014e` | 123608 | 20 | platform | unknown | inferred |  |
-| `FUN_7a05_0180` | 123628 | 71 | platform | unknown | inferred |  |
-| `FUN_7a05_03ce` | 123699 | 49 | platform | unknown | inferred |  |
+| `FUN_7a05_0000` | 123525 | 38 | platform | Load error-text line N from resource into dest (strip ctrls) | inferred |  |
+| `FUN_7a05_00a4` | 123563 | 45 | platform | Dump resource lines until "$…" match at DS:0x24cb (print each) | inferred |  |
+| `FUN_7a05_014e` | 123608 | 20 | platform | Fatal video teardown then INT10 mode reset | inferred |  |
+| `FUN_7a05_0180` | 123628 | 71 | platform | Format/print fatal abort text + hooks; exit via 1d1d_030d(3) | inferred |  |
+| `FUN_7a05_03ce` | 123699 | 49 | platform | If size≥DS:0x2476: format addrs, load msgs (0000), abort (0180) | inferred |  |
 
 ### Segment `7a4c` (2 defs) — ui — VGA DAC write + PIT fade-speed calibrate
 
@@ -3206,11 +3206,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7ada_0006` | 124390 | 18 | platform | unknown | inferred |  |
-| `FUN_7ada_0022` | 124408 | 84 | platform | unknown | inferred |  |
-| `FUN_7ada_01a0` | 124492 | 9 | platform | unknown | inferred |  |
-| `FUN_7ada_01aa` | 124501 | 27 | platform | unknown | inferred |  |
-| `FUN_7ada_01fa` | 124528 | 36 | platform | unknown | inferred |  |
+| `FUN_7ada_0006` | 124390 | 18 | platform | Run heap callback with reentrancy flag DS:0x2672 set | inferred |  |
+| `FUN_7ada_0022` | 124408 | 84 | platform | DOS heap alloc (INT21 AH=48 / 2a1f) with high-water tracking | inferred |  |
+| `FUN_7ada_01a0` | 124492 | 9 | platform | Alloc via 2a1f_0e90 using size cell DS:0x2674 | inferred |  |
+| `FUN_7ada_01aa` | 124501 | 27 | platform | DOS INT21 AH=49 free mem block (large→2a1f_0fd4) | inferred |  |
+| `FUN_7ada_01fa` | 124528 | 36 | platform | DOS INT21 AH=4A resize mem block; return CF as ±1 | inferred |  |
 
 ### Segment `7b04` (2 defs) — platform — DOS free-memory probe (INT21) + size max
 
@@ -3223,11 +3223,11 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_7b08_000e` | 124609 | 40 | platform | unknown | inferred |  |
-| `FUN_7b08_009e` | 124649 | 25 | platform | unknown | inferred |  |
-| `FUN_7b08_00dc` | 124674 | 22 | platform | unknown | inferred |  |
-| `FUN_7b08_0118` | 124696 | 34 | platform | unknown | inferred |  |
-| `FUN_7b08_0182` | 124730 | 398 | platform | unknown | inferred |  |
+| `FUN_7b08_000e` | 124609 | 40 | platform | Alloc growable far-buffer arena (2a1f_0e90); init cursor/remain | inferred |  |
+| `FUN_7b08_009e` | 124649 | 25 | platform | Wrap existing far block as arena (no alloc; owned=0) | inferred |  |
+| `FUN_7b08_00dc` | 124674 | 22 | platform | Free owned arena (7ada_01aa) and clear far-buffer fields | inferred |  |
+| `FUN_7b08_0118` | 124696 | 34 | platform | Bump-alloc from arena remain; else fatal 281f_0772 | inferred |  |
+| `FUN_7b08_0182` | 124730 | 398 | platform | INT21 shrink arena to used size; return final far size | inferred |  |
 
 ## MAPEDIT
 

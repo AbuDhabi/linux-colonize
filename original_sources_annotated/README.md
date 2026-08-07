@@ -57,7 +57,7 @@ segments stay parked: opaque table lookup `205f` (2 defs) and empty stub
 | Functions | 2380 |
 | Segments | 166 (164 labeled / 2 parked unknown) |
 | Confidence | known 138 · inferred 2239 · unknown 3 |
-| Purpose one-liners | 1135 / 2380 |
+| Purpose one-liners | 1343 / 2380 |
 | System unknown | 3 funcs (`205f`×2 + `1d1c`) |
 
 **MAPEDIT is parked** (no new Layer A labels on this track).
@@ -67,10 +67,10 @@ Catalog confidence is **not** the same as AI port status in
 light-labeled `inferred` in the catalog while still **unknown** for a 1:1 port.
 
 Purpose one-liners are **not** Layer A. Mid/high-value Layer B closed through
-dialog widgets, nation/independence UI (`43f7`), CUSTOMIZE/input/sound, and
-mouse driver. Layer C closed for Euro/Indian AI, mapgen, turn/EOT, and
-move-spent `465b`. Remaining backlog is mostly thunk/platform/`15eb` mapdraw
-bulk.
+`15eb` map/pedia draw and mid-size DOS platform helpers (`275d` PATH/env,
+config parse, heap/abort). Layer C closed for Euro/Indian AI, mapgen,
+turn/EOT, move-spent `465b`, and map/colony UI thunks (`2b5a_3b68` ∪
+`2f2b_51ec`). Remaining backlog is mostly megaseg thunk/platform bulk.
 
 ### Roadmap (committed order)
 
@@ -98,8 +98,10 @@ bulk.
    - **Done:** nation/independence UI `43f7` (21); CUSTOMIZE `733a` + input
      `1262` + discovery `12fd` + BGM `129f`/`2059` (28); mouse INT33 `1a58`
      (18).
-   - **Next (optional):** selective `15eb` mapdraw, platform `275d`, or UI
-     thunk hops (`2b5a`/`2f2b`) as ports need them. MAPEDIT stays parked.
+   - **Done:** map/pedia draw `15eb` (105 — all purpose-unknown closed);
+     platform mid `275d`/`7314`/`124c`/`2047`/`7a05`/`7ada`/`7b08` (56).
+   - **Next (optional):** remaining platform megasegs (`281f`/`291f`/`2a1f`/
+     `1d1d`/`210d`) as ports need them. MAPEDIT stays parked.
 3. **Layer C** — one-hop from known entries.
    - **Done:** `FUN_4d56_1816` (10 callees); `FUN_521d_6d8e` (23 `521d` bodies +
      26 `2a1f` act thunks + 16 helpers).
@@ -108,7 +110,10 @@ bulk.
      `FUN_3844_0442` (36 callees).
    - **Done:** move-spent `FUN_465b_0000` (26 callees — post-ADD chrome /
      foreign tails).
-   - **Next:** other known entries as ports need them.
+   - **Done:** map unit-order ∪ colony people-band
+     `FUN_2b5a_3b68` ∪ `FUN_2f2b_51ec` (47 thunks).
+   - **Next:** full colony entry `FUN_2f2b_6cd4` hop (~73) or other known
+     entries as ports need them.
 4. **Layer D** — selective deep extracts when a port needs them (same bar as
    `ai/`).
 
