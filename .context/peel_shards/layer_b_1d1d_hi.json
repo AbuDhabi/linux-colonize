@@ -1,0 +1,283 @@
+{
+  "layer": "B",
+  "chunk": "megaseg_1d1d_hi",
+  "functions": {
+    "FUN_1d1d_1242": {
+      "system": "platform",
+      "purpose": "CRT abort emit: write msgs 0xFC then 0xFF via 14c9; optional far hook DS:0x28f2",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_14c9; FUN_1d1d_0223"
+    },
+    "FUN_1d1d_1264": {
+      "system": "platform",
+      "purpose": "Abort wrapper — AX=2 then jump FUN_1d1d_0223",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_0223"
+    },
+    "FUN_1d1d_126a": {
+      "system": "platform",
+      "purpose": "Validate PSP XOR checksum (0x42 bytes ^0x55); fail → abort + msg 1",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1242; FUN_1d1d_14c9"
+    },
+    "FUN_1d1d_128e": {
+      "system": "platform",
+      "purpose": "CRT startup: INT21 AH=30 DOS ver; build argv/env from PSP; jump app entry",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1420"
+    },
+    "FUN_1d1d_1420": {
+      "system": "platform",
+      "purpose": "Build CRT environ[] pointer vector from DOS env block (via 26dc)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_26dc; FUN_1d1d_128e"
+    },
+    "FUN_1d1d_149e": {
+      "system": "platform",
+      "purpose": "Lookup CRT message string by id in table DS:0x2b42",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_14c9"
+    },
+    "FUN_1d1d_14c9": {
+      "system": "platform",
+      "purpose": "Write CRT msg id to stderr (INT21 AH=40 BX=2) after 149e lookup",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_149e"
+    },
+    "FUN_1d1d_1500": {
+      "system": "platform",
+      "purpose": "DOS CF check: success→0 else set errno (1528) and return −1",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1528; FUN_1d1d_1515"
+    },
+    "FUN_1d1d_1508": {
+      "system": "platform",
+      "purpose": "DOS CF check: success→0 else map errno (1528) and return AL",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1528"
+    },
+    "FUN_1d1d_1515": {
+      "system": "platform",
+      "purpose": "On DOS CF set errno via 1528; return −1 (else passthrough)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1528"
+    },
+    "FUN_1d1d_1528": {
+      "system": "platform",
+      "purpose": "Map DOS error AL→errno at DS:0x27ac (table DS:0x28fa)",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_1d1d_1556": {
+      "system": "platform",
+      "purpose": "getc — buffered FILE get char; refill via DOS read 1f14",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1f14; FUN_1d1d_2702"
+    },
+    "FUN_1d1d_15ec": {
+      "system": "platform",
+      "purpose": "putc — buffered FILE put char; flush via DOS write 1ffe",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1ffe; FUN_1d1d_1e9a"
+    },
+    "FUN_1d1d_16d0": {
+      "system": "platform",
+      "purpose": "Free FILE heap buffer (flag&8) via 2c44; clear FILE ptrs",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c44"
+    },
+    "FUN_1d1d_16fc": {
+      "system": "platform",
+      "purpose": "fopen mode parse (r/w/a/+ /t/b) then _open 2746; init FILE",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2746; FUN_1d1d_04ae"
+    },
+    "FUN_1d1d_17e4": {
+      "system": "platform",
+      "purpose": "Ensure stdin/stdout/stderr FILE get 0x200 heap buffer",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c65"
+    },
+    "FUN_1d1d_1857": {
+      "system": "platform",
+      "purpose": "Flush console/device FILE if flag&0x10 + device bit; optional clear buf",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1896"
+    },
+    "FUN_1d1d_1896": {
+      "system": "platform",
+      "purpose": "fflush — write FILE buffer via 1ffe; NULL FILE → flushall 1912",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1ffe; FUN_1d1d_1912; FUN_1d1d_0a3e"
+    },
+    "FUN_1d1d_1912": {
+      "system": "platform",
+      "purpose": "flushall — fflush each open FILE in table DS:0x290e..0x2a4e",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1896"
+    },
+    "FUN_1d1d_196e": {
+      "system": "platform",
+      "purpose": "printf/sprintf engine — dispatch format chars via table DS:0x2a56",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_0712; FUN_1d1d_0b48; FUN_1d1d_1daa"
+    },
+    "FUN_1d1d_1daa": {
+      "system": "platform",
+      "purpose": "printf putc — store AL into FILE buffer (or flush via 15ec)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_15ec; FUN_1d1d_1dd4"
+    },
+    "FUN_1d1d_1e46": {
+      "system": "platform",
+      "purpose": "Alloc free FILE slot from CRT table DS:0x290e..0x2a4e",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_04ae; FUN_1d1d_16fc"
+    },
+    "FUN_1d1d_1f14": {
+      "system": "platform",
+      "purpose": "DOS INT21 AH=3F read handle; text mode CR/LF→LF translate",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1556; FUN_1d1d_1515"
+    },
+    "FUN_1d1d_1ffe": {
+      "system": "platform",
+      "purpose": "DOS write handle; text mode LF→CRLF then INT21 AH=40",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_20b2; FUN_1d1d_210a; FUN_1d1d_1896"
+    },
+    "FUN_1d1d_20b2": {
+      "system": "platform",
+      "purpose": "Flush stacked write chunk via INT21 AH=40; fail → 1515",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1ffe; FUN_1d1d_1515"
+    },
+    "FUN_1d1d_20fc": {
+      "system": "platform",
+      "purpose": "Write-fail epilogue → set errno via 1515",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1515"
+    },
+    "FUN_1d1d_210a": {
+      "system": "platform",
+      "purpose": "DOS INT21 AH=40 write CX bytes (binary/raw path); then 1515",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1ffe; FUN_1d1d_1515"
+    },
+    "FUN_1d1d_213e": {
+      "system": "platform",
+      "purpose": "Near-heap grow: expand arena size then AH=4A via 21ca",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_21ca; FUN_1d1d_221b; FUN_1d1d_2c65"
+    },
+    "FUN_1d1d_21ca": {
+      "system": "platform",
+      "purpose": "DOS INT21 AH=4A resize mem block (paragraphs)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_213e"
+    },
+    "FUN_1d1d_221b": {
+      "system": "platform",
+      "purpose": "Walk near-heap free-list to 0xFFFE end marker",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_213e"
+    },
+    "FUN_1d1d_223c": {
+      "system": "platform",
+      "purpose": "atoi — parse signed decimal integer from string",
+      "confidence": "inferred",
+      "links": ""
+    },
+    "FUN_1d1d_2290": {
+      "system": "platform",
+      "purpose": "ftell core — FILE logical pos via lseek 1e9a ± buffer adjust",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_09a2; FUN_1d1d_1e9a"
+    },
+    "FUN_1d1d_2406": {
+      "system": "platform",
+      "purpose": "setvbuf — attach/alloc FILE buffer (_IOFBF/_IONBF/_IOLBF-style)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_1896; FUN_1d1d_16d0; FUN_1d1d_2c65"
+    },
+    "FUN_1d1d_2526": {
+      "system": "platform",
+      "purpose": "ultoa/ltoa — convert long to ASCII digits in buffer (radix)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_08fa; FUN_1d1d_196e"
+    },
+    "FUN_1d1d_2586": {
+      "system": "platform",
+      "purpose": "Search PATH dirs for file then spawn via 2b32; free temp path",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2b32; FUN_1d1d_0942; FUN_1d1d_2c65"
+    },
+    "FUN_1d1d_26dc": {
+      "system": "platform",
+      "purpose": "Heap alloc with temp brk=0x400 via 2c65; fail → abort 0223",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c65; FUN_1d1d_0223; FUN_1d1d_1420"
+    },
+    "FUN_1d1d_2702": {
+      "system": "platform",
+      "purpose": "Alloc/attach default 0x200 FILE buffer (or unbuffered fallback)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c65; FUN_1d1d_1556"
+    },
+    "FUN_1d1d_2746": {
+      "system": "platform",
+      "purpose": "DOS open/creat (INT21 AH=3D/3C) with share/text flags; fill fd table",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_16fc; FUN_1d1d_1515; FUN_1d1d_28f1"
+    },
+    "FUN_1d1d_28f1": {
+      "system": "platform",
+      "purpose": "Map DOS open access bits (CX vs mask DS:0x27ae) into CL flags",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2746"
+    },
+    "FUN_1d1d_2902": {
+      "system": "platform",
+      "purpose": "Stack free bytes remaining above watermark DS:0x27e6",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_03d0"
+    },
+    "FUN_1d1d_2922": {
+      "system": "platform",
+      "purpose": "Near-heap malloc — carve block from free-list (arena DS:0x2778)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c65; FUN_1d1d_2c44"
+    },
+    "FUN_1d1d_299e": {
+      "system": "platform",
+      "purpose": "spawn/exec setup: env block 2c8e, open COM/EXE, hand off 2f06",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c8e; FUN_1d1d_2f06; FUN_1d1d_2746"
+    },
+    "FUN_1d1d_2b32": {
+      "system": "platform",
+      "purpose": "exec path: try .COM/.EXE/.BAT suffixes then spawn 299e",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_299e; FUN_1d1d_328a"
+    },
+    "FUN_1d1d_2c44": {
+      "system": "platform",
+      "purpose": "free — mark near-heap block free (size|1; update rover DS:0x2780)",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2c65; FUN_1d1d_2922"
+    },
+    "FUN_1d1d_2c65": {
+      "system": "platform",
+      "purpose": "malloc — near-heap alloc via 2922; grow arena 213e on fail",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2922; FUN_1d1d_213e"
+    },
+    "FUN_1d1d_328a": {
+      "system": "platform",
+      "purpose": "DOS INT21 AH=43 get file attrs; −1 if mode&2 and read-only",
+      "confidence": "inferred",
+      "links": "FUN_1d1d_2b32"
+    }
+  },
+  "notes": "46/46 megaseg 1d1d hi. Borland/Turbo CRT: startup argv/env (128e/1420), abort/msg (1242/14c9), errno CF helpers (1500–1528), stdio getc/putc/fflush/fopen/setvbuf/ftell (1556–2406), printf engine (196e/1daa), DOS read/write AH=3F/40 (1f14/1ffe), near heap malloc/free/grow (2922/2c44/2c65/213e/21ca), open AH=3D/3C (2746), spawn/exec/PATH (2586/299e/2b32), access AH=43 (328a). Anchors: labeled siblings fclose 03f4, fopen 04da, printf 0712, ftell 09a2, fseek 0a3e, sprintf 0b48, putc emitters 1dd4/1df2, close 1e7a, lseek 1e9a, env/spawn 2c8e/2f06. Shard only."
+}
