@@ -31,7 +31,7 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `4b58` | 24 | ui | inferred | Window / frame widget draw (281f_00ba family) | [catalog](FUNCTION_CATALOG.md) |
 | `647e` | 23 | colony | inferred | Colony list / select UI (rec*0x4a via DS:0x9e14) | [catalog](FUNCTION_CATALOG.md) |
 | `275d` | 21 | platform | inferred | DOS PATH/env parse / memory sizing / INT21 helpers | [catalog](FUNCTION_CATALOG.md) |
-| `43f7` | 21 | ui | known | Nation / @COUNTRY colors | [catalog](FUNCTION_CATALOG.md) |
+| `43f7` | 21 | ai/ui | known | King/REF/tax/independence + @COUNTRY colors | [catalog](FUNCTION_CATALOG.md); ai/king_ref.md |
 | `4d56` | 21 | ai | known | Indian AI / village growth | [catalog](FUNCTION_CATALOG.md) |
 | `6cb2` | 21 | ui | inferred | Info / dialog text panels (281f compositor) | [catalog](FUNCTION_CATALOG.md) |
 | `75c2` | 20 | save | known | Savegame R/W of units / colonies / tribes / flags | [catalog](FUNCTION_CATALOG.md) |

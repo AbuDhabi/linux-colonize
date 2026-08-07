@@ -2446,31 +2446,33 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4345_0982` | 73293 | 40 | trade | Compute next liberty-bell threshold | inferred |  |
 | `FUN_4345_0a22` | 73333 | 144 | trade | Accrue liberty bells; trigger FF election | inferred |  |
 
-### Segment `43f7` (21 defs) — ui — Nation / @COUNTRY colors
+### Segment `43f7` (21 defs) — ai/ui — King/REF/tax/independence + @COUNTRY colors
+
+Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_43f7_0004` | 73477 | 42 | ui | Pop-weighted nation SoL aggregate over owned colonies | inferred |  |
-| `FUN_43f7_0082` | 73519 | 29 | ui | REF/war unit-type id for class+nation (peace vs independence) | inferred |  |
-| `FUN_43f7_0108` | 73548 | 22 | ui | Eliminate nation: move treasury/relations, scrub units, status=2 | inferred |  |
-| `FUN_43f7_0188` | 73570 | 31 | ui | Sink nation ships not docked in a colony (types 0x0d–0x12) | inferred |  |
-| `FUN_43f7_0218` | 73601 | 117 | ui | Crown-nation bootstrap: fold status≠0 Euro into peer; set DS:0x53d2 | inferred |  |
-| `FUN_43f7_0512` | 73718 | 49 | ui | Purge non-player units at (x,y); capture/surrender msgs | inferred |  |
+| `FUN_43f7_0004` | 73477 | 42 | ai | Pop-weighted nation SoL aggregate over owned colonies | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_0082` | 73519 | 29 | ai | REF/war unit-type id for class+nation (peace vs independence) | inferred | ai/king_ref.md |
+| `FUN_43f7_0108` | 73548 | 22 | ai | Eliminate nation: move treasury/relations, scrub units, status=2 | inferred | ai/king_ref.md |
+| `FUN_43f7_0188` | 73570 | 31 | ai | Sink nation ships not docked in a colony (types 0x0d–0x12) | inferred | ai/king_ref.md |
+| `FUN_43f7_0218` | 73601 | 117 | ai | Crown-nation bootstrap: fold status≠0 Euro into peer; set DS:0x53d2 | inferred | ai/king_ref.md |
+| `FUN_43f7_0512` | 73718 | 49 | ai | Purge non-player units at (x,y); capture/surrender msgs | inferred | ai/king_ref.md |
 | `FUN_43f7_05ea` | 73767 | 11 | ui | Set DS:0x848[crown nation] @COUNTRY color to 0x0f | known | src/core/turn.c |
 | `FUN_43f7_05f4` | 73778 | 14 | ui | @COUNTRY to DS color table | known | src/core/turn.c |
-| `FUN_43f7_060a` | 73792 | 37 | ui | Colony garrison/defense score for REF landing target pick | inferred |  |
-| `FUN_43f7_06a6` | 73829 | 106 | ui | Crown turn: spawn irregulars near player colonies when REF empty | inferred |  |
-| `FUN_43f7_0982` | 73935 | 335 | ui | REF invasion wave: Man-O-War + pool units at target colony | inferred |  |
-| `FUN_43f7_10f0` | 74270 | 192 | ui | Foreign-intervention landing (ally expedition near colony) | inferred |  |
-| `FUN_43f7_1528` | 74462 | 37 | ui | REF arrival announce; set 0x5382 bit1 (force present) | inferred |  |
-| `FUN_43f7_160a` | 74499 | 207 | ui | Independence rename cinematic: animate new nation name letters | inferred |  |
-| `FUN_43f7_1a26` | 74706 | 140 | ui | Declare independence: crown setup, wipe other Euros, REF pools, war flag | inferred |  |
-| `FUN_43f7_1d42` | 74846 | 64 | ui | Tax→REF funding: grow expeditionary pools + notify | inferred |  |
-| `FUN_43f7_1eca` | 74910 | 66 | ui | Promote veterans to Continental Army/Cavalry when colony SoL>50% | inferred |  |
-| `FUN_43f7_2022` | 74976 | 98 | ui | Independence-war nation turn: REF grow/land or intervene hire | inferred |  |
-| `FUN_43f7_2244` | 75074 | 82 | ui | Human-turn mercenary hire offer | inferred |  |
-| `FUN_43f7_2424` | 75156 | 61 | ui | Nation SoL refresh + threshold chrome | inferred |  |
-| `FUN_43f7_2564` | 75217 | 200 | ui | Declare-independence prompt (SoL≥50% gate + confirm) | inferred |  |
+| `FUN_43f7_060a` | 73792 | 37 | ai | Colony garrison/defense score for REF landing target pick | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_06a6` | 73829 | 106 | ai | Crown turn: spawn irregulars near player colonies when REF empty | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_0982` | 73935 | 335 | ai | REF invasion wave: Man-O-War + pool units at target colony | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_10f0` | 74270 | 192 | ai | Foreign-intervention landing (ally expedition near colony) | inferred | ai/king_ref.md (PARKED) |
+| `FUN_43f7_1528` | 74462 | 37 | ai | REF arrival announce; set 0x5382 bit1 (force present) | inferred | ai/king_ref.md (PARKED) |
+| `FUN_43f7_160a` | 74499 | 207 | ui | Independence rename cinematic: animate new nation name letters | inferred | ai/king_ref.md (PARKED) |
+| `FUN_43f7_1a26` | 74706 | 140 | ai | Declare independence: crown setup, wipe other Euros, REF pools, war flag | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_1d42` | 74846 | 64 | ai | Tax→REF funding: grow expeditionary pools + notify | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_1eca` | 74910 | 66 | ai | Promote veterans to Continental Army/Cavalry when colony SoL>50% | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_2022` | 74976 | 98 | ai | Independence-war nation turn: REF grow/land or intervene hire | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_2244` | 75074 | 82 | ui | Human-turn mercenary hire offer | inferred | ai/king_ref.md (PARKED) |
+| `FUN_43f7_2424` | 75156 | 61 | ai | Nation SoL refresh + threshold chrome / war dispatch | inferred | ai/king_ref.md; src/core/ai_king.c |
+| `FUN_43f7_2564` | 75217 | 200 | ui | Declare-independence prompt (SoL≥50% gate + confirm) | inferred | ai/king_ref.md (UI PARKED) |
 
 ### Segment `465b` (2 defs) — combat — Move spent / ADD / combat-adjacent
 

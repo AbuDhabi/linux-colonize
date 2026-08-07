@@ -43,7 +43,7 @@ save-diff. Split `ai.c` into `ai_euro.c` / `ai_indian.c` when size warrants.
 | [`ai_euro.c`](../src/core/ai_euro.c) | Full dispatcher: plan/`5d04` hire, `0a60` goals, `5b66` act, Euro `20e6` step |
 | [`ai_diplo.c`](../src/core/ai_diplo.c) | Bilateral `15b3` + `5bfb` war/ally (`euro_diplo.md` partial structural) |
 | [`ai_contact.c`](../src/core/ai_contact.c) | Indian prelude/meet/trade/raids (`4d56`/`5bfb`/`@RAID*` partial structural) |
-| [`ai_king.c`](../src/core/ai_king.c) | Tax events, SoL declare, REF waves, war act (`43f7` T0) |
+| [`ai_king.c`](../src/core/ai_king.c) | Tax / SoL declare / REF waves / war act (`43f7` partial structural; `king_ref.md`) |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, post-spawn native pulse |
 | `ai_euro_nation_turn` | Reseed, AI crosses; seed-100 fixture **or** `ai_euro_dispatcher_turn` (`AI_FULL_DISPATCH=1` / non-100) |
 | `ai_indian_nation_turn` | `1816` phases: prelude → growth → relation → pulse → meet/raids |
@@ -96,7 +96,7 @@ meet/king cinematic UI.
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Bilateral peer bytes + war/ally; see R3.5 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
 | Raids | `ai_contact_indian_raids` | `@RAID*` kinds / friction-gated combat + colony loot |
-| King / tax / REF | `ai_king_nation_turn` (`ai_king.c`) | Tax→REF pools, declare, invasion wave, war turn |
+| King / tax / REF | `ai_king_nation_turn` (`ai_king.c`) | **Partial structural** `2424` peace/war; see R6 |
 
 ### Shared surfaces (blocking work by phase)
 
@@ -187,6 +187,21 @@ entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 
+### King / REF — `FUN_43f7_*`
+
+| Symbol | ~Lines | Purpose | Linux | Status |
+|--------|-------:|---------|-------|--------|
+| `FUN_43f7_0004` | ~42 | Pop-weighted SoL | `ai_king_sol_percent` | **partial** |
+| `FUN_43f7_1d42` | ~64 | Tax→REF funding | `ai_king_tax_event` | **partial** |
+| `FUN_43f7_2564` / `1a26` | ~200 / ~140 | Declare gate / crown setup | `ai_king_try_declare` (auto; UI PARKED) | **partial** |
+| `FUN_43f7_060a` | ~37 | Landing / garrison score | `ai_king_weakest_port` | **partial** |
+| `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
+| `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` | **partial** |
+| `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
+| `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | — | **parked** |
+
+Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke: `smoke_ai_king`.
+
 ### Shared move / terrain helpers (AI-adjacent)
 
 | Symbol | Role in AI | Linux |
@@ -229,7 +244,7 @@ unannotated bodies.
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
-| King / REF AI | `ai_king_nation_turn` | **T0** tax / declare / REF / war act |
+| King / REF AI | `ai_king_nation_turn` | **Partial structural** `43f7` peace/war; `smoke_ai_king` |
 | Diplomacy | `ai_diplo_*` | **Partial structural** bilateral `15b3` + `10ec`/`13b0` balance |
 | Colony capture | `colonies_capture` | military / REF / Indian raid |
 | Naval combat | `units_resolve_naval_combat` | T0 ship vs ship |
@@ -344,6 +359,19 @@ full land/combat `20e6`; `5b66` case 7 economy + combat tails. Odd deviations OK
 3. Full `4d56` large bodies + nested `2820` helpers.
 4. Golden / hang-dump coverage for mid-game turns (not only seed-100 turn 0).
 
+### R6 — King / REF (`43f7`) (**partial structural port**)
+
+**Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
+tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
+`1eca` promote). WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 PARKED);
+REF-present `unknown46[1]`; crown units use non-human Euro nation_id. Thin map:
+[`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
+`smoke_ai_king`.
+
+**PORT DEBT:** `38fd_5be8` boycott UI; player declare confirm; `160a` rename;
+`2244` merc hire; `1528` arrival chrome; deep `10f0` / `backup_force`; exact
+`0x5382` Col1 bit rename / T3.
+
 ---
 
 ## Prerequisites
@@ -363,7 +391,7 @@ Status reflects the AI-port prerequisite work:
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
 | Founding Fathers / liberty | **Partial** | Liberty bells + SoL heuristic for declare; FF election still stub |
-| King / tax / REF | **Partial** (T0) | `ai_king_nation_turn` — tax events, declare, REF waves, war act |
+| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; `smoke_ai_king` |
 
 Suggested manual order still puts **full Euro/Indian AI** late (#10 in
 manual_gap) after combat and Indian contact. **R1 Euro settle (T0)** and
@@ -396,6 +424,7 @@ stay overlaid until hang X).
 | `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
 | `tests/smoke/test_ai_contact.c` | Meet + `@RAID*` loot + prelude mission clear |
 | `tests/smoke/test_ai_diplo.c` | Bilateral war/ally, timer break, Indian delta clamp |
+| `tests/smoke/test_ai_king.c` | SoL, tax→REF, declare WoI + pools, crown wave |
 
 Smoke:
 

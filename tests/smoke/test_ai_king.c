@@ -1,0 +1,188 @@
+/* Smoke: King/REF SoL, tax→REF, declare, invasion wave. */
+#include "core/ai_king.h"
+#include "core/colony.h"
+#include "core/col1_save.h"
+#include "core/europe.h"
+#include "core/map.h"
+#include "core/turn.h"
+#include "core/units.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int fail(const char* msg) {
+  fprintf(stderr, "smoke_ai_king: FAIL %s\n", msg);
+  return 1;
+}
+
+static int count_active(const ColonizeUnitPool* units) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (units->units[i].active) {
+      n++;
+    }
+  }
+  return n;
+}
+
+static int count_nation(const ColonizeUnitPool* units, int nation_id) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (units->units[i].active && units->units[i].nation_id == nation_id) {
+      n++;
+    }
+  }
+  return n;
+}
+
+int main(void) {
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  col1.head.difficulty = 0;
+  memset(col1.head.unknown46, 0, sizeof(col1.head.unknown46));
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    memset(&col1.nation[i], 0, sizeof(col1.nation[i]));
+  }
+
+  /* SoL from rebel_dividend/divisor. */
+  col1.head.colony_count = 1;
+  col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
+  if (!col1.colony) {
+    return fail("alloc colony");
+  }
+  col1.colony[0].nation_id = 0;
+  col1.colony[0].population = 4;
+  col1.colony[0].rebel_dividend = 60;
+  col1.colony[0].rebel_divisor = 100;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* land */
+  }
+  map.terrain[5 * 16 + 4] = 25; /* ocean west of colony for MoW */
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 4;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
+  units.types[0].movement = 1;
+  units.types[0].attack = 3;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Man-O-War");
+  units.types[1].movement = 4;
+  units.types[1].domain = 1;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Dragoon");
+  units.types[2].movement = 2;
+  snprintf(units.types[3].name, sizeof(units.types[3].name), "Artillery");
+  units.types[3].movement = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 5;
+  c->y = 5;
+  c->population = 4;
+  c->colonist_count = 4;
+  colonies.colony_count = 1;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.tax_percent = 0;
+
+  uint16_t year = 1536;
+  uint16_t autumn = 0;
+  uint32_t turn = 1;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = 0;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.europe = &europe;
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn;
+
+  const int sol = ai_king_sol_percent(&ctx, 0);
+  if (sol != 60) {
+    fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 60)\n", sol);
+    return fail("SoL from rebel fields");
+  }
+
+  /* Tax hike + REF bump on spring tax year (peacetime; bells low → no declare). */
+  const uint16_t pool0 = col1.head.expeditionary_force[0];
+  const uint8_t tax0 = col1.nation[0].tax_rate;
+  ai_king_nation_turn(&ctx);
+  if (col1.nation[0].tax_rate <= tax0) {
+    return fail("tax should hike on spring tax year");
+  }
+  if (col1.head.expeditionary_force[0] <= pool0) {
+    return fail("tax should grow REF regulars");
+  }
+  if (europe.tax_percent != col1.nation[0].tax_rate) {
+    return fail("europe tax_percent should sync");
+  }
+  if (col1.head.unknown46[0] != 0) {
+    return fail("tax-only turn should not declare WoI");
+  }
+
+  /* Declare path: autumn skips tax; SoL≥50 + bells≥100. Wave runs same turn. */
+  year = 1600;
+  autumn = 1;
+  col1.nation[0].liberty_bells_total = 200;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  col1.player[1].control = 0;
+  col1.player[2].control = 0;
+  col1.player[3].control = 0;
+  const int units_before = count_active(&units);
+
+  ai_king_nation_turn(&ctx);
+  if (col1.head.unknown46[0] == 0) {
+    return fail("declare should set WoI flag unknown46[0]");
+  }
+  if (col1.player[1].control != 2 || col1.player[2].control != 2 ||
+      col1.player[3].control != 2) {
+    return fail("declare should withdraw other Euro control");
+  }
+  /* Seed then drain: residual +1 regular may leave pools non-zero; require spawn. */
+  if (count_nation(&units, 1) < 1) {
+    return fail("post-declare wave should spawn crown (nation 1) unit");
+  }
+  if (count_active(&units) <= units_before) {
+    return fail("wave should increase unit count");
+  }
+  if (count_nation(&units, 0) != 0) {
+    return fail("REF/irregular must not spawn as human nation");
+  }
+  /* Pools seeded on declare then drained; still expect REF-present stand-in. */
+  if (col1.head.unknown46[1] == 0) {
+    return fail("wave should set REF-present unknown46[1]");
+  }
+
+  const uint8_t tax_final = col1.nation[0].tax_rate;
+  const int crown_final = count_nation(&units, 1);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  col1_save_free(&col1);
+  fprintf(stderr, "smoke_ai_king: ok (sol=%d tax=%u crown=%d)\n", sol, tax_final, crown_final);
+  return 0;
+}

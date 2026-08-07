@@ -161,7 +161,7 @@ Deep extracts below are still thin/parked; Linux T0 counterparts live under `src
 | Euro/ocean `20e6` / full `5b66` / `5d04` | `ai_euro.c` |
 | Goal tables `0000…0906` | `ai_goals.c` |
 | Diplomacy `15b3` / `5bfb` | `ai_diplo.c` (bilateral unknown26[4+peer]; euro_diplo.md) |
-| King/REF `43f7_*` | `ai_king.c` |
+| King/REF `43f7_*` | `ai_king.c` + [ai/king_ref.md](ai/king_ref.md) |
 | `FUN_465b_0000` combat tails | still PARKED in annotated `move_spent.c` |
 
 - Ghidra database renames / re-export

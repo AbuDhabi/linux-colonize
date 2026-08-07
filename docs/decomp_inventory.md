@@ -174,7 +174,7 @@ Ordered pipeline recovered for the Linux port:
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
    overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
    (`FUN_4d56_1816` / quiet `20e6`); raids / meet deferred.
-7. **King** — stub (tax / REF / independence events deferred)
+7. **King** — partial structural (`ai_king_nation_turn`: tax / declare / REF / war; R6)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
 
 **New-game AI actors** (`ai_init_new_game`): Col1 template (human control 0 / gold 1000;
@@ -185,7 +185,7 @@ AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE pro
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 
 **Parked (later):** mid-game Euro planner branches; deep Indian `2820`/`4528` + meet UI;
-full `1816` body beyond quiet path; King/REF. Early-AI T2 gate is green
+full `1816` body beyond quiet path; deep King/REF (`10f0`, boycott UI, exact `0x5382`). Early-AI T2 gate is green
 (`test-saves-ai/TURN1`…`TURN7`). Roadmap: [ai_transcription.md](ai_transcription.md).
 
 Evidence:
