@@ -253,12 +253,14 @@ static int run_init_and_turns(
     }
   } else {
     MapGenParams params;
+    memset(&params, 0, sizeof(params));
     map_gen_params_random(&params, 0xA1A1A1u);
     params.land_mass = 1;
     params.land_form = 1;
     params.temperature = 1;
     params.climate = 1;
     params.seed = 0xA1A1A1u;
+    params.focus_nation = human_nation;
     if (!map_generate(&map, &params, err, sizeof(err))) {
       fprintf(stderr, "%s: map_generate failed: %s\n", label, err);
       assets_msg_free(&names);
@@ -269,7 +271,7 @@ static int run_init_and_turns(
   int sx = 39, sy = 10;
   if (america) {
     new_game_scenario_start(&names, "AMER2", human_nation, &sx, &sy);
-  } else {
+  } else if (!map_gen_euro_landfall(&map, human_nation, &sx, &sy)) {
     map_gen_pick_start(&map, human_nation, -1, -1, 0, &sx, &sy);
   }
   units_new_world_start(&units, &map, sx, sy, human_nation, 0);
@@ -410,6 +412,44 @@ static int run_init_and_turns(
       assets_msg_free(&names);
       return 1;
     }
+    /* NEW WORLD landfall goto is FUN_684c HS rim (not coastal land / not south pole). */
+    if (!america && map.euro_landfalls_ok) {
+      int lx = 0;
+      int ly = 0;
+      if (!map_gen_euro_landfall(&map, n, &lx, &ly)) {
+        fprintf(stderr, "%s: missing euro landfall for nation %d\n", label, n);
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int h5 = (int)map.height / 5;
+      const int band_ok =
+        ly == h5 || ly == h5 * 2 || ly == h5 * 3 || ly == h5 * 4;
+      if (!band_ok) {
+        fprintf(stderr, "%s: landfall Y=%d not in HS-rim bands for nation %d\n", label, ly, n);
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (ai_ship->goto_x != lx || ai_ship->goto_y != ly) {
+        fprintf(
+          stderr,
+          "%s: AI nation %d goto (%d,%d) != landfall (%d,%d)\n",
+          label,
+          n,
+          ai_ship->goto_x,
+          ai_ship->goto_y,
+          lx,
+          ly
+        );
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
   }
 
   const int dist0 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;
@@ -451,6 +491,61 @@ static int run_init_and_turns(
 
   for (int t = 0; t < 12; ++t) {
     turn_end(&ctx);
+  }
+
+  /* NEW WORLD: after Europe exit, rivals must not sit on southern ice edge. */
+  if (!america) {
+    const int south_ice_y = (int)map.height - 3;
+    for (int n = 0; n < 4; ++n) {
+      if (n == human_nation) {
+        continue;
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->nation_id != n || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (!units_is_sea(&units, u->id)) {
+          continue;
+        }
+        if (u->x >= 200 || u->y >= 200) {
+          continue; /* still in Europe harbor — exit may need more turns */
+        }
+        if (u->y >= south_ice_y) {
+          fprintf(
+            stderr,
+            "%s: AI nation %d ship at (%d,%d) on southern ice edge (map h=%d)\n",
+            label,
+            n,
+            u->x,
+            u->y,
+            (int)map.height
+          );
+          map_free(&map);
+          col1_save_free(&col1);
+          assets_msg_free(&names);
+          return 1;
+        }
+        /* Stay near landfall latitude (±12), not polar teleport. */
+        if (u->goto_y < 255 && u->goto_y < (int)map.height) {
+          const int dy = u->y - u->goto_y;
+          if (dy < -18 || dy > 18) {
+            fprintf(
+              stderr,
+              "%s: AI nation %d ship Y=%d far from landfall/goto Y=%d\n",
+              label,
+              n,
+              u->y,
+              u->goto_y
+            );
+            map_free(&map);
+            col1_save_free(&col1);
+            assets_msg_free(&names);
+            return 1;
+          }
+        }
+      }
+    }
   }
 
   const int dist1 = america ? ai_ship_dist_sum(&units, human_nation == 1 ? 0 : 1) : -1;

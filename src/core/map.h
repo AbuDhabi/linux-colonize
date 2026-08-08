@@ -47,6 +47,13 @@ typedef struct ColonizeWorldMap {
    */
   uint8_t* seen;
   size_t tile_count;
+  /*
+   * FUN_684c_08c0 LAB_684c_1b4c: per-nation western rim of eastern high seas
+   * (landfall goto). Valid after map_generate; cleared by map_alloc/map_free.
+   */
+  uint8_t euro_landfall_x[4];
+  uint8_t euro_landfall_y[4];
+  uint8_t euro_landfalls_ok;
 } ColonizeWorldMap;
 
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size);

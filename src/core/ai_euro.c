@@ -22,6 +22,62 @@ static int ai_euro_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
 }
 
+/* Sync passenger tile coords after Europe→map teleport (FUN_48d3_048e). */
+static void ai_euro_sync_aboard_cargo_xy(ColonizeUnitPool* units, ColonizeUnit* ship) {
+  if (!units || !ship) {
+    return;
+  }
+  for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    ColonizeUnit* pax = units_get(units, ship->cargo_ids[i]);
+    if (pax) {
+      pax->x = ship->x;
+      pax->y = ship->y;
+    }
+  }
+}
+
+/*
+ * Resolve landfall goto for Europe exit (never Europe sentinel y~229).
+ * Prefer ship goto when on-map; else first passenger goto; else map mid-east.
+ */
+static void ai_euro_resolve_landfall_goto(
+  ColonizeTurnContext* ctx,
+  ColonizeUnit* ship,
+  int* out_x,
+  int* out_y
+) {
+  const int w = ctx && ctx->map ? (int)ctx->map->width : 0;
+  const int h = ctx && ctx->map ? (int)ctx->map->height : 0;
+  int lx = -1;
+  int ly = -1;
+  if (ship && w > 0 && h > 0) {
+    if (ship->goto_x >= 0 && ship->goto_y >= 0 && ship->goto_x < 255 && ship->goto_y < 255 &&
+        ship->goto_x < w && ship->goto_y < h) {
+      lx = ship->goto_x;
+      ly = ship->goto_y;
+    } else {
+      for (int i = 0; i < ship->cargo_count && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+        const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[i]);
+        if (!pax) {
+          continue;
+        }
+        if (pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 && pax->goto_y < 255 &&
+            pax->goto_x < w && pax->goto_y < h) {
+          lx = pax->goto_x;
+          ly = pax->goto_y;
+          break;
+        }
+      }
+    }
+  }
+  if (lx < 0 || ly < 0) {
+    lx = w > 2 ? w - 2 : 0;
+    ly = h > 0 ? h / 2 : 0;
+  }
+  *out_x = lx;
+  *out_y = ly;
+}
+
 static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_id) {
   int n = 0;
   if (!colonies) {
@@ -5606,17 +5662,43 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
 
     if (ai_euro_in_europe(u->x, u->y)) {
-      int hx = 0;
-      int hy = 0;
-      if (units_find_eastern_high_seas_tile(ctx->units, ctx->map, u->y, &hx, &hy)) {
+      /*
+       * FUN_48d3_048e: place on HS near landfall goto — never prefer_y from
+       * Europe sentinel (~228+nation); that pinned rivals to southern ice.
+       */
+      int lx = 0;
+      int ly = 0;
+      ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
+      int hx = lx;
+      int hy = ly;
+      int placed = 0;
+      if ((map_tile_is_high_seas(ctx->map, lx, ly) || map_tile_is_water(ctx->map, lx, ly)) &&
+          units_id_at(ctx->units, lx, ly) < 0) {
+        hx = lx;
+        hy = ly;
+        placed = 1;
+      }
+      if (!placed &&
+          units_find_high_seas_tile(ctx->units, ctx->map, lx, ly, &hx, &hy)) {
+        placed = 1;
+      }
+      if (!placed &&
+          units_find_eastern_high_seas_tile(ctx->units, ctx->map, ly, &hx, &hy)) {
+        placed = 1;
+      }
+      if (placed) {
         u->x = hx;
         u->y = hy;
+        ai_euro_sync_aboard_cargo_xy(ctx->units, u);
         int fx = 0;
         int fy = 0;
         if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
           ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
         } else {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx > 2 ? hx - 8 : 0, hy);
+          /* Sail west from landfall toward New World coast (same latitude). */
+          const int tx = lx > 8 ? lx - 8 : (hx > 2 ? hx - 8 : 0);
+          const int ty = ly;
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx < 0 ? 0 : tx, ty);
         }
       }
     }

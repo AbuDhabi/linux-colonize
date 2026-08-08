@@ -287,6 +287,12 @@ static void ai_pick_landfall(
     new_game_scenario_start(p->names, p->map_stem, nation, out_x, out_y);
     return;
   }
+  /* NEW WORLD: FUN_684c HS-rim landfalls from map_generate. */
+  if (map_gen_euro_landfall(p->map, nation, out_x, out_y)) {
+    (void)avoid_x;
+    (void)avoid_y;
+    return;
+  }
   if (!map_gen_pick_start(p->map, nation, avoid_x, avoid_y, 8, out_x, out_y)) {
     *out_x = p->map->width / 2;
     *out_y = p->map->height / 2;

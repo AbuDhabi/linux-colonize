@@ -87,13 +87,57 @@ int main(void) {
   }
 
   int sx = -1, sy = -1;
+  if (!map_gen_euro_landfall(&map, 0, &sx, &sy)) {
+    fprintf(stderr, "map_gen_euro_landfall failed\n");
+    map_free(&map);
+    return 1;
+  }
+  if (!map_tile_is_high_seas(&map, sx, sy) && !map_tile_is_water(&map, sx, sy)) {
+    fprintf(stderr, "euro landfall (%d,%d) is not water/HS\n", sx, sy);
+    map_free(&map);
+    return 1;
+  }
+  {
+    const int h = (int)map.height;
+    const int h5 = h / 5;
+    int seen_band[4] = {0, 0, 0, 0};
+    const int bands[4] = {h5, h5 * 2, h5 * 3, h5 * 4};
+    for (int n = 0; n < 4; ++n) {
+      int lx = -1, ly = -1;
+      if (!map_gen_euro_landfall(&map, n, &lx, &ly)) {
+        fprintf(stderr, "euro landfall missing for nation %d\n", n);
+        map_free(&map);
+        return 1;
+      }
+      int band = -1;
+      for (int b = 0; b < 4; ++b) {
+        if (ly == bands[b]) {
+          band = b;
+          break;
+        }
+      }
+      if (band < 0) {
+        fprintf(stderr, "nation %d landfall Y=%d not in {14,28,42,56}-style bands\n", n, ly);
+        map_free(&map);
+        return 1;
+      }
+      if (seen_band[band]) {
+        fprintf(stderr, "duplicate landfall band %d\n", band);
+        map_free(&map);
+        return 1;
+      }
+      seen_band[band] = 1;
+    }
+  }
+
+  /* Fallback coastal-land helper still works. */
   if (!map_gen_pick_start(&map, 0, -1, -1, 0, &sx, &sy)) {
     fprintf(stderr, "map_gen_pick_start failed\n");
     map_free(&map);
     return 1;
   }
   if (!map_tile_is_land(&map, sx, sy)) {
-    fprintf(stderr, "start (%d,%d) is not land\n", sx, sy);
+    fprintf(stderr, "pick_start (%d,%d) is not land\n", sx, sy);
     map_free(&map);
     return 1;
   }
