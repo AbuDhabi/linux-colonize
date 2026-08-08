@@ -182,8 +182,7 @@ static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) 
   fill_pattern(save->map.mask, save->map.tile_count, 0xa2);
   fill_pattern(save->map.path, save->map.tile_count, 0xb3);
   fill_pattern(save->map.seen, save->map.tile_count, 0xc4);
-  fill_pattern(save->unknown_e, sizeof(save->unknown_e), 0xd5);
-  fill_pattern(save->unknown_f, sizeof(save->unknown_f), 0xe6);
+  fill_pattern((uint8_t*)&save->post_map, sizeof(save->post_map), 0xd5);
   fill_pattern((uint8_t*)save->trade_route, sizeof(save->trade_route), 0xf7);
 
   /* Keep signature / version intact after pattern fills. */

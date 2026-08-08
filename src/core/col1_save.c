@@ -59,6 +59,7 @@ bool col1_save_check_layout(char* err, size_t err_size) {
   CHECK_SIZE(ColonizeCol1Tribe, COLONIZE_COL1_TRIBE_SIZE);
   CHECK_SIZE(ColonizeCol1Indian, COLONIZE_COL1_INDIAN_SIZE);
   CHECK_SIZE(ColonizeCol1Stuff, COLONIZE_COL1_STUFF_SIZE);
+  CHECK_SIZE(ColonizeCol1PostMap, COLONIZE_COL1_POST_MAP_SIZE);
   CHECK_SIZE(ColonizeCol1TradeRoute, COLONIZE_COL1_TRADE_ROUTE_SIZE);
   CHECK_SIZE(ColonizeCol1Buildings, 6u);
   CHECK_SIZE(ColonizeCol1CustomHouse, 2u);
@@ -148,8 +149,7 @@ size_t col1_save_expected_size_counts(
          (size_t)COLONIZE_COL1_INDIAN_COUNT * COLONIZE_COL1_INDIAN_SIZE +
          (size_t)COLONIZE_COL1_STUFF_SIZE +
          tiles * 4u +
-         (size_t)COLONIZE_COL1_UNKNOWN_E_SIZE +
-         (size_t)COLONIZE_COL1_UNKNOWN_F_SIZE +
+         (size_t)COLONIZE_COL1_POST_MAP_SIZE +
          (size_t)COLONIZE_COL1_TRADE_ROUTE_COUNT * COLONIZE_COL1_TRADE_ROUTE_SIZE;
 }
 
@@ -395,8 +395,7 @@ static bool parse_from_stream(
       !take(ctx, out->map.seen, out->map.tile_count, err, err_size, "map.seen")) {
     return false;
   }
-  if (!take(ctx, out->unknown_e, sizeof(out->unknown_e), err, err_size, "unknown_e") ||
-      !take(ctx, out->unknown_f, sizeof(out->unknown_f), err, err_size, "unknown_f") ||
+  if (!take(ctx, &out->post_map, sizeof(out->post_map), err, err_size, "post_map") ||
       !take(ctx, out->trade_route, sizeof(out->trade_route), err, err_size, "trade_routes")) {
     return false;
   }
@@ -507,8 +506,7 @@ static bool emit_to_stream(
       !put(ctx, save->map.mask, save->map.tile_count, err, err_size, "map.mask") ||
       !put(ctx, save->map.path, save->map.tile_count, err, err_size, "map.path") ||
       !put(ctx, save->map.seen, save->map.tile_count, err, err_size, "map.seen") ||
-      !put(ctx, save->unknown_e, sizeof(save->unknown_e), err, err_size, "unknown_e") ||
-      !put(ctx, save->unknown_f, sizeof(save->unknown_f), err, err_size, "unknown_f") ||
+      !put(ctx, &save->post_map, sizeof(save->post_map), err, err_size, "post_map") ||
       !put(ctx, save->trade_route, sizeof(save->trade_route), err, err_size, "trade_routes")) {
     return false;
   }
