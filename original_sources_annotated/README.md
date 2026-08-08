@@ -10,7 +10,8 @@ names — put renames and labels here instead.
 1. **[`MODULE_MAP.md`](MODULE_MAP.md)** — segment prefix → system cluster.
 2. **[`FUNCTION_CATALOG.md`](FUNCTION_CATALOG.md)** — every `FUN_*` (line, size,
    one-line purpose or `unknown`).
-3. **Deep extracts** (AI today) — files under `ai/` + [`SYMBOL_MAP.md`](SYMBOL_MAP.md).
+3. **Deep extracts** (AI today; GSOUND interpreter) — files under `ai/` /
+   `sound/` + [`SYMBOL_MAP.md`](SYMBOL_MAP.md).
 4. **Raw export** — `viceroy_unpacked.c` / `.asm` or `mapedit.c` when still
    unlabeled. Bytes there always win on control-flow conflicts.
 

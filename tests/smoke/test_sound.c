@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,6 +63,55 @@ int main(void) {
       vel,
       prog
     );
+    sound_shutdown();
+    return 1;
+  }
+
+  /* ED chord song 0x28: some tick must carry ≥2 note-ons (desync fix). */
+  {
+    int chord_events = 0;
+    uint32_t chord_dur = 0;
+    if (!sound_gsound_song_stats(0x28, &chord_events, &chord_dur, NULL, NULL, NULL, NULL) ||
+        chord_events < 200) {
+      fprintf(stderr, "song 0x28 weak decode events=%d\n", chord_events);
+      sound_shutdown();
+      return 1;
+    }
+    int same_tick_notes = 0;
+    uint32_t prev_tick = UINT32_MAX;
+    int notes_at_tick = 0;
+    for (int i = 0; i < chord_events; ++i) {
+      uint32_t tick = 0;
+      uint8_t status = 0, d1 = 0, d2 = 0, c = 0;
+      if (!sound_gsound_event_at(0x28, i, &tick, &status, &d1, &d2, &c)) {
+        break;
+      }
+      if ((status & 0xf0) != 0x90 || d2 == 0) {
+        continue;
+      }
+      if (tick == prev_tick) {
+        notes_at_tick++;
+      } else {
+        if (notes_at_tick >= 2) {
+          same_tick_notes = notes_at_tick;
+        }
+        prev_tick = tick;
+        notes_at_tick = 1;
+      }
+    }
+    if (notes_at_tick >= 2) {
+      same_tick_notes = notes_at_tick;
+    }
+    if (same_tick_notes < 2) {
+      fprintf(stderr, "song 0x28 expected ED chord (≥2 note-ons on one tick)\n");
+      sound_shutdown();
+      return 1;
+    }
+  }
+
+  /* Event music table 0x2AC4 — at least one id in 0x40..0x5c. */
+  if (!sound_gsound_has_song(0x40) && !sound_gsound_has_song(0x43)) {
+    fprintf(stderr, "missing event music (0x40/0x43)\n");
     sound_shutdown();
     return 1;
   }

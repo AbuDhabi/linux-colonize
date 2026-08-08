@@ -12,9 +12,10 @@
  * IDs 0x20..0x3f are background music; 0x40..0x5c are event music; IDs < 0x10
  * are always forwarded (stop / system).
  *
- * Streams are decoded from the GSOUND voice bytecode (note/dur pairs, F4
- * velocity, F8 program, CC ops). Synthesis uses FluidSynth with an SC-55-ish
- * SoundFont when available (COLONIZE_SOUNDFONT overrides).
+ * Streams are decoded from the GSOUND voice bytecode (note/dur pairs, ED chords,
+ * F4 velocity, F8 program, F3 volume envelope, BB pitch-bend RPN, CC ops).
+ * Synthesis uses FluidSynth with an SC-55-ish SoundFont when available
+ * (COLONIZE_SOUNDFONT overrides).
  */
 #define COLONIZE_SOUND_PLAYBACK_ENABLED 1
 

@@ -149,8 +149,10 @@ port I/O in the native build.
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
 - Music (`src/core/sound.c`): GSOUND.COL voice bytecode → MIDI events (~60 Hz ticks);
-  FluidSynth with SC-55-preferring SoundFont search; Pick Music preview + title/map BGM
-  via `COLONIZE_SOUND_PLAYBACK_ENABLED`; `COLDIG.BIN` SFX still deferred
+  FluidSynth with SC-55-preferring SoundFont search; ED chords, F3 volume envelope,
+  BB pitch-bend RPN; BGM + event (`0x40..`) tables; Pick Music preview + title/map BGM
+  via `COLONIZE_SOUND_PLAYBACK_ENABLED`; `COLDIG.BIN` SFX still deferred. Interpreter
+  notes: `original_sources_annotated/sound/gsound_interpreter.md`.
 
 ## End-of-turn recovery checklist
 

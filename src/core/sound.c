@@ -15,13 +15,19 @@
 
 #define SOUND_MAX_TRACKS 12
 #define SOUND_MAX_EVENTS 16384
+#define SOUND_MAX_SONGS 96
 #define SOUND_GSOUND_DS_PARAS 0x0322
 #define SOUND_GSOUND_BGM_TABLE 0x2A6E
-#define SOUND_GSOUND_BGM_BOUND 0x331A
+#define SOUND_GSOUND_EVENT_TABLE 0x2AC4
+#define SOUND_GSOUND_BGM_BOUND 0x331A /* image alias of DS:00FA (= 0x3f) */
+#define SOUND_GSOUND_DS_EVENT_MAX 0x00FC /* FUN_1000_19bc event id ceiling */
 #define SOUND_GSOUND_IMG_HDR 512
+#define SOUND_ED_MAX_NOTES 4 /* driver chord slots per voice */
 /*
  * GSOUND.COL stores PIT divisor 0x4DBF at DS:0081 → ~60 Hz voice ticks
  * (1193182 / 19903 ≈ 59.95 Hz). Duration bytes are counts of these ticks.
+ * IRQ path calls the voice interpreter every PIT tick; BE/BF product is
+ * written to unread BSS (see annotated gsound notes) — not a tick scaler.
  */
 #define SOUND_PIT_DIVISOR 0x4DBF
 #define SOUND_TICK_HZ (1193182.0 / (double)SOUND_PIT_DIVISOR)
@@ -56,7 +62,7 @@ typedef struct SoundState {
   size_t gsound_img_size;
   uint32_t ds_base;
 
-  SoundSong songs[32]; /* ids 0x20..0x3f */
+  SoundSong songs[SOUND_MAX_SONGS]; /* BGM 0x20.. + event 0x40.. */
   int song_count;
 
   pthread_mutex_t lock;
@@ -103,11 +109,102 @@ static void sound_push_event(SoundSong* song, uint32_t tick, uint8_t status, uin
   }
 }
 
+/* FUN_1000_01fd F3: per-tick CC7 ramp while vol_delta != 0. */
+static void sound_env_step_volume(
+  SoundSong* song,
+  uint32_t tick,
+  uint8_t channel,
+  uint8_t* volume,
+  int8_t* vol_delta,
+  uint8_t vol_period,
+  uint8_t* vol_count
+) {
+  if (!vol_delta || *vol_delta == 0 || vol_period == 0) {
+    return;
+  }
+  if (*vol_count > 0) {
+    (*vol_count)--;
+  }
+  if (*vol_count != 0) {
+    return;
+  }
+  *vol_count = vol_period;
+  int next = (int)(*volume) + (int)(*vol_delta);
+  if (next > 0x7f || next < 0) {
+    *vol_delta = 0;
+    /* Driver: if high byte of add looked like >= 0xb0 treat as floor 0, else 0x7f. */
+    *volume = (next < 0 || (uint8_t)next >= 0xb0) ? 0 : 0x7f;
+  } else {
+    *volume = (uint8_t)next;
+  }
+  sound_push_event(song, tick, 0xb0, 7, *volume & 0x7f, channel);
+}
+
+static void sound_advance_time(
+  SoundSong* song,
+  uint32_t* time,
+  uint32_t ticks,
+  uint8_t channel,
+  uint8_t* volume,
+  int8_t* vol_delta,
+  uint8_t vol_period,
+  uint8_t* vol_count
+) {
+  if (ticks == 0) {
+    return;
+  }
+  if (!vol_delta || *vol_delta == 0 || vol_period == 0) {
+    *time += ticks;
+    return;
+  }
+  for (uint32_t i = 0; i < ticks && *time < SOUND_MAX_TRACK_TICKS; ++i) {
+    (*time)++;
+    sound_env_step_volume(song, *time, channel, volume, vol_delta, vol_period, vol_count);
+  }
+}
+
+static uint8_t sound_note_gate(uint8_t dur, uint8_t artic_abs, uint8_t artic_sub) {
+  uint8_t gate;
+  if (artic_abs != 0) {
+    gate = artic_abs;
+  } else {
+    gate = (uint8_t)(dur - artic_sub);
+  }
+  if (dur != 0 && gate > dur) {
+    gate = dur;
+  }
+  return gate;
+}
+
+static void sound_emit_note(
+  SoundSong* song,
+  uint32_t time,
+  uint8_t channel,
+  int midi_note,
+  uint8_t velocity,
+  uint8_t dur,
+  uint8_t gate
+) {
+  if (midi_note < 0) {
+    midi_note = 0;
+  }
+  if (midi_note > 127) {
+    midi_note = 127;
+  }
+  uint8_t vel = velocity;
+  if (vel == 0 || vel > 127) {
+    vel = 64;
+  }
+  sound_push_event(song, time, 0x90, (uint8_t)midi_note, vel, channel);
+  const uint32_t off_at = time + (gate ? (uint32_t)gate : (uint32_t)(dur ? dur : 1u));
+  sound_push_event(song, off_at, 0x80, (uint8_t)midi_note, 0, channel);
+}
+
 /*
- * Decode one GSOUND voice stream (DS-relative). Opcodes reverse-engineered from
- * the MZ jump table at image 0xEF2 (ops 0xBB..0xFF). Bytes <= 0xBA are
- * note/duration pairs; F4 sets velocity; F8 is program change (not C2 — C2 is
- * CC 91 reverb).
+ * Decode one GSOUND voice stream (DS-relative). Opcode semantics from
+ * FUN_1000_01fd in original_sources_decompiled/gsound.c (annotated under
+ * original_sources_annotated/sound/). Bytes <= 0xBA are note/duration pairs;
+ * F8 is program change (C2 is CC 91 reverb; C3 is hardware patch — unused in songs).
  */
 static void sound_decode_track(
   SoundSong* song,
@@ -126,6 +223,10 @@ static void sound_decode_track(
   uint8_t artic_sub = 0; /* F7: gate = dur - artic_sub */
   uint8_t artic_abs = 0; /* F6: gate = artic_abs when nonzero */
   uint8_t transpose = 0; /* EE */
+  uint8_t volume = 100;  /* CC7; F1/F3 */
+  int8_t vol_delta = 0;  /* F3 */
+  uint8_t vol_period = 0;
+  uint8_t vol_count = 0;
 
   size_t loop_start = start_off;
   int loop_count = 0;
@@ -135,7 +236,7 @@ static void sound_decode_track(
   int call_depth = 0;
   int stuck = 0;
 
-  while (time < SOUND_MAX_TRACK_TICKS && song->event_count < SOUND_MAX_EVENTS - 4) {
+  while (time < SOUND_MAX_TRACK_TICKS && song->event_count < SOUND_MAX_EVENTS - 8) {
     if (pos >= ds_size) {
       break;
     }
@@ -155,42 +256,26 @@ static void sound_decode_track(
         break;
       }
 
-      uint8_t gate;
-      if (artic_abs != 0) {
-        gate = artic_abs;
-      } else {
-        gate = (uint8_t)(dur - artic_sub);
-      }
-      if (dur != 0 && gate > dur) {
-        gate = dur;
-      }
-
+      const uint8_t gate = sound_note_gate(dur, artic_abs, artic_sub);
       if (note_raw == 0) {
-        time += dur ? (uint32_t)dur : 1u;
+        sound_advance_time(
+          song, &time, dur ? (uint32_t)dur : 1u, channel, &volume, &vol_delta, vol_period, &vol_count
+        );
       } else {
-        int midi_note = (int)note_raw + (int8_t)transpose;
-        if (midi_note < 0) {
-          midi_note = 0;
-        }
-        if (midi_note > 127) {
-          midi_note = 127;
-        }
-        uint8_t vel = velocity;
-        if (vel == 0 || vel > 127) {
-          vel = 64;
-        }
-        sound_push_event(song, time, 0x90, (uint8_t)midi_note, vel, channel);
-        const uint32_t off_at = time + (gate ? (uint32_t)gate : (uint32_t)(dur ? dur : 1u));
-        sound_push_event(song, off_at, 0x80, (uint8_t)midi_note, 0, channel);
-        time += dur ? (uint32_t)dur : 1u;
+        sound_emit_note(
+          song, time, channel, (int)note_raw + (int8_t)transpose, velocity, dur, gate
+        );
+        sound_advance_time(
+          song, &time, dur ? (uint32_t)dur : 1u, channel, &volume, &vol_delta, vol_period, &vol_count
+        );
       }
       stuck = 0;
       continue;
     }
 
-    /* Opcode 0xBB..0xFF */
+    /* Opcode 0xBB..0xFF — FUN_1000_01fd */
     switch (op) {
-      case 0xF4: /* velocity */
+      case 0xF4: /* velocity → voice+6 */
         if (pos + 1 >= ds_size) {
           return;
         }
@@ -204,18 +289,18 @@ static void sound_decode_track(
         sound_push_event(song, time, 0xc0, ds_img[pos + 1] & 0x7f, 0, channel);
         pos += 2;
         break;
-      case 0xC3: /* far patch helper — treat as program change */
+      case 0xC3: /* FUN_1000_01bf → hardware patch queue; not in song streams */
         if (pos + 1 >= ds_size) {
           return;
         }
-        sound_push_event(song, time, 0xc0, ds_img[pos + 1] & 0x7f, 0, channel);
         pos += 2;
         break;
       case 0xF1: /* CC 7 volume */
         if (pos + 1 >= ds_size) {
           return;
         }
-        sound_push_event(song, time, 0xb0, 7, ds_img[pos + 1] & 0x7f, channel);
+        volume = ds_img[pos + 1] & 0x7f;
+        sound_push_event(song, time, 0xb0, 7, volume, channel);
         pos += 2;
         break;
       case 0xF0: /* CC 10 pan */
@@ -276,28 +361,67 @@ static void sound_decode_track(
         transpose = ds_img[pos + 1];
         pos += 2;
         break;
-      case 0xBF: /* master volume scale (driver-internal) */
-      case 0xBC:
-      case 0xBD:
-      case 0xBB:
+      case 0xED: { /* chord: ED n note×n dur — up to 4 slots (FUN_1000_01fd) */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        const uint8_t n_raw = ds_img[pos + 1];
+        const uint8_t n_play = n_raw > SOUND_ED_MAX_NOTES ? SOUND_ED_MAX_NOTES : n_raw;
+        if (pos + 2u + (size_t)n_raw >= ds_size) {
+          return;
+        }
+        const uint8_t dur = ds_img[pos + 2u + (size_t)n_raw];
+        const uint8_t gate = sound_note_gate(dur, artic_abs, artic_sub);
+        for (uint8_t i = 0; i < n_play; ++i) {
+          const uint8_t note_raw = ds_img[pos + 2u + (size_t)i];
+          sound_emit_note(
+            song, time, channel, (int)note_raw + (int8_t)transpose, velocity, dur, gate
+          );
+        }
+        pos += 3u + (size_t)n_raw;
+        sound_advance_time(
+          song, &time, dur ? (uint32_t)dur : 1u, channel, &volume, &vol_delta, vol_period, &vol_count
+        );
+        break;
+      }
+      case 0xBB: /* RPN pitch-bend range: CC101=0, CC100=0, CC6=n */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        sound_push_event(song, time, 0xb0, 101, 0, channel);
+        sound_push_event(song, time, 0xb0, 100, 0, channel);
+        sound_push_event(song, time, 0xb0, 6, ds_img[pos + 1] & 0x7f, channel);
+        pos += 2;
+        break;
+      case 0xF3: /* volume envelope: period, delta */
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        vol_period = ds_img[pos + 1];
+        vol_delta = (int8_t)ds_img[pos + 2];
+        vol_count = 1; /* fire on next tick, matching driver init of +0xa = 1 */
+        pos += 3;
+        break;
+      case 0xBF: /* master scale factor → unread product with BE (no tick effect) */
+      case 0xBC: /* sets DS:0x50 countdown seed; stream-skip only */
+      case 0xBD: /* sets DS:0x52; stream-skip only */
       case 0xC4:
       case 0xC5:
         pos += 2;
         break;
-      case 0xBE: /* tempo / clock scale (driver-internal) */
+      case 0xBE: /* tempo pair → unread BSS product; IRQ still 60 Hz */
         if (pos + 2 >= ds_size) {
           return;
         }
         pos += 3;
         break;
-      case 0xF3: /* envelope params */
-      case 0xEF:
+      case 0xEF: /* pan envelope (unused in BGM corpus) */
         if (pos + 2 >= ds_size) {
           return;
         }
         pos += 3;
         break;
-      case 0xF5:
+      case 0xF5: /* pitch envelope (rare) */
         if (pos + 3 >= ds_size) {
           return;
         }
@@ -440,6 +564,79 @@ static void sound_parse_handler_tracks(
   }
 }
 
+static void sound_finalize_song_events(SoundSong* song) {
+  if (!song || song->event_count <= 0) {
+    return;
+  }
+  /* Stable event order by tick; at equal ticks: program/CC/pitch before notes. */
+  for (int a = 0; a < song->event_count - 1; ++a) {
+    for (int b = a + 1; b < song->event_count; ++b) {
+      const SoundMidiEvent* ea = &song->events[a];
+      const SoundMidiEvent* eb = &song->events[b];
+      int pri_a = (ea->status == 0xc0)   ? 0
+                  : (ea->status == 0xb0) ? 1
+                  : (ea->status == 0xe0) ? 2
+                  : (ea->status == 0x80) ? 3
+                                         : 4;
+      int pri_b = (eb->status == 0xc0)   ? 0
+                  : (eb->status == 0xb0) ? 1
+                  : (eb->status == 0xe0) ? 2
+                  : (eb->status == 0x80) ? 3
+                                         : 4;
+      const bool swap = eb->tick < ea->tick ||
+                        (eb->tick == ea->tick && (pri_b < pri_a || (pri_b == pri_a && eb->status < ea->status)));
+      if (swap) {
+        SoundMidiEvent tmp = song->events[a];
+        song->events[a] = song->events[b];
+        song->events[b] = tmp;
+      }
+    }
+  }
+}
+
+/* FUN_1000_19bc tables: BGM at 0x2A6E (ids 0x20..), event at 0x2AC4 (ids 0x40..). */
+static void sound_load_id_table(
+  const uint8_t* img,
+  size_t img_size,
+  uint32_t table_off,
+  int id_lo,
+  int id_hi
+) {
+  const uint8_t* ds_img = img + g_sound.ds_base;
+  const size_t ds_size = img_size - g_sound.ds_base;
+  for (int id = id_lo; id <= id_hi && g_sound.song_count < SOUND_MAX_SONGS; ++id) {
+    const int idx = id - id_lo;
+    const uint32_t entry = table_off + (uint32_t)idx * 2u;
+    if (entry + 2 > img_size) {
+      break;
+    }
+    const uint32_t handler = rd_u16(img + entry);
+    if (handler == 0 || handler + 4 > img_size) {
+      continue;
+    }
+    uint16_t tracks[SOUND_MAX_TRACKS];
+    int track_count = 0;
+    sound_parse_handler_tracks(img, img_size, handler, tracks, &track_count);
+    if (track_count <= 0) {
+      continue;
+    }
+
+    SoundSong* song = &g_sound.songs[g_sound.song_count];
+    memset(song, 0, sizeof(*song));
+    song->id = id;
+    for (int t = 0; t < track_count; ++t) {
+      if ((size_t)tracks[t] >= ds_size) {
+        continue;
+      }
+      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t & 0x0f));
+    }
+    if (song->event_count > 0) {
+      sound_finalize_song_events(song);
+      g_sound.song_count++;
+    }
+  }
+}
+
 static bool sound_load_gsound(const char* data_dir) {
   char path[512];
   if (!dos_compat_normalize_asset_path(data_dir, "GSOUND.COL", path, sizeof(path))) {
@@ -504,71 +701,22 @@ static bool sound_load_gsound(const char* data_dir) {
   if (SOUND_GSOUND_BGM_BOUND + 2 <= img_size) {
     bgm_max = rd_u16(img + SOUND_GSOUND_BGM_BOUND);
   }
-
-  g_sound.song_count = 0;
-  for (int id = SOUND_BGM_ID_BASE; id <= (int)bgm_max && id < SOUND_BGM_ID_BASE + 32; ++id) {
-    const int idx = id - SOUND_BGM_ID_BASE;
-    const uint32_t table_off = SOUND_GSOUND_BGM_TABLE + (uint32_t)idx * 2u;
-    if (table_off + 2 > img_size) {
-      break;
-    }
-    const uint32_t handler = rd_u16(img + table_off);
-    if (handler == 0 || handler + 4 > img_size) {
-      continue;
-    }
-    uint16_t tracks[SOUND_MAX_TRACKS];
-    int track_count = 0;
-    sound_parse_handler_tracks(img, img_size, handler, tracks, &track_count);
-    if (track_count <= 0) {
-      continue;
-    }
-
-    SoundSong* song = &g_sound.songs[g_sound.song_count];
-    memset(song, 0, sizeof(*song));
-    song->id = id;
-    const uint8_t* ds_img = img + g_sound.ds_base;
-    const size_t ds_size = img_size - g_sound.ds_base;
-    for (int t = 0; t < track_count; ++t) {
-      if ((size_t)tracks[t] >= ds_size) {
-        continue;
-      }
-      /* MIDI channel = track index; driver voices are 1-based but map 1:1. */
-      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t & 0x0f));
-    }
-    if (song->event_count > 0) {
-      /* Stable event order by tick; at equal ticks: program/CC/pitch before notes. */
-      for (int a = 0; a < song->event_count - 1; ++a) {
-        for (int b = a + 1; b < song->event_count; ++b) {
-          const SoundMidiEvent* ea = &song->events[a];
-          const SoundMidiEvent* eb = &song->events[b];
-          int pri_a = (ea->status == 0xc0)   ? 0
-                      : (ea->status == 0xb0) ? 1
-                      : (ea->status == 0xe0) ? 2
-                      : (ea->status == 0x80) ? 3
-                                             : 4;
-          int pri_b = (eb->status == 0xc0)   ? 0
-                      : (eb->status == 0xb0) ? 1
-                      : (eb->status == 0xe0) ? 2
-                      : (eb->status == 0x80) ? 3
-                                             : 4;
-          const bool swap = eb->tick < ea->tick ||
-                            (eb->tick == ea->tick && (pri_b < pri_a || (pri_b == pri_a && eb->status < ea->status)));
-          if (swap) {
-            SoundMidiEvent tmp = song->events[a];
-            song->events[a] = song->events[b];
-            song->events[b] = tmp;
-          }
-        }
-      }
-      g_sound.song_count++;
-    }
+  uint16_t event_max = 0x5c;
+  if (g_sound.ds_base + SOUND_GSOUND_DS_EVENT_MAX + 2 <= img_size) {
+    event_max = rd_u16(img + g_sound.ds_base + SOUND_GSOUND_DS_EVENT_MAX);
   }
 
+  g_sound.song_count = 0;
+  sound_load_id_table(img, img_size, SOUND_GSOUND_BGM_TABLE, SOUND_BGM_ID_BASE, (int)bgm_max);
+  sound_load_id_table(img, img_size, SOUND_GSOUND_EVENT_TABLE, SOUND_EVENT_ID_BASE, (int)event_max);
+
   diag_info(
-    "sound: GSOUND.COL loaded songs=%d ds_base=0x%x img=%zu",
+    "sound: GSOUND.COL loaded songs=%d ds_base=0x%x img=%zu bgm_max=0x%x event_max=0x%x",
     g_sound.song_count,
     g_sound.ds_base,
-    g_sound.gsound_img_size
+    g_sound.gsound_img_size,
+    bgm_max,
+    event_max
   );
   return g_sound.song_count > 0;
 }
@@ -905,13 +1053,12 @@ void sound_play(int id) {
     pthread_mutex_unlock(&g_sound.lock);
     return;
   }
-  if (id >= SOUND_BGM_ID_BASE && id < SOUND_EVENT_ID_BASE) {
+  if (id >= SOUND_BGM_ID_BASE && sound_gsound_has_song(id)) {
     pthread_mutex_lock(&g_sound.lock);
     g_sound.preview_active = false;
     sound_start_song_unlocked(id);
     pthread_mutex_unlock(&g_sound.lock);
   }
-  /* Event / SFX IDs: not decoded in this pass (music-focused). */
 }
 
 void sound_play_preview(int id) {
@@ -922,7 +1069,7 @@ void sound_play_preview(int id) {
     sound_stop_preview();
     return;
   }
-  if (id < SOUND_BGM_ID_BASE || id >= SOUND_EVENT_ID_BASE) {
+  if (id < SOUND_BGM_ID_BASE) {
     return;
   }
   if (!sound_gsound_has_song(id)) {
