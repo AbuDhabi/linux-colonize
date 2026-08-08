@@ -220,6 +220,16 @@ static bool assert_mapped_fields_consistent(const ColonizeCol1Save* save, const 
       );
       return false;
     }
+    if (c->capitol_level > 2) {
+      fprintf(
+        stderr,
+        "%s: colony[%u] capitol_level %u\n",
+        label,
+        (unsigned)i,
+        (unsigned)c->capitol_level
+      );
+      return false;
+    }
     if (c->depletion_counter > 50) {
       fprintf(
         stderr,
@@ -245,6 +255,32 @@ static bool assert_mapped_fields_consistent(const ColonizeCol1Save* save, const 
     }
   }
 
+  if (save->head.map_mode > 1) {
+    fprintf(stderr, "%s: map_mode %u\n", label, (unsigned)save->head.map_mode);
+    return false;
+  }
+  if (save->stuff.zoom_level > 3) {
+    fprintf(stderr, "%s: zoom_level %u\n", label, (unsigned)save->stuff.zoom_level);
+    return false;
+  }
+
+  for (uint16_t ti = 0; ti < COLONIZE_COL1_INDIAN_COUNT; ++ti) {
+    for (unsigned e = 0; e < COLONIZE_COL1_NATION_COUNT; ++e) {
+      const int16_t st = save->indian[ti].contact_state[e];
+      if (st < 0 || st > 2) {
+        fprintf(
+          stderr,
+          "%s: indian[%u].contact_state[%u]=%d\n",
+          label,
+          (unsigned)ti,
+          e,
+          (int)st
+        );
+        return false;
+      }
+    }
+  }
+
   unsigned euro_units[COLONIZE_COL1_NATION_COUNT];
   memset(euro_units, 0, sizeof(euro_units));
   for (uint16_t i = 0; i < save->head.unit_count; ++i) {
@@ -257,7 +293,7 @@ static bool assert_mapped_fields_consistent(const ColonizeCol1Save* save, const 
     (void)u->vis_mask;
   }
   for (unsigned n = 0; n < COLONIZE_COL1_NATION_COUNT; ++n) {
-    /* all_unit_counts tracks euro units but may lag live (withdrawn / mid-turn). */
+    /* all_unit_counts tracks euro units but may lag live (DOS census lag — preserve). */
     if (save->stuff.all_unit_counts[n] > euro_units[n] + 8u) {
       fprintf(
         stderr,

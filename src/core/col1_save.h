@@ -165,7 +165,8 @@ typedef struct ColonizeCol1Head {
   uint16_t year;
   uint16_t autumn; /* non-zero if autumn */
   uint16_t turn;
-  uint8_t unknown40[2]; /* community: tile_selection_mode + pad @ DS:0x5390 */
+  /* DS:0x5390 — 0=Move Pieces, 1=View Pieces (FUN_2b5a_0902 / 0e52). */
+  uint16_t map_mode;
   uint16_t active_unit;
   uint16_t nation_turn; /* DS:0x5394 — active AI/turn nation */
   uint16_t curr_nation_map_view; /* DS:0x5396 */
@@ -179,7 +180,10 @@ typedef struct ColonizeCol1Head {
   uint8_t difficulty; /* 0 Discoverer .. 4 Viceroy */
   uint8_t unknown43[2];
   int8_t founding_father[COLONIZE_COL1_FF_COUNT];
-  uint8_t unknown44[6]; /* community: manual_save / EOT words @ 0x53c2.. */
+  /* DS:0x53c2 / 0x53c4 / 0x53c6 — UI/turn latches (was unknown44[6]). */
+  uint16_t turn_loop_running; /* 0x53c2; Esc clears (FUN_2b5a_3104); main loop sets */
+  uint16_t map_modal_active; /* 0x53c4; map modal pump gate */
+  uint16_t no_unit_selected; /* 0x53c6; View-idle when active_unit < 0 */
   int16_t nation_relation[4];
   int16_t rebel_sentiment_report; /* DS:0x53d0; congress UI 0..100 */
   uint8_t unknown45_pad[8];
@@ -253,25 +257,44 @@ typedef struct ColonizeCol1CustomHouse {
   uint16_t muskets : 1;
 } ColonizeCol1CustomHouse;
 
+/* Colony +0x1c — FUN_364b_0688 / 0114 / founding paths. */
+typedef struct ColonizeCol1ColonyFlags {
+  uint8_t ref_landing : 1; /* 0x01 — REF landing target */
+  uint8_t sol_100 : 1; /* 0x02 — SoL ≥ 100 latch */
+  uint8_t sol_50 : 1; /* 0x04 — SoL ≥ 50 latch */
+  uint8_t starvation : 1; /* 0x08 — food shortfall latch */
+  uint8_t small_colony_ai : 1; /* 0x10 — AI pop < 10 */
+  uint8_t wagon_train : 1; /* 0x20 — wagon in colony */
+  uint8_t coastal : 1; /* 0x40 — coastal / docks founding path */
+  uint8_t build_complete : 1; /* 0x80 — construction-just-finished chrome */
+} ColonizeCol1ColonyFlags;
+
 typedef struct ColonizeCol1Colony {
   uint8_t x;
   uint8_t y;
   char name[24];
   uint8_t nation_id;
-  uint8_t unknown08[4];
+  uint8_t unknown08_1b; /* +0x1b; census clears low bits (& 0xfc) */
+  ColonizeCol1ColonyFlags flags; /* +0x1c */
+  uint8_t unknown08_1d; /* +0x1d; found-path zero */
+  uint8_t unknown08_1e; /* +0x1e */
   uint8_t population;
   uint8_t occupation[COLONIZE_COL1_COLONY_POP_MAX];
   uint8_t profession[COLONIZE_COL1_COLONY_POP_MAX];
   ColonizeCol1DurationNibble duration[16];
   int8_t tiles[8]; /* citizen index per surrounding tile; -1 / 0xFF empty */
-  uint8_t unknown10[12];
+  uint8_t unknown10[12]; /* +0x78..; production touches at +0x7c — names HOLD */
   ColonizeCol1Buildings buildings;
   ColonizeCol1CustomHouse custom_house;
-  uint8_t unknown11[6];
+  uint8_t unknown11_8c; /* +0x8c; AI colony counter (INC cap 0x7f) */
+  uint8_t specialty_cargo; /* +0x8d; 0xff = none — FUN_5952_0306 */
+  uint8_t labor_shortage; /* +0x8e; LABOR unload decrements */
+  uint8_t unknown11_8f; /* +0x8f; AI counter; cleared on unload path */
+  uint16_t cargo_produced_mask; /* +0x90; bit per cargo this tick — FUN_364b_0688 */
   uint16_t hammers;
   uint8_t building_in_production;
   uint8_t warehouse_level; /* +0x95; capacity 100*(1+level) — FUN_15eb_0a50 */
-  uint8_t unknown12a; /* +0x96; touched but role unclear */
+  uint8_t capitol_level; /* +0x96; INC on Capitol/Expansion (0x1e/0x1f) — FUN_364b_0114 */
   uint8_t depletion_counter; /* +0x97; INC, wrap at 50 */
   uint16_t hammers_purchased; /* +0x98; FUN_2f2b_5e44 BUY adds remainder */
   uint16_t stock[COLONIZE_COL1_CARGO_TYPES];
@@ -391,7 +414,9 @@ typedef struct ColonizeCol1Indian {
   uint16_t horse_breeding; /* smcol; weaker DOS cite */
   uint8_t unknown31d[2];
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
-  uint8_t unknown32[12];
+  /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
+  int16_t contact_state[4];
+  uint8_t unknown32_tail[4]; /* +0x36..+0x39; no DOS reader cite yet */
   uint8_t met_by_player[4];
   uint8_t unknown33[8]; /* per-euro peace bit 0x40 */
   uint16_t alarm_by_player[4];
@@ -402,6 +427,9 @@ typedef struct ColonizeCol1Indian {
  * Chunk sizes sum to 727; see docs/save_format_map.md §Stuff. Port keeps one
  * packed blob for RMW. Census fields named from FUN_4962_0018 + save I/O.
  *
+ * Census bytes are DOS-parity preserved on RMW/export — do not recompute from
+ * live pools to “freshen” mid-turn lag (intentional interop).
+ *
  * unknown36 is NOT map connectivity (that is post_map). It holds remaining FA /
  * tribe tallies / padding after the proven early census window.
  */
@@ -409,15 +437,25 @@ typedef struct ColonizeCol1Stuff {
   uint8_t unknown34[12]; /* DS:0x9566 — save R/W only */
   uint8_t all_unit_counts[4]; /* DS:0x8cfc — per-euro unit totals (FUN_4962_0018) */
   uint8_t colony_counts[4]; /* DS:0x9298 — per-euro colony totals */
-  uint8_t unknown_stuff_20[44]; /* file 20..63: DS 0x9408..0x942c census (FA names HOLD) */
+  /* File 20..63 mid-window (was unknown_stuff_20[44]) — FUN_4962_0018. */
+  uint8_t free_colonist_counts[4]; /* DS:0x9408 — units with type==0 */
+  uint8_t colony_pop_totals[4]; /* DS:0x940c — Σ colony population */
+  uint8_t census_pop_proxy[4]; /* DS:0x9410 — +1 skilled unit + Σ colony pop */
+  uint8_t land_combat_totals[4]; /* DS:0x9180 — Σ land combat (mode 0) */
+  uint8_t ship_cargo_totals[4]; /* DS:0x9414 — Σ ship cargo capacity */
+  uint8_t ship_counts[4]; /* DS:0x9418 — ship unit count */
+  uint16_t land_combat_strength[4]; /* DS:0x941c — Σ land combat mode 1 (word) */
+  uint8_t armed_ship_counts[4]; /* DS:0x9424 — ships with combat table≠0 */
+  uint8_t unknown_9428[4]; /* DS:0x9428 — AI reads; writer outside 0018 */
+  uint8_t field_combat_totals[4]; /* DS:0x942c — land combat not in colony / not A|G */
   uint8_t unit_type_counts[4][19]; /* DS:0x924c — nation × unit-type (FUN_4962_0018) */
   uint8_t unknown36[577]; /* remaining FA / tribe blobs — NOT connectivity */
-  uint16_t x; /* DS:0x8540 */
+  uint16_t x; /* DS:0x8540 — focus tile */
   uint16_t y; /* DS:0x853e */
-  uint8_t zoom_level; /* among DS:0x184 / 0x17c / 0x17e trio — exact byte TBD */
-  uint8_t unknown37;
-  uint16_t viewport_x;
-  uint16_t viewport_y;
+  uint8_t zoom_level; /* DS:0x184 lo — 0..3 (FUN_2b5a_0f92) */
+  uint8_t zoom_pad; /* DS:0x184 hi — normally 0 */
+  uint16_t viewport_x; /* DS:0x17c — camera center */
+  uint16_t viewport_y; /* DS:0x17e */
 } ColonizeCol1Stuff;
 
 /*
