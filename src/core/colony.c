@@ -396,7 +396,7 @@ int colonies_indian_land_purchase_gold(
                                                                      : NULL;
   /* indian+2 tech; indian+5 lands-bought counter (decomp INC on purchase). */
   const unsigned tech = ind ? (unsigned)ind->tech : 0u;
-  const unsigned bought = ind ? (unsigned)ind->unknown31[2] : 0u;
+  const unsigned bought = ind ? (unsigned)ind->lands_bought : 0u;
   const unsigned diff = (unsigned)col1->head.difficulty;
   const int is_human =
     (nation_id < 4 && col1->player[nation_id].control == 0);
@@ -453,7 +453,7 @@ int colonies_found_with_indian_land(
       if (colonies_tile_indian_homeland(col1, x, y, &tribe_i, NULL) && tribe_i >= 0) {
         const int indian_idx = (int)col1->tribe[tribe_i].nation_id - 4;
         if (indian_idx >= 0 && indian_idx < (int)COLONIZE_COL1_INDIAN_COUNT) {
-          uint8_t* bought = &col1->indian[indian_idx].unknown31[2];
+          uint8_t* bought = &col1->indian[indian_idx].lands_bought;
           if (*bought < 0xffu) {
             (*bought)++;
           }

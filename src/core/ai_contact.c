@@ -1470,10 +1470,10 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * Alarm prelude escalate (PARKED dialog chrome).
    * DOS: when state+3 bit 0x20 clear, difficulty-scaled RNG may set war/alarm.
-   * Linux: unknown31[3] bit 0x20 = prelude-fired; isolated RNG only.
+   * Linux: unknown31_flags bit 0x20 = prelude-fired; isolated RNG only.
    * Pocahontas still halves the escalate bump (wiki/fandom half-rate).
    */
-  uint8_t* flag = &ind->unknown31[3];
+  uint8_t* flag = &ind->unknown31_flags;
   if ((*flag & 0x20) == 0) {
     ColonizeDosRng local;
     ai_contact_local_rng(ctx, nation_id, &local);

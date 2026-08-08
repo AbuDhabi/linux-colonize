@@ -750,11 +750,11 @@ bool col1_bridge_apply(
       }
       u->profession = (int)src->profession;
       u->turns_worked = (int)src->turns_worked;
-      /* DOS unit+0x06 / unknown16[0]: home tribe index for Braves. */
-      u->home_tribe_id = (int)src->unknown16[0];
+      /* DOS unit+0x06 / origin: home tribe index for Braves. */
+      u->home_tribe_id = (int)src->origin;
       u->col1_unknown15 = src->unknown15;
-      u->col1_unknown16_hi = src->unknown16[1];
-      u->col1_unused06 = src->unused06;
+      u->col1_ai_plan = src->ai_plan;
+      u->col1_vis_mask = src->vis_mask;
       u->last_dir = (int)(src->unknown18 & 7u);
       /* Commodity hold slots (passengers board separately via transport chain). */
       {
@@ -1087,7 +1087,7 @@ bool col1_bridge_capture(
       dst->y = (uint8_t)src->y;
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
-      dst->unused06 = (uint8_t)(src->col1_unused06 & 0xF);
+      dst->vis_mask = (uint8_t)(src->col1_vis_mask & 0xF);
       dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
       if (src->aboard_ship_id >= 0) {
         dst->orders = 1; /* sentry if aboard */
@@ -1109,11 +1109,11 @@ bool col1_bridge_capture(
       dst->turns_worked =
         (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
       dst->unknown15 = src->col1_unknown15;
-      dst->unknown16[0] =
+      dst->origin =
         (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
                                                                     : (src->home_tribe_id & 0xff));
-      dst->unknown16[1] =
-        src->col1_unknown16_hi != 0 ? src->col1_unknown16_hi : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+      dst->ai_plan =
+        src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
       dst->unknown18 = (uint8_t)(src->last_dir & 7);
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
       {

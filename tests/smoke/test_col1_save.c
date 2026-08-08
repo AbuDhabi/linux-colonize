@@ -583,7 +583,7 @@ int main(void) {
   fprintf(stderr, "col1 fixture saves + bridge ok\n");
 
   /*
-   * Linux→DOS structural interop: occupancy + unknown16[1] after capture.
+   * Linux→DOS structural interop: occupancy + ai_plan after capture.
    * Codec byte-identical round-trips above do NOT prove this.
    */
   {
@@ -649,12 +649,12 @@ int main(void) {
       return 1;
     }
     for (uint16_t ui = 0; ui < broken.head.unit_count; ++ui) {
-      if (broken.unit[ui].unknown16[1] != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
+      if (broken.unit[ui].ai_plan != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
         fprintf(
           stderr,
-          "unit-flags: unit[%u] unknown16[1]=0x%02x want 0x%02x\n",
+          "unit-flags: unit[%u] ai_plan=0x%02x want 0x%02x\n",
           (unsigned)ui,
-          broken.unit[ui].unknown16[1],
+          broken.unit[ui].ai_plan,
           COL1_UNIT_UNKNOWN16_HI_DEFAULT
         );
         map_free(&map);
@@ -731,7 +731,7 @@ int main(void) {
     }
     {
       ColonizeUnit* u = units_get(&units, uid);
-      if (!u || u->col1_unknown16_hi != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
+      if (!u || u->col1_ai_plan != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
         fprintf(stderr, "newgame export: spawn unknown16_hi default missing\n");
         units_set_occupancy_map(NULL);
         col1_save_free(&save);
@@ -763,8 +763,8 @@ int main(void) {
       return 1;
     }
     if (save.head.unit_count < 1 ||
-        save.unit[0].unknown16[1] != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
-      fprintf(stderr, "newgame export: captured unknown16[1] wrong\n");
+        save.unit[0].ai_plan != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
+      fprintf(stderr, "newgame export: captured ai_plan wrong\n");
       units_set_occupancy_map(NULL);
       col1_save_free(&save);
       map_free(&map);

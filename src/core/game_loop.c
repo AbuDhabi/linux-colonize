@@ -396,7 +396,7 @@ static void game_apply_setview(ColonizeGameState* game, int view_id, const char*
   }
   game->fog_view = view_id;
   if (game->col1_ok) {
-    game->col1.head.unknown42[2] = (uint8_t)(view_id == -2 ? 0 : 1);
+    game->col1.head.show_entire_map = (uint16_t)(view_id == -2 ? 0 : 1);
   }
   if (view_id == -2) {
     set_status(game, "No special view", NULL);
@@ -813,8 +813,8 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
-  /* Restore cheat special-view flag (DOS unknown42[2]); nation-specific view not saved. */
-  game->fog_view = (game->col1.head.unknown42[2] != 0) ? -1 : -2;
+  /* Restore Complete Map cheat (DOS show_entire_map @ DS:0x53a2); nation view not saved. */
+  game->fog_view = (game->col1.head.show_entire_map != 0) ? -1 : -2;
   {
     ColonizeSoundOptions opts = sound_get_options();
     opts.background_music = game->col1.head.tut2.background_music != 0;

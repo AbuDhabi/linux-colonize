@@ -43,7 +43,7 @@ when the Euro is human.
    `indian.alarm_by_player[euro]` by **+2** each (cap **100**). Per unit×tribe.
    **Pocahontas** (`founding_fathers_nation_has` / `FF_POCAHONTAS`): bumps
    **halved** (floor; wiki/fandom — alarm generated half as fast).
-   Flag-body escalate bump (difficulty-scaled, sticky `unknown31[3]` bit 0x20)
+   Flag-body escalate bump (difficulty-scaled, sticky `unknown31_flags` bit 0x20)
    uses the same half-rate helper.
 3. **Mission pacifies:** tribe with mission set to Euro `e`, and friction/alarm
    toward `e` low (`< 40`) → extra **−1** on tribe friction (and on

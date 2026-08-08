@@ -6304,7 +6304,7 @@ static int smoke_indian_land_found(void) {
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
     col1.nation[nation].gold = 500;
-    col1.indian[0].unknown31[2] = 0;
+    col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[0] = 0;
     col1.nation[nation].founding_father_count = 0;
 
@@ -6373,7 +6373,7 @@ static int smoke_indian_land_found(void) {
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
     col1.nation[nation].gold = 10;
-    col1.indian[0].unknown31[2] = 0;
+    col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[0] = 0;
     col1.nation[nation].founding_father_count = 0;
 
@@ -6434,7 +6434,7 @@ static int smoke_indian_land_found(void) {
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
     col1.nation[nation].gold = 200;
-    col1.indian[0].unknown31[2] = 0;
+    col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[FF_PETER_MINUIT / 8] |=
       (uint8_t)(1u << (FF_PETER_MINUIT % 8));
     if (!founding_fathers_nation_has(&col1, nation, FF_PETER_MINUIT)) {

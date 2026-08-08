@@ -116,7 +116,7 @@ If the chosen Load file is missing under the save dir, Load falls back to `origi
 Export is read-modify-write against the last loaded Col1 snapshot when present
 (preserves tribes, unknowns, AI blobs). New games create a minimal template on
 first Save. Before write, capture rebuilds `map.mask` `has_unit` / `has_city`
-from live pools + `tribe[]`, and defaults unit `unknown16[1]` to `0x58` when
+from live pools + `tribe[]`, and defaults unit `ai_plan` to `0x58` when
 unset (`COL1_UNIT_UNKNOWN16_HI_DEFAULT`). Runtime `layer2` occupancy is kept
 via `units_set_occupancy_map` on spawn/move/despawn.
 
@@ -135,7 +135,7 @@ occupancy fix:
 - Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
   (`COLONY00` has many bit5/`pacific` tiles; template exports often only occupancy)
 - AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
-- `unused06` (nation high nibble) — preserved on apply→capture; spawn leaves 0
+- `vis_mask` (nation high nibble) — preserved on apply→capture; spawn leaves 0
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
 rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`

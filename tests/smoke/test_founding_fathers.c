@@ -1367,7 +1367,7 @@ int main(void) {
       map_free(&mmap);
       return fail("Minuit: founding must deduct land-purchase gold");
     }
-    if (mcol1.indian[0].unknown31[2] != 1) {
+    if (mcol1.indian[0].lands_bought != 1) {
       map_free(&mmap);
       return fail("Minuit: lands-bought counter must INC");
     }
@@ -1405,7 +1405,7 @@ int main(void) {
     seed_unclaimed(&mcol1);
     mnat->founding_father_count = 0;
     mnat->founding_fathers[0] = 0;
-    mcol1.indian[0].unknown31[2] = 0;
+    mcol1.indian[0].lands_bought = 0;
     uint32_t poor = 10;
     colonies_init(&mpool);
     const int cid_poor =
