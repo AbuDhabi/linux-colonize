@@ -78,8 +78,8 @@
  * war_act beat up to min(moves_left, capacity) (1 MP/pax); full unload with
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
- * PARK: 160a letter cinematic; full embark UI chrome; dump-goods price-weight
- * + boycott modal (pick API: ai_king_pick_dump_goods_cargo).
+ * PARK: 160a letter cinematic; full embark UI chrome; dump-goods boycott modal
+ * (pick API: ai_king_pick_dump_goods_cargo; Europe bid weight Done).
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
@@ -108,12 +108,13 @@ static int ai_king_crown_nation(int human_nation) {
 int ai_king_pick_dump_goods_cargo(
   uint16_t boycott_bitmap,
   uint16_t candidate_mask,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const int* cargo_bid
 ) {
   /*
    * Eligible = candidate_mask & ~boycott_bitmap (FUN_38fd_3dc8 skips bits
-   * already set in nation boycott_bitmap / local_a6). Uniform among the
-   * set bits — Europe-price weights (local_7a) PARKED.
+   * already set in nation boycott_bitmap / local_a6). Uniform when
+   * cargo_bid NULL; else roulette by max(bid, 1) (Europe local_7a stand-in).
    */
   if (!rng) {
     return -1;
@@ -132,11 +133,33 @@ int ai_king_pick_dump_goods_cargo(
   if (n <= 0) {
     return -1;
   }
-  const int pick = dos_rng_range(rng, 0, n - 1);
-  if (pick < 0 || pick >= n) {
+  if (!cargo_bid) {
+    const int pick = dos_rng_range(rng, 0, n - 1);
+    if (pick < 0 || pick >= n) {
+      return -1;
+    }
+    return idxs[pick];
+  }
+  int total = 0;
+  int weights[COLONIZE_CARGO_COUNT];
+  for (int i = 0; i < n; ++i) {
+    const int c = idxs[i];
+    const int w = cargo_bid[c] > 0 ? cargo_bid[c] : 1;
+    weights[i] = w;
+    total += w;
+  }
+  if (total <= 0) {
     return -1;
   }
-  return idxs[pick];
+  const int roll = dos_rng_range(rng, 1, total);
+  int cum = 0;
+  for (int i = 0; i < n; ++i) {
+    cum += weights[i];
+    if (roll <= cum) {
+      return idxs[i];
+    }
+  }
+  return idxs[n - 1];
 }
 
 /* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */
@@ -1537,14 +1560,24 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   ai_king_set_boycott(ctx->col1, 1);
   nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
   /*
-   * Dump-goods second cargo (FUN_38fd_3dc8): uniform pick among cargos not
-   * already boycotted. Sugar already set above. Price-weight table + dump
-   * modal PARKED — cite wiki Boycott “named goods” / king_ref.
+   * Dump-goods second cargo (FUN_38fd_3dc8): pick among cargos not already
+   * boycotted. Sugar already set above. When ctx->europe present, weight by
+   * live bid (local_7a stand-in); else uniform. Dump modal CHOICE PARKED.
+   * Cite: wiki Boycott “named goods” / king_ref.
    */
   if (ctx->rng) {
     const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
+    const int* bids = NULL;
+    int bid_buf[COLONIZE_CARGO_COUNT];
+    if (ctx->europe) {
+      const EuropeScreen* eu = ctx->europe;
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        bid_buf[c] = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
+      }
+      bids = bid_buf;
+    }
     const int picked =
-      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, all_cargos, ctx->rng);
+      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, all_cargos, ctx->rng, bids);
     if (picked >= 0 && picked < COLONIZE_CARGO_COUNT) {
       nat->boycott_bitmap =
         (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << picked));
@@ -1565,7 +1598,7 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
     }
   }
   /* FUN_43f7_38fd_5be8 refuse follow-up OK (lists all boycott_bitmap cargos).
-   * Price-weight table + dump modal PARKED. */
+   * Europe bid weight Done; dump modal CHOICE PARKED. */
   if (ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
     char cargos[96];

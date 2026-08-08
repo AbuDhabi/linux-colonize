@@ -2646,6 +2646,11 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   if (!selected || selected->moves_left <= 0) {
     return false;
   }
+  /* FF + native settlement fallout for human combat (same as turn_refresh). */
+  units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+  units_set_native_fallout_context(
+    game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
+  );
   const ColonizeColonyPool* colonies = &game->colonies;
 
   /* Awake passenger: walk onto adjacent land → unload. */
@@ -2746,6 +2751,16 @@ static void game_after_unit_action(ColonizeGameState* game) {
   }
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
+  }
+  /* Thin LCR: Scout on rumour clears (de Soto → reveal); no invented gold. */
+  if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
+    (void)units_resolve_lcr_rumour(
+      &game->units,
+      u->id,
+      &game->world_map,
+      game->col1_ok ? &game->col1 : NULL,
+      &game->move_rng
+    );
   }
   if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     char contact[80];

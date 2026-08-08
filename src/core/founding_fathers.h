@@ -99,8 +99,8 @@ bool founding_fathers_sepulveda_convert_join_bonus(
 /*
  * Hernando de Soto (docs/fandom_col1994.md Exploration; Colonization.pdf FF):
  * Lost City Rumors always positive (+ extended sight already on elect).
- * Ownership gate only — Scout/LCR resolve (decomp FUN_65dd_0004 checks FF 7)
- * is not ported yet (map_tile_has_rumour display only). Call site PARKED.
+ * Resolve: units_resolve_lcr_rumour (thin positive reveal). Full FUN_65dd_0004
+ * RNG table PARKED (no invented treasure / Fountain of Youth).
  */
 bool founding_fathers_de_soto_lcr_always_positive(
   const ColonizeCol1Save* col1,
@@ -123,12 +123,10 @@ bool founding_fathers_de_witt_allows_foreign_colony_trade(
  * Hernan Cortes gates (docs/fandom_col1994.md / Colonization.pdf FF):
  * conquered native settlements always yield more treasure; king's galleons
  * transport treasure free. Ownership only — no invented gold amounts.
- * Spawn API: units_spawn_treasure_train. Cash-in already uses tax_percent
- * (@KINGGALLEON3); do not invent KINGGALLEON2 extra %. Call site for
- * conquest treasure (decomp FUN_5fef_31ea) still needed — land combat has
- * no settlement-conquer hook yet; no COL1 treasure-amount field to read.
- * Spawn only via units_spawn_treasure_train when gold is caller-known
- * (hold_goods_amount LE16); do not invent FUN_5fef_31ea amounts.
+ * Spawn API: units_spawn_treasure_train. Fallout hook:
+ * units_try_native_settlement_fallout (wired from units_resolve_land_combat_ff
+ * when units_set_native_fallout_context is set). Spawn only when gold_amount>0;
+ * FUN_5fef_31ea amount table still PARKED.
  */
 bool founding_fathers_cortes_guarantees_conquest_treasure(
   const ColonizeCol1Save* col1,

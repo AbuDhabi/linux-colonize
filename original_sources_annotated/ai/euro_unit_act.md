@@ -211,7 +211,11 @@ fortify for Euro Artillery.
  prefer Expert Farmer on Europe dock (same consume pattern). **Construction LABOR:**
  when any colony has Stockade/Warehouse/Lumber Mill/Drydock/Shipyard incomplete
  (`ai_euro_colony_wants_construction_labor`), prefer Master Carpenter on Europe
- dock (same consume / `hire_cost`; not tools/food short). Treasury: skip hire /
+ dock (same consume / `hire_cost`; not tools/food short). **`lumber_short>20`:**
+ when any colony wants lumberjack LABOR or has construction in progress with low
+ lumber stock, prefer Expert Lumberjack on Europe dock (same consume pattern).
+ Cite: europe.c Expert Lumberjacks pool; building_production Lumberjack→Lumber;
+ euro_unit_act §2e Expert Lumberjack LABOR. Treasury: skip hire /
 tools-cargo when gold &lt; colonist `hire_cost`; Artillery uses Europe purchase
 **500$** (fall back to Soldier when underfunded). **At war + tools_short:** still
 prefer Soldier/Dragoon hire over Pioneer (profession_demand Pioneer is peace-only).

@@ -136,11 +136,14 @@ void turn_run_king_stub(ColonizeTurnContext* ctx);
 /*
  * Refresh moves for units of one nation (4..11 = natives when nation >= 4).
  * When col1 is set and the nation owns Magellan, sea units get +1 movement.
+ * map may be NULL; when non-NULL with col1, arms native settlement fallout
+ * (FUN_5fef_31ea-shaped; conquest gold unknown → -1, no invent).
  */
 void turn_refresh_moves_for_nation(
   ColonizeUnitPool* pool,
   int nation_id,
-  const ColonizeCol1Save* col1
+  const ColonizeCol1Save* col1,
+  ColonizeWorldMap* map
 );
 
 /* Select next human unit with moves_left > 0; centers not done here. */

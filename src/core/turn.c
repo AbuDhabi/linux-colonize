@@ -79,13 +79,18 @@ void turn_format_date(uint16_t year, uint16_t autumn, char* out, size_t out_size
 void turn_refresh_moves_for_nation(
   ColonizeUnitPool* pool,
   int nation_id,
-  const ColonizeCol1Save* col1
+  const ColonizeCol1Save* col1,
+  ColonizeWorldMap* map
 ) {
   if (!pool) {
     return;
   }
   /* FF combat context for units_try_move (Washington / Drake / Revere). */
   units_set_ff_col1(col1);
+  /* Native settlement fallout (FUN_5fef_31ea-shaped). Gold amount unknown. */
+  units_set_native_fallout_context(
+    col1 ? (ColonizeCol1Save*)col1 : NULL, map, -1
+  );
   const bool magellan =
     col1 && founding_fathers_nation_has(col1, nation_id, FF_FERDINAND_MAGELLAN);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -601,7 +606,7 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       continue; /* withdrawn */
     }
     turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
+    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
     ai_euro_nation_turn(ctx, n);
   }
 }
@@ -615,7 +620,7 @@ void turn_run_indian_stub(ColonizeTurnContext* ctx) {
   (void)show; /* animation TBD */
   for (int n = 4; n <= 11; ++n) {
     turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
+    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
     ai_indian_nation_turn(ctx, n);
   }
 }
@@ -721,7 +726,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
-        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
+        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
       }
       ai_euro_nation_turn(ctx, n);
       {
@@ -740,7 +745,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
-        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL);
+        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
       }
       ai_indian_nation_turn(ctx, n);
       if (n < 11) {
@@ -755,7 +760,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_run_king_stub(ctx);
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(
-        ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL
+        ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, ctx->map
       );
       /* Go-To resumes at 10 steps/sec in game_update so the player can watch. */
       turn_select_next_unit(ctx->units, ctx->human_nation);

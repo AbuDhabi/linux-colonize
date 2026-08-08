@@ -31,6 +31,8 @@
 /* Runtime tile improvements (synced to Col1 mask road/plowed on save/load). */
 #define MAP_IMPROVE_ROAD 0x01u
 #define MAP_IMPROVE_PLOWED 0x02u
+/* Layer2 stand-in: procedural LCR consumed (COL1 mask bit PARKED). */
+#define MAP_LAYER2_RUMOUR_CLEARED 0x08u
 
 typedef struct ColonizeWorldMap {
   uint8_t width;
@@ -142,6 +144,8 @@ int map_resource_type_at(const ColonizeWorldMap* map, int x, int y);
  */
 int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y);
+/* Mark procedural lost-city rumour at (x,y) as explored/consumed. Returns false if none. */
+bool map_clear_rumour(ColonizeWorldMap* map, int x, int y);
 /* True when terrain byte has a river (major or minor). */
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y);

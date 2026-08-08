@@ -31,20 +31,23 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id);
  * FUN_38fd_3dc8 dump-goods cargo pick (thin API for AI / tax refuse callers).
  *
  * Among @CARGO indices 0..15 whose bit is set in candidate_mask and clear in
- * boycott_bitmap, pick one uniformly via dos_rng. Returns cargo index, or -1
- * if none / null rng.
+ * boycott_bitmap, pick one via dos_rng. When @cargo_bid is NULL, pick
+ * uniformly among eligible; when non-NULL, roulette by max(bid[c], 1) per
+ * eligible cargo (Europe bid stand-in for local_7a). Returns cargo index, or
+ * -1 if none / null rng.
  *
  * Cite: viceroy_unpacked.c FUN_38fd_3dc8 — builds eligible list from cargos
- * not already in nation boycott_bitmap (local_a6), then RNG-picks; Europe
- * price weighting (local_7a) stays PARKED here (uniform among eligible).
- * docs/fandom_col1994.md Boycott: throw "named goods" (RNG unnamed list —
- * not a fixed Tobacco second cargo). Does not mutate boycott_bitmap; caller
- * ORs (1u << idx) when applying. King refuse path still freezes Sugar only.
+ * not already in nation boycott_bitmap (local_a6), then RNG-picks weighted by
+ * Europe prices (local_7a). docs/fandom_col1994.md Boycott: throw "named
+ * goods" (RNG unnamed list — not a fixed Tobacco second cargo). Does not
+ * mutate boycott_bitmap; caller ORs (1u << idx) when applying. King refuse
+ * path still freezes Sugar only.
  */
 int ai_king_pick_dump_goods_cargo(
   uint16_t boycott_bitmap,
   uint16_t candidate_mask,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const int* cargo_bid /* COLONIZE_CARGO_COUNT, or NULL → uniform */
 );
 
 #endif

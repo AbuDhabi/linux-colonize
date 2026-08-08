@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_diplo.h"
+#include "core/col1_save.h"
 #include "core/founding_fathers.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
@@ -426,9 +428,22 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
 
 static int g_units_last_combat = 0;
 static const ColonizeCol1Save* g_units_ff_col1 = NULL;
+static ColonizeCol1Save* g_units_fallout_col1 = NULL;
+static ColonizeWorldMap* g_units_fallout_map = NULL;
+static int g_units_conquest_gold = -1;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
+}
+
+void units_set_native_fallout_context(
+  ColonizeCol1Save* col1,
+  ColonizeWorldMap* map,
+  int conquest_gold
+) {
+  g_units_fallout_col1 = col1;
+  g_units_fallout_map = map;
+  g_units_conquest_gold = conquest_gold;
 }
 
 int units_last_combat_outcome(void) {
@@ -541,6 +556,196 @@ static int units_drake_scale_strength(
   return (strength * 3) / 2;
 }
 
+/* FUN_137f_0228 — set continent high nibble (nation / 0xf unowned). */
+static void units_map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff) {
+  if (!map || !map->layer3 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return;
+  }
+  const int i = y * map->width + x;
+  const uint8_t low = (uint8_t)(map->layer3[i] & 0x0fu);
+  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & 0x0fu) << 4);
+  map->layer3[i] = (uint8_t)(low | hi);
+}
+
+static int units_count_nation_on_tile(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id
+) {
+  if (!pool) {
+    return 0;
+  }
+  int count = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (u->x == x && u->y == y && u->nation_id == nation_id) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+static bool units_tile_has_tribe(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->tribe) {
+    return false;
+  }
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int col1_destroy_tribe_at(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int x,
+  int y
+) {
+  if (!col1 || !col1->tribe || col1->head.tribe_count == 0) {
+    return -1;
+  }
+  int found = -1;
+  int nation_id = -1;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    if ((int)col1->tribe[i].x == x && (int)col1->tribe[i].y == y) {
+      found = (int)i;
+      nation_id = (int)col1->tribe[i].nation_id;
+      break;
+    }
+  }
+  if (found < 0 || nation_id < 4) {
+    return -1;
+  }
+
+  const uint16_t old_count = col1->head.tribe_count;
+  if (found + 1 < (int)old_count) {
+    memmove(
+      &col1->tribe[found],
+      &col1->tribe[found + 1],
+      ((size_t)old_count - (size_t)found - 1u) * sizeof(ColonizeCol1Tribe)
+    );
+  }
+  col1->head.tribe_count = (uint16_t)(old_count - 1u);
+
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->home_tribe_id < 0) {
+        continue;
+      }
+      if (u->home_tribe_id == found) {
+        u->home_tribe_id = -1;
+      } else if (u->home_tribe_id > found) {
+        u->home_tribe_id--;
+      }
+    }
+  }
+
+  if (map) {
+    units_map_set_owner_nibble(map, x, y, 0x0f);
+  }
+  return nation_id;
+}
+
+bool units_try_native_settlement_fallout(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int attacker_nation_id,
+  int defender_nation_id,
+  int tile_x,
+  int tile_y,
+  int gold_amount
+) {
+  /*
+   * Post-win stand-in for FUN_5fef_31ea (structural): destroy native village
+   * when the last same-nation Brave leaves the tribe tile after combat win.
+   * Cortes treasure only when gold_amount > 0 (caller-known or cited COL1
+   * field) — do not invent population*N gold.
+   */
+  if (!col1 || !units || defender_nation_id < 4) {
+    return false;
+  }
+  if (!units_tile_has_tribe(col1, tile_x, tile_y)) {
+    return false;
+  }
+  if (units_count_nation_on_tile(units, tile_x, tile_y, defender_nation_id) > 0) {
+    return false;
+  }
+
+  const int tribe_nation = col1_destroy_tribe_at(col1, units, map, tile_x, tile_y);
+  if (tribe_nation < 0) {
+    return false;
+  }
+
+  if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
+    ai_diplo_indian_relation_delta(col1, tribe_nation, attacker_nation_id, -5);
+    ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
+  }
+
+  if (attacker_nation_id >= 0 && attacker_nation_id < 4 &&
+      founding_fathers_cortes_guarantees_conquest_treasure(col1, attacker_nation_id)) {
+    if (gold_amount > 0) {
+      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold_amount);
+    }
+    /*
+     * PARK: FUN_5fef_31ea conquest gold when gold_amount <= 0 — no COL1 tribe
+     * treasure field or cited amount table in-repo; do not invent yields.
+     */
+  }
+  return true;
+}
+
+bool units_resolve_lcr_rumour(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng
+) {
+  /*
+   * Thin FUN_65dd_0004 scaffold: Scout on procedural rumour tile clears it.
+   * With de Soto (FF 7): always-positive branch = reveal radius (no invented
+   * treasure / Fountain of Youth). Without de Soto: clear only; full RNG table
+   * PARKED (negative outcomes omitted).
+   */
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !map || !units_is_on_map(u)) {
+    return false;
+  }
+  const ColonizeUnitType* t = units_type(pool, u->type_index);
+  const bool is_scout =
+    (t && strstr(t->name, "Scout") != NULL) || u->profession == UNITS_JOB_SCOUT;
+  if (!is_scout) {
+    return false;
+  }
+  if (!map_tile_has_rumour(map, u->x, u->y)) {
+    return false;
+  }
+  if (!map_clear_rumour(map, u->x, u->y)) {
+    return false;
+  }
+  if (col1 && u->nation_id >= 0 && u->nation_id < 4 &&
+      founding_fathers_de_soto_lcr_always_positive(col1, u->nation_id)) {
+    map_reveal_radius(map, u->x, u->y, u->nation_id, 1);
+    (void)rng;
+    return true;
+  }
+  /*
+   * PARK: FUN_65dd_0004 full lost-city RNG table (treasure gold, FoY, hostile
+   * natives, …) — rumour cleared; outcomes beyond de Soto reveal not ported.
+   */
+  (void)rng;
+  return true;
+}
+
 bool units_resolve_land_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -586,10 +791,26 @@ bool units_resolve_land_combat_ff(
     atk_wins = roll <= attack;
   }
   if (atk_wins) {
+    const int def_x = def->x;
+    const int def_y = def->y;
+    const int def_nation = def->nation_id;
+    const int atk_nation = atk->nation_id;
     units_despawn(pool, defender_id);
     atk = units_get(pool, attacker_id);
     if (atk) {
       units_washington_promote_on_win(pool, atk, col1);
+    }
+    if (def_nation >= 4 && g_units_fallout_col1 && g_units_fallout_map) {
+      (void)units_try_native_settlement_fallout(
+        g_units_fallout_col1,
+        pool,
+        g_units_fallout_map,
+        atk_nation,
+        def_nation,
+        def_x,
+        def_y,
+        g_units_conquest_gold
+      );
     }
     g_units_last_combat = 1;
     return true;

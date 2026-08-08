@@ -79,8 +79,10 @@ boycott follow-up OK (`KING_TAX`) when queue attached. Restless SoL chrome
 `boycott_bitmap==0` clears `unknown46[2]`. Dump-goods / `38fd_3dc8` RNG
 second cargo: **Done** (OR bit via `ai_king_pick_dump_goods_cargo` when
 `ctx->rng`; status/OK list **all** `boycott_bitmap` cargo names — refuse
-Sugar + second, holds after partial clear). Price-weight table + dump modal
-remain **PARKED** (wiki Boycott; do not invent a fixed second refuse cargo).
+Sugar + second, holds after partial clear). Europe bid price-weight
+(`local_7a` stand-in via `ctx->europe` cargo bids): **Done** — roulette by
+`max(bid,1)` among eligible; NULL bids → uniform. Dump-goods modal CHOICE
+remains **PARKED** (wiki Boycott; do not invent a fixed second refuse cargo).
 
 ### Thin `1528` REF arrival announce
 

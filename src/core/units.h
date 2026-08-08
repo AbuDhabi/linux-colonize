@@ -7,13 +7,11 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/font.h"
 #include "core/map.h"
 #include "core/ss.h"
-
-/* Forward decl — optional FF combat context (Washington / Drake / Revere). */
-typedef struct ColonizeCol1Save ColonizeCol1Save;
 
 /*
  * Set Col1 save used by units_try_move for FF combat hooks (Washington promote,
@@ -21,6 +19,63 @@ typedef struct ColonizeCol1Save ColonizeCol1Save;
  * Pass NULL to clear. Pointer is not owned.
  */
 void units_set_ff_col1(const ColonizeCol1Save* col1);
+
+/*
+ * Optional post-win native settlement fallout context for
+ * units_resolve_land_combat_ff (FUN_5fef_31ea-shaped). When col1/map are non-NULL
+ * and attacker beats defender nation>=4, units_try_native_settlement_fallout runs.
+ * conquest_gold: caller-known treasure amount, or -1 when unknown (Cortes gate
+ * skips spawn — no invented FUN_5fef_31ea amounts). Pass NULL map to disable.
+ */
+void units_set_native_fallout_context(
+  ColonizeCol1Save* col1,
+  ColonizeWorldMap* map,
+  int conquest_gold
+);
+
+/*
+ * Destroy native village Col1 record at (x,y) if present. Clears map owner
+ * nibble to 0xf and remaps unit home_tribe_id. Returns tribe nation_id (>=4)
+ * or -1. Does not invent treasure gold.
+ */
+int col1_destroy_tribe_at(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int x,
+  int y
+);
+
+/*
+ * Post-win fallout stand-in for FUN_5fef_31ea (structural):
+ * If defender was native on a tribe tile and no other same-nation Braves remain
+ * on that tile after win, destroy tribe. Cortes treasure only when gold_amount>0
+ * (caller-known); else PARK — do not invent population*N gold. May adjust Indian
+ * relation via ai_diplo helpers when col1 is set.
+ */
+bool units_try_native_settlement_fallout(
+  ColonizeCol1Save* col1,
+  ColonizeUnitPool* units,
+  ColonizeWorldMap* map,
+  int attacker_nation_id,
+  int defender_nation_id,
+  int tile_x,
+  int tile_y,
+  int gold_amount
+);
+
+/*
+ * Thin FUN_65dd_0004 scaffold: Scout on rumour tile clears it via map_clear_rumour.
+ * With de Soto: reveal radius (positive-only, no invented gold). Without de Soto:
+ * clear only; full RNG outcome table PARKED.
+ */
+bool units_resolve_lcr_rumour(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng
+);
 
 /* Original COLONY.SAV can hold well over 64 map units (natives + Europeans). */
 #define COLONIZE_UNITS_MAX 256

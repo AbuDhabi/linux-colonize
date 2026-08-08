@@ -498,7 +498,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
-    turn_refresh_moves_for_nation(&units, 0, &deep_col1);
+    turn_refresh_moves_for_nation(&units, 0, &deep_col1, NULL);
     if (caravel->moves_left != units.types[2].movement + 1) {
       free(deep_col1.colony);
       map_free(&map);
@@ -1488,7 +1488,7 @@ int main(void) {
     }
   }
 
-  /* Sepulveda / de Soto LCR / de Witt — ownership gates; effects PARKED. */
+  /* Sepulveda / de Soto LCR / de Witt — ownership gates; de Soto LCR wired. */
   {
     ColonizeCol1Save gcol1;
     col1_save_init(&gcol1);
@@ -1521,6 +1521,50 @@ int main(void) {
         founding_fathers_de_witt_allows_foreign_colony_trade(&gcol1, 1)) {
       return fail("Sepulveda/de Soto/de Witt gates must not leak");
     }
+
+    /* de Soto LCR resolve wired: clear rumour + reveal (no invented gold). */
+    ColonizeWorldMap lmap;
+    memset(&lmap, 0, sizeof(lmap));
+    lmap.width = 20;
+    lmap.height = 20;
+    lmap.terrain = calloc(400, 1);
+    lmap.layer2 = calloc(400, 1);
+    lmap.layer3 = calloc(400, 1);
+    lmap.seen = calloc(400, 1);
+    if (!lmap.terrain || !lmap.layer2 || !lmap.layer3 || !lmap.seen) {
+      map_free(&lmap);
+      return fail("de Soto LCR map alloc");
+    }
+    lmap.terrain[14 * 20 + 8] = 0x08; /* scrub — matches AMER2 rumour fixture class */
+    ColonizeUnitPool upool;
+    units_reset(&upool);
+    upool.type_count = 1;
+    snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Scout");
+    upool.types[0].movement = 3;
+    const int uid = units_spawn_allow_stack(&upool, 0, 8, 14);
+    ColonizeUnit* su = units_get(&upool, uid);
+    if (!su) {
+      map_free(&lmap);
+      return fail("de Soto scout spawn");
+    }
+    su->nation_id = 0;
+    if (!map_tile_has_rumour(&lmap, 8, 14)) {
+      map_free(&lmap);
+      return fail("de Soto LCR fixture tile should have rumour");
+    }
+    if (!units_resolve_lcr_rumour(&upool, uid, &lmap, &gcol1, NULL)) {
+      map_free(&lmap);
+      return fail("units_resolve_lcr_rumour de Soto path");
+    }
+    if (map_tile_has_rumour(&lmap, 8, 14)) {
+      map_free(&lmap);
+      return fail("de Soto LCR must clear rumour");
+    }
+    if (!map_tile_seen_by(&lmap, 8, 14, 0)) {
+      map_free(&lmap);
+      return fail("de Soto LCR must reveal tile");
+    }
+    map_free(&lmap);
   }
 
   printf("smoke_founding_fathers: OK\n");

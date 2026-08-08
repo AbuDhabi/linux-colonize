@@ -180,10 +180,16 @@ stays **PARK** (Linux kills only when displace is blocked).
 converts (`NAMES` `@JOB` Convert / profession 27) assimilate as free colonists
 (profession 19) on elect + FF ownership tick in `founding_fathers.c` — not the
 missionary convert-pulse path.  **Sepulveda** convert-join remains **PARKED** (no 2820/4528 join hook).
- **Cortes** conquest treasure remains **PARKED** (no settlement-conquer hook /
- amount table — `units_spawn_treasure_train` only when gold known). Thin Brave
+ **Cortes** conquest treasure: **Done** structural — `units_try_native_settlement_fallout`
+ wired from `units_resolve_land_combat_ff` when `units_set_native_fallout_context`
+ is set; `units_spawn_treasure_train` only when caller supplies `gold_amount > 0`.
+ FUN_5fef_31ea amount table **PARKED** (no invented population×N gold). Thin Brave
  escort via `units_follow_unit` (raid-gate goto preference) and @RAIDBURN
  `colonies_destroy_building` + building-name status: **Done** thin.
+
+**de Soto LCR:** **Done** thin — `units_resolve_lcr_rumour` clears rumour via
+`map_clear_rumour`; with FF 7 reveals radius (no invented treasure/FoY). Full
+FUN_65dd_0004 RNG table **PARKED**.
 
 ### Teach-skill profession map (Linux)
 

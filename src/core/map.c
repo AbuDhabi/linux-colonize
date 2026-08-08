@@ -554,7 +554,7 @@ int map_resource_type_for_yield(const ColonizeWorldMap* map, int x, int y) {
   return map_resource_type_at_ex(map, x, y, true);
 }
 
-static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
+static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return false;
   }
@@ -573,6 +573,17 @@ static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
   const unsigned hash =
     (unsigned)(((dos_y >> 2) * 0x13 + (dos_x >> 2) * 0x11 + MAP_RESOURCE_SEED_DEFAULT + 8) & 0x1f);
   return (int)hash + (dos_x & 3) * -4 == (dos_y & 3);
+}
+
+static bool map_has_rumour_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  const uint8_t layer2 = map->layer2 ? map->layer2[y * map->width + x] : 0;
+  if ((layer2 & MAP_LAYER2_RUMOUR_CLEARED) != 0) {
+    return false;
+  }
+  return map_procedural_rumour_at(map, x, y);
 }
 
 static int phys0_river_sprite(uint8_t terrain_byte, uint8_t mask) {
@@ -1217,6 +1228,18 @@ int map_terrain_sprite(uint8_t terrain_byte) {
 
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y) {
   return map_has_rumour_at(map, x, y);
+}
+
+bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  if (!map_procedural_rumour_at(map, x, y)) {
+    return false;
+  }
+  map->layer2[y * map->width + x] =
+    (uint8_t)(map->layer2[y * map->width + x] | MAP_LAYER2_RUMOUR_CLEARED);
+  return true;
 }
 
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y) {
