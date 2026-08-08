@@ -13,6 +13,18 @@ round-trips of original 3.0 saves: every section is read into a packed struct
 Layout sizes are enforced by `col1_save_check_layout()` (also in
 `smoke_col1_save`).
 
+**Header validation** mirrors DOS `FUN_75c2_0840` (slot probe / load):
+
+| Check | DOS | Linux |
+|-------|-----|-------|
+| Signature | NUL-terminated `COLONIZE` then `0x1A` (`FUN_1b2c_*`) | `col1_save_validate_head` |
+| Version | `uint16` == DS:`0x81a` (3.0 = **73**) | reject older → obsolete; newer → invalid |
+| Map size | W×H product vs live map (`0`/`0` = any) | optional expect W/H; mid-game Load uses live map |
+| File length | (implicit via section reads) | `col1_save_expected_size_counts` must match |
+
+UI copy: `@LOADNOT` / `@LOADOLD` / `@LOADSIZE` in `GAME.TXT`. There is **no**
+whole-file CRC on `.SAV` (CRC/LFSR `FUN_3f3f_0006` is unrelated).
+
 Bitfield packing assumes **GCC/Clang on little-endian** (LSB-first), matching
 DOS. Unknown regions are preserved as opaque byte arrays.
 
@@ -20,7 +32,7 @@ DOS. Unknown regions are preserved as opaque byte arrays.
 
 | Section | Size | Notes |
 |---------|------|-------|
-| Prefix (`head` + `player[4]` + `other`) | 390 | Signature `COLONIZE`, counts, year/turn, options, REF |
+| Prefix (`head` + `player[4]` + `other`) | 390 | `COLONIZE\0` + `0x1A` + version **73** + map WxH + counts, year/turn, options, REF |
 | `colony[]` | 202 × colony_count | Buildings bitfield, stock, colonists, tiles |
 | `unit[]` | 28 × unit_count | Map units / ships / braves |
 | `nation[4]` | 316 × 4 = 1264 | Gold, tax, FF, Europe market |

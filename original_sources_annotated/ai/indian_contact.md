@@ -25,20 +25,14 @@ Annotated shell (quiet path only for act):
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
 
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
-Thin Linux meet arm (**after** first-contact treaty): when already met, welcome
-not pending, and `alarm_by_player >= 55`, write human status **"Natives refuse
-to talk."** and skip auto-trade (`alarm < 50` gate); gift/demand still runs and
-overwrites with the more specific ≥55 refuse line.
-Beyond that alarm gate: when `ai_diplo_indian_relation` is very low (`< 40`, same
-band as `AI_DIPLO_INDIAN_VERY_LOW_REL`), skip auto-trade / gift/demand with
-the same refuse-talk status (read-only diplo getter; no invented gold).
-Unmet first contact uses `@INDIANWELCOME` (not refuse-talk) — see checklist §0.
-Teach-skill / gift / demand paths reuse the same ≥55 gate with status
-**"Natives refuse to teach."** / **"Natives refuse gifts."** /
-**"Natives refuse demands."** (alarmed Indian diplomacy; no invented gold
-penalties beyond existing gift costs).
-Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
-Deep `FUN_4d56_2820` body stays **PARK only** (no port this round).
+Thin Linux meet arm (**after** first-contact treaty): human Brave×Euro
+adjacency does **not** write refuse-talk / gift chrome (village dialog
+PARKED). AI Euros skip auto-trade/gift when `alarm_by_player >= 55` or
+relation `< 40`.
+Unmet first contact uses `@INDIANWELCOME` on **land** units only (not ships)
+— see checklist §0.
+Teach-skill / missionary convert remain tribe-adjacency pulses with status
+when the Euro is human.
 
 ### Prelude deepen (Linux `ai_contact_indian_prelude`)
 
@@ -73,7 +67,7 @@ missions slow hostility.
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb` neighborhood** (~96088) after meet/diplo scoring | Not from `1b3a` |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | Full body PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | Not quiet `14fe` |
-| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First contact WELCOME **Done**; later Meet CHOICE structural; VGA PARKED |
+| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE trigger PARKED |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
 
 Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
@@ -82,20 +76,23 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
 ## Meet / trade `5bfb_022e` checklist (Linux)
 
 0. **First contact** (`FUN_5bfb_022e` unmet / `FUN_5bfb_0182`): when
-   `met_by_player` is clear, player adjacency to a village
-   (`col1_contact_adjacent_tribe` / `game_loop`) **or** Brave meet pulse
-   enqueues **CONTACT_WELCOME** Yes/No (`@INDIANWELCOME`). DOS ORs met bit
-   `0x20` before the dialog — Linux sets `met_by_player` when welcome is shown.
+   `met_by_player` is clear, **land** unit adjacency to a village
+   (`col1_contact_adjacent_tribe` / `game_loop`) **or** Brave adjacent to a
+   **land** Euro during Indian turn enqueues **CONTACT_WELCOME** Yes/No
+   (`@INDIANWELCOME`). Ships are skipped (natives do not hail vessels; DOS
+   meet gates ocean). DOS ORs met bit `0x20` before the dialog — Linux sets
+   `met_by_player` when welcome is shown.
    - **Yes** → `FUN_5bfb_0182` stand-in: peace bit `unknown33[euro] |= 0x40`,
      relation floor so refuse-talk (`< 40`) cannot fire next tick; OK
-     `@INDIANPEACE`; if pre-accept relation `< 0x19` also OK `@INDIANCOME`;
-     then later Meet CHOICE may follow. Land grant is **copy only** (WELCOME
-     text); no tile-ownership write.
+     `@INDIANPEACE`; if pre-accept relation `< 0x19` also OK `@INDIANCOME`.
+     **Ends here** (DOS `goto LAB_5bfb_1005`) — no Meet CHOICE / gift chain.
+     Land grant is **copy only** (WELCOME text); no tile-ownership write.
    - **No / cancel** → hostility (`FUN_4cc6_00f2` +100 hostility-axis stand-in)
      so `ai_diplo_indian_at_war`; OK `@INDIANSHUN` (“Prepare for WAR!”).
    - AI Euro: auto-Accept (no popup), same state writes.
-   - Refuse-talk / Meet Trade menu require met **and** welcome not pending;
-     Meet CHOICE is **later** peaceful contact, not first contact.
+   - Human **already-met** Brave adjacency: **no** spontaneous refuse-talk /
+     gift / demand / trade chrome (village enter / deep `2820` PARKED).
+     AI Euros keep silent auto-trade / gift-demand stand-ins.
 
 1. Adjacent Euro land unit (already met + treaty resolved) → relation bump;
    human-facing `ctx->status` **"You meet the …"** (tribe `@TRIBES` short name)
@@ -175,24 +172,16 @@ slow hostility.
 
 Status lines only when `ctx->status` is present and the Euro is the human nation
 (`ctx->human_nation`, else `player.control == 0`). When `ctx->ai_popups` is set,
-human arms also enqueue OK / Meet CHOICE popups (FUN_5bfb_022e / 5bfb_102a
-structural unpark). **First unmet contact** enqueues CONTACT_WELCOME Yes/No
-(`@INDIANWELCOME` → `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`); Meet CHOICE
-(Trade/Gift/Demand/Teach/Leave) is for **later** contact after treaty and
-defers auto-trade/gift until `ai_contact_apply_popup_result`; Meet→Gift enqueues
-CONTACT_GIFT Small/Large amount CHOICE before gold drain; Meet→Demand enqueues
-CONTACT_DEMAND tools/gold amount CHOICE before tribute drain; Meet→Demand when
-alarmed (`≥55`) enqueues CONTACT_DEMAND OK **"Natives refuse demands."**
-(no amount CHOICE / no tools-gold drain); Meet→Leave enqueues thin OK
-**"Farewell."** (no trade side effects). A second Brave in the same pulse
-does not re-offer Meet CHOICE while one is pending. Teach CHOICE refuse
-(≥55) enqueues CONTACT_TEACH OK; Teach success (e.g. Aztec→Ore Miner) enqueues
-CONTACT_TEACH OK; convert success (mission establish) enqueues
-CONTACT_CONVERT OK. Mission burn (prelude ≥80) enqueues CONTACT_RAID OK with
-status. Deep DOS dialog chrome (VGA-identical) stays **PARKED**.
-Deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid decision + nested
-`2aac…311e` haggle stays **PARK only** — Linux Leave/Trade/Gift/Demand/Teach
-are thin CHOICE handlers, not a 2820 port (Marathon2 R6 / R4).
+**first unmet land contact** enqueues CONTACT_WELCOME Yes/No
+(`@INDIANWELCOME` → `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`); peaceful
+Accept **ends** after those OKs (no Meet CHOICE). Meet CHOICE Trade/Gift/…
+handlers remain for synthetic/village-enter apply (PARKED trigger). Human
+Brave adjacency after meet does **not** auto-enqueue refuse/gift/trade chrome.
+Teach CHOICE refuse (≥55) enqueues CONTACT_TEACH OK when applied; convert
+success enqueues CONTACT_CONVERT OK. Mission burn (prelude ≥80) enqueues
+CONTACT_RAID OK with status. Deep DOS dialog chrome (VGA-identical) stays
+**PARKED**. Deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid decision
++ nested `2aac…311e` haggle stays **PARK only**.
 Scout `359c` warn-on-displace already thinned; DOS RNG kill-with-flee-tile
 stays **PARK** (Linux kills only when displace is blocked).
 

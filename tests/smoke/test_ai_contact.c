@@ -738,15 +738,15 @@ int main(void) {
   }
 
   /*
-   * Gift stand-in (5bfb_102a/1092 ai_popup Done; status chrome thinned):
-   * low friction + gold >= 20 → Euro −10 gold, friction −2, status line.
-   * Magnitude matches gift comment (−2); relation ≥40 so very-low gate skips.
+   * Gift stand-in (AI Euro silent path via Brave adjacency; humans do not
+   * auto-gift on meet pulse — village dialog PARKED):
+   * low friction + gold >= 20 → Euro −10 gold, friction −2.
    */
   col1.tribe[0].nation_id = 4;
   ind->met_by_player[0] = 1;
   ind->alarm_by_player[0] = 10;
   col1.tribe[0].alarm[0].friction = 10;
-  col1.tribe[0].state.learned = 1; /* skip teach overwrite of status */
+  col1.tribe[0].state.learned = 1;
   col1.nation[0].gold = 50;
   col1.nation[0].relation_by_indian[0] = 80;
   euro->x = 6;
@@ -754,7 +754,7 @@ int main(void) {
   brave->x = 5;
   brave->y = 5;
   brave->nation_id = 4;
-  ctx.human_nation = 0;
+  ctx.human_nation = 1; /* Euro 0 as AI — silent gift stand-in */
   char status[128];
   status[0] = '\0';
   ctx.status = status;
@@ -769,14 +769,13 @@ int main(void) {
   if (ind->alarm_by_player[0] != 8) {
     return fail("gift should reduce alarm_by_player by 2");
   }
-  if (strstr(status, "Gift") == NULL || strstr(status, "eases") == NULL) {
-    fprintf(stderr, "smoke_ai_contact: gift-ok status '%s'\n", status);
-    return fail("gift success should set Gift-of-gold eases-tensions status");
+  if (status[0] != '\0') {
+    return fail("AI gift stand-in should not set human chrome status");
   }
 
   /*
-   * Gift refuse when Euro gold < 10 (cannot pay −10 drain): no gold change,
-   * human status "Natives refuse gifts." Cite: gift stand-in; indian_contact.md.
+   * Gift refuse when Euro gold < 10: no gold change. Human adjacency: no
+   * spontaneous chrome (village dialog PARKED).
    */
   {
     ind->met_by_player[0] = 1;
@@ -798,9 +797,8 @@ int main(void) {
     if (col1.nation[0].gold != 5u) {
       return fail("gift gold<10 refuse should not drain gold");
     }
-    if (strstr(status, "refuse") == NULL || strstr(status, "gift") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: gift-poor status '%s'\n", status);
-      return fail("gift gold<10 should set refuse-gifts status");
+    if (status[0] != '\0') {
+      return fail("human Brave adjacency must not chrome gift refuse");
     }
   }
 
@@ -1001,9 +999,8 @@ int main(void) {
   }
 
   /*
-   * Thin alarmed refuse-talk (2154 deep PARKED): met + alarm>=55 → skip trade;
-   * gift/demand arm still runs and overwrites with refuse gifts/demands.
-   * Mid friction → "Natives refuse demands." (also covers refuse substring).
+   * Thin alarmed refuse-talk: human Brave adjacency must not spam refuse chrome
+   * (village dialog PARKED). No gold drain either.
    */
   {
     col1.nation[0].gold = 100;
@@ -1018,21 +1015,19 @@ int main(void) {
     brave->y = 5;
     brave->moves_left = 1;
     status[0] = '\0';
+    ctx.human_nation = 0;
     const uint32_t gold0 = col1.nation[0].gold;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != gold0) {
       return fail("alarmed refuse-talk should not gift/trade gold");
     }
-    if (strstr(status, "refuse") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: alarmed status '%s'\n", status);
-      return fail("alarmed meet should set refuse status");
+    if (strstr(status, "refuse") != NULL) {
+      return fail("human Brave adjacency must not chrome refuse-talk");
     }
   }
 
   /*
-   * Alarmed gift refuse (≥55): gift-band friction (<40) + alarm≥55 + gold≥20
-   * → no gold drain; human status "Natives refuse gifts."
-   * Cite: fandom Alarm; indian_contact.md gift stand-in.
+   * Alarmed gift refuse (≥55): human adjacency — no gold drain, no chrome.
    */
   {
     col1.nation[0].gold = 100;
@@ -1054,9 +1049,8 @@ int main(void) {
     if (col1.nation[0].gold != 100u) {
       return fail("alarmed gift refuse should not drain gold");
     }
-    if (strstr(status, "refuse") == NULL || strstr(status, "gift") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: alarmed-gift status '%s'\n", status);
-      return fail("alarmed gift should set refuse-gifts status");
+    if (status[0] != '\0') {
+      return fail("human Brave adjacency must not chrome gift refuse");
     }
   }
 
@@ -1183,10 +1177,7 @@ int main(void) {
   }
 
   /*
-   * Alarmed demand refuse (≥55 refuse-talk gate): tribe friction high while
-   * alarm_by_player stays below meet refuse-talk so gift/demand arm runs →
-   * no tools/gold taken; human status "Natives refuse demands."
-   * Cite: fandom Alarm — refuse trade; no invented gold penalties.
+   * Alarmed demand refuse: human Brave adjacency — no tools/gold taken, no chrome.
    */
   {
     for (int i = 0; i < 256; ++i) {
@@ -1202,13 +1193,13 @@ int main(void) {
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].x = 5;
     col1.tribe[0].y = 5;
-    col1.tribe[0].state.learned = 1; /* skip teach overwrite */
+    col1.tribe[0].state.learned = 1;
     col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 60; /* demand-band alarmed */
+    col1.tribe[0].alarm[0].friction = 60;
     ind->met_by_player[0] = 1;
-    ind->alarm_by_player[0] = 50; /* below meet refuse-talk continue */
+    ind->alarm_by_player[0] = 50;
     col1.nation[0].gold = 100;
-    col1.nation[0].relation_by_indian[0] = 80; /* above very-low; gift arm runs */
+    col1.nation[0].relation_by_indian[0] = 80;
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -1228,22 +1219,20 @@ int main(void) {
     if (c->stock[COLONIZE_CARGO_TOOLS] != tools_c || euro->tools != tools_u) {
       return fail("alarmed demand refuse should not take tools");
     }
-    if (strstr(status, "refuse") == NULL || strstr(status, "demand") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: demand-refuse status '%s'\n", status);
-      return fail("alarmed demand should set refuse-demands status");
+    if (status[0] != '\0') {
+      return fail("human Brave adjacency must not chrome demand refuse");
     }
   }
 
   /*
-   * Demand succeed (mid friction 40–54, not alarmed, relation ok): colony
-   * tools stock ≥20 → −10 tools, friction −3, "Tribute paid…". Cite: gift
-   * gold≥20 band mirrored for tools demand; indian_contact.md mid demand.
+   * Demand succeed (AI Euro silent): mid friction, colony tools ≥20 → −10 tools,
+   * friction −3. Cite: indian_contact.md mid demand.
    */
   {
     euro->x = 6;
     euro->y = 5;
     euro->active = true;
-    euro->tools = 5; /* below unit ≥20; force warehouse path */
+    euro->tools = 5;
     brave->x = 5;
     brave->y = 5;
     brave->nation_id = 4;
@@ -1252,10 +1241,10 @@ int main(void) {
     col1.tribe[0].y = 5;
     col1.tribe[0].state.learned = 1;
     col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 45; /* mid demand band */
+    col1.tribe[0].alarm[0].friction = 45;
     ind->met_by_player[0] = 1;
-    ind->alarm_by_player[0] = 20; /* not alarmed */
-    col1.nation[0].gold = 5; /* too low for gold fallback */
+    ind->alarm_by_player[0] = 20;
+    col1.nation[0].gold = 5;
     col1.nation[0].relation_by_indian[0] = 80;
     c->active = true;
     c->nation_id = 0;
@@ -1265,7 +1254,7 @@ int main(void) {
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
-    ctx.human_nation = 0;
+    ctx.human_nation = 1; /* AI Euro 0 */
     const int tools_ok = c->stock[COLONIZE_CARGO_TOOLS];
     const uint8_t fr_ok = col1.tribe[0].alarm[0].friction;
     const uint16_t al_ok = ind->alarm_by_player[0];
@@ -1277,11 +1266,7 @@ int main(void) {
         ind->alarm_by_player[0] != (uint16_t)(al_ok - 3)) {
       return fail("demand succeed should decay friction by 3");
     }
-    if (strstr(status, "Tribute") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: demand-ok status '%s'\n", status);
-      return fail("demand succeed should set Tribute paid status");
-    }
-    /* Stock <20 + gold <50 → no tools demand and no gold stand-in; refuse OK. */
+    /* Stock <20 + gold <50 → no drain (AI silent, no refuse chrome). */
     c->stock[COLONIZE_CARGO_TOOLS] = 15;
     col1.tribe[0].alarm[0].friction = 45;
     ind->alarm_by_player[0] = 20;
@@ -1295,15 +1280,11 @@ int main(void) {
     if (col1.nation[0].gold != 5u) {
       return fail("demand gold stand-in needs treasury >= 50 when tools short");
     }
-    if (strstr(status, "refuse") == NULL || strstr(status, "demand") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: demand-cant-pay status '%s'\n", status);
-      return fail("demand can't-pay should set refuse-demands status");
-    }
   }
 
   /*
-   * Demand gold path: mid friction, tools short (stock/unit <20) but gold ≥50
-   * → −15 gold, friction −3. Cite: indian_contact.md mid demand gold stand-in.
+   * Demand gold path (AI Euro silent): mid friction, tools short, gold ≥50
+   * → −15 gold, friction −3.
    */
   {
     euro->x = 6;
@@ -1327,11 +1308,11 @@ int main(void) {
     c->nation_id = 0;
     c->x = 5;
     c->y = 5;
-    c->stock[COLONIZE_CARGO_TOOLS] = 10; /* <20 */
+    c->stock[COLONIZE_CARGO_TOOLS] = 10;
     status[0] = '\0';
     ctx.status = status;
     ctx.status_size = sizeof(status);
-    ctx.human_nation = 0;
+    ctx.human_nation = 1;
     const uint8_t fr_g = col1.tribe[0].alarm[0].friction;
     const uint16_t al_g = ind->alarm_by_player[0];
     ai_contact_indian_meet_trade(&ctx, 4);
@@ -1345,15 +1326,10 @@ int main(void) {
         ind->alarm_by_player[0] != (uint16_t)(al_g - 3)) {
       return fail("demand gold path should decay friction by 3");
     }
-    if (strstr(status, "Tribute") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: demand-gold status '%s'\n", status);
-      return fail("demand gold path should set Tribute paid status");
-    }
   }
 
   /*
-   * Very-low relation refuse (beyond alarm gate): alarm low but
-   * ai_diplo_indian_relation < 40 → skip gift/trade; refuse-talk status.
+   * Very-low relation: human Brave adjacency — no gift, no refuse chrome.
    */
   {
     euro->x = 6;
@@ -1366,8 +1342,8 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 10;
     ind->met_by_player[0] = 1;
-    ind->alarm_by_player[0] = 10; /* below alarm refuse-talk */
-    col1.nation[0].relation_by_indian[0] = 30; /* very-low */
+    ind->alarm_by_player[0] = 10;
+    col1.nation[0].relation_by_indian[0] = 30;
     col1.nation[0].gold = 100;
     status[0] = '\0';
     ctx.status = status;
@@ -1378,9 +1354,8 @@ int main(void) {
     if (col1.nation[0].gold != gold_r) {
       return fail("very-low relation refuse should not gift gold");
     }
-    if (strstr(status, "refuse") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: relation-refuse status '%s'\n", status);
-      return fail("very-low relation should set refuse-talk status");
+    if (status[0] != '\0') {
+      return fail("human Brave adjacency must not chrome very-low refuse");
     }
   }
 
@@ -2215,8 +2190,7 @@ int main(void) {
 
   /*
    * AI popup unpark: first meet enqueues CONTACT_WELCOME Yes/No; Accept →
-   * peace + Meet CHOICE; Trade apply runs thin auto-trade. Cite: FUN_5bfb_022e /
-   * FUN_5bfb_0182.
+   * peace + PEACE/COME OKs only (no Meet CHOICE). Cite: FUN_5bfb_022e / 0182.
    */
   {
     AiPopupState pop;
@@ -2280,7 +2254,6 @@ int main(void) {
         pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
       return fail("first queue entry should be CONTACT_WELCOME Yes/No");
     }
-    /* Deferred auto: trade goods unchanged until treaty + Meet CHOICE. */
     if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0) {
       return fail("WELCOME should defer auto-trade");
     }
@@ -2308,45 +2281,68 @@ int main(void) {
       return fail("WELCOME Yes should raise relation above refuse band");
     }
 
-    /* Follow-ups: PEACE OK(s) + Meet CHOICE. */
-    int saw_meet = 0;
+    /* Follow-ups: PEACE / COME OKs only — no Meet CHOICE. */
     for (int qi = 0; qi < pop.queue_count; ++qi) {
       if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET &&
           pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
-        saw_meet = 1;
+        return fail("WELCOME Yes must not enqueue Meet CHOICE");
       }
     }
-    if (!saw_meet) {
-      return fail("WELCOME Yes should enqueue Meet CHOICE after peace");
+    if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_OK) {
+      return fail("WELCOME Yes should enqueue PEACE OK");
     }
 
-    /* Drain OK popups until Meet CHOICE is current. */
-    while (pop.queue_count > 0 || pop.open) {
-      if (!pop.open) {
-        if (!ai_popup_try_present_next(&pop)) {
-          break;
+    /* Ships: Brave adjacent to sea unit must not start WELCOME. */
+    {
+      ai_popup_clear(&pop);
+      ind->met_by_player[0] = 0;
+      ind->unknown33[0] = 0;
+      units.type_count = 3;
+      snprintf(units.types[2].name, sizeof(units.types[2].name), "Caravel");
+      units.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
+      units.types[2].movement = 4;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && u->nation_id == 0) {
+          units_despawn(&units, u->id);
         }
       }
-      if (pop.current.tag == AI_POPUP_TAG_CONTACT_MEET &&
-          pop.current.kind == AI_POPUP_KIND_CHOICE) {
-        break;
+      const int ship_id = units_spawn_allow_stack(&units, 2, 6, 5);
+      ColonizeUnit* ship = units_get(&units, ship_id);
+      if (!ship) {
+        return fail("ship contact spawn");
       }
-      /* Dismiss OK. */
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 0;
-      pop.result_tag = pop.current.tag;
-      pop.result_nation_a = pop.current.nation_a;
-      pop.result_nation_b = pop.current.nation_b;
-      ai_contact_apply_popup_result(&ctx, &pop);
-      ai_popup_consume_result(&pop);
-      pop.open = false;
-    }
-    if (!pop.open || pop.current.tag != AI_POPUP_TAG_CONTACT_MEET) {
-      return fail("should present Meet CHOICE after peace OKs");
+      ship->nation_id = 0;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && u->nation_id == 4) {
+          u->x = 5;
+          u->y = 5;
+        }
+      }
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (ind->met_by_player[0]) {
+        return fail("ship adjacency must not set met_by_player");
+      }
+      if (pop.queue_count > 0) {
+        return fail("ship adjacency must not enqueue WELCOME");
+      }
+      /* Restore land Free Colonist for later arms. */
+      units_despawn(&units, ship_id);
+      const int el = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* elu = units_get(&units, el);
+      if (elu) {
+        elu->nation_id = 0;
+      }
     }
 
-    /* Simulate Trade selection. */
+    /* Synthetic Meet CHOICE Trade still works when player initiates (apply). */
+    ai_popup_clear(&pop);
+    ind->met_by_player[0] = 1;
+    ind->unknown33[0] = 0x40;
+    col1.nation[0].relation_by_indian[0] = 100;
+    ind->alarm_by_player[0] = 10;
+    c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] = goods0;
     pop.has_result = true;
     pop.result_cancelled = false;
     pop.result_choice_id = 1; /* AI_CONTACT_CHOICE_TRADE */
@@ -2354,22 +2350,13 @@ int main(void) {
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
     pop.result_payload = 0;
+    st_pop[0] = '\0';
     ai_contact_apply_popup_result(&ctx, &pop);
     if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0 - 1) {
-      fprintf(
-        stderr,
-        "smoke_ai_contact: trade goods after apply %d (want %d)\n",
-        c_pop->stock[COLONIZE_CARGO_TRADE_GOODS],
-        goods0 - 1
-      );
       return fail("Trade CHOICE should run thin auto-trade");
     }
-    /* Follow-up OK enqueued from trade chrome. */
     if (pop.queue_count < 1) {
       return fail("Trade apply should enqueue Trade accepted OK");
-    }
-    if (pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_MEET) {
-      return fail("Trade follow-up OK should use CONTACT_MEET tag");
     }
     if (strstr(st_pop, "Trade") == NULL) {
       fprintf(stderr, "smoke_ai_contact: trade status '%s'\n", st_pop);
@@ -2462,8 +2449,7 @@ int main(void) {
     }
 
     /*
-     * Second Brave same pulse: pending Meet CHOICE → no second CHOICE enqueue.
-     * Cite: FUN_5bfb_022e defer; ai_contact_meet_choice_pending.
+     * Second Brave same pulse: pending WELCOME → no second CHOICE enqueue.
      */
     {
       ai_popup_clear(&pop);
@@ -2485,7 +2471,6 @@ int main(void) {
       ba->nation_id = 4;
       bb->nation_id = 4;
       e3u->nation_id = 0;
-      /* Euro adjacent to both Braves (6,5 touches 5,5 and 5,6). */
       ind->met_by_player[0] = 0;
       ind->alarm_by_player[0] = 0;
       ind->unknown33[0] = 0;

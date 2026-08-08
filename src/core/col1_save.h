@@ -31,6 +31,10 @@
 #include <stdint.h>
 
 #define COLONIZE_COL1_SIG "COLONIZE"
+/* DOS writes signature as C-string then 0x1A (FUN_1b2c_0040); version follows. */
+#define COLONIZE_COL1_SIG_EOF 0x1Au
+/* Colonization 3.0 save format version (DS:0x81a / FUN_75c2_0840). */
+#define COLONIZE_COL1_SAVE_VERSION 73u
 #define COLONIZE_COL1_PREFIX_SIZE 390u
 #define COLONIZE_COL1_HEAD_SIZE 158u
 #define COLONIZE_COL1_PLAYER_SIZE 52u
@@ -135,8 +139,9 @@ typedef struct ColonizeCol1EventFlags {
 } ColonizeCol1EventFlags;
 
 typedef struct ColonizeCol1Head {
-  char sig_colonize[9];
-  uint8_t unknown00[3];
+  char sig_colonize[9]; /* "COLONIZE\0" */
+  uint8_t sig_eof; /* 0x1A after signature (FUN_1b2c_0040) */
+  uint16_t save_version; /* COL 3.0 = 73; FUN_75c2_0840 vs DS:0x81a */
   uint16_t map_size_x; /* typically 58 (visible 56 + border) */
   uint16_t map_size_y; /* typically 72 (visible 70 + border) */
   ColonizeCol1Tut1 tut1;
@@ -444,6 +449,22 @@ void col1_save_free(ColonizeCol1Save* save);
 
 /* Compile-time layout checks (also run at runtime in smoke tests). */
 bool col1_save_check_layout(char* err, size_t err_size);
+
+/*
+ * FUN_75c2_0840 header probe: COLONIZE sig + 0x1A + version + optional map size.
+ * expect_map_w/h < 0 → skip LOADSIZE check (title / no live map).
+ * Error text mirrors @LOADNOT / @LOADOLD / @LOADSIZE.
+ */
+bool col1_save_validate_head(
+  const ColonizeCol1Head* head,
+  int expect_map_w,
+  int expect_map_h,
+  char* err,
+  size_t err_size
+);
+
+/* Ensure DOS signature / EOF / version fields before write. */
+void col1_save_stamp_head(ColonizeCol1Head* head);
 
 size_t col1_save_expected_size(const ColonizeCol1Save* save);
 size_t col1_save_expected_size_counts(
