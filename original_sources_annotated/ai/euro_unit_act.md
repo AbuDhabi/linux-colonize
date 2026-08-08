@@ -103,11 +103,14 @@ outward; act re-aims even with a prior CONTACT goto. Cite: `euro_diplo.md` /
 
 **Fog explore (no CONTACT):** when no beyond-adjacent tribe ring exists, peaceful
 Scout `AI_MOVE`s toward an unseen land tile within MD ≤ 8 (`map_tile_seen_by`)
-without upserting CONTACT. Plain Scout → nearest unseen; **Seasoned Scout** →
-deeper (max md) unseen within that ring — AI explore preference for the skill
+without upserting CONTACT. Prefer `map_tile_has_rumour` over plain unseen when
+both exist (Lost City Rumours seek; LCR resolve still on stand only — no invented
+gold/FoY table). Plain Scout → nearest within the preferred tier; **Seasoned
+Scout** → deeper (max md) within that tier — AI explore preference for the skill
 "Better at exploring rumors…" (Colonization.pdf OTHER). Scouts already see 2
 squares (de Soto: all units → "as well as scouts"); do **not** invent extra
-sight radius. Cite: manual fog / Col1 seen bit; Colonization.pdf Seasoned Scout.
+sight radius or MP. Cite: Colonization.pdf Lost City Rumours / Seasoned Scout;
+Pass5 LCR scaffold; manual fog / Col1 seen bit.
 
 ### 2c5. Linux thin — Treasure train coast (act)
 
@@ -237,7 +240,9 @@ Cite: Colonization.pdf naval transport / Defending a Colony; complements board
 + war-transport sail-to-threatened-port.
 **Done:** transport at Europe dump-sells all commodity holds with Europe bid via
 `europe_sell_unit_hold` / `europe_sell_proceeds` (tax); nat↔europe gold sync.
-Cite: Colonization.pdf Europe buy/sell + tax.
+Skips holds whose cargo type bit is set in `nation.boycott_bitmap` (wiki Boycott /
+king refuse — goods blocked in Europe; no invented prices). Cite: Colonization.pdf
+Europe buy/sell + tax; fandom Boycott (Col).
 **Pioneer plow/road (unparked):** idle Hardy/Expert Pioneer with tools picks a
 nearby own-colony surround → `AI_MOVE` then on-tile `units_pioneer_plow`
 (clear forest then plow in one API) / `units_pioneer_road`. Prefer plow over
@@ -295,8 +300,16 @@ Lumberjack→Lumber; Colonization.pdf Skills Chart. Structural LABOR join only.
 peace Pioneer/Hardy within MD≤8 is LABOR-bound toward a tools-short colony
 (feeds on-tile §2d tools delivery). Cite: euro_unit_act §2d; 5cf6 tools tallies.
 
-**PARK:** Drydock build prefer (fandom Naval Docks→Drydock→Shipyard;
-`building_production` Drydock 80h) — no AI construction-list pick API yet.
+**PARK:** Custom House auto-sell gold/thresholds (fandom Stuyvesant /
+wiki 100/50 strategy) — construction prefer only (see below). Drydock /
+Shipyard prefer already wired via `colonies_list_buildable` +
+`colonies_set_construction`.
+
+**Stuyvesant Custom House construction prefer:** when nation owns Peter
+Stuyvesant (`founding_fathers_nation_has` / `has_peter_stuyvesant`), idle
+colony without Custom House queues it after Drydock→Shipyard prefer.
+Cite: docs/fandom_col1994.md Stuyvesant; colony.c Custom House gate;
+founding_fathers elect comment. No auto-sell behavior.
 
 **Expert Lumberjack forest field-assign (unparked):** idle Expert Lumberjack →
 admit + `colonies_assign_field` on a free forest surround (pedia 8–23) with

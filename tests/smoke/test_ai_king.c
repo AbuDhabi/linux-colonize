@@ -23,8 +23,9 @@
  * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50
  * (bells≥100 alone insufficient), tax audience Accept→hike OK chain,
  * 2244 Decline follow-up OK, second MoW only @diff≥2. PARK:
- * 160a letter cinematic; dump-goods modal CHOICE (pick API + Europe bid weight
- * Done; all bitmap cargo names in refuse/holds status/body Done). */
+ * 160a letter cinematic; dump-goods modal CHOICE (pick API + Europe bid>0
+ * eligibility + weight Done; all bitmap cargo names in refuse/holds status/body
+ * Done). */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -444,12 +445,41 @@ int main(void) {
         return fail("weighted dump-goods pick should favor high-bid Tobacco");
       }
     }
+    /*
+     * Eligibility: when cargo_bid non-NULL, bid<=0 cargos are ineligible
+     * (FUN_38fd_3dc8 / Europe local_7a — refuse must not dump zero-price).
+     */
+    {
+      ColonizeDosRng z_rng;
+      dos_rng_seed(&z_rng, 1234u);
+      int bids[COLONIZE_CARGO_COUNT];
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        bids[c] = 0;
+      }
+      bids[COLONIZE_CARGO_FURS] = 10;
+      bids[COLONIZE_CARGO_COTTON] = 0;
+      for (int t = 0; t < 20; ++t) {
+        const int p =
+          ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, bids);
+        if (p != COLONIZE_CARGO_FURS) {
+          fprintf(stderr, "smoke_ai_king: bid>0 eligibility pick=%d (want Furs)\n",
+                  p);
+          return fail("dump-goods with bids must only pick bid>0 cargos");
+        }
+      }
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        bids[c] = 0;
+      }
+      if (ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, bids) != -1) {
+        return fail("dump-goods with all bids==0 must return -1");
+      }
+    }
   }
 
   /*
    * Refuse path dump-goods second cargo (FUN_38fd_3dc8 wired): with ctx.rng,
    * boycott_bitmap gains Sugar + one other eligible cargo. Cite: wiki Boycott.
-   * ctx.europe present → Europe bid weights (zero bids → max(bid,1)=1 uniform).
+   * ctx.europe present → candidate mask = live bid>0, then weight by bid.
    */
   {
     ColonizeDosRng refuse_rng;
@@ -511,6 +541,83 @@ int main(void) {
                 cargo_names[second_c], status);
         return fail("rng refuse status must name Sugar and second boycott cargo");
       }
+    }
+  }
+
+  /*
+   * Marathon5 R1: refuse dump-goods eligible = live Europe bid > 0.
+   * Only Tobacco priced → second boycott must be Tobacco (not Cotton/etc.).
+   * Cite: FUN_38fd_3dc8 / local_7a; king_ref dump-goods.
+   */
+  {
+    ColonizeDosRng bid_rng;
+    dos_rng_seed(&bid_rng, 55u);
+    year = 1624;
+    autumn = 0;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    europe.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      europe.cargo[c].bid = 0;
+    }
+    europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 12;
+    /* Sugar bid ignored — already boycotted before pick. */
+    europe.cargo[COLONIZE_CARGO_SUGAR].bid = 99;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.head.unknown46[2] = 0;
+    col1.nation[0].liberty_bells_total = 0;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    col1.colony[0].rebel_dividend = 60;
+    col1.colony[0].rebel_divisor = 100;
+    ctx.rng = &bid_rng;
+    ctx.europe = &europe;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
+      return fail("bid>0 refuse must still set Sugar bit");
+    }
+    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOBACCO)) == 0) {
+      return fail("bid>0 refuse second cargo must be sole priced Tobacco");
+    }
+    const uint16_t rest_bid =
+      (uint16_t)(col1.nation[0].boycott_bitmap &
+                 ~(uint16_t)((1u << COLONIZE_CARGO_SUGAR) |
+                             (1u << COLONIZE_CARGO_TOBACCO)));
+    if (rest_bid != 0) {
+      fprintf(stderr, "smoke_ai_king: bid>0 refuse extra bits=0x%x\n",
+              (unsigned)rest_bid);
+      return fail("bid>0 refuse must not boycott zero-bid cargos");
+    }
+  }
+
+  /*
+   * europe NULL → prior uniform dump among all non-boycotted (no bid gate).
+   */
+  {
+    ColonizeDosRng no_eu_rng;
+    dos_rng_seed(&no_eu_rng, 66u);
+    year = 1646;
+    autumn = 0;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.head.unknown46[2] = 0;
+    col1.nation[0].liberty_bells_total = 0;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    ctx.rng = &no_eu_rng;
+    ctx.europe = NULL;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    ctx.europe = &europe;
+    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
+      return fail("europe-NULL refuse must still set Sugar bit");
+    }
+    const uint16_t rest_null =
+      (uint16_t)(col1.nation[0].boycott_bitmap & ~(uint16_t)(1u << COLONIZE_CARGO_SUGAR));
+    if (rest_null == 0) {
+      return fail("europe-NULL refuse should still OR a second dump-goods cargo");
     }
   }
 

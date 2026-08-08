@@ -183,9 +183,17 @@ missionary convert-pulse path.  **Sepulveda** convert-join remains **PARKED** (n
  **Cortes** conquest treasure: **Done** structural — `units_try_native_settlement_fallout`
  wired from `units_resolve_land_combat_ff` when `units_set_native_fallout_context`
  is set; `units_spawn_treasure_train` only when caller supplies `gold_amount > 0`.
- FUN_5fef_31ea amount table **PARKED** (no invented population×N gold). Thin Brave
+ FUN_5fef_31ea amount table **PARKED** (no invented population×N gold). On destroy,
+ `nation.villages_burned++` (col1_save / reports villages_penalty). Thin Brave
  escort via `units_follow_unit` (raid-gate goto preference) and @RAIDBURN
  `colonies_destroy_building` + building-name status: **Done** thin.
+
+**Washington AI combat col1:** **Done** — `units_resolve_land_combat` uses
+`g_units_ff_col1` (was always NULL).
+
+**Drake AI naval combat col1:** **Done** — `units_resolve_naval_combat` uses
+`g_units_ff_col1` (was always NULL). Privateer *3/2 when nation owns Drake
+(PEDIA/wiki +50%).
 
 **de Soto LCR:** **Done** thin — `units_resolve_lcr_rumour` clears rumour via
 `map_clear_rumour`; with FF 7 reveals radius (no invented treasure/FoY). Full

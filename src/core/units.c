@@ -686,6 +686,14 @@ bool units_try_native_settlement_fallout(
   }
 
   if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
+    /*
+     * col1_save.h ColonizeCol1Nation.villages_burned; reports.c scores
+     * villages_penalty = -(difficulty+1)*villages_burned. Increment on
+     * successful tribe destroy only (no invented treasure amounts here).
+     */
+    if (col1->nation[attacker_nation_id].villages_burned < 255u) {
+      col1->nation[attacker_nation_id].villages_burned++;
+    }
     ai_diplo_indian_relation_delta(col1, tribe_nation, attacker_nation_id, -5);
     ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
   }
@@ -744,6 +752,22 @@ bool units_resolve_lcr_rumour(
    */
   (void)rng;
   return true;
+}
+
+bool units_resolve_land_combat(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng
+) {
+  /*
+   * Use g_units_ff_col1 so AI/king/contact callers (ai_euro_try_attack,
+   * units_resolve_land_combat) get Washington promote when
+   * turn_refresh_moves_for_nation → units_set_ff_col1 has run.
+   * Cite: PEDIA/wiki George Washington; docs/fandom_col1994.md; FF elect
+   * comment in founding_fathers.c (FF_GEORGE_WASHINGTON).
+   */
+  return units_resolve_land_combat_ff(pool, attacker_id, defender_id, rng, g_units_ff_col1);
 }
 
 bool units_resolve_land_combat_ff(
@@ -860,6 +884,21 @@ int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id
     }
   }
   return moved;
+}
+
+bool units_resolve_naval_combat(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng
+) {
+  /*
+   * Use g_units_ff_col1 so AI/king callers (ai_euro / ai_king naval attack)
+   * get Drake privateer *3/2 when turn_refresh_moves_for_nation →
+   * units_set_ff_col1 has run. Cite: PEDIA/wiki Francis Drake (+50%);
+   * founding_fathers.c FF_FRANCIS_DRAKE (*3/2).
+   */
+  return units_resolve_naval_combat_ff(pool, attacker_id, defender_id, rng, g_units_ff_col1);
 }
 
 bool units_resolve_naval_combat_ff(

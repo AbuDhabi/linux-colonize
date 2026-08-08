@@ -79,10 +79,11 @@ boycott follow-up OK (`KING_TAX`) when queue attached. Restless SoL chrome
 `boycott_bitmap==0` clears `unknown46[2]`. Dump-goods / `38fd_3dc8` RNG
 second cargo: **Done** (OR bit via `ai_king_pick_dump_goods_cargo` when
 `ctx->rng`; status/OK list **all** `boycott_bitmap` cargo names — refuse
-Sugar + second, holds after partial clear). Europe bid price-weight
-(`local_7a` stand-in via `ctx->europe` cargo bids): **Done** — roulette by
-`max(bid,1)` among eligible; NULL bids → uniform. Dump-goods modal CHOICE
-remains **PARKED** (wiki Boycott; do not invent a fixed second refuse cargo).
+Sugar + second, holds after partial clear). Europe bid eligibility +
+price-weight (`local_7a` stand-in via `ctx->europe` cargo bids): **Done** —
+when europe set, candidates require `bid > 0`, then roulette by bid; europe
+NULL → uniform among all non-boycotted. Dump-goods modal CHOICE remains
+**PARKED** (wiki Boycott; do not invent a fixed second refuse cargo).
 
 ### Thin `1528` REF arrival announce
 
@@ -294,10 +295,10 @@ dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 
 - **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `2564` congress CHOICE Confirm/Not yet; `2244` merc CHOICE Hire/Decline + cannot-afford OK + Hire success follow-up OK + Decline follow-up OK; `1528` REF arrival OK; `10f0` intervene landing ARRIVAL once; capture OK; tax hike OK on Accept apply
 - **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); **Cont. capital-rally** (nearest human colony + founding-capital MD slack; hold on colony tile; **Cont. Army/Cav fortify on founding capital cap 2**); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
-- **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods price-weight / `38fd_3dc8` **modal** (Sugar + RNG second named in status/OK body Done — do **not** invent a fixed second refuse cargo); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
+- **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods `38fd_3dc8` **modal CHOICE** (Sugar + RNG second named in status/OK; Europe `bid>0` eligibility + weight Done — do **not** invent a fixed second refuse cargo); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)
 - Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias + SoL50 mid-band + Cont. abbrev skip Done above; deep type-id table still PARKED)
 - MoW hold fill + multi-unload — **Done** (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
 - REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison cap-2/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
-- Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status/OK) — **Done**; price-weight table + dump modal — **PARKED**; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
+- Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status/OK) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE — **PARKED**; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
 - `160a` letter cinematic — **PARKED** (thin rename + OK chain Done)

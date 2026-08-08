@@ -215,9 +215,10 @@ bool units_try_move(
 /*
  * T0 land combat: attack vs defense (+ fortified ×2). Probability =
  * attack/(attack+defense). Winner stays; loser despawned. Naval / mixed: no fight.
- * When col1 is non-NULL and winner nation owns Washington (PEDIA: non-veteran
- * soldiers/dragoons who win always upgrade), promote winner name/type like 1eca.
- * col1 may be NULL (no FF promote). Returns true if attacker wins.
+ * When col1 is non-NULL and winner nation owns Washington (PEDIA/wiki George
+ * Washington; docs/fandom_col1994.md: non-veteran soldiers/dragoons who win
+ * always upgrade), promote winner name/type like 1eca. col1 may be NULL (no FF
+ * promote). Returns true if attacker wins.
  */
 bool units_resolve_land_combat_ff(
   ColonizeUnitPool* pool,
@@ -227,14 +228,17 @@ bool units_resolve_land_combat_ff(
   const ColonizeCol1Save* col1
 );
 
-static inline bool units_resolve_land_combat(
+/*
+ * AI/contact wrapper: same as units_resolve_land_combat_ff with col1 from
+ * units_set_ff_col1 (g_units_ff_col1). Callers that always passed NULL missed
+ * Washington promote; turn_refresh_moves_for_nation sets the global.
+ */
+bool units_resolve_land_combat(
   ColonizeUnitPool* pool,
   int attacker_id,
   int defender_id,
   ColonizeDosRng* rng
-) {
-  return units_resolve_land_combat_ff(pool, attacker_id, defender_id, rng, NULL);
-}
+);
 
 /*
  * Transfer commodity holds from loser ship into winner before naval despawn
@@ -247,7 +251,7 @@ int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id
  * T0 naval combat: same attack/defense roll as land; ships only.
  * Winner keeps the tile; loser despawned after hold plunder into winner.
  * When col1 is non-NULL and a side is Privateer whose nation owns Drake
- * (PEDIA: privateer combat strength +50%), that side's attack or defense
+ * (PEDIA/wiki: privateer combat strength +50%), that side's attack or defense
  * is multiplied by 3/2. col1 may be NULL (no Drake bonus).
  */
 bool units_resolve_naval_combat_ff(
@@ -258,14 +262,18 @@ bool units_resolve_naval_combat_ff(
   const ColonizeCol1Save* col1
 );
 
-static inline bool units_resolve_naval_combat(
+/*
+ * AI/king wrapper: same as units_resolve_naval_combat_ff with col1 from
+ * units_set_ff_col1 (g_units_ff_col1). Callers that always passed NULL missed
+ * Drake privateer *3/2; turn_refresh_moves_for_nation sets the global.
+ * Cite: PEDIA/wiki Francis Drake; founding_fathers.c FF_FRANCIS_DRAKE.
+ */
+bool units_resolve_naval_combat(
   ColonizeUnitPool* pool,
   int attacker_id,
   int defender_id,
   ColonizeDosRng* rng
-) {
-  return units_resolve_naval_combat_ff(pool, attacker_id, defender_id, rng, NULL);
-}
+);
 
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
 int units_last_combat_outcome(void);
