@@ -79,7 +79,8 @@
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
  * PARK: 160a letter cinematic; full embark UI chrome; dump-goods boycott modal
- * (pick API: ai_king_pick_dump_goods_cargo; Europe bid weight Done).
+ * (pick API: ai_king_pick_dump_goods_cargo; Europe bid>0 eligibility + weight
+ * Done; modal CHOICE / VGA PARKED).
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
@@ -113,8 +114,10 @@ int ai_king_pick_dump_goods_cargo(
 ) {
   /*
    * Eligible = candidate_mask & ~boycott_bitmap (FUN_38fd_3dc8 skips bits
-   * already set in nation boycott_bitmap / local_a6). Uniform when
-   * cargo_bid NULL; else roulette by max(bid, 1) (Europe local_7a stand-in).
+   * already set in nation boycott_bitmap / local_a6). When cargo_bid non-NULL,
+   * also require bid[c] > 0 (live Europe local_7a — do not dump zero-price
+   * goods), then roulette by bid. When cargo_bid NULL → uniform among mask.
+   * Cite: FUN_38fd_3dc8 / king_ref dump-goods.
    */
   if (!rng) {
     return -1;
@@ -126,9 +129,13 @@ int ai_king_pick_dump_goods_cargo(
   int idxs[COLONIZE_CARGO_COUNT];
   int n = 0;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    if ((eligible & (uint16_t)(1u << c)) != 0) {
-      idxs[n++] = c;
+    if ((eligible & (uint16_t)(1u << c)) == 0) {
+      continue;
     }
+    if (cargo_bid && cargo_bid[c] <= 0) {
+      continue;
+    }
+    idxs[n++] = c;
   }
   if (n <= 0) {
     return -1;
@@ -144,7 +151,7 @@ int ai_king_pick_dump_goods_cargo(
   int weights[COLONIZE_CARGO_COUNT];
   for (int i = 0; i < n; ++i) {
     const int c = idxs[i];
-    const int w = cargo_bid[c] > 0 ? cargo_bid[c] : 1;
+    const int w = cargo_bid[c];
     weights[i] = w;
     total += w;
   }
@@ -1561,23 +1568,32 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
   /*
    * Dump-goods second cargo (FUN_38fd_3dc8): pick among cargos not already
-   * boycotted. Sugar already set above. When ctx->europe present, weight by
-   * live bid (local_7a stand-in); else uniform. Dump modal CHOICE PARKED.
-   * Cite: wiki Boycott “named goods” / king_ref.
+   * boycotted. Sugar already set above. When ctx->europe present, candidate
+   * mask = cargos with live bid > 0 (local_7a stand-in; refuse must not dump
+   * zero-price goods), then weight-pick by bid. When europe NULL → all
+   * non-boycotted, uniform. Dump modal CHOICE PARKED.
+   * Cite: FUN_38fd_3dc8 / wiki Boycott “named goods” / king_ref dump-goods.
    */
   if (ctx->rng) {
     const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
+    uint16_t candidate_mask = all_cargos;
     const int* bids = NULL;
     int bid_buf[COLONIZE_CARGO_COUNT];
     if (ctx->europe) {
       const EuropeScreen* eu = ctx->europe;
+      candidate_mask = 0;
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        bid_buf[c] = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
+        const int bid = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
+        bid_buf[c] = bid;
+        if (bid > 0) {
+          candidate_mask = (uint16_t)(candidate_mask | (uint16_t)(1u << c));
+        }
       }
       bids = bid_buf;
     }
     const int picked =
-      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, all_cargos, ctx->rng, bids);
+      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng,
+                                    bids);
     if (picked >= 0 && picked < COLONIZE_CARGO_COUNT) {
       nat->boycott_bitmap =
         (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << picked));
@@ -1598,7 +1614,7 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
     }
   }
   /* FUN_43f7_38fd_5be8 refuse follow-up OK (lists all boycott_bitmap cargos).
-   * Europe bid weight Done; dump modal CHOICE PARKED. */
+   * Europe bid>0 eligibility + weight Done; dump modal CHOICE PARKED. */
   if (ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
     char cargos[96];

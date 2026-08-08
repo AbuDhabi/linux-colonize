@@ -32,9 +32,10 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id);
  *
  * Among @CARGO indices 0..15 whose bit is set in candidate_mask and clear in
  * boycott_bitmap, pick one via dos_rng. When @cargo_bid is NULL, pick
- * uniformly among eligible; when non-NULL, roulette by max(bid[c], 1) per
- * eligible cargo (Europe bid stand-in for local_7a). Returns cargo index, or
- * -1 if none / null rng.
+ * uniformly among that set (europe unavailable / prior behavior). When
+ * non-NULL, eligible further requires cargo_bid[c] > 0 (live Europe bid;
+ * zero-price goods are not dumped), then roulette by bid[c] (Europe local_7a
+ * stand-in). Returns cargo index, or -1 if none / null rng.
  *
  * Cite: viceroy_unpacked.c FUN_38fd_3dc8 — builds eligible list from cargos
  * not already in nation boycott_bitmap (local_a6), then RNG-picks weighted by

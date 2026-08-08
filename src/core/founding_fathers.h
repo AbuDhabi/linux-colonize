@@ -126,7 +126,8 @@ bool founding_fathers_de_witt_allows_foreign_colony_trade(
  * Spawn API: units_spawn_treasure_train. Fallout hook:
  * units_try_native_settlement_fallout (wired from units_resolve_land_combat_ff
  * when units_set_native_fallout_context is set). Spawn only when gold_amount>0;
- * FUN_5fef_31ea amount table still PARKED.
+ * FUN_5fef_31ea amount table still PARKED. Fallout also increments
+ * nation.villages_burned (col1_save.h; reports.c villages_penalty).
  */
 bool founding_fathers_cortes_guarantees_conquest_treasure(
   const ColonizeCol1Save* col1,

@@ -1510,6 +1510,12 @@ int main(void) {
     pool.types[brave_ti].defense = 1;
 
     units_set_native_fallout_context(&col1, &tmap, -1);
+    if (col1.nation[0].villages_burned != 0) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer: villages_burned should start 0\n");
+      return 1;
+    }
     if (!units_resolve_land_combat_ff(&pool, sid, bid, NULL, &col1)) {
       free(tmap.layer3);
       free(col1.tribe);
@@ -1520,6 +1526,17 @@ int main(void) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer: tribe should be removed (count=%u)\n", col1.head.tribe_count);
+      return 1;
+    }
+    /* col1_save.h nation.villages_burned; reports.c villages_penalty. */
+    if (col1.nation[0].villages_burned != 1) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(
+        stderr,
+        "conquer: villages_burned should be 1 got %u\n",
+        col1.nation[0].villages_burned
+      );
       return 1;
     }
     if ((tmap.layer3[10 * 20 + 10] >> 4) != 0x0f) {
@@ -1585,6 +1602,16 @@ int main(void) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "Cortes conquest expected treasure when gold supplied\n");
+      return 1;
+    }
+    if (col1.nation[0].villages_burned != 2) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(
+        stderr,
+        "conquer2: villages_burned should be 2 got %u\n",
+        col1.nation[0].villages_burned
+      );
       return 1;
     }
     units_despawn(&pool, treasure_id);

@@ -1852,6 +1852,168 @@ static int smoke_transport_europe_sell_multi_cargo(void) {
 }
 
 /*
+ * Europe dump-sell skips boycotted cargo (nation.boycott_bitmap bit = type).
+ * SUGAR boycotted + TOBACCO free → sell tobacco only; leave sugar hold.
+ * Cite: fandom Boycott (Col); king refuse boycott_bitmap; no invented prices.
+ */
+static int smoke_transport_europe_sell_skip_boycott(void) {
+  const int nation = 1;
+  const int sugar_amt = 30;
+  const int tobacco_amt = 40;
+  const int bid_sugar = 3;
+  const int bid_tobacco = 5;
+  const int tax = 10;
+  const int expect_tobacco = (bid_tobacco * tobacco_amt * (100 - tax)) / 100;
+  const int expect_sugar = (bid_sugar * sugar_amt * (100 - tax)) / 100;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("eu-boycott-sell alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int sid = units_spawn(&units, 0, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-boycott-sell spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4;
+  ship->orders = 0;
+  ship->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
+  ship->hold_goods_amount[0] = sugar_amt;
+  ship->hold_goods_type[1] = COLONIZE_CARGO_TOBACCO;
+  ship->hold_goods_amount[1] = tobacco_amt;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 100;
+  europe.tax_percent = tax;
+  europe.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    europe.cargo[c].bid = 1;
+    europe.cargo[c].ask = 2;
+  }
+  europe.cargo[COLONIZE_CARGO_SUGAR].bid = bid_sugar;
+  europe.cargo[COLONIZE_CARGO_TOBACCO].bid = bid_tobacco;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[nation].tax_rate = (uint8_t)tax;
+  col1.nation[nation].boycott_bitmap =
+    (uint16_t)(1u << COLONIZE_CARGO_SUGAR); /* king refuse Sugar */
+  const uint32_t gold_before = col1.nation[nation].gold;
+
+  ai_goals_reset();
+
+  uint32_t turn = 52;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  ship = units_get(&units, sid);
+  if (!ship || !ship->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-boycott-sell ship should remain");
+  }
+  if (ship->hold_goods_amount[0] != sugar_amt ||
+      ship->hold_goods_type[0] != COLONIZE_CARGO_SUGAR) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: boycott sugar hold type=%d amt=%d\n",
+      ship->hold_goods_type[0],
+      ship->hold_goods_amount[0]
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-boycott-sell must leave boycotted SUGAR hold");
+  }
+  if (ship->hold_goods_amount[1] != 0) {
+    fprintf(stderr, "smoke_ai_euro_expand: tobacco amt=%d after sell\n",
+            ship->hold_goods_amount[1]);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-boycott-sell should clear non-boycotted TOBACCO");
+  }
+  const uint32_t gold_after = col1.nation[nation].gold;
+  /* Planner adds a small treasury bump; require tobacco proceeds credited and
+   * sugar proceeds not (boycott skip). Cite: ai_euro_nation_planning bump. */
+  if (gold_after < gold_before + (uint32_t)expect_tobacco) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: boycott gold %u→%u want ≥+%d (tobacco)\n",
+      (unsigned)gold_before,
+      (unsigned)gold_after,
+      expect_tobacco
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-boycott-sell should credit tobacco proceeds");
+  }
+  if (gold_after >= gold_before + (uint32_t)(expect_tobacco + expect_sugar)) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: boycott gold %u→%u suggests sugar also sold (+%d)\n",
+      (unsigned)gold_before,
+      (unsigned)gold_after,
+      expect_tobacco + expect_sugar
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-boycott-sell must not credit boycotted SUGAR");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Europe sell skip boycott ok\n");
+  return 0;
+}
+
+/*
  * Case-7 dock Expert Farmer: peace + food_short high + Europe dock has
  * Expert Farmers → board that type (consume dock). Cite: europe.c pool;
  * euro_unit_act §2e Expert Farmer food LABOR.
@@ -3565,6 +3727,157 @@ static int smoke_seasoned_scout_deeper_fog(void) {
   free(map.layer3);
   free(map.seen);
   fprintf(stderr, "smoke_ai_euro_expand: Seasoned Scout deeper fog ok\n");
+  return 0;
+}
+
+/*
+ * Scout fog explore prefers map_tile_has_rumour over nearer plain unseen
+ * within MD≤8. Fixture: (5,8) MD=3 plain + (3,10) MD=7 rumour (seed-100
+ * procedural). Cite: Colonization.pdf Lost City Rumours / Seasoned Scout;
+ * Pass5 LCR scaffold — resolve still on stand only.
+ */
+static int smoke_scout_fog_prefer_rumour(void) {
+  const int nation = 1;
+  const int scout_x = 5;
+  const int scout_y = 5;
+  const int plain_x = 5;
+  const int plain_y = 8; /* MD=3, no rumour */
+  const int rum_x = 3;
+  const int rum_y = 10; /* MD=7, procedural rumour */
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  map.seen = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+    return fail("rumour-fog alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  if (!map_tile_has_rumour(&map, rum_x, rum_y)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("rumour-fog fixture (3,10) should have rumour");
+  }
+  if (map_tile_has_rumour(&map, plain_x, plain_y)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("rumour-fog fixture (5,8) must be plain unseen");
+  }
+  /* Reveal all MD≤8 except plain MD=3 and rumour MD=7. */
+  for (int dy = -8; dy <= 8; ++dy) {
+    for (int dx = -8; dx <= 8; ++dx) {
+      const int md = abs(dx) + abs(dy);
+      if (md < 1 || md > 8) {
+        continue;
+      }
+      const int nx = scout_x + dx;
+      const int ny = scout_y + dy;
+      if ((nx == plain_x && ny == plain_y) || (nx == rum_x && ny == rum_y)) {
+        continue;
+      }
+      map_reveal_tile(&map, nx, ny, nation);
+    }
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int sid = units_spawn(&units, 0, scout_x, scout_y);
+  ColonizeUnit* scout = units_get(&units, sid);
+  if (!scout) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("rumour-fog spawn");
+  }
+  scout->nation_id = nation;
+  scout->moves_left = 4;
+  scout->orders = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+
+  ai_goals_reset();
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  scout = units_get(&units, sid);
+  const int ok =
+    scout && scout->active && scout->orders == UNITS_ORDER_AI_MOVE &&
+    scout->goto_x == rum_x && scout->goto_y == rum_y;
+  if (!ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: rumour-fog orders=%d goto=(%d,%d) want rumour=(%d,%d)\n",
+      scout ? scout->orders : -1,
+      scout ? scout->goto_x : -1,
+      scout ? scout->goto_y : -1,
+      rum_x,
+      rum_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("expected Scout AI_MOVE to rumour over nearer plain unseen");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(map.seen);
+  fprintf(stderr, "smoke_ai_euro_expand: Scout fog prefer rumour ok\n");
   return 0;
 }
 
@@ -7346,6 +7659,114 @@ static int smoke_coastal_shipyard_prefer(void) {
 }
 
 /*
+ * Stuyvesant Custom House prefer: nation owns FF_PETER_STUYVESANT, idle colony
+ * without Custom House → colonies_set_construction Custom House (list_buildable
+ * gated via has_peter_stuyvesant). Cite: fandom Peter Stuyvesant unlock Custom
+ * House; colony.c Custom House gate; founding_fathers elect comment. No
+ * auto-sell gold/thresholds invented.
+ */
+static int smoke_stuyvesant_custom_house_prefer(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("custom house prefer alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Custom House");
+  colonies.building_types[0].hammers = 160;
+  colonies.building_types[0].tools_cost = 50;
+  colonies.building_types[0].min_population = 0;
+  colonies.building_type_count = 1;
+
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 4;
+  c->colonist_count = 4;
+  for (int i = 0; i < 4; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].field_job = -1;
+    c->colonists[i].building_type = -1;
+  }
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  c->stock[COLONIZE_CARGO_TOOLS] = 60;
+  c->has_building[0] = false; /* no Custom House */
+  c->building_in_production = -1; /* idle queue */
+  c->hammers = 0;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  ai_goals_reset();
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+  /* NAMES.TXT @FATHERS: Peter Stuyvesant=3 — same gate as game_nation_has_ff. */
+  col1.nation[nation].founding_fathers[FF_PETER_STUYVESANT / 8] |=
+    (uint8_t)(1u << (FF_PETER_STUYVESANT % 8));
+  if (!founding_fathers_nation_has(&col1, nation, FF_PETER_STUYVESANT)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("custom house prefer: Stuyvesant elect bit helper");
+  }
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 22;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  if (c->building_in_production != 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: custom house prefer bip=%d (want Custom House=0)\n",
+      c->building_in_production
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected idle Stuyvesant colony to queue Custom House");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Stuyvesant Custom House prefer ok\n");
+  return 0;
+}
+
+/*
  * Idle Wagon with MUSKETS cargo → AI_MOVE toward muskets-short colony
  * (tools stock OK). Cite: euro_unit_act §2d wagon haul muskets; COLONIZE_CARGO_MUSKETS.
  */
@@ -8549,6 +8970,9 @@ int main(void) {
   if (smoke_seasoned_scout_deeper_fog() != 0) {
     return 1;
   }
+  if (smoke_scout_fog_prefer_rumour() != 0) {
+    return 1;
+  }
   if (smoke_seasoned_sticky_fog_deepen() != 0) {
     return 1;
   }
@@ -8675,6 +9099,9 @@ int main(void) {
   if (smoke_coastal_shipyard_prefer() != 0) {
     return 1;
   }
+  if (smoke_stuyvesant_custom_house_prefer() != 0) {
+    return 1;
+  }
   if (smoke_indian_land_found() != 0) {
     return 1;
   }
@@ -8709,6 +9136,9 @@ int main(void) {
     return 1;
   }
   if (smoke_transport_europe_sell_multi_cargo() != 0) {
+    return 1;
+  }
+  if (smoke_transport_europe_sell_skip_boycott() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_expand: ok\n");

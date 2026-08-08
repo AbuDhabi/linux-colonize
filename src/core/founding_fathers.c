@@ -621,7 +621,9 @@ static void apply_effect(
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.
-       * Ownership bit; promote-on-win in units_resolve_land_combat_ff. */
+       * Ownership bit; promote-on-win in units_resolve_land_combat_ff.
+       * AI/contact path: units_resolve_land_combat passes g_units_ff_col1
+       * (units_set_ff_col1 from turn_refresh_moves_for_nation). */
       break;
     case FF_PAUL_REVERE:
       /* PEDIA/wiki: colony with no soldiers auto-arms from musket stock when
@@ -631,7 +633,9 @@ static void apply_effect(
       break;
     case FF_FRANCIS_DRAKE:
       /* PEDIA/wiki: Privateer combat strength +50%.
-       * Ownership bit; multiplier in units_resolve_naval_combat_ff (*3/2). */
+       * Ownership bit; multiplier in units_resolve_naval_combat_ff (*3/2).
+       * AI/king path: units_resolve_naval_combat passes g_units_ff_col1
+       * (units_set_ff_col1 from turn_refresh_moves_for_nation). */
       break;
     case FF_JOHN_PAUL_JONES:
       /* Manual/wiki: free Frigate. No gold fallback. */

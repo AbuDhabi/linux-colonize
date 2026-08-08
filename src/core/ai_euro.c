@@ -6,6 +6,7 @@
 #include "core/colony_yield.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/units.h"
 
@@ -35,12 +36,13 @@ static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_i
 }
 
 /*
- * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, or Shipyard
- * in the build queue — carpenter hammers need on-site labor. Cite:
+ * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, Shipyard, or
+ * Custom House in the build queue — carpenter hammers need on-site labor. Cite:
  * docs/building_production.md chart (Stockade 64h / Warehouse 80h / Lumber Mill
- * 52h / Drydock 80h ship repair / Shipyard 240h ship construction); fandom
- * Naval Docks→Drydock→Shipyard; fandom construction. Structural stay/LABOR
- * only — no invented hammer/gold rates.
+ * 52h / Drydock 80h ship repair / Shipyard 240h ship construction / Custom House
+ * 160h Stuyvesant); fandom Naval Docks→Drydock→Shipyard; fandom Peter Stuyvesant
+ * Custom House unlock. Structural stay/LABOR only — no invented hammer/gold /
+ * auto-sell rates.
  */
 static int ai_euro_colony_wants_construction_labor(
   const ColonizeColonyPool* pool,
@@ -56,7 +58,7 @@ static int ai_euro_colony_wants_construction_labor(
   }
   return strcmp(bt->name, "Stockade") == 0 || strcmp(bt->name, "Warehouse") == 0 ||
          strcmp(bt->name, "Lumber Mill") == 0 || strcmp(bt->name, "Drydock") == 0 ||
-         strcmp(bt->name, "Shipyard") == 0;
+         strcmp(bt->name, "Shipyard") == 0 || strcmp(bt->name, "Custom House") == 0;
 }
 
 /* True when any own colony wants on-site carpenter construction LABOR. */
@@ -229,6 +231,63 @@ static void ai_euro_prefer_coastal_shipyard(ColonizeTurnContext* ctx, int nation
       continue;
     }
     (void)colonies_set_construction(ctx->colonies, c->id, shipyard_id);
+  }
+}
+
+/*
+ * Stuyvesant Custom House prefer (5d04 / colony planning): when nation owns
+ * Peter Stuyvesant (FF 3), own colony without Custom House, idle/empty
+ * building_in_production → colonies_set_construction Custom House when
+ * colonies_list_buildable includes it (opts.has_peter_stuyvesant gate).
+ * Cite: docs/fandom_col1994.md Peter Stuyvesant unlock Custom House;
+ * colony.c Custom House gate (stuy && !owned); founding_fathers elect
+ * FF_PETER_STUYVESANT comment (has_peter_stuyvesant). Carpenter LABOR binds
+ * via ai_euro_colony_wants_construction_labor. Construction unlock/prefer
+ * only — no invented Custom House auto-sell gold/thresholds.
+ * Runs after coastal Drydock→Shipyard so naval chain wins when still missing.
+ */
+static void ai_euro_prefer_custom_house(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  if (!ctx->col1 ||
+      !founding_fathers_nation_has(ctx->col1, nation_id, FF_PETER_STUYVESANT)) {
+    return;
+  }
+  const int custom_id = colonies_find_building(ctx->colonies, "Custom House");
+  if (custom_id < 0) {
+    return;
+  }
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.map = ctx->map;
+  /* Mirror game_loop game_colony_buildable_opts / game_nation_has_ff (FF 3). */
+  opts.has_peter_stuyvesant = true;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->building_in_production >= 0) {
+      continue; /* idle/empty queue only — do not yank active project */
+    }
+    if (c->has_building[custom_id]) {
+      continue;
+    }
+    int buildable[COLONIZE_BUILDING_TYPES_MAX];
+    const int n =
+      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
+    int custom_ok = 0;
+    for (int b = 0; b < n; ++b) {
+      if (buildable[b] == custom_id) {
+        custom_ok = 1;
+        break;
+      }
+    }
+    if (!custom_ok) {
+      continue;
+    }
+    (void)colonies_set_construction(ctx->colonies, c->id, custom_id);
   }
 }
 
@@ -522,12 +581,16 @@ static int ai_euro_scout_contact_ring_target(
 /*
  * Fog explore (no CONTACT): peaceful Scout without a CONTACT ring goal →
  * unseen land tile within Manhattan distance 8 (map_tile_seen_by / Col1 FoW).
- * Plain Scout: nearest unseen (min md). Seasoned Scout (prefer_deeper):
- * farthest unseen within MD≤8 — AI explore preference for the skill that is
- * "Better at exploring rumors…" (Colonization.pdf OTHER / Seasoned Scout).
- * Scouts already see 2 squares (de Soto text: all units → "as well as scouts");
- * do NOT invent extra sight radius — only deepen fog-target pick. Cite: manual
- * fog / map.seen; Colonization.pdf Seasoned Scout; euro_unit_act explore.
+ * Prefer map_tile_has_rumour tiles over plain unseen when both exist (Scout
+ * seek Lost City Rumours; LCR resolve already on stand — no invented gold/FoY).
+ * Plain Scout: nearest within the preferred tier (min md). Seasoned Scout
+ * (prefer_deeper): farthest within that tier (max md ≤8) — AI explore
+ * preference for the skill that is "Better at exploring rumors…"
+ * (Colonization.pdf OTHER / Seasoned Scout). Scouts already see 2 squares
+ * (de Soto text: all units → "as well as scouts"); do NOT invent extra sight
+ * radius or MP — only deepen fog-target pick. Cite: Colonization.pdf Lost City
+ * Rumours / Seasoned Scout; Pass5 LCR scaffold; manual fog / map.seen;
+ * euro_unit_act explore.
  */
 static int ai_euro_scout_fog_explore_target(
   ColonizeTurnContext* ctx,
@@ -543,6 +606,7 @@ static int ai_euro_scout_fog_explore_target(
     return 0;
   }
   int best_md = -1;
+  int best_rumour = 0;
   int bx = 0;
   int by = 0;
   for (int dy = -8; dy <= 8; ++dy) {
@@ -565,15 +629,24 @@ static int ai_euro_scout_fog_explore_target(
       if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
         continue;
       }
-      if (prefer_deeper) {
-        /* Seasoned: deeper fog first (max md within ≤8). */
-        if (best_md < 0 || md > best_md) {
-          best_md = md;
-          bx = nx;
-          by = ny;
+      const int rum = map_tile_has_rumour(ctx->map, nx, ny) ? 1 : 0;
+      int better = 0;
+      if (best_md < 0) {
+        better = 1;
+      } else if (rum && !best_rumour) {
+        /* Rumour beats plain unseen within MD≤8. */
+        better = 1;
+      } else if (rum == best_rumour) {
+        if (prefer_deeper) {
+          /* Seasoned: deeper fog first within the same rumour/plain tier. */
+          better = (md > best_md);
+        } else {
+          better = (md < best_md);
         }
-      } else if (best_md < 0 || md < best_md) {
+      }
+      if (better) {
         best_md = md;
+        best_rumour = rum;
         bx = nx;
         by = ny;
       }
@@ -2590,10 +2663,13 @@ static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id
  *
  * Wagon/ship commodity dump-sell at Europe: when transport is at Europe (x|y≥200)
  * and ctx->europe is set, sell every non-empty goods hold via europe_sell_unit_hold
- * (harbor dump-sell path; tax via europe_sell_proceeds). Skip empty/invalid holds
- * and cargo with no Europe bid. Syncs nat↔europe gold like treasure cash-in.
- * Cite: europe_sell_unit_hold / europe_sell_proceeds; Colonization.pdf Europe
- * buy/sell + tax.
+ * (harbor dump-sell path; tax via europe_sell_proceeds). Skip empty/invalid holds,
+ * cargo with no Europe bid, and holds whose cargo type bit is set in
+ * nation.boycott_bitmap (king refuse / wiki Boycott — goods blocked in Europe
+ * until penalty paid or Fugger; do not invent prices). Syncs nat↔europe gold
+ * like treasure cash-in. Cite: europe_sell_unit_hold / europe_sell_proceeds;
+ * Colonization.pdf Europe buy/sell + tax; fandom Boycott (Col); col1
+ * boycott_bitmap / ai_king refuse.
  */
 static int ai_euro_try_transport_europe_sell(
   ColonizeTurnContext* ctx,
@@ -2629,6 +2705,10 @@ static int ai_euro_try_transport_europe_sell(
     if (ctype < 0 || ctype >= COLONIZE_CARGO_COUNT ||
         ctype >= eu->cargo_count || eu->cargo[ctype].bid <= 0) {
       continue; /* empty/invalid or not sellable at Europe */
+    }
+    /* Wiki Boycott / king refuse: bit N = cargo type N blocked in Europe. */
+    if (ctype < 16 && (nat->boycott_bitmap & (uint16_t)(1u << ctype)) != 0) {
+      continue;
     }
     const int g = europe_sell_unit_hold(eu, ctx->units, transport->id, h);
     if (g > 0) {
@@ -6025,10 +6105,12 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
-  /* Peace Stockade→Warehouse→Docks, then coastal Drydock→Shipyard; before LABOR. */
+  /* Peace Stockade→Warehouse→Docks, coastal Drydock→Shipyard, then Stuyvesant
+   * Custom House; before LABOR. */
   ai_euro_prefer_peace_construction(ctx, nation_id);
   ai_euro_prefer_coastal_drydock(ctx, nation_id);
   ai_euro_prefer_coastal_shipyard(ctx, nation_id);
+  ai_euro_prefer_custom_house(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). */

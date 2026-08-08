@@ -899,12 +899,37 @@ int main(void) {
       aw->nation_id = 0;
       aw->profession = UNITS_JOB_NONE;
       dw->nation_id = 1;
+      units_set_ff_col1(NULL);
       if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, NULL)) {
         return fail("NULL-col1 land combat should win");
       }
       aw = units_get(&upool, aid);
       if (!aw || aw->type_index != 0) {
         return fail("NULL col1 must not Washington-promote");
+      }
+    }
+
+    /* Washington via AI wrapper: units_resolve_land_combat uses g_units_ff_col1. */
+    {
+      const int aid = units_spawn_allow_stack(&upool, 0, 9, 9);
+      const int did = units_spawn_allow_stack(&upool, 0, 9, 10);
+      if (aid < 0 || did < 0) {
+        return fail("Washington wrapper spawn");
+      }
+      ColonizeUnit* aw = units_get(&upool, aid);
+      ColonizeUnit* dw = units_get(&upool, did);
+      aw->nation_id = 0;
+      aw->profession = UNITS_JOB_NONE;
+      dw->nation_id = 1;
+      units_set_ff_col1(&ccol1);
+      if (!units_resolve_land_combat(&upool, aid, did, NULL)) {
+        units_set_ff_col1(NULL);
+        return fail("Washington wrapper combat attacker should win");
+      }
+      units_set_ff_col1(NULL);
+      aw = units_get(&upool, aid);
+      if (!aw || aw->type_index != 1) {
+        return fail("Washington wrapper should promote via g_units_ff_col1");
       }
     }
 
@@ -972,6 +997,30 @@ int main(void) {
         return fail("Drake attacker Privateer +50% should win vs equal foe");
       }
       (void)no_drake;
+    }
+
+    /* Drake via AI wrapper: units_resolve_naval_combat uses g_units_ff_col1.
+     * Same prove as spawn A: equal Privateers, defender nation owns Drake →
+     * def 8*3/2=12 > atk 8 → attacker loses (PEDIA/wiki +50%). */
+    {
+      const int atk = units_spawn_allow_stack(&upool, 4, 13, 1);
+      const int def = units_spawn_allow_stack(&upool, 4, 13, 2);
+      if (atk < 0 || def < 0) {
+        return fail("Drake wrapper spawn");
+      }
+      ColonizeUnit* a = units_get(&upool, atk);
+      ColonizeUnit* d = units_get(&upool, def);
+      a->nation_id = 1; /* no Drake */
+      d->nation_id = 0; /* has Drake → def 12 */
+      units_set_ff_col1(&ccol1);
+      if (units_resolve_naval_combat(&upool, atk, def, NULL)) {
+        units_set_ff_col1(NULL);
+        return fail("Drake wrapper defender Privateer +50% should beat equal attacker");
+      }
+      units_set_ff_col1(NULL);
+      if (!units_get(&upool, def) || units_get(&upool, atk)) {
+        return fail("Drake wrapper: defender survives, attacker despawned");
+      }
     }
 
     /* Revere: step onto empty foreign colony → auto-arm + combat. */
