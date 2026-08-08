@@ -17,16 +17,21 @@
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
  *   Set on declare when SoL≥50 (ai_king_set_independence); restless chrome must not.
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
- * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience status
- *   (real modal widgets PARKED). Cargo freeze: nation.boycott_bitmap.
- *   If boycott_bitmap cleared externally (Fugger FF / diplo lift) → clear
+ * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience
+ *   (status + ai_popup CHOICE Accept/Refuse when ctx->ai_popups; auto when NULL).
+ *   Refuse apply/auto → Sugar follow-up OK (KING_TAX). Boycott-holds already OK.
+ *   Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap clear → drop
  *   unknown46[2] refuse when bitmap==0 (king sync; do not touch FF).
- * Merc hired/refused this war: head.unknown46[3] + thin 2244 hire or
- *   "Cannot afford mercenaries." once (real modal PARKED; flag gates spam).
+ * Merc hired/refused this war: head.unknown46[3] + thin 2244 hire
+ *   (ai_popup CHOICE Hire/Decline when ctx->ai_popups; auto when NULL) or
+ *   "Cannot afford mercenaries." OK once (flag gates spam).
+ *   Hire apply/auto success → follow-up OK (same status body).
  * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
  *   unknown46[4] unused — writable Col1 country_name exists.
- * Congress confirm: head.unknown46[5] + thin 2564 congress status on declare
- *   (real modal widgets PARKED; same-turn 1528 wave may overwrite status).
+ *   On declare + ai_popups: thin rename OK + "War of Independence begins" OK.
+ * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE Confirm/Not yet
+ *   when ctx->ai_popups; auto-declare when NULL; same-turn 1528 may overwrite status).
+ * SoL restless chrome (40..49): status + INFO OK when human sees restless.
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -49,12 +54,13 @@
  * 38fd_3dc8 RNG) remain PARKED — only Sugar is named in-file for king refuse;
  * do not invent a second bit. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
-/* Thin 2244 Continental merc aid (hire-dialog status; real modal PARKED). */
+/* Thin 2244 Continental merc aid (hire dialog / ai_popup CHOICE). */
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_SOL_MIN 50
 /*
- * FUN_43f7_2564 / fandom Independence: auto-declare only when total SoL already
+ * FUN_43f7_2564 / fandom Independence: declare gate when total SoL already
  * past this existing threshold (no invented %). Bells gate stays separate.
+ * Human + ai_popups → CHOICE; else auto-declare.
  */
 #define AI_KING_DECLARE_SOL_MIN 50
 #define AI_KING_DECLARE_BELLS_MIN 100
@@ -78,8 +84,21 @@
  */
 #define AI_KING_CAPITAL_MD_SLACK 2
 
+/* ai_popup choice_ids (FUN_43f7_38fd_5be8 / 2244 / 2564). */
+#define AI_KING_CHOICE_ACCEPT 1
+#define AI_KING_CHOICE_REFUSE 2
+#define AI_KING_CHOICE_HIRE 1
+#define AI_KING_CHOICE_DECLINE 2
+#define AI_KING_CHOICE_CONFIRM 1
+#define AI_KING_CHOICE_NOT_YET 2
+
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
+}
+
+/* Human-facing map popup queue attached (game_loop); AI/auto path when NULL. */
+static int ai_king_human_popups(const ColonizeTurnContext* ctx) {
+  return (ctx && ctx->ai_popups) ? 1 : 0;
 }
 
 /* Active colony count for a Euro nation (10f0 intervene nation pick). */
@@ -893,6 +912,7 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
       /*
        * Thin human status on REF capture (full conquest chrome PARKED).
        * Do not clobber same-beat 2244 merc hire status; may replace 1528 arrival.
+       * ai_popup OK (AI_POPUP_TAG_KING_CAPTURE) when queue attached.
        */
       if (ctx->status && ctx->status_size &&
           !(strstr(ctx->status, "Mercenaries join") ||
@@ -900,6 +920,12 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
             strstr(ctx->status, "Cannot afford mercenaries"))) {
         snprintf(ctx->status, ctx->status_size, "The King's forces have captured %s!",
                  cname);
+      }
+      if (ai_king_human_popups(ctx)) {
+        char body[AI_POPUP_BODY_LEN];
+        snprintf(body, sizeof(body), "The King's forces have captured %s!", cname);
+        (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CAPTURE, human,
+                                      crown, cid, "Colony Captured", body);
       }
       ai_king_fortify_regular_at(ctx, u, crown, u->x, u->y);
       /* Euro pattern: idle Artillery on newly captured colony → FORTIFY. */
@@ -1100,14 +1126,74 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
 }
 
 /*
+ * FUN_43f7_1d42 / 38fd_5be8 Accept path: hike tax + sync Europe + grow REF.
+ * Used by auto peacetime path and ai_king_apply_popup_result (Accept).
+ */
+static void ai_king_tax_accept_hike(ColonizeTurnContext* ctx, int human) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  if (nat->tax_rate >= 75) {
+    return;
+  }
+  nat->tax_rate = (uint8_t)(nat->tax_rate + 1);
+  if (ctx->europe) {
+    ctx->europe->tax_percent = nat->tax_rate;
+  }
+  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size, "The King raises taxes to %u%%.", nat->tax_rate);
+  }
+  if (ai_king_human_popups(ctx)) {
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
+    (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
+                                  ai_king_crown_nation(human), (int)nat->tax_rate,
+                                  "Royal Tax", body);
+  }
+}
+
+/*
+ * FUN_43f7_38fd_5be8 Refuse path: boycott stand-in + Sugar freeze + REF grow,
+ * tax unchanged. Used by auto refuse and ai_king_apply_popup_result (Refuse).
+ * Human queue: follow-up OK after Refuse (Sugar boycott chrome; holds already OK).
+ */
+static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  ai_king_set_boycott(ctx->col1, 1);
+  nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
+  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size,
+             "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
+             nat->tax_rate);
+  }
+  /* FUN_43f7_38fd_5be8 refuse follow-up OK (Sugar freeze; dump-goods PARKED). */
+  if (ai_king_human_popups(ctx)) {
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body),
+             "The colonies refuse the tax increase (stays at %u%%). "
+             "Sugar is boycotted in Europe.",
+             nat->tax_rate);
+    (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
+                                  ai_king_crown_nation(human), (int)nat->tax_rate,
+                                  "Royal Audience", body);
+  }
+}
+
+/*
  * FUN_43f7_1d42 checklist:
  *  spring-only; first year / interval by difficulty; cap 75%;
  *  sync europe tax; grow REF pools by tax band.
- * Structural boycott/refuse + thin 38fd_5be8 audience status:
- *  when tax_rate >= 20 and (SoL >= 30 or liberty bells high), refuse hike once:
- *  set unknown46[2], freeze one cargo via nation.boycott_bitmap, grow REF
- *  without raising tax, write audience-flavored status. While boycott active,
- *  skip further tax hikes (hold-audience status). Real modal widgets PARKED.
+ * Structural boycott/refuse + thin 38fd_5be8 audience:
+ *  Human + ctx->ai_popups → CHOICE Accept/Refuse (effect in apply_popup_result).
+ *  Else auto: when tax_rate >= 20 and (SoL >= 30 or liberty bells high), refuse
+ *  hike once; else Accept hike. While boycott active, skip further tax hikes
+ *  (hold-audience status + OK popup when queue attached).
  * Note: TURN_PROC_FINISH may overwrite ctx->status afterward.
  */
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
@@ -1141,6 +1227,13 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
       snprintf(ctx->status, ctx->status_size,
                "Audience: boycott holds — the King cannot raise taxes.");
     }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, ai_king_crown_nation(human),
+        (int)nat->tax_rate, "Royal Audience",
+        "Boycott holds — the King cannot raise taxes."
+      );
+    }
     return;
   }
 
@@ -1148,63 +1241,56 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
     return;
   }
 
+  /*
+   * Human map popup: defer hike/refuse to ai_king_apply_popup_result
+   * (FUN_43f7_38fd_5be8 audience CHOICE). payload = current tax_rate.
+   */
+  if (ai_king_human_popups(ctx)) {
+    const char* labels[] = {"Accept", "Refuse"};
+    const int ids[] = {AI_KING_CHOICE_ACCEPT, AI_KING_CHOICE_REFUSE};
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body),
+             "The King demands taxes rise from %u%% to %u%%. Accept or refuse?",
+             nat->tax_rate, (unsigned)(nat->tax_rate + 1u));
+    if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_AUDIENCE, human,
+                                    ai_king_crown_nation(human), (int)nat->tax_rate,
+                                    "Royal Audience", body, labels, ids, 2)) {
+      if (ctx->status && ctx->status_size) {
+        snprintf(ctx->status, ctx->status_size,
+                 "Audience: the King demands a tax increase to %u%%.",
+                 (unsigned)(nat->tax_rate + 1u));
+      }
+      return;
+    }
+    /* Queue full — fall through to auto resolve. */
+  }
+
   const int sol = ai_king_sol_percent(ctx, human);
   const int refuse =
       (nat->tax_rate >= AI_KING_BOYCOTT_TAX_MIN) &&
       (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_total >= AI_KING_BOYCOTT_BELLS_MIN);
   if (refuse) {
-    /* Structural refuse: tax stays; REF still grows once; cargo bit frozen. */
-    ai_king_set_boycott(ctx->col1, 1);
-    nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
-    ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
-    /* Thin 38fd_5be8 audience status (real accept/refuse modal PARKED). */
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
-               nat->tax_rate);
-    }
+    ai_king_tax_refuse_hike(ctx, human);
     return;
   }
 
-  nat->tax_rate = (uint8_t)(nat->tax_rate + 1);
-  if (ctx->europe) {
-    ctx->europe->tax_percent = nat->tax_rate;
-  }
-  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "The King raises taxes to %u%%.", nat->tax_rate);
-  }
+  ai_king_tax_accept_hike(ctx, human);
 }
 
 /*
- * FUN_43f7_2564 gate (SoL≥AI_KING_DECLARE_SOL_MIN) + 1a26 declare body (auto).
- * Thin congress-confirm status + unknown46[5]; real confirm modal PARKED.
+ * FUN_43f7_1a26 declare body (after 2564 confirm / auto).
  * Seeds REF by difficulty; thin backup_force as 10f0 foreign-pool stand-in;
- * withdraws other Euros.
- * Auto-declare only when SoL already past the existing 2564/fandom threshold
- * (AI_KING_DECLARE_SOL_MIN) and bells ≥ AI_KING_DECLARE_BELLS_MIN — no new %.
+ * withdraws other Euros; thin 160a rename; unknown46[5] congress.
  */
-static void ai_king_try_declare(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
-  }
-  const int human = ctx->human_nation;
-  if (human < 0 || human >= 4) {
+static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
     return;
   }
   if (ai_king_independence_declared(ctx->col1)) {
     return;
   }
-  const int sol = ai_king_sol_percent(ctx, human);
-  if (sol < AI_KING_DECLARE_SOL_MIN) {
-    return;
-  }
-  const ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->liberty_bells_total < AI_KING_DECLARE_BELLS_MIN) {
-    return;
-  }
   ai_king_set_independence(ctx->col1, 1); /* WoI: unknown46[0] if not already */
-  /* Thin 2564 congress-confirm stand-in (real confirm modal PARKED). */
+  /* FUN_43f7_2564 congress-confirm stand-in. */
   ctx->col1->head.unknown46[AI_KING_CONGRESS_BYTE] = 1;
   const int diff = ctx->col1->head.difficulty;
   ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 + diff * 4);
@@ -1229,6 +1315,7 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
    * Writable Col1 player.country_name (and europe.nation_name if present).
    * Congress status below; same-turn 0982/1528 wave may overwrite if it spawns
    * (wave only writes status when non-empty arrival — leave congress if empty).
+   * Human queue: thin rename OK + WoI-begins OK (FUN_43f7_160a / 1a26 chain).
    */
   snprintf(ctx->col1->player[human].country_name,
            sizeof(ctx->col1->player[human].country_name), "%s", AI_KING_INDEP_COUNTRY);
@@ -1239,6 +1326,63 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
   }
+  if (ai_king_human_popups(ctx)) {
+    /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED). */
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_INFO, human, ai_king_crown_nation(human), 0,
+      "United Colonies",
+      "The colonies are renamed the United Colonies."
+    );
+    /* FUN_43f7_1a26 / 2564: WoI begins OK after Confirm/auto declare. */
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_INFO, human, ai_king_crown_nation(human), 1,
+      "War of Independence", "War of Independence begins!"
+    );
+  }
+}
+
+/*
+ * FUN_43f7_2564 gate (SoL≥AI_KING_DECLARE_SOL_MIN) + 1a26 declare.
+ * Human + ctx->ai_popups → CHOICE Confirm / Not yet (effect in apply_popup_result).
+ * Else auto-declare when SoL past 2564/fandom threshold and bells ≥ min.
+ */
+static void ai_king_try_declare(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
+  if (ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  const int sol = ai_king_sol_percent(ctx, human);
+  if (sol < AI_KING_DECLARE_SOL_MIN) {
+    return;
+  }
+  const ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  if (nat->liberty_bells_total < AI_KING_DECLARE_BELLS_MIN) {
+    return;
+  }
+  if (ai_king_human_popups(ctx)) {
+    const char* labels[] = {"Confirm independence", "Not yet"};
+    const int ids[] = {AI_KING_CHOICE_CONFIRM, AI_KING_CHOICE_NOT_YET};
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body),
+             "Continental Congress: Sons of Liberty at %d%%. Declare independence?", sol);
+    if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
+                                    ai_king_crown_nation(human), sol, "Continental Congress",
+                                    body, labels, ids, 2)) {
+      if (ctx->status && ctx->status_size) {
+        snprintf(ctx->status, ctx->status_size,
+                 "Congress debates independence (SoL %d%%).", sol);
+      }
+      return;
+    }
+    /* Queue full — fall through to auto declare. */
+  }
+  ai_king_do_declare(ctx, human);
 }
 
 /* FUN_43f7_060a-shaped: weakest garrison (pop × fort). */
@@ -1493,6 +1637,14 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (spawned && ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "The King's Expeditionary Force has arrived!");
   }
+  /* FUN_43f7_1528 arrival OK popup when human queue attached. */
+  if (spawned && ai_king_human_popups(ctx)) {
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, ctx->human_nation,
+      ai_king_crown_nation(ctx->human_nation), 0, "Royal Expeditionary Force",
+      "The King's Expeditionary Force has arrived!"
+    );
+  }
 }
 
 /*
@@ -1529,8 +1681,8 @@ static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int
  * backup_force (DOS 0x53e2… stand-in) still has pools. Up to two landings
  * per call; third when difficulty ≥ AI_KING_INTERVENE_DIFF_THIRD (REF
  * pressure). Prefer Regular + Dragoon when both pools > 0. Intervene nation:
- * Euro with most colonies (tie-break land-unit force). Deep economy / merc
- * hire / arrival chrome PARKED.
+ * Euro with most colonies (tie-break land-unit force). Thin arrival OK once
+ * when landings>0 + ai_popups (1528-shaped; deep economy / merc chrome PARKED).
  */
 static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -1572,15 +1724,91 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
     }
     landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, k);
   }
+
+  /* Thin 10f0 announce once (multi-landing beat → single OK; VGA chrome PARKED). */
+  if (landings > 0) {
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "Foreign troops have landed!");
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, ctx->human_nation, ally, landings,
+        "Foreign Intervention", "Foreign troops have landed!"
+      );
+    }
+  }
+}
+
+/* Pack offer-time landing into popup payload (hx<<16 | hy). */
+static int ai_king_merc_payload(int hx, int hy) {
+  return ((hx & 0xffff) << 16) | (hy & 0xffff);
+}
+
+static void ai_king_merc_payload_xy(int payload, int* out_x, int* out_y) {
+  if (out_x) {
+    *out_x = (payload >> 16) & 0xffff;
+  }
+  if (out_y) {
+    *out_y = payload & 0xffff;
+  }
+}
+
+/*
+ * FUN_43f7_2244 hire accept: spend, spawn Soldier/Dragoon near (hx,hy),
+ * set unknown46[3], hire status. Returns 1 on success.
+ * Landing coords come from offer-time weakest port (popup payload) so a
+ * same-turn REF capture cannot void the hire after CHOICE was queued.
+ * Human queue: success follow-up OK after Hire apply / auto-hire.
+ */
+static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || human < 0 || human >= 4) {
+    return 0;
+  }
+  if (hx < 0 || hy < 0) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  if (nat->gold < AI_KING_MERC_COST) {
+    return 0;
+  }
+  if (ai_king_spawn_landing(ctx, human, hx, hy, "Soldier", "Dragoon") < 0) {
+    return 0;
+  }
+  nat->gold -= (uint32_t)AI_KING_MERC_COST;
+  if (ctx->europe) {
+    ctx->europe->gold = (int)nat->gold;
+  }
+  ai_king_set_merc_hired(ctx->col1, 1);
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size,
+             "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
+  }
+  /* FUN_43f7_2244 Hire success follow-up OK (cannot-afford already OK on offer). */
+  if (ai_king_human_popups(ctx)) {
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body),
+             "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
+    (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
+                                  ai_king_crown_nation(human),
+                                  ai_king_merc_payload(hx, hy), "Mercenaries", body);
+  }
+  return 1;
+}
+
+static int ai_king_do_merc_hire(ColonizeTurnContext* ctx, int human) {
+  int hx = 0;
+  int hy = 0;
+  if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
+    return 0;
+  }
+  return ai_king_do_merc_hire_at(ctx, human, hx, hy);
 }
 
 /*
  * Thin FUN_43f7_2244 stand-in: once-per-war Continental merc offer when SoL>50.
- * gold>=300 → auto-accept: spend, spawn Soldier/Dragoon near weakest port,
- * hire-dialog status. gold insufficient → refuse status once
- * ("Cannot afford mercenaries."). Real hire modal PARKED.
- * Gate: unknown46[3] (AI_KING_MERC_HIRED_BYTE) — set on hire *or* refuse so
- * status / spend / spawn never spam on later wartime turns.
+ * Human + ctx->ai_popups + gold≥300 → CHOICE Hire/Decline (apply_popup_result).
+ * Else gold≥300 → auto-hire. gold insufficient → cannot-afford status + OK once.
+ * Gate: unknown46[3] — set on hire, decline, or cannot-afford (no spam).
  */
 static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -1593,7 +1821,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (human < 0 || human >= 4) {
     return;
   }
-  /* Once-per-war: flag set after hire or cannot-afford — no status rewrite. */
+  /* Once-per-war: flag set after hire / decline / cannot-afford. */
   if (ai_king_merc_hired(ctx->col1)) {
     return;
   }
@@ -1607,26 +1835,40 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   if (nat->gold < AI_KING_MERC_COST) {
-    /* PARK UI refuse: thin status once; same unknown46[3] gate as hire. */
     ai_king_set_merc_hired(ctx->col1, 1);
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
     }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human, ai_king_crown_nation(human),
+        ai_king_merc_payload(hx, hy), "Mercenaries", "Cannot afford mercenaries."
+      );
+    }
     return;
   }
-  if (ai_king_spawn_landing(ctx, human, hx, hy, "Soldier", "Dragoon") < 0) {
-    return;
+  if (ai_king_human_popups(ctx)) {
+    const char* labels[] = {"Hire", "Decline"};
+    const int ids[] = {AI_KING_CHOICE_HIRE, AI_KING_CHOICE_DECLINE};
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body),
+             "European mercenaries offer to join for %d gold. Hire them?",
+             AI_KING_MERC_COST);
+    if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
+                                    ai_king_crown_nation(human),
+                                    ai_king_merc_payload(hx, hy), "Mercenaries", body,
+                                    labels, ids, 2)) {
+      if (ctx->status && ctx->status_size) {
+        snprintf(ctx->status, ctx->status_size,
+                 "Mercenaries offer to join the Continental cause (−%d gold).",
+                 AI_KING_MERC_COST);
+      }
+      /* Defer unknown46[3] until Hire/Decline apply (re-offer if Esc cancel). */
+      return;
+    }
+    /* Queue full — fall through to auto hire. */
   }
-  nat->gold -= (uint32_t)AI_KING_MERC_COST;
-  if (ctx->europe) {
-    ctx->europe->gold = (int)nat->gold;
-  }
-  ai_king_set_merc_hired(ctx->col1, 1);
-  /* Thin 2244 hire-dialog status once (real modal widgets PARKED). */
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size,
-             "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
-  }
+  (void)ai_king_do_merc_hire_at(ctx, human, hx, hy);
 }
 
 /*
@@ -1660,7 +1902,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * below may seize the landing pick). In addition to 06a6 in ref_wave.
    */
   ai_king_foreign_intervene(ctx);
-  /* Thin 2244: once-per-war Continental merc for human (hire status; modal PARKED). */
+  /* Thin 2244: once-per-war Continental merc for human (hire CHOICE / auto). */
   ai_king_merc_offer(ctx);
 
   const int crown = ai_king_crown_nation(ctx->human_nation);
@@ -2088,7 +2330,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
      * congress[5] here (declare only). Optional tax mention when tax_rate
      * already in the refuse band (≥20) — reads existing tax_rate; no invented
      * tax formula. Do not clobber thin 38fd_5be8 tax audience / hike status
-     * from 1d42 (real modals PARKED). (2564 congress status is in try_declare.)
+     * from 1d42 (ai_popup CHOICE when queue attached). (2564 in try_declare.)
      */
     if (sol >= AI_KING_RESTLESS_SOL_MIN && sol < AI_KING_DECLARE_SOL_MIN && ctx->status &&
         ctx->status_size) {
@@ -2106,6 +2348,13 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         } else {
           snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
         }
+        /* FUN_43f7_0004 / peacetime chrome: restless OK when human queue attached. */
+        if (ai_king_human_popups(ctx)) {
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation,
+            ai_king_crown_nation(ctx->human_nation), sol, "Sons of Liberty", ctx->status
+          );
+        }
       }
     }
     ai_king_try_declare(ctx);
@@ -2118,5 +2367,57 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
 
   if (ctx->active_turn_nation) {
     *ctx->active_turn_nation = ctx->human_nation;
+  }
+}
+
+void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
+  if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
+    return;
+  }
+  const int human = (popup->result_nation_a >= 0 && popup->result_nation_a < 4)
+                      ? popup->result_nation_a
+                      : ctx->human_nation;
+  switch (popup->result_tag) {
+    case AI_POPUP_TAG_KING_AUDIENCE:
+      /* FUN_43f7_38fd_5be8: Accept → hike; Refuse → boycott/refuse path. */
+      if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
+        ai_king_tax_accept_hike(ctx, human);
+      } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
+        ai_king_tax_refuse_hike(ctx, human);
+      }
+      break;
+    case AI_POPUP_TAG_KING_MERC:
+      /* FUN_43f7_2244: Hire → spend/spawn at offer-time port; Decline → gate. */
+      if (popup->result_choice_id == AI_KING_CHOICE_HIRE) {
+        int hx = 0;
+        int hy = 0;
+        ai_king_merc_payload_xy(popup->result_payload, &hx, &hy);
+        if (!ai_king_do_merc_hire_at(ctx, human, hx, hy) &&
+            !ai_king_do_merc_hire(ctx, human)) {
+          /* Gold drained or spawn fail — still gate so offer does not loop. */
+          if (ctx->col1_ok && ctx->col1) {
+            ai_king_set_merc_hired(ctx->col1, 1);
+          }
+          if (ctx->status && ctx->status_size) {
+            snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
+          }
+        }
+      } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
+        if (ctx->col1_ok && ctx->col1) {
+          ai_king_set_merc_hired(ctx->col1, 1);
+        }
+        if (ctx->status && ctx->status_size) {
+          snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
+        }
+      }
+      break;
+    case AI_POPUP_TAG_KING_CONGRESS:
+      /* FUN_43f7_2564 / 1a26: Confirm → declare; Not yet → leave peacetime. */
+      if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
+        ai_king_do_declare(ctx, human);
+      }
+      break;
+    default:
+      break;
   }
 }

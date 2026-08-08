@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
@@ -46,6 +47,8 @@ typedef struct ColonizeTurnContext {
   uint32_t rng_seed;
   char* status;
   size_t status_size;
+  /* Optional map AI popup queue (human-facing OK / choice dialogs). */
+  AiPopupState* ai_popups;
 } ColonizeTurnContext;
 
 typedef struct ColonizeTurnResult {

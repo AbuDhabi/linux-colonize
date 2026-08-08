@@ -1589,6 +1589,387 @@ int main(void) {
     col1.head.founding_father[FF_POCAHONTAS] = -1;
   }
 
+  /*
+   * AI popup unpark: first meet enqueues CONTACT_MEET CHOICE; Trade apply
+   * runs thin auto-trade + follow-up OK. Cite: FUN_5bfb_022e.
+   */
+  {
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    /* Fresh pair — earlier raid/scout arms may have despawned the originals. */
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      ColonizeUnit* u = &units.units[ui];
+      if (u->active && u->nation_id == 4) {
+        units_despawn(&units, u->id);
+      }
+    }
+    const int b2 = units_spawn_allow_stack(&units, 0, 5, 5);
+    const int e2 = units_spawn_allow_stack(&units, 1, 6, 5);
+    ColonizeUnit* brave2 = units_get(&units, b2);
+    ColonizeUnit* euro2 = units_get(&units, e2);
+    if (!brave2 || !euro2) {
+      return fail("popup meet spawn");
+    }
+    brave2->nation_id = 4;
+    brave2->moves_left = 1;
+    euro2->nation_id = 0;
+    euro2->profession = UNITS_JOB_NONE;
+    ind->met_by_player[0] = 0;
+    ind->alarm_by_player[0] = 0;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].x = 5;
+    col1.tribe[0].y = 5;
+    col1.tribe[0].alarm[0].friction = 0;
+    col1.tribe[0].state.learned = 1; /* skip teach side-queue */
+    col1.tribe[0].mission = 0xff;
+    col1.nation[0].relation_by_indian[0] = 80;
+    col1.nation[0].gold = 30;
+    ColonizeColony* c_pop = &colonies.colonies[0];
+    c_pop->active = true;
+    c_pop->nation_id = 0;
+    c_pop->x = 5;
+    c_pop->y = 5;
+    c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] = 5;
+    const int goods0 = c_pop->stock[COLONIZE_CARGO_TRADE_GOODS];
+
+    char st_pop[128];
+    st_pop[0] = '\0';
+    ctx.status = st_pop;
+    ctx.status_size = sizeof(st_pop);
+    ctx.human_nation = 0;
+    ctx.ai_popups = &pop;
+    ctx.units = &units;
+    ctx.colonies = &colonies;
+    ctx.col1 = &col1;
+    ctx.col1_ok = true;
+
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (!ind->met_by_player[0]) {
+      return fail("popup meet should set met_by_player");
+    }
+    if (pop.queue_count < 1) {
+      return fail("popup meet should enqueue CONTACT_MEET CHOICE");
+    }
+    if (pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET ||
+        pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+      return fail("first queue entry should be CONTACT_MEET CHOICE");
+    }
+    /* Deferred auto: trade goods unchanged until CHOICE apply. */
+    if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0) {
+      return fail("meet CHOICE should defer auto-trade");
+    }
+
+    if (!ai_popup_try_present_next(&pop)) {
+      return fail("present meet CHOICE");
+    }
+    /* Simulate Trade selection. */
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1; /* AI_CONTACT_CHOICE_TRADE */
+    pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 0;
+    ai_contact_apply_popup_result(&ctx, &pop);
+    if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0 - 1) {
+      fprintf(
+        stderr,
+        "smoke_ai_contact: trade goods after apply %d (want %d)\n",
+        c_pop->stock[COLONIZE_CARGO_TRADE_GOODS],
+        goods0 - 1
+      );
+      return fail("Trade CHOICE should run thin auto-trade");
+    }
+    /* Follow-up OK enqueued from trade chrome. */
+    if (pop.queue_count < 1) {
+      return fail("Trade apply should enqueue Trade accepted OK");
+    }
+    if (pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_MEET) {
+      return fail("Trade follow-up OK should use CONTACT_MEET tag");
+    }
+    if (strstr(st_pop, "Trade") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: trade status '%s'\n", st_pop);
+      return fail("Trade apply should set Trade accepted status");
+    }
+
+    /* Leave dismisses without further effects. */
+    ai_popup_clear(&pop);
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 5; /* LEAVE */
+    pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    const int goods_leave = c_pop->stock[COLONIZE_CARGO_TRADE_GOODS];
+    ai_contact_apply_popup_result(&ctx, &pop);
+    if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_leave) {
+      return fail("Leave CHOICE should not trade");
+    }
+
+    /*
+     * Trade CHOICE with no goods → haggle stub OK "Trade concluded."
+     * Cite: FUN_5bfb_022e / 2aac…311e thin; deep 2820 PARKED.
+     */
+    {
+      ai_popup_clear(&pop);
+      c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] = 0;
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1; /* TRADE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1) {
+        return fail("Trade fail should enqueue Trade concluded OK");
+      }
+      if (pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_MEET) {
+        return fail("Trade fail follow-up should be CONTACT_MEET OK");
+      }
+      if (strstr(st_pop, "Trade concluded") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: trade-stub status '%s'\n", st_pop);
+        return fail("Trade fail should set Trade concluded status");
+      }
+    }
+
+    /*
+     * Second Brave same pulse: pending Meet CHOICE → no second CHOICE enqueue.
+     * Cite: FUN_5bfb_022e defer; ai_contact_meet_choice_pending.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int b_a = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int b_b = units_spawn_allow_stack(&units, 0, 5, 6);
+      const int e3 = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* ba = units_get(&units, b_a);
+      ColonizeUnit* bb = units_get(&units, b_b);
+      ColonizeUnit* e3u = units_get(&units, e3);
+      if (!ba || !bb || !e3u) {
+        return fail("second-brave spawn");
+      }
+      ba->nation_id = 4;
+      bb->nation_id = 4;
+      e3u->nation_id = 0;
+      /* Euro adjacent to both Braves (6,5 touches 5,5 and 5,6). */
+      ind->met_by_player[0] = 0;
+      ind->alarm_by_player[0] = 0;
+      col1.tribe[0].nation_id = 4;
+      col1.tribe[0].alarm[0].friction = 0;
+      col1.tribe[0].state.learned = 1;
+      col1.tribe[0].mission = 0xff;
+      col1.nation[0].relation_by_indian[0] = 80;
+      st_pop[0] = '\0';
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (!ind->met_by_player[0]) {
+        return fail("second-brave meet should set met_by_player");
+      }
+      int meet_choices = 0;
+      for (int qi = 0; qi < pop.queue_count; ++qi) {
+        if (pop.queue[qi].kind == AI_POPUP_KIND_CHOICE &&
+            pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET) {
+          meet_choices++;
+        }
+      }
+      if (meet_choices != 1) {
+        fprintf(stderr, "smoke_ai_contact: meet CHOICE count=%d\n", meet_choices);
+        return fail("second Brave same pulse must not re-offer Meet CHOICE");
+      }
+    }
+
+    /*
+     * Mission burn (≥80): status + CONTACT_RAID OK enqueue.
+     * Cite: FUN_4cc6_0000 / FUN_4d56_1816 prelude.
+     */
+    {
+      ai_popup_clear(&pop);
+      col1.tribe[0].mission = 0;
+      ind->alarm_by_player[0] = 80;
+      col1.tribe[0].alarm[0].friction = 10;
+      st_pop[0] = '\0';
+      ai_contact_indian_prelude(&ctx, 4);
+      if (col1.tribe[0].mission != 0xff) {
+        return fail("popup mission burn should clear mission");
+      }
+      if (strstr(st_pop, "burn") == NULL) {
+        return fail("popup mission burn should set status");
+      }
+      if (pop.queue_count < 1) {
+        return fail("mission burn should enqueue OK popup");
+      }
+      if (pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_RAID) {
+        return fail("mission burn OK should use CONTACT_RAID tag");
+      }
+    }
+
+    /*
+     * Gift CHOICE apply → follow-up Gift OK (amount UI PARKED; fixed −10).
+     * Cite: FUN_5bfb_102a / 1092.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int bg = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int eg = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* braveg = units_get(&units, bg);
+      ColonizeUnit* eurog = units_get(&units, eg);
+      if (!braveg || !eurog) {
+        return fail("gift CHOICE spawn");
+      }
+      braveg->nation_id = 4;
+      eurog->nation_id = 0;
+      ind->met_by_player[0] = 1;
+      ind->alarm_by_player[0] = 10;
+      col1.tribe[0].alarm[0].friction = 10;
+      col1.tribe[0].state.learned = 1;
+      col1.tribe[0].mission = 0xff;
+      col1.nation[0].gold = 50;
+      col1.nation[0].relation_by_indian[0] = 80;
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* GIFT */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != 40u) {
+        return fail("Gift CHOICE should drain 10 gold");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_GIFT) {
+        return fail("Gift CHOICE should enqueue Gift OK follow-up");
+      }
+      if (strstr(st_pop, "Gift") == NULL) {
+        return fail("Gift CHOICE should set Gift status");
+      }
+    }
+
+    /*
+     * Teach CHOICE refuse (≥55) → follow-up CONTACT_TEACH OK.
+     * Cite: FUN_5bfb_022e teach arm; fandom Alarm refuse-talk gate.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int bt = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int et = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* bravet = units_get(&units, bt);
+      ColonizeUnit* eurot = units_get(&units, et);
+      if (!bravet || !eurot) {
+        return fail("teach refuse CHOICE spawn");
+      }
+      bravet->nation_id = 4;
+      eurot->nation_id = 0;
+      eurot->profession = UNITS_JOB_NONE;
+      ind->met_by_player[0] = 1;
+      ind->alarm_by_player[0] = 60;
+      col1.tribe[0].nation_id = 4;
+      col1.tribe[0].x = 5;
+      col1.tribe[0].y = 5;
+      col1.tribe[0].alarm[0].friction = 60;
+      col1.tribe[0].state.learned = 0;
+      col1.tribe[0].mission = 0xff;
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 4; /* TEACH */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.tribe[0].state.learned) {
+        return fail("Teach refuse CHOICE should not set learned");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TEACH) {
+        return fail("Teach refuse should enqueue CONTACT_TEACH OK");
+      }
+      if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "teach") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: teach-refuse OK status '%s'\n", st_pop);
+        return fail("Teach refuse should set refuse-to-teach status");
+      }
+    }
+
+    /*
+     * Convert success (mission establish): status + CONTACT_CONVERT OK.
+     * Cite: FUN_5bfb_022e convert pulse; human chrome already enqueues.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      units.type_count = 3;
+      snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
+      units.types[2].movement = 1;
+      units.types[2].attack = 0;
+      units.types[2].defense = 1;
+      const int bm = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int mm = units_spawn_allow_stack(&units, 2, 6, 5);
+      ColonizeUnit* bravem = units_get(&units, bm);
+      ColonizeUnit* missm = units_get(&units, mm);
+      if (!bravem || !missm) {
+        return fail("convert OK spawn");
+      }
+      bravem->nation_id = 4;
+      missm->nation_id = 0;
+      ind->met_by_player[0] = 1;
+      ind->alarm_by_player[0] = 10;
+      col1.tribe[0].nation_id = 4;
+      col1.tribe[0].x = 5;
+      col1.tribe[0].y = 5;
+      col1.tribe[0].alarm[0].friction = 10;
+      col1.tribe[0].mission = 0xff;
+      col1.tribe[0].state.learned = 1;
+      col1.nation[0].relation_by_indian[0] = 80;
+      const uint16_t crosses_m = col1.nation[0].current_crosses;
+      st_pop[0] = '\0';
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (col1.tribe[0].mission != 0) {
+        return fail("convert OK should establish tribe.mission");
+      }
+      if (col1.nation[0].current_crosses != (uint16_t)(crosses_m + 1)) {
+        return fail("convert OK should bump crosses");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_CONVERT) {
+        return fail("convert success should enqueue CONTACT_CONVERT OK");
+      }
+      if (strstr(st_pop, "accept") == NULL || strstr(st_pop, "conversion") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: convert OK status '%s'\n", st_pop);
+        return fail("convert success should set accept-conversion status");
+      }
+    }
+
+    ctx.ai_popups = NULL;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

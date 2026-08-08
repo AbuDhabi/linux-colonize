@@ -45,6 +45,38 @@ static void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
   snprintf(ctx->status, ctx->status_size, "%s", msg);
 }
 
+/* Meet dialog choice ids (FUN_5bfb_022e / 5bfb_102a stand-in; widgets unparked). */
+enum {
+  AI_CONTACT_CHOICE_TRADE = 1,
+  AI_CONTACT_CHOICE_GIFT = 2,
+  AI_CONTACT_CHOICE_DEMAND = 3,
+  AI_CONTACT_CHOICE_TEACH = 4,
+  AI_CONTACT_CHOICE_LEAVE = 5
+};
+
+/*
+ * Human status chrome + optional AI popup OK (keep both). Cite: FUN_5bfb_022e /
+ * FUN_4d56_4528 thin arms; unpark #1 dialog widgets.
+ */
+static void ai_contact_human_chrome(
+  ColonizeTurnContext* ctx,
+  int e,
+  AiPopupTag tag,
+  int nation_b,
+  const char* title,
+  const char* body
+) {
+  if (!ctx || !body || !ai_contact_euro_is_human(ctx, e)) {
+    return;
+  }
+  ai_contact_set_status(ctx, body);
+  if (ctx->ai_popups) {
+    ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, tag, e, nation_b, 0, title ? title : "Natives", body
+    );
+  }
+}
+
 /* @TRIBES order (Inca..Tupi); matches col1_bridge encounter labels. */
 static const char* ai_contact_tribe_name(int nation_id) {
   static const char* k_names[8] = {
@@ -268,9 +300,14 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        * high alarm/friction → refuse teach (status thinned; widgets OPEN).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
-        if (ai_contact_euro_is_human(ctx, e)) {
-          ai_contact_set_status(ctx, "Natives refuse to teach.");
-        }
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_TEACH,
+          nation_id,
+          "Teach",
+          "Natives refuse to teach."
+        );
         break; /* one refuse pulse per tribe per call */
       }
       /* Peaceful meet band (alarm/friction < 40); mid band → no teach. */
@@ -293,19 +330,26 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
           other->profession = ai_contact_taught_profession(t);
         }
       }
-      if (ai_contact_euro_is_human(ctx, e)) {
-        if (taught_scout) {
-          ai_contact_set_status(ctx, "Natives teach Seasoned Scout.");
-        } else {
-          char line[96];
-          snprintf(
-            line,
-            sizeof(line),
-            "Natives teach %s skills.",
-            ai_contact_tribe_name(nation_id)
-          );
-          ai_contact_set_status(ctx, line);
-        }
+      if (taught_scout) {
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_TEACH,
+          nation_id,
+          "Teach",
+          "Natives teach Seasoned Scout."
+        );
+      } else {
+        char line[96];
+        snprintf(
+          line,
+          sizeof(line),
+          "Natives teach %s skills.",
+          ai_contact_tribe_name(nation_id)
+        );
+        ai_contact_human_chrome(
+          ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", line
+        );
       }
       break; /* one teach pulse per tribe per call */
     }
@@ -414,9 +458,14 @@ static void ai_contact_gift_or_demand(
           }
         }
       }
-      ai_contact_set_status(
+      const int demand_band = tribe_fr >= 40;
+      ai_contact_human_chrome(
         ctx,
-        (tribe_fr >= 40) ? "Natives refuse demands." : "Natives refuse gifts."
+        e,
+        demand_band ? AI_POPUP_TAG_CONTACT_DEMAND : AI_POPUP_TAG_CONTACT_GIFT,
+        nation_id,
+        demand_band ? "Demand" : "Gift",
+        demand_band ? "Natives refuse demands." : "Natives refuse gifts."
       );
     }
     return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
@@ -426,11 +475,11 @@ static void ai_contact_gift_or_demand(
 
   /* Low friction gift / tribute. */
   if (friction < 40) {
-    /* Cannot pay −10 gift drain → refuse with status (widgets OPEN). */
+    /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (nat->gold < 10u) {
-      if (human) {
-        ai_contact_set_status(ctx, "Natives refuse gifts.");
-      }
+      ai_contact_human_chrome(
+        ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", "Natives refuse gifts."
+      );
       return;
     }
     if (nat->gold < 20u) {
@@ -438,9 +487,14 @@ static void ai_contact_gift_or_demand(
     }
     nat->gold -= 10u;
     ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 2);
-    if (human) {
-      ai_contact_set_status(ctx, "Gift of gold eases tensions.");
-    }
+    ai_contact_human_chrome(
+      ctx,
+      e,
+      AI_POPUP_TAG_CONTACT_GIFT,
+      nation_id,
+      "Gift",
+      "Gift of gold eases tensions."
+    );
     return;
   }
 
@@ -486,9 +540,14 @@ static void ai_contact_gift_or_demand(
     return; /* no tools in colony/unit and gold < 50 */
   }
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
-  if (human) {
-    ai_contact_set_status(ctx, "Tribute paid; tensions ease.");
-  }
+  ai_contact_human_chrome(
+    ctx,
+    e,
+    AI_POPUP_TAG_CONTACT_DEMAND,
+    nation_id,
+    "Demand",
+    "Tribute paid; tensions ease."
+  );
 }
 
 /*
@@ -541,9 +600,14 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
        * refuse convert / crosses (status thinned; widgets OPEN).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
-        if (ai_contact_euro_is_human(ctx, e)) {
-          ai_contact_set_status(ctx, "Natives refuse conversion.");
-        }
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_CONVERT,
+          nation_id,
+          "Mission",
+          "Natives refuse conversion."
+        );
         break; /* one refuse pulse per tribe per call */
       }
       t->mission = (uint8_t)e;
@@ -557,9 +621,14 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
       if (nat->current_crosses < 0xffffu) {
         nat->current_crosses++;
       }
-      if (ai_contact_euro_is_human(ctx, e)) {
-        ai_contact_set_status(ctx, "Natives accept conversion.");
-      }
+      ai_contact_human_chrome(
+        ctx,
+        e,
+        AI_POPUP_TAG_CONTACT_CONVERT,
+        nation_id,
+        "Mission",
+        "Natives accept conversion."
+      );
       break; /* one convert pulse per tribe per call */
     }
   }
@@ -830,9 +899,14 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     }
     if (t->alarm[euro].friction >= 80 || ind->alarm_by_player[euro] >= 80) {
       t->mission = 0xff;
-      if (ai_contact_euro_is_human(ctx, euro)) {
-        ai_contact_set_status(ctx, "Natives burn your mission.");
-      }
+      ai_contact_human_chrome(
+        ctx,
+        euro,
+        AI_POPUP_TAG_CONTACT_RAID,
+        nation_id,
+        "Mission",
+        "Natives burn your mission."
+      );
     }
   }
 }
@@ -856,6 +930,172 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
+/*
+ * Thin peaceful auto-trade (FUN_5bfb_022e / 2aac…311e stand-in).
+ * Colony trade-goods → alarm/friction decay. No invented price math.
+ */
+static int ai_contact_auto_trade(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int near_x,
+  int near_y
+) {
+  if (!ctx || !ctx->colonies || !ctx->col1_ok || !ctx->col1 || !ind) {
+    return 0;
+  }
+  if (!ind->met_by_player[e] || ind->alarm_by_player[e] >= 50) {
+    return 0;
+  }
+  int best_ci = -1;
+  int best_score = -1;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id != e) {
+      continue;
+    }
+    const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
+    if (dist > 4 || c->stock[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
+      continue;
+    }
+    const int score = c->stock[COLONIZE_CARGO_TRADE_GOODS] * 4 - dist;
+    if (score > best_score) {
+      best_score = score;
+      best_ci = ci;
+    }
+  }
+  if (best_ci < 0) {
+    return 0;
+  }
+  ColonizeColony* c = &ctx->colonies->colonies[best_ci];
+  c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+  if (ind->alarm_by_player[e] > 0) {
+    ind->alarm_by_player[e]--;
+  }
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id == nation_id && t->alarm[e].friction > 0) {
+        t->alarm[e].friction--;
+      }
+    }
+  }
+  ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
+  ai_contact_human_chrome(
+    ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade accepted."
+  );
+  return 1;
+}
+
+/* Find Euro unit of nation e adjacent to a Brave of nation_id (meet/gift apply). */
+static ColonizeUnit* ai_contact_find_adjacent_euro(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int e,
+  int* near_x,
+  int* near_y
+) {
+  if (!ctx || !ctx->units || e < 0 || e > 3) {
+    return NULL;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* brave = &ctx->units->units[i];
+    if (!brave->active || brave->nation_id != nation_id) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, brave->id)) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int oid = units_id_at(ctx->units, brave->x + dx[d], brave->y + dy[d]);
+      if (oid < 0) {
+        continue;
+      }
+      ColonizeUnit* other = units_get(ctx->units, oid);
+      if (!other || other->nation_id != e) {
+        continue;
+      }
+      if (near_x) {
+        *near_x = brave->x;
+      }
+      if (near_y) {
+        *near_y = brave->y;
+      }
+      return other;
+    }
+  }
+  return NULL;
+}
+
+/* FUN_5bfb_022e first-meet CHOICE: Trade / Gift / Demand / Teach / Leave. */
+static int ai_contact_meet_choice_pending(
+  const AiPopupState* st,
+  int e,
+  int nation_id
+) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    const AiPopupRequest* q = &st->queue[i];
+    if (q->kind == AI_POPUP_KIND_CHOICE && q->tag == AI_POPUP_TAG_CONTACT_MEET &&
+        q->nation_a == e && q->nation_b == nation_id) {
+      return 1;
+    }
+  }
+  if (st->open && st->current.kind == AI_POPUP_KIND_CHOICE &&
+      st->current.tag == AI_POPUP_TAG_CONTACT_MEET && st->current.nation_a == e &&
+      st->current.nation_b == nation_id) {
+    return 1;
+  }
+  return 0;
+}
+
+static void ai_contact_enqueue_meet_choice(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id
+) {
+  if (!ctx || !ctx->ai_popups || !ai_contact_euro_is_human(ctx, e)) {
+    return;
+  }
+  if (ai_contact_meet_choice_pending(ctx->ai_popups, e, nation_id)) {
+    return;
+  }
+  static const char* labels[] = {"Trade", "Gift", "Demand", "Teach", "Leave"};
+  static const int ids[] = {
+    AI_CONTACT_CHOICE_TRADE,
+    AI_CONTACT_CHOICE_GIFT,
+    AI_CONTACT_CHOICE_DEMAND,
+    AI_CONTACT_CHOICE_TEACH,
+    AI_CONTACT_CHOICE_LEAVE
+  };
+  char title[AI_POPUP_TITLE_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  snprintf(title, sizeof(title), "%s", ai_contact_tribe_name(nation_id));
+  snprintf(
+    body,
+    sizeof(body),
+    "You meet the %s. How do you proceed?",
+    ai_contact_tribe_name(nation_id)
+  );
+  ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups,
+    AI_POPUP_TAG_CONTACT_MEET,
+    e,
+    nation_id,
+    0,
+    title,
+    body,
+    labels,
+    ids,
+    5
+  );
+}
+
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
     return;
@@ -864,11 +1104,11 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * FUN_5bfb_022e checklist:
-   *  1) adjacent Euro → meet
+   *  1) adjacent Euro → meet (+ human CHOICE when ai_popups present)
    *  2) optional mission if peaceful; Missionary convert + teach-skill (below)
    *  3) auto-haggle: trade-goods for alarm (2aac…311e stand-in)
-   *  4) gift/demand structural stand-in (dialogs 5bfb_102a / 1092 widgets OPEN)
-   * Human-facing arms write thin ctx->status lines; full DOS dialog PARKED.
+   *  4) gift/demand structural stand-in (5bfb_102a / 1092; popups unparked)
+   * Keep status lines; also enqueue human-facing OK / CHOICE popups.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -893,6 +1133,8 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
       const int e = other->nation_id;
       const int human = ai_contact_euro_is_human(ctx, e);
+      /* First-meet CHOICE defers auto trade/gift until player picks. */
+      int defer_auto = 0;
 
       /* 1–2. First meet. */
       if (!ind->met_by_player[e]) {
@@ -907,6 +1149,10 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
             ai_contact_tribe_name(nation_id)
           );
           ai_contact_set_status(ctx, line);
+          if (ctx->ai_popups) {
+            ai_contact_enqueue_meet_choice(ctx, e, nation_id);
+            defer_auto = 1;
+          }
         }
         if (ctx->col1->tribe) {
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
@@ -921,7 +1167,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
               t->alarm[e].friction--;
             }
             if (t->mission == 0xff && t->alarm[e].friction < 30) {
-              t->mission = (uint8_t)e; /* mission offer; convert widgets OPEN */
+              t->mission = (uint8_t)e; /* mission offer; convert via CHOICE/pulse */
             }
             break;
           }
@@ -929,92 +1175,65 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
 
       /*
+       * Pending Meet CHOICE for this human×tribe: skip auto trade/gift so a
+       * second Brave adjacency in the same pulse cannot bypass the dialog.
+       */
+      if (human && ctx->ai_popups &&
+          ai_contact_meet_choice_pending(ctx->ai_popups, e, nation_id)) {
+        defer_auto = 1;
+      }
+
+      if (defer_auto) {
+        continue; /* player CHOICE drives trade/gift/demand/teach */
+      }
+
+      /*
        * Thin alarmed meet arm (2154/2820 deep PARKED): high alarm → refuse
-       * talk status. Do not continue — auto-trade stays gated by alarm < 50
-       * below; gift/demand still runs so ≥55 refuse gifts/demands chrome can
-       * overwrite with the more specific line (fandom Alarm). Widgets OPEN.
+       * talk. Do not continue — auto-trade stays gated by alarm < 50 below;
+       * gift/demand still runs so ≥55 refuse gifts/demands chrome can
+       * overwrite (fandom Alarm). Cite: FUN_5bfb_022e.
        */
       if (ind->met_by_player[e] && ind->alarm_by_player[e] >= 55) {
-        if (human) {
-          ai_contact_set_status(ctx, "Natives refuse to talk.");
-        }
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_REFUSE,
+          nation_id,
+          "Contact",
+          "Natives refuse to talk."
+        );
         /* fall through: no auto-trade; gift_or_demand refuses */
       } else if (
         ind->met_by_player[e] &&
         ai_diplo_indian_relation(ctx->col1, nation_id, e) < 40
       ) {
         /*
-         * Beyond alarm gate: very-low Indian×Euro relation (<40) also refuses
-         * meet-trade / gift (ai_diplo_indian_relation read-only). Same band as
-         * AI_DIPLO_INDIAN_VERY_LOW_REL / euro_diplo war deepen. First-meet above
-         * still runs; widgets OPEN. Cite: fandom Alarm — refuse trade.
+         * Very-low Indian×Euro relation (<40) refuses meet-trade / gift.
+         * Cite: fandom Alarm — refuse trade; AI_DIPLO_INDIAN_VERY_LOW_REL.
          */
-        if (human) {
-          ai_contact_set_status(ctx, "Natives refuse to talk.");
-        }
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_REFUSE,
+          nation_id,
+          "Contact",
+          "Natives refuse to talk."
+        );
         continue;
       }
 
       /*
        * 3. Peaceful auto-trade (nested 2bbc AI buy stand-in).
-       *
-       * PARK deep FUN_4d56_2820 (~1.4k lines; thunk 2a1f_044c):
-       *   - full meet/raid decision matrix (alarmed vs peaceful branch pick)
-       *   - nested trade 2aac (good dispatch) → 2af6 / 2bbc (AI buy) /
-       *     2b92 / 311e (demand / no-deal close)
-       *   - choice loops, hard-bargain tension, per-good price arms
-       *   - alarmed-branch dialog dispatch (widgets OPEN — unpark #1)
-       * Not ported — Linux stays on this thin trade-goods→alarm decay stand-in
-       * plus gift/demand / teach / convert status chrome. Cite:
-       * indian_contact.md PORT DEBT; docs/ai_transcription.md FUN_4d56_2820;
-       * peel layer_b_combat_raid / layer_b_2a1f_midlo.
+       * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) — thin path only.
        */
-      if (ctx->colonies && ind->met_by_player[e] && ind->alarm_by_player[e] < 50) {
-        int best_ci = -1;
-        int best_score = -1;
-        for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-          ColonizeColony* c = &ctx->colonies->colonies[ci];
-          if (!c->active || c->nation_id != e) {
-            continue;
-          }
-          const int dist = ai_contact_dist(c->x, c->y, brave->x, brave->y);
-          if (dist > 4 || c->stock[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
-            continue;
-          }
-          /* Prefer closer + more goods (score-ordered haggle stand-in). */
-          const int score = c->stock[COLONIZE_CARGO_TRADE_GOODS] * 4 - dist;
-          if (score > best_score) {
-            best_score = score;
-            best_ci = ci;
-          }
-        }
-        if (best_ci >= 0) {
-          ColonizeColony* c = &ctx->colonies->colonies[best_ci];
-          c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
-          if (ind->alarm_by_player[e] > 0) {
-            ind->alarm_by_player[e]--;
-          }
-          if (ctx->col1->tribe) {
-            for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-              ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-              if ((int)t->nation_id == nation_id && t->alarm[e].friction > 0) {
-                t->alarm[e].friction--;
-              }
-            }
-          }
-          ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
-          if (human) {
-            ai_contact_set_status(ctx, "Trade accepted.");
-          }
-        }
-      }
+      ai_contact_auto_trade(ctx, ind, nation_id, e, brave->x, brave->y);
 
-      /* 4. Gift / demand stand-in (5bfb_102a / 1092 status thinned; widgets OPEN). */
+      /* 4. Gift / demand stand-in (5bfb_102a / 1092; popups unparked). */
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, brave->x, brave->y);
     }
   }
 
-  /* 2b. Missionary adjacent to tribe → mission owner + crosses (convert widgets OPEN). */
+  /* 2b. Missionary adjacent to tribe → mission owner + crosses. */
   ai_contact_missionary_convert(ctx, nation_id);
 
   /* 2b1. Alarmed tribe + Missionary not converting → flee 1 tile (AI_MOVE). */
@@ -1559,8 +1778,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * COLONIZE/GAME.TXT @RAIDNOTHING; indian_raid_outcomes.md.
            */
           if (ai_contact_euro_is_human(ctx, target_euro)) {
-            ai_contact_set_status(
+            ai_contact_human_chrome(
               ctx,
+              target_euro,
+              AI_POPUP_TAG_CONTACT_RAID,
+              nation_id,
+              "Raid",
               (kind == AI_RAID_NOTHING) ? "Native raiding party wiped out."
                                         : "Natives raid your colony."
             );
@@ -1611,17 +1834,98 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
          * thin stand-in only (indian_raid_outcomes.md §8).
          */
         if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
-          if (ai_contact_euro_is_human(ctx, e)) {
-            ai_contact_set_status(ctx, "Scout warned away from village.");
-          }
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_RAID,
+            nation_id,
+            "Scout",
+            "Scout warned away from village."
+          );
         } else {
           /* Blocked only — RNG kill-with-flee-tile stays PARKED (above). */
           units_despawn(ctx->units, foe);
-          if (ai_contact_euro_is_human(ctx, e)) {
-            ai_contact_set_status(ctx, "Natives kill your Scout.");
-          }
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_RAID,
+            nation_id,
+            "Scout",
+            "Natives kill your Scout."
+          );
         }
       }
     }
+  }
+}
+
+void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
+  if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
+    return;
+  }
+  /*
+   * Meet CHOICE chain (FUN_5bfb_022e / 5bfb_102a stand-in): Trade / Gift /
+   * Demand / Teach call existing thin handlers; Leave dismisses. Follow-up
+   * OK popups enqueue from those handlers' human chrome.
+   */
+  if (popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
+    return;
+  }
+  const int e = popup->result_nation_a;
+  const int nation_id = popup->result_nation_b;
+  if (e < 0 || e > 3 || nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  if (!ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  int near_x = 0;
+  int near_y = 0;
+  ColonizeUnit* other = ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
+  if (!other && ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id == nation_id) {
+        near_x = t->x;
+        near_y = t->y;
+        break;
+      }
+    }
+  }
+
+  switch (popup->result_choice_id) {
+  case AI_CONTACT_CHOICE_LEAVE:
+    break;
+  case AI_CONTACT_CHOICE_TRADE:
+    /*
+     * Thin auto-trade (FUN_5bfb_022e / 2aac…311e). Success → "Trade accepted."
+     * OK from human chrome. No goods / gated → haggle stub OK "Trade concluded."
+     * (deep buy/hard-bargain PARKED in FUN_4d56_2820).
+     */
+    if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y)) {
+      ai_contact_human_chrome(
+        ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade concluded."
+      );
+    }
+    break;
+  case AI_CONTACT_CHOICE_GIFT:
+  case AI_CONTACT_CHOICE_DEMAND:
+    /*
+     * Existing thin gift/demand picks by friction band (no invented math).
+     * Follow-up OK from gift_or_demand human chrome (FUN_5bfb_102a / 1092).
+     * PARK: Gift CHOICE amount / tribute UI (no amount widget yet) — fixed
+     * −10 gold / tools bands only; skip amount prompt.
+     */
+    if (other) {
+      ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
+    }
+    break;
+  case AI_CONTACT_CHOICE_TEACH:
+    /* Follow-up OK from teach_skill human chrome (FUN_5bfb_022e teach arm). */
+    ai_contact_teach_skill(ctx, nation_id);
+    break;
+  default:
+    break;
   }
 }

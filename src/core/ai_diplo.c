@@ -1,5 +1,6 @@
 #include "core/ai_diplo.h"
 
+#include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/units.h"
 
@@ -88,6 +89,14 @@
 #define AI_DIPLO_STICKY_DEEP 2u
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
+static void ai_diplo_popup_ok(
+  ColonizeTurnContext* ctx,
+  AiPopupTag tag,
+  int nation_a,
+  int nation_b,
+  const char* title,
+  const char* body
+);
 
 static void ai_diplo_war_treasury_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
@@ -652,22 +661,33 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
   ai_diplo_indian_hostility_sync(col1, nation_id);
 
   const uint8_t sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
+  int native_chrome = 0;
   if (ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
     if (prev_sticky == AI_DIPLO_STICKY_CLEAR && sticky != AI_DIPLO_STICKY_CLEAR) {
       /* Thin Contact/King status stand-in; full native-hostility dialog PARKED. */
       snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
+      native_chrome = 1;
     } else if (prev_sticky != AI_DIPLO_STICKY_CLEAR && sticky == AI_DIPLO_STICKY_CLEAR) {
       /* Source: fandom / manual improve-relations feel after sticky clears
        * (peace feeler / drift). Thin 102a/1092; FA UI PARKED. */
       snprintf(ctx->status, ctx->status_size, "Native tensions ease.");
+      native_chrome = 1;
     } else if (sticky == AI_DIPLO_STICKY_DEEP) {
       /* Structural pressure chrome while deep sticky persists. */
       snprintf(ctx->status, ctx->status_size, "Natives remain hostile.");
+      native_chrome = 1;
     } else if (feeler_healed) {
       /* Mid-band feeler nudge while sticky stays clear (no rise/clear/deep).
        * Source: fandom Indians — peace → gifts / improve relations; FA UI PARKED. */
       snprintf(ctx->status, ctx->status_size, "Native relations improve.");
+      native_chrome = 1;
     }
+  }
+  /* FUN_15b3 Indian hostility chrome → OK popup (INFO); status kept. */
+  if (native_chrome) {
+    ai_diplo_popup_ok(
+      ctx, AI_POPUP_TAG_INFO, nation_id, -1, "Natives", ctx->status
+    );
   }
 
   if (ai_diplo_indian_any_at_war(col1, nation_id)) {
@@ -866,6 +886,80 @@ static const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation)
   return "rival";
 }
 
+/* True when human_nation is a or b (human-facing chrome / popup gate). */
+static int ai_diplo_involves_human(const ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  if (!ctx) {
+    return 0;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return 0;
+  }
+  return nation_a == human || nation_b == human;
+}
+
+/* True if queue already has OK/CHOICE with same tag + pair (either order). */
+static int ai_diplo_popup_pair_queued(
+  const AiPopupState* st,
+  AiPopupTag tag,
+  int nation_a,
+  int nation_b
+) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    const AiPopupRequest* r = &st->queue[i];
+    if (r->tag != tag) {
+      continue;
+    }
+    if ((r->nation_a == nation_a && r->nation_b == nation_b) ||
+        (r->nation_a == nation_b && r->nation_b == nation_a)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Also enqueue map AI OK popup (FUN_15b3 / 5bfb 102a/1092 stand-in) when
+ * ctx->ai_popups is set. Status line stays; full VGA dialog PARKED.
+ * War re-declare uses !already (no spam); do not gate OK on tag+pair —
+ * war boycott OK and peace Tools-lift OK share DIPLO_BOYCOTT.
+ */
+static void ai_diplo_popup_ok(
+  ColonizeTurnContext* ctx,
+  AiPopupTag tag,
+  int nation_a,
+  int nation_b,
+  const char* title,
+  const char* body
+) {
+  if (!ctx || !ctx->ai_popups || !body || body[0] == '\0') {
+    return;
+  }
+  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
+    return;
+  }
+  (void)ai_popup_enqueue_ok_ctx(
+    ctx->ai_popups, tag, nation_a, nation_b, 0, title, body
+  );
+}
+
+/* Tag from final human status after war/peace preference chain. */
+static AiPopupTag ai_diplo_tag_from_status(const char* status, AiPopupTag fallback) {
+  if (!status || status[0] == '\0') {
+    return fallback;
+  }
+  if (strstr(status, "boycott") != NULL || strstr(status, "embargo") != NULL) {
+    return AI_POPUP_TAG_DIPLO_BOYCOTT;
+  }
+  if (strstr(status, "Natives") != NULL || strstr(status, "Native ") != NULL) {
+    return AI_POPUP_TAG_INFO;
+  }
+  return fallback;
+}
+
 /*
  * Thin 102a/1092 status when human is a party (Contact/King ctx->status pattern).
  * Full multi-line dialog widgets PARKED.
@@ -944,6 +1038,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
      * Indian sticky newly rose from the −5 war-hit, prefer "Natives grow
      * hostile." Widgets PARKED. Source: thin 153e trade deepen + Contact/King
      * status; Indians dislike Euro×Euro war (fandom / euro_diplo.md).
+     * Also enqueue AI OK popup (FUN_15b3 / 5bfb); FA 3f41 full UI PARKED.
      */
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
         ctx->status && ctx->status_size > 0) {
@@ -971,6 +1066,14 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
           snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
         }
       }
+      ai_diplo_popup_ok(
+        ctx,
+        ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_WAR),
+        nation_a,
+        nation_b,
+        "Diplomacy",
+        ctx->status
+      );
     }
   }
 }
@@ -1032,12 +1135,23 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
     /*
      * Tools embargo lift chrome when human had Tools bit and peace cleared it
      * (no remaining Euro wars). Prefer Tools line over peace when applicable.
+     * Also enqueue AI OK popup (FUN_15b3 / 5bfb 102a/1092); status kept.
      */
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human)) {
       const uint16_t tools_after =
         (uint16_t)(ctx->col1->nation[human].boycott_bitmap & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
       if (tools_before != 0 && tools_after == 0 && ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Tools embargo lifted.");
+      }
+      if (ctx->status && ctx->status[0] != '\0') {
+        ai_diplo_popup_ok(
+          ctx,
+          ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_PEACE),
+          nation_a,
+          nation_b,
+          "Diplomacy",
+          ctx->status
+        );
       }
     }
   }
@@ -1074,12 +1188,21 @@ void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nati
     gold_before = ctx->col1->nation[human].gold;
   }
   ai_diplo_form_alliance(ctx->col1, nation_a, nation_b);
+  int alliance_chrome = 0;
   if (!was_ally) {
     ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance formed with %s");
+    alliance_chrome = human_party ? 1 : 0;
   }
   /* Prefer gold-drain chrome over formed when human treasury paid. */
   if (human_party && ctx->col1->nation[human].gold < gold_before) {
     ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance with %s costs gold.");
+    alliance_chrome = 1;
+  }
+  /* FUN_5bfb_13b0 / 15b3 alliance chrome → OK popup; FA 3f41 full UI PARKED. */
+  if (alliance_chrome && ctx->status && ctx->status[0] != '\0') {
+    ai_diplo_popup_ok(
+      ctx, AI_POPUP_TAG_DIPLO_ALLIANCE, nation_a, nation_b, "Alliance", ctx->status
+    );
   }
 }
 
@@ -1096,7 +1219,8 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
 }
 
 /* Thin 102a/1092 status when human is a party (Contact/King pattern).
- * AI callers keep using break_alliance without status. FA dialog UI PARKED. */
+ * AI callers keep using break_alliance without status. FA dialog UI PARKED.
+ * Sticky-rise "Natives grow hostile." also enqueues OK (FUN_15b3 / 5bfb). */
 void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
   if (!ctx || !ctx->col1) {
     return;
@@ -1114,7 +1238,9 @@ void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nat
     /*
      * Prefer sticky-rise chrome when break −5 Indian hit newly raises human
      * hostility sticky (same Contact/King pattern as declare_war_ctx).
-     * Source: Indians wary of Euro treachery; FA UI PARKED.
+     * Source: Indians wary of Euro treachery; FA 3f41 UI PARKED.
+     * Also enqueue AI OK popup (FUN_15b3 / 5bfb); status kept — sticky
+     * native line uses INFO tag via tag_from_status.
      */
     if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
         ctx->status && ctx->status_size > 0) {
@@ -1123,6 +1249,14 @@ void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nat
           sticky_after != AI_DIPLO_STICKY_CLEAR) {
         snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
       }
+      ai_diplo_popup_ok(
+        ctx,
+        ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_BREAK),
+        nation_a,
+        nation_b,
+        "Diplomacy",
+        ctx->status
+      );
     }
   }
 }
@@ -1244,6 +1378,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
           ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "War upkeep costs gold.");
         war_upkeep_status_done = 1;
+        /* FUN_5bfb_153e upkeep chrome → OK popup (INFO); status kept. */
+        ai_diplo_popup_ok(
+          ctx, AI_POPUP_TAG_INFO, nation_id, peer, "War", ctx->status
+        );
       }
       /*
        * Thin privateer prize: richer→poorer 8g once per war peer.
@@ -1255,20 +1393,59 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       if (!ctx->units || ai_diplo_nation_has_sea_unit(ctx, nation_id)) {
         if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
           ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
+          if (ctx->status && ctx->status[0] != '\0') {
+            ai_diplo_popup_ok(
+              ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Privateer", ctx->status
+            );
+          }
         }
       }
       /*
        * War-fatigue peace: near-parity (ally-eligible band) while at war AND
        * peer treaty timer==0 (war aged; seeded to 8 on first declare) → rare
-       * make_peace_ctx. Human chrome when either party is human (102a/1092
+       * make_peace. Human chrome when either party is human (102a/1092
        * stand-in via status_human_pair + Tools lift on human bitmap).
-       * Full 153e peace dialog PARKED; no gold cost.
+       * AI→human (FUN_5bfb / 15b3): enqueue CHOICE Accept/Refuse; apply calls
+       * make_peace_ctx. AI↔AI / human-as-actor still auto make_peace_ctx.
+       * Full 153e / FA 3f41 peace dialog UI PARKED; no gold cost.
        * Source: extend existing near-parity path; timer==0 + WAR = fatigue.
        */
       if (self > 10 && other > 10 && abs(self - other) < 15) {
         uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
         if (t && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
-          ai_diplo_make_peace_ctx(ctx, nation_id, peer);
+          if (ctx->ai_popups && peer == ctx->human_nation) {
+            /* Skip spam if a peace offer for this pair is already queued. */
+            if (!ai_diplo_popup_pair_queued(
+                  ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, nation_id, peer
+                )) {
+              char body[AI_POPUP_BODY_LEN];
+              snprintf(
+                body,
+                sizeof(body),
+                "%s offers peace.",
+                ai_diplo_rival_name(ctx->col1, nation_id)
+              );
+              if (ctx->status && ctx->status_size > 0) {
+                snprintf(ctx->status, ctx->status_size, "%s", body);
+              }
+              const char* labels[] = {"Accept", "Refuse"};
+              const int ids[] = {1, 2};
+              (void)ai_popup_enqueue_choice_ctx(
+                ctx->ai_popups,
+                AI_POPUP_TAG_DIPLO_PEACE,
+                nation_id,
+                peer,
+                0,
+                "Peace",
+                body,
+                labels,
+                ids,
+                2
+              );
+            }
+          } else {
+            ai_diplo_make_peace_ctx(ctx, nation_id, peer);
+          }
         }
       }
       continue;
@@ -1304,11 +1481,25 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
          */
         if (sticky_now != AI_DIPLO_STICKY_DEEP && ctx->status && ctx->status_size > 0 &&
             (ctx->human_nation == nation_id || ctx->human_nation == peer)) {
+          int fa_chrome = 0;
           if (*t == 3) {
             ai_diplo_status_human_pair(ctx, nation_id, peer,
                                       "Alliance with %s strengthened.");
+            fa_chrome = 1;
           } else if (*t == 2) {
             ai_diplo_status_human_pair(ctx, nation_id, peer, "Alliance with %s holds.");
+            fa_chrome = 1;
+          }
+          /* FA gift/strengthen OK popup fine; full 3f41 UI PARKED (FUN_3f41). */
+          if (fa_chrome && ctx->status[0] != '\0') {
+            ai_diplo_popup_ok(
+              ctx,
+              AI_POPUP_TAG_DIPLO_ALLIANCE,
+              nation_id,
+              peer,
+              "Alliance",
+              ctx->status
+            );
           }
         }
       }
@@ -1346,9 +1537,44 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
               ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
             snprintf(ctx->status, ctx->status_size,
                      "Native unrest precludes new alliances.");
+            ai_diplo_popup_ok(
+              ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Natives", ctx->status
+            );
           }
         } else if (ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
-          ai_diplo_form_alliance_ctx(ctx, nation_id, peer);
+          /*
+           * Human-offer path (FUN_5bfb_13b0): AI nation offers alliance to the
+           * human peer → CHOICE Accept/Refuse (apply via ai_diplo_apply_popup_result).
+           * AI↔AI still auto-forms via form_alliance_ctx.
+           */
+          if (ctx->ai_popups && peer == ctx->human_nation) {
+            char body[AI_POPUP_BODY_LEN];
+            snprintf(
+              body,
+              sizeof(body),
+              "%s offers an alliance.",
+              ai_diplo_rival_name(ctx->col1, nation_id)
+            );
+            if (ctx->status && ctx->status_size > 0) {
+              snprintf(ctx->status, ctx->status_size, "%s", body);
+            }
+            const char* labels[] = {"Accept", "Refuse"};
+            const int ids[] = {1, 2};
+            (void)ai_popup_enqueue_choice_ctx(
+              ctx->ai_popups,
+              AI_POPUP_TAG_DIPLO_ALLIANCE,
+              nation_id,
+              peer,
+              0,
+              "Alliance",
+              body,
+              labels,
+              ids,
+              2
+            );
+          } else {
+            ai_diplo_form_alliance_ctx(ctx, nation_id, peer);
+          }
         }
       }
     }
@@ -1402,4 +1628,49 @@ uint8_t ai_diplo_indian_relation(
     return 0;
   }
   return col1->nation[euro_nation].relation_by_indian[idx];
+}
+
+void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
+  if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
+    return;
+  }
+  /*
+   * FUN_5bfb_13b0 alliance offer CHOICE: Accept (1) → form_alliance_ctx
+   * (status + follow-up OK "Alliance formed with %s" / gold-drain chrome);
+   * Refuse (2) → status only. OK popups share DIPLO_ALLIANCE tag with
+   * choice_id 0 — ignore those. Source: 15b3 / 5bfb; FA 3f41 full UI PARKED.
+   *
+   * War-fatigue peace offer CHOICE (FUN_5bfb / 15b3): Accept (1) →
+   * make_peace_ctx; Refuse (2) → status only. Full 153e peace UI PARKED.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_DIPLO_ALLIANCE) {
+    if (popup->result_choice_id == 1) {
+      /* Follow-up OK enqueued inside form_alliance_ctx when ai_popups set. */
+      ai_diplo_form_alliance_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
+    } else if (popup->result_choice_id == 2) {
+      if (ctx->status && ctx->status_size > 0) {
+        ai_diplo_status_human_pair(
+          ctx,
+          popup->result_nation_a,
+          popup->result_nation_b,
+          "Alliance refused with %s"
+        );
+      }
+    }
+    return;
+  }
+  if (popup->result_tag == AI_POPUP_TAG_DIPLO_PEACE) {
+    if (popup->result_choice_id == 1) {
+      ai_diplo_make_peace_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
+    } else if (popup->result_choice_id == 2) {
+      if (ctx->status && ctx->status_size > 0) {
+        ai_diplo_status_human_pair(
+          ctx,
+          popup->result_nation_a,
+          popup->result_nation_b,
+          "Peace refused with %s"
+        );
+      }
+    }
+  }
 }

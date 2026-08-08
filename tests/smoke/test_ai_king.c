@@ -2615,6 +2615,327 @@ int main(void) {
     }
   }
 
+  /*
+   * ai_popup wire (human queue on turn ctx): tax audience CHOICE defers hike;
+   * apply Accept finishes 1d42 effect. Without ai_popups, auto path unchanged.
+   */
+  {
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    ctx.ai_popups = &pop;
+
+    /* Peacetime tax audience: clear WoI so 1d42 runs; spring tax year. */
+    col1.head.unknown46[0] = 0;
+    col1.head.unknown46[2] = 0;
+    col1.head.unknown46[5] = 0;
+    col1.nation[0].tax_rate = 10;
+    europe.tax_percent = 10;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.nation[0].liberty_bells_total = 0;
+    col1.colony[0].rebel_dividend = 20;
+    col1.colony[0].rebel_divisor = 100;
+    year = 1536;
+    autumn = 0;
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    const uint8_t tax_before = col1.nation[0].tax_rate;
+    ai_king_nation_turn(&ctx);
+    if (col1.nation[0].tax_rate != tax_before) {
+      return fail("ai_popups tax audience must defer hike until apply");
+    }
+    if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_KING_AUDIENCE ||
+        pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+      return fail("ai_popups should enqueue KING_AUDIENCE choice");
+    }
+    /* Simulate Accept result (game_loop path). */
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1; /* Accept */
+    pop.result_tag = AI_POPUP_TAG_KING_AUDIENCE;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 1;
+    pop.result_payload = (int)tax_before;
+    ai_king_apply_popup_result(&ctx, &pop);
+    ai_popup_consume_result(&pop);
+    if (col1.nation[0].tax_rate != tax_before + 1) {
+      return fail("apply Accept should hike tax (1d42)");
+    }
+    if (col1.head.unknown46[2] != 0) {
+      return fail("Accept hike must not set boycott refuse");
+    }
+
+    /* Refuse path: enqueue again, apply Refuse → boycott. */
+    year = 1558;
+    autumn = 0;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.head.unknown46[2] = 0;
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    ai_king_nation_turn(&ctx);
+    if (col1.head.unknown46[2] != 0 || col1.nation[0].tax_rate != 20) {
+      return fail("ai_popups refuse choice must defer boycott until apply");
+    }
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 2; /* Refuse */
+    pop.result_tag = AI_POPUP_TAG_KING_AUDIENCE;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 1;
+    pop.result_payload = 20;
+    ai_king_apply_popup_result(&ctx, &pop);
+    ai_popup_consume_result(&pop);
+    if (col1.head.unknown46[2] == 0) {
+      return fail("apply Refuse should set boycott unknown46[2]");
+    }
+    if (col1.nation[0].tax_rate != 20) {
+      return fail("apply Refuse must leave tax_rate unchanged");
+    }
+    if ((col1.nation[0].boycott_bitmap & (1u << 1)) == 0) {
+      return fail("apply Refuse should freeze Sugar boycott bit");
+    }
+    /* R2: Sugar refuse follow-up OK after Refuse apply (FUN_43f7_38fd_5be8). */
+    {
+      int found_refuse_ok = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX &&
+            pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            (strstr(pop.queue[i].body, "Sugar") || strstr(pop.queue[i].body, "boycott"))) {
+          found_refuse_ok = 1;
+          break;
+        }
+      }
+      if (!found_refuse_ok) {
+        return fail("apply Refuse should enqueue Sugar boycott follow-up OK");
+      }
+    }
+
+    /* Congress CHOICE: gate met → enqueue, no WoI until Confirm. */
+    col1.head.unknown46[0] = 0;
+    col1.head.unknown46[5] = 0;
+    col1.colony[0].rebel_dividend = 60;
+    col1.colony[0].rebel_divisor = 100;
+    col1.nation[0].liberty_bells_total = 200;
+    year = 1600;
+    autumn = 0;
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    /* Avoid another tax audience this beat: off tax interval. */
+    year = 1537;
+    ai_king_nation_turn(&ctx);
+    if (col1.head.unknown46[0] != 0) {
+      return fail("ai_popups congress must defer WoI until Confirm");
+    }
+    {
+      int found_congress = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_CONGRESS &&
+            pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          found_congress = 1;
+          break;
+        }
+      }
+      if (!found_congress) {
+        return fail("ai_popups should enqueue KING_CONGRESS choice");
+      }
+    }
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1; /* Confirm */
+    pop.result_tag = AI_POPUP_TAG_KING_CONGRESS;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 1;
+    pop.result_payload = 60;
+    ai_king_apply_popup_result(&ctx, &pop);
+    ai_popup_consume_result(&pop);
+    if (col1.head.unknown46[0] == 0 || col1.head.unknown46[5] == 0) {
+      return fail("apply Confirm should declare WoI + congress unknown46[5]");
+    }
+    /* R2: Confirm chain → United Colonies rename OK + WoI begins OK (160a / 1a26). */
+    {
+      int found_rename = 0;
+      int found_woi = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
+          continue;
+        }
+        if (strstr(pop.queue[i].body, "United Colonies") ||
+            strstr(pop.queue[i].title, "United Colonies")) {
+          found_rename = 1;
+        }
+        if (strstr(pop.queue[i].body, "War of Independence")) {
+          found_woi = 1;
+        }
+      }
+      if (!found_rename) {
+        return fail("apply Confirm should enqueue United Colonies rename OK");
+      }
+      if (!found_woi) {
+        return fail("apply Confirm should enqueue War of Independence begins OK");
+      }
+    }
+    if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
+      return fail("apply Confirm must still rename country_name (choice apply)");
+    }
+
+    /* Merc CHOICE: wartime + gold → enqueue Hire; apply spends/spawns. */
+    col1.head.unknown46[3] = 0;
+    col1.nation[0].gold = 400;
+    europe.gold = 400;
+    colonies.colonies[0].nation_id = 0;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    const int merc_units_before = count_nation(&units, 0);
+    const uint32_t merc_gold_before = col1.nation[0].gold;
+    ai_king_nation_turn(&ctx);
+    if (col1.nation[0].gold != merc_gold_before) {
+      return fail("ai_popups merc must defer spend until Hire apply");
+    }
+    if (col1.head.unknown46[3] != 0) {
+      return fail("ai_popups merc must leave unknown46[3] clear until apply");
+    }
+    {
+      int found_merc = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+            pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          found_merc = 1;
+          break;
+        }
+      }
+      if (!found_merc) {
+        return fail("ai_popups should enqueue KING_MERC Hire/Decline");
+      }
+    }
+    /* Preserve offer payload (packed landing); colony may be captured same beat. */
+    {
+      int merc_payload = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+            pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          merc_payload = pop.queue[i].payload;
+          break;
+        }
+      }
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1; /* Hire */
+      pop.result_tag = AI_POPUP_TAG_KING_MERC;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 1;
+      pop.result_payload = merc_payload;
+    }
+    ai_king_apply_popup_result(&ctx, &pop);
+    ai_popup_consume_result(&pop);
+    if (col1.head.unknown46[3] == 0) {
+      return fail("apply Hire should set merc unknown46[3]");
+    }
+    if (col1.nation[0].gold != merc_gold_before - 300) {
+      return fail("apply Hire should spend 300 gold");
+    }
+    if (count_nation(&units, 0) <= merc_units_before) {
+      return fail("apply Hire should spawn Continental merc");
+    }
+    {
+      int found_hire_ok = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+            pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "join the Continental")) {
+          found_hire_ok = 1;
+          break;
+        }
+      }
+      if (!found_hire_ok) {
+        return fail("apply Hire should enqueue merc success follow-up OK");
+      }
+    }
+
+    /*
+     * R3: 10f0 intervene landing enqueues KING_ARRIVAL once (REF 1528 already OK).
+     * WoI + REF empty + backup; merc flag already set so no Hire CHOICE spam.
+     */
+    {
+      col1.head.unknown46[0] = 1;
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      colonies.colonies[0].nation_id = 0;
+      col1.head.backup_force[0] = 2;
+      col1.head.backup_force[1] = 2;
+      col1.head.backup_force[2] = 0;
+      col1.head.backup_force[3] = 0;
+      status[0] = '\0';
+      ai_popup_clear(&pop);
+      ai_king_nation_turn(&ctx);
+      {
+        int arrival_ok = 0;
+        for (int i = 0; i < pop.queue_count; ++i) {
+          if (pop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL &&
+              pop.queue[i].kind == AI_POPUP_KIND_OK &&
+              strstr(pop.queue[i].body, "Foreign troops")) {
+            arrival_ok++;
+          }
+        }
+        if (arrival_ok != 1) {
+          fprintf(stderr, "smoke_ai_king: intervene ARRIVAL count=%d (want 1)\n",
+                  arrival_ok);
+          return fail("10f0 intervene should enqueue KING_ARRIVAL OK once");
+        }
+      }
+      /* Same-turn capture may overwrite status (1528 pattern); popup is canonical. */
+    }
+
+    /*
+     * R2 new smoke: SoL restless chrome enqueues INFO OK when human queue attached.
+     * Autumn + SoL 45 + bells below declare; peacetime (clear WoI).
+     * Force single-colony SoL (earlier 1eca block may leave colony_count=2).
+     * FUN_43f7_0004 / peacetime restless — must not set WoI/congress.
+     */
+    {
+      col1.head.unknown46[0] = 0;
+      col1.head.unknown46[5] = 0;
+      col1.head.colony_count = 1;
+      col1.colony[0].nation_id = 0;
+      col1.colony[0].population = 4;
+      col1.colony[0].rebel_dividend = 45;
+      col1.colony[0].rebel_divisor = 100;
+      col1.nation[0].liberty_bells_total = 50;
+      year = 1590;
+      autumn = 1;
+      status[0] = '\0';
+      ai_popup_clear(&pop);
+      if (ai_king_sol_percent(&ctx, 0) != 45) {
+        return fail("restless+ai_popups SoL setup want 45");
+      }
+      ai_king_nation_turn(&ctx);
+      if (col1.head.unknown46[0] != 0 || col1.head.unknown46[5] != 0) {
+        return fail("restless+ai_popups must leave WoI/congress clear");
+      }
+      if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
+        fprintf(stderr, "smoke_ai_king: restless+popups status: '%s'\n", status);
+        return fail("restless+ai_popups should still set restless status");
+      }
+      {
+        int found_restless = 0;
+        for (int i = 0; i < pop.queue_count; ++i) {
+          if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+              (pop.queue[i].tag == AI_POPUP_TAG_INFO ||
+               pop.queue[i].tag == AI_POPUP_TAG_KING_TAX) &&
+              strstr(pop.queue[i].body, "restless")) {
+            found_restless = 1;
+            break;
+          }
+        }
+        if (!found_restless) {
+          return fail("restless chrome should enqueue INFO OK when ai_popups");
+        }
+      }
+    }
+
+    ctx.ai_popups = NULL;
+  }
+
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
@@ -2626,7 +2947,7 @@ int main(void) {
   col1_save_free(&col1);
   fprintf(stderr,
           "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d "
-          "1eca=colony-SoL)\n",
+          "1eca=colony-SoL popups)\n",
           sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;
 }
