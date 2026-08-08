@@ -320,6 +320,13 @@ int colonies_warehouse_capacity(
   int cargo_type
 );
 
+/*
+ * EOT spoilage: clamp each stock to warehouse capacity (FUN_15eb_0a50 /
+ * FUN_15eb_0c52). Call after production + Custom House (wiki: auto-sell before
+ * spoilage). Returns total units discarded.
+ */
+int colonies_apply_warehouse_spoilage(ColonizeColonyPool* pool, ColonizeColony* colony);
+
 /* Move up to `amount` of cargo_type from colony stock into a transport unit. Returns amount moved. */
 int colonies_transfer_to_unit(
   ColonizeColonyPool* pool,

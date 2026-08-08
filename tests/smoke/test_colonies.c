@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_craft.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -413,11 +414,46 @@ int main(void) {
   CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");
   CHECK(colonies_id_at(&pool, land2_x + 1, land2_y) < 0, "colonies_id_at returns -1 for empty tile");
 
+  /* SoL craft deepen: +sol_bonus per manufacturing worker on output. */
+  {
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "colony for SoL craft");
+    const int shop = colonies_find_building(&pool, "Blacksmith's Shop");
+    CHECK(shop >= 0, "Blacksmith's Shop for SoL craft");
+    if (c && shop >= 0) {
+      c->has_building[shop] = true;
+      if (c->colonist_count < 1) {
+        c->colonist_count = 1;
+        c->colonists[0].active = true;
+      }
+      c->colonists[0].active = true;
+      c->colonists[0].building_type = shop;
+      c->colonists[0].profession = 19; /* free colonist */
+      c->stock[COLONIZE_CARGO_ORE] = 20;
+      c->stock[COLONIZE_CARGO_TOOLS] = 0;
+      colony_craft_one_colony(&pool, c, NULL, 0);
+      const int tools0 = c->stock[COLONIZE_CARGO_TOOLS];
+      CHECK(tools0 > 0, "craft without SoL produces tools");
+      c->stock[COLONIZE_CARGO_ORE] = 20;
+      c->stock[COLONIZE_CARGO_TOOLS] = 0;
+      colony_craft_one_colony(&pool, c, NULL, 2);
+      const int tools2 = c->stock[COLONIZE_CARGO_TOOLS];
+      CHECK(tools2 > tools0, "SoL +2 craft yields more tools than baseline");
+      c->has_building[shop] = false;
+      c->colonists[0].building_type = -1;
+    }
+  }
+
   /* Abandon removes colony (cargo discarded). */
   {
     ColonizeColony* c = colonies_get_mut(&pool, cid);
     CHECK(c != NULL, "colony before abandon");
     c->stock[COLONIZE_CARGO_FOOD] = 50;
+    /* Warehouse spoilage clamp (FUN_15eb_0a50): tools above base 100 → 100. */
+    c->stock[COLONIZE_CARGO_TOOLS] = 150;
+    CHECK(colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) == 100, "base tools cap 100");
+    CHECK(colonies_apply_warehouse_spoilage(&pool, c) == 50, "spoil 50 tools over cap");
+    CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "tools clamped to 100");
     const int stockade_b = colonies_find_building(&pool, "Stockade");
     CHECK(stockade_b >= 0, "stockade type for fortification check");
     c->has_building[stockade_b] = true;

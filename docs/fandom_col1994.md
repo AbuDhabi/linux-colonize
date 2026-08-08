@@ -118,7 +118,7 @@ Costs / min-pop: already catalogued in `NAMES.TXT` and summarized in [`building_
 | Claim (wiki) | Porting note |
 |--------------|--------------|
 | Factory ≈ **1.5×** goods per raw (Adam Smith) | Aligns with port framing **6→9** throughput in [`building_production.md`](building_production.md); verify in decomp |
-| SoL **50%** / **100%** productivity bumps; can exceed 100% internally but display caps at 100% | [Sons of Liberty (Col)](https://civilization.fandom.com/wiki/Sons_of_Liberty_(Col)); port SoL display Partial, sentiment not applied to production |
+| SoL **50%** / **100%** productivity bumps; can exceed 100% internally but display caps at 100% | [Sons of Liberty (Col)](https://civilization.fandom.com/wiki/Sons_of_Liberty_(Col)); port: field/craft/hammers/bells/crosses apply `colony_prod_sol_bonus`; Tory −1 PARK |
 | “Inefficient government”: too many Tory colonists (wiki: ≥10 easiest / ≥6 hardest) → **−1** on all production | Manual SoL ±1 qualitative; verify thresholds vs code |
 | Printing Press +50% / Newspaper +100% liberty bells from town-hall workers | Partial construction; multipliers Missing |
 | Jefferson ×1.5 on statesmen; Paine adds tax-rate factor (wiki: multiplicative with press/newspaper) | FF Missing |
@@ -151,8 +151,8 @@ Port: combat Missing; Europe buy/sell Partial; equip Partial.
 | Claim (wiki) | Source | Port / original |
 |--------------|--------|-----------------|
 | Stockade: defender strength **+100%**; replaces Fortify benefit inside | [Stockade (Col)](https://civilization.fandom.com/wiki/Stockade_(Col)) | Matches [`building_production.md`](building_production.md); combat wired `colonies_fortification_defense_bonus_percent` |
-| Fort: **+150%**; coastal fort slows / fires on adjacent enemy ships (wiki: attack strength 4 + 4 per artillery) | [Fort (Col)](https://civilization.fandom.com/wiki/Fort_(Col)) | Chart +150% in land combat; naval fire Missing |
-| Fortress: **+200%**; stronger coastal fire (wiki: 8 + 8 per artillery) | [Fortress (Col)](https://civilization.fandom.com/wiki/Fortress_(Col)) | Chart +200% in land combat; naval fire Missing |
+| Fort: **+150%**; coastal fort slows / fires on adjacent enemy ships (wiki: attack strength 4 + 4 per artillery) | [Fort (Col)](https://civilization.fandom.com/wiki/Fort_(Col)) | Chart +150% in land combat; naval fire **Done** (`units_coastal_fort_fire_pulse`); ship-slow PARK |
+| Fortress: **+200%**; stronger coastal fire (wiki: 8 + 8 per artillery) | [Fortress (Col)](https://civilization.fandom.com/wiki/Fortress_(Col)) | Chart +200% in land combat; naval fire **Done** (tier×8 formula) |
 | With Stockade/Fort/Fortress, cannot **voluntarily** reduce population below **3** | Stockade / [Colony (Col)](https://civilization.fandom.com/wiki/Colony_(Col)) | Port eject keeps ≥**3** (aligned) |
 | Last colonist leave → abandon confirm | Colony (Col) | Port Partial (abandon confirm) |
 | Center tile always feeds at least one colonist (cannot starve out completely except edge cases wiki notes for La Salle) | Colony (Col) | Verify vs code |

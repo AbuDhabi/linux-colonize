@@ -43,6 +43,7 @@ static void colony_craft_pair_totals(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonyCraftRecipe* rec,
+  int sol_bonus,
   int* out_total_out,
   int* out_total_in
 ) {
@@ -57,6 +58,7 @@ static void colony_craft_pair_totals(
     }
     return;
   }
+  const int sol = sol_bonus > 0 ? sol_bonus : 0;
   for (int i = 0; i < colony->colonist_count; ++i) {
     const ColonizeColonist* c = &colony->colonists[i];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
@@ -66,8 +68,12 @@ static void colony_craft_pair_totals(
     if (!colony_craft_name_matches(bname, rec->needle)) {
       continue;
     }
-    total_out +=
+    int out =
       colony_prod_manufacturing_output(bname, c->profession, rec->craft_profession);
+    if (out > 0 && sol > 0) {
+      out += sol;
+    }
+    total_out += out;
     total_in += colony_prod_manufacturing_input(bname, c->profession, rec->craft_profession);
   }
   if (out_total_out) {
@@ -81,7 +87,8 @@ static void colony_craft_pair_totals(
 void colony_craft_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
-  ColonizeColonyProdDelta* delta
+  ColonizeColonyProdDelta* delta,
+  int sol_bonus
 ) {
   if (!pool || !colony || !colony->active) {
     return;
@@ -109,7 +116,7 @@ void colony_craft_one_colony(
       }
       int pair_out = 0;
       int pair_in = 0;
-      colony_craft_pair_totals(pool, colony, rec2, &pair_out, &pair_in);
+      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out, &pair_in);
       total_out += pair_out;
       total_in += pair_in;
     }
@@ -146,7 +153,8 @@ void colony_craft_preview(
   const ColonizeColonyPool* pool,
   ColonizeColony* scratch,
   int shortfall[COLONIZE_CARGO_COUNT],
-  ColonizeColonyProdDelta* delta
+  ColonizeColonyProdDelta* delta,
+  int sol_bonus
 ) {
   if (!pool || !scratch || !scratch->active) {
     return;
@@ -180,7 +188,7 @@ void colony_craft_preview(
       }
       int pair_out = 0;
       int pair_in = 0;
-      colony_craft_pair_totals(pool, scratch, rec2, &pair_out, &pair_in);
+      colony_craft_pair_totals(pool, scratch, rec2, sol_bonus, &pair_out, &pair_in);
       total_out += pair_out;
       total_in += pair_in;
     }

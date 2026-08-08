@@ -562,6 +562,9 @@ add_test(NAME smoke_colony_yield COMMAND smoke_colony_yield WORKING_DIRECTORY ${
 add_executable(smoke_colonies
   tests/smoke/test_colonies.c
   src/core/colony.c
+  src/core/colony_craft.c
+  src/core/colony_production.c
+  src/core/colony_yield.c
   src/core/units.c
   src/core/unit_chrome.c
   src/core/founding_fathers.c

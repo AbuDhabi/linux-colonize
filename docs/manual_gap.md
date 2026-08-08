@@ -82,7 +82,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Warehouse drag load/unload to ships / wagons | Done | Drag cargo↔hold (icon cursor); **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122** |
 | SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned; people row includes fence units |
 | Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥3; last colonist confirms abandon (cargo lost) |
-| Fortification defense bonuses | Missing | Fence / docks art only; no combat |
+| Fortification defense bonuses | Done | Land +100/150/200%; coastal Fort/Fortress fire EOT (`units_coastal_fort_fire_pulse`). Fence/docks art separate |
 
 ### Europe
 
@@ -106,7 +106,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Calendar (`@TIMECHANGE`) | Done | Year then Spring/Autumn from 1600 |
 | Food / production / hammers | Partial | Simplified stubs in `turn.c` |
 | Liberty bells / crosses counters | Partial | Accumulators; FF election via `founding_fathers_tick` |
-| Full production formulas, spoilage, boycotts | Missing | |
+| Full production formulas, spoilage, boycotts | Partial | SoL field/craft/hammers/bells; warehouse spoilage clamp EOT (`colonies_apply_warehouse_spoilage` / FUN_15eb_0a50); boycotts structural diplo |
 | Market prices driven by trade volume | Missing | Static bid/ask display only |
 | Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King/REF structural — [ai_transcription.md](ai_transcription.md) |
 
@@ -125,14 +125,14 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Land / naval attack | Partial | Land T0: move into foreign unit → attack/defense (+ fortified ×2); loser despawned. Naval T0 via `units_resolve_naval_combat`; AI hunt thin |
 | Capture colony | Partial | T0 `colonies_capture` (Euro owner swap; Indian raid abandons) — AI / combat paths |
-| Stockade / fort / fortress defense % | Missing | Wiki +100%/+150%/+200% in [fandom_col1994.md](fandom_col1994.md) / [building_production.md](building_production.md); unverified in combat |
+| Stockade / fort / fortress defense % | Done | Land combat: +100%/+150%/+200% via `colonies_fortification_defense_bonus_percent`; coastal Fort/Fortress naval fire `units_coastal_fort_fire_pulse` (FUN_364b_03f6). PARK: ship-slow formula |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
 
 ### Founding Fathers and independence
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas **Done**; Sepulveda/Cortes hooks **OPEN** (unpark #3); Congress UI PARKED |
+| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt **Done**; Sepulveda join% / KINGGALLEON2 PARK; Congress UI PARKED |
 | Pedia / F3 Congress report | Partial | Data / articles; no election |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); VGA PARKED |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); deep `10f0` / arrival / letter chrome PARKED |
@@ -166,9 +166,9 @@ Aligned with early manual chapters (short playable loop first), then the
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — fortify, sentry, disband (goto drag done)
 5. **Fog of war / exploration**
-6. **Combat** (land first; colony defense) — T0 land/naval/capture in; fort % still Missing
+6. **Combat** (land first; colony defense) — T0 land/naval/capture + fort % + coastal fort fire in; ship-slow / deep `20e6` still PARKED
 7. **Indian contact UI** — player meet / trade / teach / gift dialogs (**Done** structural `ai_popup`; deep/VGA PARKED)
-8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda/Cortes **OPEN** unpark #3; Congress UI later)
+8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda join% / KINGGALLEON2 PARK; Cortes/de Witt Done; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** (manual notes mouse; lower priority for core loop)
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)

@@ -125,6 +125,12 @@ void turn_run_colony_production(
   ColonizeTurnResult* out
 );
 
+/*
+ * Coastal Fort/Fortress naval fire (FUN_364b_03f6). Call after colony
+ * production in EOT SETUP. Returns ships sunk (0 if ctx incomplete).
+ */
+int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx);
+
 /* Crosses → dock immigrant; liberty bells counters (human nation + Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 
