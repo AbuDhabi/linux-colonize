@@ -3853,7 +3853,10 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
       if (t->alarm[nation_id].friction > 50) {
-        ai_goals_upsert_primary(nation_id, t->x, t->y, AI_GOAL_MILITARY, 3);
+        /* Capital villages: higher MILITARY prio (Cortes rich_capital path).
+         * Cite: col1 tribe.state.capital; fandom capital / Aztec treasure. */
+        const int prio = t->state.capital ? 5 : 3;
+        ai_goals_upsert_primary(nation_id, t->x, t->y, AI_GOAL_MILITARY, prio);
       }
     }
   }
@@ -4882,7 +4885,10 @@ static int ai_euro_land_has_useful_goto(const ColonizeUnit* u, const ColonizeWor
 
 /*
  * Thin land war hunt (5b66 case 0x0b act-level): nearest enemy land unit or
- * foreign Euro colony tile at war. Full 20e6 land combat scoring PARKED.
+ * foreign Euro colony at war, or native Brave / tribe when Indian×Euro at war.
+ * Prefer capital tribe tiles (tie-break closer MD) — Cortes rich_capital path.
+ * Cite: ai_diplo_indian_at_war; col1 tribe.state.capital; fandom capital;
+ * Colonization.pdf war / Treasure Trains. Full 20e6 land combat scoring PARKED.
  */
 static int ai_euro_land_war_hunt_target(
   ColonizeTurnContext* ctx,
@@ -4896,23 +4902,31 @@ static int ai_euro_land_war_hunt_target(
     return 0;
   }
   int best = -1;
+  int best_cap = 0;
   int bx = 0;
   int by = 0;
 
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* f = &ctx->units->units[i];
-    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
+    if (!f->active || f->nation_id == nation_id || !units_is_on_map(f) ||
+        units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
       continue;
     }
-    if (!units_is_on_map(f) || units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
-      continue;
-    }
-    if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
+    if (f->nation_id >= 0 && f->nation_id <= 3) {
+      if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
+        continue;
+      }
+    } else if (f->nation_id >= 4 && f->nation_id <= 11) {
+      if (!ai_diplo_indian_at_war(ctx->col1, nation_id, f->nation_id - 4)) {
+        continue;
+      }
+    } else {
       continue;
     }
     const int dist = abs(f->x - from_x) + abs(f->y - from_y);
     if (best < 0 || dist < best) {
       best = dist;
+      best_cap = 0;
       bx = f->x;
       by = f->y;
     }
@@ -4930,8 +4944,29 @@ static int ai_euro_land_war_hunt_target(
       const int dist = abs(c->x - from_x) + abs(c->y - from_y);
       if (best < 0 || dist < best) {
         best = dist;
+        best_cap = 0;
         bx = c->x;
         by = c->y;
+      }
+    }
+  }
+
+  if (ctx->col1->tribe) {
+    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+      if (t->nation_id < 4 || t->nation_id > 11) {
+        continue;
+      }
+      if (!ai_diplo_indian_at_war(ctx->col1, nation_id, (int)t->nation_id - 4)) {
+        continue;
+      }
+      const int cap = t->state.capital ? 1 : 0;
+      const int dist = abs((int)t->x - from_x) + abs((int)t->y - from_y);
+      if (best < 0 || cap > best_cap || (cap == best_cap && dist < best)) {
+        best = dist;
+        best_cap = cap;
+        bx = (int)t->x;
+        by = (int)t->y;
       }
     }
   }
@@ -4987,9 +5022,18 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
     if (!f || f->nation_id == u->nation_id) {
       continue;
     }
-    if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4 &&
-        !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
-      continue;
+    if (ctx->col1_ok && ctx->col1) {
+      if (f->nation_id >= 0 && f->nation_id < 4) {
+        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+          continue;
+        }
+      } else if (f->nation_id >= 4 && f->nation_id <= 11) {
+        if (!ai_diplo_indian_at_war(ctx->col1, u->nation_id, f->nation_id - 4)) {
+          continue;
+        }
+      } else {
+        continue;
+      }
     }
     const int tough = ai_euro_land_foe_toughness(ctx->units, f);
     if (best_id < 0 || tough < best_tough) {
@@ -5369,8 +5413,32 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   const int is_scout = uname && strstr(uname, "Scout") != NULL;
   const int is_treasure = ai_euro_is_treasure_name(uname);
   const int is_missionary = ai_euro_is_missionary_name(uname);
+  /*
+   * Land war: Euro peer war, or Indian hostility sticky with a real hunt
+   * target (tribe / Brave). Sticky alone is not enough — memset relation=0
+   * syncs sticky during euro_balance and would skip peace fortify / admit
+   * Soldiers as LABOR. Cite: ai_diplo_indian_hostility_sticky; §2c hunt.
+   */
+  int indian_war_hunt = 0;
+  if (ctx->col1_ok && ctx->col1 &&
+      ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != 0 &&
+      ai_diplo_indian_any_at_war(ctx->col1, nation_id)) {
+    if (ctx->col1->tribe && ctx->col1->head.tribe_count > 0) {
+      indian_war_hunt = 1;
+    } else if (ctx->units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* f = &ctx->units->units[i];
+        if (f->active && f->nation_id >= 4 && f->nation_id <= 11 && units_is_on_map(f) &&
+            !units_is_sea(ctx->units, f->id)) {
+          indian_war_hunt = 1;
+          break;
+        }
+      }
+    }
+  }
   const int at_war_land =
-    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
+    ctx->col1_ok && ctx->col1 &&
+    (ai_euro_at_war_any_peer(ctx->col1, nation_id) || indian_war_hunt);
   int land_war_hunted = 0;
   int scout_explored = 0;
   int treasure_routed = 0;

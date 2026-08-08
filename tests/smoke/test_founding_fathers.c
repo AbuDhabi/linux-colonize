@@ -143,6 +143,38 @@ int main(void) {
       (eu_brew.pool[0].profession == 26 || strstr(eu_brew.pool[0].name, "Criminal"))) {
     return fail("Brewster left criminal in pool");
   }
+  /* Dock Indentured → Free Colonists (starters may predate elect). */
+  {
+    EuropeScreen eu_dock;
+    memset(&eu_dock, 0, sizeof(eu_dock));
+    eu_dock.dock_count = 1;
+    eu_dock.dock[0].present = true;
+    snprintf(eu_dock.dock[0].name, sizeof(eu_dock.dock[0].name), "Indentured Servants");
+    eu_dock.dock[0].profession = COLONIZE_PROF_INDENTURED;
+    ColonizeCol1Save bcol1;
+    col1_save_init(&bcol1);
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      bcol1.head.founding_father[i] = -1;
+    }
+    ColonizeCol1Nation* bnat = &bcol1.nation[0];
+    memset(bnat, 0, sizeof(*bnat));
+    bnat->liberty_bells_total = 40;
+    bnat->next_founding_father = FF_WILLIAM_BREWSTER;
+    ColonizeTurnContext bctx;
+    memset(&bctx, 0, sizeof(bctx));
+    bctx.human_nation = 0;
+    bctx.col1 = &bcol1;
+    bctx.col1_ok = true;
+    bctx.europe = &eu_dock;
+    founding_fathers_tick(&bctx);
+    if (!founding_fathers_nation_has(&bcol1, 0, FF_WILLIAM_BREWSTER)) {
+      return fail("Brewster dock-filter elect");
+    }
+    if (eu_dock.dock[0].profession != COLONIZE_PROF_FREE_COLONIST ||
+        strstr(eu_dock.dock[0].name, "Free") == NULL) {
+      return fail("Brewster must convert Indentured dock to Free Colonists");
+    }
+  }
   ctx.europe = NULL;
 
   /* Jefferson: elect only — production +50% on statesmen is turn/prod path. */

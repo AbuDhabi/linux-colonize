@@ -359,8 +359,8 @@ static int effect_bolivar_rebel(ColonizeCol1Save* col1, int nation_id) {
 }
 
 /*
- * Brewster: no Petty Criminals / Indentured Servants in Europe recruit pool.
- * (Player pick among pool→dock UI still PARKED.)
+ * Brewster: no Petty Criminals / Indentured Servants in Europe recruit pool
+ * or dock. (Player pick among pool→dock UI still PARKED.)
  */
 static void effect_brewster_filter_pool(EuropeScreen* europe) {
   if (!europe) {
@@ -377,6 +377,20 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
         strstr(europe->pool[i].name, "Indentured") != NULL ||
         strstr(europe->pool[i].name, "Servant") != NULL) {
       europe_refill_pool_slot(europe, i, NULL);
+    }
+  }
+  /* Dock starters may still be Indentured — clear/refill to Free Colonists. */
+  for (int i = 0; i < europe->dock_count; ++i) {
+    if (!europe->dock[i].present) {
+      continue;
+    }
+    if (europe->dock[i].profession == COLONIZE_PROF_CRIMINAL ||
+        europe->dock[i].profession == COLONIZE_PROF_INDENTURED ||
+        strstr(europe->dock[i].name, "Criminal") != NULL ||
+        strstr(europe->dock[i].name, "Indentured") != NULL ||
+        strstr(europe->dock[i].name, "Servant") != NULL) {
+      snprintf(europe->dock[i].name, sizeof(europe->dock[i].name), "Free Colonists");
+      europe->dock[i].profession = COLONIZE_PROF_FREE_COLONIST;
     }
   }
 }
@@ -671,8 +685,9 @@ static void apply_effect(
       effect_franklin_nw_peace(col1, nation_id);
       break;
     case FF_WILLIAM_BREWSTER:
-      /* Manual/wiki: no criminals/servants on docks + recruit pick.
-       * Filter Europe pool now; pick-among-pool UI PARKED. */
+      /* Manual/wiki: no criminals/servants on docks + recruit pool.
+       * effect_brewster_filter_pool (pool refill + Indentured dock→Free).
+       * Pick-among-pool UI PARKED. */
       if (nation_id == human_nation) {
         effect_brewster_filter_pool(europe);
       }

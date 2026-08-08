@@ -823,6 +823,134 @@ static int smoke_land_war_hunt(void) {
 }
 
 /*
+ * Indian×Euro war: Soldier hunts toward capital tribe over nearer non-capital.
+ * Cite: ai_diplo_indian_at_war; tribe.state.capital; Cortes rich_capital path.
+ */
+static int smoke_indian_war_capital_hunt(void) {
+  const int nation = 1;
+  const int indian = 4; /* Arawak */
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("indian-hunt alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  memset(units.types, 0, sizeof(units.types));
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int sid = units_spawn(&units, 0, 2, 2);
+  ColonizeUnit* soldier = units_get(&units, sid);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("indian-hunt spawn");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 3;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  col1.player[nation].control = 0;
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  /* At war with Indian slot 0 (nation 4). */
+  col1.nation[nation].relation_by_indian[0] = 20;
+  ai_diplo_indian_hostility_sync(&col1, nation);
+
+  ColonizeCol1Tribe tribes[2];
+  memset(tribes, 0, sizeof(tribes));
+  tribes[0].x = 4;
+  tribes[0].y = 2;
+  tribes[0].nation_id = (uint8_t)indian;
+  tribes[0].state.capital = 0; /* nearer non-capital */
+  tribes[1].x = 10;
+  tribes[1].y = 2;
+  tribes[1].nation_id = (uint8_t)indian;
+  tribes[1].state.capital = 1; /* farther capital — prefer */
+  col1.tribe = tribes;
+  col1.head.tribe_count = 2;
+
+  ai_goals_reset();
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+
+  if (!ai_diplo_indian_any_at_war(&col1, nation)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("indian-hunt expected indian war");
+  }
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+  soldier = units_get(&units, sid);
+  if (!soldier || !soldier->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("indian-hunt soldier gone");
+  }
+  const int toward_cap =
+    soldier->orders == UNITS_ORDER_AI_MOVE && soldier->goto_x == 10 && soldier->goto_y == 2;
+  const int moved_east = soldier->x > 2;
+  if (!toward_cap && !moved_east) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: indian-hunt orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      soldier->orders,
+      soldier->goto_x,
+      soldier->goto_y,
+      soldier->x,
+      soldier->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected AI_MOVE toward capital tribe (10,2) or east move");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: indian capital hunt ok (goto_cap=%d east=%d)\n",
+    toward_cap,
+    moved_east
+  );
+  return 0;
+}
+
+/*
  * Thin 20e6 multi-step land war hunt: Soldier with moves_left>=2, no MILITARY
  * goal upsert — act-level hunt still advances two tiles toward foe in one act.
  * Cite: euro_unit_act §2c3; FUN_521d_20e6 thin multi-step combat deepen.
@@ -4276,6 +4404,9 @@ int main(void) {
     return 1;
   }
   if (smoke_land_war_hunt() != 0) {
+    return 1;
+  }
+  if (smoke_indian_war_capital_hunt() != 0) {
     return 1;
   }
   if (smoke_land_war_hunt_multistep() != 0) {

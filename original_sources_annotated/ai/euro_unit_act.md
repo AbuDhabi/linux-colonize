@@ -80,14 +80,20 @@ plain hunt.
 
 ### 2c. Linux thin — land war hunt (act-level)
 
-When at war with a Euro peer, idle land military (Soldier / Dragoon / Scout —
-including formerly fortified/sentry) get `AI_MOVE` toward the nearest enemy
-land unit or enemy colony tile. Idle `FORTIFY` / `FORTIFIED` / `SENTRY` are
-woken via `units_wake` then hunted. Adjacent → `ai_euro_try_attack`, preferring
-the foe with lower effective defense (fortified ×2). Does not steal founders on
-FOUND goals. Act-level hunt / peace-border / scout explore share thin 2-step
-goto advance with FOUND/MILITARY/CONTACT (§2c3). Full multi-step `20e6` combat
-scoring remains **PARKED**.
+When at war with a Euro peer, **or** Indian hostility sticky with a tribe/Brave
+on the map, idle land military (Soldier / Dragoon / Scout — including formerly
+fortified/sentry) get `AI_MOVE` toward the nearest enemy land unit, enemy colony,
+or **at-war native Brave / tribe tile** (prefer `tribe.state.capital`). Idle
+`FORTIFY` / `FORTIFIED` / `SENTRY` are woken via `units_wake` then hunted.
+Adjacent → `ai_euro_try_attack`, preferring the foe with lower effective defense
+(fortified ×2); Indian adjacent requires `ai_diplo_indian_at_war`. Does not steal
+founders on FOUND goals. Act-level hunt / peace-border / scout explore share thin
+MP-drain goto advance with FOUND/MILITARY/CONTACT (§2c3). Full multi-step `20e6`
+combat scoring remains **PARKED**. Cite: `ai_diplo_indian_*`; Cortes capital
+treasure path; Colonization.pdf war.
+
+**Alarmed tribe MILITARY (planning F):** friction>50 → MILITARY; capital tribes
+prio 5 vs 3.
 
 ### 2c2. Linux thin — CONTACT scout rings (0a60 E / act)
 
