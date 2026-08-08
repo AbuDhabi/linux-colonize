@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "core/col1_save.h"
 #include "core/colony_yield.h"
 
 static bool colony_prod_name_has(const char* name, const char* needle) {
@@ -132,6 +133,30 @@ int colony_yield_for_worker(
     yld *= 2;
   }
   return yld;
+}
+
+int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  if (!col1 || !colony || !col1->colony) {
+    return 0;
+  }
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->x != colony->x || (int)c->y != colony->y) {
+      continue;
+    }
+    if (c->rebel_divisor == 0) {
+      return 0;
+    }
+    const int sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+    if (sol >= 100) {
+      return 2;
+    }
+    if (sol >= 50) {
+      return 1;
+    }
+    return 0;
+  }
+  return 0;
 }
 
 int colony_prod_crosses_worker(const char* building_name, int profession) {

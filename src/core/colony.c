@@ -956,6 +956,29 @@ bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeCo
   return false;
 }
 
+int colonies_fortification_defense_bonus_percent(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+) {
+  if (!pool || !colony || !colony->active) {
+    return 0;
+  }
+  /* Highest tier wins (Fortress upgrades Fort upgrades Stockade). */
+  const int fortress = colonies_find_building(pool, "Fortress");
+  if (fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fortress]) {
+    return 200;
+  }
+  const int fort = colonies_find_building(pool, "Fort");
+  if (fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fort]) {
+    return 150;
+  }
+  const int stockade = colonies_find_building(pool, "Stockade");
+  if (stockade >= 0 && stockade < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[stockade]) {
+    return 100;
+  }
+  return 0;
+}
+
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !col->active) {

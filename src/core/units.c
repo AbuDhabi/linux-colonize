@@ -6,6 +6,7 @@
 
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
@@ -247,6 +248,121 @@ int units_spawn_treasure_train(
   return id;
 }
 
+int units_tick_treasure_outside_colony(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  char* status,
+  size_t status_size
+) {
+  if (!pool || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  int removed = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(pool, u->type_index);
+    if (!ty || !ty->name[0] || strstr(ty->name, "Treasure") == NULL) {
+      continue;
+    }
+    int on_own_colony = 0;
+    if (colonies) {
+      const int cid = colonies_id_at(colonies, u->x, u->y);
+      if (cid >= 0) {
+        const ColonizeColony* c = colonies_get(colonies, cid);
+        if (c && c->active && c->nation_id == nation_id) {
+          on_own_colony = 1;
+        }
+      }
+    }
+    if (on_own_colony) {
+      u->turns_worked = 0;
+      continue;
+    }
+    /* FUN_3844_0004: unit+0x16++; remove when > 8. */
+    if (u->turns_worked < 255) {
+      u->turns_worked++;
+    }
+    if (u->turns_worked <= 8) {
+      continue;
+    }
+    (void)units_despawn(pool, u->id);
+    removed++;
+  }
+  if (removed > 0 && status && status_size > 0) {
+    snprintf(
+      status,
+      status_size,
+      "A Treasure Train was lost after too long outside a colony."
+    );
+  }
+  return removed;
+}
+
+int units_cortes_cash_coastal_treasures(
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id
+) {
+  if (!pool || !colonies || !map || !europe || !col1 || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  if (!founding_fathers_cortes_free_king_galleon(col1, nation_id)) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  europe->gold = (int)nat->gold;
+  europe->tax_percent = (int)nat->tax_rate;
+  int cashed = 0;
+  /* Snapshot ids — despawn mutates the pool. */
+  int ids[COLONIZE_UNITS_MAX];
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(pool, u->type_index);
+    if (!ty || !ty->name[0] || strstr(ty->name, "Treasure") == NULL) {
+      continue;
+    }
+    ids[n++] = u->id;
+  }
+  for (int i = 0; i < n; ++i) {
+    ColonizeUnit* treasure = units_get(pool, ids[i]);
+    if (!treasure || !treasure->active) {
+      continue;
+    }
+    const int cid = colonies_id_at(colonies, treasure->x, treasure->y);
+    if (cid < 0) {
+      continue;
+    }
+    const ColonizeColony* c = colonies_get(colonies, cid);
+    if (!c || !c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (!map_tile_is_coastal(map, c->x, c->y)) {
+      continue;
+    }
+    const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
+    const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
+    const int value = (int)(lo | (hi << 8));
+    if (value > 0) {
+      (void)europe_cash_treasure(europe, value);
+      nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
+    }
+    (void)units_despawn(pool, treasure->id);
+    cashed++;
+  }
+  return cashed;
+}
+
 bool units_is_on_map(const ColonizeUnit* unit) {
   return unit && unit->active && unit->aboard_ship_id < 0;
 }
@@ -431,6 +547,7 @@ static const ColonizeCol1Save* g_units_ff_col1 = NULL;
 static ColonizeCol1Save* g_units_fallout_col1 = NULL;
 static ColonizeWorldMap* g_units_fallout_map = NULL;
 static int g_units_conquest_gold = -1;
+static const ColonizeColonyPool* g_units_combat_colonies = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
@@ -444,6 +561,10 @@ void units_set_native_fallout_context(
   g_units_fallout_col1 = col1;
   g_units_fallout_map = map;
   g_units_conquest_gold = conquest_gold;
+}
+
+void units_set_combat_colonies(const ColonizeColonyPool* colonies) {
+  g_units_combat_colonies = colonies;
 }
 
 int units_last_combat_outcome(void) {
@@ -881,7 +1002,26 @@ bool units_resolve_land_combat_ff(
   }
   int attack = at->attack;
   int defense = dt->defense;
-  if (def->orders == UNITS_ORDER_FORTIFIED || def->orders == UNITS_ORDER_FORTIFY) {
+  /*
+   * Colony fortification (Stockade +100% / Fort +150% / Fortress +200%) when
+   * defender stands on own Euro colony tile. Cite: building_production.md;
+   * fandom Stockade/Fort/Fortress. Stockade replaces Fortify benefit inside —
+   * skip fortified ×2 when building bonus applies.
+   */
+  int fort_bonus = 0;
+  if (g_units_combat_colonies) {
+    const int cid = colonies_id_at(g_units_combat_colonies, def->x, def->y);
+    if (cid >= 0) {
+      const ColonizeColony* col = colonies_get(g_units_combat_colonies, cid);
+      if (col && col->active && col->nation_id == def->nation_id && col->nation_id >= 0 &&
+          col->nation_id <= 3) {
+        fort_bonus = colonies_fortification_defense_bonus_percent(g_units_combat_colonies, col);
+      }
+    }
+  }
+  if (fort_bonus > 0) {
+    defense = defense + (defense * fort_bonus) / 100;
+  } else if (def->orders == UNITS_ORDER_FORTIFIED || def->orders == UNITS_ORDER_FORTIFY) {
     defense *= 2;
   }
   if (attack < 0) {
@@ -907,6 +1047,23 @@ bool units_resolve_land_combat_ff(
     const int def_y = def->y;
     const int def_nation = def->nation_id;
     const int atk_nation = atk->nation_id;
+    /*
+     * Treasure capture: credit LE16 hold gold to Euro winner treasury, then
+     * despawn. Cite: FUNCTION_CATALOG FUN_5fef_1908; GAME.TXT @LOOTCAPTURE —
+     * amount from unit only (no invented ransom). PARK: ransom dialog chrome.
+     */
+    if (col1 && atk_nation >= 0 && atk_nation <= 3 && dt->name[0] &&
+        strstr(dt->name, "Treasure") != NULL) {
+      const unsigned lo = (unsigned)(def->hold_goods_amount[0] & 0xff);
+      const unsigned hi = (unsigned)(def->hold_goods_amount[1] & 0xff);
+      const int loot = (int)(lo | (hi << 8));
+      if (loot > 0) {
+        ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
+        const uint32_t g = mut->nation[atk_nation].gold;
+        const uint32_t add = (uint32_t)loot;
+        mut->nation[atk_nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
+      }
+    }
     units_despawn(pool, defender_id);
     atk = units_get(pool, attacker_id);
     if (atk) {
@@ -1252,6 +1409,9 @@ bool units_try_move(
   if (dx < -1 || dx > 1 || dy < -1 || dy > 1 || (dx == 0 && dy == 0)) {
     return false;
   }
+
+  /* Fortification defense uses defender's colony tile (set before combat). */
+  units_set_combat_colonies(colonies);
 
   const int foe = units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id);
   if (foe >= 0) {

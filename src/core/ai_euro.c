@@ -56,7 +56,8 @@ static int ai_euro_colony_wants_construction_labor(
   if (!bt || bt->name[0] == '\0') {
     return 0;
   }
-  return strcmp(bt->name, "Stockade") == 0 || strcmp(bt->name, "Warehouse") == 0 ||
+  return strcmp(bt->name, "Stockade") == 0 || strcmp(bt->name, "Fort") == 0 ||
+         strcmp(bt->name, "Fortress") == 0 || strcmp(bt->name, "Warehouse") == 0 ||
          strcmp(bt->name, "Lumber Mill") == 0 || strcmp(bt->name, "Drydock") == 0 ||
          strcmp(bt->name, "Shipyard") == 0 || strcmp(bt->name, "Custom House") == 0;
 }
@@ -83,23 +84,27 @@ static int ai_euro_nation_wants_construction_labor(
 
 /*
  * Peace construction pick (5d04 / colony planning): idle/empty
- * building_in_production (< 0) → prefer Stockade → Warehouse → (coastal) Docks
- * via colonies_list_buildable + colonies_set_construction. Cite:
+ * building_in_production (< 0) → prefer Stockade → Fort → Fortress → Warehouse
+ * → (coastal) Docks via colonies_list_buildable + colonies_set_construction. Cite:
  * docs/fandom_col1994.md Defense Stockade→Fort→Fortress / Storage Warehouse /
  * Naval Docks→Drydock→Shipyard; docs/building_production.md Stockade 64h /
- * Warehouse 80h / Dock 52h. No invented hammer/gold buyouts — queue only.
+ * Fort 120h / Fortress 320h / Warehouse 80h / Dock 52h. No invented hammer/gold
+ * buyouts — queue only.
  */
 static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
     return;
   }
   const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
+  const int fort_id = colonies_find_building(ctx->colonies, "Fort");
+  const int fortress_id = colonies_find_building(ctx->colonies, "Fortress");
   const int warehouse_id = colonies_find_building(ctx->colonies, "Warehouse");
   const int docks_id = colonies_find_building(ctx->colonies, "Docks");
-  if (stockade_id < 0 && warehouse_id < 0 && docks_id < 0) {
+  if (stockade_id < 0 && fort_id < 0 && fortress_id < 0 && warehouse_id < 0 && docks_id < 0) {
     return;
   }
-  const int prefer[] = {stockade_id, warehouse_id, docks_id};
+  /* Defense chain before storage/docks so Fort % live after Stockade. */
+  const int prefer[] = {stockade_id, fort_id, fortress_id, warehouse_id, docks_id};
   ColoniesBuildableOpts opts;
   memset(&opts, 0, sizeof(opts));
   opts.map = ctx->map;
@@ -1817,6 +1822,39 @@ static int ai_euro_cash_one_treasure(
 }
 
 /*
+ * Cortes free king galleon: Treasure on own coastal colony → europe_cash_treasure
+ * via units_cortes_cash_coastal_treasures (shared human/AI). Cite: fandom
+ * Hernan Cortes; GAME.TXT @KINGGALLEON3.
+ */
+static int ai_euro_try_cortes_king_galleon_cash(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* treasure
+) {
+  if (!ctx || !ctx->units || !treasure || !treasure->active ||
+      treasure->nation_id != nation_id) {
+    return 0;
+  }
+  if (!founding_fathers_cortes_free_king_galleon(ctx->col1_ok ? ctx->col1 : NULL, nation_id)) {
+    return 0;
+  }
+  if (!ai_euro_is_treasure_name(units_display_name(ctx->units, treasure))) {
+    return 0;
+  }
+  /* Cash all coastal Treasures for nation (includes this unit when eligible). */
+  const int before = treasure->id;
+  const int n = units_cortes_cash_coastal_treasures(
+    ctx->units, ctx->colonies, ctx->map, ctx->europe, ctx->col1, nation_id
+  );
+  if (n <= 0) {
+    return 0;
+  }
+  /* This unit was consumed if still matching id is gone. */
+  const ColonizeUnit* u = units_get(ctx->units, before);
+  return (!u || !u->active) ? 1 : 0;
+}
+
+/*
  * Treasure (aboard ship or land) at Europe (x/y≥200) or ship on high seas →
  * europe_cash_treasure + despawn. AI stand-in for Expected→Harbor cash-in when
  * ctx->europe is present (R1 API). Cite: Colonization.pdf Treasure Trains.
@@ -2269,6 +2307,98 @@ static int ai_euro_de_witt_trade_goods_surplus(const ColonizeColony* c) {
   return c && c->active && c->stock[COLONIZE_CARGO_TRADE_GOODS] >= 20;
 }
 
+/* TRADE_GOODS amount currently on a transport's goods holds. */
+static int ai_euro_unit_trade_goods_held(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  int got = 0;
+  const int n = units_goods_hold_count(units, u->id);
+  for (int h = 0; h < n; ++h) {
+    if (u->hold_goods_type[h] == COLONIZE_CARGO_TRADE_GOODS && u->hold_goods_amount[h] > 0 &&
+        u->hold_goods_amount[h] < 255) {
+      got += u->hold_goods_amount[h];
+    }
+  }
+  return got;
+}
+
+/* Nearest own colony (any) for de Witt TRADE_GOODS delivery. */
+static int ai_euro_nearest_own_colony(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->colonies || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const int d = abs(c->x - from_x) + abs(c->y - from_y);
+    if (best < 0 || d < best) {
+      best = d;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Unload all TRADE_GOODS holds into own colony warehouse.
+ * Cite: colonies_transfer_from_unit; fandom Jan de Witt delivery loop.
+ */
+static int ai_euro_de_witt_unload_trade_goods_own(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* transport,
+  int colony_id
+) {
+  if (!ctx || !ctx->units || !ctx->colonies || !transport) {
+    return 0;
+  }
+  ColonizeColony* c = colonies_get_mut(ctx->colonies, colony_id);
+  if (!c || !c->active || c->nation_id != nation_id) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(ctx->units, transport->id);
+  int moved_total = 0;
+  for (;;) {
+    int hold = -1;
+    for (int h = 0; h < n; ++h) {
+      if (transport->hold_goods_type[h] == COLONIZE_CARGO_TRADE_GOODS &&
+          transport->hold_goods_amount[h] > 0 && transport->hold_goods_amount[h] < 255) {
+        hold = h;
+        break;
+      }
+    }
+    if (hold < 0) {
+      break;
+    }
+    const int moved =
+      colonies_transfer_from_unit(ctx->colonies, colony_id, ctx->units, transport->id, hold, NULL);
+    if (moved <= 0) {
+      break;
+    }
+    moved_total += moved;
+  }
+  return moved_total > 0 ? 1 : 0;
+}
+
 static int ai_euro_nearest_de_witt_foreign_trade(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -2311,9 +2441,11 @@ static int ai_euro_nearest_de_witt_foreign_trade(
 
 /*
  * Jan de Witt AI trade act (wagon): on foreign Euro colony tile at peace, load
- * TRADE_GOODS surplus via colonies_de_witt_transfer_from_colony; else AI_MOVE
- * toward nearest such colony when hold has capacity. Cite: fandom Jan de Witt;
- * founding_fathers_de_witt_allows_foreign_colony_trade.
+ * TRADE_GOODS surplus via colonies_de_witt_transfer_from_colony; with TRADE_GOODS
+ * aboard, unload into nearest own colony warehouse (delivery loop); else AI_MOVE
+ * toward nearest peaceful foreign with surplus when hold has capacity. Cite:
+ * fandom Jan de Witt; founding_fathers_de_witt_allows_foreign_colony_trade;
+ * colonies_transfer_from_unit own-colony unload.
  */
 static int ai_euro_try_de_witt_foreign_trade(
   ColonizeTurnContext* ctx,
@@ -2332,21 +2464,63 @@ static int ai_euro_try_de_witt_foreign_trade(
     return 0;
   }
   const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
+  int held_tg = ai_euro_unit_trade_goods_held(ctx->units, wagon);
   const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
   if (cid >= 0) {
     ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
     if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3 &&
         c->nation_id != nation_id && !ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+      /* Already carrying a chunk → leave for own warehouse (do not re-load). */
+      if (held_tg >= 10 || (!has_cap && held_tg > 0)) {
+        int hx = 0;
+        int hy = 0;
+        if (ai_euro_nearest_own_colony(ctx, nation_id, wagon->x, wagon->y, &hx, &hy) &&
+            (wagon->x != hx || wagon->y != hy)) {
+          ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, hx, hy);
+          return 1;
+        }
+        return 0;
+      }
       if (has_cap && ai_euro_de_witt_trade_goods_surplus(c)) {
         const int moved = colonies_de_witt_transfer_from_colony(
           ctx->colonies, cid, ctx->units, wagon->id, COLONIZE_CARGO_TRADE_GOODS, 10, ctx->col1
         );
         if (moved > 0) {
+          held_tg = ai_euro_unit_trade_goods_held(ctx->units, wagon);
+          int hx = 0;
+          int hy = 0;
+          if (held_tg > 0 &&
+              ai_euro_nearest_own_colony(ctx, nation_id, wagon->x, wagon->y, &hx, &hy) &&
+              (wagon->x != hx || wagon->y != hy)) {
+            ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, hx, hy);
+          }
           return 1;
         }
       }
       return 0; /* on foreign tile; no further haul yank this act */
     }
+    /* Own colony: deliver loaded TRADE_GOODS into warehouse. */
+    if (c && c->active && c->nation_id == nation_id && held_tg > 0) {
+      if (ai_euro_de_witt_unload_trade_goods_own(ctx, nation_id, wagon, cid)) {
+        return 1;
+      }
+    }
+  }
+  /* Full / carrying TRADE_GOODS → haul home before another foreign pickup. */
+  if (held_tg > 0 && (!has_cap || held_tg >= 10)) {
+    int hx = 0;
+    int hy = 0;
+    if (!ai_euro_nearest_own_colony(ctx, nation_id, wagon->x, wagon->y, &hx, &hy)) {
+      return 0;
+    }
+    if (wagon->x == hx && wagon->y == hy) {
+      return 0;
+    }
+    if (units_orders_follow_goto(wagon->orders) && wagon->goto_x == hx && wagon->goto_y == hy) {
+      return 1;
+    }
+    ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, hx, hy);
+    return 1;
   }
   if (!has_cap) {
     return 0;
@@ -4474,9 +4648,10 @@ static int ai_euro_try_ship_trade_haul(
 
 /*
  * Jan de Witt ship trade: on foreign Euro colony dock (de Witt enter), load
- * TRADE_GOODS surplus; else AI_SAIL toward coastal water by nearest peaceful
- * foreign with TRADE_GOODS≥20. Cite: fandom Jan de Witt; units_can_enter dock;
- * colonies_de_witt_transfer_*; §2d2 haul pattern.
+ * TRADE_GOODS surplus; with TRADE_GOODS aboard → AI_SAIL Europe (sell via
+ * ai_euro_try_transport_europe_sell); else AI_SAIL toward coastal water by
+ * nearest peaceful foreign with TRADE_GOODS≥20. Cite: fandom Jan de Witt;
+ * units_can_enter dock; colonies_de_witt_transfer_*; §2d2 haul pattern.
  */
 static int ai_euro_try_de_witt_ship_trade(
   ColonizeTurnContext* ctx,
@@ -4498,6 +4673,7 @@ static int ai_euro_try_de_witt_ship_trade(
     return 0;
   }
   const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship);
+  const int held_tg = ai_euro_unit_trade_goods_held(ctx->units, ship);
   const int cid = colonies_id_at(ctx->colonies, ship->x, ship->y);
   if (cid >= 0) {
     ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
@@ -4512,6 +4688,21 @@ static int ai_euro_try_de_witt_ship_trade(
         }
       }
       return 0;
+    }
+  }
+  /* Carrying TRADE_GOODS → sail Europe for dump-sell (existing harbor path). */
+  if (held_tg > 0 && (!has_cap || held_tg >= 10)) {
+    int ex = 0;
+    int ey = 0;
+    if (ai_euro_europe_sail_target(ctx, ship->x, ship->y, &ex, &ey)) {
+      if (ship->x == ex && ship->y == ey) {
+        return 0;
+      }
+      if (units_orders_follow_goto(ship->orders) && ship->goto_x == ex && ship->goto_y == ey) {
+        return 1;
+      }
+      ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, ex, ey);
+      return 1;
     }
   }
   if (!has_cap) {
@@ -5615,15 +5806,19 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /*
    * Treasure train (act-level): idle Treasure → AI_MOVE toward nearest own
-   * coastal colony (or coastal land if none). At coastal own colony with ship
-   * space → board + AI_SAIL Europe (eastern HS / east water). Cite:
-   * Colonization.pdf Treasure Trains — park coastal → Galleon / king transport.
+   * coastal colony (or coastal land if none). At coastal own colony: Cortes →
+   * free king-galleon cash (@KINGGALLEON3 tax); else board + AI_SAIL Europe.
+   * Cite: Colonization.pdf Treasure Trains; fandom Hernan Cortes.
    * Europe cash: ai_euro_try_cash_treasure_europe (LE16 hold / europe_cash_treasure).
    * Preserve goto vs FOUND/LABOR yank. No invented ransom/gold.
    */
   if (is_treasure) {
     if (ai_euro_try_cash_treasure_europe(ctx, nation_id, u)) {
       return;
+    }
+    if (ai_euro_try_cortes_king_galleon_cash(ctx, nation_id, u)) {
+      treasure_routed = 1;
+      return; /* cashed via free king galleon stand-in */
     }
     if (ai_euro_try_treasure_board_sail(ctx, nation_id, u)) {
       treasure_routed = 1;
@@ -5861,14 +6056,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * Missionary CONTACT (act-level): peace + Jesuit/Missionary, not fleeing
-   * (Alarm ≥55 adjacent) → CONTACT at nearest tribe without mission
-   * (mission==0xff) + AI_MOVE. Convert when adjacent is ai_contact.
-   * Idle Jesuit prefers convert CONTACT over Scout explore / FOUND yank
-   * (missionary_contacted preserves goto). Cite: Colonization.pdf Establishing
-   * a Mission; euro_unit_act §2c6; indian_contact.md convert pulse.
+   * Missionary CONTACT (act-level): not at Euro peer war + Jesuit/Missionary,
+   * not fleeing (Alarm ≥55 adjacent) → CONTACT at nearest tribe without mission
+   * (mission==0xff) + AI_MOVE. Gate on Euro peer war only — indian_war_hunt
+   * from relation_by_indian==0 (memset / unmet) must not block convert CONTACT.
+   * Native hostility still covered by flee gate. Cite: Colonization.pdf
+   * Establishing a Mission; euro_unit_act §2c6; indian_contact.md convert pulse.
    */
-  if (!at_war_land && is_missionary &&
+  if (!ai_euro_at_war_any_peer(ctx->col1_ok ? ctx->col1 : NULL, nation_id) && is_missionary &&
       !ai_euro_missionary_should_flee(ctx, nation_id, u->x, u->y)) {
     int tx = 0;
     int ty = 0;
@@ -6339,6 +6534,9 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
+  /* Colony fortification defense for adjacent resolve_land_combat (not only try_move). */
+  units_set_combat_colonies(ctx->colonies);
+
   /* 0. Sticky clear */
   s_sticky_unit = -1;
   s_sticky_count = 0;
@@ -6353,8 +6551,8 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
-  /* Peace Stockade→Warehouse→Docks, coastal Drydock→Shipyard, then Stuyvesant
-   * Custom House; before LABOR. */
+  /* Peace Stockade→Fort→Fortress→Warehouse→Docks, coastal Drydock→Shipyard,
+   * then Stuyvesant Custom House; before LABOR. */
   ai_euro_prefer_peace_construction(ctx, nation_id);
   ai_euro_prefer_coastal_drydock(ctx, nation_id);
   ai_euro_prefer_coastal_shipyard(ctx, nation_id);
@@ -6365,7 +6563,8 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_diplo_euro_balance(ctx, nation_id);
 
   /* Treasure → Europe gold: Expected→Harbor due ships + live Europe/HS units
-   * (moves_left may be 0 on Europe dock ships). Cite: Treasure Trains. */
+   * (moves_left may be 0 on Europe dock ships). Cortes coastal king-galleon
+   * cash (shared units_cortes_cash_coastal_treasures). Cite: Treasure Trains. */
   ai_euro_try_expected_treasure_harbor(ctx, nation_id);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
@@ -6374,6 +6573,9 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     }
     (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
   }
+  (void)units_cortes_cash_coastal_treasures(
+    ctx->units, ctx->colonies, ctx->map, ctx->europe, ctx->col1, nation_id
+  );
 
   /* 6–7. Outer any_acted; wave0 ships; wave1 ships+land; high→low.
    * Each unit gets one act call per outer iteration (inner while breaks). */

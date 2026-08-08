@@ -227,8 +227,19 @@ int colonies_eject_colonist(
   int role
 );
 
-/* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥2 pop). */
+/* True if Stockade, Fort, or Fortress is built (voluntary eject must leave ≥3 pop). */
 bool colonies_has_fortification(const ColonizeColonyPool* pool, const ColonizeColony* colony);
+
+/*
+ * Colony fortification defense bonus percent for land combat (0 / 100 / 150 / 200).
+ * Cite: docs/building_production.md + fandom Stockade/Fort/Fortress —
+ * Stockade +100%, Fort +150%, Fortress +200% (highest built). Wiki: Stockade
+ * replaces Fortify benefit inside — callers should not also ×2 fortify when >0.
+ */
+int colonies_fortification_defense_bonus_percent(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony
+);
 
 /* Remove colony and warehouse cargo; on-tile units are left alone. */
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);

@@ -13,6 +13,8 @@
 #include "core/map.h"
 #include "core/ss.h"
 
+typedef struct EuropeScreen EuropeScreen;
+
 /*
  * Set Col1 save used by units_try_move for FF combat hooks (Washington promote,
  * Drake naval, Paul Revere auto-arm). turn_refresh_moves_for_nation sets this.
@@ -32,6 +34,13 @@ void units_set_native_fallout_context(
   ColonizeWorldMap* map,
   int conquest_gold
 );
+
+/*
+ * Optional colony pool for land combat fortification defense
+ * (Stockade/Fort/Fortress). Pass NULL to clear. Pointer is not owned.
+ * units_try_move sets this from its colonies arg before combat.
+ */
+void units_set_combat_colonies(const ColonizeColonyPool* colonies);
 
 /*
  * Destroy native village Col1 record at (x,y) if present. Clears map owner
@@ -171,6 +180,34 @@ int units_spawn_treasure_train(
   int nation_id,
   int gold
 );
+/*
+ * FUN_3844_0004 EOT treasure tick: Treasure on map not on own Euro colony
+ * increments turns_worked (COL1 unit+0x16); after >8 turns despawn. On own
+ * colony tile resets counter to 0. Returns number of Treasures removed.
+ * Optional status receives a short line when any despawn. Cite:
+ * FUNCTION_CATALOG FUN_3844_0004; Colonization.pdf Treasure Trains.
+ */
+int units_tick_treasure_outside_colony(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  char* status,
+  size_t status_size
+);
+/*
+ * Cortes free king galleon stand-in: each Treasure of nation on an own coastal
+ * colony → europe_cash_treasure (tax = Crown share) + despawn. Cite: fandom
+ * Hernan Cortes; GAME.TXT @KINGGALLEON3. Syncs col1 nation gold. Returns
+ * number cashed. PARK: KINGGALLEON2 / voyage chrome.
+ */
+int units_cortes_cash_coastal_treasures(
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id
+);
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
@@ -226,7 +263,9 @@ bool units_try_move(
 );
 
 /*
- * T0 land combat: attack vs defense (+ fortified ×2). Probability =
+ * T0 land combat: attack vs defense (+ fortified ×2, or colony fortification
+ * +100%/+150%/+200% when units_set_combat_colonies / try_move colonies set —
+ * fortification replaces fortify ×2 on that tile). Probability =
  * attack/(attack+defense). Winner stays; loser despawned. Naval / mixed: no fight.
  * When col1 is non-NULL and winner nation owns Washington (PEDIA/wiki George
  * Washington; docs/fandom_col1994.md: non-veteran soldiers/dragoons who win

@@ -1486,10 +1486,68 @@ static int smoke_de_witt_wagon_foreign_trade(void) {
     }
   }
 
+  /* Delivery: wagon with TRADE_GOODS → AI_MOVE home; on home tile → unload. */
+  wagon = units_get(&units, wid);
+  wagon->x = 5;
+  wagon->y = 5;
+  wagon->orders = 0;
+  wagon->goto_x = UNITS_GOTO_NONE;
+  wagon->goto_y = UNITS_GOTO_NONE;
+  wagon->moves_left = 3;
+  turn_refresh_moves_for_nation(&units, nation, &col1, &map);
+  ai_euro_dispatcher_turn(&ctx, nation);
+  wagon = units_get(&units, wid);
+  if (!wagon || wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 2 ||
+      wagon->goto_y != 2) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    fprintf(
+      stderr,
+      "de Witt delivery goto orders=%d goto=(%d,%d)\n",
+      wagon ? wagon->orders : -1,
+      wagon ? wagon->goto_x : -1,
+      wagon ? wagon->goto_y : -1
+    );
+    return fail("de Witt wagon with TRADE_GOODS should AI_MOVE toward own colony");
+  }
+  wagon->x = 2;
+  wagon->y = 2;
+  wagon->orders = 0;
+  wagon->goto_x = UNITS_GOTO_NONE;
+  wagon->goto_y = UNITS_GOTO_NONE;
+  wagon->moves_left = 3;
+  const int home_tg_before = home->stock[COLONIZE_CARGO_TRADE_GOODS];
+  turn_refresh_moves_for_nation(&units, nation, &col1, &map);
+  ai_euro_dispatcher_turn(&ctx, nation);
+  wagon = units_get(&units, wid);
+  {
+    int left = 0;
+    const int n = units_goods_hold_count(&units, wid);
+    for (int h = 0; h < n; ++h) {
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_TRADE_GOODS) {
+        left += wagon->hold_goods_amount[h];
+      }
+    }
+    if (left != 0 || home->stock[COLONIZE_CARGO_TRADE_GOODS] != home_tg_before + 10) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      fprintf(
+        stderr,
+        "de Witt unload left=%d home_tg=%d (want +10 from %d)\n",
+        left,
+        home->stock[COLONIZE_CARGO_TRADE_GOODS],
+        home_tg_before
+      );
+      return fail("de Witt wagon should unload TRADE_GOODS into own warehouse");
+    }
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: de Witt wagon foreign TRADE_GOODS ok\n");
+  fprintf(stderr, "smoke_ai_euro_expand: de Witt wagon foreign TRADE_GOODS + deliver ok\n");
   return 0;
 }
 
@@ -4159,6 +4217,157 @@ static int smoke_treasure_coast(void) {
 }
 
 /*
+ * Cortes free king galleon: Treasure on own coastal colony + FF Cortes →
+ * europe_cash_treasure (tax cut) + despawn without boarding a ship.
+ * Cite: fandom Hernan Cortes; GAME.TXT @KINGGALLEON3; founding_fathers_cortes_*.
+ */
+static int smoke_cortes_king_galleon_cash(void) {
+  const int nation = 1;
+  const int treasure_value = 1000;
+  const int tax = 20;
+  const int expect_credit = (treasure_value * (100 - tax)) / 100;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("cortes-cash alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cortes-cash colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int tid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* treasure = units_get(&units, tid);
+  if (!treasure) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cortes-cash spawn treasure");
+  }
+  treasure->nation_id = nation;
+  treasure->moves_left = 0;
+  treasure->orders = 0;
+  treasure->hold_goods_amount[0] = treasure_value & 0xff;
+  treasure->hold_goods_amount[1] = (treasure_value >> 8) & 0xff;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 100;
+  europe.tax_percent = tax;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[nation].tax_rate = (uint8_t)tax;
+
+  ai_goals_reset();
+  uint32_t turn = 50;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 7;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+  treasure = units_get(&units, tid);
+  if (!treasure || !treasure->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("without Cortes treasure should remain on coast");
+  }
+  const uint32_t gold_mid = col1.nation[nation].gold;
+
+  col1.head.founding_father[FF_HERNAN_CORTES] = 0;
+  col1.nation[nation].founding_fathers[FF_HERNAN_CORTES / 8] |=
+    (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
+  treasure->x = 4;
+  treasure->y = 4;
+  treasure->orders = 0;
+  treasure->moves_left = 0;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  treasure = units_get(&units, tid);
+  const int treasure_gone = (!treasure || !treasure->active);
+  const uint32_t gold_after = col1.nation[nation].gold;
+  const unsigned delta =
+    gold_after >= gold_mid ? (unsigned)(gold_after - gold_mid) : 0u;
+  const int cash_ok =
+    treasure_gone && delta >= (unsigned)expect_credit &&
+    (delta - (unsigned)expect_credit) <= 80u;
+  if (!cash_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: cortes cash gone=%d gold mid=%u after=%u delta=%u want +%d\n",
+      treasure_gone,
+      (unsigned)gold_mid,
+      (unsigned)gold_after,
+      delta,
+      expect_credit
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Cortes coastal king-galleon cash + despawn");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: Cortes king-galleon coastal cash ok (delta=%u credit=%d)\n",
+    delta,
+    expect_credit
+  );
+  return 0;
+}
+
+/*
  * Missionary CONTACT: peace Jesuit/Missionary → CONTACT + AI_MOVE toward
  * nearest tribe without mission. Fleeing (Alarm≥55 adjacent) skips.
  */
@@ -4223,6 +4432,10 @@ static int smoke_missionary_contact(void) {
   for (int i = 0; i < 4; ++i) {
     col1.player[i].control = 0;
     col1.player[i].diplomacy = 0;
+    /* Content-floor Indian relations — memset 0 reads as at-war (<50). */
+    for (int ind = 0; ind < 8; ++ind) {
+      col1.nation[i].relation_by_indian[ind] = 100;
+    }
   }
   col1.head.tribe_count = 2;
   col1.tribe = calloc(2, sizeof(ColonizeCol1Tribe));
@@ -7395,6 +7608,113 @@ static int smoke_peace_construction_stockade(void) {
 }
 
 /*
+ * Peace construction: Stockade owned → Fort before Warehouse/Docks.
+ * Cite: fandom Defense Stockade→Fort→Fortress; building_production Fort 120h.
+ */
+static int smoke_peace_construction_fort(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-fort alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_types[0].hammers = 64;
+  colonies.building_types[0].min_population = 3;
+  snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
+  colonies.building_types[1].hammers = 120;
+  colonies.building_types[1].min_population = 4;
+  snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Warehouse");
+  colonies.building_types[2].hammers = 80;
+  colonies.building_types[2].min_population = 1;
+  snprintf(colonies.building_types[3].name, sizeof(colonies.building_types[3].name), "Docks");
+  colonies.building_types[3].hammers = 52;
+  colonies.building_types[3].min_population = 1;
+  colonies.building_type_count = 4;
+
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 4;
+  c->colonist_count = 4;
+  for (int i = 0; i < 4; ++i) {
+    c->colonists[i].active = true;
+    c->colonists[i].field_job = -1;
+    c->colonists[i].building_type = -1;
+  }
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  c->stock[COLONIZE_CARGO_TOOLS] = 100;
+  c->has_building[0] = true; /* Stockade */
+  c->has_building[1] = false;
+  c->has_building[2] = false;
+  c->has_building[3] = false;
+  c->building_in_production = -1;
+  c->hammers = 0;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  ai_goals_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 31;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 22;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  if (c->building_in_production != 1) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: fort prefer bip=%d (want Fort=1)\n",
+      c->building_in_production
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Stockade colony to prefer Fort over Warehouse/Docks");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: peace construction Fort prefer ok\n");
+  return 0;
+}
+
+/*
  * Peace construction: Stockade owned → Warehouse before coastal Docks.
  * Cite: fandom Storage Warehouse; building_production Warehouse 80h.
  */
@@ -9134,6 +9454,9 @@ int main(void) {
   if (smoke_treasure_europe_cash() != 0) {
     return 1;
   }
+  if (smoke_cortes_king_galleon_cash() != 0) {
+    return 1;
+  }
   if (smoke_missionary_contact() != 0) {
     return 1;
   }
@@ -9234,6 +9557,9 @@ int main(void) {
     return 1;
   }
   if (smoke_peace_construction_stockade() != 0) {
+    return 1;
+  }
+  if (smoke_peace_construction_fort() != 0) {
     return 1;
   }
   if (smoke_peace_construction_warehouse() != 0) {

@@ -302,6 +302,8 @@ static void turn_produce_one_colony(
           founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
         add *= 2;
       }
+      /* SoL ≥50%/+1, =100%/+2 (building_production.md); PARK Tory −1. */
+      add += colony_prod_sol_bonus(col1, colony);
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
         continue;
@@ -358,7 +360,23 @@ static void turn_produce_one_colony(
   /* Carpenter hammers: convert lumber toward current project (or bank if none). */
   {
     int lumber_use = 0;
-    const int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
+    int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
+    const int sol_b = colony_prod_sol_bonus(col1, colony);
+    if (hammers_add > 0 && sol_b > 0) {
+      /* +1/+2 per carpenter worker (manual SoL production unit). */
+      int carpenters = 0;
+      for (int ci = 0; ci < colony->colonist_count; ++ci) {
+        const ColonizeColonist* cc = &colony->colonists[ci];
+        if (!cc->active || cc->building_type < 0) {
+          continue;
+        }
+        const char* bn = pool->building_types[cc->building_type].name;
+        if (bn && (strstr(bn, "Carpenter") != NULL || strstr(bn, "Lumber Mill") != NULL)) {
+          carpenters++;
+        }
+      }
+      hammers_add += sol_b * carpenters;
+    }
     if (hammers_add > 0) {
       if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
         lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
@@ -479,8 +497,19 @@ static int turn_count_bells_and_crosses_for_nation(
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    bells += colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct);
-    crosses += colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
+    int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct);
+    int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
+    const int sol_b = colony_prod_sol_bonus(col1, c);
+    if (sol_b > 0) {
+      if (b > 0) {
+        b += sol_b; /* thin: +sol once per colony with bells; per-worker deepen PARK */
+      }
+      if (x > 0) {
+        x += sol_b;
+      }
+    }
+    bells += b;
+    crosses += x;
   }
   if (out_bells) {
     *out_bells = bells;
@@ -623,6 +652,9 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
     }
     turn_set_active_nation(ctx, n);
     turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
+    (void)units_tick_treasure_outside_colony(
+      ctx->units, ctx->colonies, n, ctx->status, ctx->status_size
+    );
     ai_euro_nation_turn(ctx, n);
   }
 }
@@ -748,6 +780,15 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
         turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
+        if (n >= 0 && n < 4) {
+          (void)units_tick_treasure_outside_colony(
+            ctx->units,
+            ctx->colonies,
+            n,
+            ctx->status,
+            ctx->status_size
+          );
+        }
       }
       ai_euro_nation_turn(ctx, n);
       {
@@ -783,6 +824,25 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_refresh_moves_for_nation(
         ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, ctx->map
       );
+      if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
+        (void)units_tick_treasure_outside_colony(
+          ctx->units,
+          ctx->colonies,
+          ctx->human_nation,
+          ctx->status,
+          ctx->status_size
+        );
+        if (ctx->europe && ctx->col1_ok && ctx->col1) {
+          (void)units_cortes_cash_coastal_treasures(
+            ctx->units,
+            ctx->colonies,
+            ctx->map,
+            ctx->europe,
+            ctx->col1,
+            ctx->human_nation
+          );
+        }
+      }
       /* Go-To resumes at 10 steps/sec in game_update so the player can watch. */
       turn_select_next_unit(ctx->units, ctx->human_nation);
       if (turn_option_autosave(ctx->col1, ctx->col1_ok)) {

@@ -395,7 +395,7 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 | Construction **BUY** / **CHANGE** | Buy remaining project (multifunction BUY); Change popup lists projects only (no Buy row; **C** also opens Change) |
 | **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
 | Drag / click ship cargo / hold | Select transport; drag warehouse↔hold to load/unload |
-| Fence **Leave as** | Eject/equip popup; last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 2 colonists |
+| Fence **Leave as** | Eject/equip popup; last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 3 colonists |
 | **L** / **U** | Load highest-value cargo; unload first hold |
 | **=** / **+** | Full / partial load of selected warehouse cargo |
 | Esc | Close message / jobs / eject / construction, then return to map |

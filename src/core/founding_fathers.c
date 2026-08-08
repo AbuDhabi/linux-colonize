@@ -116,8 +116,9 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * docs/fandom_col1994.md Hernan Cortes — king's galleons transport treasure
    * free. GAME.TXT @KINGGALLEON3: Crown share = current tax rate (already
    * europe_cash_treasure); "for no extra charge" — do NOT invent KINGGALLEON2
-   * non-Cortes royal-galleon extra %. Ownership documents free transport for
-   * voyage hooks when wired.
+   * non-Cortes royal-galleon extra %. AI/human stand-in: coastal own-colony
+   * Treasure → europe_cash_treasure via units_cortes_cash_coastal_treasures.
+   * PARK: voyage chrome / KINGGALLEON2 share.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
 }
