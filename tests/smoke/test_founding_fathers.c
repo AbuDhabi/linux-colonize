@@ -1466,6 +1466,63 @@ int main(void) {
     }
   }
 
+  /* Cortes ownership gates — no gold invent; cash-in tax stays @KINGGALLEON3. */
+  {
+    ColonizeCol1Save ccol1;
+    col1_save_init(&ccol1);
+    seed_unclaimed(&ccol1);
+    if (founding_fathers_cortes_guarantees_conquest_treasure(&ccol1, 0) ||
+        founding_fathers_cortes_free_king_galleon(&ccol1, 0)) {
+      return fail("Cortes gates must be false before elect");
+    }
+    ccol1.head.founding_father[FF_HERNAN_CORTES] = 0;
+    ccol1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] |=
+      (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
+    if (!founding_fathers_cortes_guarantees_conquest_treasure(&ccol1, 0) ||
+        !founding_fathers_cortes_free_king_galleon(&ccol1, 0)) {
+      return fail("Cortes gates false after ownership");
+    }
+    if (founding_fathers_cortes_guarantees_conquest_treasure(&ccol1, 1) ||
+        founding_fathers_cortes_free_king_galleon(&ccol1, 1)) {
+      return fail("Cortes gates must not leak to other nation");
+    }
+  }
+
+  /* Sepulveda / de Soto LCR / de Witt — ownership gates; effects PARKED. */
+  {
+    ColonizeCol1Save gcol1;
+    col1_save_init(&gcol1);
+    seed_unclaimed(&gcol1);
+    if (founding_fathers_sepulveda_convert_join_bonus(&gcol1, 0) ||
+        founding_fathers_de_soto_lcr_always_positive(&gcol1, 0) ||
+        founding_fathers_de_witt_allows_foreign_colony_trade(&gcol1, 0)) {
+      return fail("Sepulveda/de Soto/de Witt gates must be false before ownership");
+    }
+    gcol1.head.founding_father[FF_JUAN_DE_SEPULVEDA] = 0;
+    gcol1.nation[0].founding_fathers[FF_JUAN_DE_SEPULVEDA / 8] |=
+      (uint8_t)(1u << (FF_JUAN_DE_SEPULVEDA % 8));
+    gcol1.head.founding_father[FF_HERNANDO_DE_SOTO] = 0;
+    gcol1.nation[0].founding_fathers[FF_HERNANDO_DE_SOTO / 8] |=
+      (uint8_t)(1u << (FF_HERNANDO_DE_SOTO % 8));
+    gcol1.head.founding_father[FF_JAN_DE_WITT] = 0;
+    gcol1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
+      (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
+    if (!founding_fathers_sepulveda_convert_join_bonus(&gcol1, 0)) {
+      return fail("Sepulveda convert-join gate false after ownership");
+    }
+    if (!founding_fathers_de_soto_lcr_always_positive(&gcol1, 0)) {
+      return fail("de Soto LCR gate false after ownership");
+    }
+    if (!founding_fathers_de_witt_allows_foreign_colony_trade(&gcol1, 0)) {
+      return fail("de Witt foreign-trade gate false after ownership");
+    }
+    if (founding_fathers_sepulveda_convert_join_bonus(&gcol1, 1) ||
+        founding_fathers_de_soto_lcr_always_positive(&gcol1, 1) ||
+        founding_fathers_de_witt_allows_foreign_colony_trade(&gcol1, 1)) {
+      return fail("Sepulveda/de Soto/de Witt gates must not leak");
+    }
+  }
+
   printf("smoke_founding_fathers: OK\n");
   return 0;
 }

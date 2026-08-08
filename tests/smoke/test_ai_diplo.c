@@ -2590,7 +2590,7 @@ int main(void) {
    * coastal water by colony (R3: assert water / hunt-ready !Europe); second
    * balance must not spam; Marathon3 R2: spawn-only — PARKED 8g prize skipped
    * when units present; peace clears spawn bit; thin FA report OK title
-   * "Foreign Affairs" + DIPLO_ALLIANCE tag (no DIPLO_FA).
+   * "Foreign Affairs" + DIPLO_FA tag.
    * Cite: Europe Privateer; fandom Drake; euro_unit_act §2b.
    */
   {
@@ -2816,7 +2816,7 @@ int main(void) {
       int found_fa = 0;
       for (int qi = 0; qi < pop.queue_count; ++qi) {
         if (pop.queue[qi].kind == AI_POPUP_KIND_OK &&
-            pop.queue[qi].tag == AI_POPUP_TAG_DIPLO_ALLIANCE &&
+            pop.queue[qi].tag == AI_POPUP_TAG_DIPLO_FA &&
             strcmp(pop.queue[qi].title, "Foreign Affairs") == 0 &&
             strcmp(pop.queue[qi].body, "Alliance with France strengthened.") == 0) {
           found_fa = 1;
@@ -2827,7 +2827,7 @@ int main(void) {
         free(map.terrain);
         free(map.layer2);
         free(map.layer3);
-        return fail("M2R1: FA gift OK uses DIPLO_ALLIANCE + Foreign Affairs title");
+        return fail("M2R1: FA gift OK uses DIPLO_FA + Foreign Affairs title");
       }
     }
 
@@ -3391,7 +3391,7 @@ int main(void) {
       int found_holds = 0;
       for (int qi = 0; qi < pop_lon.queue_count; ++qi) {
         if (pop_lon.queue[qi].kind == AI_POPUP_KIND_OK &&
-            pop_lon.queue[qi].tag == AI_POPUP_TAG_DIPLO_ALLIANCE &&
+            pop_lon.queue[qi].tag == AI_POPUP_TAG_DIPLO_FA &&
             strcmp(pop_lon.queue[qi].title, "Foreign Affairs") == 0 &&
             strcmp(pop_lon.queue[qi].body, "Alliance with France holds.") == 0) {
           found_holds = 1;

@@ -2544,10 +2544,55 @@ static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id
  * stock). Cite: euro_unit_act §2d wagon matrix; Colonization.pdf Wagon Train;
  * 5cf6 food_short. Unpark #4 remainders PARKED.
  *
- * PARK — wagon trade-goods → Europe sell: europe_sell_hold requires a ship in
- * the Europe harbor UI (EuropeScreen). No AI API to sell wagon cargo from the
- * New World; intended path is coastal colony with Docks → ship hold → Europe.
+ * Wagon/ship trade-goods → Europe sell: when transport is at Europe (x|y≥200)
+ * and ctx->europe is set, europe_sell_unit_hold sells TRADE_GOODS holds (no
+ * harbor UI). Syncs nat↔europe gold like treasure cash-in. Cite:
+ * europe_sell_unit_hold; Colonization.pdf Europe sell + tax.
  */
+static int ai_euro_try_transport_europe_sell(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* transport
+) {
+  if (!ctx || !ctx->europe || !ctx->units || !ctx->col1_ok || !ctx->col1 ||
+      !transport || !transport->active || transport->nation_id != nation_id) {
+    return 0;
+  }
+  if (nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  if (!units_is_transport(ctx->units, transport->id)) {
+    return 0;
+  }
+  /* Europe dock / off-map stand-in (same gate as ship Europe cash). */
+  if (!ai_euro_in_europe(transport->x, transport->y)) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  ctx->europe->gold = (int)nat->gold;
+  ctx->europe->tax_percent = (int)nat->tax_rate;
+  int sold = 0;
+  const int n = units_goods_hold_count(ctx->units, transport->id);
+  for (int h = 0; h < n; ++h) {
+    if (transport->hold_goods_amount[h] <= 0 ||
+        transport->hold_goods_amount[h] >= 255) {
+      continue;
+    }
+    if (transport->hold_goods_type[h] != COLONIZE_CARGO_TRADE_GOODS) {
+      continue;
+    }
+    const int g = europe_sell_unit_hold(ctx->europe, ctx->units, transport->id, h);
+    if (g > 0) {
+      sold += g;
+    }
+  }
+  if (sold > 0) {
+    nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
+    return 1;
+  }
+  return 0;
+}
+
 static int ai_euro_try_wagon_tools_delivery(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -4715,6 +4760,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (!u || !u->active) {
       return;
     }
+    /* TRADE_GOODS dump-sell at Europe before HS teleport. */
+    (void)ai_euro_try_transport_europe_sell(ctx, nation_id, u);
+    u = units_get(ctx->units, u->id);
+    if (!u || !u->active) {
+      return;
+    }
 
     if (ai_euro_in_europe(u->x, u->y)) {
       int hx = 0;
@@ -5589,6 +5640,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Wagon on colony also unloads its own TOOLS hold (hire-once deepen).
    * Dock expert hire / Artillery treasury gates live in 5d04 planning.
    */
+  /* Wagon TRADE_GOODS → Europe sell (off-map / dock stand-in). */
+  if (uname && ai_euro_type_is_wagon_name(uname) && ai_euro_in_europe(u->x, u->y)) {
+    (void)ai_euro_try_transport_europe_sell(ctx, nation_id, u);
+    u = units_get(ctx->units, u->id);
+    if (!u || !u->active) {
+      return;
+    }
+  }
+
   if (ctx->colonies) {
     const int here = colonies_id_at(ctx->colonies, u->x, u->y);
     if (here >= 0) {

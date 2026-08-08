@@ -51,10 +51,11 @@
 #define AI_KING_BOYCOTT_TAX_MIN 20
 #define AI_KING_BOYCOTT_SOL_MIN 30
 #define AI_KING_BOYCOTT_BELLS_MIN 80
-/* Sugar = cargo index 1 (COLONIZE_CARGO_SUGAR) — one frozen Europe cargo while
- * refuse active. PARK: dump-goods / 38fd_3dc8 RNG may boycott “named goods”
- * (wiki Boycott; no second fixed cargo named in-file for king refuse) —
- * do not invent Tobacco/etc. bits here. */
+/* Sugar = cargo index 1 (COLONIZE_CARGO_SUGAR) — structural refuse freeze
+ * (king_ref / 38fd_5be8 stand-in). Dump-goods “named goods” RNG is a separate
+ * FUN_38fd_3dc8 pick — use ai_king_pick_dump_goods_cargo; do not invent a
+ * fixed Tobacco/etc. second refuse bit here.
+ * Cite: docs/fandom_col1994.md Boycott; viceroy FUN_38fd_3dc8. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << COLONIZE_CARGO_SUGAR)
 /* Thin 2244 Continental merc aid (hire dialog / ai_popup CHOICE). */
 #define AI_KING_MERC_COST 300
@@ -75,7 +76,8 @@
  * war_act beat up to min(moves_left, capacity) (1 MP/pax); full unload with
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
- * PARK: 160a letter cinematic; full embark UI chrome; dump-goods second cargo.
+ * PARK: 160a letter cinematic; full embark UI chrome; dump-goods price-weight
+ * + boycott modal (pick API: ai_king_pick_dump_goods_cargo).
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
@@ -99,6 +101,40 @@
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
+}
+
+int ai_king_pick_dump_goods_cargo(
+  uint16_t boycott_bitmap,
+  uint16_t candidate_mask,
+  ColonizeDosRng* rng
+) {
+  /*
+   * Eligible = candidate_mask & ~boycott_bitmap (FUN_38fd_3dc8 skips bits
+   * already set in nation boycott_bitmap / local_a6). Uniform among the
+   * set bits — Europe-price weights (local_7a) PARKED.
+   */
+  if (!rng) {
+    return -1;
+  }
+  const uint16_t eligible = (uint16_t)(candidate_mask & (uint16_t)~boycott_bitmap);
+  if (eligible == 0) {
+    return -1;
+  }
+  int idxs[COLONIZE_CARGO_COUNT];
+  int n = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    if ((eligible & (uint16_t)(1u << c)) != 0) {
+      idxs[n++] = c;
+    }
+  }
+  if (n <= 0) {
+    return -1;
+  }
+  const int pick = dos_rng_range(rng, 0, n - 1);
+  if (pick < 0 || pick >= n) {
+    return -1;
+  }
+  return idxs[pick];
 }
 
 /* Human-facing map popup queue attached (game_loop); AI/auto path when NULL. */
@@ -1296,14 +1332,28 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   ai_king_set_boycott(ctx->col1, 1);
   nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
+  /*
+   * Dump-goods second cargo (FUN_38fd_3dc8): uniform pick among cargos not
+   * already boycotted. Sugar already set above. Price-weight table + dump
+   * modal PARKED — cite wiki Boycott “named goods” / king_ref.
+   */
+  if (ctx->rng) {
+    const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
+    const int second =
+      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, all_cargos, ctx->rng);
+    if (second >= 0 && second < COLONIZE_CARGO_COUNT) {
+      nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << second));
+    }
+  }
   ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
              "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
              nat->tax_rate);
   }
-  /* FUN_43f7_38fd_5be8 refuse follow-up OK (Sugar freeze; dump-goods /
-   * 38fd_3dc8 second cargo PARKED — no fixed second name in wiki/decomp). */
+  /* FUN_43f7_38fd_5be8 refuse follow-up OK (Sugar freeze). Dump-goods second
+   * cargo via ai_king_pick_dump_goods_cargo when ctx->rng set; price-weight
+   * table + dump modal PARKED. */
   if (ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
     snprintf(body, sizeof(body),
@@ -1458,9 +1508,9 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
   }
   if (ai_king_human_popups(ctx)) {
-    /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED). */
+    /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED — KING_LETTER tag). */
     (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_INFO, human, ai_king_crown_nation(human), 0,
+      ctx->ai_popups, AI_POPUP_TAG_KING_LETTER, human, ai_king_crown_nation(human), 0,
       "United Colonies",
       "The colonies are renamed the United Colonies."
     );

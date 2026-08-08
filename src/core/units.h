@@ -60,6 +60,7 @@ typedef struct ColonizeUnit {
   int orders; /* @ORDERS: 0=none, 1=sentry, 3=goto, … */
   int goto_x; /* UNITS_GOTO_NONE (0xFF) = none */
   int goto_y;
+  int follow_unit_id; /* -1 none; target when orders==UNITS_ORDER_FOLLOW */
   int profession; /* NAMES.TXT @JOB index; 28 = none (COL1 plain colonist) */
   int tools; /* carried tools (Pioneers); 0–100 in steps of 20 */
   int muskets; /* 0 or 50 when armed */
@@ -87,6 +88,21 @@ int units_find_type(const ColonizeUnitPool* pool, const char* name);
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
 /* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
+/*
+ * Spawn a Treasure Train at (x,y) for nation_id with COL1 LE16 gold in
+ * hold_goods_amount[0]=lo / [1]=hi (same bridge as game_loop / ai_euro cash).
+ * Cite: Colonization.pdf Treasure Trains; NAMES "Treasure"; decomp
+ * FUN_5fef_31ea post-win native fallout (callers supply gold — no invented
+ * rate here). Uses allow_stack (conquest tile may hold the winner).
+ * Returns unit id, or -1.
+ */
+int units_spawn_treasure_train(
+  ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id,
+  int gold
+);
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
@@ -166,8 +182,15 @@ static inline bool units_resolve_land_combat(
 }
 
 /*
+ * Transfer commodity holds from loser ship into winner before naval despawn
+ * (FUN_5fef_016c-shaped hold plunder). Passengers are not transferred.
+ * Returns total goods amount moved into winner holds (0 if none/full).
+ */
+int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
+
+/*
  * T0 naval combat: same attack/defense roll as land; ships only.
- * Winner keeps the tile; loser despawned (cargo lost).
+ * Winner keeps the tile; loser despawned after hold plunder into winner.
  * When col1 is non-NULL and a side is Privateer whose nation owns Drake
  * (PEDIA: privateer combat strength +50%), that side's attack or defense
  * is multiplied by 3/2. col1 may be NULL (no Drake bonus).
@@ -200,12 +223,18 @@ int units_last_combat_outcome(void);
 #define UNITS_ORDER_FORTIFIED 6
 #define UNITS_ORDER_AI_SAIL 11 /* Euro AI ship course (TURN fixtures) */
 #define UNITS_ORDER_AI_MOVE 12 /* Euro AI coastal / land course */
+#define UNITS_ORDER_FOLLOW 13 /* Stick to another unit (Brave escort / AI) */
 #define UNITS_GOTO_NONE 0xFF
 
 /* True if orders byte means "follow goto_x/y". */
 static inline bool units_orders_follow_goto(int orders) {
   return orders == UNITS_ORDER_GOTO || orders == UNITS_ORDER_AI_SAIL ||
          orders == UNITS_ORDER_AI_MOVE;
+}
+
+/* True if unit is ordered to stick to another unit id. */
+static inline bool units_orders_is_follow(int orders) {
+  return orders == UNITS_ORDER_FOLLOW;
 }
 
 void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
@@ -233,6 +262,24 @@ bool units_set_goto(
   int dest_x,
   int dest_y,
   const ColonizeColonyPool* colonies
+);
+/*
+ * Order unit to stick to target_unit_id (UNITS_ORDER_FOLLOW).
+ * Clears tile goto. Both units must be active and on-map; same domain preferred
+ * (sea follows sea, land follows land). Returns false if invalid.
+ * Cite: Brave escort / FUN_4d56_14fe needs follow-unit orders (tile goto alone is not enough).
+ */
+bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id);
+/*
+ * One step toward the follow target's current tile (retarget each call).
+ * Clears FOLLOW if target missing/inactive. rng may be NULL.
+ */
+bool units_advance_follow_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
 );
 /*
  * Next adjacent step toward goto (DOS FUN_6662 tiers: sign-step / cost flood / BFS).

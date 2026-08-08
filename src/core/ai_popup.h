@@ -42,6 +42,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_ARRIVAL = 4,
   AI_POPUP_TAG_KING_CAPTURE = 5,
   AI_POPUP_TAG_KING_TAX = 6,
+  AI_POPUP_TAG_KING_LETTER = 7, /* thin 160a independence rename (letter cinematic PARKED) */
+  AI_POPUP_TAG_FF_CONGRESS = 8, /* Continental Congress FF elect chrome */
   AI_POPUP_TAG_CONTACT_MEET = 10,
   AI_POPUP_TAG_CONTACT_TEACH = 11,
   AI_POPUP_TAG_CONTACT_GIFT = 12,
@@ -53,7 +55,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_DIPLO_PEACE = 21,
   AI_POPUP_TAG_DIPLO_ALLIANCE = 22,
   AI_POPUP_TAG_DIPLO_BREAK = 23,
-  AI_POPUP_TAG_DIPLO_BOYCOTT = 24
+  AI_POPUP_TAG_DIPLO_BOYCOTT = 24,
+  AI_POPUP_TAG_DIPLO_FA = 25 /* thin FA 3f41 report / gift chrome (F2–F9 PARKED) */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

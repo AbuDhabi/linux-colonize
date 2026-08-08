@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/assets.h"
@@ -1297,6 +1298,160 @@ int main(void) {
       return 1;
     }
     units_despawn(&pool, aid);
+  }
+
+  /* units_follow_unit + advance one step (Brave escort API). */
+  {
+    int fx = -1;
+    int fy = -1;
+    for (int y = 1; y + 2 < map.height && fx < 0; ++y) {
+      for (int x = 1; x + 2 < map.width && fx < 0; ++x) {
+        if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 2, y) &&
+            units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 2, y) < 0) {
+          fx = x;
+          fy = y;
+        }
+      }
+    }
+    if (fx < 0) {
+      fprintf(stderr, "follow setup: no free land pair\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int a = units_spawn_allow_stack(&pool, pioneer, fx, fy);
+    const int b = units_spawn_allow_stack(&pool, pioneer, fx + 2, fy);
+    if (a < 0 || b < 0) {
+      fprintf(stderr, "follow setup spawn failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnit* ua = units_get(&pool, a);
+    ColonizeUnit* ub = units_get(&pool, b);
+    if (!ua || !ub) {
+      fprintf(stderr, "follow unit lookup failed\n");
+      return 1;
+    }
+    ua->moves_left = 4;
+    if (!units_follow_unit(&pool, a, b)) {
+      fprintf(stderr, "units_follow_unit failed\n");
+      return 1;
+    }
+    if (ua->orders != UNITS_ORDER_FOLLOW || ua->follow_unit_id != b) {
+      fprintf(stderr, "follow order not set\n");
+      return 1;
+    }
+    const int ax0 = ua->x;
+    (void)units_advance_follow_one_step(&pool, a, &map, NULL, NULL);
+    ua = units_get(&pool, a);
+    if (!ua || ua->orders != UNITS_ORDER_FOLLOW || ua->follow_unit_id != b) {
+      fprintf(stderr, "follow not retained after step\n");
+      return 1;
+    }
+    if (ua->x == ax0 && abs(ua->x - ub->x) > 1) {
+      fprintf(stderr, "follow did not step toward target\n");
+      return 1;
+    }
+    units_despawn(&pool, a);
+    units_despawn(&pool, b);
+  }
+
+  /* Naval hold plunder on combat resolve (FUN_5fef_016c-shaped). */
+  {
+    int wx = -1;
+    int wy = -1;
+    int lx = -1;
+    int ly = -1;
+    for (int y = 0; y < map.height && wx < 0; ++y) {
+      for (int x = 0; x < map.width; ++x) {
+        if (map_tile_is_water(&map, x, y)) {
+          if (wx < 0) {
+            wx = x;
+            wy = y;
+          } else if (abs(x - wx) + abs(y - wy) == 1) {
+            lx = x;
+            ly = y;
+            break;
+          }
+        }
+      }
+    }
+    const int privateer = units_find_type(&pool, "Privateer");
+    const int merchant = units_find_type(&pool, "Merchantman");
+    const int sty = privateer >= 0 ? privateer : caravel;
+    const int lty = merchant >= 0 ? merchant : caravel;
+    if (wx >= 0 && lx >= 0 && sty >= 0 && lty >= 0) {
+      const int wid = units_spawn_allow_stack(&pool, sty, wx, wy);
+      const int lid = units_spawn_allow_stack(&pool, lty, lx, ly);
+      if (wid >= 0 && lid >= 0) {
+        ColonizeUnit* w = units_get(&pool, wid);
+        ColonizeUnit* l = units_get(&pool, lid);
+        if (w && l) {
+          w->nation_id = 0;
+          l->nation_id = 1;
+            (void)units_load_goods(&pool, lid, COLONIZE_CARGO_SUGAR, 40);
+            const bool won = units_resolve_naval_combat(&pool, wid, lid, NULL);
+          w = units_get(&pool, wid);
+          l = units_get(&pool, lid);
+          if (won) {
+            if (!w || !w->active || (l && l->active)) {
+              fprintf(stderr, "naval winner/loser active state wrong\n");
+              return 1;
+            }
+            int sugar = 0;
+            for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+              if (w->hold_goods_amount[h] > 0 && w->hold_goods_type[h] == COLONIZE_CARGO_SUGAR) {
+                sugar += w->hold_goods_amount[h];
+              }
+            }
+            if (sugar < 40) {
+              fprintf(stderr, "naval plunder expected sugar>=40 got %d\n", sugar);
+              return 1;
+            }
+          }
+          if (w && w->active) {
+            units_despawn(&pool, wid);
+          }
+          if (l && l->active) {
+            units_despawn(&pool, lid);
+          }
+        }
+      }
+    }
+  }
+
+  /* Treasure train spawn: NAMES "Treasure" + COL1 LE16 gold in hold[0..1]. */
+  {
+    const int tid = units_spawn_treasure_train(&pool, 3, 3, 2, 0x1234);
+    if (tid < 0) {
+      fprintf(stderr, "spawn_treasure_train failed\n");
+      return 1;
+    }
+    const ColonizeUnit* tr = units_get_const(&pool, tid);
+    const ColonizeUnitType* tt = tr ? units_type(&pool, tr->type_index) : NULL;
+    if (!tr || !tr->active || !tt || strcmp(tt->name, "Treasure") != 0) {
+      fprintf(stderr, "spawn_treasure_train type/active mismatch\n");
+      return 1;
+    }
+    if (tr->nation_id != 2 || tr->hold_goods_amount[0] != 0x34 ||
+        tr->hold_goods_amount[1] != 0x12) {
+      fprintf(
+        stderr,
+        "spawn_treasure_train nation/gold LE16 got nation=%d lo=%d hi=%d\n",
+        tr->nation_id,
+        tr->hold_goods_amount[0],
+        tr->hold_goods_amount[1]
+      );
+      return 1;
+    }
+    if (units_spawn_treasure_train(&pool, 4, 4, 0, -1) >= 0) {
+      fprintf(stderr, "spawn_treasure_train must reject negative gold\n");
+      return 1;
+    }
+    units_despawn(&pool, tid);
   }
 
   fprintf(

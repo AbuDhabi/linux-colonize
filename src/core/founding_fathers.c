@@ -66,6 +66,62 @@ bool founding_fathers_brebeuf_missionaries_are_experts(
   return founding_fathers_nation_has(col1, nation, FF_JEAN_DE_BREBEUF);
 }
 
+bool founding_fathers_sepulveda_convert_join_bonus(
+  const ColonizeCol1Save* col1,
+  int nation
+) {
+  /*
+   * docs/fandom_col1994.md Juan de Sepulveda — higher convert-join chance.
+   * Ownership only; raise-join call site PARKED (needs 2820/4528 path).
+   */
+  return founding_fathers_nation_has(col1, nation, FF_JUAN_DE_SEPULVEDA);
+}
+
+bool founding_fathers_de_soto_lcr_always_positive(
+  const ColonizeCol1Save* col1,
+  int nation
+) {
+  /*
+   * docs/fandom_col1994.md Hernando de Soto; decomp FUN_65dd_0004 FF index 7.
+   * Ownership only; LCR resolve call site PARKED (no Scout LCR table yet).
+   */
+  return founding_fathers_nation_has(col1, nation, FF_HERNANDO_DE_SOTO);
+}
+
+bool founding_fathers_de_witt_allows_foreign_colony_trade(
+  const ColonizeCol1Save* col1,
+  int nation
+) {
+  /*
+   * docs/fandom_col1994.md Jan de Witt — foreign-colony trade allowed.
+   * Ownership only; transfer API PARKED. FA detail already peeks FF 4.
+   */
+  return founding_fathers_nation_has(col1, nation, FF_JAN_DE_WITT);
+}
+
+bool founding_fathers_cortes_guarantees_conquest_treasure(
+  const ColonizeCol1Save* col1,
+  int nation
+) {
+  /*
+   * docs/fandom_col1994.md Hernan Cortes — conquered native settlements always
+   * yield more treasure. Ownership gate for FUN_5fef_31ea-shaped spawn callers
+   * (units_spawn_treasure_train). No gold amount invented here.
+   */
+  return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
+}
+
+bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int nation) {
+  /*
+   * docs/fandom_col1994.md Hernan Cortes — king's galleons transport treasure
+   * free. GAME.TXT @KINGGALLEON3: Crown share = current tax rate (already
+   * europe_cash_treasure); "for no extra charge" — do NOT invent KINGGALLEON2
+   * non-Cortes royal-galleon extra %. Ownership documents free transport for
+   * voyage hooks when wired.
+   */
+  return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
+}
+
 bool founding_fathers_revere_should_auto_arm(
   const ColonizeCol1Save* col1,
   int nation,
@@ -197,7 +253,9 @@ static int effect_coronado_reveal(
   return touched;
 }
 
-/* de Soto partial: extended sight stand-in via land-unit reveal (LCR always-good PARKED). */
+/* de Soto partial: extended sight stand-in via land-unit reveal.
+ * LCR always-positive: founding_fathers_de_soto_lcr_always_positive gate
+ * exists; Scout/LCR resolve (FUN_65dd_0004) call site PARKED. */
 static int effect_desoto_reveal(
   ColonizeWorldMap* map,
   ColonizeUnitPool* units,
@@ -524,8 +582,10 @@ static void apply_effect(
       /* Manual/wiki: unlock Custom House — gated via has_peter_stuyvesant. */
       break;
     case FF_JAN_DE_WITT:
-      /* PARKED: trade with foreign colonies; FA report more revealing
-       * (reports already peek de Witt for detailed FA). */
+      /* docs/fandom_col1994.md: trade with foreign colonies; FA more revealing.
+       * Ownership gate: founding_fathers_de_witt_allows_foreign_colony_trade.
+       * FA detailed strength already peeks head.founding_father[4] (reports).
+       * PARKED: foreign-colony cargo transfer (no transfer API; no invent gold). */
       break;
     case FF_FERDINAND_MAGELLAN:
       /* Manual/wiki: all naval vessels +1 movement (permanent). */
@@ -536,8 +596,10 @@ static void apply_effect(
       (void)effect_coronado_reveal(map, colonies, nation_id);
       break;
     case FF_HERNANDO_DE_SOTO:
-      /* Partial: extended sight via land-unit reveal.
-       * PARKED: Lost City Rumors always positive. */
+      /* docs/fandom_col1994.md: LCR always positive + extended sight.
+       * Partial: extended sight via land-unit reveal.
+       * LCR: founding_fathers_de_soto_lcr_always_positive ownership gate;
+       * PARKED call site — no Scout LCR resolve (FUN_65dd_0004) yet. */
       (void)effect_desoto_reveal(map, units, nation_id);
       break;
     case FF_HENRY_HUDSON:
@@ -549,13 +611,14 @@ static void apply_effect(
       (void)effect_la_salle_stockades(colonies, nation_id);
       break;
     case FF_HERNAN_CORTES:
-      /* PARKED (docs/fandom_col1994.md Hernan Cortes; Colonization.pdf FF):
-       * conquered native settlements always yield more treasure — needs
-       * post-win treasure spawn (decomp FUN_5fef_31ea); none in ai_contact
-       * raid path (Indian→Euro colony loot only). No cited gold amount to
-       * invent. King's galleons transport treasure free — needs Europe
-       * king-galleon voyage hook; europe_cash_treasure is tax-share only
-       * (@KINGGALLEON3); KINGGALLEON2/free-transport stay PARK. */
+      /* API ready (docs/fandom_col1994.md Hernan Cortes; Colonization.pdf FF):
+       * founding_fathers_cortes_guarantees_conquest_treasure +
+       * units_spawn_treasure_train for conquest yield; free king-galleon via
+       * founding_fathers_cortes_free_king_galleon (cash-in tax = @KINGGALLEON3
+       * in europe_cash_treasure — no KINGGALLEON2 extra %). Call site still
+       * needed: decomp FUN_5fef_31ea post-win native settlement fallout —
+       * no safe settlement-conquer hook in land combat / ai_contact yet
+       * (raid path is Indian→Euro colony loot only). */
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.
@@ -620,8 +683,10 @@ static void apply_effect(
        * Jesuit-grade mid convert for plain Missionary. */
       break;
     case FF_JUAN_DE_SEPULVEDA:
-      /* PARKED: higher chance subjugated Indians convert and join
-       * (needs 2820/4528 convert-join hook). */
+      /* docs/fandom_col1994.md: higher chance subjugated Indians convert/join.
+       * Ownership gate: founding_fathers_sepulveda_convert_join_bonus.
+       * PARKED call site: needs FUN_4d56_2820/4528 convert-join outcome —
+       * ai_contact missionary convert pulse ≠ subjugated join; no invent %. */
       break;
     case FF_BARTOLOME_DE_LAS_CASAS:
       /* PEDIA @FATHER24 / fandom_col1994.md: existing Indian converts
@@ -665,6 +730,23 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
 
   if (ctx->status && ctx->status_size > 0 && nation_id == ctx->human_nation) {
     snprintf(ctx->status, ctx->status_size, "Founding Father elected (#%d)", idx);
+  }
+  /*
+   * Thin Continental Congress elect chrome (presentation only). Debate pick
+   * UI / F3 full report PARKED. Cite: reports F3 Congress; founding_fathers.h.
+   */
+  if (ctx->ai_popups && nation_id == ctx->human_nation) {
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(body, sizeof(body), "Founding Father #%d joins the Continental Congress.", idx);
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups,
+      AI_POPUP_TAG_FF_CONGRESS,
+      nation_id,
+      -1,
+      idx,
+      "Continental Congress",
+      body
+    );
   }
   return true;
 }

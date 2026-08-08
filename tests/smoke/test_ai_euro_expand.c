@@ -1595,6 +1595,127 @@ static int smoke_treasury_skip_hire(void) {
 }
 
 /*
+ * Ship TRADE_GOODS at Europe → europe_sell_unit_hold via AI act (no harbor UI).
+ * Cite: europe_sell_unit_hold; Colonization.pdf Europe sell + tax.
+ */
+static int smoke_transport_europe_sell_trade_goods(void) {
+  const int nation = 1;
+  const int amt = 50;
+  const int bid = 4;
+  const int tax = 20;
+  const int expect = (bid * amt * (100 - tax)) / 100;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("eu-sell alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean — ship may leave Europe to HS */
+  }
+  /* Eastern HS stand-in for teleport after sell. */
+  map.terrain[8 * 16 + 14] = 25;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int sid = units_spawn(&units, 0, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-sell spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4;
+  ship->orders = 0;
+  ship->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
+  ship->hold_goods_amount[0] = amt;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 100;
+  europe.tax_percent = tax;
+  europe.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    europe.cargo[c].bid = bid;
+    europe.cargo[c].ask = bid + 1;
+  }
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[nation].tax_rate = (uint8_t)tax;
+  const uint32_t gold_before = col1.nation[nation].gold;
+
+  ai_goals_reset();
+
+  uint32_t turn = 50;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  ship = units_get(&units, sid);
+  if (!ship || !ship->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-sell ship should remain");
+  }
+  if (ship->hold_goods_amount[0] != 0) {
+    fprintf(stderr, "smoke_ai_euro_expand: hold amt=%d after sell\n",
+            ship->hold_goods_amount[0]);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-sell should clear TRADE_GOODS hold");
+  }
+  const uint32_t gold_after = col1.nation[nation].gold;
+  if (gold_after < gold_before + (uint32_t)expect) {
+    fprintf(stderr, "smoke_ai_euro_expand: gold %u→%u want +%d\n",
+            (unsigned)gold_before, (unsigned)gold_after, expect);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-sell should credit tax-adjusted TRADE_GOODS proceeds");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: transport Europe sell ok\n");
+  return 0;
+}
+
+/*
  * LABOR bind: idle Free Colonist adjacent to own colony with food_short
  * (and a distant FOUND lure) → LABOR goto / join, not yank to FOUND.
  * Cite: 5b66 unload/labor + 5cf6 food_short; no invented production.
@@ -7963,6 +8084,9 @@ int main(void) {
     return 1;
   }
   if (smoke_treasury_skip_hire() != 0) {
+    return 1;
+  }
+  if (smoke_transport_europe_sell_trade_goods() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_expand: ok\n");

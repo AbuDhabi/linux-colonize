@@ -1015,6 +1015,38 @@ bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
   return true;
 }
 
+bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int building_type) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool) {
+    return false;
+  }
+  if (building_type < 0 || building_type >= pool->building_type_count) {
+    return false;
+  }
+  if (!col->has_building[building_type]) {
+    return false;
+  }
+  const ColonizeBuildingType* bt = &pool->building_types[building_type];
+  /* Town Hall is the colony core — never burn/remove via raid destroy. */
+  if (bt && strcmp(bt->name, "Town Hall") == 0) {
+    return false;
+  }
+  col->has_building[building_type] = false;
+  if (col->building_in_production == building_type) {
+    col->building_in_production = -1;
+  }
+  for (int i = 0; i < col->colonist_count; ++i) {
+    ColonizeColonist* c = &col->colonists[i];
+    if (!c->active) {
+      continue;
+    }
+    if (c->building_type == building_type) {
+      c->building_type = -1;
+    }
+  }
+  return true;
+}
+
 int colonies_construction_gold_cost(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony

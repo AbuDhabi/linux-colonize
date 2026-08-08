@@ -1887,6 +1887,117 @@ int main(void) {
   }
 
   /*
+   * @RAIDBURN empty warehouse → colonies_destroy_building (non-Town-Hall).
+   * Cite: colonies_destroy_building; indian_raid_outcomes.md @RAIDBURN.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 12;
+    euro->y = 12;
+    euro->active = true;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    brave->active = true;
+    ind->alarm_by_player[0] = 65;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 65;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.nation[0].relation_by_indian[0] = 40;
+    col1.nation[0].gold = 0;
+    col1.head.founding_father[FF_POCAHONTAS] = -1;
+    colonies.building_type_count = 2;
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
+             "Town Hall");
+    snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name),
+             "Warehouse");
+    ColonizeColony* c_bd = &colonies.colonies[0];
+    c_bd->active = true;
+    c_bd->nation_id = 0;
+    c_bd->x = 5;
+    c_bd->y = 5;
+    c_bd->population = 1;
+    c_bd->colonist_count = 1;
+    c_bd->building_in_production = -1;
+    memset(c_bd->stock, 0, sizeof(c_bd->stock));
+    memset(c_bd->has_building, 0, sizeof(c_bd->has_building));
+    c_bd->has_building[0] = true;
+    c_bd->has_building[1] = true;
+    colonies.colony_count = 1;
+    ai_contact_indian_raids(&ctx, 4);
+    if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
+      fprintf(stderr, "smoke_ai_contact: burn-building kind=%d\n",
+              ai_contact_last_raid_kind());
+      return fail("empty warehouse at alarm≥60 should pick AI_RAID_BURN");
+    }
+    if (c_bd->has_building[1]) {
+      return fail("BURN should destroy Warehouse via colonies_destroy_building");
+    }
+    if (!c_bd->has_building[0]) {
+      return fail("BURN must not destroy Town Hall");
+    }
+  }
+
+  /*
+   * Thin Brave escort (14fe): idle Brave units_follow_unit a same-nation
+   * Brave already on AI_MOVE. Cite: units_follow_unit; ai_contact raids escort.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    /* Park euro away so raid gate does not yank escort. */
+    euro->x = 14;
+    euro->y = 14;
+    euro->active = true;
+    ind->alarm_by_player[0] = 0;
+    col1.tribe[0].alarm[0].friction = 0;
+    col1.nation[0].relation_by_indian[0] = 50;
+    colonies.colonies[0].active = false;
+    const int lead_id = units_spawn_allow_stack(&units, 0, 9, 5);
+    ColonizeUnit* lead = units_get(&units, lead_id);
+    if (!lead) {
+      return fail("escort lead spawn");
+    }
+    lead->nation_id = 4;
+    lead->moves_left = 0; /* lead does not consume escort turn */
+    lead->orders = UNITS_ORDER_AI_MOVE;
+    lead->goto_x = 12;
+    lead->goto_y = 5;
+    brave->x = 6;
+    brave->y = 5;
+    brave->nation_id = 4;
+    brave->active = true;
+    brave->moves_left = 3;
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+    const int bx0 = brave->x;
+    const int by0 = brave->y;
+    ai_contact_indian_raids(&ctx, 4);
+    brave = units_get(&units, brave_id);
+    if (!brave || !brave->active) {
+      return fail("escort follower must remain active");
+    }
+    if (brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != lead_id) {
+      fprintf(stderr, "smoke_ai_contact: escort orders=%d follow=%d\n", brave->orders,
+              brave->follow_unit_id);
+      return fail("idle Brave should FOLLOW lead with AI_MOVE");
+    }
+    /* MD was 3 — advance_follow should step closer (not hold-adjacent). */
+    if (brave->x == bx0 && brave->y == by0) {
+      return fail("FOLLOW escort should advance one step toward lead");
+    }
+    /* Cleanup lead for later probes. */
+    units_despawn(&units, lead_id);
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+  }
+
+  /*
    * Raid friction/alarm escalate: successful loot → tribe friction +
    * alarm_by_player +2; Pocahontas halves (+1). Cite: fandom Alarm /
    * Pocahontas; indian_raid_outcomes.md §7.

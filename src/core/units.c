@@ -9,6 +9,16 @@
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 
+/* Defined later; used by naval hold plunder before combat despawn. */
+int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount);
+bool units_advance_goto_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+);
+
 static void units_trim(char* s) {
   char* start = s;
   while (*start == ' ' || *start == '\t') {
@@ -172,6 +182,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->orders = 0;
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
+  slot->follow_unit_id = -1;
   slot->profession = UNITS_JOB_NONE;
   slot->tools = 0;
   slot->muskets = 0;
@@ -197,6 +208,41 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   pool->unit_count++;
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
+}
+
+int units_spawn_treasure_train(
+  ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int nation_id,
+  int gold
+) {
+  /*
+   * Cite: Colonization.pdf Treasure Trains; NAMES "Treasure"; COL1 cargo_hold
+   * [0..1] LE16 gold mirrored in hold_goods_amount (game_loop /
+   * ai_euro_treasure_gold_from_unit). Gold amount is caller-supplied — do not
+   * invent a conquest rate here (FUN_5fef_31ea / Cortes gate decide that).
+   */
+  if (!pool || gold < 0) {
+    return -1;
+  }
+  const int ti = units_find_type(pool, "Treasure");
+  if (ti < 0) {
+    return -1;
+  }
+  const int id = units_spawn_allow_stack(pool, ti, x, y);
+  if (id < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(pool, id);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = nation_id;
+  const unsigned g = (unsigned)gold;
+  u->hold_goods_amount[0] = (int)(g & 0xffu);
+  u->hold_goods_amount[1] = (int)((g >> 8) & 0xffu);
+  return id;
 }
 
 bool units_is_on_map(const ColonizeUnit* unit) {
@@ -557,6 +603,44 @@ bool units_resolve_land_combat_ff(
   return false;
 }
 
+int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id) {
+  if (!pool || winner_id < 0 || loser_id < 0 || winner_id == loser_id) {
+    return 0;
+  }
+  ColonizeUnit* win = units_get(pool, winner_id);
+  ColonizeUnit* lose = units_get(pool, loser_id);
+  if (!win || !lose || !win->active || !lose->active) {
+    return 0;
+  }
+  if (!units_is_sea(pool, winner_id) || !units_is_sea(pool, loser_id)) {
+    return 0;
+  }
+  /*
+   * FUN_5fef_016c-shaped: move commodity holds from loser into winner capacity.
+   * Passengers stay with the sinking ship (despawned with loser).
+   */
+  const int n = units_goods_hold_count(pool, loser_id);
+  int moved = 0;
+  for (int i = 0; i < n; ++i) {
+    const int amt = lose->hold_goods_amount[i];
+    const int ctype = lose->hold_goods_type[i];
+    if (amt <= 0 || amt >= 255 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
+      continue;
+    }
+    const int got = units_load_goods(pool, winner_id, ctype, amt);
+    if (got > 0) {
+      moved += got;
+      if (got >= amt) {
+        lose->hold_goods_amount[i] = 0;
+        lose->hold_goods_type[i] = 0;
+      } else {
+        lose->hold_goods_amount[i] = amt - got;
+      }
+    }
+  }
+  return moved;
+}
+
 bool units_resolve_naval_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -599,10 +683,12 @@ bool units_resolve_naval_combat_ff(
     atk_wins = roll <= attack;
   }
   if (atk_wins) {
+    (void)units_plunder_ship_holds(pool, attacker_id, defender_id);
     units_despawn(pool, defender_id);
     g_units_last_combat = 1;
     return true;
   }
+  (void)units_plunder_ship_holds(pool, defender_id, attacker_id);
   units_despawn(pool, attacker_id);
   g_units_last_combat = -1;
   return false;
@@ -919,6 +1005,7 @@ void units_clear_orders(ColonizeUnitPool* pool, int unit_id) {
   u->orders = UNITS_ORDER_NONE;
   u->goto_x = UNITS_GOTO_NONE;
   u->goto_y = UNITS_GOTO_NONE;
+  u->follow_unit_id = -1;
 }
 
 bool units_orders_skip_turn(const ColonizeUnit* unit) {
@@ -946,6 +1033,7 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   }
   u->goto_x = UNITS_GOTO_NONE;
   u->goto_y = UNITS_GOTO_NONE;
+  u->follow_unit_id = -1;
   u->orders = orders;
   if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
       orders == UNITS_ORDER_FORTIFIED) {
@@ -1035,10 +1123,77 @@ bool units_set_goto(
   if (!units_can_enter(pool, u->type_index, map, dest_x, dest_y, unit_id, colonies)) {
     return false;
   }
+  u->follow_unit_id = -1;
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = dest_x;
   u->goto_y = dest_y;
   return true;
+}
+
+bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  const ColonizeUnit* t = units_get_const(pool, target_unit_id);
+  if (!u || !t || !u->active || !t->active) {
+    return false;
+  }
+  if (unit_id == target_unit_id) {
+    return false;
+  }
+  if (!units_is_on_map(u) || !units_is_on_map(t)) {
+    return false;
+  }
+  /* Sea follows sea; land follows land — mixed escort is not a map path. */
+  if (units_is_sea(pool, unit_id) != units_is_sea(pool, target_unit_id)) {
+    return false;
+  }
+  u->orders = UNITS_ORDER_FOLLOW;
+  u->follow_unit_id = target_unit_id;
+  u->goto_x = t->x;
+  u->goto_y = t->y;
+  return true;
+}
+
+bool units_advance_follow_one_step(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || u->orders != UNITS_ORDER_FOLLOW) {
+    return false;
+  }
+  const ColonizeUnit* t = units_get_const(pool, u->follow_unit_id);
+  if (!t || !t->active || !units_is_on_map(t)) {
+    units_clear_orders(pool, unit_id);
+    return false;
+  }
+  /* Already adjacent or stacked — hold FOLLOW, no MP spend. */
+  if (u->x == t->x && u->y == t->y) {
+    return true;
+  }
+  const int dx = abs(u->x - t->x);
+  const int dy = abs(u->y - t->y);
+  if (dx <= 1 && dy <= 1) {
+    return true;
+  }
+  /* Retarget tile goto toward target, one step, restore FOLLOW order. */
+  const int tid = u->follow_unit_id;
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = t->x;
+  u->goto_y = t->y;
+  const bool stepped = units_advance_goto_one_step(pool, unit_id, map, colonies, rng);
+  u = units_get(pool, unit_id);
+  if (!u || !u->active) {
+    return false;
+  }
+  /* Re-arm FOLLOW unless the unit was cleared (arrived / blocked clears goto). */
+  u->orders = UNITS_ORDER_FOLLOW;
+  u->follow_unit_id = tid;
+  u->goto_x = t->x;
+  u->goto_y = t->y;
+  return stepped;
 }
 
 #define UNITS_FLOOD_W 16
