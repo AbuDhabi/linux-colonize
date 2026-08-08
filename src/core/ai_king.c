@@ -26,7 +26,9 @@
  *   (ai_popup CHOICE Hire/Decline when ctx->ai_popups; auto when NULL) or
  *   "Cannot afford mercenaries." OK once (flag gates spam).
  *   Hire apply/auto success → follow-up OK (same status body).
- * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
+ *   Decline apply → follow-up OK ("Mercenaries declined."; gate unknown46[3]).
+ * 160a rename: player[human].country_name → "United Colonies"
+ *   (letter cinematic PARKED — thin rename + OK chain Done).
  *   unknown46[4] unused — writable Col1 country_name exists.
  *   On declare + ai_popups: thin rename OK + "War of Independence begins" OK.
  * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE Confirm/Not yet
@@ -50,10 +52,10 @@
 #define AI_KING_BOYCOTT_SOL_MIN 30
 #define AI_KING_BOYCOTT_BELLS_MIN 80
 /* Sugar = cargo index 1 (COLONIZE_CARGO_SUGAR) — one frozen Europe cargo while
- * refuse active. PARK: additional classic boycott cargos (wiki dump-goods /
- * 38fd_3dc8 RNG) remain PARKED — only Sugar is named in-file for king refuse;
- * do not invent a second bit. */
-#define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
+ * refuse active. PARK: dump-goods / 38fd_3dc8 RNG may boycott “named goods”
+ * (wiki Boycott; no second fixed cargo named in-file for king refuse) —
+ * do not invent Tobacco/etc. bits here. */
+#define AI_KING_BOYCOTT_CARGO_BIT (1u << COLONIZE_CARGO_SUGAR)
 /* Thin 2244 Continental merc aid (hire dialog / ai_popup CHOICE). */
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_SOL_MIN 50
@@ -66,11 +68,14 @@
 #define AI_KING_DECLARE_BELLS_MIN 100
 /* Restless chrome band immediately below declare (SoL 40..49 when min=50). */
 #define AI_KING_RESTLESS_SOL_MIN 40
-/* Thin MoW cargo hold: structural unload count (full 6-slot chrome PARKED; fandom). */
-#define AI_KING_MOW_HOLD_UNLOAD 3
 /*
- * PARK: fandom REF “man-o-war with 6 units” embark / cargo_ids hold chrome —
- * MoW×6 remains PARKED (structural hold-size-3 unload + coastal unload-one only).
+ * MoW hold fill uses real ship capacity (units_ship_capacity / type->cargo,
+ * capped at COLONIZE_UNIT_CARGO_MAX=6). Cite: fandom REF “man-o-war with 6
+ * units”; units_board_stacked. Coastal unload dumps multiple cargo_ids per
+ * war_act beat up to min(moves_left, capacity) (1 MP/pax); full unload with
+ * moves left → AI_SAIL next human coast; after that sail step, if still
+ * carrying and now adjacent to the next colony → unload same beat.
+ * PARK: 160a letter cinematic; full embark UI chrome; dump-goods second cargo.
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
@@ -437,7 +442,8 @@ static int ai_king_prefer_capital_if_comparable(const ColonizeTurnContext* ctx, 
  * else fall back to nearest (including fortified). Deep role-split scoring PARKED.
  * Capital MD bias: among colony picks, prefer founding capital when MD is
  * within AI_KING_CAPITAL_MD_SLACK of the nearest other colony (idle hunters).
- * Strictly closer human land units still win over capital.
+ * Artillery siege: same slack when the capital itself is fortified (else keep
+ * nearest fortified). Strictly closer human land units still win over capital.
  */
 static int ai_king_ref_hunt_target(const ColonizeTurnContext* ctx, int human, int from_x,
                                    int from_y, int* out_x, int* out_y,
@@ -666,10 +672,13 @@ static int ai_king_adjacent_human_colony(const ColonizeTurnContext* ctx, int hum
 /*
  * Water tile adjacent to a human colony (nearest to from_x/from_y).
  * Source: fandom REF AI man-o-war → ports; used for wartime MoW AI_SAIL.
- * Returns 1 if found.
+ * When skip_adjacent_colony != 0, prefer a coast for a human colony the ship is
+ * *not* already adjacent to (post-full-unload → next human coast). Falls back to
+ * any human coast if no other port has water. Returns 1 if found.
  */
 static int ai_king_human_coast_water(const ColonizeTurnContext* ctx, int human, int from_x,
-                                     int from_y, int* out_x, int* out_y) {
+                                     int from_y, int* out_x, int* out_y,
+                                     int skip_adjacent_colony) {
   if (!ctx || !ctx->map || !ctx->colonies || !out_x || !out_y || human < 0) {
     return 0;
   }
@@ -678,10 +687,27 @@ static int ai_king_human_coast_water(const ColonizeTurnContext* ctx, int human, 
   int best = -1;
   int bx = 0;
   int by = 0;
+  int best_any = -1;
+  int bx_any = 0;
+  int by_any = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (!c->active || c->nation_id != human) {
       continue;
+    }
+    /* Adjacent includes 8-neigh + same tile; skip that colony when requested. */
+    int adj = 0;
+    if (skip_adjacent_colony) {
+      if (c->x == from_x && c->y == from_y) {
+        adj = 1;
+      } else {
+        for (int d = 0; d < 8; ++d) {
+          if (from_x == c->x + dx[d] && from_y == c->y + dy[d]) {
+            adj = 1;
+            break;
+          }
+        }
+      }
     }
     for (int d = 0; d < 8; ++d) {
       const int nx = c->x + dx[d];
@@ -690,6 +716,14 @@ static int ai_king_human_coast_water(const ColonizeTurnContext* ctx, int human, 
         continue;
       }
       const int dist = abs(nx - from_x) + abs(ny - from_y);
+      if (best_any < 0 || dist < best_any) {
+        best_any = dist;
+        bx_any = nx;
+        by_any = ny;
+      }
+      if (adj) {
+        continue; /* just-served port — look for next human coast */
+      }
       if (best < 0 || dist < best) {
         best = dist;
         bx = nx;
@@ -697,11 +731,16 @@ static int ai_king_human_coast_water(const ColonizeTurnContext* ctx, int human, 
       }
     }
   }
-  if (best < 0) {
+  if (best >= 0) {
+    *out_x = bx;
+    *out_y = by;
+    return 1;
+  }
+  if (best_any < 0) {
     return 0;
   }
-  *out_x = bx;
-  *out_y = by;
+  *out_x = bx_any;
+  *out_y = by_any;
   return 1;
 }
 
@@ -780,15 +819,46 @@ static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int huma
 }
 
 /*
- * Wartime MoW adjacent to coast/colony land: unload one passenger.
+ * Pick one cargo id to unload: prefer Regular; else Dragoon; else first slot.
+ * Returns passenger id or -1.
+ */
+static int ai_king_mow_pick_unload_pax(const ColonizeTurnContext* ctx,
+                                       const ColonizeUnit* ship) {
+  if (!ctx || !ctx->units || !ship || ship->cargo_count <= 0) {
+    return -1;
+  }
+  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+    const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
+    if (p && ai_king_is_regular(ctx->units, p)) {
+      return ship->cargo_ids[c];
+    }
+  }
+  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+    const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
+    if (p && ai_king_is_dragoon(ctx->units, p)) {
+      return ship->cargo_ids[c];
+    }
+  }
+  return ship->cargo_ids[0];
+}
+
+/*
+ * Wartime MoW adjacent to coast/colony land: unload passengers this beat.
  * Prefer Regular in hold; else Dragoon (REF land arm — fandom Regulars +
  * Cavalry/Dragoons). Reuses units_unload_passenger (Euro landfall path).
- * Full multi-slot embark / seize-landing / MoW×6 chrome PARKED.
- * Returns 1 if a unit was unloaded.
+ * Multi-slot: dump up to min(moves_left, ship capacity, cargo_count) — real
+ * fields only; do not invent passengers. Cite: fandom man-o-war ×6 / seize.
+ * Spends one ship move per passenger unloaded so leftover MP can AI_SAIL to
+ * the next human coast same beat after a full unload.
+ * Returns count unloaded (0 if none). Writes dest via out_x/out_y when non-NULL
+ * and n>0 (for same-beat capture/fortify of passengers skipped while aboard).
  */
-static int ai_king_mow_try_unload_one(ColonizeTurnContext* ctx, ColonizeUnit* ship,
-                                     int human) {
+static int ai_king_mow_try_unload(ColonizeTurnContext* ctx, ColonizeUnit* ship,
+                                 int human, int* out_x, int* out_y) {
   if (!ctx || !ctx->units || !ship || ship->cargo_count <= 0) {
+    return 0;
+  }
+  if (ship->moves_left <= 0) {
     return 0;
   }
   int dest_x = 0;
@@ -796,31 +866,39 @@ static int ai_king_mow_try_unload_one(ColonizeTurnContext* ctx, ColonizeUnit* sh
   if (!ai_king_mow_unload_land_dest(ctx, human, ship, &dest_x, &dest_y)) {
     return 0;
   }
-  /* Prefer Regular; else Dragoon when cargo allows (REF land arm). */
-  int pax_id = ship->cargo_ids[0];
-  int found = 0;
-  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-    const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
-    if (p && ai_king_is_regular(ctx->units, p)) {
-      pax_id = ship->cargo_ids[c];
-      found = 1;
+  int cap = units_ship_capacity(ctx->units, ship->id);
+  if (cap <= 0) {
+    cap = COLONIZE_UNIT_CARGO_MAX;
+  }
+  int budget = ship->moves_left;
+  if (budget > cap) {
+    budget = cap;
+  }
+  if (budget > ship->cargo_count) {
+    budget = ship->cargo_count;
+  }
+  int n = 0;
+  while (n < budget && ship->cargo_count > 0 && ship->moves_left > 0) {
+    const int pax_id = ai_king_mow_pick_unload_pax(ctx, ship);
+    if (pax_id < 0) {
       break;
     }
+    if (!units_unload_passenger(ctx->units, ship->id, pax_id, ctx->map, dest_x, dest_y,
+                                ctx->colonies)) {
+      break;
+    }
+    ship->moves_left--;
+    n++;
   }
-  if (!found) {
-    for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-      const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
-      if (p && ai_king_is_dragoon(ctx->units, p)) {
-        pax_id = ship->cargo_ids[c];
-        break;
-      }
+  if (n > 0) {
+    if (out_x) {
+      *out_x = dest_x;
+    }
+    if (out_y) {
+      *out_y = dest_y;
     }
   }
-  if (!units_unload_passenger(ctx->units, ship->id, pax_id, ctx->map, dest_x, dest_y,
-                              ctx->colonies)) {
-    return 0;
-  }
-  return 1;
+  return n;
 }
 
 /*
@@ -931,6 +1009,28 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
       /* Euro pattern: idle Artillery on newly captured colony → FORTIFY. */
       ai_king_fortify_artillery_at(ctx, u, crown, u->x, u->y);
     }
+  }
+}
+
+/*
+ * Same-beat seize/fortify for passengers just put ashore (unit-index order may
+ * have skipped them while aboard with moves_left==0). Cite: fandom REF seize
+ * landing + fortify one Regular after capture / multi-unload.
+ */
+static void ai_king_mow_post_unload_land(ColonizeTurnContext* ctx, int crown, int human,
+                                         int dest_x, int dest_y) {
+  if (!ctx || !ctx->units || crown < 0) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != crown || u->x != dest_x || u->y != dest_y) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, u->id) || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    ai_king_try_capture_at(ctx, u, crown, human);
   }
 }
 
@@ -1172,7 +1272,8 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
              "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
              nat->tax_rate);
   }
-  /* FUN_43f7_38fd_5be8 refuse follow-up OK (Sugar freeze; dump-goods PARKED). */
+  /* FUN_43f7_38fd_5be8 refuse follow-up OK (Sugar freeze; dump-goods /
+   * 38fd_3dc8 second cargo PARKED — no fixed second name in wiki/decomp). */
   if (ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
     snprintf(body, sizeof(body),
@@ -1412,7 +1513,7 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
 }
 
 /*
- * Spawn one crown land unit on colony tile (0982 wave / MoW cargo unload).
+ * Spawn one crown land unit on colony tile (0982 wave / empty-hold fallback).
  * Returns 1 on success, else 0.
  */
 static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int x, int y,
@@ -1439,6 +1540,51 @@ static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int 
     u->goto_y = y;
   }
   return 1;
+}
+
+/*
+ * Prefer boarding a REF land unit into MoW cargo (units_board_stacked; same-tile
+ * spawn like euro Europe hire). On board failure, place on colony tile.
+ * Cite: docs/fandom_col1994.md REF “man-o-war with 6 units”; units_board.
+ * Returns 1 on spawn (boarded or colony fallback), else 0.
+ */
+static int ai_king_mow_embark_land(ColonizeTurnContext* ctx, int nation_id, int ship_id,
+                                   int land_x, int land_y, const char* type_name,
+                                   const char* alt_name) {
+  if (!ctx || !ctx->units || nation_id < 0) {
+    return 0;
+  }
+  ColonizeUnit* ship = (ship_id >= 0) ? units_get(ctx->units, ship_id) : NULL;
+  const int cap = (ship_id >= 0) ? units_ship_capacity(ctx->units, ship_id) : 0;
+  if (ship && cap > 0 && ship->cargo_count < cap) {
+    int lty = units_find_type(ctx->units, type_name);
+    if (lty < 0 && alt_name) {
+      lty = units_find_type(ctx->units, alt_name);
+    }
+    if (lty >= 0) {
+      const int uid = units_spawn_allow_stack(ctx->units, lty, ship->x, ship->y);
+      if (uid >= 0) {
+        ColonizeUnit* u = units_get(ctx->units, uid);
+        if (u) {
+          u->nation_id = nation_id;
+        }
+        if (units_board_stacked(ctx->units, uid, ship_id)) {
+          return 1;
+        }
+        /* Board failed — do not leave a land unit on water. */
+        if (u) {
+          u->x = land_x;
+          u->y = land_y;
+          u->orders = UNITS_ORDER_AI_MOVE;
+          u->goto_x = land_x;
+          u->goto_y = land_y;
+          u->aboard_ship_id = -1;
+        }
+        return 1;
+      }
+    }
+  }
+  return ai_king_spawn_wave_land(ctx, nation_id, land_x, land_y, type_name, alt_name);
 }
 
 /*
@@ -1476,9 +1622,11 @@ static int ai_king_spawn_wave_land_from_pools(ColonizeTurnContext* ctx, int nati
 /*
  * FUN_43f7_0982 (pools>0) / 06a6 (empty): REF wave arms.
  * Thin 1528: status arrival line when 0982 spawns (chrome UI PARKED).
- * Thin MoW cargo: when force[2] drained, unload up to AI_KING_MOW_HOLD_UNLOAD
- * land units — Regulars from force[0] first, then Dragoons from force[1] if
- * hold slots remain (hold-size-3 structural; fandom MoW×6 chrome PARKED).
+ * MoW cargo: when force[2] drained, board up to units_ship_capacity land
+ * units into the MoW (Regulars force[0] first, then Dragoons force[1]) via
+ * units_board_stacked / cargo_ids. Coastal multi-unload (≤moves/capacity)
+ * remains in war_act. Cite: fandom REF “man-o-war with 6 units”;
+ * COLONIZE_UNIT_CARGO_MAX.
  * Second MoW: when difficulty ≥ AI_KING_SECOND_MOW_DIFF and force[2] still
  * allows, spawn a second Man-O-War stand-in same beat (existing 0982 path).
  * Thin Artillery siege: when target colony is fortified and Artillery type
@@ -1507,7 +1655,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     return;
   }
 
-  /* 0982: Man-O-War + land at weakest colony (MoW cargo unload when ship drains). */
+  /* 0982: Man-O-War + board REF land into ship cargo (unload at coast in war_act). */
   int tx = 0;
   int ty = 0;
   const int cid = ai_king_weakest_port(ctx, ctx->human_nation, &tx, &ty);
@@ -1521,6 +1669,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   }
   int spawned = 0;
   int mow_spawned = 0;
+  int mow_sid = -1;
   int ship_ty = units_find_type(ctx->units, "Man-O-War");
   if (ship_ty < 0) {
     ship_ty = units_find_type(ctx->units, "Galleon");
@@ -1561,6 +1710,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       force[2]--;
       spawned = 1;
       mow_spawned = 1;
+      mow_sid = sid;
     }
   }
   /*
@@ -1588,16 +1738,22 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 
   if (mow_spawned) {
     /*
-     * Thin MoW cargo unload near target colony (same crown):
-     * hold size AI_KING_MOW_HOLD_UNLOAD stand-in — fill with Regulars
-     * (force[0]) first, then Dragoons (force[1]) while slots remain.
-     * Source: fandom REF “Men-O-War, Regulars, Cavalry”; “man-o-war with
-     * 6 units” — full embark / cargo_ids / MoW×6 chrome remain PARKED.
+     * Board REF land into MoW cargo_ids up to real ship capacity (MoW=6).
+     * Regulars (force[0]) first, then Dragoons (force[1]). Drain force[] only
+     * — never invent units beyond the pool. war_act unloads at coast/colony.
+     * Cite: fandom REF “Men-O-War, Regulars, Cavalry”; “man-o-war with 6
+     * units”; units_board_stacked / units_ship_capacity.
      */
-    int slots = AI_KING_MOW_HOLD_UNLOAD;
+    int slots = 0;
+    if (mow_sid >= 0) {
+      slots = units_ship_capacity(ctx->units, mow_sid);
+    }
+    if (slots <= 0) {
+      slots = COLONIZE_UNIT_CARGO_MAX;
+    }
     int landed = 0;
     while (slots > 0 && force[0] > 0) {
-      if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, "Regular", "Soldier")) {
+      if (!ai_king_mow_embark_land(ctx, crown, mow_sid, tx, ty, "Regular", "Soldier")) {
         break;
       }
       force[0]--;
@@ -1606,7 +1762,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       landed++;
     }
     while (slots > 0 && force[1] > 0) {
-      if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, "Dragoon", "Scout")) {
+      if (!ai_king_mow_embark_land(ctx, crown, mow_sid, tx, ty, "Dragoon", "Scout")) {
         break;
       }
       force[1]--;
@@ -1649,7 +1805,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 
 /*
  * Try one foreign landing from backup pool k; drain on success.
- * MoW pool lands a Regular stand-in (naval cargo chrome PARKED).
+ * MoW backup pool lands a Regular stand-in (no foreign MoW ship this path).
  * Returns 1 if a unit spawned, else 0.
  */
 static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int hy,
@@ -1665,7 +1821,7 @@ static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int
   } else if (k == 1) {
     alt = "Scout";
   } else if (k == 2) {
-    /* Naval pool: land a Regular stand-in near port (MoW cargo chrome PARKED). */
+    /* Naval pool: land a Regular stand-in near port (foreign MoW ship PARKED). */
     primary = "Regular";
     alt = "Soldier";
   }
@@ -1878,12 +2034,18 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
  * thin Dragoon/Cont. Cav prefer open when Artillery type exists; capital MD bias
  * (founding capital over distant colonies when MD within slack); post-capture
  * fortify one Regular (stack extras hunt) + human status; wartime MoW with cargo
- * → unload-at-coast one Regular else Dragoon (prefer colony tile / seize) else
- * AI_SAIL→human coast; idle empty MoW → AI_SAIL coastal patrol (nearest human
- * coast water; no new ships; MoW×6 chrome PARKED); 1eca colony-SoL bands
- * (40–50 vet / >50 Continental+Regular); Cont. Army/Cav after promote →
- * capital-rally (founding capital; weakest_port fallback); 10f0 intervene arm
- * (≤3 @ difficulty≥2); thin 2244 merc auto-accept or cannot-afford once/war.
+ * → unload-at-coast up to min(moves,capacity) Regular-prefer else Dragoon
+ * (prefer colony tile / seize; spend 1 MP/pax) else AI_SAIL→human coast; after
+ * *full* unload with moves left → AI_SAIL toward *next* human coast (skip
+ * just-served port); after that sail step (or already on next-coast water)
+ * prefer unload if still carrying and adjacent; same-beat post-unload
+ * capture/fortify for passengers skipped while aboard; idle empty MoW →
+ * AI_SAIL coastal patrol (nearest human coast water; no new ships); 0982
+ * boards up to ship capacity into cargo_ids;
+ * 1eca colony-SoL bands (40–50 vet / >50 Continental+Regular); Cont. Army/Cav
+ * after promote → capital-rally (founding capital; weakest_port fallback);
+ * 10f0 intervene arm (≤3 @ difficulty≥2); thin 2244 merc auto-accept or
+ * cannot-afford once/war.
  * REF idle Regular on crown colony (no adjacent foe) → fortify only if no other
  * Regular on tile is already FORTIFY/FORTIFIED; already-garrisoned stay put;
  * extras hunt (fandom REF garrison stack; uncaptured ports).
@@ -2042,24 +2204,79 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
 
     /*
      * Wartime MoW (fandom REF man-o-war → ports):
-     *   cargo > 0 → unload one Regular (else Dragoon) when adjacent to
-     *     foundable/coastal land by a human colony (units_unload_passenger);
-     *     else AI_SAIL→coast water.
+     *   cargo > 0 → unload Regular-prefer (else Dragoon) when adjacent to
+     *     foundable/coastal land by a human colony (units_unload_passenger),
+     *     up to min(moves_left, capacity) this beat (1 MP per pax); same-beat
+     *     seize/fortify passengers that were skipped while aboard.
+     *     Partial unload (cargo left) → hold; leftover sails next beat.
+     *     Full unload + moves left → AI_SAIL toward *next* human coast
+     *     (skip the port just served). Else (not at coast) AI_SAIL→coast.
+     *     After that coast/next-coast sail step: if still carrying and now
+     *     adjacent to a human colony → prefer unload same beat (then, if the
+     *     hold empties with moves left, retarget next human coast).
      *   cargo == 0 (idle empty) → AI_SAIL coastal patrol toward water adjacent
      *     to nearest human coastal colony. Redirects existing ships only —
-     *     do not invent new MoW. Full multi-slot embark / MoW×6 chrome PARKED.
+     *     do not invent new MoW. Hold fill is units_ship_capacity (MoW×6);
+     *     embark UI chrome PARKED; 160a letter cinematic PARKED.
      */
     if (ai_king_is_mow(ctx->units, u)) {
-      if (u->cargo_count > 0 && ai_king_mow_try_unload_one(ctx, u, human)) {
-        /* One Regular/Dragoon ashore; remaining cargo may sail next beat. */
-        continue;
+      int unloaded = 0;
+      int land_x = 0;
+      int land_y = 0;
+      if (u->cargo_count > 0) {
+        unloaded = ai_king_mow_try_unload(ctx, u, human, &land_x, &land_y);
+        if (unloaded > 0) {
+          ai_king_mow_post_unload_land(ctx, crown, human, land_x, land_y);
+        }
+        if (u->cargo_count > 0) {
+          /* Partial unload or unload failed mid-hold — leftover next beat. */
+          if (unloaded > 0) {
+            continue;
+          }
+          /* Not at coast — fall through to AI_SAIL toward human coast. */
+        } else if (u->moves_left <= 0) {
+          /* Full unload spent remaining MP — no same-beat sail. */
+          continue;
+        }
+        /* Full unload with moves left → sail to next human coast below. */
       }
       int wx = 0;
       int wy = 0;
-      if (ai_king_human_coast_water(ctx, human, u->x, u->y, &wx, &wy)) {
+      /* After full unload, prefer another human port's water (next coast). */
+      const int skip_adj = (unloaded > 0 && u->cargo_count == 0) ? 1 : 0;
+      if (ai_king_human_coast_water(ctx, human, u->x, u->y, &wx, &wy, skip_adj)) {
         u->orders = UNITS_ORDER_AI_SAIL;
         u->goto_x = wx;
         u->goto_y = wy;
+      }
+      /*
+       * Already on next-coast water and still carrying: prefer unload at the
+       * adjacent colony over burning MP on a zero-step sail (R5). Gate on
+       * human colony adjacency — not soft coastal land alone — so mid-route
+       * sail steps do not dump onto foundable tiles one MD early.
+       */
+      if (u->cargo_count > 0 && u->moves_left > 0 && u->goto_x == u->x &&
+          u->goto_y == u->y &&
+          ai_king_adjacent_human_colony(ctx, human, u->x, u->y)) {
+        land_x = 0;
+        land_y = 0;
+        const int u_here = ai_king_mow_try_unload(ctx, u, human, &land_x, &land_y);
+        if (u_here > 0) {
+          ai_king_mow_post_unload_land(ctx, crown, human, land_x, land_y);
+          unloaded += u_here;
+          if (u->cargo_count == 0 && u->moves_left > 0) {
+            if (ai_king_human_coast_water(ctx, human, u->x, u->y, &wx, &wy, 1)) {
+              u->orders = UNITS_ORDER_AI_SAIL;
+              u->goto_x = wx;
+              u->goto_y = wy;
+            }
+          } else {
+            continue;
+          }
+        }
+      }
+      if (u->moves_left <= 0) {
+        continue;
       }
       int tx = u->goto_x;
       int ty = u->goto_y;
@@ -2078,8 +2295,29 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         }
         continue;
       }
-      if (map_tile_is_water(ctx->map, nx, ny)) {
+      if ((sdx != 0 || sdy != 0) && map_tile_is_water(ctx->map, nx, ny)) {
         units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+      }
+      /*
+       * After coast / next-coast sail step: if still carrying and now adjacent
+       * to a human colony tile, prefer unload same beat (fandom man-o-war →
+       * ports). Soft-coast-only adjacency must not trigger mid-route.
+       */
+      if (u->cargo_count > 0 && u->moves_left > 0 &&
+          ai_king_adjacent_human_colony(ctx, human, u->x, u->y)) {
+        land_x = 0;
+        land_y = 0;
+        const int u_after = ai_king_mow_try_unload(ctx, u, human, &land_x, &land_y);
+        if (u_after > 0) {
+          ai_king_mow_post_unload_land(ctx, crown, human, land_x, land_y);
+          if (u->cargo_count == 0 && u->moves_left > 0) {
+            if (ai_king_human_coast_water(ctx, human, u->x, u->y, &wx, &wy, 1)) {
+              u->orders = UNITS_ORDER_AI_SAIL;
+              u->goto_x = wx;
+              u->goto_y = wy;
+            }
+          }
+        }
       }
       continue;
     }
@@ -2403,11 +2641,18 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
           }
         }
       } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
+        /* FUN_43f7_2244 Decline: gate once/war + follow-up OK (Hire already OK). */
         if (ctx->col1_ok && ctx->col1) {
           ai_king_set_merc_hired(ctx->col1, 1);
         }
         if (ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
+        }
+        if (ai_king_human_popups(ctx)) {
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human, ai_king_crown_nation(human),
+            popup->result_payload, "Mercenaries", "Mercenaries declined."
+          );
         }
       }
       break;

@@ -381,6 +381,45 @@ int main(void) {
   }
 
   /*
+   * Mid-range convert friction polish (40..54): establish + −2 decay.
+   * Cite: fandom Alarm missions slow hostility; indian_contact.md convert.
+   */
+  {
+    char status_mid[128];
+    status_mid[0] = '\0';
+    ctx.status = status_mid;
+    ctx.status_size = sizeof(status_mid);
+    ctx.human_nation = 0;
+    miss->x = 6;
+    miss->y = 5;
+    miss->active = true;
+    col1.tribe[0].mission = 0xff;
+    /* Floor of mid band: convert −2 → 38; pacify meet skips (<40). */
+    col1.tribe[0].alarm[0].friction = 40;
+    ind->alarm_by_player[0] = 40;
+    col1.nation[0].relation_by_indian[0] = 80;
+    const uint16_t crosses_m = col1.nation[0].current_crosses;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].mission != 0) {
+      return fail("mid-range convert should establish mission");
+    }
+    if (col1.nation[0].current_crosses != (uint16_t)(crosses_m + 1)) {
+      return fail("mid-range convert should bump crosses");
+    }
+    if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
+      return fail("mid-range convert should decay friction/alarm by 2");
+    }
+    if (strstr(status_mid, "accept") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: mid-convert status '%s'\n", status_mid);
+      return fail("mid-range convert should set accept status");
+    }
+    col1.tribe[0].alarm[0].friction = 10;
+    ind->alarm_by_player[0] = 10;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
+  /*
    * Teach-skill pulse: peaceful Free Colonist adjacent to tribe →
    * tribe.state.learned and tribe-appropriate profession.
    * last_sold cargo (furs) drives Expert Fur Trapper over nation default.
@@ -628,8 +667,14 @@ int main(void) {
     if (kind_ml == AI_RAID_NOTHING) {
       return fail("high-friction multi-loot raid should not be NOTHING");
     }
-    if (c->stock[COLONIZE_CARGO_MUSKETS] != muskets_ml - 5) {
-      return fail("multi-loot should steal 5 muskets stock");
+    /*
+     * Secondary −5 muskets; STORES value-sort may also primary-drain 1 musket
+     * (FUN_5fef_016c) → −6 total. Cite: indian_raid_outcomes.md multi-loot.
+     */
+    const int musk_expect =
+      (kind_ml == AI_RAID_STORES) ? (muskets_ml - 6) : (muskets_ml - 5);
+    if (c->stock[COLONIZE_CARGO_MUSKETS] != musk_expect) {
+      return fail("multi-loot should steal muskets stock (secondary ± STORES)");
     }
     /* Secondary tools −1; WREAK primary also takes tools → −2 total. */
     const int tools_expect = (kind_ml == AI_RAID_WREAK) ? (tools_ml - 2) : (tools_ml - 1);
@@ -680,6 +725,47 @@ int main(void) {
     }
     if (c->stock[COLONIZE_CARGO_MUSKETS] != musk_st - 1) {
       return fail("STORES primary should drain 1 muskets stock");
+    }
+  }
+
+  /*
+   * STORES goods-value pick (FUN_5fef_016c stand-in): food+silver warehouse
+   * at mid alarm → drain silver (higher value), not food. Cite:
+   * indian_raid_outcomes.md @RAIDSTORES; peel FUN_5fef_016c.
+   */
+  {
+    euro->x = 10;
+    euro->y = 10;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    ind->alarm_by_player[0] = 50;
+    col1.tribe[0].alarm[0].friction = 50;
+    col1.tribe[0].mission = 0xff;
+    col1.nation[0].gold = 0;
+    col1.nation[0].relation_by_indian[0] = 40;
+    c->active = true;
+    c->nation_id = 0;
+    c->x = 5;
+    c->y = 5;
+    c->population = 1;
+    c->colonist_count = 1;
+    c->building_in_production = -1;
+    memset(c->stock, 0, sizeof(c->stock));
+    c->stock[COLONIZE_CARGO_FOOD] = 20;
+    c->stock[COLONIZE_CARGO_SILVER] = 2;
+    const int food_vs = c->stock[COLONIZE_CARGO_FOOD];
+    const int sil_vs = c->stock[COLONIZE_CARGO_SILVER];
+    ai_contact_indian_raids(&ctx, 4);
+    if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
+      return fail("food+silver warehouse should pick AI_RAID_STORES");
+    }
+    if (c->stock[COLONIZE_CARGO_SILVER] != sil_vs - 1) {
+      return fail("STORES value-sort should drain silver before food");
+    }
+    if (c->stock[COLONIZE_CARGO_FOOD] != food_vs) {
+      return fail("STORES value-sort should leave food when silver present");
     }
   }
 
@@ -1500,6 +1586,118 @@ int main(void) {
   }
 
   /*
+   * Raid prefer high-silver (GOLD wealth) colony at equal distance when neither
+   * has mil/tools advantage. Cite: indian_raid_outcomes.md colony approach;
+   * @RAIDGOLD.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 12;
+    euro->y = 12;
+    brave->x = 8;
+    brave->y = 8;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    brave->active = true;
+    ind->alarm_by_player[0] = 65;
+    col1.tribe[0].alarm[0].friction = 65;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.nation[0].relation_by_indian[0] = 40;
+    col1.nation[0].gold = 100; /* GOLD kind eligible; approach uses silver */
+    ColonizeColony* c_plain = &colonies.colonies[0];
+    ColonizeColony* c_silver = &colonies.colonies[1];
+    c_plain->id = 0;
+    c_plain->active = true;
+    c_plain->nation_id = 0;
+    c_plain->x = 8;
+    c_plain->y = 8;
+    c_plain->population = 3;
+    c_plain->colonist_count = 3;
+    c_plain->building_in_production = -1;
+    memset(c_plain->stock, 0, sizeof(c_plain->stock));
+    c_plain->stock[COLONIZE_CARGO_FOOD] = 20;
+    c_silver->id = 1;
+    c_silver->active = true;
+    c_silver->nation_id = 0;
+    c_silver->x = 8;
+    c_silver->y = 8;
+    c_silver->population = 3;
+    c_silver->colonist_count = 3;
+    c_silver->building_in_production = -1;
+    memset(c_silver->stock, 0, sizeof(c_silver->stock));
+    c_silver->stock[COLONIZE_CARGO_FOOD] = 20;
+    c_silver->stock[COLONIZE_CARGO_SILVER] = 8; /* wealth prefer */
+    colonies.colony_count = 2;
+    const int food_plain = c_plain->stock[COLONIZE_CARGO_FOOD];
+    const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
+    ai_contact_indian_raids(&ctx, 4);
+    if (c_silver->stock[COLONIZE_CARGO_SILVER] >= silver_pref &&
+        c_silver->stock[COLONIZE_CARGO_FOOD] >= 20 &&
+        col1.tribe[0].alarm[0].attacks == 0) {
+      return fail("raid should prefer equal-distance colony with silver wealth");
+    }
+    if (c_plain->stock[COLONIZE_CARGO_FOOD] != food_plain) {
+      return fail("raid should not loot plain colony when silver peer tied");
+    }
+    c_silver->active = false;
+    colonies.colony_count = 1;
+  }
+
+  /*
+   * @RAIDBURN lumber gate: no construction, warehouse lumber only, alarm≥60
+   * → BURN drains lumber (wooden-building stock). Cite: indian_raid_outcomes.md
+   * @RAIDBURN; apply lumber stub.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 12;
+    euro->y = 12;
+    euro->active = true;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    brave->active = true;
+    ind->alarm_by_player[0] = 65;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 65;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.nation[0].relation_by_indian[0] = 40;
+    col1.nation[0].gold = 0; /* no GOLD */
+    col1.head.founding_father[FF_POCAHONTAS] = -1;
+    ColonizeColony* c_burn = &colonies.colonies[0];
+    c_burn->active = true;
+    c_burn->nation_id = 0;
+    c_burn->x = 5;
+    c_burn->y = 5;
+    c_burn->population = 1; /* no SCALP */
+    c_burn->colonist_count = 1;
+    c_burn->building_in_production = -1;
+    memset(c_burn->stock, 0, sizeof(c_burn->stock));
+    c_burn->stock[COLONIZE_CARGO_LUMBER] = 6;
+    colonies.colony_count = 1;
+    const int lumber0 = c_burn->stock[COLONIZE_CARGO_LUMBER];
+    ai_contact_indian_raids(&ctx, 4);
+    if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
+      fprintf(
+        stderr,
+        "smoke_ai_contact: burn-lumber kind=%d\n",
+        ai_contact_last_raid_kind()
+      );
+      return fail("lumber-only colony at alarm≥60 should pick AI_RAID_BURN");
+    }
+    if (c_burn->stock[COLONIZE_CARGO_LUMBER] >= lumber0) {
+      return fail("BURN should drain lumber stock when no construction");
+    }
+  }
+
+  /*
    * Raid friction/alarm escalate: successful loot → tribe friction +
    * alarm_by_player +2; Pocahontas halves (+1). Cite: fandom Alarm /
    * Pocahontas; indian_raid_outcomes.md §7.
@@ -1692,7 +1890,7 @@ int main(void) {
       return fail("Trade apply should set Trade accepted status");
     }
 
-    /* Leave dismisses without further effects. */
+    /* Leave dismisses with thin Farewell OK; no trade side effects. */
     ai_popup_clear(&pop);
     pop.has_result = true;
     pop.result_cancelled = false;
@@ -1701,9 +1899,19 @@ int main(void) {
     pop.result_nation_a = 0;
     pop.result_nation_b = 4;
     const int goods_leave = c_pop->stock[COLONIZE_CARGO_TRADE_GOODS];
+    st_pop[0] = '\0';
     ai_contact_apply_popup_result(&ctx, &pop);
     if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_leave) {
       return fail("Leave CHOICE should not trade");
+    }
+    if (pop.queue_count < 1 ||
+        pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+        pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_MEET) {
+      return fail("Leave CHOICE should enqueue Farewell OK");
+    }
+    if (strstr(st_pop, "Farewell") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: leave status '%s'\n", st_pop);
+      return fail("Leave CHOICE should set Farewell status");
     }
 
     /*
@@ -1732,6 +1940,39 @@ int main(void) {
         fprintf(stderr, "smoke_ai_contact: trade-stub status '%s'\n", st_pop);
         return fail("Trade fail should set Trade concluded status");
       }
+    }
+
+    /*
+     * Trade CHOICE haggle refuse (alarm≥50 gate): OK "Natives refuse to trade."
+     * Cite: FUN_4d56_2aac refuse; fandom Alarm; deep 2820 PARKED.
+     */
+    {
+      ai_popup_clear(&pop);
+      c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] = 5;
+      ind->alarm_by_player[0] = 55;
+      col1.nation[0].relation_by_indian[0] = 80;
+      const int goods_ref = c_pop->stock[COLONIZE_CARGO_TRADE_GOODS];
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1; /* TRADE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_ref) {
+        return fail("Trade refuse should not drain trade goods");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_REFUSE) {
+        return fail("Trade refuse should enqueue CONTACT_REFUSE OK");
+      }
+      if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "trade") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: trade-refuse status '%s'\n", st_pop);
+        return fail("Trade refuse should set refuse-to-trade status");
+      }
+      ind->alarm_by_player[0] = 0; /* restore peaceful for later popup arms */
     }
 
     /*
@@ -1811,8 +2052,8 @@ int main(void) {
     }
 
     /*
-     * Gift CHOICE apply → follow-up Gift OK (amount UI PARKED; fixed −10).
-     * Cite: FUN_5bfb_102a / 1092.
+     * Gift CHOICE → amount CHOICE (Small/Large); Large apply −10 gold.
+     * Cite: FUN_5bfb_102a / 1092; indian_contact.md gift amount widget.
      */
     {
       ai_popup_clear(&pop);
@@ -1846,15 +2087,251 @@ int main(void) {
       pop.result_nation_a = 0;
       pop.result_nation_b = 4;
       ai_contact_apply_popup_result(&ctx, &pop);
-      if (col1.nation[0].gold != 40u) {
-        return fail("Gift CHOICE should drain 10 gold");
+      if (col1.nation[0].gold != 50u) {
+        return fail("Meet Gift should defer drain until amount CHOICE");
       }
       if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_GIFT) {
-        return fail("Gift CHOICE should enqueue Gift OK follow-up");
+        return fail("Gift CHOICE should enqueue CONTACT_GIFT amount CHOICE");
+      }
+      if (pop.queue[pop.queue_count - 1].choice_count < 2) {
+        return fail("amount CHOICE should offer Small and Large");
+      }
+      /* Apply Large (−10). */
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* AI_CONTACT_GIFT_LARGE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != 40u) {
+        return fail("Large gift should drain 10 gold");
+      }
+      if (col1.tribe[0].alarm[0].friction != 8) {
+        return fail("Large gift should reduce friction by 2");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_GIFT ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
+        return fail("Large gift should enqueue Gift OK follow-up");
       }
       if (strstr(st_pop, "Gift") == NULL) {
-        return fail("Gift CHOICE should set Gift status");
+        return fail("Large gift should set Gift status");
+      }
+
+      /* Small gift (−5 / friction −1). */
+      ai_popup_clear(&pop);
+      col1.nation[0].gold = 30;
+      ind->alarm_by_player[0] = 10;
+      col1.tribe[0].alarm[0].friction = 10;
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1; /* AI_CONTACT_GIFT_SMALL */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != 25u) {
+        return fail("Small gift should drain 5 gold");
+      }
+      if (col1.tribe[0].alarm[0].friction != 9) {
+        return fail("Small gift should reduce friction by 1");
+      }
+
+      /*
+       * Pocahontas: gift friction decay stays full (−2); half-rate is for
+       * positive alarm bumps only. Cite: docs/fandom_col1994.md Pocahontas.
+       */
+      ai_popup_clear(&pop);
+      col1.head.founding_father[FF_POCAHONTAS] = 0;
+      col1.nation[0].gold = 30;
+      ind->alarm_by_player[0] = 12;
+      col1.tribe[0].alarm[0].friction = 12;
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* AI_CONTACT_GIFT_LARGE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_GIFT;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != 20u) {
+        return fail("Pocahontas Large gift should still drain 10 gold");
+      }
+      if (col1.tribe[0].alarm[0].friction != 10) {
+        return fail("Pocahontas should not halve gift friction decay");
+      }
+      if (ind->alarm_by_player[0] != 10) {
+        return fail("Pocahontas should not halve gift alarm decay");
+      }
+      col1.head.founding_father[FF_POCAHONTAS] = -1;
+    }
+
+    /*
+     * Demand CHOICE → amount CHOICE (tools vs gold); gold apply −15.
+     * Cite: FUN_5bfb_102a / 1092; indian_contact.md demand amount widget.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int bd = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int ed = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* braved = units_get(&units, bd);
+      ColonizeUnit* eurod = units_get(&units, ed);
+      if (!braved || !eurod) {
+        return fail("demand CHOICE spawn");
+      }
+      braved->nation_id = 4;
+      eurod->nation_id = 0;
+      eurod->tools = 5;
+      ind->met_by_player[0] = 1;
+      ind->alarm_by_player[0] = 20;
+      col1.tribe[0].alarm[0].friction = 45; /* mid demand band */
+      col1.tribe[0].state.learned = 1;
+      col1.tribe[0].mission = 0xff;
+      col1.nation[0].gold = 80;
+      col1.nation[0].relation_by_indian[0] = 80;
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      c->stock[COLONIZE_CARGO_TOOLS] = 25;
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 3; /* DEMAND */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != 80u || c->stock[COLONIZE_CARGO_TOOLS] != 25) {
+        return fail("Meet Demand should defer drain until amount CHOICE");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_DEMAND) {
+        return fail("Demand CHOICE should enqueue CONTACT_DEMAND amount CHOICE");
+      }
+      if (pop.queue[pop.queue_count - 1].choice_count < 2) {
+        return fail("demand amount CHOICE should offer tools and gold");
+      }
+      /* Apply gold (−15). */
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* AI_CONTACT_DEMAND_GOLD */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_DEMAND;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      st_pop[0] = '\0';
+      const uint8_t fr_d = col1.tribe[0].alarm[0].friction;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != 65u) {
+        return fail("Demand gold CHOICE should drain 15 gold");
+      }
+      if (c->stock[COLONIZE_CARGO_TOOLS] != 25) {
+        return fail("Demand gold CHOICE should not touch tools");
+      }
+      if (col1.tribe[0].alarm[0].friction != (uint8_t)(fr_d - 3)) {
+        return fail("Demand gold CHOICE should decay friction by 3");
+      }
+      if (strstr(st_pop, "Tribute") == NULL) {
+        return fail("Demand gold CHOICE should set Tribute status");
+      }
+      /* Tools path from amount CHOICE. */
+      ai_popup_clear(&pop);
+      col1.nation[0].gold = 80;
+      ind->alarm_by_player[0] = 20;
+      col1.tribe[0].alarm[0].friction = 45;
+      c->stock[COLONIZE_CARGO_TOOLS] = 25;
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1; /* AI_CONTACT_DEMAND_TOOLS */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_DEMAND;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (c->stock[COLONIZE_CARGO_TOOLS] != 15) {
+        return fail("Demand tools CHOICE should drain 10 tools");
+      }
+      if (col1.nation[0].gold != 80u) {
+        return fail("Demand tools CHOICE should not touch gold");
+      }
+    }
+
+    /*
+     * Demand CHOICE refuse when alarmed (≥55) → CONTACT_DEMAND OK
+     * "Natives refuse demands."; no tools/gold drain (no amount CHOICE).
+     * Cite: FUN_5bfb_102a / fandom Alarm; indian_contact.md demand refuse.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int bd = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int ed = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* braved = units_get(&units, bd);
+      ColonizeUnit* eurod = units_get(&units, ed);
+      if (!braved || !eurod) {
+        return fail("demand refuse CHOICE spawn");
+      }
+      braved->nation_id = 4;
+      eurod->nation_id = 0;
+      eurod->tools = 25;
+      ind->met_by_player[0] = 1;
+      ind->alarm_by_player[0] = 60;
+      col1.tribe[0].nation_id = 4;
+      col1.tribe[0].x = 5;
+      col1.tribe[0].y = 5;
+      col1.tribe[0].alarm[0].friction = 60; /* demand-band refuse line */
+      col1.tribe[0].state.learned = 1;
+      col1.tribe[0].mission = 0xff;
+      col1.nation[0].gold = 100;
+      col1.nation[0].relation_by_indian[0] = 80;
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      c->stock[COLONIZE_CARGO_TOOLS] = 30;
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 3; /* DEMAND */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      const uint32_t gold_r = col1.nation[0].gold;
+      const int tools_r = c->stock[COLONIZE_CARGO_TOOLS];
+      const int utools_r = eurod->tools;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold != gold_r) {
+        return fail("Demand refuse CHOICE should not take gold");
+      }
+      if (c->stock[COLONIZE_CARGO_TOOLS] != tools_r || eurod->tools != utools_r) {
+        return fail("Demand refuse CHOICE should not take tools");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_DEMAND) {
+        return fail("Demand refuse should enqueue CONTACT_DEMAND OK");
+      }
+      if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "demand") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: demand-refuse OK status '%s'\n", st_pop);
+        return fail("Demand refuse should set refuse-demands status");
       }
     }
 
@@ -1908,6 +2385,71 @@ int main(void) {
         fprintf(stderr, "smoke_ai_contact: teach-refuse OK status '%s'\n", st_pop);
         return fail("Teach refuse should set refuse-to-teach status");
       }
+    }
+
+    /*
+     * Teach CHOICE success: Aztec (5) → Ore Miner (unused nation-map entry).
+     * Cite: indian_contact.md teach-skill profession map; FUN_5bfb_022e.
+     */
+    {
+      ai_popup_clear(&pop);
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active &&
+            (u->nation_id == 4 || u->nation_id == 5 || u->nation_id == 0)) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int bt = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int et = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* bravet = units_get(&units, bt);
+      ColonizeUnit* eurot = units_get(&units, et);
+      if (!bravet || !eurot) {
+        return fail("teach Aztec CHOICE spawn");
+      }
+      bravet->nation_id = 5;
+      eurot->nation_id = 0;
+      eurot->profession = UNITS_JOB_NONE;
+      ColonizeCol1Indian* aztec = &col1.indian[1];
+      memset(aztec, 0, sizeof(*aztec));
+      aztec->met_by_player[0] = 1;
+      aztec->alarm_by_player[0] = 5;
+      col1.tribe[0].nation_id = 5;
+      col1.tribe[0].x = 5;
+      col1.tribe[0].y = 5;
+      col1.tribe[0].alarm[0].friction = 5;
+      col1.tribe[0].state.learned = 0;
+      col1.tribe[0].last_sold = 0;
+      col1.tribe[0].mission = 0xff;
+      col1.nation[0].relation_by_indian[1] = 80; /* Aztec idx 1 */
+      col1.nation[0].gold = 0;
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 4; /* TEACH */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 5;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (!col1.tribe[0].state.learned) {
+        return fail("Teach Aztec CHOICE should set learned");
+      }
+      if (eurot->profession != COLONIZE_JOB_ORE_MINER) {
+        return fail("Teach Aztec CHOICE → Expert Ore Miner");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TEACH) {
+        return fail("Teach Aztec success should enqueue CONTACT_TEACH OK");
+      }
+      if (strstr(st_pop, "teach") == NULL || strstr(st_pop, "Aztec") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: teach-aztec status '%s'\n", st_pop);
+        return fail("Teach Aztec should set Natives-teach-Aztec status");
+      }
+      /* Restore tribe nation for later arms. */
+      col1.tribe[0].nation_id = 4;
+      ind->met_by_player[0] = 1;
+      ind->alarm_by_player[0] = 10;
     }
 
     /*

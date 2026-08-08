@@ -54,6 +54,18 @@ enum {
   AI_CONTACT_CHOICE_LEAVE = 5
 };
 
+/* Gift amount CHOICE ids (CONTACT_GIFT; FUN_5bfb_102a amount stand-in). */
+enum {
+  AI_CONTACT_GIFT_SMALL = 1, /* −5 gold, friction −1 */
+  AI_CONTACT_GIFT_LARGE = 2  /* −10 gold, friction −2 */
+};
+
+/* Demand amount CHOICE ids (CONTACT_DEMAND; tools vs gold stand-in). */
+enum {
+  AI_CONTACT_DEMAND_TOOLS = 1, /* −10 tools (stock/unit ≥20), friction −3 */
+  AI_CONTACT_DEMAND_GOLD = 2   /* −15 gold (treasury ≥50), friction −3 */
+};
+
 /*
  * Human status chrome + optional AI popup OK (keep both). Cite: FUN_5bfb_022e /
  * FUN_4d56_4528 thin arms; unpark #1 dialog widgets.
@@ -409,16 +421,320 @@ static int ai_contact_pair_friction(
 }
 
 /*
+ * Apply a gift-band gold drain (CONTACT_GIFT amount CHOICE or auto Large).
+ * Small −5 / friction −1; Large −10 / friction −2. Cite: FUN_5bfb_102a;
+ * indian_contact.md gift stand-in (no invented crosses).
+ * Pocahontas: gift decays full friction (half-rate applies only to positive
+ * alarm/friction bumps — prelude/encroachment/raid; wiki/fandom).
+ */
+static void ai_contact_apply_gift_gold(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  unsigned gold_cost,
+  int friction_decay
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
+    return;
+  }
+  if (!ind->met_by_player[e]) {
+    return;
+  }
+  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+  if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction >= 40) {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", "Natives refuse gifts."
+    );
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  if (nat->gold < gold_cost) {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", "Natives refuse gifts."
+    );
+    return;
+  }
+  nat->gold -= gold_cost;
+  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, friction_decay);
+  ai_contact_human_chrome(
+    ctx,
+    e,
+    AI_POPUP_TAG_CONTACT_GIFT,
+    nation_id,
+    "Gift",
+    "Gift of gold eases tensions."
+  );
+}
+
+/*
+ * Human Gift amount CHOICE (Small −5 / Large −10). Returns 1 if enqueued.
+ * Cite: FUN_5bfb_102a amount stand-in; indian_contact.md.
+ */
+static int ai_contact_enqueue_gift_amount_choice(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id
+) {
+  if (!ctx || !ctx->ai_popups || !ctx->col1_ok || !ctx->col1 || e < 0 || e > 3) {
+    return 0;
+  }
+  if (!ai_contact_euro_is_human(ctx, e)) {
+    return 0;
+  }
+  const unsigned gold = ctx->col1->nation[e].gold;
+  if (gold < 5u) {
+    return 0; /* cannot pay Small — caller refuses */
+  }
+  const char* labels[2];
+  int ids[2];
+  int n = 0;
+  labels[n] = "Small gift (5 gold)";
+  ids[n] = AI_CONTACT_GIFT_SMALL;
+  n++;
+  if (gold >= 10u) {
+    labels[n] = "Large gift (10 gold)";
+    ids[n] = AI_CONTACT_GIFT_LARGE;
+    n++;
+  }
+  char title[AI_POPUP_TITLE_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  snprintf(title, sizeof(title), "Gift");
+  snprintf(
+    body,
+    sizeof(body),
+    "Offer gold to the %s?",
+    ai_contact_tribe_name(nation_id)
+  );
+  return ai_popup_enqueue_choice_ctx(
+           ctx->ai_popups,
+           AI_POPUP_TAG_CONTACT_GIFT,
+           e,
+           nation_id,
+           0,
+           title,
+           body,
+           labels,
+           ids,
+           n
+         )
+           ? 1
+           : 0;
+}
+
+/* Nearest Euro colony with warehouse tools ≥20 (mid demand tools arm). */
+static ColonizeColony* ai_contact_nearest_tools_colony(
+  ColonizeTurnContext* ctx,
+  int e,
+  int near_x,
+  int near_y
+) {
+  if (!ctx || !ctx->colonies || e < 0 || e > 3) {
+    return NULL;
+  }
+  int best_ci = -1;
+  int best_d = 99;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id != e) {
+      continue;
+    }
+    if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
+      continue;
+    }
+    const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
+    if (dist < best_d) {
+      best_d = dist;
+      best_ci = ci;
+    }
+  }
+  return best_ci >= 0 ? &ctx->colonies->colonies[best_ci] : NULL;
+}
+
+static int ai_contact_demand_can_pay_tools(
+  ColonizeTurnContext* ctx,
+  int e,
+  ColonizeUnit* other,
+  int near_x,
+  int near_y
+) {
+  if (ai_contact_nearest_tools_colony(ctx, e, near_x, near_y)) {
+    return 1;
+  }
+  return other && other->tools >= 20;
+}
+
+static int ai_contact_demand_can_pay_gold(const ColonizeTurnContext* ctx, int e) {
+  return ctx && ctx->col1_ok && ctx->col1 && e >= 0 && e <= 3 &&
+         ctx->col1->nation[e].gold >= 50u;
+}
+
+/*
+ * Mid-band demand tools drain (−10 stock or unit tools) + friction −3.
+ * Cite: FUN_5bfb_102a / 1092; indian_contact.md mid demand (tools path).
+ */
+static int ai_contact_apply_demand_tools(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  ColonizeUnit* other,
+  int near_x,
+  int near_y
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
+    return 0;
+  }
+  if (!ind->met_by_player[e]) {
+    return 0;
+  }
+  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+  if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction < 40) {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+    );
+    return 0;
+  }
+  ColonizeColony* c = ai_contact_nearest_tools_colony(ctx, e, near_x, near_y);
+  if (c) {
+    c->stock[COLONIZE_CARGO_TOOLS] -= 10;
+  } else if (other && other->tools >= 20) {
+    other->tools -= 10;
+  } else {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+    );
+    return 0;
+  }
+  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
+  ai_contact_human_chrome(
+    ctx,
+    e,
+    AI_POPUP_TAG_CONTACT_DEMAND,
+    nation_id,
+    "Demand",
+    "Tribute paid; tensions ease."
+  );
+  return 1;
+}
+
+/*
+ * Mid-band demand gold drain (−15 when treasury ≥50) + friction −3.
+ * Cite: indian_contact.md mid demand gold stand-in (tools short / player pick).
+ */
+static int ai_contact_apply_demand_gold(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
+    return 0;
+  }
+  if (!ind->met_by_player[e]) {
+    return 0;
+  }
+  const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+  if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction < 40) {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+    );
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  if (nat->gold < 50u) {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+    );
+    return 0;
+  }
+  nat->gold -= 15u;
+  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
+  ai_contact_human_chrome(
+    ctx,
+    e,
+    AI_POPUP_TAG_CONTACT_DEMAND,
+    nation_id,
+    "Demand",
+    "Tribute paid; tensions ease."
+  );
+  return 1;
+}
+
+/*
+ * Human Demand amount CHOICE (tools vs gold) when mid-band and purse allows.
+ * Returns 1 if enqueued. Cite: FUN_5bfb_102a / 1092; gift amount CHOICE mirror.
+ */
+static int ai_contact_enqueue_demand_amount_choice(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* other,
+  int near_x,
+  int near_y
+) {
+  if (!ctx || !ctx->ai_popups || !ctx->col1_ok || !ctx->col1 || e < 0 || e > 3) {
+    return 0;
+  }
+  if (!ai_contact_euro_is_human(ctx, e)) {
+    return 0;
+  }
+  const int can_tools = ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y);
+  const int can_gold = ai_contact_demand_can_pay_gold(ctx, e);
+  if (!can_tools && !can_gold) {
+    return 0;
+  }
+  const char* labels[2];
+  int ids[2];
+  int n = 0;
+  if (can_tools) {
+    labels[n] = "Pay tools (10)";
+    ids[n] = AI_CONTACT_DEMAND_TOOLS;
+    n++;
+  }
+  if (can_gold) {
+    labels[n] = "Pay gold (15)";
+    ids[n] = AI_CONTACT_DEMAND_GOLD;
+    n++;
+  }
+  char title[AI_POPUP_TITLE_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  snprintf(title, sizeof(title), "Demand");
+  snprintf(
+    body,
+    sizeof(body),
+    "The %s demand tribute. How do you pay?",
+    ai_contact_tribe_name(nation_id)
+  );
+  return ai_popup_enqueue_choice_ctx(
+           ctx->ai_popups,
+           AI_POPUP_TAG_CONTACT_DEMAND,
+           e,
+           nation_id,
+           0,
+           title,
+           body,
+           labels,
+           ids,
+           n
+         )
+           ? 1
+           : 0;
+}
+
+/*
  * Gift / demand structural stand-in (5bfb_102a / 1092 dialog widgets OPEN).
  * After peaceful meet adjacency (caller already gated alarmed / very-low rel):
  *  - alarmed (≥55 refuse-talk gate) → refuse gift/demand with status; no extra
  *    gold penalty beyond existing gift costs
  *  - low friction + Euro gold < 10 → refuse refuse (cannot pay −10 gift)
  *  - low friction + Euro gold >= 20 → gift: Euro −10 gold, friction −2
- *  - mid friction (40–54) + tools/gold → demand: −10 tools from nearest colony
- *    warehouse when stock ≥20 (else unit tools ≥20, else −15 gold when
- *    treasury ≥50); friction −3. Cite: gift gold≥20 band mirrored for tools;
- *    gold stand-in needs a fuller purse (≥50) when tools are short.
+ *    (auto Large; human Meet Gift may enqueue Small/Large amount CHOICE first)
+ *  - mid friction (40–54) + tools/gold → demand: auto prefers −10 tools from
+ *    nearest colony warehouse when stock ≥20 (else unit tools ≥20, else −15
+ *    gold when treasury ≥50); friction −3. Human Meet→Demand may enqueue
+ *    tools-vs-gold amount CHOICE first. Cite: gift gold≥20 band mirrored for
+ *    tools; gold stand-in needs a fuller purse (≥50) when tools are short.
  *  - very high covered by alarmed refuse / raids
  * Human-facing paths set a thin status line when ctx->status is present.
  * Source: fandom Alarm — alarmed natives may refuse trade/gifts.
@@ -473,7 +789,7 @@ static void ai_contact_gift_or_demand(
 
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
 
-  /* Low friction gift / tribute. */
+  /* Low friction gift / tribute (auto Large −10; amount CHOICE is Meet→Gift). */
   if (friction < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (nat->gold < 10u) {
@@ -483,77 +799,30 @@ static void ai_contact_gift_or_demand(
       return;
     }
     if (nat->gold < 20u) {
-      return; /* mid purse: skip silent (needs ≥20 band to gift) */
+      return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
     }
-    nat->gold -= 10u;
-    ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 2);
-    ai_contact_human_chrome(
-      ctx,
-      e,
-      AI_POPUP_TAG_CONTACT_GIFT,
-      nation_id,
-      "Gift",
-      "Gift of gold eases tensions."
-    );
+    ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 10u, 2);
     return;
   }
 
-  /* Mid friction (40–54) demand / payoff; ≥55 refused above. */
-  int paid = 0;
-  if (ctx->colonies) {
-    int best_ci = -1;
-    int best_d = 99;
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      ColonizeColony* c = &ctx->colonies->colonies[ci];
-      if (!c->active || c->nation_id != e) {
-        continue;
-      }
-      /* Succeed path: warehouse must hold ≥20 tools before −10 demand. */
-      if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
-        continue;
-      }
-      const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
-      if (dist < best_d) {
-        best_d = dist;
-        best_ci = ci;
-      }
-    }
-    if (best_ci >= 0) {
-      ctx->colonies->colonies[best_ci].stock[COLONIZE_CARGO_TOOLS] -= 10;
-      paid = 1;
-    }
-  }
-  if (!paid && other->tools >= 20) {
-    other->tools -= 10;
-    paid = 1;
-  }
   /*
-   * Tools short (warehouse/unit both <20): gold stand-in when treasury ≥50.
-   * Drain stays −15 (indian_contact.md mid demand); purse gate mirrors a
-   * fuller tribute ability than the gift −10/≥20 band.
+   * Mid friction (40–54) demand / payoff; ≥55 refused above.
+   * Auto prefers tools then gold; Meet→Demand may offer amount CHOICE.
    */
-  if (!paid && nat->gold >= 50u) {
-    nat->gold -= 15u;
-    paid = 1;
+  if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
+    ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
+    return;
   }
-  if (!paid) {
-    return; /* no tools in colony/unit and gold < 50 */
+  if (ai_contact_demand_can_pay_gold(ctx, e)) {
+    ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
   }
-  ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
-  ai_contact_human_chrome(
-    ctx,
-    e,
-    AI_POPUP_TAG_CONTACT_DEMAND,
-    nation_id,
-    "Demand",
-    "Tribute paid; tensions ease."
-  );
 }
 
 /*
  * Missionary adjacent to tribe → convert pulse (5bfb checklist / fandom Alarm):
- *  - mission unset (0xff) → set mission owner, slight alarm/friction decay,
- *    +1 nation crosses; human status "Natives accept conversion."
+ *  - mission unset (0xff) → set mission owner, alarm/friction decay (−1
+ *    peaceful / −2 mid-range 40..54), +1 nation crosses; human status
+ *    "Natives accept conversion."
  *  - mission already set (own or foreign) → skip convert pulse (one-shot;
  *    no re-crosses / no steal). Cite: indian_contact.md convert once.
  *  - alarmed (≥55 refuse-talk gate) → refuse convert with status; no crosses
@@ -611,11 +880,28 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
         break; /* one refuse pulse per tribe per call */
       }
       t->mission = (uint8_t)e;
-      if (ind->alarm_by_player[e] > 0) {
-        ind->alarm_by_player[e]--;
-      }
-      if (t->alarm[e].friction > 0) {
-        t->alarm[e].friction--;
+      /*
+       * Mid-range convert friction polish (40..54): stronger −2 decay on
+       * establish (matches meet-pulse mission pacify mid band). Peaceful
+       * (<40) keeps −1. Cite: fandom Alarm — missions slow hostility;
+       * indian_contact.md convert / mission pacify. No free crosses.
+       */
+      {
+        const int mid =
+          (ind->alarm_by_player[e] >= 40 && ind->alarm_by_player[e] < 55) ||
+          (t->alarm[e].friction >= 40 && t->alarm[e].friction < 55);
+        const int decay = mid ? 2 : 1;
+        if ((int)ind->alarm_by_player[e] > decay) {
+          ind->alarm_by_player[e] =
+            (uint16_t)(ind->alarm_by_player[e] - (uint16_t)decay);
+        } else {
+          ind->alarm_by_player[e] = 0;
+        }
+        if ((int)t->alarm[e].friction > decay) {
+          t->alarm[e].friction = (uint8_t)(t->alarm[e].friction - (uint8_t)decay);
+        } else {
+          t->alarm[e].friction = 0;
+        }
       }
       ColonizeCol1Nation* nat = &ctx->col1->nation[e];
       if (nat->current_crosses < 0xffffu) {
@@ -1250,13 +1536,79 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   ai_contact_teach_skill(ctx, nation_id);
 }
 
+/*
+ * Rough goods-value for AI STORES plunder pick (FUN_5fef_016c stand-in).
+ * Horses stay on secondary military loot — not primary STORES. Cite:
+ * peel layer_b_combat_raid FUN_5fef_016c; indian_raid_outcomes.md @RAIDSTORES.
+ */
+static int ai_contact_stores_cargo_value(int cargo) {
+  switch (cargo) {
+  case COLONIZE_CARGO_SILVER:
+    return 8;
+  case COLONIZE_CARGO_MUSKETS:
+    return 7;
+  case COLONIZE_CARGO_TRADE_GOODS:
+    return 6;
+  case COLONIZE_CARGO_TOOLS:
+    return 5;
+  case COLONIZE_CARGO_RUM:
+  case COLONIZE_CARGO_CIGARS:
+  case COLONIZE_CARGO_CLOTH:
+  case COLONIZE_CARGO_COATS:
+    return 4;
+  case COLONIZE_CARGO_SUGAR:
+  case COLONIZE_CARGO_TOBACCO:
+  case COLONIZE_CARGO_COTTON:
+  case COLONIZE_CARGO_FURS:
+    return 3;
+  case COLONIZE_CARGO_ORE:
+    return 2;
+  case COLONIZE_CARGO_FOOD:
+  case COLONIZE_CARGO_LUMBER:
+    return 1;
+  default:
+    return 0; /* horses / unknown — not primary STORES */
+  }
+}
+
 /* True if colony warehouse has any cargo the STORES arm can actually drain. */
 static int ai_contact_colony_has_stores(const ColonizeColony* c) {
   if (!c) {
     return 0;
   }
-  return c->stock[COLONIZE_CARGO_FOOD] > 0 || c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0 ||
-         c->stock[COLONIZE_CARGO_TOOLS] > 0 || c->stock[COLONIZE_CARGO_MUSKETS] > 0;
+  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
+    if (ai_contact_stores_cargo_value(cargo) > 0 && c->stock[cargo] > 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* Pick highest-value stock>0 cargo (ties → higher stock, then lower index). */
+static int ai_contact_pick_stores_cargo(const ColonizeColony* c) {
+  if (!c) {
+    return -1;
+  }
+  int best = -1;
+  int best_val = -1;
+  int best_stock = -1;
+  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
+    const int stock = c->stock[cargo];
+    if (stock <= 0) {
+      continue;
+    }
+    const int val = ai_contact_stores_cargo_value(cargo);
+    if (val <= 0) {
+      continue;
+    }
+    if (val > best_val || (val == best_val && stock > best_stock) ||
+        (val == best_val && stock == best_stock && (best < 0 || cargo < best))) {
+      best = cargo;
+      best_val = val;
+      best_stock = stock;
+    }
+  }
+  return best;
 }
 
 /* True if warehouse holds military loot secondary can drain (muskets/horses). */
@@ -1275,6 +1627,18 @@ static int ai_contact_colony_has_tools_loot(const ColonizeColony* c) {
   return c->stock[COLONIZE_CARGO_TOOLS] >= 10;
 }
 
+/*
+ * Colony wealth score for GOLD-band approach tie-break: silver stock (colony
+ * precious-metal cargo; nation treasury GOLD drains separately). Cite:
+ * indian_raid_outcomes.md colony approach; @RAIDGOLD / FUN_5fef_0f14.
+ */
+static int ai_contact_colony_gold_wealth(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  return c->stock[COLONIZE_CARGO_SILVER];
+}
+
 /* True if WREAK can mutate food/tools/building-in-production. */
 static int ai_contact_colony_has_wreak_target(const ColonizeColony* c) {
   if (!c) {
@@ -1282,6 +1646,34 @@ static int ai_contact_colony_has_wreak_target(const ColonizeColony* c) {
   }
   return c->stock[COLONIZE_CARGO_FOOD] > 0 || c->stock[COLONIZE_CARGO_TOOLS] > 0 ||
          c->building_in_production >= 0;
+}
+
+/*
+ * True if BURN loot arm can fire: construction clear and/or lumber stock
+ * (wooden-building materials). Cite: @RAIDBURN apply — lumber stub when no
+ * building_in_production; indian_raid_outcomes.md.
+ */
+static int ai_contact_colony_has_burn_target(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  return c->building_in_production >= 0 || c->stock[COLONIZE_CARGO_LUMBER] > 0;
+}
+
+/* Non-lumber lootable warehouse cargo (STORES still preferred over BURN). */
+static int ai_contact_colony_has_non_lumber_stores(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
+    if (cargo == COLONIZE_CARGO_LUMBER) {
+      continue;
+    }
+    if (ai_contact_stores_cargo_value(cargo) > 0 && c->stock[cargo] > 0) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 static AiRaidKind ai_contact_pick_raid_kind(
@@ -1307,7 +1699,8 @@ static AiRaidKind ai_contact_pick_raid_kind(
   if (max_alarm >= 70 && roll < 25 && c && c->population > 1) {
     return AI_RAID_SCALP;
   }
-  if (max_alarm >= 60 && roll < 20 && c && c->building_in_production >= 0) {
+  /* BURN: construction or lumber (wooden-building stock) gate. */
+  if (max_alarm >= 60 && roll < 20 && ai_contact_colony_has_burn_target(c)) {
     return AI_RAID_BURN;
   }
   if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1 &&
@@ -1328,14 +1721,23 @@ static AiRaidKind ai_contact_pick_raid_kind(
       }
     }
   }
-  /* STORES only when warehouse actually holds lootable cargo. */
+  /*
+   * STORES when lootable cargo present. Prefer BURN over lumber-as-STORES in
+   * the BURN band when the burn gate (construction / lumber) is the only
+   * wooden-building stock target — richer warehouses still take STORES.
+   */
   if (ai_contact_colony_has_stores(c)) {
-    return AI_RAID_STORES;
+    const int prefer_burn =
+      max_alarm >= 60 && ai_contact_colony_has_burn_target(c) &&
+      !ai_contact_colony_has_non_lumber_stores(c);
+    if (!prefer_burn) {
+      return AI_RAID_STORES;
+    }
   }
   if (c && c->population > 1 && max_alarm >= 70) {
     return AI_RAID_SCALP;
   }
-  if (c && c->building_in_production >= 0 && max_alarm >= 60) {
+  if (ai_contact_colony_has_burn_target(c) && max_alarm >= 60) {
     return AI_RAID_BURN;
   }
   return AI_RAID_NOTHING;
@@ -1405,17 +1807,10 @@ static void ai_contact_apply_raid_loot(
   case AI_RAID_NOTHING:
     break;
   case AI_RAID_STORES: {
-    static const int prefs[] = {
-      COLONIZE_CARGO_FOOD,
-      COLONIZE_CARGO_TRADE_GOODS,
-      COLONIZE_CARGO_TOOLS,
-      COLONIZE_CARGO_MUSKETS
-    };
-    for (size_t i = 0; i < sizeof(prefs) / sizeof(prefs[0]); ++i) {
-      if (c->stock[prefs[i]] > 0) {
-        c->stock[prefs[i]]--;
-        break;
-      }
+    /* FUN_5fef_016c-shaped goods-value pick among lootable warehouse stock. */
+    const int cargo = ai_contact_pick_stores_cargo(c);
+    if (cargo >= 0 && c->stock[cargo] > 0) {
+      c->stock[cargo]--;
     }
     break;
   }
@@ -1595,12 +1990,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    *
    * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): meet/raid decision
    * matrix that DOS reaches before settlement enter — nested 2aac…311e trade
-   * helpers and alarmed act pick live there, not in this post-pulse path.
+   * helpers (dispatch / AI buy / hard-bargain / demand) and alarmed act pick
+   * live there, not in this post-pulse path. Do not port 2820 body here.
    * Full FUN_4d56_4528 (~3k) settlement body also PARKED (comment only).
-   * Linux stays on thin @RAID* / combat / 359c. Widgets OPEN (unpark #1).
-   * Mid-friction gate prefers non-mission villages (below). Cite:
-   * indian_raid_outcomes.md §10; indian_contact.md PORT DEBT;
-   * docs/ai_transcription.md FUN_4d56_2820.
+   * Linux stays on thin @RAID* / combat / 359c + equal-dist mil/tools/silver
+   * approach. Widgets OPEN (unpark #1). Mid-friction gate prefers non-mission
+   * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md
+   * PORT DEBT; docs/ai_transcription.md FUN_4d56_2820; Marathon2 R6 PARK.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -1618,7 +2014,9 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * Cite: indian_raid_outcomes.md gate; FUN_4d56_4528 thin; fandom Alarm.
      *
      * PARK: deep Brave escort / alarmed act inside quiet FUN_4d56_14fe
-     * (seed-100 T2) — comment only; raids stay on this post-pulse path.
+     * (seed-100 T2). No unit-follow API — units_set_goto is tile goto only
+     * (units.h); escort needs follow-unit orders. Raids stay post-pulse.
+     * Cite: indian_raid_outcomes.md §1; indian_contact.md PORT DEBT.
      */
     int target_euro = -1;
     int max_alarm = 0;
@@ -1702,6 +2100,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       int best_d = 99;
       int best_mil = 0;
       int best_tools = 0;
+      int best_gold = 0;
       for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
         ColonizeColony* c = &ctx->colonies->colonies[ci];
         if (!c->active || c->nation_id != target_euro) {
@@ -1713,17 +2112,22 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         }
         /*
          * Prefer closer; at equal distance prefer muskets/horses (military
-         * secondary), else tools≥10 (high-friction secondary −1). Cite:
-         * indian_raid_outcomes.md multi-loot / colony approach.
+         * secondary), else tools≥10 (high-friction secondary −1), else higher
+         * silver stock (GOLD-kind / wealth approach). Cite:
+         * indian_raid_outcomes.md multi-loot / colony approach; @RAIDGOLD.
          */
         const int mil = ai_contact_colony_has_military_loot(c);
         const int tools = ai_contact_colony_has_tools_loot(c);
+        const int gold_w = ai_contact_colony_gold_wealth(c);
         if (d < best_d || (d == best_d && mil && !best_mil) ||
-            (d == best_d && mil == best_mil && tools && !best_tools)) {
+            (d == best_d && mil == best_mil && tools && !best_tools) ||
+            (d == best_d && mil == best_mil && tools == best_tools &&
+             gold_w > best_gold)) {
           best_d = d;
           best_cid = c->id;
           best_mil = mil;
           best_tools = tools;
+          best_gold = gold_w;
         }
       }
       if (best_cid >= 0) {
@@ -1829,9 +2233,10 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
          * When displaced (not despawned) and status buffer present → human
          * warn line. Dialog warn widgets beyond status still OPEN (unpark #1).
          *
-         * PARK: DOS RNG kill/warn/displace when a flee tile exists — Linux
-         * never kills if displace succeeds. Blocked-path despawn below is the
-         * thin stand-in only (indian_raid_outcomes.md §8).
+         * PARK (Marathon2 R6): DOS RNG kill/warn/displace when a flee tile
+         * exists — Linux never kills if displace succeeds (warn already).
+         * Blocked-path despawn below is the thin stand-in only
+         * (indian_raid_outcomes.md §9).
          */
         if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
           ai_contact_human_chrome(
@@ -1863,14 +2268,6 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
     return;
   }
-  /*
-   * Meet CHOICE chain (FUN_5bfb_022e / 5bfb_102a stand-in): Trade / Gift /
-   * Demand / Teach call existing thin handlers; Leave dismisses. Follow-up
-   * OK popups enqueue from those handlers' human chrome.
-   */
-  if (popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
-    return;
-  }
   const int e = popup->result_nation_a;
   const int nation_id = popup->result_nation_b;
   if (e < 0 || e > 3 || nation_id < 4 || nation_id > 11) {
@@ -1880,6 +2277,55 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     return;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+
+  /*
+   * Gift amount CHOICE (FUN_5bfb_102a stand-in): Small −5 / Large −10.
+   * Cite: indian_contact.md gift amount widget.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_GIFT) {
+    if (popup->result_choice_id == AI_CONTACT_GIFT_SMALL) {
+      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 5u, 1);
+    } else if (popup->result_choice_id == AI_CONTACT_GIFT_LARGE) {
+      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 10u, 2);
+    }
+    return;
+  }
+
+  /*
+   * Demand amount CHOICE (FUN_5bfb_102a / 1092 stand-in): tools vs gold.
+   * Cite: indian_contact.md mid demand amount widget.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_DEMAND) {
+    int near_x = 0;
+    int near_y = 0;
+    ColonizeUnit* other =
+      ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
+    if (!other && ctx->col1->tribe) {
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+        if ((int)t->nation_id == nation_id) {
+          near_x = t->x;
+          near_y = t->y;
+          break;
+        }
+      }
+    }
+    if (popup->result_choice_id == AI_CONTACT_DEMAND_TOOLS) {
+      ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
+    } else if (popup->result_choice_id == AI_CONTACT_DEMAND_GOLD) {
+      ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
+    }
+    return;
+  }
+
+  /*
+   * Meet CHOICE chain (FUN_5bfb_022e / 5bfb_102a stand-in): Trade / Gift /
+   * Demand / Teach call existing thin handlers; Leave dismisses. Follow-up
+   * OK popups enqueue from those handlers' human chrome.
+   */
+  if (popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
+    return;
+  }
   int near_x = 0;
   int near_y = 0;
   ColonizeUnit* other = ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
@@ -1896,31 +2342,84 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
 
   switch (popup->result_choice_id) {
   case AI_CONTACT_CHOICE_LEAVE:
+    /*
+     * Thin dismiss OK (FUN_5bfb_022e Leave). No trade/gift/teach side effects.
+     * Deep 2820 leave/dialog matrix PARKED. Cite: indian_contact.md Meet CHOICE.
+     */
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Contact", "Farewell."
+    );
     break;
   case AI_CONTACT_CHOICE_TRADE:
     /*
      * Thin auto-trade (FUN_5bfb_022e / 2aac…311e). Success → "Trade accepted."
-     * OK from human chrome. No goods / gated → haggle stub OK "Trade concluded."
-     * (deep buy/hard-bargain PARKED in FUN_4d56_2820).
+     * Alarmed / very-low relation → haggle refuse OK "Natives refuse to trade."
+     * (2aac refuse arm stand-in; fandom Alarm). No goods otherwise → haggle
+     * stub OK "Trade concluded." Deep buy/hard-bargain PARKED in FUN_4d56_2820.
      */
-    if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y)) {
-      ai_contact_human_chrome(
-        ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade concluded."
-      );
+    {
+      const int refuse_trade =
+        ind->alarm_by_player[e] >= 50 ||
+        ai_diplo_indian_relation(ctx->col1, nation_id, e) < 40;
+      if (refuse_trade) {
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_REFUSE,
+          nation_id,
+          "Trade",
+          "Natives refuse to trade."
+        );
+        break;
+      }
+      if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y)) {
+        ai_contact_human_chrome(
+          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade concluded."
+        );
+      }
     }
     break;
-  case AI_CONTACT_CHOICE_GIFT:
-  case AI_CONTACT_CHOICE_DEMAND:
+  case AI_CONTACT_CHOICE_GIFT: {
     /*
-     * Existing thin gift/demand picks by friction band (no invented math).
-     * Follow-up OK from gift_or_demand human chrome (FUN_5bfb_102a / 1092).
-     * PARK: Gift CHOICE amount / tribute UI (no amount widget yet) — fixed
-     * −10 gold / tools bands only; skip amount prompt.
+     * Gift-band + human popups → Small/Large amount CHOICE (FUN_5bfb_102a).
+     * Else thin gift_or_demand (auto Large / demand / refuse). Cite:
+     * indian_contact.md gift amount widget.
      */
+    const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+    const int gift_band =
+      friction < 40 && friction < 55 && ind->alarm_by_player[e] < 55;
+    if (gift_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
+      if (ai_contact_enqueue_gift_amount_choice(ctx, e, nation_id)) {
+        break;
+      }
+    }
     if (other) {
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
     }
     break;
+  }
+  case AI_CONTACT_CHOICE_DEMAND: {
+    /*
+     * Mid-band + human popups → tools/gold amount CHOICE (FUN_5bfb_102a).
+     * Alarmed (≥55) → gift_or_demand refuse OK "Natives refuse demands."
+     * (CONTACT_DEMAND; no amount CHOICE / no drain). Cite:
+     * indian_contact.md demand amount widget / alarmed refuse.
+     */
+    const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
+    const int demand_band =
+      friction >= 40 && friction < 55 && ind->alarm_by_player[e] < 55;
+    if (demand_band && ctx->ai_popups && ai_contact_euro_is_human(ctx, e)) {
+      if (ai_contact_enqueue_demand_amount_choice(
+            ctx, e, nation_id, other, near_x, near_y
+          )) {
+        break;
+      }
+    }
+    if (other) {
+      ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
+    }
+    break;
+  }
   case AI_CONTACT_CHOICE_TEACH:
     /* Follow-up OK from teach_skill human chrome (FUN_5bfb_022e teach arm). */
     ai_contact_teach_skill(ctx, nation_id);

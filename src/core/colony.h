@@ -131,6 +131,44 @@ int colonies_found(
   int horses
 );
 
+/* Forward decl — Indian land purchase uses Col1 tribe/FF state. */
+typedef struct ColonizeCol1Save ColonizeCol1Save;
+
+/*
+ * Gold to buy Indian homeland tile (FUN_4cc6_07c2). Manual/wiki Minuit:
+ * Indians no longer demand payment → 0 via founding_fathers_nation_has(FF 2).
+ * Returns 0 outside homeland radius (village 1 / capital city 2; pdf Indian Land).
+ * DOS also spends this from pioneer plow/road + colony tile-buy; those callers
+ * remain PORT outside this module.
+ */
+int colonies_indian_land_purchase_gold(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id
+);
+
+/*
+ * Found with FUN_4cc6_07c2 Indian land charge when tile is homeland.
+ * Deducts from *gold; fails (−1) if short. Minuit → free. col1/gold NULL →
+ * same as colonies_found (plain found still does not charge).
+ */
+int colonies_found_with_indian_land(
+  ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  uint32_t* gold,
+  int x,
+  int y,
+  int nation_id,
+  int founder_type_index,
+  int founder_profession,
+  int tools,
+  int muskets,
+  int horses
+);
+
 const ColonizeColony* colonies_get(const ColonizeColonyPool* pool, int colony_id);
 ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);

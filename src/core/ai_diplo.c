@@ -2,6 +2,7 @@
 
 #include "core/ai_popup.h"
 #include "core/colony.h"
+#include "core/map.h"
 #include "core/units.h"
 
 #include <stdio.h>
@@ -16,12 +17,20 @@
  * nation[a].unknown26[4..7] = diplo flag byte toward peer (15b3 stand-in)
  * nation[a].unknown26[8]   = Indian hostility sticky (0 clear / 1 at-war /
  *                             2 very-low deepen; synced from relation matrix)
+ * nation[a].unknown26[9]   = wartime Privateer spawn mask (bit peer =
+ *                             commissioned once this war; clear on peace)
  * Exact DS −0x77c4 offset PARKED. Indian×Euro full 15b3 matrix PORT DEBT
  * (thin stand-ins: peaceful drift + feeler + war hit + sticky sync).
  */
 
 #define AI_DIPLO_FLAG_BASE 4
 #define AI_DIPLO_INDIAN_HOSTILE_STICKY 8
+#define AI_DIPLO_PRIVATEER_SPAWN_SLOT 9
+/* Off-map Europe tile (turn / ai_euro Europe gate x|y >= 200). */
+#define AI_DIPLO_EUROPE_X 236
+#define AI_DIPLO_EUROPE_Y 236
+/* Same gate as ai_euro_in_europe — naval war hunt skips Europe until HS. */
+#define AI_DIPLO_IN_EUROPE(x, y) ((x) >= 200 || (y) >= 200)
 
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
  * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
@@ -303,11 +312,185 @@ static int ai_diplo_nation_has_sea_unit(const ColonizeTurnContext* ctx, int nati
 }
 
 /*
- * Thin wartime privateer prize stand-in (full privateer unit spawn PARKED):
- * once per at-war peer visit, transfer 8 gold from the richer treasury to the
- * poorer. No-op when equal or donor gold < 8.
+ * Hunt-ready spawn: New World water so ai_euro naval war hunt can aim
+ * (!ai_euro_in_europe). Europe dock (x|y>=200) is intentional last resort -
+ * hunt waits for Europe->HS teleport. Cite: euro_unit_act §2b Privateer hunt.
+ */
+static int ai_diplo_privateer_spawn_hunt_ready(
+  const ColonizeTurnContext* ctx,
+  int x,
+  int y
+) {
+  if (AI_DIPLO_IN_EUROPE(x, y)) {
+    return 0;
+  }
+  if (ctx && ctx->map && !map_tile_is_water(ctx->map, x, y)) {
+    return 0;
+  }
+  return 1;
+}
+
+/*
+ * Find water near own coastal colony, else stack on own New World sea unit,
+ * else Europe dock. Skip Europe-dock / non-water stacks so euro hunt can use
+ * the ship same tick when coast water exists.
+ * Source: FF Jones coastal-water helper; Europe purchase Privateer; fandom
+ * Drake / Privateer commerce raid (euro_unit_act §2b).
+ */
+static int ai_diplo_find_privateer_spawn(
+  const ColonizeTurnContext* ctx,
+  int nation_id,
+  int* out_x,
+  int* out_y
+) {
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+  if (!ctx || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  if (ctx->map && ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* col = &ctx->colonies->colonies[i];
+      if (!col->active || col->nation_id != nation_id) {
+        continue;
+      }
+      if (!map_tile_is_coastal(ctx->map, col->x, col->y)) {
+        continue;
+      }
+      for (int d = 0; d < 8; ++d) {
+        const int nx = col->x + dx[d];
+        const int ny = col->y + dy[d];
+        if (map_tile_is_water(ctx->map, nx, ny) &&
+            ai_diplo_privateer_spawn_hunt_ready(ctx, nx, ny)) {
+          *out_x = nx;
+          *out_y = ny;
+          return 1;
+        }
+      }
+    }
+  }
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
+        continue;
+      }
+      if (!units_is_sea(ctx->units, u->id)) {
+        continue;
+      }
+      /* Skip Europe-dock stacks - not hunt-ready until HS teleport. */
+      if (!ai_diplo_privateer_spawn_hunt_ready(ctx, u->x, u->y)) {
+        continue;
+      }
+      *out_x = u->x;
+      *out_y = u->y;
+      return 1;
+    }
+  }
+  /* No hunt-ready coast / ship: commission from Europe dock (off-map). */
+  *out_x = AI_DIPLO_EUROPE_X;
+  *out_y = AI_DIPLO_EUROPE_Y;
+  return 1;
+}
+
+static int ai_diplo_privateer_spawn_armed(
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  int peer
+) {
+  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
+    return 0;
+  }
+  return (col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] &
+          (uint8_t)(1u << peer)) != 0;
+}
+
+static void ai_diplo_privateer_spawn_set(
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int peer
+) {
+  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
+    return;
+  }
+  col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] =
+    (uint8_t)(col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] |
+              (uint8_t)(1u << peer));
+}
+
+static void ai_diplo_privateer_spawn_clear(
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int peer
+) {
+  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
+    return;
+  }
+  col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] =
+    (uint8_t)(col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] &
+              (uint8_t)~(1u << peer));
+}
+
+/*
+ * Wartime Privateer unit spawn (once per war peer via unknown26[9] bit).
+ * units_find_type("Privateer") + units_spawn_allow_stack near coast / Europe.
+ * No-op if type missing, units null, already commissioned, or spawn fails.
+ * Returns 1 on successful spawn. Source: Europe Privateer purchase; fandom
+ * Drake Privateer combat; euro_unit_act §2b commerce raid. Full raid path /
+ * cargo loot still thin treasury prize below.
+ */
+static int ai_diplo_war_privateer_spawn(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int peer
+) {
+  if (!ctx || !ctx->col1 || !ctx->units || nation_id < 0 || nation_id >= 4 ||
+      peer < 0 || peer >= 4 || nation_id == peer) {
+    return 0;
+  }
+  if (ai_diplo_privateer_spawn_armed(ctx->col1, nation_id, peer)) {
+    return 0;
+  }
+  const int ty = units_find_type(ctx->units, "Privateer");
+  if (ty < 0) {
+    return 0;
+  }
+  int sx = 0;
+  int sy = 0;
+  if (!ai_diplo_find_privateer_spawn(ctx, nation_id, &sx, &sy)) {
+    return 0;
+  }
+  /*
+   * Read-only hunt-ready check (ai_euro naval war hunt needs !in_europe +
+   * water). If finder returned a bad New World tile, refuse rather than arm
+   * unknown26[9] on a land/invalid spawn. Europe dock (not hunt-ready) is OK.
+   */
+  if (!AI_DIPLO_IN_EUROPE(sx, sy) &&
+      !ai_diplo_privateer_spawn_hunt_ready(ctx, sx, sy)) {
+    return 0;
+  }
+  const int sid = units_spawn_allow_stack(ctx->units, ty, sx, sy);
+  if (sid < 0) {
+    return 0;
+  }
+  ColonizeUnit* ship = units_get(ctx->units, sid);
+  if (ship) {
+    ship->nation_id = nation_id;
+    ship->orders = UNITS_ORDER_AI_SAIL;
+    /* Station-keep goto (self): Privateer hunt always re-aims in ai_euro. */
+    ship->goto_x = sx;
+    ship->goto_y = sy;
+  }
+  ai_diplo_privateer_spawn_set(ctx->col1, nation_id, peer);
+  return 1;
+}
+
+/*
+ * Thin wartime privateer prize: once per at-war peer visit, transfer 8 gold
+ * from the richer treasury to the poorer. No-op when equal or donor gold < 8.
  * Returns 1 if a prize transferred (caller may write human status chrome).
- * Source: thin Drake/privateer cargo prize stand-in; unit raid path PARKED.
+ * Source: thin Drake/privateer cargo prize stand-in; complements unit spawn.
  */
 static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, int peer) {
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
@@ -1086,7 +1269,8 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
  * at-war (==1) on either side, nudge Indian peace feeler once after WAR clear
  * (existing feeler path; restores improve-relations that Euro war blocked).
  * sticky==2 still refuses feeler (self-gated). Full 153e PARKED. Privateer
- * prize is WAR-gated in euro_balance — peace stops it.
+ * prize + once-per-war spawn bit are WAR-gated — peace stops prize and clears
+ * unknown26[9] peer bits so the next war may commission again.
  */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4 ||
@@ -1099,6 +1283,11 @@ void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
+  /* Clear once-per-war Privateer commission bits both dirs (next war may respawn). */
+  if (was_war) {
+    ai_diplo_privateer_spawn_clear(col1, nation_a, nation_b);
+    ai_diplo_privateer_spawn_clear(col1, nation_b, nation_a);
+  }
   /*
    * Peace restores Indian feeler (unpark #5): Euro×Euro war gates feeler off;
    * when sticky was at-war (==1), nudge once via existing peace-feeler path
@@ -1158,10 +1347,15 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
 }
 
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  const int was_war = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
   /* Lift all 16 wartime @CARGO bits if neither side remains at Euro war. */
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
+  if (was_war) {
+    ai_diplo_privateer_spawn_clear(col1, nation_a, nation_b);
+    ai_diplo_privateer_spawn_clear(col1, nation_b, nation_a);
+  }
   /* Thin alliance treasury cost: 25 gold each side (floor 0). */
   ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
   /* Treaty timer: if peer slot is 0, set to 8 so alliance persists a few ticks. */
@@ -1384,12 +1578,28 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
         );
       }
       /*
-       * Thin privateer prize: richer→poorer 8g once per war peer.
-       * No units in ctx → treasury-only; with units → only if this nation
-       * has a sea unit. Full privateer unit spawn PARKED.
-       * Human chrome (102a/1092): "Privateer prize from %s" when transfer
-       * fires and human is a party. Source: thin Drake/privateer stand-in.
+       * Wartime Privateer unit spawn (once per war peer; unknown26[9] gate).
+       * units_find_type("Privateer") + spawn near coast/Europe when type exists.
+       * Source: Europe Privateer; fandom Drake; euro_unit_act §2b. Then thin
+       * treasury prize (richer→poorer 8g) — kept even after unit spawn.
+       * No units → skip spawn, prize still treasury-only; with units → prize
+       * only if this nation has a sea unit (spawn may provide one this tick).
+       * Human chrome: commission / "Privateer prize from %s". Raid loot PARKED.
        */
+      int spawned_priv = 0;
+      if (ctx->units) {
+        spawned_priv = ai_diplo_war_privateer_spawn(ctx, nation_id, peer);
+        if (spawned_priv) {
+          ai_diplo_status_human_pair(
+            ctx, nation_id, peer, "Privateer commissioned against %s"
+          );
+          if (ctx->status && ctx->status[0] != '\0') {
+            ai_diplo_popup_ok(
+              ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Privateer", ctx->status
+            );
+          }
+        }
+      }
       if (!ctx->units || ai_diplo_nation_has_sea_unit(ctx, nation_id)) {
         if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
           ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
@@ -1490,14 +1700,18 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
             ai_diplo_status_human_pair(ctx, nation_id, peer, "Alliance with %s holds.");
             fa_chrome = 1;
           }
-          /* FA gift/strengthen OK popup fine; full 3f41 UI PARKED (FUN_3f41). */
+          /*
+           * Thin FA report OK (gift/longevity). No dedicated AI_POPUP_TAG_DIPLO_FA
+           * (ai_popup.h out of diplo write scope) — reuse DIPLO_ALLIANCE + title
+           * "Foreign Affairs". Full 3f41 F2–F9 UI PARKED.
+           */
           if (fa_chrome && ctx->status[0] != '\0') {
             ai_diplo_popup_ok(
               ctx,
               AI_POPUP_TAG_DIPLO_ALLIANCE,
               nation_id,
               peer,
-              "Alliance",
+              "Foreign Affairs",
               ctx->status
             );
           }
@@ -1508,7 +1722,44 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     /* 13b0 break: imbalance while allied (human status via _ctx). */
     if ((bits & AI_DIPLO_ALLY) && self > other * 2 + 25 && self > 40) {
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 25) == 1) {
-        ai_diplo_break_alliance_ctx(ctx, nation_id, peer);
+        /*
+         * AI→human (FUN_5bfb_13b0 / 15b3): enqueue CHOICE Accept/Refuse;
+         * apply calls break_alliance_ctx. AI↔AI / human-as-actor still auto
+         * break_alliance_ctx. Treaty-timer expiry stays automatic (not CHOICE).
+         * FA 3f41 full UI PARKED.
+         */
+        if (ctx->ai_popups && peer == ctx->human_nation) {
+          if (!ai_diplo_popup_pair_queued(
+                ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, nation_id, peer
+              )) {
+            char body[AI_POPUP_BODY_LEN];
+            snprintf(
+              body,
+              sizeof(body),
+              "%s breaks the alliance.",
+              ai_diplo_rival_name(ctx->col1, nation_id)
+            );
+            if (ctx->status && ctx->status_size > 0) {
+              snprintf(ctx->status, ctx->status_size, "%s", body);
+            }
+            const char* labels[] = {"Accept", "Refuse"};
+            const int ids[] = {1, 2};
+            (void)ai_popup_enqueue_choice_ctx(
+              ctx->ai_popups,
+              AI_POPUP_TAG_DIPLO_BREAK,
+              nation_id,
+              peer,
+              0,
+              "Alliance",
+              body,
+              labels,
+              ids,
+              2
+            );
+          }
+        } else {
+          ai_diplo_break_alliance_ctx(ctx, nation_id, peer);
+        }
       }
       continue;
     }
@@ -1516,8 +1767,43 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     /* 10ec war eligibility. */
     if (self > other * 2 + 20 && self > 30) {
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
-        ai_diplo_declare_war_ctx(ctx, nation_id, peer);
-        /* thin 153e sting inside declare_war; full body / 12d0 / dialogs PARKED */
+        /*
+         * AI→human (FUN_5bfb / 15b3): enqueue CHOICE Accept/Refuse; apply calls
+         * declare_war_ctx. AI↔AI / human-as-actor still auto declare_war_ctx.
+         * Thin 153e sting inside declare_war; full body / 12d0 / FA UI PARKED.
+         */
+        if (ctx->ai_popups && peer == ctx->human_nation) {
+          if (!ai_diplo_popup_pair_queued(
+                ctx->ai_popups, AI_POPUP_TAG_DIPLO_WAR, nation_id, peer
+              )) {
+            char body[AI_POPUP_BODY_LEN];
+            snprintf(
+              body,
+              sizeof(body),
+              "%s declares war!",
+              ai_diplo_rival_name(ctx->col1, nation_id)
+            );
+            if (ctx->status && ctx->status_size > 0) {
+              snprintf(ctx->status, ctx->status_size, "%s", body);
+            }
+            const char* labels[] = {"Accept", "Refuse"};
+            const int ids[] = {1, 2};
+            (void)ai_popup_enqueue_choice_ctx(
+              ctx->ai_popups,
+              AI_POPUP_TAG_DIPLO_WAR,
+              nation_id,
+              peer,
+              0,
+              "War",
+              body,
+              labels,
+              ids,
+              2
+            );
+          }
+        } else {
+          ai_diplo_declare_war_ctx(ctx, nation_id, peer);
+        }
       }
       continue;
     }
@@ -1641,7 +1927,16 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
    * choice_id 0 — ignore those. Source: 15b3 / 5bfb; FA 3f41 full UI PARKED.
    *
    * War-fatigue peace offer CHOICE (FUN_5bfb / 15b3): Accept (1) →
-   * make_peace_ctx; Refuse (2) → status only. Full 153e peace UI PARKED.
+   * make_peace_ctx; Refuse (2) → status + follow-up OK (chrome polish;
+   * human-facing status also enqueues OK). Full 153e peace UI PARKED.
+   *
+   * 10ec war declare CHOICE AI→human: Accept (1) → declare_war_ctx;
+   * Refuse (2) → status + follow-up OK (chrome polish; mirrors peace/
+   * break Refuse). OK popups share DIPLO_WAR + choice_id 0.
+   *
+   * 13b0 break-alliance CHOICE AI→human: Accept (1) → break_alliance_ctx;
+   * Refuse (2) → status + OK (ally kept). OK popups share DIPLO_BREAK +
+   * choice_id 0. FA 3f41 full UI PARKED.
    */
   if (popup->result_tag == AI_POPUP_TAG_DIPLO_ALLIANCE) {
     if (popup->result_choice_id == 1) {
@@ -1670,6 +1965,70 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
           popup->result_nation_b,
           "Peace refused with %s"
         );
+        /* Marathon2 R5: refuse status chrome also enqueues OK (Accept path
+         * already gets OK via make_peace_ctx). Cite FUN_15b3 / 5bfb. */
+        if (ctx->status[0] != '\0') {
+          ai_diplo_popup_ok(
+            ctx,
+            AI_POPUP_TAG_DIPLO_PEACE,
+            popup->result_nation_a,
+            popup->result_nation_b,
+            "Peace",
+            ctx->status
+          );
+        }
+      }
+    }
+    return;
+  }
+  if (popup->result_tag == AI_POPUP_TAG_DIPLO_WAR) {
+    if (popup->result_choice_id == 1) {
+      ai_diplo_declare_war_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
+    } else if (popup->result_choice_id == 2) {
+      if (ctx->status && ctx->status_size > 0) {
+        ai_diplo_status_human_pair(
+          ctx,
+          popup->result_nation_a,
+          popup->result_nation_b,
+          "War refused with %s"
+        );
+        /* Marathon2 R6: refuse status chrome also enqueues OK (Accept path
+         * already gets OK via declare_war_ctx). Cite FUN_15b3 / 5bfb. */
+        if (ctx->status[0] != '\0') {
+          ai_diplo_popup_ok(
+            ctx,
+            AI_POPUP_TAG_DIPLO_WAR,
+            popup->result_nation_a,
+            popup->result_nation_b,
+            "War",
+            ctx->status
+          );
+        }
+      }
+    }
+    return;
+  }
+  if (popup->result_tag == AI_POPUP_TAG_DIPLO_BREAK) {
+    if (popup->result_choice_id == 1) {
+      ai_diplo_break_alliance_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
+    } else if (popup->result_choice_id == 2) {
+      if (ctx->status && ctx->status_size > 0) {
+        ai_diplo_status_human_pair(
+          ctx,
+          popup->result_nation_a,
+          popup->result_nation_b,
+          "Alliance break refused with %s"
+        );
+        if (ctx->status[0] != '\0') {
+          ai_diplo_popup_ok(
+            ctx,
+            AI_POPUP_TAG_DIPLO_BREAK,
+            popup->result_nation_a,
+            popup->result_nation_b,
+            "Alliance",
+            ctx->status
+          );
+        }
       }
     }
   }

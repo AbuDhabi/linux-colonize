@@ -1,5 +1,6 @@
 /* Smoke: King/REF SoL, tax→REF, boycott audience + Fugger sync, tax SoL≥30 gate
- * (+ SoL-low hike assert), SoL chrome, declare+160a/1528/congress, MoW cargo×3
+ * (+ SoL-low hike assert), SoL chrome, declare+160a/1528/congress, MoW cargo×6
+ * (units_ship_capacity / cargo_ids board + multi-unload ≤moves/capacity)
  * Regular+Dragoon mix + second MoW@diff≥2, 10f0 (dual + third@diff≥2
  * Regular+Dragoon mix + nation pick), REF land hunt/capture+owner-change+status
  * +fortify one, REF stack extras hunt, idle fortify extras hunt, after-capture
@@ -7,13 +8,17 @@
  * after capture / idle on crown colony FORTIFY (Euro pattern), Artillery siege
  * bias (+ adjacent unfortified must not override fortified), Dragoon/Cont. Cav
  * open-land bias (+ Cont. Army stays nearest negative), MoW+cargo AI_SAIL→coast
- * + unload-at-colony (Regular else Dragoon seize), idle empty MoW coastal patrol,
- * 0982 MoW on water adjacent, 2244 merc hire (Soldier type) or cannot-afford once
+ * + unload-at-colony (Regular else Dragoon seize; multi ≤moves; fortify after
+ * multi-unload; full unload + moves → next human coast; after next-coast sail
+ * prefer unload if already adjacent), idle empty MoW coastal patrol, 0982 MoW
+ * on water adjacent, 2244 merc hire (Soldier type) or cannot-afford once
  * (+ refuse→later gold still blocked via unknown46[3]), 1eca colony-SoL bias +
- * Cont. Army/Cont. Cav capital-rally, REF capital MD hunt bias, congress
- * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50 (bells≥100 alone
- * insufficient). MoW×6 chrome PARKED (structural hold≤3); extra refuse cargos
- * beyond Sugar PARKED. */
+ * Cont. Army/Cont. Cav capital-rally (+ hold on capital), REF capital MD hunt
+ * bias (+ Artillery siege capital when fortified MD slack), congress
+ * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50
+ * (bells≥100 alone insufficient), tax audience Accept→hike OK chain,
+ * 2244 Decline follow-up OK, second MoW only @diff≥2. PARK:
+ * 160a letter cinematic; dump-goods / extra refuse cargos beyond Sugar. */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -486,7 +491,7 @@ int main(void) {
   if (col1.head.unknown46[5] == 0) {
     return fail("declare should set congress confirm unknown46[5]");
   }
-  /* Thin 160a: rename stand-in (cinematic PARKED). Status may be overwritten by 1528.
+  /* Thin 160a: rename stand-in (letter cinematic PARKED). Status may be overwritten by 1528.
    * Thin 2564 congress: unknown46[5] + country_name prove confirm; wave may clobber status. */
   if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
     fprintf(stderr, "smoke_ai_king: country_name after declare: '%s'\n",
@@ -511,20 +516,21 @@ int main(void) {
     return fail("REF/irregular must not spawn as human nation");
   }
   /*
-   * Thin MoW cargo unload (hold size 3 stand-in; full cargo chrome PARKED):
-   * declare seeds force[2]>0 + force[0]≥3 → same-beat MoW + ≥3 land Regulars.
-   * Intervene/0982 landing water: MoW must spawn on water adjacent to the
-   * target colony (fandom REF man-o-war → ports). MoW×6 embark chrome PARKED.
+   * MoW cargo board (units_ship_capacity / cargo_ids; fandom man-o-war×6):
+   * declare seeds force[2]>0 + force[0]≥6 → same-beat MoW + ≥6 land Regulars
+   * (aboard and/or coastal multi-unload ≤moves). MoW on water adjacent to
+   * target colony. PARK: 160a letter cinematic (thin rename Done).
    */
   {
     const int crown_sea = count_nation_sea(&units, 1);
     const int crown_land = count_nation_land(&units, 1);
-    if (crown_sea < 1 || crown_land < 3) {
-      fprintf(stderr, "smoke_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥3 land)\n",
+    if (crown_sea < 1 || crown_land < 6) {
+      fprintf(stderr, "smoke_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥6 land)\n",
               crown_sea, crown_land);
-      return fail("0982 MoW spawn should unload ≥3 land cargo (or ship+land)");
+      return fail("0982 MoW spawn should board ≥6 land into hold (or ship+land)");
     }
     int mow_on_adj_water = 0;
+    int mow_hold = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = &units.units[i];
       if (!u->active || u->nation_id != 1 || !units_is_sea(&units, u->id)) {
@@ -541,10 +547,16 @@ int main(void) {
       if (abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1 && !(u->x == 5 && u->y == 5)) {
         mow_on_adj_water = 1;
       }
+      /* war_act may multi-unload ≤moves same beat — hold may shrink. */
+      if (u->cargo_count > mow_hold) {
+        mow_hold = u->cargo_count;
+      }
     }
     if (!mow_on_adj_water) {
       return fail("0982 MoW must spawn on water adjacent to target colony");
     }
+    /* Boarded 6 (crown_land≥6); multi-unload ≤moves may empty or shrink hold. */
+    (void)mow_hold;
   }
   /* Thin 1528: successful 0982 spawn writes arrival status (chrome PARKED).
    * Same-turn war_act may overwrite with capture or 2244 cannot-afford. */
@@ -1874,7 +1886,9 @@ int main(void) {
       }
     }
     /* Place MoW on coast water adjacent to human colony → unload onto colony
-     * tile (prefer seize/attack path score 100 over adjacent coastal land). */
+     * tile (prefer seize/attack path score 100 over adjacent coastal land).
+     * Single passenger + moves≥1 → unload that one (multi-unload capped by
+     * cargo). */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
       if (!mow || !mow->active || mow->cargo_count <= 0) {
@@ -1897,20 +1911,39 @@ int main(void) {
       map.terrain[4 * 16 + 4] = 1;
       map.terrain[6 * 16 + 4] = 1;
       const int cargo_before = mow->cargo_count;
-      const int land_before = count_nation_land(&units, 1);
+      const int expect_unload =
+          cargo_before < mow->moves_left ? cargo_before : mow->moves_left;
+      int ashore_before = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
+            u->aboard_ship_id < 0) {
+          ashore_before++;
+        }
+      }
       colonies.colonies[0].nation_id = 0;
       ai_king_nation_turn(&ctx);
       mow = units_get(&units, mow_id);
       if (!mow || !mow->active) {
         return fail("MoW should remain after coastal unload");
       }
-      if (mow->cargo_count != cargo_before - 1) {
+      if (mow->cargo_count != cargo_before - expect_unload) {
         fprintf(stderr, "smoke_ai_king: MoW cargo after unload %d (want %d)\n",
-                mow->cargo_count, cargo_before - 1);
-        return fail("MoW adjacent to human colony coast should unload one Regular");
+                mow->cargo_count, cargo_before - expect_unload);
+        return fail("MoW adjacent to human colony coast should unload ≤moves cargo");
       }
-      if (count_nation_land(&units, 1) < land_before + 1) {
-        return fail("MoW coastal unload should place one crown land unit ashore");
+      {
+        int ashore_after = 0;
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* u = &units.units[i];
+          if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
+              u->aboard_ship_id < 0) {
+            ashore_after++;
+          }
+        }
+        if (ashore_after < ashore_before + expect_unload) {
+          return fail("MoW coastal unload should place crown land ashore");
+        }
       }
       /* Unload+seize: passenger prefers the human colony tile itself. */
       {
@@ -1933,12 +1966,312 @@ int main(void) {
       /* Same-beat capture is allowed but not required (unit index order). */
     }
     /*
+     * Multi-unload deepen (MoW×6 seize): board 3 Regulars, moves_left=2 →
+     * unload exactly 2 this beat (cap by moves; leftover 1 stays aboard).
+     * Cite: fandom man-o-war×6 / units_unload_passenger; no invent.
+     */
+    {
+      ColonizeUnit* mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("multi-unload setup needs live Man-O-War");
+      }
+      while (mow->cargo_count > 0) {
+        const int cid = mow->cargo_ids[0];
+        ColonizeUnit* p = units_get(&units, cid);
+        if (p) {
+          p->aboard_ship_id = -1;
+          p->active = false;
+        }
+        mow->cargo_count = 0;
+      }
+      for (int k = 0; k < 3; ++k) {
+        const int pid = units_spawn_allow_stack(&units, ty_regular, 4, 5);
+        if (pid < 0) {
+          return fail("multi-unload setup should spawn Regular cargo");
+        }
+        ColonizeUnit* p = units_get(&units, pid);
+        if (!p) {
+          return fail("multi-unload Regular lookup");
+        }
+        p->nation_id = 1;
+        if (!units_board_stacked(&units, pid, mow_id)) {
+          return fail("multi-unload should board Regular");
+        }
+      }
+      mow = units_get(&units, mow_id);
+      if (!mow || mow->cargo_count != 3) {
+        return fail("multi-unload setup wants cargo_count 3");
+      }
+      mow->x = 4;
+      mow->y = 5;
+      mow->moves_left = 2;
+      mow->orders = UNITS_ORDER_NONE;
+      map.terrain[4 * 16 + 4] = 1;
+      map.terrain[6 * 16 + 4] = 1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->id == mow_id) {
+          continue;
+        }
+        if (u->nation_id == 1 && u->aboard_ship_id < 0) {
+          u->moves_left = 0;
+          if (u->x == 5 && u->y == 5) {
+            u->x = 1;
+            u->y = 1;
+          }
+        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
+          u->x = 1;
+          u->y = 14;
+          u->moves_left = 0;
+        }
+      }
+      colonies.colonies[0].nation_id = 0;
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+      int ashore_before = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
+            u->aboard_ship_id < 0) {
+          ashore_before++;
+        }
+      }
+      ai_king_nation_turn(&ctx);
+      mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("MoW should remain after multi-unload");
+      }
+      if (mow->cargo_count != 1) {
+        fprintf(stderr, "smoke_ai_king: multi-unload cargo=%d (want 1 leftover)\n",
+                mow->cargo_count);
+        return fail("MoW multi-unload should dump 2 of 3 when moves_left=2");
+      }
+      int ashore_after = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
+            u->aboard_ship_id < 0) {
+          ashore_after++;
+        }
+      }
+      if (ashore_after < ashore_before + 2) {
+        fprintf(stderr, "smoke_ai_king: multi-unload ashore %d→%d (want +2)\n",
+                ashore_before, ashore_after);
+        return fail("MoW multi-unload should place 2 crown land ashore");
+      }
+      /* Same-beat seize + fortify one Regular after multi-unload (stack rule). */
+      if (colonies.colonies[0].nation_id != 1) {
+        return fail("MoW multi-unload onto colony should seize (owner → crown)");
+      }
+      {
+        int fortified = 0;
+        int regulars_on = 0;
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* u = &units.units[i];
+          if (!u->active || u->nation_id != 1 || u->type_index != ty_regular) {
+            continue;
+          }
+          if (u->x != 5 || u->y != 5 || u->aboard_ship_id >= 0) {
+            continue;
+          }
+          regulars_on++;
+          if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+            fortified++;
+          }
+        }
+        if (regulars_on < 1) {
+          return fail("multi-unload seize should leave Regular on colony tile");
+        }
+        if (fortified != 1) {
+          fprintf(stderr,
+                  "smoke_ai_king: multi-unload fortify count=%d on-colony Regulars=%d "
+                  "(want exactly 1 FORTIFY)\n",
+                  fortified, regulars_on);
+          return fail("multi-unload capture should fortify exactly one Regular");
+        }
+      }
+    }
+    /*
+     * Full unload + moves left → AI_SAIL toward *next* human coast (skip the
+     * port just served). Ship at (4,5) next to Jamestown; second human port
+     * with water at (13,14); cargo=1 moves=3 → unload then sail toward 13,14.
+     */
+    {
+      ColonizeUnit* mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("full-unload sail setup needs live Man-O-War");
+      }
+      while (mow->cargo_count > 0) {
+        const int cid = mow->cargo_ids[0];
+        ColonizeUnit* p = units_get(&units, cid);
+        if (p) {
+          p->aboard_ship_id = -1;
+          p->active = false;
+        }
+        mow->cargo_count = 0;
+      }
+      /* Water west of decoy port (14,14) — next human coast target. */
+      map.terrain[14 * 16 + 13] = 25;
+      decoy_port->active = true;
+      decoy_port->nation_id = 0;
+      decoy_port->population = 1;
+      colonies.colonies[0].nation_id = 0;
+      colonies.colonies[0].population = 8;
+      const int pax2 = units_spawn_allow_stack(&units, ty_regular, 4, 5);
+      if (pax2 < 0) {
+        return fail("full-unload sail setup should spawn Regular cargo");
+      }
+      {
+        ColonizeUnit* p = units_get(&units, pax2);
+        if (!p) {
+          return fail("full-unload sail Regular lookup");
+        }
+        p->nation_id = 1;
+        if (!units_board_stacked(&units, pax2, mow_id)) {
+          return fail("full-unload sail should board Regular");
+        }
+      }
+      mow = units_get(&units, mow_id);
+      mow->x = 4;
+      mow->y = 5;
+      mow->moves_left = 3;
+      mow->orders = UNITS_ORDER_NONE;
+      mow->goto_x = -1;
+      mow->goto_y = -1;
+      map.terrain[4 * 16 + 4] = 1;
+      map.terrain[6 * 16 + 4] = 1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->id == mow_id || u->id == pax2) {
+          continue;
+        }
+        if (u->nation_id == 1 && u->aboard_ship_id < 0) {
+          u->moves_left = 0;
+          if (u->x == 5 && u->y == 5) {
+            u->x = 1;
+            u->y = 1;
+          }
+        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
+          u->x = 1;
+          u->y = 14;
+          u->moves_left = 0;
+        }
+      }
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+      ai_king_nation_turn(&ctx);
+      mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("MoW should remain after full unload + sail");
+      }
+      if (mow->cargo_count != 0) {
+        return fail("full unload should empty MoW hold before sail");
+      }
+      if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 13 || mow->goto_y != 14) {
+        fprintf(stderr,
+                "smoke_ai_king: post-full-unload MoW goto=(%d,%d) orders=%d "
+                "(want AI_SAIL→13,14 next coast)\n",
+                mow->goto_x, mow->goto_y, mow->orders);
+        return fail("after full unload with moves left MoW should AI_SAIL to next human coast");
+      }
+    }
+    /*
+     * After next-coast / coast sail step: MoW one tile from coast with cargo
+     * → sail onto coast water then prefer unload same beat if now adjacent
+     * (fandom man-o-war → ports). Ship at (3,5), coast (4,5), colony (5,5).
+     */
+    {
+      ColonizeUnit* mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("post-sail unload setup needs live Man-O-War");
+      }
+      while (mow->cargo_count > 0) {
+        const int cid = mow->cargo_ids[0];
+        ColonizeUnit* p = units_get(&units, cid);
+        if (p) {
+          p->aboard_ship_id = -1;
+          p->active = false;
+        }
+        mow->cargo_count = 0;
+      }
+      decoy_port->active = false;
+      colonies.colonies[0].nation_id = 0;
+      colonies.colonies[0].population = 8;
+      map.terrain[5 * 16 + 3] = 25;
+      map.terrain[5 * 16 + 4] = 25;
+      map.terrain[4 * 16 + 4] = 1;
+      map.terrain[6 * 16 + 4] = 1;
+      const int pax_sail = units_spawn_allow_stack(&units, ty_regular, 3, 5);
+      if (pax_sail < 0) {
+        return fail("post-sail unload setup should spawn Regular cargo");
+      }
+      {
+        ColonizeUnit* p = units_get(&units, pax_sail);
+        if (!p) {
+          return fail("post-sail unload Regular lookup");
+        }
+        p->nation_id = 1;
+        if (!units_board_stacked(&units, pax_sail, mow_id)) {
+          return fail("post-sail unload should board Regular");
+        }
+      }
+      mow = units_get(&units, mow_id);
+      mow->x = 3;
+      mow->y = 5;
+      mow->moves_left = 3;
+      mow->orders = UNITS_ORDER_NONE;
+      mow->goto_x = -1;
+      mow->goto_y = -1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->id == mow_id || u->id == pax_sail) {
+          continue;
+        }
+        if (u->nation_id == 1 && u->aboard_ship_id < 0) {
+          u->moves_left = 0;
+          if (u->x == 5 && u->y == 5) {
+            u->x = 1;
+            u->y = 1;
+          }
+        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
+          u->x = 1;
+          u->y = 14;
+          u->moves_left = 0;
+        }
+      }
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+      ai_king_nation_turn(&ctx);
+      mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("MoW should remain after post-sail unload");
+      }
+      if (mow->cargo_count != 0) {
+        fprintf(stderr, "smoke_ai_king: post-sail MoW cargo=%d (want 0 after adjacent unload)\n",
+                mow->cargo_count);
+        return fail("after coast sail step MoW should unload when already adjacent");
+      }
+      {
+        const ColonizeUnit* pax = units_get_const(&units, pax_sail);
+        if (!pax || !pax->active || pax->aboard_ship_id >= 0) {
+          return fail("post-sail unload should put Regular ashore");
+        }
+        if (pax->x != 5 || pax->y != 5) {
+          fprintf(stderr, "smoke_ai_king: post-sail pax at (%d,%d) (want colony 5,5)\n",
+                  pax->x, pax->y);
+          return fail("post-sail unload should prefer human colony tile");
+        }
+      }
+      if (colonies.colonies[0].nation_id != 1) {
+        return fail("post-sail unload onto colony should seize (owner → crown)");
+      }
+    }
+    /*
      * Dragoon coastal unload when cargo allows (no Regular in hold):
      * prefer Regular otherwise; here only Dragoon → unload Dragoon.
      * Prefer colony tile: make (5,5) the only adjacent land so soft coast
      * cannot win. Same-beat hunt may move the Dragoon after seize — assert
      * cargo drop + not-aboard + human colony captured (owner → crown).
-     * MoW×6 chrome remains PARKED.
      */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
@@ -2032,9 +2365,7 @@ int main(void) {
      * Idle empty MoW coastal patrol (fandom REF man-o-war → ports):
      * cargo_count==0 → AI_SAIL toward water adjacent to human colony; step
      * toward coast. Redirects existing ship only — no invent spawn.
-     * MoW×6 hold chrome remains PARKED (fandom “man-o-war with 6 units”;
-     * structural hold-size-3 Regular+Dragoon unload + coastal unload-one +
-     * third landing @diff≥2 cover pressure without ×6 embark chrome).
+     * Hold fill = ship capacity (cargo_ids); PARK: 160a letter cinematic.
      */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
@@ -2361,6 +2692,7 @@ int main(void) {
    * Cont. Army / Cont. Cav capital rally (after 1eca): idle Cont. off colony →
    * AI_MOVE toward founding capital (lowest colony id). Hunter name check
    * includes Continental / Cont. Army / Cont. Cav (fandom Independence).
+   * Polish: Cont. already on founding capital holds (no AI_MOVE away).
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -2416,14 +2748,54 @@ int main(void) {
         return fail("Cont. Cav should capital-rally toward founding capital");
       }
     }
+    /* Hold on capital: Cont. Army already on founding capital must not rally away.
+     * Keep a non-zero REF land pool so 06a6 irregulars do not spawn/capture the
+     * capital out from under the hold assert (empty pools → 06a6). */
+    {
+      ColonizeUnit* ca = units_get(&units, ca_id);
+      if (!ca || !ca->active) {
+        return fail("Cont. capital-hold setup needs live Cont. Army");
+      }
+      ca->x = 5;
+      ca->y = 5;
+      ca->moves_left = 2;
+      ca->orders = UNITS_ORDER_NONE;
+      ca->goto_x = -1;
+      ca->goto_y = -1;
+      colonies.colonies[0].nation_id = 0;
+      colonies.colonies[0].population = 8;
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      col1.head.expeditionary_force[0] = 1; /* avoid 06a6 empty-pool irregular */
+      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1) {
+          u->moves_left = 0;
+        }
+      }
+      ai_king_nation_turn(&ctx);
+      ca = units_get(&units, ca_id);
+      if (!ca || !ca->active) {
+        return fail("Cont. Army on capital should remain active");
+      }
+      if (ca->x != 5 || ca->y != 5) {
+        fprintf(stderr, "smoke_ai_king: Cont. Army left capital to (%d,%d)\n", ca->x, ca->y);
+        return fail("Cont. Army already on founding capital should hold");
+      }
+      if (ca->orders == UNITS_ORDER_AI_MOVE && (ca->goto_x != 5 || ca->goto_y != 5)) {
+        fprintf(stderr, "smoke_ai_king: Cont. Army on capital goto=(%d,%d)\n", ca->goto_x,
+                ca->goto_y);
+        return fail("Cont. Army on capital must not AI_MOVE away from founding capital");
+      }
+    }
   }
 
   /*
    * REF capital MD hunt bias (fandom REF main-port pressure):
    * founding capital id0 at (5,5); nearer distant colony at (11,5); Regular at
    * (9,5) → MD capital=4, MD distant=2; slack=2 → prefer capital over distant.
-   * Clear human land units so colony bias is observable. MoW×6 / extra boycott
-   * cargos remain PARKED.
+   * Clear human land units so colony bias is observable. PARK: 160a letter
+   * cinematic; extra boycott cargos beyond Sugar.
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -2497,11 +2869,97 @@ int main(void) {
   }
 
   /*
+   * Artillery siege capital MD slack (like idle hunters): both capital and
+   * distant fortified; Artillery at (9,5) → MD capital=4, MD distant=2;
+   * slack=2 → prefer fortified founding capital over nearer fortified outpost.
+   * Source: fandom REF main-port pressure; deep multi-step siege PARKED.
+   */
+  {
+    colonies.building_type_count = 1;
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
+             "Stockade");
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].x = 5;
+    colonies.colonies[0].y = 5;
+    colonies.colonies[0].has_building[0] = true;
+    ColonizeColony* distant = &colonies.colonies[2];
+    distant->id = 2;
+    distant->active = true;
+    distant->nation_id = 0;
+    distant->x = 11;
+    distant->y = 5;
+    distant->population = 2;
+    distant->colonist_count = 2;
+    distant->has_building[0] = true;
+    snprintf(distant->name, sizeof(distant->name), "Outpost");
+    if (colonies.colony_count < 3) {
+      colonies.colony_count = 3;
+    }
+    if (!colonies_has_fortification(&colonies, &colonies.colonies[0]) ||
+        !colonies_has_fortification(&colonies, distant)) {
+      return fail("Artillery capital MD setup needs both colonies fortified");
+    }
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (!u->active) {
+        continue;
+      }
+      if (u->nation_id == 1) {
+        u->moves_left = 0;
+        if ((u->x == 5 && u->y == 5) || (u->x == 11 && u->y == 5) ||
+            (u->x == 9 && u->y == 5)) {
+          u->x = 1;
+          u->y = 1;
+        }
+      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
+        u->x = 1;
+        u->y = 14;
+        u->moves_left = 0;
+      }
+    }
+    const int art_cap = units_spawn_allow_stack(&units, ty_artillery, 9, 5);
+    if (art_cap < 0) {
+      return fail("Artillery capital MD setup should spawn Artillery");
+    }
+    {
+      ColonizeUnit* art = units_get(&units, art_cap);
+      if (!art) {
+        return fail("Artillery capital MD unit lookup");
+      }
+      art->nation_id = 1;
+      art->moves_left = 1;
+      art->orders = UNITS_ORDER_NONE;
+      art->goto_x = -1;
+      art->goto_y = -1;
+    }
+    ai_king_nation_turn(&ctx);
+    {
+      const ColonizeUnit* art = units_get_const(&units, art_cap);
+      if (!art || !art->active) {
+        return fail("Artillery capital MD hunter should remain active");
+      }
+      if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
+        fprintf(stderr,
+                "smoke_ai_king: Artillery capital MD goto=(%d,%d) orders=%d "
+                "(want fortified capital 5,5 not distant 11,5)\n",
+                art->goto_x, art->goto_y, art->orders);
+        return fail("Artillery siege should prefer fortified capital when MD slack");
+      }
+    }
+    distant->active = false;
+    colonies.colonies[0].has_building[0] = false;
+  }
+
+  /*
    * Second MoW @ difficulty≥2 when naval pool allows (0982 path).
+   * Gap smoke: difficulty < 2 must not spawn the second even if force[2]≥2.
    */
   {
     colonies.colonies[0].nation_id = 0;
-    col1.head.difficulty = 2;
+    /* Negative path first: low difficulty → one MoW only. */
+    col1.head.difficulty = 1;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
     col1.head.expeditionary_force[0] = 3;
@@ -2514,21 +2972,49 @@ int main(void) {
         u->moves_left = 0;
       }
     }
-    const int sea_before = count_nation_sea(&units, 1);
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
-    if (sea_spawned < 2) {
-      fprintf(stderr, "smoke_ai_king: second MoW sea_spawned=%d (want ≥2)\n", sea_spawned);
-      return fail("diff≥2 + force[2]≥2 should spawn second MoW");
+    {
+      const int sea_before = count_nation_sea(&units, 1);
+      status[0] = '\0';
+      ai_king_nation_turn(&ctx);
+      const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
+      if (sea_spawned != 1) {
+        fprintf(stderr, "smoke_ai_king: low-diff MoW sea_spawned=%d (want 1)\n",
+                sea_spawned);
+        return fail("diff<2 + force[2]≥2 must not spawn second MoW");
+      }
+      if (col1.head.expeditionary_force[2] != 1) {
+        return fail("diff<2 second-MoW gate should leave one naval pool entry");
+      }
+    }
+    /* Positive path: difficulty≥2 → second MoW same beat. */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
+        u->active = false;
+      } else if (u->active && u->nation_id == 1) {
+        u->moves_left = 0;
+      }
+    }
+    col1.head.difficulty = 2;
+    col1.head.expeditionary_force[0] = 3;
+    col1.head.expeditionary_force[2] = 2;
+    {
+      const int sea_before = count_nation_sea(&units, 1);
+      status[0] = '\0';
+      ai_king_nation_turn(&ctx);
+      const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
+      if (sea_spawned < 2) {
+        fprintf(stderr, "smoke_ai_king: second MoW sea_spawned=%d (want ≥2)\n", sea_spawned);
+        return fail("diff≥2 + force[2]≥2 should spawn second MoW");
+      }
     }
     col1.head.difficulty = 0;
   }
 
   /*
-   * MoW hold Regular+Dragoon mix (0982 cargo unload): force[0]=1, force[1]=2,
-   * force[2]=1 → ship + 1 Regular + 2 Dragoons (hold-size-3; MoW×6 PARKED).
-   * Source: fandom REF Men-O-War / Regulars / Cavalry.
+   * MoW hold Regular+Dragoon mix (0982 cargo_ids board): force[0]=1, force[1]=2,
+   * force[2]=1 → ship + 1 Regular + 2 Dragoons boarded (pool-limited; cap=6).
+   * Source: fandom REF Men-O-War / Regulars / Cavalry; units_board_stacked.
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -2582,7 +3068,7 @@ int main(void) {
     if (reg_after < reg_before + 1) {
       fprintf(stderr, "smoke_ai_king: MoW hold Regular %d→%d (want +1)\n", reg_before,
               reg_after);
-      return fail("MoW hold should unload Regular first when force[0]>0");
+      return fail("MoW hold should board Regular first when force[0]>0");
     }
     if (drg_after < drg_before + 2) {
       fprintf(stderr, "smoke_ai_king: MoW hold Dragoon %d→%d (want +2)\n", drg_before,
@@ -2590,21 +3076,16 @@ int main(void) {
       return fail("MoW hold should fill remaining slots with Dragoon from force[1]");
     }
     /*
-     * MoW×6 PARKED (fandom “man-o-war with 6 units”): structural unload is
-     * hold-size-3 only — do not invent a 6-slot embark this beat.
+     * Pool-limited embark: force totals 3 → board exactly 3 (do not invent
+     * beyond force[]). Capacity remains 6 when pools allow (see ×6 block).
      */
     {
-      const int unloaded =
+      const int embarked =
           (reg_after - reg_before) + (drg_after - drg_before);
-      if (unloaded > 3) {
-        fprintf(stderr, "smoke_ai_king: MoW hold unloaded=%d (want ≤3; ×6 PARKED)\n",
-                unloaded);
-        return fail("MoW hold must not invent ×6 unload (structural hold≤3 PARKED)");
-      }
-      if (unloaded < 3) {
-        fprintf(stderr, "smoke_ai_king: MoW hold unloaded=%d (want 3 structural)\n",
-                unloaded);
-        return fail("MoW hold Regular+Dragoon mix should unload exactly 3");
+      if (embarked != 3) {
+        fprintf(stderr, "smoke_ai_king: MoW hold embarked=%d (want 3 from force)\n",
+                embarked);
+        return fail("MoW hold Regular+Dragoon mix should embark exactly force total");
       }
     }
     /* force[1] fully drained; force[0] drained then tax residual +1 (1d42 crumb). */
@@ -2612,6 +3093,83 @@ int main(void) {
       fprintf(stderr, "smoke_ai_king: after mix unload force1=%u (want 0)\n",
               (unsigned)col1.head.expeditionary_force[1]);
       return fail("MoW Regular+Dragoon unload should drain force[1] Dragoons");
+    }
+  }
+
+  /*
+   * MoW×6 capacity board (fandom “man-o-war with 6 units”):
+   * force[0]=4, force[1]=2, force[2]=1 → ship capacity 6 filled from pools
+   * via cargo_ids (war_act may multi-unload ≤moves → hold may shrink).
+   */
+  {
+    colonies.colonies[0].nation_id = 0;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    col1.head.expeditionary_force[0] = 4; /* Regular */
+    col1.head.expeditionary_force[1] = 2; /* Dragoon */
+    col1.head.expeditionary_force[2] = 1; /* MoW */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != 1) {
+        continue;
+      }
+      u->moves_left = 0;
+      if (units_is_sea(&units, u->id)) {
+        /* Drop passengers then clear prior MoWs so cargo check is unambiguous. */
+        while (u->cargo_count > 0) {
+          const int pid = u->cargo_ids[0];
+          ColonizeUnit* p = units_get(&units, pid);
+          if (p) {
+            p->aboard_ship_id = -1;
+            p->active = false;
+          }
+          for (int j = 1; j < u->cargo_count; ++j) {
+            u->cargo_ids[j - 1] = u->cargo_ids[j];
+          }
+          u->cargo_count--;
+        }
+        u->active = false;
+      } else if (u->x == 5 && u->y == 5) {
+        u->x = 1;
+        u->y = 1;
+      }
+    }
+    const int land_before = count_nation_land(&units, 1);
+    const int sea_before = count_nation_sea(&units, 1);
+    ai_king_nation_turn(&ctx);
+    if (count_nation_sea(&units, 1) <= sea_before) {
+      return fail("MoW×6 board should spawn Man-O-War");
+    }
+    const int land_spawned = count_nation_land(&units, 1) - land_before;
+    if (land_spawned < 6) {
+      fprintf(stderr, "smoke_ai_king: MoW×6 land_spawned=%d (want ≥6)\n", land_spawned);
+      return fail("MoW×6 should board 6 land from force pools (capacity)");
+    }
+    int best_cargo = 0;
+    int ashore = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != 1) {
+        continue;
+      }
+      if (units_is_sea(&units, u->id) && u->type_index == ty_mow) {
+        if (u->cargo_count > best_cargo) {
+          best_cargo = u->cargo_count;
+        }
+      } else if (u->aboard_ship_id < 0) {
+        ashore++;
+      }
+    }
+    /* Boarded 6; multi-unload ≤moves (4) may leave hold 2 + 4 ashore from hold. */
+    if (best_cargo + ashore < 6 && land_spawned < 6) {
+      fprintf(stderr, "smoke_ai_king: MoW×6 cargo=%d ashore=%d land_spawned=%d\n",
+              best_cargo, ashore, land_spawned);
+      return fail("MoW×6 should fill cargo_ids via units_board (cap 6)");
+    }
+    if (land_spawned != 6) {
+      fprintf(stderr, "smoke_ai_king: MoW×6 land_spawned=%d (want 6; no invent)\n",
+              land_spawned);
+      return fail("MoW×6 must board exactly force[] / capacity (no invent)");
     }
   }
 
@@ -2662,6 +3220,21 @@ int main(void) {
     }
     if (col1.head.unknown46[2] != 0) {
       return fail("Accept hike must not set boycott refuse");
+    }
+    /* Tax audience chain: Accept apply → hike follow-up OK (FUN_43f7_1d42 / 38fd_5be8). */
+    {
+      int found_accept_ok = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX &&
+            pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "raises taxes")) {
+          found_accept_ok = 1;
+          break;
+        }
+      }
+      if (!found_accept_ok) {
+        return fail("apply Accept should enqueue tax hike follow-up OK");
+      }
     }
 
     /* Refuse path: enqueue again, apply Refuse → boycott. */
@@ -2850,6 +3423,74 @@ int main(void) {
       }
       if (!found_hire_ok) {
         return fail("apply Hire should enqueue merc success follow-up OK");
+      }
+    }
+
+    /*
+     * R6: Decline apply → follow-up OK + unknown46[3] gate (no spend/spawn).
+     * Re-arm offer after Hire consumed the once-gate.
+     */
+    {
+      col1.head.unknown46[3] = 0;
+      col1.nation[0].gold = 400;
+      europe.gold = 400;
+      colonies.colonies[0].nation_id = 0;
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      status[0] = '\0';
+      ai_popup_clear(&pop);
+      const int decline_units_before = count_nation(&units, 0);
+      const uint32_t decline_gold_before = col1.nation[0].gold;
+      ai_king_nation_turn(&ctx);
+      {
+        int found_merc = 0;
+        int merc_payload = 0;
+        for (int i = 0; i < pop.queue_count; ++i) {
+          if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+              pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+            found_merc = 1;
+            merc_payload = pop.queue[i].payload;
+            break;
+          }
+        }
+        if (!found_merc) {
+          return fail("R6 Decline probe should enqueue KING_MERC Hire/Decline");
+        }
+        pop.has_result = true;
+        pop.result_cancelled = false;
+        pop.result_choice_id = 2; /* Decline */
+        pop.result_tag = AI_POPUP_TAG_KING_MERC;
+        pop.result_nation_a = 0;
+        pop.result_nation_b = 1;
+        pop.result_payload = merc_payload;
+      }
+      ai_king_apply_popup_result(&ctx, &pop);
+      ai_popup_consume_result(&pop);
+      if (col1.head.unknown46[3] == 0) {
+        return fail("apply Decline should set merc unknown46[3]");
+      }
+      if (col1.nation[0].gold != decline_gold_before) {
+        return fail("apply Decline must not spend gold");
+      }
+      if (count_nation(&units, 0) != decline_units_before) {
+        return fail("apply Decline must not spawn Continental merc");
+      }
+      if (!strstr(status, "Mercenaries declined")) {
+        fprintf(stderr, "smoke_ai_king: Decline status: '%s'\n", status);
+        return fail("apply Decline should write Mercenaries declined. status");
+      }
+      {
+        int found_decline_ok = 0;
+        for (int i = 0; i < pop.queue_count; ++i) {
+          if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+              pop.queue[i].kind == AI_POPUP_KIND_OK &&
+              strstr(pop.queue[i].body, "declined")) {
+            found_decline_ok = 1;
+            break;
+          }
+        }
+        if (!found_decline_ok) {
+          return fail("apply Decline should enqueue merc declined follow-up OK");
+        }
       }
     }
 

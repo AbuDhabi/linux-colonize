@@ -13,6 +13,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -2273,11 +2274,14 @@ int main(void) {
      * Alliance offer CHOICE + Accept → form_alliance_ctx.
      * R3: zero gold so chrome is "Alliance formed" (not costs-gold); follow-up
      * OK must enqueue after CHOICE apply. Cite: FUN_5bfb_13b0 / 15b3.
+     * Marathon2 R6: Accept also bumps treaty timer to ≥8 when was 0.
      */
     ai_popup_clear(&popups);
     status_pop[0] = '\0';
     pop.nation[0].gold = 0;
     pop.nation[2].gold = 0;
+    pop.nation[0].unknown26[2] = 0; /* treaty timer toward Spain */
+    pop.nation[2].unknown26[0] = 0;
     snprintf(pop.player[2].country_name, sizeof(pop.player[2].country_name), "Spain");
     {
       const char* labels[] = {"Accept", "Refuse"};
@@ -2324,6 +2328,13 @@ int main(void) {
     if (strcmp(popups.queue[0].body, "Alliance formed with Spain") != 0) {
       fprintf(stderr, "smoke_ai_diplo: alliance Accept OK '%s'\n", popups.queue[0].body);
       return fail("R3 alliance Accept: follow-up OK body Alliance formed");
+    }
+    /* M2R6: form_alliance_ctx Accept path bumps treaty timer (≥8 if was 0). */
+    if (pop.nation[0].unknown26[2] < 8 || pop.nation[2].unknown26[0] < 8) {
+      return fail("M2R6 alliance Accept: should bump treaty timer to ≥8 when was 0");
+    }
+    if (pop.nation[0].unknown26[2] != 8 || pop.nation[2].unknown26[0] != 8) {
+      return fail("M2R6 alliance Accept: timer bump should be exactly 8 when was 0");
     }
     ai_popup_consume_result(&popups);
 
@@ -2469,6 +2480,18 @@ int main(void) {
         fprintf(stderr, "smoke_ai_diplo: peace refuse status '%s'\n", status_w2);
         return fail("R2 peace: Refuse should status Peace refused");
       }
+      /* Marathon2 R5: peace Refuse status chrome also enqueues OK. */
+      if (pop_w2.queue_count != 1) {
+        return fail("M2R5 peace Refuse: should enqueue follow-up OK");
+      }
+      if (pop_w2.queue[0].tag != AI_POPUP_TAG_DIPLO_PEACE ||
+          pop_w2.queue[0].kind != AI_POPUP_KIND_OK) {
+        return fail("M2R5 peace Refuse: follow-up should be DIPLO_PEACE OK");
+      }
+      if (strcmp(pop_w2.queue[0].body, "Peace refused with France") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: peace refuse OK '%s'\n", pop_w2.queue[0].body);
+        return fail("M2R5 peace Refuse: OK body must match status");
+      }
       ai_popup_consume_result(&pop_w2);
 
       /* Break sticky native OK enqueue (status + popup). */
@@ -2494,7 +2517,7 @@ int main(void) {
 
       /*
        * R3: privateer prize human status also enqueues OK (INFO).
-       * Full privateer unit spawn PARKED; FA 3f41 full UI PARKED.
+       * Unit spawn covered in Marathon2 R1 below; FA 3f41 full UI PARKED.
        */
       {
         ColonizeCol1Save pr;
@@ -2548,6 +2571,587 @@ int main(void) {
         if (!found_pr) {
           return fail("R3 privateer: OK body must match Privateer prize status");
         }
+      }
+    }
+  }
+
+  /*
+   * Marathon2 R1/R3: wartime Privateer unit spawn once/war peer (unknown26[9]),
+   * coastal water by colony (R3: assert water / hunt-ready !Europe); second
+   * balance must not spam; prize still fires; peace clears spawn bit; thin FA
+   * report OK title "Foreign Affairs" + DIPLO_ALLIANCE tag (no DIPLO_FA).
+   * Cite: Europe Privateer; fandom Drake; euro_unit_act §2b.
+   */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    map.width = 16;
+    map.height = 16;
+    map.tile_count = 256;
+    map.terrain = calloc(256, 1);
+    map.layer2 = calloc(256, 1);
+    map.layer3 = calloc(256, 1);
+    if (!map.terrain || !map.layer2 || !map.layer3) {
+      return fail("M2R1 privateer: map alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    map.terrain[4 * 16 + 3] = 25; /* ocean west of colony (4,4) */
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
+    units.types[0].movement = 4;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    units.types[0].attack = 2;
+    units.types[0].defense = 1;
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].x = 4;
+    colonies.colonies[0].y = 4;
+    colonies.colony_count = 1;
+    if (!map_tile_is_coastal(&map, 4, 4)) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1 privateer: colony (4,4) should be coastal");
+    }
+
+    ColonizeCol1Save pr;
+    col1_save_init(&pr);
+    memset(pr.nation, 0, sizeof(pr.nation));
+    for (int i = 0; i < 4; ++i) {
+      pr.player[i].control = 0;
+      pr.player[i].country_name[0] = '\0';
+    }
+    snprintf(pr.player[1].country_name, sizeof(pr.player[1].country_name), "France");
+    for (int i = 0; i < 8; ++i) {
+      pr.nation[0].relation_by_indian[i] = 100;
+      pr.nation[1].relation_by_indian[i] = 100;
+    }
+    ai_diplo_declare_war(&pr, 0, 1);
+    /* Equal gold after upkeep → no prize; spawn chrome stays. */
+    pr.nation[0].gold = 50;
+    pr.nation[1].gold = 45;
+
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 7);
+    uint32_t turn = 7;
+    char status[128];
+    status[0] = '\0';
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.col1 = &pr;
+    ctx.col1_ok = true;
+    ctx.units = &units;
+    ctx.colonies = &colonies;
+    ctx.map = &map;
+    ctx.rng = &rng;
+    ctx.turn_number = &turn;
+    ctx.human_nation = 0;
+    ctx.status = status;
+    ctx.status_size = sizeof(status);
+    ctx.ai_popups = &pop;
+
+    ai_diplo_euro_balance(&ctx, 0);
+    int priv_count = 0;
+    int priv_x = -1;
+    int priv_y = -1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != 0) {
+        continue;
+      }
+      const ColonizeUnitType* t = units_type(&units, u->type_index);
+      if (t && strcmp(t->name, "Privateer") == 0) {
+        priv_count++;
+        priv_x = u->x;
+        priv_y = u->y;
+      }
+    }
+    if (priv_count != 1) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: euro_balance at war should spawn one Privateer");
+    }
+    if (priv_x != 3 || priv_y != 4) {
+      fprintf(stderr, "smoke_ai_diplo: Privateer at (%d,%d) want (3,4)\n", priv_x, priv_y);
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: Privateer should spawn on coastal water by colony");
+    }
+    /* Marathon2 R3: spawn tile water / hunt-ready (!Europe; ai_euro hunt gate). */
+    if (!map_tile_is_water(&map, priv_x, priv_y)) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R3: Privateer spawn tile must be water");
+    }
+    if (priv_x >= 200 || priv_y >= 200) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R3: Privateer spawn must be hunt-ready (!Europe)");
+    }
+    if ((pr.nation[0].unknown26[9] & (1u << 1)) == 0) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: unknown26[9] peer bit should arm after spawn");
+    }
+    if (strcmp(status, "Privateer commissioned against France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: M2R1 spawn status '%s'\n", status);
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: human status Privateer commissioned against France");
+    }
+
+    /* Second tick: no spam spawn. */
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    pr.nation[0].gold = 50;
+    pr.nation[1].gold = 45;
+    ai_diplo_euro_balance(&ctx, 0);
+    priv_count = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != 0) {
+        continue;
+      }
+      const ColonizeUnitType* t = units_type(&units, u->type_index);
+      if (t && strcmp(t->name, "Privateer") == 0) {
+        priv_count++;
+      }
+    }
+    if (priv_count != 1) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: second balance must not spawn another Privateer");
+    }
+    /* Marathon2 R5: unknown26[9] peer bit stays armed and blocks second spawn. */
+    if ((pr.nation[0].unknown26[9] & (1u << 1)) == 0) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R5: unknown26[9] must stay armed after second balance");
+    }
+    if (strstr(status, "Privateer commissioned") != NULL) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R5: unknown26[9] gate must not re-status Privateer commissioned");
+    }
+
+    /* Prize still fires when richer/poorer and sea unit present. */
+    pr.nation[0].gold = 200;
+    pr.nation[1].gold = 50;
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    ai_diplo_euro_balance(&ctx, 0);
+    /* upkeep −5 then prize −8 from rich / +8 to poor → 187 / 58 */
+    if (pr.nation[0].gold != 187 || pr.nation[1].gold != 58) {
+      fprintf(stderr, "smoke_ai_diplo: M2R1 prize gold %u/%u\n",
+              (unsigned)pr.nation[0].gold, (unsigned)pr.nation[1].gold);
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: treasury privateer prize should still transfer 8g");
+    }
+    if (strcmp(status, "Privateer prize from France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: M2R1 prize status '%s'\n", status);
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: prize status should overwrite commission when prize fires");
+    }
+
+    ai_diplo_make_peace(&pr, 0, 1);
+    if ((pr.nation[0].unknown26[9] & (1u << 1)) != 0) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: make_peace should clear Privateer spawn peer bit");
+    }
+
+    /* Thin FA report OK title after gift/strengthen. */
+    ai_diplo_form_alliance(&pr, 0, 1);
+    pr.nation[0].gold = 120;
+    pr.nation[1].gold = 60;
+    pr.nation[0].unknown26[1] = 1;
+    pr.nation[1].unknown26[0] = 1;
+    status[0] = '\0';
+    ai_popup_clear(&pop);
+    ai_diplo_euro_balance(&ctx, 0);
+    if (strcmp(status, "Alliance with France strengthened.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: M2R1 FA status '%s'\n", status);
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("M2R1: FA gift should status Alliance strengthened");
+    }
+    {
+      int found_fa = 0;
+      for (int qi = 0; qi < pop.queue_count; ++qi) {
+        if (pop.queue[qi].kind == AI_POPUP_KIND_OK &&
+            pop.queue[qi].tag == AI_POPUP_TAG_DIPLO_ALLIANCE &&
+            strcmp(pop.queue[qi].title, "Foreign Affairs") == 0 &&
+            strcmp(pop.queue[qi].body, "Alliance with France strengthened.") == 0) {
+          found_fa = 1;
+          break;
+        }
+      }
+      if (!found_fa) {
+        free(map.terrain);
+        free(map.layer2);
+        free(map.layer3);
+        return fail("M2R1: FA gift OK uses DIPLO_ALLIANCE + Foreign Affairs title");
+      }
+    }
+
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+  }
+
+  /*
+   * Marathon2 R3/R6: AI→human war declare CHOICE Accept/Refuse (10ec / 15b3).
+   * Accept → declare_war_ctx; Refuse → status + follow-up OK, no WAR.
+   * FA 3f41 PARKED.
+   */
+  {
+    ColonizeCol1Save w3;
+    col1_save_init(&w3);
+    memset(w3.nation, 0, sizeof(w3.nation));
+    for (int i = 0; i < 4; ++i) {
+      w3.player[i].control = 0;
+      w3.player[i].country_name[0] = '\0';
+    }
+    snprintf(w3.player[1].country_name, sizeof(w3.player[1].country_name), "France");
+    w3.nation[0].gold = 200;
+    w3.nation[1].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      w3.nation[0].relation_by_indian[i] = 100;
+      w3.nation[1].relation_by_indian[i] = 100;
+    }
+    char status_w3[128];
+    status_w3[0] = '\0';
+    AiPopupState pop_w3;
+    ai_popup_init(&pop_w3);
+    ColonizeTurnContext ctx_w3;
+    memset(&ctx_w3, 0, sizeof(ctx_w3));
+    ctx_w3.col1 = &w3;
+    ctx_w3.col1_ok = true;
+    ctx_w3.human_nation = 0;
+    ctx_w3.status = status_w3;
+    ctx_w3.status_size = sizeof(status_w3);
+    ctx_w3.ai_popups = &pop_w3;
+
+    {
+      const char* labels[] = {"Accept", "Refuse"};
+      const int ids[] = {1, 2};
+      if (!ai_popup_enqueue_choice_ctx(
+            &pop_w3,
+            AI_POPUP_TAG_DIPLO_WAR,
+            1,
+            0,
+            0,
+            "War",
+            "France declares war!",
+            labels,
+            ids,
+            2
+          )) {
+        return fail("M2R3 war: enqueue CHOICE");
+      }
+    }
+    if (ai_diplo_at_war(&w3, 0, 1)) {
+      return fail("M2R3 war: must not be at war before Accept");
+    }
+    ai_popup_try_present_next(&pop_w3);
+    {
+      ColonizeInputState in;
+      memset(&in, 0, sizeof(in));
+      in.last_key = COLONIZE_KEY_ENTER; /* Accept */
+      if (!ai_popup_handle_input(&pop_w3, &in) || !pop_w3.has_result) {
+        return fail("M2R3 war: Accept should produce result");
+      }
+    }
+    ai_diplo_apply_popup_result(&ctx_w3, &pop_w3);
+    if (!ai_diplo_at_war(&w3, 0, 1)) {
+      return fail("M2R3 war: Accept should declare_war");
+    }
+    ai_popup_consume_result(&pop_w3);
+
+    /* Refuse leaves peace. */
+    ai_diplo_make_peace(&w3, 0, 1);
+    ai_popup_clear(&pop_w3);
+    status_w3[0] = '\0';
+    w3.nation[0].gold = 200;
+    w3.nation[1].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      w3.nation[0].relation_by_indian[i] = 100;
+      w3.nation[1].relation_by_indian[i] = 100;
+    }
+    w3.nation[0].unknown26[8] = 0;
+    w3.nation[1].unknown26[8] = 0;
+    {
+      const char* labels[] = {"Accept", "Refuse"};
+      const int ids[] = {1, 2};
+      (void)ai_popup_enqueue_choice_ctx(
+        &pop_w3,
+        AI_POPUP_TAG_DIPLO_WAR,
+        1,
+        0,
+        0,
+        "War",
+        "France declares war!",
+        labels,
+        ids,
+        2
+      );
+    }
+    ai_popup_try_present_next(&pop_w3);
+    {
+      ColonizeInputState in;
+      memset(&in, 0, sizeof(in));
+      in.last_key = COLONIZE_KEY_DOWN; /* Refuse selection */
+      (void)ai_popup_handle_input(&pop_w3, &in);
+      in.last_key = COLONIZE_KEY_ENTER;
+      if (!ai_popup_handle_input(&pop_w3, &in) || !pop_w3.has_result) {
+        return fail("M2R3 war: Refuse should produce result");
+      }
+    }
+    if (pop_w3.result_choice_id != 2) {
+      return fail("M2R3 war: Refuse choice_id should be 2");
+    }
+    ai_diplo_apply_popup_result(&ctx_w3, &pop_w3);
+    if (ai_diplo_at_war(&w3, 0, 1)) {
+      return fail("M2R3 war: Refuse must leave peace");
+    }
+    if (strcmp(status_w3, "War refused with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: war refuse status '%s'\n", status_w3);
+      return fail("M2R3 war: Refuse should status War refused");
+    }
+    /* Marathon2 R6: war Refuse status chrome also enqueues OK (peace/break parity). */
+    if (pop_w3.queue_count != 1) {
+      return fail("M2R6 war Refuse: should enqueue follow-up OK");
+    }
+    if (pop_w3.queue[0].tag != AI_POPUP_TAG_DIPLO_WAR ||
+        pop_w3.queue[0].kind != AI_POPUP_KIND_OK) {
+      return fail("M2R6 war Refuse: follow-up should be DIPLO_WAR OK");
+    }
+    if (strcmp(pop_w3.queue[0].body, "War refused with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: war refuse OK '%s'\n", pop_w3.queue[0].body);
+      return fail("M2R6 war Refuse: OK body must match status");
+    }
+  }
+
+  /*
+   * Marathon2 R5: AI→human break-alliance CHOICE Accept/Refuse (13b0 / 15b3).
+   * Accept → break_alliance_ctx; Refuse → status + OK, ALLY kept.
+   * FA 3f41 full UI PARKED.
+   */
+  {
+    ColonizeCol1Save br;
+    col1_save_init(&br);
+    memset(br.nation, 0, sizeof(br.nation));
+    for (int i = 0; i < 4; ++i) {
+      br.player[i].control = 0;
+      br.player[i].country_name[0] = '\0';
+    }
+    snprintf(br.player[1].country_name, sizeof(br.player[1].country_name), "France");
+    br.nation[0].gold = 200;
+    br.nation[1].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      br.nation[0].relation_by_indian[i] = 100;
+      br.nation[1].relation_by_indian[i] = 100;
+    }
+    ai_diplo_form_alliance(&br, 0, 1);
+    if ((ai_diplo_read(&br, 0, 1) & AI_DIPLO_ALLY) == 0) {
+      return fail("M2R5 break: setup should form ALLY");
+    }
+    char status_br[128];
+    status_br[0] = '\0';
+    AiPopupState pop_br;
+    ai_popup_init(&pop_br);
+    ColonizeTurnContext ctx_br;
+    memset(&ctx_br, 0, sizeof(ctx_br));
+    ctx_br.col1 = &br;
+    ctx_br.col1_ok = true;
+    ctx_br.human_nation = 0;
+    ctx_br.status = status_br;
+    ctx_br.status_size = sizeof(status_br);
+    ctx_br.ai_popups = &pop_br;
+
+    {
+      const char* labels[] = {"Accept", "Refuse"};
+      const int ids[] = {1, 2};
+      if (!ai_popup_enqueue_choice_ctx(
+            &pop_br,
+            AI_POPUP_TAG_DIPLO_BREAK,
+            1,
+            0,
+            0,
+            "Alliance",
+            "France breaks the alliance.",
+            labels,
+            ids,
+            2
+          )) {
+        return fail("M2R5 break: enqueue CHOICE");
+      }
+    }
+    ai_popup_try_present_next(&pop_br);
+    {
+      ColonizeInputState in;
+      memset(&in, 0, sizeof(in));
+      in.last_key = COLONIZE_KEY_ENTER; /* Accept */
+      if (!ai_popup_handle_input(&pop_br, &in) || !pop_br.has_result) {
+        return fail("M2R5 break: Accept should produce result");
+      }
+    }
+    ai_diplo_apply_popup_result(&ctx_br, &pop_br);
+    if ((ai_diplo_read(&br, 0, 1) & AI_DIPLO_ALLY) != 0) {
+      return fail("M2R5 break: Accept should clear ALLY");
+    }
+    if (strcmp(status_br, "Alliance broken with France") != 0 &&
+        strcmp(status_br, "Natives grow hostile.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: break Accept status '%s'\n", status_br);
+      return fail("M2R5 break: Accept should status Alliance broken (or sticky)");
+    }
+    ai_popup_consume_result(&pop_br);
+
+    /* Refuse leaves ALLY. */
+    ai_diplo_form_alliance(&br, 0, 1);
+    br.nation[0].gold = 200;
+    br.nation[1].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      br.nation[0].relation_by_indian[i] = 100;
+      br.nation[1].relation_by_indian[i] = 100;
+    }
+    br.nation[0].unknown26[8] = 0;
+    br.nation[1].unknown26[8] = 0;
+    ai_popup_clear(&pop_br);
+    status_br[0] = '\0';
+    {
+      const char* labels[] = {"Accept", "Refuse"};
+      const int ids[] = {1, 2};
+      (void)ai_popup_enqueue_choice_ctx(
+        &pop_br,
+        AI_POPUP_TAG_DIPLO_BREAK,
+        1,
+        0,
+        0,
+        "Alliance",
+        "France breaks the alliance.",
+        labels,
+        ids,
+        2
+      );
+    }
+    ai_popup_try_present_next(&pop_br);
+    {
+      ColonizeInputState in;
+      memset(&in, 0, sizeof(in));
+      in.last_key = COLONIZE_KEY_DOWN; /* Refuse selection */
+      (void)ai_popup_handle_input(&pop_br, &in);
+      in.last_key = COLONIZE_KEY_ENTER;
+      if (!ai_popup_handle_input(&pop_br, &in) || !pop_br.has_result) {
+        return fail("M2R5 break: Refuse should produce result");
+      }
+    }
+    if (pop_br.result_choice_id != 2) {
+      return fail("M2R5 break: Refuse choice_id should be 2");
+    }
+    ai_diplo_apply_popup_result(&ctx_br, &pop_br);
+    if ((ai_diplo_read(&br, 0, 1) & AI_DIPLO_ALLY) == 0) {
+      return fail("M2R5 break: Refuse must leave ALLY");
+    }
+    if (strcmp(status_br, "Alliance break refused with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: break refuse status '%s'\n", status_br);
+      return fail("M2R5 break: Refuse should status Alliance break refused");
+    }
+    if (pop_br.queue_count != 1 ||
+        pop_br.queue[0].tag != AI_POPUP_TAG_DIPLO_BREAK ||
+        pop_br.queue[0].kind != AI_POPUP_KIND_OK) {
+      return fail("M2R5 break: Refuse should enqueue DIPLO_BREAK OK");
+    }
+    if (strcmp(pop_br.queue[0].body, "Alliance break refused with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: break refuse OK '%s'\n", pop_br.queue[0].body);
+      return fail("M2R5 break: Refuse OK body must match status");
+    }
+  }
+
+  /*
+   * Marathon2 R6: native sticky deepen status also enqueues INFO OK
+   * ("Natives remain hostile." when sticky stays/deepens to 2).
+   * Matrix tick already wrote status; ensure ai_popups path is wired.
+   * FA 3f41 full UI PARKED.
+   */
+  {
+    ColonizeCol1Save ns;
+    col1_save_init(&ns);
+    memset(ns.nation, 0, sizeof(ns.nation));
+    for (int i = 0; i < 4; ++i) {
+      ns.player[i].control = 0;
+    }
+    ns.nation[0].relation_by_indian[0] = 30; /* very-low → deepen */
+    for (int i = 1; i < 8; ++i) {
+      ns.nation[0].relation_by_indian[i] = 80;
+    }
+    ns.nation[0].unknown26[8] = 1; /* at-war sticky → deepen to 2 on sync */
+    ns.nation[0].gold = 40;
+    char status_ns[128];
+    status_ns[0] = '\0';
+    AiPopupState pop_ns;
+    ai_popup_init(&pop_ns);
+    ColonizeDosRng rng_ns;
+    dos_rng_seed(&rng_ns, 13);
+    uint32_t turn_ns = 13;
+    ColonizeTurnContext ctx_ns;
+    memset(&ctx_ns, 0, sizeof(ctx_ns));
+    ctx_ns.col1 = &ns;
+    ctx_ns.col1_ok = true;
+    ctx_ns.rng = &rng_ns;
+    ctx_ns.turn_number = &turn_ns;
+    ctx_ns.human_nation = 0;
+    ctx_ns.status = status_ns;
+    ctx_ns.status_size = sizeof(status_ns);
+    ctx_ns.ai_popups = &pop_ns;
+    ai_diplo_euro_balance(&ctx_ns, 0);
+    if (ai_diplo_indian_hostility_sticky(&ns, 0) != 2) {
+      return fail("M2R6 sticky deepen: sync should deepen sticky to 2");
+    }
+    if (strcmp(status_ns, "Natives remain hostile.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: sticky deepen status '%s'\n", status_ns);
+      return fail("M2R6 sticky deepen: should status Natives remain hostile");
+    }
+    if (pop_ns.queue_count < 1) {
+      return fail("M2R6 sticky deepen: should enqueue native status OK");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop_ns.queue_count; ++i) {
+        if (pop_ns.queue[i].tag == AI_POPUP_TAG_INFO &&
+            pop_ns.queue[i].kind == AI_POPUP_KIND_OK &&
+            strcmp(pop_ns.queue[i].body, "Natives remain hostile.") == 0) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        return fail("M2R6 sticky deepen: INFO OK body must be Natives remain hostile");
       }
     }
   }

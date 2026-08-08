@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/europe.h"
 #include "core/ui_drag.h"
+#include "core/units.h"
 #include "platform/diagnostics.h"
 
 int main(void) {
@@ -499,6 +501,114 @@ int main(void) {
     fprintf(stderr, "pool should stay full, filled=%d\n", filled);
     europe_free(&eu);
     return 1;
+  }
+
+  /*
+   * Treasure cash-in: GAME.TXT @LOOTCASH / @KINGGALLEON3 — Crown share =
+   * tax_percent (same as sell). Cite: Colonization.pdf Treasure Trains.
+   */
+  {
+    const int gold0 = eu.gold;
+    eu.tax_percent = 0;
+    const int full = europe_cash_treasure(&eu, 1000);
+    if (full != 1000 || eu.gold != gold0 + 1000) {
+      fprintf(
+        stderr,
+        "cash_treasure untaxed failed credited=%d gold %d→%d\n",
+        full,
+        gold0,
+        eu.gold
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    eu.tax_percent = 50;
+    const int gold1 = eu.gold;
+    const int half = europe_cash_treasure(&eu, 1000);
+    if (half != 500 || eu.gold != gold1 + 500) {
+      fprintf(
+        stderr,
+        "cash_treasure 50%% fee failed credited=%d gold %d→%d\n",
+        half,
+        gold1,
+        eu.gold
+      );
+      europe_free(&eu);
+      return 1;
+    }
+    if (europe_cash_treasure(&eu, 0) != 0 || europe_cash_treasure(NULL, 500) != 0) {
+      fprintf(stderr, "cash_treasure should no-op on bad args\n");
+      europe_free(&eu);
+      return 1;
+    }
+  }
+
+  /* Disembark Treasure passenger: cash-in + do not land as dock immigrant. */
+  {
+    ColonizeMsgCatalog names;
+    ColonizeUnitPool units;
+    memset(&names, 0, sizeof(names));
+    units_reset(&units);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !units_load_types(&units, &names)) {
+      fprintf(stderr, "treasure disembark: load NAMES/units failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    const int treasure_ti = units_find_type(&units, "Treasure");
+    if (treasure_ti < 0) {
+      fprintf(stderr, "Treasure type missing from NAMES\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    eu.harbor_ships = 0;
+    eu.expected_ships = 0;
+    eu.bound_ships = 0;
+    eu.dock_count = 0;
+    memset(eu.dock, 0, sizeof(eu.dock));
+    eu.tax_percent = 25;
+    const int gold_pre = eu.gold;
+    const int pax_types[1] = {treasure_ti};
+    const int pax_profs[1] = {-1};
+    if (!europe_enqueue_expected(
+          &eu, 16, "Galleon", pax_types, pax_profs, 1, NULL, NULL, 50, 10, true, 6
+        )) {
+      fprintf(stderr, "treasure enqueue_expected failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    eu.expected[0].cargo_treasure_gold[0] = 800;
+    eu.expected[0].turns_left = 0;
+    europe_tick_voyages(&eu, &units);
+    const int expect_credit = (800 * 75) / 100;
+    if (eu.gold != gold_pre + expect_credit) {
+      fprintf(
+        stderr,
+        "treasure disembark gold %d→%d expect +%d (tax 25%%)\n",
+        gold_pre,
+        eu.gold,
+        expect_credit
+      );
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    if (eu.dock_count != 0) {
+      fprintf(stderr, "Treasure must not land on dock, dock_count=%d\n", eu.dock_count);
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    if (eu.harbor_ships != 1 || eu.harbor[0].cargo_count != 0) {
+      fprintf(stderr, "Treasure should leave empty holds after cash-in\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    assets_msg_free(&names);
   }
 
   fprintf(

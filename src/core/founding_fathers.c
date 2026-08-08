@@ -401,10 +401,10 @@ static void apply_effect(
       }
       break;
     case FF_PETER_MINUIT:
-      /* PARKED: wiki/manual — Indians no longer demand payment for land.
-       * No land-purchase / founding-payment gold hook yet (colony found and
-       * tile claim do not charge Indian land gold; stuff colony counters are
-       * unrelated). Ownership bit only — no treasury fiction. */
+      /* Manual/wiki: Indians no longer demand payment for land.
+       * Decomp FUN_4cc6_07c2 zeros land-buy gold when FF 2 owned.
+       * Wired via founding_fathers_nation_has → colonies_indian_land_purchase_gold
+       * / colonies_found_with_indian_land (pioneer plow/road buy still PORT). */
       break;
     case FF_PETER_STUYVESANT:
       /* Manual/wiki: unlock Custom House — gated via has_peter_stuyvesant. */

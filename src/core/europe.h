@@ -118,6 +118,12 @@ typedef struct EuropeHarborShip {
   char name[32];
   int cargo_types[EUROPE_SHIP_CARGO_MAX]; /* passenger unit type indices */
   int cargo_professions[EUROPE_SHIP_CARGO_MAX]; /* @JOB per passenger */
+  /*
+   * Per-passenger Treasure gold for Europe cash-in (0 = unknown / not treasure).
+   * Intended source: COL1 Treasure unit cargo_hold[0..1] LE16 gold (not yet on
+   * ColonizeUnit; game_loop enqueue does not fill this yet — PARK).
+   */
+  int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
   int cargo_count;
   int hold_goods_type[EUROPE_SHIP_CARGO_MAX];
   int hold_goods_amount[EUROPE_SHIP_CARGO_MAX];
@@ -307,6 +313,17 @@ void europe_refresh_harbor_selection(EuropeScreen* eu);
  * leave Bound at 0 for caller to spawn. Sets open_on_dock when a ship docks.
  */
 void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units);
+
+/*
+ * Treasure Train cash-in on Europe arrival.
+ * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH (Crown takes
+ * NUMBER1% share, remainder to treasury); @KINGGALLEON3 (Cortes: share =
+ * current tax rate). Fee = eu->tax_percent — same Crown cut as
+ * europe_sell_proceeds. PARK: KINGGALLEON2 non-Cortes royal-galleon "extra"
+ * share beyond tax (no % in GAME.TXT / PDF / fandom).
+ * Returns gold credited (0 if value <= 0).
+ */
+int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
