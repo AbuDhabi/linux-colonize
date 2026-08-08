@@ -150,10 +150,10 @@ Port: combat Missing; Europe buy/sell Partial; equip Partial.
 
 | Claim (wiki) | Source | Port / original |
 |--------------|--------|-----------------|
-| Stockade: defender strength **+100%**; replaces Fortify benefit inside | [Stockade (Col)](https://civilization.fandom.com/wiki/Stockade_(Col)) | Matches [`building_production.md`](building_production.md) chart; combat Missing |
-| Fort: **+150%**; coastal fort slows / fires on adjacent enemy ships (wiki: attack strength 4 + 4 per artillery) | [Fort (Col)](https://civilization.fandom.com/wiki/Fort_(Col)) | Chart +150%; naval fire Missing |
-| Fortress: **+200%**; stronger coastal fire (wiki: 8 + 8 per artillery) | [Fortress (Col)](https://civilization.fandom.com/wiki/Fortress_(Col)) | Chart +200%; combat Missing |
-| With Stockade/Fort/Fortress, cannot **voluntarily** reduce population below **3** | Stockade / [Colony (Col)](https://civilization.fandom.com/wiki/Colony_(Col)) | **Conflict:** port currently keeps ≥**2** — see Conflicts |
+| Stockade: defender strength **+100%**; replaces Fortify benefit inside | [Stockade (Col)](https://civilization.fandom.com/wiki/Stockade_(Col)) | Matches [`building_production.md`](building_production.md); combat wired `colonies_fortification_defense_bonus_percent` |
+| Fort: **+150%**; coastal fort slows / fires on adjacent enemy ships (wiki: attack strength 4 + 4 per artillery) | [Fort (Col)](https://civilization.fandom.com/wiki/Fort_(Col)) | Chart +150% in land combat; naval fire Missing |
+| Fortress: **+200%**; stronger coastal fire (wiki: 8 + 8 per artillery) | [Fortress (Col)](https://civilization.fandom.com/wiki/Fortress_(Col)) | Chart +200% in land combat; naval fire Missing |
+| With Stockade/Fort/Fortress, cannot **voluntarily** reduce population below **3** | Stockade / [Colony (Col)](https://civilization.fandom.com/wiki/Colony_(Col)) | Port eject keeps ≥**3** (aligned) |
 | Last colonist leave → abandon confirm | Colony (Col) | Port Partial (abandon confirm) |
 | Center tile always feeds at least one colonist (cannot starve out completely except edge cases wiki notes for La Salle) | Colony (Col) | Verify vs code |
 
@@ -213,7 +213,7 @@ Port: all Missing except thin score schedule.
 
 | Topic | Wiki | Port / original notes | Action |
 |-------|------|----------------------|--------|
-| Stockade+ min voluntary population | Below **3** | Port eject keeps ≥**2** ([`manual_gap.md`](manual_gap.md), [`assets.md`](assets.md)) | Confirm vs DOS / manual; fix port if code says 3 |
+| Stockade+ min voluntary population | Below **3** | Port eject keeps ≥**3** | Aligned with wiki |
 | Factory efficiency | “1.5 goods per raw” | Port / EXE tier table framed as **6→9** hammers-style throughput | Same intent; keep decomp numbers |
 | Fur Factory min pop | Adam Smith page says factories need pop **8** | [`building_production.md`](building_production.md) lists Fur Factory min **6** from `NAMES` | Prefer `NAMES` / code |
 | Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Looks inconsistent with Discoverer→Governor progression | Verify in decomp / difficulty tables |

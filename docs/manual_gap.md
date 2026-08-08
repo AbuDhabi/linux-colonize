@@ -81,7 +81,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Construction queue + buy with gold | Partial | Construction tab BUY/CHANGE; Change list uses min-pop / upgrade / FF gates; hammers = accumulated progress; `NAMES` tools×10; no settlement banner |
 | Warehouse drag load/unload to ships / wagons | Done | Drag cargo↔hold (icon cursor); **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122** |
 | SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned; people row includes fence units |
-| Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥2; last colonist confirms abandon (cargo lost) |
+| Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥3; last colonist confirms abandon (cargo lost) |
 | Fortification defense bonuses | Missing | Fence / docks art only; no combat |
 
 ### Europe

@@ -1646,6 +1646,177 @@ int main(void) {
     free(col1.tribe);
   }
 
+  /* FUN_3844_0004: Treasure outside colony despawns after >8 ticks. */
+  {
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    ColonizeColony* home = &colonies.colonies[0];
+    home->id = 0;
+    home->active = true;
+    home->nation_id = 0;
+    home->x = 2;
+    home->y = 2;
+    colonies.colony_count = 1;
+    int tid = units_spawn_treasure_train(&pool, 7, 7, 0, 100);
+    if (tid < 0) {
+      fprintf(stderr, "treasure tick spawn failed\n");
+      return 1;
+    }
+    ColonizeUnit* tr = units_get(&pool, tid);
+    tr->turns_worked = 0;
+    for (int t = 0; t < 8; ++t) {
+      if (units_tick_treasure_outside_colony(&pool, &colonies, 0, NULL, 0) != 0) {
+        fprintf(stderr, "treasure should survive tick %d\n", t + 1);
+        return 1;
+      }
+      tr = units_get(&pool, tid);
+      if (!tr || !tr->active || tr->turns_worked != t + 1) {
+        fprintf(stderr, "treasure counter want %d\n", t + 1);
+        return 1;
+      }
+    }
+    if (units_tick_treasure_outside_colony(&pool, &colonies, 0, NULL, 0) < 1) {
+      fprintf(stderr, "treasure should despawn on tick 9\n");
+      return 1;
+    }
+    tr = units_get(&pool, tid);
+    if (tr && tr->active) {
+      fprintf(stderr, "treasure still active after tick 9\n");
+      return 1;
+    }
+    /* On own colony: counter resets; never despawns. */
+    tid = units_spawn_treasure_train(&pool, 2, 2, 0, 50);
+    tr = units_get(&pool, tid);
+    tr->turns_worked = 7;
+    if (units_tick_treasure_outside_colony(&pool, &colonies, 0, NULL, 0) != 0) {
+      fprintf(stderr, "treasure on colony should not despawn\n");
+      return 1;
+    }
+    tr = units_get(&pool, tid);
+    if (!tr || tr->turns_worked != 0) {
+      fprintf(stderr, "treasure on colony should reset counter\n");
+      return 1;
+    }
+    units_despawn(&pool, tid);
+    fprintf(stderr, "smoke_units: treasure outside-colony 8-turn tick ok\n");
+  }
+
+  /* Stockade/Fort/Fortress defense bonus in land combat + Treasure capture loot. */
+  {
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+    snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
+    snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Fortress");
+    colonies.building_type_count = 3;
+    ColonizeColony* col = &colonies.colonies[0];
+    col->id = 0;
+    col->active = true;
+    col->nation_id = 0;
+    col->x = 5;
+    col->y = 5;
+    col->population = 3;
+    colonies.colony_count = 1;
+    if (colonies_fortification_defense_bonus_percent(&colonies, col) != 0) {
+      fprintf(stderr, "fort bonus should be 0 without buildings\n");
+      return 1;
+    }
+    col->has_building[0] = true;
+    if (colonies_fortification_defense_bonus_percent(&colonies, col) != 100) {
+      fprintf(stderr, "Stockade bonus want 100\n");
+      return 1;
+    }
+    col->has_building[1] = true;
+    if (colonies_fortification_defense_bonus_percent(&colonies, col) != 150) {
+      fprintf(stderr, "Fort bonus want 150\n");
+      return 1;
+    }
+    col->has_building[2] = true;
+    if (colonies_fortification_defense_bonus_percent(&colonies, col) != 200) {
+      fprintf(stderr, "Fortress bonus want 200\n");
+      return 1;
+    }
+
+    const int soldier_ti = units_find_type(&pool, "Soldiers");
+    if (soldier_ti < 0) {
+      fprintf(stderr, "Soldiers missing for fort-defense smoke\n");
+      return 1;
+    }
+    /* Deterministic: attack 3 vs base def 2 → atk wins; with Stockade def=4 → loses. */
+    pool.types[soldier_ti].attack = 3;
+    pool.types[soldier_ti].defense = 2;
+    const int atk_id = units_spawn_allow_stack(&pool, soldier_ti, 5, 5);
+    const int def_id = units_spawn_allow_stack(&pool, soldier_ti, 5, 5);
+    ColonizeUnit* atk = units_get(&pool, atk_id);
+    ColonizeUnit* defu = units_get(&pool, def_id);
+    if (!atk || !defu) {
+      fprintf(stderr, "fort-defense spawn failed\n");
+      return 1;
+    }
+    atk->nation_id = 1;
+    defu->nation_id = 0;
+    defu->orders = UNITS_ORDER_NONE;
+    col->has_building[0] = true;
+    col->has_building[1] = false;
+    col->has_building[2] = false;
+    units_set_combat_colonies(&colonies);
+    /* attack 3 vs defense 2*(1+100%)=4 → attacker loses when rng NULL (3 < 4). */
+    if (units_resolve_land_combat_ff(&pool, atk_id, def_id, NULL, NULL)) {
+      fprintf(stderr, "Stockade defense should beat attack 3 vs base 2\n");
+      return 1;
+    }
+    if (!units_get(&pool, def_id) || !units_get(&pool, def_id)->active) {
+      fprintf(stderr, "Stockade defender should survive\n");
+      return 1;
+    }
+    units_set_combat_colonies(NULL);
+
+    /* Treasure capture: winner gets LE16 gold into nation treasury. */
+    ColonizeCol1Save tcol1;
+    memset(&tcol1, 0, sizeof(tcol1));
+    tcol1.nation[1].gold = 50;
+    int use_ti = units_find_type(&pool, "Treasure");
+    if (use_ti < 0) {
+      if (pool.type_count >= (int)(sizeof(pool.types) / sizeof(pool.types[0]))) {
+        fprintf(stderr, "no room for Treasure type\n");
+        return 1;
+      }
+      use_ti = pool.type_count;
+      snprintf(pool.types[use_ti].name, sizeof(pool.types[use_ti].name), "Treasure");
+      pool.types[use_ti].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      pool.types[use_ti].defense = 0;
+      pool.types[use_ti].attack = 0;
+      pool.type_count++;
+    }
+    const int capturer = units_spawn_allow_stack(&pool, soldier_ti, 6, 6);
+    const int loot_id = units_spawn_allow_stack(&pool, use_ti, 6, 6);
+    ColonizeUnit* cap = units_get(&pool, capturer);
+    ColonizeUnit* loot = units_get(&pool, loot_id);
+    if (!cap || !loot) {
+      fprintf(stderr, "treasure capture spawn failed\n");
+      return 1;
+    }
+    cap->nation_id = 1;
+    loot->nation_id = 0;
+    loot->hold_goods_amount[0] = 200 & 0xff;
+    loot->hold_goods_amount[1] = (200 >> 8) & 0xff;
+    pool.types[soldier_ti].attack = 5;
+    pool.types[use_ti].defense = 1;
+    if (!units_resolve_land_combat_ff(&pool, capturer, loot_id, NULL, &tcol1)) {
+      fprintf(stderr, "treasure capture combat should win\n");
+      return 1;
+    }
+    if (tcol1.nation[1].gold != 250) {
+      fprintf(stderr, "treasure capture gold want 250 got %u\n", tcol1.nation[1].gold);
+      return 1;
+    }
+    if (units_get(&pool, loot_id) && units_get(&pool, loot_id)->active) {
+      fprintf(stderr, "captured Treasure should despawn\n");
+      return 1;
+    }
+    fprintf(stderr, "smoke_units: fortification defense + treasure capture ok\n");
+  }
+
   /* LCR rumour: clear + de Soto reveal path. */
   {
     if (!map_tile_has_rumour(&map, 8, 14)) {

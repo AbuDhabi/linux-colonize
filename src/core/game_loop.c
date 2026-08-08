@@ -3024,10 +3024,12 @@ static bool game_colony_request_eject(
     colony_screen_set_status(csv, game->status);
     return true;
   }
-  if (colonies_has_fortification(&game->colonies, colony) && colony->colonist_count <= 2) {
+  /* fandom Stockade/Colony: with Stockade/Fort/Fortress cannot voluntarily
+   * drop below 3 (port previously kept ≥2 — docs/fandom_col1994.md Conflicts). */
+  if (colonies_has_fortification(&game->colonies, colony) && colony->colonist_count <= 3) {
     colony_screen_close_eject(csv);
     colony_screen_open_message_ok(
-      csv, "A colony with a Stockade must keep at least 2 colonists."
+      csv, "A colony with a Stockade must keep at least 3 colonists."
     );
     return true;
   }

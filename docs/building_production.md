@@ -244,9 +244,9 @@ Documented in manual ch. independence / colony people view; **not yet applied** 
 
 | Condition | Effect on **all** colony production |
 |-----------|--------------------------------------|
-| Sons of Liberty ≥ **50%** | **+1** to each production unit (field + manufacturing + bells/crosses) |
-| Sons of Liberty = **100%** | **+1** again (total **+2** at full SoL) |
-| Tory share above threshold | **−1** to all production; threshold depends on difficulty (**10** Discoverer … **6** Viceroy) |
+| Sons of Liberty ≥ **50%** | **+1** to each production unit (field + manufacturing + bells/crosses) | Field + hammers wired (`colony_prod_sol_bonus`); craft deepen next |
+| Sons of Liberty = **100%** | **+1** again (total **+2** at full SoL) | Same |
+| Tory share above threshold | **−1** to all production; threshold depends on difficulty (**10** Discoverer … **6** Viceroy) | PARK |
 
 River / road / plow on **field** tiles add up to **+4** food/resources (manual Terrain Chart footnote) — see [terrain_yields.md](terrain_yields.md).
 

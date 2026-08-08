@@ -139,6 +139,11 @@ default). AI may also tick due Expected→Harbor (`cargo_treasure_gold`). Cite:
 Colonization.pdf Treasure Trains; GAME.TXT `@LOOTCASH`. **PARK:** KINGGALLEON2
 non-Cortes royal-galleon extra share (see `europe_cash_treasure`).
 
+**Cortes KINGGALLEON3 coastal cash (unparked):** with FF Cortes, Treasure on an
+own coastal colony cashes via `europe_cash_treasure` (tax = Crown share) without
+boarding a ship (`ai_euro_try_cortes_king_galleon_cash`). Cite: fandom Hernan
+Cortes; GAME.TXT `@KINGGALLEON3`.
+
 ### 2c6. Linux thin — Missionary CONTACT (act)
 
 Peace + Missionary/Jesuit, **not fleeing** (adjacent tribe Alarm/friction ≥55 —
@@ -195,10 +200,12 @@ pattern. War hunt owns idle ships at war; Treasure Europe sail skips haul.
 
 With FF Jan de Witt + peace: Wagon on foreign Euro colony tile loads
 `TRADE_GOODS` surplus (stock≥20 → 10; same muskets haul chunk) via
-`colonies_de_witt_transfer_from_colony`; empty wagon may `AI_MOVE` toward
-nearest such colony. Cargo ships: same load on foreign dock (ships may enter
-foreign Euro docks when de Witt + peace via `units_can_enter` + `g_units_ff_col1`);
-else `AI_SAIL` toward coastal water / dock. Stock transfer only — no gold/price.
+`colonies_de_witt_transfer_from_colony`, then `AI_MOVE` toward nearest own
+colony and `colonies_transfer_from_unit` unload into warehouse (delivery loop).
+Empty wagon may `AI_MOVE` toward nearest foreign surplus. Cargo ships: same load
+on foreign dock (ships may enter foreign Euro docks when de Witt + peace via
+`units_can_enter` + `g_units_ff_col1`); with TRADE_GOODS aboard → `AI_SAIL`
+Europe (existing dump-sell). Stock transfer only — no gold/price.
 Cite: docs/fandom_col1994.md Jan de Witt; `colonies_de_witt_transfer_*`.
 
 ### 2d3. Linux thin — peace Soldier fortify (act)

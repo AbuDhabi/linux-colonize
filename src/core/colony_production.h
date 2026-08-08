@@ -6,6 +6,8 @@
 #include "core/colony.h"
 #include "core/map.h"
 
+typedef struct ColonizeCol1Save ColonizeCol1Save;
+
 /* NAMES.TXT @JOB indices (settlement skills and colonist classes). */
 #define COLONIZE_PROF_DISTILLER 9
 #define COLONIZE_PROF_TOBACCONIST 10
@@ -61,6 +63,13 @@ int colony_yield_for_worker(
   int field_job,
   int profession
 );
+
+/*
+ * Sons of Liberty production bonus (manual / building_production.md):
+ * SoL ≥50% → +1 per production unit; SoL =100% → +2 total. 0 if unknown.
+ * PARK: Tory −1 difficulty caps.
+ */
+int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 int colony_prod_crosses_worker(const char* building_name, int profession);
 int colony_prod_bells_worker(const char* building_name, int profession);
