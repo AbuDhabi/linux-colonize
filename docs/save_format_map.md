@@ -275,17 +275,24 @@ Replaces legacy `unknown_e[504]` + `unknown_f[110]` (same bytes). Proven from
 
 | File off | Size | DS | Field | Status | Notes |
 |----------|------|-----|-------|--------|-------|
-| 0 | 270 | `0x86f6` | `sea_connectivity[270]` | `mapped` | 15×18 neighbor bits; fill `local_24==1` |
-| 270 | 270 | `0x85e8` | `land_connectivity[270]` | `mapped` | fill `local_24==0` |
-| 540 | 32 | `0x945e` | `continent_tally_a[16]` | `partial` | u16[16]; continent terrain tallies |
-| 572 | 32 | `0x85c8` | `continent_tally_b[16]` | `partial` | u16[16] |
-| 604 | 4 | SS:`local_8` | `unknown_post_604` | `opaque` | |
-| 608 | 4 | `0x8d80` | `unknown_ds_8d80` | `opaque` | |
+| 0 | 270 | `0x86f6` | `sea_connectivity[270]` | `mapped` | 15×18 neighbor bits; fill `local_24==1`; rebuilt on blank export |
+| 270 | 270 | `0x85e8` | `land_connectivity[270]` | `mapped` | fill `local_24==0`; rebuilt on blank export |
+| 540 | 32 | `0x945e` | `continent_tally_a[16]` | `mapped` | land terrain-class filter; rebuilt |
+| 572 | 32 | `0x85c8` | `continent_tally_b[16]` | `mapped` | land tile counts; rebuilt |
+| 604 | 4 | SS:`local_8` | `unknown_post_604` | `opaque` | not filled by 67f4; preserve / zero |
+| 608 | 4 | `0x8d80` | `unknown_ds_8d80` | `opaque` | not filled by 67f4 |
 | 612 | 2 | `0x190` | `unknown_ds_190` | `community` | smcol: low byte ≈ `prime_resource_seed` |
 
 Smcol’s post-connectivity carve (18+16+28+10+1+1) sums to the same **74** tail
 bytes but **does not** match these DOS writes — prefer DOS until P4 proves
-equivalence. **Never rebuilt** on new-game export (P3).
+equivalence.
+
+**Export rebuild (P3):** `col1_post_map_rebuild_connectivity` (`FUN_67f4_0088`)
+runs from `col1_bridge_capture` when `post_map` is all-zero (new-game template).
+Planes + tallies come from live terrain + layer3; the 10 B tail is preserved
+(zero on templates). COLONY00 check: tallies byte-exact; planes within 4/2
+byte drift (3 NE over-links — cheap pathfinder parity left for P4). Nonzero
+DOS `post_map` is left intact on RMW.
 
 ### Trade routes (74 × 12)
 
@@ -303,8 +310,8 @@ equivalence. **Never rebuilt** on new-game export (P3).
 | **P0 — Atlas** | Inventory every opaque hole | This document exists; all `unknown*` listed | **Done** |
 | **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments | Connectivity planes named; stuff chunk table; `ColonizeCol1PostMap` | **Done** |
 | **P2 — Absorb proven community names** | Rename head/nation/indian/unit/trade fields where smcol + decomp agree | Struct names match evidence; sizes unchanged; `smoke_col1_save` byte-identical | **Done** |
-| **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | Open |
-| **P4 — Deep leftovers** | Colony opaques, indian `unknown32`, stuff FA/counts, value ranges | Each field: allowed values + ≥1 DOS reader cite | Open |
+| **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | **Done** |
+| **P4 — Deep leftovers** | Colony opaques, indian `unknown32`, stuff FA/counts, pathfinder plane parity, value ranges | Each field: allowed values + ≥1 DOS reader cite | Open |
 
 ```mermaid
 flowchart TB
@@ -322,9 +329,9 @@ flowchart TB
   export --> deep
 ```
 
-### Suggested next peels (P3)
+### Suggested next peels (P4)
 
-1. Rebuild `post_map` sea/land connectivity (+ tallies) on new-game export from live map.
+1. Close residual `FUN_6662_0906` parity (3 NE over-links vs COLONY00 planes).
 2. Map early stuff 4-byte chunks (`0x8cfc`…`0x942c`) onto smcol FA / count fields.
 3. Prove `unknown_ds_190` / tail vs smcol `prime_resource_seed` + strategy cheat UI.
 4. Keep RMW sizes; do not invent blobs without decomp evidence.

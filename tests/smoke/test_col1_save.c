@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "core/col1_bridge.h"
+#include "core/col1_post_map.h"
 #include "core/col1_save.h"
 #include "core/assets.h"
 #include "core/colony.h"
@@ -772,10 +773,122 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "newgame template capture occupancy ok\n");
+    /* Blank template post_map must be rebuilt (FUN_67f4_0088) on capture. */
+    {
+      int sea_nz = 0;
+      int land_nz = 0;
+      for (size_t i = 0; i < COLONIZE_COL1_CONNECT_PLANE_SIZE; ++i) {
+        if (save.post_map.sea_connectivity[i]) {
+          sea_nz++;
+        }
+        if (save.post_map.land_connectivity[i]) {
+          land_nz++;
+        }
+      }
+      /* Artificial all-plains map: land plane should light up; sea may be empty. */
+      if (land_nz == 0) {
+        fprintf(stderr, "newgame export: post_map land connectivity still blank\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (save.post_map.unknown_ds_190 != 0 || save.post_map.unknown_post_604[0] != 0) {
+        fprintf(stderr, "newgame export: post_map tail should stay zero on template\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      (void)sea_nz;
+    }
     units_set_occupancy_map(NULL);
     col1_save_free(&save);
     map_free(&map);
     assets_msg_free(&names);
+  }
+
+  /* FUN_67f4_0088 rebuild vs COLONY00: tallies exact; planes near-match. */
+  {
+    ColonizeCol1Save orig;
+    col1_save_init(&orig);
+    if (!col1_save_read_file("original_saves/COLONY00.SAV", &orig, err, sizeof(err))) {
+      fprintf(stderr, "post_map rebuild: COLONY00 read failed: %s\n", err);
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, orig.head.map_size_x, orig.head.map_size_y, err, sizeof(err))) {
+      fprintf(stderr, "post_map rebuild: map_alloc: %s\n", err);
+      col1_save_free(&orig);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = col1_tile_to_mp_terrain(orig.map.tile[i]);
+      if (map.layer3 && orig.map.path) {
+        map.layer3[i] = orig.map.path[i];
+      }
+    }
+    ColonizeCol1PostMap rebuilt;
+    memset(&rebuilt, 0, sizeof(rebuilt));
+    /* Keep a distinctive tail to prove rebuild preserves it. */
+    rebuilt.unknown_ds_190 = 0x1234;
+    col1_post_map_rebuild_connectivity(&rebuilt, &map);
+    if (rebuilt.unknown_ds_190 != 0x1234) {
+      fprintf(stderr, "post_map rebuild: tail not preserved\n");
+      map_free(&map);
+      col1_save_free(&orig);
+      return 1;
+    }
+    for (int i = 0; i < 16; ++i) {
+      if (rebuilt.continent_tally_a[i] != orig.post_map.continent_tally_a[i] ||
+          rebuilt.continent_tally_b[i] != orig.post_map.continent_tally_b[i]) {
+        fprintf(
+          stderr,
+          "post_map rebuild: tally[%d] a=%u/%u b=%u/%u\n",
+          i,
+          (unsigned)rebuilt.continent_tally_a[i],
+          (unsigned)orig.post_map.continent_tally_a[i],
+          (unsigned)rebuilt.continent_tally_b[i],
+          (unsigned)orig.post_map.continent_tally_b[i]
+        );
+        map_free(&map);
+        col1_save_free(&orig);
+        return 1;
+      }
+    }
+    int sea_diff = 0;
+    int land_diff = 0;
+    for (size_t i = 0; i < COLONIZE_COL1_CONNECT_PLANE_SIZE; ++i) {
+      if (rebuilt.sea_connectivity[i] != orig.post_map.sea_connectivity[i]) {
+        sea_diff++;
+      }
+      if (rebuilt.land_connectivity[i] != orig.post_map.land_connectivity[i]) {
+        land_diff++;
+      }
+    }
+    /* Known: ≤3 bidirectional NE over-links (6 bytes) vs DOS cheap pathfinder. */
+    if (sea_diff > 6 || land_diff > 4) {
+      fprintf(
+        stderr,
+        "post_map rebuild: plane drift too high sea_diff=%d land_diff=%d\n",
+        sea_diff,
+        land_diff
+      );
+      map_free(&map);
+      col1_save_free(&orig);
+      return 1;
+    }
+    fprintf(
+      stderr,
+      "COLONY00 post_map rebuild ok (sea_diff=%d land_diff=%d)\n",
+      sea_diff,
+      land_diff
+    );
+    map_free(&map);
+    col1_save_free(&orig);
   }
 
   /* Original starters already consistent (sanity for the assert helper). */
