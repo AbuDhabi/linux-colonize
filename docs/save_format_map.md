@@ -18,7 +18,7 @@ inventing blobs.
 **Non-goals:**
 
 - Changing packed section sizes or breaking byte-identical fixture RMW
-- Inventing `unknown_e` / `unknown_f` / stuff contents without decomp proof
+- Inventing post_map / stuff contents without decomp proof
 - Treating community names (smcol / Format.md) as proven until matched to
   VICEROY DS / `FUN_*` (cite them as `community`, then promote)
 
@@ -78,10 +78,9 @@ Catalog: [FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md
 | `nation[4]` | 1264 | `ColonizeCol1Nation` |
 | `tribe[]` | 18 × T | `ColonizeCol1Tribe` |
 | `indian[8]` | 624 | `ColonizeCol1Indian` |
-| `stuff` | 727 | `ColonizeCol1Stuff` |
+| `stuff` | 727 | `ColonizeCol1Stuff` (33 DOS DS writes) |
 | Map ×4 (tile/mask/path/seen) | 4 × W × H | bitfield structs |
-| `unknown_e` | **504** | opaque blob |
-| `unknown_f` | **110** | opaque blob |
+| `post_map` | **614** | `ColonizeCol1PostMap` (was unknown_e+f) |
 | `trade_route[12]` | 888 | `ColonizeCol1TradeRoute` |
 
 ---
@@ -204,15 +203,57 @@ Export often **zeros** colony opaques on rebuild ([savegame.md](savegame.md)).
 
 ### Stuff (727)
 
+DOS `FUN_75c2_0288` writes **33** chunks (`FUN_1d1d_060c`); sizes sum to **727**.
+RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
+
+| File off | Size | DS | Notes |
+|----------|------|-----|-------|
+| 0 | 12 | `0x9566` | smcol `unknown34` |
+| 12 | 4 | `0x8cfc` | early nation/unit counts (smcol splits differently) |
+| 16 | 4 | `0x9298` | |
+| 20 | 4 | `0x9408` | |
+| 24 | 4 | `0x940c` | |
+| 28 | 4 | `0x9410` | |
+| 32 | 4 | `0x9180` | |
+| 36 | 4 | `0x9414` | |
+| 40 | 4 | `0x9418` | |
+| 44 | 8 | `0x941c` | |
+| 52 | 4 | `0x9424` | |
+| 56 | 4 | `0x9428` | |
+| 60 | 4 | `0x942c` | |
+| 64 | 76 | `0x924c` | FA report + unit_counts window (smcol ~76 B) |
+| 140 | 16 | `0x947e` | |
+| 156 | 16 | `0x95f2` | |
+| 172 | 64 | `0x94a6` | per-nation unit_counts (19 B × more than 4?) — smcol 4×19=76 starts earlier |
+| 236 | 64 | `0x94e6` | |
+| 300 | 64 | `0x95b2` | |
+| 364 | 64 | `0x9526` | |
+| 428 | 64 | `0x918c` | |
+| 492 | 64 | `0x9572` | |
+| 556 | 8 | `0x944e` | |
+| 564 | 1 | `0x336` | |
+| 565 | 8 | `0x9184` | tribe_data_* |
+| 573 | 8 | `0x9622` | |
+| 581 | 8 | `0x962a` | |
+| 589 | 128 | `0x91cc` | tribe dwellings / pad |
+| 717 | 2 | `0x8540` | `stuff.x` |
+| 719 | 2 | `0x853e` | `stuff.y` |
+| 721 | 2 | `0x184` | zoom / view trio (exact map TBD P2) |
+| 723 | 2 | `0x17c` | |
+| 725 | 2 | `0x17e` | |
+
+Port packing (unchanged sizes): `unknown34[15]` + colony counters + `unknown36[696]` +
+cursor/viewport. **`unknown36` is not connectivity** (status was `misaligned`;
+comment fixed). Smcol FA/unit-count names remain `community` until P2 aligns
+byte offsets to these DS chunks.
+
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `unknown34` | 15 | `community` | smcol: early unit/FA counts |
-| `counter_decreasing_on_new_colony` | 2 | `mapped` | |
-| `unknown35` | 2 | `opaque` | |
-| `counter_increasing_on_new_colony` | 2 | `mapped` | |
-| `unknown36` | **696** | `misaligned` | Port comment “downsampled connectivity” is **wrong** — connectivity is post-map. DOS writes ~33 stuff chunks; smcol maps FA report / unit counts / tribe tallies inside this span |
-| `x` / `y` / `zoom_level` / `viewport_*` | — | `mapped` | Cursor / view |
-| `unknown37` | 1 | `opaque` | |
+| `unknown34` | 15 | `partial` | First DOS chunk is 12 @ `0x9566` |
+| colony counters | 6 | `mapped` | decreasing / unknown35 / increasing |
+| `unknown36` | 696 | `community` | FA / counts / tribes — **not** connectivity |
+| `x` / `y` | 4 | `mapped` | DS `0x8540` / `0x853e` |
+| `zoom_level` / `unknown37` / `viewport_*` | 6 | `partial` | Last three DOS 2-byte writes |
 
 ### Map layers (W×H each)
 
@@ -223,14 +264,24 @@ Export often **zeros** colony opaques on rebuild ([savegame.md](savegame.md)).
 | `path` | `mapped` | Region + visitor |
 | `seen` | `mapped` | Fog / score nibbles |
 
-### Post-map blobs (`unknown_e` + `unknown_f`)
+### Post-map (`ColonizeCol1PostMap`, 614)
 
-| Port name | Size | Status | Notes |
-|-----------|------|--------|-------|
-| `unknown_e` | **504** | `misaligned` | Conventional “28×18”; decomp + smcol: start of **2×270** land/sea connectivity (15×18, pitch 18) at DS `0x86f6` / `0x85e8` (`FUN_67f4_0088`) |
-| `unknown_f` | **110** | `misaligned` | Remainder of 614 B after maps: connectivity tail + strategy / prime seed / etc. (smcol). **Never rebuilt** on new-game export |
+Replaces legacy `unknown_e[504]` + `unknown_f[110]` (same bytes). Proven from
+`FUN_75c2_0288` asm (`AX` length) + `FUN_67f4_0088` fill:
 
-Total post-map before trade routes: **614** bytes.
+| File off | Size | DS | Field | Status | Notes |
+|----------|------|-----|-------|--------|-------|
+| 0 | 270 | `0x86f6` | `sea_connectivity[270]` | `mapped` | 15×18 neighbor bits; fill `local_24==1` |
+| 270 | 270 | `0x85e8` | `land_connectivity[270]` | `mapped` | fill `local_24==0` |
+| 540 | 32 | `0x945e` | `continent_tally_a[16]` | `partial` | u16[16]; continent terrain tallies |
+| 572 | 32 | `0x85c8` | `continent_tally_b[16]` | `partial` | u16[16] |
+| 604 | 4 | SS:`local_8` | `unknown_post_604` | `opaque` | |
+| 608 | 4 | `0x8d80` | `unknown_ds_8d80` | `opaque` | |
+| 612 | 2 | `0x190` | `unknown_ds_190` | `community` | smcol: low byte ≈ `prime_resource_seed` |
+
+Smcol’s post-connectivity carve (18+16+28+10+1+1) sums to the same **74** tail
+bytes but **does not** match these DOS writes — prefer DOS until P2 proves
+equivalence. **Never rebuilt** on new-game export (P3).
 
 ### Trade routes (74 × 12)
 
@@ -246,7 +297,7 @@ Total post-map before trade routes: **614** bytes.
 | Phase | Scope | Exit criteria | Status |
 |-------|--------|---------------|--------|
 | **P0 — Atlas** | Inventory every opaque hole | This document exists; all `unknown*` listed | **Done** |
-| **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments in `col1_save.h` | Connectivity planes named correctly; stuff subfields outlined | Open |
+| **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments | Connectivity planes named; stuff chunk table; `ColonizeCol1PostMap` | **Done** |
 | **P2 — Absorb proven community names** | Rename head/nation/indian/unit fields where smcol + decomp agree (visibility nibble, price groups, trade stops, …) | Struct names match evidence; sizes unchanged; `smoke_col1_save` byte-identical | Open |
 | **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | Open |
 | **P4 — Deep leftovers** | Colony opaques, indian `unknown32`, stuff FA/counts, value ranges | Each field: allowed values + ≥1 DOS reader cite | Open |
@@ -267,12 +318,12 @@ flowchart TB
   export --> deep
 ```
 
-### Suggested next peels (P1)
+### Suggested next peels (P2)
 
-1. Walk `FUN_75c2_0288` write list: order, size, DS address of every chunk after `indian[]`.
-2. Match `FUN_67f4_0088` outputs to the two 270-byte planes; document pitch 18 / 15×18.
-3. Diff stuff bytes across `COLONY00` vs TURN* / SEED100 to locate FA / unit-count windows (smcol cross-check).
-4. Only then rename port fields / fix `unknown36` comment — keep RMW sizes.
+1. Map early stuff 4-byte chunks (`0x8cfc`…`0x942c`) onto smcol FA / count fields.
+2. Prove `unknown_ds_190` / tail vs smcol `prime_resource_seed` + strategy cheat UI.
+3. Absorb unit `unused06` visibility nibbles and head `unknown46` price groups with DS cites.
+4. Keep RMW sizes; rename only with evidence.
 
 ---
 

@@ -50,10 +50,9 @@ original; pure new-game templates leave many of them zero.
 | `nation[4]` | 316 × 4 = 1264 | Gold, tax, FF, Europe market |
 | `tribe[]` | 18 × tribe_count | Indian villages |
 | `indian[8]` | 78 × 8 = 624 | Per-tribe nation data |
-| `stuff` | 727 | Viewport + unknown (incl. connectivity) |
+| `stuff` | 727 | 33 DS writes (`FUN_75c2_0288`); see [save_format_map.md](save_format_map.md) |
 | Map layers ×4 | `map_w × map_h` each | Standard 58×72 (56×70 visible + border) |
-| `unknown_e` | 504 | 28 × 18 repeating records |
-| `unknown_f` | 110 | Trailing unknown |
+| `post_map` | 614 | Sea/land connectivity 2×270 + continent tallies + 10 B tail (`ColonizeCol1PostMap`) |
 | `trade_route[12]` | 74 × 12 = 888 | Always 12 slots |
 
 Total size formula:
@@ -61,7 +60,7 @@ Total size formula:
 ```
 390
 + 202*colonies + 28*units + 1264 + 18*tribes + 624 + 727
-+ 4*map_w*map_h + 504 + 110 + 888
++ 4*map_w*map_h + 614 + 888
 ```
 
 ## API
@@ -128,10 +127,10 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 These survive capture today and may still fault or desync DOS play after the
 occupancy fix:
 
-- `unknown_e` (504) / `unknown_f` (110) — zero on new-game templates; not rebuilt
-  (likely mis-split connectivity planes — see atlas `misaligned`)
+- `post_map` (614) — zero on new-game templates; not rebuilt (sea/land
+  connectivity + tallies; see [save_format_map.md](save_format_map.md))
 - Most of `stuff` beyond viewport — counters only preserved on RMW; `unknown36`
-  is **not** connectivity
+  is FA/unit/tribe blobs, **not** connectivity
 - Colony opaque fields (`unknown08`, `duration[]`, …) — zeroed on colony rebuild
 - Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
   (`COLONY00` has many bit5/`pacific` tiles; template exports often only occupancy)
@@ -140,7 +139,7 @@ occupancy fix:
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
 rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`
-case). The same file still has fully zero `unknown_e`/`unknown_f` and a mask
+case). The same file still has fully zero `post_map` and a mask
 lacking DOS `pacific`/`suppress` density — next DOS load may pass UNITFLAG and
 fail later, or play with missing opaque state. Do not invent those blobs without
 decomp evidence.

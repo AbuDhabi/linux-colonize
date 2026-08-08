@@ -16,11 +16,14 @@
  *   nation[4]              @ 316 bytes each (= 1264)
  *   tribe[tribe_count]     @  18 bytes each   (Indian villages)
  *   indian[8]              @  78 bytes each   (= 624)
- *   stuff                  @ 727 bytes
+ *   stuff                  @ 727 bytes (= 33 discrete DS writes in FUN_75c2_0288)
  *   map.tile/mask/path/seen @ map_w * map_h each (standard 58x72)
- *   unknown_e              @ 504 (= 28 * 18)
- *   unknown_f              @ 110
+ *   post_map               @ 614 (= sea/land connectivity 2×270 + tallies + tail)
  *   trade_route[12]        @  74 bytes each (= 888)
+ *
+ * Post-map is NOT “28×18 mystery records”: FUN_67f4_0088 builds two 15×18
+ * (pitch 18) neighbor-bitmask planes at DS:0x86f6 (sea) and DS:0x85e8 (land);
+ * FUN_75c2_0288 writes them then continent tallies + a 10-byte tail.
  *
  * Multi-byte integers are little-endian. Bitfields assume GCC/Clang
  * LSB-first packing on little-endian hosts (matches DOS saves).
@@ -51,6 +54,12 @@
 #define COLONIZE_COL1_STUFF_SIZE 727u
 #define COLONIZE_COL1_MAP_W_STD 58u
 #define COLONIZE_COL1_MAP_H_STD 72u
+/* Post-map (after seen[]): FUN_75c2_0288 / FUN_67f4_0088. */
+#define COLONIZE_COL1_CONNECT_PLANE_W 15u
+#define COLONIZE_COL1_CONNECT_PLANE_H 18u
+#define COLONIZE_COL1_CONNECT_PLANE_SIZE 270u /* 15×18 */
+#define COLONIZE_COL1_POST_MAP_SIZE 614u
+/* Legacy aliases: unknown_e|f was a conventional 504+110 split of post_map. */
 #define COLONIZE_COL1_UNKNOWN_E_SIZE 504u
 #define COLONIZE_COL1_UNKNOWN_F_SIZE 110u
 #define COLONIZE_COL1_TRADE_ROUTE_SIZE 74u
@@ -359,19 +368,44 @@ typedef struct ColonizeCol1Indian {
   uint16_t alarm_by_player[4];
 } ColonizeCol1Indian;
 
+/*
+ * Stuff (727): FUN_75c2_0288 writes 33 DS chunks (not one contiguous RAM block).
+ * Chunk sizes sum to 727; see docs/save_format_map.md §Stuff. Port keeps one
+ * packed blob for RMW. Named counters/viewport match the last five writes.
+ *
+ * unknown36 is NOT map connectivity (that is post_map). It holds FA report /
+ * per-nation unit counts / tribe tallies / padding (smcol outlines; P2 rename).
+ */
 typedef struct ColonizeCol1Stuff {
-  uint8_t unknown34[15];
+  uint8_t unknown34[15]; /* DOS: 0x9566×12 + first 3 of following 4-byte chunk */
   uint16_t counter_decreasing_on_new_colony;
   uint8_t unknown35[2];
   uint16_t counter_increasing_on_new_colony;
-  uint8_t unknown36[696]; /* includes downsampled connectivity maps */
-  uint16_t x;
-  uint16_t y;
-  uint8_t zoom_level;
+  uint8_t unknown36[696]; /* FA / unit counts / tribe blobs — NOT connectivity */
+  uint16_t x; /* DS:0x8540 */
+  uint16_t y; /* DS:0x853e */
+  uint8_t zoom_level; /* among DS:0x184 / 0x17c / 0x17e trio — exact byte TBD P2 */
   uint8_t unknown37;
   uint16_t viewport_x;
   uint16_t viewport_y;
 } ColonizeCol1Stuff;
+
+/*
+ * Post-map (614): immediately after map.seen. Save order from FUN_75c2_0288 asm:
+ *   sea 0x10e @ DS:0x86f6, land 0x10e @ DS:0x85e8,
+ *   tally_a 0x20 @ DS:0x945e, tally_b 0x20 @ DS:0x85c8,
+ *   4 + 4 + 2 tail (SS:local_8, DS:0x8d80, DS:0x190).
+ * Planes filled by FUN_67f4_0088 (15×18 neighbor bitmasks, pitch 18).
+ */
+typedef struct ColonizeCol1PostMap {
+  uint8_t sea_connectivity[COLONIZE_COL1_CONNECT_PLANE_SIZE];
+  uint8_t land_connectivity[COLONIZE_COL1_CONNECT_PLANE_SIZE];
+  uint16_t continent_tally_a[16];
+  uint16_t continent_tally_b[16];
+  uint8_t unknown_post_604[4];
+  uint8_t unknown_ds_8d80[4];
+  uint16_t unknown_ds_190; /* smcol: low byte often prime_resource_seed */
+} ColonizeCol1PostMap;
 
 typedef struct ColonizeCol1Tile {
   uint8_t base : 3;
@@ -440,8 +474,7 @@ typedef struct ColonizeCol1Save {
   ColonizeCol1Indian indian[COLONIZE_COL1_INDIAN_COUNT];
   ColonizeCol1Stuff stuff;
   ColonizeCol1Map map;
-  uint8_t unknown_e[COLONIZE_COL1_UNKNOWN_E_SIZE];
-  uint8_t unknown_f[COLONIZE_COL1_UNKNOWN_F_SIZE];
+  ColonizeCol1PostMap post_map;
   ColonizeCol1TradeRoute trade_route[COLONIZE_COL1_TRADE_ROUTE_COUNT];
   bool owned; /* true if colony/unit/tribe/map buffers owned by this struct */
 } ColonizeCol1Save;
