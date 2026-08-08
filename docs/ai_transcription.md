@@ -270,7 +270,7 @@ VGA-identical dialog polish remain correctly **PARKED** (see R0 / R5).
 |--:|-------|--------|
 | 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); deep `2820` / gift-amount / VGA remain PARKED |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; VGA / `160a` / dump-goods remain PARKED |
-| 3 | Founding Fathers **deeper effect table** | OPEN leftovers: Sepulveda / Cortes (hooks missing); Minuit + Franklin + Brebeuf + Las Casas **Done**; Congress UI PARKED |
+| 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery **Done**; Sepulveda join% + KINGGALLEON2 still PARK; Congress UI PARKED |
 | 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep `20e6` only; fields / Drydock / Shipyard / FOOD / workplace / construction pick **Done** |
 | 5 | Indian×Euro `15b3` + fuller `153e` | **Done** structural + Privateer spawn **Done** (8g prize PARK); FA `3f41` full UI PARKED |
 | 6 | `manual_gap.md` hygiene | Done this pass |

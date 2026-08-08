@@ -367,6 +367,118 @@ static int smoke_naval_war_hunt(void) {
 }
 
 /*
+ * Ship under enemy Fort battery flees to safe water (Marathon8 AI wire).
+ * Cite: FUN_364b_03f6; ai_euro_naval_try_flee_fort_fire.
+ */
+static int smoke_naval_flee_fort_fire(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("flee-fort alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  /* Land colony tile at (5,5); ship starts at (5,4) under battery. */
+  map.terrain[5 + 5 * 16] = 1;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 3;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
+  colonies.building_type_count = 1;
+  ColonizeColony* col = &colonies.colonies[0];
+  col->id = 0;
+  col->active = true;
+  col->nation_id = foe;
+  col->x = 5;
+  col->y = 5;
+  col->population = 3;
+  col->has_building[0] = true;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 5, 4);
+  ColonizeUnit* ship = units_get(&units, own_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("flee-fort spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 4;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("flee-fort expected war");
+  }
+
+  ai_goals_reset();
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  ship = units_get(&units, own_id);
+  if (!ship || !ship->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("flee-fort ship should survive");
+  }
+  /* Left the battery ring (not adjacent to Fort colony). */
+  const int adj = abs(ship->x - 5) <= 1 && abs(ship->y - 5) <= 1 && !(ship->x == 5 && ship->y == 5);
+  if (adj) {
+    fprintf(stderr, "flee-fort still adjacent at %d,%d\n", ship->x, ship->y);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected ship to flee Fort battery adjacency");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: naval flee fort fire ok (%d,%d)\n", ship->x, ship->y);
+  return 0;
+}
+
+/*
  * Privateer hunt: at war, named Privateer with a prior west-explore sail goto
  * re-aims AI_SAIL toward enemy sea (commerce raid). Cite: euro_unit_act §2b;
  * europe Privateer; fandom Drake Privateer.
@@ -4392,6 +4504,9 @@ int main(void) {
     return 1;
   }
   if (smoke_naval_war_hunt() != 0) {
+    return 1;
+  }
+  if (smoke_naval_flee_fort_fire() != 0) {
     return 1;
   }
   if (smoke_privateer_war_hunt() != 0) {

@@ -350,7 +350,7 @@ static void turn_produce_one_colony(
   }
 
   /* Settlement manufacturing (raw → goods) before hammers consume lumber. */
-  colony_craft_one_colony(pool, colony, delta);
+  colony_craft_one_colony(pool, colony, delta, colony_prod_sol_bonus(col1, colony));
   if (delta) {
     delta->lumber = delta->goods[COLONIZE_CARGO_LUMBER];
     delta->ore = delta->goods[COLONIZE_CARGO_ORE];
@@ -428,6 +428,8 @@ static void turn_produce_one_colony(
   if (europe) {
     (void)europe_custom_house_autosell(europe, pool, colony, col1, human_nation);
   }
+  /* Spoilage after Custom House (wiki Custom House before spoilage). */
+  (void)colonies_apply_warehouse_spoilage(pool, colony);
 }
 
 void turn_run_colony_production(
@@ -448,6 +450,19 @@ void turn_run_colony_production(
       );
     }
   }
+}
+
+int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->units || !ctx->colonies || !ctx->map) {
+    return 0;
+  }
+  return units_coastal_fort_fire_pulse(
+    ctx->units,
+    ctx->colonies,
+    ctx->map,
+    ctx->col1_ok ? ctx->col1 : NULL,
+    ctx->rng
+  );
 }
 
 void turn_colony_free_production(
@@ -501,11 +516,32 @@ static int turn_count_bells_and_crosses_for_nation(
     int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
     const int sol_b = colony_prod_sol_bonus(col1, c);
     if (sol_b > 0) {
-      if (b > 0) {
-        b += sol_b; /* thin: +sol once per colony with bells; per-worker deepen PARK */
+      /* SoL +1/+2 per production unit (building_production.md). */
+      int bell_workers = 0;
+      int cross_workers = 0;
+      for (int p = 0; p < c->colonist_count; ++p) {
+        const ColonizeColonist* col = &c->colonists[p];
+        if (!col->active || col->building_type < 0 ||
+            col->building_type >= pool->building_type_count) {
+          continue;
+        }
+        const char* bn = pool->building_types[col->building_type].name;
+        if (colony_prod_bells_worker(bn, col->profession) > 0) {
+          bell_workers++;
+        }
+        if (colony_prod_crosses_worker(bn, col->profession) > 0) {
+          cross_workers++;
+        }
       }
-      if (x > 0) {
-        x += sol_b;
+      if (bell_workers > 0) {
+        b += sol_b * bell_workers;
+      } else if (b > 0) {
+        b += sol_b; /* Town Hall / press passive unit */
+      }
+      if (cross_workers > 0) {
+        x += sol_b * cross_workers;
+      } else if (x > 0) {
+        x += sol_b; /* church passive / colony base */
       }
     }
     bells += b;
@@ -760,6 +796,8 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->human_nation,
         &proc->result
       );
+      /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
+      (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);
       proc->nation_cursor = 0;
       {

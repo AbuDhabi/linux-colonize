@@ -8,6 +8,7 @@
 #include "core/dos_rng.h"
 #include "core/col1_save.h"
 #include "core/founding_fathers.h"
+#include "core/ai_diplo.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
@@ -1815,6 +1816,155 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "smoke_units: fortification defense + treasure capture ok\n");
+  }
+
+  /* Coastal Fort/Fortress naval fire (FUN_364b_03f6). */
+  {
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+    snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
+    snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Fortress");
+    colonies.building_type_count = 3;
+
+    int cx = -1, cy = -1, wx = -1, wy = -1;
+    for (int y = 1; y < map.height - 1 && cx < 0; ++y) {
+      for (int x = 1; x < map.width - 1; ++x) {
+        if (!map_tile_is_land(&map, x, y)) {
+          continue;
+        }
+        static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+        static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+        for (int d = 0; d < 8; ++d) {
+          const int nx = x + dx[d];
+          const int ny = y + dy[d];
+          if (map_tile_is_water(&map, nx, ny)) {
+            cx = x;
+            cy = y;
+            wx = nx;
+            wy = ny;
+            break;
+          }
+        }
+        if (cx >= 0) {
+          break;
+        }
+      }
+    }
+    if (cx < 0) {
+      fprintf(stderr, "no coastal tile for fort-fire smoke\n");
+      return 1;
+    }
+
+    ColonizeColony* col = &colonies.colonies[0];
+    col->id = 0;
+    col->active = true;
+    col->nation_id = 0;
+    col->x = cx;
+    col->y = cy;
+    col->population = 3;
+    colonies.colony_count = 1;
+    col->has_building[1] = true; /* Fort */
+
+    if (units_coastal_fort_attack_strength(&colonies, col, &pool) != 4) {
+      fprintf(stderr, "Fort strength want 4 got %d\n",
+              units_coastal_fort_attack_strength(&colonies, col, &pool));
+      return 1;
+    }
+    col->has_building[2] = true; /* Fortress overrides */
+    if (units_coastal_fort_attack_strength(&colonies, col, &pool) != 8) {
+      fprintf(stderr, "Fortress strength want 8 got %d\n",
+              units_coastal_fort_attack_strength(&colonies, col, &pool));
+      return 1;
+    }
+    const int art_ti = units_find_type(&pool, "Artillery");
+    if (art_ti < 0) {
+      fprintf(stderr, "Artillery type missing for fort-fire smoke\n");
+      return 1;
+    }
+    const int art_id = units_spawn_allow_stack(&pool, art_ti, cx, cy);
+    ColonizeUnit* art = units_get(&pool, art_id);
+    if (!art) {
+      fprintf(stderr, "Artillery spawn failed\n");
+      return 1;
+    }
+    art->nation_id = 0;
+    if (units_coastal_fort_attack_strength(&colonies, col, &pool) != 16) {
+      fprintf(stderr, "Fortress+1 arty want 16 got %d\n",
+              units_coastal_fort_attack_strength(&colonies, col, &pool));
+      return 1;
+    }
+    units_despawn(&pool, art_id);
+    col->has_building[2] = false; /* Fort only, strength 4 */
+
+    ColonizeCol1Save fcol1;
+    memset(&fcol1, 0, sizeof(fcol1));
+    /* Unclaimed FF slots must be -1 (memset 0 → nation 0 falsely owns Franklin). */
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      fcol1.head.founding_father[i] = -1;
+    }
+    ai_diplo_declare_war(&fcol1, 0, 1);
+    if (!ai_diplo_at_war(&fcol1, 0, 1)) {
+      fprintf(stderr, "fort-fire smoke: declare_war 0 vs 1 failed\n");
+      return 1;
+    }
+
+    const int caravel_ti = units_find_type(&pool, "Caravel");
+    if (caravel_ti < 0) {
+      fprintf(stderr, "Caravel missing for fort-fire smoke\n");
+      return 1;
+    }
+    const int old_def = pool.types[caravel_ti].defense;
+    pool.types[caravel_ti].defense = 2; /* Fort atk 4 >= 2 → sink */
+
+    const int foe_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
+    ColonizeUnit* foe = units_get(&pool, foe_id);
+    if (!foe) {
+      fprintf(stderr, "enemy ship spawn failed\n");
+      return 1;
+    }
+    foe->nation_id = 1;
+
+    const int sunk =
+      units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL);
+    if (sunk < 1 || (units_get(&pool, foe_id) && units_get(&pool, foe_id)->active)) {
+      fprintf(stderr, "Fort at war should sink adjacent enemy ship (sunk=%d)\n", sunk);
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+
+    /* Peace: no fire (unless Privateer). */
+    ai_diplo_make_peace(&fcol1, 0, 1);
+    const int peace_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
+    foe = units_get(&pool, peace_id);
+    foe->nation_id = 1;
+    if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL) != 0) {
+      fprintf(stderr, "Fort at peace should not sink Caravel\n");
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+    units_despawn(&pool, peace_id);
+
+    const int priv_ti = units_find_type(&pool, "Privateer");
+    if (priv_ti >= 0) {
+      const int old_pdef = pool.types[priv_ti].defense;
+      pool.types[priv_ti].defense = 2;
+      const int pid = units_spawn_allow_stack(&pool, priv_ti, wx, wy);
+      ColonizeUnit* pr = units_get(&pool, pid);
+      pr->nation_id = 1;
+      const int psunk =
+        units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL);
+      if (psunk < 1 || (units_get(&pool, pid) && units_get(&pool, pid)->active)) {
+        fprintf(stderr, "Fort should sink Privateer at peace\n");
+        pool.types[priv_ti].defense = old_pdef;
+        pool.types[caravel_ti].defense = old_def;
+        return 1;
+      }
+      pool.types[priv_ti].defense = old_pdef;
+    }
+
+    pool.types[caravel_ti].defense = old_def;
+    fprintf(stderr, "smoke_units: coastal fort naval fire ok\n");
   }
 
   /* LCR rumour: clear + de Soto reveal path. */

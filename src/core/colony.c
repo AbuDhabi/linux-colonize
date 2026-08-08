@@ -1415,6 +1415,24 @@ int colonies_warehouse_capacity(
   return cap;
 }
 
+int colonies_apply_warehouse_spoilage(ColonizeColonyPool* pool, ColonizeColony* colony) {
+  if (!colony || !colony->active) {
+    return 0;
+  }
+  int spoiled = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    const int cap = colonies_warehouse_capacity(pool, colony, c);
+    if (cap <= 0) {
+      continue;
+    }
+    if (colony->stock[c] > cap) {
+      spoiled += colony->stock[c] - cap;
+      colony->stock[c] = cap;
+    }
+  }
+  return spoiled;
+}
+
 int colonies_transfer_to_unit(
   ColonizeColonyPool* pool,
   int colony_id,

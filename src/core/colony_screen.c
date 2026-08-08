@@ -153,7 +153,8 @@ void colony_screen_refresh_preview(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  const ColonizeWorldMap* map
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1
 ) {
   if (!view) {
     return;
@@ -162,7 +163,7 @@ void colony_screen_refresh_preview(
     view->preview_valid = false;
     return;
   }
-  colony_preview_compute(pool, colony, map, &view->preview);
+  colony_preview_compute(pool, colony, map, col1, &view->preview);
   view->preview_valid = true;
 }
 
@@ -3033,7 +3034,7 @@ void colony_screen_render(
     colony_screen_refresh_outside(view, units, colony);
   }
   if (view && pool && colony) {
-    colony_screen_refresh_preview(view, pool, colony, map);
+    colony_screen_refresh_preview(view, pool, colony, map, col1);
   }
 
   colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);

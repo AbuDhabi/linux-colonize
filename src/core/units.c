@@ -1200,6 +1200,168 @@ bool units_resolve_naval_combat_ff(
   return false;
 }
 
+int units_coastal_fort_attack_strength(
+  const ColonizeColonyPool* colonies,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units
+) {
+  if (!colonies || !colony || !colony->active || !units) {
+    return 0;
+  }
+  int tier = 0;
+  const int fortress = colonies_find_building(colonies, "Fortress");
+  if (fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fortress]) {
+    tier = 2;
+  } else {
+    const int fort = colonies_find_building(colonies, "Fort");
+    if (fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[fort]) {
+      tier = 1;
+    }
+  }
+  if (tier <= 0) {
+    return 0;
+  }
+  int arty = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || !units_is_on_map(u) || u->x != colony->x || u->y != colony->y) {
+      continue;
+    }
+    if (u->nation_id != colony->nation_id) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(units, u->type_index);
+    if (!t) {
+      continue;
+    }
+    if (strstr(t->name, "Artillery") != NULL || strstr(t->name, "Cannon") != NULL) {
+      arty++;
+    }
+  }
+  /* FUN_364b_03f6: local_12 starts at 1, +1 per artillery → (1+arty)*tier*4. */
+  return 4 * tier * (1 + arty);
+}
+
+static int units_fort_fire_is_hostile(
+  const ColonizeCol1Save* col1,
+  int owner_nation,
+  const ColonizeUnit* ship,
+  const ColonizeUnitType* st
+) {
+  if (!ship || ship->nation_id == owner_nation) {
+    return 0;
+  }
+  if (st && strstr(st->name, "Privateer") != NULL) {
+    return 1;
+  }
+  if (!col1 || owner_nation < 0 || owner_nation > 3) {
+    return 0;
+  }
+  if (ship->nation_id >= 0 && ship->nation_id <= 3) {
+    return ai_diplo_at_war(col1, owner_nation, ship->nation_id);
+  }
+  if (ship->nation_id >= 4 && ship->nation_id <= 11) {
+    return ai_diplo_indian_at_war(col1, owner_nation, ship->nation_id - 4);
+  }
+  return 0;
+}
+
+/*
+ * Fort battery vs one ship: attack strength vs ship defense (Drake scales
+ * Privateer defense). Winner sink only — no temp attacker to despawn/plunder.
+ */
+static bool units_fort_vs_ship(
+  ColonizeUnitPool* pool,
+  int attack_str,
+  int defender_id,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeUnit* def = units_get(pool, defender_id);
+  if (!def || !def->active || !units_is_sea(pool, defender_id) || attack_str <= 0) {
+    return false;
+  }
+  const ColonizeUnitType* dt = units_type(pool, def->type_index);
+  if (!dt) {
+    return false;
+  }
+  int defense = dt->defense;
+  if (defense < 0) {
+    defense = 0;
+  }
+  defense = units_drake_scale_strength(pool, def, defense, col1);
+  const int total = attack_str + defense;
+  bool atk_wins = false;
+  if (total <= 0) {
+    atk_wins = true;
+  } else if (!rng) {
+    atk_wins = attack_str >= defense;
+  } else {
+    const int roll = dos_rng_range(rng, 1, total);
+    atk_wins = roll <= attack_str;
+  }
+  if (atk_wins) {
+    units_despawn(pool, defender_id);
+    return true;
+  }
+  return false;
+}
+
+int units_coastal_fort_fire_pulse(
+  ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng
+) {
+  if (!units || !colonies || !map) {
+    return 0;
+  }
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int sunk = 0;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    const ColonizeColony* col = &colonies->colonies[ci];
+    if (!col->active) {
+      continue;
+    }
+    const int atk = units_coastal_fort_attack_strength(colonies, col, units);
+    if (atk <= 0) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int nx = col->x + k_dx[d];
+      const int ny = col->y + k_dy[d];
+      if (!map_tile_is_water(map, nx, ny)) {
+        continue;
+      }
+      /* Snapshot ids: combat may despawn mid-scan. */
+      int targets[COLONIZE_UNITS_MAX];
+      int n_tg = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units->units[i];
+        if (!u->active || !units_is_on_map(u) || u->x != nx || u->y != ny) {
+          continue;
+        }
+        if (!units_is_sea(units, u->id)) {
+          continue;
+        }
+        const ColonizeUnitType* st = units_type(units, u->type_index);
+        if (!units_fort_fire_is_hostile(col1, col->nation_id, u, st)) {
+          continue;
+        }
+        targets[n_tg++] = u->id;
+      }
+      for (int t = 0; t < n_tg; ++t) {
+        if (units_fort_vs_ship(units, atk, targets[t], rng, col1)) {
+          sunk++;
+        }
+      }
+    }
+  }
+  return sunk;
+}
+
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,

@@ -4,6 +4,8 @@
 #include "core/colony.h"
 #include "core/map.h"
 
+typedef struct ColonizeCol1Save ColonizeCol1Save;
+
 /*
  * Non-mutating this-turn production preview for the colony screen
  * (area badges, people meters, multifunction Production).
@@ -24,6 +26,7 @@ void colony_preview_compute(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   ColonizeColonyPreview* out
 );
 

@@ -2282,7 +2282,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_364b_0000` | 56822 | 60 | colony | Colony message/confirm dialog (title from DS:0x8542+2; may set mode 337) | inferred |  |
 | `FUN_364b_0114` | 56882 | 95 | colony | Complete construction project; apply upgrades/flags and reset hammers | inferred |  |
 | `FUN_364b_033a` | 56977 | 39 | colony | Area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7 | inferred |  |
-| `FUN_364b_03f6` | 57016 | 107 | colony | Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean | inferred |  |
+| `FUN_364b_03f6` | 57016 | 107 | colony | Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean | **Done** thin (`units_coastal_fort_fire_pulse`); ship-slow PARK |
 | `FUN_364b_0636` | 57123 | 29 | colony | Customs-house auto-sell gate for cargo type | inferred |  |
 | `FUN_364b_0688` | 57152 | 803 | colony | Colony EOT production/stock/SoL/construction tick (DS:0x8542) | inferred |  |
 | `FUN_364b_1aec` | 57955 | 15 | colony | Bind colony; assign unit into workplace via 2f3e | inferred |  |

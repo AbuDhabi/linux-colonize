@@ -90,7 +90,29 @@ static int ai_euro_nation_wants_construction_labor(
  * Naval Docks→Drydock→Shipyard; docs/building_production.md Stockade 64h /
  * Fort 120h / Fortress 320h / Warehouse 80h / Dock 52h. No invented hammer/gold
  * buyouts — queue only.
+ * Near warehouse capacity (≥90% any non-food stock) with Warehouse already
+ * built → prefer Warehouse Expansion before Docks (spoilage FUN_15eb_0a50).
+ * Does not yank Fort/Fortress ahead of defense chain.
  */
+static int ai_euro_colony_near_warehouse_cap(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c
+) {
+  if (!pool || !c) {
+    return 0;
+  }
+  for (int cargo = 0; cargo < COLONIZE_CARGO_COUNT; ++cargo) {
+    if (cargo == COLONIZE_CARGO_FOOD) {
+      continue;
+    }
+    const int cap = colonies_warehouse_capacity(pool, c, cargo);
+    if (cap > 0 && c->stock[cargo] * 10 >= cap * 9) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
     return;
@@ -99,12 +121,17 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
   const int fort_id = colonies_find_building(ctx->colonies, "Fort");
   const int fortress_id = colonies_find_building(ctx->colonies, "Fortress");
   const int warehouse_id = colonies_find_building(ctx->colonies, "Warehouse");
+  const int whe_id = colonies_find_building(ctx->colonies, "Warehouse Expansion");
   const int docks_id = colonies_find_building(ctx->colonies, "Docks");
   if (stockade_id < 0 && fort_id < 0 && fortress_id < 0 && warehouse_id < 0 && docks_id < 0) {
     return;
   }
   /* Defense chain before storage/docks so Fort % live after Stockade. */
-  const int prefer[] = {stockade_id, fort_id, fortress_id, warehouse_id, docks_id};
+  const int prefer_def[] = {stockade_id, fort_id, fortress_id, warehouse_id, docks_id};
+  /* Near-cap + Warehouse owned: Expansion before Docks (still after Fort chain). */
+  const int prefer_exp[] = {
+    stockade_id, fort_id, fortress_id, warehouse_id, whe_id, docks_id
+  };
   ColoniesBuildableOpts opts;
   memset(&opts, 0, sizeof(opts));
   opts.map = ctx->map;
@@ -116,11 +143,19 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
     if (c->building_in_production >= 0) {
       continue; /* idle/empty queue only — do not yank active project */
     }
+    const int has_wh =
+      warehouse_id >= 0 && warehouse_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[warehouse_id];
+    const int use_exp =
+      has_wh && whe_id >= 0 && ai_euro_colony_near_warehouse_cap(ctx->colonies, c);
+    const int* prefer = use_exp ? prefer_exp : prefer_def;
+    const size_t nprefer =
+      use_exp ? (sizeof(prefer_exp) / sizeof(prefer_exp[0]))
+              : (sizeof(prefer_def) / sizeof(prefer_def[0]));
     int buildable[COLONIZE_BUILDING_TYPES_MAX];
     const int n =
       colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
     int pick = -1;
-    for (size_t p = 0; p < sizeof(prefer) / sizeof(prefer[0]); ++p) {
+    for (size_t p = 0; p < nprefer; ++p) {
       const int want = prefer[p];
       if (want < 0) {
         continue;
@@ -4201,6 +4236,13 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
 /* --- 20e6 scoring (land Manhattan + ocean/ship branch) ----------------- */
 
+static int ai_euro_tile_under_enemy_fort_fire(
+  ColonizeTurnContext* ctx,
+  int viewer_nation,
+  int x,
+  int y
+);
+
 static int ai_euro_ocean_score_step(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
@@ -4260,6 +4302,10 @@ static int ai_euro_ocean_score_step(
     }
     if (on_hs && west_explore && step_hs && dx[d] < 0) {
       score += 6; /* HS west-explore: prefer westward HS tiles */
+    }
+    /* Avoid enemy Fort/Fortress batteries (FUN_364b_03f6). */
+    if (ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, nx, ny)) {
+      score -= 800;
     }
     if (ctx->rng) {
       score += dos_rng_range(ctx->rng, 0, 2);
@@ -4857,6 +4903,105 @@ static int ai_euro_war_transport_target(
  * Thin naval war hunt (5b66 case 0x0b act-level): nearest enemy sea unit or
  * coastal water by a foreign Euro colony at war. Full 20e6 combat scoring PARKED.
  */
+/*
+ * True when (x,y) is adjacent ocean under an enemy Fort/Fortress battery
+ * (FUN_364b_03f6 / units_coastal_fort_attack_strength). Cite: Marathon8 peel.
+ */
+static int ai_euro_tile_under_enemy_fort_fire(
+  ColonizeTurnContext* ctx,
+  int viewer_nation,
+  int x,
+  int y
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->map) {
+    return 0;
+  }
+  if (!map_tile_is_water(ctx->map, x, y)) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id == viewer_nation || c->nation_id < 0 || c->nation_id > 3) {
+      continue;
+    }
+    if (!ai_diplo_at_war(ctx->col1, viewer_nation, c->nation_id)) {
+      continue;
+    }
+    if (units_coastal_fort_attack_strength(ctx->colonies, c, ctx->units) <= 0) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      if (c->x + dx[d] == x && c->y + dy[d] == y) {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+/*
+ * If ship sits under enemy fort fire, step to adjacent safe water (thin flee).
+ * Returns 1 if a flee move was attempted. Cite: FUN_364b_03f6 danger zone.
+ */
+static int ai_euro_naval_try_flee_fort_fire(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !u->active || u->moves_left <= 0) {
+    return 0;
+  }
+  if (!units_is_sea(ctx->units, u->id) || ai_euro_in_europe(u->x, u->y)) {
+    return 0;
+  }
+  if (!ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, u->x, u->y)) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int best_d = -1;
+  int best_dist = -1;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    if (!map_tile_is_water(ctx->map, nx, ny)) {
+      continue;
+    }
+    if (ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, nx, ny)) {
+      continue;
+    }
+    if (!units_can_enter(ctx->units, u->type_index, ctx->map, nx, ny, u->id, ctx->colonies)) {
+      continue;
+    }
+    /* Prefer step that increases distance from nearest fort colony. */
+    int dist = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id == u->nation_id) {
+        continue;
+      }
+      if (units_coastal_fort_attack_strength(ctx->colonies, c, ctx->units) <= 0) {
+        continue;
+      }
+      const int md = abs(c->x - nx) + abs(c->y - ny);
+      if (md > dist) {
+        dist = md;
+      }
+    }
+    if (best_d < 0 || dist > best_dist) {
+      best_d = d;
+      best_dist = dist;
+    }
+  }
+  if (best_d < 0) {
+    return 0;
+  }
+  const int tx = u->x + dx[best_d];
+  const int ty = u->y + dy[best_d];
+  if (units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng)) {
+    return 1;
+  }
+  return 0;
+}
+
 static int ai_euro_naval_war_hunt_target(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -4883,6 +5028,10 @@ static int ai_euro_naval_war_hunt_target(
     if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
       continue;
     }
+    /* Skip foe parked under coastal fort batteries (FUN_364b_03f6). */
+    if (ai_euro_tile_under_enemy_fort_fire(ctx, nation_id, f->x, f->y)) {
+      continue;
+    }
     const int dist = abs(f->x - from_x) + abs(f->y - from_y);
     if (best < 0 || dist < best) {
       best = dist;
@@ -4903,6 +5052,9 @@ static int ai_euro_naval_war_hunt_target(
       int wx = 0;
       int wy = 0;
       if (!ai_euro_coastal_water_near(ctx->map, c->x, c->y, from_x, from_y, &wx, &wy)) {
+        continue;
+      }
+      if (ai_euro_tile_under_enemy_fort_fire(ctx, nation_id, wx, wy)) {
         continue;
       }
       const int dist = abs(wx - from_x) + abs(wy - from_y);
@@ -5504,6 +5656,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
       /* Drop Soldier at threatened own coastal colony before hunt sail. */
       (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+      /* Leave enemy Fort/Fortress battery tiles before hunt/attack. */
+      if (ai_euro_naval_try_flee_fort_fire(ctx, u)) {
+        u = units_get(ctx->units, u->id);
+        if (!u || !u->active) {
+          return;
+        }
+      }
       const char* sname = units_display_name(ctx->units, u);
       const int is_privateer = sname && strstr(sname, "Privateer") != NULL;
       /* Galleon/Frigate with passenger space: prefer threatened own coastal

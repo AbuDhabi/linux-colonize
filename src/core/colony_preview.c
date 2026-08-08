@@ -5,6 +5,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include <string.h>
 
 int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y) {
   int best_job = -1;
@@ -44,6 +45,7 @@ void colony_preview_compute(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   ColonizeColonyPreview* out
 ) {
   if (!out) {
@@ -55,6 +57,7 @@ void colony_preview_compute(
   }
 
   const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+  const int sol_b = colony_prod_sol_bonus(col1, colony);
 
   if (map) {
     ColonizeTownCommonsYield tc;
@@ -81,9 +84,12 @@ void colony_preview_compute(
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
         continue;
       }
-      const int yld = colony_yield_for_worker(
+      int yld = colony_yield_for_worker(
         map, colony->x + dx, colony->y + dy, c->field_job, c->profession
       );
+      if (yld > 0 && sol_b > 0) {
+        yld += sol_b;
+      }
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
         out->goods[cargo] += yld;
@@ -107,7 +113,7 @@ void colony_preview_compute(
       scratch.stock[i] += out->goods[i];
     }
     ColonizeColonyProdDelta craft_delta;
-    colony_craft_preview(pool, &scratch, out->shortfall, &craft_delta);
+    colony_craft_preview(pool, &scratch, out->shortfall, &craft_delta, sol_b);
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
       out->goods[i] += craft_delta.goods[i];
     }
@@ -115,10 +121,32 @@ void colony_preview_compute(
 
   out->crosses = colony_prod_colony_crosses(pool, colony);
   out->bells = colony_prod_colony_bells(pool, colony);
+  if (sol_b > 0) {
+    if (out->bells > 0) {
+      out->bells += sol_b;
+    }
+    if (out->crosses > 0) {
+      out->crosses += sol_b;
+    }
+  }
 
   if (colony->building_in_production >= 0) {
     int lumber_use = 0;
-    const int hammers = colony_prod_colony_hammers(pool, colony, &lumber_use);
+    int hammers = colony_prod_colony_hammers(pool, colony, &lumber_use);
+    if (hammers > 0 && sol_b > 0) {
+      int carpenters = 0;
+      for (int ci = 0; ci < colony->colonist_count; ++ci) {
+        const ColonizeColonist* cc = &colony->colonists[ci];
+        if (!cc->active || cc->building_type < 0) {
+          continue;
+        }
+        const char* bn = pool->building_types[cc->building_type].name;
+        if (bn && (strstr(bn, "Carpenter") != NULL || strstr(bn, "Lumber Mill") != NULL)) {
+          carpenters++;
+        }
+      }
+      hammers += sol_b * carpenters;
+    }
     if (hammers > 0) {
       int lumber = colony->stock[COLONIZE_CARGO_LUMBER] + out->goods[COLONIZE_CARGO_LUMBER];
       if (lumber_use > lumber) {

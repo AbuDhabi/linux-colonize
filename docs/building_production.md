@@ -240,11 +240,11 @@ Bold entries on the manual chart = free at colony founding. **`**`** = requires 
 
 ## Production modifiers (sentiment & difficulty)
 
-Documented in manual ch. independence / colony people view; **not yet applied** in the Linux port preview/EOT (planned).
+Documented in manual ch. independence / colony people view; applied in EOT production (field/craft/hammers/bells/crosses). Preview craft path may omit Col1 SoL until screen has save bridge.
 
 | Condition | Effect on **all** colony production |
 |-----------|--------------------------------------|
-| Sons of Liberty ≥ **50%** | **+1** to each production unit (field + manufacturing + bells/crosses) | Field + hammers wired (`colony_prod_sol_bonus`); craft deepen next |
+| Sons of Liberty ≥ **50%** | **+1** to each production unit (field + manufacturing + bells/crosses) | Field, hammers, craft, bells/crosses wired (`colony_prod_sol_bonus`); Tory −1 PARK |
 | Sons of Liberty = **100%** | **+1** again (total **+2** at full SoL) | Same |
 | Tory share above threshold | **−1** to all production; threshold depends on difficulty (**10** Discoverer … **6** Viceroy) | PARK |
 
@@ -268,7 +268,7 @@ output(worker, building) = tier_rate(building) × class_factor(effective_class) 
 input(worker, building)  = output(...) × (factory ? 6/9 : 1)   // 1:1 except factory 6→9
 ```
 
-`class_factor`: criminal/convert → manufacturing floor **1**; indentured → **2/3** of tier rate; free (and unmatched experts) → tier baseline; matched Master/Expert → ×2 on class-scaled baseline. **Sentiment bonus not yet applied.** Shortfalls appear when Σ input demand > warehouse stock + same-turn field intake for that cargo.
+`class_factor`: criminal/convert → manufacturing floor **1**; indentured → **2/3** of tier rate; free (and unmatched experts) → tier baseline; matched Master/Expert → ×2 on class-scaled baseline. **SoL sentiment** (+1/+2 per worker) applied in EOT craft/hammers/fields; preview craft may omit until Col1 bridged. Shortfalls appear when Σ input demand > warehouse stock + same-turn field intake for that cargo.
 
 ---
 

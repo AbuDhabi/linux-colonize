@@ -59,6 +59,11 @@ station-keeping get `AI_SAIL` toward the nearest enemy sea unit or coastal water
 beside a foreign colony at war. Adjacent enemy ships call `ai_euro_try_attack` /
 `units_resolve_naval_combat`. Deep `20e6` naval combat scoring stays **PARKED** (ocean/T3).
 
+**Coastal Fort/Fortress fire (Marathon8):** EOT `units_coastal_fort_fire_pulse`
+(`FUN_364b_03f6`). AI: flee battery adjacency before hunt; war-hunt skips
+fort-fire tiles; ocean score −800 into batteries. Cite: fandom Fort/Fortress;
+ship-slow formula still **PARKED**.
+
 **Privateer deepen:** display-name Privateer always re-aims hunt (even with a prior
 sail goto) — commerce-raid stand-in; reuse `naval_war_hunt_target`. Cite: Europe
 Privateer purchase; fandom Drake Privateer combat strength.

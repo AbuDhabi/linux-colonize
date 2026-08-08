@@ -834,7 +834,7 @@ int main(void) {
         return 1;
       }
       ColonizeColonyPreview prev;
-      colony_preview_compute(&pool, colonies_get(&pool, cid), &map, &prev);
+      colony_preview_compute(&pool, colonies_get(&pool, cid), &map, NULL, &prev);
       if (prev.food_fish <= 0 || prev.food_fish > prev.food_produced ||
           prev.goods[COLONIZE_CARGO_FOOD] != prev.food_produced) {
         fprintf(

@@ -290,7 +290,8 @@ void colony_screen_refresh_preview(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  const ColonizeWorldMap* map
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1
 );
 
 ColonyScreenHitResult colony_screen_hit_test(
