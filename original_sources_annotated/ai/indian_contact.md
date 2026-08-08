@@ -180,13 +180,15 @@ stays **PARK** (Linux kills only when displace is blocked).
 converts (`NAMES` `@JOB` Convert / profession 27) assimilate as free colonists
 (profession 19) on elect + FF ownership tick in `founding_fathers.c` — not the
 missionary convert-pulse path.  **Sepulveda** convert-join remains **PARKED** (no 2820/4528 join hook).
- **Cortes** conquest treasure: **Done** structural — `units_try_native_settlement_fallout`
+ **Cortes** conquest treasure: **Done** — `units_try_native_settlement_fallout`
  wired from `units_resolve_land_combat_ff` when `units_set_native_fallout_context`
- is set; `units_spawn_treasure_train` only when caller supplies `gold_amount > 0`.
- FUN_5fef_31ea amount table **PARKED** (no invented population×N gold). On destroy,
- `nation.villages_burned++` (col1_save / reports villages_penalty). Thin Brave
- escort via `units_follow_unit` (raid-gate goto preference) and @RAIDBURN
- `colonies_destroy_building` + building-name status: **Done** thin.
+ is set; `units_cortes_conquest_treasure_gold` peels FUN_5fef_31ea when
+ `gold_amount<=0` (caller-known amount still wins). AI live path verified via
+ `units_resolve_land_combat` + turn_refresh fallout context (smoke). rich_capital
+ (-0xcc) **PARKED** as 0. KINGGALLEON2 / non-Cortes treasure chrome **PARKED**.
+ On destroy, `nation.villages_burned++` (col1_save / reports villages_penalty).
+ Thin Brave escort via `units_follow_unit` (raid-gate goto preference) and
+ @RAIDBURN `colonies_destroy_building` + building-name status: **Done** thin.
 
 **Washington AI combat col1:** **Done** — `units_resolve_land_combat` uses
 `g_units_ff_col1` (was always NULL).

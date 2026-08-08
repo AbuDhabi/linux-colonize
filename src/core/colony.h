@@ -11,6 +11,8 @@
 
 /* Forward declaration to avoid pulling in font headers. */
 typedef struct ColonizeFont ColonizeFont;
+typedef struct ColonizeCol1Save ColonizeCol1Save;
+typedef struct ColonizeUnitPool ColonizeUnitPool;
 
 #define COLONIZE_COLONIES_MAX 32
 #define COLONIZE_COLONY_NAME_MAX 28
@@ -136,9 +138,6 @@ int colonies_found(
   int muskets,
   int horses
 );
-
-/* Forward decl — Indian land purchase uses Col1 tribe/FF state. */
-typedef struct ColonizeCol1Save ColonizeCol1Save;
 
 /*
  * Gold to buy Indian homeland tile (FUN_4cc6_07c2). Manual/wiki Minuit:
@@ -331,6 +330,33 @@ int colonies_transfer_from_unit(
   int hold_index,
   bool* out_warehouse_full
 );
+
+/*
+ * Jan de Witt: transfer cargo between a transport and a *foreign* European
+ * colony (stock only — no gold/price). Requires
+ * founding_fathers_de_witt_allows_foreign_colony_trade for the unit's nation,
+ * unit on the colony tile, foreign Euro owner, and !ai_diplo_at_war.
+ * Cite: docs/fandom_col1994.md Jan de Witt. AI trade act PARKED.
+ */
+int colonies_de_witt_transfer_from_colony(
+  ColonizeColonyPool* pool,
+  int foreign_colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount,
+  const ColonizeCol1Save* col1
+);
+int colonies_de_witt_transfer_to_colony(
+  ColonizeColonyPool* pool,
+  int foreign_colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index,
+  const ColonizeCol1Save* col1,
+  bool* out_warehouse_full
+);
+
 /* Best cargo type for L-key load (excludes horses/tools/muskets); -1 if none. */
 int colonies_best_load_cargo(const ColonizeColony* colony);
 

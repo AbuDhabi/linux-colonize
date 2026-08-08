@@ -7,6 +7,7 @@
 #include "core/col1_save.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
+#include "core/ai_diplo.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
@@ -1470,6 +1471,78 @@ int colonies_transfer_from_unit(
     }
   }
   return move;
+}
+
+static int colonies_de_witt_trade_ok(
+  const ColonizeColonyPool* pool,
+  int foreign_colony_id,
+  const ColonizeUnitPool* units,
+  int unit_id,
+  const ColonizeCol1Save* col1
+) {
+  /*
+   * Jan de Witt foreign-colony trade gate. Cite: fandom Jan de Witt;
+   * founding_fathers_de_witt_allows_foreign_colony_trade.
+   */
+  if (!pool || !units || !col1) {
+    return 0;
+  }
+  const ColonizeColony* col = colonies_get(pool, foreign_colony_id);
+  const ColonizeUnit* u = units_get_const(units, unit_id);
+  if (!col || !col->active || !u || !u->active || !units_is_on_map(u)) {
+    return 0;
+  }
+  if (u->nation_id < 0 || u->nation_id > 3 || col->nation_id < 0 || col->nation_id > 3) {
+    return 0;
+  }
+  if (col->nation_id == u->nation_id) {
+    return 0; /* own colony uses normal transfer APIs */
+  }
+  if (u->x != col->x || u->y != col->y) {
+    return 0;
+  }
+  if (!founding_fathers_de_witt_allows_foreign_colony_trade(col1, u->nation_id)) {
+    return 0;
+  }
+  if (ai_diplo_at_war(col1, u->nation_id, col->nation_id)) {
+    return 0;
+  }
+  return 1;
+}
+
+int colonies_de_witt_transfer_from_colony(
+  ColonizeColonyPool* pool,
+  int foreign_colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount,
+  const ColonizeCol1Save* col1
+) {
+  if (!colonies_de_witt_trade_ok(pool, foreign_colony_id, units, unit_id, col1)) {
+    return 0;
+  }
+  return colonies_transfer_to_unit(pool, foreign_colony_id, units, unit_id, cargo_type, amount);
+}
+
+int colonies_de_witt_transfer_to_colony(
+  ColonizeColonyPool* pool,
+  int foreign_colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index,
+  const ColonizeCol1Save* col1,
+  bool* out_warehouse_full
+) {
+  if (!colonies_de_witt_trade_ok(pool, foreign_colony_id, units, unit_id, col1)) {
+    if (out_warehouse_full) {
+      *out_warehouse_full = false;
+    }
+    return 0;
+  }
+  return colonies_transfer_from_unit(
+    pool, foreign_colony_id, units, unit_id, hold_index, out_warehouse_full
+  );
 }
 
 int colonies_best_load_cargo(const ColonizeColony* colony) {

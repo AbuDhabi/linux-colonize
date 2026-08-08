@@ -146,16 +146,15 @@ indian_contact.md.
 
 Toward `AI_GOAL_FOUND`, `AI_GOAL_MILITARY`, or `AI_GOAL_CONTACT`, or when
 act-level land war hunt / peace-border wake / scout explore set the goto,
-after one scored advance a second `advance` is allowed in the same act while
-`moves_left` remain (thin `20e6` multi-step). Full combat multi-step scoring
-stays **PARKED**.
+scored advances **drain `moves_left`** in the same act (thin `20e6` MP
+full-drain; was hard-cap 2). Full combat multi-step scoring stays **PARKED**.
 
 ### 2c4. Linux thin — multi-step naval sail (AI_SAIL)
 
 Ships on `AI_SAIL` use scored ocean steps (same `ai_euro_score_move` /
-`ai_euro_ocean_score_step` as land) with a **second** step while `moves_left`
-remain — mirror land 2-step. Replaces full `units_advance_goto` drain so HS
-west-explore bias applies per step. Full ocean combat `20e6` stays **PARKED**.
+`ai_euro_ocean_score_step` as land) and **drain `moves_left`** — mirror land
+MP-drain. Replaces full `units_advance_goto` so HS west-explore bias applies
+per step. Full ocean combat `20e6` stays **PARKED**.
 
 ### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
 

@@ -5120,9 +5120,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
     /*
      * Case 0x0b ship sail: preserve landfall/sail goto. Scored ocean steps
-     * (thin 20e6) with a second step while moves_left remain — mirror land
-     * FOUND/MILITARY 2-step multi-act. Arrival clears via station-keep below
-     * (do not yank to distant FOUND). Full ocean combat scoring PARKED.
+     * (thin 20e6) drain moves_left — mirror land FOUND/MILITARY MP-drain.
+     * Arrival clears via station-keep below. Full ocean combat scoring PARKED.
      */
     int gx = u->goto_x;
     int gy = u->goto_y;
@@ -5137,7 +5136,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       u->orders = UNITS_ORDER_AI_SAIL;
     }
     if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
-      for (int step = 0; step < 2; ++step) {
+      for (;;) {
         if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
           break;
         }
@@ -5999,20 +5998,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * Land goto advance (thin 20e6 multi-step): one scored step; when goal is
-   * FOUND / MILITARY / CONTACT, or act-level land war hunt / peace-border /
-   * scout explore, allow a second step while moves_left remain. Structural
-   * only — not full combat scoring. Cite: euro_unit_act §2c3; FUN_521d_20e6.
-   * Deep 20e6 multi-step combat scoring remains PARKED.
+   * Land goto advance (thin 20e6 multi-step): scored steps while moves_left
+   * remain for FOUND / MILITARY / CONTACT, or act-level land war hunt /
+   * peace-border / scout explore. Structural only — not full combat scoring.
+   * Cite: euro_unit_act §2c3; FUN_521d_20e6. Deep combat×8 / −0x6790 PARKED.
    */
   if (units_orders_follow_goto(u->orders)) {
-    const int multi =
+    const int drain =
       (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY ||
        goal_code == AI_GOAL_CONTACT || land_war_hunted || peace_border_hunted ||
-       scout_explored)
-        ? 2
-        : 1;
-    for (int step = 0; step < multi; ++step) {
+       scout_explored);
+    /* drain: while MP left; else one scored step (prior non-multi path). */
+    for (;;) {
       if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
         break;
       }
@@ -6033,6 +6030,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       }
       if (!units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng)) {
         break;
+      }
+      if (!drain) {
+        break; /* single step for non-FOUND/MILITARY/CONTACT/hunt/scout */
       }
     }
   } else {

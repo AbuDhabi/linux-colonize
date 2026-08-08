@@ -94,7 +94,7 @@ bool founding_fathers_de_witt_allows_foreign_colony_trade(
 ) {
   /*
    * docs/fandom_col1994.md Jan de Witt — foreign-colony trade allowed.
-   * Ownership only; transfer API PARKED. FA detail already peeks FF 4.
+   * Ownership gate; cargo via colonies_de_witt_transfer_* (no gold invent).
    */
   return founding_fathers_nation_has(col1, nation, FF_JAN_DE_WITT);
 }
@@ -105,8 +105,8 @@ bool founding_fathers_cortes_guarantees_conquest_treasure(
 ) {
   /*
    * docs/fandom_col1994.md Hernan Cortes — conquered native settlements always
-   * yield more treasure. Ownership gate for FUN_5fef_31ea-shaped spawn callers
-   * (units_spawn_treasure_train). No gold amount invented here.
+   * yield more treasure. Ownership gate; amount via units_cortes_conquest_treasure_gold
+   * (FUN_5fef_31ea peel) when fallout gold_amount<=0.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
 }
@@ -586,7 +586,7 @@ static void apply_effect(
       /* docs/fandom_col1994.md: trade with foreign colonies; FA more revealing.
        * Ownership gate: founding_fathers_de_witt_allows_foreign_colony_trade.
        * FA detailed strength already peeks head.founding_father[4] (reports).
-       * PARKED: foreign-colony cargo transfer (no transfer API; no invent gold). */
+       * Cargo: colonies_de_witt_transfer_* (stock only; AI trade act PARKED). */
       break;
     case FF_FERDINAND_MAGELLAN:
       /* Manual/wiki: all naval vessels +1 movement (permanent). */
@@ -614,12 +614,11 @@ static void apply_effect(
     case FF_HERNAN_CORTES:
       /* API ready (docs/fandom_col1994.md Hernan Cortes; Colonization.pdf FF):
        * founding_fathers_cortes_guarantees_conquest_treasure +
-       * units_spawn_treasure_train for conquest yield; free king-galleon via
-       * founding_fathers_cortes_free_king_galleon (cash-in tax = @KINGGALLEON3
-       * in europe_cash_treasure — no KINGGALLEON2 extra %). Call site wired:
-       * units_try_native_settlement_fallout from units_resolve_land_combat_ff
-       * when units_set_native_fallout_context is set. Spawn only when caller
-       * supplies gold_amount > 0 — FUN_5fef_31ea amount table still PARKED. */
+       * units_cortes_conquest_treasure_gold (FUN_5fef_31ea peel) +
+       * units_spawn_treasure_train; free king-galleon via
+       * founding_fathers_cortes_free_king_galleon. Fallout wired from
+       * units_resolve_land_combat_ff when fallout context set. rich_capital
+       * (-0xcc) still PARKED as 0. */
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.

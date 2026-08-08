@@ -1456,11 +1456,12 @@ int main(void) {
     units_despawn(&pool, tid);
   }
 
-  /* Native settlement conquer: tribe remove + Cortes does not invent gold. */
+  /* Native settlement conquer: tribe remove + Cortes peels FUN_5fef_31ea gold. */
   {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.head.tribe_count = 1;
+    col1.head.difficulty = 0;
     col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
     if (!col1.tribe) {
       fprintf(stderr, "tribe alloc failed\n");
@@ -1509,6 +1510,8 @@ int main(void) {
     pool.types[soldier_ti].attack = 99;
     pool.types[brave_ti].defense = 1;
 
+    ColonizeDosRng crng;
+    dos_rng_seed(&crng, 42);
     units_set_native_fallout_context(&col1, &tmap, -1);
     if (col1.nation[0].villages_burned != 0) {
       free(tmap.layer3);
@@ -1516,7 +1519,7 @@ int main(void) {
       fprintf(stderr, "conquer: villages_burned should start 0\n");
       return 1;
     }
-    if (!units_resolve_land_combat_ff(&pool, sid, bid, NULL, &col1)) {
+    if (!units_resolve_land_combat_ff(&pool, sid, bid, &crng, &col1)) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer combat: attacker should win\n");
@@ -1545,6 +1548,7 @@ int main(void) {
       fprintf(stderr, "conquer: village tile should be unowned 0xf\n");
       return 1;
     }
+    int peel_gold = -1;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = &pool.units[i];
       if (!u->active || u->aboard_ship_id >= 0) {
@@ -1553,12 +1557,17 @@ int main(void) {
       if (u->x == 10 && u->y == 10) {
         const ColonizeUnitType* tt = units_type(&pool, u->type_index);
         if (tt && strcmp(tt->name, "Treasure") == 0) {
-          free(tmap.layer3);
-          free(col1.tribe);
-          fprintf(stderr, "Cortes conquest must not invent treasure when gold unknown\n");
-          return 1;
+          peel_gold = u->hold_goods_amount[0] | (u->hold_goods_amount[1] << 8);
+          break;
         }
       }
+    }
+    /* Diff 0 + Cortes + non-Spanish: amount 2..4 then ×1.5 → gold 300/400/600. */
+    if (peel_gold != 300 && peel_gold != 400 && peel_gold != 600) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "Cortes peel treasure gold got %d want 300|400|600\n", peel_gold);
+      return 1;
     }
 
     /* Known gold path: Cortes spawns treasure when caller supplies amount. */

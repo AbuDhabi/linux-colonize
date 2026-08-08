@@ -1211,8 +1211,8 @@ static int smoke_scout_fog_prefer_unseen(void) {
 }
 
 /*
- * Thin multi-step land 20e6: Soldier with moves_left>=2 on MILITARY goto advances
- * two tiles in one dispatcher act when path is clear.
+ * Thin multi-step land 20e6: Soldier with moves_left>=3 on MILITARY goto drains
+ * scored steps in one dispatcher act when path is clear (MP full-drain).
  */
 static int smoke_multistep_military(void) {
   const int nation = 1;
@@ -1237,7 +1237,7 @@ static int smoke_multistep_military(void) {
   units_reset(&units);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
-  units.types[0].movement = 3;
+  units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
   units.types[0].attack = 2;
   units.types[0].defense = 2;
@@ -1276,7 +1276,7 @@ static int smoke_multistep_military(void) {
     return fail("multistep spawn soldier");
   }
   soldier->nation_id = nation;
-  soldier->moves_left = 3;
+  soldier->moves_left = 4;
   soldier->orders = 0;
 
   ColonizeCol1Save col1;
@@ -1316,10 +1316,10 @@ static int smoke_multistep_military(void) {
     return fail("multistep soldier inactive");
   }
   const int advanced = soldier->x - x0;
-  if (advanced < 2) {
+  if (advanced < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: multistep x %d→%d (want ≥2) orders=%d goto=(%d,%d)\n",
+      "smoke_ai_euro_expand: multistep x %d→%d (want ≥3) orders=%d goto=(%d,%d)\n",
       x0,
       soldier->x,
       soldier->orders,
@@ -1329,7 +1329,7 @@ static int smoke_multistep_military(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected MILITARY multi-step advance of 2 tiles");
+    return fail("expected MILITARY MP-drain advance of ≥3 tiles");
   }
 
   free(map.terrain);
@@ -1337,7 +1337,7 @@ static int smoke_multistep_military(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: MILITARY multi-step ok (x %d→%d)\n",
+    "smoke_ai_euro_expand: MILITARY MP-drain ok (x %d→%d)\n",
     x0,
     soldier->x
   );

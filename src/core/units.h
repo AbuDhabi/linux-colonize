@@ -24,8 +24,8 @@ void units_set_ff_col1(const ColonizeCol1Save* col1);
  * Optional post-win native settlement fallout context for
  * units_resolve_land_combat_ff (FUN_5fef_31ea-shaped). When col1/map are non-NULL
  * and attacker beats defender nation>=4, units_try_native_settlement_fallout runs.
- * conquest_gold: caller-known treasure amount, or -1 when unknown (Cortes gate
- * skips spawn — no invented FUN_5fef_31ea amounts). Pass NULL map to disable.
+ * conquest_gold: caller-known treasure amount, or -1 → Cortes peels FUN_5fef_31ea
+ * amount via combat rng (non-Cortes still skips). Pass NULL map to disable.
  */
 void units_set_native_fallout_context(
   ColonizeCol1Save* col1,
@@ -47,10 +47,22 @@ int col1_destroy_tribe_at(
 );
 
 /*
+ * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte).
+ * rich_capital: stack-local -0xcc (PARK 0 until mapped). Returns 0 if no
+ * treasure / no rng. Cite: viceroy_unpacked.c ~101407–101495.
+ */
+int units_cortes_conquest_treasure_gold(
+  const ColonizeCol1Save* col1,
+  int attacker_nation_id,
+  ColonizeDosRng* rng,
+  int rich_capital
+);
+
+/*
  * Post-win fallout stand-in for FUN_5fef_31ea (structural):
  * If defender was native on a tribe tile and no other same-nation Braves remain
- * on that tile after win, destroy tribe. Cortes treasure only when gold_amount>0
- * (caller-known); else PARK — do not invent population*N gold. May adjust Indian
+ * on that tile after win, destroy tribe. Cortes treasure when gold_amount>0
+ * (caller-known) or gold_amount<=0 with Cortes + rng peel. May adjust Indian
  * relation via ai_diplo helpers when col1 is set.
  */
 bool units_try_native_settlement_fallout(
@@ -61,7 +73,8 @@ bool units_try_native_settlement_fallout(
   int defender_nation_id,
   int tile_x,
   int tile_y,
-  int gold_amount
+  int gold_amount,
+  ColonizeDosRng* rng
 );
 
 /*

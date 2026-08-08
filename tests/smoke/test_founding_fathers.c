@@ -1,7 +1,9 @@
 /* Smoke: liberty-bell threshold elects FF with manual/wiki-aligned effects. */
+#include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -1537,6 +1539,83 @@ int main(void) {
     }
   }
 
+  /* de Witt foreign-colony cargo transfer (stock only; no gold). */
+  {
+    ColonizeCol1Save dcol1;
+    col1_save_init(&dcol1);
+    seed_unclaimed(&dcol1);
+
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* home = &pool.colonies[0];
+    memset(home, 0, sizeof(*home));
+    home->active = true;
+    home->id = 0;
+    home->nation_id = 1; /* foreign French */
+    home->x = 3;
+    home->y = 3;
+    home->building_in_production = -1;
+    home->stock[COLONIZE_CARGO_SUGAR] = 40;
+    pool.colony_count = 1;
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    units.types[0].cargo = 4;
+    units.types[0].movement = 4;
+    const int uid = units_spawn(&units, 0, 3, 3);
+    ColonizeUnit* ship = units_get(&units, uid);
+    if (!ship) {
+      return fail("de Witt ship spawn");
+    }
+    ship->nation_id = 0; /* English */
+
+    /* Without FF: refuse. */
+    if (colonies_de_witt_transfer_from_colony(
+          &pool, 0, &units, uid, COLONIZE_CARGO_SUGAR, 10, &dcol1
+        ) != 0) {
+      return fail("de Witt transfer must refuse without FF");
+    }
+
+    dcol1.head.founding_father[FF_JAN_DE_WITT] = 0;
+    dcol1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
+      (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
+    const int moved = colonies_de_witt_transfer_from_colony(
+      &pool, 0, &units, uid, COLONIZE_CARGO_SUGAR, 10, &dcol1
+    );
+    if (moved != 10 || home->stock[COLONIZE_CARGO_SUGAR] != 30) {
+      fprintf(stderr, "de Witt from_colony moved=%d stock=%d\n", moved, home->stock[COLONIZE_CARGO_SUGAR]);
+      return fail("de Witt with FF should load sugar from foreign colony");
+    }
+    /* Unload back into foreign warehouse. */
+    int hold = -1;
+    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+      if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_type[h] == COLONIZE_CARGO_SUGAR) {
+        hold = h;
+        break;
+      }
+    }
+    if (hold < 0) {
+      return fail("de Witt ship should hold sugar");
+    }
+    const int back = colonies_de_witt_transfer_to_colony(
+      &pool, 0, &units, uid, hold, &dcol1, NULL
+    );
+    if (back != 10 || home->stock[COLONIZE_CARGO_SUGAR] != 40) {
+      return fail("de Witt to_colony should unload sugar into foreign stock");
+    }
+    /* At war: refuse. */
+    ai_diplo_declare_war(&dcol1, 0, 1);
+    home->stock[COLONIZE_CARGO_SUGAR] = 40;
+    if (colonies_de_witt_transfer_from_colony(
+          &pool, 0, &units, uid, COLONIZE_CARGO_SUGAR, 5, &dcol1
+        ) != 0) {
+      return fail("de Witt transfer must refuse while at war");
+    }
+  }
+
   /* Sepulveda / de Soto LCR / de Witt — ownership gates; de Soto LCR wired. */
   {
     ColonizeCol1Save gcol1;
@@ -1614,6 +1693,107 @@ int main(void) {
       return fail("de Soto LCR must reveal tile");
     }
     map_free(&lmap);
+  }
+
+  /*
+   * Slice C: AI combat wrapper + fallout context + Cortes → treasure gold>0
+   * (FUN_5fef_31ea peel). Uses units_resolve_land_combat (g_units_ff_col1 path).
+   */
+  {
+    ColonizeCol1Save ccol1;
+    col1_save_init(&ccol1);
+    seed_unclaimed(&ccol1);
+    ccol1.head.difficulty = 0;
+    ccol1.head.tribe_count = 1;
+    ccol1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+    if (!ccol1.tribe) {
+      return fail("Cortes AI tribe alloc");
+    }
+    ccol1.tribe[0].x = 5;
+    ccol1.tribe[0].y = 5;
+    ccol1.tribe[0].nation_id = 4;
+    ccol1.head.founding_father[FF_HERNAN_CORTES] = 0;
+    ccol1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] |=
+      (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
+
+    ColonizeWorldMap cmap;
+    memset(&cmap, 0, sizeof(cmap));
+    cmap.width = 16;
+    cmap.height = 16;
+    cmap.tile_count = 256;
+    cmap.terrain = calloc(256, 1);
+    cmap.layer2 = calloc(256, 1);
+    cmap.layer3 = calloc(256, 1);
+    if (!cmap.terrain || !cmap.layer2 || !cmap.layer3) {
+      free(ccol1.tribe);
+      map_free(&cmap);
+      return fail("Cortes AI map alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      cmap.terrain[i] = 1;
+    }
+    cmap.layer3[5 * 16 + 5] = (uint8_t)((4u << 4) | 1u);
+
+    ColonizeUnitPool upool;
+    units_reset(&upool);
+    memset(upool.types, 0, sizeof(upool.types));
+    upool.type_count = 3;
+    snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Soldiers");
+    upool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    upool.types[0].movement = 3;
+    upool.types[0].attack = 99;
+    upool.types[0].defense = 2;
+    snprintf(upool.types[1].name, sizeof(upool.types[1].name), "Braves");
+    upool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    upool.types[1].movement = 1;
+    upool.types[1].attack = 0;
+    upool.types[1].defense = 0;
+    snprintf(upool.types[2].name, sizeof(upool.types[2].name), "Treasure");
+    upool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    upool.types[2].movement = 1;
+
+    const int sid = units_spawn_allow_stack(&upool, 0, 5, 5);
+    const int bid = units_spawn_allow_stack(&upool, 1, 5, 5);
+    ColonizeUnit* soldier = units_get(&upool, sid);
+    ColonizeUnit* brave = units_get(&upool, bid);
+    if (!soldier || !brave) {
+      free(ccol1.tribe);
+      map_free(&cmap);
+      return fail("Cortes AI spawn");
+    }
+    soldier->nation_id = 0;
+    brave->nation_id = 4;
+
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 7);
+    /* AI path: turn_refresh arms FF+fallout; land_combat wrapper uses g_units_ff_col1. */
+    turn_refresh_moves_for_nation(&upool, 0, &ccol1, &cmap);
+    units_set_native_fallout_context(&ccol1, &cmap, -1);
+    if (!units_resolve_land_combat(&upool, sid, bid, &rng)) {
+      free(ccol1.tribe);
+      map_free(&cmap);
+      return fail("Cortes AI combat should win");
+    }
+    int gold = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &upool.units[i];
+      if (!u->active || u->x != 5 || u->y != 5) {
+        continue;
+      }
+      const ColonizeUnitType* tt = units_type(&upool, u->type_index);
+      if (tt && strcmp(tt->name, "Treasure") == 0) {
+        gold = u->hold_goods_amount[0] | (u->hold_goods_amount[1] << 8);
+        break;
+      }
+    }
+    if (gold <= 0) {
+      free(ccol1.tribe);
+      map_free(&cmap);
+      return fail("Cortes AI path must spawn treasure with peeled gold>0");
+    }
+    free(ccol1.tribe);
+    map_free(&cmap);
+    fprintf(stderr, "smoke_founding_fathers: Cortes AI treasure gold=%d ok\n", gold);
   }
 
   printf("smoke_founding_fathers: OK\n");
