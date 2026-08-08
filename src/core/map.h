@@ -31,6 +31,12 @@
 /* Runtime tile improvements (synced to Col1 mask road/plowed on save/load). */
 #define MAP_IMPROVE_ROAD 0x01u
 #define MAP_IMPROVE_PLOWED 0x02u
+/*
+ * Col1 map.mask / DOS layer2 occupancy bits (FUN_137f_0314 / UNITFLAG,
+ * FUN_137f_0358 / COLONYFLAG). Must stay in sync with unit/colony/tribe tiles.
+ */
+#define MAP_OCCUPANCY_HAS_UNIT 0x01u
+#define MAP_OCCUPANCY_HAS_CITY 0x02u
 /* Layer2 stand-in: procedural LCR consumed (COL1 mask bit PARKED). */
 #define MAP_LAYER2_RUMOUR_CLEARED 0x08u
 
@@ -66,7 +72,7 @@ void map_free(ColonizeWorldMap* map);
  * Standard Col1 maps are 58×72 stored; visible area is 56×70.
  */
 bool map_coords_inset(const ColonizeWorldMap* map, int x, int y);
-/* Clamp *x/*y into the inset interior (no-op if map is too small). */
+/* Clamp *x / *y into the inset interior (no-op if map is too small). */
 void map_clamp_coords_inset(const ColonizeWorldMap* map, int* x, int* y);
 
 /* Col1 visibility bit for European nation 0..3. */
@@ -79,6 +85,9 @@ void map_reveal_all(ColonizeWorldMap* map, int nation_id);
 /* Copy Col1 seen[] into map->seen (same byte layout). */
 void map_seen_from_col1(ColonizeWorldMap* map, const uint8_t* col1_seen, size_t count);
 void map_seen_to_col1(const ColonizeWorldMap* map, uint8_t* col1_seen, size_t count);
+
+/* Set or clear one occupancy bit on map->layer2 (no-op if OOB / no layer2). */
+void map_occupancy_set_layer2(ColonizeWorldMap* map, int x, int y, uint8_t bit, bool on);
 
 /*
  * Fog edge on a *seen* tile: PHYS0 104+q (N/E/S/W) colour-0 fringe toward an

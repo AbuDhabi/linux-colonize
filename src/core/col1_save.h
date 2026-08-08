@@ -41,6 +41,8 @@
 #define COLONIZE_COL1_OTHER_SIZE 24u
 #define COLONIZE_COL1_COLONY_SIZE 202u
 #define COLONIZE_COL1_UNIT_SIZE 28u
+/* DOS unknown16[1] default seen on virtually all units in original starters. */
+#define COL1_UNIT_UNKNOWN16_HI_DEFAULT 0x58u
 #define COLONIZE_COL1_NATION_SIZE 316u
 #define COLONIZE_COL1_NATION_COUNT 4u
 #define COLONIZE_COL1_TRIBE_SIZE 18u

@@ -75,6 +75,22 @@ bool col1_bridge_init_template(
 );
 
 /*
+ * Rebuild Col1 mask / live layer2 occupancy bits (has_unit / has_city) from
+ * live units, colonies, and tribe villages. Clears bits 0–1 then sets them;
+ * preserves road/plow/suppress/purchased/pacific and other high mask bits.
+ * Pass NULL for save or map to skip that side. Required before Linux→DOS write.
+ * tribe_save supplies village tiles (may be the same pointer as save, or a
+ * const apply-time snapshot when save is NULL).
+ */
+void col1_bridge_sync_map_occupancy(
+  ColonizeCol1Save* save,
+  ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* tribe_save
+);
+
+/*
  * After a European unit steps onto (x,y): if adjacent to a tribe village,
  * bump that tribe's alarm for european_nation (0..3) and indian.alarm_by_player.
  * Does NOT set met_by_player — first contact is ai_contact_try_first_welcome.

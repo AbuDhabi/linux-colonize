@@ -21,6 +21,7 @@ bool units_advance_goto_one_step(
   const ColonizeColonyPool* colonies,
   ColonizeDosRng* rng
 );
+static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id);
 
 static void units_trim(char* s) {
   char* start = s;
@@ -194,7 +195,8 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->turns_worked = 0;
   slot->last_dir = 0;
   slot->col1_unknown15 = 0;
-  slot->col1_unknown16_hi = 0;
+  slot->col1_unknown16_hi = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+  slot->col1_unused06 = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
   } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
@@ -209,6 +211,9 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
     slot->horses = UNITS_EQUIP_HORSES;
   }
   pool->unit_count++;
+  if (units_is_on_map(slot)) {
+    units_occupancy_refresh_tile(pool, slot->x, slot->y, -1);
+  }
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
 }
@@ -393,6 +398,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->last_dir = 0;
   unit->col1_unknown15 = 0;
   unit->col1_unknown16_hi = 0;
+  unit->col1_unused06 = 0;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
@@ -400,6 +406,9 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   if (!unit) {
     return false;
   }
+  const int ox = unit->x;
+  const int oy = unit->y;
+  const int was_on_map = units_is_on_map(unit) ? 1 : 0;
   /* Passengers ride with the ship — despawn them if this is a carrier. */
   if (unit->cargo_count > 0) {
     for (int i = 0; i < unit->cargo_count; ++i) {
@@ -436,6 +445,9 @@ bool units_despawn(ColonizeUnitPool* pool, int unit_id) {
   }
   if (pool->selected_id == unit_id) {
     pool->selected_id = -1;
+  }
+  if (was_on_map) {
+    units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   }
   return true;
 }
@@ -547,11 +559,42 @@ static int g_units_last_combat = 0;
 static const ColonizeCol1Save* g_units_ff_col1 = NULL;
 static ColonizeCol1Save* g_units_fallout_col1 = NULL;
 static ColonizeWorldMap* g_units_fallout_map = NULL;
+static ColonizeWorldMap* g_units_occupancy_map = NULL;
 static int g_units_conquest_gold = -1;
 static const ColonizeColonyPool* g_units_combat_colonies = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
+}
+
+void units_set_occupancy_map(ColonizeWorldMap* map) {
+  g_units_occupancy_map = map;
+}
+
+static int units_tile_has_on_map_unit(const ColonizeUnitPool* pool, int x, int y, int except_id) {
+  if (!pool || x < 0 || y < 0 || x >= 200 || y >= 200) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->id == except_id) {
+      continue;
+    }
+    if (u->x == x && u->y == y) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id) {
+  if (!g_units_occupancy_map || !pool) {
+    return;
+  }
+  const int present = units_tile_has_on_map_unit(pool, x, y, except_id);
+  map_occupancy_set_layer2(
+    g_units_occupancy_map, x, y, MAP_OCCUPANCY_HAS_UNIT, present != 0
+  );
 }
 
 void units_set_native_fallout_context(
@@ -1641,6 +1684,8 @@ bool units_try_move(
     unit->orders = UNITS_ORDER_NONE;
   }
 
+  const int ox = unit->x;
+  const int oy = unit->y;
   unit->x = dest_x;
   unit->y = dest_y;
   /* Keep passengers' coordinates mirrored to the ship for debugging / unload. */
@@ -1651,6 +1696,8 @@ bool units_try_move(
       pax->y = dest_y;
     }
   }
+  units_occupancy_refresh_tile(pool, ox, oy, unit_id);
+  units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   return true;
 }
 

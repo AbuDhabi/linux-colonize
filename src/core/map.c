@@ -1242,6 +1242,19 @@ bool map_clear_rumour(ColonizeWorldMap* map, int x, int y) {
   return true;
 }
 
+void map_occupancy_set_layer2(ColonizeWorldMap* map, int x, int y, uint8_t bit, bool on) {
+  if (!map || !map->layer2 || bit == 0 || x < 0 || y < 0 || x >= map->width ||
+      y >= map->height) {
+    return;
+  }
+  uint8_t* p = &map->layer2[y * map->width + x];
+  if (on) {
+    *p = (uint8_t)(*p | bit);
+  } else {
+    *p = (uint8_t)(*p & (uint8_t)~bit);
+  }
+}
+
 bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return false;
