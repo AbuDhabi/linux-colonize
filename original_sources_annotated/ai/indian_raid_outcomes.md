@@ -53,15 +53,15 @@ Related: [`indian_contact.md`](indian_contact.md). Peels:
    Human target thin status: loot → **"Natives raid your colony."**;
    `NOTHING` (empty warehouse / no lootable stock) → **"Native raiding party
    wiped out."** (`GAME.TXT` `@RAIDNOTHING`). Full `@RAID*` dialog widgets
-   still OPEN / DOS body PARKED.
+   **Done** structural (`ai_popup`); DOS body / VGA chrome PARKED.
 9. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
    prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
    when displaced (not despawned) and status buffer present → human
    **"Scout warned away from village."**; **despawn only if** no free tile
    (**"Natives kill your Scout."**). DOS RNG kill/warn/displace when a flee
    tile exists stays **PARKED** (Marathon2 R6 — warn already; Linux never
-   kills if displace succeeds). Dialog warn **widgets** beyond the status
-   line still **OPEN** (unpark #1).
+   kills if displace succeeds). Dialog warn **widgets** **Done** structural
+   (`ai_popup`); VGA chrome PARKED.
 10. **PARKED** — deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid
    decision matrix + nested `2aac…311e` haggle (not this post-pulse path;
    Marathon2 R6 keeps PARK — no body port); full `4528` settlement body; ship

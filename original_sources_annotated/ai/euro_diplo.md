@@ -156,10 +156,10 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
   + title `"Foreign Affairs"` (no dedicated `DIPLO_FA` tag). Cite
   `FUN_15b3` / `FUN_5bfb`.
 
-**OPEN (unpark #5):** full multi-line `102a`/`1092` dialog widgets; FA `3f41` full
-UI, order clear `12d0` deep, exact `−0x77c4` still PARKED. Wartime Privateer
-**unit spawn** **Done** (Marathon2 R1). Score/trade deepen + thin status chrome
-**Done**. AI popup OK/CHOICE enqueue **Done** (R1–R3).
+**Done (structural unpark #5):** AI popup OK/CHOICE enqueue + wartime Privateer
+**unit spawn** + score/trade deepen + thin status chrome. **Still PARKED:** full
+multi-line VGA `102a`/`1092` dialog widgets; FA `3f41` full UI; order clear
+`12d0` deep; exact `−0x77c4`.
 
 ### Thin alliance treasury + treaty timer (Linux)
 
@@ -268,9 +268,10 @@ API / behavior:
 
 ## PORT DEBT
 
-- **OPEN (unpark #5):** full Indian×Euro bilateral `15b3` matrix (beyond thin read/at_war /
-  drift / feeler / war-hit / harassment / sticky set-clear-deepen/pressure); real `102a`/`1092`
-  dialog **widgets** (thin `ctx->status` chrome **Done**)
+- **Done (structural unpark #5):** thin Indian×Euro `15b3` matrix helpers
+  (read/at_war/drift/feeler/war-hit/harassment/sticky) + `ai_popup` war/peace/
+  alliance widgets + Privateer spawn. Deeper matrix / VGA widgets remain PARKED
+  (see leftovers below).
 - **Done this pass:** sticky→pressure + ally longevity + Tools lift parity + `indian_relation` getter
 - **Done R3:** sticky2 refuse new alliances; Sugar wartime boycott (king bit1) + lift; export `at_war_with` / `at_war_with_any`; feeler gated on `!any_euro_war`
 - **Done R4:** Rum+Cigars wartime boycott set/lift; sticky2 skip FA gift; war-declare boycott status names Sugar/Tobacco/Tools

@@ -58,31 +58,31 @@ files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c
 | `FUN_281f_06d2` / `0428` | `tile_tribe_or_presence` | `ai/accessors.c` | tribe else presence |
 | `FUN_281f_07e0` | `unit_index_on_tile` | `ai/accessors.c` | Linux unit-pool scan (cutover) |
 | `FUN_281f_078c` | `terrain_class_at` | `ai/accessors.c` | `ai_dos_terr_class` |
-| `FUN_521d_0000` | `clear_primary_goal_slot` | `ai/euro_goals.c` | — |
-| `FUN_521d_001c` | `invalidate_nearby_secondary_goals` | `ai/euro_goals.c` | — |
-| `FUN_521d_0072` | `primary_goal_shift_down` | `ai/euro_goals.c` | — |
-| `FUN_521d_00a8` | `secondary_goal_shift_down` | `ai/euro_goals.c` | — |
-| `FUN_521d_00de` | `work_queue_shift_down` | `ai/euro_goals.c` | — |
-| `FUN_521d_0116` | `max_primary_goal_priority` | `ai/euro_goals.c` | — |
-| `FUN_521d_016a` | `upsert_primary_goal` | `ai/euro_goals.c` | — |
-| `FUN_521d_0214` | `upsert_secondary_goal` | `ai/euro_goals.c` | — |
-| `FUN_521d_02be` | `upsert_work_queue` | `ai/euro_goals.c` | — |
-| `FUN_521d_031c` | `clear_work_queue` | `ai/euro_goals.c` | — |
-| `FUN_521d_0342` | `promote_secondary_to_primary` | `ai/euro_goals.c` | — |
-| `FUN_521d_03a6` | `clear_secondary_goal_slots` | `ai/euro_goals.c` | — |
-| `FUN_521d_03d0` | `founding_expansion_urgency` | `ai/euro_goals.c` | — |
-| `FUN_521d_0492` | `colony_count_balance_flags` | `ai/euro_goals.c` | — |
-| `FUN_521d_052c` | `unit_desirability_score` | `ai/euro_goals.c` | — |
-| `FUN_521d_0600` | `composite_unit_priority` | `ai/euro_goals.c` | — |
-| `FUN_521d_0656` | `walk_unit_stack_to_end` | `ai/euro_goals.c` | — |
-| `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_found_tile_from_landfall` (PORT DEBT) |
-| `FUN_521d_0896` | `filter_profession_by_distance_wealth` | `ai/euro_goals.c` | — |
-| `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | — |
-| `FUN_521d_20e6` | `move_scoring` (Euro/ocean thin; quiet done) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet only |
-| `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` |
-| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game **OPEN**) | `ai/euro_dispatcher.c` | thin + unpark #4 |
-| `FUN_521d_5d04` | `euro_nation_planning` (**OPEN** mid matrix) | `ai/euro_dispatcher.c` | thin hire + unpark #4 |
-| `FUN_521d_5b66` | `euro_unit_act` (thin map) | `ai/euro_dispatcher.c` + `ai/euro_unit_act.md` | `ai_unit_spend_goto` / peels |
+| `FUN_521d_0000` | `clear_primary_goal_slot` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_001c` | `invalidate_nearby_secondary_goals` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0072` | `primary_goal_shift_down` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_00a8` | `secondary_goal_shift_down` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_00de` | `work_queue_shift_down` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0116` | `max_primary_goal_priority` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_016a` | `upsert_primary_goal` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0214` | `upsert_secondary_goal` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_02be` | `upsert_work_queue` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_031c` | `clear_work_queue` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0342` | `promote_secondary_to_primary` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_03a6` | `clear_secondary_goal_slots` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_03d0` | `founding_expansion_urgency` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0492` | `colony_count_balance_flags` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_052c` | `unit_desirability_score` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0600` | `composite_unit_priority` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0656` | `walk_unit_stack_to_end` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_found_tile_from_landfall` (partial) |
+| `FUN_521d_0896` | `filter_profession_by_distance_wealth` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_20e6` | `move_scoring` (Euro/ocean thin; quiet done) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet + `ai_euro_score_step` |
+| `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` / `ai_euro_dispatcher_turn` |
+| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game **OPEN**) | `ai/euro_dispatcher.c` | `ai_euro_colony_goals` + unpark #4 |
+| `FUN_521d_5d04` | `euro_nation_planning` (**OPEN** mid matrix) | `ai/euro_dispatcher.c` | `ai_euro_nation_planning` + unpark #4 |
+| `FUN_521d_5b66` | `euro_unit_act` (thin map) | `ai/euro_dispatcher.c` + `ai/euro_unit_act.md` | `ai_euro_unit_act` |
 | `thunk_FUN_2a1f_0488` | → `euro_unit_act` / `5b66` | `ai/euro_dispatcher.c` | peels |
 | `thunk_FUN_2a1f_0554` | → `euro_nation_planning` / `5d04` | `ai/euro_dispatcher.c` | — |
 | `thunk_FUN_2a1f_0578` | → `promote_secondary_to_primary` / `0342` | `ai/euro_dispatcher.c` | — |

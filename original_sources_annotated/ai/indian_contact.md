@@ -54,7 +54,7 @@ Deep `FUN_4d56_2820` body stays **PARK only** (no port this round).
    `alarm_by_player` if also low). Floor 0.
 4. Mission clear / burn when friction or `alarm_by_player` toward mission Euro
    **≥ 80** (`FUN_4cc6_0000`; `tribe.mission` → `0xff`). Human mission owner
-   gets thin status **"Natives burn your mission."** (widgets OPEN).
+   gets thin status **"Natives burn your mission."** (ai_popup Done; VGA PARKED).
 
 ### Meet-pulse mission pacify deepen
 
@@ -109,7 +109,7 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    (real Col1 bit). If unit `profession == UNITS_JOB_NONE`: Scout →
    `UNITS_JOB_SCOUT` (Seasoned); else → tribe-appropriate outdoor `@JOB`
    (see mapping below). One pulse per tribe per call. Human status
-   **"Natives teach …"**; teach **widgets** still OPEN (unpark #1).
+   **"Natives teach …"**; teach **widgets** **Done** structural (`ai_popup`).
    Alarmed (`>= 55`) **or mid (`40..54`)** → refuse teach with
    **"Natives refuse to teach."** (mid-alarm refuse polish).
    **Already learned** (`state.learned` set) → skip teach and do **not** write
@@ -212,7 +212,7 @@ order). Unmapped → Expert Farmer. Full `@TRIBES` flavor-good string parse
 Raid hostility deepen (loot success + high friction → `ai_diplo_indian_relation_delta`):
 see [`indian_raid_outcomes.md`](indian_raid_outcomes.md). Full `2820`/`4528` bodies
 remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **widgets**
-still **OPEN** (unpark #1). Full DOS dialog **PARKED**.
+**Done** structural (`ai_popup` OK/CHOICE). Full DOS / VGA dialog chrome **PARKED**.
 
 ## PORT DEBT
 
@@ -224,7 +224,7 @@ still **OPEN** (unpark #1). Full DOS dialog **PARKED**.
   Linux meet path keeps thin trade-goods→alarm + gift/demand / teach /
   convert status only — **not** a 2820 port. Peels: `layer_b_combat_raid`,
   `layer_b_2a1f_midlo`. Cite: `docs/ai_transcription.md` FUN_4d56_2820.
-- **OPEN (unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
+- **Done (structural unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
   (`5bfb_102a` / `1092`, teach chrome) — Linux: status + `ai_popups` OK/CHOICE
   enqueue + `ai_contact_apply_popup_result` (thin handlers incl. gift/demand
   amount CHOICE); VGA-identical dialog chrome still PARKED

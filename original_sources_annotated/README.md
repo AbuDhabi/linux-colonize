@@ -159,6 +159,10 @@ the catalog only mirrors light-label status.
 | [`ai/euro_goals.c`](ai/euro_goals.c) | Goal tables + founding helpers (`0000`…`0906`) |
 | [`ai/euro_unit_act.md`](ai/euro_unit_act.md) | Thin section-map for `FUN_521d_5b66` |
 | [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; Euro/ocean thin map; 2 spent residuals |
+| [`ai/euro_diplo.md`](ai/euro_diplo.md) | Thin map: Euro×Euro / Indian×Euro diplomacy (`15b3` / `5bfb`) |
+| [`ai/indian_contact.md`](ai/indian_contact.md) | Thin map: meet / trade / gift / teach / missions |
+| [`ai/indian_raid_outcomes.md`](ai/indian_raid_outcomes.md) | Thin map: `@RAID*` outcomes / `4528` stand-ins |
+| [`ai/king_ref.md`](ai/king_ref.md) | Thin map: King / tax / REF (`43f7`) |
 
 ## Deep naming rules (extracted `.c` only)
 

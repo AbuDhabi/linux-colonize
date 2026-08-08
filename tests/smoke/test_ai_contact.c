@@ -736,7 +736,7 @@ int main(void) {
   }
 
   /*
-   * Gift stand-in (5bfb_102a/1092 widgets OPEN; status chrome thinned):
+   * Gift stand-in (5bfb_102a/1092 ai_popup Done; status chrome thinned):
    * low friction + gold >= 20 → Euro −10 gold, friction −2, status line.
    * Magnitude matches gift comment (−2); relation ≥40 so very-low gate skips.
    */

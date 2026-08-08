@@ -4,7 +4,8 @@
  * Source: original_sources_decompiled/viceroy_unpacked.c ~86772–87403
  * Callers: FUN_521d_0a60 (upserts), FUN_521d_6d8e plan pass (0342),
  *          FUN_521d_20e6 founding (06ae via 2a1f_04ac).
- * Linux:   PORT DEBT — ai_euro_early_turn peels substitute for real goals.
+ * Linux:   `src/core/ai_goals.c` (T0 port); founding tile helper still partial
+ *          vs `ai_euro_found_tile_from_landfall` peels.
  *
  * Reference only — not compiled into the Linux binary.
  */
