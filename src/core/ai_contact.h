@@ -24,7 +24,8 @@
  * (PEDIA @FATHER24 elect + ownership tick). Sepulveda convert-join:
  * founding_fathers_sepulveda_convert_join_bonus ownership gate; raise-join
  * call site PARKED (needs 2820/4528 — no existing convert-join outcome).
- * Full 2820/4528 / Brave escort / building-destroy stay PARKED.
+ * Full 2820/4528 stay PARKED. Thin Brave escort (units_follow_unit) and
+ * @RAIDBURN colonies_destroy_building + building-name status: Done thin.
  *
  * Human chrome: status lines + AI popup enqueue (OK / Meet CHOICE incl.
  * Leave→Farewell / Gift amount / Demand tools-vs-gold / alarmed Demand OK). Cite:

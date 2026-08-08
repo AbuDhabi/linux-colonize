@@ -13,6 +13,7 @@
 #include <string.h>
 
 static int s_last_raid_kind = AI_RAID_NOTHING;
+static char s_last_burn_building[48];
 
 int ai_contact_last_raid_kind(void) {
   return s_last_raid_kind;
@@ -1896,6 +1897,166 @@ static void ai_contact_raid_secondary_loot(
   }
 }
 
+/*
+ * Raid gate Euro: highest friction among met candidates (≥40), prefer at-war,
+ * tie-break lower relation. Cite: indian_raid_outcomes.md §1 gate.
+ */
+static int ai_contact_raid_gate_target(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int* out_euro,
+  int* out_alarm
+) {
+  int target_euro = -1;
+  int max_alarm = 0;
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || nation_id < 4 || nation_id > 11) {
+    if (out_euro) {
+      *out_euro = -1;
+    }
+    if (out_alarm) {
+      *out_alarm = 0;
+    }
+    return 0;
+  }
+  int best_rel = 256;
+  int best_at_war = 0;
+  const int indian_idx = nation_id - 4;
+  for (int e = 0; e < 4; ++e) {
+    int alarm = (int)ind->alarm_by_player[e];
+    if (ctx->col1->tribe) {
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+        if ((int)t->nation_id != nation_id || (int)t->alarm[e].friction <= alarm) {
+          continue;
+        }
+        /*
+         * Mid friction: prefer non-mission villages for the raid gate
+         * (fandom Alarm — missions slow hostility). Mission tribes only
+         * raise the gate in the burn band (≥80). Cite: indian_contact.md.
+         */
+        if (t->mission != 0xff && (int)t->alarm[e].friction < 80) {
+          continue;
+        }
+        alarm = (int)t->alarm[e].friction;
+      }
+    }
+    if (alarm < 40) {
+      continue;
+    }
+    const int at_war = ai_diplo_indian_at_war(ctx->col1, e, indian_idx);
+    const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
+    if (at_war > best_at_war ||
+        (at_war == best_at_war &&
+         (alarm > max_alarm || (alarm == max_alarm && rel < best_rel)))) {
+      best_at_war = at_war;
+      max_alarm = alarm;
+      best_rel = rel;
+      target_euro = e;
+    }
+  }
+  if (out_euro) {
+    *out_euro = target_euro;
+  }
+  if (out_alarm) {
+    *out_alarm = max_alarm;
+  }
+  return target_euro >= 0;
+}
+
+/* Chebyshev distance from (x,y) to nearest active colony of Euro `e`. */
+static int ai_contact_nearest_euro_colony_dist(
+  ColonizeTurnContext* ctx,
+  int euro,
+  int x,
+  int y
+) {
+  if (!ctx || !ctx->colonies || euro < 0 || euro > 3) {
+    return 99;
+  }
+  int best = 99;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    const ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id != euro) {
+      continue;
+    }
+    const int d = ai_contact_dist(x, y, c->x, c->y);
+    if (d < best) {
+      best = d;
+    }
+  }
+  return best;
+}
+
+static void ai_contact_unit_goto_xy(const ColonizeUnit* u, int* out_x, int* out_y) {
+  if (!u || !out_x || !out_y) {
+    return;
+  }
+  if (units_orders_follow_goto(u->orders)) {
+    *out_x = u->goto_x;
+    *out_y = u->goto_y;
+  } else {
+    *out_x = u->x;
+    *out_y = u->y;
+  }
+}
+
+/*
+ * Thin Brave escort lead pick (14fe): same-nation AI_MOVE/GOTO within MD≤3.
+ * When raid gate Euro is known, prefer lead whose goto (or position) is closer
+ * to that Euro's nearest colony; else nearest-lead by MD. Deep alarmed escort
+ * scoring still PARKED. Cite: units_follow_unit; indian_raid_outcomes.md §1.
+ */
+static int ai_contact_escort_pick_lead(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int follower_id,
+  const ColonizeUnit* follower
+) {
+  if (!ctx || !ctx->units || !follower) {
+    return -1;
+  }
+  int gate_euro = -1;
+  (void)ai_contact_raid_gate_target(ctx, ind, nation_id, &gate_euro, NULL);
+
+  int lead = -1;
+  int best_md = 99;
+  int best_target_d = 99;
+  for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+    const ColonizeUnit* o = &ctx->units->units[j];
+    if (!o->active || o->id == follower_id || o->nation_id != nation_id) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, o->id)) {
+      continue;
+    }
+    if (!units_orders_follow_goto(o->orders)) {
+      continue;
+    }
+    const int md = abs(o->x - follower->x) + abs(o->y - follower->y);
+    if (md <= 0 || md > 3) {
+      continue;
+    }
+    int ax = o->x;
+    int ay = o->y;
+    ai_contact_unit_goto_xy(o, &ax, &ay);
+    const int target_d =
+      gate_euro >= 0 ? ai_contact_nearest_euro_colony_dist(ctx, gate_euro, ax, ay) : 99;
+    if (gate_euro >= 0) {
+      if (target_d < best_target_d || (target_d == best_target_d && md < best_md)) {
+        best_target_d = target_d;
+        best_md = md;
+        lead = o->id;
+      }
+    } else if (md < best_md) {
+      best_md = md;
+      lead = o->id;
+    }
+  }
+  return lead;
+}
+
 static void ai_contact_apply_raid_loot(
   ColonizeTurnContext* ctx,
   ColonizeColony* c,
@@ -1907,6 +2068,7 @@ static void ai_contact_apply_raid_loot(
     return;
   }
   s_last_raid_kind = (int)kind;
+  s_last_burn_building[0] = '\0';
 
   switch (kind) {
   case AI_RAID_NOTHING:
@@ -1945,7 +2107,11 @@ static void ai_contact_apply_raid_loot(
         break;
       }
       if (burn_bt >= 0) {
-        (void)colonies_destroy_building(ctx->colonies, c->id, burn_bt);
+        const ColonizeBuildingType* bbt = colonies_building_type(ctx->colonies, burn_bt);
+        if (colonies_destroy_building(ctx->colonies, c->id, burn_bt) && bbt &&
+            bbt->name[0]) {
+          snprintf(s_last_burn_building, sizeof(s_last_burn_building), "%s", bbt->name);
+        }
       }
     }
     break;
@@ -2135,29 +2301,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      *
      * Thin Brave escort (14fe stand-in): idle Brave with no orders may
      * units_follow_unit a same-nation Brave that already has AI_MOVE/GOTO.
-     * Deep alarmed escort scoring still PARKED. Cite: units_follow_unit;
-     * indian_raid_outcomes.md §1.
+     * Lead pick prefers goto toward raid-gate Euro colony when known; else
+     * nearest-lead. Deep alarmed escort scoring still PARKED. Cite:
+     * units_follow_unit; indian_raid_outcomes.md §1.
      */
     if (brave->orders == UNITS_ORDER_NONE && brave->moves_left > 0) {
-      int lead = -1;
-      int best_md = 99;
-      for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
-        const ColonizeUnit* o = &ctx->units->units[j];
-        if (!o->active || o->id == brave->id || o->nation_id != nation_id) {
-          continue;
-        }
-        if (units_is_sea(ctx->units, o->id)) {
-          continue;
-        }
-        if (!units_orders_follow_goto(o->orders)) {
-          continue;
-        }
-        const int md = abs(o->x - brave->x) + abs(o->y - brave->y);
-        if (md > 0 && md < best_md && md <= 3) {
-          best_md = md;
-          lead = o->id;
-        }
-      }
+      const int lead =
+        ai_contact_escort_pick_lead(ctx, ind, nation_id, brave->id, brave);
       if (lead >= 0 && units_follow_unit(ctx->units, brave->id, lead)) {
         (void)units_advance_follow_one_step(
           ctx->units, brave->id, ctx->map, ctx->colonies, ctx->rng
@@ -2173,42 +2323,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
     }
     int target_euro = -1;
     int max_alarm = 0;
-    int best_rel = 256;
-    int best_at_war = 0;
-    const int indian_idx = nation_id - 4;
-    for (int e = 0; e < 4; ++e) {
-      int alarm = (int)ind->alarm_by_player[e];
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id != nation_id || (int)t->alarm[e].friction <= alarm) {
-          continue;
-        }
-        /*
-         * Mid friction: prefer non-mission villages for the raid gate
-         * (fandom Alarm — missions slow hostility). Mission tribes only
-         * raise the gate in the burn band (≥80). Cite: indian_contact.md;
-         * docs/fandom_col1994.md Alarm.
-         */
-        if (t->mission != 0xff && (int)t->alarm[e].friction < 80) {
-          continue;
-        }
-        alarm = (int)t->alarm[e].friction;
-      }
-      if (alarm < 40) {
-        continue; /* not a raid candidate */
-      }
-      const int at_war = ai_diplo_indian_at_war(ctx->col1, e, indian_idx);
-      const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
-      if (at_war > best_at_war ||
-          (at_war == best_at_war &&
-           (alarm > max_alarm || (alarm == max_alarm && rel < best_rel)))) {
-        best_at_war = at_war;
-        max_alarm = alarm;
-        best_rel = rel;
-        target_euro = e;
-      }
-    }
-    if (target_euro < 0) {
+    if (!ai_contact_raid_gate_target(ctx, ind, nation_id, &target_euro, &max_alarm)) {
       continue;
     }
 
@@ -2335,14 +2450,26 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * COLONIZE/GAME.TXT @RAIDNOTHING; indian_raid_outcomes.md.
            */
           if (ai_contact_euro_is_human(ctx, target_euro)) {
+            char raid_line[96];
+            const char* raid_body = "Natives raid your colony.";
+            if (kind == AI_RAID_NOTHING) {
+              raid_body = "Native raiding party wiped out.";
+            } else if (kind == AI_RAID_BURN && s_last_burn_building[0]) {
+              snprintf(
+                raid_line,
+                sizeof(raid_line),
+                "Natives burn your %s.",
+                s_last_burn_building
+              );
+              raid_body = raid_line;
+            }
             ai_contact_human_chrome(
               ctx,
               target_euro,
               AI_POPUP_TAG_CONTACT_RAID,
               nation_id,
               "Raid",
-              (kind == AI_RAID_NOTHING) ? "Native raiding party wiped out."
-                                        : "Natives raid your colony."
+              raid_body
             );
           }
         } else {

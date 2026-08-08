@@ -98,8 +98,8 @@ Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
   privateer for that peer). See Benjamin Franklin section above.
 - If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
 - Human status once per tick when upkeep drains and human is the actor: `"War upkeep costs gold."` (later privateer / peace may overwrite). FA UI **PARKED**
-- Wartime **Privateer unit spawn** (before prize): when `ctx->units` set and `units_find_type("Privateer")` exists, spawn once per war peer via `units_spawn_allow_stack` on **hunt-ready** coastal water by own colony (New World water, not `x|y≥200`), else stack on own New World sea unit (skip Europe-dock stacks), else Europe `(236,236)`. Read-only check refuses bad New World tiles before arming `unknown26[9]`. Gate: `unknown26[9]` bit for peer (clear on `make_peace` / alliance that clears WAR). Human status: `"Privateer commissioned against %s"` + OK. Cite: Europe Privateer purchase; fandom Drake; `euro_unit_act` §2b (`ai_euro` naval hunt needs `!in_europe`). **Spawn-only when units set** — cargo-raid loot stays with `ai_euro` combat (`FUN_5fef` hold plunder not wired in diplo).
-- **PARKED** privateer prize (null-units only): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). Accuracy debt until hold-plunder API exists — **do not invent a different gold rate**. Human status when prize fires and human is a party: `"Privateer prize from %s"`. With `ctx->units` set → **no** treasury prize (spawn path only).
+- Wartime **Privateer unit spawn** (before prize): when `ctx->units` set and `units_find_type("Privateer")` exists, spawn once per war peer via `units_spawn_allow_stack` on **hunt-ready** coastal water by own colony (New World water, not `x|y≥200`), else stack on own New World sea unit (skip Europe-dock stacks), else Europe `(236,236)`. Read-only check refuses bad New World tiles before arming `unknown26[9]`. Gate: `unknown26[9]` bit for peer (clear on `make_peace` / alliance that clears WAR). Human status: `"Privateer commissioned against %s"` + INFO OK (once per spawn; `unknown26[9]` blocks re-spam). Cite: Europe Privateer purchase; fandom Drake; `euro_unit_act` §2b (`ai_euro` naval hunt needs `!in_europe`). **Spawn-only when units set** — real cargo-raid loot is `units_plunder_ship_holds` in naval combat (`FUN_5fef_016c`-shaped; not wired in diplo).
+- **PARKED** privateer treasury prize (**null-units only**): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). Accuracy debt when `ctx->units` is null — **do not invent a different gold rate** (naval hold plunder is live). Human status when prize fires and human is a party: `"Privateer prize from %s"`. With `ctx->units` set → **no** treasury prize (spawn + naval combat plunder path only).
 - No new declare / ally logic for that peer that turn
 
 Embargo lift (thin):
@@ -151,9 +151,9 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
   (timer-expiry break stays automatic). Alliance Accept also bumps treaty
   timer to **≥8** when was 0 (same `form_alliance` path). Native sticky
   deepen / remain-hostile status enqueues INFO OK. Privateer commission /
-  prize status also enqueues OK (`INFO`). FA `3f41` full report UI still
-  **PARKED**; thin gift/strengthen OK reuses `AI_POPUP_TAG_DIPLO_ALLIANCE`
-  + title `"Foreign Affairs"` (no dedicated `DIPLO_FA` tag). Cite
+  prize status also enqueues INFO OK (once per spawn / prize). FA `3f41` full
+  report UI still **PARKED**; thin gift/longevity OK uses
+  `AI_POPUP_TAG_DIPLO_FA` + title `"Foreign Affairs"`. Cite
   `FUN_15b3` / `FUN_5bfb`.
 
 **Done (structural unpark #5):** AI popup OK/CHOICE enqueue + wartime Privateer
@@ -287,7 +287,7 @@ API / behavior:
 - **Done R15 (thin final):** no code gap — alliance-formed status smoke already present (R14 zero-gold path); FA `3f41` full body/UI confirmed **PARKED** (thin ally-aid 10g + FA gift 15g / longevity only; Accuracy bar: FA UI parked, no invented chrome)
 - **Done popup marathon R3 (thin final):** Alliance Accept CHOICE → follow-up OK `"Alliance formed with %s"` smoke; privateer prize OK enqueue smoke; FA `3f41` full body/UI stays **PARKED** (cite `FUN_15b3` / `FUN_5bfb`; no F2–F9 report chrome)
 - **Done Marathon2 R1:** wartime Privateer **unit spawn** once/war peer (`unknown26[9]` + coast/Europe); treasury prize kept; thin FA report OK title `"Foreign Affairs"`
-- **Done Marathon2 R3:** Privateer spawn prefers hunt-ready New World water (skip Europe-dock stacks); smoke asserts water/`!in_europe`; FA OK documents `DIPLO_ALLIANCE` + `"Foreign Affairs"` (no `DIPLO_FA` tag); AI→human war declare CHOICE Accept/Refuse
+- **Done Marathon2 R3:** Privateer spawn prefers hunt-ready New World water (skip Europe-dock stacks); smoke asserts water/`!in_europe`; FA OK uses `DIPLO_FA` + `"Foreign Affairs"`; AI→human war declare CHOICE Accept/Refuse
 - **Done Marathon2 R5:** peace CHOICE Refuse status + follow-up OK; Privateer once/war smoke asserts `unknown26[9]` blocks second; AI→human break-alliance CHOICE Accept/Refuse; FA `3f41` full UI stays **PARKED**
 - **Done Marathon2 R6:** war CHOICE Refuse status + follow-up OK; Alliance Accept treaty timer ≥8 smoke; native sticky deepen INFO OK enqueue smoke; FA `3f41` full UI stays **PARKED**
 - **Done Marathon3 R1:** Benjamin Franklin NW peace gate (`founding_fathers_franklin_keeps_nw_peace`
@@ -304,16 +304,22 @@ API / behavior:
 - **Done Marathon3 R3 (thin final):** no structural diplo gap — embargo chrome,
   sticky deepen INFO, peace refuse, alliance longevity status already smoked;
   defensive smoke adds longevity Foreign Affairs OK (`"Alliance with %s holds."`
-  + `DIPLO_ALLIANCE` / `"Foreign Affairs"`, mirrors gift strengthened OK).
+  + `DIPLO_FA` / `"Foreign Affairs"`, mirrors gift strengthened OK).
 - **Done Marathon3 R4 (doc sync + thin defensive):** `euro_diplo.md` body synced
   for Franklin NW peace + Privateer spawn-only / PARK 8g (null-units only);
   defensive smoke: Franklin at-war peace path skips upkeep + PARK prize (gold
   unchanged). No invented privateer gold. FA `3f41` full UI stays **PARKED**.
+- **Done Marathon4 R1 (doc sync + thin defensive):** `DIPLO_FA` tag for FA
+  gift/longevity OK; naval hold plunder (`units_plunder_ship_holds` / naval
+  combat) documented as real Privateer cargo path; 8g treasury prize **PARKED
+  null-units only**; defensive smoke: Privateer commission INFO OK enqueue
+  (status string already smoked). **No further thin diplo unpark.**
 - **Still PARKED (leftovers — no thin unpark left):**
   - FA `3f41` full body/UI (F2–F9 report dialogs; thin ally-aid 10g + FA gift
-    15g / longevity only)
-  - Deep privateer cargo-raid loot (`FUN_5fef` / hold plunder — thin 8g prize
-    remains **null-units only**; do not invent another gold rate)
+    15g / longevity + `DIPLO_FA` OK only)
+  - Privateer 8g treasury prize (**null-units only** when `ctx->units` null;
+    real cargo loot is `units_plunder_ship_holds` in naval combat — do not
+    invent another gold rate)
   - Full `102a`/`1092` dialog **widgets** (thin `ctx->status` + AI OK/CHOICE Done)
   - Full Indian×Euro bilateral `15b3` matrix beyond thin read/at_war/drift/
     feeler/war-hit/harassment/sticky

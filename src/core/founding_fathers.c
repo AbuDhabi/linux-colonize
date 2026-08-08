@@ -617,8 +617,10 @@ static void apply_effect(
        * founding_fathers_cortes_free_king_galleon (cash-in tax = @KINGGALLEON3
        * in europe_cash_treasure — no KINGGALLEON2 extra %). Call site still
        * needed: decomp FUN_5fef_31ea post-win native settlement fallout —
-       * no safe settlement-conquer hook in land combat / ai_contact yet
-       * (raid path is Indian→Euro colony loot only). */
+       * no safe settlement-conquer hook / COL1 treasure amount field in land
+       * combat or ai_contact yet (raid path is Indian→Euro loot only).
+       * units_spawn_treasure_train only when caller supplies known gold
+       * (hold_goods_amount LE16); do not invent FUN_5fef_31ea amounts. */
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.

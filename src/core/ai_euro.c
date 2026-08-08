@@ -59,6 +59,26 @@ static int ai_euro_colony_wants_construction_labor(
          strcmp(bt->name, "Shipyard") == 0;
 }
 
+/* True when any own colony wants on-site carpenter construction LABOR. */
+static int ai_euro_nation_wants_construction_labor(
+  const ColonizeTurnContext* ctx,
+  int nation_id
+) {
+  if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (ai_euro_colony_wants_construction_labor(ctx->colonies, c)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /*
  * Peace construction pick (5d04 / colony planning): idle/empty
  * building_in_production (< 0) → prefer Stockade → Warehouse → (coastal) Docks
@@ -2373,7 +2393,20 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
       ctx->col1, ctx->map, founder->x, founder->y, nation_id
     );
     if (cost > 0 && *gold < (uint32_t)cost) {
-      return; /* PARK: real land-buy gold gate */
+      /*
+       * FUN_4cc6_07c2 short-gold gate — no despawn. Thin human status only.
+       * Cite: colonies_indian_land_purchase_gold; Colonization.pdf Minuit /
+       * indian land purchase.
+       */
+      if (nation_id == ctx->human_nation && ctx->status && ctx->status_size > 0) {
+        snprintf(
+          ctx->status,
+          ctx->status_size,
+          "Not enough gold to buy Indian land (%d$ needed).",
+          cost
+        );
+      }
+      return;
     }
     cid = colonies_found_with_indian_land(
       ctx->colonies,
@@ -2544,10 +2577,12 @@ static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id
  * stock). Cite: euro_unit_act §2d wagon matrix; Colonization.pdf Wagon Train;
  * 5cf6 food_short. Unpark #4 remainders PARKED.
  *
- * Wagon/ship trade-goods → Europe sell: when transport is at Europe (x|y≥200)
- * and ctx->europe is set, europe_sell_unit_hold sells TRADE_GOODS holds (no
- * harbor UI). Syncs nat↔europe gold like treasure cash-in. Cite:
- * europe_sell_unit_hold; Colonization.pdf Europe sell + tax.
+ * Wagon/ship commodity dump-sell at Europe: when transport is at Europe (x|y≥200)
+ * and ctx->europe is set, sell every non-empty goods hold via europe_sell_unit_hold
+ * (harbor dump-sell path; tax via europe_sell_proceeds). Skip empty/invalid holds
+ * and cargo with no Europe bid. Syncs nat↔europe gold like treasure cash-in.
+ * Cite: europe_sell_unit_hold / europe_sell_proceeds; Colonization.pdf Europe
+ * buy/sell + tax.
  */
 static int ai_euro_try_transport_europe_sell(
   ColonizeTurnContext* ctx,
@@ -2569,8 +2604,9 @@ static int ai_euro_try_transport_europe_sell(
     return 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-  ctx->europe->gold = (int)nat->gold;
-  ctx->europe->tax_percent = (int)nat->tax_rate;
+  EuropeScreen* eu = ctx->europe;
+  eu->gold = (int)nat->gold;
+  eu->tax_percent = (int)nat->tax_rate;
   int sold = 0;
   const int n = units_goods_hold_count(ctx->units, transport->id);
   for (int h = 0; h < n; ++h) {
@@ -2578,16 +2614,18 @@ static int ai_euro_try_transport_europe_sell(
         transport->hold_goods_amount[h] >= 255) {
       continue;
     }
-    if (transport->hold_goods_type[h] != COLONIZE_CARGO_TRADE_GOODS) {
-      continue;
+    const int ctype = transport->hold_goods_type[h];
+    if (ctype < 0 || ctype >= COLONIZE_CARGO_COUNT ||
+        ctype >= eu->cargo_count || eu->cargo[ctype].bid <= 0) {
+      continue; /* empty/invalid or not sellable at Europe */
     }
-    const int g = europe_sell_unit_hold(ctx->europe, ctx->units, transport->id, h);
+    const int g = europe_sell_unit_hold(eu, ctx->units, transport->id, h);
     if (g > 0) {
       sold += g;
     }
   }
   if (sold > 0) {
-    nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
+    nat->gold = (uint32_t)(eu->gold < 0 ? 0 : eu->gold);
     return 1;
   }
   return 0;
@@ -2769,6 +2807,22 @@ static int ai_euro_dock_name_is_tools_expert(const char* name) {
          strstr(name, "Master Carpenter") != NULL;
 }
 
+/* Europe dock Expert Farmer for case-7 food hire (only if present on dock). */
+static int ai_euro_dock_name_is_food_expert(const char* name) {
+  if (!name || !name[0]) {
+    return 0;
+  }
+  return strstr(name, "Expert Farmer") != NULL;
+}
+
+/* Europe dock Master Carpenter for case-7 construction hire (only if present). */
+static int ai_euro_dock_name_is_carpenter_expert(const char* name) {
+  if (!name || !name[0]) {
+    return 0;
+  }
+  return strstr(name, "Master Carpenter") != NULL;
+}
+
 /* Resolve dock immigrant name → unit type (strip trailing 's' for pool plurals). */
 static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char* dock_name) {
   if (!units || !dock_name || !dock_name[0]) {
@@ -2802,6 +2856,16 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
     }
     return ty;
   }
+  if (strstr(dock_name, "Expert Farmer")) {
+    ty = units_find_type(units, "Expert Farmer");
+    if (ty < 0) {
+      ty = units_find_type(units, "Farmer");
+    }
+    if (ty < 0) {
+      ty = units_find_type(units, "Free Colonist");
+    }
+    return ty;
+  }
   return -1;
 }
 
@@ -2815,6 +2879,38 @@ static int ai_euro_dock_find_tools_expert(const EuropeScreen* eu) {
       continue;
     }
     if (ai_euro_dock_name_is_tools_expert(eu->dock[i].name)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* First dock slot matching Expert Farmer; -1 if none. */
+static int ai_euro_dock_find_food_expert(const EuropeScreen* eu) {
+  if (!eu) {
+    return -1;
+  }
+  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+    if (!eu->dock[i].present) {
+      continue;
+    }
+    if (ai_euro_dock_name_is_food_expert(eu->dock[i].name)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* First dock slot matching Master Carpenter; -1 if none. */
+static int ai_euro_dock_find_carpenter_expert(const EuropeScreen* eu) {
+  if (!eu) {
+    return -1;
+  }
+  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+    if (!eu->dock[i].present) {
+      continue;
+    }
+    if (ai_euro_dock_name_is_carpenter_expert(eu->dock[i].name)) {
       return i;
     }
   }
@@ -3027,6 +3123,43 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    */
   if (hire_ty < 0 && inv && !at_war && inv->tools_short > 20 && ctx->europe) {
     dock_idx = ai_euro_dock_find_tools_expert(ctx->europe);
+    if (dock_idx >= 0) {
+      const int dock_ty =
+        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
+      if (dock_ty >= 0) {
+        hire_ty = dock_ty;
+        from_dock = 1;
+      }
+    }
+  }
+  /*
+   * Peace case-7 / 5d04 food deepen: when food_short high, prefer Expert Farmer
+   * already on Europe dock (consume dock slot; no free spawn). Cite:
+   * europe.c k_pool_cands Expert Farmers; building_production Farmer→Food;
+   * euro_unit_act §2e Expert Farmer food LABOR; Hardy Pioneer dock pattern §2d.
+   */
+  if (hire_ty < 0 && inv && !at_war && inv->food_short > 20 && ctx->europe) {
+    dock_idx = ai_euro_dock_find_food_expert(ctx->europe);
+    if (dock_idx >= 0) {
+      const int dock_ty =
+        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
+      if (dock_ty >= 0) {
+        hire_ty = dock_ty;
+        from_dock = 1;
+      }
+    }
+  }
+  /*
+   * Peace case-7 / 5d04 construction deepen: when any colony wants carpenter
+   * LABOR (Stockade/Warehouse/Lumber Mill/Drydock/Shipyard incomplete),
+   * prefer Master Carpenter already on Europe dock (consume dock slot; same
+   * hire_cost as Expert Farmer / Hardy Pioneer). Cite: docs/building_production.md
+   * Carpenter→Hammers; europe.c Master Carpenters pool; euro_unit_act §2e;
+   * ai_euro_colony_wants_construction_labor. Only if present on dock.
+   */
+  if (hire_ty < 0 && inv && !at_war && ctx->europe &&
+      ai_euro_nation_wants_construction_labor(ctx, nation_id)) {
+    dock_idx = ai_euro_dock_find_carpenter_expert(ctx->europe);
     if (dock_idx >= 0) {
       const int dock_ty =
         ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);

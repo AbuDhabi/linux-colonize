@@ -1716,6 +1716,443 @@ static int smoke_transport_europe_sell_trade_goods(void) {
 }
 
 /*
+ * Ship multi-cargo (SUGAR + TOBACCO) at Europe → sell all holds via AI act.
+ * Cite: europe_sell_unit_hold / europe_sell_proceeds; Colonization.pdf Europe sell + tax.
+ */
+static int smoke_transport_europe_sell_multi_cargo(void) {
+  const int nation = 1;
+  const int sugar_amt = 30;
+  const int tobacco_amt = 40;
+  const int bid_sugar = 3;
+  const int bid_tobacco = 5;
+  const int tax = 10;
+  const int expect =
+    (bid_sugar * sugar_amt * (100 - tax)) / 100 +
+    (bid_tobacco * tobacco_amt * (100 - tax)) / 100;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("eu-multi-sell alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int sid = units_spawn(&units, 0, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-multi-sell spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4;
+  ship->orders = 0;
+  ship->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
+  ship->hold_goods_amount[0] = sugar_amt;
+  ship->hold_goods_type[1] = COLONIZE_CARGO_TOBACCO;
+  ship->hold_goods_amount[1] = tobacco_amt;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 100;
+  europe.tax_percent = tax;
+  europe.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    europe.cargo[c].bid = 1;
+    europe.cargo[c].ask = 2;
+  }
+  europe.cargo[COLONIZE_CARGO_SUGAR].bid = bid_sugar;
+  europe.cargo[COLONIZE_CARGO_TOBACCO].bid = bid_tobacco;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[nation].tax_rate = (uint8_t)tax;
+  const uint32_t gold_before = col1.nation[nation].gold;
+
+  ai_goals_reset();
+
+  uint32_t turn = 51;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 43;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  ship = units_get(&units, sid);
+  if (!ship || !ship->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-multi-sell ship should remain");
+  }
+  if (ship->hold_goods_amount[0] != 0 || ship->hold_goods_amount[1] != 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: multi-sell holds %d/%d\n",
+      ship->hold_goods_amount[0],
+      ship->hold_goods_amount[1]
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-multi-sell should clear both holds");
+  }
+  const uint32_t gold_after = col1.nation[nation].gold;
+  if (gold_after < gold_before + (uint32_t)expect) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: multi-sell gold %u→%u want +%d\n",
+      (unsigned)gold_before,
+      (unsigned)gold_after,
+      expect
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-multi-sell should credit tax-adjusted proceeds");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: transport Europe multi-cargo sell ok\n");
+  return 0;
+}
+
+/*
+ * Case-7 dock Expert Farmer: peace + food_short high + Europe dock has
+ * Expert Farmers → board that type (consume dock). Cite: europe.c pool;
+ * euro_unit_act §2e Expert Farmer food LABOR.
+ */
+static int smoke_dock_farmer_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dock-farmer alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 5;
+    c->colonist_count = 5;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* tools_short=0 */
+    c->stock[COLONIZE_CARGO_FOOD] = 0;   /* food_short=10 each → 30 total */
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dock-farmer spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Expert Farmers");
+  europe.dock[0].profession = 0;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 13;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 44;
+
+  const uint32_t gold_before = col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int farmer_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && strstr(ty->name, "Expert Farmer")) {
+        farmer_boarded = 1;
+      }
+    }
+  }
+  const int dock_cleared = (europe.dock_count == 0);
+  const int gold_spent = (col1.nation[nation].gold < gold_before + 50u);
+
+  if (!farmer_boarded || !dock_cleared || !gold_spent) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: dock farmer=%d dock_count=%d gold %u→%u cargo=%d\n",
+      farmer_boarded,
+      europe.dock_count,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Farmer dock hire + dock consume + gold spend");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Farmer hire ok\n");
+  return 0;
+}
+
+/*
+ * Case-7 dock Master Carpenter: peace + construction LABOR wanted + Europe dock
+ * has Master Carpenters → board that type (consume dock). No tools/food short
+ * so Free Colonist fallback must not win. Cite: europe.c pool; building_production
+ * Carpenter→Hammers; euro_unit_act §2e construction deepen.
+ */
+static int smoke_dock_carpenter_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dock-carpenter alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Carpenter");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_types[0].hammers = 64;
+  colonies.building_type_count = 1;
+
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* tools_short=0 */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;  /* food_short=0 */
+    c->building_in_production = (i == 0) ? 0 : -1; /* colony 0: Stockade */
+    if (i == 0) {
+      c->hammers = 10;
+    }
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dock-carpenter spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Master Carpenters");
+  europe.dock[0].profession = 13;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 14;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 45;
+
+  const uint32_t gold_before = col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int carpenter_boarded = 0;
+  int free_colonist_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && strstr(ty->name, "Master Carpenter")) {
+        carpenter_boarded = 1;
+      }
+      if (ty && strstr(ty->name, "Free Colonist")) {
+        free_colonist_boarded = 1;
+      }
+    }
+  }
+  const int dock_cleared = (europe.dock_count == 0);
+  const int gold_spent = (col1.nation[nation].gold < gold_before + 50u);
+
+  if (!carpenter_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: dock carpenter=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      carpenter_boarded,
+      free_colonist_boarded,
+      europe.dock_count,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Master Carpenter dock hire + dock consume + gold spend");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: dock Master Carpenter hire ok\n");
+  return 0;
+}
+
+/*
  * LABOR bind: idle Free Colonist adjacent to own colony with food_short
  * (and a distant FOUND lure) → LABOR goto / join, not yank to FOUND.
  * Cite: 5b66 unload/labor + 5cf6 food_short; no invented production.
@@ -5121,6 +5558,13 @@ static int smoke_indian_land_found(void) {
     founder->orders = 0;
     founder->moves_left = 3;
 
+    char status[128];
+    memset(status, 0, sizeof(status));
+    col1.player[nation].control = 0; /* human for thin status chrome */
+    ctx.human_nation = nation;
+    ctx.status = status;
+    ctx.status_size = sizeof(status);
+
     ai_goals_reset();
     turn = 42;
     ai_euro_dispatcher_turn(&ctx, nation);
@@ -5138,6 +5582,16 @@ static int smoke_indian_land_found(void) {
       free(map.layer3);
       return fail("indian-land: PARK case gold unexpectedly covers cost");
     }
+    if (strstr(status, "Not enough gold") == NULL) {
+      fprintf(stderr, "smoke_ai_euro_expand: indian-land status=%s\n", status);
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: short gold should set human status");
+    }
+    ctx.status = NULL;
+    ctx.status_size = 0;
+    col1.player[nation].control = 1;
   }
 
   /* Phase 3: Minuit elect bit → free homeland found. */
@@ -8083,10 +8537,19 @@ int main(void) {
   if (smoke_dock_expert_hire() != 0) {
     return 1;
   }
+  if (smoke_dock_farmer_hire() != 0) {
+    return 1;
+  }
+  if (smoke_dock_carpenter_hire() != 0) {
+    return 1;
+  }
   if (smoke_treasury_skip_hire() != 0) {
     return 1;
   }
   if (smoke_transport_europe_sell_trade_goods() != 0) {
+    return 1;
+  }
+  if (smoke_transport_europe_sell_multi_cargo() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_expand: ok\n");

@@ -179,8 +179,11 @@ stays **PARK** (Linux kills only when displace is blocked).
 **Las Casas** (PEDIA `@FATHER24` / `docs/fandom_col1994.md`): existing Indian
 converts (`NAMES` `@JOB` Convert / profession 27) assimilate as free colonists
 (profession 19) on elect + FF ownership tick in `founding_fathers.c` — not the
-missionary convert-pulse path. **Sepulveda** convert-join + Cortes treasure
-remain **PARKED** (no 2820/4528 join hook).
+missionary convert-pulse path.  **Sepulveda** convert-join remains **PARKED** (no 2820/4528 join hook).
+ **Cortes** conquest treasure remains **PARKED** (no settlement-conquer hook /
+ amount table — `units_spawn_treasure_train` only when gold known). Thin Brave
+ escort via `units_follow_unit` (raid-gate goto preference) and @RAIDBURN
+ `colonies_destroy_building` + building-name status: **Done** thin.
 
 ### Teach-skill profession map (Linux)
 
@@ -230,5 +233,7 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   amount CHOICE); VGA-identical dialog chrome still PARKED
 - Full skill-from-`@TRIBES` flavor-good string parse — still PARKED
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2) — still PARKED
-- Deep Brave escort inside quiet `14fe` — still PARKED: no unit-follow API
-  (`units_set_goto` is tile goto only); raids stay post-pulse
+- **Done (thin):** Brave escort post-pulse — `units_follow_unit` on same-nation
+  AI_MOVE/GOTO within MD≤3; lead pick prefers goto toward raid-gate Euro colony
+  when known, else nearest-lead (`ai_contact_indian_raids`). Deep alarmed escort
+  scoring inside quiet `14fe` still PARKED. Cite: indian_raid_outcomes.md §1.

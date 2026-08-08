@@ -13,7 +13,8 @@
  * skip war pressure / at-war always offer peace) + R2 spawn-only Privateer
  * (PARK 8g prize when units set) + Franklin Peace concluded human chrome +
  * R4 Franklin at-war skips upkeep/PARK prize (gold unchanged) +
- * R3 alliance longevity Foreign Affairs OK ("holds") defensive smoke. */
+ * R3 alliance longevity Foreign Affairs OK ("holds") defensive smoke +
+ * Marathon4 R1 Privateer commission INFO OK enqueue (DIPLO_FA doc sync). */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -2725,6 +2726,25 @@ int main(void) {
       free(map.layer2);
       free(map.layer3);
       return fail("M2R1: human status Privateer commissioned against France");
+    }
+    /* Marathon4 R1: commission status also enqueues INFO OK (once per spawn). */
+    {
+      int found_priv_ok = 0;
+      for (int qi = 0; qi < pop.queue_count; ++qi) {
+        if (pop.queue[qi].kind == AI_POPUP_KIND_OK &&
+            pop.queue[qi].tag == AI_POPUP_TAG_INFO &&
+            strcmp(pop.queue[qi].title, "Privateer") == 0 &&
+            strcmp(pop.queue[qi].body, "Privateer commissioned against France") == 0) {
+          found_priv_ok = 1;
+          break;
+        }
+      }
+      if (!found_priv_ok) {
+        free(map.terrain);
+        free(map.layer2);
+        free(map.layer3);
+        return fail("M4R1: Privateer commission should enqueue INFO OK");
+      }
     }
 
     /* Second tick: no spam spawn. */

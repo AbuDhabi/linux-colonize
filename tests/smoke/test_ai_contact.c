@@ -1940,6 +1940,27 @@ int main(void) {
     if (!c_bd->has_building[0]) {
       return fail("BURN must not destroy Town Hall");
     }
+    /* BURN building destroy → human status names the building (@RAIDBURN). */
+    {
+      char status_burn_bd[128];
+      status_burn_bd[0] = '\0';
+      ctx.status = status_burn_bd;
+      ctx.status_size = sizeof(status_burn_bd);
+      ctx.human_nation = 0;
+      c_bd->has_building[1] = true;
+      ai_contact_indian_raids(&ctx, 4);
+      if (ai_contact_last_raid_kind() != AI_RAID_BURN || c_bd->has_building[1]) {
+        return fail("BURN status probe needs building destroy");
+      }
+      if (strstr(status_burn_bd, "Warehouse") == NULL ||
+          strstr(status_burn_bd, "burn") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: burn-building status '%s'\n",
+                status_burn_bd);
+        return fail("BURN destroy should name building in status");
+      }
+      ctx.status = NULL;
+      ctx.status_size = 0;
+    }
   }
 
   /*
@@ -1993,6 +2014,103 @@ int main(void) {
     }
     /* Cleanup lead for later probes. */
     units_despawn(&units, lead_id);
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+  }
+
+  /*
+   * Escort deepen: when raid gate Euro known, prefer lead whose goto is closer
+   * to that Euro's colony over nearer lead heading away. Cite: units_follow_unit;
+   * indian_raid_outcomes.md §1.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 14;
+    euro->y = 14;
+    euro->active = true;
+    ind->alarm_by_player[0] = 55;
+    col1.tribe[0].alarm[0].friction = 55;
+    col1.nation[0].relation_by_indian[0] = 40;
+    ColonizeColony* c_tgt = &colonies.colonies[0];
+    c_tgt->active = true;
+    c_tgt->nation_id = 0;
+    c_tgt->x = 12;
+    c_tgt->y = 5;
+    c_tgt->population = 1;
+    c_tgt->colonist_count = 1;
+    colonies.colony_count = 1;
+    brave->x = 5;
+    brave->y = 5;
+    brave->nation_id = 4;
+    brave->active = true;
+    brave->moves_left = 3;
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+    const int near_id = units_spawn_allow_stack(&units, 0, 6, 5);
+    const int far_id = units_spawn_allow_stack(&units, 0, 5, 7);
+    ColonizeUnit* near_lead = units_get(&units, near_id);
+    ColonizeUnit* far_lead = units_get(&units, far_id);
+    if (!near_lead || !far_lead) {
+      return fail("escort deepen lead spawn");
+    }
+    near_lead->nation_id = 4;
+    near_lead->moves_left = 0;
+    near_lead->orders = UNITS_ORDER_AI_MOVE;
+    near_lead->goto_x = 4;
+    near_lead->goto_y = 5; /* away from colony at (12,5) */
+    far_lead->nation_id = 4;
+    far_lead->moves_left = 0;
+    far_lead->orders = UNITS_ORDER_AI_MOVE;
+    far_lead->goto_x = 12;
+    far_lead->goto_y = 5; /* toward raid-gate Euro colony */
+    ai_contact_indian_raids(&ctx, 4);
+    brave = units_get(&units, brave_id);
+    if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
+        brave->follow_unit_id != far_id) {
+      fprintf(stderr, "smoke_ai_contact: escort deepen follow=%d (want %d)\n",
+              brave ? brave->follow_unit_id : -1, far_id);
+      return fail("escort should prefer goto toward raid-gate Euro colony");
+    }
+    units_despawn(&units, near_id);
+    units_despawn(&units, far_id);
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+    /* No alarm gate → nearest-lead (MD=1 over MD=2). */
+    ind->alarm_by_player[0] = 0;
+    col1.tribe[0].alarm[0].friction = 0;
+    c_tgt->active = false;
+    colonies.colony_count = 0;
+    brave->x = 5;
+    brave->y = 5;
+    const int near2 = units_spawn_allow_stack(&units, 0, 6, 5);
+    const int far2 = units_spawn_allow_stack(&units, 0, 5, 7);
+    near_lead = units_get(&units, near2);
+    far_lead = units_get(&units, far2);
+    if (!near_lead || !far_lead) {
+      return fail("escort fallback lead spawn");
+    }
+    near_lead->nation_id = 4;
+    near_lead->moves_left = 0;
+    near_lead->orders = UNITS_ORDER_AI_MOVE;
+    near_lead->goto_x = 4;
+    near_lead->goto_y = 5;
+    far_lead->nation_id = 4;
+    far_lead->moves_left = 0;
+    far_lead->orders = UNITS_ORDER_AI_MOVE;
+    far_lead->goto_x = 12;
+    far_lead->goto_y = 5;
+    ai_contact_indian_raids(&ctx, 4);
+    brave = units_get(&units, brave_id);
+    if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
+        brave->follow_unit_id != near2) {
+      fprintf(stderr, "smoke_ai_contact: escort fallback follow=%d (want %d)\n",
+              brave ? brave->follow_unit_id : -1, near2);
+      return fail("escort without gate should pick nearest lead");
+    }
+    units_despawn(&units, near2);
+    units_despawn(&units, far2);
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
   }

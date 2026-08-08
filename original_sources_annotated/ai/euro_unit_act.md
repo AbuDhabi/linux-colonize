@@ -203,11 +203,15 @@ war hunter, so garrison holds after siege. Cite: case 0x0b fortify `'F'`;
 Colonization.pdf fortify defense / Artillery; mirror king post-capture Regular
 fortify for Euro Artillery.
 
-**5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
-Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
-before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
-cargo. Case-7 deepen: prefer Hardy/Expert Pioneer or Master Carpenter already
-on Europe dock (consume dock slot; no free expert spawn). Treasury: skip hire /
+ **5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
+ Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
+ before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
+ cargo. Case-7 deepen: prefer Hardy/Expert Pioneer or Master Carpenter already
+ on Europe dock (consume dock slot; no free expert spawn). **`food_short>20`:**
+ prefer Expert Farmer on Europe dock (same consume pattern). **Construction LABOR:**
+ when any colony has Stockade/Warehouse/Lumber Mill/Drydock/Shipyard incomplete
+ (`ai_euro_colony_wants_construction_labor`), prefer Master Carpenter on Europe
+ dock (same consume / `hire_cost`; not tools/food short). Treasury: skip hire /
 tools-cargo when gold &lt; colonist `hire_cost`; Artillery uses Europe purchase
 **500$** (fall back to Soldier when underfunded). **At war + tools_short:** still
 prefer Soldier/Dragoon hire over Pioneer (profession_demand Pioneer is peace-only).
@@ -227,9 +231,9 @@ threatened coastal colony (war-peer MD≤3) unloads one Soldier onto the colony
 tile via `units_unload_passenger` (before move-scoring gate + after sail).
 Cite: Colonization.pdf naval transport / Defending a Colony; complements board
 + war-transport sail-to-threatened-port.
-**PARK:** wagon
-trade-goods → Europe sell needs ship-in-harbor `europe_sell_hold`
-(no AI New-World wagon→Europe sell API).
+**Done:** transport at Europe dump-sells all commodity holds with Europe bid via
+`europe_sell_unit_hold` / `europe_sell_proceeds` (tax); nat↔europe gold sync.
+Cite: Colonization.pdf Europe buy/sell + tax.
 **Pioneer plow/road (unparked):** idle Hardy/Expert Pioneer with tools picks a
 nearby own-colony surround → `AI_MOVE` then on-tile `units_pioneer_plow`
 (clear forest then plow in one API) / `units_pioneer_road`. Prefer plow over
@@ -327,8 +331,9 @@ LABOR goto. Cite: terrain_yields Sugar (Savannah/Swamp) / Tobacco
 No invented crop rates.
 
 **FOUND on Indian homeland:** `colonies_found_with_indian_land` (FUN_4cc6_07c2
-gold charge; Minuit FF 2 → free). Short gold → PARK (no despawn). Cite:
-Colonization.pdf Minuit / indian land purchase.
+gold charge; Minuit FF 2 → free). Short gold → PARK (no despawn); thin human
+`ctx->status` when cost>0 and gold short. Cite: Colonization.pdf Minuit /
+indian land purchase; `colonies_indian_land_purchase_gold`.
 
 **Pioneer plow/road** — see §2d (unparked).
 

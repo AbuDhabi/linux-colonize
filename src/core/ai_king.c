@@ -19,7 +19,9 @@
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
  * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience
  *   (status + ai_popup CHOICE Accept/Refuse when ctx->ai_popups; auto when NULL).
- *   Refuse apply/auto → Sugar follow-up OK (KING_TAX). Boycott-holds already OK.
+ *   Refuse apply/auto → Sugar follow-up OK (KING_TAX; lists all boycott_bitmap
+ *   cargo names — Sugar + RNG second when ctx->rng). Boycott-holds status/OK
+ *   also lists all bitmap cargo names (presentation; Fugger partial clear).
  *   Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap clear → drop
  *   unknown46[2] refuse when bitmap==0 (king sync; do not touch FF).
  * Merc hired/refused this war: head.unknown46[3] + thin 2244 hire
@@ -135,6 +137,47 @@ int ai_king_pick_dump_goods_cargo(
     return -1;
   }
   return idxs[pick];
+}
+
+/* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */
+static const char* ai_king_cargo_name(int cargo_idx) {
+  static const char* const names[COLONIZE_CARGO_COUNT] = {
+    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
+    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
+    "Coats",       "Trade Goods", "Tools", "Muskets"
+  };
+  if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
+    return "cargo";
+  }
+  return names[cargo_idx];
+}
+
+/*
+ * Comma-separated @CARGO names set in boycott_bitmap (presentation only).
+ * Returns 1 if any bit set. Cite: king_ref refuse/holds chrome; Fugger partial
+ * clear may leave a subset of bits while unknown46[2] still holds.
+ */
+static int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bitmap) {
+  if (!buf || buf_size == 0) {
+    return 0;
+  }
+  buf[0] = '\0';
+  size_t pos = 0;
+  int any = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    if ((bitmap & (uint16_t)(1u << c)) == 0) {
+      continue;
+    }
+    if (any) {
+      if (pos + 2 >= buf_size) {
+        break;
+      }
+      pos += (size_t)snprintf(buf + pos, buf_size - pos, ", ");
+    }
+    pos += (size_t)snprintf(buf + pos, buf_size - pos, "%s", ai_king_cargo_name(c));
+    any = 1;
+  }
+  return any;
 }
 
 /* Human-facing map popup queue attached (game_loop); AI/auto path when NULL. */
@@ -339,16 +382,17 @@ static int ai_king_is_garrison_cavalry(const ColonizeUnitPool* units, const Colo
 }
 
 /*
- * True if another crown garrison unit (Regular or Dragoon/Cont. Cav) on (x,y)
- * is already FORTIFY/FORTIFIED. One-stack rule: post-capture / idle fortifies
- * only one; extras hunt. Artillery holds separately (not this stack).
- * Cite: Colonization.pdf Defending a Colony; king_ref one-garrison.
+ * Count crown garrison units (Regular or Dragoon/Cont. Cav) on (x,y) already
+ * FORTIFY/FORTIFIED. Cap-2 structural multi-garrison (Defending a Colony);
+ * Artillery holds separately (not this stack).
+ * Cite: Colonization.pdf Defending a Colony; king_ref thin multi-garrison.
  */
-static int ai_king_tile_has_fortified_garrison(const ColonizeTurnContext* ctx, int crown, int x,
-                                               int y, int except_id) {
+static int ai_king_tile_fortified_garrison_count(const ColonizeTurnContext* ctx, int crown,
+                                                 int x, int y, int except_id) {
   if (!ctx || !ctx->units || crown < 0) {
     return 0;
   }
+  int count = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != crown || u->id == except_id) {
@@ -361,10 +405,136 @@ static int ai_king_tile_has_fortified_garrison(const ColonizeTurnContext* ctx, i
       continue;
     }
     if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-      return 1;
+      count++;
     }
   }
-  return 0;
+  return count;
+}
+
+/* Cont. Army (not Cav) — human founding-capital garrison pool. */
+static int ai_king_is_cont_army(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  return ai_king_is_continental(units, u) && !ai_king_prefers_open_land(units, u);
+}
+
+/* Cont. Cav — human founding-capital garrison pool (crown cap-2 uses Cont.Cav only). */
+static int ai_king_is_cont_cav_garrison(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  return ai_king_is_continental(units, u) && ai_king_prefers_open_land(units, u);
+}
+
+static int ai_king_is_cont_garrison(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  return ai_king_is_cont_army(units, u) || ai_king_is_cont_cav_garrison(units, u);
+}
+
+/*
+ * Count human Cont. Army / Cont. Cav on (x,y) already FORTIFY/FORTIFIED.
+ * Cite: Colonization.pdf Defending a Colony; king_ref Cont. capital-rally fortify.
+ */
+static int ai_king_tile_human_cont_fortified_count(const ColonizeTurnContext* ctx, int human,
+                                                   int x, int y, int except_id) {
+  if (!ctx || !ctx->units || human < 0) {
+    return 0;
+  }
+  int count = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != human || u->id == except_id) {
+      continue;
+    }
+    if (u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_cont_garrison(ctx->units, u)) {
+      continue;
+    }
+    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/*
+ * Fortify one idle human Cont. garrison on (x,y). Prefer Cont. Army over
+ * Cont. Cav; prefer prefer_id when eligible. Returns unit id fortified, or -1.
+ */
+static int ai_king_fortify_one_cont_on_tile(ColonizeTurnContext* ctx, int human, int x, int y,
+                                           int require_moves, int prefer_id) {
+  if (!ctx || !ctx->units || human < 0) {
+    return -1;
+  }
+  ColonizeUnitPool* pool = ctx->units;
+
+  if (prefer_id >= 0) {
+    ColonizeUnit* p = units_get(pool, prefer_id);
+    if (p && p->active && p->nation_id == human && p->x == x && p->y == y &&
+        ai_king_is_cont_army(pool, p) && p->orders != UNITS_ORDER_FORTIFY &&
+        p->orders != UNITS_ORDER_FORTIFIED && (!require_moves || p->moves_left > 0)) {
+      (void)units_order_fortify(pool, p->id);
+      return p->id;
+    }
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != human || u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_cont_army(pool, u) || u->orders == UNITS_ORDER_FORTIFY ||
+        u->orders == UNITS_ORDER_FORTIFIED) {
+      continue;
+    }
+    if (require_moves && u->moves_left <= 0) {
+      continue;
+    }
+    (void)units_order_fortify(pool, u->id);
+    return u->id;
+  }
+  if (prefer_id >= 0) {
+    ColonizeUnit* p = units_get(pool, prefer_id);
+    if (p && p->active && p->nation_id == human && p->x == x && p->y == y &&
+        ai_king_is_cont_cav_garrison(pool, p) && p->orders != UNITS_ORDER_FORTIFY &&
+        p->orders != UNITS_ORDER_FORTIFIED && (!require_moves || p->moves_left > 0)) {
+      (void)units_order_fortify(pool, p->id);
+      return p->id;
+    }
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != human || u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_cont_cav_garrison(pool, u) || u->orders == UNITS_ORDER_FORTIFY ||
+        u->orders == UNITS_ORDER_FORTIFIED) {
+      continue;
+    }
+    if (require_moves && u->moves_left <= 0) {
+      continue;
+    }
+    (void)units_order_fortify(pool, u->id);
+    return u->id;
+  }
+  return -1;
+}
+
+/*
+ * Idle human Cont. on founding capital: fortify up to two (Army prefer, then
+ * Cav). Second slot needs moves_left > 0. Cite: Defending a Colony cap 2;
+ * king_ref Cont. capital-rally hold + fortify.
+ */
+static void ai_king_fortify_human_cont_at(ColonizeTurnContext* ctx, ColonizeUnit* u,
+                                          int human, int x, int y) {
+  if (!ctx || !ctx->units || human < 0) {
+    return;
+  }
+  if (ai_king_tile_human_cont_fortified_count(ctx, human, x, y, -1) >= 2) {
+    return;
+  }
+  const int prefer = u ? u->id : -1;
+  if (ai_king_tile_human_cont_fortified_count(ctx, human, x, y, -1) < 1) {
+    (void)ai_king_fortify_one_cont_on_tile(ctx, human, x, y, 0, prefer);
+  }
+  if (ai_king_tile_human_cont_fortified_count(ctx, human, x, y, -1) < 2) {
+    (void)ai_king_fortify_one_cont_on_tile(ctx, human, x, y, 1, -1);
+  }
 }
 
 /* True if name looks like a Man-O-War (Galleon fallback used as REF ship). */
@@ -949,56 +1119,90 @@ static int ai_king_mow_try_unload(ColonizeTurnContext* ctx, ColonizeUnit* ship,
 }
 
 /*
- * After capture: fortify one garrison on the colony tile (UNITS_ORDER_FORTIFY).
- * Prefer Regular; if none available, one Dragoon or Cont. Cav.
- * Only one stack slot — extras on the same tile keep hunting
- * (idle-garrison gate via ai_king_tile_has_fortified_garrison).
+ * Fortify one idle garrison unit on (x,y). require_moves: second slot needs MP.
+ * Prefer Regular over Dragoon/Cont. Cav; prefer prefer_id when eligible.
+ * Returns unit id fortified, or -1.
+ */
+static int ai_king_fortify_one_garrison_on_tile(ColonizeTurnContext* ctx, int crown, int x, int y,
+                                                int require_moves, int prefer_id) {
+  if (!ctx || !ctx->units || crown < 0) {
+    return -1;
+  }
+  ColonizeUnitPool* pool = ctx->units;
+
+  if (prefer_id >= 0) {
+    ColonizeUnit* p = units_get(pool, prefer_id);
+    if (p && p->active && p->nation_id == crown && p->x == x && p->y == y &&
+        ai_king_is_regular(pool, p) && p->orders != UNITS_ORDER_FORTIFY &&
+        p->orders != UNITS_ORDER_FORTIFIED && (!require_moves || p->moves_left > 0)) {
+      (void)units_order_fortify(pool, p->id);
+      return p->id;
+    }
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != crown || u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_regular(pool, u) || u->orders == UNITS_ORDER_FORTIFY ||
+        u->orders == UNITS_ORDER_FORTIFIED) {
+      continue;
+    }
+    if (require_moves && u->moves_left <= 0) {
+      continue;
+    }
+    (void)units_order_fortify(pool, u->id);
+    return u->id;
+  }
+  if (prefer_id >= 0) {
+    ColonizeUnit* p = units_get(pool, prefer_id);
+    if (p && p->active && p->nation_id == crown && p->x == x && p->y == y &&
+        ai_king_is_garrison_cavalry(pool, p) && p->orders != UNITS_ORDER_FORTIFY &&
+        p->orders != UNITS_ORDER_FORTIFIED && (!require_moves || p->moves_left > 0)) {
+      (void)units_order_fortify(pool, p->id);
+      return p->id;
+    }
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != crown || u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_garrison_cavalry(pool, u) || u->orders == UNITS_ORDER_FORTIFY ||
+        u->orders == UNITS_ORDER_FORTIFIED) {
+      continue;
+    }
+    if (require_moves && u->moves_left <= 0) {
+      continue;
+    }
+    (void)units_order_fortify(pool, u->id);
+    return u->id;
+  }
+  return -1;
+}
+
+/*
+ * After capture / idle on crown colony: fortify up to two garrison units
+ * (UNITS_ORDER_FORTIFY). First slot: Regular prefer, else Dragoon/Cont. Cav
+ * (capture may use 0 MP). Second slot: another idle garrison on tile with
+ * moves_left > 0. Extras beyond two hunt (idle-garrison gate).
  * Cite: Colonization.pdf Defending a Colony ("fortify soldiers, dragoons…");
- * king_ref one-garrison; units_order_fortify. Multi-garrison chrome PARKED.
+ * king_ref thin multi-garrison (cap 2). Deep multi-step siege PARKED.
  */
 static void ai_king_fortify_garrison_at(ColonizeTurnContext* ctx, ColonizeUnit* capturer,
                                         int crown, int x, int y) {
   if (!ctx || !ctx->units || crown < 0) {
     return;
   }
-  /* Already have a fortified Regular/Dragoon/Cont.Cav — do not stack more. */
-  if (ai_king_tile_has_fortified_garrison(ctx, crown, x, y,
-                                         capturer ? capturer->id : -1)) {
+  if (ai_king_tile_fortified_garrison_count(ctx, crown, x, y, -1) >= 2) {
     return;
   }
-  if (capturer && capturer->active && capturer->nation_id == crown &&
-      ai_king_is_regular(ctx->units, capturer) && capturer->x == x && capturer->y == y) {
-    (void)units_order_fortify(ctx->units, capturer->id);
-    return;
+  const int prefer = capturer ? capturer->id : -1;
+  if (ai_king_tile_fortified_garrison_count(ctx, crown, x, y, -1) < 1) {
+    (void)ai_king_fortify_one_garrison_on_tile(ctx, crown, x, y, 0, prefer);
   }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != crown || u->x != x || u->y != y) {
-      continue;
-    }
-    if (!ai_king_is_regular(ctx->units, u)) {
-      continue;
-    }
-    (void)units_order_fortify(ctx->units, u->id);
-    return;
-  }
-  /* No Regular: fortify one Dragoon / Cont. Cav (Defending a Colony). */
-  if (capturer && capturer->active && capturer->nation_id == crown &&
-      ai_king_is_garrison_cavalry(ctx->units, capturer) && capturer->x == x &&
-      capturer->y == y) {
-    (void)units_order_fortify(ctx->units, capturer->id);
-    return;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != crown || u->x != x || u->y != y) {
-      continue;
-    }
-    if (!ai_king_is_garrison_cavalry(ctx->units, u)) {
-      continue;
-    }
-    (void)units_order_fortify(ctx->units, u->id);
-    return;
+  if (ai_king_tile_fortified_garrison_count(ctx, crown, x, y, -1) < 2) {
+    (void)ai_king_fortify_one_garrison_on_tile(ctx, crown, x, y, 1, -1);
   }
 }
 
@@ -1339,27 +1543,43 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
    */
   if (ctx->rng) {
     const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
-    const int second =
+    const int picked =
       ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, all_cargos, ctx->rng);
-    if (second >= 0 && second < COLONIZE_CARGO_COUNT) {
-      nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << second));
+    if (picked >= 0 && picked < COLONIZE_CARGO_COUNT) {
+      nat->boycott_bitmap =
+        (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << picked));
     }
   }
   ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
   if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size,
-             "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
-             nat->tax_rate);
+    char cargos[96];
+    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
+      snprintf(ctx->status, ctx->status_size,
+               "Audience: the colonies refuse the tax increase! Tax stays at %u%%. "
+               "Boycotted in Europe: %s.",
+               nat->tax_rate, cargos);
+    } else {
+      snprintf(ctx->status, ctx->status_size,
+               "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
+               nat->tax_rate);
+    }
   }
-  /* FUN_43f7_38fd_5be8 refuse follow-up OK (Sugar freeze). Dump-goods second
-   * cargo via ai_king_pick_dump_goods_cargo when ctx->rng set; price-weight
-   * table + dump modal PARKED. */
+  /* FUN_43f7_38fd_5be8 refuse follow-up OK (lists all boycott_bitmap cargos).
+   * Price-weight table + dump modal PARKED. */
   if (ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body),
-             "The colonies refuse the tax increase (stays at %u%%). "
-             "Sugar is boycotted in Europe.",
-             nat->tax_rate);
+    char cargos[96];
+    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
+      snprintf(body, sizeof(body),
+               "The colonies refuse the tax increase (stays at %u%%). "
+               "Boycotted in Europe: %s.",
+               nat->tax_rate, cargos);
+    } else {
+      snprintf(body, sizeof(body),
+               "The colonies refuse the tax increase (stays at %u%%). "
+               "Sugar is boycotted in Europe.",
+               nat->tax_rate);
+    }
     (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                   ai_king_crown_nation(human), (int)nat->tax_rate,
                                   "Royal Audience", body);
@@ -1405,14 +1625,30 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   /* Already refused: no further tax hikes (REF grow-without-hike was once). */
   if (ai_king_boycott_active(ctx->col1)) {
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "Audience: boycott holds — the King cannot raise taxes.");
+      char cargos[96];
+      if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
+        snprintf(ctx->status, ctx->status_size,
+                 "Audience: boycott holds — the King cannot raise taxes. "
+                 "Boycotted: %s.",
+                 cargos);
+      } else {
+        snprintf(ctx->status, ctx->status_size,
+                 "Audience: boycott holds — the King cannot raise taxes.");
+      }
     }
     if (ai_king_human_popups(ctx)) {
+      char body[AI_POPUP_BODY_LEN];
+      char cargos[96];
+      if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
+        snprintf(body, sizeof(body),
+                 "Boycott holds — the King cannot raise taxes. Boycotted: %s.",
+                 cargos);
+      } else {
+        snprintf(body, sizeof(body), "Boycott holds — the King cannot raise taxes.");
+      }
       (void)ai_popup_enqueue_ok_ctx(
         ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, ai_king_crown_nation(human),
-        (int)nat->tax_rate, "Royal Audience",
-        "Boycott holds — the King cannot raise taxes."
+        (int)nat->tax_rate, "Royal Audience", body
       );
     }
     return;
@@ -2260,12 +2496,27 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       if (!ai_king_is_continental(ctx->units, u)) {
         continue;
       }
-      /* Already on a human colony tile — hold. */
+      /* Already on a human colony tile — hold; founding capital may fortify
+       * up to two Cont. Army / Cont. Cav (Defending a Colony cap 2). */
       if (ctx->colonies) {
         const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
         if (cid >= 0) {
           const ColonizeColony* c = &ctx->colonies->colonies[cid];
           if (c->active && c->nation_id == human) {
+            int cap_x = 0;
+            int cap_y = 0;
+            if (ai_king_human_capital(ctx, human, &cap_x, &cap_y) && u->x == cap_x &&
+                u->y == cap_y) {
+              if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+                continue;
+              }
+              if (ai_king_tile_human_cont_fortified_count(ctx, human, u->x, u->y, u->id) < 2) {
+                ai_king_fortify_human_cont_at(ctx, u, human, u->x, u->y);
+                if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+                  continue;
+                }
+              }
+            }
             continue;
           }
         }
@@ -2420,13 +2671,11 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      * REF idle garrison (heal/fortify stand-in): Regular, or Dragoon/Cont. Cav
      * when no Regular, on own (crown) colony — including a captured human
      * capital — with no adjacent human foe/colony → fortify **one** when the
-     * stack rule allows. Already FORTIFY/FORTIFIED: stay (do not wake to hunt).
-     * If another crown Regular/Dragoon/Cont.Cav on the tile is already
-     * FORTIFY/FORTIFIED, leave this unit free to hunt (one garrison, extras move).
+     * stack rule allows (cap 2). Already FORTIFY/FORTIFIED: stay (do not wake).
+     * When two crown garrison units are already FORTIFY/FORTIFIED on the tile,
+     * leave this unit free to hunt. Second slot needs moves_left > 0.
      * Cite: Colonization.pdf Defending a Colony ("fortify soldiers, dragoons…");
-     * king_ref one-garrison; units_order_fortify. Overnight fortify→fortified
-     * heal is the engine path — no invented HP. Adjacent uncaptured colony or
-     * human unit still hunts. Multi-garrison chrome PARKED.
+     * king_ref thin multi-garrison; units_order_fortify. Deep siege PARKED.
      */
     if ((ai_king_is_regular(ctx->units, u) ||
          ai_king_is_garrison_cavalry(ctx->units, u)) &&
@@ -2441,8 +2690,8 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
             continue;
           }
-          if (!ai_king_tile_has_fortified_garrison(ctx, crown, u->x, u->y, u->id)) {
-            /* Prefer Regular over Dragoon/Cont.Cav on same tile. */
+          if (ai_king_tile_fortified_garrison_count(ctx, crown, u->x, u->y, u->id) < 2) {
+            /* Prefer Regular over Dragoon/Cont.Cav on same tile (cap 2). */
             ai_king_fortify_garrison_at(ctx, u, crown, u->x, u->y);
             if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
               continue;
@@ -2489,11 +2738,11 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      * uncaptured colony over marching past (Artillery: adjacent unfortified must
      * not override a fortified hunt). Deeper multi-step combat scoring PARKED.
      *
-     * After-capture extras: standing on a crown colony whose fortify-stack slot
-     * is already taken (another Regular/Dragoon/Cont.Cav FORTIFY/FORTIFIED) →
+     * After-capture extras: standing on a crown colony whose two fortify slots
+     * are already taken (two Regular/Dragoon/Cont.Cav FORTIFY/FORTIFIED) →
      * prefer next nearest remaining human colony (strict MD; no capital slack /
      * no closer unit bait). Source: fandom REF AI uncaptured-colony pressure;
-     * Colonization.pdf Defending a Colony; king_ref one-garrison.
+     * Colonization.pdf Defending a Colony; king_ref thin multi-garrison (cap 2).
      */
     if (ai_king_is_ref_land_hunter(ctx->units, u)) {
       const int have_arty = (ai_king_artillery_type(ctx->units) >= 0) ? 1 : 0;
@@ -2512,7 +2761,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         if (own_cid >= 0) {
           const ColonizeColony* own = &ctx->colonies->colonies[own_cid];
           if (own->active && own->nation_id == crown &&
-              ai_king_tile_has_fortified_garrison(ctx, crown, u->x, u->y, u->id)) {
+              ai_king_tile_fortified_garrison_count(ctx, crown, u->x, u->y, u->id) >= 2) {
             after_capture_next = 1;
           }
         }
