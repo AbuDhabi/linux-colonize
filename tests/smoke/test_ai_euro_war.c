@@ -540,6 +540,146 @@ static int smoke_privateer_war_hunt(void) {
   return 0;
 }
 
+/*
+ * Post-diplo Privateer spawn station-keep: idle AI_SAIL with goto=self (as
+ * euro_diplo wartime commission) → still re-aims hunt toward foe sea.
+ * Cite: euro_diplo Privateer spawn; euro_unit_act §2b; is_privateer re-aim.
+ */
+static int smoke_privateer_station_keep_hunt(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 4;
+  const int own_y = 4;
+  const int foe_x = 10;
+  const int foe_y = 10;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("priv-sk alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 2;
+  units.types[0].defense = 1;
+  units.types[0].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* priv = units_get(&units, own_id);
+  if (!priv) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("priv-sk spawn");
+  }
+  priv->nation_id = nation;
+  /* Diplo spawn station-keep (goto=self) — must still hunt. */
+  priv->orders = UNITS_ORDER_AI_SAIL;
+  priv->goto_x = own_x;
+  priv->goto_y = own_y;
+  priv->moves_left = 4;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_ship = units_get(&units, foe_id);
+  if (!foe_ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("priv-sk foe spawn");
+  }
+  foe_ship->nation_id = foe;
+  foe_ship->orders = 0;
+  foe_ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 31;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 43;
+
+  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  priv = units_get(&units, own_id);
+  foe_ship = units_get(&units, foe_id);
+  const int combat_done =
+    (priv == NULL || !priv->active) || (foe_ship == NULL || !foe_ship->active);
+  int hunt = 0;
+  int moved_closer = 0;
+  if (priv && priv->active) {
+    hunt = priv->orders == UNITS_ORDER_AI_SAIL && priv->goto_x == foe_x &&
+           priv->goto_y == foe_y;
+    const int dist1 = foe_ship && foe_ship->active
+                        ? abs(priv->x - foe_ship->x) + abs(priv->y - foe_ship->y)
+                        : 0;
+    moved_closer = dist1 < dist0 || (priv->x != own_x || priv->y != own_y);
+    /* Must leave station-keep (self) goto. */
+    if (priv->goto_x == own_x && priv->goto_y == own_y && !combat_done) {
+      hunt = 0;
+      moved_closer = 0;
+    }
+  }
+
+  if (!combat_done && !hunt && !moved_closer) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: priv-sk orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      priv ? priv->orders : -1,
+      priv ? priv->goto_x : -1,
+      priv ? priv->goto_y : -1,
+      priv ? priv->x : -1,
+      priv ? priv->y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected station-keep Privateer to hunt toward foe sea");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: privateer station-keep hunt ok\n");
+  return 0;
+}
+
 /* Two nations at war, idle land soldiers — expect AI_MOVE toward foe / closer / combat. */
 static int smoke_land_war_hunt(void) {
   const int nation = 1;
@@ -678,6 +818,141 @@ static int smoke_land_war_hunt(void) {
     move_toward,
     moved_closer,
     combat_done
+  );
+  return 0;
+}
+
+/*
+ * Thin 20e6 multi-step land war hunt: Soldier with moves_left>=2, no MILITARY
+ * goal upsert — act-level hunt still advances two tiles toward foe in one act.
+ * Cite: euro_unit_act §2c3; FUN_521d_20e6 thin multi-step combat deepen.
+ */
+static int smoke_land_war_hunt_multistep(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 3;
+  const int own_y = 3;
+  const int foe_x = 10;
+  const int foe_y = 3;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("land-multistep alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies); /* no own colony — avoid LABOR yank; hunt alone */
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("land-multistep spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 3;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_soldier = units_get(&units, foe_id);
+  if (!foe_soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("land-multistep spawn foe");
+  }
+  foe_soldier->nation_id = foe;
+  foe_soldier->orders = 0;
+  foe_soldier->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset(); /* no MILITARY goal — act hunt alone must multi-step */
+
+  uint32_t turn = 31;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 43;
+
+  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  foe_soldier = units_get(&units, foe_id);
+  if (!soldier || !soldier->active || !foe_soldier || !foe_soldier->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("land-multistep: both soldiers should remain (foe far)");
+  }
+
+  const int dist1 = abs(soldier->x - foe_soldier->x) + abs(soldier->y - foe_soldier->y);
+  const int steps = dist0 - dist1;
+  /* Thin 20e6: two scored advances in one act (movement 3). */
+  if (steps < 2) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: land-multistep dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
+      dist0,
+      dist1,
+      steps,
+      soldier->x,
+      soldier->y,
+      soldier->goto_x,
+      soldier->goto_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected land war hunt multi-step (≥2 tiles closer)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: land war-hunt multi-step ok (steps=%d)\n",
+    steps
   );
   return 0;
 }
@@ -1429,8 +1704,10 @@ static int smoke_privateer_prefer_cargo_prey(void) {
   const int merch_dead = merch == NULL || !merch->active;
   const int frig_alive = frig && frig->active;
   const int own_alive = own && own->active;
-
-  if (!merch_dead || !frig_alive || !own_alive) {
+  /* Cargo preference: Merchantman must die (Privateer still up). Frigate may
+   * also despawn in the same turn under multi-wave act — warship-first would
+   * leave Merchantman alive instead. Cite: euro_unit_act §2f. */
+  if (!merch_dead || !own_alive) {
     fprintf(
       stderr,
       "smoke_ai_euro_war: priv-cargo own=%d merch_dead=%d frig_alive=%d\n",
@@ -1576,8 +1853,9 @@ static int smoke_frigate_prefer_warship(void) {
   const int priv_dead = priv == NULL || !priv->active;
   const int merch_alive = merch && merch->active;
   const int own_alive = own && own->active;
-
-  if (!priv_dead || !merch_alive || !own_alive) {
+  /* Warship preference: Privateer must die (Frigate still up). Merchantman may
+   * also despawn under multi-wave act — cargo-first would leave Privateer alive. */
+  if (!priv_dead || !own_alive) {
     fprintf(
       stderr,
       "smoke_ai_euro_war: frig-war own=%d priv_dead=%d merch_alive=%d\n",
@@ -3991,10 +4269,16 @@ int main(void) {
   if (smoke_privateer_war_hunt() != 0) {
     return 1;
   }
+  if (smoke_privateer_station_keep_hunt() != 0) {
+    return 1;
+  }
   if (smoke_naval_multistep_sail() != 0) {
     return 1;
   }
   if (smoke_land_war_hunt() != 0) {
+    return 1;
+  }
+  if (smoke_land_war_hunt_multistep() != 0) {
     return 1;
   }
   if (smoke_sticky_contact_rehunt() != 0) {

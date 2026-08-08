@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/col1_save.h"
 #include "core/font.h"
+#include "core/founding_fathers.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
@@ -294,6 +296,173 @@ static void colonies_grant_starters(ColonizeColonyPool* pool, ColonizeColony* sl
   for (size_t i = 0; i < sizeof(k_starters) / sizeof(k_starters[0]); ++i) {
     colonies_grant_building(pool, slot, k_starters[i]);
   }
+}
+
+/* DOS FUN_124c_0040 / ai_dos_dist — diagonal-aware tile distance. */
+static int colonies_dos_dist(int dx, int dy) {
+  if (dx < 0) {
+    dx = -dx;
+  }
+  if (dy < 0) {
+    dy = -dy;
+  }
+  if (dy < dx) {
+    return (dy >> 1) + dx;
+  }
+  return (dx >> 1) + dy;
+}
+
+/* FUN_4cc6_0356 stand-in: nearest tribe index; *out_dist = DOS distance. */
+static int colonies_nearest_tribe(
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int* out_dist
+) {
+  int best = -1;
+  int best_d = 9999;
+  if (!col1 || !col1->tribe) {
+    if (out_dist) {
+      *out_dist = best_d;
+    }
+    return -1;
+  }
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &col1->tribe[i];
+    const int d = colonies_dos_dist(x - (int)t->x, y - (int)t->y);
+    if (d <= best_d) {
+      best_d = d;
+      best = (int)i;
+    }
+  }
+  if (out_dist) {
+    *out_dist = best_d;
+  }
+  return best;
+}
+
+/*
+ * Manual Indian Land: camps/villages home radius 1; cities (capital) radius 2.
+ * Tile needs purchase when within that radius of the nearest village.
+ */
+static int colonies_tile_indian_homeland(
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int* out_tribe,
+  int* out_dist
+) {
+  int dist = 9999;
+  const int ti = colonies_nearest_tribe(col1, x, y, &dist);
+  if (out_tribe) {
+    *out_tribe = ti;
+  }
+  if (out_dist) {
+    *out_dist = dist;
+  }
+  if (ti < 0 || !col1 || !col1->tribe) {
+    return 0;
+  }
+  const int radius = col1->tribe[ti].state.capital ? 2 : 1;
+  return dist <= radius ? 1 : 0;
+}
+
+int colonies_indian_land_purchase_gold(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id
+) {
+  (void)map;
+  if (!col1 || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  int tribe_i = -1;
+  int dist = 9999;
+  if (!colonies_tile_indian_homeland(col1, x, y, &tribe_i, &dist)) {
+    return 0;
+  }
+  /* Colonization.pdf / FUN_4cc6_07c2: Peter Minuit (FF 2) → cost 0. */
+  if (founding_fathers_nation_has(col1, nation_id, FF_PETER_MINUIT)) {
+    return 0;
+  }
+
+  const ColonizeCol1Tribe* tribe = &col1->tribe[tribe_i];
+  const int indian_idx = (int)tribe->nation_id - 4;
+  const ColonizeCol1Indian* ind =
+    (indian_idx >= 0 && indian_idx < (int)COLONIZE_COL1_INDIAN_COUNT) ? &col1->indian[indian_idx]
+                                                                     : NULL;
+  /* indian+2 tech; indian+5 lands-bought counter (decomp INC on purchase). */
+  const unsigned tech = ind ? (unsigned)ind->tech : 0u;
+  const unsigned bought = ind ? (unsigned)ind->unknown31[2] : 0u;
+  const unsigned diff = (unsigned)col1->head.difficulty;
+  const int is_human =
+    (nation_id < 4 && col1->player[nation_id].control == 0);
+
+  int score;
+  int scale;
+  if (is_human) {
+    /* ((difficulty+3)*2 + tech + bought) - dist; scale 0x41. */
+    score = (int)((diff + 3u) * 2u + tech + bought) - dist;
+    scale = 0x41;
+  } else {
+    /* (tech + bought - difficulty) - dist + 0xc; scale 0x32. */
+    score = (int)(tech + bought) - (int)diff - dist + 0xc;
+    scale = 0x32;
+  }
+  /* PARKED: full −0x6bf0 / 0x9410 per-nation table adjust (decomp SAR). */
+  if (score < 1) {
+    score = 1;
+  }
+  int cost = scale * score;
+  /* Human: *(tension+1); tension stand-in 0 until 0a60 wired. */
+  if (is_human) {
+    cost = (0 + 1) * cost;
+  }
+  if (tribe->state.capital) {
+    cost = cost + (cost >> 1);
+  }
+  return cost >> 1;
+}
+
+int colonies_found_with_indian_land(
+  ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  ColonizeCol1Save* col1,
+  uint32_t* gold,
+  int x,
+  int y,
+  int nation_id,
+  int founder_type_index,
+  int founder_profession,
+  int tools,
+  int muskets,
+  int horses
+) {
+  if (col1 && gold) {
+    const int cost = colonies_indian_land_purchase_gold(col1, map, x, y, nation_id);
+    if (cost > 0) {
+      if (*gold < (uint32_t)cost) {
+        return -1;
+      }
+      *gold -= (uint32_t)cost;
+      /* Mirror FUN_479b_00ca: INC indian[+5] lands-bought after spend. */
+      int tribe_i = -1;
+      if (colonies_tile_indian_homeland(col1, x, y, &tribe_i, NULL) && tribe_i >= 0) {
+        const int indian_idx = (int)col1->tribe[tribe_i].nation_id - 4;
+        if (indian_idx >= 0 && indian_idx < (int)COLONIZE_COL1_INDIAN_COUNT) {
+          uint8_t* bought = &col1->indian[indian_idx].unknown31[2];
+          if (*bought < 0xffu) {
+            (*bought)++;
+          }
+        }
+      }
+    }
+  }
+  return colonies_found(
+    pool, map, x, y, nation_id, founder_type_index, founder_profession, tools, muskets, horses
+  );
 }
 
 int colonies_found(

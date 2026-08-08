@@ -4,6 +4,7 @@
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -3764,7 +3765,8 @@ static int smoke_tools_short_pioneer_labor(void) {
 
 /*
  * Treasure at coastal colony + adjacent ship with space → board + AI_SAIL
- * Europe (eastward). Cite: Colonization.pdf Treasure Trains. Gold unload PARKED.
+ * Europe (eastward). Cite: Colonization.pdf Treasure Trains.
+ * Gold cash runs only at Europe / HS (separate smoke_treasure_europe_cash).
  */
 static int smoke_treasure_board_sail(void) {
   const int nation = 1;
@@ -3910,16 +3912,14 @@ static int smoke_treasure_board_sail(void) {
     free(map.layer3);
     return fail("expected Galleon AI_SAIL eastward (Europe stand-in)");
   }
-  /* PARK: Treasure→gold unload — AI must not invent a Europe unload credit.
-   * Planning still applies the existing 5d04 treasury bump (small); a Treasure
-   * haul would be hundreds. Cite: Colonization.pdf Treasure Trains; EuropeScreen. */
+  /* Board+sail is not Europe/HS yet — no cash-in; do not invent gold here. */
   const uint32_t gold_after = col1.nation[nation].gold;
   const unsigned gold_delta =
     gold_after >= gold_before ? (unsigned)(gold_after - gold_before) : 0u;
   if (gold_delta > 80u) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: treasure gold %u→%u delta=%u (PARK: no AI gold unload)\n",
+      "smoke_ai_euro_expand: treasure gold %u→%u delta=%u (board/sail not Europe)\n",
       (unsigned)gold_before,
       (unsigned)gold_after,
       gold_delta
@@ -3927,7 +3927,7 @@ static int smoke_treasure_board_sail(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("Treasure board/sail must not invent Europe gold unload (PARK)");
+    return fail("Treasure board/sail must not cash gold before Europe/HS");
   }
 
   free(map.terrain);
@@ -3936,10 +3936,156 @@ static int smoke_treasure_board_sail(void) {
   fprintf(
     stderr,
     "smoke_ai_euro_expand: treasure board+sail ok (ship AI_SAIL goto=(%d,%d) "
-    "gold_delta=%u PARK unload)\n",
+    "gold_delta=%u)\n",
     ship->goto_x,
     ship->goto_y,
     gold_delta
+  );
+  return 0;
+}
+
+/*
+ * Ship at Europe with Treasure aboard + COL1 LE16 gold in hold_goods_amount →
+ * europe_cash_treasure credits nation gold (tax cut); Treasure despawned.
+ * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH; europe.h.
+ */
+static int smoke_treasure_europe_cash(void) {
+  const int nation = 1;
+  const int treasure_value = 800; /* LE16 in hold_goods_amount[0..1] */
+  const int tax = 25;
+  const int expect_credit = (treasure_value * (100 - tax)) / 100;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("treasure-cash alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("treasure-cash spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  const int tid = units_spawn_allow_stack(&units, 0, 200, 200);
+  ColonizeUnit* treasure = units_get(&units, tid);
+  if (!treasure) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("treasure-cash spawn treasure");
+  }
+  treasure->nation_id = nation;
+  treasure->moves_left = 0;
+  treasure->orders = 0;
+  /* COL1 cargo_hold[0..1] LE16 gold → hold_goods_amount lo/hi bytes. */
+  treasure->hold_goods_amount[0] = treasure_value & 0xff;
+  treasure->hold_goods_amount[1] = (treasure_value >> 8) & 0xff;
+  if (!units_board_stacked(&units, tid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("treasure-cash board setup");
+  }
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 200;
+  europe.tax_percent = tax;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+  col1.nation[nation].tax_rate = (uint8_t)tax;
+  const uint32_t gold_before = col1.nation[nation].gold;
+
+  ai_goals_reset();
+
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  treasure = units_get(&units, tid);
+  const int treasure_gone = (!treasure || !treasure->active);
+  const uint32_t gold_after = col1.nation[nation].gold;
+  const unsigned delta =
+    gold_after >= gold_before ? (unsigned)(gold_after - gold_before) : 0u;
+  /* Planning 5d04 treasury bump is small (~30); cash credit is expect_credit. */
+  const int cash_ok =
+    treasure_gone && delta >= (unsigned)expect_credit &&
+    (delta - (unsigned)expect_credit) <= 80u;
+  if (!cash_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: treasure_gone=%d gold %u→%u delta=%u want +%d (tax %d%%)\n",
+      treasure_gone,
+      (unsigned)gold_before,
+      (unsigned)gold_after,
+      delta,
+      expect_credit,
+      tax
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Treasure Europe cash-in + despawn");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: treasure Europe cash ok (gold %u→%u delta=%u credit=%d)\n",
+    (unsigned)gold_before,
+    (unsigned)gold_after,
+    delta,
+    expect_credit
   );
   return 0;
 }
@@ -4352,6 +4498,1617 @@ static int smoke_ship_trade_haul_tools_short(void) {
   return 0;
 }
 
+/*
+ * Pioneer plow/road planner: idle Hardy Pioneer with tools on unplowed colony
+ * surround → units_pioneer_plow (clear+plow API). Cite: Colonization.pdf
+ * Clear/Plow/Road; Hardy Pioneer faster work.
+ */
+static int smoke_pioneer_plow_improve(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  map.improve = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve) {
+    return fail("pioneer-plow alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40; /* no tools_short */
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  /* Hardy Pioneer on north surround (4,3) — plowable plains. */
+  const int pid = units_spawn(&units, 0, 4, 3);
+  ColonizeUnit* pioneer = units_get(&units, pid);
+  if (!pioneer) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.improve);
+    return fail("pioneer-plow spawn");
+  }
+  pioneer->nation_id = nation;
+  pioneer->orders = 0;
+  pioneer->moves_left = 1;
+  pioneer->tools = 100;
+  pioneer->profession = UNITS_JOB_PIONEER; /* Hardy */
+
+  ai_goals_reset();
+  /* Distant FOUND must not yank off improve. */
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 7;
+
+  const int tools0 = pioneer->tools;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  pioneer = units_get(&units, pid);
+  const int plowed = map_tile_is_plowed(&map, 4, 3);
+  const int tools_spent =
+    pioneer && pioneer->active && pioneer->tools == tools0 - UNITS_EQUIP_TOOLS_STEP;
+  /* Or goto toward another improvable surround if (4,3) skipped. */
+  const int improving =
+    pioneer && pioneer->active && pioneer->orders == UNITS_ORDER_AI_MOVE &&
+    abs(pioneer->goto_x - 4) <= 1 && abs(pioneer->goto_y - 4) <= 1 &&
+    (pioneer->goto_x != 4 || pioneer->goto_y != 4);
+
+  if (!plowed && !tools_spent && !improving) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: plow=%d tools=%d→%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      plowed,
+      tools0,
+      pioneer ? pioneer->tools : -1,
+      pioneer ? pioneer->orders : -1,
+      pioneer ? pioneer->goto_x : -1,
+      pioneer ? pioneer->goto_y : -1,
+      pioneer ? pioneer->x : -1,
+      pioneer ? pioneer->y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.improve);
+    return fail("expected Hardy Pioneer plow or improve goto on colony surround");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(map.improve);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: pioneer plow ok (plowed=%d tools_spent=%d improving=%d)\n",
+    plowed,
+    tools_spent,
+    improving
+  );
+  return 0;
+}
+
+/*
+ * Expert Lumberjack forest field-assign: idle Expert Lumberjack on own colony
+ * with free forest surround → admit + colonies_assign_field Lumberjack.
+ * Cite: terrain_yields / building_production Lumberjack→Lumber; Skills Chart.
+ */
+static int smoke_lumberjack_field_assign(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("lumber-field alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  /* North surround forest (tile index 0). */
+  map.terrain[3 * 16 + 4] = 10; /* mixed forest */
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = -1;
+  c->colonists[1].active = true;
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1; /* field-assign, not Warehouse LABOR */
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* lumber = units_get(&units, uid);
+  if (!lumber) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("lumber-field spawn");
+  }
+  lumber->nation_id = nation;
+  lumber->orders = 0;
+  lumber->moves_left = 3;
+  lumber->profession = 5; /* @JOB Lumberjack */
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 23;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 9;
+
+  const int pop0 = c->population;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  lumber = units_get(&units, uid);
+  const int joined = (lumber == NULL || !lumber->active) && c->population > pop0;
+  int field_ok = 0;
+  if (joined) {
+    for (int i = 0; i < c->colonist_count; ++i) {
+      if (!c->colonists[i].active) {
+        continue;
+      }
+      if (c->colonists[i].field_job == COLONIZE_JOB_LUMBERJACK &&
+          colonies_colonist_tile(c, i) == 0) {
+        field_ok = 1;
+        break;
+      }
+    }
+    /* Accept any forest field Lumberjack assign if tile 0 race-occupied. */
+    if (!field_ok) {
+      for (int i = 0; i < c->colonist_count; ++i) {
+        if (c->colonists[i].active &&
+            c->colonists[i].field_job == COLONIZE_JOB_LUMBERJACK) {
+          field_ok = 1;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!joined || !field_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: lumber-field joined=%d field=%d pop %d→%d "
+      "active=%d tile0=%d\n",
+      joined,
+      field_ok,
+      pop0,
+      c->population,
+      lumber ? (int)lumber->active : 0,
+      (int)c->tiles[0]
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Lumberjack admit + forest field assign");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Lumberjack forest field-assign ok\n");
+  return 0;
+}
+
+/*
+ * AI FOUND on Indian homeland: charges FUN_4cc6_07c2 gold; short gold PARK;
+ * Minuit elect bit → free. Cite: colonies_found_with_indian_land; FF 2.
+ *
+ * promote_secondary_to_primary wipes pre-set primaries each turn — so seed a
+ * stocked colony (COLONY not LABOR), discover its expand FOUND tile, park a
+ * tribe on that tile (homeland), and stand the founder there.
+ */
+static void smoke_indian_land_seed_colony(ColonizeColonyPool* colonies, int nation) {
+  colonies_init(colonies);
+  ColonizeColony* c = &colonies->colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 80;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies->colony_count = 1;
+  colonies->next_id = 1;
+}
+
+static int smoke_indian_land_found(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("indian-land alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* desert land */
+  }
+
+  ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 8;
+  tribe.y = 8;
+  tribe.nation_id = 4; /* Arawak */
+  tribe.state.capital = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1; /* AI */
+    col1.player[i].diplomacy = 0;
+  }
+  col1.tribe = &tribe;
+  col1.head.tribe_count = 1;
+  col1.head.difficulty = 0;
+  memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
+  col1.nation[nation].gold = 200;
+
+  ColonizeColonyPool colonies;
+  smoke_indian_land_seed_colony(&colonies, nation);
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  /* Plan-only: discover expand FOUND from colony (4,4). */
+  const int probe = units_spawn(&units, 0, 4, 5);
+  ColonizeUnit* pu = units_get(&units, probe);
+  if (!pu) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("indian-land probe spawn");
+  }
+  pu->nation_id = nation;
+  pu->orders = 0;
+  pu->moves_left = 0;
+
+  ai_goals_reset();
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 11;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int fx = -1;
+  int fy = -1;
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* g = ai_goals_primary(nation, i);
+    if (g && g->code == AI_GOAL_FOUND) {
+      fx = g->x;
+      fy = g->y;
+      break;
+    }
+  }
+  if (fx < 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("indian-land: no expand FOUND from stocked colony");
+  }
+
+  /* Park tribe on expand FOUND → homeland; founder stands there. */
+  tribe.x = (uint8_t)fx;
+  tribe.y = (uint8_t)fy;
+  const int cost = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation);
+  if (cost <= 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("indian-land: expected homeland purchase gold > 0");
+  }
+
+  /* Phase 1: enough gold → found + debit (planning treasury bump then charge). */
+  {
+    smoke_indian_land_seed_colony(&colonies, nation);
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+    units.types[0].movement = 3;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    col1.nation[nation].gold = 500;
+    col1.indian[0].unknown31[2] = 0;
+    col1.nation[nation].founding_fathers[0] = 0;
+    col1.nation[nation].founding_father_count = 0;
+
+    const int uid = units_spawn(&units, 0, fx, fy);
+    ColonizeUnit* founder = units_get(&units, uid);
+    if (!founder) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land spawn pay");
+    }
+    founder->nation_id = nation;
+    founder->orders = 0;
+    founder->moves_left = 3;
+
+    ai_goals_reset();
+    turn = 41;
+    const uint32_t gold0 = col1.nation[nation].gold;
+    ai_euro_dispatcher_turn(&ctx, nation);
+
+    founder = units_get(&units, uid);
+    const int n = count_nation_colonies(&colonies, nation);
+    if (n != 2 || (founder && founder->active)) {
+      fprintf(
+        stderr,
+        "smoke_ai_euro_expand: indian-land pay n=%d active=%d gold %u→%u "
+        "cost=%d FOUND=(%d,%d)\n",
+        n,
+        founder ? (int)founder->active : 0,
+        gold0,
+        col1.nation[nation].gold,
+        cost,
+        fx,
+        fy
+      );
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: expected found + despawn when gold enough");
+    }
+    /* gold_after == gold0 + bump - cost; bump small (≤80). */
+    {
+      const uint32_t spent_and_bump = col1.nation[nation].gold + (uint32_t)cost;
+      if (spent_and_bump < gold0 || spent_and_bump - gold0 > 80u) {
+        fprintf(
+          stderr,
+          "smoke_ai_euro_expand: indian-land gold before=%u after=%u cost=%d\n",
+          gold0,
+          col1.nation[nation].gold,
+          cost
+        );
+        free(map.terrain);
+        free(map.layer2);
+        free(map.layer3);
+        return fail("indian-land: unexpected gold after homeland found");
+      }
+    }
+  }
+
+  /* Phase 2: short gold → PARK (seed colony remains; no second colony). */
+  {
+    smoke_indian_land_seed_colony(&colonies, nation);
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+    units.types[0].movement = 3;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    col1.nation[nation].gold = 10;
+    col1.indian[0].unknown31[2] = 0;
+    col1.nation[nation].founding_fathers[0] = 0;
+    col1.nation[nation].founding_father_count = 0;
+
+    const int uid = units_spawn(&units, 0, fx, fy);
+    ColonizeUnit* founder = units_get(&units, uid);
+    if (!founder) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land spawn poor");
+    }
+    founder->nation_id = nation;
+    founder->orders = 0;
+    founder->moves_left = 3;
+
+    ai_goals_reset();
+    turn = 42;
+    ai_euro_dispatcher_turn(&ctx, nation);
+
+    founder = units_get(&units, uid);
+    if (count_nation_colonies(&colonies, nation) != 1 || !founder || !founder->active) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: short gold must PARK found");
+    }
+    if (col1.nation[nation].gold >= (uint32_t)cost) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: PARK case gold unexpectedly covers cost");
+    }
+  }
+
+  /* Phase 3: Minuit elect bit → free homeland found. */
+  {
+    smoke_indian_land_seed_colony(&colonies, nation);
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+    units.types[0].movement = 3;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    col1.nation[nation].gold = 200;
+    col1.indian[0].unknown31[2] = 0;
+    col1.nation[nation].founding_fathers[FF_PETER_MINUIT / 8] |=
+      (uint8_t)(1u << (FF_PETER_MINUIT % 8));
+    if (!founding_fathers_nation_has(&col1, nation, FF_PETER_MINUIT)) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: Minuit elect bit helper");
+    }
+    if (colonies_indian_land_purchase_gold(&col1, &map, fx, fy, nation) != 0) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: Minuit must zero purchase gold");
+    }
+
+    const uint32_t gold0 = col1.nation[nation].gold;
+    const int uid = units_spawn(&units, 0, fx, fy);
+    ColonizeUnit* founder = units_get(&units, uid);
+    if (!founder) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land spawn Minuit");
+    }
+    founder->nation_id = nation;
+    founder->orders = 0;
+    founder->moves_left = 3;
+
+    ai_goals_reset();
+    turn = 43;
+    ai_euro_dispatcher_turn(&ctx, nation);
+
+    founder = units_get(&units, uid);
+    if (count_nation_colonies(&colonies, nation) != 2 || (founder && founder->active)) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: Minuit free found failed");
+    }
+    if (col1.nation[nation].gold < gold0 || col1.nation[nation].gold > gold0 + 80u) {
+      fprintf(
+        stderr,
+        "smoke_ai_euro_expand: Minuit gold %u→%u (want bump-only)\n",
+        gold0,
+        col1.nation[nation].gold
+      );
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      return fail("indian-land: Minuit free found must not spend land gold");
+    }
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: indian-land FOUND charge/Minuit ok\n");
+  return 0;
+}
+
+/*
+ * Expert Ore Miner hills field-assign: idle Expert Ore Miner on own colony
+ * with free hills surround → admit + colonies_assign_field Ore Miner.
+ * Cite: terrain_yields Ore Miner; Skills Chart (parallel Lumberjack).
+ */
+static int smoke_ore_miner_field_assign(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("ore-field alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 3; /* prairie — no ore */
+  }
+  /* North surround hills (tile index 0): ore yield. */
+  map.terrain[3 * 16 + 4] = 0x20u;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Ore Miner");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = -1;
+  c->colonists[1].active = true;
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* miner = units_get(&units, uid);
+  if (!miner) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ore-field spawn");
+  }
+  miner->nation_id = nation;
+  miner->orders = 0;
+  miner->moves_left = 3;
+  miner->profession = 6; /* @JOB Ore Miner */
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 24;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 14;
+
+  const int pop0 = c->population;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  miner = units_get(&units, uid);
+  const int joined = (miner == NULL || !miner->active) && c->population > pop0;
+  int field_ok = 0;
+  if (joined) {
+    for (int i = 0; i < c->colonist_count; ++i) {
+      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_ORE_MINER) {
+        field_ok = 1;
+        break;
+      }
+    }
+  }
+
+  if (!joined || !field_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: ore-field joined=%d field=%d pop %d→%d\n",
+      joined,
+      field_ok,
+      pop0,
+      c->population
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Ore Miner admit + hills field assign");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Ore Miner hills field-assign ok\n");
+  return 0;
+}
+
+/*
+ * Expert Farmer food field-assign: idle Expert Farmer on own colony with free
+ * plains surround → admit + colonies_assign_field Farmer. Cite: terrain_yields
+ * Farmer; Skills Chart (parallel Lumberjack/Ore Miner).
+ */
+static int smoke_farmer_field_assign(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("farmer-field alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains — Farmer food yield */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = -1;
+  c->colonists[1].active = true;
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* farmer = units_get(&units, uid);
+  if (!farmer) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("farmer-field spawn");
+  }
+  farmer->nation_id = nation;
+  farmer->orders = 0;
+  farmer->moves_left = 3;
+  farmer->profession = 0; /* @JOB Farmer */
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 15;
+
+  const int pop0 = c->population;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  farmer = units_get(&units, uid);
+  const int joined = (farmer == NULL || !farmer->active) && c->population > pop0;
+  int field_ok = 0;
+  if (joined) {
+    for (int i = 0; i < c->colonist_count; ++i) {
+      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_FARMER) {
+        field_ok = 1;
+        break;
+      }
+    }
+  }
+
+  if (!joined || !field_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: farmer-field joined=%d field=%d pop %d→%d\n",
+      joined,
+      field_ok,
+      pop0,
+      c->population
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Farmer admit + food field assign");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Farmer food field-assign ok\n");
+  return 0;
+}
+
+/*
+ * Pioneer road preference on already-plowed surround: idle Hardy Pioneer with
+ * tools on plowed no-road tile → units_pioneer_road (not leave to plow elsewhere).
+ * Cite: Colonization.pdf Clear/Plow/Road sequence.
+ */
+static int smoke_pioneer_road_on_plowed(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  map.improve = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3 || !map.improve) {
+    return fail("pioneer-road alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  /* North surround already plowed, no road — prefer road here. */
+  map_tile_set_plowed(&map, 4, 3, true);
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int pid = units_spawn(&units, 0, 4, 3);
+  ColonizeUnit* pioneer = units_get(&units, pid);
+  if (!pioneer) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.improve);
+    return fail("pioneer-road spawn");
+  }
+  pioneer->nation_id = nation;
+  pioneer->orders = 0;
+  pioneer->moves_left = 1;
+  pioneer->tools = 100;
+  pioneer->profession = UNITS_JOB_PIONEER;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 16;
+
+  const int tools0 = pioneer->tools;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  pioneer = units_get(&units, pid);
+  const int roaded = map_tile_has_road(&map, 4, 3);
+  const int tools_spent =
+    pioneer && pioneer->active && pioneer->tools == tools0 - UNITS_EQUIP_TOOLS_STEP;
+  const int still_plowed = map_tile_is_plowed(&map, 4, 3);
+
+  if (!roaded || !tools_spent || !still_plowed) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: road=%d plow=%d tools=%d→%d orders=%d goto=(%d,%d)\n",
+      roaded,
+      still_plowed,
+      tools0,
+      pioneer ? pioneer->tools : -1,
+      pioneer ? pioneer->orders : -1,
+      pioneer ? pioneer->goto_x : -1,
+      pioneer ? pioneer->goto_y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.improve);
+    return fail("expected Hardy Pioneer road on already-plowed surround");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(map.improve);
+  fprintf(stderr, "smoke_ai_euro_expand: pioneer road-on-plowed ok\n");
+  return 0;
+}
+
+
+/*
+ * Expert Fisherman coastal field-assign: idle Expert Fisherman on colony with
+ * free ocean surround → admit + colonies_assign_field Fisherman. Cite:
+ * terrain_yields Ocean fish; Skills Chart (parallel Farmer field-assign).
+ */
+static int smoke_fisherman_field_assign(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("fisherman-field alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* plains */
+  }
+  /* West surround ocean (pedia 25) — Fisherman food yield. */
+  map.terrain[4 * 16 + 3] = 25;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Fisherman");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = -1;
+  c->colonists[1].active = true;
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* fisher = units_get(&units, uid);
+  if (!fisher) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("fisherman-field spawn");
+  }
+  fisher->nation_id = nation;
+  fisher->orders = 0;
+  fisher->moves_left = 3;
+  fisher->profession = COLONIZE_JOB_FISHERMAN;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 27;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 15;
+
+  const int pop0 = c->population;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  fisher = units_get(&units, uid);
+  const int joined = (fisher == NULL || !fisher->active) && c->population > pop0;
+  int field_ok = 0;
+  if (joined) {
+    for (int i = 0; i < c->colonist_count; ++i) {
+      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_FISHERMAN) {
+        field_ok = 1;
+        break;
+      }
+    }
+  }
+
+  if (!joined || !field_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: fisherman-field joined=%d field=%d pop %d→%d ocean_pedia=%d\n",
+      joined,
+      field_ok,
+      pop0,
+      c->population,
+      map_pedia_terrain_index_at(&map, 3, 4)
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Fisherman admit + coastal fish field assign");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Fisherman coastal field-assign ok\n");
+  return 0;
+}
+
+/*
+ * Expert Sugar Planter field-assign: idle Expert Sugar Planter on own colony
+ * with free savannah surround → admit + colonies_assign_field Sugar Planter.
+ * Cite: terrain_yields Sugar Planter; Skills Chart (parallel Farmer).
+ */
+static int smoke_sugar_planter_field_assign(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("sugar-field alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* desert — no sugar */
+  }
+  /* North surround savannah (tile index 0): sugar yield. */
+  map.terrain[3 * 16 + 4] = 5;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Sugar Planter");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = -1;
+  c->colonists[1].active = true;
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* planter = units_get(&units, uid);
+  if (!planter) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sugar-field spawn");
+  }
+  planter->nation_id = nation;
+  planter->orders = 0;
+  planter->moves_left = 3;
+  planter->profession = COLONIZE_JOB_SUGAR_PLANTER;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 16;
+
+  const int pop0 = c->population;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  planter = units_get(&units, uid);
+  const int joined = (planter == NULL || !planter->active) && c->population > pop0;
+  int field_ok = 0;
+  if (joined) {
+    for (int i = 0; i < c->colonist_count; ++i) {
+      if (c->colonists[i].active &&
+          c->colonists[i].field_job == COLONIZE_JOB_SUGAR_PLANTER) {
+        field_ok = 1;
+        break;
+      }
+    }
+  }
+
+  if (!joined || !field_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: sugar-field joined=%d field=%d pop %d→%d\n",
+      joined,
+      field_ok,
+      pop0,
+      c->population
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Sugar Planter admit + savannah field assign");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Sugar Planter field-assign ok\n");
+  return 0;
+}
+
+/*
+ * Expert Tobacco Planter field-assign: idle Expert Tobacco Planter on own colony
+ * with free grassland surround → admit + colonies_assign_field Tobacco Planter.
+ * Cite: terrain_yields Tobacco Planter; Skills Chart (parallel Sugar Planter).
+ */
+static int smoke_tobacco_planter_field_assign(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("tobacco-field alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1; /* desert — no tobacco */
+  }
+  /* North surround grassland (tile index 0): tobacco yield. */
+  map.terrain[3 * 16 + 4] = 4;
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Tobacco Planter");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->colonists[0].active = true;
+  c->colonists[0].field_job = -1;
+  c->colonists[0].building_type = -1;
+  c->colonists[1].active = true;
+  c->colonists[1].field_job = -1;
+  c->colonists[1].building_type = -1;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* planter = units_get(&units, uid);
+  if (!planter) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("tobacco-field spawn");
+  }
+  planter->nation_id = nation;
+  planter->orders = 0;
+  planter->moves_left = 3;
+  planter->profession = COLONIZE_JOB_TOBACCO_PLANTER;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 1;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 27;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 17;
+
+  const int pop0 = c->population;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  planter = units_get(&units, uid);
+  const int joined = (planter == NULL || !planter->active) && c->population > pop0;
+  int field_ok = 0;
+  if (joined) {
+    for (int i = 0; i < c->colonist_count; ++i) {
+      if (c->colonists[i].active &&
+          c->colonists[i].field_job == COLONIZE_JOB_TOBACCO_PLANTER) {
+        field_ok = 1;
+        break;
+      }
+    }
+  }
+
+  if (!joined || !field_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: tobacco-field joined=%d field=%d pop %d→%d\n",
+      joined,
+      field_ok,
+      pop0,
+      c->population
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Tobacco Planter admit + grassland field assign");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: Tobacco Planter field-assign ok\n");
+  return 0;
+}
+
+/*
+ * Idle Wagon with MUSKETS cargo → AI_MOVE toward muskets-short colony
+ * (tools stock OK). Cite: euro_unit_act §2d wagon haul muskets; COLONIZE_CARGO_MUSKETS.
+ */
+static int smoke_wagon_haul_muskets_short(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-muskets alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+  units.types[0].movement = 2;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* short_c = &colonies.colonies[0];
+  short_c->id = 0;
+  short_c->active = true;
+  short_c->nation_id = nation;
+  short_c->x = 4;
+  short_c->y = 4;
+  short_c->population = 3;
+  short_c->colonist_count = 3;
+  short_c->stock[COLONIZE_CARGO_TOOLS] = 40; /* not tools-short */
+  short_c->stock[COLONIZE_CARGO_MUSKETS] = 2; /* muskets-short */
+  short_c->stock[COLONIZE_CARGO_FOOD] = 40;
+  short_c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int wid = units_spawn(&units, 0, 10, 10);
+  ColonizeUnit* wagon = units_get(&units, wid);
+  if (!wagon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-muskets spawn");
+  }
+  wagon->nation_id = nation;
+  wagon->moves_left = 2;
+  wagon->orders = 0;
+  /* Prefill MUSKETS cargo so haul prefers muskets-short colony. */
+  if (units_load_goods(&units, wid, COLONIZE_CARGO_MUSKETS, 10) <= 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-muskets load");
+  }
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 32;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  wagon = units_get(&units, wid);
+  if (!wagon || !wagon->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-muskets should remain active");
+  }
+  if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: wagon-muskets orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      wagon->orders,
+      wagon->goto_x,
+      wagon->goto_y,
+      wagon->x,
+      wagon->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Wagon AI_MOVE toward muskets-short colony (4,4)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: wagon haul muskets-short ok\n");
+  return 0;
+}
+
+/*
+ * Seasoned Scout + sticky≥2 fog deepen: prior goto to nearer unseen (MD=3)
+ * re-aims to deeper unseen (MD=7). Cite: euro_unit_act §2c2 Seasoned+sticky;
+ * Colonization.pdf Seasoned Scout.
+ */
+static int smoke_seasoned_sticky_fog_deepen(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  map.seen = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3 || !map.seen) {
+    return fail("seasoned-sticky alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  /* Reveal all MD≤8 around (5,5) except (5,8) MD=3 and (5,12) MD=7. */
+  for (int dy = -8; dy <= 8; ++dy) {
+    for (int dx = -8; dx <= 8; ++dx) {
+      const int md = abs(dx) + abs(dy);
+      if (md < 1 || md > 8) {
+        continue;
+      }
+      const int nx = 5 + dx;
+      const int ny = 5 + dy;
+      if ((nx == 5 && ny == 8) || (nx == 5 && ny == 12)) {
+        continue;
+      }
+      map_reveal_tile(&map, nx, ny, nation);
+    }
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int sid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* scout = units_get(&units, sid);
+  if (!scout) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("seasoned-sticky spawn");
+  }
+  scout->nation_id = nation;
+  scout->moves_left = 4;
+  scout->orders = UNITS_ORDER_AI_MOVE;
+  scout->goto_x = 5;
+  scout->goto_y = 8; /* prior nearer fog — Seasoned+sticky must re-aim deeper */
+  scout->horses = 50;
+  scout->profession = UNITS_JOB_SCOUT; /* → display "Seasoned Scout" */
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.head.tribe_count = 0;
+  col1.tribe = NULL;
+  col1.nation[nation].unknown26[8] = 2; /* sticky very-low deepen */
+
+  ai_goals_reset();
+
+  uint32_t turn = 33;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  if (ai_diplo_indian_hostility_sticky(&col1, nation) < 2) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("seasoned-sticky expected sticky≥2");
+  }
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  scout = units_get(&units, sid);
+  const int deep =
+    scout && scout->active && scout->orders == UNITS_ORDER_AI_MOVE &&
+    scout->goto_x == 5 && scout->goto_y == 12 &&
+    !map_tile_seen_by(&map, scout->goto_x, scout->goto_y, nation);
+  if (!deep) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: seasoned-sticky orders=%d goto=(%d,%d) name=%s sticky=%u\n",
+      scout ? scout->orders : -1,
+      scout ? scout->goto_x : -1,
+      scout ? scout->goto_y : -1,
+      scout ? units_display_name(&units, scout) : "?",
+      (unsigned)ai_diplo_indian_hostility_sticky(&col1, nation)
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    free(map.seen);
+    return fail("expected Seasoned+sticky re-aim fog to deeper MD=7");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  free(map.seen);
+  fprintf(stderr, "smoke_ai_euro_expand: Seasoned+sticky fog deepen ok\n");
+  return 0;
+}
+
 int main(void) {
   if (smoke_second_wave() != 0) {
     return 1;
@@ -4377,10 +6134,16 @@ int main(void) {
   if (smoke_seasoned_scout_deeper_fog() != 0) {
     return 1;
   }
+  if (smoke_seasoned_sticky_fog_deepen() != 0) {
+    return 1;
+  }
   if (smoke_treasure_coast() != 0) {
     return 1;
   }
   if (smoke_treasure_board_sail() != 0) {
+    return 1;
+  }
+  if (smoke_treasure_europe_cash() != 0) {
     return 1;
   }
   if (smoke_missionary_contact() != 0) {
@@ -4405,6 +6168,9 @@ int main(void) {
     return 1;
   }
   if (smoke_wagon_haul_tools_short() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_haul_muskets_short() != 0) {
     return 1;
   }
   if (smoke_ship_trade_haul_tools_short() != 0) {
@@ -4432,6 +6198,33 @@ int main(void) {
     return 1;
   }
   if (smoke_lumberjack_warehouse_labor() != 0) {
+    return 1;
+  }
+  if (smoke_lumberjack_field_assign() != 0) {
+    return 1;
+  }
+  if (smoke_ore_miner_field_assign() != 0) {
+    return 1;
+  }
+  if (smoke_farmer_field_assign() != 0) {
+    return 1;
+  }
+  if (smoke_fisherman_field_assign() != 0) {
+    return 1;
+  }
+  if (smoke_sugar_planter_field_assign() != 0) {
+    return 1;
+  }
+  if (smoke_tobacco_planter_field_assign() != 0) {
+    return 1;
+  }
+  if (smoke_indian_land_found() != 0) {
+    return 1;
+  }
+  if (smoke_pioneer_plow_improve() != 0) {
+    return 1;
+  }
+  if (smoke_pioneer_road_on_plowed() != 0) {
     return 1;
   }
   if (smoke_stockade_threat_labor() != 0) {

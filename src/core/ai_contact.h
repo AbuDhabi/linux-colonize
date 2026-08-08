@@ -13,10 +13,12 @@
  *
  * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): full meet/raid decision
  * matrix + nested trade 2aac…311e (dispatch / buy / hard-bargain / demand).
- * Linux keeps thin trade-goods→alarm + gift/demand / teach / convert / @RAID*
- * stand-ins only — R14 PARK only (no 2820 body port).
+ * Linux keeps thin trade-goods→alarm + Trade CHOICE refuse/concluded chrome +
+ * gift/demand / teach / convert / @RAID* stand-ins only — no 2820 body port
+ * (Marathon2 R6 / R5 / R4 / prior R14 PARK).
  *
- * Human chrome: status lines + AI popup enqueue (OK / Meet CHOICE). Cite:
+ * Human chrome: status lines + AI popup enqueue (OK / Meet CHOICE incl.
+ * Leave→Farewell / Gift amount / Demand tools-vs-gold / alarmed Demand OK). Cite:
  * indian_contact.md; docs/ai_transcription.md FUN_4d56_2820; peel
  * layer_b_combat_raid / layer_b_2a1f_midlo.
  */
@@ -50,7 +52,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
 
-/* Apply human choice from map AI popup (meet / teach / gift / demand). No-op if tag mismatch. */
+/* Apply human choice from map AI popup (meet / teach / gift|demand amount). */
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
 #endif

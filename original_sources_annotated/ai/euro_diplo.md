@@ -28,6 +28,7 @@ Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 | `nation[a].unknown26[0..3]` | Treaty timers toward peer (6d8e §4) |
 | `nation[a].unknown26[4..7]` | Diplo flag byte toward peer (`15b3` mirror) |
 | `nation[a].unknown26[8]` | Indian hostility sticky (`0` clear / `1` at-war / `2` very-low deepen) |
+| `nation[a].unknown26[9]` | Wartime Privateer spawn mask (`bit peer` = commissioned once this war) |
 
 Exact DS `−0x77c4` Col1 field rename PARKED.
 
@@ -79,7 +80,8 @@ Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 
 - If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
 - Human status once per tick when upkeep drains and human is the actor: `"War upkeep costs gold."` (later privateer / peace may overwrite). FA UI **PARKED**
-- Thin privateer prize (separate from upkeep): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). If `ctx->units` is null → treasury-only stand-in; if units are present → only when **this** nation has any sea unit. Human status when prize fires and human is a party: `"Privateer prize from %s"`. Full privateer unit spawn **PARKED**
+- Wartime **Privateer unit spawn** (before prize): when `ctx->units` set and `units_find_type("Privateer")` exists, spawn once per war peer via `units_spawn_allow_stack` on **hunt-ready** coastal water by own colony (New World water, not `x|y≥200`), else stack on own New World sea unit (skip Europe-dock stacks), else Europe `(236,236)`. Read-only check refuses bad New World tiles before arming `unknown26[9]`. Gate: `unknown26[9]` bit for peer (clear on `make_peace` / alliance that clears WAR). Human status: `"Privateer commissioned against %s"` + OK. Cite: Europe Privateer purchase; fandom Drake; `euro_unit_act` §2b (`ai_euro` naval hunt needs `!in_europe`). Deep cargo-raid loot still thin prize below.
+- Thin privateer prize (separate from upkeep): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). If `ctx->units` is null → treasury-only stand-in; if units are present → only when **this** nation has any sea unit (spawn may provide one same tick). Human status when prize fires and human is a party: `"Privateer prize from %s"`.
 - No new declare / ally logic for that peer that turn
 
 Embargo lift (thin):
@@ -120,15 +122,26 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
   `BOYCOTT` / `INFO`). Alliance offer to human peer enqueues CHOICE Accept/Refuse;
   Accept → `form_alliance_ctx` follow-up OK `"Alliance formed with %s"` (or
   gold-drain chrome). War-fatigue AI→human peace offer enqueues CHOICE
-  Accept/Refuse → `make_peace_ctx` on Accept (`ai_diplo_apply_popup_result`).
+  Accept/Refuse → `make_peace_ctx` on Accept; Refuse → status
+  `"Peace refused with %s"` + follow-up OK (`ai_diplo_apply_popup_result`).
   War OK both human-as-a / human-as-b once (`!already` re-declare gate).
-  Privateer prize status also enqueues OK (`INFO`). FA `3f41` full report UI
-  still **PARKED**; OK for gift/strengthen status is fine. Cite `FUN_15b3` /
-  `FUN_5bfb`.
+  AI→human `10ec` war eligibility may enqueue CHOICE Accept/Refuse
+  (`DIPLO_WAR`) before `declare_war_ctx` (same pattern as alliance/peace);
+  Refuse → `"War refused with %s"` + follow-up OK (Marathon2 R6).
+  AI→human `13b0` break may enqueue CHOICE Accept/Refuse (`DIPLO_BREAK`)
+  before `break_alliance_ctx`; Refuse → `"Alliance break refused with %s"` + OK
+  (timer-expiry break stays automatic). Alliance Accept also bumps treaty
+  timer to **≥8** when was 0 (same `form_alliance` path). Native sticky
+  deepen / remain-hostile status enqueues INFO OK. Privateer commission /
+  prize status also enqueues OK (`INFO`). FA `3f41` full report UI still
+  **PARKED**; thin gift/strengthen OK reuses `AI_POPUP_TAG_DIPLO_ALLIANCE`
+  + title `"Foreign Affairs"` (no dedicated `DIPLO_FA` tag). Cite
+  `FUN_15b3` / `FUN_5bfb`.
 
-**OPEN (unpark #5):** full multi-line `102a`/`1092` dialog widgets; FA `3f41`, order clear
-`12d0` deep, privateer units, exact `−0x77c4` still PARKED. Score/trade deepen + thin
-status chrome **Done** this pass. AI popup OK/CHOICE enqueue **Done** (R1–R3).
+**OPEN (unpark #5):** full multi-line `102a`/`1092` dialog widgets; FA `3f41` full
+UI, order clear `12d0` deep, exact `−0x77c4` still PARKED. Wartime Privateer
+**unit spawn** **Done** (Marathon2 R1). Score/trade deepen + thin status chrome
+**Done**. AI popup OK/CHOICE enqueue **Done** (R1–R3).
 
 ### Thin alliance treasury + treaty timer (Linux)
 
@@ -254,4 +267,8 @@ API / behavior:
 - **Done R14:** full wartime boycott mask declare OR + make_peace clear already smoked; `form_alliance_ctx` success chrome `"Alliance formed with %s"` (gold-drain preferred)
 - **Done R15 (thin final):** no code gap — alliance-formed status smoke already present (R14 zero-gold path); FA `3f41` full body/UI confirmed **PARKED** (thin ally-aid 10g + FA gift 15g / longevity only; Accuracy bar: FA UI parked, no invented chrome)
 - **Done popup marathon R3 (thin final):** Alliance Accept CHOICE → follow-up OK `"Alliance formed with %s"` smoke; privateer prize OK enqueue smoke; FA `3f41` full body/UI stays **PARKED** (cite `FUN_15b3` / `FUN_5bfb`; no F2–F9 report chrome)
-- **Still PARKED:** FA `3f41` full body/UI; wartime privateer **unit spawn** / raid path (thin treasury prize only); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens
+- **Done Marathon2 R1:** wartime Privateer **unit spawn** once/war peer (`unknown26[9]` + coast/Europe); treasury prize kept; thin FA report OK title `"Foreign Affairs"`
+- **Done Marathon2 R3:** Privateer spawn prefers hunt-ready New World water (skip Europe-dock stacks); smoke asserts water/`!in_europe`; FA OK documents `DIPLO_ALLIANCE` + `"Foreign Affairs"` (no `DIPLO_FA` tag); AI→human war declare CHOICE Accept/Refuse
+- **Done Marathon2 R5:** peace CHOICE Refuse status + follow-up OK; Privateer once/war smoke asserts `unknown26[9]` blocks second; AI→human break-alliance CHOICE Accept/Refuse; FA `3f41` full UI stays **PARKED**
+- **Done Marathon2 R6:** war CHOICE Refuse status + follow-up OK; Alliance Accept treaty timer ≥8 smoke; native sticky deepen INFO OK enqueue smoke; FA `3f41` full UI stays **PARKED**
+- **Still PARKED:** FA `3f41` full body/UI (F2–F9); deep privateer cargo-raid loot (thin 8g prize remains); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens

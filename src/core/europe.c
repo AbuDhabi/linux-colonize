@@ -174,6 +174,58 @@ static bool europe_dock_push_front(
   return true;
 }
 
+static int europe_type_is_treasure(const ColonizeUnitPool* units, int type_tag) {
+  if (!units || type_tag < 0) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, type_tag);
+  return ut && ut->name[0] && strstr(ut->name, "Treasure") != NULL;
+}
+
+/*
+ * Treasure passengers cash in (or PARK without inventing gold) and are removed
+ * before dock unload — they are not immigrants. Cite: Colonization.pdf Treasure
+ * Trains; GAME.TXT @LOOTCASH / @CASHTREASURE.
+ */
+static void europe_cash_treasure_passengers(
+  EuropeScreen* eu,
+  EuropeHarborShip* ship,
+  const ColonizeUnitPool* units
+) {
+  if (!eu || !ship || ship->cargo_count <= 0) {
+    return;
+  }
+  int w = 0;
+  for (int i = 0; i < ship->cargo_count; ++i) {
+    const int tag = ship->cargo_types[i];
+    const int gold = ship->cargo_treasure_gold[i];
+    if (europe_type_is_treasure(units, tag)) {
+      if (gold > 0) {
+        (void)europe_cash_treasure(eu, gold);
+      } else {
+        /*
+         * PARK value source: intended COL1 Treasure cargo_hold[0..1] LE16 gold
+         * (ColonizeUnit has no treasure_gold; game_loop→europe_enqueue_expected
+         * does not fill cargo_treasure_gold yet). Do not invent a rate/value.
+         */
+      }
+      continue;
+    }
+    if (w != i) {
+      ship->cargo_types[w] = tag;
+      ship->cargo_professions[w] = ship->cargo_professions[i];
+      ship->cargo_treasure_gold[w] = gold;
+    }
+    ++w;
+  }
+  for (int i = w; i < ship->cargo_count; ++i) {
+    ship->cargo_types[i] = 0;
+    ship->cargo_professions[i] = -1;
+    ship->cargo_treasure_gold[i] = 0;
+  }
+  ship->cargo_count = w;
+}
+
 /* Unload passengers onto dock front (preserves on-board order); clear holds. */
 static void europe_disembark_passengers_to_dock(
   EuropeScreen* eu,
@@ -183,6 +235,7 @@ static void europe_disembark_passengers_to_dock(
   if (!eu || !ship || ship->cargo_count <= 0) {
     return;
   }
+  europe_cash_treasure_passengers(eu, ship, units);
   for (int i = ship->cargo_count - 1; i >= 0; --i) {
     char name[40];
     const int tag = ship->cargo_types[i];
@@ -209,6 +262,7 @@ static void europe_disembark_passengers_to_dock(
   }
   ship->cargo_count = 0;
   memset(ship->cargo_types, 0, sizeof(ship->cargo_types));
+  memset(ship->cargo_treasure_gold, 0, sizeof(ship->cargo_treasure_gold));
   for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
     ship->cargo_professions[i] = -1;
   }
@@ -1201,6 +1255,30 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     europe_refresh_harbor_selection(eu);
     snprintf(eu->status, sizeof(eu->status), "%s has docked in %s.", ship.name, eu->port_city);
   }
+}
+
+int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
+  if (!eu || treasure_value <= 0) {
+    return 0;
+  }
+  int tax = eu->tax_percent;
+  if (tax < 0) {
+    tax = 0;
+  }
+  if (tax > 100) {
+    tax = 100;
+  }
+  /* GAME.TXT @LOOTCASH / @KINGGALLEON3: Crown share = tax rate. */
+  const int credited = (treasure_value * (100 - tax)) / 100;
+  eu->gold += credited;
+  snprintf(
+    eu->status,
+    sizeof(eu->status),
+    "Treasure cash-in +%d$ (Crown %d%%).",
+    credited,
+    tax
+  );
+  return credited;
 }
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {

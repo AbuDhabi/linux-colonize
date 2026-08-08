@@ -85,7 +85,9 @@ including formerly fortified/sentry) get `AI_MOVE` toward the nearest enemy
 land unit or enemy colony tile. Idle `FORTIFY` / `FORTIFIED` / `SENTRY` are
 woken via `units_wake` then hunted. Adjacent → `ai_euro_try_attack`, preferring
 the foe with lower effective defense (fortified ×2). Does not steal founders on
-FOUND goals. Multi-step `20e6` land combat scoring remains **OPEN**.
+FOUND goals. Act-level hunt / peace-border / scout explore share thin 2-step
+goto advance with FOUND/MILITARY/CONTACT (§2c3). Full multi-step `20e6` combat
+scoring remains **PARKED**.
 
 ### 2c2. Linux thin — CONTACT scout rings (0a60 E / act)
 
@@ -120,9 +122,13 @@ colony and an own ship with passenger space is adjacent/same-tile →
 `units_board` / `units_board_stacked` + ship `AI_SAIL` toward eastern high seas
 (`units_find_eastern_high_seas_tile`) or eastward water (Europe exit stand-in).
 Treasure passengers are skipped by settle unload. Ships with Treasure aboard
-skip naval war-hunt yank. **PARK:** Europe harbor Treasure→gold unload / king
-transport fee — no AI API to credit `nation.gold` (game_loop / EuropeScreen
-only). Do not invent gold.
+skip naval war-hunt yank. **Treasure → Europe gold (unparked):** when Treasure
+(or ship carrying Treasure) is at Europe (`x/y≥200`) or on high seas, AI calls
+`europe_cash_treasure` with COL1 `cargo_hold[0..1]` LE16 mirrored in
+`hold_goods_amount[0..1]`; Treasure despawned. Value 0/unset → PARK (no invented
+default). AI may also tick due Expected→Harbor (`cargo_treasure_gold`). Cite:
+Colonization.pdf Treasure Trains; GAME.TXT `@LOOTCASH`. **PARK:** KINGGALLEON2
+non-Cortes royal-galleon extra share (see `europe_cash_treasure`).
 
 ### 2c6. Linux thin — Missionary CONTACT (act)
 
@@ -133,11 +139,13 @@ Jesuit prefers convert CONTACT over Scout explore / FOUND yank. Adjacent
 convert lives in `ai_contact`. Cite: Colonization.pdf Establishing a Mission;
 indian_contact.md.
 
-### 2c3. Linux thin — multi-step land goto (FOUND / MILITARY)
+### 2c3. Linux thin — multi-step land goto (FOUND / MILITARY / CONTACT / hunt)
 
-Toward `AI_GOAL_FOUND` or `AI_GOAL_MILITARY`, after one scored advance, a second
-`advance` is allowed in the same act while `moves_left` remain (thin `20e6`
-multi-step). Full combat multi-step scoring stays **OPEN**.
+Toward `AI_GOAL_FOUND`, `AI_GOAL_MILITARY`, or `AI_GOAL_CONTACT`, or when
+act-level land war hunt / peace-border wake / scout explore set the goto,
+after one scored advance a second `advance` is allowed in the same act while
+`moves_left` remain (thin `20e6` multi-step). Full combat multi-step scoring
+stays **PARKED**.
 
 ### 2c4. Linux thin — multi-step naval sail (AI_SAIL)
 
@@ -158,10 +166,12 @@ tools-short colony with hold `TOOLS`, unload via `colonies_transfer_from_unit`
 (structural cargo only). Pioneer delivery prefers this path when a wagon is on
 the same tile before the +10 stand-in.
 
-**Wagon haul (idle):** Wagon with free hold capacity or TOOLS cargo → `AI_MOVE`
-toward nearest tools-short own colony (`stock[TOOLS]<20`). On a surplus colony
-(≥40 tools) with empty capacity, load TOOLS via `colonies_transfer_to_unit`
-before hauling. Cite: manual Wagon Train cargo; §2d unload delivery.
+**Wagon haul (idle):** Wagon with free hold capacity or TOOLS / MUSKETS / HORSES
+cargo → `AI_MOVE` toward nearest matching short own colony (`TOOLS<20`,
+`MUSKETS`/`HORSES`<10). On a surplus colony (tools≥40 / muskets≥20 / horses≥20)
+with empty capacity, load that cargo via `colonies_transfer_to_unit` before
+hauling. Cite: manual Wagon Train cargo; `COLONIZE_CARGO_*`; §2d unload delivery.
+**PARK:** wagon FOOD load (FOOD remains colony stock / LABOR tally only).
 
 ### 2d2. Linux thin — Caravel/Merchantman coastal haul (act)
 
@@ -219,12 +229,16 @@ Cite: Colonization.pdf naval transport / Defending a Colony; complements board
 + war-transport sail-to-threatened-port.
 **PARK:** wagon
 trade-goods → Europe sell needs ship-in-harbor `europe_sell_hold`
-(no AI New-World wagon→Europe sell API). **PARK:** Pioneer / Hardy Pioneer plow/road — `units_pioneer_plow` /
-`units_pioneer_road` exist for UI, but euro 5b66 has no improve-target planner
-(which tile). Hardy real power: "Clears forest, plows fields, and builds roads
-faster" (Colonization.pdf) — prefer Hardy when planner exists; no invented yields.
-Cite: Colonization.pdf Clear/Plow/Road.
-Remaining mid `5d04` wagon matrix / deep combat tails stay **OPEN** (unpark #4).
+(no AI New-World wagon→Europe sell API).
+**Pioneer plow/road (unparked):** idle Hardy/Expert Pioneer with tools picks a
+nearby own-colony surround → `AI_MOVE` then on-tile `units_pioneer_plow`
+(clear forest then plow in one API) / `units_pioneer_road`. Prefer plow over
+road; among roads prefer tiles **already plowed** (Clear/Plow/Road sequence).
+Hardy real power: "Clears forest, plows fields, and builds roads faster"
+(Colonization.pdf) — prefer Hardy when both idle; no invented yields. Skip when
+`tools_short` or on-colony construction LABOR stay. Cite: Colonization.pdf
+Clear/Plow/Road. Remaining mid `5d04` wagon matrix / deep combat tails stay
+**OPEN** (unpark #4).
 
 ### 2e. Linux thin — LABOR bind (food/tools short + construction)
 
@@ -276,16 +290,47 @@ peace Pioneer/Hardy within MD≤8 is LABOR-bound toward a tools-short colony
 **PARK:** Drydock build prefer (fandom Naval Docks→Drydock→Shipyard;
 `building_production` Drydock 80h) — no AI construction-list pick API yet.
 
-**PARK:** Expert Lumberjack → forest field (`colonies_assign_field` exists for
-UI / scripted `ai.c`, but euro 5d04/5b66 has no field-job planner — LABOR join
-for Warehouse/Lumber Mill only). Cite: terrain_yields / building_production
-Lumberjack→Lumber. No invented lumber rates until euro field-assign planning
-hook exists.
+**Expert Lumberjack forest field-assign (unparked):** idle Expert Lumberjack →
+admit + `colonies_assign_field` on a free forest surround (pedia 8–23) with
+`COLONIZE_JOB_LUMBERJACK`. Off-tile MD≤8 → LABOR goto. Warehouse/Lumber Mill
+LABOR join remains the no-forest fallback. Cite: terrain_yields /
+building_production Lumberjack→Lumber; Colonization.pdf Skills Chart. No
+invented lumber rates.
 
-**PARK:** Pioneer plow/road tile improve — `units_pioneer_plow` /
-`units_pioneer_road` exist for UI (game_loop), but euro 5b66 has no
-improve-target planner (which adjacent tile). Cite: Colonization.pdf
-Clear/Plow/Road; map road/plowed bits. Comment-only until planner hook.
+**Expert Ore Miner / Silver Miner field-assign (unparked):** idle Expert Ore
+Miner / Silver Miner → admit + `colonies_assign_field` on a free surround with
+positive Ore/Silver yield (`COLONIZE_JOB_ORE_MINER` / `_SILVER_MINER`). Off-tile
+MD≤8 → LABOR goto. Cite: terrain_yields Ore/Silver; Colonization.pdf Skills
+Chart. Parallel to Lumberjack forest field-assign. No invented rates.
+
+**Expert Farmer food field-assign (unparked):** idle Expert Farmer (display-name
+Farmer, or Free Colonist/Colonist with `@JOB` Farmer profession 0) → admit +
+`colonies_assign_field` on a free surround with positive Farmer food yield
+(prefer higher `colony_yield_for_tile`). Off-tile MD≤8 → LABOR goto. Food-short
+LABOR join remains the no-field fallback. Cite: terrain_yields / building_production
+Farmer→Food; Colonization.pdf Skills Chart. Parallel to Lumberjack/Ore Miner.
+No invented food rates.
+
+**Expert Fisherman coastal field-assign (unparked):** idle Expert Fisherman
+(display-name Fisherman, or Free Colonist/Colonist with `@JOB` Fisherman
+profession 8) → admit + `colonies_assign_field` on a free ocean/sea-lane surround
+(pedia 25–26) with positive Fisherman yield. Off-tile MD≤8 → LABOR goto. Cite:
+terrain_yields Fisherman (Ocean/Sea Lane fish); building_production; Skills Chart.
+Parallel to Farmer field-assign. No invented fish rates.
+
+**Expert Sugar / Tobacco Planter field-assign (unparked):** idle Expert Sugar
+Planter / Tobacco Planter → admit + `colonies_assign_field` on a free surround
+with positive matching yield (`COLONIZE_JOB_SUGAR_PLANTER` /
+`_TOBACCO_PLANTER`; prefer higher `colony_yield_for_tile`). Off-tile MD≤8 →
+LABOR goto. Cite: terrain_yields Sugar (Savannah/Swamp) / Tobacco
+(Grassland/Marsh); Colonization.pdf Skills Chart. Parallel to Farmer field-assign.
+No invented crop rates.
+
+**FOUND on Indian homeland:** `colonies_found_with_indian_land` (FUN_4cc6_07c2
+gold charge; Minuit FF 2 → free). Short gold → PARK (no despawn). Cite:
+Colonization.pdf Minuit / indian land purchase.
+
+**Pioneer plow/road** — see §2d (unparked).
 
 ### 2f. Linux thin — naval adjacent-foe pick
 
@@ -296,10 +341,20 @@ prefers warships over cargo (complement); else lower type defense
 vet/Drake/damage combat×8 mods (no unit damage byte wired).
 
 **PARK:** Wagon load FOOD — euro AI uses FOOD only for colony stock shortage /
-LABOR tallies; haul loads TOOLS only (§2d / §2d2). No wagon FOOD cargo path.
+LABOR tallies; haul loads TOOLS / MUSKETS / HORSES (§2d / §2d2). No wagon FOOD
+cargo path.
 
-**PARK:** Treasure → gold unload / king transport fee — no AI API to credit
-`nation.gold` from Treasure (EuropeScreen / game_loop only). Do not invent gold.
+**Seasoned + sticky fog deepen:** Seasoned Scout fog-explore with
+`ai_diplo_indian_hostility_sticky` ≥ 2 and `map.seen` deepens a shallow prior
+goto once at fresh MP (`pick_md > goto_md`) — mirror CONTACT sticky deepen
+without max-md walk drift on dispatcher sticky waves. Cite: Colonization.pdf
+Seasoned Scout; euro_unit_act §2c2.
+
+**PARK:** deep `FUN_521d_20e6` combat scoring (vet/terrain/artillery tables,
+multi-hex threat weights) — thin adjacent-toughness pick + 2-step goto only.
+
+**Done:** Treasure → Europe gold via `europe_cash_treasure` (LE16 hold value;
+despawn; Expected→Harbor tick). **PARK:** value unset / KINGGALLEON2 extra share.
 
 ### 2g. Linux thin — ocean west-explore HS bias
 

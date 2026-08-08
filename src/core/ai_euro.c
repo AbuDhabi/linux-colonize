@@ -66,11 +66,8 @@ static int ai_euro_colony_wants_construction_labor(
  * building type exists in the pool. Lumber feeds carpenter hammers
  * (building_production Lumberjack→Lumber). Cite: docs/building_production.md;
  * Colonization.pdf Skills Chart / lumberjack timber. Structural LABOR join
- * only — no invented lumber rates.
- *
- * PARK: Expert Lumberjack → forest field assign (colonies_assign_field exists
- * for colony UI / scripted ai.c, but euro 5d04/5b66 has no field-job planner).
- * Keep field-assign PARKED until that hook exists.
+ * only — no invented lumber rates. Forest field-assign is wired separately
+ * (ai_euro_try_lumberjack_field_assign) via colonies_assign_field.
  */
 static int ai_euro_colony_wants_lumberjack_labor(
   const ColonizeColonyPool* pool,
@@ -635,14 +632,605 @@ static int ai_euro_missionary_no_mission_target(
   return 1;
 }
 
+static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
+
 /*
- * PARK (field assign only): Expert Lumberjack → forest field
- * (docs/terrain_yields.md / building_production Lumberjack→Lumber;
- * Colonization.pdf lumberjack timber). colonies_assign_field exists for colony
- * UI / scripted ai.c demos, but euro 5d04/5b66 has no field-job planner.
- * Incomplete Warehouse/Lumber Mill LABOR join is wired above
- * (ai_euro_colony_wants_lumberjack_labor); do not invent lumber rates here.
+ * Forest surround tile (pedia 8–23) free for Lumberjack field work.
+ * Cite: docs/terrain_yields.md Lumberjack; map_pedia_terrain_index_at forests.
+ * 1 if a free field tile index is written to *out_ti.
  */
+static int ai_euro_colony_free_forest_field(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* c,
+  int* out_ti
+) {
+  if (!ctx || !ctx->map || !c || !c->active || !out_ti) {
+    return 0;
+  }
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    if (c->tiles[ti] >= 0) {
+      continue; /* occupied */
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = c->x + dx;
+    const int ty = c->y + dy;
+    const int pedia = map_pedia_terrain_index_at(ctx->map, tx, ty);
+    if (pedia < 8 || pedia > 23) {
+      continue; /* not forest / scrub */
+    }
+    if (colony_yield_for_tile(ctx->map, tx, ty, COLONIZE_JOB_LUMBERJACK) <= 0) {
+      continue;
+    }
+    *out_ti = ti;
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Expert Lumberjack → admit + colonies_assign_field onto a forest surround
+ * of an own colony. Cite: docs/terrain_yields.md / building_production
+ * Lumberjack→Lumber; Colonization.pdf Skills Chart / lumberjack timber;
+ * colonies_assign_field (colony UI / scripted ai.c). No invented lumber rates.
+ * On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward colony (1).
+ * Returns 1 if routed or assigned.
+ */
+static int ai_euro_try_lumberjack_field_assign(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name || strstr(name, "Lumberjack") == NULL) {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  int best_d = 99;
+  int bx = -1;
+  int by = -1;
+  int best_cid = -1;
+  int best_ti = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+      continue;
+    }
+    int ti = -1;
+    if (!ai_euro_colony_free_forest_field(ctx, c, &ti)) {
+      continue;
+    }
+    const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+    if (dist > 8) {
+      continue;
+    }
+    if (bx < 0 || dist < best_d) {
+      best_d = dist;
+      bx = c->x;
+      by = c->y;
+      best_cid = i;
+      best_ti = ti;
+    }
+  }
+  if (best_cid < 0 || best_ti < 0) {
+    return 0;
+  }
+  if (u->x == bx && u->y == by) {
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    if (idx < 0) {
+      return 0;
+    }
+    if (!colonies_assign_field(
+          ctx->colonies, best_cid, idx, best_ti, COLONIZE_JOB_LUMBERJACK)) {
+      return 1; /* admitted; field assign failed — still consumed unit */
+    }
+    return 1;
+  }
+  ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_LABOR, 4);
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+  return 1;
+}
+
+/*
+ * Free surround tile with positive yield for Ore/Silver Miner field work.
+ * Cite: docs/terrain_yields.md Ore Miner / Silver Miner (hills/mountains).
+ * 1 if a free field tile index is written to *out_ti.
+ */
+static int ai_euro_colony_free_miner_field(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* c,
+  int field_job,
+  int* out_ti
+) {
+  if (!ctx || !ctx->map || !c || !c->active || !out_ti) {
+    return 0;
+  }
+  if (field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
+    return 0;
+  }
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    if (c->tiles[ti] >= 0) {
+      continue; /* occupied */
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = c->x + dx;
+    const int ty = c->y + dy;
+    if (colony_yield_for_tile(ctx->map, tx, ty, field_job) <= 0) {
+      continue;
+    }
+    *out_ti = ti;
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Expert Ore Miner / Silver Miner → admit + colonies_assign_field on a free
+ * yield surround (parallel to Expert Lumberjack forest field-assign).
+ * Cite: docs/terrain_yields.md Ore/Silver; Colonization.pdf Skills Chart;
+ * colonies_assign_field. No invented ore/silver rates.
+ * On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward colony (1).
+ * Returns 1 if routed or assigned.
+ */
+static int ai_euro_try_miner_field_assign(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name) {
+    return 0;
+  }
+  int field_job = -1;
+  if (strstr(name, "Silver Miner") != NULL) {
+    field_job = COLONIZE_JOB_SILVER_MINER;
+  } else if (strstr(name, "Ore Miner") != NULL) {
+    field_job = COLONIZE_JOB_ORE_MINER;
+  } else {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  int best_d = 99;
+  int bx = -1;
+  int by = -1;
+  int best_cid = -1;
+  int best_ti = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+      continue;
+    }
+    int ti = -1;
+    if (!ai_euro_colony_free_miner_field(ctx, c, field_job, &ti)) {
+      continue;
+    }
+    const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+    if (dist > 8) {
+      continue;
+    }
+    if (bx < 0 || dist < best_d) {
+      best_d = dist;
+      bx = c->x;
+      by = c->y;
+      best_cid = i;
+      best_ti = ti;
+    }
+  }
+  if (best_cid < 0 || best_ti < 0) {
+    return 0;
+  }
+  if (u->x == bx && u->y == by) {
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    if (idx < 0) {
+      return 0;
+    }
+    if (!colonies_assign_field(ctx->colonies, best_cid, idx, best_ti, field_job)) {
+      return 1; /* admitted; field assign failed — still consumed unit */
+    }
+    return 1;
+  }
+  ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_LABOR, 4);
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+  return 1;
+}
+
+/*
+ * Free surround tile with positive Farmer food yield. Prefer higher yield
+ * (plow/river already fold into colony_yield_for_tile). Cite:
+ * docs/terrain_yields.md Farmer; Colonization.pdf Skills Chart / plow +1 food.
+ * 1 if a free field tile index is written to *out_ti.
+ */
+static int ai_euro_colony_free_farmer_field(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* c,
+  int* out_ti
+) {
+  if (!ctx || !ctx->map || !c || !c->active || !out_ti) {
+    return 0;
+  }
+  int best_ti = -1;
+  int best_y = 0;
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    if (c->tiles[ti] >= 0) {
+      continue; /* occupied */
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = c->x + dx;
+    const int ty = c->y + dy;
+    const int yld = colony_yield_for_tile(ctx->map, tx, ty, COLONIZE_JOB_FARMER);
+    if (yld <= 0) {
+      continue;
+    }
+    if (best_ti < 0 || yld > best_y) {
+      best_ti = ti;
+      best_y = yld;
+    }
+  }
+  if (best_ti < 0) {
+    return 0;
+  }
+  *out_ti = best_ti;
+  return 1;
+}
+
+/*
+ * Expert Farmer → admit + colonies_assign_field on a free food surround
+ * (parallel to Expert Lumberjack / Ore Miner field-assign). Cite:
+ * docs/terrain_yields.md Farmer; docs/building_production.md Farmer→Food;
+ * Colonization.pdf Skills Chart; colonies_assign_field. No invented food rates.
+ * Display-name Farmer, or Free Colonist/Colonist with @JOB Farmer (profession 0).
+ * On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward colony (1).
+ * Returns 1 if routed or assigned.
+ */
+static int ai_euro_try_farmer_field_assign(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name) {
+    return 0;
+  }
+  const int is_named_farmer = strstr(name, "Farmer") != NULL;
+  const int is_job_farmer =
+    u->profession == 0 &&
+    (strstr(name, "Free Colonist") != NULL || strstr(name, "Colonist") != NULL) &&
+    strstr(name, "Soldier") == NULL;
+  if (!is_named_farmer && !is_job_farmer) {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  int best_d = 99;
+  int bx = -1;
+  int by = -1;
+  int best_cid = -1;
+  int best_ti = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+      continue;
+    }
+    int ti = -1;
+    if (!ai_euro_colony_free_farmer_field(ctx, c, &ti)) {
+      continue;
+    }
+    const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+    if (dist > 8) {
+      continue;
+    }
+    if (bx < 0 || dist < best_d) {
+      best_d = dist;
+      bx = c->x;
+      by = c->y;
+      best_cid = i;
+      best_ti = ti;
+    }
+  }
+  if (best_cid < 0 || best_ti < 0) {
+    return 0;
+  }
+  if (u->x == bx && u->y == by) {
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    if (idx < 0) {
+      return 0;
+    }
+    if (!colonies_assign_field(
+          ctx->colonies, best_cid, idx, best_ti, COLONIZE_JOB_FARMER)) {
+      return 1; /* admitted; field assign failed — still consumed unit */
+    }
+    return 1;
+  }
+  ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_LABOR, 4);
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+  return 1;
+}
+
+/*
+ * Free surround ocean/sea-lane tile with positive Fisherman food yield.
+ * Cite: docs/terrain_yields.md Fisherman (Ocean/Sea Lane fish=3); @OTHER pedia
+ * 25–26; Colonization.pdf Skills Chart / Expert Fisherman. 1 if *out_ti set.
+ */
+static int ai_euro_colony_free_fisherman_field(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* c,
+  int* out_ti
+) {
+  if (!ctx || !ctx->map || !c || !c->active || !out_ti) {
+    return 0;
+  }
+  int best_ti = -1;
+  int best_y = 0;
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    if (c->tiles[ti] >= 0) {
+      continue; /* occupied */
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = c->x + dx;
+    const int ty = c->y + dy;
+    const int pedia = map_pedia_terrain_index_at(ctx->map, tx, ty);
+    if (pedia != 25 && pedia != 26) {
+      continue; /* ocean / sea lane only — coastal fish tile */
+    }
+    const int yld = colony_yield_for_tile(ctx->map, tx, ty, COLONIZE_JOB_FISHERMAN);
+    if (yld <= 0) {
+      continue;
+    }
+    if (best_ti < 0 || yld > best_y) {
+      best_ti = ti;
+      best_y = yld;
+    }
+  }
+  if (best_ti < 0) {
+    return 0;
+  }
+  *out_ti = best_ti;
+  return 1;
+}
+
+/*
+ * Expert Fisherman → admit + colonies_assign_field on a free ocean/sea-lane
+ * surround (parallel to Expert Farmer food field-assign). Cite:
+ * docs/terrain_yields.md Fisherman; docs/building_production.md Fisherman→Food;
+ * Colonization.pdf Skills Chart; colonies_assign_field. No invented fish rates.
+ * Display-name Fisherman, or Free Colonist/Colonist with @JOB Fisherman (8).
+ * On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward colony (1).
+ * Returns 1 if routed or assigned.
+ */
+static int ai_euro_try_fisherman_field_assign(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name) {
+    return 0;
+  }
+  const int is_named_fisherman = strstr(name, "Fisherman") != NULL;
+  const int is_job_fisherman =
+    u->profession == COLONIZE_JOB_FISHERMAN &&
+    (strstr(name, "Free Colonist") != NULL || strstr(name, "Colonist") != NULL) &&
+    strstr(name, "Soldier") == NULL;
+  if (!is_named_fisherman && !is_job_fisherman) {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  int best_d = 99;
+  int bx = -1;
+  int by = -1;
+  int best_cid = -1;
+  int best_ti = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+      continue;
+    }
+    int ti = -1;
+    if (!ai_euro_colony_free_fisherman_field(ctx, c, &ti)) {
+      continue;
+    }
+    const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+    if (dist > 8) {
+      continue;
+    }
+    if (bx < 0 || dist < best_d) {
+      best_d = dist;
+      bx = c->x;
+      by = c->y;
+      best_cid = i;
+      best_ti = ti;
+    }
+  }
+  if (best_cid < 0 || best_ti < 0) {
+    return 0;
+  }
+  if (u->x == bx && u->y == by) {
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    if (idx < 0) {
+      return 0;
+    }
+    if (!colonies_assign_field(
+          ctx->colonies, best_cid, idx, best_ti, COLONIZE_JOB_FISHERMAN)) {
+      return 1; /* admitted; field assign failed — still consumed unit */
+    }
+    return 1;
+  }
+  ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_LABOR, 4);
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+  return 1;
+}
+
+/*
+ * Free surround tile with positive Sugar/Tobacco Planter yield. Prefer higher
+ * yield (plow/river fold into colony_yield_for_tile). Cite:
+ * docs/terrain_yields.md Sugar Planter (Savannah/Swamp) / Tobacco Planter
+ * (Grassland/Marsh); Colonization.pdf Skills Chart. 1 if *out_ti set.
+ */
+static int ai_euro_colony_free_planter_field(
+  const ColonizeTurnContext* ctx,
+  const ColonizeColony* c,
+  int field_job,
+  int* out_ti
+) {
+  if (!ctx || !ctx->map || !c || !c->active || !out_ti) {
+    return 0;
+  }
+  if (field_job != COLONIZE_JOB_SUGAR_PLANTER &&
+      field_job != COLONIZE_JOB_TOBACCO_PLANTER) {
+    return 0;
+  }
+  int best_ti = -1;
+  int best_y = 0;
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    if (c->tiles[ti] >= 0) {
+      continue; /* occupied */
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = c->x + dx;
+    const int ty = c->y + dy;
+    const int yld = colony_yield_for_tile(ctx->map, tx, ty, field_job);
+    if (yld <= 0) {
+      continue;
+    }
+    if (best_ti < 0 || yld > best_y) {
+      best_ti = ti;
+      best_y = yld;
+    }
+  }
+  if (best_ti < 0) {
+    return 0;
+  }
+  *out_ti = best_ti;
+  return 1;
+}
+
+/*
+ * Expert Sugar Planter / Tobacco Planter → admit + colonies_assign_field on a
+ * free yield surround (matching terrain only). Cite: docs/terrain_yields.md
+ * Sugar/Tobacco; Colonization.pdf Skills Chart; colonies_assign_field.
+ * Parallel to Expert Farmer / Ore Miner field-assign. No invented rates.
+ * On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward colony (1).
+ * Returns 1 if routed or assigned.
+ */
+static int ai_euro_try_planter_field_assign(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name) {
+    return 0;
+  }
+  int field_job = -1;
+  if (strstr(name, "Sugar Planter") != NULL) {
+    field_job = COLONIZE_JOB_SUGAR_PLANTER;
+  } else if (strstr(name, "Tobacco Planter") != NULL) {
+    field_job = COLONIZE_JOB_TOBACCO_PLANTER;
+  } else {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  int best_d = 99;
+  int bx = -1;
+  int by = -1;
+  int best_cid = -1;
+  int best_ti = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+      continue;
+    }
+    int ti = -1;
+    if (!ai_euro_colony_free_planter_field(ctx, c, field_job, &ti)) {
+      continue;
+    }
+    const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+    if (dist > 8) {
+      continue;
+    }
+    if (bx < 0 || dist < best_d) {
+      best_d = dist;
+      bx = c->x;
+      by = c->y;
+      best_cid = i;
+      best_ti = ti;
+    }
+  }
+  if (best_cid < 0 || best_ti < 0) {
+    return 0;
+  }
+  if (u->x == bx && u->y == by) {
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    if (idx < 0) {
+      return 0;
+    }
+    if (!colonies_assign_field(ctx->colonies, best_cid, idx, best_ti, field_job)) {
+      return 1; /* admitted; field assign failed — still consumed unit */
+    }
+    return 1;
+  }
+  ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_LABOR, 4);
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+  return 1;
+}
 
 /* Free Colonist / Colonist / Pioneer / Hardy / Farmer — can join LABOR for food. */
 static int ai_euro_is_food_labor_name(const char* name) {
@@ -749,9 +1337,7 @@ static int ai_euro_find_boardable_ship(
 /*
  * Treasure at coastal own colony → board ship with space + AI_SAIL Europe.
  * Cite: Colonization.pdf Treasure Trains (park coastal / Galleon / king galleon).
- * PARK: Europe harbor Treasure→gold unload / king transport fee — no AI API to
- * credit nation.gold from Treasure cargo (game_loop / EuropeScreen path only).
- * Intended: sail-in → unload gold − king cut. Do not invent gold here.
+ * Europe cash-in: ai_euro_try_cash_treasure_europe when ship reaches Europe / HS.
  */
 static int ai_euro_try_treasure_board_sail(
   ColonizeTurnContext* ctx,
@@ -798,6 +1384,144 @@ static int ai_euro_try_treasure_board_sail(
     ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, east, ship->y);
   }
   return 1;
+}
+
+/*
+ * COL1 Treasure gold: cargo_hold[0..1] LE16 (europe.h / europe_cash_treasure_passengers).
+ * ColonizeUnit has no treasure_gold — bridge mirrors those bytes into
+ * hold_goods_amount[0] (lo) + hold_goods_amount[1] (hi).
+ */
+static int ai_euro_treasure_gold_from_unit(const ColonizeUnit* treasure) {
+  if (!treasure) {
+    return 0;
+  }
+  const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
+  const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
+  return (int)(lo | (hi << 8));
+}
+
+/*
+ * Cash one Treasure unit via europe_cash_treasure; despawn (not a dock immigrant).
+ * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH / @CASHTREASURE;
+ * europe_cash_treasure_passengers. Returns credited gold (0 if value unset/PARK).
+ */
+static int ai_euro_cash_one_treasure(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* treasure
+) {
+  if (!ctx || !ctx->europe || !ctx->col1_ok || !ctx->col1 || !ctx->units || !treasure ||
+      !treasure->active) {
+    return 0;
+  }
+  if (nation_id < 0 || nation_id >= 4 || treasure->nation_id != nation_id) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  ctx->europe->gold = (int)nat->gold;
+  ctx->europe->tax_percent = (int)nat->tax_rate;
+
+  const int value = ai_euro_treasure_gold_from_unit(treasure);
+  int credited = 0;
+  if (value > 0) {
+    credited = europe_cash_treasure(ctx->europe, value);
+    nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
+  } else {
+    /*
+     * PARK value source: intended COL1 Treasure cargo_hold[0..1] LE16 gold
+     * (ColonizeUnit has no treasure_gold; hold_goods_amount[0..1] mirror those
+     * bytes when bridge-loaded; game_loop→europe_enqueue_expected does not fill
+     * cargo_treasure_gold yet). Do not invent a default rate/value.
+     */
+  }
+  /* Consume Treasure after cash attempt — same as Expected→Harbor disembark. */
+  (void)units_despawn(ctx->units, treasure->id);
+  return credited;
+}
+
+/*
+ * Treasure (aboard ship or land) at Europe (x/y≥200) or ship on high seas →
+ * europe_cash_treasure + despawn. AI stand-in for Expected→Harbor cash-in when
+ * ctx->europe is present (R1 API). Cite: Colonization.pdf Treasure Trains.
+ * Returns 1 if any Treasure was consumed.
+ */
+static int ai_euro_try_cash_treasure_europe(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->units || !ctx->europe || !ctx->col1_ok || !ctx->col1 || !u || !u->active) {
+    return 0;
+  }
+  if (nation_id < 0 || nation_id >= 4 || u->nation_id != nation_id) {
+    return 0;
+  }
+
+  const int at_europe = ai_euro_in_europe(u->x, u->y);
+  const int on_hs = ctx->map && map_tile_is_high_seas(ctx->map, u->x, u->y);
+  if (!at_europe && !on_hs) {
+    return 0;
+  }
+
+  int did = 0;
+
+  /* Land Treasure already at Europe coords. */
+  if (!ai_euro_is_ship_type(ctx->units, u->id)) {
+    if (at_europe && ai_euro_is_treasure_name(units_display_name(ctx->units, u))) {
+      (void)ai_euro_cash_one_treasure(ctx, nation_id, u);
+      return 1;
+    }
+    return 0;
+  }
+
+  /* Ship: cash Treasure passengers at Europe / HS (Europe exit stand-in). */
+  int ids[COLONIZE_UNIT_CARGO_MAX];
+  const int n =
+    u->cargo_count < COLONIZE_UNIT_CARGO_MAX ? u->cargo_count : COLONIZE_UNIT_CARGO_MAX;
+  for (int i = 0; i < n; ++i) {
+    ids[i] = u->cargo_ids[i];
+  }
+  for (int i = 0; i < n; ++i) {
+    ColonizeUnit* pax = units_get(ctx->units, ids[i]);
+    if (!pax || !pax->active) {
+      continue;
+    }
+    if (!ai_euro_is_treasure_name(units_display_name(ctx->units, pax))) {
+      continue;
+    }
+    (void)ai_euro_cash_one_treasure(ctx, nation_id, pax);
+    did = 1;
+  }
+  return did;
+}
+
+/*
+ * Expected→Harbor path AI can trigger: due Expected ships (turns_left==0) with
+ * cargo_treasure_gold set → europe_tick_voyages → europe_cash_treasure.
+ * Cite: europe.h Treasure cash-in; Colonization.pdf Treasure Trains.
+ */
+static void ai_euro_try_expected_treasure_harbor(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->europe || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  if (ctx->europe->expected_ships <= 0) {
+    return;
+  }
+  int due = 0;
+  for (int e = 0; e < ctx->europe->expected_ships; ++e) {
+    if (ctx->europe->expected[e].turns_left == 0) {
+      due = 1;
+      break;
+    }
+  }
+  if (!due) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  ctx->europe->gold = (int)nat->gold;
+  ctx->europe->tax_percent = (int)nat->tax_rate;
+  europe_tick_voyages(ctx->europe, ctx->units);
+  nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
 }
 
 /*
@@ -910,30 +1634,88 @@ static int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const 
   return 0;
 }
 
-/* Wagon carries TOOLS in any hold. */
-static int ai_euro_wagon_has_tools(const ColonizeUnitPool* units, const ColonizeUnit* w) {
-  if (!units || !w) {
+/* Wagon carries cargo_type in any hold. */
+static int ai_euro_wagon_has_cargo_type(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* w,
+  int cargo_type
+) {
+  if (!units || !w || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
     return 0;
   }
   const int n = units_goods_hold_count(units, w->id);
   for (int h = 0; h < n; ++h) {
     if (w->hold_goods_amount[h] > 0 && w->hold_goods_amount[h] < 255 &&
-        w->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+        w->hold_goods_type[h] == cargo_type) {
       return 1;
     }
   }
   return 0;
 }
 
+/* Wagon carries TOOLS in any hold. */
+static int ai_euro_wagon_has_tools(const ColonizeUnitPool* units, const ColonizeUnit* w) {
+  return ai_euro_wagon_has_cargo_type(units, w, COLONIZE_CARGO_TOOLS);
+}
+
 /*
- * Nearest own tools-short colony (stock[TOOLS]<20). Cite: euro_unit_act §2d
- * wagon/tools matrix; 5cf6 shortage tallies. 1 if found.
+ * Colony short on haul cargo: TOOLS stock<20 (5cf6), MUSKETS/HORSES stock<10
+ * (inventory muskets_short band; horses same structural threshold). Cite:
+ * euro_unit_act §2d; ai_euro_colony_inventory muskets_short.
  */
-static int ai_euro_nearest_tools_short_colony(
+static int ai_euro_colony_haul_cargo_short(const ColonizeColony* c, int cargo_type) {
+  if (!c || !c->active) {
+    return 0;
+  }
+  if (cargo_type == COLONIZE_CARGO_TOOLS) {
+    return c->stock[COLONIZE_CARGO_TOOLS] < 20;
+  }
+  if (cargo_type == COLONIZE_CARGO_MUSKETS) {
+    return c->stock[COLONIZE_CARGO_MUSKETS] < 10;
+  }
+  if (cargo_type == COLONIZE_CARGO_HORSES) {
+    return c->stock[COLONIZE_CARGO_HORSES] < 10;
+  }
+  return 0;
+}
+
+/* Surplus load gate: tools≥40 / muskets≥20 / horses≥20 (2× short threshold). */
+static int ai_euro_colony_haul_cargo_surplus(const ColonizeColony* c, int cargo_type) {
+  if (!c || !c->active) {
+    return 0;
+  }
+  if (cargo_type == COLONIZE_CARGO_TOOLS) {
+    return c->stock[COLONIZE_CARGO_TOOLS] >= 40;
+  }
+  if (cargo_type == COLONIZE_CARGO_MUSKETS) {
+    return c->stock[COLONIZE_CARGO_MUSKETS] >= 20;
+  }
+  if (cargo_type == COLONIZE_CARGO_HORSES) {
+    return c->stock[COLONIZE_CARGO_HORSES] >= 20;
+  }
+  return 0;
+}
+
+static int ai_euro_haul_load_amount(int cargo_type) {
+  if (cargo_type == COLONIZE_CARGO_TOOLS) {
+    return 20;
+  }
+  if (cargo_type == COLONIZE_CARGO_MUSKETS || cargo_type == COLONIZE_CARGO_HORSES) {
+    return 10;
+  }
+  return 0;
+}
+
+/*
+ * Nearest own colony short on cargo_type (or any TOOLS/MUSKETS/HORSES when
+ * cargo_type < 0). Cite: euro_unit_act §2d wagon haul; 5cf6 shortage tallies.
+ */
+static int ai_euro_nearest_haul_short_colony(
   ColonizeTurnContext* ctx,
   int nation_id,
   int from_x,
   int from_y,
+  int cargo_type,
   int* out_x,
   int* out_y
 ) {
@@ -948,7 +1730,15 @@ static int ai_euro_nearest_tools_short_colony(
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    if (c->stock[COLONIZE_CARGO_TOOLS] >= 20) {
+    int short_here = 0;
+    if (cargo_type >= 0) {
+      short_here = ai_euro_colony_haul_cargo_short(c, cargo_type);
+    } else {
+      short_here = ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_TOOLS) ||
+                   ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_MUSKETS) ||
+                   ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_HORSES);
+    }
+    if (!short_here) {
       continue;
     }
     const int d = abs(c->x - from_x) + abs(c->y - from_y);
@@ -966,18 +1756,32 @@ static int ai_euro_nearest_tools_short_colony(
   return 1;
 }
 
+/* Legacy tools-short helper (ship coastal haul + callers). */
+static int ai_euro_nearest_tools_short_colony(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  return ai_euro_nearest_haul_short_colony(
+    ctx, nation_id, from_x, from_y, COLONIZE_CARGO_TOOLS, out_x, out_y
+  );
+}
+
 /*
- * Idle Wagon Train haul (thin 5b66/5d04): free hold capacity or TOOLS cargo →
- * AI_MOVE toward nearest tools-short own colony (existing unload delivery).
- * On surplus colony (≥40 tools) with empty capacity, load TOOLS first via
- * colonies_transfer_to_unit. Cite: euro_unit_act §2d; manual Wagon Train
- * cargo; no invented stock rates.
+ * Idle Wagon Train haul (thin 5b66/5d04): free hold capacity or TOOLS /
+ * MUSKETS / HORSES cargo → AI_MOVE toward nearest matching short own colony
+ * (existing unload delivery). On surplus colony with empty capacity, load
+ * that cargo via colonies_transfer_to_unit. Cite: euro_unit_act §2d; manual
+ * Wagon Train cargo; COLONIZE_CARGO_* constants; no invented stock rates.
  *
  * PARK: Wagon load FOOD — euro AI uses COLONIZE_CARGO_FOOD only for colony
  * stock shortage tallies / LABOR bind (5cf6), never as wagon hold cargo.
  * Ship coastal haul also sails-toward food-short without loading FOOD
- * (euro_unit_act §2d2). No wagon FOOD load/unload path until that cargo
- * type is wired in euro haul matrix — do not invent FOOD cargo here.
+ * (euro_unit_act §2d2). No wagon FOOD load/unload path — do not invent FOOD
+ * cargo here. Muskets/horses use real cargo constants + stock short gates.
  */
 static int ai_euro_try_wagon_haul(
   ColonizeTurnContext* ctx,
@@ -991,33 +1795,59 @@ static int ai_euro_try_wagon_haul(
   if (!ai_euro_type_is_wagon_name(name)) {
     return 0;
   }
-  const int has_tools = ai_euro_wagon_has_tools(ctx->units, wagon);
+  const int has_tools = ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_TOOLS);
+  const int has_muskets =
+    ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_MUSKETS);
+  const int has_horses =
+    ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_HORSES);
   const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
-  if (!has_tools && !has_cap) {
+  if (!has_tools && !has_muskets && !has_horses && !has_cap) {
     return 0;
   }
-  /* On own colony with surplus tools + free hold → load before haul. */
-  if (has_cap && !has_tools) {
+  /* Prefer cargo already aboard when picking short target. */
+  int prefer_cargo = -1;
+  if (has_tools) {
+    prefer_cargo = COLONIZE_CARGO_TOOLS;
+  } else if (has_muskets) {
+    prefer_cargo = COLONIZE_CARGO_MUSKETS;
+  } else if (has_horses) {
+    prefer_cargo = COLONIZE_CARGO_HORSES;
+  }
+  /* On own colony with surplus + free hold → load before haul (tools>muskets>horses). */
+  if (has_cap && prefer_cargo < 0) {
     const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
     if (cid >= 0) {
       ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-      if (c && c->active && c->nation_id == nation_id &&
-          c->stock[COLONIZE_CARGO_TOOLS] >= 40) {
-        (void)colonies_transfer_to_unit(
-          ctx->colonies, cid, ctx->units, wagon->id, COLONIZE_CARGO_TOOLS, 20
-        );
+      if (c && c->active && c->nation_id == nation_id) {
+        static const int k_load_order[] = {
+          COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_CARGO_HORSES
+        };
+        for (int i = 0; i < 3; ++i) {
+          const int ct = k_load_order[i];
+          if (!ai_euro_colony_haul_cargo_surplus(c, ct)) {
+            continue;
+          }
+          const int amt = ai_euro_haul_load_amount(ct);
+          if (amt > 0 &&
+              colonies_transfer_to_unit(ctx->colonies, cid, ctx->units, wagon->id, ct, amt) >
+                0) {
+            prefer_cargo = ct;
+            break;
+          }
+        }
       }
     }
   }
   int tx = 0;
   int ty = 0;
-  if (!ai_euro_nearest_tools_short_colony(ctx, nation_id, wagon->x, wagon->y, &tx, &ty)) {
+  if (!ai_euro_nearest_haul_short_colony(
+        ctx, nation_id, wagon->x, wagon->y, prefer_cargo, &tx, &ty)) {
     return 0;
   }
   if (wagon->x == tx && wagon->y == ty) {
     return 0; /* already there — unload path handles delivery */
   }
-  /* Re-aim tools-short (override FOUND/explore scoring gate yank). */
+  /* Re-aim short colony (override FOUND/explore scoring gate yank). */
   if (units_orders_follow_goto(wagon->orders) && wagon->goto_x == tx &&
       wagon->goto_y == ty) {
     return 1; /* already hauling to target */
@@ -1027,15 +1857,188 @@ static int ai_euro_try_wagon_haul(
 }
 
 /*
- * PARK: Pioneer / Hardy Pioneer plow/road tile improve —
- * units_pioneer_plow / units_pioneer_road exist for UI (game_loop), but euro
- * 5b66 has no improve-target planner (which adjacent tile to plow/road).
- * Hardy Pioneer real power: "Clears forest, plows fields, and builds roads
- * faster" (Colonization.pdf OTHER / Hardy Pioneer) — when an improve planner
- * exists, prefer Hardy for plow/road orders (faster work), not invented yields.
- * Cite: Colonization.pdf Clear/Plow/Road; map road/plowed bits. PARK until euro
- * AI picks improve tiles — comment-only (no free hammer/gold fiction).
+ * Pioneer plow/road tile improve planner.
+ * Cite: Colonization.pdf Clear/Plow/Road; Hardy Pioneer "Clears forest, plows
+ * fields, and builds roads faster" — prefer Hardy when both idle (faster work,
+ * not invented yields). units_pioneer_plow clears forest then plows in one API
+ * call (real order); units_pioneer_road sets road bit. Requires map.improve.
  */
+
+static int ai_euro_pioneer_tile_can_plow(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->improve) {
+    return 0;
+  }
+  if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
+    return 0;
+  }
+  const int pedia = map_pedia_terrain_index_at(map, x, y);
+  /* Arctic / mountains — same gate as units_pioneer_plow. */
+  if (pedia == 24 || pedia == 27) {
+    return 0;
+  }
+  if (map_tile_is_plowed(map, x, y)) {
+    return 0;
+  }
+  return 1;
+}
+
+static int ai_euro_pioneer_tile_can_road(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->improve) {
+    return 0;
+  }
+  if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
+    return 0;
+  }
+  if (map_tile_has_road(map, x, y)) {
+    return 0;
+  }
+  return 1;
+}
+
+/*
+ * Nearest improvable tile near own colony surrounds (MD≤3 from unit, within
+ * field ring of own colony). Prefer plow over road; among roads prefer tiles
+ * already plowed (Colonization.pdf Clear/Plow/Road sequence — road move bonus
+ * on improved fields). 1 if out coords set; out_plow 1 → plow (else road).
+ */
+static int ai_euro_pioneer_improve_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y,
+  int* out_plow
+) {
+  if (!ctx || !ctx->map || !ctx->map->improve || !ctx->colonies || !out_x || !out_y ||
+      !out_plow) {
+    return 0;
+  }
+  int best = 99;
+  int bx = -1;
+  int by = -1;
+  int bplow = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+      int dx = 0;
+      int dy = 0;
+      if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+        continue;
+      }
+      const int tx = c->x + dx;
+      const int ty = c->y + dy;
+      const int dist = abs(tx - from_x) + abs(ty - from_y);
+      if (dist > 3) {
+        continue;
+      }
+      const int can_plow = ai_euro_pioneer_tile_can_plow(ctx->map, tx, ty);
+      const int can_road = ai_euro_pioneer_tile_can_road(ctx->map, tx, ty);
+      if (!can_plow && !can_road) {
+        continue;
+      }
+      /*
+       * kind_pref: plow (0) > road on already-plowed (1) > other road (2).
+       * Closer wins within kind. Cite: Colonization.pdf plow then road.
+       */
+      int kind_pref = 2;
+      if (can_plow) {
+        kind_pref = 0;
+      } else if (can_road && map_tile_is_plowed(ctx->map, tx, ty)) {
+        kind_pref = 1;
+      }
+      const int score = dist * 2 + kind_pref;
+      if (bx < 0 || score < best) {
+        best = score;
+        bx = tx;
+        by = ty;
+        bplow = can_plow ? 1 : 0;
+      }
+    }
+  }
+  if (bx < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  *out_plow = bplow;
+  return 1;
+}
+
+/*
+ * Idle Hardy/Expert Pioneer with tools → improve nearby colony surround.
+ * On-tile: units_pioneer_plow (clear+plow) or units_pioneer_road. Off-tile:
+ * AI_MOVE toward target (re-aims over FOUND). Skip when tools_short (tools
+ * delivery) or on-colony construction LABOR stay. Cite: Colonization.pdf
+ * Pioneer Clear/Plow/Road; Hardy faster work. Returns 1 if worked or routed.
+ */
+static int ai_euro_try_pioneer_improve(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  if (!units_is_pioneer(ctx->units, u->id) || u->moves_left <= 0) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name || (strstr(name, "Pioneer") == NULL && strstr(name, "Hardy") == NULL)) {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  /* Tools-short: leave for case-7 delivery / LABOR walk. */
+  {
+    const AiEuroInventory* inv = ai_goals_inventory(nation_id);
+    if (inv && inv->tools_short > 0) {
+      return 0;
+    }
+  }
+  /* On own colony with Stockade/Warehouse/Lumber Mill build — stay for hammers. */
+  if (ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+    if (cid >= 0) {
+      const ColonizeColony* oc = colonies_get(ctx->colonies, cid);
+      if (oc && oc->nation_id == nation_id &&
+          ai_euro_colony_wants_construction_labor(ctx->colonies, oc)) {
+        return 0;
+      }
+    }
+  }
+  int tx = 0;
+  int ty = 0;
+  int want_plow = 0;
+  if (!ai_euro_pioneer_improve_target(ctx, nation_id, u->x, u->y, &tx, &ty, &want_plow)) {
+    return 0;
+  }
+  if (u->x == tx && u->y == ty) {
+    char err[64];
+    if (want_plow) {
+      if (units_pioneer_plow(ctx->units, u->id, ctx->map, err, sizeof(err))) {
+        return 1;
+      }
+      /* Plow failed (race) — try road if still improvable. */
+      if (ai_euro_pioneer_tile_can_road(ctx->map, tx, ty) &&
+          units_pioneer_road(ctx->units, u->id, ctx->map, err, sizeof(err))) {
+        return 1;
+      }
+      return 0;
+    }
+    if (units_pioneer_road(ctx->units, u->id, ctx->map, err, sizeof(err))) {
+      return 1;
+    }
+    return 0;
+  }
+  /* Re-aim improve tile (override FOUND/explore from scoring gate). */
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+  return 1;
+}
 
 static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || !founder || !founder->active) {
@@ -1048,18 +2051,48 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
   int muskets = 0;
   int horses = 0;
   units_founder_loot(ctx->units, founder->id, &tools, &muskets, &horses);
-  const int cid = colonies_found(
-    ctx->colonies,
-    ctx->map,
-    founder->x,
-    founder->y,
-    nation_id,
-    founder->type_index,
-    founder->profession,
-    tools,
-    muskets,
-    horses
-  );
+  /*
+   * FUN_4cc6_07c2 Indian homeland purchase when founding on tribe land.
+   * Cite: Colonization.pdf / wiki Peter Minuit (FF 2) → free; else charge
+   * via colonies_found_with_indian_land. Short gold → PARK (no despawn).
+   */
+  int cid = -1;
+  if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
+    uint32_t* gold = &ctx->col1->nation[nation_id].gold;
+    const int cost = colonies_indian_land_purchase_gold(
+      ctx->col1, ctx->map, founder->x, founder->y, nation_id
+    );
+    if (cost > 0 && *gold < (uint32_t)cost) {
+      return; /* PARK: real land-buy gold gate */
+    }
+    cid = colonies_found_with_indian_land(
+      ctx->colonies,
+      ctx->map,
+      ctx->col1,
+      gold,
+      founder->x,
+      founder->y,
+      nation_id,
+      founder->type_index,
+      founder->profession,
+      tools,
+      muskets,
+      horses
+    );
+  } else {
+    cid = colonies_found(
+      ctx->colonies,
+      ctx->map,
+      founder->x,
+      founder->y,
+      nation_id,
+      founder->type_index,
+      founder->profession,
+      tools,
+      muskets,
+      horses
+    );
+  }
   if (cid >= 0) {
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
@@ -1222,24 +2255,32 @@ static int ai_euro_try_wagon_tools_delivery(
     return 0;
   }
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
-  const int need =
-    (inv && inv->tools_short > 0) || c->stock[COLONIZE_CARGO_TOOLS] < 20;
-  if (!need) {
-    return 0;
-  }
+  /*
+   * Unload TOOLS / MUSKETS / HORSES when colony is short on that cargo.
+   * Cite: euro_unit_act §2d; COLONIZE_CARGO_* haul deepen. PARK: FOOD.
+   */
   const int n = units_goods_hold_count(ctx->units, wagon->id);
   int moved_total = 0;
+  int moved_tools = 0;
+  int moved_muskets = 0;
   /* Re-scan each pass: unload may reload remainder into another hold. */
   for (;;) {
     int hold = -1;
+    int hold_type = -1;
     for (int h = 0; h < n; ++h) {
       if (wagon->hold_goods_amount[h] <= 0 || wagon->hold_goods_amount[h] >= 255) {
         continue;
       }
-      if (wagon->hold_goods_type[h] != COLONIZE_CARGO_TOOLS) {
+      const int ct = wagon->hold_goods_type[h];
+      if (ct != COLONIZE_CARGO_TOOLS && ct != COLONIZE_CARGO_MUSKETS &&
+          ct != COLONIZE_CARGO_HORSES) {
+        continue;
+      }
+      if (!ai_euro_colony_haul_cargo_short(c, ct)) {
         continue;
       }
       hold = h;
+      hold_type = ct;
       break;
     }
     if (hold < 0) {
@@ -1251,18 +2292,32 @@ static int ai_euro_try_wagon_tools_delivery(
       break;
     }
     moved_total += moved;
+    if (hold_type == COLONIZE_CARGO_TOOLS) {
+      moved_tools += moved;
+    } else if (hold_type == COLONIZE_CARGO_MUSKETS) {
+      moved_muskets += moved;
+    }
   }
   if (moved_total <= 0) {
     return 0;
   }
   if (inv) {
-    if (inv->tools_short > moved_total) {
-      inv->tools_short -= moved_total;
-    } else {
-      inv->tools_short = 0;
+    if (moved_tools > 0) {
+      if (inv->tools_short > moved_tools) {
+        inv->tools_short -= moved_tools;
+      } else {
+        inv->tools_short = 0;
+      }
+      if (inv->tools_short == 0 && inv->urgency > 0) {
+        inv->urgency--;
+      }
     }
-    if (inv->tools_short == 0 && inv->urgency > 0) {
-      inv->urgency--;
+    if (moved_muskets > 0) {
+      if (inv->muskets_short > moved_muskets) {
+        inv->muskets_short -= moved_muskets;
+      } else {
+        inv->muskets_short = 0;
+      }
     }
   }
   return moved_total;
@@ -3060,6 +4115,10 @@ static int ai_euro_land_foe_toughness(const ColonizeUnitPool* units, const Colon
 /*
  * Best adjacent war foe for land attack (thin 20e6 combat scoring): prefer
  * lower effective defense / non-fortified. Returns foe unit id or -1.
+ *
+ * PARK: deep FUN_521d_20e6 combat scoring (vet/terrain/artillery tables,
+ * multi-hex threat weights, −0x6790) — thin adjacent-toughness pick + 2-step
+ * goto advance only. Do not invent combat×8 / damage-byte mods here.
  */
 static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
   if (!ctx || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id)) {
@@ -3166,7 +4225,7 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     }
     const char* name = units_display_name(ctx->units, p);
     /* Treasure stays aboard for Europe sail — do not landfall as settler.
-     * Cite: Colonization.pdf Treasure Trains → Europe gold (unload PARKED). */
+     * Cite: Colonization.pdf Treasure Trains → Europe gold (cash on Europe/HS). */
     if (ai_euro_is_treasure_name(name)) {
       continue;
     }
@@ -3298,6 +4357,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
 
   if (is_ship) {
+    /* Treasure cash-in before Europe→HS teleport (passengers would leave map). */
+    (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
+    u = units_get(ctx->units, u->id);
+    if (!u || !u->active) {
+      return;
+    }
+
     if (ai_euro_in_europe(u->x, u->y)) {
       int hx = 0;
       int hy = 0;
@@ -3318,14 +4384,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
      * Thin naval war hunt (act-level): idle / station-keep ships at war sail
      * toward nearest foe sea unit or coastal colony water. Adjacent → try_attack.
      * Privateer deepen: named Privateer always re-aims hunt (commerce raid) even
-     * with a prior sail goto — reuse naval_war_hunt_target. Cite: europe purchase
-     * Privateer; fandom Drake Privateer combat; euro_unit_act §2b.
-     * Deep 20e6 naval combat scoring stays PARKED.
+     * with a prior sail goto — reuse naval_war_hunt_target. Post-diplo wartime
+     * spawn station-keeps (goto=self → !useful_goto) so idle commission also
+     * aims. Cite: europe purchase Privateer; fandom Drake; euro_unit_act §2b;
+     * euro_diplo Privateer spawn. Deep 20e6 naval combat scoring stays PARKED.
      */
     const int at_war =
       ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
     /* Treasure aboard → keep Europe sail; do not war-hunt yank. Cite: Treasure
-     * Trains → Europe. PARK gold unload. */
+     * Trains → Europe (cash on Europe/HS via ai_euro_try_cash_treasure_europe). */
     int treasure_aboard = 0;
     for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
       const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
@@ -3427,6 +4494,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (u->active && at_war && !ai_euro_in_europe(u->x, u->y)) {
       (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
     }
+    /* HS / Europe arrival after sail steps — cash Treasure passengers. */
+    if (u->active) {
+      (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
+      u = units_get(ctx->units, u->id);
+      if (!u || !u->active) {
+        return;
+      }
+    }
     if (u->active && !ai_euro_in_europe(u->x, u->y)) {
       ai_euro_unload_settle(ctx, u, nation_id);
     }
@@ -3477,6 +4552,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, hx, hy);
         land_war_hunted = 1;
       }
+    } else {
+      /*
+       * Already on a hunt/MILITARY course: keep land_war_hunted so sticky
+       * outer waves do not LABOR/COLONY-yank the goto, and thin 20e6 can
+       * take a second step. Cite: euro_unit_act §2c / §2c3.
+       */
+      land_war_hunted = 1;
     }
   }
 
@@ -3558,15 +4640,33 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
                  &tx,
                  &ty)) {
       /*
-       * Idle only: set fog course. Seasoned deeper pick is in the target
-       * helper — do not re-aim every act (max-md from a new tile drifts to
-       * map-edge fog as the scout walks). Re-aim if prior goto is now seen.
+       * Idle: set fog course. Seasoned deeper pick is in the target helper —
+       * do not re-aim every act for plain Scout (max-md drifts to map-edge).
+       * Seasoned + sticky≥2 + FoW: deepen a shallow prior goto once at fresh
+       * MP (pick_md > goto_md) — mirror CONTACT sticky deepen without walk
+       * drift on dispatcher sticky waves. Re-aim if prior goto is now seen.
+       * Cite: euro_unit_act §2c2; Colonization.pdf Seasoned Scout.
        */
+      const uint8_t sticky =
+        (ctx->col1_ok && ctx->col1) ? ai_diplo_indian_hostility_sticky(ctx->col1, nation_id)
+                                    : 0;
+      const int sticky_fog =
+        sticky >= 2 && ctx->map && ctx->map->seen != NULL;
+      const int seasoned_sticky =
+        sticky_fog && ai_euro_is_seasoned_scout_name(uname);
       const int idle = !ai_euro_land_has_useful_goto(u, ctx->map);
       const int goto_cleared =
         !idle && ctx->map->seen &&
         map_tile_seen_by(ctx->map, u->goto_x, u->goto_y, nation_id);
-      if (idle || goto_cleared) {
+      int deepen = 0;
+      if (seasoned_sticky && !idle && !goto_cleared) {
+        const ColonizeUnitType* uty = units_type(ctx->units, u->type_index);
+        const int fresh = uty && u->moves_left >= uty->movement;
+        const int goto_md = abs(u->goto_x - u->x) + abs(u->goto_y - u->y);
+        const int pick_md = abs(tx - u->x) + abs(ty - u->y);
+        deepen = fresh && pick_md > goto_md;
+      }
+      if (idle || goto_cleared || deepen) {
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
       }
       scout_explored = 1;
@@ -3578,10 +4678,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * coastal colony (or coastal land if none). At coastal own colony with ship
    * space → board + AI_SAIL Europe (eastern HS / east water). Cite:
    * Colonization.pdf Treasure Trains — park coastal → Galleon / king transport.
-   * PARK: Europe Treasure→gold unload (no AI gold credit). Preserve goto vs
-   * FOUND/LABOR yank. No invented ransom/gold.
+   * Europe cash: ai_euro_try_cash_treasure_europe (LE16 hold / europe_cash_treasure).
+   * Preserve goto vs FOUND/LABOR yank. No invented ransom/gold.
    */
   if (is_treasure) {
+    if (ai_euro_try_cash_treasure_europe(ctx, nation_id, u)) {
+      return;
+    }
     if (ai_euro_try_treasure_board_sail(ctx, nation_id, u)) {
       treasure_routed = 1;
       return; /* boarded — ship owns Europe sail course */
@@ -3611,13 +4714,135 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
+   * Pioneer plow/road (act-level): idle Hardy/Expert Pioneer with tools picks
+   * nearby own-colony surround → AI_MOVE then on-tile units_pioneer_plow
+   * (clear forest then plow) / units_pioneer_road. Cite: Colonization.pdf
+   * Clear/Plow/Road; Hardy Pioneer faster work. Preserve goto vs FOUND yank.
+   */
+  int pioneer_improved = 0;
+  if (!treasure_routed && !wagon_hauled && !land_war_hunted && !peace_border_hunted &&
+      !scout_explored && uname &&
+      (strstr(uname, "Pioneer") != NULL || strstr(uname, "Hardy") != NULL)) {
+    if (ai_euro_try_pioneer_improve(ctx, nation_id, u)) {
+      pioneer_improved = 1;
+      if (!u->active || u->moves_left <= 0) {
+        return; /* plowed/roaded — spent tools + moves */
+      }
+    }
+  }
+
+  /*
+   * Expert Lumberjack forest field-assign (act-level): idle Expert Lumberjack
+   * → admit + colonies_assign_field on free forest surround (Lumberjack→Lumber).
+   * Cite: docs/terrain_yields.md / building_production; Colonization.pdf Skills
+   * Chart. Overrides FOUND; Warehouse LABOR join remains fallback without forest.
+   */
+  int lumberjack_fielded = 0;
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !land_war_hunted &&
+      !peace_border_hunted && !scout_explored && uname &&
+      strstr(uname, "Lumberjack") != NULL) {
+    if (ai_euro_try_lumberjack_field_assign(ctx, nation_id, u)) {
+      lumberjack_fielded = 1;
+      if (!u->active) {
+        return; /* admitted + field-assigned */
+      }
+    }
+  }
+
+  /*
+   * Expert Ore/Silver Miner field-assign (act-level): idle Expert Ore Miner /
+   * Silver Miner → admit + colonies_assign_field on free yield surround.
+   * Cite: docs/terrain_yields.md Ore/Silver; Colonization.pdf Skills Chart.
+   * Parallel to Expert Lumberjack forest field-assign. Overrides FOUND.
+   */
+  int miner_fielded = 0;
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
+      !land_war_hunted && !peace_border_hunted && !scout_explored && uname &&
+      (strstr(uname, "Ore Miner") != NULL || strstr(uname, "Silver Miner") != NULL)) {
+    if (ai_euro_try_miner_field_assign(ctx, nation_id, u)) {
+      miner_fielded = 1;
+      if (!u->active) {
+        return; /* admitted + field-assigned */
+      }
+    }
+  }
+
+  /*
+   * Expert Farmer food field-assign (act-level): idle Expert Farmer (name or
+   * @JOB Farmer profession 0) → admit + colonies_assign_field on free food
+   * surround (best colony_yield_for_tile Farmer). Cite: terrain_yields /
+   * building_production Farmer→Food; Colonization.pdf Skills Chart. Parallel
+   * to Lumberjack/Ore Miner field-assign. Overrides FOUND; food-short LABOR
+   * join remains fallback without a free food tile.
+   */
+  int farmer_fielded = 0;
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
+      !miner_fielded && !land_war_hunted && !peace_border_hunted && !scout_explored &&
+      uname &&
+      (strstr(uname, "Farmer") != NULL ||
+       (u->profession == 0 &&
+        (strstr(uname, "Free Colonist") != NULL || strstr(uname, "Colonist") != NULL) &&
+        strstr(uname, "Soldier") == NULL))) {
+    if (ai_euro_try_farmer_field_assign(ctx, nation_id, u)) {
+      farmer_fielded = 1;
+      if (!u->active) {
+        return; /* admitted + field-assigned */
+      }
+    }
+  }
+
+  /*
+   * Expert Fisherman coastal field-assign (act-level): idle Expert Fisherman
+   * → admit + colonies_assign_field on free ocean/sea-lane surround
+   * (Fisherman→Food fish). Cite: terrain_yields / building_production;
+   * Colonization.pdf Skills Chart. Parallel to Farmer field-assign.
+   */
+  int fisherman_fielded = 0;
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
+      !miner_fielded && !farmer_fielded && !land_war_hunted && !peace_border_hunted &&
+      !scout_explored && uname &&
+      (strstr(uname, "Fisherman") != NULL ||
+       (u->profession == COLONIZE_JOB_FISHERMAN &&
+        (strstr(uname, "Free Colonist") != NULL || strstr(uname, "Colonist") != NULL) &&
+        strstr(uname, "Soldier") == NULL))) {
+    if (ai_euro_try_fisherman_field_assign(ctx, nation_id, u)) {
+      fisherman_fielded = 1;
+      if (!u->active) {
+        return; /* admitted + field-assigned */
+      }
+    }
+  }
+
+  /*
+   * Expert Sugar/Tobacco Planter field-assign (act-level): idle Expert Sugar
+   * Planter / Tobacco Planter → admit + colonies_assign_field on free surround
+   * with positive matching yield. Cite: terrain_yields Sugar/Tobacco;
+   * Colonization.pdf Skills Chart. Parallel to Farmer/Fisherman field-assign.
+   */
+  int planter_fielded = 0;
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
+      !miner_fielded && !farmer_fielded && !fisherman_fielded && !land_war_hunted &&
+      !peace_border_hunted && !scout_explored && uname &&
+      (strstr(uname, "Sugar Planter") != NULL ||
+       strstr(uname, "Tobacco Planter") != NULL)) {
+    if (ai_euro_try_planter_field_assign(ctx, nation_id, u)) {
+      planter_fielded = 1;
+      if (!u->active) {
+        return; /* admitted + field-assigned */
+      }
+    }
+  }
+
+  /*
    * Peace fortify (case 0x0b fortify arm): idle Soldier on own colony tile →
    * FORTIFY if not already. Overrides explore/FOUND scoring-gate yank while
    * on-colony (defense). Cite: euro_unit_act §2 fortify colony-check → 'F';
    * Colonization.pdf fortify defense. At war: wake+hunt owns soldiers instead.
    */
   if (!at_war_land && !peace_border_hunted && !treasure_routed && !wagon_hauled &&
-      !scout_explored && !land_war_hunted && uname && strstr(uname, "Soldier") != NULL &&
+      !pioneer_improved && !lumberjack_fielded && !miner_fielded && !farmer_fielded &&
+      !fisherman_fielded && !planter_fielded && !scout_explored && !land_war_hunted &&
+      uname && strstr(uname, "Soldier") != NULL &&
       !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
@@ -3651,8 +4876,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * fortify colony-check → 'F'; Colonization.pdf fortify defense / Artillery
    * siege; mirror king post-capture fortify (Regular) for Euro Artillery.
    */
-  if (!treasure_routed && !wagon_hauled && !scout_explored && !land_war_hunted &&
-      !peace_border_hunted && uname &&
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
+      !miner_fielded && !farmer_fielded && !fisherman_fielded && !planter_fielded &&
+      !scout_explored && !land_war_hunted && !peace_border_hunted && uname &&
       (strstr(uname, "Artillery") != NULL || strstr(uname, "Cannon") != NULL) &&
       !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
@@ -3791,7 +5017,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Expert Farmer path, without requiring Farmer profession). Cite: manual
    * 2 food/colonist; 5cf6 food_short; euro_unit_act §2e. No invented rates.
    * Expert Lumberjack deepen: incomplete Warehouse/Lumber Mill (building type
-   * exists) → LABOR join (lumber for hammers). Field-assign stays PARKED.
+   * exists) → LABOR join (lumber for hammers). Forest field-assign is handled
+   * earlier (ai_euro_try_lumberjack_field_assign); this is the no-forest fallback.
    * Tools-short deepen
    * (peace Pioneer): tools_short > 0 extends MD≤8 toward tools-short colony
    * so idle Pioneer walks in for case-7 tools delivery. Cite: 5cf6 shortage
@@ -3820,8 +5047,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        strstr(uname, "Free Colonist") || strstr(uname, "Colonist") ||
        strstr(uname, "Farmer"));
     if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
-        !missionary_contacted && !wagon_hauled && is_colonist_cap && ctx->colonies &&
-        !ai_euro_land_is_fortified(u)) {
+        !missionary_contacted && !wagon_hauled && !pioneer_improved &&
+        !lumberjack_fielded && !miner_fielded && !farmer_fielded && !fisherman_fielded &&
+        !planter_fielded && is_colonist_cap &&
+        ctx->colonies && !ai_euro_land_is_fortified(u)) {
       AiEuroInventory* inv = ai_goals_inventory(nation_id);
       const int short_labor =
         inv && (inv->tools_short > 0 || inv->food_short > 0);
@@ -3847,8 +5076,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       const int carpenter_bind = is_carpenter && !is_pioneer;
       /*
        * Expert Lumberjack LABOR: incomplete Warehouse/Lumber Mill when that
-       * building type exists. Cite: building_production Lumberjack→Lumber;
-       * Colonization.pdf Skills Chart. Field-assign PARKED.
+       * building type exists (no-forest fallback). Cite: building_production
+       * Lumberjack→Lumber; Colonization.pdf Skills Chart. Field-assign is
+       * earlier via ai_euro_try_lumberjack_field_assign.
        */
       const int lumberjack_bind = is_lumberjack && !is_pioneer;
       /*
@@ -4027,20 +5257,29 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /* Preserve land-war / peace-border hunt / scout / treasure / missionary / wagon / LABOR. */
+  /* Preserve land-war / peace-border / scout / treasure / missionary / wagon /
+   * pioneer-improve / lumberjack/miner/farmer/fisherman/planter-field / LABOR. */
   if (goal_code >= 0 && !land_war_hunted && !peace_border_hunted && !scout_explored &&
-      !treasure_routed && !missionary_contacted && !wagon_hauled) {
+      !treasure_routed && !missionary_contacted && !wagon_hauled && !pioneer_improved &&
+      !lumberjack_fielded && !miner_fielded && !farmer_fielded && !fisherman_fielded &&
+      !planter_fielded) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
   /*
    * Land goto advance (thin 20e6 multi-step): one scored step; when goal is
-   * FOUND or MILITARY and moves_left remain after the first advance, allow a
-   * second step in the same act. Structural only — not full combat scoring.
+   * FOUND / MILITARY / CONTACT, or act-level land war hunt / peace-border /
+   * scout explore, allow a second step while moves_left remain. Structural
+   * only — not full combat scoring. Cite: euro_unit_act §2c3; FUN_521d_20e6.
+   * Deep 20e6 multi-step combat scoring remains PARKED.
    */
   if (units_orders_follow_goto(u->orders)) {
     const int multi =
-      (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY) ? 2 : 1;
+      (goal_code == AI_GOAL_FOUND || goal_code == AI_GOAL_MILITARY ||
+       goal_code == AI_GOAL_CONTACT || land_war_hunted || peace_border_hunted ||
+       scout_explored)
+        ? 2
+        : 1;
     for (int step = 0; step < multi; ++step) {
       if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
         break;
@@ -4138,6 +5377,17 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   /* Opportunistic balance after plan (separate from timer slot). */
   ai_diplo_euro_balance(ctx, nation_id);
+
+  /* Treasure → Europe gold: Expected→Harbor due ships + live Europe/HS units
+   * (moves_left may be 0 on Europe dock ships). Cite: Treasure Trains. */
+  ai_euro_try_expected_treasure_harbor(ctx, nation_id);
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    (void)ai_euro_try_cash_treasure_europe(ctx, nation_id, u);
+  }
 
   /* 6–7. Outer any_acted; wave0 ships; wave1 ships+land; high→low.
    * Each unit gets one act call per outer iteration (inner while breaks). */

@@ -699,7 +699,7 @@ int main(void) {
     human->next_founding_father = 0;
 
     ai->liberty_bells_total = 40;
-    ai->next_founding_father = 2; /* Peter Minuit — PARKED, no gold */
+    ai->next_founding_father = 2; /* Peter Minuit — elect only, no gold invent */
     ai->founding_father_count = 0;
     ai->gold = 10;
 
@@ -1212,6 +1212,121 @@ int main(void) {
     if (peu.current_crosses != 13) {
       return fail("turn Penn crosses accrued");
     }
+  }
+
+  /* Peter Minuit: FUN_4cc6_07c2 land-buy gold → 0; founding on homeland cheaper/free. */
+  {
+    ColonizeCol1Save mcol1;
+    col1_save_init(&mcol1);
+    seed_unclaimed(&mcol1);
+    mcol1.head.difficulty = 0;
+    mcol1.player[0].control = 0;
+    ColonizeCol1Nation* mnat = &mcol1.nation[0];
+    memset(mnat, 0, sizeof(*mnat));
+    mnat->gold = 500;
+    mnat->liberty_bells_total = 40;
+    mnat->next_founding_father = FF_PETER_MINUIT;
+    mnat->founding_father_count = 0;
+
+    ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.x = 5;
+    tribe.y = 5;
+    tribe.nation_id = 4; /* Arawak */
+    tribe.state.capital = 0;
+    mcol1.tribe = &tribe;
+    mcol1.head.tribe_count = 1;
+    memset(&mcol1.indian[0], 0, sizeof(mcol1.indian[0]));
+
+    ColonizeWorldMap mmap;
+    memset(&mmap, 0, sizeof(mmap));
+    char merr[128];
+    if (!map_alloc(&mmap, 12, 12, merr, sizeof(merr))) {
+      return fail("Minuit map_alloc");
+    }
+    /* Plains land tiles (terrain index 1); avoid arctic (pedia 24). */
+    for (int yi = 0; yi < (int)mmap.height; ++yi) {
+      for (int xi = 0; xi < (int)mmap.width; ++xi) {
+        mmap.terrain[yi * (int)mmap.width + xi] = 1;
+      }
+    }
+
+    const int fx = 5;
+    const int fy = 4; /* adjacent to village — homeland radius 1 */
+    const int cost_no = colonies_indian_land_purchase_gold(&mcol1, &mmap, fx, fy, 0);
+    if (cost_no <= 0) {
+      map_free(&mmap);
+      return fail("Minuit: homeland land cost without FF must be > 0");
+    }
+    /* Human Discoverer, dist 1, tech/bought 0: ((0+3)*2+0+0)-1=5; 0x41*5=325; >>1=162. */
+    if (cost_no != 162) {
+      map_free(&mmap);
+      fprintf(stderr, "smoke_founding_fathers: cost_no=%d expected 162\n", cost_no);
+      return fail("Minuit: FUN_4cc6_07c2 baseline gold");
+    }
+
+    ColonizeColonyPool mpool;
+    colonies_init(&mpool);
+    uint32_t gold_pay = mnat->gold;
+    const int cid_pay =
+      colonies_found_with_indian_land(&mpool, &mmap, &mcol1, &gold_pay, fx, fy, 0, -1, -1, 0, 0, 0);
+    if (cid_pay < 0) {
+      map_free(&mmap);
+      return fail("Minuit: found without FF should succeed when gold enough");
+    }
+    if (gold_pay != 500u - (uint32_t)cost_no) {
+      map_free(&mmap);
+      return fail("Minuit: founding must deduct land-purchase gold");
+    }
+    if (mcol1.indian[0].unknown31[2] != 1) {
+      map_free(&mmap);
+      return fail("Minuit: lands-bought counter must INC");
+    }
+
+    /* Elect Minuit — free land on another homeland tile. */
+    ColonizeTurnContext mctx;
+    memset(&mctx, 0, sizeof(mctx));
+    mctx.human_nation = 0;
+    mctx.col1 = &mcol1;
+    mctx.col1_ok = true;
+    founding_fathers_tick(&mctx);
+    if (!founding_fathers_nation_has(&mcol1, 0, FF_PETER_MINUIT)) {
+      map_free(&mmap);
+      return fail("Minuit elect for land-buy smoke");
+    }
+    const int cost_ff = colonies_indian_land_purchase_gold(&mcol1, &mmap, 6, 5, 0);
+    if (cost_ff != 0) {
+      map_free(&mmap);
+      return fail("Minuit: land cost must be 0 with FF");
+    }
+    const uint32_t gold_before_free = gold_pay;
+    const int cid_free = colonies_found_with_indian_land(
+      &mpool, &mmap, &mcol1, &gold_pay, 6, 5, 0, -1, -1, 0, 0, 0
+    );
+    if (cid_free < 0) {
+      map_free(&mmap);
+      return fail("Minuit: free found on homeland failed");
+    }
+    if (gold_pay != gold_before_free) {
+      map_free(&mmap);
+      return fail("Minuit: free found must not spend gold");
+    }
+
+    /* Insufficient gold without Minuit blocks found. */
+    seed_unclaimed(&mcol1);
+    mnat->founding_father_count = 0;
+    mnat->founding_fathers[0] = 0;
+    mcol1.indian[0].unknown31[2] = 0;
+    uint32_t poor = 10;
+    colonies_init(&mpool);
+    const int cid_poor =
+      colonies_found_with_indian_land(&mpool, &mmap, &mcol1, &poor, fx, fy, 0, -1, -1, 0, 0, 0);
+    if (cid_poor >= 0 || poor != 10u) {
+      map_free(&mmap);
+      return fail("Minuit: short gold must block found and not debit");
+    }
+
+    map_free(&mmap);
   }
 
   printf("smoke_founding_fathers: OK\n");

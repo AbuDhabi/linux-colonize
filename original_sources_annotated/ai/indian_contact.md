@@ -87,7 +87,8 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    contains `"Mission"` adjacent to a tribe of this nation. Convert/crosses only
    when `tribe.mission == 0xff` and not alarmed (`alarm_by_player` / tribe
    friction both `< 55`). Sets `tribe.mission = euro nation id`, decay
-   alarm/friction by 1 if > 0, bump `nation[euro].current_crosses` by 1.
+   alarm/friction by **1** (peaceful `<40`) or **2** (mid-range `40..54`),
+   bump `nation[euro].current_crosses` by 1.
    One pulse per tribe per call. **Mission already set** (own or foreign) →
    skip convert pulse entirely (one-shot; no re-crosses / no steal).
    Alarmed (`>= 55`) → refuse with **"Natives refuse conversion."** (no crosses).
@@ -107,27 +108,35 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    **Already learned** (`state.learned` set) → skip teach and do **not** write
    teach/refuse status (Col1 one-shot; preserves gift/trade chrome).
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in
-   for `2aac…311e`); human status **"Trade accepted."** Meet CHOICE Trade with no
-   goods / gated trade → haggle stub OK **"Trade concluded."** (deep `2820`
-   buy/hard-bargain **PARKED**).
+   for `2aac…311e`); human status **"Trade accepted."** Meet CHOICE Trade:
+   alarmed (`alarm_by_player ≥ 50`) or very-low relation (`< 40`) → haggle
+   refuse OK **"Natives refuse to trade."** (`CONTACT_REFUSE`; `2aac` refuse
+   stand-in); no goods otherwise → haggle stub OK **"Trade concluded."** (deep
+   `2820` buy/hard-bargain **PARKED**).
 7. **Gift / demand** structural stand-in after peaceful meet (`5bfb_102a` /
-   `1092` **widgets** still OPEN). **PARK:** Gift CHOICE amount / tribute UI
-   (fixed −10 gold band only; no amount widget). Friction = max(`alarm_by_player`, tribe
-   `alarm[].friction`):
+   `1092` **widgets** still OPEN). Human Meet→Gift with `ai_popups` enqueues
+   **CONTACT_GIFT** amount CHOICE: **Small (−5 gold / friction −1)** or
+   **Large (−10 gold / friction −2)** when purse allows (≥5 / ≥10). Auto path
+   (no popup) keeps fixed Large −10 when gold **≥20**. Friction = max(
+   `alarm_by_player`, tribe `alarm[].friction`):
    - **Alarmed** (`>= 55` on `alarm_by_player` or pair friction) → refuse
      gift/demand; status **"Natives refuse gifts."** when tribe friction is
      gift-band (`< 40`), else **"Natives refuse demands."** (tribe band — not
      pair friction — so alarm alone does not force the demand line)
      (no invented gold penalties)
-   - **Low** (`< 40`) + Euro `nation.gold < 10` → refuse gift (cannot pay **−10**);
-     status **"Natives refuse gifts."**
-   - **Low** (`< 40`) + Euro `nation.gold >= 20` → gift/tribute: Euro **−10 gold**,
-     friction **−2**; human status **"Gift of gold eases tensions."**
+   - **Low** (`< 40`) + Euro `nation.gold < 10` → refuse gift (cannot pay auto
+     **−10**); status **"Natives refuse gifts."** (amount CHOICE still offers
+     Small when gold **≥5**)
+   - **Low** (`< 40`) + Euro `nation.gold >= 20` → auto gift/tribute: Euro
+     **−10 gold**, friction **−2**; human status **"Gift of gold eases tensions."**
    - **Mid** (`40..54`) + tools/gold available → demand/payoff: Euro loses **10 tools**
      from nearest colony warehouse when stock **≥ 20**, else **10** from adjacent unit
      `tools` when **≥ 20**, else **15 gold** when treasury **≥ 50**; friction **−3**;
      human status **"Tribute paid; tensions ease."** (gift gold≥20 band mirrored
      for tools; gold stand-in needs a fuller purse when tools are short).
+     Human Meet→Demand with `ai_popups` enqueues **CONTACT_DEMAND** amount
+     CHOICE: **Pay tools (−10)** and/or **Pay gold (−15)** when each path can
+     pay (auto path still prefers tools then gold).
    - **Very high** covered by alarmed refuse / raids.
 
 Peaceful auto-trade remains a thin trade-goods→alarm stand-in; deep meet-trade
@@ -142,11 +151,22 @@ Status lines only when `ctx->status` is present and the Euro is the human nation
 (`ctx->human_nation`, else `player.control == 0`). When `ctx->ai_popups` is set,
 human arms also enqueue OK / Meet CHOICE popups (FUN_5bfb_022e / 5bfb_102a
 structural unpark). First meet with popups: CHOICE (Trade/Gift/Demand/Teach/Leave)
-defers auto-trade/gift until `ai_contact_apply_popup_result`; a second Brave in the
-same pulse does not re-offer Meet CHOICE while one is pending. Teach CHOICE refuse
-(≥55) enqueues CONTACT_TEACH OK; convert success (mission establish) enqueues
+defers auto-trade/gift until `ai_contact_apply_popup_result`; Meet→Gift enqueues
+CONTACT_GIFT Small/Large amount CHOICE before gold drain; Meet→Demand enqueues
+CONTACT_DEMAND tools/gold amount CHOICE before tribute drain; Meet→Demand when
+alarmed (`≥55`) enqueues CONTACT_DEMAND OK **"Natives refuse demands."**
+(no amount CHOICE / no tools-gold drain); Meet→Leave enqueues thin OK
+**"Farewell."** (no trade side effects). A second Brave in the same pulse
+does not re-offer Meet CHOICE while one is pending. Teach CHOICE refuse
+(≥55) enqueues CONTACT_TEACH OK; Teach success (e.g. Aztec→Ore Miner) enqueues
+CONTACT_TEACH OK; convert success (mission establish) enqueues
 CONTACT_CONVERT OK. Mission burn (prelude ≥80) enqueues CONTACT_RAID OK with
 status. Deep DOS dialog chrome (VGA-identical) stays **PARKED**.
+Deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid decision + nested
+`2aac…311e` haggle stays **PARK only** — Linux Leave/Trade/Gift/Demand/Teach
+are thin CHOICE handlers, not a 2820 port (Marathon2 R6 / R4).
+Scout `359c` warn-on-displace already thinned; DOS RNG kill-with-flee-tile
+stays **PARK** (Linux kills only when displace is blocked).
 
 ### Teach-skill profession map (Linux)
 
@@ -192,8 +212,9 @@ still **OPEN** (unpark #1). Full DOS dialog **PARKED**.
   `layer_b_2a1f_midlo`. Cite: `docs/ai_transcription.md` FUN_4d56_2820.
 - **OPEN (unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
   (`5bfb_102a` / `1092`, teach chrome) — Linux: status + `ai_popups` OK/CHOICE
-  enqueue + `ai_contact_apply_popup_result` (thin handlers); VGA-identical
-  dialog chrome still PARKED
+  enqueue + `ai_contact_apply_popup_result` (thin handlers incl. gift/demand
+  amount CHOICE); VGA-identical dialog chrome still PARKED
 - Full skill-from-`@TRIBES` flavor-good string parse — still PARKED
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2) — still PARKED
-- Deep Brave escort inside quiet `14fe` — still PARKED (raids stay post-pulse)
+- Deep Brave escort inside quiet `14fe` — still PARKED: no unit-follow API
+  (`units_set_goto` is tile goto only); raids stay post-pulse

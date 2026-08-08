@@ -52,9 +52,11 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
  * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
- * FA gift/longevity human status ("Alliance with %s strengthened/holds");
- * at-war war-fatigue (timer==0) + near-parity → make_peace_ctx
- * (status when human; 102a/1092 chrome). */
+ * FA gift/longevity human status ("Alliance with %s strengthened/holds") +
+ * thin Foreign Affairs OK (DIPLO_ALLIANCE tag + "Foreign Affairs" title);
+ * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]) +
+ * treasury prize; war-fatigue (timer==0) + near-parity → make_peace_ctx;
+ * AI→human war/peace/alliance/break offers enqueue CHOICE Accept/Refuse. */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Thin FA 3f41 goodwill gift: 15g from→to + both treaty timers +2 when
@@ -101,10 +103,15 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
 
-/* Apply human choice from map AI popup (alliance / peace Accept/Refuse).
- * Alliance Accept → form_alliance_ctx (follow-up OK "Alliance formed…");
- * peace Accept → make_peace_ctx. No-op if tag mismatch, cancelled, or OK
- * (choice_id 0). FUN_5bfb_13b0 / 15b3 / war-fatigue; FA 3f41 full UI PARKED. */
+/* Apply human choice from map AI popup (alliance / peace / war / break
+ * Accept/Refuse). Alliance Accept → form_alliance_ctx (follow-up OK
+ * "Alliance formed…" + treaty timer ≥8 if was 0); peace Accept →
+ * make_peace_ctx; peace Refuse → status + OK; war Accept →
+ * declare_war_ctx; war Refuse → status + OK; break Accept →
+ * break_alliance_ctx; break Refuse → status + OK. No-op if tag mismatch,
+ * cancelled, or OK (choice_id 0). FUN_5bfb_13b0 / 15b3 / 10ec /
+ * war-fatigue; FA 3f41 full UI PARKED. Thin FA gift OK reuses
+ * AI_POPUP_TAG_DIPLO_ALLIANCE + title "Foreign Affairs" (no DIPLO_FA tag). */
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
 #endif

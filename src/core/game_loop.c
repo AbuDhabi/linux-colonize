@@ -179,6 +179,7 @@ struct ColonizeGameState {
 };
 
 static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
+static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
@@ -265,6 +266,102 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
     return;
   }
   snprintf(game->status, sizeof(game->status), "%.64s: %.60s", prefix, detail);
+}
+
+/*
+ * Human FOUND (B key / Orders → Build Colony).
+ * FUN_4cc6_07c2 Indian homeland purchase via colonies_found_with_indian_land —
+ * same charge/Minuit-free gate as AI euro FOUND. Cite: Colonization.pdf Indian
+ * Land / Peter Minuit (FF 2). smoke_game_flow has no tribe fixture; covered by
+ * smoke_founding_fathers + smoke_ai_euro_expand indian-land cases.
+ */
+static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
+  if (!game || !game->world_map_ok) {
+    return false;
+  }
+  const int cx = game->map_cursor_x;
+  const int cy = game->map_cursor_y;
+  if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
+  const int uid = units_id_at(&game->units, cx, cy);
+  if (uid < 0) {
+    set_status(game, "No unit at cursor to found colony", NULL);
+    return false;
+  }
+  if (units_is_sea(&game->units, uid)) {
+    set_status(game, "Ships cannot found colonies", NULL);
+    return false;
+  }
+
+  ColonizeUnit* founder = units_get(&game->units, uid);
+  const int type_index = founder ? founder->type_index : -1;
+  const int profession = founder ? founder->profession : UNITS_JOB_NONE;
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
+
+  const int hn = game->human_nation;
+  ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
+  uint32_t* gold = NULL;
+  int land_cost = 0;
+  if (col1 && hn >= 0 && hn < 4) {
+    /* Live treasury is europe.gold; sync into col1 before land charge. */
+    col1->nation[hn].gold = (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
+    gold = &col1->nation[hn].gold;
+    land_cost = colonies_indian_land_purchase_gold(col1, &game->world_map, cx, cy, hn);
+    if (land_cost > 0 && *gold < (uint32_t)land_cost) {
+      char detail[48];
+      snprintf(detail, sizeof(detail), "need %d gold", land_cost);
+      set_status(game, "Indian land", detail);
+      return false;
+    }
+  }
+
+  const int cid = colonies_found_with_indian_land(
+    &game->colonies,
+    &game->world_map,
+    col1,
+    gold,
+    cx,
+    cy,
+    hn,
+    type_index,
+    profession,
+    tools,
+    muskets,
+    horses
+  );
+  if (cid < 0) {
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
+
+  units_despawn(&game->units, uid);
+  if (gold) {
+    game->europe.gold = (int)*gold;
+  }
+  const ColonizeColony* col = colonies_get(&game->colonies, cid);
+  if (land_cost > 0) {
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Founded %s (paid %d gold)",
+      col ? col->name : "colony",
+      land_cost
+    );
+  } else {
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Founded %s (pop %d)",
+      col ? col->name : "colony",
+      col ? col->population : 0
+    );
+  }
+  return true;
 }
 
 static void game_apply_ai_popup_result(ColonizeGameState* game) {
@@ -3479,6 +3576,102 @@ static void game_europe_capture_pax_professions(
 }
 
 /*
+ * COL1 Treasure gold: cargo_hold[0..1] LE16. ColonizeUnit mirrors those bytes in
+ * hold_goods_amount[0] (lo) + [1] (hi) — same field AI euro cash uses.
+ * Cite: Colonization.pdf Treasure Trains; europe.h cargo_treasure_gold;
+ * GAME.TXT @LOOTCASH. Non-Treasure passengers keep 0 (goods holds are not gold).
+ *
+ * Manual verify (smoke_game_flow stays title-only; no CMake smoke hook here):
+ * board Treasure with LE16 in hold_goods_amount[0..1], H / Return to Europe on
+ * high seas → Expected.cargo_treasure_gold set → tick to Harbor → cash-in.
+ * smoke_europe covers cash when cargo_treasure_gold is already set.
+ */
+static int game_treasure_gold_from_unit(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u
+) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  if (!ut || !ut->name[0] || strstr(ut->name, "Treasure") == NULL) {
+    return 0;
+  }
+  const unsigned lo = (unsigned)(u->hold_goods_amount[0] & 0xff);
+  const unsigned hi = (unsigned)(u->hold_goods_amount[1] & 0xff);
+  return (int)(lo | (hi << 8));
+}
+
+static void game_europe_capture_pax_treasure_gold(
+  const ColonizeUnitPool* units,
+  int ship_id,
+  int* out_gold,
+  int max
+) {
+  if (!out_gold || max <= 0) {
+    return;
+  }
+  for (int i = 0; i < max; ++i) {
+    out_gold[i] = 0;
+  }
+  const ColonizeUnit* ship = units_get_const(units, ship_id);
+  if (!ship) {
+    return;
+  }
+  for (int i = 0; i < ship->cargo_count && i < max; ++i) {
+    const ColonizeUnit* pax = units_get_const(units, ship->cargo_ids[i]);
+    out_gold[i] = game_treasure_gold_from_unit(units, pax);
+  }
+}
+
+/* After europe_enqueue_expected: fill PARKED cargo_treasure_gold on newest slot. */
+static void game_europe_fill_expected_treasure_gold(
+  EuropeScreen* eu,
+  const int* treasure_gold,
+  int cargo_count
+) {
+  if (!eu || !treasure_gold || eu->expected_ships <= 0 || cargo_count <= 0) {
+    return;
+  }
+  EuropeHarborShip* ship = &eu->expected[eu->expected_ships - 1];
+  const int n = cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX : cargo_count;
+  for (int i = 0; i < n; ++i) {
+    ship->cargo_treasure_gold[i] = treasure_gold[i];
+  }
+}
+
+/* Lane-full restore: put LE16 back onto respawned Treasure passengers. */
+static void game_europe_restore_pax_treasure_gold(
+  ColonizeUnitPool* units,
+  int ship_id,
+  const int* treasure_gold,
+  int cargo_count
+) {
+  if (!units || !treasure_gold || cargo_count <= 0) {
+    return;
+  }
+  ColonizeUnit* ship = units_get(units, ship_id);
+  if (!ship) {
+    return;
+  }
+  for (int i = 0; i < ship->cargo_count && i < cargo_count; ++i) {
+    if (treasure_gold[i] <= 0) {
+      continue;
+    }
+    ColonizeUnit* pax = units_get(units, ship->cargo_ids[i]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units_type(units, pax->type_index);
+    if (!ut || !ut->name[0] || strstr(ut->name, "Treasure") == NULL) {
+      continue;
+    }
+    pax->hold_goods_amount[0] = treasure_gold[i] & 0xff;
+    pax->hold_goods_amount[1] = (treasure_gold[i] >> 8) & 0xff;
+  }
+}
+
+/*
  * Spawn every Bound-for-New-World ship whose voyage has finished. Called after
  * turn end, when leaving the Europe screen, and at Europe-input time so ships
  * that just ticked to 0 appear promptly.
@@ -3728,50 +3921,9 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       }
       return true;
     }
-    case MAP_MENU_ACTION_BUILD_COLONY: {
-      const int cx = game->map_cursor_x;
-      const int cy = game->map_cursor_y;
-      if (!game->world_map_ok || !colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
-        set_status(game, "Cannot found colony here", NULL);
-      } else {
-        const int uid = units_id_at(&game->units, cx, cy);
-        if (uid < 0) {
-          set_status(game, "No unit at cursor to found colony", NULL);
-        } else if (units_is_sea(&game->units, uid)) {
-          set_status(game, "Ships cannot found colonies", NULL);
-        } else {
-          ColonizeUnit* founder = units_get(&game->units, uid);
-          const int type_index = founder ? founder->type_index : -1;
-          const int profession = founder ? founder->profession : UNITS_JOB_NONE;
-          int tools = 0, muskets = 0, horses = 0;
-          units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
-          const int cid = colonies_found(
-            &game->colonies,
-            &game->world_map,
-            cx,
-            cy,
-            game->human_nation,
-            type_index,
-            profession,
-            tools,
-            muskets,
-            horses
-          );
-          if (cid >= 0) {
-            units_despawn(&game->units, uid);
-            const ColonizeColony* col = colonies_get(&game->colonies, cid);
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Founded %s (pop %d)",
-              col ? col->name : "colony",
-              col ? col->population : 0
-            );
-          }
-        }
-      }
+    case MAP_MENU_ACTION_BUILD_COLONY:
+      (void)game_try_found_colony_at_cursor(game);
       return true;
-    }
     case MAP_MENU_ACTION_JOIN_COLONY:
       game_enter_colony_at_cursor(game);
       return true;
@@ -3856,10 +4008,15 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         int cargo_count = 0;
         int hold_types[EUROPE_SHIP_CARGO_MAX];
         int hold_amts[EUROPE_SHIP_CARGO_MAX];
+        int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
         memset(hold_types, 0, sizeof(hold_types));
         memset(hold_amts, 0, sizeof(hold_amts));
+        memset(cargo_treasure_gold, 0, sizeof(cargo_treasure_gold));
         game_europe_capture_pax_professions(
           &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
+        );
+        game_europe_capture_pax_treasure_gold(
+          &game->units, sid, cargo_treasure_gold, EUROPE_SHIP_CARGO_MAX
         );
         if (!units_despawn_ship_with_cargo(
               &game->units,
@@ -3903,10 +4060,16 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
               hold_amts
             );
             if (restored >= 0) {
+              game_europe_restore_pax_treasure_gold(
+                &game->units, restored, cargo_treasure_gold, cargo_count
+              );
               game->units.selected_id = restored;
             }
             set_status(game, "Europe lane is full", NULL);
           } else {
+            game_europe_fill_expected_treasure_gold(
+              &game->europe, cargo_treasure_gold, cargo_count
+            );
             snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
             game->in_europe = true;
           }
@@ -5671,10 +5834,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       int cargo_count = 0;
       int hold_types[EUROPE_SHIP_CARGO_MAX];
       int hold_amts[EUROPE_SHIP_CARGO_MAX];
+      int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
       memset(hold_types, 0, sizeof(hold_types));
       memset(hold_amts, 0, sizeof(hold_amts));
+      memset(cargo_treasure_gold, 0, sizeof(cargo_treasure_gold));
       game_europe_capture_pax_professions(
         &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
+      );
+      game_europe_capture_pax_treasure_gold(
+        &game->units, sid, cargo_treasure_gold, EUROPE_SHIP_CARGO_MAX
       );
       if (!units_despawn_ship_with_cargo(
             &game->units,
@@ -5719,10 +5887,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             hold_amts
           );
           if (restored >= 0) {
+            game_europe_restore_pax_treasure_gold(
+              &game->units, restored, cargo_treasure_gold, cargo_count
+            );
             game->units.selected_id = restored;
           }
           set_status(game, "Europe lane is full", NULL);
         } else {
+          game_europe_fill_expected_treasure_gold(
+            &game->europe, cargo_treasure_gold, cargo_count
+          );
           if (cargo_count > 0) {
             snprintf(
               game->status,
@@ -5848,51 +6022,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
   }
 
-  /* B: found a colony — disband land unit into colonist + stockpile loot. */
+  /* B: found a colony — Indian land gold/Minuit via colonies_found_with_indian_land. */
   if (input->last_key == COLONIZE_KEY_B && game->world_map_ok) {
-    const int cx = game->map_cursor_x;
-    const int cy = game->map_cursor_y;
-    if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
-      set_status(game, "Cannot found colony here", NULL);
-    } else {
-      const int uid = units_id_at(&game->units, cx, cy);
-      if (uid < 0) {
-        set_status(game, "No unit at cursor to found colony", NULL);
-      } else if (units_is_sea(&game->units, uid)) {
-        set_status(game, "Ships cannot found colonies", NULL);
-      } else {
-        ColonizeUnit* founder = units_get(&game->units, uid);
-        const int type_index = founder ? founder->type_index : -1;
-        const int profession = founder ? founder->profession : UNITS_JOB_NONE;
-        int tools = 0;
-        int muskets = 0;
-        int horses = 0;
-        units_founder_loot(&game->units, uid, &tools, &muskets, &horses);
-        const int cid = colonies_found(
-          &game->colonies,
-          &game->world_map,
-          cx,
-          cy,
-          game->human_nation,
-          type_index,
-          profession,
-          tools,
-          muskets,
-          horses
-        );
-        if (cid >= 0) {
-          units_despawn(&game->units, uid);
-          const ColonizeColony* col = colonies_get(&game->colonies, cid);
-          snprintf(
-            game->status,
-            sizeof(game->status),
-            "Founded %s (pop %d)",
-            col ? col->name : "colony",
-            col ? col->population : 0
-          );
-        }
-      }
-    }
+    (void)game_try_found_colony_at_cursor(game);
   }
 
   {
