@@ -1131,11 +1131,15 @@ bool col1_contact_adjacent_tribe(
   int y,
   int european_nation,
   char* status_out,
-  size_t status_size
+  size_t status_size,
+  int* out_first_indian_nation
 ) {
   static const char* k_tribe_names[8] = {
     "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
   };
+  if (out_first_indian_nation) {
+    *out_first_indian_nation = -1;
+  }
   if (!save || !save->tribe || european_nation < 0 || european_nation > 3) {
     return false;
   }
@@ -1154,9 +1158,11 @@ bool col1_contact_adjacent_tribe(
     const int indian = (int)tr->nation_id - 4;
     if (indian >= 0 && indian < 8) {
       if (save->indian[indian].met_by_player[european_nation] == 0) {
-        save->indian[indian].met_by_player[european_nation] = 1;
         if (!first_name) {
           first_name = k_tribe_names[indian];
+          if (out_first_indian_nation) {
+            *out_first_indian_nation = 4 + indian;
+          }
         }
       }
       if (save->indian[indian].alarm_by_player[european_nation] < 11) {

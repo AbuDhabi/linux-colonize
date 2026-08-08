@@ -172,7 +172,10 @@ Port: combat Missing; Europe buy/sell Partial; equip Partial.
 | Teach / trade / missions | Elder skills; sea/land trade; missionaries (expert via Brebeuf). |
 | Nation bias | Spanish pushed toward conquest (Aztec/Inca treasure); French toward cooperation. |
 
-Port: villages + light AI Partial; meet/trade/teach/missions/alarm Missing. Tribe tech colors: `@TRIBES` in `NAMES.TXT`.
+Port: villages + light AI Partial; first contact **Done** structural
+(`FUN_5bfb_022e` `@INDIANWELCOME` → `0182` peace / `@INDIANSHUN` war; land grant
+copy-only); meet/trade/teach/missions/alarm Partial (`ai_popup`; deep VGA PARKED).
+Tribe tech colors: `@TRIBES` in `NAMES.TXT`.
 
 ---
 

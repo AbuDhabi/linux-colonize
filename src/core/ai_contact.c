@@ -1,6 +1,7 @@
 #include "core/ai_contact.h"
 
 #include "core/ai_diplo.h"
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -61,6 +62,9 @@ enum {
   AI_CONTACT_GIFT_LARGE = 2  /* −10 gold, friction −2 */
 };
 
+static void ai_contact_enqueue_meet_choice(ColonizeTurnContext* ctx, int e, int nation_id);
+static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nation_id);
+
 /* Demand amount CHOICE ids (CONTACT_DEMAND; tools vs gold stand-in). */
 enum {
   AI_CONTACT_DEMAND_TOOLS = 1, /* −10 tools (stock/unit ≥20), friction −3 */
@@ -100,6 +104,322 @@ static const char* ai_contact_tribe_name(int nation_id) {
     return "natives";
   }
   return k_names[idx];
+}
+
+/* FUN_5bfb_0182: peace/treaty bit on indian.unknown33[euro]. */
+#define AI_CONTACT_PEACE_BIT 0x40u
+
+/* FUN_5bfb_022e Yes/No (local_c). */
+enum {
+  AI_CONTACT_WELCOME_YES = 1,
+  AI_CONTACT_WELCOME_NO = 2
+};
+
+static const char* ai_contact_euro_name(int euro_nation) {
+  static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
+  if (euro_nation < 0 || euro_nation > 3) {
+    return "Europeans";
+  }
+  return k_euro[euro_nation];
+}
+
+int ai_contact_indian_has_peace(
+  const ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+) {
+  if (!col1 || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  const int idx = indian_nation - 4;
+  if (idx < 0 || idx >= 8) {
+    return 0;
+  }
+  return (col1->indian[idx].unknown33[euro_nation] & AI_CONTACT_PEACE_BIT) != 0;
+}
+
+static void ai_contact_set_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
+  if (!col1 || euro_nation < 0 || euro_nation > 3) {
+    return;
+  }
+  const int idx = indian_nation - 4;
+  if (idx < 0 || idx >= 8) {
+    return;
+  }
+  col1->indian[idx].unknown33[euro_nation] =
+    (uint8_t)(col1->indian[idx].unknown33[euro_nation] | AI_CONTACT_PEACE_BIT);
+}
+
+static void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
+  if (!col1 || euro_nation < 0 || euro_nation > 3) {
+    return;
+  }
+  const int idx = indian_nation - 4;
+  if (idx < 0 || idx >= 8) {
+    return;
+  }
+  col1->indian[idx].unknown33[euro_nation] =
+    (uint8_t)(col1->indian[idx].unknown33[euro_nation] & (uint8_t)~AI_CONTACT_PEACE_BIT);
+}
+
+/*
+ * Pull quoted body lines from GAME.TXT @SECTION (skip @width / Yes / No).
+ * Falls back to fallback_body when catalog missing.
+ */
+static void ai_contact_msg_body(
+  const ColonizeMsgCatalog* messages,
+  const char* section,
+  const char* tribe,
+  const char* euro,
+  const char* fallback_body,
+  char* out,
+  size_t out_size
+) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (messages && section) {
+    const ColonizeMsgSection* sec = assets_msg_find(messages, section);
+    if (sec && sec->line_count > 0) {
+      size_t used = 0;
+      for (int i = 0; i < sec->line_count && used + 2 < out_size; ++i) {
+        const char* line = sec->lines[i];
+        if (!line || !line[0]) {
+          continue;
+        }
+        if (line[0] == '@') {
+          continue;
+        }
+        if (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0) {
+          continue;
+        }
+        /* Strip surrounding quotes and {%…} placeholders lightly. */
+        char buf[COLONIZE_MSG_LINE_LEN];
+        size_t bi = 0;
+        for (size_t c = 0; line[c] && bi + 1 < sizeof(buf); ++c) {
+          if (line[c] == '"' || line[c] == '{' || line[c] == '}') {
+            continue;
+          }
+          if (line[c] == '%') {
+            /* Skip %STRING0 / %NUMBER0 style tokens. */
+            while (line[c] && line[c] != ' ' && line[c] != '.' && line[c] != ',') {
+              ++c;
+            }
+            if (!line[c]) {
+              break;
+            }
+            --c;
+            continue;
+          }
+          buf[bi++] = line[c];
+        }
+        buf[bi] = '\0';
+        if (bi == 0) {
+          continue;
+        }
+        if (used > 0 && used + 1 < out_size) {
+          out[used++] = ' ';
+        }
+        const size_t n = strlen(buf);
+        if (used + n >= out_size) {
+          break;
+        }
+        memcpy(out + used, buf, n);
+        used += n;
+        out[used] = '\0';
+      }
+    }
+  }
+  if (out[0] == '\0' && fallback_body) {
+    snprintf(out, out_size, "%s", fallback_body);
+  }
+  /* Prefer inserting tribe/euro names when placeholders were stripped empty. */
+  (void)tribe;
+  (void)euro;
+}
+
+static int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_WELCOME && st->queue[i].nation_a == e &&
+        st->queue[i].nation_b == nation_id) {
+      return 1;
+    }
+  }
+  if (st->open && st->current.tag == AI_POPUP_TAG_CONTACT_WELCOME && st->current.nation_a == e &&
+      st->current.nation_b == nation_id) {
+    return 1;
+  }
+  return 0;
+}
+
+static void ai_contact_apply_welcome_accept(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e
+) {
+  if (!ctx || !ctx->col1 || !ind) {
+    return;
+  }
+  (void)ind;
+  const uint8_t rel_before = ai_diplo_indian_relation(ctx->col1, nation_id, e);
+  ai_contact_set_peace(ctx->col1, nation_id, e);
+  /* Peaceful floor so refuse-talk (relation < 40) cannot fire next tick. */
+  {
+    const uint8_t cur = ai_diplo_indian_relation(ctx->col1, nation_id, e);
+    if (cur < 100u) {
+      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, (int)(100u - cur));
+    }
+  }
+  ai_diplo_indian_hostility_sync(ctx->col1, e);
+
+  const char* tribe = ai_contact_tribe_name(nation_id);
+  const char* euro = ai_contact_euro_name(e);
+  char peace_fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    peace_fb,
+    sizeof(peace_fb),
+    "The %s welcome peace with our brothers the %s. Let us smoke a peace pipe "
+    "to celebrate our perpetual friendship.",
+    tribe,
+    euro
+  );
+  char peace_body[AI_POPUP_BODY_LEN];
+  ai_contact_msg_body(
+    ctx->messages, "INDIANPEACE", tribe, euro, peace_fb, peace_body, sizeof(peace_body)
+  );
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", peace_body);
+
+  /* DOS FUN_5bfb_0182: @INDIANCOME when relation < 0x19 before/as friendly. */
+  if (rel_before < 25u) {
+    char come_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      come_fb,
+      sizeof(come_fb),
+      "We hope you will soon visit %s villages to share knowledge with us, and "
+      "that you will send your wagon trains to trade with us.",
+      tribe
+    );
+    char come_body[AI_POPUP_BODY_LEN];
+    ai_contact_msg_body(
+      ctx->messages, "INDIANCOME", tribe, euro, come_fb, come_body, sizeof(come_body)
+    );
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", come_body);
+  }
+
+  /* After treaty: offer Trade/Gift Meet CHOICE (later interaction stand-in). */
+  if (ai_contact_euro_is_human(ctx, e) && ctx->ai_popups) {
+    ai_contact_enqueue_meet_choice(ctx, e, nation_id);
+  }
+}
+
+static void ai_contact_apply_welcome_reject(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e
+) {
+  if (!ctx || !ctx->col1 || !ind) {
+    return;
+  }
+  ai_contact_clear_peace(ctx->col1, nation_id, e);
+  /* DOS +100 hostility → Linux at-war (relation < 50): force to 0. */
+  {
+    const uint8_t cur = ai_diplo_indian_relation(ctx->col1, nation_id, e);
+    if (cur > 0) {
+      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -(int)cur);
+    }
+  }
+  if (ind->alarm_by_player[e] < 80u) {
+    ind->alarm_by_player[e] = 80u;
+  }
+  ai_diplo_indian_hostility_sync(ctx->col1, e);
+
+  const char* tribe = ai_contact_tribe_name(nation_id);
+  char shun_fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    shun_fb,
+    sizeof(shun_fb),
+    "Then the mighty %s shall mercilessly drive you from our shores. Prepare for WAR!",
+    tribe
+  );
+  char shun_body[AI_POPUP_BODY_LEN];
+  ai_contact_msg_body(
+    ctx->messages, "INDIANSHUN", tribe, ai_contact_euro_name(e), shun_fb, shun_body, sizeof(shun_body)
+  );
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "War", shun_body);
+}
+
+static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nation_id) {
+  if (!ctx || !ctx->ai_popups || !ai_contact_euro_is_human(ctx, e)) {
+    return;
+  }
+  if (ai_contact_welcome_pending(ctx->ai_popups, e, nation_id)) {
+    return;
+  }
+  const char* tribe = ai_contact_tribe_name(nation_id);
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    fb,
+    sizeof(fb),
+    "The %s tribe welcomes you. To celebrate our friendship, we generously offer "
+    "you the land you now occupy as a gift. Will you accept our treaty and live "
+    "with us in peace as brothers?",
+    tribe
+  );
+  char body[AI_POPUP_BODY_LEN];
+  ai_contact_msg_body(
+    ctx->messages, "INDIANWELCOME", tribe, ai_contact_euro_name(e), fb, body, sizeof(body)
+  );
+  char title[AI_POPUP_TITLE_LEN];
+  snprintf(title, sizeof(title), "%s", tribe);
+  static const char* labels[] = {"Yes", "No"};
+  static const int ids[] = {AI_CONTACT_WELCOME_YES, AI_CONTACT_WELCOME_NO};
+  ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups,
+    AI_POPUP_TAG_CONTACT_WELCOME,
+    e,
+    nation_id,
+    0,
+    title,
+    body,
+    labels,
+    ids,
+    2
+  );
+  {
+    char st[96];
+    snprintf(st, sizeof(st), "The %s offer peace.", tribe);
+    ai_contact_set_status(ctx, st);
+  }
+}
+
+int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  if (indian_nation < 4 || indian_nation > 11) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  if (ind->met_by_player[euro_nation]) {
+    return 0;
+  }
+  /* DOS OR bit 0x20 before dialog. */
+  ind->met_by_player[euro_nation] = 1;
+  ai_diplo_indian_relation_delta(ctx->col1, indian_nation, euro_nation, 5);
+
+  if (ai_contact_euro_is_human(ctx, euro_nation) && ctx->ai_popups) {
+    ai_contact_enqueue_welcome(ctx, euro_nation, indian_nation);
+    return 1;
+  }
+  /* AI Euro / no popups: auto-accept (DOS local_c = 1). */
+  ai_contact_apply_welcome_accept(ctx, ind, indian_nation, euro_nation);
+  return 1;
 }
 
 /* Isolated from quiet-pulse LCG (seed-100 TURN goldens). */
@@ -1503,26 +1823,13 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
       const int e = other->nation_id;
       const int human = ai_contact_euro_is_human(ctx, e);
-      /* First-meet CHOICE defers auto trade/gift until player picks. */
+      /* First-contact WELCOME / Meet CHOICE defers auto trade/gift. */
       int defer_auto = 0;
 
-      /* 1–2. First meet. */
+      /* 1–2. First meet → FUN_5bfb_022e @INDIANWELCOME (not Trade/Gift menu). */
       if (!ind->met_by_player[e]) {
-        ind->met_by_player[e] = 1;
-        ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 5);
-        if (human) {
-          char line[96];
-          snprintf(
-            line,
-            sizeof(line),
-            "You meet the %s.",
-            ai_contact_tribe_name(nation_id)
-          );
-          ai_contact_set_status(ctx, line);
-          if (ctx->ai_popups) {
-            ai_contact_enqueue_meet_choice(ctx, e, nation_id);
-            defer_auto = 1;
-          }
+        if (ai_contact_try_first_welcome(ctx, e, nation_id)) {
+          defer_auto = 1;
         }
         if (ctx->col1->tribe) {
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
@@ -1545,23 +1852,23 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
 
       /*
-       * Pending Meet CHOICE for this human×tribe: skip auto trade/gift so a
-       * second Brave adjacency in the same pulse cannot bypass the dialog.
+       * Pending WELCOME / Meet CHOICE for this human×tribe: skip auto trade/gift
+       * so a second Brave adjacency in the same pulse cannot bypass the dialog.
        */
       if (human && ctx->ai_popups &&
-          ai_contact_meet_choice_pending(ctx->ai_popups, e, nation_id)) {
+          (ai_contact_welcome_pending(ctx->ai_popups, e, nation_id) ||
+           ai_contact_meet_choice_pending(ctx->ai_popups, e, nation_id))) {
         defer_auto = 1;
       }
 
       if (defer_auto) {
-        continue; /* player CHOICE drives trade/gift/demand/teach */
+        continue; /* player CHOICE drives welcome / trade/gift/demand/teach */
       }
 
       /*
        * Thin alarmed meet arm (2154/2820 deep PARKED): high alarm → refuse
-       * talk. Do not continue — auto-trade stays gated by alarm < 50 below;
-       * gift/demand still runs so ≥55 refuse gifts/demands chrome can
-       * overwrite (fandom Alarm). Cite: FUN_5bfb_022e.
+       * talk. Only after treaty resolved (not while WELCOME pending).
+       * Cite: FUN_5bfb_022e.
        */
       if (ind->met_by_player[e] && ind->alarm_by_player[e] >= 55) {
         ai_contact_human_chrome(
@@ -2545,7 +2852,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
-  if (!ctx || !popup || !popup->has_result || popup->result_cancelled) {
+  if (!ctx || !popup || !popup->has_result) {
     return;
   }
   const int e = popup->result_nation_a;
@@ -2557,6 +2864,23 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     return;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+
+  /*
+   * FUN_5bfb_022e @INDIANWELCOME: Yes → FUN_5bfb_0182 peace; No/cancel →
+   * FUN_4cc6_00f2 hostility + @INDIANSHUN. Cite: GAME.TXT; indian_contact.md.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_WELCOME) {
+    if (popup->result_cancelled || popup->result_choice_id == AI_CONTACT_WELCOME_NO) {
+      ai_contact_apply_welcome_reject(ctx, ind, nation_id, e);
+    } else if (popup->result_choice_id == AI_CONTACT_WELCOME_YES) {
+      ai_contact_apply_welcome_accept(ctx, ind, nation_id, e);
+    }
+    return;
+  }
+
+  if (popup->result_cancelled) {
+    return;
+  }
 
   /*
    * Gift amount CHOICE (FUN_5bfb_102a stand-in): Small −5 / Large −10.
@@ -2697,6 +3021,11 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     }
     if (other) {
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
+    } else if (ind->alarm_by_player[e] >= 55 || friction >= 55) {
+      /* No adjacent Euro unit — still show alarmed refuse chrome. */
+      ai_contact_human_chrome(
+        ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+      );
     }
     break;
   }

@@ -167,7 +167,10 @@ Aligned with early manual chapters (short playable loop first), then the
 4. **Unit orders** — fortify, sentry, disband (goto drag done)
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense) — T0 land/naval/capture + fort % + coastal fort fire in; ship-slow / deep `20e6` still PARKED
-7. **Indian contact UI** — player meet / trade / teach / gift dialogs (**Done** structural `ai_popup`; deep/VGA PARKED)
+7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
+   `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
+   `FUN_5bfb_022e` / `0182`); later meet / trade / teach / gift (**Done**
+   structural `ai_popup`; deep/VGA PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda join% / KINGGALLEON2 PARK; Cortes/de Witt Done; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** (manual notes mouse; lower priority for core loop)

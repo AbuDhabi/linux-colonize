@@ -367,15 +367,18 @@ Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact
 Smoke: `smoke_ai_contact`.
 
 **Done (structural unpark #1):** real dialog **widgets** via `ai_popup`
-(`5bfb_102a`/`1092`, teach / gift / demand CHOICE + OK). Thin human-facing
+(`5bfb_022e` first-contact `@INDIANWELCOME` Yes/No → `0182` `@INDIANPEACE` /
+`@INDIANCOME` or `@INDIANSHUN`+war; later `5bfb_102a`/`1092` teach / gift /
+demand CHOICE + OK). Thin human-facing
 `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid/convert);
 alarmed refuse-talk / teach / gift when `alarm_by_player >= 55` **Done**;
 mid-range mission pacify (−2) **Done**; raid kinds gated on real warehouse/gold stock **Done**;
 demand succeed needs ≥20 tools stock; raids prefer `indian_at_war` Euros **Done**.
 
 **Still PARKED:** full `2154`/`2820`/`4528` bodies; Brave escort deep `14fe`; full
-`@TRIBES` flavor-good parse; DOS RNG kill/warn branch; VGA-identical dialog chrome;
-deep gift-amount arms.
+`@TRIBES` flavor-good parse; DOS RNG kill/warn branch; VGA-identical dialog chrome
+(chief portrait / `FUN_281f_04ac`); deep gift-amount arms; literal map land-grant
+ownership writes (WELCOME grant remains copy-only).
 
 ### R3.5 — Euro diplomacy (`15b3` / `5bfb`) (**partial structural port**)
 
