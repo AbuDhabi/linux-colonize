@@ -336,8 +336,7 @@ bool col1_bridge_init_template(
   col1_save_free(save);
   col1_save_init(save);
   memset(&save->head, 0, sizeof(save->head));
-  memcpy(save->head.sig_colonize, COLONIZE_COL1_SIG, 8);
-  save->head.sig_colonize[8] = '\0';
+  col1_save_stamp_head(&save->head);
   /* Unrecruited founding fathers are -1 in DOS saves (not nation 0). */
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     save->head.founding_father[i] = -1;

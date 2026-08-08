@@ -850,6 +850,15 @@ static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, si
     }
     diag_info("Loaded fallback save %s", fallback);
   }
+  /* FUN_75c2_0840 LOADSIZE: reject when a live map differs (mid-game Load). */
+  if (game->world_map_ok) {
+    if (!col1_save_validate_head(
+          &loaded.head, game->world_map.width, game->world_map.height, err, err_size
+        )) {
+      col1_save_free(&loaded);
+      return false;
+    }
+  }
   if (!game_apply_col1_save(game, &loaded, err, err_size)) {
     col1_save_free(&loaded);
     return false;
@@ -2766,7 +2775,12 @@ static void game_after_unit_action(ColonizeGameState* game) {
       &game->move_rng
     );
   }
-  if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
+  /*
+   * First contact / village friction: land units only. Natives do not hail
+   * ships (DOS meet gates ocean tiles; FUN_5bfb_022e after landfall).
+   */
+  if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u) &&
+      !units_is_sea(&game->units, u->id)) {
     char contact[80];
     contact[0] = '\0';
     int first_indian = -1;

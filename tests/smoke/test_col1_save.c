@@ -74,8 +74,7 @@ static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* 
 static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) {
   col1_save_init(save);
   memset(&save->head, 0, sizeof(save->head));
-  memcpy(save->head.sig_colonize, COLONIZE_COL1_SIG, 8);
-  save->head.sig_colonize[8] = 0x1a;
+  col1_save_stamp_head(&save->head);
   save->head.map_size_x = COLONIZE_COL1_MAP_W_STD;
   save->head.map_size_y = COLONIZE_COL1_MAP_H_STD;
   save->head.year = 1492;
@@ -105,9 +104,8 @@ static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) 
   fill_pattern(save->unknown_f, sizeof(save->unknown_f), 0xe6);
   fill_pattern((uint8_t*)save->trade_route, sizeof(save->trade_route), 0xf7);
 
-  /* Keep signature intact after pattern fills on head-adjacent areas. */
-  memcpy(save->head.sig_colonize, COLONIZE_COL1_SIG, 8);
-  save->head.sig_colonize[8] = 0x1a;
+  /* Keep signature / version intact after pattern fills. */
+  col1_save_stamp_head(&save->head);
   save->head.map_size_x = COLONIZE_COL1_MAP_W_STD;
   save->head.map_size_y = COLONIZE_COL1_MAP_H_STD;
   save->head.colony_count = 2;
@@ -502,6 +500,48 @@ int main(void) {
   }
 
   fprintf(stderr, "col1 fixture saves + bridge ok\n");
+
+  /* FUN_75c2_0840 version / map-size probe (cite: @LOADNOT / @LOADOLD / @LOADSIZE). */
+  {
+    ColonizeCol1Head h;
+    memset(&h, 0, sizeof(h));
+    col1_save_stamp_head(&h);
+    h.map_size_x = 58;
+    h.map_size_y = 72;
+    if (!col1_save_validate_head(&h, -1, -1, err, sizeof(err))) {
+      fprintf(stderr, "valid head rejected: %s\n", err);
+      return 1;
+    }
+    h.save_version = 72;
+    if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
+        strstr(err, "obsolete") == NULL) {
+      fprintf(stderr, "expected obsolete reject, got '%s'\n", err);
+      return 1;
+    }
+    h.save_version = 74;
+    if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
+        strstr(err, "not a valid") == NULL) {
+      fprintf(stderr, "expected invalid newer reject, got '%s'\n", err);
+      return 1;
+    }
+    h.save_version = COLONIZE_COL1_SAVE_VERSION;
+    h.sig_eof = 0;
+    if (col1_save_validate_head(&h, -1, -1, err, sizeof(err)) ||
+        strstr(err, "not a valid") == NULL) {
+      fprintf(stderr, "expected bad eof reject, got '%s'\n", err);
+      return 1;
+    }
+    col1_save_stamp_head(&h);
+    h.map_size_x = 58;
+    h.map_size_y = 72;
+    if (col1_save_validate_head(&h, 40, 50, err, sizeof(err)) ||
+        strstr(err, "map size") == NULL) {
+      fprintf(stderr, "expected map-size reject, got '%s'\n", err);
+      return 1;
+    }
+    fprintf(stderr, "col1 FUN_75c2_0840 validate ok\n");
+  }
+
   diag_shutdown();
   return 0;
 }

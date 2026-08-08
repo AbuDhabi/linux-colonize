@@ -81,6 +81,57 @@ bool col1_save_check_layout(char* err, size_t err_size) {
 #undef CHECK_SIZE
 }
 
+void col1_save_stamp_head(ColonizeCol1Head* head) {
+  if (!head) {
+    return;
+  }
+  memcpy(head->sig_colonize, COLONIZE_COL1_SIG, 8);
+  head->sig_colonize[8] = '\0';
+  head->sig_eof = COLONIZE_COL1_SIG_EOF;
+  head->save_version = COLONIZE_COL1_SAVE_VERSION;
+}
+
+bool col1_save_validate_head(
+  const ColonizeCol1Head* head,
+  int expect_map_w,
+  int expect_map_h,
+  char* err,
+  size_t err_size
+) {
+  /*
+   * Cite: FUN_75c2_0840 — read NUL-terminated "COLONIZE" (FUN_1b2c_0004),
+   * consume 0x1A, compare version to DS:0x81a, then map W×H product vs live
+   * map (0/0 = accept any). Error codes → @LOADNOT / @LOADOLD / @LOADSIZE.
+   */
+  if (!head) {
+    COL1_FAIL(err, err_size, "is not a valid save file");
+  }
+  if (memcmp(head->sig_colonize, COLONIZE_COL1_SIG, 8) != 0 || head->sig_colonize[8] != '\0') {
+    COL1_FAIL(err, err_size, "is not a valid save file");
+  }
+  if (head->sig_eof != COLONIZE_COL1_SIG_EOF) {
+    COL1_FAIL(err, err_size, "is not a valid save file");
+  }
+  if (head->save_version < COLONIZE_COL1_SAVE_VERSION) {
+    COL1_FAIL(err, err_size, "is an obsolete save file");
+  }
+  if (head->save_version > COLONIZE_COL1_SAVE_VERSION) {
+    COL1_FAIL(err, err_size, "is not a valid save file");
+  }
+  if (head->map_size_x == 0 || head->map_size_y == 0) {
+    COL1_FAIL(err, err_size, "is not a valid save file");
+  }
+  if (expect_map_w > 0 && expect_map_h > 0) {
+    if ((int)head->map_size_x != expect_map_w || (int)head->map_size_y != expect_map_h) {
+      COL1_FAIL(err, err_size, "does not match the current map size");
+    }
+  }
+  if (err && err_size > 0) {
+    err[0] = '\0';
+  }
+  return true;
+}
+
 size_t col1_save_expected_size_counts(
   uint16_t map_w,
   uint16_t map_h,
@@ -282,13 +333,8 @@ static bool parse_from_stream(
   if (!take(ctx, &out->head, sizeof(out->head), err, err_size, "head")) {
     return false;
   }
-  if (memcmp(out->head.sig_colonize, COLONIZE_COL1_SIG, 8) != 0) {
-    COL1_FAIL(
-      err,
-      err_size,
-      "bad signature (want COLONIZE..., got '%.8s')",
-      out->head.sig_colonize
-    );
+  if (!col1_save_validate_head(&out->head, -1, -1, err, err_size)) {
+    return false;
   }
   if (!take(ctx, out->player, sizeof(out->player), err, err_size, "players")) {
     return false;
@@ -390,8 +436,10 @@ static bool emit_to_stream(
   if (!save) {
     COL1_FAIL(err, err_size, "null save");
   }
-  if (memcmp(save->head.sig_colonize, COLONIZE_COL1_SIG, 8) != 0) {
-    COL1_FAIL(err, err_size, "refusing to write save without COLONIZE signature");
+  ColonizeCol1Head head = save->head;
+  col1_save_stamp_head(&head);
+  if (!col1_save_validate_head(&head, -1, -1, err, err_size)) {
+    return false;
   }
   if (save->head.colony_count > 0 && !save->colony) {
     COL1_FAIL(err, err_size, "colony_count>0 but colony buffer null");
@@ -412,7 +460,7 @@ static bool emit_to_stream(
     COL1_FAIL(err, err_size, "map tile_count mismatch");
   }
 
-  if (!put(ctx, &save->head, sizeof(save->head), err, err_size, "head") ||
+  if (!put(ctx, &head, sizeof(head), err, err_size, "head") ||
       !put(ctx, save->player, sizeof(save->player), err, err_size, "players") ||
       !put(ctx, save->other, sizeof(save->other), err, err_size, "other")) {
     return false;
@@ -511,6 +559,10 @@ bool col1_save_read_file(const char* path, ColonizeCol1Save* out, char* err, siz
   if (fread(&head_probe, sizeof(head_probe), 1, f) != 1) {
     fclose(f);
     COL1_FAIL(err, err_size, "cannot read head from %s", path);
+  }
+  if (!col1_save_validate_head(&head_probe, -1, -1, err, err_size)) {
+    fclose(f);
+    return false;
   }
   if (fseek(f, 0, SEEK_END) != 0) {
     fclose(f);
@@ -614,6 +666,9 @@ bool col1_save_read_memory(
 
   ColonizeCol1Head head_probe;
   memcpy(&head_probe, data, sizeof(head_probe));
+  if (!col1_save_validate_head(&head_probe, -1, -1, err, err_size)) {
+    return false;
+  }
   const size_t expect = col1_save_expected_size_counts(
     head_probe.map_size_x,
     head_probe.map_size_y,

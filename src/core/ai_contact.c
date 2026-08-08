@@ -62,9 +62,6 @@ enum {
   AI_CONTACT_GIFT_LARGE = 2  /* −10 gold, friction −2 */
 };
 
-static void ai_contact_enqueue_meet_choice(ColonizeTurnContext* ctx, int e, int nation_id);
-static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nation_id);
-
 /* Demand amount CHOICE ids (CONTACT_DEMAND; tools vs gold stand-in). */
 enum {
   AI_CONTACT_DEMAND_TOOLS = 1, /* −10 tools (stock/unit ≥20), friction −3 */
@@ -311,10 +308,11 @@ static void ai_contact_apply_welcome_accept(
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", come_body);
   }
 
-  /* After treaty: offer Trade/Gift Meet CHOICE (later interaction stand-in). */
-  if (ai_contact_euro_is_human(ctx, e) && ctx->ai_popups) {
-    ai_contact_enqueue_meet_choice(ctx, e, nation_id);
-  }
+  /*
+   * DOS FUN_5bfb_022e first-contact arm ends after 0182 (peace / optional
+   * COME) — goto LAB_5bfb_1005. Meet CHOICE / gift / trade is later village
+   * interaction (PARKED), not chained onto Accept.
+   */
 }
 
 static void ai_contact_apply_welcome_reject(
@@ -1720,72 +1718,6 @@ static ColonizeUnit* ai_contact_find_adjacent_euro(
   return NULL;
 }
 
-/* FUN_5bfb_022e first-meet CHOICE: Trade / Gift / Demand / Teach / Leave. */
-static int ai_contact_meet_choice_pending(
-  const AiPopupState* st,
-  int e,
-  int nation_id
-) {
-  if (!st) {
-    return 0;
-  }
-  for (int i = 0; i < st->queue_count; ++i) {
-    const AiPopupRequest* q = &st->queue[i];
-    if (q->kind == AI_POPUP_KIND_CHOICE && q->tag == AI_POPUP_TAG_CONTACT_MEET &&
-        q->nation_a == e && q->nation_b == nation_id) {
-      return 1;
-    }
-  }
-  if (st->open && st->current.kind == AI_POPUP_KIND_CHOICE &&
-      st->current.tag == AI_POPUP_TAG_CONTACT_MEET && st->current.nation_a == e &&
-      st->current.nation_b == nation_id) {
-    return 1;
-  }
-  return 0;
-}
-
-static void ai_contact_enqueue_meet_choice(
-  ColonizeTurnContext* ctx,
-  int e,
-  int nation_id
-) {
-  if (!ctx || !ctx->ai_popups || !ai_contact_euro_is_human(ctx, e)) {
-    return;
-  }
-  if (ai_contact_meet_choice_pending(ctx->ai_popups, e, nation_id)) {
-    return;
-  }
-  static const char* labels[] = {"Trade", "Gift", "Demand", "Teach", "Leave"};
-  static const int ids[] = {
-    AI_CONTACT_CHOICE_TRADE,
-    AI_CONTACT_CHOICE_GIFT,
-    AI_CONTACT_CHOICE_DEMAND,
-    AI_CONTACT_CHOICE_TEACH,
-    AI_CONTACT_CHOICE_LEAVE
-  };
-  char title[AI_POPUP_TITLE_LEN];
-  char body[AI_POPUP_BODY_LEN];
-  snprintf(title, sizeof(title), "%s", ai_contact_tribe_name(nation_id));
-  snprintf(
-    body,
-    sizeof(body),
-    "You meet the %s. How do you proceed?",
-    ai_contact_tribe_name(nation_id)
-  );
-  ai_popup_enqueue_choice_ctx(
-    ctx->ai_popups,
-    AI_POPUP_TAG_CONTACT_MEET,
-    e,
-    nation_id,
-    0,
-    title,
-    body,
-    labels,
-    ids,
-    5
-  );
-}
-
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
     return;
@@ -1793,12 +1725,15 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
 
   /*
-   * FUN_5bfb_022e checklist:
-   *  1) adjacent Euro → meet (+ human CHOICE when ai_popups present)
-   *  2) optional mission if peaceful; Missionary convert + teach-skill (below)
-   *  3) auto-haggle: trade-goods for alarm (2aac…311e stand-in)
-   *  4) gift/demand structural stand-in (5bfb_102a / 1092; popups unparked)
-   * Keep status lines; also enqueue human-facing OK / CHOICE popups.
+   * FUN_5bfb_022e checklist (Brave×Euro land adjacency):
+   *  1) unmet → @INDIANWELCOME (human) / auto-accept (AI); then stop
+   *  2) Missionary convert + teach-skill (after loop; tribe adjacency)
+   *  3–4) AI-Euro only: silent auto-trade / gift-demand stand-in
+   *
+   * Ships never contact (DOS ocean_or_high_seas gate on move-meet; natives
+   * do not hail vessels). Human gift/refuse/trade chrome is NOT fired from
+   * this pulse — original player dialogs are village enter / 2820 (PARKED).
+   * Cite: FUN_5bfb_022e first-contact exit; indian_contact.md §0.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -1821,16 +1756,16 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       if (!other || other->nation_id < 0 || other->nation_id > 3) {
         continue;
       }
+      /* Landfall only — no ship contact. */
+      if (units_is_sea(ctx->units, other->id)) {
+        continue;
+      }
       const int e = other->nation_id;
       const int human = ai_contact_euro_is_human(ctx, e);
-      /* First-contact WELCOME / Meet CHOICE defers auto trade/gift. */
-      int defer_auto = 0;
 
-      /* 1–2. First meet → FUN_5bfb_022e @INDIANWELCOME (not Trade/Gift menu). */
+      /* 1. First meet → FUN_5bfb_022e @INDIANWELCOME (not Trade/Gift menu). */
       if (!ind->met_by_player[e]) {
-        if (ai_contact_try_first_welcome(ctx, e, nation_id)) {
-          defer_auto = 1;
-        }
+        (void)ai_contact_try_first_welcome(ctx, e, nation_id);
         if (ctx->col1->tribe) {
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
             ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -1849,54 +1784,27 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
             break;
           }
         }
+        continue; /* DOS first-contact arm ends; no gift/trade this pulse */
       }
 
-      /*
-       * Pending WELCOME / Meet CHOICE for this human×tribe: skip auto trade/gift
-       * so a second Brave adjacency in the same pulse cannot bypass the dialog.
-       */
+      /* Pending WELCOME: do not run AI auto arms under the dialog. */
       if (human && ctx->ai_popups &&
-          (ai_contact_welcome_pending(ctx->ai_popups, e, nation_id) ||
-           ai_contact_meet_choice_pending(ctx->ai_popups, e, nation_id))) {
-        defer_auto = 1;
-      }
-
-      if (defer_auto) {
-        continue; /* player CHOICE drives welcome / trade/gift/demand/teach */
+          ai_contact_welcome_pending(ctx->ai_popups, e, nation_id)) {
+        continue;
       }
 
       /*
-       * Thin alarmed meet arm (2154/2820 deep PARKED): high alarm → refuse
-       * talk. Only after treaty resolved (not while WELCOME pending).
-       * Cite: FUN_5bfb_022e.
+       * Human already met: no spontaneous refuse/gift/trade chrome from Brave
+       * adjacency (village visit / Meet CHOICE PARKED). AI euros keep silent
+       * stand-ins below.
        */
-      if (ind->met_by_player[e] && ind->alarm_by_player[e] >= 55) {
-        ai_contact_human_chrome(
-          ctx,
-          e,
-          AI_POPUP_TAG_CONTACT_REFUSE,
-          nation_id,
-          "Contact",
-          "Natives refuse to talk."
-        );
-        /* fall through: no auto-trade; gift_or_demand refuses */
-      } else if (
-        ind->met_by_player[e] &&
-        ai_diplo_indian_relation(ctx->col1, nation_id, e) < 40
-      ) {
-        /*
-         * Very-low Indian×Euro relation (<40) refuses meet-trade / gift.
-         * Cite: fandom Alarm — refuse trade; AI_DIPLO_INDIAN_VERY_LOW_REL.
-         */
-        ai_contact_human_chrome(
-          ctx,
-          e,
-          AI_POPUP_TAG_CONTACT_REFUSE,
-          nation_id,
-          "Contact",
-          "Natives refuse to talk."
-        );
+      if (human) {
         continue;
+      }
+
+      if (ind->alarm_by_player[e] >= 55 ||
+          ai_diplo_indian_relation(ctx->col1, nation_id, e) < 40) {
+        continue; /* AI: skip auto-trade/gift when hostile / very-low */
       }
 
       /*
@@ -1905,7 +1813,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
        */
       ai_contact_auto_trade(ctx, ind, nation_id, e, brave->x, brave->y);
 
-      /* 4. Gift / demand stand-in (5bfb_102a / 1092; popups unparked). */
+      /* 4. Gift / demand stand-in (5bfb_102a / 1092; AI silent). */
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, brave->x, brave->y);
     }
   }
