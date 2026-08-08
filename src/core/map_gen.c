@@ -1325,6 +1325,12 @@ static void paint_terrain(
   }
 }
 
+static void map_gen_assign_euro_landfalls(
+  ColonizeWorldMap* map,
+  MapGenRng* rng,
+  int focus_nation
+);
+
 bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, size_t err_size) {
   if (!out || !params) {
     if (err && err_size) {
@@ -1593,6 +1599,9 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   /* FUN_684c_08c0 tail: FUN_67bf_0000 then clear flags + OR 0x20 on ocean. */
   map_gen_assign_continents(out);
 
+  /* LAB_684c_1b4c: shuffle nations into HS-rim landfall bands. */
+  map_gen_assign_euro_landfalls(out, rng, p.focus_nation);
+
   const int land = count_land(mask, n);
   diag_info(
     "map_generate seed=%u mass=%d form=%d temp=%d clim=%d land=%d/%d budget=%d",
@@ -1608,6 +1617,75 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
 
   free(mask);
   return true;
+}
+
+/*
+ * FUN_684c_08c0 @ LAB_684c_1b4c — shuffle European nations into four latitude
+ * bands and store western rim of eastern high seas as landfall goto.
+ * Slot s → y = (height/5)*(s+1); x walks west through continuous HS from
+ * width-2, then one step east onto the rim.
+ */
+static void map_gen_assign_euro_landfalls(
+  ColonizeWorldMap* map,
+  MapGenRng* rng,
+  int focus_nation
+) {
+  if (!map || !map->terrain || !rng || map->width < 4 || map->height < 5) {
+    if (map) {
+      map->euro_landfalls_ok = 0;
+    }
+    return;
+  }
+  if (focus_nation < 0 || focus_nation > 3) {
+    focus_nation = 0;
+  }
+
+  /* FUN_1d1d_0dae: fill slot table with 0xFF (signed < 0 = empty). */
+  signed char slots[4] = {-1, -1, -1, -1};
+  for (int i = 0; i < 4; ++i) {
+    const int nation = (i + focus_nation) % 4;
+    int picked = -1;
+    do {
+      /* FUN_281f_04d4(0,3): empty slot index. */
+      picked = rng_range(rng, 0, 3);
+    } while (slots[picked] >= 0);
+    slots[picked] = (signed char)nation;
+  }
+
+  const int w = map->width;
+  const int h = map->height;
+  for (int s = 0; s < 4; ++s) {
+    const int nation = (int)slots[s];
+    if (nation < 0 || nation > 3) {
+      continue;
+    }
+    int y = (h / 5) * (s + 1);
+    if (y < 0) {
+      y = 0;
+    }
+    if (y >= h) {
+      y = h - 1;
+    }
+    int x = w - 2;
+    /* Walk west while tile is High Seas (terrain class 0x1a). */
+    while (x > 2) {
+      const int idx = y * w + x;
+      if ((map->terrain[idx] & 0x1fu) != T_HIGH_SEAS) {
+        break;
+      }
+      x--;
+    }
+    x++; /* step back onto western rim of eastern HS */
+    if (x < 0) {
+      x = 0;
+    }
+    if (x >= w) {
+      x = w - 1;
+    }
+    map->euro_landfall_x[nation] = (uint8_t)x;
+    map->euro_landfall_y[nation] = (uint8_t)y;
+  }
+  map->euro_landfalls_ok = 1;
 }
 
 /*
@@ -1906,5 +1984,17 @@ bool map_gen_pick_start(
 
   *out_x = best_x;
   *out_y = best_y;
+  return true;
+}
+
+bool map_gen_euro_landfall(const ColonizeWorldMap* map, int nation, int* out_x, int* out_y) {
+  if (!map || !out_x || !out_y || !map->euro_landfalls_ok) {
+    return false;
+  }
+  if (nation < 0 || nation > 3) {
+    return false;
+  }
+  *out_x = (int)map->euro_landfall_x[nation];
+  *out_y = (int)map->euro_landfall_y[nation];
   return true;
 }

@@ -29,6 +29,11 @@ typedef struct MapGenParams {
    * `seed` (smoke / isolated generate).
    */
   ColonizeDosRng* rng;
+  /*
+   * DS:0x5398 focus / human nation at mapgen (LAB_684c_1b4c shuffle offset).
+   * Nations placed as (i + focus_nation) % 4 into random latitude slots.
+   */
+  int focus_nation;
 } MapGenParams;
 
 /* NEW WORLD: each axis = seed-derived rand % 3 (DOS style). Uses *rng if set. */
@@ -51,6 +56,7 @@ void map_gen_assign_continents(ColonizeWorldMap* map);
 /*
  * Pick a coastal land start for nation 0..3 on a generated map.
  * Prefers ocean-adjacent land in a latitude band suited to the nation.
+ * Non-DOS heuristic fallback — prefer map_gen_euro_landfall after map_generate.
  */
 bool map_gen_pick_start(
   const ColonizeWorldMap* map,
@@ -61,5 +67,11 @@ bool map_gen_pick_start(
   int* out_x,
   int* out_y
 );
+
+/*
+ * FUN_684c_08c0 LAB_684c_1b4c landfall for nation 0..3 (HS rim). Requires
+ * map_generate to have filled map->euro_landfall_*.
+ */
+bool map_gen_euro_landfall(const ColonizeWorldMap* map, int nation, int* out_x, int* out_y);
 
 #endif

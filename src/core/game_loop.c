@@ -2316,6 +2316,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
      */
     dos_rng_seed(&campaign_rng, seed);
     ng->gen_params.rng = &campaign_rng;
+    ng->gen_params.focus_nation = game->human_nation;
     share_campaign_rng = true;
     if (ng->path == NEW_GAME_PATH_NEW_WORLD) {
       /* Hypothesis 1: draw customize axes, then reseed before FUN_684c_08c0. */
@@ -2377,11 +2378,14 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   int sx = 39, sy = 10;
   if (ng->generate_map || ng->path == NEW_GAME_PATH_NEW_WORLD ||
       ng->path == NEW_GAME_PATH_CUSTOMIZE) {
-    if (!map_gen_pick_start(
-          &game->world_map, game->human_nation, -1, -1, 0, &sx, &sy
-        )) {
-      sx = game->world_map.width / 2;
-      sy = game->world_map.height / 2;
+    /* FUN_684c LAB_684c_1b4c HS-rim landfall for human nation. */
+    if (!map_gen_euro_landfall(&game->world_map, game->human_nation, &sx, &sy)) {
+      if (!map_gen_pick_start(
+            &game->world_map, game->human_nation, -1, -1, 0, &sx, &sy
+          )) {
+        sx = game->world_map.width / 2;
+        sy = game->world_map.height / 2;
+      }
     }
   } else {
     char stem[64];

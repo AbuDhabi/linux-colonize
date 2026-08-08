@@ -142,7 +142,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Rival starter fleets + sail to landfall | Partial | `ai_euro_early_turn` / approach sail; T2 on VR_SEED=100 — [ai_transcription.md](ai_transcription.md) |
+| Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [ai_transcription.md](ai_transcription.md) |
 | Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; deep land `20e6` **OPEN** (unpark #4) |
 
 ### Win / end sequences

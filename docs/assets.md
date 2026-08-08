@@ -454,7 +454,7 @@ stack popup / landfall / colony disembark).
 
 Title `@BEGINMENU` no longer jumps straight to the map. Flow (see `src/core/new_game.c`):
 
-1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate` with randomized `MapGenParams`; coastal start via `map_gen_pick_start`)
+1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate` with randomized `MapGenParams`; Euro starts via `map_gen_euro_landfall` / `FUN_684c` HS rim)
 2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard → load that `.MP` + `@SCENARIO` starts
 3. **CUSTOMIZE New World** → `CUSTOMIZ.PIK` 4×3 grid (`FUN_733a_0270`; Land Mass / Form / Temperature / Climate) → same wizard → `map_generate` with user params (`forest_extra` stays 1)
 4. Difficulty (`DIFFICUL.PIK` image regions + 1px border, click to select / Enter or finished to confirm) → nation (`NATIONS.PIK`, same) → leader name on `WOODPANL.PIK` (unbold `FONTINTR` + green+shadow text / green input box) → `@NATION{n}A` / `B` on wood (same unbold `FONTINTR`, green+shadow; body lines flow-wrap to `@width` like DOS `FUN_6f74_1198`, vertically centered) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` yellow captions → map
@@ -482,7 +482,7 @@ Parameters (DOS words at `DS:0x1e7e`, each 0..3 from NEW WORLD `range(0,3)`; CUS
 
 Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/temperature paint → climate humidity → forests / hills / mountains / rivers. Ocean / high seas indices **25 / 26**; feature bits `0x20` / `0x40` / `0x80` as above. Special resources stay draw-time procedural (not baked into layer2). CUSTOMIZE UI: `CUSTOMIZ.PIK` + `@MISC` labels; finished confirm is the bottom strip (`y > 184`).
 
-RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`). Tribe placement (`FUN_6a09_0006`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word; not post-mapgen and not a post-axes restore). Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD; AMERICA keeps on-map `@SCENARIO` fleets.
+RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`, ending in `LAB_684c_1b4c` HS-rim landfalls per nation). Tribe placement (`FUN_6a09_0006`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word; not post-mapgen and not a post-axes restore). Golden check: `smoke_mapgen_seed100` vs [`test-saves-mapgen/SEED100.SAV`](../test-saves-mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD with landfall `goto` on the western rim of eastern high seas; Europe exit (`FUN_48d3_048e` / dispatcher) places near that goto — not southern ice from sentinel Y. AMERICA keeps on-map `@SCENARIO` fleets.
 
 | Extension | Typical use |
 |-----------|-------------|

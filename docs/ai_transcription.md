@@ -59,7 +59,10 @@ and nation-turn entry.
 euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accumulators.
 Seed-100 Euro path uses landfall-derived coastal staging + found-site helper
 (`ai_euro_found_tile_from_landfall`); ship approach / mid-turn waypoints still
-fixture unless `AI_FULL_DISPATCH=1`. Mid-turn Braves: quiet ASM + mid peels + residual overlays on
+fixture unless `AI_FULL_DISPATCH=1`. Full-dispatch Europe exit places on HS near
+landfall goto (`FUN_48d3_048e` stand-in) — never `prefer_y` from Europe sentinel
+(~228+nation), which pinned rivals to southern ice. NEW WORLD landfalls come from
+`map_gen_euro_landfall` (`FUN_684c` `LAB_684c_1b4c` HS rim). Mid-turn Braves: quiet ASM + mid peels + residual overlays on
 spent-only holdouts (R0; quiet residuals **2 rows** t2 Apache/Sioux;
 empiricism keeps its larger overlay set via `AI_EMPIRICISM=1`).
 
@@ -244,7 +247,7 @@ unannotated bodies.
 | `FUN_521d_5d04` | `ai_euro_nation_planning` | T0 treasury + Europe hire |
 | `FUN_521d_5b66` | `ai_euro_unit_act` | T0 goto/unload/found/combat |
 | `FUN_521d_20e6` (non-quiet) | `ai_euro_score_step` | T0 adjacent step toward goal |
-| Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` | T2 landings on VR_SEED=100 |
+| Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` / `ai_euro_unit_act` Europe exit | NEW WORLD: `map_gen_euro_landfall` (`FUN_684c` HS rim); Europe→map uses landfall goto not sentinel Y; T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
 | AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
 | King / REF AI | `ai_king_nation_turn` | **Partial structural** `43f7` peace/war; `smoke_ai_king` |
