@@ -24,7 +24,7 @@ static int ai_contact_dist(int x0, int y0, int x1, int y1) {
   return dx > dy ? dx : dy;
 }
 
-/* Prefer human Euro for player-facing status chrome (unpark #1; widgets OPEN). */
+/* Prefer human Euro for player-facing status chrome (unpark #1 Done structural). */
 static int ai_contact_euro_is_human(const ColonizeTurnContext* ctx, int e) {
   if (!ctx || e < 0 || e > 3) {
     return 0;
@@ -226,7 +226,7 @@ static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
  * Peaceful teach-skill stub (5bfb / meet checklist): Free Colonist or Scout
  * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
  * optionally grant a native-teachable profession on the unit.
- * Teach dialog widgets still OPEN (unpark #1); status line thinned.
+ * Teach dialog widgets Done structural (ai_popup); VGA chrome PARKED; status thinned.
  * Full @TRIBES good-string parse PARKED — static cargo / nation_id maps below.
  */
 static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
@@ -346,7 +346,7 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       const int e = other->nation_id;
       /*
        * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
-       * high alarm/friction → refuse teach (status thinned; widgets OPEN).
+       * high alarm/friction → refuse teach (status thinned; ai_popup Done).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
         ai_contact_human_chrome(
@@ -772,7 +772,7 @@ static int ai_contact_enqueue_demand_amount_choice(
 }
 
 /*
- * Gift / demand structural stand-in (5bfb_102a / 1092 dialog widgets OPEN).
+ * Gift / demand structural stand-in (5bfb_102a / 1092 via ai_popup; VGA PARKED).
  * After peaceful meet adjacency (caller already gated alarmed / very-low rel):
  *  - alarmed (≥55 refuse-talk gate) → refuse gift/demand with status; no extra
  *    gold penalty beyond existing gift costs
@@ -884,7 +884,7 @@ static void ai_contact_gift_or_demand(
  *  - mid (40..54): Jesuit-grade only (PEDIA @JOB24 name/prof 24, or Brebeuf
  *    ownership → plain Missionary counts as expert). Else mid refuse polish
  *    (same refuse line; no crosses). Cite: docs/fandom_col1994.md Brebeuf.
- * Teach/convert dialog widgets OPEN (unpark #1); full 2820/4528 PARKED.
+ * Teach/convert dialog widgets Done structural (ai_popup); full 2820/4528 PARKED.
  */
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
@@ -924,7 +924,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
       const int e = other->nation_id;
       /*
        * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
-       * refuse convert / crosses (status thinned; widgets OPEN).
+       * refuse convert / crosses (status thinned; ai_popup Done).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
         ai_contact_human_chrome(
@@ -1004,7 +1004,7 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
  * Missionary flee (structural): adjacent to alarmed tribe (≥55 refuse-talk
  * band) and not converting → nudge 1 free land tile away + AI_MOVE goto.
  * Cite: fandom Alarm — alarmed natives may refuse / attack missionaries.
- * Full 2820/4528 flee dialog PARKED; widgets OPEN.
+ * Full 2820/4528 flee dialog PARKED; thin widgets Done (ai_popup).
  */
 static int ai_contact_flee_one_tile(
   ColonizeTurnContext* ctx,
@@ -1249,7 +1249,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * Mission destroy / burn on high alarm (FUN_4cc6_0000; tribe.mission field).
    * Cite: manual/wiki — alarmed natives may burn missions. Alarm/friction ≥80
-   * + mission present → clear stand-in (0xff). Status thinned; widgets OPEN.
+   * + mission present → clear stand-in (0xff). Status thinned; ai_popup Done.
    */
   for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
     ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
@@ -2074,7 +2074,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    * live there, not in this post-pulse path. Do not port 2820 body here.
    * Full FUN_4d56_4528 (~3k) settlement body also PARKED (comment only).
    * Linux stays on thin @RAID* / combat / 359c + equal-dist mil/tools/silver
-   * approach. Widgets OPEN (unpark #1). Mid-friction gate prefers non-mission
+   * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
    * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md
    * PORT DEBT; docs/ai_transcription.md FUN_4d56_2820; Marathon2 R6 PARK.
    */
@@ -2232,7 +2232,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * tension): tribe friction + alarm_by_player +2 each (cap 100).
            * Pocahontas halves bump (wiki/fandom half-rate). Cite:
            * docs/fandom_col1994.md Pocahontas / Alarm; indian_raid_outcomes.md.
-           * Full 4528/2820 dialog PARKED; widgets OPEN.
+           * Full 4528/2820 dialog PARKED; thin widgets Done (ai_popup).
            */
           if (kind != AI_RAID_NOTHING) {
             const int fr_bump =
@@ -2311,7 +2311,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         /*
          * FUN_4d56_359c: prefer displace 1–2 tiles away from the Brave.
          * When displaced (not despawned) and status buffer present → human
-         * warn line. Dialog warn widgets beyond status still OPEN (unpark #1).
+         * warn line. Dialog warn widgets Done structural (ai_popup); VGA PARKED.
          *
          * PARK (Marathon2 R6): DOS RNG kill/warn/displace when a flee tile
          * exists — Linux never kills if displace succeeds (warn already).

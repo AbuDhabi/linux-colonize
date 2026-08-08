@@ -97,7 +97,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Recruit pool (3) + passage | Done | **R** dialog; passage starts 100, +16 per recruit (Unverified formula) |
 | Dock sentry / board on sail | Partial | Default sentry; Don’t/Board/Move-front menu; full equip/bless later |
 | Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
-| Tax rate / boycotts / king tax events | Partial | Structural tax→REF + refuse/boycott flag (`ai_king`); audience UI **OPEN** (unpark #2) — [ai_transcription.md](ai_transcription.md) |
+| Tax rate / boycotts / king tax events | Partial | Structural tax→REF + refuse/boycott flag (`ai_king`); audience UI **Done** structural (`ai_popup`); VGA chrome PARKED — [ai_transcription.md](ai_transcription.md) |
 
 ### Economy and turn sequence
 
@@ -115,9 +115,9 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [ai_transcription.md](ai_transcription.md) |
-| Meet menus, trade, teach skills | Partial | Structural auto-meet/trade/teach (`ai_contact_*`); player dialogs **OPEN** (unpark #1) — [ai_transcription.md](ai_transcription.md) |
-| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **OPEN** with unpark #1; incite still thin |
-| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` kinds); player dialog **OPEN**; deep `2820`/`4528` bodies still PARKED |
+| Meet menus, trade, teach skills | Partial | Structural auto-meet/trade/teach (`ai_contact_*`); player dialogs **Done** structural (`ai_popup`); deep `2820` / VGA PARKED — [ai_transcription.md](ai_transcription.md) |
+| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural with unpark #1; incite still thin |
+| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` kinds); player dialog **Done** structural (`ai_popup`); deep `2820`/`4528` bodies still PARKED |
 
 ### Combat and diplomacy
 
@@ -126,16 +126,16 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Land / naval attack | Partial | Land T0: move into foreign unit → attack/defense (+ fortified ×2); loser despawned. Naval T0 via `units_resolve_naval_combat`; AI hunt thin |
 | Capture colony | Partial | T0 `colonies_capture` (Euro owner swap; Indian raid abandons) — AI / combat paths |
 | Stockade / fort / fortress defense % | Missing | Wiki +100%/+150%/+200% in [fandom_col1994.md](fandom_col1994.md) / [building_production.md](building_production.md); unverified in combat |
-| Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + thin privateer gold (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **OPEN** (unpark #5); privateer units PARKED |
+| Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
 
 ### Founding Fathers and independence
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Rough threshold elect + 25 tiny effects (`founding_fathers`); deeper effect table **OPEN** (unpark #3); Congress UI PARKED |
+| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas **Done**; Sepulveda/Cortes hooks **OPEN** (unpark #3); Congress UI PARKED |
 | Pedia / F3 Congress report | Partial | Data / articles; no election |
-| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **OPEN** (unpark #2) |
-| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **OPEN** (unpark #2); deep `10f0` / arrival chrome PARKED |
+| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); VGA PARKED |
+| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); deep `10f0` / arrival / letter chrome PARKED |
 | F10 Colonization Score | Partial | Schedule exists; win loop incomplete |
 
 ### AI Europeans
@@ -143,7 +143,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Partial | `ai_euro_early_turn` / approach sail; T2 on VR_SEED=100 — [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools thin; mid-planner `5d04`/land `20e6` **OPEN** (unpark #4) |
+| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; deep land `20e6` **OPEN** (unpark #4) |
 
 ### Win / end sequences
 
@@ -167,11 +167,11 @@ Aligned with early manual chapters (short playable loop first), then the
 4. **Unit orders** — fortify, sentry, disband (goto drag done)
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense) — T0 land/naval/capture in; fort % still Missing
-7. **Indian contact UI** — player meet / trade / teach / gift dialogs (**OPEN** unpark #1; structural arms done)
-8. **King audience / declare / merc UI** + **FF effect depth** (**OPEN** unpark #2–3; Congress UI later)
-9. **Euro mid-planner** + **Indian×Euro diplo** (**OPEN** unpark #4–5)
+7. **Indian contact UI** — player meet / trade / teach / gift dialogs (**Done** structural `ai_popup`; deep/VGA PARKED)
+8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda/Cortes **OPEN** unpark #3; Congress UI later)
+9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** (manual notes mouse; lower priority for core loop)
-11. **Deep PARKED bodies** (full `2820`/`4528`, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
+11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---
 
@@ -179,11 +179,12 @@ Aligned with early manual chapters (short playable loop first), then the
 
 The port is strong on **shell, map art, navigation, reports / pedia, save, basic
 units / naval passengers, founding a colony, and Europe buy/sell/recruit/hire**.
-**Structural** Indian contact, Euro/Indian diplomacy, king/REF, FF elect, and early
-Euro AI (seed-100 T2 + thin expand/war) are in; next playability work is the
-**unparked** player dialogs, deeper FF effects, mid-planner, and Indian×Euro
-matrix — not waiting on missing combat/capture prerequisites. Still thin on fort
-defense %, trade routes, Congress UI, and full 1:1 AI bodies.
+**Structural** Indian contact (incl. player dialogs), Euro/Indian diplomacy,
+king/REF (incl. audience/confirm/merc), FF elect, and early Euro AI (seed-100 T2
++ thin expand/war) are in; next playability work is leftover **FF hooks**
+(Sepulveda/Cortes), deep mid-planner `20e6`, and VGA / deep AI bodies — not
+waiting on missing combat/capture prerequisites. Still thin on fort defense %,
+trade routes, Congress UI, and full 1:1 AI bodies.
 
 ## See also
 

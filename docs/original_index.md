@@ -10,6 +10,7 @@ the deep detail.
 | **Catalog peel ranking** (what to label next) | [catalog_peel_ranking.md](catalog_peel_ranking.md) |
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
+| Project goals / acceptance order | [project_goals.md](project_goals.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | **AI transcription gap** (Euro / Indian FUN_*, roadmap) | [ai_transcription.md](ai_transcription.md) |
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
@@ -18,6 +19,11 @@ the deep detail.
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
+
+Session notes under [`.context/`](../.context/) (unpark queues, marathon logs) are
+**scratch** — merge status into the docs above when it changes; prefer
+[ai_transcription.md](ai_transcription.md) / [manual_gap.md](manual_gap.md) as
+canonical.
 
 This file is a **navigation layer**. It does not re-copy compositor algorithms,
 MADSPACK layouts, or full bring-up checklists.
@@ -150,10 +156,10 @@ one exists.
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
 | `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [ai_transcription.md](ai_transcription.md) |
-| `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse; deep `2820`/`4528` PARKED; dialogs OPEN) |
+| `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; deep `2820`/`4528` / VGA PARKED) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
-| `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (skeleton + `ai_euro_early_turn` / `smoke_ai_turns`) |
-| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (T0 condensed; mid-planner OPEN — unpark #4) |
+| `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `smoke_ai_turns`) |
+| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (T0 condensed; deep `20e6` OPEN — unpark #4) |
 | `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (quiet Brave + thin Euro; land/combat `20e6` OPEN) |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |

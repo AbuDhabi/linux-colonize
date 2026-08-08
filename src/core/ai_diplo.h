@@ -92,7 +92,8 @@ uint8_t ai_diplo_indian_relation(
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 /* Thin stand-in: at war with Indian nation when relation < 50.
- * Fuller Indian×Euro 15b3 matrix OPEN (unpark #5); sticky unknown26[8]. */
+ * Fuller Indian×Euro 15b3 matrix Done structural (unpark #5); deep/VGA PARKED;
+ * sticky unknown26[8]. */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 /* True if any of 8 Indian slots is at war (relation < 50). Contact/diplo helper. */

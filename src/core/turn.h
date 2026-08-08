@@ -21,7 +21,7 @@
  *
  * Pipeline after the human ends their turn:
  *   calendar → colony production → nation ticks → European AI →
- *   Indian AI → King stub → refresh human MP / select next unit
+ *   Indian AI → King/REF → refresh human MP / select next unit
  */
 
 #define TURN_START_YEAR 1492

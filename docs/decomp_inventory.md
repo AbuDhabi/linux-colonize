@@ -144,7 +144,7 @@ port I/O in the native build.
   3 columns, then cargo/unit/terrain/job/building/father/misc articles with
   ICONS / BUILDING / CC-NN / TERRAIN previews
 - Turn progression (`src/core/turn.c`): `@TIMECHANGE` calendar, colony production,
-  nation crosses/bells hooks, EN→FR→SP→DU Euro AI + Indian AI + King stub,
+  nation crosses/bells hooks, EN→FR→SP→DU Euro AI + Indian AI + King/REF,
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
@@ -165,16 +165,19 @@ Ordered pipeline recovered for the Linux port:
    `building_in_production` (Colony Space = free production + UI deltas;
    `README.TXT` “free turn”)
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
-   founding-father election **not** recovered yet
+   founding-father election via `founding_fathers_tick` (manual-aligned effects;
+   Sepulveda/Cortes hooks still open — see [ai_transcription.md](ai_transcription.md))
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
-   `ai_euro_nation_turn` (`src/core/ai.c`): reseed from VR_SEED timer word, tick AI crosses,
+   `ai_euro_nation_turn` (`src/core/ai.c` → `ai_euro.c`): reseed from VR_SEED timer word, tick AI crosses,
    `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `smoke_ai_turns`;
    landfall coastal staging + `ai_euro_found_tile_from_landfall`).
-   Full mid-game `0a60`/`5d04`/`20e6` planner still open — see [ai_transcription.md](ai_transcription.md).
+   Full-dispatch planner partial; deep land/ocean `20e6` still open — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
    overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
-   (`FUN_4d56_1816` / quiet `20e6`); raids / meet deferred.
-7. **King** — partial structural (`ai_king_nation_turn`: tax / declare / REF / war; R6)
+   (`FUN_4d56_1816` / quiet `20e6`); meet/trade/raids via `ai_contact_*` (structural;
+   deep `2820`/`4528` PARKED).
+7. **King** — partial structural (`ai_king_nation_turn`: tax / declare / REF / war; R6;
+   audience/confirm/merc via `ai_popup`)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
 
 **New-game AI actors** (`ai_init_new_game`): Col1 template (human control 0 / gold 1000;
@@ -184,8 +187,8 @@ difficulty/nation; landfall `goto`);
 AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE procedural
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 
-**Parked (later):** mid-game Euro planner branches; deep Indian `2820`/`4528` + meet UI;
-full `1816` body beyond quiet path; deep King/REF (`10f0`, boycott UI, exact `0x5382`). Early-AI T2 gate is green
+**Parked (later):** deep Euro `20e6` / T3 planner; deep Indian `2820`/`4528` + VGA meet chrome;
+deep King/REF (`10f0` economy, letter cinematic, exact `0x5382`). Early-AI T2 gate is green
 (`test-saves-ai/TURN1`…`TURN7`). Roadmap: [ai_transcription.md](ai_transcription.md).
 
 Evidence:

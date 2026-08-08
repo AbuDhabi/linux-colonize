@@ -423,7 +423,7 @@ Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) fo
 | P | Pioneer selected with moves: plow/clear (20 tools). Otherwise open Colonizopedia |
 | R | Pioneer selected with moves: build road (20 tools). Otherwise unused on map (Europe: recruit) |
 | B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |
-| Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, Euro/Indian AI + King stub, refresh human movement |
+| Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, Euro/Indian AI + King/REF, refresh human movement |
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |
 
 Ship→**non-colony land** with a passenger that has moves left: **landfall unload** (passenger onto tile; ship stays; full landfall confirm dialog deferred). Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain.
