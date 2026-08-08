@@ -2987,12 +2987,24 @@ int main(void) {
       }
     }
     /* Positive path: difficulty≥2 → second MoW same beat. */
+    /*
+     * Low-diff war_act may capture Jamestown (unload/seize). Restore human
+     * ownership so 0982 weakest_port still finds a target; freeze crown land
+     * so the same-beat positive path is not blocked by a missing port.
+     */
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].active = true;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
       } else if (u->active && u->nation_id == 1) {
         u->moves_left = 0;
+        /* Keep capture troops off the human capital tile for this spawn probe. */
+        if (u->x == 5 && u->y == 5) {
+          u->x = 1;
+          u->y = 1;
+        }
       }
     }
     col1.head.difficulty = 2;
