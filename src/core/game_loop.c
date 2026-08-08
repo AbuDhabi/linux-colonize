@@ -800,6 +800,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->map_cursor_y = result.cursor_y;
   game->map_view_x = result.cursor_x;
   game->map_view_y = result.cursor_y;
+  units_set_occupancy_map(&game->world_map);
   game->in_menu = false;
   game->in_europe = false;
   game->in_colony = false;
@@ -2303,6 +2304,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   char err[256];
   map_free(&game->world_map);
   game->world_map_ok = false;
+  units_set_occupancy_map(NULL);
 
   char map_label[NEW_GAME_MAP_NAME_MAX];
   map_label[0] = '\0';
@@ -2409,6 +2411,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   }
 
   if (game->world_map_ok && game->units_ok) {
+    units_set_occupancy_map(&game->world_map);
     units_new_world_start(
       &game->units, &game->world_map, sx, sy, game->human_nation, game->difficulty
     );
@@ -2661,6 +2664,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   }
   /* FF + native settlement fallout for human combat (same as turn_refresh). */
   units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+  units_set_occupancy_map(&game->world_map);
   units_set_native_fallout_context(
     game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
   );

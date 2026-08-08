@@ -362,6 +362,98 @@ bool col1_bridge_init_template(
   return true;
 }
 
+static void col1_occupancy_or_xy(
+  ColonizeCol1Save* save,
+  ColonizeWorldMap* map,
+  int width,
+  int height,
+  int x,
+  int y,
+  uint8_t bit
+) {
+  if (bit == 0 || x < 0 || y < 0 || x >= width || y >= height) {
+    return;
+  }
+  const size_t idx = (size_t)y * (size_t)width + (size_t)x;
+  if (save && save->map.mask && idx < save->map.tile_count) {
+    save->map.mask[idx] = (uint8_t)(save->map.mask[idx] | bit);
+  }
+  if (map) {
+    map_occupancy_set_layer2(map, x, y, bit, true);
+  }
+}
+
+void col1_bridge_sync_map_occupancy(
+  ColonizeCol1Save* save,
+  ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* tribe_save
+) {
+  int width = 0;
+  int height = 0;
+  size_t tile_count = 0;
+  if (save && save->map.mask && save->head.map_size_x > 0 && save->head.map_size_y > 0) {
+    width = (int)save->head.map_size_x;
+    height = (int)save->head.map_size_y;
+    tile_count = save->map.tile_count;
+  } else if (map && map->layer2) {
+    width = (int)map->width;
+    height = (int)map->height;
+    tile_count = map->tile_count;
+  } else {
+    return;
+  }
+
+  /* Clear occupancy bits; keep road/plow/suppress/purchased/pacific/etc. */
+  if (save && save->map.mask) {
+    for (size_t i = 0; i < tile_count; ++i) {
+      save->map.mask[i] = (uint8_t)(save->map.mask[i] & (uint8_t)~0x03u);
+    }
+  }
+  if (map && map->layer2) {
+    for (size_t i = 0; i < tile_count && i < map->tile_count; ++i) {
+      map->layer2[i] = (uint8_t)(map->layer2[i] & (uint8_t)~0x03u);
+    }
+  }
+
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (!units_is_on_map(u)) {
+        continue;
+      }
+      /* Europe dock sentinels (x/y >= 200) are off the playable map grid. */
+      if (u->x >= 200 || u->y >= 200) {
+        continue;
+      }
+      col1_occupancy_or_xy(save, map, width, height, u->x, u->y, MAP_OCCUPANCY_HAS_UNIT);
+    }
+  }
+
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active) {
+        continue;
+      }
+      col1_occupancy_or_xy(save, map, width, height, c->x, c->y, MAP_OCCUPANCY_HAS_CITY);
+    }
+  }
+
+  if (!tribe_save) {
+    tribe_save = save;
+  }
+  if (tribe_save && tribe_save->tribe) {
+    for (uint16_t i = 0; i < tribe_save->head.tribe_count; ++i) {
+      const ColonizeCol1Tribe* tr = &tribe_save->tribe[i];
+      col1_occupancy_or_xy(
+        save, map, width, height, (int)tr->x, (int)tr->y, MAP_OCCUPANCY_HAS_CITY
+      );
+    }
+  }
+}
+
 bool col1_bridge_apply(
   const ColonizeCol1Save* save,
   ColonizeWorldMap* map,
@@ -662,6 +754,7 @@ bool col1_bridge_apply(
       u->home_tribe_id = (int)src->unknown16[0];
       u->col1_unknown15 = src->unknown15;
       u->col1_unknown16_hi = src->unknown16[1];
+      u->col1_unused06 = src->unused06;
       u->last_dir = (int)(src->unknown18 & 7u);
       /* Commodity hold slots (passengers board separately via transport chain). */
       {
@@ -758,6 +851,9 @@ bool col1_bridge_apply(
     local.cursor_y = map->height / 2;
   }
 
+  /* Align live layer2 occupancy with imported pools (tribes from save). */
+  col1_bridge_sync_map_occupancy(NULL, map, units, colonies, save);
+
   if (out) {
     *out = local;
   }
@@ -836,10 +932,7 @@ bool col1_bridge_capture(
       } else {
         m = (uint8_t)(m & (uint8_t)~0x40u);
       }
-      /* Preserve village/capital occupancy bits from live layer2. */
-      if (map->layer2) {
-        m = (uint8_t)((m & (uint8_t)~0x03u) | (map->layer2[i] & 0x03u));
-      }
+      /* Occupancy bits (has_unit / has_city) are rebuilt after unit export. */
       save->map.mask[i] = m;
     }
     if (save->map.path && map->layer3) {
@@ -994,6 +1087,7 @@ bool col1_bridge_capture(
       dst->y = (uint8_t)src->y;
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
+      dst->unused06 = (uint8_t)(src->col1_unused06 & 0xF);
       dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
       if (src->aboard_ship_id >= 0) {
         dst->orders = 1; /* sentry if aboard */
@@ -1018,7 +1112,8 @@ bool col1_bridge_capture(
       dst->unknown16[0] =
         (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
                                                                     : (src->home_tribe_id & 0xff));
-      dst->unknown16[1] = src->col1_unknown16_hi;
+      dst->unknown16[1] =
+        src->col1_unknown16_hi != 0 ? src->col1_unknown16_hi : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
       dst->unknown18 = (uint8_t)(src->last_dir & 7);
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
       {
@@ -1117,6 +1212,12 @@ bool col1_bridge_capture(
     save->head.active_unit = (uint16_t)active_col1;
     free(runtime_to_col1);
   }
+
+  /*
+   * DOS UNITFLAG/COLONYFLAG: mask has_unit/has_city must match pools. Rebuild
+   * from live units/colonies + tribe villages (not stale layer2 spawn bits).
+   */
+  col1_bridge_sync_map_occupancy(save, (ColonizeWorldMap*)map, units, colonies, save);
 
   if (err && err_size) {
     err[0] = '\0';

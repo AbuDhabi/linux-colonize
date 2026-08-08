@@ -22,6 +22,9 @@ typedef struct EuropeScreen EuropeScreen;
  */
 void units_set_ff_col1(const ColonizeCol1Save* col1);
 
+/* Optional live map for has_unit occupancy maintenance (spawn/move/despawn). */
+void units_set_occupancy_map(ColonizeWorldMap* map);
+
 /*
  * Optional post-win native settlement fallout context for
  * units_resolve_land_combat_ff (FUN_5fef_31ea-shaped). When col1/map are non-NULL
@@ -146,7 +149,12 @@ typedef struct ColonizeUnit {
   int turns_worked; /* COL1 unit+0x16; Brave pulse / labor counter */
   int last_dir; /* DOS unit+0x0c / Col1 unknown18; facing 0..7 for AI scoring */
   uint8_t col1_unknown15; /* round-trip padding */
-  uint8_t col1_unknown16_hi; /* DOS unit+0x07; often 0x58 on Braves */
+  /*
+   * DOS unit+0x07 / Col1 unknown16[1]. Starter saves use 0x58 on essentially
+   * every unit; spawn defaults to COL1_UNIT_UNKNOWN16_HI_DEFAULT.
+   */
+  uint8_t col1_unknown16_hi;
+  uint8_t col1_unused06; /* DOS nation high nibble (unit byte+3 >> 4) */
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {

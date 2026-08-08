@@ -6,9 +6,18 @@ as `ColonizeCol1Save` in `src/core/col1_save.h`.
 
 ## Compatibility goal
 
+Three layers — do not conflate them:
+
+| Layer | Status | What it proves |
+|-------|--------|----------------|
+| **Codec** (`col1_save_read` ↔ `write`) | Strong | Byte-identical round-trip of original 3.0 fixtures |
+| **Linux import** (`col1_bridge_apply`) | Strong for mapped fields | Originals load and play in the port |
+| **Linux→DOS export** (`col1_bridge_capture`) | Partial | DOS can load/play only if occupancy and opaque defaults are sane |
+
 `col1_save_read_*` / `col1_save_write_*` are intended to be **byte-identical**
 round-trips of original 3.0 saves: every section is read into a packed struct
-(or opaque buffer) and written back in the same order and size.
+(or opaque buffer) and written back in the same order and size. That does **not**
+mean a campaign save written after Linux play is DOS-safe.
 
 Layout sizes are enforced by `col1_save_check_layout()` (also in
 `smoke_col1_save`).
@@ -23,10 +32,13 @@ Layout sizes are enforced by `col1_save_check_layout()` (also in
 | File length | (implicit via section reads) | `col1_save_expected_size_counts` must match |
 
 UI copy: `@LOADNOT` / `@LOADOLD` / `@LOADSIZE` in `GAME.TXT`. There is **no**
-whole-file CRC on `.SAV` (CRC/LFSR `FUN_3f3f_0006` is unrelated).
+whole-file CRC on `.SAV` (CRC/LFSR `FUN_3f3f_0006` is unrelated). Header
+checks alone do **not** catch map occupancy bugs — DOS raises `@UNITFLAG` /
+`@COLONYFLAG` later, on first tile lookup (`FUN_1427_005c` / `FUN_15eb_0a76`).
 
 Bitfield packing assumes **GCC/Clang on little-endian** (LSB-first), matching
-DOS. Unknown regions are preserved as opaque byte arrays.
+DOS. Unknown regions are preserved as opaque byte arrays when RMW from an
+original; pure new-game templates leave many of them zero.
 
 ## Section map
 
@@ -73,6 +85,7 @@ Slot helpers: `savegame_read_col1` / `savegame_write_col1` write
 | Col1 | Runtime |
 |------|---------|
 | `map.tile` | `ColonizeWorldMap.terrain` (converted) |
+| `map.mask` occupancy bits | Rebuilt by `col1_bridge_sync_map_occupancy` from units/colonies/tribes (not stale `layer2`) |
 | `unit[]` | `ColonizeUnitPool` (incl. boarding chains) |
 | `colony[]` | `ColonizeColonyPool` |
 | `nation[human].gold/tax/prices` | `EuropeScreen` |
@@ -103,11 +116,40 @@ If the chosen Load file is missing under the save dir, Load falls back to `origi
 
 Export is read-modify-write against the last loaded Col1 snapshot when present
 (preserves tribes, unknowns, AI blobs). New games create a minimal template on
-first Save.
+first Save. Before write, capture rebuilds `map.mask` `has_unit` / `has_city`
+from live pools + `tribe[]`, and defaults unit `unknown16[1]` to `0x58` when
+unset (`COL1_UNIT_UNKNOWN16_HI_DEFAULT`). Runtime `layer2` occupancy is kept
+via `units_set_occupancy_map` on spawn/move/despawn.
 
-Verified fixtures (byte-identical round-trip through `col1_save_read/write`,
-and import via `col1_bridge_apply`): `original_saves/COLONY00.SAV`,
-`COLONY01.SAV`, and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
+### Remaining Linux→DOS gaps (known)
+
+These survive capture today and may still fault or desync DOS play after the
+occupancy fix:
+
+- `unknown_e` (504) / `unknown_f` (110) — zero on new-game templates; not rebuilt
+- Most of `stuff` beyond viewport — connectivity / counters only preserved on RMW
+- Colony opaque fields (`unknown08`, `duration[]`, rebel fractions, …) — zeroed on colony rebuild
+- Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
+  (`COLONY00` has many bit5/`pacific` tiles; template exports often only occupancy)
+- AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
+- `unused06` (nation high nibble) — preserved on apply→capture; spawn leaves 0
+
+**Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
+rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`
+case). The same file still has fully zero `unknown_e`/`unknown_f` and a mask
+lacking DOS `pacific`/`suppress` density — next DOS load may pass UNITFLAG and
+fail later, or play with missing opaque state. Do not invent those blobs without
+decomp evidence.
+
+### Verified fixtures
+
+Codec byte-identical round-trip + import via `col1_bridge_apply`:
+`original_saves/COLONY00.SAV`, `COLONY01.SAV`, and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
+
+Occupancy / export regression (`smoke_col1_save`):
+`tests-save-misc/unit flags error.sav` (apply→capture must clear stray
+`has_unit`), plus new-game template spawn→capture and `COLONY00` occupancy
+sanity. Those checks do **not** claim full DOS campaign parity.
 
 
 ## References

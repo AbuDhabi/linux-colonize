@@ -17,7 +17,7 @@ static void fill_pattern(uint8_t* p, size_t n, uint8_t seed) {
   }
 }
 
-/* Read → encode → compare to on-disk bytes (save/load bidirectional compatibility). */
+/* Read → encode → compare to on-disk bytes (codec only — not Linux→DOS playability). */
 static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* out, char* err, size_t err_size) {
   col1_save_init(out);
   if (!col1_save_read_file(path, out, err, err_size)) {
@@ -68,6 +68,88 @@ static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* 
   }
   free(raw);
   free(enc);
+  return true;
+}
+
+/* DOS UNITFLAG/COLONYFLAG structural checks (mask ↔ pools). */
+static bool assert_mask_occupancy_consistent(const ColonizeCol1Save* save, const char* label) {
+  if (!save || !save->map.mask) {
+    fprintf(stderr, "%s: no mask\n", label);
+    return false;
+  }
+  const int w = (int)save->head.map_size_x;
+  const int h = (int)save->head.map_size_y;
+  if (w <= 0 || h <= 0) {
+    fprintf(stderr, "%s: bad map size\n", label);
+    return false;
+  }
+
+  int* unit_count = calloc((size_t)w * (size_t)h, sizeof(int));
+  int* city_count = calloc((size_t)w * (size_t)h, sizeof(int));
+  if (!unit_count || !city_count) {
+    free(unit_count);
+    free(city_count);
+    fprintf(stderr, "%s: oom occupancy grids\n", label);
+    return false;
+  }
+
+  for (uint16_t i = 0; i < save->head.unit_count; ++i) {
+    const ColonizeCol1Unit* u = &save->unit[i];
+    if (u->x >= 200 || u->y >= 200 || (int)u->x >= w || (int)u->y >= h) {
+      continue;
+    }
+    /* Passengers share ship coords; has_unit is per-tile presence, so count is fine. */
+    unit_count[(size_t)u->y * (size_t)w + (size_t)u->x]++;
+  }
+  for (uint16_t i = 0; i < save->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &save->colony[i];
+    if ((int)c->x >= w || (int)c->y >= h) {
+      continue;
+    }
+    city_count[(size_t)c->y * (size_t)w + (size_t)c->x]++;
+  }
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &save->tribe[i];
+    if ((int)t->x >= w || (int)t->y >= h) {
+      continue;
+    }
+    city_count[(size_t)t->y * (size_t)w + (size_t)t->x]++;
+  }
+
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      const size_t idx = (size_t)y * (size_t)w + (size_t)x;
+      const uint8_t m = save->map.mask[idx];
+      const int has_unit = (m & MAP_OCCUPANCY_HAS_UNIT) != 0;
+      const int has_city = (m & MAP_OCCUPANCY_HAS_CITY) != 0;
+      if (has_unit && unit_count[idx] == 0) {
+        fprintf(stderr, "%s: stray has_unit at (%d,%d)\n", label, x, y);
+        free(unit_count);
+        free(city_count);
+        return false;
+      }
+      if (!has_unit && unit_count[idx] > 0) {
+        fprintf(stderr, "%s: missing has_unit at (%d,%d)\n", label, x, y);
+        free(unit_count);
+        free(city_count);
+        return false;
+      }
+      if (has_city && city_count[idx] == 0) {
+        fprintf(stderr, "%s: stray has_city at (%d,%d)\n", label, x, y);
+        free(unit_count);
+        free(city_count);
+        return false;
+      }
+      if (!has_city && city_count[idx] > 0) {
+        fprintf(stderr, "%s: missing has_city at (%d,%d)\n", label, x, y);
+        free(unit_count);
+        free(city_count);
+        return false;
+      }
+    }
+  }
+  free(unit_count);
+  free(city_count);
   return true;
 }
 
@@ -500,6 +582,218 @@ int main(void) {
   }
 
   fprintf(stderr, "col1 fixture saves + bridge ok\n");
+
+  /*
+   * Linux→DOS structural interop: occupancy + unknown16[1] after capture.
+   * Codec byte-identical round-trips above do NOT prove this.
+   */
+  {
+    static const char* k_unit_flags_path = "tests-save-misc/unit flags error.sav";
+    ColonizeCol1Save broken;
+    col1_save_init(&broken);
+    if (!col1_save_read_file(k_unit_flags_path, &broken, err, sizeof(err))) {
+      fprintf(stderr, "unit-flags fixture read failed: %s\n", err);
+      return 1;
+    }
+    if (assert_mask_occupancy_consistent(&broken, "pre-fix broken fixture")) {
+      fprintf(stderr, "unit-flags fixture unexpectedly already consistent\n");
+      col1_save_free(&broken);
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 23;
+    for (int t = 0; t < units.type_count; ++t) {
+      snprintf(units.types[t].name, sizeof(units.types[t].name), "T%d", t);
+      units.types[t].movement = 1;
+      units.types[t].domain = (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA
+                                                   : COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    if (!col1_bridge_apply(&broken, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+      fprintf(stderr, "unit-flags apply failed: %s\n", err);
+      col1_save_free(&broken);
+      return 1;
+    }
+    if (!col1_bridge_capture(
+          &broken,
+          &map,
+          &units,
+          &colonies,
+          &europe,
+          (uint16_t)br.year,
+          (uint16_t)br.autumn,
+          br.turn_number,
+          br.human_nation,
+          br.cursor_x,
+          br.cursor_y,
+          units.selected_id,
+          err,
+          sizeof(err)
+        )) {
+      fprintf(stderr, "unit-flags capture failed: %s\n", err);
+      map_free(&map);
+      col1_save_free(&broken);
+      return 1;
+    }
+    if (!assert_mask_occupancy_consistent(&broken, "unit-flags after capture")) {
+      map_free(&map);
+      col1_save_free(&broken);
+      return 1;
+    }
+    for (uint16_t ui = 0; ui < broken.head.unit_count; ++ui) {
+      if (broken.unit[ui].unknown16[1] != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
+        fprintf(
+          stderr,
+          "unit-flags: unit[%u] unknown16[1]=0x%02x want 0x%02x\n",
+          (unsigned)ui,
+          broken.unit[ui].unknown16[1],
+          COL1_UNIT_UNKNOWN16_HI_DEFAULT
+        );
+        map_free(&map);
+        col1_save_free(&broken);
+        return 1;
+      }
+    }
+    fprintf(stderr, "unit-flags error.sav apply→capture occupancy ok\n");
+    map_free(&map);
+    col1_save_free(&broken);
+  }
+
+  /* New-game template → spawn → capture: occupancy + unknown16 default. */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "newgame export: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "newgame export: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* plains-ish land */
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "newgame export: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* One village so has_city is exercised. */
+    save.head.tribe_count = 1;
+    {
+      ColonizeCol1Tribe* neu = calloc(1, sizeof(ColonizeCol1Tribe));
+      if (!neu) {
+        fprintf(stderr, "newgame export: tribe oom\n");
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      neu->x = 20;
+      neu->y = 30;
+      neu->nation_id = 6; /* Arawak */
+      free(save.tribe);
+      save.tribe = neu;
+    }
+    ColonizeUnitPool units;
+    units_reset(&units);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "newgame export: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_set_occupancy_map(&map);
+    const int freeman = units_find_type(&units, "Free Colonist");
+    const int uid = units_spawn(&units, freeman >= 0 ? freeman : 0, 10, 12);
+    if (uid < 0) {
+      fprintf(stderr, "newgame export: spawn failed\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    {
+      ColonizeUnit* u = units_get(&units, uid);
+      if (!u || u->col1_unknown16_hi != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
+        fprintf(stderr, "newgame export: spawn unknown16_hi default missing\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 10, 12, uid, err, sizeof(err)
+        )) {
+      fprintf(stderr, "newgame export: capture: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!assert_mask_occupancy_consistent(&save, "newgame export")) {
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (save.head.unit_count < 1 ||
+        save.unit[0].unknown16[1] != COL1_UNIT_UNKNOWN16_HI_DEFAULT) {
+      fprintf(stderr, "newgame export: captured unknown16[1] wrong\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    fprintf(stderr, "newgame template capture occupancy ok\n");
+    units_set_occupancy_map(NULL);
+    col1_save_free(&save);
+    map_free(&map);
+    assets_msg_free(&names);
+  }
+
+  /* Original starters already consistent (sanity for the assert helper). */
+  {
+    ColonizeCol1Save orig;
+    col1_save_init(&orig);
+    if (!col1_save_read_file("original_saves/COLONY00.SAV", &orig, err, sizeof(err))) {
+      fprintf(stderr, "COLONY00 occupancy read failed: %s\n", err);
+      return 1;
+    }
+    if (!assert_mask_occupancy_consistent(&orig, "COLONY00")) {
+      col1_save_free(&orig);
+      return 1;
+    }
+    col1_save_free(&orig);
+    fprintf(stderr, "COLONY00 occupancy consistent\n");
+  }
 
   /* FUN_75c2_0840 version / map-size probe (cite: @LOADNOT / @LOADOLD / @LOADSIZE). */
   {

@@ -87,6 +87,7 @@ void turn_refresh_moves_for_nation(
   }
   /* FF combat context for units_try_move (Washington / Drake / Revere). */
   units_set_ff_col1(col1);
+  units_set_occupancy_map(map);
   /* Native settlement fallout (FUN_5fef_31ea-shaped). Gold amount unknown. */
   units_set_native_fallout_context(
     col1 ? (ColonizeCol1Save*)col1 : NULL, map, -1
