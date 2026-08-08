@@ -2153,6 +2153,162 @@ static int smoke_dock_carpenter_hire(void) {
 }
 
 /*
+ * Case-7 dock Expert Lumberjack: peace + lumber_short high + Europe dock has
+ * Expert Lumberjacks → board that type (consume dock). No tools/food short
+ * so Free Colonist fallback must not win. Cite: europe.c Expert Lumberjacks
+ * pool; building_production Lumberjack→Lumber; euro_unit_act §2d lumber deepen.
+ */
+static int smoke_dock_lumberjack_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dock-lumberjack alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Warehouse");
+  colonies.building_types[0].hammers = 80;
+  colonies.building_type_count = 1;
+
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;  /* tools_short=0 */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;   /* food_short=0 */
+    c->stock[COLONIZE_CARGO_LUMBER] = 0; /* lumber_short=20 each → 40 total */
+    c->building_in_production = 0;        /* Warehouse incomplete */
+    c->hammers = 10;
+  }
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dock-lumberjack spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Expert Lumberjacks");
+  europe.dock[0].profession = 5;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 15;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 46;
+
+  const uint32_t gold_before = col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int lumberjack_boarded = 0;
+  int free_colonist_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && strstr(ty->name, "Expert Lumberjack")) {
+        lumberjack_boarded = 1;
+      }
+      if (ty && strstr(ty->name, "Free Colonist")) {
+        free_colonist_boarded = 1;
+      }
+    }
+  }
+  const int dock_cleared = (europe.dock_count == 0);
+  const int gold_spent = (col1.nation[nation].gold < gold_before + 50u);
+
+  if (!lumberjack_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: dock lumberjack=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      lumberjack_boarded,
+      free_colonist_boarded,
+      europe.dock_count,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Lumberjack dock hire + dock consume + gold spend");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Lumberjack hire ok\n");
+  return 0;
+}
+
+/*
  * LABOR bind: idle Free Colonist adjacent to own colony with food_short
  * (and a distant FOUND lure) → LABOR goto / join, not yank to FOUND.
  * Cite: 5b66 unload/labor + 5cf6 food_short; no invented production.
@@ -8541,6 +8697,9 @@ int main(void) {
     return 1;
   }
   if (smoke_dock_carpenter_hire() != 0) {
+    return 1;
+  }
+  if (smoke_dock_lumberjack_hire() != 0) {
     return 1;
   }
   if (smoke_treasury_skip_hire() != 0) {

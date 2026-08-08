@@ -83,7 +83,7 @@ bool founding_fathers_de_soto_lcr_always_positive(
 ) {
   /*
    * docs/fandom_col1994.md Hernando de Soto; decomp FUN_65dd_0004 FF index 7.
-   * Ownership only; LCR resolve call site PARKED (no Scout LCR table yet).
+   * Ownership gate; resolve via units_resolve_lcr_rumour (thin positive-only).
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNANDO_DE_SOTO);
 }
@@ -254,8 +254,7 @@ static int effect_coronado_reveal(
 }
 
 /* de Soto partial: extended sight stand-in via land-unit reveal.
- * LCR always-positive: founding_fathers_de_soto_lcr_always_positive gate
- * exists; Scout/LCR resolve (FUN_65dd_0004) call site PARKED. */
+ * LCR always-positive: wired via units_resolve_lcr_rumour (reveal radius). */
 static int effect_desoto_reveal(
   ColonizeWorldMap* map,
   ColonizeUnitPool* units,
@@ -597,9 +596,9 @@ static void apply_effect(
       break;
     case FF_HERNANDO_DE_SOTO:
       /* docs/fandom_col1994.md: LCR always positive + extended sight.
-       * Partial: extended sight via land-unit reveal.
-       * LCR: founding_fathers_de_soto_lcr_always_positive ownership gate;
-       * PARKED call site — no Scout LCR resolve (FUN_65dd_0004) yet. */
+       * Partial: extended sight via land-unit reveal on elect.
+       * LCR: units_resolve_lcr_rumour + founding_fathers_de_soto_lcr_always_positive;
+       * full FUN_65dd_0004 RNG table PARKED (no invented treasure/FoY). */
       (void)effect_desoto_reveal(map, units, nation_id);
       break;
     case FF_HENRY_HUDSON:
@@ -615,12 +614,10 @@ static void apply_effect(
        * founding_fathers_cortes_guarantees_conquest_treasure +
        * units_spawn_treasure_train for conquest yield; free king-galleon via
        * founding_fathers_cortes_free_king_galleon (cash-in tax = @KINGGALLEON3
-       * in europe_cash_treasure — no KINGGALLEON2 extra %). Call site still
-       * needed: decomp FUN_5fef_31ea post-win native settlement fallout —
-       * no safe settlement-conquer hook / COL1 treasure amount field in land
-       * combat or ai_contact yet (raid path is Indian→Euro loot only).
-       * units_spawn_treasure_train only when caller supplies known gold
-       * (hold_goods_amount LE16); do not invent FUN_5fef_31ea amounts. */
+       * in europe_cash_treasure — no KINGGALLEON2 extra %). Call site wired:
+       * units_try_native_settlement_fallout from units_resolve_land_combat_ff
+       * when units_set_native_fallout_context is set. Spawn only when caller
+       * supplies gold_amount > 0 — FUN_5fef_31ea amount table still PARKED. */
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.

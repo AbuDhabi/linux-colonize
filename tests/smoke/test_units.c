@@ -6,6 +6,8 @@
 #include "core/colony.h"
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
+#include "core/col1_save.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
@@ -1452,6 +1454,220 @@ int main(void) {
       return 1;
     }
     units_despawn(&pool, tid);
+  }
+
+  /* Native settlement conquer: tribe remove + Cortes does not invent gold. */
+  {
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.tribe_count = 1;
+    col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+    if (!col1.tribe) {
+      fprintf(stderr, "tribe alloc failed\n");
+      return 1;
+    }
+    col1.tribe[0].x = 10;
+    col1.tribe[0].y = 10;
+    col1.tribe[0].nation_id = 4;
+    col1.head.founding_father[FF_HERNAN_CORTES] = 0;
+    col1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] |=
+      (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
+
+    ColonizeWorldMap tmap;
+    memset(&tmap, 0, sizeof(tmap));
+    tmap.width = 20;
+    tmap.height = 20;
+    tmap.layer3 = calloc(400, 1);
+    if (!tmap.layer3) {
+      free(col1.tribe);
+      fprintf(stderr, "tmap layer3 alloc failed\n");
+      return 1;
+    }
+    tmap.layer3[10 * 20 + 10] = (uint8_t)((4u << 4) | 1u);
+
+    const int brave_ti = units_find_type(&pool, "Braves");
+    const int soldier_ti = units_find_type(&pool, "Soldiers");
+    if (brave_ti < 0 || soldier_ti < 0) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "Brave/Soldier type missing for conquer smoke\n");
+      return 1;
+    }
+
+    const int bid = units_spawn_allow_stack(&pool, brave_ti, 10, 10);
+    const int sid = units_spawn_allow_stack(&pool, soldier_ti, 10, 10);
+    ColonizeUnit* brave = units_get(&pool, bid);
+    ColonizeUnit* soldier = units_get(&pool, sid);
+    if (!brave || !soldier) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer spawn failed\n");
+      return 1;
+    }
+    brave->nation_id = 4;
+    soldier->nation_id = 0;
+    pool.types[soldier_ti].attack = 99;
+    pool.types[brave_ti].defense = 1;
+
+    units_set_native_fallout_context(&col1, &tmap, -1);
+    if (!units_resolve_land_combat_ff(&pool, sid, bid, NULL, &col1)) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer combat: attacker should win\n");
+      return 1;
+    }
+    if (col1.head.tribe_count != 0) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer: tribe should be removed (count=%u)\n", col1.head.tribe_count);
+      return 1;
+    }
+    if ((tmap.layer3[10 * 20 + 10] >> 4) != 0x0f) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer: village tile should be unowned 0xf\n");
+      return 1;
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool.units[i];
+      if (!u->active || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      if (u->x == 10 && u->y == 10) {
+        const ColonizeUnitType* tt = units_type(&pool, u->type_index);
+        if (tt && strcmp(tt->name, "Treasure") == 0) {
+          free(tmap.layer3);
+          free(col1.tribe);
+          fprintf(stderr, "Cortes conquest must not invent treasure when gold unknown\n");
+          return 1;
+        }
+      }
+    }
+
+    /* Known gold path: Cortes spawns treasure when caller supplies amount. */
+    col1.head.tribe_count = 1;
+    col1.tribe[0].x = 11;
+    col1.tribe[0].y = 10;
+    col1.tribe[0].nation_id = 4;
+    tmap.layer3[10 * 20 + 11] = (uint8_t)((4u << 4) | 1u);
+    const int bid2 = units_spawn_allow_stack(&pool, brave_ti, 11, 10);
+    const int sid2 = units_spawn_allow_stack(&pool, soldier_ti, 11, 10);
+    brave = units_get(&pool, bid2);
+    soldier = units_get(&pool, sid2);
+    brave->nation_id = 4;
+    soldier->nation_id = 0;
+    units_set_native_fallout_context(&col1, &tmap, 500);
+    if (!units_resolve_land_combat_ff(&pool, sid2, bid2, NULL, &col1)) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer combat2 failed\n");
+      return 1;
+    }
+    int treasure_id = -1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool.units[i];
+      if (!u->active || u->x != 11 || u->y != 10) {
+        continue;
+      }
+      const ColonizeUnitType* tt = units_type(&pool, u->type_index);
+      if (tt && strcmp(tt->name, "Treasure") == 0) {
+        treasure_id = u->id;
+        if (u->hold_goods_amount[0] != (500 & 0xff) || u->hold_goods_amount[1] != ((500 >> 8) & 0xff)) {
+          free(tmap.layer3);
+          free(col1.tribe);
+          fprintf(stderr, "Cortes treasure LE16 mismatch\n");
+          return 1;
+        }
+        break;
+      }
+    }
+    if (treasure_id < 0) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "Cortes conquest expected treasure when gold supplied\n");
+      return 1;
+    }
+    units_despawn(&pool, treasure_id);
+    units_set_native_fallout_context(NULL, NULL, -1);
+    free(tmap.layer3);
+    free(col1.tribe);
+  }
+
+  /* LCR rumour: clear + de Soto reveal path. */
+  {
+    if (!map_tile_has_rumour(&map, 8, 14)) {
+      fprintf(stderr, "AMER2 (8,14) expected procedural rumour\n");
+      return 1;
+    }
+    ColonizeCol1Save lcol1;
+    memset(&lcol1, 0, sizeof(lcol1));
+    const int scout_ti = units_find_type(&pool, "Scouts");
+    if (scout_ti < 0) {
+      fprintf(stderr, "Scout type missing for LCR smoke\n");
+      return 1;
+    }
+    const int scid = units_spawn_allow_stack(&pool, scout_ti, 8, 14);
+    ColonizeUnit* scout = units_get(&pool, scid);
+    if (!scout) {
+      fprintf(stderr, "LCR scout spawn failed\n");
+      return 1;
+    }
+    scout->nation_id = 0;
+    if (!units_resolve_lcr_rumour(&pool, scid, &map, &lcol1, NULL)) {
+      fprintf(stderr, "LCR resolve without de Soto failed\n");
+      return 1;
+    }
+    if (map_tile_has_rumour(&map, 8, 14)) {
+      fprintf(stderr, "LCR rumour should be cleared\n");
+      return 1;
+    }
+    lcol1.head.founding_father[FF_HERNANDO_DE_SOTO] = 0;
+    lcol1.nation[0].founding_fathers[FF_HERNANDO_DE_SOTO / 8] |=
+      (uint8_t)(1u << (FF_HERNANDO_DE_SOTO % 8));
+    ColonizeWorldMap lmap;
+    memset(&lmap, 0, sizeof(lmap));
+    lmap.width = map.width;
+    lmap.height = map.height;
+    const size_t n = (size_t)map.width * (size_t)map.height;
+    lmap.terrain = malloc(n);
+    lmap.layer2 = calloc(n, 1);
+    lmap.layer3 = calloc(n, 1);
+    lmap.seen = calloc(n, 1);
+    if (!lmap.terrain || !lmap.layer2 || !lmap.layer3 || !lmap.seen) {
+      free(lmap.terrain);
+      free(lmap.layer2);
+      free(lmap.layer3);
+      free(lmap.seen);
+      fprintf(stderr, "LCR mini-map alloc failed\n");
+      return 1;
+    }
+    memcpy(lmap.terrain, map.terrain, n);
+    if (!map_tile_has_rumour(&lmap, 8, 14)) {
+      fprintf(stderr, "LCR fresh map (8,14) expected rumour\n");
+      map_free(&lmap);
+      return 1;
+    }
+    const int scid2 = units_spawn_allow_stack(&pool, scout_ti, 8, 14);
+    scout = units_get(&pool, scid2);
+    scout->nation_id = 0;
+    if (!units_resolve_lcr_rumour(&pool, scid2, &lmap, &lcol1, NULL)) {
+      map_free(&lmap);
+      fprintf(stderr, "LCR resolve with de Soto failed\n");
+      return 1;
+    }
+    if (map_tile_has_rumour(&lmap, 8, 14)) {
+      map_free(&lmap);
+      fprintf(stderr, "de Soto LCR rumour not cleared\n");
+      return 1;
+    }
+    if (!map_tile_seen_by(&lmap, 8, 14, 0)) {
+      map_free(&lmap);
+      fprintf(stderr, "de Soto LCR should reveal scout tile\n");
+      return 1;
+    }
+    units_despawn(&pool, scid);
+    units_despawn(&pool, scid2);
+    map_free(&lmap);
   }
 
   fprintf(

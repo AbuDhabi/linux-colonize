@@ -2485,6 +2485,17 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
     if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
       inv->tools_short += 20 - c->stock[COLONIZE_CARGO_TOOLS];
     }
+    /*
+     * Lumber shortage tally (5cf6-shaped): mirror tools_short<20 for lumber when
+     * colony wants lumberjack LABOR (Warehouse/Lumber Mill) or any construction
+     * is in progress. Cite: docs/building_production.md Lumberjack→Lumber;
+     * ai_euro_colony_wants_lumberjack_labor; euro_unit_act §2e.
+     */
+    if ((ai_euro_colony_wants_lumberjack_labor(ctx->colonies, c) ||
+         c->building_in_production >= 0) &&
+        c->stock[COLONIZE_CARGO_LUMBER] < 20) {
+      inv->lumber_short += 20 - c->stock[COLONIZE_CARGO_LUMBER];
+    }
     if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
       inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
     }
@@ -2823,6 +2834,14 @@ static int ai_euro_dock_name_is_carpenter_expert(const char* name) {
   return strstr(name, "Master Carpenter") != NULL;
 }
 
+/* Europe dock Expert Lumberjack for case-7 lumber hire (only if present). */
+static int ai_euro_dock_name_is_lumberjack_expert(const char* name) {
+  if (!name || !name[0]) {
+    return 0;
+  }
+  return strstr(name, "Expert Lumberjack") != NULL || strstr(name, "Lumberjack") != NULL;
+}
+
 /* Resolve dock immigrant name → unit type (strip trailing 's' for pool plurals). */
 static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char* dock_name) {
   if (!units || !dock_name || !dock_name[0]) {
@@ -2860,6 +2879,16 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
     ty = units_find_type(units, "Expert Farmer");
     if (ty < 0) {
       ty = units_find_type(units, "Farmer");
+    }
+    if (ty < 0) {
+      ty = units_find_type(units, "Free Colonist");
+    }
+    return ty;
+  }
+  if (strstr(dock_name, "Expert Lumberjack") || strstr(dock_name, "Lumberjack")) {
+    ty = units_find_type(units, "Expert Lumberjack");
+    if (ty < 0) {
+      ty = units_find_type(units, "Lumberjack");
     }
     if (ty < 0) {
       ty = units_find_type(units, "Free Colonist");
@@ -2911,6 +2940,22 @@ static int ai_euro_dock_find_carpenter_expert(const EuropeScreen* eu) {
       continue;
     }
     if (ai_euro_dock_name_is_carpenter_expert(eu->dock[i].name)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* First dock slot matching Expert Lumberjack; -1 if none. */
+static int ai_euro_dock_find_lumberjack_expert(const EuropeScreen* eu) {
+  if (!eu) {
+    return -1;
+  }
+  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+    if (!eu->dock[i].present) {
+      continue;
+    }
+    if (ai_euro_dock_name_is_lumberjack_expert(eu->dock[i].name)) {
       return i;
     }
   }
@@ -2988,7 +3033,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * type → hire wagon once; else tools_short>20 prefer Pioneer/Hardy + tools
    * cargo stand-in (ship +20 / colony +15). Case-7 deepen: prefer Hardy/Expert
    * Pioneer or Master Carpenter already on Europe dock (no free spawn fiction).
-   * Treasury gate (5d04 / Europe hire): skip hire + tools-cargo when gold is
+   * **`lumber_short>20`:** prefer Expert Lumberjack on Europe dock (same consume
+   * pattern). Treasury gate (5d04 / Europe hire): skip hire + tools-cargo when gold is
    * below the real cost already used in code (colonist hire_cost, or Artillery
    * purchase 500$ from Europe purchase table).
    */
@@ -3160,6 +3206,24 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   if (hire_ty < 0 && inv && !at_war && ctx->europe &&
       ai_euro_nation_wants_construction_labor(ctx, nation_id)) {
     dock_idx = ai_euro_dock_find_carpenter_expert(ctx->europe);
+    if (dock_idx >= 0) {
+      const int dock_ty =
+        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
+      if (dock_ty >= 0) {
+        hire_ty = dock_ty;
+        from_dock = 1;
+      }
+    }
+  }
+  /*
+   * Peace case-7 / 5d04 lumber deepen: when lumber_short high, prefer Expert
+   * Lumberjack already on Europe dock (consume dock slot; same hire_cost as
+   * Expert Farmer / Master Carpenter). Cite: europe.c Expert Lumberjacks pool;
+   * building_production Lumberjack→Lumber; euro_unit_act §2e Expert Lumberjack
+   * LABOR; Hardy Pioneer dock pattern §2d. Only if present on dock.
+   */
+  if (hire_ty < 0 && inv && !at_war && inv->lumber_short > 20 && ctx->europe) {
+    dock_idx = ai_euro_dock_find_lumberjack_expert(ctx->europe);
     if (dock_idx >= 0) {
       const int dock_ty =
         ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
@@ -5056,6 +5120,23 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   int scout_explored = 0;
   int treasure_routed = 0;
   int missionary_contacted = 0;
+
+  /*
+   * Thin LCR (FUN_65dd_0004 scaffold): Scout standing on rumour clears it;
+   * de Soto → reveal radius only. No invented gold / FoY / hostile table.
+   * Cite: units_resolve_lcr_rumour; Colonization.pdf Lost City Rumours.
+   */
+  if (is_scout && ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
+    if (units_resolve_lcr_rumour(
+          ctx->units,
+          u->id,
+          ctx->map,
+          ctx->col1_ok ? ctx->col1 : NULL,
+          ctx->rng
+        )) {
+      scout_explored = 1;
+    }
+  }
 
   /*
    * Thin land war hunt (act-level): idle Soldier/Dragoon/Scout at war move

@@ -43,6 +43,7 @@ typedef struct AiNationGoals {
 /* Per-nation shortage / demand scratch filled by dispatcher inventory. */
 typedef struct AiEuroInventory {
   int tools_short;
+  int lumber_short;
   int muskets_short;
   int food_short;
   int found_flags; /* dock/construction tally stand-in for −0x5f48 */
