@@ -85,7 +85,10 @@ port I/O in the native build.
 - SDL2 shell, diagnostics log, save/load: original `COLONY##.SAV` structs +
   byte-identical I/O in `src/core/col1_save.{h,c}`; runtime bridge in
   `src/core/col1_bridge.c` (see `docs/savegame.md`); verified against
-  `original_saves/COLONY00.SAV` / `COLONY01.SAV`
+  `original_saves/COLONY00.SAV` / `COLONY01.SAV`. **Codec ≠ complete field
+  semantics** — opaque-byte RE track: [save_format_map.md](save_format_map.md)
+  (P0 atlas done; P1–P4 open: stuff/post-map mis-split, smcol absorb, export
+  rebuild, deep leftovers).
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,

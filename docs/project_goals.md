@@ -42,6 +42,8 @@ save/interop-visible behavior, not by cloning the DOS codebase structure.
   - Start in the port → load in DOS → continue.
 - Round-trips preserve Col1 layout and unknown regions as documented in
   [savegame.md](savegame.md).
+- Path to a complete decomp-backed field map (opaque regions, connectivity,
+  export rebuild): [save_format_map.md](save_format_map.md).
 
 ## Determinism
 
@@ -62,4 +64,6 @@ save/interop-visible behavior, not by cloning the DOS codebase structure.
 4. **Visual polish** — pixel-exact layout and style last.
 
 Related: [manual_gap.md](manual_gap.md) (feature checklist),
-[savegame.md](savegame.md) (Col1 layout), [assets.md](assets.md) (data files).
+[savegame.md](savegame.md) (Col1 layout / interop),
+[save_format_map.md](save_format_map.md) (field atlas / RE roadmap),
+[assets.md](assets.md) (data files).

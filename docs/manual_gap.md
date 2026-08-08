@@ -53,7 +53,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Reports F1–F10 | Done | `reports.c` |
 | Pick Music + BGM | Done | `sound.c`, `pick_music.c` |
 | Digital SFX (`COLDIG.BIN`) | Missing | Deferred |
-| Col1 save / load | Done | `col1_save.c`, `col1_bridge.c` |
+| Col1 save / load | Done | Playable I/O: `col1_save.c`, `col1_bridge.c`. **Not** a complete field map — see [save_format_map.md](save_format_map.md) |
 
 ### Units and map orders
 
@@ -195,4 +195,5 @@ trade routes, Congress UI, and full 1:1 AI bodies.
 - [decomp_inventory.md](decomp_inventory.md) — bring-up and parked RE
 - [ai_transcription.md](ai_transcription.md) — AI FUN_* inventory and 1:1 roadmap
 - [assets.md](assets.md) — formats and UI wiring
-- [savegame.md](savegame.md) — `COLONY##.SAV` layout
+- [savegame.md](savegame.md) — `COLONY##.SAV` layout / interop
+- [save_format_map.md](save_format_map.md) — opaque field atlas + RE roadmap (P0–P4)

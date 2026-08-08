@@ -123,12 +123,16 @@ via `units_set_occupancy_map` on spawn/move/despawn.
 
 ### Remaining Linux→DOS gaps (known)
 
+Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_map.md)**.
+
 These survive capture today and may still fault or desync DOS play after the
 occupancy fix:
 
 - `unknown_e` (504) / `unknown_f` (110) — zero on new-game templates; not rebuilt
-- Most of `stuff` beyond viewport — connectivity / counters only preserved on RMW
-- Colony opaque fields (`unknown08`, `duration[]`, rebel fractions, …) — zeroed on colony rebuild
+  (likely mis-split connectivity planes — see atlas `misaligned`)
+- Most of `stuff` beyond viewport — counters only preserved on RMW; `unknown36`
+  is **not** connectivity
+- Colony opaque fields (`unknown08`, `duration[]`, …) — zeroed on colony rebuild
 - Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
   (`COLONY00` has many bit5/`pacific` tiles; template exports often only occupancy)
 - AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
@@ -154,6 +158,7 @@ sanity. Those checks do **not** claim full DOS campaign parity.
 
 ## References
 
+- [save_format_map.md](save_format_map.md) — field atlas + RE roadmap (P0–P4)
 - [hegemogy/viceroy `savegame.h`](https://github.com/hegemogy/viceroy)
 - [hegemogy/Colonization-SAV-files `Format.md`](https://github.com/hegemogy/Colonization-SAV-files)
 - [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility) (`smcol_sav_struct.json`)
