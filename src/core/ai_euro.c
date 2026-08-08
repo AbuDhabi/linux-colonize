@@ -2260,6 +2260,113 @@ static int ai_euro_try_wagon_haul(
 }
 
 /*
+ * Jan de Witt foreign-colony TRADE_GOODS surplus: same load chunk as muskets
+ * haul (stock≥20 → load 10). Stock transfer only — no gold/price invent.
+ * Cite: docs/fandom_col1994.md Jan de Witt; colonies_de_witt_transfer_*;
+ * euro_unit_act §2d wagon haul thresholds.
+ */
+static int ai_euro_de_witt_trade_goods_surplus(const ColonizeColony* c) {
+  return c && c->active && c->stock[COLONIZE_CARGO_TRADE_GOODS] >= 20;
+}
+
+static int ai_euro_nearest_de_witt_foreign_trade(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->colonies || !ctx->col1 || !out_x || !out_y) {
+    return 0;
+  }
+  int best = -1;
+  int bx = -1;
+  int by = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id < 0 || c->nation_id > 3 || c->nation_id == nation_id) {
+      continue;
+    }
+    if (ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+      continue;
+    }
+    if (!ai_euro_de_witt_trade_goods_surplus(c)) {
+      continue;
+    }
+    const int dist = abs(c->x - from_x) + abs(c->y - from_y);
+    if (best < 0 || dist < best) {
+      best = dist;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (bx < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Jan de Witt AI trade act (wagon): on foreign Euro colony tile at peace, load
+ * TRADE_GOODS surplus via colonies_de_witt_transfer_from_colony; else AI_MOVE
+ * toward nearest such colony when hold has capacity. Cite: fandom Jan de Witt;
+ * founding_fathers_de_witt_allows_foreign_colony_trade.
+ */
+static int ai_euro_try_de_witt_foreign_trade(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* wagon
+) {
+  if (!ctx || !ctx->units || !ctx->colonies || !ctx->col1_ok || !ctx->col1 || !wagon ||
+      !wagon->active) {
+    return 0;
+  }
+  if (!founding_fathers_de_witt_allows_foreign_colony_trade(ctx->col1, nation_id)) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, wagon);
+  if (!ai_euro_type_is_wagon_name(name)) {
+    return 0;
+  }
+  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
+  const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
+  if (cid >= 0) {
+    ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+    if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3 &&
+        c->nation_id != nation_id && !ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+      if (has_cap && ai_euro_de_witt_trade_goods_surplus(c)) {
+        const int moved = colonies_de_witt_transfer_from_colony(
+          ctx->colonies, cid, ctx->units, wagon->id, COLONIZE_CARGO_TRADE_GOODS, 10, ctx->col1
+        );
+        if (moved > 0) {
+          return 1;
+        }
+      }
+      return 0; /* on foreign tile; no further haul yank this act */
+    }
+  }
+  if (!has_cap) {
+    return 0;
+  }
+  int tx = 0;
+  int ty = 0;
+  if (!ai_euro_nearest_de_witt_foreign_trade(ctx, nation_id, wagon->x, wagon->y, &tx, &ty)) {
+    return 0;
+  }
+  if (wagon->x == tx && wagon->y == ty) {
+    return 0;
+  }
+  if (units_orders_follow_goto(wagon->orders) && wagon->goto_x == tx && wagon->goto_y == ty) {
+    return 1;
+  }
+  ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, tx, ty);
+  return 1;
+}
+
+/*
  * Pioneer plow/road tile improve planner.
  * Cite: Colonization.pdf Clear/Plow/Road; Hardy Pioneer "Clears forest, plows
  * fields, and builds roads faster" — prefer Hardy when both idle (faster work,
@@ -4362,6 +4469,73 @@ static int ai_euro_try_ship_trade_haul(
   return 1;
 }
 
+/*
+ * Jan de Witt ship trade: on foreign Euro colony dock (de Witt enter), load
+ * TRADE_GOODS surplus; else AI_SAIL toward coastal water by nearest peaceful
+ * foreign with TRADE_GOODS≥20. Cite: fandom Jan de Witt; units_can_enter dock;
+ * colonies_de_witt_transfer_*; §2d2 haul pattern.
+ */
+static int ai_euro_try_de_witt_ship_trade(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ctx->col1_ok || !ctx->col1 ||
+      !ship || !ship->active) {
+    return 0;
+  }
+  if (ai_euro_in_europe(ship->x, ship->y)) {
+    return 0;
+  }
+  if (!founding_fathers_de_witt_allows_foreign_colony_trade(ctx->col1, nation_id)) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, ship);
+  if (!ai_euro_is_cargo_ship_name(name)) {
+    return 0;
+  }
+  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship);
+  const int cid = colonies_id_at(ctx->colonies, ship->x, ship->y);
+  if (cid >= 0) {
+    ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+    if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3 &&
+        c->nation_id != nation_id && !ai_diplo_at_war(ctx->col1, nation_id, c->nation_id)) {
+      if (has_cap && ai_euro_de_witt_trade_goods_surplus(c)) {
+        const int moved = colonies_de_witt_transfer_from_colony(
+          ctx->colonies, cid, ctx->units, ship->id, COLONIZE_CARGO_TRADE_GOODS, 10, ctx->col1
+        );
+        if (moved > 0) {
+          return 1;
+        }
+      }
+      return 0;
+    }
+  }
+  if (!has_cap) {
+    return 0;
+  }
+  int cx = 0;
+  int cy = 0;
+  if (!ai_euro_nearest_de_witt_foreign_trade(ctx, nation_id, ship->x, ship->y, &cx, &cy)) {
+    return 0;
+  }
+  int wx = 0;
+  int wy = 0;
+  if (!ai_euro_coastal_water_near(ctx->map, cx, cy, ship->x, ship->y, &wx, &wy)) {
+    /* No adjacent water mapped — aim colony dock tile (de Witt enter). */
+    wx = cx;
+    wy = cy;
+  }
+  if (ship->x == wx && ship->y == wy) {
+    return 1;
+  }
+  if (units_orders_follow_goto(ship->orders) && ship->goto_x == wx && ship->goto_y == wy) {
+    return 1;
+  }
+  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, wx, wy);
+  return 1;
+}
+
 /* Galleon / Frigate — war passenger transport (Europe purchase table). */
 static int ai_euro_is_war_transport_name(const char* name) {
   return name && (strstr(name, "Galleon") != NULL || strstr(name, "Frigate") != NULL);
@@ -5088,7 +5262,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
      * useful sail already set.
      */
     if (!at_war && !treasure_aboard && !ai_euro_ship_has_useful_goto(u, ctx->map)) {
-      (void)ai_euro_try_ship_trade_haul(ctx, nation_id, u);
+      if (!ai_euro_try_de_witt_ship_trade(ctx, nation_id, u)) {
+        (void)ai_euro_try_ship_trade_haul(ctx, nation_id, u);
+      }
     }
     if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
       /* Drop Soldier at threatened own coastal colony before hunt sail. */
@@ -5401,11 +5577,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * MUSKETS / HORSES / FOOD → AI_MOVE toward matching short colony (unload via
    * existing delivery). Cite: euro_unit_act §2d; Colonization.pdf Wagon Train;
    * 5cf6 food_short.
+   * Jan de Witt: foreign Euro TRADE_GOODS load / goto before own-colony haul.
+   * Cite: euro_unit_act §2d4; fandom Jan de Witt.
    */
   int wagon_hauled = 0;
   if (!treasure_routed && uname && ai_euro_type_is_wagon_name(uname) &&
       !ai_euro_land_is_fortified(u)) {
-    if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
+    if (ai_euro_try_de_witt_foreign_trade(ctx, nation_id, u)) {
+      wagon_hauled = 1;
+    } else if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
       wagon_hauled = 1;
     }
   }

@@ -185,10 +185,15 @@ missionary convert-pulse path.  **Sepulveda** convert-join remains **PARKED** (n
  is set; `units_cortes_conquest_treasure_gold` peels FUN_5fef_31ea when
  `gold_amount<=0` (caller-known amount still wins). AI live path verified via
  `units_resolve_land_combat` + turn_refresh fallout context (smoke). rich_capital
- (-0xcc) **PARKED** as 0. KINGGALLEON2 / non-Cortes treasure chrome **PARKED**.
- On destroy, `nation.villages_burned++` (col1_save / reports villages_penalty).
- Thin Brave escort via `units_follow_unit` (raid-gate goto preference) and
- @RAIDBURN `colonies_destroy_building` + building-name status: **Done** thin.
+ (-0xcc) ← `ColonizeCol1TribeState.capital` (Done). KINGGALLEON2 / non-Cortes
+ treasure chrome **PARKED**. On destroy, `nation.villages_burned++` (col1_save /
+ reports villages_penalty). Thin Brave escort via `units_follow_unit` (raid-gate
+ goto preference) and @RAIDBURN `colonies_destroy_building` + building-name
+ status: **Done** thin.
+
+**de Witt** foreign-colony cargo: **Done** — `colonies_de_witt_transfer_*` +
+AI wagon/ship TRADE_GOODS act (`euro_unit_act` §2d4); ships enter foreign docks
+when FF + peace.
 
 **Washington AI combat col1:** **Done** — `units_resolve_land_combat` uses
 `g_units_ff_col1` (was always NULL).

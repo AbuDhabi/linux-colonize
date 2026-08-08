@@ -663,8 +663,8 @@ int units_cortes_conquest_treasure_gold(
   /*
    * Peel FUN_5fef_31ea amount → gold×100 (viceroy_unpacked.c ~101407–101495).
    * Locals: -6 Cortes FF10, -0xa8 Spanish (nation==2), -0xcc rich/capital
-   * (PARK: pass rich_capital; callers use 0 until mapped), difficulty
-   * col1->head.difficulty (bands 0..3; ≥3 → band 3).
+   * (callers: tribe.state.capital from fallout), difficulty col1->head.difficulty
+   * (bands 0..3; ≥3 → band 3).
    */
   if (!rng || !col1 || attacker_nation_id < 0 || attacker_nation_id > 3) {
     return 0;
@@ -751,6 +751,21 @@ bool units_try_native_settlement_fallout(
     return false;
   }
 
+  /*
+   * FUN_5fef_31ea stack-local -0xcc (rich): map to ColonizeCol1TribeState.capital
+   * before destroy. Cite: col1_save.h capital bit; fandom capital / Aztec treasure;
+   * viceroy_unpacked.c ~101416–101466 (-0xcc doubles / boosts amount).
+   */
+  int rich_capital = 0;
+  if (col1->tribe) {
+    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+      if ((int)col1->tribe[i].x == tile_x && (int)col1->tribe[i].y == tile_y) {
+        rich_capital = col1->tribe[i].state.capital ? 1 : 0;
+        break;
+      }
+    }
+  }
+
   const int tribe_nation = col1_destroy_tribe_at(col1, units, map, tile_x, tile_y);
   if (tribe_nation < 0) {
     return false;
@@ -773,8 +788,9 @@ bool units_try_native_settlement_fallout(
       founding_fathers_cortes_guarantees_conquest_treasure(col1, attacker_nation_id)) {
     int gold = gold_amount;
     if (gold <= 0) {
-      /* rich_capital (-0xcc) PARKED as 0 until mapped from combat stack. */
-      gold = units_cortes_conquest_treasure_gold(col1, attacker_nation_id, rng, 0);
+      gold = units_cortes_conquest_treasure_gold(
+        col1, attacker_nation_id, rng, rich_capital
+      );
     }
     if (gold > 0) {
       (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
@@ -1065,6 +1081,16 @@ bool units_can_enter(
       const int cid = colonies_id_at(colonies, x, y);
       const ColonizeColony* col = colonies_get(colonies, cid);
       if (col && col->active && col->nation_id == mover_nation) {
+        return true;
+      }
+      /*
+       * Jan de Witt: foreign Euro colony dock at peace (trade berth).
+       * Requires g_units_ff_col1 from turn_refresh. Cite: fandom Jan de Witt;
+       * founding_fathers_de_witt_allows_foreign_colony_trade.
+       */
+      if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 && g_units_ff_col1 &&
+          founding_fathers_de_witt_allows_foreign_colony_trade(g_units_ff_col1, mover_nation) &&
+          !ai_diplo_at_war(g_units_ff_col1, mover_nation, col->nation_id)) {
         return true;
       }
     }

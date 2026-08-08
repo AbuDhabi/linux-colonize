@@ -185,6 +185,16 @@ load TOOLS. **No invented FOOD cargo** — sail-toward only for food-short.
 Cite: Colonization.pdf naval transport / colony supply; euro_unit_act §2d TOOLS
 pattern. War hunt owns idle ships at war; Treasure Europe sail skips haul.
 
+### 2d4. Linux thin — Jan de Witt foreign-colony TRADE_GOODS (act)
+
+With FF Jan de Witt + peace: Wagon on foreign Euro colony tile loads
+`TRADE_GOODS` surplus (stock≥20 → 10; same muskets haul chunk) via
+`colonies_de_witt_transfer_from_colony`; empty wagon may `AI_MOVE` toward
+nearest such colony. Cargo ships: same load on foreign dock (ships may enter
+foreign Euro docks when de Witt + peace via `units_can_enter` + `g_units_ff_col1`);
+else `AI_SAIL` toward coastal water / dock. Stock transfer only — no gold/price.
+Cite: docs/fandom_col1994.md Jan de Witt; `colonies_de_witt_transfer_*`.
+
 ### 2d3. Linux thin — peace Soldier fortify (act)
 
 Peace + idle Soldier on own colony tile → `units_order_fortify` if not already
