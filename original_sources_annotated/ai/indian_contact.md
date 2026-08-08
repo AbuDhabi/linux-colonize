@@ -25,12 +25,14 @@ Annotated shell (quiet path only for act):
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
 
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
-Thin Linux meet arm: when already met and `alarm_by_player >= 55`, write human
-status **"Natives refuse to talk."** and skip auto-trade (`alarm < 50` gate);
-gift/demand still runs and overwrites with the more specific ≥55 refuse line.
+Thin Linux meet arm (**after** first-contact treaty): when already met, welcome
+not pending, and `alarm_by_player >= 55`, write human status **"Natives refuse
+to talk."** and skip auto-trade (`alarm < 50` gate); gift/demand still runs and
+overwrites with the more specific ≥55 refuse line.
 Beyond that alarm gate: when `ai_diplo_indian_relation` is very low (`< 40`, same
 band as `AI_DIPLO_INDIAN_VERY_LOW_REL`), skip auto-trade / gift/demand with
 the same refuse-talk status (read-only diplo getter; no invented gold).
+Unmet first contact uses `@INDIANWELCOME` (not refuse-talk) — see checklist §0.
 Teach-skill / gift / demand paths reuse the same ≥55 gate with status
 **"Natives refuse to teach."** / **"Natives refuse gifts."** /
 **"Natives refuse demands."** (alarmed Indian diplomacy; no invented gold
@@ -71,7 +73,7 @@ missions slow hostility.
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb` neighborhood** (~96088) after meet/diplo scoring | Not from `1b3a` |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | Full body PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | Not quiet `14fe` |
-| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | Status chrome thinned; widgets **OPEN** (unpark #1) |
+| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First contact WELCOME **Done**; later Meet CHOICE structural; VGA PARKED |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
 
 Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
@@ -79,8 +81,24 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
 
 ## Meet / trade `5bfb_022e` checklist (Linux)
 
-1. Adjacent Euro land unit → set `met_by_player`, relation bump; human-facing
-   `ctx->status` **"You meet the …"** (tribe `@TRIBES` short name)
+0. **First contact** (`FUN_5bfb_022e` unmet / `FUN_5bfb_0182`): when
+   `met_by_player` is clear, player adjacency to a village
+   (`col1_contact_adjacent_tribe` / `game_loop`) **or** Brave meet pulse
+   enqueues **CONTACT_WELCOME** Yes/No (`@INDIANWELCOME`). DOS ORs met bit
+   `0x20` before the dialog — Linux sets `met_by_player` when welcome is shown.
+   - **Yes** → `FUN_5bfb_0182` stand-in: peace bit `unknown33[euro] |= 0x40`,
+     relation floor so refuse-talk (`< 40`) cannot fire next tick; OK
+     `@INDIANPEACE`; if pre-accept relation `< 0x19` also OK `@INDIANCOME`;
+     then later Meet CHOICE may follow. Land grant is **copy only** (WELCOME
+     text); no tile-ownership write.
+   - **No / cancel** → hostility (`FUN_4cc6_00f2` +100 hostility-axis stand-in)
+     so `ai_diplo_indian_at_war`; OK `@INDIANSHUN` (“Prepare for WAR!”).
+   - AI Euro: auto-Accept (no popup), same state writes.
+   - Refuse-talk / Meet Trade menu require met **and** welcome not pending;
+     Meet CHOICE is **later** peaceful contact, not first contact.
+
+1. Adjacent Euro land unit (already met + treaty resolved) → relation bump;
+   human-facing `ctx->status` **"You meet the …"** (tribe `@TRIBES` short name)
 2. Peaceful meet (alarm/friction < 40): slight tribe `alarm[].friction` decay (−1)
 3. Optional mission assign if friction low (teach/convert **widgets** still OPEN)
 4. **Missionary convert pulse** (structural deepen): Euro unit whose display name
@@ -158,7 +176,9 @@ slow hostility.
 Status lines only when `ctx->status` is present and the Euro is the human nation
 (`ctx->human_nation`, else `player.control == 0`). When `ctx->ai_popups` is set,
 human arms also enqueue OK / Meet CHOICE popups (FUN_5bfb_022e / 5bfb_102a
-structural unpark). First meet with popups: CHOICE (Trade/Gift/Demand/Teach/Leave)
+structural unpark). **First unmet contact** enqueues CONTACT_WELCOME Yes/No
+(`@INDIANWELCOME` → `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`); Meet CHOICE
+(Trade/Gift/Demand/Teach/Leave) is for **later** contact after treaty and
 defers auto-trade/gift until `ai_contact_apply_popup_result`; Meet→Gift enqueues
 CONTACT_GIFT Small/Large amount CHOICE before gold drain; Meet→Demand enqueues
 CONTACT_DEMAND tools/gold amount CHOICE before tribute drain; Meet→Demand when

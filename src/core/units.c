@@ -364,7 +364,8 @@ int units_cortes_cash_coastal_treasures(
 }
 
 bool units_is_on_map(const ColonizeUnit* unit) {
-  return unit && unit->active && unit->aboard_ship_id < 0;
+  /* id < 0 = cleared/ghost slot (tests may flip active without respawn). */
+  return unit && unit->active && unit->id >= 0 && unit->aboard_ship_id < 0;
 }
 
 static void units_clear_slot(ColonizeUnit* unit) {

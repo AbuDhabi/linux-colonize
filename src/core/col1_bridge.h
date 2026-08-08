@@ -77,6 +77,9 @@ bool col1_bridge_init_template(
 /*
  * After a European unit steps onto (x,y): if adjacent to a tribe village,
  * bump that tribe's alarm for european_nation (0..3) and indian.alarm_by_player.
+ * Does NOT set met_by_player — first contact is ai_contact_try_first_welcome.
+ * If out_first_indian_nation is non-NULL, writes Col1 nation id 4..11 for the
+ * first unmet tribe this call (else -1).
  * Writes a short status when a new contact happens (optional).
  * Returns true if any village was contacted this call.
  */
@@ -86,7 +89,8 @@ bool col1_contact_adjacent_tribe(
   int y,
   int european_nation,
   char* status_out,
-  size_t status_size
+  size_t status_size,
+  int* out_first_indian_nation
 );
 
 #endif

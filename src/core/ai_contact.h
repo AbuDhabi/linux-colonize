@@ -27,10 +27,11 @@
  * Full 2820/4528 stay PARKED. Thin Brave escort (units_follow_unit) and
  * @RAIDBURN colonies_destroy_building + building-name status: Done thin.
  *
- * Human chrome: status lines + AI popup enqueue (OK / Meet CHOICE incl.
- * Leave→Farewell / Gift amount / Demand tools-vs-gold / alarmed Demand OK). Cite:
- * indian_contact.md; docs/ai_transcription.md FUN_4d56_2820; peel
- * layer_b_combat_raid / layer_b_2a1f_midlo.
+ * Human chrome: status lines + AI popup enqueue (OK / first-contact WELCOME
+ * Yes/No / Meet CHOICE incl. Leave→Farewell / Gift amount / Demand
+ * tools-vs-gold / alarmed Demand OK). Cite: indian_contact.md;
+ * docs/ai_transcription.md FUN_5bfb_022e / FUN_5bfb_0182; peel
+ * layer_b_combat_raid / layer_b_2a1f_midlo / layer_b_ai_diplo.
  */
 
 /* @RAID* kind stand-ins (COLONIZE/GAME.TXT tags). */
@@ -59,10 +60,20 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id);
 /* FUN_5bfb_022e meet / auto-trade (status + AI popup CHOICE/OK when queued). */
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 
+/*
+ * FUN_5bfb_022e first contact: if unmet, set met and enqueue @INDIANWELCOME
+ * Yes/No for human (or auto-accept for AI / no popups). Returns 1 if this
+ * call started first contact. indian_nation is Col1 id 4..11.
+ */
+int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
+
+/* FUN_5bfb_0182 peace bit stand-in on indian.unknown33[euro] bit 0x40. */
+int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
+
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
 
-/* Apply human choice from map AI popup (meet / teach / gift|demand amount). */
+/* Apply human choice from map AI popup (welcome / meet / teach / gift|demand). */
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
 #endif

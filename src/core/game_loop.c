@@ -2769,11 +2769,17 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (game->col1_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     char contact[80];
     contact[0] = '\0';
+    int first_indian = -1;
     if (col1_contact_adjacent_tribe(
-          &game->col1, u->x, u->y, u->nation_id, contact, sizeof(contact)
-        ) &&
-        contact[0]) {
-      snprintf(game->status, sizeof(game->status), "%s", contact);
+          &game->col1, u->x, u->y, u->nation_id, contact, sizeof(contact), &first_indian
+        )) {
+      if (first_indian >= 4) {
+        ColonizeTurnContext ctx;
+        game_fill_turn_context(game, &ctx);
+        (void)ai_contact_try_first_welcome(&ctx, u->nation_id, first_indian);
+      } else if (contact[0]) {
+        snprintf(game->status, sizeof(game->status), "%s", contact);
+      }
     }
   }
   game->map_cursor_x = u->x;
@@ -3558,6 +3564,7 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->status = game->status;
   ctx->status_size = sizeof(game->status);
   ctx->ai_popups = &game->ai_popups;
+  ctx->messages = &game->messages;
 }
 
 /* Purchased-ship cargo tags (see europe_board_sentry_dockers): 0 = Colonists,

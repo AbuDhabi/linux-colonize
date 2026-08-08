@@ -1,5 +1,7 @@
 /* Smoke: Indian meet + friction raid loot (@RAID* kinds) + prelude encroachment. */
 #include "core/ai_contact.h"
+#include "core/ai_diplo.h"
+#include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/founding_fathers.h"
@@ -804,18 +806,24 @@ int main(void) {
 
   /*
    * First-meet status (gold in 10..19 → gift skips silent; learned → teach skips):
-   * "You meet the …"
+   * FUN_5bfb_022e WELCOME → "The … offer peace."
    */
   ind->met_by_player[0] = 0;
+  ind->unknown33[0] = 0;
   col1.nation[0].gold = 15; /* ≥10 no refuse; <20 no gift drain */
-  col1.nation[0].relation_by_indian[0] = 80; /* post-meet trade still gated ≥40 */
+  col1.nation[0].relation_by_indian[0] = 0;
   status[0] = '\0';
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!ind->met_by_player[0]) {
     return fail("meet should set met_by_player for status path");
   }
-  if (strstr(status, "meet") == NULL) {
-    return fail("meet should set human-facing status line");
+  if (strstr(status, "peace") == NULL && strstr(status, "Peace") == NULL &&
+      strstr(status, "visit") == NULL && strstr(status, "friendship") == NULL) {
+    fprintf(stderr, "smoke_ai_contact: first-meet status '%s'\n", status);
+    return fail("meet should set human-facing peace-offer status");
+  }
+  if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
+    return fail("auto-accept first meet (no popups) should set peace");
   }
 
   /*
@@ -2206,8 +2214,9 @@ int main(void) {
   }
 
   /*
-   * AI popup unpark: first meet enqueues CONTACT_MEET CHOICE; Trade apply
-   * runs thin auto-trade + follow-up OK. Cite: FUN_5bfb_022e.
+   * AI popup unpark: first meet enqueues CONTACT_WELCOME Yes/No; Accept →
+   * peace + Meet CHOICE; Trade apply runs thin auto-trade. Cite: FUN_5bfb_022e /
+   * FUN_5bfb_0182.
    */
   {
     AiPopupState pop;
@@ -2232,13 +2241,14 @@ int main(void) {
     euro2->profession = UNITS_JOB_NONE;
     ind->met_by_player[0] = 0;
     ind->alarm_by_player[0] = 0;
+    ind->unknown33[0] = 0;
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].x = 5;
     col1.tribe[0].y = 5;
     col1.tribe[0].alarm[0].friction = 0;
     col1.tribe[0].state.learned = 1; /* skip teach side-queue */
     col1.tribe[0].mission = 0xff;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.nation[0].relation_by_indian[0] = 0;
     col1.nation[0].gold = 30;
     ColonizeColony* c_pop = &colonies.colonies[0];
     c_pop->active = true;
@@ -2264,20 +2274,78 @@ int main(void) {
       return fail("popup meet should set met_by_player");
     }
     if (pop.queue_count < 1) {
-      return fail("popup meet should enqueue CONTACT_MEET CHOICE");
+      return fail("popup meet should enqueue CONTACT_WELCOME CHOICE");
     }
-    if (pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET ||
+    if (pop.queue[0].tag != AI_POPUP_TAG_CONTACT_WELCOME ||
         pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
-      return fail("first queue entry should be CONTACT_MEET CHOICE");
+      return fail("first queue entry should be CONTACT_WELCOME Yes/No");
     }
-    /* Deferred auto: trade goods unchanged until CHOICE apply. */
+    /* Deferred auto: trade goods unchanged until treaty + Meet CHOICE. */
     if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0) {
-      return fail("meet CHOICE should defer auto-trade");
+      return fail("WELCOME should defer auto-trade");
     }
 
     if (!ai_popup_try_present_next(&pop)) {
-      return fail("present meet CHOICE");
+      return fail("present WELCOME CHOICE");
     }
+    /* Accept peace (Yes). */
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1; /* YES */
+    pop.result_tag = AI_POPUP_TAG_CONTACT_WELCOME;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 0;
+    ai_contact_apply_popup_result(&ctx, &pop);
+    ai_popup_consume_result(&pop);
+    if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
+      return fail("WELCOME Yes should set peace bit");
+    }
+    if (ai_diplo_indian_at_war(&col1, 0, 0)) {
+      return fail("WELCOME Yes should not be at war");
+    }
+    if (ai_diplo_indian_relation(&col1, 4, 0) < 40) {
+      return fail("WELCOME Yes should raise relation above refuse band");
+    }
+
+    /* Follow-ups: PEACE OK(s) + Meet CHOICE. */
+    int saw_meet = 0;
+    for (int qi = 0; qi < pop.queue_count; ++qi) {
+      if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET &&
+          pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
+        saw_meet = 1;
+      }
+    }
+    if (!saw_meet) {
+      return fail("WELCOME Yes should enqueue Meet CHOICE after peace");
+    }
+
+    /* Drain OK popups until Meet CHOICE is current. */
+    while (pop.queue_count > 0 || pop.open) {
+      if (!pop.open) {
+        if (!ai_popup_try_present_next(&pop)) {
+          break;
+        }
+      }
+      if (pop.current.tag == AI_POPUP_TAG_CONTACT_MEET &&
+          pop.current.kind == AI_POPUP_KIND_CHOICE) {
+        break;
+      }
+      /* Dismiss OK. */
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 0;
+      pop.result_tag = pop.current.tag;
+      pop.result_nation_a = pop.current.nation_a;
+      pop.result_nation_b = pop.current.nation_b;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      ai_popup_consume_result(&pop);
+      pop.open = false;
+    }
+    if (!pop.open || pop.current.tag != AI_POPUP_TAG_CONTACT_MEET) {
+      return fail("should present Meet CHOICE after peace OKs");
+    }
+
     /* Simulate Trade selection. */
     pop.has_result = true;
     pop.result_cancelled = false;
@@ -2420,26 +2488,109 @@ int main(void) {
       /* Euro adjacent to both Braves (6,5 touches 5,5 and 5,6). */
       ind->met_by_player[0] = 0;
       ind->alarm_by_player[0] = 0;
+      ind->unknown33[0] = 0;
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].alarm[0].friction = 0;
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
-      col1.nation[0].relation_by_indian[0] = 80;
+      col1.nation[0].relation_by_indian[0] = 0;
       st_pop[0] = '\0';
       ai_contact_indian_meet_trade(&ctx, 4);
       if (!ind->met_by_player[0]) {
         return fail("second-brave meet should set met_by_player");
       }
-      int meet_choices = 0;
+      int welcome_choices = 0;
       for (int qi = 0; qi < pop.queue_count; ++qi) {
         if (pop.queue[qi].kind == AI_POPUP_KIND_CHOICE &&
-            pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET) {
-          meet_choices++;
+            pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_WELCOME) {
+          welcome_choices++;
         }
       }
-      if (meet_choices != 1) {
-        fprintf(stderr, "smoke_ai_contact: meet CHOICE count=%d\n", meet_choices);
-        return fail("second Brave same pulse must not re-offer Meet CHOICE");
+      if (welcome_choices != 1) {
+        fprintf(stderr, "smoke_ai_contact: WELCOME CHOICE count=%d\n", welcome_choices);
+        return fail("second Brave same pulse must not re-offer WELCOME");
+      }
+    }
+
+    /*
+     * WELCOME No → @INDIANSHUN + at war. Cite: FUN_5bfb_022e reject.
+     */
+    {
+      ai_popup_clear(&pop);
+      ind->met_by_player[0] = 0;
+      ind->unknown33[0] = 0;
+      ind->alarm_by_player[0] = 0;
+      col1.nation[0].relation_by_indian[0] = 10;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && u->nation_id == 4) {
+          units_despawn(&units, u->id);
+        }
+      }
+      const int bn = units_spawn_allow_stack(&units, 0, 5, 5);
+      const int en = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* bnu = units_get(&units, bn);
+      ColonizeUnit* enu = units_get(&units, en);
+      if (!bnu || !enu) {
+        return fail("WELCOME No spawn");
+      }
+      bnu->nation_id = 4;
+      enu->nation_id = 0;
+      st_pop[0] = '\0';
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_WELCOME) {
+        return fail("WELCOME No setup should enqueue WELCOME");
+      }
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* NO */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_WELCOME;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (ai_contact_indian_has_peace(&col1, 4, 0)) {
+        return fail("WELCOME No should not set peace");
+      }
+      if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
+        return fail("WELCOME No should declare war");
+      }
+      if (strstr(st_pop, "WAR") == NULL && strstr(st_pop, "War") == NULL) {
+        fprintf(stderr, "smoke_ai_contact: reject status '%s'\n", st_pop);
+        return fail("WELCOME No should set Prepare for WAR status");
+      }
+    }
+
+    /*
+     * After Accept, second adjacency must not refuse solely due to relation==0.
+     */
+    {
+      ai_popup_clear(&pop);
+      ind->met_by_player[0] = 1;
+      ind->unknown33[0] = 0x40; /* peace */
+      ind->alarm_by_player[0] = 10;
+      col1.nation[0].relation_by_indian[0] = 100;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && (u->nation_id == 4 || (u->nation_id == 0 && units_is_sea(&units, u->id) == 0))) {
+          /* keep one brave + one euro land */
+        }
+      }
+      /* Ensure adjacency pair */
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && u->nation_id == 4) {
+          u->x = 5;
+          u->y = 5;
+        }
+        if (u->active && u->nation_id == 0 && !units_is_sea(&units, u->id)) {
+          u->x = 6;
+          u->y = 5;
+        }
+      }
+      st_pop[0] = '\0';
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (strstr(st_pop, "refuse to talk") != NULL) {
+        return fail("post-peace adjacency must not refuse-talk");
       }
     }
 
