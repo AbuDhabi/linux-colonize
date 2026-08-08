@@ -230,7 +230,9 @@ static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
   const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
   ColonizeTurnResult* out,
   ColonizeColonyProdDelta* delta
 ) {
@@ -400,12 +402,22 @@ static void turn_produce_one_colony(
   if (out) {
     out->colonies_produced++;
   }
+
+  /*
+   * Custom House auto-sell after production (FUN_364b_0688). Needs europe
+   * bids; col1 optional (WoI tax skip + nation gold).
+   */
+  if (europe) {
+    (void)europe_custom_house_autosell(europe, pool, colony, col1, human_nation);
+  }
 }
 
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
   ColonizeTurnResult* out
 ) {
   if (!pool) {
@@ -413,7 +425,9 @@ void turn_run_colony_production(
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active) {
-      turn_produce_one_colony(pool, &pool->colonies[i], map, col1, out, NULL);
+      turn_produce_one_colony(
+        pool, &pool->colonies[i], map, col1, europe, human_nation, out, NULL
+      );
     }
   }
 }
@@ -427,7 +441,9 @@ void turn_colony_free_production(
 ) {
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
-  turn_produce_one_colony(pool, colony, map, NULL, out ? out : &local, out_delta);
+  turn_produce_one_colony(
+    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta
+  );
 }
 
 static int turn_count_bells_and_crosses_for_nation(
@@ -705,7 +721,12 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1->head.autumn = *ctx->game_autumn;
       }
       turn_run_colony_production(
-        ctx->colonies, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, &proc->result
+        ctx->colonies,
+        ctx->map,
+        ctx->col1_ok ? ctx->col1 : NULL,
+        ctx->europe,
+        ctx->human_nation,
+        &proc->result
       );
       turn_run_nation_ticks(ctx, &proc->result);
       proc->nation_cursor = 0;

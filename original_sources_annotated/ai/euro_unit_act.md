@@ -300,8 +300,7 @@ Lumberjack→Lumber; Colonization.pdf Skills Chart. Structural LABOR join only.
 peace Pioneer/Hardy within MD≤8 is LABOR-bound toward a tools-short colony
 (feeds on-tile §2d tools delivery). Cite: euro_unit_act §2d; 5cf6 tools tallies.
 
-**PARK:** Custom House auto-sell gold/thresholds (fandom Stuyvesant /
-wiki 100/50 strategy) — construction prefer only (see below). Drydock /
+**PARK:** Custom House per-cargo UI chrome (`FUN_15eb_0326`). Drydock /
 Shipyard prefer already wired via `colonies_list_buildable` +
 `colonies_set_construction`.
 
@@ -309,7 +308,12 @@ Shipyard prefer already wired via `colonies_list_buildable` +
 Stuyvesant (`founding_fathers_nation_has` / `has_peter_stuyvesant`), idle
 colony without Custom House queues it after Drydock→Shipyard prefer.
 Cite: docs/fandom_col1994.md Stuyvesant; colony.c Custom House gate;
-founding_fathers elect comment. No auto-sell behavior.
+founding_fathers elect comment.
+
+**Custom House auto-sell:** `europe_custom_house_autosell` from
+`turn_produce` / `turn_run_colony_production` — `FUN_364b_0688` stock>99
+leave 50; `FUN_364b_0636` denylist (not Food/Lumber/Horses/Tools/Muskets);
+boycott bypass; WoI (`unknown46[0]`) untaxed.
 
 **Expert Lumberjack forest field-assign (unparked):** idle Expert Lumberjack →
 admit + `colonies_assign_field` on a free forest surround (pedia 8–23) with

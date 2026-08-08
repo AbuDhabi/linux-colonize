@@ -340,6 +340,29 @@ int europe_sell_unit_hold(
   int unit_id,
   int hold_index
 );
+
+/* Forward decls — avoid pulling colony/col1 into every europe consumer. */
+struct ColonizeColonyPool;
+struct ColonizeColony;
+struct ColonizeCol1Save;
+
+/*
+ * FUN_364b_0688 Custom House auto-sell (colony EOT after production).
+ * Requires Custom House building. Per cargo: mask (0=all eligible) +
+ * FUN_364b_0636 denylist (not Food/Lumber/Horses/Tools/Muskets) + stock>99
+ * → sell stock-50 (leave 50). Boycott does not block. Tax via eu tax /
+ * nation tax_rate unless WoI (col1 head.unknown46[0]). Credits
+ * col1->nation[n].gold; also eu->gold when n==human_nation.
+ * Returns total gold credited. PARK: per-cargo UI chrome (FUN_15eb_0326).
+ */
+int europe_custom_house_autosell(
+  EuropeScreen* eu,
+  struct ColonizeColonyPool* pool,
+  struct ColonizeColony* colony,
+  struct ColonizeCol1Save* col1,
+  int human_nation
+);
+
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 
