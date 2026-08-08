@@ -1345,6 +1345,155 @@ static int smoke_multistep_military(void) {
 }
 
 /*
+ * Jan de Witt AI: Wagon on foreign Euro colony loads TRADE_GOODS surplus.
+ * Cite: fandom Jan de Witt; colonies_de_witt_transfer_*; ai_euro_try_de_witt_foreign_trade.
+ */
+static int smoke_de_witt_wagon_foreign_trade(void) {
+  const int nation = 0;
+  const int foreign = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 12;
+  map.height = 12;
+  map.tile_count = 144;
+  map.terrain = calloc(144, 1);
+  map.layer2 = calloc(144, 1);
+  map.layer3 = calloc(144, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("de Witt wagon alloc map");
+  }
+  for (int i = 0; i < 144; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  memset(units.types, 0, sizeof(units.types));
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].movement = 3;
+  units.types[0].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* home = &colonies.colonies[0];
+  home->id = 0;
+  home->active = true;
+  home->nation_id = nation;
+  home->x = 2;
+  home->y = 2;
+  home->population = 2;
+  home->building_in_production = -1;
+  home->stock[COLONIZE_CARGO_FOOD] = 40;
+  home->stock[COLONIZE_CARGO_TOOLS] = 50;
+  home->stock[COLONIZE_CARGO_MUSKETS] = 50;
+  home->stock[COLONIZE_CARGO_HORSES] = 50;
+  ColonizeColony* fr = &colonies.colonies[1];
+  fr->id = 1;
+  fr->active = true;
+  fr->nation_id = foreign;
+  fr->x = 5;
+  fr->y = 5;
+  fr->population = 3;
+  fr->building_in_production = -1;
+  fr->stock[COLONIZE_CARGO_FOOD] = 30;
+  fr->stock[COLONIZE_CARGO_TRADE_GOODS] = 40;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int wid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* wagon = units_get(&units, wid);
+  if (!wagon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("de Witt wagon spawn");
+  }
+  wagon->nation_id = nation;
+  wagon->moves_left = 3;
+  wagon->orders = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  col1.player[nation].control = 0;
+  col1.player[foreign].control = 1;
+  col1.nation[nation].gold = 100;
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.human_nation = nation;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+
+  /* Without FF: refuse load (API already smoked); act must not strip foreign stock. */
+  turn_refresh_moves_for_nation(&units, nation, &col1, &map);
+  ai_goals_reset();
+  ai_euro_dispatcher_turn(&ctx, nation);
+  if (fr->stock[COLONIZE_CARGO_TRADE_GOODS] != 40) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("de Witt wagon must not load without FF");
+  }
+
+  /* With FF: pin wagon on foreign tile and load TRADE_GOODS. */
+  col1.head.founding_father[FF_JAN_DE_WITT] = 0;
+  col1.nation[nation].founding_fathers[FF_JAN_DE_WITT / 8] |=
+    (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
+  wagon = units_get(&units, wid);
+  if (!wagon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("de Witt wagon despawned");
+  }
+  wagon->x = 5;
+  wagon->y = 5;
+  wagon->orders = 0;
+  wagon->goto_x = UNITS_GOTO_NONE;
+  wagon->goto_y = UNITS_GOTO_NONE;
+  turn_refresh_moves_for_nation(&units, nation, &col1, &map);
+  ai_euro_dispatcher_turn(&ctx, nation);
+  wagon = units_get(&units, wid);
+  {
+    int got = 0;
+    const int n = units_goods_hold_count(&units, wid);
+    for (int h = 0; h < n; ++h) {
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_TRADE_GOODS) {
+        got += wagon->hold_goods_amount[h];
+      }
+    }
+    if (got != 10 || fr->stock[COLONIZE_CARGO_TRADE_GOODS] != 30) {
+      free(map.terrain);
+      free(map.layer2);
+      free(map.layer3);
+      fprintf(
+        stderr,
+        "de Witt wagon got=%d foreign_stock=%d\n",
+        got,
+        fr->stock[COLONIZE_CARGO_TRADE_GOODS]
+      );
+      return fail("de Witt wagon should load 10 TRADE_GOODS from foreign");
+    }
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: de Witt wagon foreign TRADE_GOODS ok\n");
+  return 0;
+}
+
+/*
  * Case-7 dock expert once: peace + tools_short high + Europe dock has
  * Hardy Pioneers → board that type (consume dock); do not invent if absent.
  */
@@ -9115,6 +9264,9 @@ int main(void) {
     return 1;
   }
   if (smoke_multistep_military() != 0) {
+    return 1;
+  }
+  if (smoke_de_witt_wagon_foreign_trade() != 0) {
     return 1;
   }
   if (smoke_dock_expert_hire() != 0) {

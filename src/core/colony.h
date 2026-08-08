@@ -336,7 +336,7 @@ int colonies_transfer_from_unit(
  * colony (stock only — no gold/price). Requires
  * founding_fathers_de_witt_allows_foreign_colony_trade for the unit's nation,
  * unit on the colony tile, foreign Euro owner, and !ai_diplo_at_war.
- * Cite: docs/fandom_col1994.md Jan de Witt. AI trade act PARKED.
+ * Cite: docs/fandom_col1994.md Jan de Witt. AI wagon/ship act in ai_euro §2d4.
  */
 int colonies_de_witt_transfer_from_colony(
   ColonizeColonyPool* pool,

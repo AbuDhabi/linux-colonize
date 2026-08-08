@@ -48,8 +48,8 @@ int col1_destroy_tribe_at(
 
 /*
  * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte).
- * rich_capital: stack-local -0xcc (PARK 0 until mapped). Returns 0 if no
- * treasure / no rng. Cite: viceroy_unpacked.c ~101407–101495.
+ * rich_capital: stack-local -0xcc ← ColonizeCol1TribeState.capital.
+ * Returns 0 if no treasure / no rng. Cite: viceroy_unpacked.c ~101407–101495.
  */
 int units_cortes_conquest_treasure_gold(
   const ColonizeCol1Save* col1,

@@ -111,8 +111,8 @@ bool founding_fathers_de_soto_lcr_always_positive(
  * Jan de Witt (docs/fandom_col1994.md Trade):
  * Trade with foreign colonies allowed; FA report more revealing.
  * Ownership gate for foreign-colony trade. FA detailed strength already peeks
- * head.founding_father[4] in reports.c. Foreign-colony cargo transfer API
- * missing — trade effect PARKED (no invent gold).
+ * head.founding_father[4] in reports.c. Cargo: colonies_de_witt_transfer_*;
+ * AI wagon/ship trade act in ai_euro (stock only; no gold invent).
  */
 bool founding_fathers_de_witt_allows_foreign_colony_trade(
   const ColonizeCol1Save* col1,
@@ -126,9 +126,9 @@ bool founding_fathers_de_witt_allows_foreign_colony_trade(
  * Spawn API: units_spawn_treasure_train. Fallout hook:
  * units_try_native_settlement_fallout (wired from units_resolve_land_combat_ff
  * when units_set_native_fallout_context is set). Amount: gold_amount>0 or
- * units_cortes_conquest_treasure_gold (FUN_5fef_31ea peel); rich_capital PARK.
- * FUN_5fef_31ea amount table still PARKED. Fallout also increments
- * nation.villages_burned (col1_save.h; reports.c villages_penalty).
+ * units_cortes_conquest_treasure_gold (FUN_5fef_31ea peel); rich_capital ←
+ * tribe.state.capital. Fallout also increments nation.villages_burned
+ * (col1_save.h; reports.c villages_penalty).
  */
 bool founding_fathers_cortes_guarantees_conquest_treasure(
   const ColonizeCol1Save* col1,

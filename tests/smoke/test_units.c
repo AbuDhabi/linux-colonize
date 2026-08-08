@@ -1570,6 +1570,23 @@ int main(void) {
       return 1;
     }
 
+    /* rich_capital (-0xcc) ← tribe.state.capital doubles amount before Cortes boost. */
+    {
+      ColonizeDosRng r0;
+      ColonizeDosRng r1;
+      dos_rng_seed(&r0, 99);
+      dos_rng_seed(&r1, 99);
+      const int plain = units_cortes_conquest_treasure_gold(&col1, 0, &r0, 0);
+      const int rich = units_cortes_conquest_treasure_gold(&col1, 0, &r1, 1);
+      if (plain <= 0 || rich <= plain) {
+        free(tmap.layer3);
+        free(col1.tribe);
+        fprintf(stderr, "rich_capital peel plain=%d rich=%d (want rich>plain>0)\n", plain, rich);
+        return 1;
+      }
+      fprintf(stderr, "smoke_units: Cortes rich_capital plain=%d rich=%d ok\n", plain, rich);
+    }
+
     /* Known gold path: Cortes spawns treasure when caller supplies amount. */
     col1.head.tribe_count = 1;
     col1.tribe[0].x = 11;

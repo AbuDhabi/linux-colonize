@@ -586,7 +586,8 @@ static void apply_effect(
       /* docs/fandom_col1994.md: trade with foreign colonies; FA more revealing.
        * Ownership gate: founding_fathers_de_witt_allows_foreign_colony_trade.
        * FA detailed strength already peeks head.founding_father[4] (reports).
-       * Cargo: colonies_de_witt_transfer_* (stock only; AI trade act PARKED). */
+       * Cargo: colonies_de_witt_transfer_* + ai_euro de Witt wagon/ship act
+       * (stock only; no gold invent). */
       break;
     case FF_FERDINAND_MAGELLAN:
       /* Manual/wiki: all naval vessels +1 movement (permanent). */
@@ -618,7 +619,7 @@ static void apply_effect(
        * units_spawn_treasure_train; free king-galleon via
        * founding_fathers_cortes_free_king_galleon. Fallout wired from
        * units_resolve_land_combat_ff when fallout context set. rich_capital
-       * (-0xcc) still PARKED as 0. */
+       * (-0xcc) ← tribe.state.capital. */
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.

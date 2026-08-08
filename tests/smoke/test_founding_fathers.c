@@ -1616,6 +1616,74 @@ int main(void) {
     }
   }
 
+  /* de Witt: ships may enter foreign Euro colony dock at peace (units_can_enter). */
+  {
+    ColonizeCol1Save dcol1;
+    col1_save_init(&dcol1);
+    seed_unclaimed(&dcol1);
+    dcol1.head.founding_father[FF_JAN_DE_WITT] = 0;
+    dcol1.nation[0].founding_fathers[FF_JAN_DE_WITT / 8] |=
+      (uint8_t)(1u << (FF_JAN_DE_WITT % 8));
+
+    ColonizeWorldMap dmap;
+    memset(&dmap, 0, sizeof(dmap));
+    dmap.width = 8;
+    dmap.height = 8;
+    dmap.tile_count = 64;
+    dmap.terrain = calloc(64, 1);
+    dmap.layer2 = calloc(64, 1);
+    dmap.layer3 = calloc(64, 1);
+    if (!dmap.terrain || !dmap.layer2 || !dmap.layer3) {
+      return fail("de Witt dock map alloc");
+    }
+    for (int i = 0; i < 64; ++i) {
+      dmap.terrain[i] = 25; /* ocean */
+    }
+    dmap.terrain[3 * 8 + 3] = 1; /* colony land */
+
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* foreign = &pool.colonies[0];
+    memset(foreign, 0, sizeof(*foreign));
+    foreign->active = true;
+    foreign->id = 0;
+    foreign->nation_id = 1;
+    foreign->x = 3;
+    foreign->y = 3;
+    foreign->building_in_production = -1;
+    pool.colony_count = 1;
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    memset(units.types, 0, sizeof(units.types));
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    units.types[0].cargo = 4;
+    units.types[0].movement = 4;
+    const int uid = units_spawn(&units, 0, 3, 2);
+    ColonizeUnit* ship = units_get(&units, uid);
+    if (!ship) {
+      map_free(&dmap);
+      return fail("de Witt dock ship spawn");
+    }
+    ship->nation_id = 0;
+
+    units_set_ff_col1(&dcol1);
+    if (!units_can_enter(&units, 0, &dmap, 3, 3, uid, &pool)) {
+      map_free(&dmap);
+      return fail("de Witt ship should enter foreign dock at peace");
+    }
+    ai_diplo_declare_war(&dcol1, 0, 1);
+    if (units_can_enter(&units, 0, &dmap, 3, 3, uid, &pool)) {
+      map_free(&dmap);
+      return fail("de Witt ship must not enter foreign dock at war");
+    }
+    units_set_ff_col1(NULL);
+    map_free(&dmap);
+    fprintf(stderr, "smoke_founding_fathers: de Witt ship foreign dock enter ok\n");
+  }
+
   /* Sepulveda / de Soto LCR / de Witt — ownership gates; de Soto LCR wired. */
   {
     ColonizeCol1Save gcol1;
