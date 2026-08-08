@@ -83,6 +83,12 @@ typedef struct ColonizeColony {
   int stock[COLONIZE_CARGO_COUNT];
   int hammers;
   int building_in_production; /* @BUILDING index, or -1 */
+  /*
+   * Custom House per-cargo enable mask (ColonizeCol1CustomHouse bit layout:
+   * bit0=Food … bit15=Muskets). 0 = all eligible types enabled (no UI chrome
+   * yet; AI / new colonies). Cite: FUN_15eb_0302 colony+0x8a.
+   */
+  uint16_t custom_house_bits;
 } ColonizeColony;
 
 typedef struct ColonizeColonyPool {

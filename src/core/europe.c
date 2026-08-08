@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -1320,6 +1321,105 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
   return gained;
+}
+
+/*
+ * FUN_364b_0636: Custom House may auto-sell this cargo type.
+ * Deny Food(0), Lumber(5), Horses(8), Tools(0xe), Muskets(0xf).
+ * Ore(6) extra DOS deny path not mapped — allow Ore (no invent).
+ */
+static int europe_custom_house_cargo_eligible(int cargo_type) {
+  if (cargo_type == COLONIZE_CARGO_FOOD || cargo_type == COLONIZE_CARGO_LUMBER ||
+      cargo_type == COLONIZE_CARGO_HORSES || cargo_type == COLONIZE_CARGO_TOOLS ||
+      cargo_type == COLONIZE_CARGO_MUSKETS) {
+    return 0;
+  }
+  return cargo_type >= 0 && cargo_type < COLONIZE_CARGO_COUNT;
+}
+
+static int europe_custom_house_bit_enabled(uint16_t bits, int cargo_type) {
+  /* bits==0 → all eligible (no per-cargo UI yet). */
+  if (bits == 0) {
+    return 1;
+  }
+  return (bits >> cargo_type) & 1u;
+}
+
+int europe_custom_house_autosell(
+  EuropeScreen* eu,
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  int human_nation
+) {
+  /*
+   * FUN_364b_0688 after production: Custom House + type gate + stock>99 →
+   * sell stock-50. Cite: viceroy_unpacked.c FUN_364b_0688 / FUN_364b_0636;
+   * docs/fandom_col1994.md Custom House (boycott bypass; WoI untaxed).
+   */
+  if (!eu || !pool || !colony || !colony->active) {
+    return 0;
+  }
+  const int ch_id = colonies_find_building(pool, "Custom House");
+  if (ch_id < 0 || ch_id >= COLONIZE_BUILDING_TYPES_MAX || !colony->has_building[ch_id]) {
+    return 0;
+  }
+  const int nation = colony->nation_id;
+  const int woi = col1 && col1->head.unknown46[0] != 0;
+  int tax = 0;
+  if (!woi) {
+    if (nation == human_nation) {
+      tax = eu->tax_percent;
+    } else if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
+      tax = (int)col1->nation[nation].tax_rate;
+    } else {
+      tax = eu->tax_percent;
+    }
+  }
+  if (tax < 0) {
+    tax = 0;
+  }
+  if (tax > 100) {
+    tax = 100;
+  }
+
+  int total = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    if (!europe_custom_house_cargo_eligible(c)) {
+      continue;
+    }
+    if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
+      continue;
+    }
+    /* FUN_364b_0688: if (99 < stock) sell stock - 0x32 (leave 50). */
+    if (colony->stock[c] <= 99) {
+      continue;
+    }
+    const int amount = colony->stock[c] - 50;
+    if (amount <= 0) {
+      continue;
+    }
+    if (c >= eu->cargo_count) {
+      continue;
+    }
+    const int bid = eu->cargo[c].bid;
+    if (bid <= 0) {
+      continue;
+    }
+    const int gained = (bid * amount * (100 - tax)) / 100;
+    colony->stock[c] = 50;
+    total += gained;
+    if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
+      col1->nation[nation].gold += (uint32_t)gained;
+    }
+    if (nation == human_nation) {
+      eu->gold += gained;
+    }
+  }
+  if (total > 0) {
+    snprintf(eu->status, sizeof(eu->status), "Custom House sold goods for %d$.", total);
+  }
+  return total;
 }
 
 int europe_sell_unit_hold(

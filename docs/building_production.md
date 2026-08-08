@@ -230,7 +230,7 @@ From manual player-aid **Building Chart** + [`NAMES.TXT`](../COLONIZE/NAMES.TXT)
 | **Cathedral** | 176 | 100 | 8 | More crosses |
 | **Printing Press** | 52 | 20 | 1 | +50% liberty bells |
 | **Newspaper** | 120 | 50 | 4 | +100% liberty bells |
-| **Custom House** | 160 | 50 | 0 | Auto-sell (**Peter Stuyvesant**) |
+| **Custom House** | 160 | 50 | 0 | Auto-sell (**Peter Stuyvesant**) — `europe_custom_house_autosell` |
 
 † Starter “free” buildings: **0** hammer cost to appear at founding; Carpenter’s Shop is **39** hammers in `NAMES.TXT` if built later.
 

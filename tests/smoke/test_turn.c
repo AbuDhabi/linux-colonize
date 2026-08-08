@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
@@ -636,6 +637,110 @@ int main(void) {
     }
     assets_msg_free(&names);
     map_free(&map);
+  }
+
+  /*
+   * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
+   * Food denied; boycott bypass; tax then WoI untaxed.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(
+      pool.building_types[0].name, sizeof(pool.building_types[0].name), "Custom House"
+    );
+    pool.building_type_count = 1;
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->has_building[0] = true;
+    col->building_in_production = -1;
+    col->custom_house_bits = 0;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    col->stock[COLONIZE_CARGO_FOOD] = 200;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    eu.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+      eu.cargo[i].bid = 10;
+    }
+    eu.gold = 0;
+    eu.tax_percent = 20;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
+
+    const int gained = europe_custom_house_autosell(&eu, &pool, col, &col1, 0);
+    /* 70 × 10 × 80/100 = 560; boycott bit ignored. */
+    if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || col->stock[COLONIZE_CARGO_FOOD] != 200) {
+      fprintf(
+        stderr,
+        "custom house stock tobacco=%d food=%d (want 50/200)\n",
+        col->stock[COLONIZE_CARGO_TOBACCO],
+        col->stock[COLONIZE_CARGO_FOOD]
+      );
+      return 1;
+    }
+    if (gained != 560 || eu.gold != 560 || col1.nation[0].gold != 560u) {
+      fprintf(
+        stderr,
+        "custom house gold gained=%d eu=%d nat=%u (want 560)\n",
+        gained,
+        eu.gold,
+        (unsigned)col1.nation[0].gold
+      );
+      return 1;
+    }
+
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    eu.gold = 0;
+    col1.nation[0].gold = 0;
+    col1.head.unknown46[0] = 1; /* WoI — tax 0 */
+    const int gained_woi = europe_custom_house_autosell(&eu, &pool, col, &col1, 0);
+    if (gained_woi != 700 || eu.gold != 700) {
+      fprintf(stderr, "custom house WoI gained=%d eu=%d (want 700)\n", gained_woi, eu.gold);
+      return 1;
+    }
+
+    /* Mask bit off → no sell for that cargo. */
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_SUGAR); /* tobacco off */
+    eu.gold = 0;
+    if (europe_custom_house_autosell(&eu, &pool, col, &col1, 0) != 0 ||
+        col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
+      fprintf(stderr, "custom house mask should skip tobacco\n");
+      return 1;
+    }
+
+    /* turn_run_colony_production wires autosell. */
+    col->custom_house_bits = 0;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    col->colonists[0].active = true;
+    col->colonist_count = 1;
+    col->population = 1;
+    col->stock[COLONIZE_CARGO_FOOD] = 10; /* eat 2 */
+    eu.gold = 0;
+    col1.head.unknown46[0] = 0;
+    col1.nation[0].gold = 0;
+    eu.tax_percent = 0;
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod);
+    if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 700) {
+      fprintf(
+        stderr,
+        "produce+CH tobacco=%d gold=%d (want 50/700)\n",
+        col->stock[COLONIZE_CARGO_TOBACCO],
+        eu.gold
+      );
+      return 1;
+    }
+    fprintf(stderr, "custom house autosell ok\n");
   }
 
   fprintf(stderr, "turn tests ok\n");

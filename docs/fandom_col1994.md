@@ -105,7 +105,7 @@ Wiki upgrade chains and workplace table: [Building (Col)](https://civilization.f
 | Storage | Warehouse → Warehouse Expansion | |
 | Other | Town Hall, Stable, Custom House | Custom House needs Stuyvesant |
 
-**Custom House** ([Custom House (Col)](https://civilization.fandom.com/wiki/Custom_House_(Col))): After Stuyvesant, auto-sells to Europe (wiki strategy: sells excess above 50 when ≥100 of a configured cargo type, before spoilage). Sells boycotted goods; during Revolution continues trade (bids frozen at declaration; sales untaxed per wiki). Port: gate Partial in construction list; auto-sell Missing.
+**Custom House** ([Custom House (Col)](https://civilization.fandom.com/wiki/Custom_House_(Col))): After Stuyvesant, auto-sells to Europe (wiki strategy: sells excess above 50 when ≥100 of a configured cargo type, before spoilage). Sells boycotted goods; during Revolution continues trade (bids frozen at declaration; sales untaxed per wiki). Port: gate Partial in construction list; auto-sell **Done** structural (`europe_custom_house_autosell` / `FUN_364b_0688` stock>99 leave 50 + `FUN_364b_0636` denylist; per-cargo UI chrome PARKED).
 
 **Docks** ([Docks (Col)](https://civilization.fandom.com/wiki/Docks_(Col))): Unlock fishing on ocean/lake tiles in catchment; shore / river / fishery bonuses (qualitative). Port: coastal gate Partial; full fishing rules Missing.
 
@@ -217,7 +217,7 @@ Port: all Missing except thin score schedule.
 | Factory efficiency | “1.5 goods per raw” | Port / EXE tier table framed as **6→9** hammers-style throughput | Same intent; keep decomp numbers |
 | Fur Factory min pop | Adam Smith page says factories need pop **8** | [`building_production.md`](building_production.md) lists Fur Factory min **6** from `NAMES` | Prefer `NAMES` / code |
 | Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Looks inconsistent with Discoverer→Governor progression | Verify in decomp / difficulty tables |
-| Custom House sell thresholds (100/50) | Strategy section on Custom House page | Not in manual chart | Verify in decomp before implementing |
+| Custom House sell thresholds (100/50) | Strategy section on Custom House page | Decomp `FUN_364b_0688` (`stock>99` → leave 50) | **Done** structural autosell |
 | SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Manual qualitative ±1 | Verify thresholds in code |
 | Fort/Fortress coastal bombardment strengths | Strategy sections (4+4 art / 8+8 art) | Not in `NAMES` building rows | Combat RE |
 

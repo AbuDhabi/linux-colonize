@@ -115,11 +115,13 @@ void turn_colony_free_production(
   ColonizeColonyProdDelta* out_delta
 );
 
-/* Production for every active colony (used by turn_end). map/col1 may be NULL. */
+/* Production for every active colony (used by turn_end). map/col1/europe may be NULL. */
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
   ColonizeTurnResult* out
 );
 

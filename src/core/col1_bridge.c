@@ -485,6 +485,12 @@ bool col1_bridge_apply(
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
       dst->stock[c] = src->stock[c];
     }
+    {
+      /* ColonizeCol1CustomHouse is 2 bytes packed — same bit layout as runtime mask. */
+      uint16_t bits = 0;
+      memcpy(&bits, &src->custom_house, sizeof(bits));
+      dst->custom_house_bits = bits;
+    }
     col1_apply_colony_buildings(colonies, dst, &src->buildings);
     const int pop = src->population > COLONIZE_COLONY_POP_MAX ? COLONIZE_COLONY_POP_MAX
                                                               : (int)src->population;
@@ -942,6 +948,10 @@ bool col1_bridge_capture(
         dst->tiles[cti] = (int8_t)who;
       }
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
+      {
+        uint16_t bits = src->custom_house_bits;
+        memcpy(&dst->custom_house, &bits, sizeof(bits));
+      }
     }
     free(save->colony);
     save->colony = neu;
