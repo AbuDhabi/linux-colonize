@@ -523,16 +523,22 @@ image offset `0xEF2` for opcodes `0xBB..0xFF`. Timing uses PIT divisor **`0x4DBF
 | Bytes | Meaning |
 |-------|---------|
 | `note, dur` with `note ≤ 0xBA` | Note or rest (`note==0`); duration in ticks |
+| `ED n note×n dur` | Chord (≤4 notes); same gate/dur |
 | `F4 vv` | Set velocity for following notes |
 | `F8 pp` | Program change (GM patch) |
 | `F1 vv` | CC 7 volume |
 | `F0 vv` | CC 10 pan |
+| `F3 period delta` | Volume envelope (per-tick CC7 ramp) |
+| `BB n` | RPN pitch-bend range (CC101=0, CC100=0, CC6=n) |
 | `C2 vv` | CC 91 reverb (**not** program change) |
 | `C1 vv` | CC 93 chorus |
 | `F6` / `F7` | Gate / articulation |
 | `FA addr` / `F9` | Call / return (DS-relative) |
 | `FF nn` | Loop (`nn==0` sets label; else repeat) |
-| `BE a b` | Driver tempo/scale (internal) |
+| `BE a b` / `BF n` | Writes unread tempo product (IRQ still ~60 Hz) |
+
+Event music ids `0x40..0x5C` use table `0x2AC4` (`FUN_1000_19bc`). Interpreter notes:
+[`original_sources_annotated/sound/gsound_interpreter.md`](../original_sources_annotated/sound/gsound_interpreter.md).
 
 MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
 Closest practical playback: FluidSynth + an SC-55-character SoundFont.
