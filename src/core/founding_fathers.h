@@ -56,6 +56,38 @@ unsigned founding_fathers_bells_needed(unsigned elected_count);
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);
 
 /*
+ * Benjamin Franklin gate (docs/fandom_col1994.md / PEDIA):
+ * King's European wars no longer affect New World relations; Europeans in the
+ * New World always offer peace in negotiations.
+ * Ownership: founding_fathers_nation_has (head owner or nation bitmask;
+ * head.founding_father[i]==-1 when unclaimed). Wired from ai_diplo
+ * euro_balance / declare_war (war-hit side effects).
+ */
+bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation);
+
+/*
+ * Father Jean de Brebeuf gate (docs/fandom_col1994.md):
+ * All missionaries function as experts (Jesuit-grade). Ownership only —
+ * no elect crosses fiction. Wired from ai_contact mid-band convert
+ * (plain Missionary treated as PEDIA @JOB24 Jesuit when owned).
+ */
+bool founding_fathers_brebeuf_missionaries_are_experts(
+  const ColonizeCol1Save* col1,
+  int nation
+);
+
+/*
+ * Bartolome de las Casas (PEDIA @FATHER24 / docs/fandom_col1994.md):
+ * Existing Indian converts assimilate as free colonists.
+ * Elect + ownership tick in founding_fathers_tick: NAMES @JOB Convert (27)
+ * → Free Colonists (19) on owned colony colonists and map units. No gold /
+ * crosses fiction. Sepulveda convert-join stays PARKED (needs 2820/4528).
+ * Cortes treasure yield + free king-galleon transport stay PARKED (no
+ * FUN_5fef_31ea spawn / Europe galleon hook in FF exclusive writes; no
+ * invented gold amounts — docs/fandom_col1994.md Hernan Cortes).
+ */
+
+/*
  * Paul Revere gate (PEDIA / wiki): colony with no standing soldiers is attacked
  * and has stockpiled muskets → auto-arm a colonist defender.
  * Returns true when the nation owns Revere, has no soldier defender, and

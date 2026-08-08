@@ -17,6 +17,13 @@
  * gift/demand / teach / convert / @RAID* stand-ins only — no 2820 body port
  * (Marathon2 R6 / R5 / R4 / prior R14 PARK).
  *
+ * Jesuit-grade convert: PEDIA @JOB24 name/prof 24, or nation owns Brebeuf
+ * (docs/fandom_col1994.md — all missionaries function as experts). Mid-band
+ * (40..54) convert gated on Jesuit-grade; plain Missionary + Brebeuf unlocks.
+ * Las Casas Convert→Free Colonist assimilate lives in founding_fathers
+ * (PEDIA @FATHER24 elect + ownership tick). Sepulveda convert-join,
+ * Full 2820/4528 / Brave escort / building-destroy stay PARKED.
+ *
  * Human chrome: status lines + AI popup enqueue (OK / Meet CHOICE incl.
  * Leave→Farewell / Gift amount / Demand tools-vs-gold / alarmed Demand OK). Cite:
  * indian_contact.md; docs/ai_transcription.md FUN_4d56_2820; peel

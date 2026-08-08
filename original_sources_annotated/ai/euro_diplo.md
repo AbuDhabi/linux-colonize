@@ -48,9 +48,10 @@ euro_nation_turn (6d8e)
   §4 treaty timers: 0a38 read + decrement peer timers; peaceful Indian drift
   plan 5d04 / 0342 / 0a60
   [opportunistic] 10ec → 13b0 (ally −25g + timer≥8) → declare_war_ctx (thin 153e + status);
-                  at-war upkeep + privateer prize; war-fatigue + near-parity → make_peace_ctx;
+                  at-war: Franklin → always peace (skip upkeep/privateer);
+                  else upkeep + privateer spawn-only|PARK 8g; war-fatigue → make_peace_ctx;
                   ally foreign aid + FA gift (thin 3f41)
-  act 5b66 — combat may declare_war
+  act 5b66 — combat may declare_war (Franklin pair no-op)
 ```
 
 | Symbol | Thunk | Role |
@@ -62,9 +63,24 @@ euro_nation_turn (6d8e)
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | thin `ctx->status` **Done**; widgets **OPEN** (unpark #1 / #5) |
 | `FUN_3f41_*` | FA advisor | **PARKED** (R15: no further thin gap — ally-aid + FA gift only; full F2–F9 report bodies / dialog UI stay parked) |
 
+### Benjamin Franklin NW peace (Linux)
+
+Cite: `docs/fandom_col1994.md` — King’s European wars no longer affect New World
+relations; Europeans in the New World always offer peace in negotiations.
+Gate: `founding_fathers_franklin_keeps_nw_peace` (either peer owns FF).
+
+- `ai_diplo_declare_war` — **no-op** when either Euro in the pair owns Franklin
+  (blocks sting / tax / Indian war-hit / embargo / fatigue seed). King or
+  opportunistic callers share this gate so Euro wars cannot poison NW peers.
+- `ai_diplo_euro_balance` — skip `10ec` declare pressure against Franklin pairs;
+  if already at war → always offer/conclude peace (`make_peace_ctx` / AI→human
+  CHOICE) and **skip** upkeep + privateer for that peer (negotiations stay
+  peaceful). Elect via `founding_fathers_tick` clears Euro×Euro WAR.
+- FA `3f41` full UI stays **PARKED**. No gold fiction.
+
 ### Thin `153e` war sting (Linux)
 
-On first `ai_diplo_declare_war` (not already at war):
+On first `ai_diplo_declare_war` (not already at war; Franklin pair already returned):
 
 - Drain **100** gold from `nation[a].gold` and `nation[b].gold` (floor 0)
 - Bump each side's `nation[].tax_rate` by **+1**, capped at **75** (same ceiling as king tax path)
@@ -78,10 +94,12 @@ On first `ai_diplo_declare_war` (not already at war):
 
 Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 
+- **Franklin pair first:** always offer/conclude peace; **continue** (no upkeep /
+  privateer for that peer). See Benjamin Franklin section above.
 - If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
 - Human status once per tick when upkeep drains and human is the actor: `"War upkeep costs gold."` (later privateer / peace may overwrite). FA UI **PARKED**
-- Wartime **Privateer unit spawn** (before prize): when `ctx->units` set and `units_find_type("Privateer")` exists, spawn once per war peer via `units_spawn_allow_stack` on **hunt-ready** coastal water by own colony (New World water, not `x|y≥200`), else stack on own New World sea unit (skip Europe-dock stacks), else Europe `(236,236)`. Read-only check refuses bad New World tiles before arming `unknown26[9]`. Gate: `unknown26[9]` bit for peer (clear on `make_peace` / alliance that clears WAR). Human status: `"Privateer commissioned against %s"` + OK. Cite: Europe Privateer purchase; fandom Drake; `euro_unit_act` §2b (`ai_euro` naval hunt needs `!in_europe`). Deep cargo-raid loot still thin prize below.
-- Thin privateer prize (separate from upkeep): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). If `ctx->units` is null → treasury-only stand-in; if units are present → only when **this** nation has any sea unit (spawn may provide one same tick). Human status when prize fires and human is a party: `"Privateer prize from %s"`.
+- Wartime **Privateer unit spawn** (before prize): when `ctx->units` set and `units_find_type("Privateer")` exists, spawn once per war peer via `units_spawn_allow_stack` on **hunt-ready** coastal water by own colony (New World water, not `x|y≥200`), else stack on own New World sea unit (skip Europe-dock stacks), else Europe `(236,236)`. Read-only check refuses bad New World tiles before arming `unknown26[9]`. Gate: `unknown26[9]` bit for peer (clear on `make_peace` / alliance that clears WAR). Human status: `"Privateer commissioned against %s"` + OK. Cite: Europe Privateer purchase; fandom Drake; `euro_unit_act` §2b (`ai_euro` naval hunt needs `!in_europe`). **Spawn-only when units set** — cargo-raid loot stays with `ai_euro` combat (`FUN_5fef` hold plunder not wired in diplo).
+- **PARKED** privateer prize (null-units only): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). Accuracy debt until hold-plunder API exists — **do not invent a different gold rate**. Human status when prize fires and human is a party: `"Privateer prize from %s"`. With `ctx->units` set → **no** treasury prize (spawn path only).
 - No new declare / ally logic for that peer that turn
 
 Embargo lift (thin):
@@ -90,7 +108,7 @@ Embargo lift (thin):
 - Tools bit is OR'd on every first declare (with the other wartime cargos); Cotton is the R11 leftover that completes the 16-bit mask; peace/alliance must lift all sixteen with the same gate
 - Sugar lift may clear a lingering king refuse Sugar bit while `unknown46[2]` still holds tax refuse (thin shared-bitmap stand-in)
 - Raw PEACE-only writes (clear WAR without those APIs) do **not** lift; Jakob Fugger / FF boycott forgive may clear bits later — full lift chrome **PARKED**
-- Privateer prize is WAR-gated in `euro_balance` — `make_peace` stops further prizes (no dedicated prize-clear flag)
+- Privateer prize is WAR-gated in `euro_balance` and **null-units only** — `make_peace` stops further prizes (no dedicated prize-clear flag); with units → spawn-only
 
 ### Thin make-peace (Linux)
 
@@ -237,9 +255,9 @@ API / behavior:
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift / longevity (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → upkeep + privateer prize + war-fatigue (`timer==0`) near-parity `make_peace_ctx`; Indian feeler + sticky→pressure + harassment
-- `ai_diplo_make_peace` / `_ctx` — clear WAR, set PEACE|MET, lift Furs+Tobacco+Sugar+Rum+Cigars+Tools if no Euro wars; no gold cost; `_ctx` thin status (+ Tools lift chrome)
-5. `ai_diplo_declare_war_ctx` — thin `"War declared with …"` / `"Sugar/Tobacco boycott imposed."` / `"Sugar/Tobacco/Tools boycott imposed."` / first newly boycotted `"%s boycott imposed."` when human involved
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift / longevity (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → Franklin peace (skip upkeep/privateer) else upkeep + Privateer spawn-only / PARK 8g prize + war-fatigue (`timer==0`) near-parity `make_peace_ctx`; Indian feeler + sticky→pressure + harassment
+4. `ai_diplo_make_peace` / `_ctx` — clear WAR, set PEACE|MET, lift Furs+Tobacco+Sugar+Rum+Cigars+Tools if no Euro wars; no gold cost; `_ctx` thin status (+ Tools lift chrome)
+5. `ai_diplo_declare_war` / `_ctx` — Franklin pair → no-op (no sting); else thin `"War declared with …"` / boycott chrome when human involved
 6. `ai_diplo_form_alliance` / `_ctx` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Horses+Muskets+…+Tools if no Euro wars remain; `_ctx` statuses `"Alliance formed with %s"` on first form; prefer `"Alliance with %s costs gold."` when human treasury drains
 7. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty + Indian −5/sticky sync if was allied
 8. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED); else longevity +1; sticky2 skips gift
@@ -271,4 +289,33 @@ API / behavior:
 - **Done Marathon2 R3:** Privateer spawn prefers hunt-ready New World water (skip Europe-dock stacks); smoke asserts water/`!in_europe`; FA OK documents `DIPLO_ALLIANCE` + `"Foreign Affairs"` (no `DIPLO_FA` tag); AI→human war declare CHOICE Accept/Refuse
 - **Done Marathon2 R5:** peace CHOICE Refuse status + follow-up OK; Privateer once/war smoke asserts `unknown26[9]` blocks second; AI→human break-alliance CHOICE Accept/Refuse; FA `3f41` full UI stays **PARKED**
 - **Done Marathon2 R6:** war CHOICE Refuse status + follow-up OK; Alliance Accept treaty timer ≥8 smoke; native sticky deepen INFO OK enqueue smoke; FA `3f41` full UI stays **PARKED**
-- **Still PARKED:** FA `3f41` full body/UI (F2–F9); deep privateer cargo-raid loot (thin 8g prize remains); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens
+- **Done Marathon3 R1:** Benjamin Franklin NW peace gate (`founding_fathers_franklin_keeps_nw_peace`
+  via `founding_fathers_nation_has`; `col1_save_init` sets `head.founding_father[i]=-1`):
+  `declare_war` no-op when either peer owns FF (blocks sting/war-hit/embargo —
+  king Euro wars must not poison NW relations); `euro_balance` skips 10ec declare
+  pressure; at-war → always offer/conclude peace; elect clears Euro×Euro WAR.
+  Cite: `docs/fandom_col1994.md` Benjamin Franklin. FA `3f41` full UI stays **PARKED**
+- **Done Marathon3 R2:** Privateer **spawn-only** when `ctx->units` set (skip PARKED 8g
+  treasury prize — accuracy debt / no `FUN_5fef` hold-plunder API; do not invent
+  another gold rate); null-units keep 8g stand-in + chrome; Franklin at-war
+  `make_peace_ctx` human status `"Peace concluded with %s"` smoked. FA `3f41` full
+  UI stays **PARKED**
+- **Done Marathon3 R3 (thin final):** no structural diplo gap — embargo chrome,
+  sticky deepen INFO, peace refuse, alliance longevity status already smoked;
+  defensive smoke adds longevity Foreign Affairs OK (`"Alliance with %s holds."`
+  + `DIPLO_ALLIANCE` / `"Foreign Affairs"`, mirrors gift strengthened OK).
+- **Done Marathon3 R4 (doc sync + thin defensive):** `euro_diplo.md` body synced
+  for Franklin NW peace + Privateer spawn-only / PARK 8g (null-units only);
+  defensive smoke: Franklin at-war peace path skips upkeep + PARK prize (gold
+  unchanged). No invented privateer gold. FA `3f41` full UI stays **PARKED**.
+- **Still PARKED (leftovers — no thin unpark left):**
+  - FA `3f41` full body/UI (F2–F9 report dialogs; thin ally-aid 10g + FA gift
+    15g / longevity only)
+  - Deep privateer cargo-raid loot (`FUN_5fef` / hold plunder — thin 8g prize
+    remains **null-units only**; do not invent another gold rate)
+  - Full `102a`/`1092` dialog **widgets** (thin `ctx->status` + AI OK/CHOICE Done)
+  - Full Indian×Euro bilateral `15b3` matrix beyond thin read/at_war/drift/
+    feeler/war-hit/harassment/sticky
+  - Exact save-field rename for DS `−0x77c4`
+  - Quiet Brave `diplomacy_flags` −10 goldens
+  - Order clear `12d0` deep; Jakob Fugger / FF boycott-forgive full lift chrome

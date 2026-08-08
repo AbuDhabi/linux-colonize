@@ -8,11 +8,17 @@
  * refuse+FA skip, Sugar/Tobacco/Tools + first newly boycotted cargo status +
  * Indian war-hit status chrome + war −5 relation floor + R13 war-fatigue peer
  * chrome / Peace concluded + sticky2 refuse status + timer-expiry break status +
- * R14 full wartime mask declare/peace smoke + form_alliance formed chrome. */
+ * R14 full wartime mask declare/peace smoke + form_alliance formed chrome +
+ * Marathon3 R1 Benjamin Franklin NW peace gate (declare no-op / euro_balance
+ * skip war pressure / at-war always offer peace) + R2 spawn-only Privateer
+ * (PARK 8g prize when units set) + Franklin Peace concluded human chrome +
+ * R4 Franklin at-war skips upkeep/PARK prize (gold unchanged) +
+ * R3 alliance longevity Foreign Affairs OK ("holds") defensive smoke. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -59,6 +65,10 @@ int main(void) {
   col1_save_init(&col1);
   memset(col1.nation, 0, sizeof(col1.nation));
   memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  /* Defend against memset quirks: FF slots stay unclaimed (−1). */
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
   for (int i = 0; i < 4; ++i) {
     col1.player[i].control = 0;
     col1.player[i].diplomacy = 0;
@@ -2578,8 +2588,9 @@ int main(void) {
   /*
    * Marathon2 R1/R3: wartime Privateer unit spawn once/war peer (unknown26[9]),
    * coastal water by colony (R3: assert water / hunt-ready !Europe); second
-   * balance must not spam; prize still fires; peace clears spawn bit; thin FA
-   * report OK title "Foreign Affairs" + DIPLO_ALLIANCE tag (no DIPLO_FA).
+   * balance must not spam; Marathon3 R2: spawn-only — PARKED 8g prize skipped
+   * when units present; peace clears spawn bit; thin FA report OK title
+   * "Foreign Affairs" + DIPLO_ALLIANCE tag (no DIPLO_FA).
    * Cite: Europe Privateer; fandom Drake; euro_unit_act §2b.
    */
   {
@@ -2753,27 +2764,28 @@ int main(void) {
       return fail("M2R5: unknown26[9] gate must not re-status Privateer commissioned");
     }
 
-    /* Prize still fires when richer/poorer and sea unit present. */
+    /* Prize must NOT fire when units pool is present (spawn-only path;
+     * PARKED 8g treasury stand-in is null-units only — no invented rate). */
     pr.nation[0].gold = 200;
     pr.nation[1].gold = 50;
     status[0] = '\0';
     ai_popup_clear(&pop);
     ai_diplo_euro_balance(&ctx, 0);
-    /* upkeep −5 then prize −8 from rich / +8 to poor → 187 / 58 */
-    if (pr.nation[0].gold != 187 || pr.nation[1].gold != 58) {
-      fprintf(stderr, "smoke_ai_diplo: M2R1 prize gold %u/%u\n",
+    /* upkeep −5 only; no 8g prize while spawn path owns wartime Privateer. */
+    if (pr.nation[0].gold != 195 || pr.nation[1].gold != 50) {
+      fprintf(stderr, "smoke_ai_diplo: M3R2 spawn-only gold %u/%u (want 195/50)\n",
               (unsigned)pr.nation[0].gold, (unsigned)pr.nation[1].gold);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
-      return fail("M2R1: treasury privateer prize should still transfer 8g");
+      return fail("M3R2: with units pool, euro_balance must skip PARKED 8g prize");
     }
-    if (strcmp(status, "Privateer prize from France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: M2R1 prize status '%s'\n", status);
+    if (strstr(status, "Privateer prize") != NULL) {
+      fprintf(stderr, "smoke_ai_diplo: M3R2 prize status '%s'\n", status);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
-      return fail("M2R1: prize status should overwrite commission when prize fires");
+      return fail("M3R2: spawn-only path must not status Privateer prize");
     }
 
     ai_diplo_make_peace(&pr, 0, 1);
@@ -3152,6 +3164,242 @@ int main(void) {
       }
       if (!found) {
         return fail("M2R6 sticky deepen: INFO OK body must be Natives remain hostile");
+      }
+    }
+  }
+
+  /*
+   * Marathon3 R1: Benjamin Franklin NW peace (docs/fandom_col1994.md).
+   * Ownership gate: declare_war no-op (no sting / war-hit); euro_balance skips
+   * 10ec declare pressure; at-war → make_peace. No gold fiction.
+   */
+  {
+    ColonizeCol1Save fr;
+    col1_save_init(&fr);
+    memset(fr.nation, 0, sizeof(fr.nation));
+    for (int i = 0; i < 4; ++i) {
+      fr.player[i].control = 0;
+      fr.player[i].country_name[0] = '\0';
+    }
+    snprintf(fr.player[0].country_name, sizeof(fr.player[0].country_name), "England");
+    snprintf(fr.player[1].country_name, sizeof(fr.player[1].country_name), "France");
+    fr.nation[0].gold = 400;
+    fr.nation[1].gold = 50;
+    fr.nation[0].tax_rate = 10;
+    fr.nation[1].tax_rate = 10;
+    for (int i = 0; i < 8; ++i) {
+      fr.nation[0].relation_by_indian[i] = 120;
+      fr.nation[1].relation_by_indian[i] = 120;
+    }
+    /* Nation 0 owns Franklin (head owner + nation bitmask). */
+    fr.head.founding_father[FF_BENJAMIN_FRANKLIN] = 0;
+    fr.nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
+      (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
+    if (!founding_fathers_franklin_keeps_nw_peace(&fr, 0)) {
+      return fail("M3R1 Franklin: ownership gate should be true for nation 0");
+    }
+    if (founding_fathers_franklin_keeps_nw_peace(&fr, 1)) {
+      return fail("M3R1 Franklin: peer without FF must not keep NW peace alone");
+    }
+
+    const uint16_t gold0 = fr.nation[0].gold;
+    const uint16_t gold1 = fr.nation[1].gold;
+    const uint8_t rel0 = fr.nation[0].relation_by_indian[0];
+    ai_diplo_declare_war(&fr, 0, 1);
+    if (ai_diplo_at_war(&fr, 0, 1)) {
+      return fail("M3R1 Franklin: declare_war must no-op when pair has Franklin");
+    }
+    if (fr.nation[0].gold != gold0 || fr.nation[1].gold != gold1) {
+      return fail("M3R1 Franklin: declare no-op must not drain war gold sting");
+    }
+    if (fr.nation[0].relation_by_indian[0] != rel0) {
+      return fail("M3R1 Franklin: declare no-op must skip Indian war-hit");
+    }
+    if (fr.nation[0].boycott_bitmap != 0) {
+      return fail("M3R1 Franklin: declare no-op must skip wartime embargo");
+    }
+
+    /* Force WAR bytes then euro_balance should conclude peace (AI↔AI). */
+    ai_diplo_or_both(&fr, 0, 1, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
+    ai_diplo_clear_both(&fr, 0, 1, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
+    if (!ai_diplo_at_war(&fr, 0, 1)) {
+      return fail("M3R1 Franklin setup: forced WAR bytes");
+    }
+    ColonizeDosRng rng_fr;
+    dos_rng_seed(&rng_fr, 7);
+    uint32_t turn_fr = 1;
+    char status_fr[128];
+    status_fr[0] = '\0';
+    ColonizeTurnContext ctx_fr;
+    memset(&ctx_fr, 0, sizeof(ctx_fr));
+    ctx_fr.col1 = &fr;
+    ctx_fr.col1_ok = true;
+    ctx_fr.rng = &rng_fr;
+    ctx_fr.turn_number = &turn_fr;
+    ctx_fr.human_nation = 0;
+    ctx_fr.status = status_fr;
+    ctx_fr.status_size = sizeof(status_fr);
+    ai_diplo_euro_balance(&ctx_fr, 0);
+    if (ai_diplo_at_war(&fr, 0, 1)) {
+      return fail("M3R1 Franklin: euro_balance at-war must make_peace");
+    }
+    if ((ai_diplo_read(&fr, 0, 1) & AI_DIPLO_PEACE) == 0) {
+      return fail("M3R1 Franklin: after peace, PEACE bit should be set");
+    }
+    /*
+     * Marathon3 R4 defensive: Franklin peace path skips upkeep (−5) and PARK
+     * 8g prize (null-units would otherwise transfer). Gold stays 400/50.
+     */
+    if (fr.nation[0].gold != 400 || fr.nation[1].gold != 50) {
+      fprintf(stderr, "smoke_ai_diplo: M3R4 Franklin gold %u/%u (want 400/50)\n",
+              (unsigned)fr.nation[0].gold, (unsigned)fr.nation[1].gold);
+      return fail("M3R4 Franklin: at-war peace must skip upkeep and PARK prize");
+    }
+    /* Marathon3 R2: human chrome when Franklin concludes peace (make_peace_ctx). */
+    if (strcmp(status_fr, "Peace concluded with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: M3R2 Franklin peace status '%s'\n", status_fr);
+      return fail("M3R2 Franklin: human party should status Peace concluded with France");
+    }
+
+    /*
+     * 10ec declare pressure: military self ≫ peer must not declare when
+     * Franklin protects the pair (many RNG rolls).
+     */
+    fr.nation[0].gold = 5000; /* score boost */
+    fr.nation[1].gold = 0;
+    for (int seed = 1; seed < 80; ++seed) {
+      dos_rng_seed(&rng_fr, (uint32_t)seed);
+      ai_diplo_euro_balance(&ctx_fr, 0);
+      if (ai_diplo_at_war(&fr, 0, 1)) {
+        return fail("M3R1 Franklin: euro_balance must skip 10ec declare pressure");
+      }
+    }
+
+    /* Peer owns Franklin: nation 1 protected — nation 0 declare still no-ops. */
+    ColonizeCol1Save fr2;
+    col1_save_init(&fr2);
+    memset(fr2.nation, 0, sizeof(fr2.nation));
+    for (int i = 0; i < 4; ++i) {
+      fr2.player[i].control = 0;
+    }
+    fr2.nation[0].gold = 300;
+    fr2.nation[1].gold = 300;
+    fr2.head.founding_father[FF_BENJAMIN_FRANKLIN] = 1;
+    fr2.nation[1].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |=
+      (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
+    ai_diplo_declare_war(&fr2, 0, 1);
+    if (ai_diplo_at_war(&fr2, 0, 1)) {
+      return fail("M3R1 Franklin: peer ownership must also block declare_war");
+    }
+
+    /* Elect effect: forced WAR then founding_fathers_tick elect clears it. */
+    ColonizeCol1Save fr3;
+    col1_save_init(&fr3);
+    memset(fr3.nation, 0, sizeof(fr3.nation));
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      fr3.head.founding_father[i] = -1;
+    }
+    for (int i = 0; i < 4; ++i) {
+      fr3.player[i].control = 0;
+    }
+    fr3.player[0].control = 0; /* human */
+    fr3.nation[0].liberty_bells_total = 40;
+    fr3.nation[0].founding_father_count = 0;
+    fr3.nation[0].next_founding_father = FF_BENJAMIN_FRANKLIN;
+    fr3.nation[0].gold = 200;
+    fr3.nation[1].gold = 200;
+    /* Force WAR before elect (raw flags — declare would be blocked after elect). */
+    ai_diplo_or_both(&fr3, 0, 1, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
+    ai_diplo_clear_both(&fr3, 0, 1, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
+    if (!ai_diplo_at_war(&fr3, 0, 1)) {
+      return fail("M3R1 Franklin elect setup: need WAR before tick");
+    }
+    uint32_t turn_e = 1;
+    char status_e[128];
+    status_e[0] = '\0';
+    ColonizeTurnContext ctx_e;
+    memset(&ctx_e, 0, sizeof(ctx_e));
+    ctx_e.col1 = &fr3;
+    ctx_e.col1_ok = true;
+    ctx_e.turn_number = &turn_e;
+    ctx_e.human_nation = 0;
+    ctx_e.status = status_e;
+    ctx_e.status_size = sizeof(status_e);
+    founding_fathers_tick(&ctx_e);
+    if (!founding_fathers_nation_has(&fr3, 0, FF_BENJAMIN_FRANKLIN)) {
+      return fail("M3R1 Franklin elect: should own Benjamin Franklin");
+    }
+    if (ai_diplo_at_war(&fr3, 0, 1)) {
+      return fail("M3R1 Franklin elect: should make_peace with Euro peers");
+    }
+  }
+
+  /*
+   * Marathon3 R3 (thin final / defensive): alliance longevity status already
+   * smoked; assert Foreign Affairs OK enqueue for the holds path (mirrors
+   * M2R1 strengthened gift OK). R4: Franklin+privateer doc sync; Franklin
+   * skip-upkeep/prize smoked above. FA 3f41 UI PARKED.
+   */
+  {
+    ColonizeCol1Save lon;
+    col1_save_init(&lon);
+    memset(lon.nation, 0, sizeof(lon.nation));
+    for (int i = 0; i < 4; ++i) {
+      lon.player[i].control = 0;
+      lon.player[i].country_name[0] = '\0';
+    }
+    snprintf(lon.player[1].country_name, sizeof(lon.player[1].country_name),
+             "France");
+    ai_diplo_or_both(&lon, 0, 1, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
+    lon.nation[0].gold = 80; /* donor <100 → FA gift no-op → longevity */
+    lon.nation[1].gold = 40;
+    lon.nation[0].unknown26[1] = 1;
+    lon.nation[1].unknown26[0] = 1;
+    for (int i = 0; i < 8; ++i) {
+      lon.nation[0].relation_by_indian[i] = 100;
+    }
+    lon.nation[0].unknown26[8] = 0;
+    char status_lon[128];
+    status_lon[0] = '\0';
+    AiPopupState pop_lon;
+    ai_popup_clear(&pop_lon);
+    ColonizeDosRng rng_lon;
+    dos_rng_seed(&rng_lon, 19);
+    uint32_t turn_lon = 19;
+    ColonizeTurnContext ctx_lon;
+    memset(&ctx_lon, 0, sizeof(ctx_lon));
+    ctx_lon.col1 = &lon;
+    ctx_lon.col1_ok = true;
+    ctx_lon.rng = &rng_lon;
+    ctx_lon.turn_number = &turn_lon;
+    ctx_lon.human_nation = 0;
+    ctx_lon.status = status_lon;
+    ctx_lon.status_size = sizeof(status_lon);
+    ctx_lon.ai_popups = &pop_lon;
+    ai_diplo_euro_balance(&ctx_lon, 0);
+    if (lon.nation[0].gold != 80 || lon.nation[1].gold != 40) {
+      return fail("M3R3 longevity: must not transfer gold when FA gift blocked");
+    }
+    if (lon.nation[0].unknown26[1] != 2 || lon.nation[1].unknown26[0] != 2) {
+      return fail("M3R3 longevity: should bump both timers +1");
+    }
+    if (strcmp(status_lon, "Alliance with France holds.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: M3R3 longevity status '%s'\n", status_lon);
+      return fail("M3R3 longevity: should status Alliance with France holds");
+    }
+    {
+      int found_holds = 0;
+      for (int qi = 0; qi < pop_lon.queue_count; ++qi) {
+        if (pop_lon.queue[qi].kind == AI_POPUP_KIND_OK &&
+            pop_lon.queue[qi].tag == AI_POPUP_TAG_DIPLO_ALLIANCE &&
+            strcmp(pop_lon.queue[qi].title, "Foreign Affairs") == 0 &&
+            strcmp(pop_lon.queue[qi].body, "Alliance with France holds.") == 0) {
+          found_holds = 1;
+          break;
+        }
+      }
+      if (!found_holds) {
+        return fail("M3R3 longevity: Foreign Affairs OK must enqueue holds body");
       }
     }
   }

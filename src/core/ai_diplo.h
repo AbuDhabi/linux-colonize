@@ -26,6 +26,7 @@ int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 int ai_diplo_at_war_with(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 /* True if Euro nation is at war with any other Euro (feeler / drift / lift gate). */
 int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation);
+/* First declare: thin 153e sting + war-hit. Franklin pair → no-op (fandom NW peace). */
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
@@ -54,9 +55,12 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
  * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
  * FA gift/longevity human status ("Alliance with %s strengthened/holds") +
  * thin Foreign Affairs OK (DIPLO_ALLIANCE tag + "Foreign Affairs" title);
- * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]) +
- * treasury prize; war-fatigue (timer==0) + near-parity → make_peace_ctx;
- * AI→human war/peace/alliance/break offers enqueue CHOICE Accept/Refuse. */
+ * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]);
+ * PARKED 8g treasury prize only when units null (no hold-plunder API);
+ * war-fatigue (timer==0) + near-parity → make_peace_ctx;
+ * AI→human war/peace/alliance/break offers enqueue CHOICE Accept/Refuse.
+ * Franklin FF: NW pair with Benjamin Franklin → skip 10ec declare pressure;
+ * at-war → always offer/conclude peace (fandom; FA 3f41 UI PARKED). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Thin FA 3f41 goodwill gift: 15g from→to + both treaty timers +2 when

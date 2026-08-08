@@ -138,18 +138,21 @@ colony exists; otherwise nation `0004` aggregate (fallback):
   `Cont. Cav.` / `Veteran Dragoon`; type **Regular** → `Veteran Soldier` /
   `Continental Army` / `Cont. Army`. Armed Regulars often *display* as
   "Soldier" — Regular is classified by **type name**.
-- **colony SoL 40..50:** promote **Soldier** → `Veteran Soldier` only when
-  that type exists (no Continental). Regular types unchanged.
+- **colony SoL 40..50** (incl. exactly **50**): promote **Soldier** →
+  `Veteran Soldier` only when that type exists (no Continental). Regular and
+  Dragoon unchanged. Already Cont./Veteran/`Cont. Army`/`Cont. Cav` skipped.
 
 Source: `FUN_43f7_1eca` / catalog “when colony SoL>50%”. King promote path
 only — **not** FF Washington mass-promote / combat upgrade. Deep
 veteran-profession / type-id table remains PARKED.
 
 After promote, idle human **Cont. Army / Cont. Cav** (hunter name check includes
-`Continental` / `Cont. Army` / `Cont. Cav`) prefer `AI_MOVE` toward the human
-**founding capital** (lowest colony id); fallback `weakest_port` when none.
-Hold if already on a human colony tile (incl. founding capital — smoke). Source:
-fandom Independence Cont. Army / Cont. Cavalry; deep rebel AI PARKED.
+`Continental` / `Cont. Army` / `Cont. Cav`) `AI_MOVE` toward the **nearest**
+human colony, then prefer the **founding capital** (lowest colony id) when
+`cap_md ≤ nearest_colony_md + AI_KING_CAPITAL_MD_SLACK` (same helper as REF idle
+hunters); fallback `weakest_port` when no human colony. Hold if already on a
+human colony tile (incl. founding capital — smoke). Source: fandom Independence
+Cont. Army / Cont. Cavalry + REF main-port MD slack; deep rebel AI PARKED.
 
 ### Thin `160a` independence rename + `2564` congress
 
@@ -204,7 +207,8 @@ nearest human colony or human land unit (fandom REF AI; conceptual reuse of
 Euro land hunt — implemented in `ai_king` only). **Artillery thin siege:**
 prefer a fortified human colony (Stockade/Fort/Fortress) when hunting; wave
 land spawn prefers `force[3]` Artillery when the target colony is fortified
-and the type exists (else fall back to Regular/Dragoon order). **Dragoon / Cont. Cav thin open-land bias:** when the Artillery type exists,
+and the type exists **even if Regular/Dragoon pools are also live** (else fall
+back to Regular/Dragoon order; unfortified → Regular first). **Dragoon / Cont. Cav thin open-land bias:** when the Artillery type exists,
 prefer human land units / unfortified colonies (leave fortified ports to
 Artillery); else nearest. Cont. Army stays nearest (no open bias) — smoke
 asserts Cont. Cav→open + Cont. Army→nearest fort colony.
@@ -220,18 +224,20 @@ human unit → `units_resolve_land_combat`; attack win → occupy tile. Ending o
 (or already standing on) a human colony tile → `colonies_capture` (conquest;
 no gold fiction); thin human status
 `"The King's forces have captured %s!"` (colony name; conquest chrome PARKED);
-then **fortify one Regular** on the tile via
-`units_order_fortify` (capturer if Regular, else another crown Regular on
-tile). **Artillery after capture (Euro pattern):** fortify crown Artillery on
-the captured tile (capturer if Artillery, else each idle Artillery on tile);
-idle Artillery on crown/captured colony with no adjacent human foe/colony also
-`FORTIFY` and hold (Colonization.pdf fortify defense; euro_unit_act Artillery
-fortify after siege; case 0x0b). Off-colony Artillery still hunts fortified
-ports. **REF stack:** only one Regular per colony tile is FORTIFY/FORTIFIED;
-extra Regulars on the same tile hunt instead — **after-capture next colony:**
-extras not on the fortify-stack garrison slot prefer the **nearest remaining
-human colony** by strict MD (no capital MD slack; ignore closer human land
-units). Source: fandom REF AI uncaptured-colony / weakest-port pressure.
+then **fortify one garrison** on the tile via `units_order_fortify`: prefer
+Regular (capturer if Regular, else another crown Regular on tile); if none,
+one **Dragoon or Cont. Cav**. Cite: Colonization.pdf Defending a Colony
+("fortify soldiers, dragoons…"); king_ref one-garrison. **Artillery after
+capture (Euro pattern):** fortify crown Artillery on the captured tile
+(capturer if Artillery, else each idle Artillery on tile); idle Artillery on
+crown/captured colony with no adjacent human foe/colony also `FORTIFY` and hold
+(Colonization.pdf fortify defense; euro_unit_act Artillery fortify after siege;
+case 0x0b). Off-colony Artillery still hunts fortified ports. **REF stack:**
+only one Regular/Dragoon/Cont.Cav per colony tile is FORTIFY/FORTIFIED; extras
+hunt instead — **after-capture next colony:** extras not on the fortify-stack
+garrison slot prefer the **nearest remaining human colony** by strict MD (no
+capital MD slack; ignore closer human land units). Source: fandom REF AI
+uncaptured-colony / weakest-port pressure. Multi-garrison chrome PARKED.
 Deep multi-step siege / combat scoring remains PARKED.
 
 ### Wartime MoW sail + unload + idle coastal patrol
@@ -257,28 +263,32 @@ Steps on water only; naval combat if a human ship blocks. 0982 boards up to
 ship capacity into `cargo_ids` (Regular-then-Dragoon); multi-unload here.
 **PARK:** embark UI chrome; `160a` letter cinematic.
 
-### REF idle fortify on crown colony
+### REF idle / post-capture garrison (one-stack)
 
-Wartime Regular standing on an **own (crown)** colony (including a captured
-human capital) with moves and **no** adjacent human land unit or human colony
-→ `units_order_fortify` **only if** no other crown Regular on that tile is
-already FORTIFY/FORTIFIED (one garrison; extras fall through to hunt).
-Already FORTIFY/FORTIFIED Regulars stay put (do not wake to hunt). Adjacent
-uncaptured colony or human unit still hunts.
+Wartime **Regular**, or **Dragoon / Cont. Cav** when no Regular is available,
+standing on an **own (crown)** colony (including a captured human capital) with
+moves and **no** adjacent human land unit or human colony →
+`units_order_fortify` **only if** no other crown Regular/Dragoon/Cont.Cav on
+that tile is already FORTIFY/FORTIFIED (one garrison; extras fall through to
+hunt). Prefer Regular over cavalry on the same tile. Already FORTIFY/FORTIFIED
+garrison units stay put (do not wake to hunt). Adjacent uncaptured colony or
+human unit still hunts. Cite: Colonization.pdf Defending a Colony ("fortify
+soldiers, dragoons…"); king_ref one-garrison. Multi-garrison chrome **PARKED**.
 
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → SoL 40–49 chrome (+ optional high-tax mention) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)
-3. If WoI: wave (`0982` MoW on water adjacent + second MoW @diff≥2 if pool allows + board up to ship capacity into `cargo_ids` / `06a6` + thin `1528` status; Artillery prefer if target fortified) → war act (`10f0` ≤2 landings, third @diff≥2 if REF empty + backup, nation pick by colonies, REF Regular/Dragoon/Artillery/Cont. land hunt + capital MD bias + after-capture extras → next nearest human colony + Dragoon/Cont. Cav open bias + Artillery adjacent-fort tighten + capture + capture status + fortify **one** Regular (stack extras hunt) + **Artillery FORTIFY after capture / idle on crown colony** (Euro pattern), idle Regular on crown/captured capital → fortify one (extras hunt; already FORTIFY/FORTIFIED stay), MoW+cargo multi-unload-at-coast ≤moves/capacity (1 MP/pax; prefer colony tile; same-beat seize/fortify) else AI_SAIL→human coast; **full unload + moves left → AI_SAIL next human coast**, idle empty MoW AI_SAIL coastal patrol, thin `2244` merc hire **or** cannot-afford once, `1eca` colony-SoL promote + Cont. Army/**Cont. Cav capital-rally** → founding capital)
+3. If WoI: wave (`0982` MoW on water adjacent + second MoW @diff≥2 if pool allows + board up to ship capacity into `cargo_ids` / `06a6` + thin `1528` status; Artillery prefer if target fortified) → war act (`10f0` ≤2 landings, third @diff≥2 if REF empty + backup, nation pick by colonies, REF Regular/Dragoon/Artillery/Cont. land hunt + capital MD bias + after-capture extras → next nearest human colony + Dragoon/Cont. Cav open bias + Artillery adjacent-fort tighten + capture + capture status + fortify **one** Regular else Dragoon/Cont.Cav (Defending a Colony; stack extras hunt) + **Artillery FORTIFY after capture / idle on crown colony** (Euro pattern), idle Regular/Dragoon/Cont.Cav on crown/captured capital → fortify one (extras hunt; already FORTIFY/FORTIFIED stay), MoW+cargo multi-unload-at-coast ≤moves/capacity (1 MP/pax; prefer colony tile; same-beat seize/fortify) else AI_SAIL→human coast; **full unload + moves left → AI_SAIL next human coast**, idle empty MoW AI_SAIL coastal patrol, thin `2244` merc hire **or** cannot-afford once, `1eca` colony-SoL promote + Cont. Army/**Cont. Cav capital-rally** → nearest colony + founding-capital MD slack)
 
 ## PORT DEBT
 
 - **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `2564` congress CHOICE Confirm/Not yet; `2244` merc CHOICE Hire/Decline + cannot-afford OK + Hire success follow-up OK + Decline follow-up OK; `1528` REF arrival OK; `10f0` intervene landing ARRIVAL once; capture OK; tax hike OK on Accept apply
-- **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods / `38fd_3dc8` extra boycott-cargo modals (Sugar only); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
+- **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (one Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony; multi-garrison chrome still PARKED); **Cont. capital-rally** (nearest human colony + founding-capital MD slack; hold on colony tile); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
+- **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods / `38fd_3dc8` extra boycott-cargo modals (Sugar only — do **not** invent a fixed second refuse cargo); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)
-- Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias Done: SoL>50 Soldier/Dragoon/Regular + SoL 40–50 Soldier→Veteran Soldier)
+- Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias + SoL50 mid-band + Cont. abbrev skip Done above; deep type-id table still PARKED)
 - MoW hold fill + multi-unload — **Done** (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
-- REF deep multi-step land combat / full siege scoring — **PARKED** (Regular/Dragoon/Artillery/Cont. hunt + Artillery fortified-colony spawn/hunt bias + Artillery adjacent-unfortified must not override fortified hunt Done + Dragoon/Cont. Cav open-land bias when Artillery exists + **capital MD bias** (founding capital over distant colonies when MD within slack; **Artillery siege same slack when capital fortified**) Done + **after-capture next colony** (stack extras prefer nearest remaining human colony) Done + adjacent colony prefer + capture + human capture status + fortify one Regular / stack extras hunt + **Artillery after-capture / idle on crown colony FORTIFY** (Euro pattern) Done + idle fortify one on crown/captured capital + already-garrisoned stay Done; Cont. Army/Cav → human capital/colony after 1eca Done)
+- REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
 - Extra refuse boycott cargo bits beyond Sugar / dump-goods `38fd_3dc8` — **PARKED** (only Sugar named in-file; wiki “named goods” is RNG, not a fixed second bit); refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
 - `160a` letter cinematic — **PARKED** (thin rename + OK chain Done)

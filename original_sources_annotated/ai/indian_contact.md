@@ -84,10 +84,16 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
 2. Peaceful meet (alarm/friction < 40): slight tribe `alarm[].friction` decay (−1)
 3. Optional mission assign if friction low (teach/convert **widgets** still OPEN)
 4. **Missionary convert pulse** (structural deepen): Euro unit whose display name
-   contains `"Mission"` adjacent to a tribe of this nation. Convert/crosses only
-   when `tribe.mission == 0xff` and not alarmed (`alarm_by_player` / tribe
-   friction both `< 55`). Sets `tribe.mission = euro nation id`, decay
-   alarm/friction by **1** (peaceful `<40`) or **2** (mid-range `40..54`),
+   contains `"Mission"` or `"Jesuit"` adjacent to a tribe of this nation.
+   Convert/crosses only when `tribe.mission == 0xff` and not alarmed
+   (`alarm_by_player` / tribe friction both `< 55`).
+   **Jesuit-grade gate**: mid-band (`40..54`) convert succeeds only for
+   Jesuit-grade units (name contains `"Jesuit"`, NAMES `@JOB` profession **24**,
+   **or** euro nation owns Father Jean de Brebeuf — fandom: all missionaries
+   function as experts). Plain Missionary mid without Brebeuf → refuse
+   **"Natives refuse conversion."** (PEDIA @JOB24 — Jesuits more effective).
+   Peaceful (`<40`): any missionary establishes. Sets `tribe.mission = euro
+   nation id`, decay alarm/friction by **1** (peaceful) or **2** (Jesuit mid),
    bump `nation[euro].current_crosses` by 1.
    One pulse per tribe per call. **Mission already set** (own or foreign) →
    skip convert pulse entirely (one-shot; no re-crosses / no steal).
@@ -104,7 +110,8 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    `UNITS_JOB_SCOUT` (Seasoned); else → tribe-appropriate outdoor `@JOB`
    (see mapping below). One pulse per tribe per call. Human status
    **"Natives teach …"**; teach **widgets** still OPEN (unpark #1).
-   Alarmed (`>= 55`) → refuse teach with **"Natives refuse to teach."**
+   Alarmed (`>= 55`) **or mid (`40..54`)** → refuse teach with
+   **"Natives refuse to teach."** (mid-alarm refuse polish).
    **Already learned** (`state.learned` set) → skip teach and do **not** write
    teach/refuse status (Col1 one-shot; preserves gift/trade chrome).
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in
@@ -134,6 +141,7 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
      `tools` when **≥ 20**, else **15 gold** when treasury **≥ 50**; friction **−3**;
      human status **"Tribute paid; tensions ease."** (gift gold≥20 band mirrored
      for tools; gold stand-in needs a fuller purse when tools are short).
+     When neither tools nor gold can pay → refuse **"Natives refuse demands."**
      Human Meet→Demand with `ai_popups` enqueues **CONTACT_DEMAND** amount
      CHOICE: **Pay tools (−10)** and/or **Pay gold (−15)** when each path can
      pay (auto path still prefers tools then gold).
@@ -167,6 +175,12 @@ Deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid decision + nested
 are thin CHOICE handlers, not a 2820 port (Marathon2 R6 / R4).
 Scout `359c` warn-on-displace already thinned; DOS RNG kill-with-flee-tile
 stays **PARK** (Linux kills only when displace is blocked).
+
+**Las Casas** (PEDIA `@FATHER24` / `docs/fandom_col1994.md`): existing Indian
+converts (`NAMES` `@JOB` Convert / profession 27) assimilate as free colonists
+(profession 19) on elect + FF ownership tick in `founding_fathers.c` — not the
+missionary convert-pulse path. **Sepulveda** convert-join + Cortes treasure
+remain **PARKED** (no 2820/4528 join hook).
 
 ### Teach-skill profession map (Linux)
 

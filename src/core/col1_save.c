@@ -19,6 +19,11 @@ void col1_save_init(ColonizeCol1Save* save) {
     return;
   }
   memset(save, 0, sizeof(*save));
+  /* head.founding_father[i]: -1 unclaimed; 0..3 = owning Euro nation.
+   * Zero-fill would falsely make nation 0 own every FF (Franklin gate, etc.). */
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    save->head.founding_father[i] = -1;
+  }
 }
 
 void col1_save_free(ColonizeCol1Save* save) {

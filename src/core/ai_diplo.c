@@ -2,6 +2,7 @@
 
 #include "core/ai_popup.h"
 #include "core/colony.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/units.h"
 
@@ -49,6 +50,7 @@
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
+/* PARKED accuracy debt: null-units treasury stand-in only; do not change rate. */
 #define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
 #define AI_DIPLO_WAR_FOOD_EMBARGO_BIT (1u << COLONIZE_CARGO_FOOD)
 #define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
@@ -96,6 +98,16 @@
 #define AI_DIPLO_STICKY_CLEAR 0u
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
+
+/*
+ * Franklin NW peace: either Euro in the pair owns Benjamin Franklin.
+ * Source: docs/fandom_col1994.md — king's European wars no longer affect NW
+ * relations; Europeans always offer peace in negotiations.
+ */
+static int ai_diplo_franklin_pair(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  return founding_fathers_franklin_keeps_nw_peace(col1, nation_a) ||
+         founding_fathers_franklin_keeps_nw_peace(col1, nation_b);
+}
 
 static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer);
 static void ai_diplo_popup_ok(
@@ -295,22 +307,6 @@ static void ai_diplo_war_upkeep_drain(ColonizeCol1Nation* nat) {
   }
 }
 
-static int ai_diplo_nation_has_sea_unit(const ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->units || nation_id < 0) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    if (units_is_sea(ctx->units, u->id)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
  * Hunt-ready spawn: New World water so ai_euro naval war hunt can aim
  * (!ai_euro_in_europe). Europe dock (x|y>=200) is intentional last resort -
@@ -437,8 +433,10 @@ static void ai_diplo_privateer_spawn_clear(
  * units_find_type("Privateer") + units_spawn_allow_stack near coast / Europe.
  * No-op if type missing, units null, already commissioned, or spawn fails.
  * Returns 1 on successful spawn. Source: Europe Privateer purchase; fandom
- * Drake Privateer combat; euro_unit_act §2b commerce raid. Full raid path /
- * cargo loot still thin treasury prize below.
+ * Drake Privateer combat; euro_unit_act §2b commerce raid.
+ * Accuracy: this is the real wartime Privateer path when ctx->units is set;
+ * cargo-raid loot stays with ai_euro naval combat (FUN_5fef hold plunder not
+ * wired here) — do not invent a diplo gold rate.
  */
 static int ai_diplo_war_privateer_spawn(
   ColonizeTurnContext* ctx,
@@ -487,10 +485,13 @@ static int ai_diplo_war_privateer_spawn(
 }
 
 /*
- * Thin wartime privateer prize: once per at-war peer visit, transfer 8 gold
- * from the richer treasury to the poorer. No-op when equal or donor gold < 8.
- * Returns 1 if a prize transferred (caller may write human status chrome).
- * Source: thin Drake/privateer cargo prize stand-in; complements unit spawn.
+ * PARKED accuracy debt — thin wartime Privateer treasury stand-in (8g).
+ * Intended effect: cargo-raid hold plunder (FUN_5fef_016c / naval combat loot)
+ * when a Privateer captures goods; no diplo hold-plunder API is wired, so this
+ * richer→poorer 8g transfer is only used when ctx->units is null (no spawn path).
+ * Do NOT invent a different gold rate. With units present, euro_balance uses
+ * spawn-only + ai_euro hunt/combat instead. Source: Europe Privateer; fandom
+ * Drake; euro_unit_act §2b; FUNCTION_CATALOG FUN_5fef_016c.
  */
 static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, int peer) {
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
@@ -1040,6 +1041,15 @@ int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation) {
 }
 
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  /*
+   * Franklin: refuse NW Euro×Euro declare so king/Euro war spillover and
+   * opportunistic pressure cannot poison peer relations (war-hit / embargo /
+   * sting stay gated with this no-op). Source: docs/fandom_col1994.md
+   * Benjamin Franklin. Combat/player callers share this gate for thin port.
+   */
+  if (ai_diplo_franklin_pair(col1, nation_a, nation_b)) {
+    return;
+  }
   const int already = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
@@ -1212,7 +1222,9 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
     sticky_before = ai_diplo_indian_hostility_sticky(ctx->col1, human);
   }
   ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
-  if (!already) {
+  /* Franklin may no-op declare — only chrome when WAR actually stuck. */
+  const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
+  if (!already && now_war) {
     ai_diplo_status_human_pair(ctx, nation_a, nation_b, "War declared with %s");
     /*
      * Wartime boycott human chrome (102a/1092 stand-in): prefer Sugar/Tobacco/
@@ -1547,6 +1559,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    *  5 declare_war_ctx → thin 153e gold+tax + human status (102a/1092 chrome)
    *  + Indian matrix: feeler (skip sticky2 / any Euro war) + sticky sync/pressure
    *    + harassment; sticky2 also refuses new alliances + skips FA gift (no gold)
+   *  + Franklin (fandom): NW pair with FF → always offer/conclude peace; skip
+   *    10ec declare pressure (king Euro wars must not poison NW peers)
    */
   ai_diplo_indian_matrix_tick(ctx, nation_id);
   const uint8_t sticky_now = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
@@ -1558,8 +1572,50 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     }
     const int other = ai_diplo_military_score(ctx, peer);
     const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, peer);
+    const int franklin = ai_diplo_franklin_pair(ctx->col1, nation_id, peer);
 
     if (bits & AI_DIPLO_WAR) {
+      /*
+       * Franklin: Europeans in the New World always offer peace (fandom).
+       * Conclude peace for AI↔AI / human-as-actor; AI→human enqueues CHOICE.
+       * Skips upkeep/privateer for this peer — negotiations stay peaceful.
+       * Source: docs/fandom_col1994.md Benjamin Franklin; FA 3f41 UI PARKED.
+       */
+      if (franklin) {
+        if (ctx->ai_popups && peer == ctx->human_nation) {
+          if (!ai_diplo_popup_pair_queued(
+                ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, nation_id, peer
+              )) {
+            char body[AI_POPUP_BODY_LEN];
+            snprintf(
+              body,
+              sizeof(body),
+              "%s offers peace.",
+              ai_diplo_rival_name(ctx->col1, nation_id)
+            );
+            if (ctx->status && ctx->status_size > 0) {
+              snprintf(ctx->status, ctx->status_size, "%s", body);
+            }
+            const char* labels[] = {"Accept", "Refuse"};
+            const int ids[] = {1, 2};
+            (void)ai_popup_enqueue_choice_ctx(
+              ctx->ai_popups,
+              AI_POPUP_TAG_DIPLO_PEACE,
+              nation_id,
+              peer,
+              0,
+              "Peace",
+              body,
+              labels,
+              ids,
+              2
+            );
+          }
+        } else {
+          ai_diplo_make_peace_ctx(ctx, nation_id, peer);
+        }
+        continue;
+      }
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
       const uint16_t gold_before_upkeep = ctx->col1->nation[nation_id].gold;
       ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
@@ -1578,18 +1634,17 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
         );
       }
       /*
-       * Wartime Privateer unit spawn (once per war peer; unknown26[9] gate).
-       * units_find_type("Privateer") + spawn near coast/Europe when type exists.
-       * Source: Europe Privateer; fandom Drake; euro_unit_act §2b. Then thin
-       * treasury prize (richer→poorer 8g) — kept even after unit spawn.
-       * No units → skip spawn, prize still treasury-only; with units → prize
-       * only if this nation has a sea unit (spawn may provide one this tick).
-       * Human chrome: commission / "Privateer prize from %s". Raid loot PARKED.
+       * Wartime Privateer: spawn-only when ctx->units is set (unknown26[9] gate;
+       * hunt-ready coast / New World sea stack / Europe dock). ai_euro naval
+       * hunt + combat owns cargo-raid outcomes — no diplo gold fiction.
+       * PARKED: when units is null, thin 8g richer→poorer treasury stand-in
+       * (AI_DIPLO_PRIVATEER_PRIZE_GOLD) — accuracy debt until FUN_5fef hold
+       * plunder is wired; do not invent another rate.
+       * Human chrome: commission / "Privateer prize from %s" (null-units only).
+       * Source: Europe Privateer; fandom Drake; euro_unit_act §2b.
        */
-      int spawned_priv = 0;
       if (ctx->units) {
-        spawned_priv = ai_diplo_war_privateer_spawn(ctx, nation_id, peer);
-        if (spawned_priv) {
+        if (ai_diplo_war_privateer_spawn(ctx, nation_id, peer)) {
           ai_diplo_status_human_pair(
             ctx, nation_id, peer, "Privateer commissioned against %s"
           );
@@ -1599,15 +1654,12 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
             );
           }
         }
-      }
-      if (!ctx->units || ai_diplo_nation_has_sea_unit(ctx, nation_id)) {
-        if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
-          ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
-          if (ctx->status && ctx->status[0] != '\0') {
-            ai_diplo_popup_ok(
-              ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Privateer", ctx->status
-            );
-          }
+      } else if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
+        ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
+        if (ctx->status && ctx->status[0] != '\0') {
+          ai_diplo_popup_ok(
+            ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Privateer", ctx->status
+          );
         }
       }
       /*
@@ -1766,6 +1818,14 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
     /* 10ec war eligibility. */
     if (self > other * 2 + 20 && self > 30) {
+      /*
+       * Franklin: skip declare-war pressure against NW Euro peers (fandom —
+       * king's European wars / opportunistic war must not poison NW relations).
+       * Source: docs/fandom_col1994.md Benjamin Franklin.
+       */
+      if (franklin) {
+        continue;
+      }
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 20) == 1) {
         /*
          * AI→human (FUN_5bfb / 15b3): enqueue CHOICE Accept/Refuse; apply calls

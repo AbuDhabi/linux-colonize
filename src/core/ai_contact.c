@@ -128,7 +128,44 @@ static void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
 /* Missionary / Jesuit Missionary / similar — name substring stand-in. */
 static int ai_contact_is_missionary(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* name = units_display_name(units, u);
-  return name && strstr(name, "Mission") != NULL;
+  if (!name) {
+    return 0;
+  }
+  /* Match ai_euro: "Missionary" or "Jesuit" (NAMES.TXT Missionary / Jesuit Missionaries). */
+  return strstr(name, "Mission") != NULL || strstr(name, "Jesuit") != NULL;
+}
+
+/*
+ * Jesuit-grade missionary (expert).
+ * PEDIA @JOB24: Jesuits are more effective than ordinary blessed missionaries.
+ * Detect by display name "Jesuit", NAMES @JOB profession 24, or Brebeuf FF
+ * ownership (fandom: all missionaries function as experts). Cite:
+ * COLONIZE/PEDIA.TXT @JOB24; NAMES.TXT Missionary/Jesuit Missionaries;
+ * docs/fandom_col1994.md Father Jean de Brebeuf.
+ * Las Casas Convert→Free Colonist assimilate: founding_fathers elect +
+ * ownership tick (PEDIA @FATHER24) — not this convert-pulse path.
+ * Sepulveda convert-join stays PARKED (needs 2820/4528).
+ */
+static int ai_contact_is_jesuit_grade(
+  const ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u
+) {
+  if (!u) {
+    return 0;
+  }
+  const char* name = units_display_name(units, u);
+  if (name && strstr(name, "Jesuit") != NULL) {
+    return 1;
+  }
+  if (u->profession == 24) { /* NAMES @JOB Jesuit Missionaries */
+    return 1;
+  }
+  if (col1 && founding_fathers_brebeuf_missionaries_are_experts(col1, u->nation_id) &&
+      ai_contact_is_missionary(units, u)) {
+    return 1;
+  }
+  return 0;
 }
 
 /* Soldier / Scout / Pioneer — encroachment types that raise tribe alarm. */
@@ -322,9 +359,21 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
         );
         break; /* one refuse pulse per tribe per call */
       }
-      /* Peaceful meet band (alarm/friction < 40); mid band → no teach. */
+      /*
+       * Mid-alarm refuse polish (40..54): teach is peaceful-band only
+       * (<40). Same refuse chrome as ≥55 (no invented gold). Cite: fandom
+       * Alarm / Teach; indian_contact.md teach-skill pulse.
+       */
       if (ind->alarm_by_player[e] >= 40 || t->alarm[e].friction >= 40) {
-        continue;
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          AI_POPUP_TAG_CONTACT_TEACH,
+          nation_id,
+          "Teach",
+          "Natives refuse to teach."
+        );
+        break; /* one mid-refuse pulse per tribe per call */
       }
       t->state.learned = 1;
       /*
@@ -808,6 +857,8 @@ static void ai_contact_gift_or_demand(
   /*
    * Mid friction (40–54) demand / payoff; ≥55 refused above.
    * Auto prefers tools then gold; Meet→Demand may offer amount CHOICE.
+   * Cannot pay either path → refuse OK (follow-up polish; no invented drain).
+   * Cite: FUN_5bfb_102a / 1092; indian_contact.md mid demand.
    */
   if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
     ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
@@ -815,17 +866,24 @@ static void ai_contact_gift_or_demand(
   }
   if (ai_contact_demand_can_pay_gold(ctx, e)) {
     ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
+    return;
   }
+  ai_contact_human_chrome(
+    ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+  );
 }
 
 /*
  * Missionary adjacent to tribe → convert pulse (5bfb checklist / fandom Alarm):
  *  - mission unset (0xff) → set mission owner, alarm/friction decay (−1
- *    peaceful / −2 mid-range 40..54), +1 nation crosses; human status
+ *    peaceful / −2 Jesuit mid-range 40..54), +1 nation crosses; human status
  *    "Natives accept conversion."
  *  - mission already set (own or foreign) → skip convert pulse (one-shot;
  *    no re-crosses / no steal). Cite: indian_contact.md convert once.
  *  - alarmed (≥55 refuse-talk gate) → refuse convert with status; no crosses
+ *  - mid (40..54): Jesuit-grade only (PEDIA @JOB24 name/prof 24, or Brebeuf
+ *    ownership → plain Missionary counts as expert). Else mid refuse polish
+ *    (same refuse line; no crosses). Cite: docs/fandom_col1994.md Brebeuf.
  * Teach/convert dialog widgets OPEN (unpark #1); full 2820/4528 PARKED.
  */
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
@@ -879,12 +937,34 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
         );
         break; /* one refuse pulse per tribe per call */
       }
+      /*
+       * Mid-alarm (40..54): Jesuit-grade only. Plain Missionary refuses
+       * unless nation owns Brebeuf (fandom experts). Cite: COLONIZE/PEDIA.TXT
+       * @JOB24; docs/fandom_col1994.md Brebeuf; indian_contact.md convert.
+       */
+      {
+        const int mid =
+          (ind->alarm_by_player[e] >= 40 && ind->alarm_by_player[e] < 55) ||
+          (t->alarm[e].friction >= 40 && t->alarm[e].friction < 55);
+        if (mid && !ai_contact_is_jesuit_grade(ctx->col1, ctx->units, other)) {
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_CONVERT,
+            nation_id,
+            "Mission",
+            "Natives refuse conversion."
+          );
+          break; /* one mid-refuse pulse per tribe per call */
+        }
+      }
       t->mission = (uint8_t)e;
       /*
-       * Mid-range convert friction polish (40..54): stronger −2 decay on
-       * establish (matches meet-pulse mission pacify mid band). Peaceful
-       * (<40) keeps −1. Cite: fandom Alarm — missions slow hostility;
-       * indian_contact.md convert / mission pacify. No free crosses.
+       * Mid-range Jesuit convert friction polish (40..54): stronger −2 decay
+       * on establish (matches meet-pulse mission pacify mid band). Peaceful
+       * (<40) keeps −1 for any missionary. Cite: fandom Alarm — missions
+       * slow hostility; PEDIA Jesuit effectiveness; Brebeuf experts;
+       * indian_contact.md. Convert +1 crosses only (no elect fiction).
        */
       {
         const int mid =
