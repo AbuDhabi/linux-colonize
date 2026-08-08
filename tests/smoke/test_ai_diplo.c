@@ -2208,6 +2208,350 @@ int main(void) {
     }
   }
 
+  /*
+   * AI popup unpark: declare_war_ctx involving human enqueues OK (status kept).
+   * FUN_15b3 / 5bfb 102a/1092 stand-in; boycott tag when embargo chrome wins.
+   */
+  {
+    ColonizeCol1Save pop;
+    col1_save_init(&pop);
+    memset(pop.nation, 0, sizeof(pop.nation));
+    for (int i = 0; i < 4; ++i) {
+      pop.player[i].control = 0;
+      pop.player[i].country_name[0] = '\0';
+    }
+    snprintf(pop.player[1].country_name, sizeof(pop.player[1].country_name), "France");
+    pop.nation[0].gold = 200;
+    pop.nation[1].gold = 200;
+    char status_pop[128];
+    status_pop[0] = '\0';
+    AiPopupState popups;
+    ai_popup_init(&popups);
+    ColonizeTurnContext ctx_pop;
+    memset(&ctx_pop, 0, sizeof(ctx_pop));
+    ctx_pop.col1 = &pop;
+    ctx_pop.col1_ok = true;
+    ctx_pop.human_nation = 0;
+    ctx_pop.status = status_pop;
+    ctx_pop.status_size = sizeof(status_pop);
+    ctx_pop.ai_popups = &popups;
+
+    ai_diplo_declare_war_ctx(&ctx_pop, 1, 0);
+    if (!ai_diplo_at_war(&pop, 0, 1)) {
+      return fail("popup smoke: declare_war_ctx should set WAR");
+    }
+    if (strcmp(status_pop, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: popup war status '%s'\n", status_pop);
+      return fail("popup smoke: status line must still prefer boycott chrome");
+    }
+    if (popups.queue_count != 1) {
+      return fail("popup smoke: declare_war_ctx should enqueue one OK");
+    }
+    if (popups.queue[0].tag != AI_POPUP_TAG_DIPLO_BOYCOTT) {
+      return fail("popup smoke: boycott status should tag DIPLO_BOYCOTT");
+    }
+    if (strcmp(popups.queue[0].body, status_pop) != 0) {
+      return fail("popup smoke: OK body should match status");
+    }
+
+    /* Re-declare: no second enqueue. */
+    ai_diplo_declare_war_ctx(&ctx_pop, 1, 0);
+    if (popups.queue_count != 1) {
+      return fail("popup smoke: re-declare must not enqueue again");
+    }
+
+    /* Peace → Tools embargo lift OK (BOYCOTT tag). */
+    ai_diplo_make_peace_ctx(&ctx_pop, 0, 1);
+    if (popups.queue_count != 2) {
+      return fail("popup smoke: make_peace_ctx should enqueue OK");
+    }
+    if (popups.queue[1].tag != AI_POPUP_TAG_DIPLO_BOYCOTT) {
+      return fail("popup smoke: Tools embargo lift should tag DIPLO_BOYCOTT");
+    }
+
+    /*
+     * Alliance offer CHOICE + Accept → form_alliance_ctx.
+     * R3: zero gold so chrome is "Alliance formed" (not costs-gold); follow-up
+     * OK must enqueue after CHOICE apply. Cite: FUN_5bfb_13b0 / 15b3.
+     */
+    ai_popup_clear(&popups);
+    status_pop[0] = '\0';
+    pop.nation[0].gold = 0;
+    pop.nation[2].gold = 0;
+    snprintf(pop.player[2].country_name, sizeof(pop.player[2].country_name), "Spain");
+    {
+      const char* labels[] = {"Accept", "Refuse"};
+      const int ids[] = {1, 2};
+      if (!ai_popup_enqueue_choice_ctx(
+            &popups,
+            AI_POPUP_TAG_DIPLO_ALLIANCE,
+            2,
+            0,
+            0,
+            "Alliance",
+            "Spain offers an alliance.",
+            labels,
+            ids,
+            2
+          )) {
+        return fail("popup smoke: enqueue alliance choice");
+      }
+    }
+    ai_popup_try_present_next(&popups);
+    {
+      ColonizeInputState in;
+      memset(&in, 0, sizeof(in));
+      in.last_key = COLONIZE_KEY_ENTER; /* Accept (selection 0 → id 1) */
+      if (!ai_popup_handle_input(&popups, &in) || !popups.has_result) {
+        return fail("popup smoke: Accept should produce result");
+      }
+    }
+    ai_diplo_apply_popup_result(&ctx_pop, &popups);
+    if ((ai_diplo_read(&pop, 0, 2) & AI_DIPLO_ALLY) == 0) {
+      return fail("popup smoke: Accept should form_alliance");
+    }
+    if (strcmp(status_pop, "Alliance formed with Spain") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: alliance Accept status '%s'\n", status_pop);
+      return fail("R3 alliance Accept: status should be Alliance formed");
+    }
+    if (popups.queue_count != 1) {
+      return fail("R3 alliance Accept: should enqueue follow-up OK");
+    }
+    if (popups.queue[0].tag != AI_POPUP_TAG_DIPLO_ALLIANCE ||
+        popups.queue[0].kind != AI_POPUP_KIND_OK) {
+      return fail("R3 alliance Accept: follow-up should be DIPLO_ALLIANCE OK");
+    }
+    if (strcmp(popups.queue[0].body, "Alliance formed with Spain") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: alliance Accept OK '%s'\n", popups.queue[0].body);
+      return fail("R3 alliance Accept: follow-up OK body Alliance formed");
+    }
+    ai_popup_consume_result(&popups);
+
+    /*
+     * R2: war OK both directions (human-as-a / human-as-b) once each;
+     * re-declare must not spam. Peace offer CHOICE AI→human + Accept apply.
+     * Cite: FUN_15b3 / FUN_5bfb; FA 3f41 full UI PARKED.
+     */
+    {
+      ColonizeCol1Save w2;
+      col1_save_init(&w2);
+      memset(w2.nation, 0, sizeof(w2.nation));
+      for (int i = 0; i < 4; ++i) {
+        w2.player[i].control = 0;
+        w2.player[i].country_name[0] = '\0';
+      }
+      snprintf(w2.player[1].country_name, sizeof(w2.player[1].country_name), "France");
+      w2.nation[0].gold = 200;
+      w2.nation[1].gold = 200;
+      for (int i = 0; i < 8; ++i) {
+        w2.nation[0].relation_by_indian[i] = 100;
+        w2.nation[1].relation_by_indian[i] = 100;
+      }
+      char status_w2[128];
+      status_w2[0] = '\0';
+      AiPopupState pop_w2;
+      ai_popup_init(&pop_w2);
+      ColonizeTurnContext ctx_w2;
+      memset(&ctx_w2, 0, sizeof(ctx_w2));
+      ctx_w2.col1 = &w2;
+      ctx_w2.col1_ok = true;
+      ctx_w2.human_nation = 0;
+      ctx_w2.status = status_w2;
+      ctx_w2.status_size = sizeof(status_w2);
+      ctx_w2.ai_popups = &pop_w2;
+
+      /* human-as-a */
+      ai_diplo_declare_war_ctx(&ctx_w2, 0, 1);
+      if (pop_w2.queue_count != 1) {
+        return fail("R2 war: human-as-a should enqueue one OK");
+      }
+      ai_diplo_declare_war_ctx(&ctx_w2, 0, 1);
+      if (pop_w2.queue_count != 1) {
+        return fail("R2 war: re-declare human-as-a must not spam");
+      }
+      ai_diplo_make_peace(&w2, 0, 1);
+      ai_popup_clear(&pop_w2);
+      status_w2[0] = '\0';
+      w2.nation[0].gold = 200;
+      w2.nation[1].gold = 200;
+      for (int i = 0; i < 8; ++i) {
+        w2.nation[0].relation_by_indian[i] = 100;
+        w2.nation[1].relation_by_indian[i] = 100;
+      }
+      w2.nation[0].unknown26[8] = 0;
+      /* human-as-b */
+      ai_diplo_declare_war_ctx(&ctx_w2, 1, 0);
+      if (pop_w2.queue_count != 1) {
+        return fail("R2 war: human-as-b should enqueue one OK");
+      }
+      ai_diplo_declare_war_ctx(&ctx_w2, 1, 0);
+      if (pop_w2.queue_count != 1) {
+        return fail("R2 war: re-declare human-as-b must not spam");
+      }
+
+      /* Peace CHOICE: AI actor offers to human peer; Accept → make_peace. */
+      ai_popup_clear(&pop_w2);
+      status_w2[0] = '\0';
+      {
+        const char* labels[] = {"Accept", "Refuse"};
+        const int ids[] = {1, 2};
+        if (!ai_popup_enqueue_choice_ctx(
+              &pop_w2,
+              AI_POPUP_TAG_DIPLO_PEACE,
+              1,
+              0,
+              0,
+              "Peace",
+              "France offers peace.",
+              labels,
+              ids,
+              2
+            )) {
+          return fail("R2 peace: enqueue CHOICE");
+        }
+      }
+      if (ai_diplo_at_war(&w2, 0, 1) == 0) {
+        return fail("R2 peace: still at war before Accept");
+      }
+      ai_popup_try_present_next(&pop_w2);
+      {
+        ColonizeInputState in;
+        memset(&in, 0, sizeof(in));
+        in.last_key = COLONIZE_KEY_ENTER; /* Accept */
+        if (!ai_popup_handle_input(&pop_w2, &in) || !pop_w2.has_result) {
+          return fail("R2 peace: Accept should produce result");
+        }
+      }
+      ai_diplo_apply_popup_result(&ctx_w2, &pop_w2);
+      if (ai_diplo_at_war(&w2, 0, 1)) {
+        return fail("R2 peace: Accept should make_peace");
+      }
+      ai_popup_consume_result(&pop_w2);
+
+      /* Refuse leaves WAR. */
+      ai_diplo_declare_war(&w2, 0, 1);
+      ai_popup_clear(&pop_w2);
+      {
+        const char* labels[] = {"Accept", "Refuse"};
+        const int ids[] = {1, 2};
+        (void)ai_popup_enqueue_choice_ctx(
+          &pop_w2,
+          AI_POPUP_TAG_DIPLO_PEACE,
+          1,
+          0,
+          0,
+          "Peace",
+          "France offers peace.",
+          labels,
+          ids,
+          2
+        );
+      }
+      ai_popup_try_present_next(&pop_w2);
+      {
+        ColonizeInputState in;
+        memset(&in, 0, sizeof(in));
+        in.last_key = COLONIZE_KEY_DOWN; /* Refuse selection */
+        (void)ai_popup_handle_input(&pop_w2, &in);
+        in.last_key = COLONIZE_KEY_ENTER;
+        if (!ai_popup_handle_input(&pop_w2, &in) || !pop_w2.has_result) {
+          return fail("R2 peace: Refuse should produce result");
+        }
+      }
+      if (pop_w2.result_choice_id != 2) {
+        return fail("R2 peace: Refuse choice_id should be 2");
+      }
+      ai_diplo_apply_popup_result(&ctx_w2, &pop_w2);
+      if (!ai_diplo_at_war(&w2, 0, 1)) {
+        return fail("R2 peace: Refuse must leave WAR");
+      }
+      if (strcmp(status_w2, "Peace refused with France") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: peace refuse status '%s'\n", status_w2);
+        return fail("R2 peace: Refuse should status Peace refused");
+      }
+      ai_popup_consume_result(&pop_w2);
+
+      /* Break sticky native OK enqueue (status + popup). */
+      ai_popup_clear(&pop_w2);
+      status_w2[0] = '\0';
+      ai_diplo_make_peace(&w2, 0, 1);
+      for (int i = 0; i < 8; ++i) {
+        w2.nation[0].relation_by_indian[i] = 52;
+        w2.nation[1].relation_by_indian[i] = 52;
+      }
+      w2.nation[0].unknown26[8] = 0;
+      w2.nation[0].gold = 100;
+      w2.nation[1].gold = 100;
+      ai_diplo_form_alliance(&w2, 0, 1);
+      ai_diplo_break_alliance_ctx(&ctx_w2, 0, 1);
+      if (strcmp(status_w2, "Natives grow hostile.") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: R2 break sticky '%s'\n", status_w2);
+        return fail("R2 break: sticky rise should status Natives grow hostile");
+      }
+      if (pop_w2.queue_count != 1) {
+        return fail("R2 break: sticky native status should enqueue one OK");
+      }
+
+      /*
+       * R3: privateer prize human status also enqueues OK (INFO).
+       * Full privateer unit spawn PARKED; FA 3f41 full UI PARKED.
+       */
+      {
+        ColonizeCol1Save pr;
+        col1_save_init(&pr);
+        memset(pr.nation, 0, sizeof(pr.nation));
+        for (int i = 0; i < 4; ++i) {
+          pr.player[i].control = 0;
+          pr.player[i].country_name[0] = '\0';
+        }
+        snprintf(pr.player[0].country_name, sizeof(pr.player[0].country_name), "England");
+        for (int i = 0; i < 8; ++i) {
+          pr.nation[0].relation_by_indian[i] = 100;
+          pr.nation[1].relation_by_indian[i] = 100;
+        }
+        ai_diplo_declare_war(&pr, 0, 1);
+        pr.nation[0].gold = 200;
+        pr.nation[1].gold = 50;
+        ColonizeDosRng rng_pr3;
+        dos_rng_seed(&rng_pr3, 4);
+        uint32_t turn_pr3 = 4;
+        char status_pr3[128];
+        status_pr3[0] = '\0';
+        AiPopupState pop_pr3;
+        ai_popup_init(&pop_pr3);
+        ColonizeTurnContext ctx_pr3;
+        memset(&ctx_pr3, 0, sizeof(ctx_pr3));
+        ctx_pr3.col1 = &pr;
+        ctx_pr3.col1_ok = true;
+        ctx_pr3.rng = &rng_pr3;
+        ctx_pr3.turn_number = &turn_pr3;
+        ctx_pr3.human_nation = 1;
+        ctx_pr3.status = status_pr3;
+        ctx_pr3.status_size = sizeof(status_pr3);
+        ctx_pr3.ai_popups = &pop_pr3;
+        ai_diplo_euro_balance(&ctx_pr3, 1);
+        if (strcmp(status_pr3, "Privateer prize from England") != 0) {
+          fprintf(stderr, "smoke_ai_diplo: R3 privateer status '%s'\n", status_pr3);
+          return fail("R3 privateer: status Privateer prize from England");
+        }
+        if (pop_pr3.queue_count < 1) {
+          return fail("R3 privateer: should enqueue at least one OK");
+        }
+        int found_pr = 0;
+        for (int qi = 0; qi < pop_pr3.queue_count; ++qi) {
+          if (pop_pr3.queue[qi].kind == AI_POPUP_KIND_OK &&
+              strcmp(pop_pr3.queue[qi].body, "Privateer prize from England") == 0) {
+            found_pr = 1;
+            break;
+          }
+        }
+        if (!found_pr) {
+          return fail("R3 privateer: OK body must match Privateer prize status");
+        }
+      }
+    }
+  }
+
   fprintf(stderr, "smoke_ai_diplo: ok\n");
   return 0;
 }

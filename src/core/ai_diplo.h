@@ -33,10 +33,11 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
 
 /* Thin 102a/1092 status chrome (Contact/King pattern): call existing
  * declare/make_peace/form_alliance/break_alliance then write ctx->status when
- * human is involved. form_alliance_ctx: first form → "Alliance formed with %s";
+ * human is involved; also enqueue AI OK popup when ctx->ai_popups is set
+ * (FUN_15b3 / 5bfb). form_alliance_ctx: first form → "Alliance formed with %s";
  * prefer "Alliance with %s costs gold." when 25g drains. AI callers keep using
  * declare_war / make_peace / form_alliance / break_alliance without status.
- * FA UI PARKED. */
+ * FA 3f41 full UI PARKED. */
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
@@ -99,5 +100,11 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
+
+/* Apply human choice from map AI popup (alliance / peace Accept/Refuse).
+ * Alliance Accept → form_alliance_ctx (follow-up OK "Alliance formed…");
+ * peace Accept → make_peace_ctx. No-op if tag mismatch, cancelled, or OK
+ * (choice_id 0). FUN_5bfb_13b0 / 15b3 / war-fatigue; FA 3f41 full UI PARKED. */
+void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
 #endif

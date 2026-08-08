@@ -107,9 +107,12 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    **Already learned** (`state.learned` set) → skip teach and do **not** write
    teach/refuse status (Col1 one-shot; preserves gift/trade chrome).
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in
-   for `2aac…311e`); human status **"Trade accepted."**
+   for `2aac…311e`); human status **"Trade accepted."** Meet CHOICE Trade with no
+   goods / gated trade → haggle stub OK **"Trade concluded."** (deep `2820`
+   buy/hard-bargain **PARKED**).
 7. **Gift / demand** structural stand-in after peaceful meet (`5bfb_102a` /
-   `1092` **widgets** still OPEN). Friction = max(`alarm_by_player`, tribe
+   `1092` **widgets** still OPEN). **PARK:** Gift CHOICE amount / tribute UI
+   (fixed −10 gold band only; no amount widget). Friction = max(`alarm_by_player`, tribe
    `alarm[].friction`):
    - **Alarmed** (`>= 55` on `alarm_by_player` or pair friction) → refuse
      gift/demand; status **"Natives refuse gifts."** when tribe friction is
@@ -136,8 +139,14 @@ raise the raid gate in the burn band **≥80**). Cite: fandom Alarm — missions
 slow hostility.
 
 Status lines only when `ctx->status` is present and the Euro is the human nation
-(`ctx->human_nation`, else `player.control == 0`). Full DOS dialog chrome stays
-**PARKED**; unpark #1 remains **OPEN** for real widgets.
+(`ctx->human_nation`, else `player.control == 0`). When `ctx->ai_popups` is set,
+human arms also enqueue OK / Meet CHOICE popups (FUN_5bfb_022e / 5bfb_102a
+structural unpark). First meet with popups: CHOICE (Trade/Gift/Demand/Teach/Leave)
+defers auto-trade/gift until `ai_contact_apply_popup_result`; a second Brave in the
+same pulse does not re-offer Meet CHOICE while one is pending. Teach CHOICE refuse
+(≥55) enqueues CONTACT_TEACH OK; convert success (mission establish) enqueues
+CONTACT_CONVERT OK. Mission burn (prelude ≥80) enqueues CONTACT_RAID OK with
+status. Deep DOS dialog chrome (VGA-identical) stays **PARKED**.
 
 ### Teach-skill profession map (Linux)
 
@@ -182,7 +191,9 @@ still **OPEN** (unpark #1). Full DOS dialog **PARKED**.
   convert status only — **not** a 2820 port. Peels: `layer_b_combat_raid`,
   `layer_b_2a1f_midlo`. Cite: `docs/ai_transcription.md` FUN_4d56_2820.
 - **OPEN (unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
-  (`5bfb_102a` / `1092`, teach chrome); status lines already thinned
+  (`5bfb_102a` / `1092`, teach chrome) — Linux: status + `ai_popups` OK/CHOICE
+  enqueue + `ai_contact_apply_popup_result` (thin handlers); VGA-identical
+  dialog chrome still PARKED
 - Full skill-from-`@TRIBES` flavor-good string parse — still PARKED
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2) — still PARKED
 - Deep Brave escort inside quiet `14fe` — still PARKED (raids stay post-pulse)

@@ -115,10 +115,20 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
 - `%s` = peer `player.country_name` when non-empty, else `"rival"`
 - Existing `declare_war` / `make_peace` / `form_alliance` / `break_alliance` unchanged (AI callers stay status-free)
 - `euro_balance` RNG war/peace/form/break uses the `_ctx` wrappers
+- **AI popups (map wood OK / CHOICE):** when `ctx->ai_popups` is set, human-facing
+  status lines **also** enqueue OK (`DIPLO_WAR` / `PEACE` / `ALLIANCE` / `BREAK` /
+  `BOYCOTT` / `INFO`). Alliance offer to human peer enqueues CHOICE Accept/Refuse;
+  Accept → `form_alliance_ctx` follow-up OK `"Alliance formed with %s"` (or
+  gold-drain chrome). War-fatigue AI→human peace offer enqueues CHOICE
+  Accept/Refuse → `make_peace_ctx` on Accept (`ai_diplo_apply_popup_result`).
+  War OK both human-as-a / human-as-b once (`!already` re-declare gate).
+  Privateer prize status also enqueues OK (`INFO`). FA `3f41` full report UI
+  still **PARKED**; OK for gift/strengthen status is fine. Cite `FUN_15b3` /
+  `FUN_5bfb`.
 
 **OPEN (unpark #5):** full multi-line `102a`/`1092` dialog widgets; FA `3f41`, order clear
 `12d0` deep, privateer units, exact `−0x77c4` still PARKED. Score/trade deepen + thin
-status chrome **Done** this pass.
+status chrome **Done** this pass. AI popup OK/CHOICE enqueue **Done** (R1–R3).
 
 ### Thin alliance treasury + treaty timer (Linux)
 
@@ -243,4 +253,5 @@ API / behavior:
 - **Done R13:** war-fatigue human chrome when either party (peer smoke + Peace concluded when Tools clear); sticky==2 refuse-alliance status smoke; treaty-timer expiry break human status; FA gift gold transfer already smoked
 - **Done R14:** full wartime boycott mask declare OR + make_peace clear already smoked; `form_alliance_ctx` success chrome `"Alliance formed with %s"` (gold-drain preferred)
 - **Done R15 (thin final):** no code gap — alliance-formed status smoke already present (R14 zero-gold path); FA `3f41` full body/UI confirmed **PARKED** (thin ally-aid 10g + FA gift 15g / longevity only; Accuracy bar: FA UI parked, no invented chrome)
+- **Done popup marathon R3 (thin final):** Alliance Accept CHOICE → follow-up OK `"Alliance formed with %s"` smoke; privateer prize OK enqueue smoke; FA `3f41` full body/UI stays **PARKED** (cite `FUN_15b3` / `FUN_5bfb`; no F2–F9 report chrome)
 - **Still PARKED:** FA `3f41` full body/UI; wartime privateer **unit spawn** / raid path (thin treasury prize only); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens

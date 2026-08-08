@@ -1,0 +1,159 @@
+#ifndef COLONIZE_AI_POPUP_H
+#define COLONIZE_AI_POPUP_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "core/assets.h"
+#include "core/font.h"
+#include "core/popup.h"
+#include "core/ss.h"
+#include "platform/platform.h"
+
+/*
+ * Map-level AI popup queue + wood dialog (text OK / text + choices).
+ *
+ * AI turn code enqueues requests onto ColonizeTurnContext.ai_popups; the game
+ * loop presents them after the turn processor is idle (one at a time). Visual
+ * chrome matches cheat_list / save_load (popup_draw + WOODTILE); not VGA-identical.
+ *
+ * Choice results: has_result + result_choice_id; caller/game_loop applies by tag.
+ * Esc / click-outside / right-click cancels (result_cancelled).
+ */
+
+#define AI_POPUP_QUEUE_MAX 16
+#define AI_POPUP_CHOICE_MAX 6
+#define AI_POPUP_BODY_LEN 240
+#define AI_POPUP_TITLE_LEN 64
+#define AI_POPUP_CHOICE_LEN 48
+
+typedef enum AiPopupKind {
+  AI_POPUP_KIND_OK = 0,
+  AI_POPUP_KIND_CHOICE = 1
+} AiPopupKind;
+
+/* Caller-defined; used when applying choice results / chaining. */
+typedef enum AiPopupTag {
+  AI_POPUP_TAG_INFO = 0,
+  AI_POPUP_TAG_KING_AUDIENCE = 1,
+  AI_POPUP_TAG_KING_MERC = 2,
+  AI_POPUP_TAG_KING_CONGRESS = 3,
+  AI_POPUP_TAG_KING_ARRIVAL = 4,
+  AI_POPUP_TAG_KING_CAPTURE = 5,
+  AI_POPUP_TAG_KING_TAX = 6,
+  AI_POPUP_TAG_CONTACT_MEET = 10,
+  AI_POPUP_TAG_CONTACT_TEACH = 11,
+  AI_POPUP_TAG_CONTACT_GIFT = 12,
+  AI_POPUP_TAG_CONTACT_DEMAND = 13,
+  AI_POPUP_TAG_CONTACT_RAID = 14,
+  AI_POPUP_TAG_CONTACT_CONVERT = 15,
+  AI_POPUP_TAG_CONTACT_REFUSE = 16,
+  AI_POPUP_TAG_DIPLO_WAR = 20,
+  AI_POPUP_TAG_DIPLO_PEACE = 21,
+  AI_POPUP_TAG_DIPLO_ALLIANCE = 22,
+  AI_POPUP_TAG_DIPLO_BREAK = 23,
+  AI_POPUP_TAG_DIPLO_BOYCOTT = 24
+} AiPopupTag;
+
+typedef struct AiPopupRequest {
+  AiPopupKind kind;
+  AiPopupTag tag;
+  int nation_a; /* optional context (often human) */
+  int nation_b;
+  int payload; /* free int (tribe id, colony id, …) */
+  char title[AI_POPUP_TITLE_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  int choice_ids[AI_POPUP_CHOICE_MAX];
+  int choice_count;
+} AiPopupRequest;
+
+typedef struct AiPopupState {
+  AiPopupRequest queue[AI_POPUP_QUEUE_MAX];
+  int queue_count;
+
+  bool open;
+  AiPopupRequest current;
+  int selection;
+
+  bool has_result;
+  bool result_cancelled;
+  int result_choice_id;
+  AiPopupTag result_tag;
+  int result_nation_a;
+  int result_nation_b;
+  int result_payload;
+
+  int dialog_x;
+  int dialog_y;
+  int dialog_w;
+  int dialog_h;
+  int list_y0;
+  int line_h;
+} AiPopupState;
+
+void ai_popup_init(AiPopupState* st);
+void ai_popup_clear(AiPopupState* st);
+
+/* Enqueue (no-op if full or st NULL). Returns false if dropped. */
+bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req);
+bool ai_popup_enqueue_ok(
+  AiPopupState* st,
+  AiPopupTag tag,
+  const char* title,
+  const char* body
+);
+bool ai_popup_enqueue_ok_ctx(
+  AiPopupState* st,
+  AiPopupTag tag,
+  int nation_a,
+  int nation_b,
+  int payload,
+  const char* title,
+  const char* body
+);
+bool ai_popup_enqueue_choice(
+  AiPopupState* st,
+  AiPopupTag tag,
+  const char* title,
+  const char* body,
+  const char* const* choice_labels,
+  const int* choice_ids,
+  int choice_count
+);
+bool ai_popup_enqueue_choice_ctx(
+  AiPopupState* st,
+  AiPopupTag tag,
+  int nation_a,
+  int nation_b,
+  int payload,
+  const char* title,
+  const char* body,
+  const char* const* choice_labels,
+  const int* choice_ids,
+  int choice_count
+);
+
+bool ai_popup_queue_pending(const AiPopupState* st);
+bool ai_popup_busy(const AiPopupState* st); /* open or queued */
+
+/* If !open && queue non-empty, pop front into current and open. */
+bool ai_popup_try_present_next(AiPopupState* st);
+
+bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input);
+
+void ai_popup_render(
+  AiPopupState* st,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* wood_tile,
+  const ColonizePopupColors* colors,
+  uint8_t text_color,
+  uint8_t select_color,
+  ColonizeFramebuffer8* framebuffer
+);
+
+/* Clear has_result after game_loop applies it. */
+void ai_popup_consume_result(AiPopupState* st);
+
+#endif

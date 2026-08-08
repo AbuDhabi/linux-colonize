@@ -74,6 +74,7 @@ add_library(colonize_core STATIC
   src/core/ai_diplo.c
   src/core/ai_contact.c
   src/core/ai_king.c
+  src/core/ai_popup.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -236,6 +237,7 @@ add_executable(smoke_game_flow
   src/core/ai_diplo.c
   src/core/ai_contact.c
   src/core/ai_king.c
+  src/core/ai_popup.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -289,6 +291,7 @@ add_executable(smoke_new_game
   src/core/ai_diplo.c
   src/core/ai_contact.c
   src/core/ai_king.c
+  src/core/ai_popup.c
   src/core/sound.c
   src/core/madspack.c
   src/core/pik.c
@@ -328,6 +331,24 @@ target_include_directories(smoke_popup PRIVATE
 )
 
 add_test(NAME smoke_popup COMMAND smoke_popup)
+
+add_executable(smoke_ai_popup
+  tests/smoke/test_ai_popup.c
+  src/core/ai_popup.c
+  src/core/popup.c
+  src/core/font.c
+  src/core/assets.c
+  src/core/ss.c
+  src/core/madspack.c
+  src/core/strutil.c
+  src/core/map_menu.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+target_include_directories(smoke_ai_popup PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME smoke_ai_popup COMMAND smoke_ai_popup WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_pick_music
   tests/smoke/test_pick_music.c

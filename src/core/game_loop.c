@@ -8,6 +8,10 @@
 
 #include "core/assets.h"
 #include "core/ai.h"
+#include "core/ai_contact.h"
+#include "core/ai_diplo.h"
+#include "core/ai_king.h"
+#include "core/ai_popup.h"
 #include "core/cheat_list_dialog.h"
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
@@ -67,6 +71,7 @@ struct ColonizeGameState {
   MapMenuBar map_menu;
   PickMusicDialog pick_music;
   CheatListDialog cheat_list;
+  AiPopupState ai_popups;
   SaveLoadDialog save_load;
   UnitStackPopup unit_stack;
   ColonizeMsgCatalog labels;
@@ -174,6 +179,8 @@ struct ColonizeGameState {
 };
 
 static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
+static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
+static void game_apply_ai_popup_result(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
@@ -258,6 +265,18 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
     return;
   }
   snprintf(game->status, sizeof(game->status), "%.64s: %.60s", prefix, detail);
+}
+
+static void game_apply_ai_popup_result(ColonizeGameState* game) {
+  if (!game || !game->ai_popups.has_result) {
+    return;
+  }
+  ColonizeTurnContext ctx;
+  game_fill_turn_context(game, &ctx);
+  ai_king_apply_popup_result(&ctx, &game->ai_popups);
+  ai_contact_apply_popup_result(&ctx, &game->ai_popups);
+  ai_diplo_apply_popup_result(&ctx, &game->ai_popups);
+  ai_popup_consume_result(&game->ai_popups);
 }
 
 /* Fog nation for map paint: special view override, else human. */
@@ -1762,6 +1781,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   map_menu_init(&game->map_menu);
   pick_music_init(&game->pick_music);
   cheat_list_init(&game->cheat_list);
+  ai_popup_init(&game->ai_popups);
   save_load_init(&game->save_load);
   new_game_init(&game->new_game);
   units_reset(&game->units);
@@ -3419,6 +3439,7 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->rng_seed = game->ai_rng_seed ? game->ai_rng_seed : 100u;
   ctx->status = game->status;
   ctx->status_size = sizeof(game->status);
+  ctx->ai_popups = &game->ai_popups;
 }
 
 /* Purchased-ship cargo tags (see europe_board_sentry_dockers): 0 = Colonists,
@@ -4003,6 +4024,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       game_finish_end_turn(game, &game->turn_proc.result);
     }
     return true;
+  }
+
+  /* Present next queued AI popup once the turn processor is idle. */
+  if (!game->ai_popups.open && !game->ai_popups.has_result) {
+    ai_popup_try_present_next(&game->ai_popups);
   }
 
   /* Pace Go-To at 10 tile-steps/sec so pathing is visible. */
@@ -5265,6 +5291,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (game->cheat_list.open) {
       cheat_list_handle_input(&game->cheat_list, input);
       game_apply_cheat_list_result(game);
+      return true;
+    }
+
+    if (game->ai_popups.open) {
+      ai_popup_handle_input(&game->ai_popups, input);
+      game_apply_ai_popup_result(game);
       return true;
     }
 
@@ -6707,6 +6739,19 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       popup_colors_from_ui(&popup_cols);
       cheat_list_render(
         (CheatListDialog*)&game->cheat_list,
+        hud_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
+    if (game->ai_popups.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      ai_popup_render(
+        (AiPopupState*)&game->ai_popups,
         hud_font,
         wood,
         &popup_cols,
