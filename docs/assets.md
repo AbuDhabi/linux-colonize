@@ -536,6 +536,7 @@ image offset `0xEF2` for opcodes `0xBB..0xFF`. Timing uses PIT divisor **`0x4DBF
 | `FA addr` / `F9` | Call / return (DS-relative) |
 | `FF nn` | Loop (`nn==0` sets label; else repeat) |
 | `BE a b` / `BF n` | Writes unread tempo product (IRQ still ~60 Hz) |
+| `C4`..`EB` | Song ALU / conditional jumps (must skip correct sizes) |
 
 Event music ids `0x40..0x5C` use table `0x2AC4` (`FUN_1000_19bc`). Interpreter notes:
 [`original_sources_annotated/sound/gsound_interpreter.md`](../original_sources_annotated/sound/gsound_interpreter.md).
