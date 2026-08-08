@@ -239,7 +239,7 @@ int main(void) {
   }
 
   /* Pocahontas: reset native tension to content; no crosses fiction.
-   * Half-rate alarm growth PARKED (ai_contact / col1_bridge). */
+   * Half-rate alarm growth wired in ai_contact (smoke_ai_contact). */
   nat->liberty_bells_total = 440;
   nat->next_founding_father = 16;
   {
@@ -309,7 +309,7 @@ int main(void) {
     }
   }
 
-  /* Brebeuf: PARKED — no crosses fiction. */
+  /* Brebeuf: ownership gate — no elect crosses fiction. */
   nat->liberty_bells_total = 560;
   nat->next_founding_father = 22;
   {
@@ -320,6 +320,12 @@ int main(void) {
     }
     if (nat->current_crosses != c0) {
       return fail("Brebeuf must not invent crosses");
+    }
+    if (!founding_fathers_brebeuf_missionaries_are_experts(&col1, 0)) {
+      return fail("Brebeuf ownership gate false after elect");
+    }
+    if (founding_fathers_brebeuf_missionaries_are_experts(&col1, 1)) {
+      return fail("Brebeuf ownership must not leak to other nation");
     }
   }
 
@@ -1327,6 +1333,137 @@ int main(void) {
     }
 
     map_free(&mmap);
+  }
+
+  /* Las Casas: Convert (@JOB 27) → Free Colonist (19); no gold/crosses.
+   * Cite: COLONIZE/PEDIA.TXT @FATHER24; docs/fandom_col1994.md. */
+  {
+    ColonizeCol1Save lcol1;
+    col1_save_init(&lcol1);
+    seed_unclaimed(&lcol1);
+
+    ColonizeCol1Nation* lnat = &lcol1.nation[0];
+    memset(lnat, 0, sizeof(*lnat));
+    lnat->founding_father_count = 0;
+    lnat->gold = 100;
+    lnat->current_crosses = 7;
+    lnat->liberty_bells_total = 40;
+    lnat->next_founding_father = FF_BARTOLOME_DE_LAS_CASAS;
+
+    ColonizeColonyPool lcolonies;
+    colonies_init(&lcolonies);
+    ColonizeColony* lcol = &lcolonies.colonies[0];
+    lcol->id = 0;
+    lcol->active = true;
+    lcol->nation_id = 0;
+    lcol->x = 3;
+    lcol->y = 3;
+    lcol->population = 2;
+    lcol->colonist_count = 2;
+    lcol->colonists[0].active = true;
+    lcol->colonists[0].profession = COLONIZE_PROF_CONVERT;
+    lcol->colonists[0].unit_type_index = 0;
+    lcol->colonists[1].active = true;
+    lcol->colonists[1].profession = COLONIZE_PROF_CONVERT;
+    lcol->colonists[1].unit_type_index = 0;
+    lcolonies.colony_count = 1;
+
+    /* Foreign colony convert must stay Convert. */
+    ColonizeColony* fcol = &lcolonies.colonies[1];
+    fcol->id = 1;
+    fcol->active = true;
+    fcol->nation_id = 1;
+    fcol->x = 6;
+    fcol->y = 6;
+    fcol->population = 1;
+    fcol->colonist_count = 1;
+    fcol->colonists[0].active = true;
+    fcol->colonists[0].profession = COLONIZE_PROF_CONVERT;
+    lcolonies.colony_count = 2;
+
+    ColonizeUnitPool lunits;
+    units_reset(&lunits);
+    lunits.type_count = 3;
+    snprintf(lunits.types[0].name, sizeof(lunits.types[0].name), "Colonists");
+    lunits.types[0].movement = 1;
+    lunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(lunits.types[1].name, sizeof(lunits.types[1].name), "Indian Converts");
+    lunits.types[1].movement = 1;
+    lunits.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(lunits.types[2].name, sizeof(lunits.types[2].name), "Free Colonist");
+    lunits.types[2].movement = 1;
+    lunits.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+    const int uid = units_spawn_allow_stack(&lunits, 0, 4, 4);
+    if (uid < 0) {
+      return fail("Las Casas map spawn");
+    }
+    ColonizeUnit* lu = units_get(&lunits, uid);
+    lu->nation_id = 0;
+    lu->profession = COLONIZE_PROF_CONVERT;
+
+    const int uid_named = units_spawn_allow_stack(&lunits, 1, 5, 5);
+    if (uid_named < 0) {
+      return fail("Las Casas named Convert spawn");
+    }
+    ColonizeUnit* lu_named = units_get(&lunits, uid_named);
+    lu_named->nation_id = 0;
+    lu_named->profession = COLONIZE_PROF_CONVERT;
+
+    ColonizeTurnContext lctx;
+    memset(&lctx, 0, sizeof(lctx));
+    lctx.human_nation = 0;
+    lctx.col1 = &lcol1;
+    lctx.col1_ok = true;
+    lctx.colonies = &lcolonies;
+    lctx.units = &lunits;
+    lctx.status = status;
+    lctx.status_size = sizeof(status);
+
+    const uint32_t g0 = lnat->gold;
+    const uint16_t c0 = lnat->current_crosses;
+    founding_fathers_tick(&lctx);
+    if (lcol1.head.founding_father[FF_BARTOLOME_DE_LAS_CASAS] != 0 ||
+        lnat->founding_father_count != 1) {
+      return fail("Las Casas not elected");
+    }
+    if (lnat->gold != g0) {
+      return fail("Las Casas must not invent gold");
+    }
+    if (lnat->current_crosses != c0) {
+      return fail("Las Casas must not invent crosses");
+    }
+    if (lcol->colonists[0].profession != COLONIZE_PROF_FREE_COLONIST ||
+        lcol->colonists[1].profession != COLONIZE_PROF_FREE_COLONIST) {
+      return fail("Las Casas must assimilate owned colony converts");
+    }
+    if (fcol->colonists[0].profession != COLONIZE_PROF_CONVERT) {
+      return fail("Las Casas must not touch foreign colony converts");
+    }
+    if (lu->profession != COLONIZE_PROF_FREE_COLONIST) {
+      return fail("Las Casas must assimilate map Convert profession");
+    }
+    if (lu_named->profession != COLONIZE_PROF_FREE_COLONIST ||
+        lu_named->type_index != 2) {
+      return fail("Las Casas must rename Indian Converts unit type");
+    }
+
+    /* Ownership tick: late Convert on map assimilates without re-elect. */
+    const int late = units_spawn_allow_stack(&lunits, 0, 7, 7);
+    if (late < 0) {
+      return fail("Las Casas late spawn");
+    }
+    ColonizeUnit* late_u = units_get(&lunits, late);
+    late_u->nation_id = 0;
+    late_u->profession = COLONIZE_PROF_CONVERT;
+    lnat->liberty_bells_total = 0; /* below next elect threshold */
+    founding_fathers_tick(&lctx);
+    if (late_u->profession != COLONIZE_PROF_FREE_COLONIST) {
+      return fail("Las Casas ownership tick must assimilate late Convert");
+    }
+    if (lnat->founding_father_count != 1) {
+      return fail("Las Casas ownership tick must not invent extra elects");
+    }
   }
 
   printf("smoke_founding_fathers: OK\n");

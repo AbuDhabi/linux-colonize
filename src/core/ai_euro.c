@@ -35,15 +35,12 @@ static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_i
 }
 
 /*
- * True when colony has Stockade, Warehouse, or Lumber Mill in the build queue —
- * carpenter hammers need on-site labor. Cite: docs/building_production.md chart
- * (Stockade 64h / Warehouse 80h / Lumber Mill 52h); fandom construction.
- * Structural stay/LABOR only — no invented hammer/gold rates.
- *
- * PARK: Drydock build prefer — fandom Naval chain Docks→Drydock→Shipyard
- * (building_production Drydock 80h ship repair). No AI construction-list /
- * pick-next-building API in 5d04 planning; coastal Drydock prefer stays
- * PARKED until that hook exists (do not invent hammer/gold rates).
+ * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, or Shipyard
+ * in the build queue — carpenter hammers need on-site labor. Cite:
+ * docs/building_production.md chart (Stockade 64h / Warehouse 80h / Lumber Mill
+ * 52h / Drydock 80h ship repair / Shipyard 240h ship construction); fandom
+ * Naval Docks→Drydock→Shipyard; fandom construction. Structural stay/LABOR
+ * only — no invented hammer/gold rates.
  */
 static int ai_euro_colony_wants_construction_labor(
   const ColonizeColonyPool* pool,
@@ -58,7 +55,161 @@ static int ai_euro_colony_wants_construction_labor(
     return 0;
   }
   return strcmp(bt->name, "Stockade") == 0 || strcmp(bt->name, "Warehouse") == 0 ||
-         strcmp(bt->name, "Lumber Mill") == 0;
+         strcmp(bt->name, "Lumber Mill") == 0 || strcmp(bt->name, "Drydock") == 0 ||
+         strcmp(bt->name, "Shipyard") == 0;
+}
+
+/*
+ * Peace construction pick (5d04 / colony planning): idle/empty
+ * building_in_production (< 0) → prefer Stockade → Warehouse → (coastal) Docks
+ * via colonies_list_buildable + colonies_set_construction. Cite:
+ * docs/fandom_col1994.md Defense Stockade→Fort→Fortress / Storage Warehouse /
+ * Naval Docks→Drydock→Shipyard; docs/building_production.md Stockade 64h /
+ * Warehouse 80h / Dock 52h. No invented hammer/gold buyouts — queue only.
+ */
+static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
+  const int warehouse_id = colonies_find_building(ctx->colonies, "Warehouse");
+  const int docks_id = colonies_find_building(ctx->colonies, "Docks");
+  if (stockade_id < 0 && warehouse_id < 0 && docks_id < 0) {
+    return;
+  }
+  const int prefer[] = {stockade_id, warehouse_id, docks_id};
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.map = ctx->map;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->building_in_production >= 0) {
+      continue; /* idle/empty queue only — do not yank active project */
+    }
+    int buildable[COLONIZE_BUILDING_TYPES_MAX];
+    const int n =
+      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
+    int pick = -1;
+    for (size_t p = 0; p < sizeof(prefer) / sizeof(prefer[0]); ++p) {
+      const int want = prefer[p];
+      if (want < 0) {
+        continue;
+      }
+      for (int b = 0; b < n; ++b) {
+        if (buildable[b] == want) {
+          pick = want;
+          break;
+        }
+      }
+      if (pick >= 0) {
+        break;
+      }
+    }
+    if (pick >= 0) {
+      (void)colonies_set_construction(ctx->colonies, c->id, pick);
+    }
+  }
+}
+
+/*
+ * Coastal Drydock prefer (5d04 / colony planning): own colony with Docks, no
+ * Drydock yet, idle/empty building_in_production → colonies_set_construction
+ * Drydock when colonies_list_buildable includes it (coastal + chain gates).
+ * Cite: docs/fandom_col1994.md Naval Docks→Drydock→Shipyard;
+ * docs/building_production.md Drydock 80h ship repair. Carpenter LABOR binds
+ * via ai_euro_colony_wants_construction_labor. No invented hammer rates.
+ * Runs after peace Stockade→Warehouse→Docks pick so earlier buildings win.
+ */
+static void ai_euro_prefer_coastal_drydock(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  const int drydock_id = colonies_find_building(ctx->colonies, "Drydock");
+  const int docks_id = colonies_find_building(ctx->colonies, "Docks");
+  if (drydock_id < 0 || docks_id < 0) {
+    return;
+  }
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.map = ctx->map;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->building_in_production >= 0) {
+      continue; /* idle/empty queue only — do not yank active project */
+    }
+    if (!c->has_building[docks_id] || c->has_building[drydock_id]) {
+      continue;
+    }
+    int buildable[COLONIZE_BUILDING_TYPES_MAX];
+    const int n =
+      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
+    int drydock_ok = 0;
+    for (int b = 0; b < n; ++b) {
+      if (buildable[b] == drydock_id) {
+        drydock_ok = 1;
+        break;
+      }
+    }
+    if (!drydock_ok) {
+      continue;
+    }
+    (void)colonies_set_construction(ctx->colonies, c->id, drydock_id);
+  }
+}
+
+/*
+ * Coastal Shipyard prefer (5d04 / colony planning): own colony with Drydock,
+ * no Shipyard yet, idle/empty building_in_production → colonies_set_construction
+ * Shipyard when colonies_list_buildable includes it (coastal + chain gates).
+ * Cite: docs/fandom_col1994.md Naval Docks→Drydock→Shipyard;
+ * docs/building_production.md Shipyard 240h ship construction. Carpenter LABOR
+ * binds via ai_euro_colony_wants_construction_labor. No invented hammer rates.
+ * Runs after coastal Drydock prefer so Drydock wins when still missing.
+ */
+static void ai_euro_prefer_coastal_shipyard(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  const int shipyard_id = colonies_find_building(ctx->colonies, "Shipyard");
+  const int drydock_id = colonies_find_building(ctx->colonies, "Drydock");
+  if (shipyard_id < 0 || drydock_id < 0) {
+    return;
+  }
+  ColoniesBuildableOpts opts;
+  memset(&opts, 0, sizeof(opts));
+  opts.map = ctx->map;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->building_in_production >= 0) {
+      continue; /* idle/empty queue only — do not yank active project */
+    }
+    if (!c->has_building[drydock_id] || c->has_building[shipyard_id]) {
+      continue;
+    }
+    int buildable[COLONIZE_BUILDING_TYPES_MAX];
+    const int n =
+      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
+    int shipyard_ok = 0;
+    for (int b = 0; b < n; ++b) {
+      if (buildable[b] == shipyard_id) {
+        shipyard_ok = 1;
+        break;
+      }
+    }
+    if (!shipyard_ok) {
+      continue;
+    }
+    (void)colonies_set_construction(ctx->colonies, c->id, shipyard_id);
+  }
 }
 
 /*
@@ -1107,10 +1258,11 @@ static int ai_euro_try_fisherman_field_assign(
 }
 
 /*
- * Free surround tile with positive Sugar/Tobacco Planter yield. Prefer higher
- * yield (plow/river fold into colony_yield_for_tile). Cite:
- * docs/terrain_yields.md Sugar Planter (Savannah/Swamp) / Tobacco Planter
- * (Grassland/Marsh); Colonization.pdf Skills Chart. 1 if *out_ti set.
+ * Free surround tile with positive Sugar/Tobacco/Cotton Planter or Fur Trapper
+ * yield. Prefer higher yield (plow/river fold into colony_yield_for_tile). Cite:
+ * docs/terrain_yields.md Sugar (Savannah/Swamp) / Tobacco (Grassland/Marsh) /
+ * Cotton (Prairie/Plains) / Fur Trapper (forested); Colonization.pdf Skills
+ * Chart. 1 if *out_ti set.
  */
 static int ai_euro_colony_free_planter_field(
   const ColonizeTurnContext* ctx,
@@ -1122,7 +1274,9 @@ static int ai_euro_colony_free_planter_field(
     return 0;
   }
   if (field_job != COLONIZE_JOB_SUGAR_PLANTER &&
-      field_job != COLONIZE_JOB_TOBACCO_PLANTER) {
+      field_job != COLONIZE_JOB_TOBACCO_PLANTER &&
+      field_job != COLONIZE_JOB_COTTON_PLANTER &&
+      field_job != COLONIZE_JOB_FUR_TRAPPER) {
     return 0;
   }
   int best_ti = -1;
@@ -1155,12 +1309,12 @@ static int ai_euro_colony_free_planter_field(
 }
 
 /*
- * Expert Sugar Planter / Tobacco Planter → admit + colonies_assign_field on a
- * free yield surround (matching terrain only). Cite: docs/terrain_yields.md
- * Sugar/Tobacco; Colonization.pdf Skills Chart; colonies_assign_field.
- * Parallel to Expert Farmer / Ore Miner field-assign. No invented rates.
- * On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward colony (1).
- * Returns 1 if routed or assigned.
+ * Expert Sugar/Tobacco/Cotton Planter or Fur Trapper → admit +
+ * colonies_assign_field on a free yield surround (matching terrain only). Cite:
+ * docs/terrain_yields.md Sugar/Tobacco/Cotton/Fur; Colonization.pdf Skills Chart;
+ * colonies_assign_field. Parallel to Expert Farmer / Ore Miner field-assign.
+ * No invented rates. On-tile: admit then assign. Off-tile MD≤8: AI_MOVE toward
+ * colony (1). Returns 1 if routed or assigned.
  */
 static int ai_euro_try_planter_field_assign(
   ColonizeTurnContext* ctx,
@@ -1179,6 +1333,10 @@ static int ai_euro_try_planter_field_assign(
     field_job = COLONIZE_JOB_SUGAR_PLANTER;
   } else if (strstr(name, "Tobacco Planter") != NULL) {
     field_job = COLONIZE_JOB_TOBACCO_PLANTER;
+  } else if (strstr(name, "Cotton Planter") != NULL) {
+    field_job = COLONIZE_JOB_COTTON_PLANTER;
+  } else if (strstr(name, "Fur Trapper") != NULL) {
+    field_job = COLONIZE_JOB_FUR_TRAPPER;
   } else {
     return 0;
   }
@@ -1224,6 +1382,132 @@ static int ai_euro_try_planter_field_assign(
     }
     if (!colonies_assign_field(ctx->colonies, best_cid, idx, best_ti, field_job)) {
       return 1; /* admitted; field assign failed — still consumed unit */
+    }
+    return 1;
+  }
+  ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_LABOR, 4);
+  ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+  return 1;
+}
+
+/*
+ * Best built workplace in a craft chain (House → Shop → Factory). Cite:
+ * docs/building_production.md processing chains / Skills Chart.
+ */
+static int ai_euro_colony_best_craft_building(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c,
+  const char* const* names
+) {
+  if (!pool || !c || !c->active || !names) {
+    return -1;
+  }
+  int best = -1;
+  for (int i = 0; names[i]; ++i) {
+    const int idx = colonies_find_building(pool, names[i]);
+    if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && c->has_building[idx]) {
+      best = idx; /* later tiers overwrite — prefer highest built */
+    }
+  }
+  return best;
+}
+
+/*
+ * Idle Master Distiller / Weaver / Tobacconist / Blacksmith / Gunsmith /
+ * Fur Trader → admit + colonies_assign_workplace on matching craft chain.
+ * Cite: Colonization.pdf Skills Chart; docs/building_production.md
+ * Distiller/Weaver/Tobacconist/Blacksmith/Gunsmith (Armory→Magazine→Arsenal)/
+ * Fur Trader (House→Trading Post→Factory) chains; colonies_assign_workplace.
+ * No invented rates. On-tile: admit then assign. Off-tile MD≤8: AI_MOVE (1).
+ */
+static int ai_euro_try_expert_workplace_assign(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !ctx->units || !u || !u->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  if (!name) {
+    return 0;
+  }
+  static const char* const k_distiller[] = {
+    "Rum Distiller's House", "Rum Distillery", "Rum Factory", NULL
+  };
+  static const char* const k_weaver[] = {
+    "Weaver's House", "Weaver's Shop", "Textile Mill", NULL
+  };
+  static const char* const k_tobacconist[] = {
+    "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", NULL
+  };
+  static const char* const k_blacksmith[] = {
+    "Blacksmith's House", "Blacksmith's Shop", "Iron Works", NULL
+  };
+  static const char* const k_gunsmith[] = {
+    "Armory", "Magazine", "Arsenal", NULL
+  };
+  static const char* const k_fur_trader[] = {
+    "Fur Trader's House", "Fur Trading Post", "Fur Factory", NULL
+  };
+  const char* const* chain = NULL;
+  if (strstr(name, "Distiller") != NULL) {
+    chain = k_distiller;
+  } else if (strstr(name, "Weaver") != NULL) {
+    chain = k_weaver;
+  } else if (strstr(name, "Tobacconist") != NULL) {
+    chain = k_tobacconist;
+  } else if (strstr(name, "Blacksmith") != NULL) {
+    chain = k_blacksmith;
+  } else if (strstr(name, "Gunsmith") != NULL) {
+    chain = k_gunsmith;
+  } else if (strstr(name, "Fur Trader") != NULL) {
+    chain = k_fur_trader;
+  } else {
+    return 0;
+  }
+  if (ai_euro_land_is_fortified(u)) {
+    return 0;
+  }
+  int best_d = 99;
+  int bx = -1;
+  int by = -1;
+  int best_cid = -1;
+  int best_btype = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+      continue;
+    }
+    const int btype = ai_euro_colony_best_craft_building(ctx->colonies, c, chain);
+    if (btype < 0) {
+      continue;
+    }
+    const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+    if (dist > 8) {
+      continue;
+    }
+    if (bx < 0 || dist < best_d) {
+      best_d = dist;
+      bx = c->x;
+      by = c->y;
+      best_cid = i;
+      best_btype = btype;
+    }
+  }
+  if (best_cid < 0 || best_btype < 0) {
+    return 0;
+  }
+  if (u->x == bx && u->y == by) {
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    if (idx < 0) {
+      return 0;
+    }
+    if (!colonies_assign_workplace(ctx->colonies, best_cid, idx, best_btype)) {
+      return 1; /* admitted; workplace assign failed — still consumed unit */
     }
     return 1;
   }
@@ -1660,8 +1944,9 @@ static int ai_euro_wagon_has_tools(const ColonizeUnitPool* units, const Colonize
 
 /*
  * Colony short on haul cargo: TOOLS stock<20 (5cf6), MUSKETS/HORSES stock<10
- * (inventory muskets_short band; horses same structural threshold). Cite:
- * euro_unit_act §2d; ai_euro_colony_inventory muskets_short.
+ * (inventory muskets_short band; horses same structural threshold), FOOD
+ * stock < pop*2 (5cf6 food_short / manual 2 food/colonist). Cite:
+ * euro_unit_act §2d; ai_euro_colony_inventory; Colonization.pdf Wagon Train.
  */
 static int ai_euro_colony_haul_cargo_short(const ColonizeColony* c, int cargo_type) {
   if (!c || !c->active) {
@@ -1676,10 +1961,18 @@ static int ai_euro_colony_haul_cargo_short(const ColonizeColony* c, int cargo_ty
   if (cargo_type == COLONIZE_CARGO_HORSES) {
     return c->stock[COLONIZE_CARGO_HORSES] < 10;
   }
+  if (cargo_type == COLONIZE_CARGO_FOOD) {
+    return c->population > 0 &&
+           c->stock[COLONIZE_CARGO_FOOD] < c->population * TURN_FOOD_PER_COLONIST;
+  }
   return 0;
 }
 
-/* Surplus load gate: tools≥40 / muskets≥20 / horses≥20 (2× short threshold). */
+/*
+ * Surplus load gate: tools≥40 / muskets≥20 / horses≥20 (2× short threshold);
+ * FOOD ≥ pop*4 (2× food_short floor). Cite: euro_unit_act §2d; 5cf6 food_short;
+ * no invented absolute FOOD stock rates.
+ */
 static int ai_euro_colony_haul_cargo_surplus(const ColonizeColony* c, int cargo_type) {
   if (!c || !c->active) {
     return 0;
@@ -1693,22 +1986,35 @@ static int ai_euro_colony_haul_cargo_surplus(const ColonizeColony* c, int cargo_
   if (cargo_type == COLONIZE_CARGO_HORSES) {
     return c->stock[COLONIZE_CARGO_HORSES] >= 20;
   }
+  if (cargo_type == COLONIZE_CARGO_FOOD) {
+    return c->population > 0 &&
+           c->stock[COLONIZE_CARGO_FOOD] >= c->population * TURN_FOOD_PER_COLONIST * 2;
+  }
   return 0;
 }
 
-static int ai_euro_haul_load_amount(int cargo_type) {
+/*
+ * Load chunk: tools 20 / muskets|horses 10 (short thresholds); FOOD = one turn
+ * of colony consumption (pop * TURN_FOOD_PER_COLONIST). Cite: manual 2
+ * food/colonist; Colonization.pdf Wagon Train cargo; no invented rates.
+ */
+static int ai_euro_haul_load_amount(const ColonizeColony* c, int cargo_type) {
   if (cargo_type == COLONIZE_CARGO_TOOLS) {
     return 20;
   }
   if (cargo_type == COLONIZE_CARGO_MUSKETS || cargo_type == COLONIZE_CARGO_HORSES) {
     return 10;
   }
+  if (cargo_type == COLONIZE_CARGO_FOOD && c && c->population > 0) {
+    return c->population * TURN_FOOD_PER_COLONIST;
+  }
   return 0;
 }
 
 /*
- * Nearest own colony short on cargo_type (or any TOOLS/MUSKETS/HORSES when
- * cargo_type < 0). Cite: euro_unit_act §2d wagon haul; 5cf6 shortage tallies.
+ * Nearest own colony short on cargo_type (or any TOOLS/MUSKETS/HORSES/FOOD when
+ * cargo_type < 0). Cite: euro_unit_act §2d wagon haul; 5cf6 shortage tallies;
+ * Colonization.pdf Wagon Train.
  */
 static int ai_euro_nearest_haul_short_colony(
   ColonizeTurnContext* ctx,
@@ -1736,7 +2042,8 @@ static int ai_euro_nearest_haul_short_colony(
     } else {
       short_here = ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_TOOLS) ||
                    ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_MUSKETS) ||
-                   ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_HORSES);
+                   ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_HORSES) ||
+                   ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_FOOD);
     }
     if (!short_here) {
       continue;
@@ -1772,16 +2079,11 @@ static int ai_euro_nearest_tools_short_colony(
 
 /*
  * Idle Wagon Train haul (thin 5b66/5d04): free hold capacity or TOOLS /
- * MUSKETS / HORSES cargo → AI_MOVE toward nearest matching short own colony
- * (existing unload delivery). On surplus colony with empty capacity, load
- * that cargo via colonies_transfer_to_unit. Cite: euro_unit_act §2d; manual
- * Wagon Train cargo; COLONIZE_CARGO_* constants; no invented stock rates.
- *
- * PARK: Wagon load FOOD — euro AI uses COLONIZE_CARGO_FOOD only for colony
- * stock shortage tallies / LABOR bind (5cf6), never as wagon hold cargo.
- * Ship coastal haul also sails-toward food-short without loading FOOD
- * (euro_unit_act §2d2). No wagon FOOD load/unload path — do not invent FOOD
- * cargo here. Muskets/horses use real cargo constants + stock short gates.
+ * MUSKETS / HORSES / FOOD cargo → AI_MOVE toward nearest matching short own
+ * colony (existing unload delivery). On surplus colony with empty capacity,
+ * load that cargo via colonies_transfer_to_unit. Cite: euro_unit_act §2d;
+ * Colonization.pdf Wagon Train cargo; COLONIZE_CARGO_* + 5cf6 food_short;
+ * no invented stock rates.
  */
 static int ai_euro_try_wagon_haul(
   ColonizeTurnContext* ctx,
@@ -1800,8 +2102,10 @@ static int ai_euro_try_wagon_haul(
     ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_MUSKETS);
   const int has_horses =
     ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_HORSES);
+  const int has_food =
+    ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_FOOD);
   const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
-  if (!has_tools && !has_muskets && !has_horses && !has_cap) {
+  if (!has_tools && !has_muskets && !has_horses && !has_food && !has_cap) {
     return 0;
   }
   /* Prefer cargo already aboard when picking short target. */
@@ -1812,22 +2116,28 @@ static int ai_euro_try_wagon_haul(
     prefer_cargo = COLONIZE_CARGO_MUSKETS;
   } else if (has_horses) {
     prefer_cargo = COLONIZE_CARGO_HORSES;
+  } else if (has_food) {
+    prefer_cargo = COLONIZE_CARGO_FOOD;
   }
-  /* On own colony with surplus + free hold → load before haul (tools>muskets>horses). */
+  /* On own colony with surplus + free hold → load before haul
+   * (tools>muskets>horses>food). Cite: Colonization.pdf Wagon Train. */
   if (has_cap && prefer_cargo < 0) {
     const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
     if (cid >= 0) {
       ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
       if (c && c->active && c->nation_id == nation_id) {
         static const int k_load_order[] = {
-          COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_MUSKETS, COLONIZE_CARGO_HORSES
+          COLONIZE_CARGO_TOOLS,
+          COLONIZE_CARGO_MUSKETS,
+          COLONIZE_CARGO_HORSES,
+          COLONIZE_CARGO_FOOD
         };
-        for (int i = 0; i < 3; ++i) {
+        for (size_t i = 0; i < sizeof(k_load_order) / sizeof(k_load_order[0]); ++i) {
           const int ct = k_load_order[i];
           if (!ai_euro_colony_haul_cargo_surplus(c, ct)) {
             continue;
           }
-          const int amt = ai_euro_haul_load_amount(ct);
+          const int amt = ai_euro_haul_load_amount(c, ct);
           if (amt > 0 &&
               colonies_transfer_to_unit(ctx->colonies, cid, ctx->units, wagon->id, ct, amt) >
                 0) {
@@ -2229,9 +2539,10 @@ static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id
 
 /*
  * Thin 5d04 / case-7 wagon deepen: when Wagon Train already hired (nation has
- * wagon), unload hold TOOLS onto own tools-short colony via
- * colonies_transfer_from_unit — structural cargo only (no invented stock).
- * Cite: euro_unit_act §2d wagon/tools matrix; unpark #4 remainders PARKED.
+ * wagon), unload hold TOOLS / MUSKETS / HORSES / FOOD onto matching short
+ * colony via colonies_transfer_from_unit — structural cargo only (no invented
+ * stock). Cite: euro_unit_act §2d wagon matrix; Colonization.pdf Wagon Train;
+ * 5cf6 food_short. Unpark #4 remainders PARKED.
  *
  * PARK — wagon trade-goods → Europe sell: europe_sell_hold requires a ship in
  * the Europe harbor UI (EuropeScreen). No AI API to sell wagon cargo from the
@@ -2256,13 +2567,14 @@ static int ai_euro_try_wagon_tools_delivery(
   }
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   /*
-   * Unload TOOLS / MUSKETS / HORSES when colony is short on that cargo.
-   * Cite: euro_unit_act §2d; COLONIZE_CARGO_* haul deepen. PARK: FOOD.
+   * Unload TOOLS / MUSKETS / HORSES / FOOD when colony is short on that cargo.
+   * Cite: euro_unit_act §2d; COLONIZE_CARGO_* haul deepen; 5cf6 food_short.
    */
   const int n = units_goods_hold_count(ctx->units, wagon->id);
   int moved_total = 0;
   int moved_tools = 0;
   int moved_muskets = 0;
+  int moved_food = 0;
   /* Re-scan each pass: unload may reload remainder into another hold. */
   for (;;) {
     int hold = -1;
@@ -2273,7 +2585,7 @@ static int ai_euro_try_wagon_tools_delivery(
       }
       const int ct = wagon->hold_goods_type[h];
       if (ct != COLONIZE_CARGO_TOOLS && ct != COLONIZE_CARGO_MUSKETS &&
-          ct != COLONIZE_CARGO_HORSES) {
+          ct != COLONIZE_CARGO_HORSES && ct != COLONIZE_CARGO_FOOD) {
         continue;
       }
       if (!ai_euro_colony_haul_cargo_short(c, ct)) {
@@ -2296,6 +2608,8 @@ static int ai_euro_try_wagon_tools_delivery(
       moved_tools += moved;
     } else if (hold_type == COLONIZE_CARGO_MUSKETS) {
       moved_muskets += moved;
+    } else if (hold_type == COLONIZE_CARGO_FOOD) {
+      moved_food += moved;
     }
   }
   if (moved_total <= 0) {
@@ -2317,6 +2631,13 @@ static int ai_euro_try_wagon_tools_delivery(
         inv->muskets_short -= moved_muskets;
       } else {
         inv->muskets_short = 0;
+      }
+    }
+    if (moved_food > 0) {
+      if (inv->food_short > moved_food) {
+        inv->food_short -= moved_food;
+      } else {
+        inv->food_short = 0;
       }
     }
   }
@@ -3591,11 +3912,12 @@ static int ai_euro_nearest_short_coastal_colony(
 
 /*
  * Idle Caravel/Merchantman trade haul (thin 5b66): free goods-hold capacity or
- * TOOLS cargo → AI_SAIL toward coastal water by tools/food-short own colony.
- * TOOLS load/unload mirrors wagon §2d (no invented FOOD cargo). Cite: manual
- * Caravel/Merchantman cargo; Colonization.pdf naval transport / colony supply.
- * Peace only — war hunt owns idle ships at war. Returns 1 if haul course set
- * or already adjacent delivering.
+ * TOOLS / FOOD cargo → AI_SAIL toward coastal water by tools/food-short own
+ * colony. TOOLS/FOOD load/unload mirrors wagon §2d via
+ * colonies_transfer_to_unit / from_unit. Cite: manual Caravel/Merchantman
+ * cargo; Colonization.pdf naval transport / colony supply / Wagon Train
+ * pattern; 5cf6 food_short. Peace only — war hunt owns idle ships at war.
+ * Returns 1 if haul course set or already adjacent delivering.
  */
 static int ai_euro_try_ship_trade_haul(
   ColonizeTurnContext* ctx,
@@ -3615,42 +3937,63 @@ static int ai_euro_try_ship_trade_haul(
   if (units_goods_hold_count(ctx->units, ship->id) <= 0) {
     return 0;
   }
-  const int has_tools = ai_euro_wagon_has_tools(ctx->units, ship);
+  const int has_tools = ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_TOOLS);
+  const int has_food = ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_FOOD);
   const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship);
-  if (!has_tools && !has_cap) {
+  if (!has_tools && !has_food && !has_cap) {
     return 0;
   }
 
-  /* Adjacent / same-tile tools-short coastal colony + TOOLS → structural unload. */
-  if (has_tools) {
+  /* Adjacent / same-tile short coastal colony + TOOLS/FOOD → structural unload. */
+  if (has_tools || has_food) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (c->stock[COLONIZE_CARGO_TOOLS] >= 20) {
         continue;
       }
       if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
         continue;
       }
       const int n = units_goods_hold_count(ctx->units, ship->id);
+      int unloaded = 0;
       for (int h = 0; h < n; ++h) {
-        if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_amount[h] < 255 &&
-            ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
-          colonies_transfer_from_unit(
-            ctx->colonies, c->id, ctx->units, ship->id, h, NULL
-          );
+        if (ship->hold_goods_amount[h] <= 0 || ship->hold_goods_amount[h] >= 255) {
+          continue;
+        }
+        const int ct = ship->hold_goods_type[h];
+        if (ct != COLONIZE_CARGO_TOOLS && ct != COLONIZE_CARGO_FOOD) {
+          continue;
+        }
+        if (!ai_euro_colony_haul_cargo_short(c, ct)) {
+          continue;
+        }
+        const int moved = colonies_transfer_from_unit(
+          ctx->colonies, c->id, ctx->units, ship->id, h, NULL
+        );
+        if (moved > 0) {
+          unloaded = 1;
+          if (ct == COLONIZE_CARGO_FOOD) {
+            AiEuroInventory* inv = ai_goals_inventory(nation_id);
+            if (inv) {
+              if (inv->food_short > moved) {
+                inv->food_short -= moved;
+              } else {
+                inv->food_short = 0;
+              }
+            }
+          }
           break;
         }
       }
-      return 1; /* delivered or attempted — stay near colony */
+      if (unloaded) {
+        return 1; /* delivered — stay near colony */
+      }
     }
   }
 
-  /* On surplus coastal own colony with free hold → load TOOLS before haul.
+  /* On surplus coastal own colony with free hold → load TOOLS then FOOD.
    * Ships berth on adjacent water (colonies_id_at usually misses). */
-  if (has_cap && !ai_euro_wagon_has_tools(ctx->units, ship)) {
+  if (has_cap && !has_tools && !has_food) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
@@ -3659,10 +4002,19 @@ static int ai_euro_try_ship_trade_haul(
       if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
         continue;
       }
-      if (c->stock[COLONIZE_CARGO_TOOLS] >= 40) {
-        (void)colonies_transfer_to_unit(
-          ctx->colonies, c->id, ctx->units, ship->id, COLONIZE_CARGO_TOOLS, 20
-        );
+      static const int k_ship_load[] = {COLONIZE_CARGO_TOOLS, COLONIZE_CARGO_FOOD};
+      for (size_t li = 0; li < sizeof(k_ship_load) / sizeof(k_ship_load[0]); ++li) {
+        const int ct = k_ship_load[li];
+        if (!ai_euro_colony_haul_cargo_surplus(c, ct)) {
+          continue;
+        }
+        const int amt = ai_euro_haul_load_amount(c, ct);
+        if (amt > 0) {
+          (void)colonies_transfer_to_unit(
+            ctx->colonies, c->id, ctx->units, ship->id, ct, amt
+          );
+          break;
+        }
       }
       break;
     }
@@ -4701,9 +5053,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS →
-   * AI_MOVE toward tools-short colony (unload via existing delivery). Cite:
-   * euro_unit_act §2d; manual Wagon Train cargo.
+   * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS /
+   * MUSKETS / HORSES / FOOD → AI_MOVE toward matching short colony (unload via
+   * existing delivery). Cite: euro_unit_act §2d; Colonization.pdf Wagon Train;
+   * 5cf6 food_short.
    */
   int wagon_hauled = 0;
   if (!treasure_routed && uname && ai_euro_type_is_wagon_name(uname) &&
@@ -4814,9 +5167,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * Expert Sugar/Tobacco Planter field-assign (act-level): idle Expert Sugar
-   * Planter / Tobacco Planter → admit + colonies_assign_field on free surround
-   * with positive matching yield. Cite: terrain_yields Sugar/Tobacco;
+   * Expert Sugar/Tobacco/Cotton Planter + Fur Trapper field-assign (act-level):
+   * idle expert → admit + colonies_assign_field on free surround with positive
+   * matching yield. Cite: terrain_yields Sugar/Tobacco/Cotton/Fur;
    * Colonization.pdf Skills Chart. Parallel to Farmer/Fisherman field-assign.
    */
   int planter_fielded = 0;
@@ -4824,11 +5177,35 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       !miner_fielded && !farmer_fielded && !fisherman_fielded && !land_war_hunted &&
       !peace_border_hunted && !scout_explored && uname &&
       (strstr(uname, "Sugar Planter") != NULL ||
-       strstr(uname, "Tobacco Planter") != NULL)) {
+       strstr(uname, "Tobacco Planter") != NULL ||
+       strstr(uname, "Cotton Planter") != NULL ||
+       strstr(uname, "Fur Trapper") != NULL)) {
     if (ai_euro_try_planter_field_assign(ctx, nation_id, u)) {
       planter_fielded = 1;
       if (!u->active) {
         return; /* admitted + field-assigned */
+      }
+    }
+  }
+
+  /*
+   * Idle Master Distiller / Weaver / Tobacconist / Blacksmith / Gunsmith /
+   * Fur Trader workplace assign (act-level): admit + colonies_assign_workplace
+   * on matching craft building. Cite: Colonization.pdf Skills Chart;
+   * docs/building_production.md Distiller/Weaver/Tobacconist/Blacksmith/
+   * Gunsmith/Fur Trader craft chains. Parallel to planter field-assign.
+   */
+  int workplace_assigned = 0;
+  if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
+      !miner_fielded && !farmer_fielded && !fisherman_fielded && !planter_fielded &&
+      !land_war_hunted && !peace_border_hunted && !scout_explored && uname &&
+      (strstr(uname, "Distiller") != NULL || strstr(uname, "Weaver") != NULL ||
+       strstr(uname, "Tobacconist") != NULL || strstr(uname, "Blacksmith") != NULL ||
+       strstr(uname, "Gunsmith") != NULL || strstr(uname, "Fur Trader") != NULL)) {
+    if (ai_euro_try_expert_workplace_assign(ctx, nation_id, u)) {
+      workplace_assigned = 1;
+      if (!u->active) {
+        return; /* admitted + workplace-assigned */
       }
     }
   }
@@ -4841,8 +5218,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
   if (!at_war_land && !peace_border_hunted && !treasure_routed && !wagon_hauled &&
       !pioneer_improved && !lumberjack_fielded && !miner_fielded && !farmer_fielded &&
-      !fisherman_fielded && !planter_fielded && !scout_explored && !land_war_hunted &&
-      uname && strstr(uname, "Soldier") != NULL &&
+      !fisherman_fielded && !planter_fielded && !workplace_assigned && !scout_explored &&
+      !land_war_hunted && uname && strstr(uname, "Soldier") != NULL &&
       !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
@@ -4878,8 +5255,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
   if (!treasure_routed && !wagon_hauled && !pioneer_improved && !lumberjack_fielded &&
       !miner_fielded && !farmer_fielded && !fisherman_fielded && !planter_fielded &&
-      !scout_explored && !land_war_hunted && !peace_border_hunted && uname &&
-      (strstr(uname, "Artillery") != NULL || strstr(uname, "Cannon") != NULL) &&
+      !workplace_assigned && !scout_explored && !land_war_hunted && !peace_border_hunted &&
+      uname && (strstr(uname, "Artillery") != NULL || strstr(uname, "Cannon") != NULL) &&
       !ai_euro_land_is_fortified(u) && ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
@@ -5049,7 +5426,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
         !missionary_contacted && !wagon_hauled && !pioneer_improved &&
         !lumberjack_fielded && !miner_fielded && !farmer_fielded && !fisherman_fielded &&
-        !planter_fielded && is_colonist_cap &&
+        !planter_fielded && !workplace_assigned && is_colonist_cap &&
         ctx->colonies && !ai_euro_land_is_fortified(u)) {
       AiEuroInventory* inv = ai_goals_inventory(nation_id);
       const int short_labor =
@@ -5258,11 +5635,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /* Preserve land-war / peace-border / scout / treasure / missionary / wagon /
-   * pioneer-improve / lumberjack/miner/farmer/fisherman/planter-field / LABOR. */
+   * pioneer-improve / lumberjack/miner/farmer/fisherman/planter-field /
+   * workplace / LABOR. */
   if (goal_code >= 0 && !land_war_hunted && !peace_border_hunted && !scout_explored &&
       !treasure_routed && !missionary_contacted && !wagon_hauled && !pioneer_improved &&
       !lumberjack_fielded && !miner_fielded && !farmer_fielded && !fisherman_fielded &&
-      !planter_fielded) {
+      !planter_fielded && !workplace_assigned) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
@@ -5373,6 +5751,10 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
+  /* Peace Stockade→Warehouse→Docks, then coastal Drydock→Shipyard; before LABOR. */
+  ai_euro_prefer_peace_construction(ctx, nation_id);
+  ai_euro_prefer_coastal_drydock(ctx, nation_id);
+  ai_euro_prefer_coastal_shipyard(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). */

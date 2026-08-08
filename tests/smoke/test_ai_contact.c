@@ -381,8 +381,9 @@ int main(void) {
   }
 
   /*
-   * Mid-range convert friction polish (40..54): establish + −2 decay.
-   * Cite: fandom Alarm missions slow hostility; indian_contact.md convert.
+   * Mid-range Jesuit convert (40..54): Jesuit-grade establish + −2 decay.
+   * Plain Missionary mid → refuse (PEDIA Jesuit effectiveness; no Brebeuf).
+   * Cite: COLONIZE/PEDIA.TXT @JOB24; indian_contact.md convert gate.
    */
   {
     char status_mid[128];
@@ -390,6 +391,32 @@ int main(void) {
     ctx.status = status_mid;
     ctx.status_size = sizeof(status_mid);
     ctx.human_nation = 0;
+    /* Plain Missionary mid-alarm → refuse (not Jesuit-grade). */
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
+    miss->x = 6;
+    miss->y = 5;
+    miss->active = true;
+    miss->profession = UNITS_JOB_NONE;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 40;
+    ind->alarm_by_player[0] = 40;
+    col1.nation[0].relation_by_indian[0] = 80;
+    const uint16_t crosses_plain = col1.nation[0].current_crosses;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].mission != 0xff) {
+      return fail("plain Missionary mid-alarm should not establish mission");
+    }
+    if (col1.nation[0].current_crosses != crosses_plain) {
+      return fail("plain Missionary mid-alarm should not bump crosses");
+    }
+    if (strstr(status_mid, "refuse") == NULL || strstr(status_mid, "conversion") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: mid-plain status '%s'\n", status_mid);
+      return fail("plain Missionary mid should set refuse-conversion status");
+    }
+
+    /* Jesuit Missionary mid → convert with −2. */
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Jesuit Missionary");
+    status_mid[0] = '\0';
     miss->x = 6;
     miss->y = 5;
     miss->active = true;
@@ -401,18 +428,72 @@ int main(void) {
     const uint16_t crosses_m = col1.nation[0].current_crosses;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.tribe[0].mission != 0) {
-      return fail("mid-range convert should establish mission");
+      return fail("mid-range Jesuit convert should establish mission");
     }
     if (col1.nation[0].current_crosses != (uint16_t)(crosses_m + 1)) {
-      return fail("mid-range convert should bump crosses");
+      return fail("mid-range Jesuit convert should bump crosses");
     }
     if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
-      return fail("mid-range convert should decay friction/alarm by 2");
+      return fail("mid-range Jesuit convert should decay friction/alarm by 2");
     }
     if (strstr(status_mid, "accept") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: mid-convert status '%s'\n", status_mid);
-      return fail("mid-range convert should set accept status");
+      fprintf(stderr, "smoke_ai_contact: mid-jesuit status '%s'\n", status_mid);
+      return fail("mid-range Jesuit convert should set accept status");
     }
+    /* Restore type name for later Missionary flees. */
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
+    col1.tribe[0].alarm[0].friction = 10;
+    ind->alarm_by_player[0] = 10;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
+  /*
+   * Brebeuf unlock: plain Missionary mid-band convert as Jesuit-grade (−2).
+   * Cite: docs/fandom_col1994.md Father Jean de Brebeuf — all missionaries
+   * function as experts; PEDIA @JOB24; indian_contact.md convert gate.
+   * No invent elect crosses — convert +1 only on establish.
+   */
+  {
+    char status_br[128];
+    status_br[0] = '\0';
+    ctx.status = status_br;
+    ctx.status_size = sizeof(status_br);
+    ctx.human_nation = 0;
+    col1.head.founding_father[FF_JEAN_DE_BREBEUF] = 0;
+    col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] |=
+      (uint8_t)(1u << (FF_JEAN_DE_BREBEUF % 8));
+    if (!founding_fathers_brebeuf_missionaries_are_experts(&col1, 0)) {
+      return fail("Brebeuf ownership gate should be true");
+    }
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
+    miss->x = 6;
+    miss->y = 5;
+    miss->active = true;
+    miss->profession = UNITS_JOB_NONE;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 40;
+    ind->alarm_by_player[0] = 40;
+    col1.nation[0].relation_by_indian[0] = 80;
+    const uint16_t crosses_br = col1.nation[0].current_crosses;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].mission != 0) {
+      return fail("Brebeuf plain Missionary mid should establish mission");
+    }
+    if (col1.nation[0].current_crosses != (uint16_t)(crosses_br + 1)) {
+      return fail("Brebeuf mid convert should bump crosses by 1 only");
+    }
+    if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
+      return fail("Brebeuf mid convert should decay friction/alarm by 2");
+    }
+    if (strstr(status_br, "accept") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: Brebeuf mid status '%s'\n", status_br);
+      return fail("Brebeuf mid convert should set accept status");
+    }
+    /* Clear Brebeuf so later tests stay plain-Missionary gated. */
+    col1.head.founding_father[FF_JEAN_DE_BREBEUF] = -1;
+    col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] &=
+      (uint8_t)~(1u << (FF_JEAN_DE_BREBEUF % 8));
     col1.tribe[0].alarm[0].friction = 10;
     ind->alarm_by_player[0] = 10;
     ctx.status = NULL;
@@ -546,6 +627,110 @@ int main(void) {
       fprintf(stderr, "smoke_ai_contact: teach-ok status '%s'\n", status_tch);
       return fail("teach success should set Natives-teach-Cherokee status");
     }
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
+  /*
+   * Skill-map deepen: Apache (9) → Cotton Planter; Scout → Seasoned Scout.
+   * Cite: indian_contact.md teach-skill profession map; FUN_5bfb_022e.
+   */
+  {
+    euro->profession = UNITS_JOB_NONE;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].last_sold = 0;
+    col1.tribe[0].nation_id = 9;
+    ColonizeCol1Indian* apache = &col1.indian[5];
+    memset(apache, 0, sizeof(*apache));
+    apache->alarm_by_player[0] = 5;
+    col1.tribe[0].alarm[0].friction = 5;
+    col1.nation[0].relation_by_indian[5] = 80; /* Apache idx 5 */
+    ai_contact_indian_meet_trade(&ctx, 9);
+    if (!col1.tribe[0].state.learned) {
+      return fail("teach-skill Apache should set tribe.state.learned");
+    }
+    if (euro->profession != COLONIZE_JOB_COTTON_PLANTER) {
+      return fail("teach-skill Apache nation → Expert Cotton Planter");
+    }
+
+    units.type_count = 4;
+    snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
+    units.types[3].movement = 4;
+    units.types[3].attack = 0;
+    units.types[3].defense = 1;
+    const int scout_teach_id = units_spawn_allow_stack(&units, 3, 6, 5);
+    ColonizeUnit* scout_t = units_get(&units, scout_teach_id);
+    if (!scout_t) {
+      return fail("spawn Scout for teach");
+    }
+    scout_t->nation_id = 0;
+    scout_t->profession = UNITS_JOB_NONE;
+    scout_t->horses = 50; /* display name → Scout / Seasoned after teach */
+    euro->x = 12;
+    euro->y = 12; /* clear Free Colonist from tribe adjacency */
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].last_sold = 0;
+    col1.tribe[0].nation_id = 4;
+    ind->alarm_by_player[0] = 5;
+    col1.tribe[0].alarm[0].friction = 5;
+    col1.nation[0].relation_by_indian[0] = 80;
+    char status_sc[128];
+    status_sc[0] = '\0';
+    ctx.status = status_sc;
+    ctx.status_size = sizeof(status_sc);
+    ctx.human_nation = 0;
+    col1.nation[0].gold = 0;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    scout_t = units_get(&units, scout_teach_id);
+    if (!col1.tribe[0].state.learned) {
+      return fail("teach-skill Scout should set tribe.state.learned");
+    }
+    if (!scout_t || scout_t->profession != UNITS_JOB_SCOUT) {
+      return fail("teach-skill Scout → Seasoned Scout profession");
+    }
+    if (strstr(status_sc, "Seasoned Scout") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: scout-teach status '%s'\n", status_sc);
+      return fail("Scout teach should set Seasoned Scout status");
+    }
+    units_despawn(&units, scout_teach_id);
+    euro->x = 6;
+    euro->y = 5;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
+  /*
+   * Mid-alarm teach refuse (40..54): Free Colonist at tribe → no learned;
+   * status "Natives refuse to teach." Cite: indian_contact.md mid refuse.
+   */
+  {
+    char status_mt[128];
+    status_mt[0] = '\0';
+    ctx.status = status_mt;
+    ctx.status_size = sizeof(status_mt);
+    ctx.human_nation = 0;
+    euro->x = 6;
+    euro->y = 5;
+    euro->active = true;
+    euro->profession = UNITS_JOB_NONE;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 45;
+    ind->met_by_player[0] = 1;
+    ind->alarm_by_player[0] = 20; /* mid via tribe friction */
+    col1.nation[0].gold = 0;
+    col1.nation[0].relation_by_indian[0] = 80;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].state.learned) {
+      return fail("mid-alarm teach refuse should not set learned");
+    }
+    if (strstr(status_mt, "refuse") == NULL || strstr(status_mt, "teach") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: mid-teach status '%s'\n", status_mt);
+      return fail("mid-alarm teach should set refuse-to-teach status");
+    }
+    col1.tribe[0].alarm[0].friction = 10;
+    ind->alarm_by_player[0] = 10;
     ctx.status = NULL;
     ctx.status_size = 0;
   }
@@ -1088,7 +1273,7 @@ int main(void) {
       fprintf(stderr, "smoke_ai_contact: demand-ok status '%s'\n", status);
       return fail("demand succeed should set Tribute paid status");
     }
-    /* Stock <20 + gold <50 → no tools demand and no gold stand-in. */
+    /* Stock <20 + gold <50 → no tools demand and no gold stand-in; refuse OK. */
     c->stock[COLONIZE_CARGO_TOOLS] = 15;
     col1.tribe[0].alarm[0].friction = 45;
     ind->alarm_by_player[0] = 20;
@@ -1101,6 +1286,10 @@ int main(void) {
     }
     if (col1.nation[0].gold != 5u) {
       return fail("demand gold stand-in needs treasury >= 50 when tools short");
+    }
+    if (strstr(status, "refuse") == NULL || strstr(status, "demand") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: demand-cant-pay status '%s'\n", status);
+      return fail("demand can't-pay should set refuse-demands status");
     }
   }
 

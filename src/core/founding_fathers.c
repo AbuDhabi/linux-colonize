@@ -1,5 +1,6 @@
 #include "core/founding_fathers.h"
 
+#include "core/ai_diplo.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
 #include "core/units.h"
@@ -44,6 +45,27 @@ bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int f
   return (byte & (uint8_t)(1u << (ff_index % 8))) != 0;
 }
 
+bool founding_fathers_franklin_keeps_nw_peace(const ColonizeCol1Save* col1, int nation) {
+  /*
+   * docs/fandom_col1994.md Benjamin Franklin — NW peer peace gate.
+   * Ownership via founding_fathers_nation_has (head owner or nation bitmask).
+   * Requires head.founding_father[i]==-1 when unclaimed (col1_save_init).
+   */
+  return founding_fathers_nation_has(col1, nation, FF_BENJAMIN_FRANKLIN);
+}
+
+bool founding_fathers_brebeuf_missionaries_are_experts(
+  const ColonizeCol1Save* col1,
+  int nation
+) {
+  /*
+   * docs/fandom_col1994.md Father Jean de Brebeuf — all missionaries function
+   * as experts. Ownership via founding_fathers_nation_has (head or bitmask).
+   * No elect crosses; ai_contact Jesuit-grade mid convert consumes the gate.
+   */
+  return founding_fathers_nation_has(col1, nation, FF_JEAN_DE_BREBEUF);
+}
+
 bool founding_fathers_revere_should_auto_arm(
   const ColonizeCol1Save* col1,
   int nation,
@@ -86,6 +108,25 @@ int founding_fathers_revere_auto_arm(
     return -1;
   }
   return colonies_eject_colonist(colonies, colony_id, idx, units, COLONIZE_EJECT_SOLDIER);
+}
+
+/*
+ * Franklin elect: clear Euro×Euro WAR with all New World peers (make_peace).
+ * Source: docs/fandom_col1994.md — king's European wars no longer affect NW
+ * relations; ongoing gate lives in ai_diplo declare / euro_balance.
+ */
+static void effect_franklin_nw_peace(ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  for (int peer = 0; peer < 4; ++peer) {
+    if (peer == nation_id) {
+      continue;
+    }
+    if (ai_diplo_at_war(col1, nation_id, peer)) {
+      ai_diplo_make_peace(col1, nation_id, peer);
+    }
+  }
 }
 
 /* Pocahontas elect: all native tension → content for this European nation. */
@@ -283,6 +324,79 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
   }
 }
 
+/*
+ * Las Casas: existing Indian converts → free colonists (profession only).
+ * Cite: COLONIZE/PEDIA.TXT @FATHER24; docs/fandom_col1994.md Religious table.
+ * Representation: NAMES @JOB Convert (27) / Free Colonists (19) — no separate
+ * @UNIT; map units use Colonists type + convert profession.
+ */
+static int effect_las_casas_assimilate(
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  int nation_id
+) {
+  int touched = 0;
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* col = &colonies->colonies[i];
+      if (!col->active || col->nation_id != nation_id) {
+        continue;
+      }
+      for (int c = 0; c < col->colonist_count; ++c) {
+        ColonizeColonist* person = &col->colonists[c];
+        if (!person->active) {
+          continue;
+        }
+        if (person->profession == COLONIZE_PROF_CONVERT) {
+          person->profession = COLONIZE_PROF_FREE_COLONIST;
+          touched++;
+        }
+      }
+    }
+  }
+
+  if (units) {
+    int free_ty = units_find_type(units, "Free Colonist");
+    if (free_ty < 0) {
+      free_ty = units_find_type(units, "Colonists");
+    }
+    if (free_ty < 0) {
+      free_ty = units_find_type(units, "Colonist");
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      bool changed = false;
+      if (u->profession == COLONIZE_PROF_CONVERT) {
+        u->profession = COLONIZE_PROF_FREE_COLONIST;
+        changed = true;
+      }
+      /* Name-based type swap when a Convert/@JOB display type was used. */
+      const ColonizeUnitType* ut = units_type(units, u->type_index);
+      if (ut && free_ty >= 0 &&
+          (strstr(ut->name, "Indian Convert") != NULL ||
+           strcmp(ut->name, "Convert") == 0 ||
+           strcmp(ut->name, "Converts") == 0)) {
+        u->type_index = free_ty;
+        if (u->profession == COLONIZE_PROF_CONVERT) {
+          u->profession = COLONIZE_PROF_FREE_COLONIST;
+        }
+        changed = true;
+      }
+      if (changed) {
+        touched++;
+      }
+    }
+  }
+  return touched;
+}
+
 static bool ff_find_coastal_water(
   ColonizeWorldMap* map,
   ColonizeColonyPool* colonies,
@@ -435,8 +549,13 @@ static void apply_effect(
       (void)effect_la_salle_stockades(colonies, nation_id);
       break;
     case FF_HERNAN_CORTES:
-      /* PARKED: conquered native settlements yield more treasure;
-       * king's galleons transport treasure free. */
+      /* PARKED (docs/fandom_col1994.md Hernan Cortes; Colonization.pdf FF):
+       * conquered native settlements always yield more treasure — needs
+       * post-win treasure spawn (decomp FUN_5fef_31ea); none in ai_contact
+       * raid path (Indian→Euro colony loot only). No cited gold amount to
+       * invent. King's galleons transport treasure free — needs Europe
+       * king-galleon voyage hook; europe_cash_treasure is tax-share only
+       * (@KINGGALLEON3); KINGGALLEON2/free-transport stay PARK. */
       break;
     case FF_GEORGE_WASHINGTON:
       /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.
@@ -463,8 +582,8 @@ static void apply_effect(
     case FF_POCAHONTAS:
       /* Wiki/fandom: all native tension → content; Indian alarm half as fast.
        * Elect: zero this nation's tribe friction/attacks + alarm_by_player.
-       * PARKED: half-rate future growth needs ai_contact encroachment bumps
-       * and col1_contact_adjacent_tribe (exclusive-write boundary). */
+       * Half-rate ongoing growth: ai_contact_alarm_bump_amount (encroachment /
+       * prelude escalate / raid bump) — not PARKED. */
       effect_pocahontas_reset_alarm(col1, nation_id);
       break;
     case FF_THOMAS_PAINE:
@@ -476,8 +595,12 @@ static void apply_effect(
       (void)effect_bolivar_rebel(col1, nation_id);
       break;
     case FF_BENJAMIN_FRANKLIN:
-      /* PARKED: king's European wars no longer affect NW relations;
-       * Europeans always offer peace in negotiations. */
+      /* docs/fandom_col1994.md: king's European wars no longer affect NW
+       * relations; Europeans in the New World always offer peace.
+       * Elect: make_peace with all Euro peers. Ongoing: ownership gate via
+       * founding_fathers_franklin_keeps_nw_peace → ai_diplo declare /
+       * euro_balance / war-hit (no gold fiction). FA 3f41 UI PARKED. */
+      effect_franklin_nw_peace(col1, nation_id);
       break;
     case FF_WILLIAM_BREWSTER:
       /* Manual/wiki: no criminals/servants on docks + recruit pick.
@@ -491,13 +614,21 @@ static void apply_effect(
        * Ownership bit; applied in colony_prod_colony_crosses_ff via turn nation ticks. */
       break;
     case FF_JEAN_DE_BREBEUF:
-      /* PARKED: all missionaries function as experts. */
+      /* docs/fandom_col1994.md: all missionaries function as experts.
+       * Ownership bit only — no elect crosses fiction. Ongoing gate:
+       * founding_fathers_brebeuf_missionaries_are_experts → ai_contact
+       * Jesuit-grade mid convert for plain Missionary. */
       break;
     case FF_JUAN_DE_SEPULVEDA:
-      /* PARKED: higher chance subjugated Indians convert and join. */
+      /* PARKED: higher chance subjugated Indians convert and join
+       * (needs 2820/4528 convert-join hook). */
       break;
     case FF_BARTOLOME_DE_LAS_CASAS:
-      /* PARKED: existing Indian converts assimilate as free colonists. */
+      /* PEDIA @FATHER24 / fandom_col1994.md: existing Indian converts
+       * assimilate as free colonists. Elect: profession Convert→Free
+       * Colonist on owned colony colonists + map units. Ownership tick
+       * in founding_fathers_tick re-runs for late converts. No gold/crosses. */
+      (void)effect_las_casas_assimilate(colonies, units, nation_id);
       break;
     default:
       break;
@@ -560,5 +691,14 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
       continue;
     }
     try_elect_nation(ctx, n);
+  }
+
+  /* Las Casas ownership tick: re-assimilate Convert→Free Colonist while owned
+   * (PEDIA elect is one-shot; tick catches late joins without inventing join). */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (!founding_fathers_nation_has(col1, n, FF_BARTOLOME_DE_LAS_CASAS)) {
+      continue;
+    }
+    (void)effect_las_casas_assimilate(ctx->colonies, ctx->units, n);
   }
 }
