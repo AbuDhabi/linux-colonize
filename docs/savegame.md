@@ -128,13 +128,14 @@ These survive capture today and may still fault or desync DOS play after the
 occupancy fix:
 
 - `post_map` (614) — connectivity planes + continent tallies rebuilt on blank
-  templates (`col1_post_map_rebuild_connectivity` / `FUN_67f4_0088`); 10 B tail
-  still zero / RMW-preserved (see [save_format_map.md](save_format_map.md))
-- Most of `stuff` beyond viewport — counters only preserved on RMW; `unknown36`
-  is FA/unit/tribe blobs, **not** connectivity
+  templates (`col1_post_map_rebuild_connectivity` / `FUN_67f4_0088`, including
+  `FUN_6662_00f2` dest cache); `prime_resource_seed` stamped from mapgen when
+  present; `unknown_ds_8d80` / `unknown_post_604` still zero / RMW-preserved
+- Most of `stuff` beyond census — `all_unit_counts` / `colony_counts` /
+  `unit_type_counts` named but not rebuilt on export; FA mid-window HOLD
 - Colony opaque fields (`unknown08`, `duration[]`, …) — zeroed on colony rebuild
+  (`warehouse_level` / `hammers_purchased` named but not bridged live)
 - Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
-  (`COLONY00` has many bit5/`pacific` tiles; template exports often only occupancy)
 - AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
 - `vis_mask` (nation high nibble) — preserved on apply→capture; spawn leaves 0
 

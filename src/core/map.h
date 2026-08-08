@@ -60,6 +60,8 @@ typedef struct ColonizeWorldMap {
   uint8_t euro_landfall_x[4];
   uint8_t euro_landfall_y[4];
   uint8_t euro_landfalls_ok;
+  /* FUN_684c_08c0 first rng_range(1,0x7fff) → DS:0x190 / Col1 prime_resource_seed. */
+  uint16_t prime_resource_seed;
 } ColonizeWorldMap;
 
 bool map_load_mp(const char* path, ColonizeWorldMap* out_map, char* err, size_t err_size);

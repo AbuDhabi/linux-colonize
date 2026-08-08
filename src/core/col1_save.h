@@ -270,7 +270,10 @@ typedef struct ColonizeCol1Colony {
   uint8_t unknown11[6];
   uint16_t hammers;
   uint8_t building_in_production;
-  uint8_t unknown12[5];
+  uint8_t warehouse_level; /* +0x95; capacity 100*(1+level) — FUN_15eb_0a50 */
+  uint8_t unknown12a; /* +0x96; touched but role unclear */
+  uint8_t depletion_counter; /* +0x97; INC, wrap at 50 */
+  uint16_t hammers_purchased; /* +0x98; FUN_2f2b_5e44 BUY adds remainder */
   uint16_t stock[COLONIZE_COL1_CARGO_TYPES];
   uint8_t unknown13[8]; /* includes per-nation visible counts at +0..+3 in some saves */
   uint32_t rebel_dividend;
@@ -397,20 +400,21 @@ typedef struct ColonizeCol1Indian {
 /*
  * Stuff (727): FUN_75c2_0288 writes 33 DS chunks (not one contiguous RAM block).
  * Chunk sizes sum to 727; see docs/save_format_map.md §Stuff. Port keeps one
- * packed blob for RMW. Named counters/viewport match the last five writes.
+ * packed blob for RMW. Census fields named from FUN_4962_0018 + save I/O.
  *
- * unknown36 is NOT map connectivity (that is post_map). It holds FA report /
- * per-nation unit counts / tribe tallies / padding (smcol outlines; P2 rename).
+ * unknown36 is NOT map connectivity (that is post_map). It holds remaining FA /
+ * tribe tallies / padding after the proven early census window.
  */
 typedef struct ColonizeCol1Stuff {
-  uint8_t unknown34[15]; /* DOS: 0x9566×12 + first 3 of following 4-byte chunk */
-  uint16_t counter_decreasing_on_new_colony;
-  uint8_t unknown35[2];
-  uint16_t counter_increasing_on_new_colony;
-  uint8_t unknown36[696]; /* FA / unit counts / tribe blobs — NOT connectivity */
+  uint8_t unknown34[12]; /* DS:0x9566 — save R/W only */
+  uint8_t all_unit_counts[4]; /* DS:0x8cfc — per-euro unit totals (FUN_4962_0018) */
+  uint8_t colony_counts[4]; /* DS:0x9298 — per-euro colony totals */
+  uint8_t unknown_stuff_20[44]; /* file 20..63: DS 0x9408..0x942c census (FA names HOLD) */
+  uint8_t unit_type_counts[4][19]; /* DS:0x924c — nation × unit-type (FUN_4962_0018) */
+  uint8_t unknown36[577]; /* remaining FA / tribe blobs — NOT connectivity */
   uint16_t x; /* DS:0x8540 */
   uint16_t y; /* DS:0x853e */
-  uint8_t zoom_level; /* among DS:0x184 / 0x17c / 0x17e trio — exact byte TBD P2 */
+  uint8_t zoom_level; /* among DS:0x184 / 0x17c / 0x17e trio — exact byte TBD */
   uint8_t unknown37;
   uint16_t viewport_x;
   uint16_t viewport_y;
@@ -428,9 +432,9 @@ typedef struct ColonizeCol1PostMap {
   uint8_t land_connectivity[COLONIZE_COL1_CONNECT_PLANE_SIZE];
   uint16_t continent_tally_a[16];
   uint16_t continent_tally_b[16];
-  uint8_t unknown_post_604[4];
-  uint8_t unknown_ds_8d80[4];
-  uint16_t unknown_ds_190; /* smcol: low byte often prime_resource_seed */
+  uint8_t unknown_post_604[4]; /* save-path SS local_8 / LCG reseed blob */
+  uint8_t unknown_ds_8d80[4]; /* DS:0x8d80 — boot timer dword (FUN_75c2_2d46); not seed */
+  uint16_t prime_resource_seed; /* DS:0x190 — FUN_684c_08c0 mapgen; full u16 */
 } ColonizeCol1PostMap;
 
 typedef struct ColonizeCol1Tile {

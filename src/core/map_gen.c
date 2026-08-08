@@ -1374,7 +1374,7 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   }
 
   /* FUN_684c_08c0: first range(1,0x7fff) → DS:0x190 resource seed. */
-  (void)rng_range(rng, 1, 0x7fff);
+  out->prime_resource_seed = (uint16_t)rng_range(rng, 1, 0x7fff);
 
   int open_south = 1;
   generate_land_mask(mask, w, h, rng, &p, &open_south);

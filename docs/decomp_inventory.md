@@ -87,8 +87,10 @@ port I/O in the native build.
   `src/core/col1_bridge.c` (see `docs/savegame.md`); verified against
   `original_saves/COLONY00.SAV` / `COLONY01.SAV`. **Codec ≠ complete field
   semantics** — opaque-byte RE track: [save_format_map.md](save_format_map.md)
-  (P0–P3 done: atlas + post_map/stuff mis-split + proven community renames +
-  blank-export connectivity rebuild; P4 open: deep leftovers / pathfinder parity).
+  (P0–P4 done for proven peels: atlas, post_map/stuff split, community renames,
+  connectivity rebuild + 00f2 cache parity, stuff census + colony warehouse
+  fields + `prime_resource_seed`. HOLD: FA mid-window names, indian `unknown32`,
+  head `unknown40`/`44`, colony `unknown08`/`10`/`11`).
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,

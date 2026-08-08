@@ -96,11 +96,44 @@ static int post_walkable(
 }
 
 /*
- * FUN_6662_0906 with DS:0x1dd4=1 — uniform +1/edge 8-connected flood.
- * Window |dx|<8,|dy|<8 about destination. Returns cost (start cell = 1),
- * 0 if same tile, or −1 if unreachable.
+ * FUN_6662_0906 → FUN_6662_00f2 with DS:0x1dd4=1 (uniform +1/edge).
+ *
+ * Asm call from FUN_67f4_0088:
+ *   PUSH dest_y; PUSH sea_flag; PUSH 9; AX=from_x; DX=from_y; BX=dest_x
+ * 0906 sets 1dd2 = (sea_flag==0 ? 1 : 0xd), a14e/a14c = dest, then calls
+ * 00f2 with AX/DX=from and BX=budget 9 (stack slot restored into BX).
+ *
+ * Dest cost grid starts at 1; accept link iff 0 < cost < 8.
+ *
+ * Critical: 00f2 caches the last dest flood at DS:2d1a/2d1c + grid @a270.
+ * Same dest and cost[from]!=0 → skip flood, leave a370=0; 0906 then returns
+ * 0 when next-step succeeds. FUN_67f4 requires cost > 0, so that NE after an
+ * earlier E/SE to the same dest is rejected. Without this cache we over-link.
  */
+typedef struct PostCheapCache {
+  int tx;
+  int ty;
+  int sea_flag;
+  int w;
+  int h;
+  uint8_t* dist;
+} PostCheapCache;
+
+static void post_cheap_cache_reset(PostCheapCache* c) {
+  if (!c) {
+    return;
+  }
+  free(c->dist);
+  c->dist = NULL;
+  c->tx = -1;
+  c->ty = -1;
+  c->sea_flag = -1;
+  c->w = 0;
+  c->h = 0;
+}
+
 static int post_cheap_cost(
+  PostCheapCache* cache,
   const ColonizeWorldMap* map,
   int sx,
   int sy,
@@ -120,31 +153,59 @@ static int post_cheap_cost(
 
   const int w = map->width;
   const int h = map->height;
-  /* 16×16 window max; allocate full map for simplicity (58×72). */
-  uint8_t* dist = (uint8_t*)calloc((size_t)w * (size_t)h, 1);
-  if (!dist) {
-    return -1;
+  const size_t n = (size_t)w * (size_t)h;
+
+  /* Cache hit: DOS skips flood, a370 stays 0 → 0906 returns 0 → no link. */
+  if (cache && cache->dist && cache->tx == tx && cache->ty == ty &&
+      cache->sea_flag == sea_flag && cache->w == w && cache->h == h &&
+      cache->dist[(size_t)sy * (size_t)w + (size_t)sx] != 0) {
+    return 0;
+  }
+
+  uint8_t* dist = cache ? cache->dist : NULL;
+  if (!dist || !cache || cache->w != w || cache->h != h) {
+    free(dist);
+    dist = (uint8_t*)calloc(n, 1);
+    if (!dist) {
+      return -1;
+    }
+    if (cache) {
+      cache->dist = dist;
+      cache->w = w;
+      cache->h = h;
+    }
+  } else {
+    memset(dist, 0, n);
   }
 
   int qx[300];
   int qy[300];
   int qh = 0;
   int qt = 0;
+  /* DOS: expand while read_idx < 0xe1 (225). */
+  int reads = 0;
 
-  dist[ty * w + tx] = 1;
+  dist[(size_t)ty * (size_t)w + (size_t)tx] = 1;
   qx[qt] = tx;
   qy[qt] = ty;
   qt = 1;
 
+  /* a370 starts as budget 9; shrinks to source cost when from is dequeued. */
+  int budget = 9;
   int found = -1;
-  while (qh < qt) {
+  while (qh < qt && reads < 0xe1) {
     const int x = qx[qh];
     const int y = qy[qh];
     ++qh;
-    const int d = (int)dist[y * w + x];
+    ++reads;
+    const int d = (int)dist[(size_t)y * (size_t)w + (size_t)x];
+    if (d > budget) {
+      continue;
+    }
     if (x == sx && y == sy) {
       found = d;
-      break;
+      budget = d;
+      continue;
     }
     for (int i = 0; i < 8; ++i) {
       const int nx = x + k_dir8_dx[i];
@@ -171,14 +232,25 @@ static int post_cheap_cost(
     }
   }
 
-  free(dist);
+  if (found < 0 && dist[(size_t)sy * (size_t)w + (size_t)sx] != 0) {
+    found = (int)dist[(size_t)sy * (size_t)w + (size_t)sx];
+  }
+
+  if (cache) {
+    cache->tx = tx;
+    cache->ty = ty;
+    cache->sea_flag = sea_flag;
+  } else {
+    free(dist);
+  }
   return found;
 }
 
 static void post_fill_plane(
   const ColonizeWorldMap* map,
   uint8_t* plane,
-  int sea_flag
+  int sea_flag,
+  PostCheapCache* cache
 ) {
   memset(plane, 0, COLONIZE_COL1_CONNECT_PLANE_SIZE);
   /* cx: map_x = 1,5,… while < 0x3d → 15; cy: map_y = 1,5,… while < 0x49 → 18 */
@@ -204,7 +276,8 @@ static void post_fill_plane(
         if (fid < 0 || fid != cid) {
           continue;
         }
-        const int cost = post_cheap_cost(map, rx, ry, fx, fy, sea_flag);
+        /* Path from current rep → neighbor rep; budget 9; cache is per dest. */
+        const int cost = post_cheap_cost(cache, map, rx, ry, fx, fy, sea_flag);
         if (cost <= 0 || cost >= 8) {
           continue;
         }
@@ -277,15 +350,26 @@ void col1_post_map_rebuild_connectivity(
   uint8_t tail[10];
   memcpy(tail, out->unknown_post_604, 4);
   memcpy(tail + 4, out->unknown_ds_8d80, 4);
-  memcpy(tail + 8, &out->unknown_ds_190, 2);
+  memcpy(tail + 8, &out->prime_resource_seed, 2);
 
   memset(out, 0, sizeof(*out));
+  /* Shared 00f2 dest cache across land then sea (DOS does not clear 2d1a). */
+  PostCheapCache cache;
+  memset(&cache, 0, sizeof(cache));
+  cache.tx = -1;
+  cache.ty = -1;
+  cache.sea_flag = -1;
   /* Pass 0 = land @ DS:0x85e8; pass 1 = sea @ DS:0x86f6 */
-  post_fill_plane(map, out->land_connectivity, 0);
-  post_fill_plane(map, out->sea_connectivity, 1);
+  post_fill_plane(map, out->land_connectivity, 0, &cache);
+  post_fill_plane(map, out->sea_connectivity, 1, &cache);
+  post_cheap_cache_reset(&cache);
   post_fill_tallies(map, out);
 
   memcpy(out->unknown_post_604, tail, 4);
   memcpy(out->unknown_ds_8d80, tail + 4, 4);
-  memcpy(&out->unknown_ds_190, tail + 8, 2);
+  memcpy(&out->prime_resource_seed, tail + 8, 2);
+  /* Blank-template export: stamp mapgen seed when live map has one. */
+  if (out->prime_resource_seed == 0 && map->prime_resource_seed != 0) {
+    out->prime_resource_seed = map->prime_resource_seed;
+  }
 }
