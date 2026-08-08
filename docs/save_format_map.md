@@ -149,7 +149,10 @@ as peels land.
 | `buildings` / `custom_house` | — | `mapped` | `unused05` pad |
 | `unknown11` | 6 | `opaque` | |
 | `hammers` / `building_in_production` | — | `mapped` | |
-| `unknown12` | 5 | `community` | smcol includes `hammers_purchased` |
+| `warehouse_level` | 1 | `mapped` | +0x95; cap `100*(1+level)` (`FUN_15eb_0a50`) |
+| `unknown12a` | 1 | `opaque` | +0x96 |
+| `depletion_counter` | 1 | `mapped` | +0x97; wrap at 50 |
+| `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`) |
 | `stock[16]` | 32 | `mapped` | |
 | `unknown13` | 8 | `partial` | +0..+3 visible counts in some saves |
 | `rebel_dividend` / `rebel_divisor` | 8 | `mapped` | SoL display |
@@ -212,10 +215,10 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 
 | File off | Size | DS | Notes |
 |----------|------|-----|-------|
-| 0 | 12 | `0x9566` | smcol `unknown34` |
-| 12 | 4 | `0x8cfc` | early nation/unit counts (smcol splits differently) |
-| 16 | 4 | `0x9298` | |
-| 20 | 4 | `0x9408` | |
+| 0 | 12 | `0x9566` | `unknown34` — save R/W only |
+| 12 | 4 | `0x8cfc` | `all_unit_counts[4]` — `FUN_4962_0018` |
+| 16 | 4 | `0x9298` | `colony_counts[4]` — `FUN_4962_0018` |
+| 20 | 4 | `0x9408` | census (FA name HOLD) |
 | 24 | 4 | `0x940c` | |
 | 28 | 4 | `0x9410` | |
 | 32 | 4 | `0x9180` | |
@@ -225,10 +228,10 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 52 | 4 | `0x9424` | |
 | 56 | 4 | `0x9428` | |
 | 60 | 4 | `0x942c` | |
-| 64 | 76 | `0x924c` | FA report + unit_counts window (smcol ~76 B) |
+| 64 | 76 | `0x924c` | `unit_type_counts[4][19]` — `FUN_4962_0018` |
 | 140 | 16 | `0x947e` | |
 | 156 | 16 | `0x95f2` | |
-| 172 | 64 | `0x94a6` | per-nation unit_counts (19 B × more than 4?) — smcol 4×19=76 starts earlier |
+| 172 | 64 | `0x94a6` | |
 | 236 | 64 | `0x94e6` | |
 | 300 | 64 | `0x95b2` | |
 | 364 | 64 | `0x9526` | |
@@ -242,20 +245,23 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 589 | 128 | `0x91cc` | tribe dwellings / pad |
 | 717 | 2 | `0x8540` | `stuff.x` |
 | 719 | 2 | `0x853e` | `stuff.y` |
-| 721 | 2 | `0x184` | zoom / view trio (exact map TBD P4) |
+| 721 | 2 | `0x184` | zoom / view trio (exact map TBD) |
 | 723 | 2 | `0x17c` | |
 | 725 | 2 | `0x17e` | |
 
-Port packing (unchanged sizes): `unknown34[15]` + colony counters + `unknown36[696]` +
-cursor/viewport. **`unknown36` is not connectivity** (status was `misaligned`;
-comment fixed). Smcol FA/unit-count names remain `community` until P3/P4 aligns
-byte offsets to these DS chunks.
+Port packing (727): `unknown34[12]` + census (`all_unit_counts` /
+`colony_counts` / `unknown_stuff_20[44]` / `unit_type_counts`) +
+`unknown36[577]` + cursor/viewport. **`unknown36` is not connectivity**.
+Misaligned FreeCol “colony counters” at old offset 15 removed.
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `unknown34` | 15 | `partial` | First DOS chunk is 12 @ `0x9566` |
-| colony counters | 6 | `mapped` | decreasing / unknown35 / increasing |
-| `unknown36` | 696 | `community` | FA / counts / tribes — **not** connectivity |
+| `unknown34` | 12 | `partial` | DS:`0x9566` |
+| `all_unit_counts[4]` | 4 | `mapped` | DS:`0x8cfc` |
+| `colony_counts[4]` | 4 | `mapped` | DS:`0x9298` |
+| `unknown_stuff_20` | 44 | `community` | DS `0x9408`…`0x942c`; FA labels HOLD |
+| `unit_type_counts[4][19]` | 76 | `mapped` | DS:`0x924c` |
+| `unknown36` | 577 | `community` | FA / tribes — **not** connectivity |
 | `x` / `y` | 4 | `mapped` | DS `0x8540` / `0x853e` |
 | `zoom_level` / `unknown37` / `viewport_*` | 6 | `partial` | Last three DOS 2-byte writes |
 
@@ -279,20 +285,19 @@ Replaces legacy `unknown_e[504]` + `unknown_f[110]` (same bytes). Proven from
 | 270 | 270 | `0x85e8` | `land_connectivity[270]` | `mapped` | fill `local_24==0`; rebuilt on blank export |
 | 540 | 32 | `0x945e` | `continent_tally_a[16]` | `mapped` | land terrain-class filter; rebuilt |
 | 572 | 32 | `0x85c8` | `continent_tally_b[16]` | `mapped` | land tile counts; rebuilt |
-| 604 | 4 | SS:`local_8` | `unknown_post_604` | `opaque` | not filled by 67f4; preserve / zero |
-| 608 | 4 | `0x8d80` | `unknown_ds_8d80` | `opaque` | not filled by 67f4 |
-| 612 | 2 | `0x190` | `unknown_ds_190` | `community` | smcol: low byte ≈ `prime_resource_seed` |
+| 604 | 4 | SS:`local_8` | `unknown_post_604` | `opaque` | save-path LCG blob; not filled by 67f4 |
+| 608 | 4 | `0x8d80` | `unknown_ds_8d80` | `opaque` | boot timer dword (`FUN_75c2_2d46`); **not** seed |
+| 612 | 2 | `0x190` | `prime_resource_seed` | `mapped` | full u16; `FUN_684c_08c0` mapgen |
 
 Smcol’s post-connectivity carve (18+16+28+10+1+1) sums to the same **74** tail
-bytes but **does not** match these DOS writes — prefer DOS until P4 proves
-equivalence.
+bytes but **does not** match these DOS writes — prefer DOS. FA smcol names for
+stuff mid-window remain HOLD.
 
-**Export rebuild (P3):** `col1_post_map_rebuild_connectivity` (`FUN_67f4_0088`)
-runs from `col1_bridge_capture` when `post_map` is all-zero (new-game template).
-Planes + tallies come from live terrain + layer3; the 10 B tail is preserved
-(zero on templates). COLONY00 check: tallies byte-exact; planes within 4/2
-byte drift (3 NE over-links — cheap pathfinder parity left for P4). Nonzero
-DOS `post_map` is left intact on RMW.
+**Export rebuild (P3+P4):** `col1_post_map_rebuild_connectivity` (`FUN_67f4_0088`)
+runs from `col1_bridge_capture` when `post_map` is all-zero. Planes + tallies
+from live terrain + layer3; models `FUN_6662_00f2` dest cost-grid cache (COLONY00
+planes byte-exact). Tail preserved; blank templates may stamp
+`map.prime_resource_seed`. Nonzero DOS `post_map` left intact on RMW.
 
 ### Trade routes (74 × 12)
 
@@ -311,7 +316,7 @@ DOS `post_map` is left intact on RMW.
 | **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments | Connectivity planes named; stuff chunk table; `ColonizeCol1PostMap` | **Done** |
 | **P2 — Absorb proven community names** | Rename head/nation/indian/unit/trade fields where smcol + decomp agree | Struct names match evidence; sizes unchanged; `smoke_col1_save` byte-identical | **Done** |
 | **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | **Done** |
-| **P4 — Deep leftovers** | Colony opaques, indian `unknown32`, stuff FA/counts, pathfinder plane parity, value ranges | Each field: allowed values + ≥1 DOS reader cite | Open |
+| **P4 — Deep leftovers** | Colony opaques, indian `unknown32`, stuff FA/counts, pathfinder plane parity, value ranges | Each field: allowed values + ≥1 DOS reader cite | **Done** (proven peels); FA mid-window / `unknown32` / head `unknown40`/`44` remain HOLD |
 
 ```mermaid
 flowchart TB
@@ -329,11 +334,13 @@ flowchart TB
   export --> deep
 ```
 
-### Suggested next peels (P4)
+### Remaining HOLD (post-P4)
 
-1. Close residual `FUN_6662_0906` parity (3 NE over-links vs COLONY00 planes).
-2. Map early stuff 4-byte chunks (`0x8cfc`…`0x942c`) onto smcol FA / count fields.
-3. Prove `unknown_ds_190` / tail vs smcol `prime_resource_seed` + strategy cheat UI.
+1. Stuff FA census labels for DS `0x9408`…`0x942c` (bytes live; names unproven).
+2. Indian `unknown32`; head `unknown40` / `unknown44` (DS live; smcol byte carve weak).
+3. Colony `unknown08` / `unknown10` / `unknown11` / `unknown12a`.
+4. Zoom/view trio exact byte map (`0x184` / `0x17c` / `0x17e`).
+5. Optional: rebuild stuff census on export from live pools (`FUN_4962_0018`).
 4. Keep RMW sizes; do not invent blobs without decomp evidence.
 
 ---

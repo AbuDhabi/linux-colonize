@@ -794,7 +794,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      if (save.post_map.unknown_ds_190 != 0 || save.post_map.unknown_post_604[0] != 0) {
+      if (save.post_map.prime_resource_seed != 0 || save.post_map.unknown_post_604[0] != 0) {
         fprintf(stderr, "newgame export: post_map tail should stay zero on template\n");
         units_set_occupancy_map(NULL);
         col1_save_free(&save);
@@ -834,9 +834,9 @@ int main(void) {
     ColonizeCol1PostMap rebuilt;
     memset(&rebuilt, 0, sizeof(rebuilt));
     /* Keep a distinctive tail to prove rebuild preserves it. */
-    rebuilt.unknown_ds_190 = 0x1234;
+    rebuilt.prime_resource_seed = 0x1234;
     col1_post_map_rebuild_connectivity(&rebuilt, &map);
-    if (rebuilt.unknown_ds_190 != 0x1234) {
+    if (rebuilt.prime_resource_seed != 0x1234) {
       fprintf(stderr, "post_map rebuild: tail not preserved\n");
       map_free(&map);
       col1_save_free(&orig);
@@ -869,11 +869,11 @@ int main(void) {
         land_diff++;
       }
     }
-    /* Known: ≤3 bidirectional NE over-links (6 bytes) vs DOS cheap pathfinder. */
-    if (sea_diff > 6 || land_diff > 4) {
+    /* Exact plane match once 00f2 dest-cost cache is modeled. */
+    if (sea_diff != 0 || land_diff != 0) {
       fprintf(
         stderr,
-        "post_map rebuild: plane drift too high sea_diff=%d land_diff=%d\n",
+        "post_map rebuild: plane drift sea_diff=%d land_diff=%d\n",
         sea_diff,
         land_diff
       );
@@ -881,12 +881,30 @@ int main(void) {
       col1_save_free(&orig);
       return 1;
     }
-    fprintf(
-      stderr,
-      "COLONY00 post_map rebuild ok (sea_diff=%d land_diff=%d)\n",
-      sea_diff,
-      land_diff
-    );
+    fprintf(stderr, "COLONY00 post_map rebuild ok (planes+tallies exact)\n");
+    /* Stuff census window (FUN_4962_0018) — nation0 unit total matches type row. */
+    {
+      unsigned type_sum = 0;
+      for (int t = 0; t < 19; ++t) {
+        type_sum += orig.stuff.unit_type_counts[0][t];
+      }
+      if (orig.stuff.all_unit_counts[0] != (uint8_t)type_sum) {
+        fprintf(
+          stderr,
+          "stuff census: all_unit_counts[0]=%u type_sum=%u\n",
+          (unsigned)orig.stuff.all_unit_counts[0],
+          type_sum
+        );
+        map_free(&map);
+        col1_save_free(&orig);
+        return 1;
+      }
+      fprintf(
+        stderr,
+        "COLONY00 stuff census ok (all_unit_counts[0]=%u)\n",
+        (unsigned)orig.stuff.all_unit_counts[0]
+      );
+    }
     map_free(&map);
     col1_save_free(&orig);
   }
