@@ -21,7 +21,9 @@
  * (docs/fandom_col1994.md — all missionaries function as experts). Mid-band
  * (40..54) convert gated on Jesuit-grade; plain Missionary + Brebeuf unlocks.
  * Las Casas Convert→Free Colonist assimilate lives in founding_fathers
- * (PEDIA @FATHER24 elect + ownership tick). Sepulveda convert-join,
+ * (PEDIA @FATHER24 elect + ownership tick). Sepulveda convert-join:
+ * founding_fathers_sepulveda_convert_join_bonus ownership gate; raise-join
+ * call site PARKED (needs 2820/4528 — no existing convert-join outcome).
  * Full 2820/4528 / Brave escort / building-destroy stay PARKED.
  *
  * Human chrome: status lines + AI popup enqueue (OK / Meet CHOICE incl.

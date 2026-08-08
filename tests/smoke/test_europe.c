@@ -611,6 +611,71 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /*
+   * Map/transport sell (no harbor): europe_sell_unit_hold → europe_sell_proceeds
+   * tax path (bid × amt × (100−tax)/100). Cite: Colonization.pdf Europe sell.
+   */
+  {
+    ColonizeMsgCatalog names;
+    ColonizeUnitPool units;
+    memset(&names, 0, sizeof(names));
+    units_reset(&units);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !units_load_types(&units, &names)) {
+      fprintf(stderr, "sell_unit_hold: load NAMES/units failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    const int caravel = units_find_type(&units, "Caravel");
+    if (caravel < 0) {
+      fprintf(stderr, "sell_unit_hold: Caravel type missing\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    const int sid = units_spawn_allow_stack(&units, caravel, 2, 2);
+    ColonizeUnit* ship = units_get(&units, sid);
+    if (!ship) {
+      fprintf(stderr, "sell_unit_hold: spawn failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    ship->nation_id = 0;
+    ship->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
+    ship->hold_goods_amount[0] = 50;
+    eu.tax_percent = 50;
+    const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
+    const int expect = (sugar_bid * 50 * 50) / 100;
+    const int gold0 = eu.gold;
+    const int gained = europe_sell_unit_hold(&eu, &units, sid, 0);
+    if (gained != expect || eu.gold != gold0 + expect ||
+        ship->hold_goods_amount[0] != 0 || ship->hold_goods_type[0] != 0) {
+      fprintf(
+        stderr,
+        "sell_unit_hold failed gained=%d expect=%d gold %d→%d hold=%d type=%d\n",
+        gained,
+        expect,
+        gold0,
+        eu.gold,
+        ship->hold_goods_amount[0],
+        ship->hold_goods_type[0]
+      );
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    if (europe_sell_unit_hold(&eu, &units, sid, 0) != 0 ||
+        europe_sell_unit_hold(NULL, &units, sid, 0) != 0) {
+      fprintf(stderr, "sell_unit_hold should no-op on empty/null\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    assets_msg_free(&names);
+  }
+
   fprintf(
     stderr,
     "europe tests ok (cargo=%d train=%d purchase=%d gold=%d dock=%d)\n",

@@ -1322,6 +1322,43 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   return gained;
 }
 
+int europe_sell_unit_hold(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index
+) {
+  /*
+   * Map/transport dump-sell (no harbor chrome). Tax path = europe_sell_proceeds:
+   * bid * amount * (100 - eu->tax_percent) / 100 — same Crown cut as
+   * europe_sell_hold. Cite: Colonization.pdf Europe buy/sell + tax;
+   * docs/manual_gap.md Europe commodity trade.
+   */
+  if (!eu || !units) {
+    return 0;
+  }
+  ColonizeUnit* u = units_get(units, unit_id);
+  if (!u || !u->active || !units_is_transport(units, unit_id)) {
+    return 0;
+  }
+  if (hold_index < 0 || hold_index >= COLONIZE_UNIT_CARGO_MAX) {
+    return 0;
+  }
+  const int amt = u->hold_goods_amount[hold_index];
+  const int ctype = u->hold_goods_type[hold_index];
+  if (amt <= 0 || amt >= 255) {
+    return 0;
+  }
+  const int gained = europe_sell_proceeds(eu, ctype, amt);
+  eu->gold += gained;
+  u->hold_goods_amount[hold_index] = 0;
+  u->hold_goods_type[hold_index] = 0;
+  const char* cname =
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  return gained;
+}
+
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return 0;

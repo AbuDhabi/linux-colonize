@@ -81,11 +81,58 @@ bool founding_fathers_brebeuf_missionaries_are_experts(
  * Existing Indian converts assimilate as free colonists.
  * Elect + ownership tick in founding_fathers_tick: NAMES @JOB Convert (27)
  * → Free Colonists (19) on owned colony colonists and map units. No gold /
- * crosses fiction. Sepulveda convert-join stays PARKED (needs 2820/4528).
- * Cortes treasure yield + free king-galleon transport stay PARKED (no
- * FUN_5fef_31ea spawn / Europe galleon hook in FF exclusive writes; no
- * invented gold amounts — docs/fandom_col1994.md Hernan Cortes).
+ * crosses fiction.
  */
+
+/*
+ * Juan de Sepulveda (docs/fandom_col1994.md Religious):
+ * Higher chance subjugated Indians “convert” and join a colony.
+ * Ownership gate only — convert-join outcome needs FUN_4d56_2820 / 4528 body;
+ * no Linux join-chance path yet. Call site PARKED in ai_contact (mission
+ * convert pulse ≠ subjugated convert-join). No invented join %.
+ */
+bool founding_fathers_sepulveda_convert_join_bonus(
+  const ColonizeCol1Save* col1,
+  int nation
+);
+
+/*
+ * Hernando de Soto (docs/fandom_col1994.md Exploration; Colonization.pdf FF):
+ * Lost City Rumors always positive (+ extended sight already on elect).
+ * Ownership gate only — Scout/LCR resolve (decomp FUN_65dd_0004 checks FF 7)
+ * is not ported yet (map_tile_has_rumour display only). Call site PARKED.
+ */
+bool founding_fathers_de_soto_lcr_always_positive(
+  const ColonizeCol1Save* col1,
+  int nation
+);
+
+/*
+ * Jan de Witt (docs/fandom_col1994.md Trade):
+ * Trade with foreign colonies allowed; FA report more revealing.
+ * Ownership gate for foreign-colony trade. FA detailed strength already peeks
+ * head.founding_father[4] in reports.c. Foreign-colony cargo transfer API
+ * missing — trade effect PARKED (no invent gold).
+ */
+bool founding_fathers_de_witt_allows_foreign_colony_trade(
+  const ColonizeCol1Save* col1,
+  int nation
+);
+
+/*
+ * Hernan Cortes gates (docs/fandom_col1994.md / Colonization.pdf FF):
+ * conquered native settlements always yield more treasure; king's galleons
+ * transport treasure free. Ownership only — no invented gold amounts.
+ * Spawn API: units_spawn_treasure_train. Cash-in already uses tax_percent
+ * (@KINGGALLEON3); do not invent KINGGALLEON2 extra %. Call site for
+ * conquest treasure (decomp FUN_5fef_31ea) still needed — land combat has
+ * no settlement-conquer hook yet.
+ */
+bool founding_fathers_cortes_guarantees_conquest_treasure(
+  const ColonizeCol1Save* col1,
+  int nation
+);
+bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int nation);
 
 /*
  * Paul Revere gate (PEDIA / wiki): colony with no standing soldiers is attacked

@@ -84,6 +84,29 @@ int main(void) {
     return fail("overflow should fail");
   }
 
-  printf("smoke_ai_popup: ok\n");
+  /* Presentation tags: FA / King letter / Congress FF (chrome only). */
+  ai_popup_clear(&st);
+  if (!ai_popup_enqueue_ok_ctx(
+        &st, AI_POPUP_TAG_DIPLO_FA, 0, 1, 0, "Foreign Affairs", "Alliance holds.")) {
+    return fail("enqueue DIPLO_FA");
+  }
+  if (!ai_popup_enqueue_ok_ctx(
+        &st, AI_POPUP_TAG_KING_LETTER, 0, 1, 0, "United Colonies", "Renamed.")) {
+    return fail("enqueue KING_LETTER");
+  }
+  if (!ai_popup_enqueue_ok_ctx(
+        &st, AI_POPUP_TAG_FF_CONGRESS, 0, -1, 3, "Continental Congress", "FF joins.")) {
+    return fail("enqueue FF_CONGRESS");
+  }
+  if (st.queue_count != 3) {
+    return fail("chrome tags queue count");
+  }
+  if (st.queue[0].tag != AI_POPUP_TAG_DIPLO_FA ||
+      st.queue[1].tag != AI_POPUP_TAG_KING_LETTER ||
+      st.queue[2].tag != AI_POPUP_TAG_FF_CONGRESS) {
+    return fail("chrome tag values");
+  }
+
+  fprintf(stderr, "smoke_ai_popup: ok\n");
   return 0;
 }

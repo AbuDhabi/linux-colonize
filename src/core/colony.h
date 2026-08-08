@@ -252,6 +252,13 @@ const char* colonies_eject_role_name(int role);
 /* Set construction target; building_type must be unowned and meet min_population. */
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);
 bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id);
+/*
+ * Destroy a built building (not Town Hall). Clears has_building and moves any
+ * workplace colonists in that building to idle (building_type=-1). Cancels
+ * matching construction project. Returns false if missing/Town Hall/invalid.
+ * Cite: @RAIDBURN building loot needs safe destroy + workplace clear.
+ */
+bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int building_type);
 
 /* Optional gates for colonies_list_buildable (NULL map / false FF = deny gated buildings). */
 typedef struct ColoniesBuildableOpts {

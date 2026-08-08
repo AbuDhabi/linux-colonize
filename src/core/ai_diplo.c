@@ -1636,12 +1636,12 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       /*
        * Wartime Privateer: spawn-only when ctx->units is set (unknown26[9] gate;
        * hunt-ready coast / New World sea stack / Europe dock). ai_euro naval
-       * hunt + combat owns cargo-raid outcomes — no diplo gold fiction.
-       * PARKED: when units is null, thin 8g richer→poorer treasury stand-in
-       * (AI_DIPLO_PRIVATEER_PRIZE_GOLD) — accuracy debt until FUN_5fef hold
-       * plunder is wired; do not invent another rate.
+       * hunt + units_resolve_naval_combat hold plunder (units_plunder_ship_holds)
+       * owns cargo-raid outcomes — no diplo gold fiction.
+       * PARKED null-units only: thin 8g richer→poorer treasury stand-in
+       * (AI_DIPLO_PRIVATEER_PRIZE_GOLD) when no units pool for spawn/combat.
        * Human chrome: commission / "Privateer prize from %s" (null-units only).
-       * Source: Europe Privateer; fandom Drake; euro_unit_act §2b.
+       * Source: Europe Privateer; fandom Drake; euro_unit_act §2b; FUN_5fef_016c.
        */
       if (ctx->units) {
         if (ai_diplo_war_privateer_spawn(ctx, nation_id, peer)) {
@@ -1753,14 +1753,13 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
             fa_chrome = 1;
           }
           /*
-           * Thin FA report OK (gift/longevity). No dedicated AI_POPUP_TAG_DIPLO_FA
-           * (ai_popup.h out of diplo write scope) — reuse DIPLO_ALLIANCE + title
-           * "Foreign Affairs". Full 3f41 F2–F9 UI PARKED.
+           * Thin FA report OK (gift/longevity). AI_POPUP_TAG_DIPLO_FA presentation
+           * tag; full 3f41 F2–F9 UI PARKED.
            */
           if (fa_chrome && ctx->status[0] != '\0') {
             ai_diplo_popup_ok(
               ctx,
-              AI_POPUP_TAG_DIPLO_ALLIANCE,
+              AI_POPUP_TAG_DIPLO_FA,
               nation_id,
               peer,
               "Foreign Affairs",

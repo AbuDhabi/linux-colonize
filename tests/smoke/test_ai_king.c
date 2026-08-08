@@ -22,10 +22,11 @@
  * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50
  * (bells≥100 alone insufficient), tax audience Accept→hike OK chain,
  * 2244 Decline follow-up OK, second MoW only @diff≥2. PARK:
- * 160a letter cinematic; dump-goods / extra refuse cargos beyond Sugar. */
+ * 160a letter cinematic; dump-goods price-weight/modal (pick API Done). */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/turn.h"
@@ -266,10 +267,11 @@ int main(void) {
   if (col1.nation[0].tax_rate != 20) {
     return fail("refuse should not hike tax_rate");
   }
-  /* Sugar = COLONIZE_CARGO_SUGAR (bit1); extra refuse cargos PARKED. */
+  /* Sugar = COLONIZE_CARGO_SUGAR (bit1); dump-goods second cargo needs rng. */
   if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
     return fail("refuse should set nation.boycott_bitmap Sugar bit (COLONIZE_CARGO_SUGAR)");
   }
+  /* Without ctx.rng, refuse keeps Sugar-only (second dump-goods skipped). */
   if (col1.head.expeditionary_force[0] <= pool_boycott) {
     return fail("refuse should grow REF once without tax hike");
   }
@@ -358,6 +360,87 @@ int main(void) {
     ai_king_nation_turn(&ctx);
     if (col1.head.unknown46[2] != 0) {
       return fail("bitmap==0 should clear unknown46[2] refuse (Fugger sync)");
+    }
+  }
+
+  /*
+   * Dump-goods pick API (FUN_38fd_3dc8 thin): among candidate bits clear in
+   * boycott_bitmap, dos_rng picks one — not a fixed Tobacco second refuse.
+   * Cite: docs/fandom_col1994.md Boycott “named goods”; viceroy FUN_38fd_3dc8.
+   */
+  {
+    ColonizeDosRng dump_rng;
+    dos_rng_seed(&dump_rng, 42u);
+    const uint16_t sugar_only = (uint16_t)(1u << COLONIZE_CARGO_SUGAR);
+    const uint16_t all16 = 0xffffu;
+    if (ai_king_pick_dump_goods_cargo(all16, all16, &dump_rng) != -1) {
+      return fail("dump-goods pick must return -1 when all candidates boycotted");
+    }
+    if (ai_king_pick_dump_goods_cargo(0, 0, &dump_rng) != -1) {
+      return fail("dump-goods pick must return -1 when candidate_mask empty");
+    }
+    if (ai_king_pick_dump_goods_cargo(sugar_only, all16, NULL) != -1) {
+      return fail("dump-goods pick must return -1 when rng NULL");
+    }
+    const int picked =
+      ai_king_pick_dump_goods_cargo(sugar_only, all16, &dump_rng);
+    if (picked < 0 || picked >= COLONIZE_CARGO_COUNT) {
+      return fail("dump-goods pick should return a cargo index");
+    }
+    if (picked == COLONIZE_CARGO_SUGAR) {
+      return fail("dump-goods pick must skip already-boycotted Sugar bit");
+    }
+    if (((1u << picked) & sugar_only) != 0) {
+      return fail("dump-goods pick returned boycotted bit");
+    }
+    /* Single eligible: must be that cargo (not invent Tobacco). */
+    const uint16_t furs_only = (uint16_t)(1u << COLONIZE_CARGO_FURS);
+    const int only =
+      ai_king_pick_dump_goods_cargo(sugar_only, furs_only, &dump_rng);
+    if (only != COLONIZE_CARGO_FURS) {
+      return fail("dump-goods pick single-candidate must return Furs");
+    }
+  }
+
+  /*
+   * Refuse path dump-goods second cargo (FUN_38fd_3dc8 wired): with ctx.rng,
+   * boycott_bitmap gains Sugar + one other eligible cargo. Cite: wiki Boycott.
+   */
+  {
+    ColonizeDosRng refuse_rng;
+    dos_rng_seed(&refuse_rng, 99u);
+    year = 1602; /* fresh tax year after prior probes */
+    autumn = 0;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].boycott_bitmap = 0;
+    col1.head.unknown46[2] = 0;
+    col1.nation[0].liberty_bells_total = 0;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    /* Keep SoL refuse gate (colony rebel 60%). */
+    ctx.rng = &refuse_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
+      return fail("rng refuse must still set Sugar boycott bit");
+    }
+    const uint16_t rest =
+      (uint16_t)(col1.nation[0].boycott_bitmap & ~(uint16_t)(1u << COLONIZE_CARGO_SUGAR));
+    if (rest == 0) {
+      return fail("rng refuse should OR a second dump-goods cargo bit");
+    }
+    /* Exactly one extra bit among cargo 0..15. */
+    int bits = 0;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      if ((rest & (uint16_t)(1u << c)) != 0) {
+        bits++;
+      }
+    }
+    if (bits != 1) {
+      fprintf(stderr, "smoke_ai_king: refuse dump-goods rest=0x%x bits=%d\n",
+              (unsigned)rest, bits);
+      return fail("rng refuse should set exactly one second dump-goods cargo");
     }
   }
 
@@ -3307,7 +3390,8 @@ int main(void) {
      * Cont. capital MD slack (same geometry as REF idle hunters): founding
      * capital id0 at (5,5); nearer distant colony at (11,5); Cont. Army at
      * (9,5) → MD capital=4, MD distant=2; slack=2 → prefer capital over distant.
-     * Cont. Cav same beat. PARK: 160a letter cinematic; dump-goods second cargo.
+     * Cont. Cav same beat. PARK: 160a letter cinematic; dump-goods price-weight
+     * + modal (ai_king_pick_dump_goods_cargo Done).
      */
     {
       colonies.colonies[0].nation_id = 0;
@@ -3950,6 +4034,9 @@ int main(void) {
         }
         if (strstr(pop.queue[i].body, "United Colonies") ||
             strstr(pop.queue[i].title, "United Colonies")) {
+          if (pop.queue[i].tag != AI_POPUP_TAG_KING_LETTER) {
+            return fail("160a rename OK should use AI_POPUP_TAG_KING_LETTER");
+          }
           found_rename = 1;
         }
         if (strstr(pop.queue[i].body, "War of Independence")) {

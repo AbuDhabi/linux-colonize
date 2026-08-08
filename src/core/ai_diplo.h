@@ -115,8 +115,8 @@ void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
  * declare_war_ctx; war Refuse → status + OK; break Accept →
  * break_alliance_ctx; break Refuse → status + OK. No-op if tag mismatch,
  * cancelled, or OK (choice_id 0). FUN_5bfb_13b0 / 15b3 / 10ec /
- * war-fatigue; FA 3f41 full UI PARKED. Thin FA gift OK reuses
- * AI_POPUP_TAG_DIPLO_ALLIANCE + title "Foreign Affairs" (no DIPLO_FA tag). */
+ * war-fatigue; FA 3f41 full UI PARKED. Thin FA gift/longevity OK uses
+ * AI_POPUP_TAG_DIPLO_FA + title "Foreign Affairs". */
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
 #endif

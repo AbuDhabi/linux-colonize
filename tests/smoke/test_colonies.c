@@ -465,6 +465,28 @@ int main(void) {
   assets_msg_free(&names);
   map_free(&map);
 
+  /* colonies_destroy_building: clear building + workplace; refuse Town Hall. */
+  {
+    const int stockade = colonies_find_building(&pool, "Stockade");
+    const int town = colonies_find_building(&pool, "Town Hall");
+    CHECK(stockade >= 0 && town >= 0, "Stockade and Town Hall types for destroy");
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "destroy colony lookup");
+    if (c && stockade >= 0 && town >= 0) {
+      c->has_building[stockade] = true;
+      if (c->colonist_count > 0) {
+        c->colonists[0].building_type = stockade;
+      }
+      CHECK(colonies_destroy_building(&pool, cid, stockade), "destroy Stockade");
+      CHECK(!c->has_building[stockade], "Stockade cleared");
+      if (c->colonist_count > 0) {
+        CHECK(c->colonists[0].building_type == -1, "workplace cleared on destroy");
+      }
+      CHECK(!colonies_destroy_building(&pool, cid, town), "refuse destroy Town Hall");
+      CHECK(c->has_building[town], "Town Hall remains");
+    }
+  }
+
   if (failures == 0) {
     printf("smoke_colonies: all checks passed\n");
     return 0;

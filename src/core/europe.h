@@ -327,6 +327,19 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
+/*
+ * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
+ * No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).
+ * Cite: Colonization.pdf Europe buy/sell + tax; same Crown cut as harbor
+ * europe_sell_hold / GAME.TXT tax rate path. Clears the hold on success.
+ * Returns gold credited (0 if empty/invalid).
+ */
+int europe_sell_unit_hold(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index
+);
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 

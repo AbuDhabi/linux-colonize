@@ -144,7 +144,10 @@ static int ai_contact_is_missionary(const ColonizeUnitPool* units, const Coloniz
  * docs/fandom_col1994.md Father Jean de Brebeuf.
  * Las Casas Convert→Free Colonist assimilate: founding_fathers elect +
  * ownership tick (PEDIA @FATHER24) — not this convert-pulse path.
- * Sepulveda convert-join stays PARKED (needs 2820/4528).
+ * Sepulveda convert-join (docs/fandom_col1994.md): ownership gate
+ * founding_fathers_sepulveda_convert_join_bonus — PARKED call site here;
+ * no subjugated convert-join outcome path (needs 2820/4528). Do not invent
+ * join % on this mission convert pulse.
  */
 static int ai_contact_is_jesuit_grade(
   const ColonizeCol1Save* col1,
@@ -1729,15 +1732,34 @@ static int ai_contact_colony_has_wreak_target(const ColonizeColony* c) {
 }
 
 /*
- * True if BURN loot arm can fire: construction clear and/or lumber stock
- * (wooden-building materials). Cite: @RAIDBURN apply — lumber stub when no
- * building_in_production; indian_raid_outcomes.md.
+ * True if BURN loot arm can fire: construction clear, lumber stock, or a
+ * non-Town-Hall built building (colonies_destroy_building). Cite: @RAIDBURN;
+ * indian_raid_outcomes.md.
  */
-static int ai_contact_colony_has_burn_target(const ColonizeColony* c) {
+static int ai_contact_colony_has_burn_target(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c
+) {
   if (!c) {
     return 0;
   }
-  return c->building_in_production >= 0 || c->stock[COLONIZE_CARGO_LUMBER] > 0;
+  if (c->building_in_production >= 0 || c->stock[COLONIZE_CARGO_LUMBER] > 0) {
+    return 1;
+  }
+  if (!pool) {
+    return 0;
+  }
+  for (int bi = 0; bi < pool->building_type_count; ++bi) {
+    if (!c->has_building[bi]) {
+      continue;
+    }
+    const ColonizeBuildingType* bt = colonies_building_type(pool, bi);
+    if (!bt || strcmp(bt->name, "Town Hall") == 0) {
+      continue;
+    }
+    return 1;
+  }
+  return 0;
 }
 
 /* Non-lumber lootable warehouse cargo (STORES still preferred over BURN). */
@@ -1779,8 +1801,9 @@ static AiRaidKind ai_contact_pick_raid_kind(
   if (max_alarm >= 70 && roll < 25 && c && c->population > 1) {
     return AI_RAID_SCALP;
   }
-  /* BURN: construction or lumber (wooden-building stock) gate. */
-  if (max_alarm >= 60 && roll < 20 && ai_contact_colony_has_burn_target(c)) {
+  /* BURN: construction, lumber, or destroyable built building. */
+  if (max_alarm >= 60 && roll < 20 &&
+      ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c)) {
     return AI_RAID_BURN;
   }
   if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1 &&
@@ -1808,7 +1831,8 @@ static AiRaidKind ai_contact_pick_raid_kind(
    */
   if (ai_contact_colony_has_stores(c)) {
     const int prefer_burn =
-      max_alarm >= 60 && ai_contact_colony_has_burn_target(c) &&
+      max_alarm >= 60 &&
+      ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c) &&
       !ai_contact_colony_has_non_lumber_stores(c);
     if (!prefer_burn) {
       return AI_RAID_STORES;
@@ -1817,7 +1841,8 @@ static AiRaidKind ai_contact_pick_raid_kind(
   if (c && c->population > 1 && max_alarm >= 70) {
     return AI_RAID_SCALP;
   }
-  if (ai_contact_colony_has_burn_target(c) && max_alarm >= 60) {
+  if (ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c) &&
+      max_alarm >= 60) {
     return AI_RAID_BURN;
   }
   return AI_RAID_NOTHING;
@@ -1900,13 +1925,28 @@ static void ai_contact_apply_raid_loot(
       c->building_in_production = -1;
     } else if (c->stock[COLONIZE_CARGO_LUMBER] > 0) {
       c->stock[COLONIZE_CARGO_LUMBER] -= (c->stock[COLONIZE_CARGO_LUMBER] > 2) ? 2 : 1;
-    } else {
+    } else if (ctx && ctx->colonies) {
       /*
-       * PARKED: when warehouse stock empty, prefer damaging/removing a
-       * non-Town-Hall built building (@RAIDBURN building loot). No safe
-       * colonies_* destroy API that also clears workplace colonists —
-       * do not flip has_building[] alone. Full 5fef_0f14 PARKED.
+       * Empty warehouse: damage a non-Town-Hall built building via
+       * colonies_destroy_building (clears workplace colonists). Prefer
+       * Stockade/Warehouse/Dock-like first built index > Town Hall.
+       * Cite: @RAIDBURN building loot; colonies_destroy_building.
        */
+      int burn_bt = -1;
+      for (int bi = 0; bi < ctx->colonies->building_type_count; ++bi) {
+        if (!c->has_building[bi]) {
+          continue;
+        }
+        const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, bi);
+        if (!bt || strcmp(bt->name, "Town Hall") == 0) {
+          continue;
+        }
+        burn_bt = bi;
+        break;
+      }
+      if (burn_bt >= 0) {
+        (void)colonies_destroy_building(ctx->colonies, c->id, burn_bt);
+      }
     }
     break;
   case AI_RAID_SCALP:
@@ -2093,11 +2133,44 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * lower ai_diplo_indian_relation (very-low <40 hostility).
      * Cite: indian_raid_outcomes.md gate; FUN_4d56_4528 thin; fandom Alarm.
      *
-     * PARK: deep Brave escort / alarmed act inside quiet FUN_4d56_14fe
-     * (seed-100 T2). No unit-follow API — units_set_goto is tile goto only
-     * (units.h); escort needs follow-unit orders. Raids stay post-pulse.
-     * Cite: indian_raid_outcomes.md §1; indian_contact.md PORT DEBT.
+     * Thin Brave escort (14fe stand-in): idle Brave with no orders may
+     * units_follow_unit a same-nation Brave that already has AI_MOVE/GOTO.
+     * Deep alarmed escort scoring still PARKED. Cite: units_follow_unit;
+     * indian_raid_outcomes.md §1.
      */
+    if (brave->orders == UNITS_ORDER_NONE && brave->moves_left > 0) {
+      int lead = -1;
+      int best_md = 99;
+      for (int j = 0; j < COLONIZE_UNITS_MAX; ++j) {
+        const ColonizeUnit* o = &ctx->units->units[j];
+        if (!o->active || o->id == brave->id || o->nation_id != nation_id) {
+          continue;
+        }
+        if (units_is_sea(ctx->units, o->id)) {
+          continue;
+        }
+        if (!units_orders_follow_goto(o->orders)) {
+          continue;
+        }
+        const int md = abs(o->x - brave->x) + abs(o->y - brave->y);
+        if (md > 0 && md < best_md && md <= 3) {
+          best_md = md;
+          lead = o->id;
+        }
+      }
+      if (lead >= 0 && units_follow_unit(ctx->units, brave->id, lead)) {
+        (void)units_advance_follow_one_step(
+          ctx->units, brave->id, ctx->map, ctx->colonies, ctx->rng
+        );
+        continue;
+      }
+    }
+    if (brave->orders == UNITS_ORDER_FOLLOW) {
+      (void)units_advance_follow_one_step(
+        ctx->units, brave->id, ctx->map, ctx->colonies, ctx->rng
+      );
+      continue;
+    }
     int target_euro = -1;
     int max_alarm = 0;
     int best_rel = 256;
