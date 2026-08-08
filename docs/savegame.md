@@ -127,8 +127,9 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 These survive capture today and may still fault or desync DOS play after the
 occupancy fix:
 
-- `post_map` (614) — zero on new-game templates; not rebuilt (sea/land
-  connectivity + tallies; see [save_format_map.md](save_format_map.md))
+- `post_map` (614) — connectivity planes + continent tallies rebuilt on blank
+  templates (`col1_post_map_rebuild_connectivity` / `FUN_67f4_0088`); 10 B tail
+  still zero / RMW-preserved (see [save_format_map.md](save_format_map.md))
 - Most of `stuff` beyond viewport — counters only preserved on RMW; `unknown36`
   is FA/unit/tribe blobs, **not** connectivity
 - Colony opaque fields (`unknown08`, `duration[]`, …) — zeroed on colony rebuild
@@ -139,10 +140,9 @@ occupancy fix:
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
 rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`
-case). The same file still has fully zero `post_map` and a mask
-lacking DOS `pacific`/`suppress` density — next DOS load may pass UNITFLAG and
-fail later, or play with missing opaque state. Do not invent those blobs without
-decomp evidence.
+case). Template exports now also fill `post_map` connectivity when blank; mask
+`pacific`/`suppress` density and stuff FA blobs remain the main Linux→DOS
+holes. Do not invent those without decomp evidence.
 
 ### Verified fixtures
 

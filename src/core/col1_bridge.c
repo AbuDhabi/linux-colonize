@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/col1_post_map.h"
 #include "core/turn.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
@@ -941,6 +942,14 @@ bool col1_bridge_capture(
   }
   if (save->map.seen) {
     map_seen_to_col1(map, save->map.seen, save->map.tile_count);
+  }
+
+  /*
+   * FUN_67f4_0088: new-game / blank templates need sea/land connectivity +
+   * continent tallies. Preserve nonzero DOS post_map (and the 10 B tail).
+   */
+  if (col1_post_map_is_blank(&save->post_map)) {
+    col1_post_map_rebuild_connectivity(&save->post_map, map);
   }
 
   /* Nations: update human treasury/tax/prices; leave AI blob intact. */

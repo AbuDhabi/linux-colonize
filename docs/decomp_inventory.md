@@ -87,8 +87,8 @@ port I/O in the native build.
   `src/core/col1_bridge.c` (see `docs/savegame.md`); verified against
   `original_saves/COLONY00.SAV` / `COLONY01.SAV`. **Codec ≠ complete field
   semantics** — opaque-byte RE track: [save_format_map.md](save_format_map.md)
-  (P0–P2 done: atlas + post_map/stuff mis-split + proven community renames;
-  P3–P4 open: export rebuild, deep leftovers).
+  (P0–P3 done: atlas + post_map/stuff mis-split + proven community renames +
+  blank-export connectivity rebuild; P4 open: deep leftovers / pathfinder parity).
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,
