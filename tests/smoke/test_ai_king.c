@@ -3,7 +3,7 @@
  * (units_ship_capacity / cargo_ids board + multi-unload ≤moves/capacity)
  * Regular+Dragoon mix + second MoW@diff≥2, 10f0 (dual + third@diff≥2 + ≤2@diff<2
  * Regular+Dragoon mix + nation pick), REF land hunt/capture+owner-change+status
- * +fortify one (Regular else Dragoon/Cont.Cav), REF stack extras hunt, idle
+ * +fortify one/two (Regular else Dragoon/Cont.Cav cap-2), REF stack extras hunt,
  * fortify extras hunt, after-capture next colony hunt, idle Regular/Dragoon/
  * Cont.Cav fortify on crown/captured capital, Artillery
  * after capture / idle on crown colony FORTIFY (Euro pattern; already-FORTIFIED
@@ -16,13 +16,15 @@
  * prefer unload if already adjacent), idle empty MoW coastal patrol, 0982 MoW
  * on water adjacent, 2244 merc hire (Soldier type) or cannot-afford once
  * (+ refuse→later gold still blocked via unknown46[3]), 1eca colony-SoL bias +
- * Cont. Army/Cont. Cav capital-rally (+ hold on capital + capital MD slack) +
+ * Cont. Army/Cont. Cav capital-rally (+ hold on capital + capital fortify cap-2
+ * + capital MD slack) +
  * SoL=50 mid-band edge + Cont. Army abbrev skip, REF capital MD hunt
  * bias (+ Artillery siege capital when fortified MD slack), congress
  * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50
  * (bells≥100 alone insufficient), tax audience Accept→hike OK chain,
  * 2244 Decline follow-up OK, second MoW only @diff≥2. PARK:
- * 160a letter cinematic; dump-goods price-weight/modal (pick API Done). */
+ * 160a letter cinematic; dump-goods price-weight/modal (pick API + all bitmap
+ * cargo names in refuse/holds status/body Done). */
 #include "core/ai_king.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -305,6 +307,23 @@ int main(void) {
     return fail("active boycott should set hold-audience status");
   }
   /*
+   * Boycott-holds status lists all boycott_bitmap cargo names (presentation;
+   * useful after partial external clear). Cite: king_ref refuse/holds chrome.
+   */
+  {
+    col1.head.unknown46[2] = 1;
+    col1.nation[0].boycott_bitmap =
+      (uint16_t)((1u << COLONIZE_CARGO_SUGAR) | (1u << COLONIZE_CARGO_TOBACCO));
+    year = 1602;
+    autumn = 0;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    if (!strstr(status, "Sugar") || !strstr(status, "Tobacco")) {
+      fprintf(stderr, "smoke_ai_king: boycott holds cargo list: '%s'\n", status);
+      return fail("boycott holds status must list all boycott_bitmap cargo names");
+    }
+  }
+  /*
    * Audience vs restless: spring refuse at SoL 40..49 must keep Audience status
    * (restless chrome must not clobber 38fd_5be8). Real modal PARKED.
    */
@@ -441,6 +460,27 @@ int main(void) {
       fprintf(stderr, "smoke_ai_king: refuse dump-goods rest=0x%x bits=%d\n",
               (unsigned)rest, bits);
       return fail("rng refuse should set exactly one second dump-goods cargo");
+    }
+    {
+      static const char* const cargo_names[COLONIZE_CARGO_COUNT] = {
+        "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
+        "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
+        "Coats",       "Trade Goods", "Tools", "Muskets"
+      };
+      int second_c = -1;
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        if ((rest & (uint16_t)(1u << c)) != 0) {
+          second_c = c;
+        }
+      }
+      if (second_c < 0) {
+        return fail("rng refuse second cargo index");
+      }
+      if (!strstr(status, "Sugar") || !strstr(status, cargo_names[second_c])) {
+        fprintf(stderr, "smoke_ai_king: refuse status (second=%s): '%s'\n",
+                cargo_names[second_c], status);
+        return fail("rng refuse status must name Sugar and second boycott cargo");
+      }
     }
   }
 
@@ -1007,6 +1047,62 @@ int main(void) {
         return fail("capture should fortify one Regular on colony tile");
       }
     }
+    /*
+     * Capture cap-2: two Regulars on human colony tile → both FORTIFY when
+     * second has moves (Colonization.pdf Defending a Colony; king_ref thin).
+     */
+    {
+      colonies.colonies[0].nation_id = 0;
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1) {
+          u->moves_left = 0;
+          if (u->x == 5 && u->y == 5) {
+            u->x = 1;
+            u->y = 1;
+            u->orders = UNITS_ORDER_NONE;
+          }
+        }
+      }
+      const int cap_a = units_spawn_allow_stack(&units, ty_regular, 5, 5);
+      const int cap_b = units_spawn_allow_stack(&units, ty_regular, 5, 5);
+      if (cap_a < 0 || cap_b < 0) {
+        return fail("capture cap-2 setup should spawn two crown Regulars");
+      }
+      {
+        ColonizeUnit* a = units_get(&units, cap_a);
+        ColonizeUnit* b = units_get(&units, cap_b);
+        if (!a || !b) {
+          return fail("capture cap-2 unit lookup");
+        }
+        a->nation_id = 1;
+        a->moves_left = 0;
+        a->orders = UNITS_ORDER_NONE;
+        b->nation_id = 1;
+        b->moves_left = 1;
+        b->orders = UNITS_ORDER_NONE;
+      }
+      ai_king_nation_turn(&ctx);
+      if (colonies.colonies[0].nation_id != 1) {
+        return fail("capture cap-2 should colonies_capture");
+      }
+      int fortified = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units.units[i];
+        if (!u->active || u->nation_id != 1 || u->x != 5 || u->y != 5) {
+          continue;
+        }
+        if (u->type_index == ty_regular &&
+            (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED)) {
+          fortified++;
+        }
+      }
+      if (fortified != 2) {
+        fprintf(stderr, "smoke_ai_king: capture cap-2 fortified=%d (want 2)\n", fortified);
+        return fail("capture with two Regulars should fortify both when second has moves");
+      }
+    }
     {
       const ColonizeUnit* hunter = units_get_const(&units, hunter_id);
       if (!hunter || !hunter->active) {
@@ -1026,8 +1122,9 @@ int main(void) {
       }
     }
     /*
-     * REF stack: second Regular with moves on captured (crown) colony must not
-     * fortify when one Regular is already FORTIFY — extras hunt instead.
+     * REF stack cap-2 (Colonization.pdf Defending a Colony; king_ref thin
+     * multi-garrison): second Regular with moves on captured colony fortifies
+     * when only one garrison slot is taken; third hunts.
      */
     {
       /* Clear the colony tile: only one garrison Regular may remain. */
@@ -1097,26 +1194,58 @@ int main(void) {
         if (!ex || !ex->active) {
           return fail("REF stack extra Regular should remain active");
         }
-        if (ex->orders == UNITS_ORDER_FORTIFY || ex->orders == UNITS_ORDER_FORTIFIED) {
-          return fail("REF stack: second Regular on colony must not fortify when one already has");
-        }
-        if (ex->orders != UNITS_ORDER_AI_MOVE) {
-          fprintf(stderr, "smoke_ai_king: stack extra orders=%d (want AI_MOVE hunt)\n",
+        if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
+          fprintf(stderr, "smoke_ai_king: stack extra orders=%d (want FORTIFY cap-2)\n",
                   ex->orders);
-          return fail("REF stack extra Regular should hunt, not fortify");
+          return fail("REF stack: second Regular with moves should fortify (cap 2)");
         }
       }
-      if (fortified != 1) {
-        fprintf(stderr, "smoke_ai_king: fortified Regulars on colony=%d (want exactly 1)\n",
+      if (fortified != 2) {
+        fprintf(stderr, "smoke_ai_king: fortified Regulars on colony=%d (want exactly 2)\n",
                 fortified);
-        return fail("REF stack should keep exactly one fortified Regular on colony");
+        return fail("REF stack should fortify two Regulars on colony when second has moves");
+      }
+      /* Third extra with moves must hunt when cap-2 stack is full. */
+      const int third_id = units_spawn_allow_stack(&units, ty_regular, 5, 5);
+      const int third_prey = units_spawn_allow_stack(&units, ty_soldier, 12, 9);
+      if (third_id < 0 || third_prey < 0) {
+        return fail("REF stack third setup should spawn Regular + prey");
+      }
+      {
+        ColonizeUnit* th = units_get(&units, third_id);
+        ColonizeUnit* prey = units_get(&units, third_prey);
+        if (!th || !prey) {
+          return fail("REF stack third unit lookup");
+        }
+        th->nation_id = 1;
+        th->moves_left = 1;
+        th->orders = UNITS_ORDER_NONE;
+        th->goto_x = -1;
+        th->goto_y = -1;
+        prey->nation_id = 0;
+        prey->moves_left = 0;
+      }
+      ai_king_nation_turn(&ctx);
+      {
+        const ColonizeUnit* th = units_get_const(&units, third_id);
+        if (!th || !th->active) {
+          return fail("REF stack third Regular should remain active");
+        }
+        if (th->orders == UNITS_ORDER_FORTIFY || th->orders == UNITS_ORDER_FORTIFIED) {
+          return fail("REF stack: third Regular must hunt when two already fortified");
+        }
+        if (th->orders != UNITS_ORDER_AI_MOVE) {
+          fprintf(stderr, "smoke_ai_king: stack third orders=%d (want AI_MOVE hunt)\n",
+                  th->orders);
+          return fail("REF stack third Regular should hunt, not fortify");
+        }
       }
     }
     /*
      * After-capture next colony (fandom REF uncaptured-port pressure):
-     * founding capital captured + fortify stack taken → idle extra Regular must
-     * prefer next nearest remaining human colony over a closer human land unit.
-     * Capital MD slack must not apply (founding capital is no longer human).
+     * founding capital captured + two fortify slots taken → idle third Regular
+     * must prefer next nearest remaining human colony over a closer human land
+     * unit. Capital MD slack must not apply (founding capital is no longer human).
      */
     {
       ColonizeColony* next_col = &colonies.colonies[2];
@@ -1153,7 +1282,7 @@ int main(void) {
           u->moves_left = 0;
         }
       }
-      /* Sole fortified garrison on captured capital. */
+      /* Two fortified garrisons on captured capital (cap-2 stack full). */
       {
         ColonizeUnit* cu = units_get(&units, cap_id);
         if (!cu || !cu->active) {
@@ -1164,6 +1293,19 @@ int main(void) {
         cu->nation_id = 1;
         cu->orders = UNITS_ORDER_FORTIFY;
         cu->moves_left = 0;
+      }
+      const int garrison2 = units_spawn_allow_stack(&units, ty_regular, 5, 5);
+      if (garrison2 < 0) {
+        return fail("after-capture next-colony needs second fortified Regular");
+      }
+      {
+        ColonizeUnit* g2 = units_get(&units, garrison2);
+        if (!g2) {
+          return fail("after-capture next-colony garrison2 lookup");
+        }
+        g2->nation_id = 1;
+        g2->orders = UNITS_ORDER_FORTIFY;
+        g2->moves_left = 0;
       }
       /* Closer human Soldier decoy (MD=2) vs next colony at (12,5) (MD=7). */
       const int decoy_id = units_spawn_allow_stack(&units, ty_soldier, 7, 5);
@@ -1281,7 +1423,7 @@ int main(void) {
       }
     }
     /*
-     * Idle fortify stack: only one Regular fortifies; extras hunt
+     * Idle fortify cap-2: second Regular with moves fortifies; third hunts
      * (fandom REF garrison; same stack rule as post-capture).
      */
     {
@@ -1332,13 +1474,10 @@ int main(void) {
         if (!ex || !ex->active) {
           return fail("idle fortify extras: extra Regular should remain active");
         }
-        if (ex->orders == UNITS_ORDER_FORTIFY || ex->orders == UNITS_ORDER_FORTIFIED) {
-          return fail("idle fortify extras: second Regular must not fortify");
-        }
-        if (ex->orders != UNITS_ORDER_AI_MOVE) {
-          fprintf(stderr, "smoke_ai_king: idle extras orders=%d (want AI_MOVE hunt)\n",
+        if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
+          fprintf(stderr, "smoke_ai_king: idle extras orders=%d (want FORTIFY cap-2)\n",
                   ex->orders);
-          return fail("idle fortify extras: second Regular should hunt");
+          return fail("idle fortify extras: second Regular with moves should fortify");
         }
       }
       {
@@ -1353,9 +1492,44 @@ int main(void) {
             fortified++;
           }
         }
-        if (fortified != 1) {
-          fprintf(stderr, "smoke_ai_king: idle extras fortified=%d (want 1)\n", fortified);
-          return fail("idle fortify extras should keep exactly one fortified Regular");
+        if (fortified != 2) {
+          fprintf(stderr, "smoke_ai_king: idle extras fortified=%d (want 2)\n", fortified);
+          return fail("idle fortify extras should fortify two Regulars when second has moves");
+        }
+      }
+      /* Third with moves hunts when cap-2 full. */
+      const int third_id = units_spawn_allow_stack(&units, ty_regular, 8, 8);
+      const int third_prey = units_spawn_allow_stack(&units, ty_soldier, 14, 9);
+      if (third_id < 0 || third_prey < 0) {
+        return fail("idle fortify third setup should spawn Regular + prey");
+      }
+      {
+        ColonizeUnit* th = units_get(&units, third_id);
+        ColonizeUnit* prey = units_get(&units, third_prey);
+        if (!th || !prey) {
+          return fail("idle fortify third unit lookup");
+        }
+        th->nation_id = 1;
+        th->moves_left = 1;
+        th->orders = UNITS_ORDER_NONE;
+        th->goto_x = -1;
+        th->goto_y = -1;
+        prey->nation_id = 0;
+        prey->moves_left = 0;
+      }
+      ai_king_nation_turn(&ctx);
+      {
+        const ColonizeUnit* th = units_get_const(&units, third_id);
+        if (!th || !th->active) {
+          return fail("idle fortify third Regular should remain active");
+        }
+        if (th->orders == UNITS_ORDER_FORTIFY || th->orders == UNITS_ORDER_FORTIFIED) {
+          return fail("idle fortify third Regular must hunt when two already fortified");
+        }
+        if (th->orders != UNITS_ORDER_AI_MOVE) {
+          fprintf(stderr, "smoke_ai_king: idle third orders=%d (want AI_MOVE hunt)\n",
+                  th->orders);
+          return fail("idle fortify third Regular should hunt");
         }
       }
     }
@@ -1464,9 +1638,9 @@ int main(void) {
 
   /*
    * Dragoon / Cont. Cav garrison fallback (Colonization.pdf Defending a Colony;
-   * king_ref one-garrison): when no Regular is available, fortify one Dragoon
-   * or Cont. Cav after capture / idle on crown colony. Still one-stack —
-   * do not invent multi-garrison. Cont. Army is not a cavalry fallback.
+   * king_ref thin multi-garrison cap 2): when no Regular is available, fortify
+   * one Dragoon or Cont. Cav after capture / idle on crown colony; second cavalry
+   * with moves may join. Cont. Army is not a cavalry fallback.
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -1588,7 +1762,7 @@ int main(void) {
           return fail("idle Cont. Cav garrison should stay on crown colony");
         }
       }
-      /* One-stack: extra Dragoon on same tile must not fortify when Cont. Cav holds. */
+      /* Cap-2: extra Dragoon with moves fortifies when Cont. Cav holds slot 1. */
       {
         ColonizeUnit* cav = units_get(&units, cav_id);
         if (!cav) {
@@ -1629,19 +1803,31 @@ int main(void) {
           if (!ex || !ex->active) {
             return fail("cav stack: extra Dragoon should remain active");
           }
-          if (ex->orders == UNITS_ORDER_FORTIFY || ex->orders == UNITS_ORDER_FORTIFIED) {
-            return fail("cav stack: extra Dragoon must not fortify (one-garrison)");
-          }
-          if (ex->orders != UNITS_ORDER_AI_MOVE) {
-            fprintf(stderr, "smoke_ai_king: cav stack extra orders=%d (want AI_MOVE)\n",
+          if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
+            fprintf(stderr, "smoke_ai_king: cav stack extra orders=%d (want FORTIFY cap-2)\n",
                     ex->orders);
-            return fail("cav stack: extra Dragoon should hunt");
+            return fail("cav stack: second Dragoon with moves should fortify (cap 2)");
           }
+        }
+        int fortified = 0;
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* u = &units.units[i];
+          if (!u->active || u->nation_id != 1 || u->x != 8 || u->y != 8) {
+            continue;
+          }
+          if ((u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) &&
+              (u->type_index == ty_dragoon || u->type_index == ty_cont_cav)) {
+            fortified++;
+          }
+        }
+        if (fortified != 2) {
+          fprintf(stderr, "smoke_ai_king: cav stack fortified=%d (want 2)\n", fortified);
+          return fail("cav stack should fortify two cavalry when second has moves");
         }
       }
       crown_col->active = false;
     }
-    /* Prefer Regular over Dragoon when both idle on crown colony. */
+    /* Prefer Regular over Dragoon for first slot; cap-2 allows second with moves. */
     {
       ColonizeColony* crown_col = &colonies.colonies[3];
       crown_col->active = true;
@@ -1698,8 +1884,8 @@ int main(void) {
         if (!r || r->orders != UNITS_ORDER_FORTIFY) {
           return fail("when Regular present, prefer Regular for garrison fortify");
         }
-        if (!d || d->orders == UNITS_ORDER_FORTIFY || d->orders == UNITS_ORDER_FORTIFIED) {
-          return fail("when Regular present, Dragoon must not take garrison slot");
+        if (!d || (d->orders != UNITS_ORDER_FORTIFY && d->orders != UNITS_ORDER_FORTIFIED)) {
+          return fail("cap-2: Dragoon with moves should fortify as second garrison");
         }
       }
       crown_col->active = false;
@@ -2576,7 +2762,7 @@ int main(void) {
                 ashore_before, ashore_after);
         return fail("MoW multi-unload should place 2 crown land ashore");
       }
-      /* Same-beat seize + fortify one Regular after multi-unload (stack rule). */
+      /* Same-beat seize + fortify up to two Regulars after multi-unload (cap 2). */
       if (colonies.colonies[0].nation_id != 1) {
         return fail("MoW multi-unload onto colony should seize (owner → crown)");
       }
@@ -2599,12 +2785,12 @@ int main(void) {
         if (regulars_on < 1) {
           return fail("multi-unload seize should leave Regular on colony tile");
         }
-        if (fortified != 1) {
+        if (fortified < 1 || fortified > 2 || fortified > regulars_on) {
           fprintf(stderr,
                   "smoke_ai_king: multi-unload fortify count=%d on-colony Regulars=%d "
-                  "(want exactly 1 FORTIFY)\n",
+                  "(want 1..2 FORTIFY per cap-2)\n",
                   fortified, regulars_on);
-          return fail("multi-unload capture should fortify exactly one Regular");
+          return fail("multi-unload capture should fortify one or two Regulars (cap 2)");
         }
       }
     }
@@ -3363,12 +3549,11 @@ int main(void) {
       colonies.colonies[0].nation_id = 0;
       colonies.colonies[0].population = 8;
       memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.expeditionary_force[0] = 1; /* avoid 06a6 empty-pool irregular */
       memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &units.units[i];
         if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
+          u->active = false;
         }
       }
       ai_king_nation_turn(&ctx);
@@ -3384,6 +3569,45 @@ int main(void) {
         fprintf(stderr, "smoke_ai_king: Cont. Army on capital goto=(%d,%d)\n", ca->goto_x,
                 ca->goto_y);
         return fail("Cont. Army on capital must not AI_MOVE away from founding capital");
+      }
+      if (ca->orders != UNITS_ORDER_FORTIFY) {
+        fprintf(stderr, "smoke_ai_king: Cont. Army on capital orders=%d (want FORTIFY)\n",
+                ca->orders);
+        return fail("Cont. Army on founding capital should fortify (cap 2 pool)");
+      }
+      /* Cap-2: Cont. Cav with moves joins fortify stack on founding capital. */
+      ColonizeUnit* cav = units_get(&units, cav_id);
+      if (!cav || !cav->active) {
+        return fail("Cont. capital fortify cap-2 needs live Cont. Cav");
+      }
+      cav->x = 5;
+      cav->y = 5;
+      cav->moves_left = 2;
+      cav->orders = UNITS_ORDER_NONE;
+      cav->goto_x = -1;
+      cav->goto_y = -1;
+      colonies.colonies[0].nation_id = 0;
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1) {
+          u->active = false;
+        }
+      }
+      ai_king_nation_turn(&ctx);
+      ca = units_get(&units, ca_id);
+      cav = units_get(&units, cav_id);
+      if (!ca || !cav || !ca->active || !cav->active) {
+        return fail("Cont. capital fortify cap-2 unit lookup");
+      }
+      if (ca->orders != UNITS_ORDER_FORTIFY && ca->orders != UNITS_ORDER_FORTIFIED) {
+        return fail("Cont. Army must stay FORTIFY when Cav joins capital stack");
+      }
+      if (cav->orders != UNITS_ORDER_FORTIFY) {
+        fprintf(stderr, "smoke_ai_king: Cont. Cav cap-2 orders=%d (want FORTIFY)\n",
+                cav->orders);
+        return fail("Cont. Cav with moves should fortify second slot on founding capital");
       }
     }
     /*

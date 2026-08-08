@@ -54,7 +54,7 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
  * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
  * FA gift/longevity human status ("Alliance with %s strengthened/holds") +
- * thin Foreign Affairs OK (DIPLO_ALLIANCE tag + "Foreign Affairs" title);
+ * thin Foreign Affairs OK (DIPLO_FA tag + "Foreign Affairs" title);
  * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]);
  * PARKED 8g treasury prize only when units null (no hold-plunder API);
  * war-fatigue (timer==0) + near-parity → make_peace_ctx;

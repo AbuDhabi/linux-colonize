@@ -126,7 +126,9 @@ bool founding_fathers_de_witt_allows_foreign_colony_trade(
  * Spawn API: units_spawn_treasure_train. Cash-in already uses tax_percent
  * (@KINGGALLEON3); do not invent KINGGALLEON2 extra %. Call site for
  * conquest treasure (decomp FUN_5fef_31ea) still needed — land combat has
- * no settlement-conquer hook yet.
+ * no settlement-conquer hook yet; no COL1 treasure-amount field to read.
+ * Spawn only via units_spawn_treasure_train when gold is caller-known
+ * (hold_goods_amount LE16); do not invent FUN_5fef_31ea amounts.
  */
 bool founding_fathers_cortes_guarantees_conquest_treasure(
   const ColonizeCol1Save* col1,
