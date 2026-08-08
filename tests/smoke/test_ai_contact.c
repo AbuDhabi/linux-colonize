@@ -225,7 +225,7 @@ int main(void) {
   col1.tribe[0].mission = 0xff;
   col1.tribe[0].alarm[0].friction = 10;
   ind->alarm_by_player[0] = 10;
-  ind->unknown31[3] = (uint8_t)(ind->unknown31[3] | 0x20); /* skip flag-body escalate */
+  ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20); /* skip flag-body escalate */
   ai_contact_indian_prelude(&ctx, 4);
   if (col1.tribe[0].alarm[0].friction != 12) {
     return fail("prelude encroachment should bump tribe friction by 2");
@@ -243,7 +243,7 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 10;
     ind->alarm_by_player[0] = 10;
-    ind->unknown31[3] = (uint8_t)(ind->unknown31[3] | 0x20);
+    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
     /* Reuse existing soldier at Chebyshev 2; do not double-bump. */
     ai_contact_indian_prelude(&ctx, 4);
     if (col1.tribe[0].alarm[0].friction != 11) {
@@ -1640,7 +1640,7 @@ int main(void) {
   }
 
   /*
-   * Prelude escalate + Pocahontas: flag body (unknown31[3] bit 0x20 clear) with
+   * Prelude escalate + Pocahontas: flag body (unknown31_flags bit 0x20 clear) with
    * met + alarm<30 → difficulty bump; Pocahontas halves (wiki/fandom).
    * Seed/turn: rng_seed=42 + turn=1 fires escalate at diff=2 (bump 7 → 3).
    * Cite: docs/fandom_col1994.md Pocahontas; indian_contact.md prelude.
@@ -1663,14 +1663,14 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 0;
     ind->met_by_player[0] = 1;
-    ind->unknown31[3] = (uint8_t)(ind->unknown31[3] & (uint8_t)~0x20);
+    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags & (uint8_t)~0x20);
     ind->alarm_by_player[0] = 10;
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     col1.head.difficulty = 2;
     turn = 1;
     ctx.rng_seed = 42;
     ai_contact_indian_prelude(&ctx, 4);
-    if ((ind->unknown31[3] & 0x20) == 0) {
+    if ((ind->unknown31_flags & 0x20) == 0) {
       return fail("prelude escalate should sticky-set flag bit 0x20");
     }
     if (ind->alarm_by_player[0] != 17) { /* 10 + 7 */
@@ -1683,7 +1683,7 @@ int main(void) {
     }
 
     /* Same seed path with Pocahontas → half bump (+7 → +3). */
-    ind->unknown31[3] = (uint8_t)(ind->unknown31[3] & (uint8_t)~0x20);
+    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags & (uint8_t)~0x20);
     ind->alarm_by_player[0] = 10;
     col1.head.founding_father[FF_POCAHONTAS] = 0;
     ai_contact_indian_prelude(&ctx, 4);

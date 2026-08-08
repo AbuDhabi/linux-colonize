@@ -195,8 +195,8 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->turns_worked = 0;
   slot->last_dir = 0;
   slot->col1_unknown15 = 0;
-  slot->col1_unknown16_hi = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-  slot->col1_unused06 = 0;
+  slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+  slot->col1_vis_mask = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
   } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
@@ -397,8 +397,8 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->turns_worked = 0;
   unit->last_dir = 0;
   unit->col1_unknown15 = 0;
-  unit->col1_unknown16_hi = 0;
-  unit->col1_unused06 = 0;
+  unit->col1_ai_plan = 0;
+  unit->col1_vis_mask = 0;
 }
 
 bool units_despawn(ColonizeUnitPool* pool, int unit_id) {

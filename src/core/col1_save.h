@@ -44,7 +44,7 @@
 #define COLONIZE_COL1_OTHER_SIZE 24u
 #define COLONIZE_COL1_COLONY_SIZE 202u
 #define COLONIZE_COL1_UNIT_SIZE 28u
-/* DOS unknown16[1] default seen on virtually all units in original starters. */
+/* DOS unit ai_plan default seen on virtually all units in original starters. */
 #define COL1_UNIT_UNKNOWN16_HI_DEFAULT 0x58u
 #define COLONIZE_COL1_NATION_SIZE 316u
 #define COLONIZE_COL1_NATION_COUNT 4u
@@ -82,14 +82,14 @@ typedef struct ColonizeCol1Tut1 {
 } ColonizeCol1Tut1;
 
 typedef struct ColonizeCol1GameOptions {
-  uint16_t unused01 : 7;
+  uint16_t unused01 : 7; /* DOS 0x5382 bits used for scenario/WoI/REF — not pure pad */
   uint16_t tutorial_hints : 1;
   uint16_t water_color_cycling : 1;
   uint16_t combat_analysis : 1;
   uint16_t autosave : 1;
   uint16_t end_of_turn : 1;
   uint16_t fast_piece_slide : 1;
-  uint16_t unused02 : 1;
+  uint16_t cheats_enabled : 1; /* DS:0x5383 bit5; Alt-WIN unlock (was unused02) */
   uint16_t show_foreign_moves : 1;
   uint16_t show_indian_moves : 1;
 } ColonizeCol1GameOptions;
@@ -165,22 +165,35 @@ typedef struct ColonizeCol1Head {
   uint16_t year;
   uint16_t autumn; /* non-zero if autumn */
   uint16_t turn;
-  uint8_t unknown40[2];
+  uint8_t unknown40[2]; /* community: tile_selection_mode + pad @ DS:0x5390 */
   uint16_t active_unit;
-  uint8_t unknown41[6];
+  uint16_t nation_turn; /* DS:0x5394 — active AI/turn nation */
+  uint16_t curr_nation_map_view; /* DS:0x5396 */
+  uint16_t human_player; /* DS:0x5398 */
   uint16_t tribe_count;
   uint16_t unit_count;
   uint16_t colony_count;
-  uint8_t unknown42[6];
+  uint16_t trade_route_count; /* DS:0x53a0 */
+  uint16_t show_entire_map; /* DS:0x53a2 — Complete Map cheat / post-win */
+  uint16_t fixed_nation_map_view; /* DS:0x53a4; 0xffff = none */
   uint8_t difficulty; /* 0 Discoverer .. 4 Viceroy */
   uint8_t unknown43[2];
   int8_t founding_father[COLONIZE_COL1_FF_COUNT];
-  uint8_t unknown44[6];
+  uint8_t unknown44[6]; /* community: manual_save / EOT words @ 0x53c2.. */
   int16_t nation_relation[4];
-  uint8_t unknown45[10];
+  int16_t rebel_sentiment_report; /* DS:0x53d0; congress UI 0..100 */
+  uint8_t unknown45_pad[8];
   uint16_t expeditionary_force[4]; /* regulars, dragoons, man-o-wars, artillery */
   uint16_t backup_force[4];
-  uint8_t unknown46[32]; /* includes price-group state (see supplemental-info) */
+  /*
+   * DS:0x53ea — DOS price_group_state[16] (FUN_38fd_0058). Linux also overlays
+   * king stand-ins in the first bytes (WoI/REF/boycott/merc/congress) — do not
+   * treat as pure price groups until stand-ins migrate (ai_king.c).
+   */
+  union {
+    uint8_t unknown46[32];
+    uint16_t price_group_state[16];
+  };
   ColonizeCol1EventFlags event;
   uint8_t unknown05[2];
 } ColonizeCol1Head;
@@ -188,7 +201,8 @@ typedef struct ColonizeCol1Head {
 typedef struct ColonizeCol1Player {
   char name[24];
   char country_name[24];
-  uint8_t unknown06;
+  uint8_t unknown06_lo : 7;
+  uint8_t named_new_world : 1; /* bit7 @ player+0x30; discovery one-shot (FUN_4720_049e) */
   uint8_t control; /* 0 player, 1 AI, 2 withdrawn */
   uint8_t founded_colonies;
   uint8_t diplomacy;
@@ -273,14 +287,15 @@ typedef struct ColonizeCol1Unit {
   uint8_t y;
   uint8_t type;
   uint8_t nation_id : 4;
-  uint8_t unused06 : 4;
-  uint8_t unknown15;
+  uint8_t vis_mask : 4; /* DS:0x3147 hi; 0x10<<euro — FUN_1427_0992/0c72 */
+  uint8_t unknown15; /* bit7 = ship damaged (FUN_1427_13b0); other bits live */
   uint8_t moves;
-  uint8_t unknown16[2];
+  uint8_t origin; /* unknown16[0]: home tribe / origin settlement */
+  uint8_t ai_plan; /* unknown16[1]: ASCII plan; default 'X' (0x58) */
   uint8_t orders;
   uint8_t goto_x;
   uint8_t goto_y;
-  uint8_t unknown18;
+  uint8_t unknown18; /* low 3 = facing */
   uint8_t holds_occupied;
   uint8_t cargo_item_0 : 4;
   uint8_t cargo_item_1 : 4;
@@ -317,16 +332,18 @@ typedef struct ColonizeCol1Nation {
   uint16_t founding_father_count;
   uint16_t unused08;
   uint8_t villages_burned;
-  uint8_t unknown23[5];
+  uint8_t rebel_sentiment; /* nation+0x19 */
+  uint8_t unknown23_pad[4];
   uint16_t artillery_count;
   uint16_t boycott_bitmap;
-  uint8_t unknown24[8];
+  int32_t royal_money; /* nation+0x22; FUN_43f7_1d42 REF budget */
+  uint8_t unknown24_pad[4];
   uint32_t gold;
   uint16_t current_crosses;
   uint16_t needed_crosses;
-  uint8_t unknown25[6];
+  uint8_t unknown25[6]; /* [2..5] euro peer bytes @ −0x77c4 path */
   uint8_t relation_by_indian[8];
-  uint8_t unknown26[12];
+  uint8_t unknown26[12]; /* Linux diplo stand-ins; exact DS PARKED */
   ColonizeCol1NationTrade trade;
 } ColonizeCol1Nation;
 
@@ -360,11 +377,20 @@ typedef struct ColonizeCol1Indian {
   uint8_t capitol_x;
   uint8_t capitol_y;
   uint8_t tech;
-  uint8_t unknown31[11];
+  uint8_t unknown31_lo : 7;
+  uint8_t extinct : 1; /* bit7 */
+  uint8_t unknown31b;
+  uint8_t lands_bought; /* FUN_479b_00ca INC; purchase cost */
+  uint8_t unknown31_flags; /* Linux: bit 0x20 = contact prelude fired */
+  uint8_t muskets;
+  uint8_t horse_herds;
+  uint8_t unknown31c;
+  uint16_t horse_breeding; /* smcol; weaker DOS cite */
+  uint8_t unknown31d[2];
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   uint8_t unknown32[12];
   uint8_t met_by_player[4];
-  uint8_t unknown33[8];
+  uint8_t unknown33[8]; /* per-euro peace bit 0x40 */
   uint16_t alarm_by_player[4];
 } ColonizeCol1Indian;
 
@@ -440,11 +466,24 @@ typedef struct ColonizeCol1Seen {
   uint8_t dutch : 1;
 } ColonizeCol1Seen;
 
+/*
+ * One trade-route stop (10 B). DOS FUN_647e: unload cargo at +3, load at +6
+ * (smcol names those blobs swapped — follow DOS).
+ */
+typedef struct ColonizeCol1TradeStop {
+  uint16_t colony_index; /* 999 = Europe */
+  uint8_t unload_count : 4;
+  uint8_t load_count : 4;
+  uint8_t unload_cargo_nibbles[3];
+  uint8_t load_cargo_nibbles[3];
+  uint8_t pad;
+} ColonizeCol1TradeStop;
+
 typedef struct ColonizeCol1TradeRoute {
   char name[32];
   uint8_t sea; /* non-zero = sea route */
   uint8_t dest_count;
-  uint8_t data[40]; /* destinations / cargo nibbles; preserve verbatim */
+  ColonizeCol1TradeStop stop[4];
 } ColonizeCol1TradeRoute;
 
 #pragma pack(pop)

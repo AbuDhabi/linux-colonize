@@ -100,25 +100,25 @@ as peels land.
 | `tut1.unknown01` / `unknown02` | 2 bits | `opaque` | |
 | `unknown03` | 1 | `opaque` | |
 | `game_options` (named bits) | — | `mapped` | |
-| `game_options.unused01` | 7 bits | `opaque` | padding |
-| `game_options.unused02` | 1 bit | `community` | smcol: `cheats_enabled` |
+| `game_options.unused01` | 7 bits | `opaque` | DOS scenario/WoI/REF bits live here |
+| `game_options.cheats_enabled` | 1 bit | `mapped` | DS:`0x5383` bit5; Alt-WIN (was `unused02`) |
 | `colony_report_options` | — | `mapped` | `unused03` pad |
 | `tut2` / `tut3` | — | `mapped` | `unused04` pad |
 | `unknown39` | 2 | `opaque` | |
 | `year` / `autumn` / `turn` | 6 | `mapped` | |
 | `unknown40` | 2 | `community` | smcol: tile selection mode + pad |
 | `active_unit` | 2 | `mapped` | |
-| `unknown41` | 6 | `community` | smcol: nation turn / map view / human |
+| `nation_turn` / `curr_nation_map_view` / `human_player` | 6 | `mapped` | DS:`0x5394`..`0x5398` (was `unknown41`) |
 | `tribe_count` / `unit_count` / `colony_count` | 6 | `mapped` | |
-| `unknown42` | 6 | `partial` | `[2]` = Complete Map cheat; smcol names more |
+| `trade_route_count` / `show_entire_map` / `fixed_nation_map_view` | 6 | `mapped` | DS:`0x53a0`..; Complete Map cheat (was `unknown42`) |
 | `difficulty` | 1 | `mapped` | 0..4 |
 | `unknown43` | 2 | `opaque` | |
 | `founding_father[25]` | 25 | `mapped` | −1 = unrecruited |
 | `unknown44` | 6 | `community` | smcol: manual save / EOT sign |
 | `nation_relation[4]` | 8 | `mapped` | |
-| `unknown45` | 10 | `community` | smcol: rebel sentiment report + pad |
+| `rebel_sentiment_report` + `unknown45_pad[8]` | 10 | `mapped` | DS:`0x53d0` congress UI (was `unknown45`) |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |
-| `unknown46` | 32 | `partial` | Port: price-group + king stand-ins; smcol: 16×u16 price groups |
+| `unknown46` / `price_group_state[16]` | 32 | `partial` | Union @ DS:`0x53ea`; Linux king stand-ins still overlay first bytes |
 | `event` | 2 | `mapped` | Woodcut / discovery flags |
 | `unknown05` | 2 | `opaque` | |
 
@@ -127,7 +127,7 @@ as peels land.
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `name` / `country_name` | 48 | `mapped` | |
-| `unknown06` | 1 | `community` | smcol: bit7 `named_new_world` |
+| `unknown06_lo` / `named_new_world` | 1 | `mapped` | bit7 discovery one-shot (`FUN_4720_049e`) |
 | `control` / `founded_colonies` / `diplomacy` | 3 | `mapped` | control 0/1/2 |
 
 ### Other (24) — prefix trailer
@@ -161,11 +161,11 @@ Export often **zeros** colony opaques on rebuild ([savegame.md](savegame.md)).
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200 |
-| `unused06` | 4 bits | `community` | smcol: `vis_to_{en,fr,sp,du}`; RMW-preserved; spawn 0 |
-| `unknown15` | 1 | `community` | smcol includes damaged; bit 0x80 in MP checks |
+| `vis_mask` | 4 bits | `mapped` | `0x10<<euro` visibility (`FUN_1427_0992`); RMW-preserved; spawn 0 |
+| `unknown15` | 1 | `partial` | bit7 = ship damaged (`FUN_1427_13b0`); other bits live |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
-| `unknown16[0]` | 1 | `partial` | Brave home tribe / origin |
-| `unknown16[1]` | 1 | `partial` | Default `0x58` (`COL1_UNIT_UNKNOWN16_HI_DEFAULT`) |
+| `origin` | 1 | `mapped` | Brave home tribe (was `unknown16[0]`) |
+| `ai_plan` | 1 | `mapped` | Default `0x58` / `'X'` (`COL1_UNIT_UNKNOWN16_HI_DEFAULT`) |
 | `unknown18` | 1 | `partial` | Low 3 = facing / `last_dir` |
 | Cargo / profession / `turns_worked` / chain | — | `mapped` | |
 
@@ -176,9 +176,9 @@ Export often **zeros** colony opaques on rebuild ([savegame.md](savegame.md)).
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
 | `unknown19` / `unused07` / `unknown21` / `unknown22` | — | `opaque` | |
 | `unused08` | 2 | `community` | smcol: FF end probability count |
-| `unknown23` | 5 | `community` | smcol: rebel_sentiment + pad |
+| `rebel_sentiment` + `unknown23_pad[4]` | 5 | `mapped` | nation+0x19 (was `unknown23`) |
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
-| `unknown24` | 8 | `community` | smcol: `royal_money` + pad |
+| `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget (`FUN_43f7_1d42`) |
 | `unknown25` | 6 | `community` | Europe return xy + euro relation nibbles |
 | `relation_by_indian[8]` | 8 | `mapped` | |
 | `unknown26` | 12 | `partial` | Diplo timers / peer flags / hostility / privateer mask (`ai_diplo.c`) |
@@ -197,7 +197,11 @@ Export often **zeros** colony opaques on rebuild ([savegame.md](savegame.md)).
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `capitol_*` / `tech` / `tons` / `met_by_player` / `alarm_by_player` | — | `mapped` | |
-| `unknown31` | 11 | `partial` | Lands-bought / contact prelude; smcol muskets/horses/extinct |
+| `extinct` | 1 bit | `mapped` | bit7 of first unknown31 byte |
+| `lands_bought` | 1 | `mapped` | `FUN_479b_00ca` INC |
+| `unknown31_flags` | 1 | `partial` | Linux contact prelude bit `0x20` |
+| `muskets` / `horse_herds` | 2 | `mapped` | smcol + purchase path |
+| `horse_breeding` + remaining unknown31 pad | 5 | `partial` | smcol name; weaker DOS cite |
 | `unknown32` | 12 | `opaque` | |
 | `unknown33` | 8 | `partial` | Per-euro peace bit `0x40` (Linux contact) |
 
@@ -238,13 +242,13 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 589 | 128 | `0x91cc` | tribe dwellings / pad |
 | 717 | 2 | `0x8540` | `stuff.x` |
 | 719 | 2 | `0x853e` | `stuff.y` |
-| 721 | 2 | `0x184` | zoom / view trio (exact map TBD P2) |
+| 721 | 2 | `0x184` | zoom / view trio (exact map TBD P4) |
 | 723 | 2 | `0x17c` | |
 | 725 | 2 | `0x17e` | |
 
 Port packing (unchanged sizes): `unknown34[15]` + colony counters + `unknown36[696]` +
 cursor/viewport. **`unknown36` is not connectivity** (status was `misaligned`;
-comment fixed). Smcol FA/unit-count names remain `community` until P2 aligns
+comment fixed). Smcol FA/unit-count names remain `community` until P3/P4 aligns
 byte offsets to these DS chunks.
 
 | Field | Size | Status | Notes |
@@ -280,15 +284,15 @@ Replaces legacy `unknown_e[504]` + `unknown_f[110]` (same bytes). Proven from
 | 612 | 2 | `0x190` | `unknown_ds_190` | `community` | smcol: low byte ≈ `prime_resource_seed` |
 
 Smcol’s post-connectivity carve (18+16+28+10+1+1) sums to the same **74** tail
-bytes but **does not** match these DOS writes — prefer DOS until P2 proves
+bytes but **does not** match these DOS writes — prefer DOS until P4 proves
 equivalence. **Never rebuilt** on new-game export (P3).
 
 ### Trade routes (74 × 12)
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `name` / `sea` / `dest_count` | 34 | `mapped` | Enough to preserve |
-| `data[40]` | 40 × 12 | `community` | smcol: stop / load / unload breakdown; port preserves verbatim |
+| `name` / `sea` / `dest_count` | 34 | `mapped` | |
+| `stop[4]` (`ColonizeCol1TradeStop`, 10 B) | 40 | `mapped` | DOS unload@+3 then load@+6 (`FUN_647e`); smcol names those blobs swapped |
 
 ---
 
@@ -298,7 +302,7 @@ equivalence. **Never rebuilt** on new-game export (P3).
 |-------|--------|---------------|--------|
 | **P0 — Atlas** | Inventory every opaque hole | This document exists; all `unknown*` listed | **Done** |
 | **P1 — Correct the big mis-split** | Reconcile stuff vs post-map vs `FUN_75c2_0288` / `FUN_67f4_0088`; fix wrong comments | Connectivity planes named; stuff chunk table; `ColonizeCol1PostMap` | **Done** |
-| **P2 — Absorb proven community names** | Rename head/nation/indian/unit fields where smcol + decomp agree (visibility nibble, price groups, trade stops, …) | Struct names match evidence; sizes unchanged; `smoke_col1_save` byte-identical | Open |
+| **P2 — Absorb proven community names** | Rename head/nation/indian/unit/trade fields where smcol + decomp agree | Struct names match evidence; sizes unchanged; `smoke_col1_save` byte-identical | **Done** |
 | **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | Open |
 | **P4 — Deep leftovers** | Colony opaques, indian `unknown32`, stuff FA/counts, value ranges | Each field: allowed values + ≥1 DOS reader cite | Open |
 
@@ -318,12 +322,12 @@ flowchart TB
   export --> deep
 ```
 
-### Suggested next peels (P2)
+### Suggested next peels (P3)
 
-1. Map early stuff 4-byte chunks (`0x8cfc`…`0x942c`) onto smcol FA / count fields.
-2. Prove `unknown_ds_190` / tail vs smcol `prime_resource_seed` + strategy cheat UI.
-3. Absorb unit `unused06` visibility nibbles and head `unknown46` price groups with DS cites.
-4. Keep RMW sizes; rename only with evidence.
+1. Rebuild `post_map` sea/land connectivity (+ tallies) on new-game export from live map.
+2. Map early stuff 4-byte chunks (`0x8cfc`…`0x942c`) onto smcol FA / count fields.
+3. Prove `unknown_ds_190` / tail vs smcol `prime_resource_seed` + strategy cheat UI.
+4. Keep RMW sizes; do not invent blobs without decomp evidence.
 
 ---
 

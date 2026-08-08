@@ -148,13 +148,13 @@ typedef struct ColonizeUnit {
   int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
   int turns_worked; /* COL1 unit+0x16; Brave pulse / labor counter */
   int last_dir; /* DOS unit+0x0c / Col1 unknown18; facing 0..7 for AI scoring */
-  uint8_t col1_unknown15; /* round-trip padding */
+  uint8_t col1_unknown15; /* round-trip; bit7 = ship damaged */
   /*
-   * DOS unit+0x07 / Col1 unknown16[1]. Starter saves use 0x58 on essentially
+   * DOS unit+0x07 / Col1 ai_plan. Starter saves use 0x58 ('X') on essentially
    * every unit; spawn defaults to COL1_UNIT_UNKNOWN16_HI_DEFAULT.
    */
-  uint8_t col1_unknown16_hi;
-  uint8_t col1_unused06; /* DOS nation high nibble (unit byte+3 >> 4) */
+  uint8_t col1_ai_plan;
+  uint8_t col1_vis_mask; /* DOS nation high nibble (unit byte+3 >> 4); 0x10<<euro */
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {
