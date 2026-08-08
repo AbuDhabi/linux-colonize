@@ -25,18 +25,42 @@
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
  * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
  * FA 3f41 full body/UI PARKED - thin ally-aid + FA gift + break trust.
- * War trade embargo: OR Furs into nation.boycott_bitmap (cargo idx 4);
- * Tools bit when colony counts differ by >=2 (trade war deepen).
- * Distinct from king refuse Sugar bit1. Full per-rival 153e dialog PARKED. */
+ * War trade embargo: OR all 16 @CARGO cargos (Food + Sugar + Tobacco + Cotton
+ * + Furs + Lumber + Ore + Silver + Horses + Rum + Cigars + Cloth + Coats +
+ * Trade Goods + Tools + Muskets) into nation.boycott_bitmap (idx 0..15;
+ * colony.h / NAMES.TXT). Sugar uses the same bit1 as king refuse
+ * (ai_king AI_KING_BOYCOTT_CARGO_BIT) for consistency — shared boycott_bitmap
+ * path; lift on peace may clear a lingering king Sugar bit while unknown46[2]
+ * still holds tax refuse (thin stand-in). Cotton = COLONIZE_CARGO_COTTON (R11
+ * leftover). Tools always OR'd on first declare (R10); colony-gap ≥2 still
+ * drains the extra rich-side trade sting. Full per-rival 153e PARKED. */
+
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
 #define AI_DIPLO_WAR_TAX_CAP 75u
 #define AI_DIPLO_WAR_UPKEEP_GOLD 5u
 #define AI_DIPLO_PRIVATEER_PRIZE_GOLD 8u
+#define AI_DIPLO_WAR_FOOD_EMBARGO_BIT (1u << COLONIZE_CARGO_FOOD)
 #define AI_DIPLO_WAR_EMBARGO_CARGO_BIT (1u << COLONIZE_CARGO_FURS)
+#define AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT (1u << COLONIZE_CARGO_TOBACCO)
+#define AI_DIPLO_WAR_SUGAR_EMBARGO_BIT (1u << COLONIZE_CARGO_SUGAR)
+#define AI_DIPLO_WAR_COTTON_EMBARGO_BIT (1u << COLONIZE_CARGO_COTTON)
+#define AI_DIPLO_WAR_LUMBER_EMBARGO_BIT (1u << COLONIZE_CARGO_LUMBER)
+#define AI_DIPLO_WAR_HORSES_EMBARGO_BIT (1u << COLONIZE_CARGO_HORSES)
+#define AI_DIPLO_WAR_RUM_EMBARGO_BIT (1u << COLONIZE_CARGO_RUM)
+#define AI_DIPLO_WAR_CIGARS_EMBARGO_BIT (1u << COLONIZE_CARGO_CIGARS)
+#define AI_DIPLO_WAR_CLOTH_EMBARGO_BIT (1u << COLONIZE_CARGO_CLOTH)
+#define AI_DIPLO_WAR_COATS_EMBARGO_BIT (1u << COLONIZE_CARGO_COATS)
+#define AI_DIPLO_WAR_ORE_EMBARGO_BIT (1u << COLONIZE_CARGO_ORE)
+#define AI_DIPLO_WAR_SILVER_EMBARGO_BIT (1u << COLONIZE_CARGO_SILVER)
+#define AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT (1u << COLONIZE_CARGO_TRADE_GOODS)
 #define AI_DIPLO_WAR_TOOLS_EMBARGO_BIT (1u << COLONIZE_CARGO_TOOLS)
+#define AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT (1u << COLONIZE_CARGO_MUSKETS)
 #define AI_DIPLO_WAR_TRADE_STING 25u
 #define AI_DIPLO_WAR_COLONY_GAP 2
+/* First declare: seed peer treaty timer so near-parity peace waits for
+ * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
+#define AI_DIPLO_WAR_FATIGUE_TIMER 8u
 #define AI_DIPLO_ALLY_GOLD_COST 25u
 #define AI_DIPLO_ALLY_TREATY_MIN 8u
 #define AI_DIPLO_ALLY_AID_GOLD 10u
@@ -44,6 +68,8 @@
 #define AI_DIPLO_FA_GIFT_GOLD 15u
 #define AI_DIPLO_FA_GIFT_MIN_TREASURY 100u
 #define AI_DIPLO_FA_GIFT_TIMER_BUMP 2u
+/* Ally longevity when FA gift gold gates fail: timer+1 both dirs (no gold). */
+#define AI_DIPLO_ALLY_LONGEVITY_BUMP 1u
 #define AI_DIPLO_BREAK_GOLD_PENALTY 20u
 #define AI_DIPLO_INDIAN_DRIFT_CAP 160u
 #define AI_DIPLO_WAR_INDIAN_HIT 5
@@ -103,19 +129,35 @@ static void ai_diplo_war_tax_bump(ColonizeCol1Save* col1, int nation_a, int nati
   }
 }
 
-/* Thin wartime trade embargo: OR Furs boycott bit on both nations. */
+/* Thin wartime trade embargo: OR all 16 @CARGO boycott bits both nations
+ * (Food+Sugar+Tobacco+Cotton+Furs+Lumber+Ore+Silver+Horses+Rum+Cigars+Cloth+
+ * Coats+Trade Goods+Tools+Muskets). Sugar = cargo idx 1 (@CARGO /
+ * COLONIZE_CARGO_SUGAR) — same bit1 as king refuse (king_ref.md tax boycott).
+ * Cotton = idx 3 (COLONIZE_CARGO_COTTON; R11 leftover). Food=0 / Lumber=5 /
+ * Horses=8 / Tools=14 / Muskets=15 / Trade Goods=13 / Rum=9 / Cigars=10 /
+ * Cloth=11 / Coats=12 / Ore=6 / Silver=7 (colony.h @CARGO / NAMES.TXT).
+ * Source: 153e wartime freeze stand-in (Europe boycott_bitmap freezes named
+ * cargos); fuller per-rival body PARKED. */
 static void ai_diplo_war_embargo_set(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
     return;
   }
+  const uint16_t set =
+    (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT | AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
+               AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT | AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |
+               AI_DIPLO_WAR_COTTON_EMBARGO_BIT | AI_DIPLO_WAR_LUMBER_EMBARGO_BIT |
+               AI_DIPLO_WAR_HORSES_EMBARGO_BIT | AI_DIPLO_WAR_RUM_EMBARGO_BIT |
+               AI_DIPLO_WAR_CIGARS_EMBARGO_BIT | AI_DIPLO_WAR_CLOTH_EMBARGO_BIT |
+               AI_DIPLO_WAR_COATS_EMBARGO_BIT | AI_DIPLO_WAR_ORE_EMBARGO_BIT |
+               AI_DIPLO_WAR_SILVER_EMBARGO_BIT | AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT |
+               AI_DIPLO_WAR_TOOLS_EMBARGO_BIT | AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT);
   for (int i = 0; i < 2; ++i) {
     const int n = (i == 0) ? nation_a : nation_b;
     if (n < 0 || n >= 4) {
       continue;
     }
     ColonizeCol1Nation* nat = &col1->nation[n];
-    nat->boycott_bitmap =
-      (uint16_t)(nat->boycott_bitmap | AI_DIPLO_WAR_EMBARGO_CARGO_BIT);
+    nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | set);
   }
 }
 
@@ -135,8 +177,9 @@ static int ai_diplo_col1_colony_count(const ColonizeCol1Save* col1, int nation_i
 
 /*
  * Unpark #5 153e trade deepen: if |colony_count_a − colony_count_b| ≥ 2,
- * OR Tools embargo both sides and drain AI_DIPLO_WAR_TRADE_STING from the
- * richer treasury (floor 0). Full per-rival trade dialog PARKED.
+ * drain AI_DIPLO_WAR_TRADE_STING from the richer treasury (floor 0). Tools
+ * embargo is OR'd on every first declare (war_embargo_set); gap deepen keeps
+ * the rich-side gold sting only. Full per-rival trade dialog PARKED.
  */
 static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4) {
@@ -151,12 +194,6 @@ static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a,
   if (gap < AI_DIPLO_WAR_COLONY_GAP) {
     return;
   }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    nat->boycott_bitmap =
-      (uint16_t)(nat->boycott_bitmap | AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
-  }
   ColonizeCol1Nation* a = &col1->nation[nation_a];
   ColonizeCol1Nation* b = &col1->nation[nation_b];
   ColonizeCol1Nation* rich = (a->gold >= b->gold) ? a : b;
@@ -167,42 +204,64 @@ static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a,
   }
 }
 
-static int ai_diplo_at_war_with_any_euro(const ColonizeCol1Save* col1, int nation) {
-  if (!col1 || nation < 0 || nation >= 4) {
-    return 0;
-  }
-  for (int other = 0; other < 4; ++other) {
-    if (other == nation) {
-      continue;
-    }
-    if (ai_diplo_at_war(col1, nation, other)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
- * Lift Furs+Tools wartime embargo when a nation has no remaining Euro×Euro wars.
- * Call sites: make_peace, form_alliance (clears WAR). Other PEACE
- * writes / Fugger FF may still clear bits — full 153e trade PARKED.
+ * Lift all 16 wartime @CARGO embargo bits (Food+…+Cotton+…+Tools+Muskets)
+ * when a nation has no remaining Euro×Euro wars. Tools bit is OR'd on every
+ * first declare (with the other wartime cargos); Cotton (R11 leftover) joins
+ * the shared set/lift mask. Peace/alliance clear all sixteen via this mask.
+ * Sugar shares king refuse bit1 (see war_embargo_set). Source: thin 153e trade
+ * embargo stand-in; Fugger FF forgives boycotts — full 153e PARKED. Call sites:
+ * make_peace, form_alliance (clears WAR). Raw PEACE writes do not.
  */
 static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
     return;
   }
-  const uint16_t lift =
-    (uint16_t)(AI_DIPLO_WAR_EMBARGO_CARGO_BIT | AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
+  const uint16_t lift = (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
+                                   AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_COTTON_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_LUMBER_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_HORSES_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_RUM_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_CIGARS_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_CLOTH_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_COATS_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_ORE_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_SILVER_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT |
+                                   AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
   for (int i = 0; i < 2; ++i) {
     const int n = (i == 0) ? nation_a : nation_b;
     if (n < 0 || n >= 4) {
       continue;
     }
-    if (ai_diplo_at_war_with_any_euro(col1, n)) {
+    if (ai_diplo_at_war_with_any(col1, n)) {
       continue;
     }
     ColonizeCol1Nation* nat = &col1->nation[n];
     nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap & (uint16_t)~lift);
+  }
+}
+
+/*
+ * War fatigue: on first declare, if peer treaty timer is 0, seed it to 8 so
+ * euro_balance near-parity peace waits until timer==0 (war aged). Live timers
+ * left alone. Source: reuse unknown26[0..3] 6d8e timer; no new unknown26 slot.
+ */
+static void ai_diplo_war_fatigue_timer_seed(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  uint8_t* ta = ai_diplo_timer_byte(col1, nation_a, nation_b);
+  uint8_t* tb = ai_diplo_timer_byte(col1, nation_b, nation_a);
+  if (ta && *ta == 0) {
+    *ta = (uint8_t)AI_DIPLO_WAR_FATIGUE_TIMER;
+  }
+  if (tb && *tb == 0) {
+    *tb = (uint8_t)AI_DIPLO_WAR_FATIGUE_TIMER;
   }
 }
 
@@ -238,10 +297,12 @@ static int ai_diplo_nation_has_sea_unit(const ColonizeTurnContext* ctx, int nati
  * Thin wartime privateer prize stand-in (full privateer unit spawn PARKED):
  * once per at-war peer visit, transfer 8 gold from the richer treasury to the
  * poorer. No-op when equal or donor gold < 8.
+ * Returns 1 if a prize transferred (caller may write human status chrome).
+ * Source: thin Drake/privateer cargo prize stand-in; unit raid path PARKED.
  */
-static void ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, int peer) {
+static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, int peer) {
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
-    return;
+    return 0;
   }
   ColonizeCol1Nation* self = &col1->nation[nation_id];
   ColonizeCol1Nation* other = &col1->nation[peer];
@@ -254,13 +315,14 @@ static void ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, 
     donor = other;
     prize = self;
   } else {
-    return;
+    return 0;
   }
   if (donor->gold < AI_DIPLO_PRIVATEER_PRIZE_GOLD) {
-    return;
+    return 0;
   }
   donor->gold -= AI_DIPLO_PRIVATEER_PRIZE_GOLD;
   prize->gold += AI_DIPLO_PRIVATEER_PRIZE_GOLD;
+  return 1;
 }
 
 /* Thin alliance treasury cost: each side pays 25 if able (floor 0). */
@@ -317,6 +379,29 @@ static void ai_diplo_break_trust_penalty(ColonizeCol1Save* col1, int nation_a, i
 }
 
 /*
+ * Break-alliance Indian sticky raise (thin): −5 on all 8 Indian relation slots
+ * both sides, then sync sticky. Same scalar as Euro×Euro war Indian hit
+ * (no very-low extra −10). When relations were already near the at-war floor
+ * (< 50 after hit), sticky rises 0→1 (or deepens). Source: Indians wary of
+ * Euro treachery (fandom / euro_diplo war-hit stand-in); full 15b3 PARKED.
+ */
+static void ai_diplo_break_indian_sticky_raise(ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  if (!col1) {
+    return;
+  }
+  for (int i = 0; i < 2; ++i) {
+    const int n = (i == 0) ? nation_a : nation_b;
+    if (n < 0 || n >= 4) {
+      continue;
+    }
+    for (int idx = 0; idx < 8; ++idx) {
+      ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_WAR_INDIAN_HIT);
+    }
+    ai_diplo_indian_hostility_sync(col1, n);
+  }
+}
+
+/*
  * Thin FA / ally-aid stand-in (full 3f41 PARKED): once per euro_balance peer visit,
  * if allied and peer gold < self gold/2 and self gold >= 50, transfer 10 gold to ally.
  */
@@ -342,7 +427,8 @@ static void ai_diplo_ally_foreign_aid(ColonizeCol1Save* col1, int nation_id, int
 /*
  * Thin FA goodwill gift (full 3f41 body/UI PARKED): separate from ally-aid.
  * When donor gold >= 100 and peer gold < donor*2, transfer 15g and bump both
- * treaty timers +2 (saturate 255). Caller gates on ALLY + timer==1.
+ * treaty timers +2 (saturate 255). Caller gates on ALLY + timer==1; if this
+ * no-ops, euro_balance applies longevity timer+1 (no second gold transfer).
  */
 void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to) {
   if (!col1 || from < 0 || from >= 4 || to < 0 || to >= 4 || from == to) {
@@ -373,20 +459,25 @@ void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to) {
   }
 }
 
-/* True if Euro nation is at war with any other Euro (thin hostility gate). */
-static int ai_diplo_euro_at_war_any(const ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return 0;
+/*
+ * Ally longevity (13b0/3f41 treaty sustain stand-in): +1 both treaty timers
+ * when FA gift gold gates fail. No treasury transfer — avoids double-gift.
+ * Source: alliance treaty timer refresh; FA dialog UI PARKED.
+ */
+static void ai_diplo_ally_longevity_timer(ColonizeCol1Save* col1, int from, int to) {
+  if (!col1) {
+    return;
   }
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation_id) {
-      continue;
-    }
-    if (ai_diplo_at_war(col1, nation_id, peer)) {
-      return 1;
-    }
+  uint8_t* ta = ai_diplo_timer_byte(col1, from, to);
+  uint8_t* tb = ai_diplo_timer_byte(col1, to, from);
+  if (ta) {
+    unsigned next = (unsigned)*ta + AI_DIPLO_ALLY_LONGEVITY_BUMP;
+    *ta = (uint8_t)(next > 255u ? 255u : next);
   }
-  return 0;
+  if (tb) {
+    unsigned next = (unsigned)*tb + AI_DIPLO_ALLY_LONGEVITY_BUMP;
+    *tb = (uint8_t)(next > 255u ? 255u : next);
+  }
 }
 
 /*
@@ -398,7 +489,7 @@ static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id
   if (!col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  if (ai_diplo_euro_at_war_any(col1, nation_id)) {
+  if (ai_diplo_at_war_with_any(col1, nation_id)) {
     return;
   }
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
@@ -412,20 +503,31 @@ static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id
 
 /*
  * Peace feeler toward Indians (unpark #5 matrix deepen): once per euro_balance,
- * if Euro is at peace with all Euro peers, each mid/high Indian slot
- * (relation ≥ at-war floor 50 and < content floor 100) heals +2 toward 100.
+ * if Euro is at peace with all Euro peers (!ai_diplo_at_war_with_any), each
+ * mid/high Indian slot (relation ≥ at-war floor 50 and < content floor 100)
+ * heals +2 toward 100. Skip while any Euro×Euro war (same gate as drift).
+ * Returns 1 if any slot healed (caller may write human feeler status).
  * Source: fandom Indians — peace → gifts / improve relations; contact trade
  * already uses +2 relation. No gold cost (prefer flags over treasury fiction).
  * Full gift dialog / 15b3 bilateral write PARKED.
  */
-static void ai_diplo_indian_peace_feeler(ColonizeCol1Save* col1, int nation_id) {
+static int ai_diplo_indian_peace_feeler(ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return;
+    return 0;
   }
-  if (ai_diplo_euro_at_war_any(col1, nation_id)) {
-    return;
+  if (ai_diplo_at_war_with_any(col1, nation_id)) {
+    return 0;
+  }
+  /*
+   * Sticky==2 (very-low deepen) refuses the improve-relations feeler at every
+   * call site (matrix tick + make_peace restore). Source: fandom Indians —
+   * alarmed/hostile may refuse trade/gifts; contact friction <40 inverted.
+   */
+  if (ai_diplo_indian_hostility_sticky(col1, nation_id) == AI_DIPLO_STICKY_DEEP) {
+    return 0;
   }
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  int healed = 0;
   for (int i = 0; i < 8; ++i) {
     uint8_t r = nat->relation_by_indian[i];
     if (r < AI_DIPLO_INDIAN_AT_WAR_REL || r >= AI_DIPLO_INDIAN_CONTENT_FLOOR) {
@@ -436,7 +538,9 @@ static void ai_diplo_indian_peace_feeler(ColonizeCol1Save* col1, int nation_id) 
       next = AI_DIPLO_INDIAN_CONTENT_FLOOR;
     }
     nat->relation_by_indian[i] = (uint8_t)next;
+    healed = 1;
   }
+  return healed;
 }
 
 /* Indians dislike Euro×Euro war: −5 on all 8 Indian relation slots (both sides). */
@@ -523,7 +627,9 @@ void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
 
 /*
  * euro_balance Indian matrix arm: peace feeler → sticky sync → harassment.
- * Human status chrome when sticky rises 0→nonzero (102a/1092 widgets PARKED).
+ * Sticky→pressure: sticky==2 skips feeler + human "Natives remain hostile."
+ * Human status chrome on rise/clear/deep (102a/1092 widgets PARKED);
+ * feeler heal while sticky stays clear → "Native relations improve."
  */
 static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
@@ -531,25 +637,49 @@ static void ai_diplo_indian_matrix_tick(ColonizeTurnContext* ctx, int nation_id)
   }
   ColonizeCol1Save* col1 = ctx->col1;
   const uint8_t prev_sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
+  int feeler_healed = 0;
 
-  /* Peace feeler before sync so content-floor heals can clear sticky. */
-  ai_diplo_indian_peace_feeler(col1, nation_id);
+  /*
+   * Sticky→pressure (unpark #5): when sticky==2 (very-low deepen), block the
+   * peace feeler this tick — deep hostility refuses the improve-relations path.
+   * Source: fandom Indians — alarmed/hostile may refuse trade/gifts; contact
+   * friction <40 band inverted. No invented gold drain (harassment owns −2g).
+   */
+  if (prev_sticky != AI_DIPLO_STICKY_DEEP) {
+    /* Peace feeler before sync so content-floor heals can clear sticky. */
+    feeler_healed = ai_diplo_indian_peace_feeler(col1, nation_id);
+  }
   ai_diplo_indian_hostility_sync(col1, nation_id);
 
   const uint8_t sticky = ai_diplo_indian_hostility_sticky(col1, nation_id);
-  if (prev_sticky == AI_DIPLO_STICKY_CLEAR && sticky != AI_DIPLO_STICKY_CLEAR &&
-      ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
-    /* Thin Contact/King status stand-in; full native-hostility dialog PARKED. */
-    snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
-  } else if (prev_sticky != AI_DIPLO_STICKY_CLEAR && sticky == AI_DIPLO_STICKY_CLEAR &&
-             ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
-    /* Source: fandom / manual improve-relations feel after peace path. */
-    snprintf(ctx->status, ctx->status_size, "Relations with natives improve.");
+  if (ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
+    if (prev_sticky == AI_DIPLO_STICKY_CLEAR && sticky != AI_DIPLO_STICKY_CLEAR) {
+      /* Thin Contact/King status stand-in; full native-hostility dialog PARKED. */
+      snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
+    } else if (prev_sticky != AI_DIPLO_STICKY_CLEAR && sticky == AI_DIPLO_STICKY_CLEAR) {
+      /* Source: fandom / manual improve-relations feel after sticky clears
+       * (peace feeler / drift). Thin 102a/1092; FA UI PARKED. */
+      snprintf(ctx->status, ctx->status_size, "Native tensions ease.");
+    } else if (sticky == AI_DIPLO_STICKY_DEEP) {
+      /* Structural pressure chrome while deep sticky persists. */
+      snprintf(ctx->status, ctx->status_size, "Natives remain hostile.");
+    } else if (feeler_healed) {
+      /* Mid-band feeler nudge while sticky stays clear (no rise/clear/deep).
+       * Source: fandom Indians — peace → gifts / improve relations; FA UI PARKED. */
+      snprintf(ctx->status, ctx->status_size, "Native relations improve.");
+    }
   }
 
   if (ai_diplo_indian_any_at_war(col1, nation_id)) {
     ColonizeCol1Nation* nat = &col1->nation[nation_id];
-    if (nat->gold > AI_DIPLO_INDIAN_HARASS_GOLD) {
+    /*
+     * Harassment −2g once per balance tick; floor at 0. Skip when already 0
+     * so a second invent-below-zero does not fire in the same path.
+     * Source: thin Indian hostility drain; no multi-slot gold fiction.
+     */
+    if (nat->gold == 0) {
+      /* already floored this tick path */
+    } else if (nat->gold > AI_DIPLO_INDIAN_HARASS_GOLD) {
       nat->gold -= AI_DIPLO_INDIAN_HARASS_GOLD;
     } else {
       nat->gold = 0;
@@ -687,6 +817,25 @@ int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
   return (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_WAR) != 0;
 }
 
+int ai_diplo_at_war_with(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
+  return ai_diplo_at_war(col1, nation_a, nation_b);
+}
+
+int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation) {
+  if (!col1 || nation < 0 || nation >= 4) {
+    return 0;
+  }
+  for (int other = 0; other < 4; ++other) {
+    if (other == nation) {
+      continue;
+    }
+    if (ai_diplo_at_war(col1, nation, other)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   const int already = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
@@ -697,10 +846,12 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     ai_diplo_war_tax_bump(col1, nation_a, nation_b);
     /* Indians dislike Euro×Euro war (scalar stand-in; full 15b3 PARKED). */
     ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
-    /* Wartime trade embargo stand-in: Furs boycott bit both sides. */
+    /* Wartime trade embargo: all 16 @CARGO bits (incl. Cotton R11 leftover). */
     ai_diplo_war_embargo_set(col1, nation_a, nation_b);
-    /* Unpark #5: colony-gap Tools embargo + extra rich-side sting. */
+    /* Unpark #5: colony-gap rich-side trade sting (Tools already in embargo set). */
     ai_diplo_war_trade_score_sting(col1, nation_a, nation_b);
+    /* War fatigue: seed treaty timer if 0 so near-parity peace waits for age. */
+    ai_diplo_war_fatigue_timer_seed(col1, nation_a, nation_b);
   }
 }
 
@@ -743,30 +894,125 @@ static void ai_diplo_status_human_pair(
   snprintf(ctx->status, ctx->status_size, fmt, ai_diplo_rival_name(ctx->col1, rival));
 }
 
+/* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */
+static const char* ai_diplo_cargo_name(int cargo_idx) {
+  static const char* const names[COLONIZE_CARGO_COUNT] = {
+    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
+    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
+    "Coats",       "Trade Goods", "Tools", "Muskets"
+  };
+  if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
+    return "cargo";
+  }
+  return names[cargo_idx];
+}
+
+/* Full wartime 16-bit embargo mask (same set as war_embargo_set/lift). */
+static uint16_t ai_diplo_wartime_boycott_mask(void) {
+  return (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT | AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
+                    AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT | AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |
+                    AI_DIPLO_WAR_COTTON_EMBARGO_BIT | AI_DIPLO_WAR_LUMBER_EMBARGO_BIT |
+                    AI_DIPLO_WAR_HORSES_EMBARGO_BIT | AI_DIPLO_WAR_RUM_EMBARGO_BIT |
+                    AI_DIPLO_WAR_CIGARS_EMBARGO_BIT | AI_DIPLO_WAR_CLOTH_EMBARGO_BIT |
+                    AI_DIPLO_WAR_COATS_EMBARGO_BIT | AI_DIPLO_WAR_ORE_EMBARGO_BIT |
+                    AI_DIPLO_WAR_SILVER_EMBARGO_BIT | AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT |
+                    AI_DIPLO_WAR_TOOLS_EMBARGO_BIT | AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT);
+}
+
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
   if (!ctx || !ctx->col1) {
     return;
   }
   const int already = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
+  const int human = ctx->human_nation;
+  /* Boycott chrome tracks full wartime @CARGO mask (all 16). */
+  const uint16_t boycott_mask = ai_diplo_wartime_boycott_mask();
+  uint16_t boycott_before = 0;
+  uint8_t sticky_before = AI_DIPLO_STICKY_CLEAR;
+  if (human >= 0 && human < 4) {
+    boycott_before =
+      (uint16_t)(ctx->col1->nation[human].boycott_bitmap & boycott_mask);
+    sticky_before = ai_diplo_indian_hostility_sticky(ctx->col1, human);
+  }
   ai_diplo_declare_war(ctx->col1, nation_a, nation_b);
   if (!already) {
     ai_diplo_status_human_pair(ctx, nation_a, nation_b, "War declared with %s");
+    /*
+     * Wartime boycott human chrome (102a/1092 stand-in): prefer Sugar/Tobacco/
+     * Tools combined lines when those bits are newly OR'd; else name the first
+     * newly boycotted @CARGO (colony.h / NAMES.TXT) over the war line. Else if
+     * Indian sticky newly rose from the −5 war-hit, prefer "Natives grow
+     * hostile." Widgets PARKED. Source: thin 153e trade deepen + Contact/King
+     * status; Indians dislike Euro×Euro war (fandom / euro_diplo.md).
+     */
+    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
+        ctx->status && ctx->status_size > 0) {
+      const uint16_t boycott_after =
+        (uint16_t)(ctx->col1->nation[human].boycott_bitmap & boycott_mask);
+      const uint16_t newly = (uint16_t)(boycott_after & (uint16_t)~boycott_before);
+      if (newly & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT) {
+        snprintf(ctx->status, ctx->status_size, "Sugar/Tobacco/Tools boycott imposed.");
+      } else if (newly &
+                 (uint16_t)(AI_DIPLO_WAR_SUGAR_EMBARGO_BIT | AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT)) {
+        snprintf(ctx->status, ctx->status_size, "Sugar/Tobacco boycott imposed.");
+      } else if (newly != 0) {
+        /* First newly OR'd wartime cargo by @CARGO index (Food..Muskets). */
+        for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+          if (newly & (uint16_t)(1u << c)) {
+            snprintf(ctx->status, ctx->status_size, "%s boycott imposed.",
+                     ai_diplo_cargo_name(c));
+            break;
+          }
+        }
+      } else {
+        const uint8_t sticky_after = ai_diplo_indian_hostility_sticky(ctx->col1, human);
+        if (sticky_before == AI_DIPLO_STICKY_CLEAR &&
+            sticky_after != AI_DIPLO_STICKY_CLEAR) {
+          snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
+        }
+      }
+    }
   }
 }
 
 /*
  * Thin make-peace (not full 153e peace dialog / 102a/1092):
- * clear WAR both ways, set PEACE|MET, lift Furs embargo if no Euro wars remain.
- * No gold cost (war sting/upkeep already drained treasury). Full 153e PARKED.
+ * clear WAR both ways, set PEACE|MET, lift all 16 wartime @CARGO boycotts
+ * (Food+…+Cotton+…+Tools+Muskets) if no Euro wars remain (shared lift helper).
+ * No gold cost (war sting/upkeep already drained treasury). When sticky was
+ * at-war (==1) on either side, nudge Indian peace feeler once after WAR clear
+ * (existing feeler path; restores improve-relations that Euro war blocked).
+ * sticky==2 still refuses feeler (self-gated). Full 153e PARKED. Privateer
+ * prize is WAR-gated in euro_balance — peace stops it.
  */
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4 ||
       nation_a == nation_b) {
     return;
   }
+  const int was_war = ai_diplo_at_war(col1, nation_a, nation_b);
+  const uint8_t sticky_a = ai_diplo_indian_hostility_sticky(col1, nation_a);
+  const uint8_t sticky_b = ai_diplo_indian_hostility_sticky(col1, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
+  /*
+   * Peace restores Indian feeler (unpark #5): Euro×Euro war gates feeler off;
+   * when sticky was at-war (==1), nudge once via existing peace-feeler path
+   * after WAR clear so !at_war_with_any can pass. sticky==2 self-gates inside
+   * feeler (deep hostility refuses). Sync sticky after heal.
+   * Source: fandom Indians — peace → gifts / improve relations; FA UI PARKED.
+   */
+  if (was_war) {
+    if (sticky_a == AI_DIPLO_STICKY_AT_WAR) {
+      ai_diplo_indian_peace_feeler(col1, nation_a);
+      ai_diplo_indian_hostility_sync(col1, nation_a);
+    }
+    if (sticky_b == AI_DIPLO_STICKY_AT_WAR) {
+      ai_diplo_indian_peace_feeler(col1, nation_b);
+      ai_diplo_indian_hostility_sync(col1, nation_b);
+    }
+  }
 }
 
 void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
@@ -774,21 +1020,67 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
     return;
   }
   const int was_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
+  const int human = ctx->human_nation;
+  uint16_t tools_before = 0;
+  if (human >= 0 && human < 4) {
+    tools_before =
+      (uint16_t)(ctx->col1->nation[human].boycott_bitmap & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
+  }
   ai_diplo_make_peace(ctx->col1, nation_a, nation_b);
   if (was_war) {
     ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Peace concluded with %s");
+    /*
+     * Tools embargo lift chrome when human had Tools bit and peace cleared it
+     * (no remaining Euro wars). Prefer Tools line over peace when applicable.
+     */
+    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human)) {
+      const uint16_t tools_after =
+        (uint16_t)(ctx->col1->nation[human].boycott_bitmap & AI_DIPLO_WAR_TOOLS_EMBARGO_BIT);
+      if (tools_before != 0 && tools_after == 0 && ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "Tools embargo lifted.");
+      }
+    }
   }
 }
 
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
-  /* Lift Furs embargo if neither side remains at Euro war. */
+  /* Lift all 16 wartime @CARGO bits if neither side remains at Euro war. */
   ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
   /* Thin alliance treasury cost: 25 gold each side (floor 0). */
   ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
   /* Treaty timer: if peer slot is 0, set to 8 so alliance persists a few ticks. */
   ai_diplo_ally_treaty_timer_bump(col1, nation_a, nation_b);
+}
+
+/*
+ * Thin 102a/1092 status when human is a party (Contact/King pattern).
+ * First form → "Alliance formed with %s"; prefer gold-drain chrome when 25g
+ * cost fires. AI callers keep using form_alliance without status.
+ * FA dialog UI PARKED. Source: 102a/1092 stand-in; euro_diplo.md.
+ */
+void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  if (!ctx || !ctx->col1) {
+    return;
+  }
+  const int was_ally =
+    (ai_diplo_read(ctx->col1, nation_a, nation_b) & AI_DIPLO_ALLY) != 0;
+  const int human = ctx->human_nation;
+  uint16_t gold_before = 0;
+  const int human_party =
+    (human >= 0 && human < 4 && (nation_a == human || nation_b == human));
+  if (human_party) {
+    gold_before = ctx->col1->nation[human].gold;
+  }
+  ai_diplo_form_alliance(ctx->col1, nation_a, nation_b);
+  if (!was_ally) {
+    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance formed with %s");
+  }
+  /* Prefer gold-drain chrome over formed when human treasury paid. */
+  if (human_party && ctx->col1->nation[human].gold < gold_before) {
+    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance with %s costs gold.");
+  }
 }
 
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -798,6 +1090,40 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
   /* Trust loss stand-in (FA 3f41 PARKED): −20 gold each side if they were allied. */
   if (was_ally) {
     ai_diplo_break_trust_penalty(col1, nation_a, nation_b);
+    /* Indians wary of Euro treachery: −5 relation + sticky sync both sides. */
+    ai_diplo_break_indian_sticky_raise(col1, nation_a, nation_b);
+  }
+}
+
+/* Thin 102a/1092 status when human is a party (Contact/King pattern).
+ * AI callers keep using break_alliance without status. FA dialog UI PARKED. */
+void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
+  if (!ctx || !ctx->col1) {
+    return;
+  }
+  const int was_ally =
+    (ai_diplo_read(ctx->col1, nation_a, nation_b) & AI_DIPLO_ALLY) != 0;
+  const int human = ctx->human_nation;
+  uint8_t sticky_before = AI_DIPLO_STICKY_CLEAR;
+  if (human >= 0 && human < 4) {
+    sticky_before = ai_diplo_indian_hostility_sticky(ctx->col1, human);
+  }
+  ai_diplo_break_alliance(ctx->col1, nation_a, nation_b);
+  if (was_ally) {
+    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance broken with %s");
+    /*
+     * Prefer sticky-rise chrome when break −5 Indian hit newly raises human
+     * hostility sticky (same Contact/King pattern as declare_war_ctx).
+     * Source: Indians wary of Euro treachery; FA UI PARKED.
+     */
+    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
+        ctx->status && ctx->status_size > 0) {
+      const uint8_t sticky_after = ai_diplo_indian_hostility_sticky(ctx->col1, human);
+      if (sticky_before == AI_DIPLO_STICKY_CLEAR &&
+          sticky_after != AI_DIPLO_STICKY_CLEAR) {
+        snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
+      }
+    }
   }
 }
 
@@ -823,7 +1149,7 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
     /* Expiry: break alliance if allied; else thin peace/met tweak. */
     const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, other);
     if (bits & AI_DIPLO_ALLY) {
-      ai_diplo_break_alliance(ctx->col1, nation_id, other);
+      ai_diplo_break_alliance_ctx(ctx, nation_id, other);
       continue;
     }
     if (ctx->rng && dos_rng_range(ctx->rng, 1, 8) == 1) {
@@ -885,15 +1211,19 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   }
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
-   *  1 skip human; at-war → upkeep + privateer prize; near-parity → make_peace_ctx
+   *  1 skip human; at-war → upkeep + privateer prize; war-fatigue + near-parity
+   *    → make_peace_ctx (timer==0 while WAR)
    *  2 military score (0000/00f8/312e stand-in)
    *  3 10ec eligibility: war if self ≫ other; ally if near-parity
-   *  4 13b0 form/break + thin ally aid / FA gift (FA 3f41 PARKED)
+   *  4 13b0 form/break + thin ally aid / FA gift / longevity (FA 3f41 PARKED)
    *  5 declare_war_ctx → thin 153e gold+tax + human status (102a/1092 chrome)
-   *  + Indian matrix: peace feeler + sticky sync/clear/deepen + harassment
+   *  + Indian matrix: feeler (skip sticky2 / any Euro war) + sticky sync/pressure
+   *    + harassment; sticky2 also refuses new alliances + skips FA gift (no gold)
    */
   ai_diplo_indian_matrix_tick(ctx, nation_id);
+  const uint8_t sticky_now = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
   const int self = ai_diplo_military_score(ctx, nation_id);
+  int war_upkeep_status_done = 0;
   for (int peer = 0; peer < 4; ++peer) {
     if (peer == nation_id || ctx->col1->player[peer].control == 2) {
       continue;
@@ -903,40 +1233,91 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
     if (bits & AI_DIPLO_WAR) {
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
+      const uint16_t gold_before_upkeep = ctx->col1->nation[nation_id].gold;
       ai_diplo_war_upkeep_drain(&ctx->col1->nation[nation_id]);
+      /*
+       * Thin war-upkeep human chrome once per euro_balance tick (not per peer).
+       * Prefer later privateer / peace status if those fire. FA UI PARKED.
+       * Source: Contact/King 102a/1092 status stand-in; 153e upkeep drain.
+       */
+      if (!war_upkeep_status_done && gold_before_upkeep > 0 &&
+          ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "War upkeep costs gold.");
+        war_upkeep_status_done = 1;
+      }
       /*
        * Thin privateer prize: richer→poorer 8g once per war peer.
        * No units in ctx → treasury-only; with units → only if this nation
        * has a sea unit. Full privateer unit spawn PARKED.
+       * Human chrome (102a/1092): "Privateer prize from %s" when transfer
+       * fires and human is a party. Source: thin Drake/privateer stand-in.
        */
       if (!ctx->units || ai_diplo_nation_has_sea_unit(ctx, nation_id)) {
-        ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer);
+        if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
+          ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
+        }
       }
       /*
-       * Thin peace heuristic: near-parity (ally-eligible band) while at war →
-       * make_peace. Full 153e peace dialog PARKED; no gold cost.
+       * War-fatigue peace: near-parity (ally-eligible band) while at war AND
+       * peer treaty timer==0 (war aged; seeded to 8 on first declare) → rare
+       * make_peace_ctx. Human chrome when either party is human (102a/1092
+       * stand-in via status_human_pair + Tools lift on human bitmap).
+       * Full 153e peace dialog PARKED; no gold cost.
+       * Source: extend existing near-parity path; timer==0 + WAR = fatigue.
        */
       if (self > 10 && other > 10 && abs(self - other) < 15) {
-        if (ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
+        uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
+        if (t && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
           ai_diplo_make_peace_ctx(ctx, nation_id, peer);
         }
       }
       continue;
     }
 
-    /* Thin FA: ally-aid (10g) + expiring-timer goodwill gift (15g, 3f41 PARKED). */
+    /* Thin FA: ally-aid (10g) + expiring-timer gift / longevity (3f41 PARKED). */
     if (bits & AI_DIPLO_ALLY) {
       ai_diplo_ally_foreign_aid(ctx->col1, nation_id, peer);
-      const uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
+      uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
       if (t && *t == 1) {
-        ai_diplo_fa_gift(ctx->col1, nation_id, peer);
+        /*
+         * Sticky→pressure deepen: sticky==2 skips FA gift to peers (no gold
+         * transfer) — deep native hostility refuses gift diplomacy. Longevity
+         * timer+1 still applies (no gold). Source: fandom alarmed refuse gifts;
+         * contact friction <40 inverted. Ally-aid (10g) unchanged.
+         */
+        if (sticky_now != AI_DIPLO_STICKY_DEEP) {
+          ai_diplo_fa_gift(ctx->col1, nation_id, peer);
+        }
+        /*
+         * Alliance longevity: if FA gift gold gates failed (or sticky skipped),
+         * timer still 1 → bump +1 both dirs without a second gold transfer.
+         * Source: 13b0/3f41 treaty sustain; FA dialog UI PARKED.
+         */
+        if (*t == 1) {
+          ai_diplo_ally_longevity_timer(ctx->col1, nation_id, peer);
+        }
+        /*
+         * Human chrome when FA gift / longevity fires (102a/1092 stand-in).
+         * Gift success: timer 1→3 (+2). Longevity-only: timer 1→2 (+1).
+         * Skip when sticky==2 so "Natives remain hostile." stays preferred.
+         * Source: thin 3f41 treaty sustain; FA dialog UI PARKED.
+         */
+        if (sticky_now != AI_DIPLO_STICKY_DEEP && ctx->status && ctx->status_size > 0 &&
+            (ctx->human_nation == nation_id || ctx->human_nation == peer)) {
+          if (*t == 3) {
+            ai_diplo_status_human_pair(ctx, nation_id, peer,
+                                      "Alliance with %s strengthened.");
+          } else if (*t == 2) {
+            ai_diplo_status_human_pair(ctx, nation_id, peer, "Alliance with %s holds.");
+          }
+        }
       }
     }
 
-    /* 13b0 break: imbalance while allied. */
+    /* 13b0 break: imbalance while allied (human status via _ctx). */
     if ((bits & AI_DIPLO_ALLY) && self > other * 2 + 25 && self > 40) {
       if (ctx->rng && dos_rng_range(ctx->rng, 1, 25) == 1) {
-        ai_diplo_break_alliance(ctx->col1, nation_id, peer);
+        ai_diplo_break_alliance_ctx(ctx, nation_id, peer);
       }
       continue;
     }
@@ -953,8 +1334,21 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
     /* 10ec/13b0 ally eligibility. */
     if (self > 10 && other > 10 && abs(self - other) < 15) {
       if ((bits & AI_DIPLO_ALLY) == 0) {
-        if (ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
-          ai_diplo_form_alliance(ctx->col1, nation_id, peer);
+        /*
+         * Sticky→pressure deepen (unpark #5): sticky==2 refuses new alliances
+         * this balance — deep native hostility blocks the improve-relations /
+         * treaty path. Source: fandom Indians — alarmed/hostile may refuse
+         * trade/gifts; contact friction <40 inverted. Existing ALLY kept.
+         * Raw form_alliance API still available for tests / scripted paths.
+         */
+        if (sticky_now == AI_DIPLO_STICKY_DEEP) {
+          if (ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0 &&
+              ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
+            snprintf(ctx->status, ctx->status_size,
+                     "Native unrest precludes new alliances.");
+          }
+        } else if (ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
+          ai_diplo_form_alliance_ctx(ctx, nation_id, peer);
         }
       }
     }
@@ -982,6 +1376,8 @@ void ai_diplo_indian_relation_delta(
   if (idx < 0 || idx >= 8) {
     return;
   }
+  /* Floor 0 / cap 255 — war −5 (+ optional −10 deepen) must not underflow.
+   * Source: FUN_4cc6_00f2 / 15dc_00e0 scalar clamp; fandom relation band. */
   int v = (int)col1->nation[euro_nation].relation_by_indian[idx] + delta;
   if (v < 0) {
     v = 0;
@@ -990,4 +1386,20 @@ void ai_diplo_indian_relation_delta(
     v = 255;
   }
   col1->nation[euro_nation].relation_by_indian[idx] = (uint8_t)v;
+}
+
+uint8_t ai_diplo_indian_relation(
+  const ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+) {
+  /* Read-only getter for contact/king; same indexing as relation_delta. */
+  if (!col1 || euro_nation < 0 || euro_nation >= 4) {
+    return 0;
+  }
+  int idx = indian_nation - 4;
+  if (idx < 0 || idx >= 8) {
+    return 0;
+  }
+  return col1->nation[euro_nation].relation_by_indian[idx];
 }

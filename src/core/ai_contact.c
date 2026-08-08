@@ -4,6 +4,7 @@
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/units.h"
 
@@ -94,6 +95,26 @@ static int ai_contact_is_encroacher(const ColonizeUnitPool* units, const Coloniz
   }
   return strstr(name, "Soldier") != NULL || strstr(name, "Scout") != NULL ||
          strstr(name, "Pioneer") != NULL;
+}
+
+/*
+ * Pocahontas (wiki/fandom): Indian alarm generated half as fast for the Euro
+ * that elected her. Halve positive friction/alarm bumps toward that nation.
+ * Cite: docs/fandom_col1994.md Pocahontas; Colonization.pdf FF table.
+ */
+static int ai_contact_alarm_bump_amount(
+  const ColonizeCol1Save* col1,
+  int euro,
+  int amount
+) {
+  if (amount <= 0) {
+    return 0;
+  }
+  if (col1 && euro >= 0 && euro <= 3 &&
+      founding_fathers_nation_has(col1, euro, FF_POCAHONTAS)) {
+    return amount / 2; /* floor; +1 bumps become 0 */
+  }
+  return amount;
 }
 
 /* Bump uint8 friction toward cap 100. */
@@ -221,8 +242,13 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
     if ((int)t->nation_id != nation_id) {
       continue;
     }
+    /*
+     * Col1 one-shot: tribe.state.learned already set → skip teach and do not
+     * write teach/refuse status (preserves gift/trade chrome). Cite: village
+     * teaches once; fandom Teach / trade / missions.
+     */
     if (t->state.learned) {
-      continue; /* village already taught its skill (Col1 one-shot) */
+      continue;
     }
     for (int d = 0; d < 8; ++d) {
       const int oid = units_id_at(ctx->units, t->x + dx[d], t->y + dy[d]);
@@ -340,12 +366,16 @@ static int ai_contact_pair_friction(
 
 /*
  * Gift / demand structural stand-in (5bfb_102a / 1092 dialog widgets OPEN).
- * After peaceful meet adjacency:
- *  - alarmed (≥55 refuse-talk gate) → refuse gift; no extra gold penalty
+ * After peaceful meet adjacency (caller already gated alarmed / very-low rel):
+ *  - alarmed (≥55 refuse-talk gate) → refuse gift/demand with status; no extra
+ *    gold penalty beyond existing gift costs
+ *  - low friction + Euro gold < 10 → refuse refuse (cannot pay −10 gift)
  *  - low friction + Euro gold >= 20 → gift: Euro −10 gold, friction −2
- *  - mid friction (40–70) + tools/gold → demand: −10 tools (nearest colony stock
- *    or unit) else −15 gold; friction −3
- *  - very high friction (>70) → skip (raids handle hostility)
+ *  - mid friction (40–54) + tools/gold → demand: −10 tools from nearest colony
+ *    warehouse when stock ≥20 (else unit tools ≥20, else −15 gold when
+ *    treasury ≥50); friction −3. Cite: gift gold≥20 band mirrored for tools;
+ *    gold stand-in needs a fuller purse (≥50) when tools are short.
+ *  - very high covered by alarmed refuse / raids
  * Human-facing paths set a thin status line when ctx->status is present.
  * Source: fandom Alarm — alarmed natives may refuse trade/gifts.
  */
@@ -367,12 +397,27 @@ static void ai_contact_gift_or_demand(
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
   const int human = ai_contact_euro_is_human(ctx, e);
   /*
-   * Same ≥55 gate as refuse-talk: alarmed → no gift/demand (existing gift costs
-   * only; no invented gold penalties). Cite: alarmed Indian diplomacy.
+   * Same ≥55 gate as refuse-talk/teach: alarmed → no gift and no demand
+   * payoff (no invented gold penalties). Cite: fandom Alarm — refuse trade.
+   * Message band uses tribe friction (not alarm_by_player): gift-band (<40) →
+   * "refuse gifts"; demand-band (≥40) → "refuse demands". Pair friction alone
+   * would always be ≥55 when alarm≥55, making gift-band unreachable.
    */
   if (friction >= 55 || ind->alarm_by_player[e] >= 55) {
     if (human) {
-      ai_contact_set_status(ctx, "Natives refuse gifts.");
+      int tribe_fr = 0;
+      if (ctx->col1->tribe) {
+        for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+          const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+          if ((int)t->nation_id == nation_id && (int)t->alarm[e].friction > tribe_fr) {
+            tribe_fr = (int)t->alarm[e].friction;
+          }
+        }
+      }
+      ai_contact_set_status(
+        ctx,
+        (tribe_fr >= 40) ? "Natives refuse demands." : "Natives refuse gifts."
+      );
     }
     return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
   }
@@ -381,8 +426,15 @@ static void ai_contact_gift_or_demand(
 
   /* Low friction gift / tribute. */
   if (friction < 40) {
-    if (nat->gold < 20u) {
+    /* Cannot pay −10 gift drain → refuse with status (widgets OPEN). */
+    if (nat->gold < 10u) {
+      if (human) {
+        ai_contact_set_status(ctx, "Natives refuse gifts.");
+      }
       return;
+    }
+    if (nat->gold < 20u) {
+      return; /* mid purse: skip silent (needs ≥20 band to gift) */
     }
     nat->gold -= 10u;
     ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 2);
@@ -402,7 +454,8 @@ static void ai_contact_gift_or_demand(
       if (!c->active || c->nation_id != e) {
         continue;
       }
-      if (c->stock[COLONIZE_CARGO_TOOLS] < 10) {
+      /* Succeed path: warehouse must hold ≥20 tools before −10 demand. */
+      if (c->stock[COLONIZE_CARGO_TOOLS] < 20) {
         continue;
       }
       const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
@@ -416,16 +469,21 @@ static void ai_contact_gift_or_demand(
       paid = 1;
     }
   }
-  if (!paid && other->tools >= 10) {
+  if (!paid && other->tools >= 20) {
     other->tools -= 10;
     paid = 1;
   }
-  if (!paid && nat->gold >= 15u) {
+  /*
+   * Tools short (warehouse/unit both <20): gold stand-in when treasury ≥50.
+   * Drain stays −15 (indian_contact.md mid demand); purse gate mirrors a
+   * fuller tribute ability than the gift −10/≥20 band.
+   */
+  if (!paid && nat->gold >= 50u) {
     nat->gold -= 15u;
     paid = 1;
   }
   if (!paid) {
-    return; /* no tools in colony/unit and insufficient gold */
+    return; /* no tools in colony/unit and gold < 50 */
   }
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
   if (human) {
@@ -434,12 +492,140 @@ static void ai_contact_gift_or_demand(
 }
 
 /*
- * Missionary adjacent to tribe, relations not hostile → concrete convert state:
- * tribe.mission = euro nation id, slight alarm/friction decay, +1 nation crosses.
+ * Missionary adjacent to tribe → convert pulse (5bfb checklist / fandom Alarm):
+ *  - mission unset (0xff) → set mission owner, slight alarm/friction decay,
+ *    +1 nation crosses; human status "Natives accept conversion."
+ *  - mission already set (own or foreign) → skip convert pulse (one-shot;
+ *    no re-crosses / no steal). Cite: indian_contact.md convert once.
+ *  - alarmed (≥55 refuse-talk gate) → refuse convert with status; no crosses
  * Teach/convert dialog widgets OPEN (unpark #1); full 2820/4528 PARKED.
  */
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    /*
+     * Convert once: mission already set → skip pulse entirely (own keep or
+     * foreign no-steal). Matches teach one-shot; no repeated crosses.
+     */
+    if (t->mission != 0xff) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int oid = units_id_at(ctx->units, t->x + dx[d], t->y + dy[d]);
+      if (oid < 0) {
+        continue;
+      }
+      ColonizeUnit* other = units_get(ctx->units, oid);
+      if (!other || other->nation_id < 0 || other->nation_id > 3) {
+        continue;
+      }
+      if (!ai_contact_is_missionary(ctx->units, other)) {
+        continue;
+      }
+      const int e = other->nation_id;
+      /*
+       * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
+       * refuse convert / crosses (status thinned; widgets OPEN).
+       */
+      if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
+        if (ai_contact_euro_is_human(ctx, e)) {
+          ai_contact_set_status(ctx, "Natives refuse conversion.");
+        }
+        break; /* one refuse pulse per tribe per call */
+      }
+      t->mission = (uint8_t)e;
+      if (ind->alarm_by_player[e] > 0) {
+        ind->alarm_by_player[e]--;
+      }
+      if (t->alarm[e].friction > 0) {
+        t->alarm[e].friction--;
+      }
+      ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+      if (nat->current_crosses < 0xffffu) {
+        nat->current_crosses++;
+      }
+      if (ai_contact_euro_is_human(ctx, e)) {
+        ai_contact_set_status(ctx, "Natives accept conversion.");
+      }
+      break; /* one convert pulse per tribe per call */
+    }
+  }
+}
+
+/*
+ * Missionary flee (structural): adjacent to alarmed tribe (≥55 refuse-talk
+ * band) and not converting → nudge 1 free land tile away + AI_MOVE goto.
+ * Cite: fandom Alarm — alarmed natives may refuse / attack missionaries.
+ * Full 2820/4528 flee dialog PARKED; widgets OPEN.
+ */
+static int ai_contact_flee_one_tile(
+  ColonizeTurnContext* ctx,
+  ColonizeUnit* u,
+  int away_x,
+  int away_y
+) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !u->active) {
+    return 0;
+  }
+  const int ox = u->x;
+  const int oy = u->y;
+  const int dist0 = ai_contact_dist(ox, oy, away_x, away_y);
+  int best_x = -1;
+  int best_y = -1;
+  int best_d = -1;
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = ox + dx[d];
+    const int ny = oy + dy[d];
+    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+      continue;
+    }
+    if (!map_tile_is_land(ctx->map, nx, ny)) {
+      continue;
+    }
+    if (units_id_at(ctx->units, nx, ny) >= 0) {
+      continue;
+    }
+    if (!units_can_enter(ctx->units, u->type_index, ctx->map, nx, ny, u->id, ctx->colonies)) {
+      continue;
+    }
+    const int dist = ai_contact_dist(nx, ny, away_x, away_y);
+    if (dist < dist0) {
+      continue; /* must increase Chebyshev distance from tribe */
+    }
+    if (dist > best_d) {
+      best_d = dist;
+      best_x = nx;
+      best_y = ny;
+    }
+  }
+  if (best_x < 0) {
+    return 0;
+  }
+  u->x = best_x;
+  u->y = best_y;
+  u->orders = UNITS_ORDER_AI_MOVE;
+  u->goto_x = best_x;
+  u->goto_y = best_y;
+  return 1;
+}
+
+static void ai_contact_missionary_flee(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
   }
   if (nation_id < 4 || nation_id > 11) {
@@ -467,22 +653,13 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
         continue;
       }
       const int e = other->nation_id;
-      /* Hostile → no convert (mission clear path remains in prelude). */
-      if (ind->alarm_by_player[e] >= 50 || t->alarm[e].friction >= 50) {
+      /* Only flee when convert is blocked by alarm (not converting). */
+      if (ind->alarm_by_player[e] < 55 && t->alarm[e].friction < 55) {
         continue;
       }
-      t->mission = (uint8_t)e;
-      if (ind->alarm_by_player[e] > 0) {
-        ind->alarm_by_player[e]--;
+      if (ai_contact_flee_one_tile(ctx, other, t->x, t->y)) {
+        break; /* one flee pulse per tribe per call */
       }
-      if (t->alarm[e].friction > 0) {
-        t->alarm[e].friction--;
-      }
-      ColonizeCol1Nation* nat = &ctx->col1->nation[e];
-      if (nat->current_crosses < 0xffffu) {
-        nat->current_crosses++;
-      }
-      break; /* one convert pulse per tribe per call */
     }
   }
 }
@@ -513,14 +690,14 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
     }
     const int fr = (int)t->alarm[euro].friction;
     const int al = (int)ind->alarm_by_player[euro];
-    /* Mid-range only; low-band stays prelude −1; >80 → mission clear. */
-    if ((fr < 40 || fr > 80) && (al < 40 || al > 80)) {
+    /* Mid-range only; low-band stays prelude −1; ≥80 → mission burn/clear. */
+    if ((fr < 40 || fr >= 80) && (al < 40 || al >= 80)) {
       continue;
     }
-    if (fr >= 40 && fr <= 80) {
+    if (fr >= 40 && fr < 80) {
       t->alarm[euro].friction = (uint8_t)(fr >= 2 ? fr - 2 : 0);
     }
-    if (al >= 40 && al <= 80) {
+    if (al >= 40 && al < 80) {
       ind->alarm_by_player[euro] = (uint16_t)(al >= 2 ? al - 2 : 0);
     }
   }
@@ -534,9 +711,10 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   ai_contact_clamp_alarms(ind);
 
   /*
-   * Alarm prelude flag body (PARKED dialog chrome).
+   * Alarm prelude escalate (PARKED dialog chrome).
    * DOS: when state+3 bit 0x20 clear, difficulty-scaled RNG may set war/alarm.
    * Linux: unknown31[3] bit 0x20 = prelude-fired; isolated RNG only.
+   * Pocahontas still halves the escalate bump (wiki/fandom half-rate).
    */
   uint8_t* flag = &ind->unknown31[3];
   if ((*flag & 0x20) == 0) {
@@ -551,7 +729,14 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         if (ind->met_by_player[e] && ind->alarm_by_player[e] < 30) {
-          ind->alarm_by_player[e] = (uint16_t)(ind->alarm_by_player[e] + 5 + (4 - diff));
+          /* Pocahontas: half-rate alarm growth (wiki/fandom). */
+          const int bump = ai_contact_alarm_bump_amount(
+            ctx->col1, e, 5 + (4 - diff)
+          );
+          if (bump > 0) {
+            ind->alarm_by_player[e] =
+              (uint16_t)(ind->alarm_by_player[e] + (uint16_t)bump);
+          }
         }
       }
       /* War-ish sticky: mark bit so prelude does not re-roll forever. */
@@ -566,7 +751,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * Encroachment deepen (dialog chrome PARKED): Soldier/Scout/Pioneer within
    * Chebyshev ≤2 of a tribe with no mission → +2 tribe friction + alarm_by_player
-   * toward that Euro (cap 100).
+   * toward that Euro (cap 100). Pocahontas halves bump (wiki/fandom half-rate).
    */
   if (ctx->units) {
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
@@ -581,6 +766,10 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
         continue;
       }
       const int e = u->nation_id;
+      const int bump = ai_contact_alarm_bump_amount(ctx->col1, e, 2);
+      if (bump <= 0) {
+        continue;
+      }
       for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
         ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
         if ((int)t->nation_id != nation_id) {
@@ -592,8 +781,8 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
         if (ai_contact_dist(u->x, u->y, t->x, t->y) > 2) {
           continue;
         }
-        ai_contact_bump_u8_cap100(&t->alarm[e].friction, 2);
-        ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], 2);
+        ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
+        ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
       }
     }
   }
@@ -622,7 +811,11 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* Mission clear on high alarm (FUN_4cc6_0000). */
+  /*
+   * Mission destroy / burn on high alarm (FUN_4cc6_0000; tribe.mission field).
+   * Cite: manual/wiki — alarmed natives may burn missions. Alarm/friction ≥80
+   * + mission present → clear stand-in (0xff). Status thinned; widgets OPEN.
+   */
   for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
     ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
     if ((int)t->nation_id != nation_id) {
@@ -635,8 +828,11 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     if (euro < 0 || euro > 3) {
       continue;
     }
-    if (t->alarm[euro].friction > 80 || ind->alarm_by_player[euro] > 80) {
+    if (t->alarm[euro].friction >= 80 || ind->alarm_by_player[euro] >= 80) {
       t->mission = 0xff;
+      if (ai_contact_euro_is_human(ctx, euro)) {
+        ai_contact_set_status(ctx, "Natives burn your mission.");
+      }
     }
   }
 }
@@ -733,17 +929,46 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       }
 
       /*
-       * Thin alarmed meet arm (2154/2820 deep PARKED): high friction → refuse
-       * talk (no auto-trade / gift/demand); human gets status chrome.
+       * Thin alarmed meet arm (2154/2820 deep PARKED): high alarm → refuse
+       * talk status. Do not continue — auto-trade stays gated by alarm < 50
+       * below; gift/demand still runs so ≥55 refuse gifts/demands chrome can
+       * overwrite with the more specific line (fandom Alarm). Widgets OPEN.
        */
       if (ind->met_by_player[e] && ind->alarm_by_player[e] >= 55) {
+        if (human) {
+          ai_contact_set_status(ctx, "Natives refuse to talk.");
+        }
+        /* fall through: no auto-trade; gift_or_demand refuses */
+      } else if (
+        ind->met_by_player[e] &&
+        ai_diplo_indian_relation(ctx->col1, nation_id, e) < 40
+      ) {
+        /*
+         * Beyond alarm gate: very-low Indian×Euro relation (<40) also refuses
+         * meet-trade / gift (ai_diplo_indian_relation read-only). Same band as
+         * AI_DIPLO_INDIAN_VERY_LOW_REL / euro_diplo war deepen. First-meet above
+         * still runs; widgets OPEN. Cite: fandom Alarm — refuse trade.
+         */
         if (human) {
           ai_contact_set_status(ctx, "Natives refuse to talk.");
         }
         continue;
       }
 
-      /* 3. Peaceful auto-trade (nested 2bbc AI buy stand-in). */
+      /*
+       * 3. Peaceful auto-trade (nested 2bbc AI buy stand-in).
+       *
+       * PARK deep FUN_4d56_2820 (~1.4k lines; thunk 2a1f_044c):
+       *   - full meet/raid decision matrix (alarmed vs peaceful branch pick)
+       *   - nested trade 2aac (good dispatch) → 2af6 / 2bbc (AI buy) /
+       *     2b92 / 311e (demand / no-deal close)
+       *   - choice loops, hard-bargain tension, per-good price arms
+       *   - alarmed-branch dialog dispatch (widgets OPEN — unpark #1)
+       * Not ported — Linux stays on this thin trade-goods→alarm decay stand-in
+       * plus gift/demand / teach / convert status chrome. Cite:
+       * indian_contact.md PORT DEBT; docs/ai_transcription.md FUN_4d56_2820;
+       * peel layer_b_combat_raid / layer_b_2a1f_midlo.
+       */
       if (ctx->colonies && ind->met_by_player[e] && ind->alarm_by_player[e] < 50) {
         int best_ci = -1;
         int best_score = -1;
@@ -792,10 +1017,13 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   /* 2b. Missionary adjacent to tribe → mission owner + crosses (convert widgets OPEN). */
   ai_contact_missionary_convert(ctx, nation_id);
 
+  /* 2b1. Alarmed tribe + Missionary not converting → flee 1 tile (AI_MOVE). */
+  ai_contact_missionary_flee(ctx, nation_id);
+
   /*
    * 2b2. Mission pacify deepen (meet pulse): mid-range alarm/friction toward
    * mission Euro → −2 once (prelude keeps low-band −1). Cite: fandom Alarm —
-   * missions slow hostility. No free crosses. Clear at >80 stays in prelude.
+   * missions slow hostility. No free crosses. Burn/clear at ≥80 stays in prelude.
    */
   ai_contact_mission_pacify_meet(ctx, nation_id);
 
@@ -810,6 +1038,22 @@ static int ai_contact_colony_has_stores(const ColonizeColony* c) {
   }
   return c->stock[COLONIZE_CARGO_FOOD] > 0 || c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0 ||
          c->stock[COLONIZE_CARGO_TOOLS] > 0 || c->stock[COLONIZE_CARGO_MUSKETS] > 0;
+}
+
+/* True if warehouse holds military loot secondary can drain (muskets/horses). */
+static int ai_contact_colony_has_military_loot(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  return c->stock[COLONIZE_CARGO_MUSKETS] >= 5 || c->stock[COLONIZE_CARGO_HORSES] >= 1;
+}
+
+/* True if warehouse holds enough tools for high-friction secondary −1 drain. */
+static int ai_contact_colony_has_tools_loot(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  return c->stock[COLONIZE_CARGO_TOOLS] >= 10;
 }
 
 /* True if WREAK can mutate food/tools/building-in-production. */
@@ -957,10 +1201,18 @@ static void ai_contact_apply_raid_loot(
     break;
   }
   case AI_RAID_BURN:
+    /* @RAIDBURN / 5fef_0f14: clear construction first. */
     if (c->building_in_production >= 0) {
       c->building_in_production = -1;
     } else if (c->stock[COLONIZE_CARGO_LUMBER] > 0) {
       c->stock[COLONIZE_CARGO_LUMBER] -= (c->stock[COLONIZE_CARGO_LUMBER] > 2) ? 2 : 1;
+    } else {
+      /*
+       * PARKED: when warehouse stock empty, prefer damaging/removing a
+       * non-Town-Hall built building (@RAIDBURN building loot). No safe
+       * colonies_* destroy API that also clears workplace colonists —
+       * do not flip has_building[] alone. Full 5fef_0f14 PARKED.
+       */
     }
     break;
   case AI_RAID_SCALP:
@@ -1120,7 +1372,16 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * FUN_4d56_4528 / 5fef_0f14-shaped arms (thin):
    *  1 gate → 2 adjacent combat → 3 colony approach → 4 @RAID* loot →
-   *  5 capture → 6 scout 359c displace/despawn. Deep 2820 PARKED.
+   *  5 capture → 6 scout 359c displace/despawn.
+   *
+   * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): meet/raid decision
+   * matrix that DOS reaches before settlement enter — nested 2aac…311e trade
+   * helpers and alarmed act pick live there, not in this post-pulse path.
+   * Full FUN_4d56_4528 (~3k) settlement body also PARKED (comment only).
+   * Linux stays on thin @RAID* / combat / 359c. Widgets OPEN (unpark #1).
+   * Mid-friction gate prefers non-mission villages (below). Cite:
+   * indian_raid_outcomes.md §10; indian_contact.md PORT DEBT;
+   * docs/ai_transcription.md FUN_4d56_2820.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];
@@ -1131,23 +1392,53 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
 
-    /* 1. Gate: target Euro by max alarm/friction. */
+    /*
+     * 1. Gate: among Euros with friction/alarm ≥40, prefer Indian×Euro at-war
+     * (ai_diplo_indian_at_war / relation <50); then highest friction; tie-break
+     * lower ai_diplo_indian_relation (very-low <40 hostility).
+     * Cite: indian_raid_outcomes.md gate; FUN_4d56_4528 thin; fandom Alarm.
+     *
+     * PARK: deep Brave escort / alarmed act inside quiet FUN_4d56_14fe
+     * (seed-100 T2) — comment only; raids stay on this post-pulse path.
+     */
     int target_euro = -1;
     int max_alarm = 0;
+    int best_rel = 256;
+    int best_at_war = 0;
+    const int indian_idx = nation_id - 4;
     for (int e = 0; e < 4; ++e) {
       int alarm = (int)ind->alarm_by_player[e];
       for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
         const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id == nation_id && (int)t->alarm[e].friction > alarm) {
-          alarm = (int)t->alarm[e].friction;
+        if ((int)t->nation_id != nation_id || (int)t->alarm[e].friction <= alarm) {
+          continue;
         }
+        /*
+         * Mid friction: prefer non-mission villages for the raid gate
+         * (fandom Alarm — missions slow hostility). Mission tribes only
+         * raise the gate in the burn band (≥80). Cite: indian_contact.md;
+         * docs/fandom_col1994.md Alarm.
+         */
+        if (t->mission != 0xff && (int)t->alarm[e].friction < 80) {
+          continue;
+        }
+        alarm = (int)t->alarm[e].friction;
       }
-      if (alarm > max_alarm) {
+      if (alarm < 40) {
+        continue; /* not a raid candidate */
+      }
+      const int at_war = ai_diplo_indian_at_war(ctx->col1, e, indian_idx);
+      const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
+      if (at_war > best_at_war ||
+          (at_war == best_at_war &&
+           (alarm > max_alarm || (alarm == max_alarm && rel < best_rel)))) {
+        best_at_war = at_war;
         max_alarm = alarm;
+        best_rel = rel;
         target_euro = e;
       }
     }
-    if (target_euro < 0 || max_alarm < 40) {
+    if (target_euro < 0) {
       continue;
     }
 
@@ -1169,8 +1460,14 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       if (units_resolve_land_combat(ctx->units, brave->id, foe, rng)) {
         units_try_move(ctx->units, brave->id, ctx->map, nx, ny, ctx->colonies, rng);
       }
-      ind->alarm_by_player[target_euro] =
-        (uint16_t)(ind->alarm_by_player[target_euro] + 2);
+      {
+        /* Pocahontas: half-rate alarm growth (wiki/fandom). */
+        const int bump = ai_contact_alarm_bump_amount(ctx->col1, target_euro, 2);
+        if (bump > 0) {
+          ind->alarm_by_player[target_euro] =
+            (uint16_t)(ind->alarm_by_player[target_euro] + (uint16_t)bump);
+        }
+      }
       for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
         ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
         if ((int)t->nation_id == nation_id) {
@@ -1184,15 +1481,30 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
     if (!attacked && ctx->colonies && brave->active) {
       int best_cid = -1;
       int best_d = 99;
+      int best_mil = 0;
+      int best_tools = 0;
       for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
         ColonizeColony* c = &ctx->colonies->colonies[ci];
         if (!c->active || c->nation_id != target_euro) {
           continue;
         }
         const int d = ai_contact_dist(brave->x, brave->y, c->x, c->y);
-        if (d < best_d && d <= 6) {
+        if (d > 6) {
+          continue;
+        }
+        /*
+         * Prefer closer; at equal distance prefer muskets/horses (military
+         * secondary), else tools≥10 (high-friction secondary −1). Cite:
+         * indian_raid_outcomes.md multi-loot / colony approach.
+         */
+        const int mil = ai_contact_colony_has_military_loot(c);
+        const int tools = ai_contact_colony_has_tools_loot(c);
+        if (d < best_d || (d == best_d && mil && !best_mil) ||
+            (d == best_d && mil == best_mil && tools && !best_tools)) {
           best_d = d;
           best_cid = c->id;
+          best_mil = mil;
+          best_tools = tools;
         }
       }
       if (best_cid >= 0) {
@@ -1210,9 +1522,25 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
             if ((int)t->nation_id == nation_id) {
               t->alarm[target_euro].attacks++;
-              if (t->alarm[target_euro].friction < 200) {
-                t->alarm[target_euro].friction =
-                  (uint8_t)(t->alarm[target_euro].friction + 2);
+            }
+          }
+          /*
+           * Successful raid friction/alarm escalate (fandom Alarm — raids raise
+           * tension): tribe friction + alarm_by_player +2 each (cap 100).
+           * Pocahontas halves bump (wiki/fandom half-rate). Cite:
+           * docs/fandom_col1994.md Pocahontas / Alarm; indian_raid_outcomes.md.
+           * Full 4528/2820 dialog PARKED; widgets OPEN.
+           */
+          if (kind != AI_RAID_NOTHING) {
+            const int fr_bump =
+              ai_contact_alarm_bump_amount(ctx->col1, target_euro, 2);
+            if (fr_bump > 0) {
+              ai_contact_bump_u16_cap100(&ind->alarm_by_player[target_euro], fr_bump);
+              for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+                ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+                if ((int)t->nation_id == nation_id) {
+                  ai_contact_bump_u8_cap100(&t->alarm[target_euro].friction, fr_bump);
+                }
               }
             }
           }
@@ -1224,9 +1552,18 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             const int host = (max_alarm >= 80) ? -5 : -3;
             ai_diplo_indian_relation_delta(ctx->col1, nation_id, target_euro, host);
           }
-          /* Thin raid outcome status for human target (full @RAID* dialog PARKED). */
-          if (kind != AI_RAID_NOTHING && ai_contact_euro_is_human(ctx, target_euro)) {
-            ai_contact_set_status(ctx, "Natives raid your colony.");
+          /*
+           * Thin raid outcome status for human target (full @RAID* dialog PARKED).
+           * @RAIDNOTHING (GAME.TXT): "raiding party wiped out" — empty warehouse /
+           * no lootable stock also lands here (no invented cargo). Cite:
+           * COLONIZE/GAME.TXT @RAIDNOTHING; indian_raid_outcomes.md.
+           */
+          if (ai_contact_euro_is_human(ctx, target_euro)) {
+            ai_contact_set_status(
+              ctx,
+              (kind == AI_RAID_NOTHING) ? "Native raiding party wiped out."
+                                        : "Natives raid your colony."
+            );
           }
         } else {
           int sdx = (c->x > brave->x) - (c->x < brave->x);
@@ -1265,21 +1602,23 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         /*
-         * Prefer displace 1–2 tiles away from the Brave (tribe contact).
-         * Dialog warn chrome PARKED; status line only when buffer present.
+         * FUN_4d56_359c: prefer displace 1–2 tiles away from the Brave.
+         * When displaced (not despawned) and status buffer present → human
+         * warn line. Dialog warn widgets beyond status still OPEN (unpark #1).
+         *
+         * PARK: DOS RNG kill/warn/displace when a flee tile exists — Linux
+         * never kills if displace succeeds. Blocked-path despawn below is the
+         * thin stand-in only (indian_raid_outcomes.md §8).
          */
         if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
-          if (ctx->status && ctx->status_size > 0) {
-            snprintf(
-              ctx->status,
-              ctx->status_size,
-              "Natives warn your Scout away from their lands."
-            );
+          if (ai_contact_euro_is_human(ctx, e)) {
+            ai_contact_set_status(ctx, "Scout warned away from village.");
           }
         } else {
+          /* Blocked only — RNG kill-with-flee-tile stays PARKED (above). */
           units_despawn(ctx->units, foe);
-          if (ctx->status && ctx->status_size > 0) {
-            snprintf(ctx->status, ctx->status_size, "Natives kill your Scout.");
+          if (ai_contact_euro_is_human(ctx, e)) {
+            ai_contact_set_status(ctx, "Natives kill your Scout.");
           }
         }
       }

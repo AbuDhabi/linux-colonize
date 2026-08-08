@@ -7,6 +7,7 @@
 #include "core/units.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -14,11 +15,14 @@
  * Thin map: original_sources_annotated/ai/king_ref.md
  *
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
+ *   Set on declare when SoL≥50 (ai_king_set_independence); restless chrome must not.
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
  * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience status
  *   (real modal widgets PARKED). Cargo freeze: nation.boycott_bitmap.
- * Merc hired this war: head.unknown46[3] + thin 2244 hire-dialog status
- *   (real modal widgets PARKED).
+ *   If boycott_bitmap cleared externally (Fugger FF / diplo lift) → clear
+ *   unknown46[2] refuse when bitmap==0 (king sync; do not touch FF).
+ * Merc hired/refused this war: head.unknown46[3] + thin 2244 hire or
+ *   "Cannot afford mercenaries." once (real modal PARKED; flag gates spam).
  * 160a rename: player[human].country_name → "United Colonies" (cinematic PARKED).
  *   unknown46[4] unused — writable Col1 country_name exists.
  * Congress confirm: head.unknown46[5] + thin 2564 congress status on declare
@@ -40,32 +44,868 @@
 #define AI_KING_BOYCOTT_TAX_MIN 20
 #define AI_KING_BOYCOTT_SOL_MIN 30
 #define AI_KING_BOYCOTT_BELLS_MIN 80
-/* Sugar = cargo index 1 — one frozen Europe cargo while refuse active.
- * PARK: additional classic boycott cargos (wiki dump-goods / 38fd_3dc8 RNG)
- * remain PARKED — only Sugar is named in-file; do not invent a second bit. */
+/* Sugar = cargo index 1 (COLONIZE_CARGO_SUGAR) — one frozen Europe cargo while
+ * refuse active. PARK: additional classic boycott cargos (wiki dump-goods /
+ * 38fd_3dc8 RNG) remain PARKED — only Sugar is named in-file for king refuse;
+ * do not invent a second bit. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << 1)
 /* Thin 2244 Continental merc aid (hire-dialog status; real modal PARKED). */
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_SOL_MIN 50
+/*
+ * FUN_43f7_2564 / fandom Independence: auto-declare only when total SoL already
+ * past this existing threshold (no invented %). Bells gate stays separate.
+ */
+#define AI_KING_DECLARE_SOL_MIN 50
+#define AI_KING_DECLARE_BELLS_MIN 100
+/* Restless chrome band immediately below declare (SoL 40..49 when min=50). */
+#define AI_KING_RESTLESS_SOL_MIN 40
 /* Thin MoW cargo hold: structural unload count (full 6-slot chrome PARKED; fandom). */
 #define AI_KING_MOW_HOLD_UNLOAD 3
+/*
+ * PARK: fandom REF “man-o-war with 6 units” embark / cargo_ids hold chrome —
+ * MoW×6 remains PARKED (structural hold-size-3 unload + coastal unload-one only).
+ */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
 #define AI_KING_INTERVENE_DIFF_THIRD 2
+/* 0982: second MoW same beat when difficulty ≥ 2 and force[2] still > 0. */
+#define AI_KING_SECOND_MOW_DIFF 2
+/*
+ * REF idle hunt capital bias: when founding-capital MD is within this slack of
+ * the nearest other human colony MD, prefer the capital (fandom REF pressure
+ * on main ports; deep multi-step scoring PARKED).
+ */
+#define AI_KING_CAPITAL_MD_SLACK 2
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
 }
 
-/* Crown-hostile Euro slot for 10f0 landings (not human, not crown). */
-static int ai_king_intervention_nation(int human_nation) {
-  const int crown = ai_king_crown_nation(human_nation);
-  for (int n = 0; n < 4; ++n) {
-    if (n != human_nation && n != crown) {
-      return n;
+/* Active colony count for a Euro nation (10f0 intervene nation pick). */
+static int ai_king_colony_count(const ColonizeColonyPool* colonies, int nation_id) {
+  if (!colonies || nation_id < 0) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id) {
+      n++;
     }
   }
-  return crown;
+  return n;
+}
+
+/*
+ * Crown-hostile Euro slot for 10f0 landings (not human, not crown).
+ * Prefer the Euro with most colonies; tie-break by on-map land unit count
+ * (structural force presence — head.backup_force is a shared pool, not per-nation).
+ * Source: FUN_43f7_10f0 intervene nation pick; Foreign intervention (fandom).
+ */
+static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human_nation) {
+  const int crown = ai_king_crown_nation(human_nation);
+  int best = -1;
+  int best_colonies = -1;
+  int best_force = -1;
+  for (int n = 0; n < 4; ++n) {
+    if (n == human_nation || n == crown) {
+      continue;
+    }
+    const int cols = ctx && ctx->colonies ? ai_king_colony_count(ctx->colonies, n) : 0;
+    int force = 0;
+    if (ctx && ctx->units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != n) {
+          continue;
+        }
+        if (units_is_sea(ctx->units, u->id)) {
+          continue;
+        }
+        force++;
+      }
+    }
+    if (best < 0 || cols > best_colonies ||
+        (cols == best_colonies && force > best_force)) {
+      best = n;
+      best_colonies = cols;
+      best_force = force;
+    }
+  }
+  return best >= 0 ? best : crown;
+}
+
+/* True if unit type/display name is Artillery (or Cannon fallback). */
+static int ai_king_is_artillery(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  if ((tname && strstr(tname, "Artillery")) || (dname && strstr(dname, "Artillery"))) {
+    return 1;
+  }
+  if ((tname && strstr(tname, "Cannon")) || (dname && strstr(dname, "Cannon"))) {
+    return 1;
+  }
+  return 0;
+}
+
+/* Artillery type in pool, or -1 (thin siege bias gates on this). */
+static int ai_king_artillery_type(const ColonizeUnitPool* units) {
+  if (!units) {
+    return -1;
+  }
+  int ty = units_find_type(units, "Artillery");
+  if (ty < 0) {
+    ty = units_find_type(units, "Cannon");
+  }
+  return ty;
+}
+
+/*
+ * Continental Army / Cont. Army / Cont. Cav after 1eca — include in hunter
+ * name check so Cont. types hunt like Regular/Dragoon (fandom Independence:
+ * Veteran → Continental Army/Cavalry).
+ */
+static int ai_king_is_continental(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  if ((tname && strstr(tname, "Continental")) || (dname && strstr(dname, "Continental"))) {
+    return 1;
+  }
+  if ((tname && strstr(tname, "Cont. Army")) || (dname && strstr(dname, "Cont. Army"))) {
+    return 1;
+  }
+  if ((tname && strstr(tname, "Cont. Cav")) || (dname && strstr(dname, "Cont. Cav"))) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * REF land hunters: Regular / Dragoon (fandom REF AI land arm).
+ * Thin Artillery siege: when Artillery type exists in pool, Artillery also hunts
+ * (prefer fortified colony — see ai_king_ref_hunt_target). Cont. Army / Cont. Cav
+ * included in name check (1eca promote; human Cont. hunt → capital/colony below).
+ * Deep multi-step siege scoring remains PARKED.
+ */
+static int ai_king_is_ref_land_hunter(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u || !u->active || units_is_sea(units, u->id)) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  if ((tname && strstr(tname, "Regular")) || (dname && strstr(dname, "Regular"))) {
+    return 1;
+  }
+  if ((tname && strstr(tname, "Dragoon")) || (dname && strstr(dname, "Dragoon"))) {
+    return 1;
+  }
+  if (ai_king_is_continental(units, u)) {
+    return 1;
+  }
+  if (ai_king_artillery_type(units) >= 0 && ai_king_is_artillery(units, u)) {
+    return 1;
+  }
+  return 0;
+}
+
+/* True if unit type/display is Regular (for post-capture fortify). */
+static int ai_king_is_regular(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  if ((tname && strstr(tname, "Regular")) || (dname && strstr(dname, "Regular"))) {
+    return 1;
+  }
+  return 0;
+}
+
+/* True if unit type/display is Dragoon (open-land hunt bias when Artillery exists). */
+static int ai_king_is_dragoon(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  if ((tname && strstr(tname, "Dragoon")) || (dname && strstr(dname, "Dragoon"))) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Open-land hunt role (Dragoon thin bias + Cont. Cav as cavalry promote).
+ * Source: fandom REF AI land arm / Independence Cont. Cavalry; when Artillery
+ * type exists, leave fortified ports to Artillery. Cont. Army stays nearest.
+ */
+static int ai_king_prefers_open_land(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (ai_king_is_dragoon(units, u)) {
+    return 1;
+  }
+  if (!units || !u || !ai_king_is_continental(units, u)) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  /* Cont. Cav / Continental Cavalry only — not Cont. Army. */
+  if ((tname && (strstr(tname, "Cav") || strstr(tname, "Cavalry"))) ||
+      (dname && (strstr(dname, "Cav") || strstr(dname, "Cavalry")))) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * True if another crown Regular on (x,y) is already FORTIFY/FORTIFIED.
+ * Used so post-capture / idle garrison fortifies only one Regular; extras hunt.
+ */
+static int ai_king_tile_has_fortified_regular(const ColonizeTurnContext* ctx, int crown, int x,
+                                              int y, int except_id) {
+  if (!ctx || !ctx->units || crown < 0) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != crown || u->id == except_id) {
+      continue;
+    }
+    if (u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_regular(ctx->units, u)) {
+      continue;
+    }
+    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* True if name looks like a Man-O-War (Galleon fallback used as REF ship). */
+static int ai_king_is_mow(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u || !units_is_sea(units, u->id)) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  if (tname && (strstr(tname, "Man-O-War") || strstr(tname, "Man-o-War") ||
+                strstr(tname, "Galleon"))) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Human founding-capital stand-in: lowest active colony id for the nation.
+ * Euro colonies have no Col1 capital bit (unlike tribes); cite fandom REF
+ * pressure on main ports — first-founded colony as capital. Returns 1 if found.
+ */
+static int ai_king_human_capital(const ColonizeTurnContext* ctx, int human, int* out_x,
+                                 int* out_y) {
+  if (!ctx || !ctx->colonies || !out_x || !out_y || human < 0) {
+    return 0;
+  }
+  int best_id = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != human) {
+      continue;
+    }
+    if (best_id < 0 || c->id < best_id) {
+      best_id = c->id;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (best_id < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Nearest remaining human colony by Manhattan distance (no capital MD slack).
+ * Used after capture: idle hunters not on the fortify-stack garrison slot prefer
+ * the next nearest uncaptured colony over closer human land units.
+ * Source: fandom REF AI — attack uncaptured colonies / weakest ports; capital
+ * MD bias is for peacetime-of-war idle hunt, not post-garrison extras.
+ * Returns 1 if a human colony exists.
+ */
+static int ai_king_nearest_human_colony(const ColonizeTurnContext* ctx, int human, int from_x,
+                                        int from_y, int* out_x, int* out_y) {
+  if (!ctx || !ctx->colonies || !out_x || !out_y || human < 0) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != human) {
+      continue;
+    }
+    const int dist = abs(c->x - from_x) + abs(c->y - from_y);
+    if (best < 0 || dist < best) {
+      best = dist;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Among colony candidates already chosen as nearest: if founding capital MD is
+ * within AI_KING_CAPITAL_MD_SLACK of that nearest colony MD, retarget to capital.
+ * Does not invent a closer capital when MD is far worse. Returns 1 if retargeted.
+ * Source: fandom REF AI — main-port pressure; idle hunters vs distant colonies.
+ */
+static int ai_king_prefer_capital_if_comparable(const ColonizeTurnContext* ctx, int human,
+                                                int from_x, int from_y, int* bx, int* by,
+                                                int best_colony_md) {
+  int cx = 0;
+  int cy = 0;
+  if (!bx || !by || best_colony_md < 0) {
+    return 0;
+  }
+  if (!ai_king_human_capital(ctx, human, &cx, &cy)) {
+    return 0;
+  }
+  if (*bx == cx && *by == cy) {
+    return 0; /* already on capital */
+  }
+  const int cap_md = abs(cx - from_x) + abs(cy - from_y);
+  if (cap_md <= best_colony_md + AI_KING_CAPITAL_MD_SLACK) {
+    *bx = cx;
+    *by = cy;
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * Nearest human colony or human land unit (Manhattan) for REF land hunt.
+ * Source: fandom REF AI — hunt ports / land; conceptual reuse of ai_euro land hunt
+ * (implemented inside ai_king only). Returns 1 if a target was found.
+ * prefer_fortified: Artillery thin siege — when set, prefer a fortified human
+ * colony (Stockade/Fort/Fortress) if any exist; else fall back to nearest.
+ * prefer_open: Dragoon / Cont. Cav thin bias when Artillery type exists — prefer
+ * human land units / unfortified colonies (leave fortified ports to Artillery);
+ * else fall back to nearest (including fortified). Deep role-split scoring PARKED.
+ * Capital MD bias: among colony picks, prefer founding capital when MD is
+ * within AI_KING_CAPITAL_MD_SLACK of the nearest other colony (idle hunters).
+ * Strictly closer human land units still win over capital.
+ */
+static int ai_king_ref_hunt_target(const ColonizeTurnContext* ctx, int human, int from_x,
+                                   int from_y, int* out_x, int* out_y,
+                                   int prefer_fortified, int prefer_open) {
+  if (!ctx || !ctx->units || !out_x || !out_y || human < 0) {
+    return 0;
+  }
+
+  if (prefer_fortified && ctx->colonies) {
+    int best = -1;
+    int bx = 0;
+    int by = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      if (!colonies_has_fortification(ctx->colonies, c)) {
+        continue;
+      }
+      const int dist = abs(c->x - from_x) + abs(c->y - from_y);
+      if (best < 0 || dist < best) {
+        best = dist;
+        bx = c->x;
+        by = c->y;
+      }
+    }
+    if (best >= 0) {
+      /* Capital bias only if capital itself is fortified (Artillery siege set). */
+      int cx = 0;
+      int cy = 0;
+      if (ai_king_human_capital(ctx, human, &cx, &cy)) {
+        const int cid = colonies_id_at(ctx->colonies, cx, cy);
+        if (cid >= 0) {
+          const ColonizeColony* cap = &ctx->colonies->colonies[cid];
+          if (colonies_has_fortification(ctx->colonies, cap)) {
+            (void)ai_king_prefer_capital_if_comparable(ctx, human, from_x, from_y, &bx, &by,
+                                                       best);
+          }
+        }
+      }
+      *out_x = bx;
+      *out_y = by;
+      return 1;
+    }
+  }
+
+  /*
+   * Dragoon / Cont. Cav open-land pass: human land units + unfortified colonies
+   * only. Skip fortified colonies so Artillery (prefer_fortified) owns that job.
+   */
+  if (prefer_open) {
+    int best_unit = -1;
+    int ux = 0;
+    int uy = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* f = &ctx->units->units[i];
+      if (!f->active || f->nation_id != human) {
+        continue;
+      }
+      if (!units_is_on_map(f) || units_is_sea(ctx->units, f->id)) {
+        continue;
+      }
+      const int dist = abs(f->x - from_x) + abs(f->y - from_y);
+      if (best_unit < 0 || dist < best_unit) {
+        best_unit = dist;
+        ux = f->x;
+        uy = f->y;
+      }
+    }
+    int best_col = -1;
+    int bx = 0;
+    int by = 0;
+    if (ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active || c->nation_id != human) {
+          continue;
+        }
+        if (colonies_has_fortification(ctx->colonies, c)) {
+          continue;
+        }
+        const int dist = abs(c->x - from_x) + abs(c->y - from_y);
+        if (best_col < 0 || dist < best_col) {
+          best_col = dist;
+          bx = c->x;
+          by = c->y;
+        }
+      }
+      if (best_col >= 0) {
+        int cx = 0;
+        int cy = 0;
+        if (ai_king_human_capital(ctx, human, &cx, &cy)) {
+          const int cid = colonies_id_at(ctx->colonies, cx, cy);
+          if (cid >= 0) {
+            const ColonizeColony* cap = &ctx->colonies->colonies[cid];
+            /* Open-land: capital bias only when capital is unfortified. */
+            if (!colonies_has_fortification(ctx->colonies, cap)) {
+              (void)ai_king_prefer_capital_if_comparable(ctx, human, from_x, from_y, &bx, &by,
+                                                         best_col);
+              best_col = abs(bx - from_x) + abs(by - from_y);
+            }
+          }
+        }
+      }
+    }
+    if (best_unit >= 0 || best_col >= 0) {
+      /* Unit wins on equal MD (same as prior combined pass); else colony. */
+      if (best_unit >= 0 && (best_col < 0 || best_unit <= best_col)) {
+        *out_x = ux;
+        *out_y = uy;
+      } else {
+        *out_x = bx;
+        *out_y = by;
+      }
+      return 1;
+    }
+    /* No open target — fall through to nearest (may be fortified). */
+  }
+
+  int best_unit = -1;
+  int ux = 0;
+  int uy = 0;
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id != human) {
+      continue;
+    }
+    if (!units_is_on_map(f) || units_is_sea(ctx->units, f->id)) {
+      continue;
+    }
+    const int dist = abs(f->x - from_x) + abs(f->y - from_y);
+    if (best_unit < 0 || dist < best_unit) {
+      best_unit = dist;
+      ux = f->x;
+      uy = f->y;
+    }
+  }
+
+  int best_col = -1;
+  int bx = 0;
+  int by = 0;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      const int dist = abs(c->x - from_x) + abs(c->y - from_y);
+      if (best_col < 0 || dist < best_col) {
+        best_col = dist;
+        bx = c->x;
+        by = c->y;
+      }
+    }
+    if (best_col >= 0) {
+      (void)ai_king_prefer_capital_if_comparable(ctx, human, from_x, from_y, &bx, &by,
+                                                 best_col);
+      best_col = abs(bx - from_x) + abs(by - from_y);
+    }
+  }
+
+  if (best_unit < 0 && best_col < 0) {
+    return 0;
+  }
+  /* Unit wins on equal MD; capital-biased colony otherwise. */
+  if (best_unit >= 0 && (best_col < 0 || best_unit <= best_col)) {
+    *out_x = ux;
+    *out_y = uy;
+  } else {
+    *out_x = bx;
+    *out_y = by;
+  }
+  return 1;
+}
+
+/* True if any human land unit is adjacent to (x,y). */
+static int ai_king_adjacent_human_unit(const ColonizeTurnContext* ctx, int human, int x,
+                                       int y) {
+  if (!ctx || !ctx->units || human < 0) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + dx[d];
+    const int ny = y + dy[d];
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* f = &ctx->units->units[i];
+      if (!f->active || f->nation_id != human || !units_is_on_map(f)) {
+        continue;
+      }
+      if (units_is_sea(ctx->units, f->id)) {
+        continue;
+      }
+      if (f->x == nx && f->y == ny) {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+/* True if any active human colony is adjacent to (x,y). */
+static int ai_king_adjacent_human_colony(const ColonizeTurnContext* ctx, int human, int x,
+                                         int y) {
+  if (!ctx || !ctx->colonies || human < 0) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int cid = colonies_id_at(ctx->colonies, x + dx[d], y + dy[d]);
+    if (cid < 0) {
+      continue;
+    }
+    const ColonizeColony* c = &ctx->colonies->colonies[cid];
+    if (c->active && c->nation_id == human) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Water tile adjacent to a human colony (nearest to from_x/from_y).
+ * Source: fandom REF AI man-o-war → ports; used for wartime MoW AI_SAIL.
+ * Returns 1 if found.
+ */
+static int ai_king_human_coast_water(const ColonizeTurnContext* ctx, int human, int from_x,
+                                     int from_y, int* out_x, int* out_y) {
+  if (!ctx || !ctx->map || !ctx->colonies || !out_x || !out_y || human < 0) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != human) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int nx = c->x + dx[d];
+      const int ny = c->y + dy[d];
+      if (!map_tile_is_water(ctx->map, nx, ny)) {
+        continue;
+      }
+      const int dist = abs(nx - from_x) + abs(ny - from_y);
+      if (best < 0 || dist < best) {
+        best = dist;
+        bx = nx;
+        by = ny;
+      }
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Adjacent land for wartime MoW unload near a human colony.
+ * Prefer the human colony tile itself; else foundable or coastal land that is
+ * adjacent to a human colony. Source: fandom REF man-o-war → ports / seize
+ * landing. Returns 1 if a dest was found.
+ */
+static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int human,
+                                        const ColonizeUnit* ship, int* out_x, int* out_y) {
+  if (!ctx || !ctx->map || !ctx->units || !ship || !out_x || !out_y || human < 0) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int pax_id = -1;
+  int pax_type = -1;
+  if (ship->cargo_count > 0) {
+    pax_id = ship->cargo_ids[0];
+    const ColonizeUnit* pax = units_get_const(ctx->units, pax_id);
+    if (pax) {
+      pax_type = pax->type_index;
+    }
+  }
+  if (pax_type < 0) {
+    return 0;
+  }
+
+  int best_score = -1;
+  int bx = 0;
+  int by = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = ship->x + dx[d];
+    const int ny = ship->y + dy[d];
+    if (!map_tile_is_land(ctx->map, nx, ny)) {
+      continue;
+    }
+    if (!units_can_enter(ctx->units, pax_type, ctx->map, nx, ny, pax_id, ctx->colonies)) {
+      continue;
+    }
+    int score = 0;
+    const int cid = ctx->colonies ? colonies_id_at(ctx->colonies, nx, ny) : -1;
+    if (cid >= 0) {
+      const ColonizeColony* c = &ctx->colonies->colonies[cid];
+      if (c->active && c->nation_id == human) {
+        score = 100; /* Prefer unload onto the human colony tile. */
+      } else {
+        continue; /* Other colony tiles are not REF coastal landings. */
+      }
+    } else {
+      /* Foundable or coastal land next to a human colony. */
+      const int foundable =
+          ctx->colonies && colonies_can_found(ctx->colonies, ctx->map, nx, ny);
+      const int coastal = map_tile_is_coastal(ctx->map, nx, ny);
+      if (!foundable && !coastal) {
+        continue;
+      }
+      if (!ai_king_adjacent_human_colony(ctx, human, nx, ny)) {
+        continue;
+      }
+      score = foundable ? 50 : 40;
+    }
+    if (score > best_score) {
+      best_score = score;
+      bx = nx;
+      by = ny;
+    }
+  }
+  if (best_score < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Wartime MoW adjacent to coast/colony land: unload one passenger.
+ * Prefer Regular in hold; else Dragoon (REF land arm — fandom Regulars +
+ * Cavalry/Dragoons). Reuses units_unload_passenger (Euro landfall path).
+ * Full multi-slot embark / seize-landing / MoW×6 chrome PARKED.
+ * Returns 1 if a unit was unloaded.
+ */
+static int ai_king_mow_try_unload_one(ColonizeTurnContext* ctx, ColonizeUnit* ship,
+                                     int human) {
+  if (!ctx || !ctx->units || !ship || ship->cargo_count <= 0) {
+    return 0;
+  }
+  int dest_x = 0;
+  int dest_y = 0;
+  if (!ai_king_mow_unload_land_dest(ctx, human, ship, &dest_x, &dest_y)) {
+    return 0;
+  }
+  /* Prefer Regular; else Dragoon when cargo allows (REF land arm). */
+  int pax_id = ship->cargo_ids[0];
+  int found = 0;
+  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+    const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
+    if (p && ai_king_is_regular(ctx->units, p)) {
+      pax_id = ship->cargo_ids[c];
+      found = 1;
+      break;
+    }
+  }
+  if (!found) {
+    for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+      const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
+      if (p && ai_king_is_dragoon(ctx->units, p)) {
+        pax_id = ship->cargo_ids[c];
+        break;
+      }
+    }
+  }
+  if (!units_unload_passenger(ctx->units, ship->id, pax_id, ctx->map, dest_x, dest_y,
+                              ctx->colonies)) {
+    return 0;
+  }
+  return 1;
+}
+
+/*
+ * After capture: fortify one Regular on the colony tile (UNITS_ORDER_FORTIFY).
+ * Prefer the capturing unit if Regular; else another crown Regular on tile.
+ * Only one Regular is fortified — extras on the same tile keep hunting
+ * (see idle-garrison gate via ai_king_tile_has_fortified_regular).
+ * Source: public units_order_fortify API; garrison chrome beyond one Regular PARKED.
+ */
+static void ai_king_fortify_regular_at(ColonizeTurnContext* ctx, ColonizeUnit* capturer,
+                                       int crown, int x, int y) {
+  if (!ctx || !ctx->units || crown < 0) {
+    return;
+  }
+  /* Already have a fortified Regular on tile — do not stack more garrisons. */
+  if (ai_king_tile_has_fortified_regular(ctx, crown, x, y,
+                                         capturer ? capturer->id : -1)) {
+    return;
+  }
+  if (capturer && capturer->active && capturer->nation_id == crown &&
+      ai_king_is_regular(ctx->units, capturer) && capturer->x == x && capturer->y == y) {
+    (void)units_order_fortify(ctx->units, capturer->id);
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != crown || u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_regular(ctx->units, u)) {
+      continue;
+    }
+    (void)units_order_fortify(ctx->units, u->id);
+    return;
+  }
+}
+
+/*
+ * After capture / idle on own colony: fortify crown Artillery on the tile
+ * (UNITS_ORDER_FORTIFY). Euro pattern — case 0x0b fortify arm; Colonization.pdf
+ * fortify defense / Artillery siege; euro_unit_act Artillery fortify after siege.
+ * Unlike Regular stack (one garrison), each idle Artillery on the colony holds.
+ * Artillery elsewhere still hunts fortified ports (thin siege bias).
+ */
+static void ai_king_fortify_artillery_at(ColonizeTurnContext* ctx, ColonizeUnit* capturer,
+                                         int crown, int x, int y) {
+  if (!ctx || !ctx->units || crown < 0) {
+    return;
+  }
+  if (capturer && capturer->active && capturer->nation_id == crown &&
+      ai_king_is_artillery(ctx->units, capturer) && capturer->x == x &&
+      capturer->y == y) {
+    if (capturer->orders != UNITS_ORDER_FORTIFY &&
+        capturer->orders != UNITS_ORDER_FORTIFIED) {
+      (void)units_order_fortify(ctx->units, capturer->id);
+    }
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != crown || u->x != x || u->y != y) {
+      continue;
+    }
+    if (!ai_king_is_artillery(ctx->units, u)) {
+      continue;
+    }
+    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+      continue;
+    }
+    (void)units_order_fortify(ctx->units, u->id);
+  }
+}
+
+/* If REF stands on a human colony tile, capture (conquest — colonies_capture). */
+static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, int crown,
+                                   int human) {
+  if (!ctx || !u || !u->active || !ctx->colonies) {
+    return;
+  }
+  const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+  if (cid < 0) {
+    return;
+  }
+  ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+  if (c && c->nation_id == human) {
+    /* Source: conquest / colonies_capture — Euro owner swap; no gold fiction. */
+    char cname[COLONIZE_COLONY_NAME_MAX];
+    snprintf(cname, sizeof(cname), "%s", c->name[0] ? c->name : "your colony");
+    if (colonies_capture(ctx->colonies, cid, crown)) {
+      /*
+       * Thin human status on REF capture (full conquest chrome PARKED).
+       * Do not clobber same-beat 2244 merc hire status; may replace 1528 arrival.
+       */
+      if (ctx->status && ctx->status_size &&
+          !(strstr(ctx->status, "Mercenaries join") ||
+            strstr(ctx->status, "Continental cause") ||
+            strstr(ctx->status, "Cannot afford mercenaries"))) {
+        snprintf(ctx->status, ctx->status_size, "The King's forces have captured %s!",
+                 cname);
+      }
+      ai_king_fortify_regular_at(ctx, u, crown, u->x, u->y);
+      /* Euro pattern: idle Artillery on newly captured colony → FORTIFY. */
+      ai_king_fortify_artillery_at(ctx, u, crown, u->x, u->y);
+    }
+  }
 }
 
 static int ai_king_force_total(const uint16_t force[4]) {
@@ -124,6 +964,24 @@ static void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {
     return;
   }
   col1->head.unknown46[AI_KING_BOYCOTT_BYTE] = on ? 1 : 0;
+}
+
+/*
+ * Sync tax-refuse stand-in when cargo boycotts were cleared externally
+ * (Jakob Fugger / diplo peace lift — do not touch FF here).
+ * Source: fandom Jakob Fugger “all boycotts forgiven”; king_ref refuse +
+ * nation.boycott_bitmap. When bitmap==0, clear unknown46[2] so tax may resume.
+ */
+static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
+  if (!col1 || human < 0 || human >= 4) {
+    return;
+  }
+  if (col1->head.unknown46[AI_KING_BOYCOTT_BYTE] == 0) {
+    return;
+  }
+  if (col1->nation[human].boycott_bitmap == 0) {
+    col1->head.unknown46[AI_KING_BOYCOTT_BYTE] = 0;
+  }
 }
 
 static int ai_king_merc_hired(const ColonizeCol1Save* col1) {
@@ -218,7 +1076,11 @@ static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, 
   return ai_king_sol_percent(ctx, nation_id);
 }
 
-/* Linux WoI stand-in for DOS 0x5382 bit0. */
+/*
+ * Linux WoI stand-in for DOS 0x5382 bit0.
+ * Set only on declare (ai_king_try_declare / ai_king_set_independence) when
+ * SoL≥AI_KING_DECLARE_SOL_MIN — never by restless chrome. Exact Col1 bit PARKED.
+ */
 static int ai_king_independence_declared(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 0;
@@ -230,6 +1092,7 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
+  /* unknown46[0] = WoI flag (set once on declare; idempotent if already set). */
   col1->head.unknown46[AI_KING_WOI_BYTE] = on ? 1 : 0;
   if (on) {
     col1->head.event.colony_burning = 1; /* chrome hint */
@@ -255,6 +1118,8 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (human < 0 || human >= 4) {
     return;
   }
+  /* Fugger / external bitmap clear → drop refuse so tax may resume. */
+  ai_king_sync_boycott_refuse(ctx->col1, human);
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   const int year = ctx->game_year ? (int)*ctx->game_year : 1492;
   const int diff = ctx->col1->head.difficulty;
@@ -295,7 +1160,8 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
     /* Thin 38fd_5be8 audience status (real accept/refuse modal PARKED). */
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size,
-               "The colonies refuse the tax increase! Tax stays at %u%%.", nat->tax_rate);
+               "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
+               nat->tax_rate);
     }
     return;
   }
@@ -311,10 +1177,12 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
 }
 
 /*
- * FUN_43f7_2564 gate (SoL≥50) + 1a26 declare body (auto).
+ * FUN_43f7_2564 gate (SoL≥AI_KING_DECLARE_SOL_MIN) + 1a26 declare body (auto).
  * Thin congress-confirm status + unknown46[5]; real confirm modal PARKED.
  * Seeds REF by difficulty; thin backup_force as 10f0 foreign-pool stand-in;
  * withdraws other Euros.
+ * Auto-declare only when SoL already past the existing 2564/fandom threshold
+ * (AI_KING_DECLARE_SOL_MIN) and bells ≥ AI_KING_DECLARE_BELLS_MIN — no new %.
  */
 static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -328,14 +1196,14 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     return;
   }
   const int sol = ai_king_sol_percent(ctx, human);
-  if (sol < 50) {
+  if (sol < AI_KING_DECLARE_SOL_MIN) {
     return;
   }
   const ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->liberty_bells_total < 100) {
+  if (nat->liberty_bells_total < AI_KING_DECLARE_BELLS_MIN) {
     return;
   }
-  ai_king_set_independence(ctx->col1, 1);
+  ai_king_set_independence(ctx->col1, 1); /* WoI: unknown46[0] if not already */
   /* Thin 2564 congress-confirm stand-in (real confirm modal PARKED). */
   ctx->col1->head.unknown46[AI_KING_CONGRESS_BYTE] = 1;
   const int diff = ctx->col1->head.difficulty;
@@ -430,10 +1298,48 @@ static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int 
 }
 
 /*
+ * Spawn one land type from REF pools at (x,y). When target_fortified and
+ * Artillery type exists with force[3]>0, prefer Artillery (thin siege spawn).
+ * Returns 1 on success.
+ */
+static int ai_king_spawn_wave_land_from_pools(ColonizeTurnContext* ctx, int nation_id, int x,
+                                              int y, uint16_t* force, int target_fortified) {
+  static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
+  if (!force) {
+    return 0;
+  }
+  /* Thin Artillery siege spawn bias (fandom REF includes Artillery; type gate). */
+  if (target_fortified && force[3] > 0 && ai_king_artillery_type(ctx->units) >= 0) {
+    if (ai_king_spawn_wave_land(ctx, nation_id, x, y, "Artillery", "Cannon")) {
+      force[3]--;
+      return 1;
+    }
+  }
+  for (int k = 0; k < 4; ++k) {
+    if (k == 2 || force[k] == 0) {
+      continue;
+    }
+    const char* alt = (k == 0) ? "Soldier" : ((k == 1) ? "Scout" : ((k == 3) ? "Cannon" : NULL));
+    if (!ai_king_spawn_wave_land(ctx, nation_id, x, y, names[k], alt)) {
+      continue;
+    }
+    force[k]--;
+    return 1;
+  }
+  return 0;
+}
+
+/*
  * FUN_43f7_0982 (pools>0) / 06a6 (empty): REF wave arms.
  * Thin 1528: status arrival line when 0982 spawns (chrome UI PARKED).
  * Thin MoW cargo: when force[2] drained, unload up to AI_KING_MOW_HOLD_UNLOAD
- * Regulars from force[0] (hold-size-3 structural; fandom MoW×6 chrome PARKED).
+ * land units — Regulars from force[0] first, then Dragoons from force[1] if
+ * hold slots remain (hold-size-3 structural; fandom MoW×6 chrome PARKED).
+ * Second MoW: when difficulty ≥ AI_KING_SECOND_MOW_DIFF and force[2] still
+ * allows, spawn a second Man-O-War stand-in same beat (existing 0982 path).
+ * Thin Artillery siege: when target colony is fortified and Artillery type
+ * exists, prefer force[3] Artillery for the non-MoW land spawn / empty-hold
+ * guarantee (deep siege scoring PARKED).
  */
 static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map) {
@@ -464,6 +1370,11 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (cid < 0) {
     return;
   }
+  int target_fortified = 0;
+  if (ctx->colonies && cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
+    const ColonizeColony* c = &ctx->colonies->colonies[cid];
+    target_fortified = colonies_has_fortification(ctx->colonies, c) ? 1 : 0;
+  }
   int spawned = 0;
   int mow_spawned = 0;
   int ship_ty = units_find_type(ctx->units, "Man-O-War");
@@ -474,13 +1385,23 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   int sx = tx;
   int sy = ty;
+  int sx2 = tx;
+  int sy2 = ty;
+  int found_water = 0;
+  int found_water2 = 0;
   for (int d = 0; d < 8; ++d) {
     const int nx = tx + dx[d];
     const int ny = ty + dy[d];
     if (map_tile_is_water(ctx->map, nx, ny)) {
-      sx = nx;
-      sy = ny;
-      break;
+      if (!found_water) {
+        sx = nx;
+        sy = ny;
+        found_water = 1;
+      } else if (!found_water2) {
+        sx2 = nx;
+        sy2 = ny;
+        found_water2 = 1;
+      }
     }
   }
   if (ship_ty >= 0 && force[2] > 0) {
@@ -498,56 +1419,67 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
       mow_spawned = 1;
     }
   }
+  /*
+   * Second MoW stand-in: high difficulty + naval pool remaining.
+   * Same 0982 spawn path; stack on first water tile if only one adjacent.
+   * Source: fandom REF Men-O-War by difficulty; deep multi-ship chrome PARKED.
+   */
+  if (mow_spawned && ship_ty >= 0 && force[2] > 0 &&
+      ctx->col1->head.difficulty >= AI_KING_SECOND_MOW_DIFF) {
+    const int wx = found_water2 ? sx2 : sx;
+    const int wy = found_water2 ? sy2 : sy;
+    const int sid2 = units_spawn_allow_stack(ctx->units, ship_ty, wx, wy);
+    if (sid2 >= 0) {
+      ColonizeUnit* ship2 = units_get(ctx->units, sid2);
+      if (ship2) {
+        ship2->nation_id = crown;
+        ship2->orders = UNITS_ORDER_AI_SAIL;
+        ship2->goto_x = wx;
+        ship2->goto_y = wy;
+      }
+      force[2]--;
+      spawned = 1;
+    }
+  }
 
   if (mow_spawned) {
     /*
      * Thin MoW cargo unload near target colony (same crown):
-     * hold size AI_KING_MOW_HOLD_UNLOAD stand-in — spawn
-     * min(hold, force[0]) Regulars; drain force[0].
-     * Source: fandom REF AI “man-o-war with 6 units”; full embark /
-     * cargo_ids chrome remain PARKED (structural deepen only).
+     * hold size AI_KING_MOW_HOLD_UNLOAD stand-in — fill with Regulars
+     * (force[0]) first, then Dragoons (force[1]) while slots remain.
+     * Source: fandom REF “Men-O-War, Regulars, Cavalry”; “man-o-war with
+     * 6 units” — full embark / cargo_ids / MoW×6 chrome remain PARKED.
      */
-    const int unload =
-        (force[0] >= AI_KING_MOW_HOLD_UNLOAD) ? AI_KING_MOW_HOLD_UNLOAD : (int)force[0];
+    int slots = AI_KING_MOW_HOLD_UNLOAD;
     int landed = 0;
-    for (int n = 0; n < unload; ++n) {
+    while (slots > 0 && force[0] > 0) {
       if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, "Regular", "Soldier")) {
         break;
       }
       force[0]--;
+      slots--;
       spawned = 1;
       landed++;
     }
-    /* Guarantee ≥1 land same beat if Regular pool was empty. */
-    if (landed == 0) {
-      static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
-      for (int k = 0; k < 4; ++k) {
-        if (k == 2 || force[k] == 0) {
-          continue;
-        }
-        const char* alt = (k == 0) ? "Soldier" : ((k == 1) ? "Scout" : NULL);
-        if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, names[k], alt)) {
-          continue;
-        }
-        force[k]--;
-        spawned = 1;
+    while (slots > 0 && force[1] > 0) {
+      if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, "Dragoon", "Scout")) {
         break;
+      }
+      force[1]--;
+      slots--;
+      spawned = 1;
+      landed++;
+    }
+    /* Guarantee ≥1 land same beat if Regular+Dragoon pools were empty. */
+    if (landed == 0) {
+      if (ai_king_spawn_wave_land_from_pools(ctx, crown, tx, ty, force, target_fortified)) {
+        spawned = 1;
       }
     }
   } else {
-    /* No MoW this beat: one land pool type (pre-cargo path). */
-    static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
-    for (int k = 0; k < 4; ++k) {
-      if (k == 2 || force[k] == 0) {
-        continue;
-      }
-      const char* alt = (k == 0) ? "Soldier" : ((k == 1) ? "Scout" : NULL);
-      if (!ai_king_spawn_wave_land(ctx, crown, tx, ty, names[k], alt)) {
-        continue;
-      }
-      force[k]--;
+    /* No MoW this beat: one land pool type (Artillery prefer if fortified). */
+    if (ai_king_spawn_wave_land_from_pools(ctx, crown, tx, ty, force, target_fortified)) {
       spawned = 1;
-      break; /* one land type per wave beat */
     }
   }
   ai_king_set_ref_present(ctx->col1, 1);
@@ -596,8 +1528,9 @@ static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int
  * FUN_43f7_10f0-shaped: foreign-intervention landing when REF empty and
  * backup_force (DOS 0x53e2… stand-in) still has pools. Up to two landings
  * per call; third when difficulty ≥ AI_KING_INTERVENE_DIFF_THIRD (REF
- * pressure). Prefer Regular + Dragoon when both pools > 0. Crown-hostile
- * nation_id (non-human, non-crown). Deep economy / merc hire / arrival chrome PARKED.
+ * pressure). Prefer Regular + Dragoon when both pools > 0. Intervene nation:
+ * Euro with most colonies (tie-break land-unit force). Deep economy / merc
+ * hire / arrival chrome PARKED.
  */
 static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -618,7 +1551,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
     return;
   }
-  const int ally = ai_king_intervention_nation(ctx->human_nation);
+  const int ally = ai_king_intervention_nation(ctx, ctx->human_nation);
   int landings = 0;
   const int diff = ctx->col1->head.difficulty;
   const int max_landings =
@@ -642,9 +1575,12 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
 }
 
 /*
- * Thin FUN_43f7_2244 stand-in: auto-accept Continental merc aid once per war
- * when gold>=300 and SoL>50. Spawns Soldier/Dragoon for human near weakest
- * port; hire-dialog–flavored status. Real hire modal PARKED.
+ * Thin FUN_43f7_2244 stand-in: once-per-war Continental merc offer when SoL>50.
+ * gold>=300 → auto-accept: spend, spawn Soldier/Dragoon near weakest port,
+ * hire-dialog status. gold insufficient → refuse status once
+ * ("Cannot afford mercenaries."). Real hire modal PARKED.
+ * Gate: unknown46[3] (AI_KING_MERC_HIRED_BYTE) — set on hire *or* refuse so
+ * status / spend / spawn never spam on later wartime turns.
  */
 static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
@@ -657,11 +1593,8 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (human < 0 || human >= 4) {
     return;
   }
+  /* Once-per-war: flag set after hire or cannot-afford — no status rewrite. */
   if (ai_king_merc_hired(ctx->col1)) {
-    return;
-  }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->gold < AI_KING_MERC_COST) {
     return;
   }
   if (ai_king_sol_percent(ctx, human) <= AI_KING_MERC_SOL_MIN) {
@@ -672,6 +1605,15 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
     return;
   }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  if (nat->gold < AI_KING_MERC_COST) {
+    /* PARK UI refuse: thin status once; same unknown46[3] gate as hire. */
+    ai_king_set_merc_hired(ctx->col1, 1);
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
+    }
+    return;
+  }
   if (ai_king_spawn_landing(ctx, human, hx, hy, "Soldier", "Dragoon") < 0) {
     return;
   }
@@ -680,7 +1622,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     ctx->europe->gold = (int)nat->gold;
   }
   ai_king_set_merc_hired(ctx->col1, 1);
-  /* Thin 2244 hire-dialog status (real modal widgets PARKED). */
+  /* Thin 2244 hire-dialog status once (real modal widgets PARKED). */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
              "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
@@ -689,8 +1631,22 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
 
 /*
  * FUN_43f7_2022 war act + 1eca promote.
- * Move/combat/capture; 1eca colony-SoL bands (40–50 vet / >50 Continental+Regular);
- * 10f0 intervene arm (≤3 @ difficulty≥2); thin 2244 merc auto-accept.
+ * REF land hunt (Regular/Dragoon/Artillery/Cont.→nearest human colony/unit) + combat/capture;
+ * thin Artillery siege prefer fortified (adjacent unfortified must not override);
+ * thin Dragoon/Cont. Cav prefer open when Artillery type exists; capital MD bias
+ * (founding capital over distant colonies when MD within slack); post-capture
+ * fortify one Regular (stack extras hunt) + human status; wartime MoW with cargo
+ * → unload-at-coast one Regular else Dragoon (prefer colony tile / seize) else
+ * AI_SAIL→human coast; idle empty MoW → AI_SAIL coastal patrol (nearest human
+ * coast water; no new ships; MoW×6 chrome PARKED); 1eca colony-SoL bands
+ * (40–50 vet / >50 Continental+Regular); Cont. Army/Cav after promote →
+ * capital-rally (founding capital; weakest_port fallback); 10f0 intervene arm
+ * (≤3 @ difficulty≥2); thin 2244 merc auto-accept or cannot-afford once/war.
+ * REF idle Regular on crown colony (no adjacent foe) → fortify only if no other
+ * Regular on tile is already FORTIFY/FORTIFIED; already-garrisoned stay put;
+ * extras hunt (fandom REF garrison stack; uncaptured ports).
+ * Idle Artillery on crown/captured colony → FORTIFY (Euro after-siege pattern;
+ * Colonization.pdf fortify defense; euro_unit_act Artillery fortify).
  */
 static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
@@ -708,53 +1664,12 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   ai_king_merc_offer(ctx);
 
   const int crown = ai_king_crown_nation(ctx->human_nation);
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != crown) {
-      continue;
-    }
-    if (u->moves_left <= 0) {
-      continue;
-    }
-    int tx = u->goto_x;
-    int ty = u->goto_y;
-    if (tx < 0 || ty < 0 || tx >= 255 || ty >= 255) {
-      if (ai_king_weakest_port(ctx, ctx->human_nation, &tx, &ty) < 0) {
-        continue;
-      }
-      u->goto_x = tx;
-      u->goto_y = ty;
-    }
-    const int sdx = (tx > u->x) - (tx < u->x);
-    const int sdy = (ty > u->y) - (ty < u->y);
-    const int nx = u->x + sdx;
-    const int ny = u->y + sdy;
-    const int foe = units_id_at(ctx->units, nx, ny);
-    if (foe >= 0) {
-      const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (f && f->nation_id == ctx->human_nation) {
-        if (units_is_sea(ctx->units, u->id)) {
-          units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
-        } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
-          units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
-        }
-        continue;
-      }
-    }
-    units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
-    if (u->active && ctx->colonies) {
-      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (cid >= 0) {
-        ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-        if (c && c->nation_id == ctx->human_nation) {
-          colonies_capture(ctx->colonies, cid, crown);
-        }
-      }
-    }
-  }
+  const int human = ctx->human_nation;
 
   /*
-   * FUN_43f7_1eca promote (catalog: Continental when colony SoL>50%):
+   * Rebel arm (1eca + Cont. hunt) before crown capture so Cont. Army can still
+   * aim at human ports while they exist. FUN_43f7_1eca promote (catalog:
+   * Continental when colony SoL>50%):
    * Per-unit SoL from Col1 rebel_dividend/divisor at the unit tile
    * (ai_king_colony_sol_at); nation 0004 aggregate only as fallback.
    *   colony SoL>50: Soldier* → Continental Army / Cont. Army / Veteran Soldier
@@ -789,7 +1704,6 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       regular_tgt = units_find_type(ctx->units, "Cont. Army");
     }
     const int vet = units_find_type(ctx->units, "Veteran Soldier");
-    const int human = ctx->human_nation;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &ctx->units->units[i];
       if (!u->active || u->nation_id != human) {
@@ -830,6 +1744,325 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       }
     }
   }
+
+  /*
+   * After 1eca Continental promote: Cont. Army / Cont. Cav (hunter name check
+   * includes both) prefer AI_MOVE toward human founding capital; fallback
+   * weakest_port when no capital. Source: fandom Independence Cont. Army /
+   * Cont. Cavalry; existing REF hunter pattern. Deep rebel AI PARKED.
+   */
+  {
+    int hx = 0;
+    int hy = 0;
+    int have_cap = ai_king_human_capital(ctx, human, &hx, &hy);
+    if (!have_cap && ai_king_weakest_port(ctx, human, &hx, &hy) >= 0) {
+      have_cap = 1;
+    }
+    if (have_cap) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != human || u->moves_left <= 0) {
+          continue;
+        }
+        if (units_is_sea(ctx->units, u->id)) {
+          continue;
+        }
+        if (!ai_king_is_continental(ctx->units, u)) {
+          continue;
+        }
+        /* Already on a human colony tile — hold. */
+        if (ctx->colonies) {
+          const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+          if (cid >= 0) {
+            const ColonizeColony* c = &ctx->colonies->colonies[cid];
+            if (c->active && c->nation_id == human) {
+              continue;
+            }
+          }
+        }
+        u->orders = UNITS_ORDER_AI_MOVE;
+        u->goto_x = hx;
+        u->goto_y = hy;
+      }
+    }
+  }
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != crown) {
+      continue;
+    }
+    /* Already on a human colony → capture even with 0 moves (conquest). */
+    ai_king_try_capture_at(ctx, u, crown, human);
+    if (!u->active || u->moves_left <= 0) {
+      continue;
+    }
+
+    /*
+     * Wartime MoW (fandom REF man-o-war → ports):
+     *   cargo > 0 → unload one Regular (else Dragoon) when adjacent to
+     *     foundable/coastal land by a human colony (units_unload_passenger);
+     *     else AI_SAIL→coast water.
+     *   cargo == 0 (idle empty) → AI_SAIL coastal patrol toward water adjacent
+     *     to nearest human coastal colony. Redirects existing ships only —
+     *     do not invent new MoW. Full multi-slot embark / MoW×6 chrome PARKED.
+     */
+    if (ai_king_is_mow(ctx->units, u)) {
+      if (u->cargo_count > 0 && ai_king_mow_try_unload_one(ctx, u, human)) {
+        /* One Regular/Dragoon ashore; remaining cargo may sail next beat. */
+        continue;
+      }
+      int wx = 0;
+      int wy = 0;
+      if (ai_king_human_coast_water(ctx, human, u->x, u->y, &wx, &wy)) {
+        u->orders = UNITS_ORDER_AI_SAIL;
+        u->goto_x = wx;
+        u->goto_y = wy;
+      }
+      int tx = u->goto_x;
+      int ty = u->goto_y;
+      if (tx < 0 || ty < 0 || tx >= 255 || ty >= 255) {
+        continue;
+      }
+      const int sdx = (tx > u->x) - (tx < u->x);
+      const int sdy = (ty > u->y) - (ty < u->y);
+      const int nx = u->x + sdx;
+      const int ny = u->y + sdy;
+      const int foe = units_id_at(ctx->units, nx, ny);
+      if (foe >= 0) {
+        const ColonizeUnit* f = units_get_const(ctx->units, foe);
+        if (f && f->nation_id == human && units_is_sea(ctx->units, foe)) {
+          units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
+        }
+        continue;
+      }
+      if (map_tile_is_water(ctx->map, nx, ny)) {
+        units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+      }
+      continue;
+    }
+
+    /*
+     * REF idle garrison (heal/fortify stand-in): Regular on own (crown)
+     * colony — including a captured human capital — with no adjacent human
+     * foe/colony → fortify **one** when the stack rule allows.
+     * Already FORTIFY/FORTIFIED: stay (do not wake to hunt).
+     * If another crown Regular on the tile is already FORTIFY/FORTIFIED,
+     * leave this unit free to hunt (REF stack: one garrison, extras move).
+     * Source: units_order_fortify; fandom REF AI garrison; overnight
+     * fortify→fortified heal is the engine path — no invented HP.
+     * Adjacent uncaptured colony or human unit still hunts.
+     */
+    if (ai_king_is_regular(ctx->units, u) && ctx->colonies) {
+      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (cid >= 0) {
+        const ColonizeColony* c = &ctx->colonies->colonies[cid];
+        if (c->active && c->nation_id == crown &&
+            !ai_king_adjacent_human_unit(ctx, human, u->x, u->y) &&
+            !ai_king_adjacent_human_colony(ctx, human, u->x, u->y)) {
+          /* Prefer stay garrisoned once stack slot is taken by this unit. */
+          if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+            continue;
+          }
+          if (!ai_king_tile_has_fortified_regular(ctx, crown, u->x, u->y, u->id)) {
+            (void)units_order_fortify(ctx->units, u->id);
+            continue;
+          }
+          /* Extra Regular on garrisoned colony — fall through to hunt. */
+        }
+      }
+    }
+
+    /*
+     * Artillery idle fortify (Euro after-siege pattern): Artillery on own
+     * (crown) colony — including newly captured — with no adjacent human
+     * foe/colony → FORTIFY and hold. Already FORTIFY/FORTIFIED stay put.
+     * Cite: euro_unit_act Artillery fortify after siege; Colonization.pdf
+     * fortify defense / Artillery; case 0x0b fortify arm. Off-colony Artillery
+     * still hunts fortified ports (thin siege bias below).
+     */
+    if (ai_king_is_artillery(ctx->units, u) && ctx->colonies) {
+      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (cid >= 0) {
+        const ColonizeColony* c = &ctx->colonies->colonies[cid];
+        if (c->active && c->nation_id == crown &&
+            !ai_king_adjacent_human_unit(ctx, human, u->x, u->y) &&
+            !ai_king_adjacent_human_colony(ctx, human, u->x, u->y)) {
+          if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+            continue;
+          }
+          (void)units_order_fortify(ctx->units, u->id);
+          continue;
+        }
+      }
+    }
+
+    /*
+     * REF land hunt (fandom REF AI; conceptual reuse of ai_euro land hunt):
+     * idle Regular/Dragoon/Artillery/Cont. with moves → AI_MOVE toward nearest
+     * human colony or human land unit. Artillery prefers fortified colonies when
+     * the Artillery type exists in pool. Dragoon / Cont. Cav prefer open land /
+     * unfortified colonies when Artillery exists (thin role split; else nearest).
+     * Capital MD bias: founding capital preferred over a nearer distant colony
+     * when MD within AI_KING_CAPITAL_MD_SLACK (idle hunters). Prefer adjacent
+     * uncaptured colony over marching past (Artillery: adjacent unfortified must
+     * not override a fortified hunt). Deeper multi-step combat scoring PARKED.
+     *
+     * After-capture extras: standing on a crown colony whose fortify-stack slot
+     * is already taken (another Regular FORTIFY/FORTIFIED) → prefer next nearest
+     * remaining human colony (strict MD; no capital slack / no closer unit bait).
+     * Source: fandom REF AI uncaptured-colony pressure; one-garrison stack rule.
+     */
+    if (ai_king_is_ref_land_hunter(ctx->units, u)) {
+      const int have_arty = (ai_king_artillery_type(ctx->units) >= 0) ? 1 : 0;
+      const int prefer_fort =
+          (have_arty && ai_king_is_artillery(ctx->units, u)) ? 1 : 0;
+      const int prefer_open =
+          (have_arty && ai_king_prefers_open_land(ctx->units, u)) ? 1 : 0;
+      /*
+       * Extra on garrisoned crown colony (post-capture / stack): next colony.
+       * Captured founding capital is no longer human — do not re-apply capital
+       * MD slack to the next-lowest colony id.
+       */
+      int after_capture_next = 0;
+      if (ctx->colonies) {
+        const int own_cid = colonies_id_at(ctx->colonies, u->x, u->y);
+        if (own_cid >= 0) {
+          const ColonizeColony* own = &ctx->colonies->colonies[own_cid];
+          if (own->active && own->nation_id == crown &&
+              ai_king_tile_has_fortified_regular(ctx, crown, u->x, u->y, u->id)) {
+            after_capture_next = 1;
+          }
+        }
+      }
+      int hx = 0;
+      int hy = 0;
+      int have_hunt = 0;
+      if (after_capture_next) {
+        /* Prefer next uncaptured colony; if none left, fall back to unit hunt. */
+        have_hunt = ai_king_nearest_human_colony(ctx, human, u->x, u->y, &hx, &hy);
+        if (!have_hunt) {
+          have_hunt =
+              ai_king_ref_hunt_target(ctx, human, u->x, u->y, &hx, &hy, prefer_fort,
+                                      prefer_open);
+        }
+      } else {
+        have_hunt =
+            ai_king_ref_hunt_target(ctx, human, u->x, u->y, &hx, &hy, prefer_fort,
+                                    prefer_open);
+      }
+      /*
+       * Adjacent human colony normally wins over a farther hunt (fandom: attack
+       * adjacent uncaptured colony rather than march past). Artillery siege
+       * tighten: adjacent fortified wins; do not override a fortified hunt
+       * target with an unfortified adjacent colony (leave open ports to
+       * Dragoon/Regular). Deep multi-step siege scoring PARKED.
+       */
+      if (ctx->colonies) {
+        static const int adx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+        static const int ady[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+        int adj_fort_x = -1;
+        int adj_fort_y = -1;
+        int adj_any_x = -1;
+        int adj_any_y = -1;
+        for (int d = 0; d < 8; ++d) {
+          const int cx = u->x + adx[d];
+          const int cy = u->y + ady[d];
+          const int cid = colonies_id_at(ctx->colonies, cx, cy);
+          if (cid < 0) {
+            continue;
+          }
+          const ColonizeColony* c = &ctx->colonies->colonies[cid];
+          if (!c->active || c->nation_id != human) {
+            continue;
+          }
+          if (adj_any_x < 0) {
+            adj_any_x = cx;
+            adj_any_y = cy;
+          }
+          if (colonies_has_fortification(ctx->colonies, c)) {
+            adj_fort_x = cx;
+            adj_fort_y = cy;
+            break;
+          }
+        }
+        if (prefer_fort) {
+          if (adj_fort_x >= 0) {
+            hx = adj_fort_x;
+            hy = adj_fort_y;
+            have_hunt = 1;
+          } else {
+            int hunt_is_fort = 0;
+            if (have_hunt) {
+              const int hid = colonies_id_at(ctx->colonies, hx, hy);
+              if (hid >= 0) {
+                const ColonizeColony* hc = &ctx->colonies->colonies[hid];
+                if (hc->active && hc->nation_id == human &&
+                    colonies_has_fortification(ctx->colonies, hc)) {
+                  hunt_is_fort = 1;
+                }
+              }
+            }
+            /* No fortified hunt — any adjacent colony may override (fallback). */
+            if (!hunt_is_fort && adj_any_x >= 0) {
+              hx = adj_any_x;
+              hy = adj_any_y;
+              have_hunt = 1;
+            }
+          }
+        } else if (adj_any_x >= 0) {
+          hx = adj_any_x;
+          hy = adj_any_y;
+          have_hunt = 1;
+        }
+      }
+      if (have_hunt) {
+        u->orders = UNITS_ORDER_AI_MOVE;
+        u->goto_x = hx;
+        u->goto_y = hy;
+      } else if (u->goto_x < 0 || u->goto_y < 0 || u->goto_x >= 255 || u->goto_y >= 255) {
+        if (ai_king_weakest_port(ctx, human, &hx, &hy) >= 0) {
+          u->orders = UNITS_ORDER_AI_MOVE;
+          u->goto_x = hx;
+          u->goto_y = hy;
+        }
+      }
+    } else if (u->goto_x < 0 || u->goto_y < 0 || u->goto_x >= 255 || u->goto_y >= 255) {
+      int tx = 0;
+      int ty = 0;
+      if (ai_king_weakest_port(ctx, human, &tx, &ty) < 0) {
+        continue;
+      }
+      u->goto_x = tx;
+      u->goto_y = ty;
+    }
+
+    int tx = u->goto_x;
+    int ty = u->goto_y;
+    if (tx < 0 || ty < 0 || tx >= 255 || ty >= 255) {
+      continue;
+    }
+    const int sdx = (tx > u->x) - (tx < u->x);
+    const int sdy = (ty > u->y) - (ty < u->y);
+    const int nx = u->x + sdx;
+    const int ny = u->y + sdy;
+    const int foe = units_id_at(ctx->units, nx, ny);
+    if (foe >= 0) {
+      const ColonizeUnit* f = units_get_const(ctx->units, foe);
+      if (f && f->nation_id == human) {
+        if (units_is_sea(ctx->units, u->id)) {
+          units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
+        } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
+          /* Attack win → occupy tile; capture if it was a colony (conquest). */
+          units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+          ai_king_try_capture_at(ctx, u, crown, human);
+        }
+        continue;
+      }
+    }
+    units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+    ai_king_try_capture_at(ctx, u, crown, human);
+  }
 }
 
 void ai_king_nation_turn(ColonizeTurnContext* ctx) {
@@ -840,17 +2073,40 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
    * FUN_43f7_2424-shaped:
    *   SoL → peacetime (1d42 tax, SoL chrome, 2564/1a26 declare) | wartime (2022 wave+act)
    */
+  /* External boycott clear (Fugger/diplo) → drop refuse even mid-war / off-tax years. */
+  if (ctx->col1_ok && ctx->col1) {
+    ai_king_sync_boycott_refuse(ctx->col1, ctx->human_nation);
+  }
   const int sol = ai_king_sol_percent(ctx, ctx->human_nation);
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     ai_king_tax_event(ctx);
     /*
      * Thin pre-declare SoL chrome:
-     * SoL 40..49 → restless status line before the auto-declare gate.
-     * (2564 congress confirm status is written inside try_declare.)
+     * SoL AI_KING_RESTLESS_SOL_MIN..(DECLARE_MIN-1) → restless status line
+     * before the auto-declare gate. unknown46 consistency: do not set WoI[0] /
+     * congress[5] here (declare only). Optional tax mention when tax_rate
+     * already in the refuse band (≥20) — reads existing tax_rate; no invented
+     * tax formula. Do not clobber thin 38fd_5be8 tax audience / hike status
+     * from 1d42 (real modals PARKED). (2564 congress status is in try_declare.)
      */
-    if (sol >= 40 && sol < 50 && ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
+    if (sol >= AI_KING_RESTLESS_SOL_MIN && sol < AI_KING_DECLARE_SOL_MIN && ctx->status &&
+        ctx->status_size) {
+      const int keep_tax_audience =
+          strstr(ctx->status, "refuse") || strstr(ctx->status, "Audience") ||
+          strstr(ctx->status, "raises taxes") || strstr(ctx->status, "Tax stays");
+      if (!keep_tax_audience) {
+        const uint8_t tax =
+            (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4)
+                ? ctx->col1->nation[ctx->human_nation].tax_rate
+                : 0;
+        if (tax >= AI_KING_BOYCOTT_TAX_MIN) {
+          snprintf(ctx->status, ctx->status_size,
+                   "Sons of Liberty grow restless (%d%%). Tax is at %u%%.", sol, tax);
+        } else {
+          snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
+        }
+      }
     }
     ai_king_try_declare(ctx);
   }

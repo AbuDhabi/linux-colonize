@@ -1,6 +1,8 @@
 #include "core/founding_fathers.h"
 
+#include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/units.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -40,6 +42,66 @@ bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int f
   }
   const uint8_t byte = col1->nation[nation].founding_fathers[ff_index / 8];
   return (byte & (uint8_t)(1u << (ff_index % 8))) != 0;
+}
+
+bool founding_fathers_revere_should_auto_arm(
+  const ColonizeCol1Save* col1,
+  int nation,
+  bool colony_has_soldier_defender,
+  int muskets_stock
+) {
+  /* PEDIA: "When a colony with no standing soldiers is attacked, a colonist
+   * automatically takes up any stockpiled muskets in defense of the colony."
+   * Equip step matches colony arm path (UNITS_EQUIP_MUSKETS = 50). */
+  if (!founding_fathers_nation_has(col1, nation, FF_PAUL_REVERE)) {
+    return false;
+  }
+  if (colony_has_soldier_defender) {
+    return false;
+  }
+  return muskets_stock >= UNITS_EQUIP_MUSKETS;
+}
+
+int founding_fathers_revere_auto_arm(
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  int colony_id
+) {
+  ColonizeColony* col = colonies_get_mut(colonies, colony_id);
+  if (!col || !col->active || !units) {
+    return -1;
+  }
+  if (col->colonist_count <= 0 || col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS) {
+    return -1;
+  }
+  /* First active colonist takes up muskets (PEDIA auto-arm). */
+  int idx = -1;
+  for (int i = 0; i < col->colonist_count; ++i) {
+    if (col->colonists[i].active) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    return -1;
+  }
+  return colonies_eject_colonist(colonies, colony_id, idx, units, COLONIZE_EJECT_SOLDIER);
+}
+
+/* Pocahontas elect: all native tension → content for this European nation. */
+static void effect_pocahontas_reset_alarm(ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  if (col1->tribe) {
+    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+      col1->tribe[i].alarm[nation_id].friction = 0;
+      col1->tribe[i].alarm[nation_id].attacks = 0;
+    }
+  }
+  for (int ind = 0; ind < 8; ++ind) {
+    col1->indian[ind].alarm_by_player[nation_id] = 0;
+  }
 }
 
 static bool ff_unclaimed(const ColonizeCol1Save* col1, int idx) {
@@ -339,7 +401,10 @@ static void apply_effect(
       }
       break;
     case FF_PETER_MINUIT:
-      /* PARKED: Indians no longer demand payment for land. */
+      /* PARKED: wiki/manual — Indians no longer demand payment for land.
+       * No land-purchase / founding-payment gold hook yet (colony found and
+       * tile claim do not charge Indian land gold; stuff colony counters are
+       * unrelated). Ownership bit only — no treasury fiction. */
       break;
     case FF_PETER_STUYVESANT:
       /* Manual/wiki: unlock Custom House — gated via has_peter_stuyvesant. */
@@ -374,29 +439,37 @@ static void apply_effect(
        * king's galleons transport treasure free. */
       break;
     case FF_GEORGE_WASHINGTON:
-      /* Manual/wiki: non-veterans who win combat always promote.
-       * Ownership bit is the flag; combat promote-on-win still PARKED. */
+      /* PEDIA/wiki: non-veteran soldiers/dragoons who win combat always upgrade.
+       * Ownership bit; promote-on-win in units_resolve_land_combat_ff. */
       break;
     case FF_PAUL_REVERE:
-      /* Manual/wiki: empty colony auto-arms from musket stock when attacked.
-       * Ownership bit is the flag; auto-arm combat path still PARKED. */
+      /* PEDIA/wiki: colony with no soldiers auto-arms from musket stock when
+       * attacked. Ownership bit; gate + eject via founding_fathers_revere_*;
+       * combat spawn wired in units_try_move when FF col1 context is set
+       * (turn_refresh_moves_for_nation → units_set_ff_col1). */
       break;
     case FF_FRANCIS_DRAKE:
-      /* Manual/wiki: Privateer combat strength +50%.
-       * Ownership bit is the flag; naval privateer multiplier still PARKED. */
+      /* PEDIA/wiki: Privateer combat strength +50%.
+       * Ownership bit; multiplier in units_resolve_naval_combat_ff (*3/2). */
       break;
     case FF_JOHN_PAUL_JONES:
       /* Manual/wiki: free Frigate. No gold fallback. */
       (void)effect_jones_frigate(map, colonies, units, nation_id);
       break;
     case FF_THOMAS_JEFFERSON:
-      /* PARKED: liberty bell production of statesmen +50%. */
+      /* Wiki: liberty bell production of statesmen +50%.
+       * Ownership bit; applied in colony_prod_colony_bells_ff via turn nation ticks. */
       break;
     case FF_POCAHONTAS:
-      /* PARKED: all native tension → content; Indian alarm half as fast. */
+      /* Wiki/fandom: all native tension → content; Indian alarm half as fast.
+       * Elect: zero this nation's tribe friction/attacks + alarm_by_player.
+       * PARKED: half-rate future growth needs ai_contact encroachment bumps
+       * and col1_contact_adjacent_tribe (exclusive-write boundary). */
+      effect_pocahontas_reset_alarm(col1, nation_id);
       break;
     case FF_THOMAS_PAINE:
-      /* PARKED: liberty bell production in all colonies + current tax rate %. */
+      /* Wiki: liberty bell production in all colonies + current tax rate %.
+       * Ownership bit; applied in colony_prod_colony_bells_ff via turn nation ticks. */
       break;
     case FF_SIMON_BOLIVAR:
       /* Manual/wiki: SoL membership in all colonies +20%. */
@@ -414,7 +487,8 @@ static void apply_effect(
       }
       break;
     case FF_WILLIAM_PENN:
-      /* PARKED: cross production in all colonies +50%. */
+      /* Wiki: cross production in all colonies +50%.
+       * Ownership bit; applied in colony_prod_colony_crosses_ff via turn nation ticks. */
       break;
     case FF_JEAN_DE_BREBEUF:
       /* PARKED: all missionaries function as experts. */

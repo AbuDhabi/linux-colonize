@@ -1,6 +1,14 @@
-/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting, Furs embargo bit,
- * make_peace, upkeep, privateer prize, ally cost/timer, foreign aid, FA gift,
- * break penalty, Indian drift/feeler/sticky sync, war/peace ctx status chrome. */
+/* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting,
+ * all-16 @CARGO wartime embargo (Food+…+Cotton+…+Tools+Muskets), war-fatigue
+ * peace + status, make_peace + full wartime mask lift + peace feeler restore
+ * (sticky==1; sticky==2 refuses), upkeep + human upkeep status, privateer prize
+ * + human status + prize stops after peace, ally cost/timer≥8/longevity + FA gift
+ * human chrome + alliance formed/gold-drain status, break penalty + sticky raise +
+ * human break status, Indian drift/feeler status/sticky pressure+alliance
+ * refuse+FA skip, Sugar/Tobacco/Tools + first newly boycotted cargo status +
+ * Indian war-hit status chrome + war −5 relation floor + R13 war-fatigue peer
+ * chrome / Peace concluded + sticky2 refuse status + timer-expiry break status +
+ * R14 full wartime mask declare/peace smoke + form_alliance formed chrome. */
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
@@ -12,8 +20,33 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* War embargo stand-in: Furs = cargo index 4 (distinct from king Sugar bit1). */
+/* War embargo: Food=0, Sugar=1, Tobacco=2, Cotton=3, Furs=4, Lumber=5,
+ * Ore=6, Silver=7, Horses=8, Rum=9, Cigars=10, Cloth=11, Coats=12,
+ * Trade Goods=13, Tools=14, Muskets=15. */
+#define AI_DIPLO_SMOKE_FOOD_BIT (1u << COLONIZE_CARGO_FOOD)
 #define AI_DIPLO_SMOKE_EMBARGO_BIT (1u << COLONIZE_CARGO_FURS)
+#define AI_DIPLO_SMOKE_TOBACCO_BIT (1u << COLONIZE_CARGO_TOBACCO)
+#define AI_DIPLO_SMOKE_SUGAR_BIT (1u << COLONIZE_CARGO_SUGAR)
+#define AI_DIPLO_SMOKE_COTTON_BIT (1u << COLONIZE_CARGO_COTTON)
+#define AI_DIPLO_SMOKE_LUMBER_BIT (1u << COLONIZE_CARGO_LUMBER)
+#define AI_DIPLO_SMOKE_HORSES_BIT (1u << COLONIZE_CARGO_HORSES)
+#define AI_DIPLO_SMOKE_RUM_BIT (1u << COLONIZE_CARGO_RUM)
+#define AI_DIPLO_SMOKE_CIGARS_BIT (1u << COLONIZE_CARGO_CIGARS)
+#define AI_DIPLO_SMOKE_CLOTH_BIT (1u << COLONIZE_CARGO_CLOTH)
+#define AI_DIPLO_SMOKE_COATS_BIT (1u << COLONIZE_CARGO_COATS)
+#define AI_DIPLO_SMOKE_ORE_BIT (1u << COLONIZE_CARGO_ORE)
+#define AI_DIPLO_SMOKE_SILVER_BIT (1u << COLONIZE_CARGO_SILVER)
+#define AI_DIPLO_SMOKE_TRADE_GOODS_BIT (1u << COLONIZE_CARGO_TRADE_GOODS)
+#define AI_DIPLO_SMOKE_TOOLS_BIT (1u << COLONIZE_CARGO_TOOLS)
+#define AI_DIPLO_SMOKE_MUSKETS_BIT (1u << COLONIZE_CARGO_MUSKETS)
+/* Full wartime boycott mask (all 16 @CARGO bits) for make_peace clear assert. */
+#define AI_DIPLO_SMOKE_WARTIME_MASK                                              \
+  (AI_DIPLO_SMOKE_FOOD_BIT | AI_DIPLO_SMOKE_SUGAR_BIT | AI_DIPLO_SMOKE_TOBACCO_BIT | \
+   AI_DIPLO_SMOKE_COTTON_BIT | AI_DIPLO_SMOKE_EMBARGO_BIT | AI_DIPLO_SMOKE_LUMBER_BIT | \
+   AI_DIPLO_SMOKE_ORE_BIT | AI_DIPLO_SMOKE_SILVER_BIT | AI_DIPLO_SMOKE_HORSES_BIT | \
+   AI_DIPLO_SMOKE_RUM_BIT | AI_DIPLO_SMOKE_CIGARS_BIT | AI_DIPLO_SMOKE_CLOTH_BIT | \
+   AI_DIPLO_SMOKE_COATS_BIT | AI_DIPLO_SMOKE_TRADE_GOODS_BIT | AI_DIPLO_SMOKE_TOOLS_BIT | \
+   AI_DIPLO_SMOKE_MUSKETS_BIT)
 
 static int fail(const char* msg) {
   fprintf(stderr, "smoke_ai_diplo: FAIL %s\n", msg);
@@ -33,7 +66,11 @@ int main(void) {
   /* Pair independence: war(0,1) must not force war(0,2).
    * Thin 153e: first declare drains 100 gold + bumps tax_rate both sides.
    * Indians dislike war: −5 on relation_by_indian[0..7] both sides.
-   * Wartime embargo: OR Furs (1u<<4) into both boycott_bitmap. */
+   * Wartime embargo: OR all 16 @CARGO bits (Food+Sugar+Tobacco+Cotton+Furs+
+   * Lumber+Ore+Silver+Horses+Rum+Cigars+Cloth+Coats+Trade Goods+Tools+Muskets)
+   * into both boycott_bitmap (Sugar = king refuse bit1; Cotton = R11 leftover;
+   * Tools always on first declare).
+   * War fatigue: seed peer treaty timer to 8 when was 0. */
   col1.nation[0].gold = 250;
   col1.nation[1].gold = 80;
   col1.nation[2].gold = 500;
@@ -41,6 +78,8 @@ int main(void) {
   col1.nation[1].tax_rate = 74;
   col1.nation[2].tax_rate = 20;
   col1.nation[3].tax_rate = 75; /* cap probe via separate declare later */
+  col1.nation[0].unknown26[1] = 0;
+  col1.nation[1].unknown26[0] = 0;
   for (int i = 0; i < 8; ++i) {
     col1.nation[0].relation_by_indian[i] = 50;
     col1.nation[1].relation_by_indian[i] = 40;
@@ -78,8 +117,83 @@ int main(void) {
       (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
     return fail("declare_war should set Furs boycott bit on both nations");
   }
-  if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0) {
-    return fail("war(0,1) must not set Furs embargo on nation 2");
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) == 0) {
+    return fail("declare_war should set Food boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) == 0) {
+    return fail("declare_war should set Tobacco boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
+    return fail("declare_war should set Sugar boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0) {
+    return fail("declare_war should set Cotton boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0) {
+    return fail("declare_war should set Lumber boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0) {
+    return fail("declare_war should set Horses boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0) {
+    return fail("declare_war should set Rum boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0) {
+    return fail("declare_war should set Cigars boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_CLOTH_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_CLOTH_BIT) == 0) {
+    return fail("declare_war should set Cloth boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_COATS_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_COATS_BIT) == 0) {
+    return fail("declare_war should set Coats boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0) {
+    return fail("declare_war should set Ore boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0) {
+    return fail("declare_war should set Silver boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TRADE_GOODS_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_TRADE_GOODS_BIT) == 0) {
+    return fail("declare_war should set Trade Goods boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0) {
+    return fail("declare_war should set Muskets boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0) {
+    return fail("declare_war should set Tools boycott bit on both nations");
+  }
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) !=
+        AI_DIPLO_SMOKE_WARTIME_MASK ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) !=
+        AI_DIPLO_SMOKE_WARTIME_MASK) {
+    return fail("declare_war should OR full wartime boycott mask on both nations");
+  }
+  if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+    return fail("war(0,1) must not set wartime embargo bits on nation 2");
+  }
+  if (!ai_diplo_at_war_with(&col1, 0, 1) || ai_diplo_at_war_with(&col1, 0, 2)) {
+    return fail("ai_diplo_at_war_with should mirror at_war for pair checks");
+  }
+  if (!ai_diplo_at_war_with_any(&col1, 0) || ai_diplo_at_war_with_any(&col1, 2)) {
+    return fail("ai_diplo_at_war_with_any should detect any Euro×Euro war");
+  }
+  if (col1.nation[0].unknown26[1] != 8 || col1.nation[1].unknown26[0] != 8) {
+    return fail("declare_war should seed war-fatigue treaty timer to 8 when was 0");
   }
   for (int i = 0; i < 8; ++i) {
     if (col1.nation[0].relation_by_indian[i] != 45) {
@@ -114,8 +228,9 @@ int main(void) {
     return fail("re-declare_war should leave Furs embargo bit set");
   }
 
-  /* make_peace: clear WAR both ways, set PEACE, lift Furs when no Euro wars remain.
-   * No gold cost. Nation 0 still only at war with 1 here. */
+  /* make_peace: clear WAR both ways, set PEACE, lift all wartime boycotts
+   * (AI_DIPLO_SMOKE_WARTIME_MASK) when no Euro wars remain. No gold cost.
+   * Nation 0 still only at war with 1 here. */
   {
     const uint16_t gold0 = col1.nation[0].gold;
     const uint16_t gold1 = col1.nation[1].gold;
@@ -127,9 +242,10 @@ int main(void) {
         (ai_diplo_read(&col1, 1, 0) & AI_DIPLO_PEACE) == 0) {
       return fail("make_peace should set PEACE both ways");
     }
-    if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0 ||
-        (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0) {
-      return fail("make_peace should clear Furs embargo when no Euro wars remain");
+    /* R11: bitmap clear of full wartime mask (all 16 @CARGO bits incl. Cotton). */
+    if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+        (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+      return fail("make_peace should clear all wartime boycott bits when no Euro wars remain");
     }
     if (col1.nation[0].gold != gold0 || col1.nation[1].gold != gold1) {
       return fail("make_peace should not change gold (no cost)");
@@ -150,12 +266,17 @@ int main(void) {
     ColonizeDosRng rng_up;
     dos_rng_seed(&rng_up, 1);
     uint32_t turn_up = 1;
+    char status_up[128];
+    status_up[0] = '\0';
     ColonizeTurnContext ctx_up;
     memset(&ctx_up, 0, sizeof(ctx_up));
     ctx_up.col1 = &col1;
     ctx_up.col1_ok = true;
     ctx_up.rng = &rng_up;
     ctx_up.turn_number = &turn_up;
+    ctx_up.human_nation = 0;
+    ctx_up.status = status_up;
+    ctx_up.status_size = sizeof(status_up);
     for (int i = 0; i < 8; ++i) {
       col1.nation[0].relation_by_indian[i] = 100;
     }
@@ -168,15 +289,33 @@ int main(void) {
     if (col1.nation[1].gold != 35) {
       return fail("euro_balance upkeep must not move gold when treasuries equal");
     }
+    if (strcmp(status_up, "War upkeep costs gold.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: upkeep status '%s'\n", status_up);
+      return fail("euro_balance should status War upkeep costs gold for human");
+    }
+    /* AI-only: no upkeep status overwrite. */
+    snprintf(status_up, sizeof(status_up), "keep");
+    ctx_up.human_nation = 2;
+    col1.nation[0].gold = 40;
+    col1.nation[1].gold = 35;
+    ai_diplo_euro_balance(&ctx_up, 0);
+    if (strcmp(status_up, "keep") != 0) {
+      return fail("war upkeep status must not write for AI-only nation");
+    }
+    ctx_up.human_nation = 0;
     col1.nation[0].gold = 3;
     col1.nation[1].gold = 0; /* after floor: equal 0 → no privateer */
     ai_diplo_euro_balance(&ctx_up, 0);
     if (col1.nation[0].gold != 0) {
       return fail("euro_balance upkeep should floor gold at 0");
     }
+    status_up[0] = '\0';
     ai_diplo_euro_balance(&ctx_up, 0);
     if (col1.nation[0].gold != 0) {
       return fail("euro_balance upkeep should no-op when gold already 0");
+    }
+    if (status_up[0] != '\0') {
+      return fail("war upkeep status must not write when gold already 0");
     }
     if (col1.nation[2].gold != 500) {
       return fail("euro_balance upkeep must not drain peaceful peer treasury");
@@ -206,6 +345,18 @@ int main(void) {
     if (col1.nation[0].gold != 18) {
       return fail("euro_balance Indian harassment should drain 2 gold");
     }
+    /* Cap: gold already 0 → no invent-below-zero; gold 1 → one floor to 0. */
+    col1.nation[0].gold = 0;
+    ai_diplo_euro_balance(&ctx_h, 0);
+    if (col1.nation[0].gold != 0) {
+      return fail("Indian harassment must not invent gold below 0 when already 0");
+    }
+    col1.nation[0].gold = 1;
+    ai_diplo_euro_balance(&ctx_h, 0);
+    if (col1.nation[0].gold != 0) {
+      return fail("Indian harassment should floor once to 0 when gold < 2");
+    }
+    col1.nation[0].gold = 18; /* restore for sticky asserts below */
     if (ai_diplo_indian_hostility_sticky(&col1, 0) != 1) {
       return fail("indian_at_war should set unknown26[8] hostility sticky once");
     }
@@ -278,6 +429,39 @@ int main(void) {
     if (col1.nation[1].gold != 1 || col1.nation[0].gold != 7) {
       return fail("privateer prize should require donor gold >= 8");
     }
+    /* R7: human privateer status chrome when prize transfers. */
+    {
+      char status_pr[128];
+      status_pr[0] = '\0';
+      snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+      ctx_pr.human_nation = 1;
+      ctx_pr.status = status_pr;
+      ctx_pr.status_size = sizeof(status_pr);
+      col1.nation[0].gold = 200;
+      col1.nation[1].gold = 50;
+      for (int i = 0; i < 8; ++i) {
+        col1.nation[1].relation_by_indian[i] = 100;
+      }
+      col1.nation[1].unknown26[8] = 0;
+      ai_diplo_euro_balance(&ctx_pr, 1);
+      if (strcmp(status_pr, "Privateer prize from England") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: privateer status '%s'\n", status_pr);
+        return fail("euro_balance privateer should status when human is a party");
+      }
+      /* AI-only tick: no status overwrite. */
+      snprintf(status_pr, sizeof(status_pr), "keep");
+      ctx_pr.human_nation = 2;
+      col1.nation[0].gold = 200;
+      col1.nation[1].gold = 50;
+      ai_diplo_euro_balance(&ctx_pr, 1);
+      if (strcmp(status_pr, "keep") != 0) {
+        return fail("privateer status must not write for AI-only pairs");
+      }
+      ctx_pr.human_nation = -1;
+      ctx_pr.status = NULL;
+      ctx_pr.status_size = 0;
+      col1.player[0].country_name[0] = '\0';
+    }
   }
 
   /* Ally treasury cost + treaty timer bump (≥8 if was 0); break −20 gold each. */
@@ -294,6 +478,9 @@ int main(void) {
   }
   if (col1.nation[3].gold != 0) {
     return fail("form_alliance gold cost should floor at 0");
+  }
+  if (col1.nation[2].unknown26[3] < 8 || col1.nation[3].unknown26[2] < 8) {
+    return fail("form_alliance should bump treaty timer to ≥8 when was 0");
   }
   if (col1.nation[2].unknown26[3] != 8 || col1.nation[3].unknown26[2] != 8) {
     return fail("form_alliance should set treaty timer to 8 when was 0");
@@ -327,6 +514,48 @@ int main(void) {
   ai_diplo_break_alliance(&col1, 2, 3);
   if (col1.nation[2].gold != 30) {
     return fail("re-break_alliance should not re-apply trust penalty");
+  }
+
+  /* Thin break_alliance_ctx: human party → "Alliance broken with %s".
+   * Keep Indian relations content so sticky-raise chrome does not steal status. */
+  {
+    ColonizeCol1Save ba;
+    col1_save_init(&ba);
+    memset(ba.nation, 0, sizeof(ba.nation));
+    for (int i = 0; i < 4; ++i) {
+      ba.player[i].control = 0;
+      ba.player[i].country_name[0] = '\0';
+      for (int j = 0; j < 8; ++j) {
+        ba.nation[i].relation_by_indian[j] = 100;
+      }
+    }
+    snprintf(ba.player[1].country_name, sizeof(ba.player[1].country_name), "France");
+    ba.nation[0].gold = 100;
+    ba.nation[1].gold = 100;
+    ai_diplo_form_alliance(&ba, 0, 1);
+    char status_ba[128];
+    status_ba[0] = '\0';
+    ColonizeTurnContext ctx_ba;
+    memset(&ctx_ba, 0, sizeof(ctx_ba));
+    ctx_ba.col1 = &ba;
+    ctx_ba.col1_ok = true;
+    ctx_ba.human_nation = 0;
+    ctx_ba.status = status_ba;
+    ctx_ba.status_size = sizeof(status_ba);
+    ai_diplo_break_alliance_ctx(&ctx_ba, 0, 1);
+    if (ai_diplo_read(&ba, 0, 1) & AI_DIPLO_ALLY) {
+      return fail("break_alliance_ctx should clear ALLY");
+    }
+    if (strcmp(status_ba, "Alliance broken with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: break status '%s'\n", status_ba);
+      return fail("break_alliance_ctx should status when human is a party");
+    }
+    /* Re-break: already not allied → no status overwrite. */
+    snprintf(status_ba, sizeof(status_ba), "keep");
+    ai_diplo_break_alliance_ctx(&ctx_ba, 0, 1);
+    if (strcmp(status_ba, "keep") != 0) {
+      return fail("break_alliance_ctx must not status when not allied");
+    }
   }
 
   /* Timer decrement + ally break on expiry (also applies break gold penalty). */
@@ -375,7 +604,16 @@ int main(void) {
   if (!ai_diplo_at_war(&col1, 0, 1)) {
     return fail("timer pass must not clear war(0,1) when peer-1 timer live");
   }
-  if (col1.nation[0].relation_by_indian[0] != rel0_at_war) {
+  /* Break sticky raise: −5 Indian hit on timer-expiry break (not peaceful drift). */
+  if (col1.nation[0].relation_by_indian[0] != (uint8_t)(rel0_at_war - 5)) {
+    return fail("timer-expiry break should −5 Indian relations (sticky raise path)");
+  }
+  /* Peaceful drift still gated while at Euro war — only the break −5 above. */
+  const uint8_t rel_after_break = col1.nation[0].relation_by_indian[0];
+  col1.nation[0].unknown26[1] = 5;
+  col1.nation[0].unknown26[3] = 5;
+  ai_diplo_treaty_timers(&ctx, 0);
+  if (col1.nation[0].relation_by_indian[0] != rel_after_break) {
     return fail("treaty_timers must not drift Indian relations while at war");
   }
 
@@ -608,6 +846,74 @@ int main(void) {
       return fail("peace feeler must skip while Euro at war with peers");
     }
     ai_diplo_make_peace(&col1, 2, 3);
+
+    /*
+     * R7/R9: make_peace restores Indian feeler when sticky was at-war (==1) —
+     * nudge once via existing feeler path after WAR clear. sticky==2 refuses.
+     */
+    col1.nation[2].gold = 200;
+    col1.nation[3].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[3].relation_by_indian[i] = 90;
+    }
+    /* 45 −5 = 40 (≥40 → no hostile extra) → sticky at-war (==1), not deep. */
+    col1.nation[3].relation_by_indian[0] = 45;
+    ai_diplo_declare_war(&col1, 2, 3);
+    /* declare: 90→85 mid; 45→40; sticky at-war */
+    if (col1.nation[3].relation_by_indian[3] != 85) {
+      return fail("peace-restore setup: mid slot should be 85 after war hit");
+    }
+    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 1) {
+      return fail("peace-restore setup: sticky should be at-war (==1) after war hit");
+    }
+    ai_diplo_make_peace(&col1, 2, 3);
+    /* Feeler +2 on mid slots (85→87); hostile 40 untouched; sticky stays. */
+    if (col1.nation[3].relation_by_indian[3] != 87) {
+      return fail("make_peace should nudge Indian feeler once when sticky at-war");
+    }
+    if (col1.nation[3].relation_by_indian[0] != 40) {
+      return fail("make_peace feeler must not heal indian_at_war slots");
+    }
+    /* Idempotent: already peaceful + sticky elevated must not re-nudge. */
+    ai_diplo_make_peace(&col1, 2, 3);
+    if (col1.nation[3].relation_by_indian[3] != 87) {
+      return fail("make_peace feeler nudge must not re-fire when already peaceful");
+    }
+    /* Sticky clear: no feeler nudge on peace. */
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[3].relation_by_indian[i] = 90;
+    }
+    col1.nation[3].unknown26[8] = 0;
+    ai_diplo_declare_war(&col1, 2, 3);
+    /* All mid after −5 → sticky clear; force sticky clear + mid 80. */
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[3].relation_by_indian[i] = 80;
+    }
+    col1.nation[3].unknown26[8] = 0;
+    ai_diplo_make_peace(&col1, 2, 3);
+    if (col1.nation[3].relation_by_indian[3] != 80) {
+      return fail("make_peace must not feeler-nudge when sticky was clear");
+    }
+    /* R9: sticky==2 refuses make_peace feeler restore (self-gated). */
+    for (int i = 0; i < 8; ++i) {
+      col1.nation[3].relation_by_indian[i] = 90;
+    }
+    col1.nation[3].relation_by_indian[0] = 30; /* very-low → sticky deep after hit */
+    ai_diplo_declare_war(&col1, 2, 3);
+    /* mid 90→85; 30→15 (extra); sticky==2 */
+    if (ai_diplo_indian_hostility_sticky(&col1, 3) != 2) {
+      return fail("sticky2 make_peace setup should deepen sticky to 2");
+    }
+    if (col1.nation[3].relation_by_indian[3] != 85) {
+      return fail("sticky2 make_peace setup: mid should be 85 after war hit");
+    }
+    ai_diplo_make_peace(&col1, 2, 3);
+    if (col1.nation[3].relation_by_indian[3] != 85) {
+      return fail("make_peace must not feeler-nudge when sticky==2");
+    }
+    if (col1.nation[3].relation_by_indian[0] != 15) {
+      return fail("sticky2 make_peace must leave very-low slot untouched");
+    }
   }
 
   /*
@@ -650,7 +956,7 @@ int main(void) {
     }
     status[0] = '\0';
     ai_diplo_euro_balance(&ctx_st, 0);
-    if (strcmp(status, "Relations with natives improve.") != 0) {
+    if (strcmp(status, "Native tensions ease.") != 0) {
       fprintf(stderr, "smoke_ai_diplo: indian clear status '%s'\n", status);
       return fail("euro_balance should status when sticky clears for human");
     }
@@ -695,7 +1001,36 @@ int main(void) {
   }
 
   /*
-   * Unpark #5: 153e trade deepen — colony gap ≥2 → Tools embargo + 25g from richer.
+   * R11: war −5 Indian hit floors at 0 (relation_delta clamp; optional −10
+   * deepen still cannot underflow). Source: FUN_4cc6_00f2 scalar; fandom.
+   */
+  {
+    ColonizeCol1Save wf;
+    col1_save_init(&wf);
+    memset(wf.nation, 0, sizeof(wf.nation));
+    for (int i = 0; i < 4; ++i) {
+      wf.player[i].control = 0;
+    }
+    wf.nation[0].gold = 200;
+    wf.nation[1].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      wf.nation[0].relation_by_indian[i] = 3; /* −5 → floor 0; then deepen −10 → 0 */
+      wf.nation[1].relation_by_indian[i] = 0; /* already at floor */
+    }
+    ai_diplo_declare_war(&wf, 0, 1);
+    for (int i = 0; i < 8; ++i) {
+      if (wf.nation[0].relation_by_indian[i] != 0) {
+        return fail("war −5 Indian hit should floor relation at 0");
+      }
+      if (wf.nation[1].relation_by_indian[i] != 0) {
+        return fail("war −5 Indian hit from 0 should stay at floor 0");
+      }
+    }
+  }
+
+  /*
+   * Unpark #5: 153e trade deepen — colony gap ≥2 → extra 25g from richer
+   * (Tools already OR'd on every first declare).
    * Military score: units + pop*2 + gold/50 (+ sea/fort weights).
    */
   {
@@ -721,7 +1056,7 @@ int main(void) {
     if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0 ||
         (tw.nation[1].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0) {
       free(tw.colony);
-      return fail("colony-gap declare should set Tools embargo");
+      return fail("declare_war should set Tools embargo (always + gap sting)");
     }
     /* 400 − 100 sting − 25 trade = 275 */
     if (tw.nation[0].gold != 275) {
@@ -736,9 +1071,10 @@ int main(void) {
     }
     ai_diplo_make_peace(&tw, 0, 1);
     if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) != 0 ||
-        (tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_FURS)) != 0) {
+        (tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_FURS)) != 0 ||
+        (tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOBACCO)) != 0) {
       free(tw.colony);
-      return fail("make_peace should lift Furs+Tools embargo");
+      return fail("make_peace should lift Furs+Tobacco+Tools embargo");
     }
     free(tw.colony);
 
@@ -812,9 +1148,9 @@ int main(void) {
     if (!ai_diplo_at_war(&st, 0, 1)) {
       return fail("declare_war_ctx should set WAR");
     }
-    if (strcmp(status, "War declared with France") != 0) {
+    if (strcmp(status, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
       fprintf(stderr, "smoke_ai_diplo: war status '%s'\n", status);
-      return fail("declare_war_ctx should set War declared with country_name");
+      return fail("declare_war_ctx should prefer Sugar/Tobacco/Tools boycott status for human");
     }
     /* Re-declare: no status rewrite. */
     snprintf(status, sizeof(status), "keep");
@@ -827,20 +1163,65 @@ int main(void) {
     if (ai_diplo_at_war(&st, 0, 1)) {
       return fail("make_peace_ctx should clear WAR");
     }
-    if (strcmp(status, "Peace concluded with France") != 0) {
+    /* Tools lift chrome preferred over Peace concluded when Tools cleared. */
+    if (strcmp(status, "Tools embargo lifted.") != 0) {
       fprintf(stderr, "smoke_ai_diplo: peace status '%s'\n", status);
-      return fail("make_peace_ctx should set Peace concluded with country_name");
+      return fail("make_peace_ctx should prefer Tools embargo lifted for human");
     }
 
-    /* Fallback label when country_name empty. */
+    /* R12: Sugar/Tobacco/Tools already set → name first newly boycotted cargo
+     * (Food idx 0) instead of the war line. Keep Indians peaceful so sticky
+     * does not steal status. Source: @CARGO / NAMES.TXT; FA UI PARKED. */
     st.player[2].country_name[0] = '\0';
     st.nation[0].gold = 200;
     st.nation[2].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      st.nation[0].relation_by_indian[i] = 100;
+    }
+    st.nation[0].unknown26[8] = 0;
+    st.nation[0].boycott_bitmap =
+      (uint16_t)(AI_DIPLO_SMOKE_SUGAR_BIT | AI_DIPLO_SMOKE_TOBACCO_BIT |
+                 AI_DIPLO_SMOKE_TOOLS_BIT);
+    status[0] = '\0';
+    ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
+    if (strcmp(status, "Food boycott imposed.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: first-cargo status '%s'\n", status);
+      return fail("declare_war_ctx should name first newly boycotted cargo (Food)");
+    }
+
+    /* Full wartime mask already set → boycott chrome quiet → war line. */
+    ai_diplo_make_peace(&st, 0, 2);
+    st.nation[0].gold = 200;
+    st.nation[2].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      st.nation[0].relation_by_indian[i] = 100;
+    }
+    st.nation[0].unknown26[8] = 0;
+    st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
     if (strcmp(status, "War declared with rival") != 0) {
       fprintf(stderr, "smoke_ai_diplo: rival status '%s'\n", status);
-      return fail("declare_war_ctx should fall back to rival");
+      return fail("declare_war_ctx should fall back to rival when full wartime mask set");
+    }
+
+    /* R6/R12: Indian −5 war-hit status when boycott chrome quiet and sticky rises. */
+    ai_diplo_make_peace(&st, 0, 2);
+    for (int i = 0; i < 8; ++i) {
+      st.nation[0].relation_by_indian[i] = 50;
+    }
+    st.nation[0].unknown26[8] = 0;
+    st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
+    st.nation[0].gold = 200;
+    st.nation[2].gold = 200;
+    status[0] = '\0';
+    ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
+    if (st.nation[0].relation_by_indian[0] != 45) {
+      return fail("declare_war_ctx should still −5 Indian relations (smoke-verified)");
+    }
+    if (strcmp(status, "Natives grow hostile.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: indian war-hit status '%s'\n", status);
+      return fail("declare_war_ctx should status Natives grow hostile when sticky rises");
     }
 
     /* AI-only pair: no status write. */
@@ -858,6 +1239,972 @@ int main(void) {
     ai_diplo_declare_war(&st, 0, 2);
     if (strcmp(status, "bare") != 0) {
       return fail("bare declare_war must not touch ctx status");
+    }
+  }
+
+  /*
+   * Sticky→pressure: sticky==2 skips peace feeler + "Natives remain hostile."
+   * Alliance longevity: FA gift gold-gate fail → timer+1, no gold transfer.
+   * ai_diplo_indian_relation read-only getter (pair of relation_delta).
+   */
+  {
+    ColonizeCol1Save sp;
+    col1_save_init(&sp);
+    memset(sp.nation, 0, sizeof(sp.nation));
+    for (int i = 0; i < 4; ++i) {
+      sp.player[i].control = 0;
+    }
+    char status[128];
+    status[0] = '\0';
+    ColonizeDosRng rng_sp;
+    dos_rng_seed(&rng_sp, 11);
+    uint32_t turn_sp = 11;
+    ColonizeTurnContext ctx_sp;
+    memset(&ctx_sp, 0, sizeof(ctx_sp));
+    ctx_sp.col1 = &sp;
+    ctx_sp.col1_ok = true;
+    ctx_sp.rng = &rng_sp;
+    ctx_sp.turn_number = &turn_sp;
+    ctx_sp.human_nation = 0;
+    ctx_sp.status = status;
+    ctx_sp.status_size = sizeof(status);
+
+    /* Deep sticky: slot0 very-low; mid slots would be feeler-eligible if not blocked. */
+    sp.nation[0].relation_by_indian[0] = 30;
+    for (int i = 1; i < 8; ++i) {
+      sp.nation[0].relation_by_indian[i] = 80;
+    }
+    sp.nation[0].unknown26[8] = 2;
+    sp.nation[0].gold = 40;
+    ai_diplo_euro_balance(&ctx_sp, 0);
+    if (sp.nation[0].relation_by_indian[1] != 80) {
+      return fail("sticky==2 should block peace feeler heal on mid slots");
+    }
+    if (ai_diplo_indian_hostility_sticky(&sp, 0) != 2) {
+      return fail("sticky==2 should remain deep after matrix tick");
+    }
+    if (strcmp(status, "Natives remain hostile.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: remain status '%s'\n", status);
+      return fail("sticky==2 should status Natives remain hostile");
+    }
+    if (sp.nation[0].gold != 38) {
+      return fail("sticky==2 tick should still apply Indian harassment −2g");
+    }
+
+    /* indian_relation getter mirrors relation_by_indian / delta indexing. */
+    if (ai_diplo_indian_relation(&sp, 4, 0) != 30 ||
+        ai_diplo_indian_relation(&sp, 5, 0) != 80) {
+      return fail("ai_diplo_indian_relation should read indian_nation 4..11 cells");
+    }
+    if (ai_diplo_indian_relation(&sp, 3, 0) != 0 ||
+        ai_diplo_indian_relation(&sp, 12, 0) != 0) {
+      return fail("ai_diplo_indian_relation should return 0 for out-of-range indian");
+    }
+
+    /* Longevity: allied timer==1, donor <100 → gift no-op, timer+1, gold unchanged. */
+    ai_diplo_or_both(&sp, 0, 1, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
+    sp.nation[0].gold = 80;
+    sp.nation[1].gold = 40; /* 40 < 80/2? no → no aid; 40 < 160 → gift-eligible but donor <100 */
+    sp.nation[0].unknown26[1] = 1;
+    sp.nation[1].unknown26[0] = 1;
+    /* Clear Indian at-war so harassment does not skew gold check. */
+    for (int i = 0; i < 8; ++i) {
+      sp.nation[0].relation_by_indian[i] = 100;
+    }
+    sp.nation[0].unknown26[8] = 0;
+    status[0] = '\0';
+    ai_diplo_euro_balance(&ctx_sp, 0);
+    if (sp.nation[0].gold != 80 || sp.nation[1].gold != 40) {
+      return fail("ally longevity must not transfer gold when FA gift blocked");
+    }
+    if (sp.nation[0].unknown26[1] != 2 || sp.nation[1].unknown26[0] != 2) {
+      return fail("ally longevity should bump both timers +1 when gift fails");
+    }
+    if (strcmp(status, "Alliance with rival holds.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: longevity status '%s'\n", status);
+      return fail("ally longevity should status Alliance with rival holds");
+    }
+    /* Gift success path still +2 (no double longevity). Peer ≥ half blocks aid. */
+    snprintf(sp.player[1].country_name, sizeof(sp.player[1].country_name), "France");
+    sp.nation[0].gold = 120;
+    sp.nation[1].gold = 60; /* 60 >= 60 → no aid; 60 < 240 → gift-eligible */
+    sp.nation[0].unknown26[1] = 1;
+    sp.nation[1].unknown26[0] = 1;
+    status[0] = '\0';
+    ai_diplo_euro_balance(&ctx_sp, 0);
+    if (sp.nation[0].gold != 105 || sp.nation[1].gold != 75) {
+      return fail("FA gift should still transfer 15g when gates pass");
+    }
+    if (sp.nation[0].unknown26[1] != 3 || sp.nation[1].unknown26[0] != 3) {
+      return fail("FA gift success should bump +2 only (no longevity stack)");
+    }
+    if (strcmp(status, "Alliance with France strengthened.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: FA gift status '%s'\n", status);
+      return fail("FA gift should status Alliance with country strengthened");
+    }
+
+    /* form_alliance lifts Tools with Furs when no Euro wars remain. */
+    ColonizeCol1Save em;
+    col1_save_init(&em);
+    memset(em.nation, 0, sizeof(em.nation));
+    for (int i = 0; i < 4; ++i) {
+      em.player[i].control = 0;
+    }
+    em.head.colony_count = 3;
+    em.colony = calloc(3, sizeof(ColonizeCol1Colony));
+    if (!em.colony) {
+      return fail("embargo form_alliance alloc");
+    }
+    em.colony[0].nation_id = 0;
+    em.colony[1].nation_id = 0;
+    em.colony[2].nation_id = 0;
+    em.nation[0].gold = 200;
+    em.nation[1].gold = 200;
+    ai_diplo_declare_war(&em, 0, 1);
+    if ((em.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0) {
+      free(em.colony);
+      return fail("colony-gap war should set Tools before form_alliance lift");
+    }
+    ai_diplo_form_alliance(&em, 0, 1);
+    if ((em.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+        (em.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+      free(em.colony);
+      return fail("form_alliance should lift full wartime boycott mask when no Euro wars remain");
+    }
+    free(em.colony);
+  }
+
+  /*
+   * R2: war-fatigue peace (timer==0 gate) + human Tools-lift / Peace status,
+   * Tools embargo human status, Tobacco already covered above with Furs
+   * set/lift.
+   */
+  {
+    ColonizeCol1Save wf;
+    col1_save_init(&wf);
+    memset(wf.nation, 0, sizeof(wf.nation));
+    for (int i = 0; i < 4; ++i) {
+      wf.player[i].control = 0;
+      wf.player[i].country_name[0] = '\0';
+    }
+    snprintf(wf.player[1].country_name, sizeof(wf.player[1].country_name), "England");
+    /* Near-parity military via gold/50 only: score 12 each (|diff|<15, both >10). */
+    wf.nation[0].gold = 700;
+    wf.nation[1].gold = 700;
+    for (int i = 0; i < 8; ++i) {
+      wf.nation[0].relation_by_indian[i] = 100;
+      wf.nation[1].relation_by_indian[i] = 100;
+    }
+    ai_diplo_declare_war(&wf, 0, 1);
+    /* After sting: 600/600 → score 12; fatigue timer seeded to 8. */
+    if (wf.nation[0].unknown26[1] != 8) {
+      return fail("war-fatigue setup: timer should be 8 after declare");
+    }
+    ColonizeDosRng rng_wf;
+    dos_rng_seed(&rng_wf, 42);
+    uint32_t turn_wf = 1;
+    char status_wf[128];
+    status_wf[0] = '\0';
+    ColonizeTurnContext ctx_wf;
+    memset(&ctx_wf, 0, sizeof(ctx_wf));
+    ctx_wf.col1 = &wf;
+    ctx_wf.col1_ok = true;
+    ctx_wf.rng = &rng_wf;
+    ctx_wf.turn_number = &turn_wf;
+    ctx_wf.human_nation = 0;
+    ctx_wf.status = status_wf;
+    ctx_wf.status_size = sizeof(status_wf);
+    /* While timer live, near-parity must not make_peace (fatigue gate). */
+    for (int n = 0; n < 80; ++n) {
+      wf.nation[0].gold = 600;
+      wf.nation[1].gold = 600;
+      wf.nation[0].unknown26[1] = 5; /* keep live */
+      wf.nation[1].unknown26[0] = 5;
+      ai_diplo_euro_balance(&ctx_wf, 0);
+      if (!ai_diplo_at_war(&wf, 0, 1)) {
+        return fail("war-fatigue: near-parity peace must wait for timer==0");
+      }
+    }
+    /* timer==0 + many rolls → at least one peace (1/30) + human status. */
+    int peaced = 0;
+    for (int seed = 1; seed < 400 && !peaced; ++seed) {
+      ai_diplo_declare_war(&wf, 0, 1);
+      wf.nation[0].unknown26[1] = 0;
+      wf.nation[1].unknown26[0] = 0;
+      wf.nation[0].gold = 600;
+      wf.nation[1].gold = 600;
+      for (int i = 0; i < 8; ++i) {
+        wf.nation[0].relation_by_indian[i] = 100;
+        wf.nation[1].relation_by_indian[i] = 100;
+      }
+      status_wf[0] = '\0';
+      dos_rng_seed(&rng_wf, (uint32_t)seed);
+      for (int n = 0; n < 60 && ai_diplo_at_war(&wf, 0, 1); ++n) {
+        wf.nation[0].gold = 600;
+        wf.nation[1].gold = 600;
+        wf.nation[0].unknown26[1] = 0;
+        wf.nation[1].unknown26[0] = 0;
+        ai_diplo_euro_balance(&ctx_wf, 0);
+      }
+      if (!ai_diplo_at_war(&wf, 0, 1)) {
+        peaced = 1;
+        /* Tools always OR'd on declare → lift chrome preferred over Peace. */
+        if (strcmp(status_wf, "Tools embargo lifted.") != 0) {
+          fprintf(stderr, "smoke_ai_diplo: war-fatigue status '%s'\n", status_wf);
+          return fail("war-fatigue make_peace_ctx should status Tools embargo lifted for human");
+        }
+      }
+    }
+    if (!peaced) {
+      return fail("war-fatigue: timer==0 near-parity should eventually make_peace");
+    }
+
+    /*
+     * R13: war-fatigue chrome when human is the peer (AI actor peaces).
+     * make_peace_ctx status_human_pair fires for either party.
+     */
+    {
+      ColonizeCol1Save wf2;
+      col1_save_init(&wf2);
+      memset(wf2.nation, 0, sizeof(wf2.nation));
+      for (int i = 0; i < 4; ++i) {
+        wf2.player[i].control = 0;
+        wf2.player[i].country_name[0] = '\0';
+      }
+      snprintf(wf2.player[0].country_name, sizeof(wf2.player[0].country_name), "England");
+      snprintf(wf2.player[1].country_name, sizeof(wf2.player[1].country_name), "France");
+      wf2.nation[0].gold = 700;
+      wf2.nation[1].gold = 700;
+      for (int i = 0; i < 8; ++i) {
+        wf2.nation[0].relation_by_indian[i] = 100;
+        wf2.nation[1].relation_by_indian[i] = 100;
+      }
+      ai_diplo_declare_war(&wf2, 0, 1);
+      char status_peer[128];
+      status_peer[0] = '\0';
+      ColonizeDosRng rng_peer;
+      uint32_t turn_peer = 2;
+      ColonizeTurnContext ctx_peer;
+      memset(&ctx_peer, 0, sizeof(ctx_peer));
+      ctx_peer.col1 = &wf2;
+      ctx_peer.col1_ok = true;
+      ctx_peer.rng = &rng_peer;
+      ctx_peer.turn_number = &turn_peer;
+      ctx_peer.human_nation = 0; /* human is peer of AI actor 1 */
+      ctx_peer.status = status_peer;
+      ctx_peer.status_size = sizeof(status_peer);
+      int peaced_peer = 0;
+      for (int seed = 1; seed < 400 && !peaced_peer; ++seed) {
+        ai_diplo_declare_war(&wf2, 0, 1);
+        wf2.nation[0].unknown26[1] = 0;
+        wf2.nation[1].unknown26[0] = 0;
+        wf2.nation[0].gold = 600;
+        wf2.nation[1].gold = 600;
+        for (int i = 0; i < 8; ++i) {
+          wf2.nation[0].relation_by_indian[i] = 100;
+          wf2.nation[1].relation_by_indian[i] = 100;
+        }
+        status_peer[0] = '\0';
+        dos_rng_seed(&rng_peer, (uint32_t)seed);
+        for (int n = 0; n < 60 && ai_diplo_at_war(&wf2, 0, 1); ++n) {
+          wf2.nation[0].gold = 600;
+          wf2.nation[1].gold = 600;
+          wf2.nation[0].unknown26[1] = 0;
+          wf2.nation[1].unknown26[0] = 0;
+          ai_diplo_euro_balance(&ctx_peer, 1); /* AI actor; human peer */
+        }
+        if (!ai_diplo_at_war(&wf2, 0, 1)) {
+          peaced_peer = 1;
+          if (strcmp(status_peer, "Tools embargo lifted.") != 0) {
+            fprintf(stderr, "smoke_ai_diplo: war-fatigue peer status '%s'\n",
+                    status_peer);
+            return fail("war-fatigue make_peace_ctx should status when human is peer");
+          }
+        }
+      }
+      if (!peaced_peer) {
+        return fail("war-fatigue: AI actor should eventually peace with human peer");
+      }
+      /* Tools already clear → Peace concluded chrome (either party). */
+      status_peer[0] = '\0';
+      ai_diplo_declare_war(&wf2, 0, 1);
+      wf2.nation[0].boycott_bitmap = 0;
+      wf2.nation[1].boycott_bitmap = 0;
+      ai_diplo_make_peace_ctx(&ctx_peer, 1, 0);
+      if (strcmp(status_peer, "Peace concluded with France") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: Peace concluded status '%s'\n", status_peer);
+        return fail("make_peace_ctx should status Peace concluded when Tools already clear");
+      }
+    }
+
+    /* Tools embargo human status set/lift (colony gap ≥2). */
+    ColonizeCol1Save ts;
+    col1_save_init(&ts);
+    memset(ts.nation, 0, sizeof(ts.nation));
+    for (int i = 0; i < 4; ++i) {
+      ts.player[i].control = 0;
+      ts.player[i].country_name[0] = '\0';
+    }
+    snprintf(ts.player[1].country_name, sizeof(ts.player[1].country_name), "Spain");
+    ts.head.colony_count = 3;
+    ts.colony = calloc(3, sizeof(ColonizeCol1Colony));
+    if (!ts.colony) {
+      return fail("Tools status alloc colonies");
+    }
+    ts.colony[0].nation_id = 0;
+    ts.colony[1].nation_id = 0;
+    ts.colony[2].nation_id = 0;
+    ts.nation[0].gold = 400;
+    ts.nation[1].gold = 200;
+    char status[128];
+    status[0] = '\0';
+    ColonizeTurnContext ctx_ts;
+    memset(&ctx_ts, 0, sizeof(ctx_ts));
+    ctx_ts.col1 = &ts;
+    ctx_ts.col1_ok = true;
+    ctx_ts.human_nation = 0;
+    ctx_ts.status = status;
+    ctx_ts.status_size = sizeof(status);
+    ai_diplo_declare_war_ctx(&ctx_ts, 0, 1);
+    if ((ts.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0) {
+      free(ts.colony);
+      return fail("Tools status setup: colony-gap should set Tools bit");
+    }
+    if (strcmp(status, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: Tools set status '%s'\n", status);
+      free(ts.colony);
+      return fail("declare_war_ctx should status Sugar/Tobacco/Tools boycott for human");
+    }
+    ai_diplo_make_peace_ctx(&ctx_ts, 0, 1);
+    if ((ts.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
+      free(ts.colony);
+      return fail("make_peace_ctx should lift Tools bit");
+    }
+    if (strcmp(status, "Tools embargo lifted.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: Tools lift status '%s'\n", status);
+      free(ts.colony);
+      return fail("make_peace_ctx should status Tools embargo lifted for human");
+    }
+    /* AI-only Tools war: no status overwrite. */
+    snprintf(status, sizeof(status), "keep");
+    ts.nation[1].gold = 400;
+    ts.nation[2].gold = 200;
+    ts.colony[0].nation_id = 1;
+    ts.colony[1].nation_id = 1;
+    ts.colony[2].nation_id = 1;
+    ai_diplo_declare_war_ctx(&ctx_ts, 1, 2);
+    if (strcmp(status, "keep") != 0) {
+      free(ts.colony);
+      return fail("Tools embargo status must not write for AI-only pairs");
+    }
+    free(ts.colony);
+  }
+
+  /*
+   * R3: sticky==2 refuses new alliances this balance; Sugar wartime boycott
+   * set/lift; at_war_with / at_war_with_any helpers (feeler already gated).
+   * R4: Rum+Cigars boycott set/lift; sticky2 skip FA gift; Sugar/Tobacco
+   * boycott status (no Tools) for human declare.
+   * R11: Cotton leftover boycott set/lift (full wartime mask already smoked).
+   */
+  {
+    ColonizeCol1Save r3;
+    col1_save_init(&r3);
+    memset(r3.nation, 0, sizeof(r3.nation));
+    for (int i = 0; i < 4; ++i) {
+      r3.player[i].control = 0;
+    }
+    /* Near-parity via gold/50: score 12 each — ally-eligible band. */
+    r3.nation[0].gold = 600;
+    r3.nation[1].gold = 600;
+    for (int i = 0; i < 8; ++i) {
+      r3.nation[0].relation_by_indian[i] = 100;
+      r3.nation[1].relation_by_indian[i] = 100;
+    }
+    /* Deep sticky: very-low slot keeps sticky==2 across matrix tick. */
+    r3.nation[0].relation_by_indian[0] = 30;
+    r3.nation[0].unknown26[8] = 2;
+    char status[128];
+    status[0] = '\0';
+    ColonizeDosRng rng_r3;
+    dos_rng_seed(&rng_r3, 7);
+    uint32_t turn_r3 = 7;
+    ColonizeTurnContext ctx_r3;
+    memset(&ctx_r3, 0, sizeof(ctx_r3));
+    ctx_r3.col1 = &r3;
+    ctx_r3.col1_ok = true;
+    ctx_r3.rng = &rng_r3;
+    ctx_r3.turn_number = &turn_r3;
+    ctx_r3.human_nation = 0;
+    ctx_r3.status = status;
+    ctx_r3.status_size = sizeof(status);
+    for (int n = 0; n < 120; ++n) {
+      r3.nation[0].gold = 600;
+      r3.nation[1].gold = 600;
+      /* Keep deep sticky (harassment −2g; relation stays <40). */
+      r3.nation[0].relation_by_indian[0] = 30;
+      ai_diplo_euro_balance(&ctx_r3, 0);
+      if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
+        return fail("sticky==2 must refuse forming new alliances this balance");
+      }
+    }
+    if (ai_diplo_indian_hostility_sticky(&r3, 0) != 2) {
+      return fail("R3 sticky refuse setup should keep sticky==2");
+    }
+    /* R13: sticky==2 refuse-alliance human status (1/40 overwrite of remain-hostile). */
+    {
+      int saw_refuse = 0;
+      for (int seed = 1; seed < 500 && !saw_refuse; ++seed) {
+        r3.nation[0].gold = 600;
+        r3.nation[1].gold = 600;
+        r3.nation[0].relation_by_indian[0] = 30;
+        r3.nation[0].unknown26[8] = 2;
+        ai_diplo_clear_both(&r3, 0, 1, AI_DIPLO_ALLY);
+        status[0] = '\0';
+        dos_rng_seed(&rng_r3, (uint32_t)seed);
+        for (int n = 0; n < 80 && !saw_refuse; ++n) {
+          r3.nation[0].gold = 600;
+          r3.nation[1].gold = 600;
+          r3.nation[0].relation_by_indian[0] = 30;
+          ai_diplo_euro_balance(&ctx_r3, 0);
+          if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
+            return fail("sticky==2 refuse-status loop must not form alliance");
+          }
+          if (strcmp(status, "Native unrest precludes new alliances.") == 0) {
+            saw_refuse = 1;
+          }
+        }
+      }
+      if (!saw_refuse) {
+        return fail("sticky==2 should status Native unrest precludes new alliances");
+      }
+    }
+    /* Clear sticky → alliance may form under same near-parity RNG. */
+    for (int i = 0; i < 8; ++i) {
+      r3.nation[0].relation_by_indian[i] = 100;
+    }
+    r3.nation[0].unknown26[8] = 0;
+    int allied = 0;
+    for (int n = 0; n < 200; ++n) {
+      r3.nation[0].gold = 600;
+      r3.nation[1].gold = 600;
+      ai_diplo_euro_balance(&ctx_r3, 0);
+      if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
+        allied = 1;
+        break;
+      }
+    }
+    if (!allied) {
+      return fail("without sticky==2, near-parity should eventually form_alliance");
+    }
+
+    /* Sugar embargo: set on declare, lift on peace (same bit1 as king refuse). */
+    ColonizeCol1Save sg;
+    col1_save_init(&sg);
+    memset(sg.nation, 0, sizeof(sg.nation));
+    for (int i = 0; i < 4; ++i) {
+      sg.player[i].control = 0;
+    }
+    sg.nation[0].gold = 200;
+    sg.nation[1].gold = 200;
+    /* Pre-seed king-style Sugar bit; war OR is idempotent. */
+    sg.nation[0].boycott_bitmap = AI_DIPLO_SMOKE_SUGAR_BIT;
+    ai_diplo_declare_war(&sg, 0, 1);
+    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0 ||
+        (sg.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
+      return fail("declare_war should OR Sugar boycott bit (king refuse bit1)");
+    }
+    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
+        (sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) == 0) {
+      return fail("Sugar wartime boycott should sit alongside Furs+Tobacco");
+    }
+    ai_diplo_make_peace(&sg, 0, 1);
+    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0 ||
+        (sg.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0) {
+      return fail("make_peace should lift Sugar boycott when no Euro wars remain");
+    }
+    if (ai_diplo_at_war_with_any(&sg, 0) || ai_diplo_at_war_with(&sg, 0, 1)) {
+      return fail("after peace, at_war_with / at_war_with_any should be clear");
+    }
+
+    /* R4/R11: Rum+Cigars+Cotton wartime boycott set on declare, lift on peace. */
+    ColonizeCol1Save rc;
+    col1_save_init(&rc);
+    memset(rc.nation, 0, sizeof(rc.nation));
+    for (int i = 0; i < 4; ++i) {
+      rc.player[i].control = 0;
+    }
+    rc.nation[0].gold = 200;
+    rc.nation[1].gold = 200;
+    ai_diplo_declare_war(&rc, 0, 1);
+    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0 ||
+        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0) {
+      return fail("declare_war should OR Rum boycott bit (COLONIZE_CARGO_RUM)");
+    }
+    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0 ||
+        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0) {
+      return fail("declare_war should OR Cigars boycott bit (COLONIZE_CARGO_CIGARS)");
+    }
+    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0 ||
+        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0) {
+      return fail("declare_war should OR Cotton boycott bit (COLONIZE_CARGO_COTTON)");
+    }
+    ai_diplo_make_peace(&rc, 0, 1);
+    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+      return fail("make_peace should lift full wartime mask (Rum+Cigars+Cotton+…)");
+    }
+
+    /* R4: sticky==2 skips FA gift (no gold); longevity still bumps timer. */
+    ColonizeCol1Save fg;
+    col1_save_init(&fg);
+    memset(fg.nation, 0, sizeof(fg.nation));
+    for (int i = 0; i < 4; ++i) {
+      fg.player[i].control = 0;
+    }
+    for (int i = 0; i < 8; ++i) {
+      fg.nation[0].relation_by_indian[i] = 100;
+    }
+    fg.nation[0].relation_by_indian[0] = 30; /* keep sticky deep */
+    fg.nation[0].unknown26[8] = 2;
+    if (ai_diplo_indian_hostility_sticky(&fg, 0) != 2) {
+      return fail("R4 FA-skip setup should report sticky==2");
+    }
+    ai_diplo_or_both(&fg, 0, 1, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
+    fg.nation[0].gold = 120;
+    fg.nation[1].gold = 60; /* gift-eligible: donor>=100, peer < donor*2; aid blocked (>= half) */
+    fg.nation[0].unknown26[1] = 1;
+    fg.nation[1].unknown26[0] = 1;
+    char status_fg[128];
+    status_fg[0] = '\0';
+    ColonizeDosRng rng_fg;
+    dos_rng_seed(&rng_fg, 3);
+    uint32_t turn_fg = 3;
+    ColonizeTurnContext ctx_fg;
+    memset(&ctx_fg, 0, sizeof(ctx_fg));
+    ctx_fg.col1 = &fg;
+    ctx_fg.col1_ok = true;
+    ctx_fg.rng = &rng_fg;
+    ctx_fg.turn_number = &turn_fg;
+    ctx_fg.human_nation = 0;
+    ctx_fg.status = status_fg;
+    ctx_fg.status_size = sizeof(status_fg);
+    ai_diplo_euro_balance(&ctx_fg, 0);
+    /* Harassment −2g while sticky deep / indian_at_war; FA gift must not move more. */
+    if (fg.nation[0].gold != 118 || fg.nation[1].gold != 60) {
+      fprintf(stderr, "smoke_ai_diplo: sticky FA skip gold %u/%u\n",
+              (unsigned)fg.nation[0].gold, (unsigned)fg.nation[1].gold);
+      return fail("sticky==2 must skip FA gift gold transfer to peers");
+    }
+    if (fg.nation[0].unknown26[1] != 2 || fg.nation[1].unknown26[0] != 2) {
+      return fail("sticky==2 FA skip should still apply longevity timer+1");
+    }
+
+    /* R4/R10: human declare always ORs Tools → Sugar/Tobacco/Tools boycott status. */
+    ColonizeCol1Save st;
+    col1_save_init(&st);
+    memset(st.nation, 0, sizeof(st.nation));
+    for (int i = 0; i < 4; ++i) {
+      st.player[i].control = 0;
+      st.player[i].country_name[0] = '\0';
+    }
+    snprintf(st.player[1].country_name, sizeof(st.player[1].country_name), "France");
+    st.nation[0].gold = 300;
+    st.nation[1].gold = 300;
+    char status_st[128];
+    status_st[0] = '\0';
+    ColonizeTurnContext ctx_st;
+    memset(&ctx_st, 0, sizeof(ctx_st));
+    ctx_st.col1 = &st;
+    ctx_st.col1_ok = true;
+    ctx_st.human_nation = 0;
+    ctx_st.status = status_st;
+    ctx_st.status_size = sizeof(status_st);
+    ai_diplo_declare_war_ctx(&ctx_st, 0, 1);
+    if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0) {
+      return fail("declare_war should OR Tools boycott even without colony gap");
+    }
+    if (strcmp(status_st, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: Sugar/Tobacco/Tools status '%s'\n", status_st);
+      return fail("declare_war_ctx should status Sugar/Tobacco/Tools boycott for human");
+    }
+  }
+
+  /*
+   * R6: Ore+Silver wartime boycott set/lift (COLONIZE_CARGO_ORE/SILVER bits);
+   * FA gift / longevity human chrome and war-fatigue Peace status covered above;
+   * Indian −5 war-hit verified + sticky-rise status when boycott chrome quiet.
+   */
+  {
+    ColonizeCol1Save os;
+    col1_save_init(&os);
+    memset(os.nation, 0, sizeof(os.nation));
+    for (int i = 0; i < 4; ++i) {
+      os.player[i].control = 0;
+    }
+    os.nation[0].gold = 200;
+    os.nation[1].gold = 200;
+    ai_diplo_declare_war(&os, 0, 1);
+    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0 ||
+        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0) {
+      return fail("declare_war should OR Ore boycott bit (COLONIZE_CARGO_ORE)");
+    }
+    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0 ||
+        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0) {
+      return fail("declare_war should OR Silver boycott bit (COLONIZE_CARGO_SILVER)");
+    }
+    ai_diplo_make_peace(&os, 0, 1);
+    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) != 0 ||
+        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) != 0 ||
+        (os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) != 0 ||
+        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) != 0) {
+      return fail("make_peace should lift Ore+Silver boycott when no Euro wars remain");
+    }
+  }
+
+  /*
+   * R8: Lumber wartime boycott set/lift (COLONIZE_CARGO_LUMBER); make_peace
+   * stops privateer prize (WAR-gated); Indian feeler human status when mid-band
+   * nudge fires and sticky stays clear. sticky==2 alliance refuse status already
+   * present ("Native unrest precludes new alliances.").
+   */
+  {
+    ColonizeCol1Save r8;
+    col1_save_init(&r8);
+    memset(r8.nation, 0, sizeof(r8.nation));
+    for (int i = 0; i < 4; ++i) {
+      r8.player[i].control = 0;
+    }
+    r8.nation[0].gold = 200;
+    r8.nation[1].gold = 200;
+    ai_diplo_declare_war(&r8, 0, 1);
+    if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0 ||
+        (r8.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0) {
+      return fail("declare_war should OR Lumber boycott bit (COLONIZE_CARGO_LUMBER)");
+    }
+    ai_diplo_make_peace(&r8, 0, 1);
+    if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0 ||
+        (r8.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0) {
+      return fail("make_peace should lift Lumber boycott when no Euro wars remain");
+    }
+
+    /* Privateer prize stops after peace (no WAR branch → no 8g transfer). */
+    {
+      ColonizeCol1Save pr;
+      col1_save_init(&pr);
+      memset(pr.nation, 0, sizeof(pr.nation));
+      for (int i = 0; i < 4; ++i) {
+        pr.player[i].control = 0;
+      }
+      for (int i = 0; i < 8; ++i) {
+        pr.nation[0].relation_by_indian[i] = 100;
+        pr.nation[1].relation_by_indian[i] = 100;
+      }
+      pr.nation[0].gold = 250;
+      pr.nation[1].gold = 80;
+      ai_diplo_declare_war(&pr, 0, 1);
+      /* After sting: 150 / 0; restore imbalance for prize. */
+      pr.nation[0].gold = 200;
+      pr.nation[1].gold = 50;
+      ColonizeDosRng rng_pr;
+      dos_rng_seed(&rng_pr, 9);
+      uint32_t turn_pr = 9;
+      ColonizeTurnContext ctx_pr;
+      memset(&ctx_pr, 0, sizeof(ctx_pr));
+      ctx_pr.col1 = &pr;
+      ctx_pr.col1_ok = true;
+      ctx_pr.rng = &rng_pr;
+      ctx_pr.turn_number = &turn_pr;
+      ai_diplo_euro_balance(&ctx_pr, 1); /* poorer: 50−5+8=53; richer 192 */
+      if (pr.nation[1].gold != 53 || pr.nation[0].gold != 192) {
+        return fail("R8 privateer setup: prize should fire while at war");
+      }
+      ai_diplo_make_peace(&pr, 0, 1);
+      if (ai_diplo_at_war(&pr, 0, 1)) {
+        return fail("R8 privateer: make_peace should clear WAR");
+      }
+      pr.nation[0].gold = 200;
+      pr.nation[1].gold = 50;
+      ai_diplo_euro_balance(&ctx_pr, 1);
+      if (pr.nation[0].gold != 200 || pr.nation[1].gold != 50) {
+        return fail("after peace, euro_balance must not apply privateer prize or war upkeep");
+      }
+    }
+
+    /* Feeler mid-band heal → human "Native relations improve." (sticky clear). */
+    {
+      ColonizeCol1Save fl;
+      col1_save_init(&fl);
+      memset(fl.nation, 0, sizeof(fl.nation));
+      for (int i = 0; i < 4; ++i) {
+        fl.player[i].control = 0;
+      }
+      for (int i = 0; i < 8; ++i) {
+        fl.nation[0].relation_by_indian[i] = 100;
+      }
+      fl.nation[0].relation_by_indian[1] = 80; /* mid-band feeler-eligible */
+      fl.nation[0].unknown26[8] = 0;
+      fl.nation[0].gold = 40;
+      char status_fl[128];
+      status_fl[0] = '\0';
+      ColonizeDosRng rng_fl;
+      dos_rng_seed(&rng_fl, 12);
+      uint32_t turn_fl = 12;
+      ColonizeTurnContext ctx_fl;
+      memset(&ctx_fl, 0, sizeof(ctx_fl));
+      ctx_fl.col1 = &fl;
+      ctx_fl.col1_ok = true;
+      ctx_fl.rng = &rng_fl;
+      ctx_fl.turn_number = &turn_fl;
+      ctx_fl.human_nation = 0;
+      ctx_fl.status = status_fl;
+      ctx_fl.status_size = sizeof(status_fl);
+      ai_diplo_euro_balance(&ctx_fl, 0);
+      if (fl.nation[0].relation_by_indian[1] != 82) {
+        return fail("R8 feeler should +2 mid-band relation");
+      }
+      if (ai_diplo_indian_hostility_sticky(&fl, 0) != 0) {
+        return fail("R8 feeler status setup should keep sticky clear");
+      }
+      if (strcmp(status_fl, "Native relations improve.") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: feeler status '%s'\n", status_fl);
+        return fail("euro_balance feeler nudge should status Native relations improve");
+      }
+      /* AI-only: no status. */
+      snprintf(status_fl, sizeof(status_fl), "keep");
+      fl.nation[0].relation_by_indian[1] = 80;
+      ctx_fl.human_nation = 2;
+      ai_diplo_euro_balance(&ctx_fl, 0);
+      if (strcmp(status_fl, "keep") != 0) {
+        return fail("feeler status must not write for AI-only nation");
+      }
+    }
+  }
+
+  /*
+   * R9: Horses+Muskets wartime boycott set/lift; alliance gold-drain status
+   * chrome when form_alliance_ctx drains human treasury.
+   */
+  {
+    ColonizeCol1Save r9;
+    col1_save_init(&r9);
+    memset(r9.nation, 0, sizeof(r9.nation));
+    for (int i = 0; i < 4; ++i) {
+      r9.player[i].control = 0;
+    }
+    for (int i = 0; i < 8; ++i) {
+      r9.nation[0].relation_by_indian[i] = 100;
+      r9.nation[1].relation_by_indian[i] = 100;
+    }
+    r9.nation[0].gold = 200;
+    r9.nation[1].gold = 200;
+    ai_diplo_declare_war(&r9, 0, 1);
+    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0 ||
+        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0) {
+      return fail("declare_war should OR Horses boycott bit (COLONIZE_CARGO_HORSES)");
+    }
+    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0 ||
+        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0) {
+      return fail("declare_war should OR Muskets boycott bit (COLONIZE_CARGO_MUSKETS)");
+    }
+    ai_diplo_make_peace(&r9, 0, 1);
+    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0 ||
+        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0) {
+      return fail("make_peace should lift Horses boycott when no Euro wars remain");
+    }
+    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0 ||
+        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0) {
+      return fail("make_peace should lift Muskets boycott when no Euro wars remain");
+    }
+
+    /* Alliance gold-drain status when cost fires and human is a party. */
+    {
+      ColonizeCol1Save ag;
+      col1_save_init(&ag);
+      memset(ag.nation, 0, sizeof(ag.nation));
+      for (int i = 0; i < 4; ++i) {
+        ag.player[i].control = 0;
+      }
+      snprintf(ag.player[1].country_name, sizeof(ag.player[1].country_name), "France");
+      ag.nation[0].gold = 100;
+      ag.nation[1].gold = 100;
+      char status_ag[128];
+      status_ag[0] = '\0';
+      ColonizeDosRng rng_ag;
+      dos_rng_seed(&rng_ag, 19);
+      uint32_t turn_ag = 19;
+      ColonizeTurnContext ctx_ag;
+      memset(&ctx_ag, 0, sizeof(ctx_ag));
+      ctx_ag.col1 = &ag;
+      ctx_ag.col1_ok = true;
+      ctx_ag.rng = &rng_ag;
+      ctx_ag.turn_number = &turn_ag;
+      ctx_ag.human_nation = 0;
+      ctx_ag.status = status_ag;
+      ctx_ag.status_size = sizeof(status_ag);
+      ai_diplo_form_alliance_ctx(&ctx_ag, 0, 1);
+      if (ag.nation[0].gold != 75 || ag.nation[1].gold != 75) {
+        return fail("form_alliance_ctx should drain 25 gold each side");
+      }
+      if (ag.nation[0].unknown26[1] < 8 || ag.nation[1].unknown26[0] < 8) {
+        return fail("form_alliance_ctx should bump treaty timer to ≥8 when was 0");
+      }
+      if (strcmp(status_ag, "Alliance with France costs gold.") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: ally cost status '%s'\n", status_ag);
+        return fail("form_alliance_ctx should prefer Alliance with country costs gold");
+      }
+      /* Bare form_alliance remains status-free. */
+      snprintf(status_ag, sizeof(status_ag), "bare");
+      ag.nation[0].gold = 100;
+      ag.nation[1].gold = 100;
+      ai_diplo_break_alliance(&ag, 0, 1);
+      ai_diplo_form_alliance(&ag, 0, 1);
+      if (strcmp(status_ag, "bare") != 0) {
+        return fail("bare form_alliance must not touch ctx status");
+      }
+      /* AI-only pair: no status even via _ctx. */
+      snprintf(status_ag, sizeof(status_ag), "keep");
+      ag.nation[2].gold = 100;
+      ag.nation[3].gold = 100;
+      ai_diplo_form_alliance_ctx(&ctx_ag, 2, 3);
+      if (strcmp(status_ag, "keep") != 0) {
+        return fail("form_alliance_ctx must not write status for AI-only pairs");
+      }
+      /*
+       * R14: human gold already 0 → cost floors, but first form still statuses
+       * "Alliance formed with %s" (mirrors War declared / Peace concluded /
+       * Alliance broken). Gold-drain chrome preferred when cost fires above.
+       */
+      ag.nation[0].gold = 0;
+      ag.nation[1].gold = 100;
+      ai_diplo_break_alliance(&ag, 0, 1);
+      status_ag[0] = '\0';
+      ai_diplo_form_alliance_ctx(&ctx_ag, 0, 1);
+      if ((ai_diplo_read(&ag, 0, 1) & AI_DIPLO_ALLY) == 0) {
+        return fail("form_alliance_ctx should set ALLY when human gold already 0");
+      }
+      if (strcmp(status_ag, "Alliance formed with France") != 0) {
+        fprintf(stderr, "smoke_ai_diplo: ally formed status '%s'\n", status_ag);
+        return fail("form_alliance_ctx should status Alliance formed when gold already 0");
+      }
+      /* Re-form while already allied: no formed rewrite (was_ally gate). */
+      snprintf(status_ag, sizeof(status_ag), "keep");
+      ag.nation[0].gold = 0;
+      ag.nation[1].gold = 100;
+      ai_diplo_form_alliance_ctx(&ctx_ag, 0, 1);
+      if (strcmp(status_ag, "keep") != 0) {
+        return fail("form_alliance_ctx must not rewrite formed status when already allied");
+      }
+    }
+  }
+
+  /*
+   * R10: Tools wartime boycott always (COLONIZE_CARGO_TOOLS) + lift on peace;
+   * war upkeep human status covered above; break_alliance raises Indian sticky
+   * when relations near at-war floor (−5 hit → sticky 0→1) + human sticky chrome.
+   * Peace feeler mid-band smoke already present (R8) — no gap.
+   */
+  {
+    ColonizeCol1Save r10;
+    col1_save_init(&r10);
+    memset(r10.nation, 0, sizeof(r10.nation));
+    for (int i = 0; i < 4; ++i) {
+      r10.player[i].control = 0;
+      r10.player[i].country_name[0] = '\0';
+    }
+    snprintf(r10.player[1].country_name, sizeof(r10.player[1].country_name), "France");
+    /* Near at-war floor: −5 → 47 → sticky at-war. */
+    for (int i = 0; i < 8; ++i) {
+      r10.nation[0].relation_by_indian[i] = 52;
+      r10.nation[1].relation_by_indian[i] = 52;
+    }
+    r10.nation[0].unknown26[8] = 0;
+    r10.nation[1].unknown26[8] = 0;
+    r10.nation[0].gold = 100;
+    r10.nation[1].gold = 100;
+    ai_diplo_form_alliance(&r10, 0, 1);
+    if (ai_diplo_indian_hostility_sticky(&r10, 0) != 0) {
+      return fail("R10 break sticky setup should start clear");
+    }
+    char status_r10[128];
+    status_r10[0] = '\0';
+    ColonizeTurnContext ctx_r10;
+    memset(&ctx_r10, 0, sizeof(ctx_r10));
+    ctx_r10.col1 = &r10;
+    ctx_r10.col1_ok = true;
+    ctx_r10.human_nation = 0;
+    ctx_r10.status = status_r10;
+    ctx_r10.status_size = sizeof(status_r10);
+    ai_diplo_break_alliance_ctx(&ctx_r10, 0, 1);
+    if (r10.nation[0].relation_by_indian[0] != 47) {
+      return fail("break_alliance should −5 Indian relations");
+    }
+    if (ai_diplo_indian_hostility_sticky(&r10, 0) != 1) {
+      return fail("break_alliance should raise Indian hostility sticky when near floor");
+    }
+    if (ai_diplo_indian_hostility_sticky(&r10, 1) != 1) {
+      return fail("break_alliance should raise sticky on both sides");
+    }
+    if (strcmp(status_r10, "Natives grow hostile.") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: R10 break sticky status '%s'\n", status_r10);
+      return fail("break_alliance_ctx should prefer Natives grow hostile when sticky rises");
+    }
+    /* Re-break: not allied → no second −5 / sticky deepen from this path. */
+    const uint8_t rel_after = r10.nation[0].relation_by_indian[0];
+    ai_diplo_break_alliance(&r10, 0, 1);
+    if (r10.nation[0].relation_by_indian[0] != rel_after) {
+      return fail("re-break_alliance must not re-hit Indian relations");
+    }
+  }
+
+  /*
+   * R13: treaty-timer expiry break human chrome (break_alliance_ctx path).
+   * Keep Indians content so sticky-raise chrome does not steal status.
+   * FA gift gold transfer already smoked above (euro_balance + direct API).
+   */
+  {
+    ColonizeCol1Save te;
+    col1_save_init(&te);
+    memset(te.nation, 0, sizeof(te.nation));
+    for (int i = 0; i < 4; ++i) {
+      te.player[i].control = 0;
+      te.player[i].country_name[0] = '\0';
+    }
+    snprintf(te.player[1].country_name, sizeof(te.player[1].country_name), "France");
+    for (int i = 0; i < 8; ++i) {
+      te.nation[0].relation_by_indian[i] = 100;
+      te.nation[1].relation_by_indian[i] = 100;
+    }
+    te.nation[0].gold = 100;
+    te.nation[1].gold = 100;
+    te.nation[0].unknown26[1] = 0;
+    te.nation[1].unknown26[0] = 0;
+    ai_diplo_form_alliance(&te, 0, 1);
+    te.nation[0].unknown26[1] = 1;
+    te.nation[1].unknown26[0] = 1;
+    te.nation[0].unknown26[2] = 5;
+    te.nation[0].unknown26[3] = 5;
+    char status_te[128];
+    status_te[0] = '\0';
+    ColonizeDosRng rng_te;
+    dos_rng_seed(&rng_te, 11);
+    uint32_t turn_te = 11;
+    ColonizeTurnContext ctx_te;
+    memset(&ctx_te, 0, sizeof(ctx_te));
+    ctx_te.col1 = &te;
+    ctx_te.col1_ok = true;
+    ctx_te.rng = &rng_te;
+    ctx_te.turn_number = &turn_te;
+    ctx_te.human_nation = 0;
+    ctx_te.status = status_te;
+    ctx_te.status_size = sizeof(status_te);
+    ai_diplo_treaty_timers(&ctx_te, 0);
+    if (ai_diplo_read(&te, 0, 1) & AI_DIPLO_ALLY) {
+      return fail("R13 timer expiry should break alliance");
+    }
+    if (strcmp(status_te, "Alliance broken with France") != 0) {
+      fprintf(stderr, "smoke_ai_diplo: timer-expiry status '%s'\n", status_te);
+      return fail("timer expiry should status Alliance broken when human is a party");
     }
   }
 

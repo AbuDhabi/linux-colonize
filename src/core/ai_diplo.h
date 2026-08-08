@@ -22,16 +22,25 @@ void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_
 void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits);
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b);
+/* War-turn helper alias of ai_diplo_at_war (pair). */
+int ai_diplo_at_war_with(const ColonizeCol1Save* col1, int nation_a, int nation_b);
+/* True if Euro nation is at war with any other Euro (feeler / drift / lift gate). */
+int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation);
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
 /* Thin 102a/1092 status chrome (Contact/King pattern): call existing
- * declare/make_peace then write ctx->status when human is involved.
- * AI callers keep using declare_war / make_peace without status. */
+ * declare/make_peace/form_alliance/break_alliance then write ctx->status when
+ * human is involved. form_alliance_ctx: first form → "Alliance formed with %s";
+ * prefer "Alliance with %s costs gold." when 25g drains. AI callers keep using
+ * declare_war / make_peace / form_alliance / break_alliance without status.
+ * FA UI PARKED. */
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
+void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
+void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
 /* FUN_5bfb_0000/00f8/312e-shaped military score (unpark #5 deepen). */
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
@@ -42,12 +51,15 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
 /* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
  * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
- * at-war near-parity → make_peace_ctx (status when human; 102a/1092 chrome). */
+ * FA gift/longevity human status ("Alliance with %s strengthened/holds");
+ * at-war war-fatigue (timer==0) + near-parity → make_peace_ctx
+ * (status when human; 102a/1092 chrome). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
 /* Thin FA 3f41 goodwill gift: 15g from→to + both treaty timers +2 when
  * donor gold >= 100 and peer gold < donor*2. euro_balance calls when ALLY
- * and timer==1. Full FA dialog UI PARKED. */
+ * and timer==1; if gift no-ops, longevity timer+1 (no second gold) + human
+ * alliance longevity status. Full FA dialog UI PARKED. */
 void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to);
 
 /* Alias → ai_diplo_treaty_timers (6d8e timer pass). */
@@ -61,6 +73,14 @@ void ai_diplo_indian_relation_delta(
   int delta
 );
 
+/* Read-only pair of relation_delta: indian_nation 4..11 → Euro cell.
+ * Contact/king consumers; does not invent combat %. */
+uint8_t ai_diplo_indian_relation(
+  const ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+);
+
 /* Thin Indian×Euro matrix cell: relation_by_indian[indian_idx] (0..7). */
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
@@ -71,7 +91,10 @@ int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int in
 /* True if any of 8 Indian slots is at war (relation < 50). Contact/diplo helper. */
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
 
-/* Read unknown26[8] Indian hostility sticky: 0 clear, 1 at-war, 2 very-low deepen. */
+/* Read unknown26[8] Indian hostility sticky: 0 clear, 1 at-war, 2 very-low deepen.
+ * sticky==2 → peace feeler self-gates off (matrix + make_peace) + refuses new
+ * alliances this balance + skips FA gift to peers (no gold) + human
+ * "Natives remain hostile." / alliance-refuse status. */
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */

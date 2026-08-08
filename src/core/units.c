@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/founding_fathers.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
@@ -378,6 +379,11 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
 }
 
 static int g_units_last_combat = 0;
+static const ColonizeCol1Save* g_units_ff_col1 = NULL;
+
+void units_set_ff_col1(const ColonizeCol1Save* col1) {
+  g_units_ff_col1 = col1;
+}
 
 int units_last_combat_outcome(void) {
   return g_units_last_combat;
@@ -409,11 +415,92 @@ static int units_foreign_at(
   return -1;
 }
 
-bool units_resolve_land_combat(
+/*
+ * PEDIA George Washington: non-veteran soldier/dragoon who wins combat is
+ * automatically upgraded. Name-based type swap (1eca-style) + profession bit
+ * so display_name becomes Veteran when @UNIT has no separate Veteran type.
+ */
+static void units_washington_promote_on_win(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* winner,
+  const ColonizeCol1Save* col1
+) {
+  if (!pool || !winner || !winner->active || !col1) {
+    return;
+  }
+  if (!founding_fathers_nation_has(col1, winner->nation_id, FF_GEORGE_WASHINGTON)) {
+    return;
+  }
+  const ColonizeUnitType* ut = units_type(pool, winner->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(pool, winner);
+  if ((dname && (strstr(dname, "Veteran") || strstr(dname, "Continental"))) ||
+      (tname &&
+       (strstr(tname, "Veteran") || strstr(tname, "Cont.") || strstr(tname, "Continental")))) {
+    return;
+  }
+  const bool is_dragoon =
+    (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))) ||
+    (dname && (strstr(dname, "Dragoon") || strstr(dname, "Cavalry")));
+  const bool is_soldier =
+    !is_dragoon &&
+    ((tname && strstr(tname, "Soldier") != NULL) || (dname && strstr(dname, "Soldier") != NULL));
+  if (!is_soldier && !is_dragoon) {
+    return;
+  }
+  if (is_dragoon) {
+    int tgt = units_find_type(pool, "Veteran Dragoon");
+    if (tgt < 0) {
+      tgt = units_find_type(pool, "Cont. Cav.");
+    }
+    if (tgt < 0) {
+      tgt = units_find_type(pool, "Continental Cavalry");
+    }
+    if (tgt >= 0) {
+      winner->type_index = tgt;
+    }
+    winner->profession = UNITS_JOB_DRAGOON;
+  } else {
+    int tgt = units_find_type(pool, "Veteran Soldier");
+    if (tgt < 0) {
+      tgt = units_find_type(pool, "Cont. Army");
+    }
+    if (tgt < 0) {
+      tgt = units_find_type(pool, "Continental Army");
+    }
+    if (tgt >= 0) {
+      winner->type_index = tgt;
+    }
+    winner->profession = UNITS_JOB_SOLDIER;
+  }
+}
+
+/* PEDIA Francis Drake: privateer combat strengths +50% → multiply by 3/2. */
+static int units_drake_scale_strength(
+  const ColonizeUnitPool* pool,
+  const ColonizeUnit* unit,
+  int strength,
+  const ColonizeCol1Save* col1
+) {
+  if (!pool || !unit || !col1 || strength <= 0) {
+    return strength;
+  }
+  const ColonizeUnitType* t = units_type(pool, unit->type_index);
+  if (!t || strstr(t->name, "Privateer") == NULL) {
+    return strength;
+  }
+  if (!founding_fathers_nation_has(col1, unit->nation_id, FF_FRANCIS_DRAKE)) {
+    return strength;
+  }
+  return (strength * 3) / 2;
+}
+
+bool units_resolve_land_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
   int defender_id,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
 ) {
   g_units_last_combat = 0;
   ColonizeUnit* atk = units_get(pool, attacker_id);
@@ -454,19 +541,28 @@ bool units_resolve_land_combat(
   }
   if (atk_wins) {
     units_despawn(pool, defender_id);
+    atk = units_get(pool, attacker_id);
+    if (atk) {
+      units_washington_promote_on_win(pool, atk, col1);
+    }
     g_units_last_combat = 1;
     return true;
   }
   units_despawn(pool, attacker_id);
+  def = units_get(pool, defender_id);
+  if (def) {
+    units_washington_promote_on_win(pool, def, col1);
+  }
   g_units_last_combat = -1;
   return false;
 }
 
-bool units_resolve_naval_combat(
+bool units_resolve_naval_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
   int defender_id,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
 ) {
   g_units_last_combat = 0;
   ColonizeUnit* atk = units_get(pool, attacker_id);
@@ -490,6 +586,8 @@ bool units_resolve_naval_combat(
   if (defense < 0) {
     defense = 0;
   }
+  attack = units_drake_scale_strength(pool, atk, attack, col1);
+  defense = units_drake_scale_strength(pool, def, defense, col1);
   const int total = attack + defense;
   bool atk_wins = false;
   if (total <= 0) {
@@ -590,6 +688,97 @@ bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int c
   return false;
 }
 
+/* Standing military defender on a colony tile (PEDIA Revere "standing soldiers"). */
+static bool units_is_standing_soldier(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (!pool || !u || !u->active) {
+    return false;
+  }
+  if (u->muskets > 0) {
+    return true;
+  }
+  const ColonizeUnitType* t = units_type(pool, u->type_index);
+  const char* n = t ? t->name : NULL;
+  const char* d = units_display_name(pool, u);
+  if ((n && (strstr(n, "Soldier") || strstr(n, "Dragoon") || strstr(n, "Cavalry") ||
+             strstr(n, "Artillery") || strstr(n, "Regular") || strstr(n, "Continental") ||
+             strstr(n, "Cont."))) ||
+      (d && (strstr(d, "Soldier") || strstr(d, "Dragoon") || strstr(d, "Cavalry") ||
+             strstr(d, "Artillery") || strstr(d, "Regular") || strstr(d, "Continental")))) {
+    return true;
+  }
+  return false;
+}
+
+static bool units_colony_has_soldier_on_tile(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int colony_nation
+) {
+  if (!pool || colony_nation < 0) {
+    return false;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || !units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->nation_id != colony_nation) {
+      continue;
+    }
+    if (units_is_standing_soldier(pool, u)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+ * PEDIA Paul Revere: when stepping onto a foreign colony with no map unit and
+ * no standing soldiers, auto-arm a colonist from warehouse muskets and fight.
+ * Returns true if move may continue (no fight, or attacker won). False if
+ * attacker lost / despawned. Requires g_units_ff_col1.
+ */
+static bool units_revere_defend_colony_tile(
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  int attacker_id,
+  int dest_x,
+  int dest_y,
+  ColonizeDosRng* rng
+) {
+  if (!pool || !colonies || !g_units_ff_col1) {
+    return true;
+  }
+  ColonizeUnit* atk = units_get(pool, attacker_id);
+  if (!atk || !atk->active || units_is_sea(pool, attacker_id)) {
+    return true;
+  }
+  const int cid = colonies_id_at(colonies, dest_x, dest_y);
+  ColonizeColony* col = colonies_get_mut(colonies, cid);
+  if (!col || !col->active) {
+    return true;
+  }
+  if (col->nation_id < 0 || col->nation_id > 3 || col->nation_id == atk->nation_id) {
+    return true;
+  }
+  const bool has_soldier =
+    units_colony_has_soldier_on_tile(pool, dest_x, dest_y, col->nation_id);
+  if (!founding_fathers_revere_should_auto_arm(
+        g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
+      )) {
+    return true;
+  }
+  const int def_id = founding_fathers_revere_auto_arm(colonies, pool, cid);
+  if (def_id < 0) {
+    return true; /* eject failed — leave tile open (no invented defense) */
+  }
+  if (!units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1)) {
+    return false;
+  }
+  return units_get(pool, attacker_id) != NULL;
+}
+
 bool units_try_move(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -625,8 +814,20 @@ bool units_try_move(
     if (units_is_sea(pool, unit_id) || units_is_sea(pool, foe)) {
       return false;
     }
-    if (!units_resolve_land_combat(pool, unit_id, foe, rng)) {
+    if (!units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1)) {
       return false; /* attacker lost / despawned */
+    }
+    unit = units_get(pool, unit_id);
+    if (!unit) {
+      return false;
+    }
+  } else if (colonies) {
+    /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
+     * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
+    if (!units_revere_defend_colony_tile(
+          pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
+        )) {
+      return false;
     }
     unit = units_get(pool, unit_id);
     if (!unit) {

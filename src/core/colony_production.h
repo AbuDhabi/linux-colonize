@@ -76,6 +76,24 @@ int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeCol
 int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony);
 
 /*
+ * FF-aware variants (fandom_col1994 / Colonization.pdf):
+ *   statesmen_bonus_pct — Jefferson: +50% on Town Hall (statesmen) worker bells
+ *   all_bells_bonus_pct  — Paine: +current tax rate % on colony bells (after press/newspaper)
+ *   crosses_bonus_pct   — Penn: +50% on colony cross production
+ */
+int colony_prod_colony_bells_ff(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int statesmen_bonus_pct,
+  int all_bells_bonus_pct
+);
+int colony_prod_colony_crosses_ff(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int crosses_bonus_pct
+);
+
+/*
  * Sum carpenter hammer output and lumber consumed this turn.
  * Only assigned workers at Carpenter's Shop / Lumber Mill produce hammers.
  */

@@ -10,6 +10,14 @@
  *
  * FUN_4d56_1816 phases (prelude / relation), FUN_5bfb_022e meet,
  * FUN_4d56_4528 / FUN_5fef_0f14 raid outcomes, FUN_4d56_359c scout stub.
+ *
+ * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): full meet/raid decision
+ * matrix + nested trade 2aac…311e (dispatch / buy / hard-bargain / demand).
+ * Linux keeps thin trade-goods→alarm + gift/demand / teach / convert / @RAID*
+ * stand-ins only — R14 PARK only (no 2820 body port). Dialog widgets remain
+ * OPEN (unpark #1). Cite: indian_contact.md PORT DEBT;
+ * docs/ai_transcription.md FUN_4d56_2820; peel layer_b_combat_raid /
+ * layer_b_2a1f_midlo.
  */
 
 /* @RAID* kind stand-ins (COLONIZE/GAME.TXT tags). */

@@ -265,12 +265,12 @@ remain correctly **PARKED** (see R0 / R5).
 
 | # | Track | Was parked as | Open work (next) | Still parked |
 |--:|-------|---------------|------------------|--------------|
-| 1 | Indian contact UI | dialog / teach UI after thin meet | Real dialog **widgets**; alarmed refuse teach/gift + mission pacify + raid stock gate **Done** | Full `2154`/`2820`/`4528` bodies; `@TRIBES` flavor parse; DOS kill/warn RNG |
-| 2 | King / REF UI | audience after structural tax/REF | Real **modals**; `10f0`×3 (diff≥2) + colony-SoL `1eca` + MoW unload×3 **Done** | `160a` letter cinematic; MoW×6 chrome; `0x5382` rename |
-| 3 | Founding Fathers | full wiki table | **Manual-aligned effects** (not treasury fiction); Magellan/Coronado/Jones/Bolivar/Fugger/Hudson/La Salle/Brewster wired or flagged; remaining PARKED combat/diplo/prod hooks | Congress debate UI; bell spend/threshold recovery; Washington/Drake/Revere combat paths |
-| 4 | Euro mid-planner | mid `5d04` / `20e6` after skeleton | FoW CONTACT rings + 2-step FOUND/MIL land + treasury/dock case-7 hire **Done** | Full T3 / LCG goldens; ocean fixture retirement (R5); full `5d04` matrix |
-| 5 | Euro×Indian diplo | Indian `15b3` + full `153e` | Sticky 0/1/2 + peace feeler + exported helpers/status **Done** | Privateer **unit** spawn; exact DS `−0x77c4` rename; FA `3f41` full UI |
-| 6 | Doc hygiene | — | [manual_gap.md](manual_gap.md) aligned to structural ports (this pass) | — |
+| 1 | Indian contact UI | dialog widgets | relation refuse + raid pick + missionary flee **Done** | Full bodies; widgets |
+| 2 | King / REF UI | modals | MoW coastal unload + idle fortify **Done** | Modals; MoW×6 |
+| 3 | Founding Fathers | wiki table | Washington/Drake + Jefferson/Penn/Paine + Revere auto-arm + Pocahontas elect/half-rate **Done**; Minuit PARKED | Congress UI |
+| 4 | Euro mid-planner | 5d04/20e6 | Scout fog + food LABOR + Privateer hunt **Done** | Deep 20e6; full 5d04; T3 |
+| 5 | Euro×Indian diplo | 15b3 | Rum/Cigars boycott + sticky FA-gift skip **Done** | Widgets; FA UI; privateer units |
+| 6 | Doc hygiene | — | [manual_gap.md](manual_gap.md) aligned | — |
 
 Playability mirror: [manual_gap.md](manual_gap.md). Thin maps under
 `original_sources_annotated/ai/` use **OPEN** for queue rows and **PARKED** only
@@ -360,12 +360,13 @@ Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact
 Smoke: `smoke_ai_contact`.
 
 **OPEN (unpark #1):** real dialog **widgets** (`5bfb_102a`/`1092`, teach chrome).
-Thin human-facing `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid);
+Thin human-facing `ctx->status` lines **Done** (meet/trade/gift/demand/teach/raid/convert);
 alarmed refuse-talk / teach / gift when `alarm_by_player >= 55` **Done**;
-mid-range mission pacify (−2) **Done**; raid kinds gated on real warehouse/gold stock **Done**.
+mid-range mission pacify (−2) **Done**; raid kinds gated on real warehouse/gold stock **Done**;
+demand succeed needs ≥20 tools stock; raids prefer `indian_at_war` Euros **Done**.
 
-**Still PARKED:** full `2154`/`2820`/`4528` bodies; full `@TRIBES` flavor-good
-parse; DOS RNG kill/warn branch.
+**Still PARKED:** full `2154`/`2820`/`4528` bodies; Brave escort deep `14fe`; full
+`@TRIBES` flavor-good parse; DOS RNG kill/warn branch.
 
 ### R3.5 — Euro diplomacy (`15b3` / `5bfb`) (**partial structural port**)
 
@@ -386,6 +387,8 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smo
 Military score weights + colony-gap Tools embargo + war/peace `_ctx` status chrome
 + `unknown26[8]` sticky 0/1/2 sync + peace feeler (+2 toward 100) + exported
 matrix helpers / native-hostility status **Done**.
+Wartime Cloth/Coats boycott bits; sticky→0 status "Native tensions ease.";
+`break_alliance_ctx` human chrome **Done**.
 
 **Still PARKED:** FA `3f41` full body/UI; privateer **unit** spawn; exact DS
 `−0x77c4` field rename; quiet Brave diplomacy goldens.
@@ -413,6 +416,8 @@ Thin `5d04` tools/wagon hire (peace: Pioneer when `tools_short>20`; Wagon Train 
 Thin 2-step FOUND/MILITARY land advances while `moves_left` remain.
 Thin case-7 treasury gate (skip hire below colonist `hire_cost`; Artillery 500$;
 dock Hardy/Expert Pioneer or Master Carpenter only when already on Europe dock).
+Thin Treasure → coastal colony `AI_MOVE`; peace Missionary/Jesuit CONTACT toward
+unmissioned tribes (skip Alarm≥55). Expert Lumberjack field-assign **PARKED**.
 **OPEN (unpark #4):** remaining full `5d04` wagon/mid matrix; deep combat multi-step
 `20e6`; ocean/naval `20e6`; deep −0x6790 G table. Odd deviations OK; not T3 / LCG
 goldens (those stay R5).
@@ -442,7 +447,9 @@ thin SoL 40–49 restless
 status + `unknown46[5]` congress confirm + congress status on declare
 (`2564` confirm **modal** still OPEN).
 WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-present
-`unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin map:
+`unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin Cont. Army
+in hunter check + capital rally after `1eca`; refuse clear when `boycott_bitmap==0`;
+second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
 `smoke_ai_king`.
 
