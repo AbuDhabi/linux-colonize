@@ -154,6 +154,184 @@ static bool assert_mask_occupancy_consistent(const ColonizeCol1Save* save, const
   return true;
 }
 
+/*
+ * Cross-check decomp-backed field meanings against a loaded save.
+ * colony_counts must match live colonies; census unit totals may lag (stale
+ * for withdrawn AI) so we only bound them. Occupancy is checked separately.
+ */
+static bool assert_mapped_fields_consistent(const ColonizeCol1Save* save, const char* label) {
+  if (!save) {
+    fprintf(stderr, "%s: null save\n", label);
+    return false;
+  }
+  if (save->head.save_version != COLONIZE_COL1_SAVE_VERSION) {
+    fprintf(
+      stderr,
+      "%s: unexpected save_version %u\n",
+      label,
+      (unsigned)save->head.save_version
+    );
+    return false;
+  }
+  if (save->head.map_size_x != COLONIZE_COL1_MAP_W_STD ||
+      save->head.map_size_y != COLONIZE_COL1_MAP_H_STD) {
+    fprintf(
+      stderr,
+      "%s: unexpected map size %ux%u\n",
+      label,
+      save->head.map_size_x,
+      save->head.map_size_y
+    );
+    return false;
+  }
+  if (save->head.difficulty > 4) {
+    fprintf(stderr, "%s: difficulty %u out of range\n", label, (unsigned)save->head.difficulty);
+    return false;
+  }
+  if (save->head.human_player >= COLONIZE_COL1_NATION_COUNT) {
+    fprintf(stderr, "%s: human_player %u\n", label, (unsigned)save->head.human_player);
+    return false;
+  }
+  if (save->head.show_entire_map > 1) {
+    fprintf(stderr, "%s: show_entire_map %u\n", label, (unsigned)save->head.show_entire_map);
+    return false;
+  }
+
+  unsigned colony_by_nation[COLONIZE_COL1_NATION_COUNT];
+  memset(colony_by_nation, 0, sizeof(colony_by_nation));
+  for (uint16_t i = 0; i < save->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &save->colony[i];
+    if (c->nation_id >= COLONIZE_COL1_NATION_COUNT) {
+      fprintf(stderr, "%s: colony[%u] nation %u\n", label, (unsigned)i, (unsigned)c->nation_id);
+      return false;
+    }
+    colony_by_nation[c->nation_id]++;
+    if (c->population > COLONIZE_COL1_COLONY_POP_MAX) {
+      fprintf(stderr, "%s: colony[%u] pop %u\n", label, (unsigned)i, (unsigned)c->population);
+      return false;
+    }
+    if (c->warehouse_level > 2) {
+      fprintf(
+        stderr,
+        "%s: colony[%u] warehouse_level %u\n",
+        label,
+        (unsigned)i,
+        (unsigned)c->warehouse_level
+      );
+      return false;
+    }
+    if (c->depletion_counter > 50) {
+      fprintf(
+        stderr,
+        "%s: colony[%u] depletion_counter %u\n",
+        label,
+        (unsigned)i,
+        (unsigned)c->depletion_counter
+      );
+      return false;
+    }
+  }
+  for (unsigned n = 0; n < COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (save->stuff.colony_counts[n] != colony_by_nation[n]) {
+      fprintf(
+        stderr,
+        "%s: colony_counts[%u]=%u live=%u\n",
+        label,
+        n,
+        (unsigned)save->stuff.colony_counts[n],
+        colony_by_nation[n]
+      );
+      return false;
+    }
+  }
+
+  unsigned euro_units[COLONIZE_COL1_NATION_COUNT];
+  memset(euro_units, 0, sizeof(euro_units));
+  for (uint16_t i = 0; i < save->head.unit_count; ++i) {
+    const ColonizeCol1Unit* u = &save->unit[i];
+    if (u->nation_id < COLONIZE_COL1_NATION_COUNT) {
+      euro_units[u->nation_id]++;
+    }
+    /* ai_plan is free-form ASCII; starters use 'X'. Allow any byte. */
+    (void)u->ai_plan;
+    (void)u->vis_mask;
+  }
+  for (unsigned n = 0; n < COLONIZE_COL1_NATION_COUNT; ++n) {
+    /* all_unit_counts tracks euro units but may lag live (withdrawn / mid-turn). */
+    if (save->stuff.all_unit_counts[n] > euro_units[n] + 8u) {
+      fprintf(
+        stderr,
+        "%s: all_unit_counts[%u]=%u far above live=%u\n",
+        label,
+        n,
+        (unsigned)save->stuff.all_unit_counts[n],
+        euro_units[n]
+      );
+      return false;
+    }
+    const ColonizeCol1Nation* nat = &save->nation[n];
+    if (nat->tax_rate > 100) {
+      fprintf(stderr, "%s: nation[%u] tax %u\n", label, n, (unsigned)nat->tax_rate);
+      return false;
+    }
+    if (nat->rebel_sentiment > 100) {
+      fprintf(
+        stderr,
+        "%s: nation[%u] rebel_sentiment %u\n",
+        label,
+        n,
+        (unsigned)nat->rebel_sentiment
+      );
+      return false;
+    }
+    if (save->player[n].control > 2) {
+      fprintf(
+        stderr,
+        "%s: player[%u] control %u\n",
+        label,
+        n,
+        (unsigned)save->player[n].control
+      );
+      return false;
+    }
+  }
+
+  if (save->head.rebel_sentiment_report < 0 || save->head.rebel_sentiment_report > 100) {
+    fprintf(
+      stderr,
+      "%s: rebel_sentiment_report %d\n",
+      label,
+      (int)save->head.rebel_sentiment_report
+    );
+    return false;
+  }
+
+  /* Lategame / mapgen saves should have connectivity planes; starters too. */
+  {
+    int sea_nz = 0;
+    int land_nz = 0;
+    for (size_t i = 0; i < COLONIZE_COL1_CONNECT_PLANE_SIZE; ++i) {
+      if (save->post_map.sea_connectivity[i]) {
+        sea_nz++;
+      }
+      if (save->post_map.land_connectivity[i]) {
+        land_nz++;
+      }
+    }
+    if (sea_nz == 0 || land_nz == 0) {
+      fprintf(stderr, "%s: blank post_map connectivity sea_nz=%d land_nz=%d\n", label, sea_nz, land_nz);
+      return false;
+    }
+  }
+
+  if (save->post_map.prime_resource_seed == 0) {
+    fprintf(stderr, "%s: prime_resource_seed is zero\n", label);
+    return false;
+  }
+
+  return true;
+}
+
 static bool build_synthetic(ColonizeCol1Save* save, char* err, size_t err_size) {
   col1_save_init(save);
   memset(&save->head, 0, sizeof(save->head));
@@ -328,24 +506,46 @@ int main(void) {
   /* Fixture Col1 saves: byte-identical round-trip (+ bridge apply for samples). */
   typedef struct {
     const char* path;
-    bool expect_colony_sample; /* COLONY00/01 starter gold/units checks */
+    bool expect_starter_gold; /* early COLONY00/01 gold==1000 */
+    bool validate_mapping; /* mapped-field + occupancy checks */
   } Col1Fixture;
   static const Col1Fixture k_fixtures[] = {
-    {"original_saves/COLONY00.SAV", true},
-    {"original_saves/COLONY01.SAV", true},
-    {"test-saves-ai/TURN1.SAV", false},
-    {"test-saves-ai/TURN2.SAV", false},
-    {"test-saves-ai/TURN3.SAV", false},
-    {"test-saves-ai/TURN4.SAV", false},
-    {"test-saves-ai/TURN5.SAV", false},
-    {"test-saves-ai/TURN6.SAV", false},
-    {"test-saves-ai/TURN7.SAV", false},
+    {"original_saves/COLONY00.SAV", true, true},
+    {"original_saves/COLONY01.SAV", true, true},
+    {"original_saves/valid-lategame-saves/COLONY00.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY01.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY02.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY03.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY04.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY05.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY06.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY07.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY08.SAV", false, true},
+    {"original_saves/valid-lategame-saves/COLONY10.SAV", false, true},
+    {"test-saves-ai/TURN1.SAV", false, false},
+    {"test-saves-ai/TURN2.SAV", false, false},
+    {"test-saves-ai/TURN3.SAV", false, false},
+    {"test-saves-ai/TURN4.SAV", false, false},
+    {"test-saves-ai/TURN5.SAV", false, false},
+    {"test-saves-ai/TURN6.SAV", false, false},
+    {"test-saves-ai/TURN7.SAV", false, false},
   };
   for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
     const Col1Fixture* fix = &k_fixtures[oi];
     ColonizeCol1Save orig;
     if (!assert_byte_identical_roundtrip(fix->path, &orig, err, sizeof(err))) {
       return 1;
+    }
+
+    if (fix->validate_mapping) {
+      if (!assert_mask_occupancy_consistent(&orig, fix->path)) {
+        col1_save_free(&orig);
+        return 1;
+      }
+      if (!assert_mapped_fields_consistent(&orig, fix->path)) {
+        col1_save_free(&orig);
+        return 1;
+      }
     }
 
     ColonizeWorldMap map;
@@ -371,7 +571,7 @@ int main(void) {
       col1_save_free(&orig);
       return 1;
     }
-    if (fix->expect_colony_sample && (br.imported_units < 3 || europe.gold != 1000)) {
+    if (fix->expect_starter_gold && (br.imported_units < 3 || europe.gold != 1000)) {
       fprintf(
         stderr,
         "bridge apply unexpected %s units=%d gold=%d\n",
@@ -396,11 +596,12 @@ int main(void) {
     }
     fprintf(
       stderr,
-      "fixture %s ok (units=%d year=%u gold=%d)\n",
+      "fixture %s ok (units=%d year=%u gold=%d colonies=%u)\n",
       fix->path,
       br.imported_units,
       br.year,
-      europe.gold
+      europe.gold,
+      (unsigned)orig.head.colony_count
     );
     map_free(&map);
     col1_save_free(&orig);
@@ -905,6 +1106,78 @@ int main(void) {
         (unsigned)orig.stuff.all_unit_counts[0]
       );
     }
+    map_free(&map);
+    col1_save_free(&orig);
+  }
+
+  /* Lategame: connectivity rebuild stays byte-exact; mapped fields already checked above. */
+  {
+    ColonizeCol1Save orig;
+    col1_save_init(&orig);
+    const char* late = "original_saves/valid-lategame-saves/COLONY00.SAV";
+    if (!col1_save_read_file(late, &orig, err, sizeof(err))) {
+      fprintf(stderr, "lategame rebuild: read failed: %s\n", err);
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, orig.head.map_size_x, orig.head.map_size_y, err, sizeof(err))) {
+      fprintf(stderr, "lategame rebuild: map_alloc: %s\n", err);
+      col1_save_free(&orig);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = col1_tile_to_mp_terrain(orig.map.tile[i]);
+      if (map.layer3 && orig.map.path) {
+        map.layer3[i] = orig.map.path[i];
+      }
+    }
+    ColonizeCol1PostMap rebuilt;
+    memset(&rebuilt, 0, sizeof(rebuilt));
+    rebuilt.prime_resource_seed = orig.post_map.prime_resource_seed;
+    col1_post_map_rebuild_connectivity(&rebuilt, &map);
+    int sea_diff = 0;
+    int land_diff = 0;
+    for (size_t i = 0; i < COLONIZE_COL1_CONNECT_PLANE_SIZE; ++i) {
+      if (rebuilt.sea_connectivity[i] != orig.post_map.sea_connectivity[i]) {
+        sea_diff++;
+      }
+      if (rebuilt.land_connectivity[i] != orig.post_map.land_connectivity[i]) {
+        land_diff++;
+      }
+    }
+    for (int i = 0; i < 16; ++i) {
+      if (rebuilt.continent_tally_a[i] != orig.post_map.continent_tally_a[i] ||
+          rebuilt.continent_tally_b[i] != orig.post_map.continent_tally_b[i]) {
+        fprintf(stderr, "lategame rebuild: tally mismatch at %d\n", i);
+        map_free(&map);
+        col1_save_free(&orig);
+        return 1;
+      }
+    }
+    if (sea_diff != 0 || land_diff != 0) {
+      fprintf(stderr, "lategame rebuild: plane drift sea=%d land=%d\n", sea_diff, land_diff);
+      map_free(&map);
+      col1_save_free(&orig);
+      return 1;
+    }
+    if (rebuilt.prime_resource_seed != 541) {
+      fprintf(
+        stderr,
+        "lategame rebuild: unexpected prime_resource_seed %u\n",
+        (unsigned)rebuilt.prime_resource_seed
+      );
+      map_free(&map);
+      col1_save_free(&orig);
+      return 1;
+    }
+    fprintf(
+      stderr,
+      "lategame COLONY00 rebuild ok (year=%u colonies=%u seed=%u)\n",
+      (unsigned)orig.head.year,
+      (unsigned)orig.head.colony_count,
+      (unsigned)orig.post_map.prime_resource_seed
+    );
     map_free(&map);
     col1_save_free(&orig);
   }

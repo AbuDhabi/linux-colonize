@@ -63,6 +63,7 @@ Catalog: [FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md
 [viceroy savegame.h](https://github.com/hegemogy/viceroy).
 
 **Fixtures:** `original_saves/COLONY00.SAV`, `COLONY01.SAV`,
+`original_saves/valid-lategame-saves/COLONY{00–08,10}.SAV`,
 `test-saves-ai/TURN*`, `test-saves-mapgen/SEED100.SAV`,
 `tests-save-misc/unit flags error.sav`.
 

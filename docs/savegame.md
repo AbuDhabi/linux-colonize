@@ -148,12 +148,24 @@ holes. Do not invent those without decomp evidence.
 ### Verified fixtures
 
 Codec byte-identical round-trip + import via `col1_bridge_apply`:
-`original_saves/COLONY00.SAV`, `COLONY01.SAV`, and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
+`original_saves/COLONY00.SAV`, `COLONY01.SAV`,
+`original_saves/valid-lategame-saves/COLONY{00–08,10}.SAV` (Dutch campaign
+~1668–1698), and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
+
+Mapped-field checks on starters + lategame (occupancy, `colony_counts` vs live
+colonies, warehouse/depletion bounds, nation tax/rebel sentiment,
+`prime_resource_seed`, connectivity planes present). Lategame COLONY00 also
+re-checks `FUN_67f4_0088` plane rebuild byte-exact.
 
 Occupancy / export regression (`smoke_col1_save`):
 `tests-save-misc/unit flags error.sav` (apply→capture must clear stray
 `has_unit`), plus new-game template spawn→capture and `COLONY00` occupancy
 sanity. Those checks do **not** claim full DOS campaign parity.
+
+**Lategame mapping notes:** `colony_counts[4]` matches live colony nations
+exactly. `all_unit_counts` / `unit_type_counts` track euro units but can lag
+(withdrawn AI rows stay stale). `warehouse_level` / `hammers_purchased` /
+`rebel_sentiment` / `royal_money` populated as expected on developed colonies.
 
 
 ## References
