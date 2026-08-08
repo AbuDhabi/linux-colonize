@@ -227,6 +227,8 @@ static void sound_decode_track(
   int8_t vol_delta = 0;  /* F3 */
   uint8_t vol_period = 0;
   uint8_t vol_count = 0;
+  uint8_t regs[64]; /* FUN_1000_01fd DS:5c+reg — song ALU / cond jumps */
+  memset(regs, 0, sizeof(regs));
 
   size_t loop_start = start_off;
   int loop_count = 0;
@@ -295,6 +297,161 @@ static void sound_decode_track(
         }
         pos += 2;
         break;
+      case 0xC4: /* far call via stream word — treat like FA into DS when in range */
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        {
+          const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
+          const size_t ret = pos + 3;
+          if ((size_t)abs < ds_size && call_depth < SOUND_MAX_CALL_DEPTH) {
+            call_stack[call_depth++] = ret;
+            pos = abs;
+          } else {
+            pos = ret;
+          }
+        }
+        break;
+      case 0xC5: /* reg[a] <= reg[b] ? skip : jump */
+      case 0xC6:
+      case 0xC7:
+      case 0xC8:
+      case 0xC9:
+      case 0xCA:
+      case 0xCB:
+      case 0xCC:
+      case 0xCD:
+      case 0xCE:
+      case 0xCF:
+      case 0xD0:
+      case 0xD1:
+      case 0xD2:
+      case 0xD3:
+      case 0xD4: {
+        /* 5-byte cond jump: op, a, b|imm, tgt_lo, tgt_hi (FUN_1000_01fd). */
+        if (pos + 4 >= ds_size) {
+          return;
+        }
+        const uint8_t a = ds_img[pos + 1] & 63;
+        const uint8_t b = ds_img[pos + 2];
+        const uint8_t ra = regs[a];
+        const uint8_t rb = (op <= 0xc8 || (op >= 0xcd && op <= 0xd0)) ? regs[b & 63] : b;
+        bool take = false;
+        switch (op) {
+          case 0xc5: take = !(ra < rb || ra == rb); break; /* ja */
+          case 0xc6: take = ra < rb; break;                /* jb */
+          case 0xc7: take = ra != rb; break;               /* jne */
+          case 0xc8: take = ra == rb; break;               /* je */
+          case 0xc9: take = !(ra < rb || ra == rb); break;
+          case 0xca: take = ra < rb; break;
+          case 0xcb: take = ra != rb; break;
+          case 0xcc: take = ra == rb; break;
+          case 0xcd: take = !(ra < rb || ra == rb); break;
+          case 0xce: take = ra < rb; break;
+          case 0xcf: take = ra != rb; break;
+          case 0xd0: take = ra == rb; break;
+          case 0xd1: take = !(ra < rb || ra == rb); break;
+          case 0xd2: take = ra < rb; break;
+          case 0xd3: take = ra != rb; break;
+          case 0xd4: take = ra == rb; break;
+          default: break;
+        }
+        if (take) {
+          if (call_depth < SOUND_MAX_CALL_DEPTH) {
+            call_stack[call_depth++] = pos + 5; /* return after insn (driver +0x22) */
+          }
+          pos = (size_t)(ds_img[pos + 3] | ((uint16_t)ds_img[pos + 4] << 8));
+        } else {
+          pos += 5;
+        }
+        break;
+      }
+      case 0xD5: /* reg[a] ^= reg[b] */
+      case 0xD6: /* reg[a] ^= imm */
+      case 0xD7:
+      case 0xD8:
+      case 0xD9:
+      case 0xDA:
+      case 0xDB:
+      case 0xDC:
+      case 0xDD:
+      case 0xDE:
+      case 0xDF:
+      case 0xE0:
+      case 0xE1:
+      case 0xE2:
+      case 0xE3:
+      case 0xE4:
+      case 0xE7:
+      case 0xE8:
+      case 0xE9: {
+        if (pos + 2 >= ds_size) {
+          return;
+        }
+        const uint8_t a = ds_img[pos + 1] & 63;
+        const uint8_t b = ds_img[pos + 2];
+        const uint8_t rb = (op == 0xd5 || op == 0xd7 || op == 0xd9 || op == 0xdb || op == 0xdd ||
+                            op == 0xdf || op == 0xe1 || op == 0xe3 || op == 0xe8)
+                             ? regs[b & 63]
+                             : b;
+        switch (op) {
+          case 0xd5:
+          case 0xd6: regs[a] = (uint8_t)(regs[a] ^ rb); break;
+          case 0xd7:
+          case 0xd8: regs[a] = (uint8_t)(regs[a] | rb); break;
+          case 0xd9:
+          case 0xda: regs[a] = (uint8_t)(regs[a] & rb); break;
+          case 0xdb:
+          case 0xdc: regs[a] = rb ? (uint8_t)(regs[a] % rb) : 0; break;
+          case 0xdd:
+          case 0xde: regs[a] = rb ? (uint8_t)(regs[a] / rb) : 0; break;
+          case 0xdf:
+          case 0xe0: regs[a] = (uint8_t)(regs[a] * rb); break;
+          case 0xe1:
+          case 0xe2: regs[a] = (uint8_t)(regs[a] - rb); break;
+          case 0xe3:
+          case 0xe4: regs[a] = (uint8_t)(regs[a] + rb); break;
+          case 0xe8: regs[a] = rb; break;
+          case 0xe9: regs[a] = b; break;
+          case 0xe7: /* stream poke — size-only */ break;
+          default: break;
+        }
+        pos += 3;
+        break;
+      }
+      case 0xE5: /* reg[a]-- */
+      case 0xE6: /* reg[a]++ */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        {
+          const uint8_t a = ds_img[pos + 1] & 63;
+          if (op == 0xe5) {
+            regs[a]--;
+          } else {
+            regs[a]++;
+          }
+        }
+        pos += 2;
+        break;
+      case 0xEA: /* indexed stream poke — 4 bytes */
+      case 0xEB: /* random in [lo,hi] written ahead — 4 bytes */
+        if (pos + 3 >= ds_size) {
+          return;
+        }
+        pos += 4;
+        break;
+      case 0xEC: { /* pick random of n bytes into stream; then duration */
+        if (pos + 1 >= ds_size) {
+          return;
+        }
+        const uint8_t n = ds_img[pos + 1];
+        if (pos + 2u + (size_t)n >= ds_size) {
+          return;
+        }
+        pos += 2u + (size_t)n + 1u;
+        break;
+      }
       case 0xF1: /* CC 7 volume */
         if (pos + 1 >= ds_size) {
           return;
@@ -405,8 +562,6 @@ static void sound_decode_track(
       case 0xBF: /* master scale factor → unread product with BE (no tick effect) */
       case 0xBC: /* sets DS:0x50 countdown seed; stream-skip only */
       case 0xBD: /* sets DS:0x52; stream-skip only */
-      case 0xC4:
-      case 0xC5:
         pos += 2;
         break;
       case 0xBE: /* tempo pair → unread BSS product; IRQ still 60 Hz */
@@ -541,8 +696,27 @@ static void sound_parse_handler_tracks(
   int* out_count
 ) {
   *out_count = 0;
-  uint32_t i = handler;
-  const uint32_t end = handler + 96;
+  /*
+   * Some table entries (e.g. Fiddler's Dance 0x25) point at a warm-restart stub:
+   *   cmp word [DS:E6], 0 / … / ret
+   * The cold-start (tempo init + B9 track list) begins at the next byte after that
+   * ret — same pattern as FUN_1000_19bc song setup.
+   */
+  uint32_t start = handler;
+  if (handler + 5 <= img_size && img[handler] == 0x83 && img[handler + 1] == 0x3e &&
+      img[handler + 2] == 0xe6 && img[handler + 3] == 0x00) {
+    uint32_t p = handler;
+    const uint32_t lim = handler + 64;
+    while (p < lim && p < img_size && img[p] != 0xc3) {
+      p++;
+    }
+    if (p < img_size && img[p] == 0xc3) {
+      start = p + 1;
+    }
+  }
+
+  uint32_t i = start;
+  const uint32_t end = start + 120;
   while (i + 3 <= end && i < img_size && *out_count < SOUND_MAX_TRACKS) {
     if (img[i] == 0xc3) {
       break;
@@ -555,6 +729,11 @@ static void sound_parse_handler_tracks(
     }
     if (img[i] == 0xe8) {
       i += 3;
+      continue;
+    }
+    if (img[i] == 0xc7 && i + 6 <= img_size) {
+      /* mov word [imm16], imm16 — tempo seed on cold-start stubs */
+      i += 6;
       continue;
     }
     if (img[i] == 0xe9) {

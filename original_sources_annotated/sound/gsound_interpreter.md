@@ -52,6 +52,7 @@ Active notes for the channel: four slots at `DS:8200 + ch*4` (`0xFF` = empty).
 | Op | Bytes | Driver | Linux (`sound.c`) |
 |----|------:|--------|-------------------|
 | `≤BA` note,dur | 2 | note-on + gate | done |
+| `C4..EB` | ALU / cond-jump VM | **done** (sizes + regs; was default `+2` desync) |
 | `ED n notes dur` | 3+n | chord into ≤4 slots | **done** (was `+2` desync) |
 | `BB n` | 2 | RPN CC101=0,100=0,CC6=n | **done** |
 | `F3 period delta` | 3 | per-tick CC7 ramp | **done** |
@@ -75,3 +76,12 @@ So bytecode duration ticks already match wall-clock at ~60 Hz; do **not** scale 
 ## Multi-voice tick (`0x1098`, Ghidra-as-data)
 
 Unrolled: set `DS:81FE = ch`, point `DS:8240` at each voice block (`0x8096`, `0x80E6`, …), `CALL 01fd`. Recover as code if deepening further.
+
+## Song handler cold-start
+
+Table entries normally begin `CALL … / MOV CX,track / CALL start_voice / … / RET`.
+
+Some (e.g. id `0x25` Fiddler's Dance) point at a **warm-restart** stub
+(`CMP word [DS:E6],0 / … / RET`). The real cold-start (seed `E6`/`E8`/`EA` then
+the `B9` track list) is the next function after that `RET`. Linux
+`sound_parse_handler_tracks` detects the `83 3E E6 00` stub and parses from there.
