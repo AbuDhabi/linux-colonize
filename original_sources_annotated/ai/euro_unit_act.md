@@ -59,13 +59,33 @@ station-keeping get `AI_SAIL` toward the nearest enemy sea unit or coastal water
 beside a foreign colony at war. Adjacent enemy ships call `ai_euro_try_attack` /
 `units_resolve_naval_combat`. Deep `20e6` naval combat scoring stays **PARKED** (ocean/T3).
 
+**Privateer deepen:** display-name Privateer always re-aims hunt (even with a prior
+sail goto) — commerce-raid stand-in; reuse `naval_war_hunt_target`. Cite: Europe
+Privateer purchase; fandom Drake Privateer combat strength.
+
+**Privateer cargo prey (adjacent):** when choosing naval `try_attack` target,
+prefer Merchantman/Caravel cargo ships over warships (then lower defense). Cite:
+euro_unit_act §2f; Europe Privateer commerce raid.
+
+**Frigate warship hunt (adjacent):** Frigate prefers warships (Frigate /
+Privateer / Galleon / Man-O-War) over cargo when adjacent — complement Privateer
+cargo prey; then lower defense. Cite: euro_unit_act §2f; Europe Frigate purchase.
+
+**War transport deepen (Galleon/Frigate):** at war, idle Galleon/Frigate with
+passenger space (`cargo_count < ship_capacity`) prefers `AI_SAIL` toward coastal
+water by a **threatened** own coastal colony (war-peer unit within MD≤3); else
+falls back to naval war hunt (foe sea / enemy coast). Cite: Colonization.pdf
+naval transport; Europe purchase Galleon/Frigate. Full ships without space keep
+plain hunt.
+
 ### 2c. Linux thin — land war hunt (act-level)
 
 When at war with a Euro peer, idle land military (Soldier / Dragoon / Scout —
-not fortified, no useful goto) get `AI_MOVE` toward the nearest enemy land unit
-or enemy colony tile. Adjacent → `ai_euro_try_attack`, preferring the foe with
-lower effective defense (fortified ×2). Does not steal founders on FOUND goals.
-Multi-step `20e6` land combat scoring remains **OPEN**.
+including formerly fortified/sentry) get `AI_MOVE` toward the nearest enemy
+land unit or enemy colony tile. Idle `FORTIFY` / `FORTIFIED` / `SENTRY` are
+woken via `units_wake` then hunted. Adjacent → `ai_euro_try_attack`, preferring
+the foe with lower effective defense (fortified ×2). Does not steal founders on
+FOUND goals. Multi-step `20e6` land combat scoring remains **OPEN**.
 
 ### 2c2. Linux thin — CONTACT scout rings (0a60 E / act)
 
@@ -73,12 +93,58 @@ Peace + own colonies ≥ 1: idle Scout upserts `AI_GOAL_CONTACT` at a Manhattan
 ring tile (MD 2–4) around the nearest beyond-adjacent tribe and `AI_MOVE`s
 toward it. When `map.seen` exists, prefer tiles **not** seen by the nation
 (`map_tile_seen_by` / Col1 FoW bit) — explore intent, not combat bonuses.
+When `ai_diplo_indian_hostility_sticky` ≥ 2 (`unknown26[8]` very-low deepen),
+prefer **closer** rings (higher MD weight) when fog is absent. **Sticky + FoW:**
+when `map.seen` exists, prefer **deeper unseen** ring tiles (md=4) to push fog
+outward; act re-aims even with a prior CONTACT goto. Cite: `euro_diplo.md` /
+`ai_diplo.h`; manual fog / Col1 seen bit.
+
+**Fog explore (no CONTACT):** when no beyond-adjacent tribe ring exists, peaceful
+Scout `AI_MOVE`s toward an unseen land tile within MD ≤ 8 (`map_tile_seen_by`)
+without upserting CONTACT. Plain Scout → nearest unseen; **Seasoned Scout** →
+deeper (max md) unseen within that ring — AI explore preference for the skill
+"Better at exploring rumors…" (Colonization.pdf OTHER). Scouts already see 2
+squares (de Soto: all units → "as well as scouts"); do **not** invent extra
+sight radius. Cite: manual fog / Col1 seen bit; Colonization.pdf Seasoned Scout.
+
+### 2c5. Linux thin — Treasure train coast (act)
+
+Idle land unit named Treasure → `AI_MOVE` toward nearest **own coastal colony**
+(`map_tile_is_coastal`). If none, nearest coastal land tile (Europe sail path
+stand-in). Already on target → hold (park for Galleon / king transport). Cite:
+Colonization.pdf Treasure Trains (six holds / coastal colony / king galleon for
+a price). No invented ransom/gold. Preserve goto vs FOUND/LABOR yank.
+
+**Treasure → Europe sail deepen:** when Treasure is already on a coastal own
+colony and an own ship with passenger space is adjacent/same-tile →
+`units_board` / `units_board_stacked` + ship `AI_SAIL` toward eastern high seas
+(`units_find_eastern_high_seas_tile`) or eastward water (Europe exit stand-in).
+Treasure passengers are skipped by settle unload. Ships with Treasure aboard
+skip naval war-hunt yank. **PARK:** Europe harbor Treasure→gold unload / king
+transport fee — no AI API to credit `nation.gold` (game_loop / EuropeScreen
+only). Do not invent gold.
+
+### 2c6. Linux thin — Missionary CONTACT (act)
+
+Peace + Missionary/Jesuit, **not fleeing** (adjacent tribe Alarm/friction ≥55 —
+same band as `ai_contact` flee): upsert `AI_GOAL_CONTACT` (prio 3 > Scout ring
+prio 2) at nearest tribe with `mission == 0xff` and `AI_MOVE` toward it. Idle
+Jesuit prefers convert CONTACT over Scout explore / FOUND yank. Adjacent
+convert lives in `ai_contact`. Cite: Colonization.pdf Establishing a Mission;
+indian_contact.md.
 
 ### 2c3. Linux thin — multi-step land goto (FOUND / MILITARY)
 
 Toward `AI_GOAL_FOUND` or `AI_GOAL_MILITARY`, after one scored advance, a second
 `advance` is allowed in the same act while `moves_left` remain (thin `20e6`
 multi-step). Full combat multi-step scoring stays **OPEN**.
+
+### 2c4. Linux thin — multi-step naval sail (AI_SAIL)
+
+Ships on `AI_SAIL` use scored ocean steps (same `ai_euro_score_move` /
+`ai_euro_ocean_score_step` as land) with a **second** step while `moves_left`
+remain — mirror land 2-step. Replaces full `units_advance_goto` drain so HS
+west-explore bias applies per step. Full ocean combat `20e6` stays **PARKED**.
 
 ### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
 
@@ -87,14 +153,159 @@ Idle / arriving Pioneer or Hardy on an **own** colony tile when
 (cap 100) once per act; trim inventory `tools_short` and may decrement
 `urgency`. Wired in `ai_euro_unit_act` just before LABOR/COLONY join.
 
+**Wagon deepen (hire-once):** when a Wagon Train already exists and sits on a
+tools-short colony with hold `TOOLS`, unload via `colonies_transfer_from_unit`
+(structural cargo only). Pioneer delivery prefers this path when a wagon is on
+the same tile before the +10 stand-in.
+
+**Wagon haul (idle):** Wagon with free hold capacity or TOOLS cargo → `AI_MOVE`
+toward nearest tools-short own colony (`stock[TOOLS]<20`). On a surplus colony
+(≥40 tools) with empty capacity, load TOOLS via `colonies_transfer_to_unit`
+before hauling. Cite: manual Wagon Train cargo; §2d unload delivery.
+
+### 2d2. Linux thin — Caravel/Merchantman coastal haul (act)
+
+Peace + idle Caravel/Merchantman with goods-hold capacity or TOOLS cargo →
+`AI_SAIL` toward coastal water by nearest own coastal colony that is
+tools-short (`stock[TOOLS]<20`) or food-short (`stock[FOOD] < pop*2`). Adjacent
+tools-short + TOOLS → `colonies_transfer_from_unit`; surplus (≥40) near ship →
+load TOOLS. **No invented FOOD cargo** — sail-toward only for food-short.
+Cite: Colonization.pdf naval transport / colony supply; euro_unit_act §2d TOOLS
+pattern. War hunt owns idle ships at war; Treasure Europe sail skips haul.
+
+### 2d3. Linux thin — peace Soldier fortify (act)
+
+Peace + idle Soldier on own colony tile → `units_order_fortify` if not already
+fortified (overrides explore/FOUND yank while on-tile; keeps off-colony
+MILITARY/CONTACT). Cite: case 0x0b fortify arm (`'F'`); Colonization.pdf fortify
+defense. At war: wake+hunt (§2c).
+
+**Peace colony-defense wake (MD≤2):** fortified/idle Soldier **or Dragoon** on
+own colony wakes via `units_wake` when a foreign Euro land unit is within
+Manhattan ≤2, then `AI_MOVE` toward that threat (adjacent `try_attack` may
+declare war). Extends peace fortify border; war already has global fortify-wake
+(§2c). Cite: Colonization.pdf Defending a Colony ("fortify soldiers, dragoons…");
+`units_wake`.
+
+**Artillery fortify after siege:** idle Artillery/Cannon on own (captured)
+colony → `units_order_fortify` at peace **and** at war. Artillery is not a land
+war hunter, so garrison holds after siege. Cite: case 0x0b fortify `'F'`;
+Colonization.pdf fortify defense / Artillery; mirror king post-capture Regular
+fortify for Euro Artillery.
+
 **5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
 Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
 before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
 cargo. Case-7 deepen: prefer Hardy/Expert Pioneer or Master Carpenter already
 on Europe dock (consume dock slot; no free expert spawn). Treasury: skip hire /
 tools-cargo when gold &lt; colonist `hire_cost`; Artillery uses Europe purchase
-**500$** (fall back to Soldier when underfunded). Remaining mid `5d04` wagon
-matrix / deep combat tails stay **OPEN** (unpark #4).
+**500$** (fall back to Soldier when underfunded). **At war + tools_short:** still
+prefer Soldier/Dragoon hire over Pioneer (profession_demand Pioneer is peace-only).
+**At war + own colonies ≥ 3:** prefer Dragoon hire when type exists (same
+`hire_cost`; fall back to Soldier if Dragoon missing). **At war + own colonies
+≥ 2:** prefer Veteran Soldier when type exists and gold covers cost (`@UNIT`
+cost, else NAMES `@JOB` Soldier→Veteran Soldiers **2000$**). Missing type/cost
+→ plain Soldier (**PARK** comment). Cite: `COLONIZE/NAMES.TXT` `@JOB`.
+**Ship board military:** at war, idle Soldier, Dragoon, **or Artillery/Cannon**
+on coastal own colony boards an empty transport (`cargo_count==0`) with
+passenger space via `units_board` / `units_board_stacked` before hunt yank /
+Artillery on-colony fortify — **except** when the colony is threatened (stay to
+defend). Cite: Colonization.pdf naval transport / Defending a Colony ("fortify
+soldiers, dragoons, army, cavalry, or artillery").
+**Ship unload military:** at war, ship with Soldier cargo adjacent to own
+threatened coastal colony (war-peer MD≤3) unloads one Soldier onto the colony
+tile via `units_unload_passenger` (before move-scoring gate + after sail).
+Cite: Colonization.pdf naval transport / Defending a Colony; complements board
++ war-transport sail-to-threatened-port.
+**PARK:** wagon
+trade-goods → Europe sell needs ship-in-harbor `europe_sell_hold`
+(no AI New-World wagon→Europe sell API). **PARK:** Pioneer / Hardy Pioneer plow/road — `units_pioneer_plow` /
+`units_pioneer_road` exist for UI, but euro 5b66 has no improve-target planner
+(which tile). Hardy real power: "Clears forest, plows fields, and builds roads
+faster" (Colonization.pdf) — prefer Hardy when planner exists; no invented yields.
+Cite: Colonization.pdf Clear/Plow/Road.
+Remaining mid `5d04` wagon matrix / deep combat tails stay **OPEN** (unpark #4).
+
+### 2e. Linux thin — LABOR bind (food/tools short + construction)
+
+Idle colonist-capable land unit (Pioneer/Hardy/Free Colonist/Colonist) within
+MD≤1 of an own colony when inventory `tools_short` or `food_short` and the
+colony is locally short → upsert `AI_GOAL_LABOR` and goto (overrides distant
+FOUND). On-tile Pioneer/Hardy skip LABOR-join so tools-delivery stand-in is not
+stacked with founder-loot dump — **except** when `building_in_production` is
+**Stockade**, **Warehouse**, or **Lumber Mill** (carpenter hammers bind;
+stay/LABOR rather than leave). Cite: `docs/building_production.md`. Colony
+planning also upserts LABOR for those projects. No invented production numbers.
+
+**Threatened Stockade LABOR:** when at war and a war-peer unit is within MD≤3
+of an own colony with incomplete **Stockade**, idle Free Colonist within MD≤3
+prefers that Stockade LABOR (prio bump) over distant FOUND. Cite:
+`building_production.md` Stockade defense; Colonization.pdf fortify;
+`ai_euro_colony_threatened_by_war`.
+
+**Food emergency:** when inventory `food_short` ≥ 4, nearest food-capable
+colonist/Pioneer within MD≤8 is bound to a hungry colony LABOR (planning + act).
+Cite: manual 2 food/colonist; `5cf6` shortage tallies.
+
+**Expert Farmer food LABOR:** idle Expert Farmer (display-name Farmer, or Free
+Colonist/Colonist with `@JOB` Farmer profession 0) → food-short LABOR (MD≤8
+when food_short). Cite: `docs/building_production.md` Farmer→Food; Skills Chart.
+No invented food rates — LABOR join only.
+
+**Free Colonist food LABOR (non-Expert Farmer):** idle Free Colonist / Colonist
+(without Farmer profession) with `food_short` > 0 → MD≤8 toward a hungry own
+colony LABOR join (same structural join as Expert Farmer path). Adjacent still
+covers tools/construction; MD>1 is food-short only. Cite: manual 2 food/colonist;
+5cf6 food_short; euro_unit_act §2e.
+
+**Master Carpenter construction LABOR:** idle Master Carpenter → LABOR when
+own colony has Stockade/Warehouse/Lumber Mill incomplete (`building_in_production` —
+same Stockade pattern as Pioneer stay). Cite: `docs/building_production.md`
+Carpenter→Hammers; Skills Chart Master Carpenter. Construction-only bind
+(not tools/food). No invented hammer rates.
+
+**Expert Lumberjack LABOR:** idle Expert Lumberjack → LABOR when own colony has
+incomplete **Warehouse** or **Lumber Mill** and that building type exists in
+the pool (lumber feeds carpenter hammers). Cite: `docs/building_production.md`
+Lumberjack→Lumber; Colonization.pdf Skills Chart. Structural LABOR join only.
+
+**Tools-short Pioneer deepen (peace):** when inventory `tools_short` > 0, idle
+peace Pioneer/Hardy within MD≤8 is LABOR-bound toward a tools-short colony
+(feeds on-tile §2d tools delivery). Cite: euro_unit_act §2d; 5cf6 tools tallies.
+
+**PARK:** Drydock build prefer (fandom Naval Docks→Drydock→Shipyard;
+`building_production` Drydock 80h) — no AI construction-list pick API yet.
+
+**PARK:** Expert Lumberjack → forest field (`colonies_assign_field` exists for
+UI / scripted `ai.c`, but euro 5d04/5b66 has no field-job planner — LABOR join
+for Warehouse/Lumber Mill only). Cite: terrain_yields / building_production
+Lumberjack→Lumber. No invented lumber rates until euro field-assign planning
+hook exists.
+
+**PARK:** Pioneer plow/road tile improve — `units_pioneer_plow` /
+`units_pioneer_road` exist for UI (game_loop), but euro 5b66 has no
+improve-target planner (which adjacent tile). Cite: Colonization.pdf
+Clear/Plow/Road; map road/plowed bits. Comment-only until planner hook.
+
+### 2f. Linux thin — naval adjacent-foe pick
+
+Like land adjacent-foe: when choosing naval `try_attack` target —
+**Privateer** prefers Merchantman/Caravel cargo over warships; **Frigate**
+prefers warships over cargo (complement); else lower type defense
+(`ai_euro_naval_best_adjacent_foe`). **PARKED:** `FUN_157e_004a`
+vet/Drake/damage combat×8 mods (no unit damage byte wired).
+
+**PARK:** Wagon load FOOD — euro AI uses FOOD only for colony stock shortage /
+LABOR tallies; haul loads TOOLS only (§2d / §2d2). No wagon FOOD cargo path.
+
+**PARK:** Treasure → gold unload / king transport fee — no AI API to credit
+`nation.gold` from Treasure (EuropeScreen / game_loop only). Do not invent gold.
+
+### 2g. Linux thin — ocean west-explore HS bias
+
+When ship is on high seas and goto is westward, ocean `20e6` score prefers
+westward HS steps (structural score only; no invented MP). Full ocean branch
+still R5 / PARKED.
 
 ### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 

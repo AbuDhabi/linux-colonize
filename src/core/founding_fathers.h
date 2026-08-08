@@ -55,6 +55,32 @@ unsigned founding_fathers_bells_needed(unsigned elected_count);
 /* True if nation owns FF index (head owner or nation bitmask). */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);
 
+/*
+ * Paul Revere gate (PEDIA / wiki): colony with no standing soldiers is attacked
+ * and has stockpiled muskets → auto-arm a colonist defender.
+ * Returns true when the nation owns Revere, has no soldier defender, and
+ * muskets_stock >= equip step (UNITS_EQUIP_MUSKETS = 50).
+ * Wired from units_try_move when FF col1 context is set (turn_refresh) and the
+ * attacker steps onto an empty foreign colony tile — see units.c.
+ */
+bool founding_fathers_revere_should_auto_arm(
+  const ColonizeCol1Save* col1,
+  int nation,
+  bool colony_has_soldier_defender,
+  int muskets_stock
+);
+
+/*
+ * Paul Revere apply (PEDIA / wiki): eject one colonist as Soldier from colony
+ * warehouse muskets. Caller must have passed founding_fathers_revere_should_auto_arm.
+ * Returns new defender unit id, or -1 if eject/spawn failed.
+ */
+int founding_fathers_revere_auto_arm(
+  ColonizeColonyPool* colonies,
+  ColonizeUnitPool* units,
+  int colony_id
+);
+
 /* Elect at most one FF per eligible nation when the bells threshold is met. */
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 

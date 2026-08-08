@@ -25,12 +25,18 @@ Annotated shell (quiet path only for act):
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
 
 Alarmed / mission branches inside unit act: **PARKED** (`2154` / `2820` / `4528`).
-Thin Linux meet arm: when already met and `alarm_by_player >= 55`, skip auto-trade
-and gift/demand and write human status **"Natives refuse to talk."**
-Teach-skill / gift paths reuse the same ≥55 gate with status
-**"Natives refuse to teach."** / **"Natives refuse gifts."** (alarmed Indian
-diplomacy; no invented gold penalties beyond existing gift costs).
+Thin Linux meet arm: when already met and `alarm_by_player >= 55`, write human
+status **"Natives refuse to talk."** and skip auto-trade (`alarm < 50` gate);
+gift/demand still runs and overwrites with the more specific ≥55 refuse line.
+Beyond that alarm gate: when `ai_diplo_indian_relation` is very low (`< 40`, same
+band as `AI_DIPLO_INDIAN_VERY_LOW_REL`), skip auto-trade / gift/demand with
+the same refuse-talk status (read-only diplo getter; no invented gold).
+Teach-skill / gift / demand paths reuse the same ≥55 gate with status
+**"Natives refuse to teach."** / **"Natives refuse gifts."** /
+**"Natives refuse demands."** (alarmed Indian diplomacy; no invented gold
+penalties beyond existing gift costs).
 Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
+Deep `FUN_4d56_2820` body stays **PARK only** (no port this round).
 
 ### Prelude deepen (Linux `ai_contact_indian_prelude`)
 
@@ -39,18 +45,23 @@ Alarm prelude **dialog chrome** (war/alarm flag body UI) stays **PARKED**.
    `Pioneer`, Chebyshev distance ≤ 2 from a tribe of this nation, and
    `tribe.mission == 0xff` → bump that tribe's `alarm[euro].friction` and
    `indian.alarm_by_player[euro]` by **+2** each (cap **100**). Per unit×tribe.
+   **Pocahontas** (`founding_fathers_nation_has` / `FF_POCAHONTAS`): bumps
+   **halved** (floor; wiki/fandom — alarm generated half as fast).
+   Flag-body escalate bump (difficulty-scaled, sticky `unknown31[3]` bit 0x20)
+   uses the same half-rate helper.
 3. **Mission pacifies:** tribe with mission set to Euro `e`, and friction/alarm
    toward `e` low (`< 40`) → extra **−1** on tribe friction (and on
    `alarm_by_player` if also low). Floor 0.
-4. Mission clear when friction or `alarm_by_player` toward mission Euro **> 80**
-   (`FUN_4cc6_0000`).
+4. Mission clear / burn when friction or `alarm_by_player` toward mission Euro
+   **≥ 80** (`FUN_4cc6_0000`; `tribe.mission` → `0xff`). Human mission owner
+   gets thin status **"Natives burn your mission."** (widgets OPEN).
 
 ### Meet-pulse mission pacify deepen
 
-Mission owner present and mid-range friction/alarm (**40..80**, below clear) →
-**−2** once per tribe per `ai_contact_indian_meet_trade` call (stronger than
-prelude low-band −1; no free crosses). Source: fandom Alarm — missions slow
-hostility.
+Mission owner present and mid-range friction/alarm (**40..79**, below burn/clear
+at **≥80**) → **−2** once per tribe per `ai_contact_indian_meet_trade` call
+(stronger than prelude low-band −1; no free crosses). Source: fandom Alarm —
+missions slow hostility.
 
 ## Call-graph (authoritative vs catalog myths)
 
@@ -73,10 +84,18 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
 2. Peaceful meet (alarm/friction < 40): slight tribe `alarm[].friction` decay (−1)
 3. Optional mission assign if friction low (teach/convert **widgets** still OPEN)
 4. **Missionary convert pulse** (structural deepen): Euro unit whose display name
-   contains `"Mission"` adjacent to a tribe of this nation, and relations not
-   hostile (`alarm_by_player` / tribe friction both < 50) → set
-   `tribe.mission = euro nation id`, decay alarm/friction by 1 if > 0, bump
-   `nation[euro].current_crosses` by 1. One pulse per tribe per call.
+   contains `"Mission"` adjacent to a tribe of this nation. Convert/crosses only
+   when `tribe.mission == 0xff` and not alarmed (`alarm_by_player` / tribe
+   friction both `< 55`). Sets `tribe.mission = euro nation id`, decay
+   alarm/friction by 1 if > 0, bump `nation[euro].current_crosses` by 1.
+   One pulse per tribe per call. **Mission already set** (own or foreign) →
+   skip convert pulse entirely (one-shot; no re-crosses / no steal).
+   Alarmed (`>= 55`) → refuse with **"Natives refuse conversion."** (no crosses).
+   Human success status **"Natives accept conversion."** (teach already had
+   success chrome).
+   **Missionary flee** (structural): when still adjacent to an alarmed tribe
+   (`>= 55`) and not converting → nudge **1** free land tile away (greater
+   Chebyshev distance) and set `AI_MOVE` goto. Full flee dialog PARKED.
 5. **Teach-skill pulse** (structural deepen): Free Colonist or Scout (display-name
    match) adjacent to tribe, peaceful band (`alarm_by_player` / tribe friction
    both < 40), and `tribe.state.learned` clear → set **`tribe.state.learned = 1`**
@@ -85,19 +104,36 @@ Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
    (see mapping below). One pulse per tribe per call. Human status
    **"Natives teach …"**; teach **widgets** still OPEN (unpark #1).
    Alarmed (`>= 55`) → refuse teach with **"Natives refuse to teach."**
+   **Already learned** (`state.learned` set) → skip teach and do **not** write
+   teach/refuse status (Col1 one-shot; preserves gift/trade chrome).
 6. Peaceful trade: colony trade-goods → lower alarm/friction (auto-haggle stand-in
    for `2aac…311e`); human status **"Trade accepted."**
 7. **Gift / demand** structural stand-in after peaceful meet (`5bfb_102a` /
    `1092` **widgets** still OPEN). Friction = max(`alarm_by_player`, tribe
    `alarm[].friction`):
-   - **Alarmed** (`>= 55`) → refuse gifts; status **"Natives refuse gifts."**
+   - **Alarmed** (`>= 55` on `alarm_by_player` or pair friction) → refuse
+     gift/demand; status **"Natives refuse gifts."** when tribe friction is
+     gift-band (`< 40`), else **"Natives refuse demands."** (tribe band — not
+     pair friction — so alarm alone does not force the demand line)
      (no invented gold penalties)
+   - **Low** (`< 40`) + Euro `nation.gold < 10` → refuse gift (cannot pay **−10**);
+     status **"Natives refuse gifts."**
    - **Low** (`< 40`) + Euro `nation.gold >= 20` → gift/tribute: Euro **−10 gold**,
      friction **−2**; human status **"Gift of gold eases tensions."**
    - **Mid** (`40..54`) + tools/gold available → demand/payoff: Euro loses **10 tools**
-     from nearest colony stock, else **10** from adjacent unit `tools`, else **15 gold**;
-     friction **−3**; human status **"Tribute paid; tensions ease."**
+     from nearest colony warehouse when stock **≥ 20**, else **10** from adjacent unit
+     `tools` when **≥ 20**, else **15 gold** when treasury **≥ 50**; friction **−3**;
+     human status **"Tribute paid; tensions ease."** (gift gold≥20 band mirrored
+     for tools; gold stand-in needs a fuller purse when tools are short).
    - **Very high** covered by alarmed refuse / raids.
+
+Peaceful auto-trade remains a thin trade-goods→alarm stand-in; deep meet-trade
+auto-haggle (`FUN_4d56_2820` / `2aac…311e`, thunk `2a1f_044c`) stays **PARKED**
+(~1.4k decision matrix + nested bargain arms — not ported).
+
+Raid gate at mid friction prefers **non-mission** villages (mission tribes only
+raise the raid gate in the burn band **≥80**). Cite: fandom Alarm — missions
+slow hostility.
 
 Status lines only when `ctx->status` is present and the Euro is the human nation
 (`ctx->human_nation`, else `player.control == 0`). Full DOS dialog chrome stays
@@ -138,7 +174,15 @@ still **OPEN** (unpark #1). Full DOS dialog **PARKED**.
 ## PORT DEBT
 
 - Full `2154` (~321), `2820` (~1.4k), `4528` (~3k) — **PARKED** (deep bodies)
+- **Deep `FUN_4d56_2820` (thunk `2a1f_044c`) specifically PARKED:** ~1.4k-line
+  meet/raid decision matrix; nested trade `2aac` (good dispatch) → `2af6` /
+  `2bbc` (AI buy) / `2b92` / `311e` (demand / no-deal); choice loops,
+  hard-bargain tension, per-good price arms; alarmed-branch dialog dispatch.
+  Linux meet path keeps thin trade-goods→alarm + gift/demand / teach /
+  convert status only — **not** a 2820 port. Peels: `layer_b_combat_raid`,
+  `layer_b_2a1f_midlo`. Cite: `docs/ai_transcription.md` FUN_4d56_2820.
 - **OPEN (unpark #1):** player meet/trade/raid/gift/teach **dialog widgets**
   (`5bfb_102a` / `1092`, teach chrome); status lines already thinned
 - Full skill-from-`@TRIBES` flavor-good string parse — still PARKED
 - Folding alarmed act into quiet `14fe` (would fight seed-100 T2) — still PARKED
+- Deep Brave escort inside quiet `14fe` — still PARKED (raids stay post-pulse)

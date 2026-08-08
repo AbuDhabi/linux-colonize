@@ -47,7 +47,7 @@ euro_nation_turn (6d8e)
   §4 treaty timers: 0a38 read + decrement peer timers; peaceful Indian drift
   plan 5d04 / 0342 / 0a60
   [opportunistic] 10ec → 13b0 (ally −25g + timer≥8) → declare_war_ctx (thin 153e + status);
-                  at-war upkeep + privateer prize; near-parity → make_peace_ctx;
+                  at-war upkeep + privateer prize; war-fatigue + near-parity → make_peace_ctx;
                   ally foreign aid + FA gift (thin 3f41)
   act 5b66 — combat may declare_war
 ```
@@ -59,7 +59,7 @@ euro_nation_turn (6d8e)
 | `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112) — thin gold+tax+upkeep |
 | `FUN_5bfb_0000` / `00f8` / `312e` | census / rank / combat factor | Score stand-ins |
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | thin `ctx->status` **Done**; widgets **OPEN** (unpark #1 / #5) |
-| `FUN_3f41_*` | FA advisor | **PARKED** (thin ally-aid + FA gift; dialog UI parked) |
+| `FUN_3f41_*` | FA advisor | **PARKED** (R15: no further thin gap — ally-aid + FA gift only; full F2–F9 report bodies / dialog UI stay parked) |
 
 ### Thin `153e` war sting (Linux)
 
@@ -67,44 +67,54 @@ On first `ai_diplo_declare_war` (not already at war):
 
 - Drain **100** gold from `nation[a].gold` and `nation[b].gold` (floor 0)
 - Bump each side's `nation[].tax_rate` by **+1**, capped at **75** (same ceiling as king tax path)
-- **−5** on each of `nation[].relation_by_indian[0..7]` for both warring Euros (Indians dislike Euro×Euro war; scalar via `ai_diplo_indian_relation_delta`, clamp 0..255)
-- OR **Furs** into both nations' `nation[].boycott_bitmap` — cargo index **4**, bit `(1u << 4)` / `0x0010`. Stand-in for wartime trade embargo (Europe screen freezes that cargo). Distinct from king refuse **Sugar** bit1 (`ai_king`). Fuller per-rival `153e` trade body **OPEN** (unpark #5)
+- **−5** on each of `nation[].relation_by_indian[0..7]` for both warring Euros (Indians dislike Euro×Euro war; scalar via `ai_diplo_indian_relation_delta`, clamp **0..255** — war −5 / deepen −10 must not underflow)
+- OR **all 16** `@CARGO` cargos into both nations' `nation[].boycott_bitmap` — **Food** (idx **0**), **Sugar** (idx **1**, same bit1 as king refuse / `ai_king` / `king_ref.md`), **Tobacco** (idx **2**), **Cotton** (idx **3**, `COLONIZE_CARGO_COTTON`; R11 leftover), **Furs** (idx **4**), **Lumber** (idx **5**), **Ore** (idx **6**), **Silver** (idx **7**), **Horses** (idx **8**), **Rum** (idx **9**), **Cigars** (idx **10**), **Cloth** (idx **11**), **Coats** (idx **12**), **Trade Goods** (idx **13**), **Tools** (idx **14**), **Muskets** (idx **15**) (`colony.h` / NAMES.TXT). Stand-in for wartime trade embargo (Europe screen freezes those cargos). Fuller per-rival `153e` trade body **OPEN** (unpark #5)
 - WAR / PEACE / ALLY / MET flag writes unchanged
 - Relation summary still via mirror (`nation_relation` → −50 while at war)
 - Re-declare does **not** re-sting gold, re-bump tax, re-hit Indian relations, or re-OR the embargo bit (OR is idempotent; gated with other first-declare effects)
+- **War fatigue:** if peer treaty timer (`unknown26[peer]`) is **0**, seed it to **8** both dirs (live timers left alone). `euro_balance` near-parity peace requires `timer==0` (war aged) before the rare `1/30` `make_peace_ctx`. No invented gold.
+- **Colony-gap deepen:** if `|colony_count_a − colony_count_b| ≥ 2`, drain **25** gold from the richer treasury (floor 0). Tools is already OR'd on every first declare (R10); gap no longer gates Tools.
 
 Ongoing (in `ai_diplo_euro_balance`, while already at war with a peer):
 
 - If `nation[nation_id].gold > 0`, drain **5** gold (floor 0) once per war peer visited
-- Thin privateer prize (separate from upkeep): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). If `ctx->units` is null → treasury-only stand-in; if units are present → only when **this** nation has any sea unit. Full privateer unit spawn **PARKED**
+- Human status once per tick when upkeep drains and human is the actor: `"War upkeep costs gold."` (later privateer / peace may overwrite). FA UI **PARKED**
+- Thin privateer prize (separate from upkeep): once per war peer, transfer **8** gold from the richer treasury of the pair to the poorer when donor gold **≥ 8** (no-op if equal). If `ctx->units` is null → treasury-only stand-in; if units are present → only when **this** nation has any sea unit. Human status when prize fires and human is a party: `"Privateer prize from %s"`. Full privateer unit spawn **PARKED**
 - No new declare / ally logic for that peer that turn
 
 Embargo lift (thin):
 
-- On `ai_diplo_make_peace` or `ai_diplo_form_alliance` (both clear WAR): clear Furs bit on each side that has **no remaining** Euro×Euro war
+- On `ai_diplo_make_peace` or `ai_diplo_form_alliance` (both clear WAR): clear **all 16** wartime `@CARGO` bits (Food…Cotton…Tools…Muskets) on each side that has **no remaining** Euro×Euro war (shared lift mask)
+- Tools bit is OR'd on every first declare (with the other wartime cargos); Cotton is the R11 leftover that completes the 16-bit mask; peace/alliance must lift all sixteen with the same gate
+- Sugar lift may clear a lingering king refuse Sugar bit while `unknown46[2]` still holds tax refuse (thin shared-bitmap stand-in)
 - Raw PEACE-only writes (clear WAR without those APIs) do **not** lift; Jakob Fugger / FF boycott forgive may clear bits later — full lift chrome **PARKED**
+- Privateer prize is WAR-gated in `euro_balance` — `make_peace` stops further prizes (no dedicated prize-clear flag)
 
 ### Thin make-peace (Linux)
 
 `ai_diplo_make_peace(col1, a, b)` — dedicated PEACE path (not ally):
 
 - Clear WAR both directions; OR PEACE|MET
-- Lift Furs+Tools embargo via the shared helper when a nation has no remaining Euro wars
+- Lift all 16 wartime `@CARGO` boycotts via the shared helper when a nation has no remaining Euro wars
 - **No gold cost** (war sting + upkeep already drained treasury; optional 10g each not used)
-- Idempotent if already peaceful (WAR clear + PEACE|MET + lift check)
+- When sticky was **at-war (==1)** on either side and the pair **was** at war: nudge Indian peace feeler once after WAR clear (existing feeler path; restores improve-relations Euro war blocked), then sync sticky. **sticky==2** refuses feeler (self-gated inside `ai_diplo_indian_peace_feeler`)
+- Idempotent if already peaceful (WAR clear + PEACE|MET + lift check; no second feeler)
 - Full `153e` peace dialog widgets (`102a`/`1092`) **OPEN** (unpark #5); thin status via `_ctx`
 
-`ai_diplo_euro_balance` at-war peer visit: after upkeep, if military scores are in the ally-eligible near-parity band (`self>10`, `other>10`, `|self−other|<15`) and RNG `1/30`, call `make_peace_ctx` (status when human involved). No low-gold / long-war gates in this thin pass.
+`ai_diplo_euro_balance` at-war peer visit: after upkeep, if military scores are in the ally-eligible near-parity band (`self>10`, `other>10`, `|self−other|<15`) **and** peer treaty timer is **0** (war fatigue / aged) and RNG `1/30`, call `make_peace_ctx` (status when human involved: `"Peace concluded with %s"` / Tools lift chrome). No low-gold / invented tribute.
 
 ### Thin war/peace status chrome (Linux)
 
 Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets **OPEN**):
 
-- `ai_diplo_declare_war_ctx(ctx, a, b)` → `declare_war` then, on first declare, if human is a party: `"War declared with %s"`
-- `ai_diplo_make_peace_ctx(ctx, a, b)` → `make_peace` then, if was at war and human is a party: `"Peace concluded with %s"`
+- `ai_diplo_declare_war_ctx(ctx, a, b)` → `declare_war` then, on first declare, if human is a party: `"War declared with %s"`; if Sugar/Tobacco/Tools newly OR'd on the human nation: prefer `"Sugar/Tobacco/Tools boycott imposed."`; else if Sugar/Tobacco newly OR'd (Tools already present): prefer `"Sugar/Tobacco boycott imposed."`; else if any other wartime `@CARGO` newly OR'd: prefer `"%s boycott imposed."` naming the first new cargo by index (Food…Muskets; colony.h / NAMES.TXT); else if Indian sticky newly rose from the −5 war-hit: prefer `"Natives grow hostile."`
+- `ai_diplo_make_peace_ctx(ctx, a, b)` → `make_peace` then, if was at war and human is a party: `"Peace concluded with %s"`; if Tools bit cleared on the human nation: prefer `"Tools embargo lifted."` (war-fatigue path uses this `_ctx`)
+- `ai_diplo_break_alliance_ctx(ctx, a, b)` → `break_alliance` then, if was allied and human is a party: `"Alliance broken with %s"`; if Indian sticky newly rose from the −5 break hit: prefer `"Natives grow hostile."` (wired from `euro_balance` 13b0 break + treaty-timer expiry)
+- `ai_diplo_form_alliance_ctx(ctx, a, b)` → `form_alliance` then, if human is a party and pair was not already allied: `"Alliance formed with %s"`; if 25g alliance cost drained human treasury: prefer `"Alliance with %s costs gold."` (`euro_balance` 13b0 form uses this `_ctx`)
+- FA gift / longevity (timer==1, sticky≠2): gift success → `"Alliance with %s strengthened."`; longevity-only → `"Alliance with %s holds."`
 - `%s` = peer `player.country_name` when non-empty, else `"rival"`
-- Existing `declare_war` / `make_peace` unchanged (AI callers stay status-free)
-- `euro_balance` RNG war/peace uses the `_ctx` wrappers
+- Existing `declare_war` / `make_peace` / `form_alliance` / `break_alliance` unchanged (AI callers stay status-free)
+- `euro_balance` RNG war/peace/form/break uses the `_ctx` wrappers
 
 **OPEN (unpark #5):** full multi-line `102a`/`1092` dialog widgets; FA `3f41`, order clear
 `12d0` deep, privateer units, exact `−0x77c4` still PARKED. Score/trade deepen + thin
@@ -125,7 +135,8 @@ On `ai_diplo_form_alliance` (Euro×Euro):
 On `ai_diplo_break_alliance` when the pair **was** allied:
 
 - Each side loses **20** gold (floor 0) — chosen over −1 `tax_rate` so trust loss stays on the treasury path (war already owns tax bump)
-- Re-break when not allied does **not** re-penalize
+- **−5** on each of `nation[].relation_by_indian[0..7]` both sides, then sync Indian hostility sticky (same scalar as Euro×Euro war hit; no very-low extra). When relations were near the at-war floor, sticky rises **0→1** (Indians wary of Euro treachery; fandom / war-hit stand-in)
+- Re-break when not allied does **not** re-penalize or re-hit Indians
 - Timer-expiry and `euro_balance` RNG break both go through this path
 
 ### Thin FA / ally foreign aid (Linux)
@@ -151,6 +162,7 @@ Exported `ai_diplo_fa_gift(col1, from, to)`:
 Wired from `ai_diplo_euro_balance` (after ally-aid, before break check):
 
 - When ALLY and this nation's treaty timer toward peer is **1** (expiring) → call `ai_diplo_fa_gift`
+- If gift gold gates fail (timer still **1**) → longevity **+1** both treaty timers (**no** second gold transfer)
 - Goodwill refresh even if peer is not "poor" (unlike the 10g aid path); aid and gift stay independent
 
 ### Thin peaceful Indian relation drift (Linux)
@@ -174,38 +186,61 @@ Gates reuse contact conventions (not new combat numbers):
 
 API / behavior:
 
-- `ai_diplo_indian_read` / `ai_diplo_indian_at_war` / `ai_diplo_indian_any_at_war`
+- `ai_diplo_indian_read` / `ai_diplo_indian_relation` (read-only `indian_nation` 4..11) /
+  `ai_diplo_indian_at_war` / `ai_diplo_indian_any_at_war`
 - `ai_diplo_indian_hostility_sticky` / `ai_diplo_indian_hostility_sync` —
   `unknown26[8]`: **0** clear, **1** any at-war, **2** any very-low while at-war
 - On `declare_war`: after −5 Indian hit (+ extra −10 if still **< 40**), sync sticky both sides
 - `ai_diplo_euro_balance` Indian matrix arm (once per nation tick):
-  1. **Peace feeler** — if Euro at peace with all Euro peers, each mid/high slot
-     (`≥ 50` and `< 100`) heals **+2** toward content floor 100 (fandom peace →
-     gifts / improve relations; **no gold** — prefer flags over treasury fiction)
-  2. **Sticky sync** — set / clear / deepen from matrix
-  3. **Harassment** −2 gold if any `indian_at_war`
-  4. Human status chrome: sticky 0→nonzero → `"Natives grow hostile."`;
-     sticky nonzero→0 → `"Relations with natives improve."` (widgets **OPEN**)
-- Full Indian×Euro `15b3` bilateral matrix still **OPEN** (unpark #5)
+  1. **Peace feeler** — if Euro at peace with all Euro peers (`!ai_diplo_at_war_with_any`)
+     **and sticky ≠ 2**, each mid/high slot (`≥ 50` and `< 100`) heals **+2** toward
+     content floor 100 (fandom peace → gifts / improve relations; **no gold**)
+  2. **Sticky→pressure** — sticky **== 2** skips feeler; human status
+     `"Natives remain hostile."` (fandom alarmed refuse gifts; no gold fiction)
+  3. **Sticky sync** — set / clear / deepen from matrix
+  4. **Harassment** −2 gold if any `indian_at_war` (skip when gold already 0;
+     floor once to 0 when gold < 2 — no invent-below-zero more than once per
+     balance tick)
+  5. Human status chrome: sticky 0→nonzero → `"Natives grow hostile."`;
+     sticky nonzero→0 → `"Native tensions ease."`; sticky stays clear and
+     feeler heals ≥1 mid-band slot → `"Native relations improve."` (widgets **OPEN**)
+- `euro_balance` **13b0** ally form: sticky **== 2** refuses **new** alliances this
+  balance (existing ALLY kept); when RNG would form and human is actor, status
+  `"Native unrest precludes new alliances."` (fandom alarmed refuse diplomacy path)
+- sticky **== 2** also skips **FA gift** to allied peers (no 15g transfer); longevity
+  timer+1 still applies when timer==1 (no gold). Ally-aid 10g unchanged.
 
 ## Linux checklist
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift
-3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → upkeep + privateer prize + near-parity `make_peace_ctx`; Indian feeler + sticky sync + harassment
-4. `ai_diplo_make_peace` / `_ctx` — clear WAR, set PEACE|MET, lift Furs+Tools if no Euro wars; no gold cost; `_ctx` thin status
-5. `ai_diplo_declare_war_ctx` — thin `"War declared with …"` when human involved
-6. `ai_diplo_form_alliance` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Furs embargo if no Euro wars remain
-7. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty if was allied
-8. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED)
-9. `ai_diplo_indian_relation_delta` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
-10. First `declare_war` — Furs `boycott_bitmap` bit4 both sides (wartime embargo stand-in)
-11. Indian matrix helpers — read / at_war / any_at_war / sticky sync (0/1/2) + feeler + human status
+3. `ai_diplo_euro_balance` — `10ec`/`13b0`-shaped; ally aid + FA gift / longevity (timer==1); `declare_war_ctx` → thin `153e` + status; at-war → upkeep + privateer prize + war-fatigue (`timer==0`) near-parity `make_peace_ctx`; Indian feeler + sticky→pressure + harassment
+- `ai_diplo_make_peace` / `_ctx` — clear WAR, set PEACE|MET, lift Furs+Tobacco+Sugar+Rum+Cigars+Tools if no Euro wars; no gold cost; `_ctx` thin status (+ Tools lift chrome)
+5. `ai_diplo_declare_war_ctx` — thin `"War declared with …"` / `"Sugar/Tobacco boycott imposed."` / `"Sugar/Tobacco/Tools boycott imposed."` / first newly boycotted `"%s boycott imposed."` when human involved
+6. `ai_diplo_form_alliance` / `_ctx` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Horses+Muskets+…+Tools if no Euro wars remain; `_ctx` statuses `"Alliance formed with %s"` on first form; prefer `"Alliance with %s costs gold."` when human treasury drains
+7. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty + Indian −5/sticky sync if was allied
+8. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED); else longevity +1; sticky2 skips gift
+9. `ai_diplo_indian_relation_delta` / `ai_diplo_indian_relation` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
+10. First `declare_war` — all 16 `@CARGO` `boycott_bitmap` bits both sides (incl. Cotton); colony-gap ≥2 → extra 25g rich sting; fatigue timer seed 8 if 0
+11. Indian matrix helpers — read / relation / at_war / any_at_war / sticky sync (0/1/2) + feeler skip on sticky2 (self-gated) + sticky2 refuse new alliances + sticky2 skip FA gift + human status + harassment gold floor + war −5 relation floor 0
+12. `ai_diplo_at_war_with` / `ai_diplo_at_war_with_any` — war-turn helpers (pair alias + any-Euro gate for feeler/drift/lift)
 
 ## PORT DEBT
 
 - **OPEN (unpark #5):** full Indian×Euro bilateral `15b3` matrix (beyond thin read/at_war /
-  drift / feeler / war-hit / harassment / sticky set-clear-deepen); real `102a`/`1092`
+  drift / feeler / war-hit / harassment / sticky set-clear-deepen/pressure); real `102a`/`1092`
   dialog **widgets** (thin `ctx->status` chrome **Done**)
-- **Done this pass:** sticky set/clear/deepen + peace feeler + matrix helpers + native status
+- **Done this pass:** sticky→pressure + ally longevity + Tools lift parity + `indian_relation` getter
+- **Done R3:** sticky2 refuse new alliances; Sugar wartime boycott (king bit1) + lift; export `at_war_with` / `at_war_with_any`; feeler gated on `!any_euro_war`
+- **Done R4:** Rum+Cigars wartime boycott set/lift; sticky2 skip FA gift; war-declare boycott status names Sugar/Tobacco/Tools
+- **Done R6:** Ore+Silver wartime boycott set/lift; FA gift/longevity human status; war-fatigue Peace status smoke; Indian −5 war-hit status when sticky rises
+- **Done R7:** Food+Trade Goods wartime boycott set/lift; make_peace restores Indian feeler when sticky elevated; privateer prize human status
+- **Done R8:** Lumber wartime boycott set/lift; make_peace stops privateer prize (smoke); Indian feeler human status `"Native relations improve."`
+- **Done R9:** Horses+Muskets wartime boycott set/lift; sticky==2 feeler self-gate (make_peace + matrix); `form_alliance_ctx` gold-drain status
+- **Done R10:** Tools wartime boycott always (`COLONIZE_CARGO_TOOLS`) + lift; war upkeep human status once/tick; break_alliance raises Indian sticky (−5 + sync) + smoke; peace feeler mid-band already smoked (R8)
+- **Done R11:** Cotton wartime boycott leftover (`COLONIZE_CARGO_COTTON`) set/lift — full 16-bit wartime mask; make_peace smoke clears full wartime bitmap; war −5 Indian relation floor at 0; sticky2 FA gift skip already smoked (R4)
+- **Done R12:** declare status names first newly boycotted `@CARGO` when Sugar/Tobacco/Tools chrome quiet; alliance timer≥8 smoke; privateer prize peace-stop + sticky −5 sync already complete
+- **Done R13:** war-fatigue human chrome when either party (peer smoke + Peace concluded when Tools clear); sticky==2 refuse-alliance status smoke; treaty-timer expiry break human status; FA gift gold transfer already smoked
+- **Done R14:** full wartime boycott mask declare OR + make_peace clear already smoked; `form_alliance_ctx` success chrome `"Alliance formed with %s"` (gold-drain preferred)
+- **Done R15 (thin final):** no code gap — alliance-formed status smoke already present (R14 zero-gold path); FA `3f41` full body/UI confirmed **PARKED** (thin ally-aid 10g + FA gift 15g / longevity only; Accuracy bar: FA UI parked, no invented chrome)
 - **Still PARKED:** FA `3f41` full body/UI; wartime privateer **unit spawn** / raid path (thin treasury prize only); exact save-field rename for `−0x77c4`; quiet Brave `diplomacy_flags` −10 goldens

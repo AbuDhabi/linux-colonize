@@ -1,6 +1,7 @@
 /* Smoke: liberty-bell threshold elects FF with manual/wiki-aligned effects. */
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -142,7 +143,7 @@ int main(void) {
   }
   ctx.europe = NULL;
 
-  /* Jefferson: elect only — no liberty-bells fiction. */
+  /* Jefferson: elect only — production +50% on statesmen is turn/prod path. */
   nat->liberty_bells_total = 160;
   nat->next_founding_father = 15;
   const uint16_t bells_before = nat->liberty_bells_total;
@@ -152,6 +153,9 @@ int main(void) {
   }
   if (nat->liberty_bells_total != bells_before) {
     return fail("Jefferson must not invent bells");
+  }
+  if (!founding_fathers_nation_has(&col1, 0, FF_THOMAS_JEFFERSON)) {
+    return fail("Jefferson nation_has false");
   }
 
   /* de Witt: elect only — no tax fiction. */
@@ -206,7 +210,7 @@ int main(void) {
     }
   }
 
-  /* Revere: ownership flag only — no tools / gold fiction. */
+  /* Revere: ownership flag only on elect — no tools / gold fiction. */
   nat->liberty_bells_total = 360;
   nat->next_founding_father = 12;
   {
@@ -234,10 +238,24 @@ int main(void) {
     }
   }
 
-  /* Pocahontas: PARKED — no crosses fiction. */
+  /* Pocahontas: reset native tension to content; no crosses fiction.
+   * Half-rate alarm growth PARKED (ai_contact / col1_bridge). */
   nat->liberty_bells_total = 440;
   nat->next_founding_father = 16;
   {
+    ColonizeCol1Tribe tribes[2];
+    memset(tribes, 0, sizeof(tribes));
+    tribes[0].nation_id = 4;
+    tribes[0].alarm[0].friction = 80;
+    tribes[0].alarm[0].attacks = 3;
+    tribes[0].alarm[1].friction = 40;
+    tribes[1].nation_id = 5;
+    tribes[1].alarm[0].friction = 55;
+    col1.tribe = tribes;
+    col1.head.tribe_count = 2;
+    col1.indian[0].alarm_by_player[0] = 90;
+    col1.indian[0].alarm_by_player[1] = 20;
+    col1.indian[1].alarm_by_player[0] = 70;
     const uint16_t c0 = nat->current_crosses;
     founding_fathers_tick(&ctx);
     if (col1.head.founding_father[16] != 0 || nat->founding_father_count != 11) {
@@ -246,6 +264,21 @@ int main(void) {
     if (nat->current_crosses != c0) {
       return fail("Pocahontas must not invent crosses");
     }
+    if (tribes[0].alarm[0].friction != 0 || tribes[0].alarm[0].attacks != 0 ||
+        tribes[1].alarm[0].friction != 0) {
+      return fail("Pocahontas must zero own-nation tribe friction");
+    }
+    if (tribes[0].alarm[1].friction != 40) {
+      return fail("Pocahontas must not clear other nations' friction");
+    }
+    if (col1.indian[0].alarm_by_player[0] != 0 || col1.indian[1].alarm_by_player[0] != 0) {
+      return fail("Pocahontas must zero own-nation indian alarm");
+    }
+    if (col1.indian[0].alarm_by_player[1] != 20) {
+      return fail("Pocahontas must not clear other nations' indian alarm");
+    }
+    col1.tribe = NULL;
+    col1.head.tribe_count = 0;
   }
 
   /* Coronado without map: elect only — no gold fallback. */
@@ -717,6 +750,323 @@ int main(void) {
     }
   }
 
+  /* --- Combat hooks: Washington promote-on-win, Drake +50%, Revere helper. --- */
+  {
+    ColonizeCol1Save ccol1;
+    col1_save_init(&ccol1);
+    seed_unclaimed(&ccol1);
+    ccol1.head.founding_father[FF_GEORGE_WASHINGTON] = 0;
+    ccol1.head.founding_father[FF_FRANCIS_DRAKE] = 0;
+    ccol1.head.founding_father[FF_PAUL_REVERE] = 0;
+    ccol1.nation[0].founding_fathers[FF_GEORGE_WASHINGTON / 8] |=
+      (uint8_t)(1u << (FF_GEORGE_WASHINGTON % 8));
+    ccol1.nation[0].founding_fathers[FF_FRANCIS_DRAKE / 8] |=
+      (uint8_t)(1u << (FF_FRANCIS_DRAKE % 8));
+    ccol1.nation[0].founding_fathers[FF_PAUL_REVERE / 8] |=
+      (uint8_t)(1u << (FF_PAUL_REVERE % 8));
+
+    /* Revere helper: flag + no soldier + muskets stock. */
+    if (!founding_fathers_revere_should_auto_arm(&ccol1, 0, false, 50)) {
+      return fail("Revere helper should auto-arm with muskets and no soldier");
+    }
+    if (founding_fathers_revere_should_auto_arm(&ccol1, 0, true, 50)) {
+      return fail("Revere helper must not arm when soldier present");
+    }
+    if (founding_fathers_revere_should_auto_arm(&ccol1, 0, false, 49)) {
+      return fail("Revere helper must not arm without equip muskets");
+    }
+    if (founding_fathers_revere_should_auto_arm(&ccol1, 1, false, 50)) {
+      return fail("Revere helper must require owning nation");
+    }
+
+    ColonizeUnitPool upool;
+    units_reset(&upool);
+    upool.type_count = 6;
+    snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Soldier");
+    upool.types[0].attack = 2;
+    upool.types[0].defense = 2;
+    upool.types[0].movement = 1;
+    upool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(upool.types[1].name, sizeof(upool.types[1].name), "Veteran Soldier");
+    upool.types[1].attack = 3;
+    upool.types[1].defense = 3;
+    upool.types[1].movement = 1;
+    upool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(upool.types[2].name, sizeof(upool.types[2].name), "Dragoon");
+    upool.types[2].attack = 3;
+    upool.types[2].defense = 3;
+    upool.types[2].movement = 4;
+    upool.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(upool.types[3].name, sizeof(upool.types[3].name), "Veteran Dragoon");
+    upool.types[3].attack = 4;
+    upool.types[3].defense = 4;
+    upool.types[3].movement = 4;
+    upool.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    snprintf(upool.types[4].name, sizeof(upool.types[4].name), "Privateer");
+    upool.types[4].attack = 8;
+    upool.types[4].defense = 8;
+    upool.types[4].movement = 8;
+    upool.types[4].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    snprintf(upool.types[5].name, sizeof(upool.types[5].name), "Frigate");
+    upool.types[5].attack = 16;
+    upool.types[5].defense = 16;
+    upool.types[5].movement = 6;
+    upool.types[5].domain = COLONIZE_UNIT_DOMAIN_SEA;
+
+    /* Washington: non-vet Soldier win → Veteran Soldier type. */
+    {
+      const int aid = units_spawn_allow_stack(&upool, 0, 1, 1);
+      const int did = units_spawn_allow_stack(&upool, 0, 2, 2);
+      if (aid < 0 || did < 0) {
+        return fail("Washington combat spawn");
+      }
+      ColonizeUnit* aw = units_get(&upool, aid);
+      ColonizeUnit* dw = units_get(&upool, did);
+      aw->nation_id = 0;
+      aw->profession = UNITS_JOB_NONE;
+      dw->nation_id = 1;
+      dw->profession = UNITS_JOB_NONE;
+      /* Equal attack/defense; NULL rng → attacker wins when attack >= defense. */
+      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, &ccol1)) {
+        return fail("Washington land combat attacker should win");
+      }
+      aw = units_get(&upool, aid);
+      if (!aw || aw->type_index != 1) {
+        return fail("Washington should promote Soldier → Veteran Soldier");
+      }
+      if (aw->profession != UNITS_JOB_SOLDIER) {
+        return fail("Washington should set Veteran Soldier profession");
+      }
+    }
+
+    /* Washington: already Veteran — no further type change. */
+    {
+      const int aid = units_spawn_allow_stack(&upool, 1, 3, 3);
+      const int did = units_spawn_allow_stack(&upool, 0, 4, 4);
+      if (aid < 0 || did < 0) {
+        return fail("Washington vet spawn");
+      }
+      ColonizeUnit* aw = units_get(&upool, aid);
+      ColonizeUnit* dw = units_get(&upool, did);
+      aw->nation_id = 0;
+      aw->profession = UNITS_JOB_SOLDIER;
+      dw->nation_id = 1;
+      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, &ccol1)) {
+        return fail("Washington vet combat should win");
+      }
+      aw = units_get(&upool, aid);
+      if (!aw || aw->type_index != 1) {
+        return fail("Washington must not re-promote Veteran");
+      }
+    }
+
+    /* Washington: Dragoon → Veteran Dragoon. */
+    {
+      const int aid = units_spawn_allow_stack(&upool, 2, 5, 5);
+      const int did = units_spawn_allow_stack(&upool, 0, 6, 6);
+      if (aid < 0 || did < 0) {
+        return fail("Washington Dragoon spawn");
+      }
+      ColonizeUnit* aw = units_get(&upool, aid);
+      ColonizeUnit* dw = units_get(&upool, did);
+      aw->nation_id = 0;
+      aw->profession = UNITS_JOB_NONE;
+      dw->nation_id = 1;
+      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, &ccol1)) {
+        return fail("Washington Dragoon combat should win");
+      }
+      aw = units_get(&upool, aid);
+      if (!aw || aw->type_index != 3) {
+        return fail("Washington should promote Dragoon → Veteran Dragoon");
+      }
+    }
+
+    /* Washington without col1: no promote. */
+    {
+      const int aid = units_spawn_allow_stack(&upool, 0, 7, 7);
+      const int did = units_spawn_allow_stack(&upool, 0, 8, 8);
+      if (aid < 0 || did < 0) {
+        return fail("Washington NULL-col1 spawn");
+      }
+      ColonizeUnit* aw = units_get(&upool, aid);
+      ColonizeUnit* dw = units_get(&upool, did);
+      aw->nation_id = 0;
+      aw->profession = UNITS_JOB_NONE;
+      dw->nation_id = 1;
+      if (!units_resolve_land_combat_ff(&upool, aid, did, NULL, NULL)) {
+        return fail("NULL-col1 land combat should win");
+      }
+      aw = units_get(&upool, aid);
+      if (!aw || aw->type_index != 0) {
+        return fail("NULL col1 must not Washington-promote");
+      }
+    }
+
+    /* Drake: Privateer attack 8 → 12 vs Frigate def 16; without Drake loses
+     * (8 < 16); with Drake wins (12 vs 16 still loses on >= … wait 12 < 16).
+     * Use weaker foe: Frigate def scaled down via custom — give foe Caravel-like
+     * defense by using another Privateer without Drake (def 8).
+     * With Drake atk 12 >= def 8 → win; without Drake atk 8 >= 8 → also win.
+     * Better: attacker Privateer (Drake) vs Frigate: 12 vs 16 → lose on
+     * deterministic (>=). Attacker Frigate vs Privateer defender with Drake:
+     * atk 16 vs def 12 → win; without Drake atk 16 vs def 8 → win either way.
+     * Prove multiplier: Privateer(Drake nation) defends vs equal Privateer
+     * (no Drake). Attack 8 vs Drake-def 12 → attacker loses (8 < 12).
+     * Same without Drake ownership on defender: 8 >= 8 → attacker wins. */
+    {
+      ColonizeCol1Save no_drake;
+      col1_save_init(&no_drake);
+      seed_unclaimed(&no_drake);
+      /* Only nation 0 has Drake in ccol1; nation 1 does not. */
+
+      const int atk1 = units_spawn_allow_stack(&upool, 4, 10, 1);
+      const int def1 = units_spawn_allow_stack(&upool, 4, 10, 2);
+      if (atk1 < 0 || def1 < 0) {
+        return fail("Drake naval spawn A");
+      }
+      ColonizeUnit* a1 = units_get(&upool, atk1);
+      ColonizeUnit* d1 = units_get(&upool, def1);
+      a1->nation_id = 1; /* no Drake */
+      d1->nation_id = 0; /* has Drake → def 8*3/2=12 */
+      if (units_resolve_naval_combat_ff(&upool, atk1, def1, NULL, &ccol1)) {
+        return fail("Drake defender Privateer +50% should beat equal attacker");
+      }
+      if (!units_get(&upool, def1) || units_get(&upool, atk1)) {
+        return fail("Drake defender should survive, attacker despawned");
+      }
+
+      const int atk2 = units_spawn_allow_stack(&upool, 4, 11, 1);
+      const int def2 = units_spawn_allow_stack(&upool, 4, 11, 2);
+      if (atk2 < 0 || def2 < 0) {
+        return fail("Drake naval spawn B");
+      }
+      ColonizeUnit* a2 = units_get(&upool, atk2);
+      ColonizeUnit* d2 = units_get(&upool, def2);
+      a2->nation_id = 1;
+      d2->nation_id = 0;
+      /* No col1 → no Drake bonus → attack 8 >= def 8 → attacker wins. */
+      if (!units_resolve_naval_combat_ff(&upool, atk2, def2, NULL, NULL)) {
+        return fail("without Drake bonus equal Privateers: attacker should win");
+      }
+      if (!units_get(&upool, atk2) || units_get(&upool, def2)) {
+        return fail("NULL-col1 naval: attacker survives, defender gone");
+      }
+
+      /* Attacker Privateer with Drake vs equal foe without: atk 12 >= 8 → win. */
+      const int atk3 = units_spawn_allow_stack(&upool, 4, 12, 1);
+      const int def3 = units_spawn_allow_stack(&upool, 4, 12, 2);
+      if (atk3 < 0 || def3 < 0) {
+        return fail("Drake naval spawn C");
+      }
+      ColonizeUnit* a3 = units_get(&upool, atk3);
+      ColonizeUnit* d3 = units_get(&upool, def3);
+      a3->nation_id = 0;
+      d3->nation_id = 1;
+      if (!units_resolve_naval_combat_ff(&upool, atk3, def3, NULL, &ccol1)) {
+        return fail("Drake attacker Privateer +50% should win vs equal foe");
+      }
+      (void)no_drake;
+    }
+
+    /* Revere: step onto empty foreign colony → auto-arm + combat. */
+    {
+      char err[64];
+      ColonizeWorldMap rmap;
+      memset(&rmap, 0, sizeof(rmap));
+      if (!map_alloc(&rmap, 8, 8, err, sizeof(err))) {
+        return fail("Revere map_alloc");
+      }
+      for (size_t i = 0; i < rmap.tile_count; ++i) {
+        rmap.terrain[i] = 1;
+      }
+
+      ColonizeColonyPool rcol;
+      colonies_init(&rcol);
+      ColonizeColony* colony = &rcol.colonies[0];
+      colony->id = 0;
+      colony->active = true;
+      colony->nation_id = 0; /* owns Revere */
+      colony->x = 6;
+      colony->y = 6;
+      colony->population = 1;
+      colony->colonist_count = 1;
+      colony->colonists[0].active = true;
+      colony->colonists[0].unit_type_index = 0; /* Soldier fallback */
+      colony->stock[COLONIZE_CARGO_MUSKETS] = 50;
+      rcol.colony_count = 1;
+
+      /* Ensure Soldiers type exists for eject. */
+      if (upool.type_count < 7) {
+        snprintf(upool.types[6].name, sizeof(upool.types[6].name), "Soldiers");
+        upool.types[6].attack = 2;
+        upool.types[6].defense = 2;
+        upool.types[6].movement = 1;
+        upool.types[6].domain = COLONIZE_UNIT_DOMAIN_LAND;
+        upool.type_count = 7;
+      }
+
+      const int atk = units_spawn_allow_stack(&upool, 0, 5, 6);
+      if (atk < 0) {
+        map_free(&rmap);
+        return fail("Revere attacker spawn");
+      }
+      ColonizeUnit* ra = units_get(&upool, atk);
+      ra->nation_id = 1;
+      ra->moves_left = 3;
+
+      units_set_ff_col1(&ccol1);
+      /* Deterministic: Soldier atk 2 >= Soldier def 2 → attacker wins. */
+      if (!units_try_move(&upool, atk, &rmap, 6, 6, &rcol, NULL)) {
+        units_set_ff_col1(NULL);
+        map_free(&rmap);
+        return fail("Revere try_move should win vs auto-armed defender");
+      }
+      units_set_ff_col1(NULL);
+      ra = units_get(&upool, atk);
+      if (!ra || ra->x != 6 || ra->y != 6) {
+        map_free(&rmap);
+        return fail("Revere attacker should occupy colony tile after win");
+      }
+      if (colony->stock[COLONIZE_CARGO_MUSKETS] != 0) {
+        map_free(&rmap);
+        return fail("Revere should spend warehouse muskets");
+      }
+      if (colony->colonist_count != 0) {
+        map_free(&rmap);
+        return fail("Revere should eject the defending colonist");
+      }
+      if (units_last_combat_outcome() != 1) {
+        map_free(&rmap);
+        return fail("Revere combat outcome should be attacker win");
+      }
+
+      /* Without FF context: no auto-arm, walk onto colony with muskets intact. */
+      colony->population = 1;
+      colony->colonist_count = 1;
+      colony->colonists[0].active = true;
+      colony->colonists[0].unit_type_index = 0;
+      colony->stock[COLONIZE_CARGO_MUSKETS] = 50;
+      const int atk2 = units_spawn_allow_stack(&upool, 0, 7, 6);
+      if (atk2 < 0) {
+        map_free(&rmap);
+        return fail("Revere no-ff attacker spawn");
+      }
+      ColonizeUnit* ra2 = units_get(&upool, atk2);
+      ra2->nation_id = 1;
+      ra2->moves_left = 3;
+      units_set_ff_col1(NULL);
+      if (!units_try_move(&upool, atk2, &rmap, 6, 6, &rcol, NULL)) {
+        map_free(&rmap);
+        return fail("without Revere context move onto empty colony should work");
+      }
+      if (colony->stock[COLONIZE_CARGO_MUSKETS] != 50 || colony->colonist_count != 1) {
+        map_free(&rmap);
+        return fail("without FF context must not Revere-arm");
+      }
+      map_free(&rmap);
+    }
+  }
+
   /* Arctic founding rejection. */
   {
     char err[64];
@@ -740,6 +1090,128 @@ int main(void) {
       return fail("can_found rejected plains");
     }
     map_free(&map);
+  }
+
+  /*
+   * Jefferson / Paine / Penn production multipliers (fandom_col1994.md):
+   *   Jefferson — statesmen (Town Hall workers) bells ×1.5
+   *   Paine — colony bells × (100+tax)/100
+   *   Penn — colony crosses ×1.5
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+    snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Church");
+    pool.building_type_count = 2;
+
+    ColonizeColony* col = &pool.colonies[0];
+    col->id = 0;
+    col->active = true;
+    col->nation_id = 0;
+    col->x = 2;
+    col->y = 2;
+    col->has_building[0] = true;
+    col->has_building[1] = true;
+    col->population = 2;
+    col->colonist_count = 2;
+    col->colonists[0].active = true;
+    col->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+    col->colonists[0].building_type = 0; /* Town Hall */
+    col->colonists[0].field_job = -1;
+    col->colonists[1].active = true;
+    col->colonists[1].profession = COLONIZE_PROF_PREACHER;
+    col->colonists[1].building_type = 1; /* Church */
+    col->colonists[1].field_job = -1;
+    pool.colony_count = 1;
+
+    /* Expert statesman in Town Hall: base 3×2=6; +Town Hall passive 1 → 7. */
+    const int bells_base = colony_prod_colony_bells(&pool, col);
+    if (bells_base != 7) {
+      return fail("prod baseline bells (statesman+hall) unexpected");
+    }
+    /* Jefferson +50% on statesmen worker only: 6→9, passive 1 → 10. */
+    const int bells_jeff = colony_prod_colony_bells_ff(&pool, col, 50, 0);
+    if (bells_jeff != 10) {
+      return fail("Jefferson statesmen +50% bells");
+    }
+    /* Paine tax 20%: 7 × 120/100 = 8. */
+    const int bells_paine = colony_prod_colony_bells_ff(&pool, col, 0, 20);
+    if (bells_paine != 8) {
+      return fail("Paine tax% bells");
+    }
+    /* Both: Jefferson then media(none) then Paine: 10 × 120/100 = 12. */
+    const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20);
+    if (bells_both != 12) {
+      return fail("Jefferson+Paine combined bells");
+    }
+
+    /* Base crosses: 1 colony + Church passive 2 + preacher×2 on church 3→6 = 9. */
+    const int crosses_base = colony_prod_colony_crosses(&pool, col);
+    if (crosses_base != 9) {
+      return fail("prod baseline crosses unexpected");
+    }
+    /* Penn +50%: 9 × 150/100 = 13. */
+    const int crosses_penn = colony_prod_colony_crosses_ff(&pool, col, 50);
+    if (crosses_penn != 13) {
+      return fail("Penn crosses +50%");
+    }
+
+    /* Turn path: elect Jefferson/Paine/Penn and accrue via nation ticks. */
+    ColonizeCol1Save pcol1;
+    col1_save_init(&pcol1);
+    seed_unclaimed(&pcol1);
+    ColonizeCol1Nation* pnat = &pcol1.nation[0];
+    memset(pnat, 0, sizeof(*pnat));
+    pnat->tax_rate = 20;
+    pnat->founding_father_count = 0;
+    pnat->liberty_bells_total = 40;
+    pnat->next_founding_father = FF_THOMAS_JEFFERSON;
+    pcol1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
+
+    EuropeScreen peu;
+    memset(&peu, 0, sizeof(peu));
+    peu.needed_crosses = 100;
+    peu.crosses_immigrant_seen = true; /* no base +2 */
+
+    ColonizeTurnContext pctx;
+    memset(&pctx, 0, sizeof(pctx));
+    pctx.human_nation = 0;
+    pctx.col1 = &pcol1;
+    pctx.col1_ok = true;
+    pctx.colonies = &pool;
+    pctx.europe = &peu;
+
+    founding_fathers_tick(&pctx);
+    if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_JEFFERSON)) {
+      return fail("prod-path Jefferson elect");
+    }
+    pnat->liberty_bells_total = 80;
+    pnat->next_founding_father = FF_THOMAS_PAINE;
+    founding_fathers_tick(&pctx);
+    if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_PAINE)) {
+      return fail("prod-path Paine elect");
+    }
+    pnat->liberty_bells_total = 120;
+    pnat->next_founding_father = FF_WILLIAM_PENN;
+    founding_fathers_tick(&pctx);
+    if (!founding_fathers_nation_has(&pcol1, 0, FF_WILLIAM_PENN)) {
+      return fail("prod-path Penn elect");
+    }
+
+    peu.liberty_bells_total = 0;
+    peu.liberty_bells_last_turn = 0;
+    peu.current_crosses = 0;
+    pnat->liberty_bells_total = 0;
+    pnat->current_crosses = 0;
+    turn_run_nation_ticks(&pctx, NULL);
+    /* Jefferson+Paine: 12 bells; Penn: 13 crosses. */
+    if (peu.liberty_bells_last_turn != 12) {
+      return fail("turn Jefferson+Paine bells last_turn");
+    }
+    if (peu.current_crosses != 13) {
+      return fail("turn Penn crosses accrued");
+    }
   }
 
   printf("smoke_founding_fathers: OK\n");

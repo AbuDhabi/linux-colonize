@@ -12,6 +12,16 @@
 #include "core/map.h"
 #include "core/ss.h"
 
+/* Forward decl — optional FF combat context (Washington / Drake / Revere). */
+typedef struct ColonizeCol1Save ColonizeCol1Save;
+
+/*
+ * Set Col1 save used by units_try_move for FF combat hooks (Washington promote,
+ * Drake naval, Paul Revere auto-arm). turn_refresh_moves_for_nation sets this.
+ * Pass NULL to clear. Pointer is not owned.
+ */
+void units_set_ff_col1(const ColonizeCol1Save* col1);
+
 /* Original COLONY.SAV can hold well over 64 map units (natives + Europeans). */
 #define COLONIZE_UNITS_MAX 256
 #define COLONIZE_UNIT_TYPES_MAX 32
@@ -134,25 +144,50 @@ bool units_try_move(
 /*
  * T0 land combat: attack vs defense (+ fortified ×2). Probability =
  * attack/(attack+defense). Winner stays; loser despawned. Naval / mixed: no fight.
- * Returns true if attacker wins (defender removed).
+ * When col1 is non-NULL and winner nation owns Washington (PEDIA: non-veteran
+ * soldiers/dragoons who win always upgrade), promote winner name/type like 1eca.
+ * col1 may be NULL (no FF promote). Returns true if attacker wins.
  */
-bool units_resolve_land_combat(
+bool units_resolve_land_combat_ff(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
+);
+
+static inline bool units_resolve_land_combat(
   ColonizeUnitPool* pool,
   int attacker_id,
   int defender_id,
   ColonizeDosRng* rng
-);
+) {
+  return units_resolve_land_combat_ff(pool, attacker_id, defender_id, rng, NULL);
+}
 
 /*
  * T0 naval combat: same attack/defense roll as land; ships only.
  * Winner keeps the tile; loser despawned (cargo lost).
+ * When col1 is non-NULL and a side is Privateer whose nation owns Drake
+ * (PEDIA: privateer combat strength +50%), that side's attack or defense
+ * is multiplied by 3/2. col1 may be NULL (no Drake bonus).
  */
-bool units_resolve_naval_combat(
+bool units_resolve_naval_combat_ff(
+  ColonizeUnitPool* pool,
+  int attacker_id,
+  int defender_id,
+  ColonizeDosRng* rng,
+  const ColonizeCol1Save* col1
+);
+
+static inline bool units_resolve_naval_combat(
   ColonizeUnitPool* pool,
   int attacker_id,
   int defender_id,
   ColonizeDosRng* rng
-);
+) {
+  return units_resolve_naval_combat_ff(pool, attacker_id, defender_id, rng, NULL);
+}
 
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */
 int units_last_combat_outcome(void);

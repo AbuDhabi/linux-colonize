@@ -63,6 +63,7 @@ Ocean/ship fixture retirement stays R5 until ocean/HS branch ports.
 | Annotated | `pick_best_adjacent_founding_tile` in [`euro_goals.c`](euro_goals.c) |
 | Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
 | Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
+| Linux second+ colony | `ai_euro_pick_founding_tile`: when `colony_count>=1`, +10 score if `map_tile_is_coastal` (Docks/port — fandom; first colony uses plain `ai_goals_pick_founding_tile`) |
 | Linux PORT DEBT | `ai_euro_found_tile_from_landfall` / coastal staging fixtures |
 
 Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
@@ -78,5 +79,9 @@ of `20e6` (not the quiet Brave path). Until then:
 - Mid-turn ship XY: fixture waypoints (1–2 tiles off golden until ocean score)
 
 Combat / land Euro arms: **OPEN** (unpark #4). Thin adjacent-foe pick prefers
-weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`). Ocean/ship /
-deep fog explore / colony-tile deep T3 still R5.
+weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`). Thin naval
+adjacent-foe pick prefers lower defense (`ai_euro_naval_best_adjacent_foe`;
+damage mods PARKED). Ocean west-explore HS bias deepened when ship on HS.
+Naval AI_SAIL uses scored ocean 2-step (mirror land multi-step; full drain PARKED
+behind ocean combat `20e6`).
+Ocean/ship / deep fog explore / colony-tile deep T3 still R5.

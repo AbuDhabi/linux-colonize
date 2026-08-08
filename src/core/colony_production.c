@@ -200,7 +200,11 @@ static bool colony_prod_building_built(
   return false;
 }
 
-int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+int colony_prod_colony_crosses_ff(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int crosses_bonus_pct
+) {
   if (!pool || !colony || !colony->active) {
     return 0;
   }
@@ -218,10 +222,23 @@ int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeCol
     }
     crosses += colony_prod_crosses_worker(pool->building_types[c->building_type].name, c->profession);
   }
+  /* William Penn: cross production in all colonies +50% (fandom_col1994). */
+  if (crosses_bonus_pct > 0) {
+    crosses = crosses * (100 + crosses_bonus_pct) / 100;
+  }
   return crosses;
 }
 
-int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  return colony_prod_colony_crosses_ff(pool, colony, 0);
+}
+
+int colony_prod_colony_bells_ff(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int statesmen_bonus_pct,
+  int all_bells_bonus_pct
+) {
   if (!pool || !colony || !colony->active) {
     return 0;
   }
@@ -234,7 +251,12 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    bells += colony_prod_bells_worker(pool->building_types[c->building_type].name, c->profession);
+    int w = colony_prod_bells_worker(pool->building_types[c->building_type].name, c->profession);
+    /* Thomas Jefferson: liberty bell production of statesmen +50% (wiki). */
+    if (w > 0 && statesmen_bonus_pct > 0) {
+      w = w * (100 + statesmen_bonus_pct) / 100;
+    }
+    bells += w;
   }
   int bonus_pct = 0;
   if (colony_prod_building_built(pool, colony, "Printing Press")) {
@@ -246,7 +268,15 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
   if (bonus_pct > 0) {
     bells = bells * (100 + bonus_pct) / 100;
   }
+  /* Thomas Paine: bells increased by current tax rate % (multiplicative w/ media). */
+  if (all_bells_bonus_pct > 0) {
+    bells = bells * (100 + all_bells_bonus_pct) / 100;
+  }
   return bells;
+}
+
+int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  return colony_prod_colony_bells_ff(pool, colony, 0, 0);
 }
 
 int colony_prod_colony_hammers(

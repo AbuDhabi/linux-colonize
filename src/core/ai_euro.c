@@ -3,6 +3,7 @@
 #include "core/ai_diplo.h"
 #include "core/ai_goals.h"
 #include "core/colony.h"
+#include "core/colony_yield.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
@@ -33,6 +34,65 @@ static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_i
   return n;
 }
 
+/*
+ * True when colony has Stockade, Warehouse, or Lumber Mill in the build queue —
+ * carpenter hammers need on-site labor. Cite: docs/building_production.md chart
+ * (Stockade 64h / Warehouse 80h / Lumber Mill 52h); fandom construction.
+ * Structural stay/LABOR only — no invented hammer/gold rates.
+ *
+ * PARK: Drydock build prefer — fandom Naval chain Docks→Drydock→Shipyard
+ * (building_production Drydock 80h ship repair). No AI construction-list /
+ * pick-next-building API in 5d04 planning; coastal Drydock prefer stays
+ * PARKED until that hook exists (do not invent hammer/gold rates).
+ */
+static int ai_euro_colony_wants_construction_labor(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c
+) {
+  if (!pool || !c || !c->active || c->building_in_production < 0) {
+    return 0;
+  }
+  const ColonizeBuildingType* bt =
+    colonies_building_type(pool, c->building_in_production);
+  if (!bt || bt->name[0] == '\0') {
+    return 0;
+  }
+  return strcmp(bt->name, "Stockade") == 0 || strcmp(bt->name, "Warehouse") == 0 ||
+         strcmp(bt->name, "Lumber Mill") == 0;
+}
+
+/*
+ * Expert Lumberjack LABOR when incomplete Warehouse or Lumber Mill and that
+ * building type exists in the pool. Lumber feeds carpenter hammers
+ * (building_production Lumberjack→Lumber). Cite: docs/building_production.md;
+ * Colonization.pdf Skills Chart / lumberjack timber. Structural LABOR join
+ * only — no invented lumber rates.
+ *
+ * PARK: Expert Lumberjack → forest field assign (colonies_assign_field exists
+ * for colony UI / scripted ai.c, but euro 5d04/5b66 has no field-job planner).
+ * Keep field-assign PARKED until that hook exists.
+ */
+static int ai_euro_colony_wants_lumberjack_labor(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* c
+) {
+  if (!pool || !c || !c->active || c->building_in_production < 0) {
+    return 0;
+  }
+  const ColonizeBuildingType* bt =
+    colonies_building_type(pool, c->building_in_production);
+  if (!bt || bt->name[0] == '\0') {
+    return 0;
+  }
+  if (strcmp(bt->name, "Warehouse") == 0) {
+    return colonies_find_building(pool, "Warehouse") >= 0;
+  }
+  if (strcmp(bt->name, "Lumber Mill") == 0) {
+    return colonies_find_building(pool, "Lumber Mill") >= 0;
+  }
+  return 0;
+}
+
 /* True if nation_id is at war with any other European peer (0..3). */
 static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id >= 4) {
@@ -48,6 +108,13 @@ static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id) 
   }
   return 0;
 }
+
+/* Forward: threatened colony (MD≤3 war-peer) — board skip / unload / LABOR. */
+static int ai_euro_colony_threatened_by_war(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  const ColonizeColony* c
+);
 
 static int ai_euro_is_military_name(const char* name) {
   if (!name) {
@@ -67,6 +134,82 @@ static int ai_euro_is_land_war_hunter(const char* name) {
 
 static int ai_euro_land_is_fortified(const ColonizeUnit* u) {
   return u && (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED);
+}
+
+/* Sentry / fortify / fortified — wake-eligible passive land orders. */
+static int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
+  return u &&
+         (u->orders == UNITS_ORDER_SENTRY || u->orders == UNITS_ORDER_FORTIFY ||
+          u->orders == UNITS_ORDER_FORTIFIED);
+}
+
+/*
+ * FUN_521d_06ae founding pick with second-colony coastal prefer.
+ * When colony_count >= 1, bias score toward map_tile_is_coastal foundable tiles
+ * (Docks / port access — fandom Docks coastal gate; lose-all-ports war rule).
+ * First colony (count==0) keeps plain 06ae via ai_goals_pick_founding_tile.
+ * Cite: euro_goals.c pick_best_adjacent_founding_tile; move_scoring.md §06ae;
+ * docs/fandom_col1994.md Docks + Independence port colonies.
+ */
+static int ai_euro_pick_founding_tile(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y,
+  int colony_count,
+  int* out_x,
+  int* out_y
+) {
+  if (colony_count < 1) {
+    return ai_goals_pick_founding_tile(map, colonies, nation_id, x, y, out_x, out_y);
+  }
+  if (!map || !out_x || !out_y) {
+    return 0;
+  }
+  static const int k_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
+  static const int k_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
+  int best_dir = -1;
+  int best_score = -1;
+  for (int dir = 0; dir <= 8; ++dir) {
+    const int nx = x + k_dx[dir];
+    const int ny = y + k_dy[dir];
+    if (!map_coords_inset(map, nx, ny)) {
+      continue;
+    }
+    if (map_tile_is_water(map, nx, ny)) {
+      continue;
+    }
+    if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
+      continue;
+    }
+    if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
+      continue;
+    }
+    int score = 10;
+    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FARMER) * 3;
+    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FISHERMAN);
+    if (dir == 8) {
+      score += 2;
+    }
+    if (map_tile_has_river(map, nx, ny)) {
+      score += 3;
+    }
+    /* Second+ colony: prefer coastal foundable (port / Docks eligibility). */
+    if (map_tile_is_coastal(map, nx, ny)) {
+      score += 10;
+    }
+    if (score > best_score) {
+      best_score = score;
+      best_dir = dir;
+    }
+  }
+  if (best_dir < 0) {
+    return 0;
+  }
+  *out_x = x + k_dx[best_dir];
+  *out_y = y + k_dy[best_dir];
+  return 1;
 }
 
 /* Nearest primary MILITARY goal (Manhattan); 1 if found. */
@@ -108,8 +251,11 @@ static int ai_euro_nearest_military_goal(
  * (from_x,from_y) → land tile in Manhattan ring 2..4 around tribe.
  * FoW deepen: when map.seen exists, prefer tiles NOT seen by this nation
  * (map_tile_seen_by / Col1 fog bit) — explore CONTACT, not combat bonus.
+ * Sticky deepen: ai_diplo_indian_hostility_sticky ≥ 2 (unknown26[8] very-low)
+ * → prefer closer rings when fog absent. Sticky + FoW: prefer deeper unseen
+ * ring (md=4) to push fog outward. Cite: euro_diplo.md / ai_diplo.h; manual fog.
  * Fall back to toward-scout / tighter-ring scoring when fog absent or all seen.
- * No tribes: farthest map corner from first own colony (explore stand-in).
+ * No beyond-adjacent tribe / no ring tile: return 0 (fog-explore MD≤8 instead).
  */
 static int ai_euro_scout_contact_ring_target(
   ColonizeTurnContext* ctx,
@@ -122,116 +268,423 @@ static int ai_euro_scout_contact_ring_target(
   if (!ctx || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
+  if (!ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || ctx->col1->head.tribe_count == 0 ||
+      from_x < 0 || from_y < 0 || !ctx->map) {
+    return 0;
+  }
+  const uint8_t sticky = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
+  /* sticky≥2 without FoW → weight ring radius so md=2 beats md=4. */
+  const int md_w = (sticky >= 2) ? 50 : 1;
 
-  int ref_x = 0;
-  int ref_y = 0;
-  int have_ref = 0;
-  if (from_x >= 0 && from_y >= 0) {
-    ref_x = from_x;
-    ref_y = from_y;
-    have_ref = 1;
-  } else if (ctx->colonies) {
+  int best_tribe_d = -1;
+  int tribe_x = 0;
+  int tribe_y = 0;
+  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+    const int tx = (int)t->x;
+    const int ty = (int)t->y;
+    const int d = abs(tx - from_x) + abs(ty - from_y);
+    if (d <= 1) {
+      continue; /* already adjacent — no scout ring */
+    }
+    if (best_tribe_d < 0 || d < best_tribe_d) {
+      best_tribe_d = d;
+      tribe_x = tx;
+      tribe_y = ty;
+    }
+  }
+  if (best_tribe_d <= 1) {
+    return 0;
+  }
+
+  const int use_fog = ctx->map->seen != NULL;
+  /* Sticky CONTACT + FoW API → deepen into unseen outer ring. */
+  const int sticky_fog_deepen = sticky >= 2 && use_fog;
+  int best_score = -1;
+  int bx = 0;
+  int by = 0;
+  for (int dy = -4; dy <= 4; ++dy) {
+    for (int dx = -4; dx <= 4; ++dx) {
+      const int md = abs(dx) + abs(dy);
+      if (md < 2 || md > 4) {
+        continue;
+      }
+      const int nx = tribe_x + dx;
+      const int ny = tribe_y + dy;
+      if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+        continue;
+      }
+      if (map_tile_is_water(ctx->map, nx, ny)) {
+        continue;
+      }
+      if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+        continue;
+      }
+      /*
+       * FoW: unseen tiles score first (explore CONTACT). Sticky+fog: among
+       * unseen prefer deeper ring (md=4). Else sticky prefers tighter ring
+       * (md=2). Cite Col1 seen bit / map_tile_seen_by — not combat bonuses.
+       */
+      const int unseen =
+        use_fog && !map_tile_seen_by(ctx->map, nx, ny, nation_id) ? 0 : 1;
+      const int to_scout = abs(nx - from_x) + abs(ny - from_y);
+      int score;
+      if (sticky_fog_deepen) {
+        /* unseen first; then deeper ring when unseen (4-md); seen fall back closer. */
+        const int depth = (unseen == 0) ? (4 - md) : md;
+        score = unseen * 1000 + depth * 50 + to_scout * 10;
+      } else {
+        score = unseen * 1000 + to_scout * 10 + md * md_w;
+      }
+      if (best_score < 0 || score < best_score) {
+        best_score = score;
+        bx = nx;
+        by = ny;
+      }
+    }
+  }
+  if (best_score < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Fog explore (no CONTACT): peaceful Scout without a CONTACT ring goal →
+ * unseen land tile within Manhattan distance 8 (map_tile_seen_by / Col1 FoW).
+ * Plain Scout: nearest unseen (min md). Seasoned Scout (prefer_deeper):
+ * farthest unseen within MD≤8 — AI explore preference for the skill that is
+ * "Better at exploring rumors…" (Colonization.pdf OTHER / Seasoned Scout).
+ * Scouts already see 2 squares (de Soto text: all units → "as well as scouts");
+ * do NOT invent extra sight radius — only deepen fog-target pick. Cite: manual
+ * fog / map.seen; Colonization.pdf Seasoned Scout; euro_unit_act explore.
+ */
+static int ai_euro_scout_fog_explore_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int prefer_deeper,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->map || !ctx->map->seen || !out_x || !out_y || nation_id < 0 ||
+      nation_id >= 4 || from_x < 0 || from_y < 0) {
+    return 0;
+  }
+  int best_md = -1;
+  int bx = 0;
+  int by = 0;
+  for (int dy = -8; dy <= 8; ++dy) {
+    for (int dx = -8; dx <= 8; ++dx) {
+      const int md = abs(dx) + abs(dy);
+      if (md < 1 || md > 8) {
+        continue;
+      }
+      const int nx = from_x + dx;
+      const int ny = from_y + dy;
+      if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+        continue;
+      }
+      if (map_tile_is_water(ctx->map, nx, ny)) {
+        continue;
+      }
+      if (map_tile_seen_by(ctx->map, nx, ny, nation_id)) {
+        continue;
+      }
+      if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+        continue;
+      }
+      if (prefer_deeper) {
+        /* Seasoned: deeper fog first (max md within ≤8). */
+        if (best_md < 0 || md > best_md) {
+          best_md = md;
+          bx = nx;
+          by = ny;
+        }
+      } else if (best_md < 0 || md < best_md) {
+        best_md = md;
+        bx = nx;
+        by = ny;
+      }
+    }
+  }
+  if (best_md < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/* Seasoned Scout display-name / profession stand-in (UNITS_JOB_SCOUT). */
+static int ai_euro_is_seasoned_scout_name(const char* name) {
+  return name && strstr(name, "Seasoned") != NULL && strstr(name, "Scout") != NULL;
+}
+
+/* Treasure train — display-name stand-in (manual Treasure Trains). */
+static int ai_euro_is_treasure_name(const char* name) {
+  return name && strstr(name, "Treasure") != NULL;
+}
+
+/*
+ * Europe-sail target for a ship carrying Treasure (Colonization.pdf Treasure
+ * Trains — Galleon / coastal colony → Europe). Prefer eastern high seas
+ * (units_find_eastern_high_seas_tile — Atlantic→Europe exit). Else nearest
+ * water tile with higher x (eastward Europe stand-in). No invented gold.
+ */
+static int ai_euro_europe_sail_target(
+  ColonizeTurnContext* ctx,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->map || !ctx->units || !out_x || !out_y) {
+    return 0;
+  }
+  int hx = 0;
+  int hy = 0;
+  if (units_find_eastern_high_seas_tile(ctx->units, ctx->map, from_y, &hx, &hy)) {
+    *out_x = hx;
+    *out_y = hy;
+    return 1;
+  }
+  /* No HS on map — eastward water stand-in (Europe edge direction). */
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int y = 0; y < ctx->map->height; ++y) {
+    for (int x = 0; x < ctx->map->width; ++x) {
+      if (!map_tile_is_water(ctx->map, x, y)) {
+        continue;
+      }
+      if (x <= from_x) {
+        continue;
+      }
+      const int d = abs(x - from_x) + abs(y - from_y);
+      /* Prefer farther east, then nearer in y. */
+      const int score = (ctx->map->width - x) * 1000 + d;
+      if (best < 0 || score < best) {
+        best = score;
+        bx = x;
+        by = y;
+      }
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Treasure train coast target (Colonization.pdf Treasure Trains): move to a
+ * coastal own colony so a Galleon / king transport can sail it to Europe.
+ * Prefer nearest own coastal colony; if none, nearest coastal land tile
+ * (Europe sail path stand-in — AI_MOVE to coast). Cite: manual p.76 —
+ * park treasure in coastal colony; Galleon six-hold / king galleon for a price.
+ * No invented gold/ransom rates.
+ */
+static int ai_euro_treasure_coast_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->map || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id == nation_id) {
-        ref_x = c->x;
-        ref_y = c->y;
-        have_ref = 1;
-        break;
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        continue;
+      }
+      const int d = abs(c->x - from_x) + abs(c->y - from_y);
+      if (best < 0 || d < best) {
+        best = d;
+        bx = c->x;
+        by = c->y;
       }
     }
   }
-
-  if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe && ctx->col1->head.tribe_count > 0 &&
-      from_x >= 0 && from_y >= 0) {
-    int best_tribe_d = -1;
-    int tribe_x = 0;
-    int tribe_y = 0;
-    for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-      const int tx = (int)t->x;
-      const int ty = (int)t->y;
-      const int d = abs(tx - from_x) + abs(ty - from_y);
-      if (d <= 1) {
-        continue; /* already adjacent — no scout ring */
-      }
-      if (best_tribe_d < 0 || d < best_tribe_d) {
-        best_tribe_d = d;
-        tribe_x = tx;
-        tribe_y = ty;
-      }
-    }
-    if (best_tribe_d > 1 && ctx->map) {
-      const int use_fog = ctx->map->seen != NULL;
-      int best_score = -1;
-      int bx = 0;
-      int by = 0;
-      for (int dy = -4; dy <= 4; ++dy) {
-        for (int dx = -4; dx <= 4; ++dx) {
-          const int md = abs(dx) + abs(dy);
-          if (md < 2 || md > 4) {
-            continue;
-          }
-          const int nx = tribe_x + dx;
-          const int ny = tribe_y + dy;
-          if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-            continue;
-          }
-          if (map_tile_is_water(ctx->map, nx, ny)) {
-            continue;
-          }
-          if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
-            continue;
-          }
-          /*
-           * FoW: unseen tiles score first (explore CONTACT). Then prefer
-           * toward scout, then tighter ring (md=2). Cite Col1 seen bit /
-           * map_tile_seen_by — not invented combat bonuses.
-           */
-          const int unseen =
-            use_fog && !map_tile_seen_by(ctx->map, nx, ny, nation_id) ? 0 : 1;
-          const int to_scout = abs(nx - from_x) + abs(ny - from_y);
-          const int score = unseen * 1000 + to_scout * 10 + md;
-          if (best_score < 0 || score < best_score) {
-            best_score = score;
-            bx = nx;
-            by = ny;
-          }
-        }
-      }
-      if (best_score >= 0) {
-        *out_x = bx;
-        *out_y = by;
-        return 1;
-      }
-    }
-  }
-
-  /* No beyond-adjacent tribe / no ring tile: farthest map corner. */
-  if (ctx->map && ctx->map->width > 0 && ctx->map->height > 0 && have_ref) {
-    const int corners[4][2] = {
-      {0, 0},
-      {ctx->map->width - 1, 0},
-      {0, ctx->map->height - 1},
-      {ctx->map->width - 1, ctx->map->height - 1}
-    };
-    int best_d = -1;
-    int bx = corners[0][0];
-    int by = corners[0][1];
-    for (int i = 0; i < 4; ++i) {
-      const int d = abs(corners[i][0] - ref_x) + abs(corners[i][1] - ref_y);
-      if (d > best_d) {
-        best_d = d;
-        bx = corners[i][0];
-        by = corners[i][1];
-      }
-    }
+  if (best >= 0) {
     *out_x = bx;
     *out_y = by;
     return 1;
   }
+  /* No coastal colony — AI_MOVE toward nearest coastal land (sail staging). */
+  best = -1;
+  for (int y = 0; y < ctx->map->height; ++y) {
+    for (int x = 0; x < ctx->map->width; ++x) {
+      if (!map_tile_is_coastal(ctx->map, x, y)) {
+        continue;
+      }
+      if (ctx->colonies && colonies_id_at(ctx->colonies, x, y) >= 0) {
+        continue; /* foreign/other colony tile — skip */
+      }
+      const int d = abs(x - from_x) + abs(y - from_y);
+      if (d < 1) {
+        continue;
+      }
+      if (best < 0 || d < best) {
+        best = d;
+        bx = x;
+        by = y;
+      }
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/* Missionary / Jesuit Missionary — name substring (ai_contact / NAMES). */
+static int ai_euro_is_missionary_name(const char* name) {
+  return name &&
+         (strstr(name, "Missionary") != NULL || strstr(name, "Jesuit") != NULL);
+}
+
+/*
+ * Missionary flee gate (same ≥55 refuse-talk / Alarm band as ai_contact flee):
+ * adjacent tribe with indian alarm_by_player or tribe friction ≥55 → fleeing,
+ * do not upsert CONTACT (leave ai_contact_missionary_flee). Cite: fandom Alarm;
+ * Colonization.pdf Missionary Powers / Alarm.
+ */
+static int ai_euro_missionary_should_flee(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int x,
+  int y
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || nation_id < 0 ||
+      nation_id >= 4) {
+    return 0;
+  }
+  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+    if (abs((int)t->x - x) > 1 || abs((int)t->y - y) > 1) {
+      continue;
+    }
+    if (t->alarm[nation_id].friction >= 55) {
+      return 1;
+    }
+    const int ind = (int)t->nation_id;
+    if (ind >= 4 && ind <= 11) {
+      const ColonizeCol1Indian* indian = &ctx->col1->indian[ind - 4];
+      if (indian->alarm_by_player[nation_id] >= 55) {
+        return 1;
+      }
+    }
+  }
   return 0;
 }
+
+/*
+ * Peace Missionary CONTACT: nearest tribe with no mission (mission==0xff).
+ * Goto tribe tile — adjacent convert pulse lives in ai_contact. Cite:
+ * Colonization.pdf Establishing a Mission; indian_contact.md convert pulse.
+ */
+static int ai_euro_missionary_no_mission_target(
+  ColonizeTurnContext* ctx,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !out_x || !out_y || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
+      ctx->col1->head.tribe_count == 0) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+    if (t->mission != 0xff) {
+      continue; /* already has a mission (own or foreign) */
+    }
+    const int d = abs((int)t->x - from_x) + abs((int)t->y - from_y);
+    if (best < 0 || d < best) {
+      best = d;
+      bx = (int)t->x;
+      by = (int)t->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * PARK (field assign only): Expert Lumberjack → forest field
+ * (docs/terrain_yields.md / building_production Lumberjack→Lumber;
+ * Colonization.pdf lumberjack timber). colonies_assign_field exists for colony
+ * UI / scripted ai.c demos, but euro 5d04/5b66 has no field-job planner.
+ * Incomplete Warehouse/Lumber Mill LABOR join is wired above
+ * (ai_euro_colony_wants_lumberjack_labor); do not invent lumber rates here.
+ */
+
+/* Free Colonist / Colonist / Pioneer / Hardy / Farmer — can join LABOR for food. */
+static int ai_euro_is_food_labor_name(const char* name) {
+  if (!name) {
+    return 0;
+  }
+  if (strstr(name, "Wagon") != NULL || strstr(name, "Supply Train") != NULL) {
+    return 0;
+  }
+  if (strstr(name, "Soldier") != NULL || strstr(name, "Dragoon") != NULL ||
+      strstr(name, "Scout") != NULL) {
+    return 0;
+  }
+  return strstr(name, "Pioneer") != NULL || strstr(name, "Hardy") != NULL ||
+         strstr(name, "Free Colonist") != NULL || strstr(name, "Colonist") != NULL ||
+         strstr(name, "Farmer") != NULL;
+}
+
+/*
+ * Food-LABOR capable unit: display-name food labor OR @JOB Farmer (profession 0)
+ * Expert Farmer on a Free Colonist / Colonist. Cite: docs/building_production.md
+ * @JOB Farmer→Expert Farmer / Food; Colonization.pdf Skills Chart. No invented
+ * food rates — LABOR join only.
+ */
+static int ai_euro_unit_is_food_labor(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!u) {
+    return 0;
+  }
+  const char* name = units_display_name(units, u);
+  if (ai_euro_is_food_labor_name(name)) {
+    return 1;
+  }
+  /* profession 0 == @JOB Farmer (Expert Farmer skill). */
+  if (u->profession == 0 && name &&
+      (strstr(name, "Free Colonist") != NULL || strstr(name, "Colonist") != NULL)) {
+    return 1;
+  }
+  return 0;
+}
+
+static int ai_euro_type_is_wagon_name(const char* name);
+static int ai_euro_land_has_useful_goto(const ColonizeUnit* u, const ColonizeWorldMap* map);
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   if (!u) {
@@ -246,6 +699,343 @@ static int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
   /* Dispatcher ship wave: sea domain (SHIP_A..C stand-in). */
   return units_is_sea(units, unit_id);
 }
+
+/* Chebyshev adjacency (incl. same tile) for coastal embark checks. */
+static int ai_euro_tiles_near(int ax, int ay, int bx, int by) {
+  const int dx = abs(ax - bx);
+  const int dy = abs(ay - by);
+  return dx <= 1 && dy <= 1;
+}
+
+/*
+ * Own ship near (x,y) with passenger cargo space (Treasure board).
+ * Cite: manual Galleon six-hold / coastal colony embark. Returns ship id or -1.
+ */
+static int ai_euro_find_boardable_ship(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int x,
+  int y
+) {
+  if (!ctx || !ctx->units || nation_id < 0 || nation_id >= 4) {
+    return -1;
+  }
+  int best = -1;
+  int best_d = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* s = &ctx->units->units[i];
+    if (!s->active || s->nation_id != nation_id) {
+      continue;
+    }
+    if (!ai_euro_is_ship_type(ctx->units, s->id) || ai_euro_in_europe(s->x, s->y)) {
+      continue;
+    }
+    const int cap = units_ship_capacity(ctx->units, s->id);
+    if (cap <= 0 || s->cargo_count >= cap) {
+      continue;
+    }
+    if (!ai_euro_tiles_near(x, y, s->x, s->y)) {
+      continue;
+    }
+    const int d = abs(s->x - x) + abs(s->y - y);
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = s->id;
+    }
+  }
+  return best;
+}
+
+/*
+ * Treasure at coastal own colony → board ship with space + AI_SAIL Europe.
+ * Cite: Colonization.pdf Treasure Trains (park coastal / Galleon / king galleon).
+ * PARK: Europe harbor Treasure→gold unload / king transport fee — no AI API to
+ * credit nation.gold from Treasure cargo (game_loop / EuropeScreen path only).
+ * Intended: sail-in → unload gold − king cut. Do not invent gold here.
+ */
+static int ai_euro_try_treasure_board_sail(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* treasure
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !treasure || !treasure->active) {
+    return 0;
+  }
+  const int cid = colonies_id_at(ctx->colonies, treasure->x, treasure->y);
+  if (cid < 0) {
+    return 0;
+  }
+  const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+  if (!c || !c->active || c->nation_id != nation_id) {
+    return 0;
+  }
+  if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+    return 0;
+  }
+  const int sid = ai_euro_find_boardable_ship(ctx, nation_id, treasure->x, treasure->y);
+  if (sid < 0) {
+    return 0;
+  }
+  ColonizeUnit* ship = units_get(ctx->units, sid);
+  if (!ship) {
+    return 0;
+  }
+  int boarded = 0;
+  if (ship->x == treasure->x && ship->y == treasure->y) {
+    boarded = units_board_stacked(ctx->units, treasure->id, sid) ? 1 : 0;
+  } else {
+    boarded = units_board(ctx->units, treasure->id, sid) ? 1 : 0;
+  }
+  if (!boarded) {
+    return 0;
+  }
+  int ex = 0;
+  int ey = 0;
+  if (ai_euro_europe_sail_target(ctx, ship->x, ship->y, &ex, &ey)) {
+    ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, ex, ey);
+  } else {
+    const int east = ship->x + 8 < ctx->map->width ? ship->x + 8 : ctx->map->width - 1;
+    ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, east, ship->y);
+  }
+  return 1;
+}
+
+/*
+ * At war: idle Soldier, Dragoon, or Artillery/Cannon on own coastal colony
+ * boards an empty transport with passenger space (units_board /
+ * units_board_stacked). Complements war-transport sail-to-threatened-port.
+ * Skip embark when the colony is already threatened (stay to defend; unload
+ * drops troops there). Artillery boards before on-colony fortify (same early
+ * act arm). Cite: Colonization.pdf naval transport / Defending a Colony
+ * ("fortify soldiers, dragoons, army, cavalry, or artillery"); euro_unit_act
+ * §2b2 / §2d3 ship board; existing Treasure board APIs. Empty = cargo_count==0.
+ */
+static int ai_euro_try_soldier_board_transport(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* soldier
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !soldier || !soldier->active) {
+    return 0;
+  }
+  if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, soldier);
+  if (!name ||
+      (strstr(name, "Soldier") == NULL && strstr(name, "Dragoon") == NULL &&
+       strstr(name, "Artillery") == NULL && strstr(name, "Cannon") == NULL)) {
+    return 0;
+  }
+  if (soldier->aboard_ship_id >= 0 || ai_euro_land_is_fortified(soldier)) {
+    return 0;
+  }
+  /* Prefer board over hunt: allow even when planning set MILITARY goto. */
+  const int cid = colonies_id_at(ctx->colonies, soldier->x, soldier->y);
+  if (cid < 0) {
+    return 0;
+  }
+  const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+  if (!c || !c->active || c->nation_id != nation_id) {
+    return 0;
+  }
+  if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+    return 0;
+  }
+  /* Do not embark from a threatened port — stay to defend; unload drops
+   * troops onto threatened colonies. Cite: Colonization.pdf Defending a Colony. */
+  if (ai_euro_colony_threatened_by_war(ctx, nation_id, c)) {
+    return 0;
+  }
+  /* Prefer empty transport (no passengers yet) with free capacity. */
+  int best = -1;
+  int best_d = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* s = &ctx->units->units[i];
+    if (!s->active || s->nation_id != nation_id) {
+      continue;
+    }
+    if (!ai_euro_is_ship_type(ctx->units, s->id) || ai_euro_in_europe(s->x, s->y)) {
+      continue;
+    }
+    if (s->cargo_count != 0) {
+      continue; /* empty transport only */
+    }
+    const int cap = units_ship_capacity(ctx->units, s->id);
+    if (cap <= 0) {
+      continue;
+    }
+    if (!ai_euro_tiles_near(soldier->x, soldier->y, s->x, s->y)) {
+      continue;
+    }
+    const int d = abs(s->x - soldier->x) + abs(s->y - soldier->y);
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = s->id;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  ColonizeUnit* ship = units_get(ctx->units, best);
+  if (!ship) {
+    return 0;
+  }
+  int boarded = 0;
+  if (ship->x == soldier->x && ship->y == soldier->y) {
+    boarded = units_board_stacked(ctx->units, soldier->id, best) ? 1 : 0;
+  } else {
+    boarded = units_board(ctx->units, soldier->id, best) ? 1 : 0;
+  }
+  return boarded;
+}
+
+/* True when wagon still has free goods-hold capacity (cargo field). */
+static int ai_euro_wagon_has_hold_capacity(const ColonizeUnitPool* units, const ColonizeUnit* w) {
+  if (!units || !w) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(units, w->id);
+  if (n <= 0) {
+    return 0;
+  }
+  for (int h = 0; h < n; ++h) {
+    if (w->hold_goods_amount[h] <= 0 || w->hold_goods_amount[h] >= 255) {
+      return 1; /* empty slot */
+    }
+    if (w->hold_goods_amount[h] < 100) {
+      return 1; /* partial room */
+    }
+  }
+  return 0;
+}
+
+/* Wagon carries TOOLS in any hold. */
+static int ai_euro_wagon_has_tools(const ColonizeUnitPool* units, const ColonizeUnit* w) {
+  if (!units || !w) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(units, w->id);
+  for (int h = 0; h < n; ++h) {
+    if (w->hold_goods_amount[h] > 0 && w->hold_goods_amount[h] < 255 &&
+        w->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Nearest own tools-short colony (stock[TOOLS]<20). Cite: euro_unit_act §2d
+ * wagon/tools matrix; 5cf6 shortage tallies. 1 if found.
+ */
+static int ai_euro_nearest_tools_short_colony(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->colonies || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (c->stock[COLONIZE_CARGO_TOOLS] >= 20) {
+      continue;
+    }
+    const int d = abs(c->x - from_x) + abs(c->y - from_y);
+    if (best < 0 || d < best) {
+      best = d;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
+/*
+ * Idle Wagon Train haul (thin 5b66/5d04): free hold capacity or TOOLS cargo →
+ * AI_MOVE toward nearest tools-short own colony (existing unload delivery).
+ * On surplus colony (≥40 tools) with empty capacity, load TOOLS first via
+ * colonies_transfer_to_unit. Cite: euro_unit_act §2d; manual Wagon Train
+ * cargo; no invented stock rates.
+ *
+ * PARK: Wagon load FOOD — euro AI uses COLONIZE_CARGO_FOOD only for colony
+ * stock shortage tallies / LABOR bind (5cf6), never as wagon hold cargo.
+ * Ship coastal haul also sails-toward food-short without loading FOOD
+ * (euro_unit_act §2d2). No wagon FOOD load/unload path until that cargo
+ * type is wired in euro haul matrix — do not invent FOOD cargo here.
+ */
+static int ai_euro_try_wagon_haul(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* wagon
+) {
+  if (!ctx || !ctx->units || !ctx->colonies || !wagon || !wagon->active) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, wagon);
+  if (!ai_euro_type_is_wagon_name(name)) {
+    return 0;
+  }
+  const int has_tools = ai_euro_wagon_has_tools(ctx->units, wagon);
+  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
+  if (!has_tools && !has_cap) {
+    return 0;
+  }
+  /* On own colony with surplus tools + free hold → load before haul. */
+  if (has_cap && !has_tools) {
+    const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
+    if (cid >= 0) {
+      ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+      if (c && c->active && c->nation_id == nation_id &&
+          c->stock[COLONIZE_CARGO_TOOLS] >= 40) {
+        (void)colonies_transfer_to_unit(
+          ctx->colonies, cid, ctx->units, wagon->id, COLONIZE_CARGO_TOOLS, 20
+        );
+      }
+    }
+  }
+  int tx = 0;
+  int ty = 0;
+  if (!ai_euro_nearest_tools_short_colony(ctx, nation_id, wagon->x, wagon->y, &tx, &ty)) {
+    return 0;
+  }
+  if (wagon->x == tx && wagon->y == ty) {
+    return 0; /* already there — unload path handles delivery */
+  }
+  /* Re-aim tools-short (override FOUND/explore scoring gate yank). */
+  if (units_orders_follow_goto(wagon->orders) && wagon->goto_x == tx &&
+      wagon->goto_y == ty) {
+    return 1; /* already hauling to target */
+  }
+  ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, tx, ty);
+  return 1;
+}
+
+/*
+ * PARK: Pioneer / Hardy Pioneer plow/road tile improve —
+ * units_pioneer_plow / units_pioneer_road exist for UI (game_loop), but euro
+ * 5b66 has no improve-target planner (which adjacent tile to plow/road).
+ * Hardy Pioneer real power: "Clears forest, plows fields, and builds roads
+ * faster" (Colonization.pdf OTHER / Hardy Pioneer) — when an improve planner
+ * exists, prefer Hardy for plow/road orders (faster work), not invented yields.
+ * Cite: Colonization.pdf Clear/Plow/Road; map road/plowed bits. PARK until euro
+ * AI picks improve tiles — comment-only (no free hammer/gold fiction).
+ */
 
 static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* founder, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || !founder || !founder->active) {
@@ -286,45 +1076,14 @@ static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int c
 }
 
 /*
- * Thin 5b66 case 7 economy stand-in: Pioneer/Hardy on own colony with tools
- * shortage adds +10 stock[TOOLS] (cap 100) once per act; trims tools_short /
- * urgency. Deeper wagon / hire / treasury matrix remains OPEN (unpark #4).
+ * Thin 5b66 case 7 economy: Pioneer/Hardy tools delivery — body after wagon
+ * hire-once helpers (see ai_euro_try_pioneer_tools_delivery below).
  */
 static int ai_euro_try_pioneer_tools_delivery(
   ColonizeTurnContext* ctx,
   int nation_id,
   ColonizeColony* c
-) {
-  if (!ctx || !c || !c->active || c->nation_id != nation_id) {
-    return 0;
-  }
-  AiEuroInventory* inv = ai_goals_inventory(nation_id);
-  const int need =
-    (inv && inv->tools_short > 0) || c->stock[COLONIZE_CARGO_TOOLS] < 20;
-  if (!need) {
-    return 0;
-  }
-  int stock = c->stock[COLONIZE_CARGO_TOOLS];
-  if (stock >= 100) {
-    return 0;
-  }
-  stock += 10;
-  if (stock > 100) {
-    stock = 100;
-  }
-  c->stock[COLONIZE_CARGO_TOOLS] = stock;
-  if (inv) {
-    if (inv->tools_short > 10) {
-      inv->tools_short -= 10;
-    } else {
-      inv->tools_short = 0;
-    }
-    if (inv->tools_short == 0 && inv->urgency > 0) {
-      inv->urgency--;
-    }
-  }
-  return 1;
-}
+);
 
 /* --- inventory (6d8e steps 1–3) ---------------------------------------- */
 
@@ -436,10 +1195,149 @@ static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id
 }
 
 /*
+ * Thin 5d04 / case-7 wagon deepen: when Wagon Train already hired (nation has
+ * wagon), unload hold TOOLS onto own tools-short colony via
+ * colonies_transfer_from_unit — structural cargo only (no invented stock).
+ * Cite: euro_unit_act §2d wagon/tools matrix; unpark #4 remainders PARKED.
+ *
+ * PARK — wagon trade-goods → Europe sell: europe_sell_hold requires a ship in
+ * the Europe harbor UI (EuropeScreen). No AI API to sell wagon cargo from the
+ * New World; intended path is coastal colony with Docks → ship hold → Europe.
+ */
+static int ai_euro_try_wagon_tools_delivery(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* wagon,
+  ColonizeColony* c
+) {
+  if (!ctx || !ctx->units || !ctx->colonies || !wagon || !c || !c->active ||
+      c->nation_id != nation_id) {
+    return 0;
+  }
+  if (!ai_euro_type_is_wagon_name(units_display_name(ctx->units, wagon)) &&
+      !units_is_transport(ctx->units, wagon->id)) {
+    return 0;
+  }
+  if (!ai_euro_nation_has_wagon(ctx->units, nation_id)) {
+    return 0;
+  }
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  const int need =
+    (inv && inv->tools_short > 0) || c->stock[COLONIZE_CARGO_TOOLS] < 20;
+  if (!need) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(ctx->units, wagon->id);
+  int moved_total = 0;
+  /* Re-scan each pass: unload may reload remainder into another hold. */
+  for (;;) {
+    int hold = -1;
+    for (int h = 0; h < n; ++h) {
+      if (wagon->hold_goods_amount[h] <= 0 || wagon->hold_goods_amount[h] >= 255) {
+        continue;
+      }
+      if (wagon->hold_goods_type[h] != COLONIZE_CARGO_TOOLS) {
+        continue;
+      }
+      hold = h;
+      break;
+    }
+    if (hold < 0) {
+      break;
+    }
+    const int moved =
+      colonies_transfer_from_unit(ctx->colonies, c->id, ctx->units, wagon->id, hold, NULL);
+    if (moved <= 0) {
+      break;
+    }
+    moved_total += moved;
+  }
+  if (moved_total <= 0) {
+    return 0;
+  }
+  if (inv) {
+    if (inv->tools_short > moved_total) {
+      inv->tools_short -= moved_total;
+    } else {
+      inv->tools_short = 0;
+    }
+    if (inv->tools_short == 0 && inv->urgency > 0) {
+      inv->urgency--;
+    }
+  }
+  return moved_total;
+}
+
+/*
+ * Thin 5b66 case 7 economy stand-in: Pioneer/Hardy on own colony with tools
+ * shortage. Prefer structural wagon TOOLS unload when a hired Wagon Train is
+ * on the colony tile (5d04 hire-once deepen); else +10 stock[TOOLS] stand-in
+ * (cap 100) once per act; trims tools_short / urgency.
+ * Deeper wagon / hire / treasury matrix remains OPEN (unpark #4).
+ */
+static int ai_euro_try_pioneer_tools_delivery(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeColony* c
+) {
+  if (!ctx || !c || !c->active || c->nation_id != nation_id) {
+    return 0;
+  }
+  AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  const int need =
+    (inv && inv->tools_short > 0) || c->stock[COLONIZE_CARGO_TOOLS] < 20;
+  if (!need) {
+    return 0;
+  }
+  /* Wagon deepen: structural TOOLS from hired wagon cargo on this tile. */
+  if (ctx->units && ai_euro_nation_has_wagon(ctx->units, nation_id)) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* w = &ctx->units->units[i];
+      if (!w->active || w->nation_id != nation_id || w->x != c->x || w->y != c->y) {
+        continue;
+      }
+      if (!ai_euro_type_is_wagon_name(units_display_name(ctx->units, w))) {
+        continue;
+      }
+      if (ai_euro_try_wagon_tools_delivery(ctx, nation_id, w, c) > 0) {
+        return 1;
+      }
+    }
+  }
+  int stock = c->stock[COLONIZE_CARGO_TOOLS];
+  if (stock >= 100) {
+    return 0;
+  }
+  stock += 10;
+  if (stock > 100) {
+    stock = 100;
+  }
+  c->stock[COLONIZE_CARGO_TOOLS] = stock;
+  if (inv) {
+    if (inv->tools_short > 10) {
+      inv->tools_short -= 10;
+    } else {
+      inv->tools_short = 0;
+    }
+    if (inv->tools_short == 0 && inv->urgency > 0) {
+      inv->urgency--;
+    }
+  }
+  return 1;
+}
+
+/*
  * Europe purchase table Artillery gold (europe_init_purchase_table /
  * original_screenshots/europe/purchase.png) — used for 5d04 war Artillery hire.
  */
 #define AI_EURO_ARTILLERY_PURCHASE_GOLD 500
+
+/*
+ * NAMES.TXT @JOB: Soldier → Veteran Soldiers train cost 2000$.
+ * Mid-hire uses this when Veteran Soldier type exists but @UNIT cost is 0.
+ * Cite: COLONIZE/NAMES.TXT @JOB; Europe train table (not purchase.png).
+ */
+#define AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD 2000
 
 /* Europe dock plurals / @JOB experts for case-7 tools hire (only if present). */
 static int ai_euro_dock_name_is_tools_expert(const char* name) {
@@ -602,18 +1500,65 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  /* At war with any Euro peer → prefer Soldier / Dragoon over settle types. */
+  /* At war with any Euro peer → prefer Soldier / Dragoon over settle types.
+   * At-war + tools_short: still Soldier/Dragoon (not Pioneer) when gold covers
+   * hire_cost — peace tools→Pioneer/wagon stays !at_war only.
+   * Mid-hire deepen: own colonies ≥ 3 → prefer Dragoon when type exists
+   * (mounted war unit; same hire_cost as Soldier dock hire). Cite:
+   * euro_dispatcher.c mid-hire; case-7 / 5d04 war arm; fandom Dragoon.
+   * If Dragoon type missing from pool → Soldier path (documented).
+   * Own colonies ≥ 2: prefer Veteran Soldier when type+affordable cost exist
+   * (@UNIT cost, else NAMES @JOB train 2000$). Cite: COLONIZE/NAMES.TXT @JOB
+   * Soldier→Veteran Soldiers 2000$; euro_unit_act §2d mid-hire.
+   * PARK: no Veteran Soldier type in pool / gold < cost → plain Soldier. */
   int hire_ty = -1;
   int from_dock = 0;
   int dock_idx = -1;
   const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
   if (at_war) {
-    static const char* k_mil[] = {
-      "Soldier", "Veteran Soldier", "Soldiers", "Dragoon", "Veteran Dragoon", "Dragoons"
-    };
+    static const char* k_dragoon[] = {"Dragoon", "Veteran Dragoon", "Dragoons"};
+    static const char* k_soldier[] = {"Soldier", "Soldiers"};
+    static const char* k_veteran[] = {"Veteran Soldier", "Veteran Soldiers"};
+    int drag_ty = -1;
     int mil_ty = -1;
-    for (size_t i = 0; i < sizeof(k_mil) / sizeof(k_mil[0]) && mil_ty < 0; ++i) {
-      mil_ty = units_find_type(ctx->units, k_mil[i]);
+    int vet_ty = -1;
+    int vet_cost = 0;
+    if (colonies >= 3) {
+      for (size_t i = 0; i < sizeof(k_dragoon) / sizeof(k_dragoon[0]) && drag_ty < 0; ++i) {
+        drag_ty = units_find_type(ctx->units, k_dragoon[i]);
+      }
+    }
+    /* ≥2 colonies: Veteran Soldier if type exists and treasury covers cost. */
+    if (colonies >= 2) {
+      for (size_t i = 0; i < sizeof(k_veteran) / sizeof(k_veteran[0]) && vet_ty < 0; ++i) {
+        vet_ty = units_find_type(ctx->units, k_veteran[i]);
+      }
+      if (vet_ty >= 0) {
+        const ColonizeUnitType* vt = units_type(ctx->units, vet_ty);
+        vet_cost = (vt && vt->cost > 0) ? vt->cost : AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD;
+        if ((int)nat->gold < vet_cost) {
+          vet_ty = -1; /* underfunded @JOB / @UNIT cost — Soldier path */
+          vet_cost = 0;
+        }
+      }
+      /* PARK: Veteran Soldier mid-hire needs type in pool + affordable cost
+       * (NAMES @JOB 2000$ or @UNIT cost). Missing → plain Soldier below. */
+    }
+    for (size_t i = 0; i < sizeof(k_soldier) / sizeof(k_soldier[0]) && mil_ty < 0; ++i) {
+      mil_ty = units_find_type(ctx->units, k_soldier[i]);
+    }
+    /* When not preferring Dragoon (colonies<3 or type missing), allow Dragoon
+     * as Soldier-band fallback (prior k_mil order). */
+    if (mil_ty < 0) {
+      for (size_t i = 0; i < sizeof(k_dragoon) / sizeof(k_dragoon[0]) && mil_ty < 0; ++i) {
+        mil_ty = units_find_type(ctx->units, k_dragoon[i]);
+      }
+    }
+    /* Prefer order: Dragoon (≥3) > Veteran (≥2+cost) > Soldier. */
+    if (drag_ty >= 0) {
+      mil_ty = drag_ty;
+    } else if (vet_ty >= 0) {
+      mil_ty = vet_ty;
     }
     /* Thin deepen: mid-game Artillery when colonies>=2 and type in pool. */
     int art_ty = -1;
@@ -688,8 +1633,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
       }
     }
   }
-  /* Peace / fallback: 5c3c-shaped profession demand → Pioneer, else Free Colonist. */
-  if (hire_ty < 0 && inv) {
+  /* Peace / fallback: 5c3c-shaped profession demand → Pioneer (not at war). */
+  if (hire_ty < 0 && inv && !at_war) {
     for (int p = 0; p < 16; ++p) {
       if (inv->profession_demand[p] > 0) {
         if (inv->tools_short > 0) {
@@ -714,7 +1659,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * Per-type treasury gate before spawn / tools-cargo (5d04 / Europe hire).
-   * Artillery: purchase table 500$. Others: hire_cost already gated above.
+   * Artillery: purchase table 500$. Veteran Soldier: @UNIT cost or @JOB 2000$.
+   * Others: hire_cost already gated above.
    */
   {
     const ColonizeUnitType* pending = units_type(ctx->units, hire_ty);
@@ -722,6 +1668,9 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     if (pending &&
         (strstr(pending->name, "Artillery") != NULL || strstr(pending->name, "Cannon") != NULL)) {
       pay = AI_EURO_ARTILLERY_PURCHASE_GOLD;
+    } else if (pending && strstr(pending->name, "Veteran") != NULL &&
+               strstr(pending->name, "Soldier") != NULL) {
+      pay = (pending->cost > 0) ? pending->cost : AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD;
     }
     if ((int)nat->gold < pay) {
       return;
@@ -750,8 +1699,16 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   const int hired_artillery =
     hired &&
     (strstr(hired->name, "Artillery") != NULL || strstr(hired->name, "Cannon") != NULL);
-  const int pay =
-    hired_artillery ? AI_EURO_ARTILLERY_PURCHASE_GOLD : hire_cost;
+  const int hired_veteran_soldier =
+    hired && strstr(hired->name, "Veteran") != NULL && strstr(hired->name, "Soldier") != NULL;
+  int pay = hire_cost;
+  if (hired_artillery) {
+    pay = AI_EURO_ARTILLERY_PURCHASE_GOLD;
+  } else if (hired_veteran_soldier) {
+    pay = (hired->cost > 0) ? hired->cost : AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD;
+    /* Profession bit so display_name is Veteran when type lacks Veteran name. */
+    pax->profession = UNITS_JOB_SOLDIER;
+  }
 
   /*
    * Wagon hire: load TOOLS onto the wagon before boarding (aboard units are
@@ -848,7 +1805,12 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* D: own colonies — LABOR from tools shortage / underpop. */
+  /* D: own colonies — LABOR from tools/food shortage / underpop (5cf6 tallies)
+   * or Stockade/Warehouse under construction (carpenter hammers bind).
+   * Threatened Stockade deepen: war-peer within MD≤3 + incomplete Stockade →
+   * higher LABOR prio so Free Colonist prefers hammers over distant FOUND.
+   * Cite: building_production.md Stockade defense; Colonization.pdf fortify;
+   * ai_euro_colony_threatened_by_war MD≤3; euro_unit_act §2e. */
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -859,16 +1821,39 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       if (inv && inv->tools_short > 0 && c->stock[COLONIZE_CARGO_TOOLS] < 20) {
         labor = 1;
       }
+      if (inv && inv->food_short > 0 && c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
+        labor = 1;
+      }
+      const int construction = ai_euro_colony_wants_construction_labor(ctx->colonies, c);
+      if (construction) {
+        labor = 1;
+      }
       if (labor) {
-        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, 4 + urgency / 4);
+        int labor_prio = 4 + urgency / 4;
+        /* Stockade under threat: bump LABOR above distant FOUND (prio 2) and
+         * founder H-bind so Free Colonist stays for defense hammers. */
+        if (construction && ctx->col1_ok && ctx->col1 &&
+            ai_euro_at_war_any_peer(ctx->col1, nation_id) &&
+            ai_euro_colony_threatened_by_war(ctx, nation_id, c)) {
+          const ColonizeBuildingType* bt =
+            c->building_in_production >= 0
+              ? colonies_building_type(ctx->colonies, c->building_in_production)
+              : NULL;
+          if (bt && strcmp(bt->name, "Stockade") == 0) {
+            labor_prio = 6;
+          }
+        }
+        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, labor_prio);
       } else {
         ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_COLONY, 2);
       }
-      /* Expand: FOUND via 06ae around colony. */
+      /* Expand: FOUND via 06ae around colony (coastal prefer when count≥1). */
       int fx = 0;
       int fy = 0;
-      if (ai_goals_pick_founding_tile(
-            ctx->map, ctx->colonies, nation_id, c->x, c->y, &fx, &fy)) {
+      const int own_n =
+        inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
+      if (ai_euro_pick_founding_tile(
+            ctx->map, ctx->colonies, nation_id, c->x, c->y, own_n, &fx, &fy)) {
         if (fx != c->x || fy != c->y) {
           ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
         }
@@ -936,8 +1921,15 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
             int fx = 0;
             int fy = 0;
-            if (ai_goals_pick_founding_tile(
-                  ctx->map, ctx->colonies, nation_id, (int)t->x, (int)t->y, &fx, &fy)) {
+            if (ai_euro_pick_founding_tile(
+                  ctx->map,
+                  ctx->colonies,
+                  nation_id,
+                  (int)t->x,
+                  (int)t->y,
+                  own,
+                  &fx,
+                  &fy)) {
               ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 1);
             } else {
               ai_goals_upsert_secondary(nation_id, (int)t->x, (int)t->y, AI_GOAL_FOUND, 1);
@@ -961,12 +1953,80 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           }
           int tx = 0;
           int ty = 0;
-          if (!ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
-            continue;
+          /* CONTACT ring when tribe available; else fog-explore MD≤8 (no CONTACT).
+           * Seasoned Scout: deeper unseen fog pick (Colonization.pdf explore skill). */
+          if (ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
+            ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+          } else if (ai_euro_scout_fog_explore_target(
+                       ctx,
+                       nation_id,
+                       u->x,
+                       u->y,
+                       ai_euro_is_seasoned_scout_name(name),
+                       &tx,
+                       &ty)) {
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
           }
-          ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
-          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
         }
+      }
+    }
+  }
+
+  /*
+   * Food emergency (5cf6 food_short high): inventory food_short ≥ 4 → bind
+   * nearest idle food-capable colonist/Pioneer to a hungry own colony LABOR
+   * (MD≤8), even when not already adjacent. Cite: manual 2 food/colonist;
+   * building_production food eat; no invented production rates.
+   */
+  if (inv && inv->food_short >= 4 && ctx->colonies && ctx->units) {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      const ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (c->stock[COLONIZE_CARGO_FOOD] >= c->population * 2) {
+        continue;
+      }
+      ColonizeUnit* pick = NULL;
+      int pick_d = -1;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &ctx->units->units[ui];
+        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+          continue;
+        }
+        if (ai_euro_land_is_fortified(u)) {
+          continue;
+        }
+        if (!ai_euro_unit_is_food_labor(ctx->units, u)) {
+          continue;
+        }
+        /* Skip if already on this colony tile (join happens in act). */
+        const int dist = abs(u->x - c->x) + abs(u->y - c->y);
+        if (dist > 8) {
+          continue;
+        }
+        if (units_orders_follow_goto(u->orders) && u->goto_x == c->x &&
+            u->goto_y == c->y) {
+          pick = NULL;
+          pick_d = -1;
+          break; /* already LABOR-bound toward this colony */
+        }
+        if (pick_d < 0 || dist < pick_d) {
+          pick = u;
+          pick_d = dist;
+        }
+      }
+      if (pick) {
+        ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, 5);
+        if (!units_orders_follow_goto(pick->orders) || pick->goto_x != c->x ||
+            pick->goto_y != c->y) {
+          ai_euro_set_goto(pick, UNITS_ORDER_AI_MOVE, c->x, c->y);
+        }
+        break; /* one emergency bind per planning pass */
       }
     }
   }
@@ -977,11 +2037,15 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
       int fx = 0;
       int fy = 0;
-      if (ai_goals_pick_founding_tile(
-            ctx->map, ctx->colonies, nation_id, t->x, t->y, &fx, &fy)) {
-        ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
-      } else {
-        ai_goals_upsert_secondary(nation_id, t->x, t->y, AI_GOAL_FOUND, 1);
+      {
+        const int own_f =
+          inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
+        if (ai_euro_pick_founding_tile(
+              ctx->map, ctx->colonies, nation_id, t->x, t->y, own_f, &fx, &fy)) {
+          ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
+        } else {
+          ai_goals_upsert_secondary(nation_id, t->x, t->y, AI_GOAL_FOUND, 1);
+        }
       }
       if (t->alarm[nation_id].friction > 50) {
         ai_goals_upsert_primary(nation_id, t->x, t->y, AI_GOAL_MILITARY, 3);
@@ -991,7 +2055,9 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * G continent stance (thin) — mid-game pressure once established (≥2 colonies).
-   * Deep nation×continent stance table (−0x6790 ∈ {0,3,4,6}) stays PARKED.
+   * own≥3 + at war: further MILITARY primary prio bump (6→7) — thin stand-in for
+   * −0x6790 nation×continent table (decomp ∈ {0,3,4,6}); no invented gold.
+   * Deep −0x6790 table stays PARKED.
    */
   {
     const int own =
@@ -1037,8 +2103,11 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           }
         }
         if (target) {
-          /* Higher than E's foreign MILITARY (5). */
-          ai_goals_upsert_primary(nation_id, target->x, target->y, AI_GOAL_MILITARY, 6);
+          /* Higher than E's foreign MILITARY (5); own≥3 deepen → 7. */
+          const int mil_prio = (own >= 3) ? 7 : 6;
+          ai_goals_upsert_primary(
+            nation_id, target->x, target->y, AI_GOAL_MILITARY, mil_prio
+          );
         }
       } else {
         /* Peaceful: bump one primary FOUND +1, else idle Scout/Soldier → explore. */
@@ -1110,8 +2179,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
         int fx = 0;
         int fy = 0;
-        if (ai_goals_pick_founding_tile(
-              ctx->map, ctx->colonies, nation_id, u->x, u->y, &fx, &fy)) {
+        if (ai_euro_pick_founding_tile(
+              ctx->map, ctx->colonies, nation_id, u->x, u->y, colonies, &fx, &fy)) {
           ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, found_prio);
         }
       }
@@ -1162,9 +2231,14 @@ static int ai_euro_ocean_score_step(
    * Naval/ocean branch of FUN_521d_20e6 (thin extract): prefer water tiles
    * that reduce Chebyshev/Manhattan distance to goal; avoid land; slight
    * preference for high-seas / west when goal is west of ship.
+   * West-explore deepen (0a60 / Atlantic HS): when ship is already on HS and
+   * goto is westward, prefer westward HS steps — structural score only, no
+   * invented MP (full ocean 20e6 still PARKED / R5).
    */
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const int on_hs = map_tile_is_high_seas(ctx->map, u->x, u->y);
+  const int west_explore = goal_x < u->x;
   int best = -999999;
   int bdx = 0;
   int bdy = 0;
@@ -1195,11 +2269,15 @@ static int ai_euro_ocean_score_step(
     }
     int dist = abs(goal_x - nx) + abs(goal_y - ny);
     int score = 2000 - dist * 12;
-    if (map_tile_is_high_seas(ctx->map, nx, ny)) {
+    const int step_hs = map_tile_is_high_seas(ctx->map, nx, ny);
+    if (step_hs) {
       score += 5;
     }
-    if (goal_x < u->x && dx[d] < 0) {
+    if (west_explore && dx[d] < 0) {
       score += 4; /* west bias toward New World */
+    }
+    if (on_hs && west_explore && step_hs && dx[d] < 0) {
+      score += 6; /* HS west-explore: prefer westward HS tiles */
     }
     if (ctx->rng) {
       score += dos_rng_range(ctx->rng, 0, 2);
@@ -1283,11 +2361,11 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   }
   /*
    * At-war land hunters: defer course to act-level land war hunt (do not
-   * explore-yank idle Soldier/Dragoon/Scout before hunt can set AI_MOVE).
+   * explore-yank idle Soldier/Dragoon/Scout before hunt can wake+set AI_MOVE).
+   * Passive fortify/sentry — act wakes via units_wake then hunts.
    */
   if (ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id) &&
-      ai_euro_is_land_war_hunter(units_display_name(ctx->units, u)) &&
-      !ai_euro_land_is_fortified(u)) {
+      ai_euro_is_land_war_hunter(units_display_name(ctx->units, u))) {
     return 0;
   }
   int gx = u->x;
@@ -1332,6 +2410,11 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
   }
   if (units_is_sea(ctx->units, u->id)) {
     units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
+    /* Land combat spends MP via try_move into the tile; ships cannot enter
+     * foe tiles — spend remaining MP after naval resolve (structural). */
+    if (u->active) {
+      u->moves_left = 0;
+    }
   } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
     units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng);
   }
@@ -1396,6 +2479,282 @@ static int ai_euro_coastal_water_near(
   *out_y = by;
   return 1;
 }
+
+/* Caravel / Merchantman — New-World cargo haul (manual trade ships). */
+static int ai_euro_is_cargo_ship_name(const char* name) {
+  return name && (strstr(name, "Caravel") != NULL || strstr(name, "Merchantman") != NULL);
+}
+
+/*
+ * Nearest own coastal colony that is tools-short (stock[TOOLS]<20) or
+ * food-short (stock[FOOD] < pop*2). Cite: euro_unit_act §2d / 5cf6 tallies;
+ * sail destination for cargo-ship haul — no invented cargo types.
+ */
+static int ai_euro_nearest_short_coastal_colony(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_cx,
+  int* out_cy
+) {
+  if (!ctx || !ctx->colonies || !ctx->map || !out_cx || !out_cy || nation_id < 0 ||
+      nation_id >= 4) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+      continue;
+    }
+    const int tools_short = c->stock[COLONIZE_CARGO_TOOLS] < 20;
+    const int food_short =
+      c->population > 0 && c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
+    if (!tools_short && !food_short) {
+      continue;
+    }
+    const int d = abs(c->x - from_x) + abs(c->y - from_y);
+    if (best < 0 || d < best) {
+      best = d;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_cx = bx;
+  *out_cy = by;
+  return 1;
+}
+
+/*
+ * Idle Caravel/Merchantman trade haul (thin 5b66): free goods-hold capacity or
+ * TOOLS cargo → AI_SAIL toward coastal water by tools/food-short own colony.
+ * TOOLS load/unload mirrors wagon §2d (no invented FOOD cargo). Cite: manual
+ * Caravel/Merchantman cargo; Colonization.pdf naval transport / colony supply.
+ * Peace only — war hunt owns idle ships at war. Returns 1 if haul course set
+ * or already adjacent delivering.
+ */
+static int ai_euro_try_ship_trade_haul(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
+    return 0;
+  }
+  if (ai_euro_in_europe(ship->x, ship->y)) {
+    return 0;
+  }
+  const char* name = units_display_name(ctx->units, ship);
+  if (!ai_euro_is_cargo_ship_name(name)) {
+    return 0;
+  }
+  if (units_goods_hold_count(ctx->units, ship->id) <= 0) {
+    return 0;
+  }
+  const int has_tools = ai_euro_wagon_has_tools(ctx->units, ship);
+  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, ship);
+  if (!has_tools && !has_cap) {
+    return 0;
+  }
+
+  /* Adjacent / same-tile tools-short coastal colony + TOOLS → structural unload. */
+  if (has_tools) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (c->stock[COLONIZE_CARGO_TOOLS] >= 20) {
+        continue;
+      }
+      if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
+        continue;
+      }
+      const int n = units_goods_hold_count(ctx->units, ship->id);
+      for (int h = 0; h < n; ++h) {
+        if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_amount[h] < 255 &&
+            ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+          colonies_transfer_from_unit(
+            ctx->colonies, c->id, ctx->units, ship->id, h, NULL
+          );
+          break;
+        }
+      }
+      return 1; /* delivered or attempted — stay near colony */
+    }
+  }
+
+  /* On surplus coastal own colony with free hold → load TOOLS before haul.
+   * Ships berth on adjacent water (colonies_id_at usually misses). */
+  if (has_cap && !ai_euro_wagon_has_tools(ctx->units, ship)) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
+        continue;
+      }
+      if (c->stock[COLONIZE_CARGO_TOOLS] >= 40) {
+        (void)colonies_transfer_to_unit(
+          ctx->colonies, c->id, ctx->units, ship->id, COLONIZE_CARGO_TOOLS, 20
+        );
+      }
+      break;
+    }
+  }
+
+  int cx = 0;
+  int cy = 0;
+  if (!ai_euro_nearest_short_coastal_colony(ctx, nation_id, ship->x, ship->y, &cx, &cy)) {
+    return 0;
+  }
+  int wx = 0;
+  int wy = 0;
+  if (!ai_euro_coastal_water_near(ctx->map, cx, cy, ship->x, ship->y, &wx, &wy)) {
+    return 0;
+  }
+  if (ship->x == wx && ship->y == wy) {
+    return 1; /* already at haul berth */
+  }
+  if (units_orders_follow_goto(ship->orders) && ship->goto_x == wx && ship->goto_y == wy) {
+    return 1;
+  }
+  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, wx, wy);
+  return 1;
+}
+
+/* Galleon / Frigate — war passenger transport (Europe purchase table). */
+static int ai_euro_is_war_transport_name(const char* name) {
+  return name && (strstr(name, "Galleon") != NULL || strstr(name, "Frigate") != NULL);
+}
+
+/*
+ * Own coastal colony threatened by a war-peer land/sea unit within MD≤3.
+ * Cite: Colonization.pdf naval transport / fortify defense — troop ships sail
+ * to threatened ports. Structural proximity only (no invented combat bonus).
+ */
+static int ai_euro_colony_threatened_by_war(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  const ColonizeColony* c
+) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !c || !c->active) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
+      continue;
+    }
+    if (!ai_diplo_at_war(ctx->col1, nation_id, f->nation_id)) {
+      continue;
+    }
+    if (ai_euro_in_europe(f->x, f->y)) {
+      continue;
+    }
+    if (abs(f->x - c->x) + abs(f->y - c->y) <= 3) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * At war: ship with Soldier cargo adjacent to own threatened coastal colony →
+ * unload one Soldier onto the colony tile (reinforce). Complements board +
+ * war-transport sail-to-threatened-port. Cite: Colonization.pdf naval
+ * transport / Defending a Colony; euro_unit_act §2b2; units_unload_passenger
+ * (same path as king MoW unload / settle landfall). No invented combat bonus.
+ * Returns 1 if a Soldier was unloaded.
+ */
+static int ai_euro_try_unload_military_threatened(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
+    return 0;
+  }
+  if (!ai_euro_is_ship_type(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
+    return 0;
+  }
+  if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+    return 0;
+  }
+  if (ship->cargo_count <= 0) {
+    return 0;
+  }
+  /* Prefer a Soldier passenger when present. */
+  int pax_id = -1;
+  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+    const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[c]);
+    if (!p || !p->active) {
+      continue;
+    }
+    const char* pname = units_display_name(ctx->units, p);
+    if (pname && strstr(pname, "Soldier") != NULL) {
+      pax_id = ship->cargo_ids[c];
+      break;
+    }
+  }
+  if (pax_id < 0) {
+    return 0;
+  }
+  /* Adjacent/same-tile own coastal colony threatened by war-peer. */
+  int dest_x = -1;
+  int dest_y = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* col = &ctx->colonies->colonies[i];
+    if (!col->active || col->nation_id != nation_id) {
+      continue;
+    }
+    if (!map_tile_is_coastal(ctx->map, col->x, col->y)) {
+      continue;
+    }
+    if (!ai_euro_tiles_near(ship->x, ship->y, col->x, col->y)) {
+      continue;
+    }
+    if (!ai_euro_colony_threatened_by_war(ctx, nation_id, col)) {
+      continue;
+    }
+    dest_x = col->x;
+    dest_y = col->y;
+    break;
+  }
+  if (dest_x < 0) {
+    return 0;
+  }
+  if (!units_unload_passenger(
+        ctx->units, ship->id, pax_id, ctx->map, dest_x, dest_y, ctx->colonies)) {
+    return 0;
+  }
+  return 1;
+}
+
+/*
+ * War transport sail target: idle Galleon/Frigate with passenger space prefers
+ * coastal water by a threatened own coastal colony; else reuse naval war hunt
+ * (foe sea / enemy coast). Cite: euro_unit_act §2b; Colonization.pdf naval
+ * transport; Europe Galleon/Frigate purchase. Full 20e6 PARKED.
+ */
+static int ai_euro_war_transport_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+);
 
 /*
  * Thin naval war hunt (5b66 case 0x0b act-level): nearest enemy sea unit or
@@ -1466,13 +2825,101 @@ static int ai_euro_naval_war_hunt_target(
   return 1;
 }
 
-/* Attack adjacent enemy sea unit while at war (try_move cannot step onto ships). */
-static void ai_euro_naval_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+static int ai_euro_war_transport_target(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->map || !out_x || !out_y) {
+    return 0;
+  }
+  /* Prefer threatened own coastal colony water (troop lift / reinforce). */
+  if (ctx->colonies) {
+    int best = -1;
+    int bx = 0;
+    int by = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        continue;
+      }
+      if (!ai_euro_colony_threatened_by_war(ctx, nation_id, c)) {
+        continue;
+      }
+      int wx = 0;
+      int wy = 0;
+      if (!ai_euro_coastal_water_near(ctx->map, c->x, c->y, from_x, from_y, &wx, &wy)) {
+        continue;
+      }
+      const int dist = abs(wx - from_x) + abs(wy - from_y);
+      if (best < 0 || dist < best) {
+        best = dist;
+        bx = wx;
+        by = wy;
+      }
+    }
+    if (best >= 0) {
+      *out_x = bx;
+      *out_y = by;
+      return 1;
+    }
+  }
+  /* No threatened own port — enemy coast / foe sea (existing hunt). */
+  return ai_euro_naval_war_hunt_target(ctx, nation_id, from_x, from_y, out_x, out_y);
+}
+
+/*
+ * Effective defense for thin 20e6 naval adjacent-foe pick.
+ * PARKED: FUN_157e_004a vet/Drake/damage combat×8 mods — no unit damage byte
+ * wired yet; prefer lower type defense only (closest real hook).
+ */
+static int ai_euro_naval_foe_toughness(const ColonizeUnitPool* units, const ColonizeUnit* f) {
+  if (!units || !f) {
+    return 9999;
+  }
+  const ColonizeUnitType* t = units_type(units, f->type_index);
+  int def = t ? t->defense : 0;
+  if (def < 0) {
+    def = 0;
+  }
+  return def;
+}
+
+/* Combat ships for Frigate hunt prefer (complement Privateer cargo prey). */
+static int ai_euro_is_warship_name(const char* name) {
+  if (!name || ai_euro_is_cargo_ship_name(name)) {
+    return 0;
+  }
+  return strstr(name, "Frigate") != NULL || strstr(name, "Privateer") != NULL ||
+         strstr(name, "Galleon") != NULL || strstr(name, "Man-O-War") != NULL ||
+         strstr(name, "Man-o-War") != NULL || strstr(name, "Man O War") != NULL;
+}
+
+/*
+ * Best adjacent war foe for naval attack (thin 20e6 naval combat scoring):
+ * Privateer → prefer Merchantman/Caravel cargo prey over warships; Frigate →
+ * prefer warships (Frigate/Privateer/Galleon/Man-O-War) over cargo (complement);
+ * else lower type defense. PARKED: FUN_157e_004a vet/Drake/damage combat×8.
+ * Cite: euro_unit_act §2f; Europe Privateer/Frigate purchase; fandom Drake.
+ */
+static int ai_euro_naval_best_adjacent_foe(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
   if (!ctx || !ctx->units || !u || !u->active || !units_is_sea(ctx->units, u->id)) {
-    return;
+    return -1;
   }
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const char* own_name = units_display_name(ctx->units, u);
+  const int prefer_cargo = own_name && strstr(own_name, "Privateer") != NULL;
+  const int prefer_war = own_name && strstr(own_name, "Frigate") != NULL;
+  int best_id = -1;
+  int best_tough = 0;
+  int best_rank = 0; /* prey rank: cargo (Privateer) or warship (Frigate) */
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
@@ -1488,9 +2935,34 @@ static void ai_euro_naval_try_adjacent_attack(ColonizeTurnContext* ctx, Colonize
         !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
       continue;
     }
-    ai_euro_try_attack(ctx, u, nx, ny);
+    const char* fname = units_display_name(ctx->units, f);
+    const int tough = ai_euro_naval_foe_toughness(ctx->units, f);
+    int rank = 0;
+    if (prefer_cargo) {
+      rank = ai_euro_is_cargo_ship_name(fname) ? 1 : 0;
+    } else if (prefer_war) {
+      rank = ai_euro_is_warship_name(fname) ? 1 : 0;
+    }
+    if (best_id < 0 || rank > best_rank || (rank == best_rank && tough < best_tough)) {
+      best_id = foe;
+      best_tough = tough;
+      best_rank = rank;
+    }
+  }
+  return best_id;
+}
+
+/* Attack adjacent enemy sea unit while at war (prefer weaker foe; try_move cannot). */
+static void ai_euro_naval_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  const int foe = ai_euro_naval_best_adjacent_foe(ctx, u);
+  if (foe < 0) {
     return;
   }
+  const ColonizeUnit* f = units_get_const(ctx->units, foe);
+  if (!f) {
+    return;
+  }
+  ai_euro_try_attack(ctx, u, f->x, f->y);
 }
 
 /* True when land unit already has a non-stationary AI/goto course. */
@@ -1634,6 +3106,52 @@ static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeU
   ai_euro_try_attack(ctx, u, f->x, f->y);
 }
 
+/*
+ * Nearest foreign Euro land unit within Manhattan max_md of (from_x,from_y).
+ * Peace colony-defense wake (MD≤2 border). Cite: Colonization.pdf fortify
+ * defense; euro_unit_act §2d3 peace fortify extend. Returns 1 if found.
+ */
+static int ai_euro_foreign_land_threat_near(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int max_md,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->units || !out_x || !out_y || max_md < 0) {
+    return 0;
+  }
+  int best = -1;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id == nation_id || f->nation_id < 0 || f->nation_id > 3) {
+      continue;
+    }
+    if (!units_is_on_map(f) || units_is_sea(ctx->units, f->id) || ai_euro_in_europe(f->x, f->y)) {
+      continue;
+    }
+    const int dist = abs(f->x - from_x) + abs(f->y - from_y);
+    if (dist > max_md) {
+      continue;
+    }
+    if (best < 0 || dist < best) {
+      best = dist;
+      bx = f->x;
+      by = f->y;
+    }
+  }
+  if (best < 0) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
 static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
   if (!ctx || !ship || !units_is_sea(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
     return;
@@ -1646,8 +3164,13 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     if (!p || !p->active) {
       continue;
     }
-    int sc = 2;
     const char* name = units_display_name(ctx->units, p);
+    /* Treasure stays aboard for Europe sail — do not landfall as settler.
+     * Cite: Colonization.pdf Treasure Trains → Europe gold (unload PARKED). */
+    if (ai_euro_is_treasure_name(name)) {
+      continue;
+    }
+    int sc = 2;
     if (name && (strstr(name, "Pioneer") || strstr(name, "Hardy"))) {
       sc = 5;
     } else if (name && (strstr(name, "Colonist") || strstr(name, "Free"))) {
@@ -1728,11 +3251,45 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   const int is_goto = units_orders_follow_goto(u->orders);
 
   /*
+   * At-war Soldier/Dragoon/Artillery coastal embark — before move-scoring gate /
+   * hunt yank / Artillery on-colony fortify. Soldier, Dragoon, or Artillery/
+   * Cannon on coastal own colony boards empty transport (may override MILITARY
+   * goto from E deepen). Cite: Colonization.pdf naval transport / Defending a
+   * Colony; units_board; euro_unit_act §2d3.
+   */
+  if (!is_ship && ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+    const char* board_name = units_display_name(ctx->units, u);
+    if (board_name &&
+        (strstr(board_name, "Soldier") != NULL || strstr(board_name, "Dragoon") != NULL ||
+         strstr(board_name, "Artillery") != NULL || strstr(board_name, "Cannon") != NULL) &&
+        ai_euro_try_soldier_board_transport(ctx, nation_id, u)) {
+      return;
+    }
+  }
+
+  /*
+   * War military unload — before move-scoring gate. Galleon/Frigate are not
+   * cargo-ship deferred, so 20e6 gate can abort the ship act before the war
+   * unload arm. Drop Soldier at threatened coastal colony first. Cite:
+   * Colonization.pdf naval transport; euro_unit_act §2b2.
+   */
+  if (is_ship && ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id) &&
+      !ai_euro_in_europe(u->x, u->y)) {
+    (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+  }
+
+  /*
    * Early move-scoring gate (~90552): if orders!=goto (or fresh), call 20e6;
    * non-zero return aborts act. Linux: always score when not already on goto.
+   * Treasure / Missionary: defer course to act-level coast / CONTACT routing
+   * (do not FOUND-yank before treasure coast or missionary mission hunt).
    */
   if (!is_goto) {
-    if (ai_euro_move_scoring_gate(ctx, u, nation_id)) {
+    const char* gate_name = units_display_name(ctx->units, u);
+    const int defer_gate =
+      ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||
+      ai_euro_type_is_wagon_name(gate_name) || ai_euro_is_cargo_ship_name(gate_name);
+    if (!defer_gate && ai_euro_move_scoring_gate(ctx, u, nation_id)) {
       return;
     }
   }
@@ -1760,28 +3317,65 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     /*
      * Thin naval war hunt (act-level): idle / station-keep ships at war sail
      * toward nearest foe sea unit or coastal colony water. Adjacent → try_attack.
+     * Privateer deepen: named Privateer always re-aims hunt (commerce raid) even
+     * with a prior sail goto — reuse naval_war_hunt_target. Cite: europe purchase
+     * Privateer; fandom Drake Privateer combat; euro_unit_act §2b.
      * Deep 20e6 naval combat scoring stays PARKED.
      */
     const int at_war =
       ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
-    if (at_war && !ai_euro_in_europe(u->x, u->y)) {
+    /* Treasure aboard → keep Europe sail; do not war-hunt yank. Cite: Treasure
+     * Trains → Europe. PARK gold unload. */
+    int treasure_aboard = 0;
+    for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+      const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+      if (pax && ai_euro_is_treasure_name(units_display_name(ctx->units, pax))) {
+        treasure_aboard = 1;
+        break;
+      }
+    }
+    /*
+     * Peace cargo haul: idle Caravel/Merchantman with hold space/TOOLS →
+     * AI_SAIL toward tools/food-short coastal colony water. Cite: euro_unit_act
+     * §2d2; TOOLS only (no invented FOOD cargo). Skip when war / treasure /
+     * useful sail already set.
+     */
+    if (!at_war && !treasure_aboard && !ai_euro_ship_has_useful_goto(u, ctx->map)) {
+      (void)ai_euro_try_ship_trade_haul(ctx, nation_id, u);
+    }
+    if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
+      /* Drop Soldier at threatened own coastal colony before hunt sail. */
+      (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+      const char* sname = units_display_name(ctx->units, u);
+      const int is_privateer = sname && strstr(sname, "Privateer") != NULL;
+      /* Galleon/Frigate with passenger space: prefer threatened own coastal
+       * colony water, else enemy coast (naval hunt). Cite: euro_unit_act §2b2;
+       * Colonization.pdf naval transport; Europe purchase Galleon/Frigate. */
+      const int is_wtrans = ai_euro_is_war_transport_name(sname);
+      const int cap = units_ship_capacity(ctx->units, u->id);
+      const int has_pax_space = is_wtrans && cap > 0 && u->cargo_count < cap;
       ai_euro_naval_try_adjacent_attack(ctx, u);
       if (!u->active) {
         return;
       }
-      if (!ai_euro_ship_has_useful_goto(u, ctx->map)) {
+      if (is_privateer || !ai_euro_ship_has_useful_goto(u, ctx->map)) {
         int hx = 0;
         int hy = 0;
-        if (ai_euro_naval_war_hunt_target(ctx, nation_id, u->x, u->y, &hx, &hy)) {
+        const int aimed =
+          has_pax_space
+            ? ai_euro_war_transport_target(ctx, nation_id, u->x, u->y, &hx, &hy)
+            : ai_euro_naval_war_hunt_target(ctx, nation_id, u->x, u->y, &hx, &hy);
+        if (aimed) {
           ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, hx, hy);
         }
       }
     }
 
     /*
-     * Case 0x0b ship sail: preserve landfall/sail goto. advance_goto clears
-     * orders+goto on arrival — station-keep there instead of yanking to a
-     * distant FOUND (AMERICA smoke measures squared dist to goto).
+     * Case 0x0b ship sail: preserve landfall/sail goto. Scored ocean steps
+     * (thin 20e6) with a second step while moves_left remain — mirror land
+     * FOUND/MILITARY 2-step multi-act. Arrival clears via station-keep below
+     * (do not yank to distant FOUND). Full ocean combat scoring PARKED.
      */
     int gx = u->goto_x;
     int gy = u->goto_y;
@@ -1796,10 +3390,42 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       u->orders = UNITS_ORDER_AI_SAIL;
     }
     if (units_orders_follow_goto(u->orders) && (u->x != u->goto_x || u->y != u->goto_y)) {
-      units_advance_goto(ctx->units, u->id, ctx->map, ctx->colonies, ctx->rng);
+      for (int step = 0; step < 2; ++step) {
+        if (!u->active || u->moves_left <= 0 || !units_orders_follow_goto(u->orders)) {
+          break;
+        }
+        if (u->x == u->goto_x && u->y == u->goto_y) {
+          break;
+        }
+        int dx = 0;
+        int dy = 0;
+        if (!ai_euro_score_move(ctx, u, u->goto_x, u->goto_y, &dx, &dy)) {
+          break;
+        }
+        const int tx = u->x + dx;
+        const int ty = u->y + dy;
+        const int foe = units_id_at(ctx->units, tx, ty);
+        if (foe >= 0) {
+          /* Naval combat stays on adjacent prefer-weak pick — do not
+           * chain-attack via scored step into a foe tile (try_move cannot
+           * enter ships; mirror prior advance_goto block). */
+          break;
+        }
+        if (!units_try_move(ctx->units, u->id, ctx->map, tx, ty, ctx->colonies, ctx->rng)) {
+          break;
+        }
+        u = units_get(ctx->units, u->id);
+        if (!u) {
+          return;
+        }
+      }
     }
-    if (u->active && at_war && !ai_euro_in_europe(u->x, u->y)) {
+    if (u->active && at_war && !ai_euro_in_europe(u->x, u->y) && u->moves_left > 0) {
       ai_euro_naval_try_adjacent_attack(ctx, u);
+    }
+    /* War reinforce unload after sail arrival (Soldier → threatened colony). */
+    if (u->active && at_war && !ai_euro_in_europe(u->x, u->y)) {
+      (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
     }
     if (u->active && !ai_euro_in_europe(u->x, u->y)) {
       ai_euro_unload_settle(ctx, u, nation_id);
@@ -1811,18 +3437,35 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   const char* uname = units_display_name(ctx->units, u);
   const int is_land_hunter = ai_euro_is_land_war_hunter(uname);
   const int is_scout = uname && strstr(uname, "Scout") != NULL;
+  const int is_treasure = ai_euro_is_treasure_name(uname);
+  const int is_missionary = ai_euro_is_missionary_name(uname);
   const int at_war_land =
     ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
   int land_war_hunted = 0;
   int scout_explored = 0;
+  int treasure_routed = 0;
+  int missionary_contacted = 0;
 
   /*
    * Thin land war hunt (act-level): idle Soldier/Dragoon/Scout at war move
    * toward nearest foe land unit or enemy colony. Adjacent → try_attack
    * (prefer weaker defense / non-fortified). Does not steal founders on FOUND.
+   * Sentry/fortify wake: idle passive Soldier/Dragoon/Scout at war → units_wake
+   * then hunt (public wake API clears fortify/sentry + restores MP).
+   * Cite: euro_unit_act §2c; units.h units_wake; case 0x0b fortify arm.
    * Deeper 20e6 multi-step combat scoring PARKED.
+   *
+   * Ship board military: at war, idle Soldier/Dragoon/Artillery on coastal own
+   * colony boards an empty transport with space before hunt yank (troop lift).
+   * Cite: Colonization.pdf naval transport; units_board; euro_unit_act §2b2.
    */
-  if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
+  if (at_war_land && is_land_hunter && ai_euro_land_is_passive_orders(u) &&
+      !ai_euro_land_has_useful_goto(u, ctx->map)) {
+    (void)units_wake(ctx->units, u->id);
+  }
+  /* Board already attempted early (pre-gate); hunt if still on map. */
+  if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u) &&
+      u->orders != UNITS_ORDER_SENTRY) {
     ai_euro_land_try_adjacent_attack(ctx, u);
     if (!u->active) {
       return;
@@ -1838,9 +3481,58 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
+   * Peace colony-defense wake (extend §2d3 fortify): idle/fortified Soldier or
+   * Dragoon on own colony wakes via units_wake when a foreign Euro land unit
+   * enters MD≤2, then hunts toward that threat. Manual: "fortify soldiers,
+   * dragoons, army, cavalry, or artillery" (Colonization.pdf Defending a
+   * Colony). War already has global fortify-wake (§2c); this is the peace
+   * border garrison. Adjacent attack may declare war via existing try_attack.
+   * Cite: Colonization.pdf fortify defense; units_wake; euro_unit_act §2d3.
+   * No invented combat bonuses.
+   */
+  int peace_border_hunted = 0;
+  if (!at_war_land && !land_war_hunted && uname &&
+      (strstr(uname, "Soldier") != NULL || strstr(uname, "Dragoon") != NULL) &&
+      ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+    if (cid >= 0) {
+      const ColonizeColony* hc = colonies_get(ctx->colonies, cid);
+      if (hc && hc->active && hc->nation_id == nation_id) {
+        int tx = 0;
+        int ty = 0;
+        if (ai_euro_foreign_land_threat_near(ctx, nation_id, u->x, u->y, 2, &tx, &ty)) {
+          if (ai_euro_land_is_passive_orders(u)) {
+            (void)units_wake(ctx->units, u->id);
+          }
+          /* Adjacent foreign: try_attack declares war if needed (existing hook). */
+          {
+            const int adx = abs(tx - u->x);
+            const int ady = abs(ty - u->y);
+            if ((adx > 0 || ady > 0) && adx <= 1 && ady <= 1) {
+              ai_euro_try_attack(ctx, u, tx, ty);
+            }
+          }
+          if (!u->active) {
+            return;
+          }
+          if (!ai_euro_land_has_useful_goto(u, ctx->map)) {
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+          }
+          peace_border_hunted = 1;
+        }
+      }
+    }
+  }
+
+  /*
    * CONTACT scout rings (act-level): peaceful Scout with own≥1 keeps/gets
    * AI_MOVE toward ring tile (MD 2–4) around nearest beyond-adjacent tribe;
    * upsert CONTACT; do not yank to COLONY. Fog prefer via scout_contact_ring_target.
+   * Sticky+FoW: re-aim even with prior goto so deeper unseen ring can deepen.
+   * Without CONTACT (no tribe ring): fog-explore unseen land MD≤8
+   * (map_tile_seen_by) — no CONTACT upsert. Seasoned Scout prefers deeper
+   * unseen fog than plain Scout (Colonization.pdf "Better at exploring").
+   * Cite: euro_unit_act §2c2 / FoW; Colonization.pdf Seasoned Scout.
    */
   if (!at_war_land && is_scout &&
       ai_euro_colony_count(ctx->colonies, nation_id) >= 1) {
@@ -1848,10 +3540,150 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     int ty = 0;
     if (ai_euro_scout_contact_ring_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
       ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 2);
-      if (!ai_euro_land_has_useful_goto(u, ctx->map)) {
+      const uint8_t sticky =
+        (ctx->col1_ok && ctx->col1) ? ai_diplo_indian_hostility_sticky(ctx->col1, nation_id)
+                                    : 0;
+      const int sticky_fog =
+        sticky >= 2 && ctx->map && ctx->map->seen != NULL;
+      if (!ai_euro_land_has_useful_goto(u, ctx->map) || sticky_fog) {
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
       }
       scout_explored = 1;
+    } else if (ai_euro_scout_fog_explore_target(
+                 ctx,
+                 nation_id,
+                 u->x,
+                 u->y,
+                 ai_euro_is_seasoned_scout_name(uname),
+                 &tx,
+                 &ty)) {
+      /*
+       * Idle only: set fog course. Seasoned deeper pick is in the target
+       * helper — do not re-aim every act (max-md from a new tile drifts to
+       * map-edge fog as the scout walks). Re-aim if prior goto is now seen.
+       */
+      const int idle = !ai_euro_land_has_useful_goto(u, ctx->map);
+      const int goto_cleared =
+        !idle && ctx->map->seen &&
+        map_tile_seen_by(ctx->map, u->goto_x, u->goto_y, nation_id);
+      if (idle || goto_cleared) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+      }
+      scout_explored = 1;
+    }
+  }
+
+  /*
+   * Treasure train (act-level): idle Treasure → AI_MOVE toward nearest own
+   * coastal colony (or coastal land if none). At coastal own colony with ship
+   * space → board + AI_SAIL Europe (eastern HS / east water). Cite:
+   * Colonization.pdf Treasure Trains — park coastal → Galleon / king transport.
+   * PARK: Europe Treasure→gold unload (no AI gold credit). Preserve goto vs
+   * FOUND/LABOR yank. No invented ransom/gold.
+   */
+  if (is_treasure) {
+    if (ai_euro_try_treasure_board_sail(ctx, nation_id, u)) {
+      treasure_routed = 1;
+      return; /* boarded — ship owns Europe sail course */
+    }
+    int tx = 0;
+    int ty = 0;
+    if (ai_euro_treasure_coast_target(ctx, nation_id, u->x, u->y, &tx, &ty)) {
+      if (u->x != tx || u->y != ty) {
+        /* Always re-aim coast (override FOUND/explore from scoring gate). */
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+      }
+      treasure_routed = 1;
+    }
+  }
+
+  /*
+   * Wagon Train haul (act-level): idle Wagon with hold capacity or TOOLS →
+   * AI_MOVE toward tools-short colony (unload via existing delivery). Cite:
+   * euro_unit_act §2d; manual Wagon Train cargo.
+   */
+  int wagon_hauled = 0;
+  if (!treasure_routed && uname && ai_euro_type_is_wagon_name(uname) &&
+      !ai_euro_land_is_fortified(u)) {
+    if (ai_euro_try_wagon_haul(ctx, nation_id, u)) {
+      wagon_hauled = 1;
+    }
+  }
+
+  /*
+   * Peace fortify (case 0x0b fortify arm): idle Soldier on own colony tile →
+   * FORTIFY if not already. Overrides explore/FOUND scoring-gate yank while
+   * on-colony (defense). Cite: euro_unit_act §2 fortify colony-check → 'F';
+   * Colonization.pdf fortify defense. At war: wake+hunt owns soldiers instead.
+   */
+  if (!at_war_land && !peace_border_hunted && !treasure_routed && !wagon_hauled &&
+      !scout_explored && !land_war_hunted && uname && strstr(uname, "Soldier") != NULL &&
+      !ai_euro_land_is_fortified(u) && ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+    if (cid >= 0) {
+      const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+      if (c && c->active && c->nation_id == nation_id) {
+        /* Keep MILITARY/CONTACT goto off-colony; on-tile → fortify. */
+        int keep_mil = 0;
+        for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+          const AiGoalSlot* g = ai_goals_primary(nation_id, i);
+          if (!g || g->code == AI_GOAL_EMPTY) {
+            continue;
+          }
+          if ((g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT) &&
+              (g->x != u->x || g->y != u->y)) {
+            keep_mil = 1;
+            break;
+          }
+        }
+        if (!keep_mil) {
+          units_order_fortify(ctx->units, u->id);
+          return; /* stay fortified — skip FOUND/explore yank */
+        }
+      }
+    }
+  }
+
+  /*
+   * Artillery fortify after siege (case 0x0b fortify arm): idle Artillery on
+   * own/captured colony → FORTIFY. Artillery is not a land war hunter (no
+   * wake+hunt), so garrison holds at peace and at war. Cite: euro_unit_act
+   * fortify colony-check → 'F'; Colonization.pdf fortify defense / Artillery
+   * siege; mirror king post-capture fortify (Regular) for Euro Artillery.
+   */
+  if (!treasure_routed && !wagon_hauled && !scout_explored && !land_war_hunted &&
+      !peace_border_hunted && uname &&
+      (strstr(uname, "Artillery") != NULL || strstr(uname, "Cannon") != NULL) &&
+      !ai_euro_land_is_fortified(u) && ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+    if (cid >= 0) {
+      const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+      if (c && c->active && c->nation_id == nation_id) {
+        units_order_fortify(ctx->units, u->id);
+        return;
+      }
+    }
+  }
+
+  /*
+   * Missionary CONTACT (act-level): peace + Jesuit/Missionary, not fleeing
+   * (Alarm ≥55 adjacent) → CONTACT at nearest tribe without mission
+   * (mission==0xff) + AI_MOVE. Convert when adjacent is ai_contact.
+   * Idle Jesuit prefers convert CONTACT over Scout explore / FOUND yank
+   * (missionary_contacted preserves goto). Cite: Colonization.pdf Establishing
+   * a Mission; euro_unit_act §2c6; indian_contact.md convert pulse.
+   */
+  if (!at_war_land && is_missionary &&
+      !ai_euro_missionary_should_flee(ctx, nation_id, u->x, u->y)) {
+    int tx = 0;
+    int ty = 0;
+    if (ai_euro_missionary_no_mission_target(ctx, u->x, u->y, &tx, &ty)) {
+      /* Prio 3 > Scout ring CONTACT (2) so convert beats explore. */
+      ai_goals_upsert_primary(nation_id, tx, ty, AI_GOAL_CONTACT, 3);
+      if (u->x != tx || u->y != ty) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+      }
+      missionary_contacted = 1;
     }
   }
 
@@ -1865,7 +3697,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       (strstr(uname, "Pioneer") || strstr(uname, "Hardy") || strstr(uname, "Free Colonist") ||
        strstr(uname, "Colonist"));
 
-    /* Soldiers: MILITARY/CONTACT first; founders: FOUND over LABOR/COLONY. */
+    /* Soldiers: MILITARY/CONTACT first; founders: FOUND over LABOR/COLONY —
+     * except threatened Stockade LABOR (Free Colonist MD≤3) beats distant FOUND. */
     if (is_soldier) {
       for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
         const AiGoalSlot* g = ai_goals_primary(nation_id, i);
@@ -1880,16 +3713,50 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
       }
     } else if (is_founder) {
-      for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-        const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-        if (!g || g->code == AI_GOAL_EMPTY) {
-          continue;
+      int threat_stockade_labor = 0;
+      if (ctx->colonies && at_war_land && uname &&
+          (strstr(uname, "Free Colonist") != NULL || strstr(uname, "Colonist") != NULL) &&
+          strstr(uname, "Soldier") == NULL) {
+        for (int ti = 0; ti < COLONIZE_COLONIES_MAX; ++ti) {
+          const ColonizeColony* tc = &ctx->colonies->colonies[ti];
+          if (!tc->active || tc->nation_id != nation_id) {
+            continue;
+          }
+          if (!ai_euro_colony_wants_construction_labor(ctx->colonies, tc)) {
+            continue;
+          }
+          const ColonizeBuildingType* bt =
+            tc->building_in_production >= 0
+              ? colonies_building_type(ctx->colonies, tc->building_in_production)
+              : NULL;
+          if (!bt || strcmp(bt->name, "Stockade") != 0) {
+            continue;
+          }
+          if (!ai_euro_colony_threatened_by_war(ctx, nation_id, tc)) {
+            continue;
+          }
+          if (abs(tc->x - u->x) + abs(tc->y - u->y) <= 3) {
+            goal_x = tc->x;
+            goal_y = tc->y;
+            goal_code = AI_GOAL_LABOR;
+            threat_stockade_labor = 1;
+            ai_goals_upsert_primary(nation_id, tc->x, tc->y, AI_GOAL_LABOR, 6);
+            break;
+          }
         }
-        if (g->code == AI_GOAL_FOUND || g->code == AI_GOAL_MIL_EXPAND) {
-          goal_x = g->x;
-          goal_y = g->y;
-          goal_code = (int)g->code;
-          break;
+      }
+      if (!threat_stockade_labor) {
+        for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+          const AiGoalSlot* g = ai_goals_primary(nation_id, i);
+          if (!g || g->code == AI_GOAL_EMPTY) {
+            continue;
+          }
+          if (g->code == AI_GOAL_FOUND || g->code == AI_GOAL_MIL_EXPAND) {
+            goal_x = g->x;
+            goal_y = g->y;
+            goal_code = (int)g->code;
+            break;
+          }
         }
       }
     }
@@ -1907,6 +3774,202 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
+  /*
+   * LABOR bind (5b66 case 0x0b unload/labor thin): idle colonist-capable land
+   * unit near own colony with inventory food_short/tools_short → COLONY/LABOR
+   * goto (overrides distant FOUND when adjacent/on-tile). Construction deepen:
+   * idle Pioneer/Hardy on a colony with Stockade/Warehouse/Lumber Mill in
+   * production stays for carpenter hammers (LABOR join) rather than leave —
+   * structural only.
+   * Food emergency deepen: food_short ≥ 4 extends search to MD≤8 for
+   * food-capable colonist/Pioneer/Expert Farmer (manual 2 food/colonist).
+   * Expert Farmer deepen: idle Expert Farmer (@JOB Farmer profession 0 or
+   * display-name Farmer) → food-short LABOR when profession exists. Cite:
+   * docs/building_production.md Farmer→Food; Colonization.pdf Skills Chart.
+   * Free Colonist food LABOR (non-Expert Farmer): idle Free Colonist /
+   * Colonist with food_short > 0 → MD≤8 toward hungry colony (same join as
+   * Expert Farmer path, without requiring Farmer profession). Cite: manual
+   * 2 food/colonist; 5cf6 food_short; euro_unit_act §2e. No invented rates.
+   * Expert Lumberjack deepen: incomplete Warehouse/Lumber Mill (building type
+   * exists) → LABOR join (lumber for hammers). Field-assign stays PARKED.
+   * Tools-short deepen
+   * (peace Pioneer): tools_short > 0 extends MD≤8 toward tools-short colony
+   * so idle Pioneer walks in for case-7 tools delivery. Cite: 5cf6 shortage
+   * tallies + euro_unit_act §2d/§2e; no invented rates.
+   */
+  {
+    const int is_pioneer =
+      uname && (strstr(uname, "Pioneer") || strstr(uname, "Hardy"));
+    const int is_farmer = ai_euro_unit_is_food_labor(ctx->units, u) &&
+                          ((uname && strstr(uname, "Farmer") != NULL) ||
+                           (u->profession == 0));
+    /* Master Carpenter — hammer bind for Stockade/Warehouse/Lumber Mill. */
+    const int is_carpenter =
+      uname && strstr(uname, "Carpenter") != NULL;
+    /* Expert Lumberjack — lumber for incomplete Warehouse/Lumber Mill. */
+    const int is_lumberjack =
+      uname && strstr(uname, "Lumberjack") != NULL;
+    const int is_free_colonist =
+      uname && (strstr(uname, "Free Colonist") != NULL ||
+                (strstr(uname, "Colonist") != NULL && !is_pioneer && !is_farmer &&
+                 !is_carpenter && !is_lumberjack && strstr(uname, "Soldier") == NULL));
+    const int is_colonist_cap =
+      uname && strstr(uname, "Soldier") == NULL && strstr(uname, "Dragoon") == NULL &&
+      strstr(uname, "Scout") == NULL && !ai_euro_type_is_wagon_name(uname) &&
+      (is_pioneer || is_farmer || is_carpenter || is_lumberjack ||
+       strstr(uname, "Free Colonist") || strstr(uname, "Colonist") ||
+       strstr(uname, "Farmer"));
+    if (!land_war_hunted && !peace_border_hunted && !scout_explored && !treasure_routed &&
+        !missionary_contacted && !wagon_hauled && is_colonist_cap && ctx->colonies &&
+        !ai_euro_land_is_fortified(u)) {
+      AiEuroInventory* inv = ai_goals_inventory(nation_id);
+      const int short_labor =
+        inv && (inv->tools_short > 0 || inv->food_short > 0);
+      const int food_emergency = inv && inv->food_short >= 4;
+      /* Peace Pioneer tools-short: walk toward short colony (MD≤8), not only
+       * adjacent — feeds existing on-tile tools-delivery stand-in. */
+      const int tools_pioneer_bind =
+        !at_war_land && is_pioneer && inv && inv->tools_short > 0;
+      /* Expert Farmer / food labor: food_short → MD≤8 toward hungry colony. */
+      const int food_farmer_bind =
+        ai_euro_unit_is_food_labor(ctx->units, u) && inv && inv->food_short > 0 &&
+        (is_farmer || food_emergency);
+      /* Free Colonist (non-Farmer): food_short → MD≤8 hungry LABOR join. */
+      const int food_free_colonist_bind =
+        is_free_colonist && !is_farmer && ai_euro_unit_is_food_labor(ctx->units, u) &&
+        inv && inv->food_short > 0;
+      /*
+       * Master Carpenter construction LABOR: idle carpenter → Stockade/
+       * Warehouse/Lumber Mill incomplete (same want_construction_labor gate
+       * as Pioneer stay). Cite: docs/building_production.md Carpenter→Hammers;
+       * Skills Chart Master Carpenter; euro_unit_act §2e Stockade pattern.
+       */
+      const int carpenter_bind = is_carpenter && !is_pioneer;
+      /*
+       * Expert Lumberjack LABOR: incomplete Warehouse/Lumber Mill when that
+       * building type exists. Cite: building_production Lumberjack→Lumber;
+       * Colonization.pdf Skills Chart. Field-assign PARKED.
+       */
+      const int lumberjack_bind = is_lumberjack && !is_pioneer;
+      /*
+       * Threatened Stockade: Free Colonist within MD≤3 prefers incomplete
+       * Stockade LABOR over distant FOUND (defense hammers). Cite:
+       * building_production.md Stockade; ai_euro_colony_threatened_by_war;
+       * Colonization.pdf fortify / Stockade defense.
+       */
+      int threat_stockade_bind = 0;
+      if (is_free_colonist && at_war_land && ctx->col1_ok && ctx->col1) {
+        for (int ti = 0; ti < COLONIZE_COLONIES_MAX; ++ti) {
+          const ColonizeColony* tc = &ctx->colonies->colonies[ti];
+          if (!tc->active || tc->nation_id != nation_id) {
+            continue;
+          }
+          if (!ai_euro_colony_wants_construction_labor(ctx->colonies, tc)) {
+            continue;
+          }
+          const ColonizeBuildingType* bt =
+            tc->building_in_production >= 0
+              ? colonies_building_type(ctx->colonies, tc->building_in_production)
+              : NULL;
+          if (!bt || strcmp(bt->name, "Stockade") != 0) {
+            continue;
+          }
+          if (!ai_euro_colony_threatened_by_war(ctx, nation_id, tc)) {
+            continue;
+          }
+          if (abs(tc->x - u->x) + abs(tc->y - u->y) <= 3) {
+            threat_stockade_bind = 1;
+            break;
+          }
+        }
+      }
+      const int max_dist =
+        (food_emergency && ai_euro_unit_is_food_labor(ctx->units, u)) ||
+            tools_pioneer_bind || food_farmer_bind || food_free_colonist_bind
+          ? 8
+          : (threat_stockade_bind ? 3 : 1);
+      int bx = -1;
+      int by = -1;
+      int best = 99;
+      int code = AI_GOAL_COLONY;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active || c->nation_id != nation_id) {
+          continue;
+        }
+        const int dist = abs(c->x - u->x) + abs(c->y - u->y);
+        if (dist > max_dist) {
+          continue;
+        }
+        const int construction =
+          ai_euro_colony_wants_construction_labor(ctx->colonies, c);
+        const int lumber_need = ai_euro_colony_wants_lumberjack_labor(ctx->colonies, c);
+        /*
+         * On-tile Pioneer/Hardy: leave for tools-delivery stand-in unless
+         * Stockade/Warehouse/Lumber Mill is in production (stay/LABOR for
+         * hammers). Adjacent pioneers still LABOR-goto toward short colonies.
+         * Master Carpenter on-tile always stays when construction wants labor.
+         */
+        if (dist == 0 && is_pioneer && !construction) {
+          continue;
+        }
+        int need = construction || (c->population < 3);
+        if (short_labor && inv->tools_short > 0 &&
+            c->stock[COLONIZE_CARGO_TOOLS] < 20) {
+          need = 1;
+        }
+        if (short_labor && inv->food_short > 0 &&
+            c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
+          need = 1;
+        }
+        /* Expert Farmer: food-short LABOR only (Skills Chart Food) — not tools. */
+        if (is_farmer && !is_pioneer) {
+          need = inv && inv->food_short > 0 &&
+                 c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
+        }
+        /* Free Colonist MD>1 food bind: hungry colony only (not distant tools). */
+        if (food_free_colonist_bind && dist > 1 && !threat_stockade_bind) {
+          need = inv && inv->food_short > 0 &&
+                 c->stock[COLONIZE_CARGO_FOOD] < c->population * 2;
+        }
+        /* Master Carpenter: construction LABOR only (hammers) — Stockade pattern. */
+        if (carpenter_bind) {
+          need = construction;
+        }
+        /* Expert Lumberjack: Warehouse/Lumber Mill lumber LABOR only. */
+        if (lumberjack_bind) {
+          need = lumber_need;
+        }
+        /* Free Colonist threat-Stockade: Stockade hammers only within MD≤3. */
+        if (threat_stockade_bind && is_free_colonist) {
+          const ColonizeBuildingType* sbt =
+            construction && c->building_in_production >= 0
+              ? colonies_building_type(ctx->colonies, c->building_in_production)
+              : NULL;
+          need = construction && sbt && strcmp(sbt->name, "Stockade") == 0 &&
+                 ai_euro_colony_threatened_by_war(ctx, nation_id, c);
+        }
+        if (!need) {
+          continue;
+        }
+        if (bx < 0 || dist < best) {
+          best = dist;
+          bx = c->x;
+          by = c->y;
+          code = AI_GOAL_LABOR;
+        }
+      }
+      if (bx >= 0) {
+        goal_x = bx;
+        goal_y = by;
+        goal_code = code;
+        ai_goals_upsert_primary(
+          nation_id, bx, by, code, (food_emergency || threat_stockade_bind) ? 5 : 4
+        );
+      }
+    }
+  }
+
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
     ai_euro_found_with_unit(ctx, u, nation_id);
     return;
@@ -1914,19 +3977,24 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /*
    * Thin tools delivery (case 7 economy stand-in): idle/arriving Pioneer or
-   * Hardy on own colony tile with tools_short / stock<20 → +10 TOOLS.
-   * Prefer LABOR/COLONY arrive; also covers idle-on-colony before join.
+   * Hardy on own colony tile with tools_short / stock<20 → wagon TOOLS unload
+   * when hired wagon present, else +10 TOOLS stand-in.
+   * Wagon on colony also unloads its own TOOLS hold (hire-once deepen).
    * Dock expert hire / Artillery treasury gates live in 5d04 planning.
    */
-  {
-    const int is_pioneer =
-      uname && (strstr(uname, "Pioneer") || strstr(uname, "Hardy"));
-    if (is_pioneer && ctx->colonies) {
-      const int here = colonies_id_at(ctx->colonies, u->x, u->y);
-      if (here >= 0) {
-        ColonizeColony* oc = colonies_get_mut(ctx->colonies, here);
-        if (oc && oc->nation_id == nation_id) {
-          (void)ai_euro_try_pioneer_tools_delivery(ctx, nation_id, oc);
+  if (ctx->colonies) {
+    const int here = colonies_id_at(ctx->colonies, u->x, u->y);
+    if (here >= 0) {
+      ColonizeColony* oc = colonies_get_mut(ctx->colonies, here);
+      if (oc && oc->nation_id == nation_id) {
+        if (uname && ai_euro_type_is_wagon_name(uname)) {
+          (void)ai_euro_try_wagon_tools_delivery(ctx, nation_id, u, oc);
+        } else {
+          const int is_pioneer =
+            uname && (strstr(uname, "Pioneer") || strstr(uname, "Hardy"));
+          if (is_pioneer) {
+            (void)ai_euro_try_pioneer_tools_delivery(ctx, nation_id, oc);
+          }
         }
       }
     }
@@ -1959,8 +4027,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
-  /* Preserve land-war hunt / scout-explore goto; do not yank via COLONY. */
-  if (goal_code >= 0 && !land_war_hunted && !scout_explored) {
+  /* Preserve land-war / peace-border hunt / scout / treasure / missionary / wagon / LABOR. */
+  if (goal_code >= 0 && !land_war_hunted && !peace_border_hunted && !scout_explored &&
+      !treasure_routed && !missionary_contacted && !wagon_hauled) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, goal_x, goal_y);
   }
 
@@ -1996,15 +4065,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       }
     }
   } else {
-    /* Fortify soldiers near own colony (case 0x0b fortify arm). */
+    /* Peace fortify fallback (case 0x0b): idle Soldier on own colony only. */
     const char* name = units_display_name(ctx->units, u);
-    if (name && strstr(name, "Soldier") && ctx->colonies) {
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (c->active && c->nation_id == nation_id &&
-            abs(c->x - u->x) <= 1 && abs(c->y - u->y) <= 1) {
+    if (!at_war_land && name && strstr(name, "Soldier") && ctx->colonies &&
+        !ai_euro_land_is_fortified(u)) {
+      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (cid >= 0) {
+        const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+        if (c && c->active && c->nation_id == nation_id) {
           units_order_fortify(ctx->units, u->id);
-          break;
         }
       }
     }

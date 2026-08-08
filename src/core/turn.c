@@ -84,6 +84,8 @@ void turn_refresh_moves_for_nation(
   if (!pool) {
     return;
   }
+  /* FF combat context for units_try_move (Washington / Drake / Revere). */
+  units_set_ff_col1(col1);
   const bool magellan =
     col1 && founding_fathers_nation_has(col1, nation_id, FF_FERDINAND_MAGELLAN);
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -426,6 +428,7 @@ void turn_colony_free_production(
 static int turn_count_bells_and_crosses_for_nation(
   const ColonizeColonyPool* pool,
   int nation_id,
+  const ColonizeCol1Save* col1,
   int* out_bells,
   int* out_crosses
 ) {
@@ -440,13 +443,23 @@ static int turn_count_bells_and_crosses_for_nation(
     }
     return 0;
   }
+  /* Jefferson / Paine / Penn — fandom_col1994.md Political / Religious FF table. */
+  const int statesmen_pct =
+    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
+  const int paine_tax_pct =
+    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE) &&
+     nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT)
+      ? (int)col1->nation[nation_id].tax_rate
+      : 0;
+  const int penn_crosses_pct =
+    (col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN)) ? 50 : 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    bells += colony_prod_colony_bells(pool, c);
-    crosses += colony_prod_colony_crosses(pool, c);
+    bells += colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct);
+    crosses += colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
   }
   if (out_bells) {
     *out_bells = bells;
@@ -475,7 +488,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   int bells = 0;
   int crosses = 0;
   turn_count_bells_and_crosses_for_nation(
-    ctx->colonies, ctx->human_nation, &bells, &crosses
+    ctx->colonies, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, &bells, &crosses
   );
 
   if (ctx->europe) {
