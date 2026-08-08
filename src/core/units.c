@@ -654,6 +654,76 @@ int col1_destroy_tribe_at(
   return nation_id;
 }
 
+int units_cortes_conquest_treasure_gold(
+  const ColonizeCol1Save* col1,
+  int attacker_nation_id,
+  ColonizeDosRng* rng,
+  int rich_capital
+) {
+  /*
+   * Peel FUN_5fef_31ea amount → gold×100 (viceroy_unpacked.c ~101407–101495).
+   * Locals: -6 Cortes FF10, -0xa8 Spanish (nation==2), -0xcc rich/capital
+   * (PARK: pass rich_capital; callers use 0 until mapped), difficulty
+   * col1->head.difficulty (bands 0..3; ≥3 → band 3).
+   */
+  if (!rng || !col1 || attacker_nation_id < 0 || attacker_nation_id > 3) {
+    return 0;
+  }
+  const int cortes =
+    founding_fathers_cortes_guarantees_conquest_treasure(col1, attacker_nation_id) ? 1 : 0;
+  const int spanish = (attacker_nation_id == 2) ? 1 : 0;
+  const int rich = rich_capital ? 1 : 0;
+  int diff = (int)col1->head.difficulty;
+  if (diff < 0) {
+    diff = 0;
+  }
+  if (diff > 3) {
+    diff = 3;
+  }
+
+  int amount = 0; /* DOS -0xce before ×100 */
+  if (diff == 0) {
+    const int hi = ((spanish == 0) ? 3 : 0) + 3;
+    const int r0 = dos_rng_range(rng, 0, hi);
+    if (r0 == 0 || rich || cortes) {
+      amount = dos_rng_range(rng, 2, 4);
+    }
+    if (rich) {
+      amount <<= 1;
+    }
+    if (cortes) {
+      amount += amount >> 1;
+    }
+  } else if (diff == 1) {
+    /* -0x62 set from Spanish but roll is always 04d4(0,2). */
+    const int r0 = dos_rng_range(rng, 0, 2);
+    if (r0 == 0 || rich || cortes) {
+      amount = dos_rng_range(rng, 3, 8);
+    }
+    if (rich) {
+      amount <<= 1;
+    }
+    if (cortes) {
+      amount += amount >> 1;
+    }
+  } else if (diff == 2) {
+    const int lo = rich ? 4 : 2;
+    const int hi = rich ? 10 : 6;
+    const int r = dos_rng_range(rng, lo, hi);
+    amount = (r + (cortes ? 6 : 0) + (spanish ? 3 : 0)) * 10;
+  } else {
+    /* difficulty ≥3: 16-bit wrap of (cc==0 ? 0xfff7 : 0) + 0x19 → 16 or 25. */
+    amount = dos_rng_range(rng, 0, 4) + 2;
+    const uint16_t mult16 =
+      (uint16_t)((rich ? 0 : 0xfff7) + 0x19 + (cortes ? 10 : 0) + (spanish ? 5 : 0));
+    amount *= (int)mult16;
+  }
+  if (amount <= 0) {
+    return 0;
+  }
+  return amount * 100;
+}
+
 bool units_try_native_settlement_fallout(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
@@ -662,13 +732,14 @@ bool units_try_native_settlement_fallout(
   int defender_nation_id,
   int tile_x,
   int tile_y,
-  int gold_amount
+  int gold_amount,
+  ColonizeDosRng* rng
 ) {
   /*
    * Post-win stand-in for FUN_5fef_31ea (structural): destroy native village
    * when the last same-nation Brave leaves the tribe tile after combat win.
-   * Cortes treasure only when gold_amount > 0 (caller-known or cited COL1
-   * field) — do not invent population*N gold.
+   * Cortes treasure: gold_amount>0 (caller) or peel FUN_5fef_31ea when
+   * gold_amount<=0 + Cortes + rng. Non-Cortes unknown amount stays no-spawn.
    */
   if (!col1 || !units || defender_nation_id < 4) {
     return false;
@@ -689,7 +760,7 @@ bool units_try_native_settlement_fallout(
     /*
      * col1_save.h ColonizeCol1Nation.villages_burned; reports.c scores
      * villages_penalty = -(difficulty+1)*villages_burned. Increment on
-     * successful tribe destroy only (no invented treasure amounts here).
+     * successful tribe destroy only.
      */
     if (col1->nation[attacker_nation_id].villages_burned < 255u) {
       col1->nation[attacker_nation_id].villages_burned++;
@@ -700,13 +771,14 @@ bool units_try_native_settlement_fallout(
 
   if (attacker_nation_id >= 0 && attacker_nation_id < 4 &&
       founding_fathers_cortes_guarantees_conquest_treasure(col1, attacker_nation_id)) {
-    if (gold_amount > 0) {
-      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold_amount);
+    int gold = gold_amount;
+    if (gold <= 0) {
+      /* rich_capital (-0xcc) PARKED as 0 until mapped from combat stack. */
+      gold = units_cortes_conquest_treasure_gold(col1, attacker_nation_id, rng, 0);
     }
-    /*
-     * PARK: FUN_5fef_31ea conquest gold when gold_amount <= 0 — no COL1 tribe
-     * treasure field or cited amount table in-repo; do not invent yields.
-     */
+    if (gold > 0) {
+      (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
+    }
   }
   return true;
 }
@@ -833,7 +905,8 @@ bool units_resolve_land_combat_ff(
         def_nation,
         def_x,
         def_y,
-        g_units_conquest_gold
+        g_units_conquest_gold,
+        rng
       );
     }
     g_units_last_combat = 1;
