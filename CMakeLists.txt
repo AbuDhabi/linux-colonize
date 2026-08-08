@@ -520,6 +520,9 @@ add_executable(smoke_units
   src/core/unit_chrome.c
   src/core/colony.c
   src/core/colony_yield.c
+  src/core/founding_fathers.c
+  src/core/europe.c
+  src/core/pik.c
   src/core/map.c
   src/core/dos_rng.c
   src/core/strutil.c
@@ -557,6 +560,9 @@ add_executable(smoke_colonies
   src/core/colony.c
   src/core/units.c
   src/core/unit_chrome.c
+  src/core/founding_fathers.c
+  src/core/europe.c
+  src/core/pik.c
   src/core/map.c
   src/core/dos_rng.c
   src/core/strutil.c
@@ -583,6 +589,7 @@ add_executable(smoke_reports
   src/core/colony.c
   src/core/units.c
   src/core/unit_chrome.c
+  src/core/founding_fathers.c
   src/core/dos_rng.c
   src/core/strutil.c
   src/core/map.c
