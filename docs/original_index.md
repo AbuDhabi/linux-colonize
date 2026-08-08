@@ -19,6 +19,7 @@ the deep detail.
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
+| Col1 opaque field atlas / RE roadmap | [save_format_map.md](save_format_map.md) |
 
 Session notes under [`.context/`](../.context/) (unpark queues, marathon logs) are
 **scratch** — merge status into the docs above when it changes; prefer
@@ -352,7 +353,8 @@ tile cursor blinks.” Prefer `Memory` for a full guest-RAM snapshot.
 |------|---------|
 | [`original_saves/COLONY00.SAV`](../original_saves/) / `COLONY01.SAV` | Sample Col1 saves for load fallback and RE |
 
-Layout and bridge → [savegame.md](savegame.md).
+Layout and bridge → [savegame.md](savegame.md). Field atlas / RE roadmap →
+[save_format_map.md](save_format_map.md).
 
 ---
 
@@ -378,6 +380,6 @@ Layout and bridge → [savegame.md](savegame.md).
 | How does NEW WORLD map gen work? | `FUN_684c_08c0` in `original_sources_decompiled/viceroy_unpacked.c` → `src/core/map_gen.c` |
 | Why does coast/forest art look wrong? | `original_sources_decompiled/mapedit.c` `FUN_1a47_*` → `src/core/map.c` + [assets.md](assets.md) |
 | What does this `.PIK` / `.SS` decode as? | [assets.md](assets.md) |
-| Save file field / nation gold? | [savegame.md](savegame.md) + `original_saves/` |
+| Save file field / nation gold? | [savegame.md](savegame.md) + [save_format_map.md](save_format_map.md) + `original_saves/` |
 | Live palette / blink timing? | `original_memory_dumps/dosbox_save_state_2/` (`Vga` / `Memory`) |
 | Is this feature already ported? | [decomp_inventory.md](decomp_inventory.md) bring-up list |
