@@ -1191,12 +1191,12 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
-    /* Settlement viewport no longer hosts a construction banner. */
+    /* Settlement construction banner opens Change list. */
     hit = colony_screen_hit_test(
       &view, &pool, sample, &units, COLONY_VIEWPORT_X + 10, COLONY_CONSTRUCTION_BANNER_Y + 2
     );
-    if (hit.kind == COLONY_HIT_CONSTRUCTION_BANNER) {
-      fprintf(stderr, "settlement should not expose construction banner hit\n");
+    if (hit.kind != COLONY_HIT_CONSTRUCTION_BANNER) {
+      fprintf(stderr, "expected construction banner hit got kind=%d\n", (int)hit.kind);
       if (font_ok) {
         ff_free(&font);
       }

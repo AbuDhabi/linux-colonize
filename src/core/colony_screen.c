@@ -2266,6 +2266,53 @@ static void colony_screen_fill_rect(
   }
 }
 
+/*
+ * Thin settlement banner: project name + hammer progress; click opens Change.
+ * Cite: COLONY_CONSTRUCTION_BANNER_*; Colonization.pdf colony construction.
+ */
+static void colony_screen_draw_construction_banner(
+  const ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !pool || !colony || !font || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const ColonizeBuildingType* bt =
+    (colony->building_in_production >= 0)
+      ? colonies_building_type(pool, colony->building_in_production)
+      : NULL;
+  const int need = bt ? bt->hammers : 0;
+  const int have = colony->hammers > 0 ? colony->hammers : 0;
+  const int show = (need > 0 && have > need) ? need : have;
+  char line[72];
+  if (bt) {
+    if (need > 0) {
+      snprintf(line, sizeof(line), "%s %d/%d", bt->name, show, need);
+    } else {
+      snprintf(line, sizeof(line), "%s", bt->name);
+    }
+  } else {
+    snprintf(line, sizeof(line), "Construction...");
+  }
+  /* Soft bar so text stays readable over settlement art. */
+  const uint8_t bar = 0x31;
+  for (int y = COLONY_CONSTRUCTION_BANNER_Y;
+       y < COLONY_CONSTRUCTION_BANNER_Y + COLONY_CONSTRUCTION_BANNER_H;
+       ++y) {
+    for (int x = COLONY_VIEWPORT_X; x < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W; ++x) {
+      if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
+        framebuffer->pixels[y * framebuffer->width + x] = bar;
+      }
+    }
+  }
+  font_draw_text(
+    font, framebuffer, COLONY_VIEWPORT_X + 2, COLONY_CONSTRUCTION_BANNER_Y + 1, line, 15
+  );
+}
+
 static void colony_screen_draw_construction_popup(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -2673,6 +2720,14 @@ ColonyScreenHitResult colony_screen_hit_test(
     return hit;
   }
 
+  /* Settlement construction banner (opens Change list). */
+  if (mx >= COLONY_VIEWPORT_X && mx < COLONY_VIEWPORT_X + COLONY_VIEWPORT_W &&
+      my >= COLONY_CONSTRUCTION_BANNER_Y &&
+      my < COLONY_CONSTRUCTION_BANNER_Y + COLONY_CONSTRUCTION_BANNER_H) {
+    hit.kind = COLONY_HIT_CONSTRUCTION_BANNER;
+    return hit;
+  }
+
   /* Warehouse cargo strip (load into selected transport). */
   if (my >= COLONY_CARGO_STRIP_Y && my < COLONY_SCREEN_HEIGHT && mx < COLONY_EXIT_X) {
     if (mx >= COLONY_CARGO_SLOT_X0) {
@@ -3049,6 +3104,9 @@ void colony_screen_render(
   if (colony && map && terrain) {
     colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
     colony_screen_draw_area_overlays(view, pool, colony, units, map, font, framebuffer);
+  }
+  if (view && pool && colony && font) {
+    colony_screen_draw_construction_banner(view, pool, colony, font, framebuffer);
   }
 
   if (view && view->bottom_panel_ok) {
