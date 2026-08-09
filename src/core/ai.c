@@ -224,7 +224,8 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     p->col1->head.nation_relation[i] = -1;
     p->col1->nation[i].gold = (i == human) ? 1000u : 0u;
     p->col1->nation[i].current_crosses = (i == human) ? 2u : 0u;
-    p->col1->nation[i].needed_crosses = (i == human) ? 9u : 0u;
+    p->col1->nation[i].needed_crosses = (i == human) ? 9u : 8u;
+    memset(p->col1->nation[i].euro_relation, 0, sizeof(p->col1->nation[i].euro_relation));
   }
   p->col1->head.difficulty = (uint8_t)(p->difficulty < 0 ? 0 : (p->difficulty > 4 ? 4 : p->difficulty));
   p->col1->head.year = 1492;

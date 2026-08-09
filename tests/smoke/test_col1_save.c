@@ -961,6 +961,12 @@ int main(void) {
     for (size_t i = 0; i < map.tile_count; ++i) {
       map.terrain[i] = 1; /* plains-ish land */
     }
+    /* Western ocean strip so density sync can set pacific / offshore suppress. */
+    for (int y = 0; y < (int)map.height; ++y) {
+      for (int x = 0; x < 8; ++x) {
+        map.terrain[y * (int)map.width + x] = 25; /* ocean */
+      }
+    }
     ColonizeCol1Save save;
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
       fprintf(stderr, "newgame export: template: %s\n", err);
@@ -1048,6 +1054,58 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "newgame template capture occupancy ok\n");
+    /* Blank census fill (FUN_4962_0018 template-only). */
+    if (save.stuff.all_unit_counts[0] < 1) {
+      fprintf(stderr, "newgame export: blank census all_unit_counts[0] still 0\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (save.head.unit_count < 1 || save.unit[0].vis_mask == 0) {
+      fprintf(stderr, "newgame export: vis_mask not set on spawned euro unit\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    {
+      int pacific = 0;
+      int suppress = 0;
+      for (size_t i = 0; i < save.map.tile_count; ++i) {
+        if ((save.map.mask[i] & 0x20u) != 0) {
+          pacific++;
+        }
+        if ((save.map.mask[i] & 0x04u) != 0) {
+          suppress++;
+        }
+      }
+      if (pacific == 0) {
+        fprintf(stderr, "newgame export: pacific density bit never set\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (suppress == 0) {
+        fprintf(stderr, "newgame export: suppress density bit never set\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      fprintf(
+        stderr,
+        "newgame density ok (pacific=%d suppress=%d census0=%u)\n",
+        pacific,
+        suppress,
+        (unsigned)save.stuff.all_unit_counts[0]
+      );
+    }
     /* Blank template post_map must be rebuilt (FUN_67f4_0088) on capture. */
     {
       int sea_nz = 0;
@@ -1060,7 +1118,7 @@ int main(void) {
           land_nz++;
         }
       }
-      /* Artificial all-plains map: land plane should light up; sea may be empty. */
+      /* Mixed ocean/land template: land plane should light up. */
       if (land_nz == 0) {
         fprintf(stderr, "newgame export: post_map land connectivity still blank\n");
         units_set_occupancy_map(NULL);

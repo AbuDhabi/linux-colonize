@@ -91,9 +91,9 @@ port I/O in the native build.
   connectivity rebuild + 00f2 cache parity, stuff census + DS-named late chunks,
   colony specialty/AI/timers/`tiles[20]`, head WoI bits + map_mode + zoom,
   indian `euro_diplo` / contact / accum, nation return-xy / diplo stand-ins.
-  **P5 naming track done** — remaining opaques closed as save-only/vestigial.
-  Census = DOS-parity preserve (no freshen on export). Bridge rebuild of FA
-  matrices / mask density still open for Linux→DOS).
+  **P5 naming + P6 template interop done** — mask density, blank census,
+  colony levels/specialty, `vis_mask`; late `unknown_ds_*` stay export-OK zero.
+  Mid-campaign census = DOS-parity preserve (no freshen).)
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,

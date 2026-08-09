@@ -83,6 +83,7 @@ add_library(colonize_core STATIC
   src/core/col1_save.c
   src/core/col1_bridge.c
   src/core/col1_post_map.c
+  src/core/col1_stuff_census.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -247,6 +248,7 @@ add_executable(smoke_game_flow
   src/core/col1_save.c
   src/core/col1_bridge.c
   src/core/col1_post_map.c
+  src/core/col1_stuff_census.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -302,6 +304,7 @@ add_executable(smoke_new_game
   src/core/col1_save.c
   src/core/col1_bridge.c
   src/core/col1_post_map.c
+  src/core/col1_stuff_census.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c

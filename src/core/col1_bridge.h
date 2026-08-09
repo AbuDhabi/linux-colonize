@@ -91,6 +91,14 @@ void col1_bridge_sync_map_occupancy(
 );
 
 /*
+ * Synthesize Col1 mask density bits (suppress/purchased/pacific) from live
+ * terrain + layer2 (FUN_684c_08c0 / FUN_137f_015e). Preserves purchased when
+ * neither plane tracks a clear; ORs layer2 deplete/purchase/pacific.
+ * Call after road/plow sync, before or after occupancy rebuild.
+ */
+void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap* map);
+
+/*
  * After a European unit steps onto (x,y): if adjacent to a tribe village,
  * bump that tribe's alarm for european_nation (0..3) and indian.alarm_by_player.
  * Does NOT set euro_diplo — first contact is ai_contact_try_first_welcome.

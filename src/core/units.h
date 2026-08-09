@@ -173,6 +173,8 @@ int units_find_type(const ColonizeUnitPool* pool, const char* name);
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
 /* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
+/* Set nation_id and OR owner euro visibility bit (FUN_1427_0992). */
+void units_set_nation(ColonizeUnit* unit, int nation_id);
 /*
  * Spawn a Treasure Train at (x,y) for nation_id with COL1 LE16 gold in
  * hold_goods_amount[0]=lo / [1]=hi (same bridge as game_loop / ai_euro cash).

@@ -459,6 +459,20 @@ int colonies_found_with_indian_land(
           }
         }
       }
+      /* FUN_281f_068c(..., 0x10, 1) — purchased tribal land on founding tile. */
+      if (col1->map.mask && col1->head.map_size_x > 0) {
+        const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
+        if (idx < col1->map.tile_count) {
+          col1->map.mask[idx] = (uint8_t)(col1->map.mask[idx] | 0x10u);
+        }
+      }
+      if (map && map->layer2 && map_coords_inset(map, x, y)) {
+        const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+        if (idx < map->tile_count) {
+          ((ColonizeWorldMap*)map)->layer2[idx] =
+            (uint8_t)(map->layer2[idx] | MAP_LAYER2_PURCHASED);
+        }
+      }
     }
   }
   return colonies_found(

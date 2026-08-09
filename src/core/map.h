@@ -37,8 +37,14 @@
  */
 #define MAP_OCCUPANCY_HAS_UNIT 0x01u
 #define MAP_OCCUPANCY_HAS_CITY 0x02u
-/* Layer2 stand-in: procedural LCR consumed (COL1 mask bit PARKED). */
+/* Col1 mask density bits mirrored in layer2 (FUN_137f_015e / FUN_281f_068c). */
+#define MAP_LAYER2_SUPPRESS 0x04u /* prime suppress / silver deplete */
+#define MAP_LAYER2_PURCHASED 0x10u /* tribal land purchased */
+#define MAP_LAYER2_PACIFIC 0x20u /* western ocean strip (mapgen) */
+/* Layer2 stand-in: procedural LCR consumed — NOT Col1 road (mask 0x08). */
 #define MAP_LAYER2_RUMOUR_CLEARED 0x08u
+/* DOS AI FA also checks layer2 bit 0x40 for roads (mask road is 0x08). */
+#define MAP_LAYER2_FA_ROAD 0x40u
 
 typedef struct ColonizeWorldMap {
   uint8_t width;
