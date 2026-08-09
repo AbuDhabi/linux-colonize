@@ -61,7 +61,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
 | Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7 costs; full-MP enter; partial overspend via DOS `range(1,cost)` (charges MP even on fail) |
-| Fortify (F), Sentry (S), Disband, Goto (G) | Done | **Go-To** via map drag or ORDERS **Go to Place** (click dest); **Go to Port** → next owned colony; **Fortify** (F / ORDERS; overnight → Fortified); **Anchor** (2nd ORDERS Fortify; ship in harbor); **Sentry** (S when unit selected; menu Save still via menu / S with no unit); **Disband** (Shift+D / ORDERS). Activate wakes sentry/fortified |
+| Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools; ORDERS Clear Forest / Plow Fields / Build Road |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
