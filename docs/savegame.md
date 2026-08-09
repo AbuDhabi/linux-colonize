@@ -130,21 +130,20 @@ occupancy fix:
 - `post_map` (614) — connectivity planes + continent tallies rebuilt on blank
   templates (`col1_post_map_rebuild_connectivity` / `FUN_67f4_0088`, including
   `FUN_6662_00f2` dest cache); `prime_resource_seed` stamped from mapgen when
-  present; `unknown_ds_8d80` / `unknown_post_604` still zero / RMW-preserved
-- Most of `stuff` beyond early census — mid-window named from `FUN_4962_0018`
-  (`veteran_teach_threshold` reader-only / vestigial writer); census bytes are
-  **DOS-parity preserved** on RMW/export (do not freshen mid-turn lag)
-- Colony AI/timer fields named but not bridged live; rebuild zeros unnamed
-  bytes (`warehouse_level` / `capitol_level` / `hammers_purchased` named)
+  present; `boot_timer` / `save_path_blob` still zero / RMW-preserved
+- Stuff late DS chunks (`unknown_ds_*` / tribe dwellings) named for RMW; not
+  rebuilt on export; census **DOS-parity preserved** (no freshen)
+- Colony specialty/visibility/AI fields named; rebuild still zeros many on
+  new-colony capture (`warehouse_level` / `capitol_level` named but not live)
 - Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
 - AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
 - `vis_mask` (nation high nibble) — preserved on apply→capture; spawn leaves 0
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
 rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`
-case). Template exports now also fill `post_map` connectivity when blank; mask
-`pacific`/`suppress` density and remaining stuff/`unknown36` holes may still
-affect Linux→DOS. Do not invent those without decomp evidence.
+case). Template exports fill `post_map` connectivity when blank; mask
+`pacific`/`suppress`/`purchased` synthesis and stuff FA matrices remain the
+main Linux→DOS export gaps (named, not invented).
 
 ### Verified fixtures
 

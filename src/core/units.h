@@ -147,7 +147,7 @@ typedef struct ColonizeUnit {
   int horses; /* 0 or 50 when mounted */
   int home_tribe_id; /* DOS unit+0x06 / DS:314a; -1 = none */
   int turns_worked; /* COL1 unit+0x16; Brave pulse / labor counter */
-  int last_dir; /* DOS unit+0x0c / Col1 unknown18; facing 0..7 for AI scoring */
+  int last_dir; /* DOS unit facing / Col1 facing; 0..7 for AI scoring */
   uint8_t col1_unknown15; /* round-trip; bit7 = ship damaged */
   /*
    * DOS unit+0x07 / Col1 ai_plan. Starter saves use 0x58 ('X') on essentially

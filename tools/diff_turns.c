@@ -60,17 +60,17 @@ int main(int argc, char** argv) {
   }
   for (unsigned i = 0; i < a.head.tribe_count && i < b.head.tribe_count; i++) {
     if (a.tribe[i].population != b.tribe[i].population ||
-        a.tribe[i].unknown28[0] != b.tribe[i].unknown28[0] || a.tribe[i].x != b.tribe[i].x ||
+        a.tribe[i].growth_accum != b.tribe[i].growth_accum || a.tribe[i].x != b.tribe[i].x ||
         a.tribe[i].y != b.tribe[i].y) {
       printf(
         "TRIBE[%u] pop=%u acc=%u xy=(%u,%u) -> pop=%u acc=%u xy=(%u,%u)\n",
         i,
         a.tribe[i].population,
-        a.tribe[i].unknown28[0],
+        a.tribe[i].growth_accum,
         a.tribe[i].x,
         a.tribe[i].y,
         b.tribe[i].population,
-        b.tribe[i].unknown28[0],
+        b.tribe[i].growth_accum,
         b.tribe[i].x,
         b.tribe[i].y
       );

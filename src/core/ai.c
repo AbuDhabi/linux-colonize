@@ -2226,15 +2226,15 @@ static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
     if (!t->state.capital) {
       continue;
     }
-    /* FUN_4d56_152e: accumulate population into unknown28[0]; overflow → pop++. */
-    int acc = (int)t->unknown28[0] + (int)t->population;
+    /* FUN_4d56_152e: accumulate population into growth_accum; overflow → pop++. */
+    int acc = (int)t->growth_accum + (int)t->population;
     if (acc > AI_VILLAGE_GROWTH_THRESHOLD) {
-      t->unknown28[0] = 0;
+      t->growth_accum = 0;
       if (t->population < 15) {
         t->population++;
       }
     } else {
-      t->unknown28[0] = (uint8_t)acc;
+      t->growth_accum = (uint8_t)acc;
     }
   }
 }

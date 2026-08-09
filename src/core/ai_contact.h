@@ -67,7 +67,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
  */
 int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
 
-/* FUN_5bfb_0182 peace bit stand-in on indian.unknown33[euro] bit 0x40. */
+/* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
 
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */

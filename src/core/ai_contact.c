@@ -103,8 +103,7 @@ static const char* ai_contact_tribe_name(int nation_id) {
   return k_names[idx];
 }
 
-/* FUN_5bfb_0182: peace/treaty bit on indian.unknown33[euro]. */
-#define AI_CONTACT_PEACE_BIT 0x40u
+/* FUN_5bfb_0182: peace/treaty bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 
 /* FUN_5bfb_022e Yes/No (local_c). */
 enum {
@@ -132,7 +131,7 @@ int ai_contact_indian_has_peace(
   if (idx < 0 || idx >= 8) {
     return 0;
   }
-  return (col1->indian[idx].unknown33[euro_nation] & AI_CONTACT_PEACE_BIT) != 0;
+  return (col1->indian[idx].euro_diplo[euro_nation] & COL1_INDIAN_PEACE_BIT) != 0;
 }
 
 static void ai_contact_set_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
@@ -143,8 +142,8 @@ static void ai_contact_set_peace(ColonizeCol1Save* col1, int indian_nation, int 
   if (idx < 0 || idx >= 8) {
     return;
   }
-  col1->indian[idx].unknown33[euro_nation] =
-    (uint8_t)(col1->indian[idx].unknown33[euro_nation] | AI_CONTACT_PEACE_BIT);
+  col1->indian[idx].euro_diplo[euro_nation] =
+    (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
 }
 
 static void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
@@ -155,8 +154,8 @@ static void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, in
   if (idx < 0 || idx >= 8) {
     return;
   }
-  col1->indian[idx].unknown33[euro_nation] =
-    (uint8_t)(col1->indian[idx].unknown33[euro_nation] & (uint8_t)~AI_CONTACT_PEACE_BIT);
+  col1->indian[idx].euro_diplo[euro_nation] =
+    (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] & (uint8_t)~COL1_INDIAN_PEACE_BIT);
 }
 
 /*
@@ -404,11 +403,11 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
     return 0;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
-  if (ind->met_by_player[euro_nation]) {
+  if (ind->euro_diplo[euro_nation]) {
     return 0;
   }
   /* DOS OR bit 0x20 before dialog. */
-  ind->met_by_player[euro_nation] = 1;
+  ind->euro_diplo[euro_nation] = 1;
   ai_diplo_indian_relation_delta(ctx->col1, indian_nation, euro_nation, 5);
 
   if (ai_contact_euro_is_human(ctx, euro_nation) && ctx->ai_popups) {
@@ -809,7 +808,7 @@ static void ai_contact_apply_gift_gold(
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
     return;
   }
-  if (!ind->met_by_player[e]) {
+  if (!ind->euro_diplo[e]) {
     return;
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
@@ -956,7 +955,7 @@ static int ai_contact_apply_demand_tools(
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
     return 0;
   }
-  if (!ind->met_by_player[e]) {
+  if (!ind->euro_diplo[e]) {
     return 0;
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
@@ -1002,7 +1001,7 @@ static int ai_contact_apply_demand_gold(
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3) {
     return 0;
   }
-  if (!ind->met_by_player[e]) {
+  if (!ind->euro_diplo[e]) {
     return 0;
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
@@ -1122,7 +1121,7 @@ static void ai_contact_gift_or_demand(
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !other || e < 0 || e > 3) {
     return;
   }
-  if (!ind->met_by_player[e]) {
+  if (!ind->euro_diplo[e]) {
     return;
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
@@ -1485,7 +1484,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
         if (ctx->col1->player[e].control == 2) {
           continue;
         }
-        if (ind->met_by_player[e] && ind->alarm_by_player[e] < 30) {
+        if (ind->euro_diplo[e] && ind->alarm_by_player[e] < 30) {
           /* Pocahontas: half-rate alarm growth (wiki/fandom). */
           const int bump = ai_contact_alarm_bump_amount(
             ctx->col1, e, 5 + (4 - diff)
@@ -1611,7 +1610,7 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     int delta = 0;
-    if (ind->met_by_player[e]) {
+    if (ind->euro_diplo[e]) {
       delta = (ind->alarm_by_player[e] > 40) ? -1 : 1;
     }
     ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, delta);
@@ -1633,7 +1632,7 @@ static int ai_contact_auto_trade(
   if (!ctx || !ctx->colonies || !ctx->col1_ok || !ctx->col1 || !ind) {
     return 0;
   }
-  if (!ind->met_by_player[e] || ind->alarm_by_player[e] >= 50) {
+  if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 50) {
     return 0;
   }
   int best_ci = -1;
@@ -1764,7 +1763,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
       const int human = ai_contact_euro_is_human(ctx, e);
 
       /* 1. First meet → FUN_5bfb_022e @INDIANWELCOME (not Trade/Gift menu). */
-      if (!ind->met_by_player[e]) {
+      if (!ind->euro_diplo[e]) {
         (void)ai_contact_try_first_welcome(ctx, e, nation_id);
         if (ctx->col1->tribe) {
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {

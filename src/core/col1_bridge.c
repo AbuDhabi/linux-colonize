@@ -753,10 +753,11 @@ bool col1_bridge_apply(
       u->turns_worked = (int)src->turns_worked;
       /* DOS unit+0x06 / origin: home tribe index for Braves. */
       u->home_tribe_id = (int)src->origin;
-      u->col1_unknown15 = src->unknown15;
+      u->col1_unknown15 =
+        (uint8_t)((src->unknown15_lo & 0x7fu) | (src->ship_damaged ? 0x80u : 0u));
       u->col1_ai_plan = src->ai_plan;
       u->col1_vis_mask = src->vis_mask;
-      u->last_dir = (int)(src->unknown18 & 7u);
+      u->last_dir = (int)src->facing;
       /* Commodity hold slots (passengers board separately via transport chain). */
       {
         const uint8_t items[6] = {
@@ -1117,13 +1118,15 @@ bool col1_bridge_capture(
       dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
       dst->turns_worked =
         (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
-      dst->unknown15 = src->col1_unknown15;
+      dst->unknown15_lo = (uint8_t)(src->col1_unknown15 & 0x7fu);
+      dst->ship_damaged = (src->col1_unknown15 & 0x80u) != 0 ? 1u : 0u;
       dst->origin =
         (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
                                                                     : (src->home_tribe_id & 0xff));
       dst->ai_plan =
         src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-      dst->unknown18 = (uint8_t)(src->last_dir & 7);
+      dst->facing = (uint8_t)(src->last_dir & 7);
+      dst->facing_pad = 0;
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
       {
         /* Pack goods into nibble fields + amounts. Passengers are not goods. */
@@ -1266,7 +1269,7 @@ bool col1_contact_adjacent_tribe(
     }
     const int indian = (int)tr->nation_id - 4;
     if (indian >= 0 && indian < 8) {
-      if (save->indian[indian].met_by_player[european_nation] == 0) {
+      if (save->indian[indian].euro_diplo[european_nation] == 0) {
         if (!first_name) {
           first_name = k_tribe_names[indian];
           if (out_first_indian_nation) {
