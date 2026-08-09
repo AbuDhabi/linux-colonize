@@ -51,7 +51,7 @@ bool col1_bridge_apply(
 bool col1_bridge_capture(
   ColonizeCol1Save* save,
   const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
+  ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
   const EuropeScreen* europe,
   uint16_t year,
