@@ -132,11 +132,10 @@ occupancy fix:
   `FUN_6662_00f2` dest cache); `prime_resource_seed` stamped from mapgen when
   present; `unknown_ds_8d80` / `unknown_post_604` still zero / RMW-preserved
 - Most of `stuff` beyond early census — mid-window named from `FUN_4962_0018`
-  (`unknown_9428` still opaque); census bytes are **DOS-parity preserved** on
-  RMW/export (do not freshen mid-turn lag)
-- Colony residual opaques (`unknown10`, `unknown08_1b/1d/1e`, …) — zeroed on
-  colony rebuild (`warehouse_level` / `capitol_level` / `hammers_purchased`
-  named but not bridged live)
+  (`veteran_teach_threshold` reader-only / vestigial writer); census bytes are
+  **DOS-parity preserved** on RMW/export (do not freshen mid-turn lag)
+- Colony AI/timer fields named but not bridged live; rebuild zeros unnamed
+  bytes (`warehouse_level` / `capitol_level` / `hammers_purchased` named)
 - Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
 - AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
 - `vis_mask` (nation high nibble) — preserved on apply→capture; spawn leaves 0
@@ -144,7 +143,7 @@ occupancy fix:
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
 rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`
 case). Template exports now also fill `post_map` connectivity when blank; mask
-`pacific`/`suppress` density and remaining stuff/`unknown10` holes may still
+`pacific`/`suppress` density and remaining stuff/`unknown36` holes may still
 affect Linux→DOS. Do not invent those without decomp evidence.
 
 ### Verified fixtures
@@ -155,10 +154,10 @@ Codec byte-identical round-trip + import via `col1_bridge_apply`:
 ~1668–1698), and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
 
 Mapped-field checks on starters + lategame (occupancy, `colony_counts` vs live
-colonies, warehouse/capitol/depletion bounds, `map_mode`/`zoom_level`,
-indian `contact_state` ∈ {0,1,2}, nation tax/rebel sentiment,
-`prime_resource_seed`, connectivity planes present). Lategame COLONY00 also
-re-checks `FUN_67f4_0088` plane rebuild byte-exact.
+colonies, warehouse/capitol/depletion/timer bounds, `tiles[8..19]==0xff`,
+`map_mode`/`zoom_level`, indian `contact_state` / `euro_relation_accum`,
+nation tax/rebel sentiment, `prime_resource_seed`, connectivity planes).
+Lategame COLONY00 also re-checks `FUN_67f4_0088` plane rebuild byte-exact.
 
 Occupancy / export regression (`smoke_col1_save`):
 `tests-save-misc/unit flags error.sav` (apply→capture must clear stray

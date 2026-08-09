@@ -1037,8 +1037,8 @@ bool col1_bridge_capture(
         }
         dst->stock[c] = (uint16_t)s;
       }
-      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
-        dst->tiles[ti] = (int8_t)-1;
+      for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
+        dst->tiles[ti] = (int8_t)-1; /* DOS empty = 0xff */
       }
       for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES; ++rti) {
         const int who = (int)src->tiles[rti];

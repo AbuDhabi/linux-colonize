@@ -240,6 +240,31 @@ static bool assert_mapped_fields_consistent(const ColonizeCol1Save* save, const 
       );
       return false;
     }
+    if (c->improve_timer > 0x7f || c->cargo_idle_turns > 0x7f) {
+      fprintf(
+        stderr,
+        "%s: colony[%u] timer improve=%u cargo_idle=%u\n",
+        label,
+        (unsigned)i,
+        (unsigned)c->improve_timer,
+        (unsigned)c->cargo_idle_turns
+      );
+      return false;
+    }
+    /* Extended tile slots [8..19] are empty (0xff) in observed DOS saves. */
+    for (unsigned t = COLONIZE_COL1_COLONY_TILE_RING; t < COLONIZE_COL1_COLONY_TILES; ++t) {
+      if ((uint8_t)c->tiles[t] != 0xff) {
+        fprintf(
+          stderr,
+          "%s: colony[%u] tiles[%u]=%d (expected 0xff)\n",
+          label,
+          (unsigned)i,
+          t,
+          (int)c->tiles[t]
+        );
+        return false;
+      }
+    }
   }
   for (unsigned n = 0; n < COLONIZE_COL1_NATION_COUNT; ++n) {
     if (save->stuff.colony_counts[n] != colony_by_nation[n]) {
@@ -275,6 +300,19 @@ static bool assert_mapped_fields_consistent(const ColonizeCol1Save* save, const 
           (unsigned)ti,
           e,
           (int)st
+        );
+        return false;
+      }
+      const int accum = (int)save->indian[ti].euro_relation_accum[e];
+      /* Soft bound: spill normalizes around ±7; allow mid-spill saves. */
+      if (accum < -15 || accum > 15) {
+        fprintf(
+          stderr,
+          "%s: indian[%u].euro_relation_accum[%u]=%d\n",
+          label,
+          (unsigned)ti,
+          e,
+          accum
         );
         return false;
       }
