@@ -135,26 +135,50 @@ int colony_yield_for_worker(
   return yld;
 }
 
-int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
-  if (!col1 || !colony || !col1->colony) {
+int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  if (!colony) {
     return 0;
   }
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if ((int)c->x != colony->x || (int)c->y != colony->y) {
-      continue;
+  if (col1 && col1->colony) {
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &col1->colony[i];
+      if ((int)c->x != colony->x || (int)c->y != colony->y) {
+        continue;
+      }
+      if (c->rebel_divisor == 0) {
+        break; /* fall through to nation bells */
+      }
+      int sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+      if (sol < 0) {
+        sol = 0;
+      }
+      if (sol > 100) {
+        sol = 100;
+      }
+      return sol;
     }
-    if (c->rebel_divisor == 0) {
-      return 0;
+  }
+  /* FUN_43f7_0004-shaped: liberty_bells_total/4 when rebel fields unavailable. */
+  if (col1 && colony->nation_id >= 0 && colony->nation_id < 4) {
+    int sol = (int)col1->nation[colony->nation_id].liberty_bells_total / 4;
+    if (sol > 100) {
+      sol = 100;
     }
-    const int sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
-    if (sol >= 100) {
-      return 2;
+    if (sol < 0) {
+      sol = 0;
     }
-    if (sol >= 50) {
-      return 1;
-    }
-    return 0;
+    return sol;
+  }
+  return 0;
+}
+
+int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  const int sol = colony_prod_sol_percent(col1, colony);
+  if (sol >= 100) {
+    return 2;
+  }
+  if (sol >= 50) {
+    return 1;
   }
   return 0;
 }

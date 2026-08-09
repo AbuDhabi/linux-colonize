@@ -71,7 +71,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Landfall confirm + activate-all ashore | Done | Ship→bare land: CHOICE unload one / activate all / cancel (`AI_POPUP_TAG_LANDFALL`); ship stays at sea — [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
-| Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; thin unload-all / surplus-load at colony (Europe sell on 999); Col1 load/unload nibbles still thin |
+| Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; stop service honors Col1 load/unload nibbles when counts>0 (else unload-all / surplus ladder); Edit autofills unload from selected unit + load from colony surplus; Europe sell on 999; full cargo picker UI still thin |
 
 ### Colonies
 
@@ -83,7 +83,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
 | Construction queue + buy with gold | Partial | Construction tab BUY/CHANGE; Change list uses min-pop / upgrade / FF gates; hammers = accumulated progress; `NAMES` tools×10; no settlement banner |
 | Warehouse drag load/unload to ships / wagons | Done | Drag cargo↔hold (icon cursor); **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122** |
-| SoL / Tory display | Partial | Col1 rebel_dividend/divisor when save-bridged; else stub 0%/100%; Tory right-aligned; people row includes fence units |
+| SoL / Tory display | Partial | Col1 rebel_dividend/divisor when present; else nation liberty_bells/4 stand-in (`colony_prod_sol_percent`); Tory right-aligned; people row includes fence units |
 | Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥3; last colonist confirms abandon (cargo lost) |
 | Fortification defense bonuses | Done | Land +100/150/200%; coastal Fort/Fortress fire EOT (`units_coastal_fort_fire_pulse`). Fence/docks art separate |
 
@@ -167,7 +167,7 @@ Aligned with early manual chapters (short playable loop first), then the
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
 2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; boycotts / volume prices later
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
-4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE load/unload nibbles still thin
+4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE stop nibble honor Done (Edit UI thin)
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense) — T0 land/naval/capture + fort % + coastal fort fire in; ship-slow / deep `20e6` still PARKED
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
@@ -176,7 +176,7 @@ Aligned with early manual chapters (short playable loop first), then the
    structural `ai_popup`; deep/VGA PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + thin stop cargo **Done**; Col1 nibble UI still thin
+10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill **Done**; full cargo picker UI still thin
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---
@@ -190,7 +190,7 @@ king/REF (incl. audience/confirm/merc), FF elect, and early Euro AI (seed-100 T2
 + thin expand/war) are in; next playability work is leftover **FF hooks**
 (Sepulveda/Cortes), deep mid-planner `20e6`, and VGA / deep AI bodies — not
 waiting on missing combat/capture prerequisites. TRADE Create/Edit/Begin
-aim+cycle is thin; cargo load/unload nibbles, Congress UI, and full 1:1 AI
+aim+cycle + stop nibble honor + Edit autofill is thin; full cargo picker UI, Congress UI, and full 1:1 AI
 bodies remain.
 
 ## See also

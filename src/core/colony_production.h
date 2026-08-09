@@ -65,6 +65,13 @@ int colony_yield_for_worker(
 );
 
 /*
+ * Colony SoL % for display / production (capped 0..100).
+ * Prefer Col1 rebel_dividend/divisor at colony tile; else nation
+ * liberty_bells_total/4 (FUN_43f7_0004-shaped stand-in when rebel fields empty).
+ */
+int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
+
+/*
  * Sons of Liberty production bonus (manual / building_production.md):
  * SoL ≥50% → +1 per production unit; SoL =100% → +2 total. 0 if unknown.
  * PARK: Tory −1 difficulty caps.
