@@ -61,21 +61,23 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
 | Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7 costs; full-MP enter; partial overspend via DOS `range(1,cost)` (charges MP even on fail) |
-| Fortify (F), Sentry (S), Disband, Goto (G) | Partial | **Go-To** via map drag; **Fortify** (F / ORDERS; overnight → Fortified); **Sentry** (S when unit selected; menu Save still via menu / S with no unit); **Disband** (Shift+D / ORDERS). Activate wakes sentry/fortified |
+| Fortify (F), Sentry (S), Disband, Goto (G) | Done | **Go-To** via map drag or ORDERS **Go to Place** (click dest); **Go to Port** → next owned colony; **Fortify** (F / ORDERS; overnight → Fortified); **Anchor** (2nd ORDERS Fortify; ship in harbor); **Sentry** (S when unit selected; menu Save still via menu / S with no unit); **Disband** (Shift+D / ORDERS). Activate wakes sentry/fortified |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
-| Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools |
+| Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools; ORDERS Clear Forest / Plow Fields / Build Road |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
+| Dump cargo overboard | Done | ORDERS Dump Cargo Overboard → first goods hold |
+| Pillage | Partial | ORDERS: military loots foreign Euro colony stock or clears plow/road; thin vs full `2b5a` body |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Landfall confirm + activate-all ashore | Partial | Simplified: unload ready cargo; full dialog deferred |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
-| Trade routes (TRADE menu) | Missing | Menu stubbed |
+| Trade routes (TRADE menu) | Partial | ORDERS Begin Trade Route sets `@ORDERS` index 2 on ship/wagon; TRADE Create/Edit/Delete still stubbed |
 
 ### Colonies
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump |
-| Join colony | Partial | Opens colony screen; not true join-into-population |
+| Join colony | Done | ORDERS Join Colony admits selected land unit on owned colony tile; else opens colony screen |
 | Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
 | Construction queue + buy with gold | Partial | Construction tab BUY/CHANGE; Change list uses min-pop / upgrade / FF gates; hammers = accumulated progress; `NAMES` tools×10; no settlement banner |
@@ -164,7 +166,7 @@ Aligned with early manual chapters (short playable loop first), then the
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
 2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; boycotts / volume prices later
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
-4. **Unit orders** — fortify, sentry, disband (goto drag done)
+4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route byte); TRADE editor still open
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense) — T0 land/naval/capture + fort % + coastal fort fire in; ship-slow / deep `20e6` still PARKED
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
@@ -173,7 +175,7 @@ Aligned with early manual chapters (short playable loop first), then the
    structural `ai_popup`; deep/VGA PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** (manual notes mouse; lower priority for core loop)
+10. **Trade routes** — Create/Edit/Delete TRADE menu (Begin Trade Route order byte Done)
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---
@@ -186,8 +188,8 @@ units / naval passengers, founding a colony, and Europe buy/sell/recruit/hire**.
 king/REF (incl. audience/confirm/merc), FF elect, and early Euro AI (seed-100 T2
 + thin expand/war) are in; next playability work is leftover **FF hooks**
 (Sepulveda/Cortes), deep mid-planner `20e6`, and VGA / deep AI bodies — not
-waiting on missing combat/capture prerequisites. Still thin on fort defense %,
-trade routes, Congress UI, and full 1:1 AI bodies.
+waiting on missing combat/capture prerequisites. Still thin on TRADE route
+editor UI, Congress UI, and full 1:1 AI bodies.
 
 ## See also
 

@@ -2008,8 +2008,168 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
   return units_set_orders(pool, unit_id, UNITS_ORDER_FORTIFY);
 }
 
+bool units_order_anchor(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeColonyPool* colonies
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u) || !units_is_sea(pool, unit_id)) {
+    return false;
+  }
+  if (!colonies) {
+    return false;
+  }
+  /* Harbor: own Euro colony on this tile, or adjacent (ship in port approaches). */
+  bool in_harbor = false;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (!c->active || c->nation_id != u->nation_id) {
+      continue;
+    }
+    const int dx = c->x - u->x;
+    const int dy = c->y - u->y;
+    if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) {
+      in_harbor = true;
+      break;
+    }
+  }
+  if (!in_harbor) {
+    return false;
+  }
+  if (u->orders == UNITS_ORDER_FORTIFIED) {
+    return true;
+  }
+  u->goto_x = UNITS_GOTO_NONE;
+  u->goto_y = UNITS_GOTO_NONE;
+  u->follow_unit_id = -1;
+  u->orders = UNITS_ORDER_FORTIFY;
+  u->moves_left = 0;
+  return true;
+}
+
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id) {
   return units_set_orders(pool, unit_id, UNITS_ORDER_SENTRY);
+}
+
+bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u)) {
+    return false;
+  }
+  /* Wagons and ships run trade routes; refuse pure foot units without holds. */
+  if (!units_is_transport(pool, unit_id)) {
+    return false;
+  }
+  u->goto_x = UNITS_GOTO_NONE;
+  u->goto_y = UNITS_GOTO_NONE;
+  u->follow_unit_id = -1;
+  u->orders = UNITS_ORDER_TRADE_ROUTE;
+  u->moves_left = 0;
+  return true;
+}
+
+int units_dump_cargo_overboard(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  int* out_cargo_type,
+  int* out_amount
+) {
+  if (!units_is_transport(pool, unit_id)) {
+    return 0;
+  }
+  const int hold = units_first_goods_hold(pool, unit_id);
+  if (hold < 0) {
+    return 0;
+  }
+  return units_unload_goods_hold(pool, unit_id, hold, out_cargo_type, out_amount);
+}
+
+bool units_pillage(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* colonies,
+  char* err,
+  size_t err_size
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active || !units_is_on_map(u) || !map) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Select a unit");
+    }
+    return false;
+  }
+  if (units_is_sea(pool, unit_id)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Cannot pillage at sea");
+    }
+    return false;
+  }
+  const ColonizeUnitType* type = units_type(pool, u->type_index);
+  if (!type || type->attack <= 0) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Need a military unit");
+    }
+    return false;
+  }
+  if (u->moves_left <= 0) {
+    if (err && err_size) {
+      snprintf(err, err_size, "No moves left");
+    }
+    return false;
+  }
+
+  const int cid = colonies ? colonies_id_at(colonies, u->x, u->y) : -1;
+  ColonizeColony* col = (cid >= 0) ? colonies_get_mut(colonies, cid) : NULL;
+  if (col && col->nation_id != u->nation_id && col->nation_id >= 0 && col->nation_id < 4) {
+    /* Loot richest non-food warehouse cargo (thin ORDERS Pillage). */
+    int best = -1;
+    int best_amt = 0;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      if (c == COLONIZE_CARGO_FOOD) {
+        continue;
+      }
+      if (col->stock[c] > best_amt) {
+        best_amt = col->stock[c];
+        best = c;
+      }
+    }
+    if (best < 0 || best_amt <= 0) {
+      if (err && err_size) {
+        snprintf(err, err_size, "Nothing to pillage");
+      }
+      return false;
+    }
+    const int take = best_amt < 100 ? best_amt : 100;
+    col->stock[best] -= take;
+    u->moves_left = 0;
+    if (err && err_size) {
+      snprintf(err, err_size, "Pillaged %d cargo", take);
+    }
+    return true;
+  }
+
+  /* Non-colony: clear plow / road improvements on the tile. */
+  const bool had_plow = map_tile_is_plowed(map, u->x, u->y);
+  const bool had_road = map_tile_has_road(map, u->x, u->y);
+  if (!had_plow && !had_road) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Nothing to pillage");
+    }
+    return false;
+  }
+  if (had_plow) {
+    map_tile_set_plowed(map, u->x, u->y, false);
+  }
+  if (had_road) {
+    map_tile_set_road(map, u->x, u->y, false);
+  }
+  u->moves_left = 0;
+  if (err && err_size) {
+    snprintf(err, err_size, "Pillaged improvements");
+  }
+  return true;
 }
 
 bool units_disband(ColonizeUnitPool* pool, int unit_id) {

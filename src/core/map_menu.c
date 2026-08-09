@@ -163,6 +163,7 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
       return MAP_MENU_ACTION_WAIT_UNIT;
     }
     if (strcmp(label, "Fortify") == 0) {
+      /* First Fortify = land; second identical row = ship Anchor (GAME.TXT). */
       return MAP_MENU_ACTION_FORTIFY;
     }
     if (strcmp(label, "Sentry") == 0) {
@@ -174,17 +175,41 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Join Colony (B)") == 0) {
       return MAP_MENU_ACTION_JOIN_COLONY;
     }
+    if (strcmp(label, "Clear Forest (P)") == 0) {
+      return MAP_MENU_ACTION_CLEAR_FOREST;
+    }
+    if (strcmp(label, "Plow Fields  (P)") == 0 || strcmp(label, "Plow Fields (P)") == 0) {
+      return MAP_MENU_ACTION_PLOW_FIELDS;
+    }
+    if (strcmp(label, "Build Road") == 0) {
+      return MAP_MENU_ACTION_BUILD_ROAD;
+    }
     if (strcmp(label, "Load Cargo") == 0) {
       return MAP_MENU_ACTION_LOAD_CARGO;
     }
     if (strcmp(label, "Unload Cargo") == 0) {
       return MAP_MENU_ACTION_UNLOAD_CARGO;
     }
+    if (strcmp(label, "Pillage") == 0) {
+      return MAP_MENU_ACTION_PILLAGE;
+    }
+    if (strcmp(label, "Go to Port") == 0) {
+      return MAP_MENU_ACTION_GOTO_PORT;
+    }
+    if (strcmp(label, "Go to Place") == 0) {
+      return MAP_MENU_ACTION_GOTO_PLACE;
+    }
+    if (strcmp(label, "Begin Trade Route") == 0) {
+      return MAP_MENU_ACTION_TRADE_ROUTE;
+    }
     if (strcmp(label, "Return to Europe") == 0) {
       return MAP_MENU_ACTION_RETURN_EUROPE;
     }
     if (strcmp(label, "No Orders (space bar)") == 0) {
       return MAP_MENU_ACTION_NO_ORDERS;
+    }
+    if (strcmp(label, "Dump Cargo Overboard") == 0) {
+      return MAP_MENU_ACTION_DUMP_OVERBOARD;
     }
     if (strstr(label, "Disband Unit") != NULL) {
       return MAP_MENU_ACTION_DISBAND;
@@ -319,12 +344,21 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_WAIT_UNIT:
     case MAP_MENU_ACTION_BUILD_COLONY:
     case MAP_MENU_ACTION_JOIN_COLONY:
+    case MAP_MENU_ACTION_CLEAR_FOREST:
+    case MAP_MENU_ACTION_PLOW_FIELDS:
+    case MAP_MENU_ACTION_BUILD_ROAD:
     case MAP_MENU_ACTION_LOAD_CARGO:
     case MAP_MENU_ACTION_UNLOAD_CARGO:
+    case MAP_MENU_ACTION_PILLAGE:
+    case MAP_MENU_ACTION_GOTO_PORT:
+    case MAP_MENU_ACTION_GOTO_PLACE:
+    case MAP_MENU_ACTION_TRADE_ROUTE:
     case MAP_MENU_ACTION_RETURN_EUROPE:
     case MAP_MENU_ACTION_FORTIFY:
+    case MAP_MENU_ACTION_ANCHOR:
     case MAP_MENU_ACTION_SENTRY:
     case MAP_MENU_ACTION_DISBAND:
+    case MAP_MENU_ACTION_DUMP_OVERBOARD:
     case MAP_MENU_ACTION_NO_ORDERS:
     case MAP_MENU_ACTION_PEDIA_CARGO:
     case MAP_MENU_ACTION_PEDIA_UNIT:
@@ -419,7 +453,17 @@ static bool map_menu_load_section(
     if (classify_label[0] == '\0') {
       continue;
     }
-    map_menu_append_item(menu, label, map_menu_classify(section_name, classify_label));
+    MapMenuAction action = map_menu_classify(section_name, classify_label);
+    /* MENU.TXT lists ~Fortify twice: land fortify then ship Anchor. */
+    if (strcmp(section_name, "ORDERS") == 0 && action == MAP_MENU_ACTION_FORTIFY) {
+      for (int j = 0; j < menu->item_count; ++j) {
+        if (menu->items[j].action == MAP_MENU_ACTION_FORTIFY) {
+          action = MAP_MENU_ACTION_ANCHOR;
+          break;
+        }
+      }
+    }
+    map_menu_append_item(menu, label, action);
   }
   bar->menu_count++;
   return true;
@@ -875,18 +919,36 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Build Colony";
     case MAP_MENU_ACTION_JOIN_COLONY:
       return "Join Colony";
+    case MAP_MENU_ACTION_CLEAR_FOREST:
+      return "Clear Forest";
+    case MAP_MENU_ACTION_PLOW_FIELDS:
+      return "Plow Fields";
+    case MAP_MENU_ACTION_BUILD_ROAD:
+      return "Build Road";
     case MAP_MENU_ACTION_LOAD_CARGO:
       return "Load Cargo";
     case MAP_MENU_ACTION_UNLOAD_CARGO:
       return "Unload Cargo";
+    case MAP_MENU_ACTION_PILLAGE:
+      return "Pillage";
+    case MAP_MENU_ACTION_GOTO_PORT:
+      return "Go to Port";
+    case MAP_MENU_ACTION_GOTO_PLACE:
+      return "Go to Place";
+    case MAP_MENU_ACTION_TRADE_ROUTE:
+      return "Begin Trade Route";
     case MAP_MENU_ACTION_RETURN_EUROPE:
       return "Return to Europe";
     case MAP_MENU_ACTION_FORTIFY:
       return "Fortify";
+    case MAP_MENU_ACTION_ANCHOR:
+      return "Anchor";
     case MAP_MENU_ACTION_SENTRY:
       return "Sentry";
     case MAP_MENU_ACTION_DISBAND:
       return "Disband Unit";
+    case MAP_MENU_ACTION_DUMP_OVERBOARD:
+      return "Dump Cargo Overboard";
     case MAP_MENU_ACTION_NO_ORDERS:
       return "No Orders";
     case MAP_MENU_ACTION_PEDIA_CARGO:

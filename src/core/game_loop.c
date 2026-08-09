@@ -139,6 +139,7 @@ struct ColonizeGameState {
   int map_goto_down_py;
   bool map_goto_dragged_px; /* true once pointer moved ≥1 logical pixel */
   uint32_t goto_step_accum_ms; /* paces Go-To at 10 steps/sec */
+  bool map_goto_place_mode; /* ORDERS Go to Place: next map click sets goto */
   ColonizeDosRng move_rng; /* FUN_465b partial-overspend rolls */
   uint32_t ai_rng_seed; /* FUN_281f_04ca timer word; VR_SEED = 100 */
   bool unit_icons_ok;
@@ -187,6 +188,7 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
+static void game_wait_next_unit(ColonizeGameState* game);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 
@@ -3030,6 +3032,75 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
   colony_screen_set_status(&game->colony_screen, col ? col->name : "Colony");
 }
 
+/*
+ * ORDERS Join Colony: admit selected land unit on an owned colony tile into
+ * the population; otherwise open the colony screen at the cursor (legacy).
+ */
+static void game_join_colony_order(ColonizeGameState* game) {
+  if (!game || !game->units_ok || !game->colonies_ok) {
+    set_status(game, "Cannot join colony", NULL);
+    return;
+  }
+  const int sid = game->units.selected_id;
+  const ColonizeUnit* u = units_get_const(&game->units, sid);
+  if (u && u->active && units_is_on_map(u) && !units_is_sea(&game->units, sid)) {
+    const int cid = colonies_id_at(&game->colonies, u->x, u->y);
+    const ColonizeColony* col = colonies_get(&game->colonies, cid);
+    if (col && col->nation_id == game->human_nation) {
+      const int ci = colonies_admit_unit(&game->colonies, cid, &game->units, sid);
+      if (ci >= 0) {
+        game->units.selected_id = -1;
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "Joined %s",
+          col->name[0] ? col->name : "colony"
+        );
+        game_wait_next_unit(game);
+        return;
+      }
+      set_status(game, "Cannot join colony", NULL);
+      return;
+    }
+  }
+  game_enter_colony_at_cursor(game);
+}
+
+/* Next owned colony after cursor (wrap); used by Find Colony and Go to Port. */
+static const ColonizeColony* game_next_owned_colony(ColonizeGameState* game) {
+  if (!game || game->colonies.colony_count <= 0) {
+    return NULL;
+  }
+  int best_id = -1;
+  int best_x = 9999;
+  int best_y = 9999;
+  int next_id = -1;
+  int next_x = 9999;
+  int next_y = 9999;
+  const int cx = game->map_cursor_x;
+  const int cy = game->map_cursor_y;
+  const int nation = game->human_nation;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (!c->active || c->nation_id != nation) {
+      continue;
+    }
+    if (best_id < 0 || c->y < best_y || (c->y == best_y && c->x < best_x)) {
+      best_id = c->id;
+      best_x = c->x;
+      best_y = c->y;
+    }
+    const bool after = (c->y > cy) || (c->y == cy && c->x > cx);
+    if (after &&
+        (next_id < 0 || c->y < next_y || (c->y == next_y && c->x < next_x))) {
+      next_id = c->id;
+      next_x = c->x;
+      next_y = c->y;
+    }
+  }
+  return colonies_get(&game->colonies, next_id >= 0 ? next_id : best_id);
+}
+
 /* One selection: colony colonist index, or admit selected outside unit first. */
 static int game_colony_selected_colonist(ColonizeGameState* game) {
   if (!game) {
@@ -3992,6 +4063,16 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       }
       return true;
     }
+    case MAP_MENU_ACTION_ANCHOR: {
+      const int uid = game->units.selected_id;
+      if (uid < 0 || !units_order_anchor(&game->units, uid, &game->colonies)) {
+        set_status(game, "Cannot anchor (need ship in harbor)", NULL);
+      } else {
+        set_status(game, "Anchored", NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
     case MAP_MENU_ACTION_SENTRY: {
       const int uid = game->units.selected_id;
       if (uid < 0 || !units_order_sentry(&game->units, uid)) {
@@ -4016,8 +4097,102 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       (void)game_try_found_colony_at_cursor(game);
       return true;
     case MAP_MENU_ACTION_JOIN_COLONY:
-      game_enter_colony_at_cursor(game);
+      game_join_colony_order(game);
       return true;
+    case MAP_MENU_ACTION_CLEAR_FOREST:
+    case MAP_MENU_ACTION_PLOW_FIELDS: {
+      const int sid = game->units.selected_id;
+      char msg[96];
+      msg[0] = '\0';
+      if (!game->world_map_ok || !game->units_ok ||
+          !units_pioneer_plow(&game->units, sid, &game->world_map, msg, sizeof(msg))) {
+        set_status(game, msg[0] ? msg : "Cannot plow", NULL);
+      } else {
+        set_status(game, msg, NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_BUILD_ROAD: {
+      const int sid = game->units.selected_id;
+      char msg[96];
+      msg[0] = '\0';
+      if (!game->world_map_ok || !game->units_ok ||
+          !units_pioneer_road(&game->units, sid, &game->world_map, msg, sizeof(msg))) {
+        set_status(game, msg[0] ? msg : "Cannot build road", NULL);
+      } else {
+        set_status(game, msg, NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_PILLAGE: {
+      const int sid = game->units.selected_id;
+      char msg[96];
+      msg[0] = '\0';
+      if (!game->world_map_ok || !game->units_ok ||
+          !units_pillage(
+            &game->units, sid, &game->world_map, &game->colonies, msg, sizeof(msg)
+          )) {
+        set_status(game, msg[0] ? msg : "Cannot pillage", NULL);
+      } else {
+        set_status(game, msg, NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_GOTO_PORT: {
+      const int sid = game->units.selected_id;
+      const ColonizeUnit* u = units_get_const(&game->units, sid);
+      const ColonizeColony* port = game_next_owned_colony(game);
+      if (sid < 0 || !u || !u->active || !units_is_on_map(u)) {
+        set_status(game, "Select a unit", NULL);
+      } else if (!port) {
+        set_status(game, "No colonies founded yet", NULL);
+      } else if (!units_set_goto(
+                   &game->units, sid, &game->world_map, port->x, port->y, &game->colonies
+                 )) {
+        set_status(game, "Cannot go to port", NULL);
+      } else {
+        game->map_cursor_x = port->x;
+        game->map_cursor_y = port->y;
+        snprintf(game->status, sizeof(game->status), "Go to Port: %s", port->name);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_GOTO_PLACE: {
+      const int sid = game->units.selected_id;
+      const ColonizeUnit* u = units_get_const(&game->units, sid);
+      if (sid < 0 || !u || !u->active || !units_is_on_map(u)) {
+        set_status(game, "Select a unit", NULL);
+      } else {
+        game->map_goto_place_mode = true;
+        set_status(game, "Go to Place: click destination (Esc cancels)", NULL);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_TRADE_ROUTE: {
+      const int sid = game->units.selected_id;
+      if (sid < 0 || !units_order_trade_route(&game->units, sid)) {
+        set_status(game, "Select a ship or wagon", NULL);
+      } else {
+        set_status(game, "Trade route begun (edit stops via TRADE menu)", NULL);
+        game_wait_next_unit(game);
+      }
+      return true;
+    }
+    case MAP_MENU_ACTION_DUMP_OVERBOARD: {
+      const int sid = game->units.selected_id;
+      int ctype = 0;
+      int amt = 0;
+      if (sid < 0 ||
+          units_dump_cargo_overboard(&game->units, sid, &ctype, &amt) <= 0) {
+        set_status(game, "No cargo to dump", NULL);
+      } else {
+        snprintf(game->status, sizeof(game->status), "Dumped %d overboard", amt);
+      }
+      return true;
+    }
     case MAP_MENU_ACTION_LOAD_CARGO: {
       if (!game->world_map_ok || !game->units_ok) {
         set_status(game, "Cannot load cargo", NULL);
@@ -5792,11 +5967,40 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
       if (input->mouse_right_clicked) {
         /* Right-click: unselect unit (if any) and select the tile. */
+        if (game->map_goto_place_mode) {
+          game->map_goto_place_mode = false;
+          set_status(game, "Go to Place cancelled", NULL);
+          return true;
+        }
         game_select_tile(game, mx, my);
         return true;
       }
 
       if (!input->mouse_left_clicked) {
+        return true;
+      }
+
+      /* ORDERS Go to Place: click sets goto destination. */
+      if (game->map_goto_place_mode && game->units_ok) {
+        const int uid = game->units.selected_id;
+        const ColonizeUnit* u = units_get_const(&game->units, uid);
+        game->map_goto_place_mode = false;
+        if (!u || !game_unit_selectable(game, u)) {
+          set_status(game, "Go to Place cancelled", NULL);
+          return true;
+        }
+        if (mx == u->x && my == u->y) {
+          set_status(game, "Already here", NULL);
+          return true;
+        }
+        if (units_set_goto(
+              &game->units, uid, &game->world_map, mx, my, &game->colonies
+            )) {
+          snprintf(game->status, sizeof(game->status), "Go to (%d,%d)", mx, my);
+          game_set_view_center(game, u->x, u->y);
+        } else {
+          set_status(game, "Cannot go there", NULL);
+        }
         return true;
       }
 
@@ -5869,6 +6073,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
+    if (game->map_goto_place_mode) {
+      game->map_goto_place_mode = false;
+      set_status(game, "Go to Place cancelled", NULL);
+      return true;
+    }
     if (ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
       game_ui_drag_clear(game);
       return true;

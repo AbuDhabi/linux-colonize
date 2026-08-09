@@ -371,9 +371,13 @@ int units_last_combat_outcome(void);
 /* @ORDERS indices (NAMES.TXT) + Col1 AI order bytes seen in saves. */
 #define UNITS_ORDER_NONE 0
 #define UNITS_ORDER_SENTRY 1
+#define UNITS_ORDER_TRADE_ROUTE 2
 #define UNITS_ORDER_GOTO 3
 #define UNITS_ORDER_FORTIFY 5
 #define UNITS_ORDER_FORTIFIED 6
+#define UNITS_ORDER_BUILD_COLONY 7
+#define UNITS_ORDER_CLEAR_PLOW 8
+#define UNITS_ORDER_BUILD_ROAD 9
 #define UNITS_ORDER_AI_SAIL 11 /* Euro AI ship course (TURN fixtures) */
 #define UNITS_ORDER_AI_MOVE 12 /* Euro AI coastal / land course */
 #define UNITS_ORDER_FOLLOW 13 /* Stick to another unit (Brave escort / AI) */
@@ -398,10 +402,45 @@ void units_clear_orders(ColonizeUnitPool* pool, int unit_id);
 bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders);
 /* Fortify: orders=FORTIFY, spend MP; next nation refresh → FORTIFIED. */
 bool units_order_fortify(ColonizeUnitPool* pool, int unit_id);
+/*
+ * Ship Anchor (ORDERS 2nd Fortify / GAME.TXT @SHIPOPTIONS). Sea unit at own
+ * colony tile or adjacent sea → FORTIFY (overnight → FORTIFIED). Land rejects.
+ */
+bool units_order_anchor(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  const ColonizeColonyPool* colonies
+);
 /* Sentry on map (or already-aboard). Spends MP. */
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id);
+/* Begin Trade Route (@ORDERS index 2). Clears goto; spends remaining MP. */
+bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id);
 /* Despawn unit (map disband). False if missing. */
 bool units_disband(ColonizeUnitPool* pool, int unit_id);
+/*
+ * Dump first non-empty commodity hold overboard (ORDERS Dump Cargo Overboard).
+ * Transport only. Returns amount dumped (0 if none/invalid).
+ */
+int units_dump_cargo_overboard(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  int* out_cargo_type,
+  int* out_amount
+);
+/*
+ * Thin Pillage (ORDERS): land military (attack>0) on foreign Euro colony →
+ * destroy up to 100 of richest warehouse stock (not Food); on non-colony tile
+ * with plow/road → clear those improvements. Spends remaining MP.
+ * Cite: MENU.TXT @ORDERS Pillage; full 2b5a mega-dispatch body still thin.
+ */
+bool units_pillage(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* colonies,
+  char* err,
+  size_t err_size
+);
 /* Wake sentry/fortified/fortify-in-progress and restore full MP. */
 bool units_wake(ColonizeUnitPool* pool, int unit_id);
 /* True if unit skips selection until woken (sentry or fortified). */
