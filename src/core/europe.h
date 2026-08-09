@@ -363,6 +363,12 @@ int europe_custom_house_autosell(
   int human_nation
 );
 
+/*
+ * FUN_364b_0636 Custom House / export denylist: not Food, Lumber, Horses, Tools,
+ * Muskets. Used by autosell and AI peace Europe export sail.
+ */
+int europe_cargo_export_eligible(int cargo_type);
+
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 

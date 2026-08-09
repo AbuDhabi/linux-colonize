@@ -2805,6 +2805,26 @@ static void game_after_unit_action(ColonizeGameState* game) {
         snprintf(game->status, sizeof(game->status), "%s", contact);
       }
     }
+    /*
+     * Already-met village enter → Meet CHOICE (Trade/Gift/Demand/Teach/Leave).
+     * Exact tribe tile only (not mere adjacency). Cite: indian_contact.md.
+     */
+    if (game->col1.tribe) {
+      for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
+        const ColonizeCol1Tribe* t = &game->col1.tribe[ti];
+        if ((int)t->x != u->x || (int)t->y != u->y) {
+          continue;
+        }
+        if (t->nation_id < 4 || t->nation_id > 11) {
+          continue;
+        }
+        ColonizeTurnContext ctx;
+        game_fill_turn_context(game, &ctx);
+        if (ai_contact_try_village_meet(&ctx, u->nation_id, (int)t->nation_id)) {
+          break;
+        }
+      }
+    }
   }
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;

@@ -2,9 +2,11 @@
 
 Layer D early-settle map only. Full body ~1815 lines at
 `viceroy_unpacked.c` ~90446–92260. Line-by-line extract still deferred (R5);
-**mid-planner combat / case-7 / land scoring slices are OPEN** (unpark #4).
+**mid-planner combat / deep case-7 economy / deep land scoring slices are OPEN**
+(unpark #4); many thin peels (dock hire matrix, construction prefers, haul,
+fortify/wake, naval prey) are **Done**.
 
-Linux: `ai_euro_unit_act` + expand/war thin — deepen vs peels (**OPEN**).
+Linux: `ai_euro_unit_act` + expand/war thin — deepen vs peels (**OPEN** remainders).
 
 ## Entry / wiring
 
@@ -34,7 +36,7 @@ switch (orders) cases 7..0x0b
 
 | Lines | Case | Label |
 |-------|------|-------|
-| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **OPEN** economy deepen (Linux: thin Pioneer tools-delivery only; see §2d) |
+| 90589–91142 | **7** | Europe hire (`0500`/`5c3c`), founding urgency, treasury buy — **partial** (Linux: dock expert matrix Done; deep economy/treasury OPEN; see §2d / §2e) |
 | 91143–91158 | **8** | short |
 | 91159–91194 | **9** | short |
 | 91195–91362 | **10** | UI/chrome / dialog-ish (`281f_04ac` ≠ `06ae`) |
@@ -76,26 +78,27 @@ euro_unit_act §2f; Europe Privateer commerce raid.
 Privateer / Galleon / Man-O-War) over cargo when adjacent — complement Privateer
 cargo prey; then lower defense. Cite: euro_unit_act §2f; Europe Frigate purchase.
 
-**War transport deepen (Galleon/Frigate):** at war, idle Galleon/Frigate with
-passenger space (`cargo_count < ship_capacity`) prefers `AI_SAIL` toward coastal
-water by a **threatened** own coastal colony (war-peer unit within MD≤3); else
-falls back to naval war hunt (foe sea / enemy coast). Cite: Colonization.pdf
-naval transport; Europe purchase Galleon/Frigate. Full ships without space keep
-plain hunt.
+**War transport deepen (Galleon/Frigate/Man-O-War):** at war, idle Galleon /
+Frigate / **Man-O-War** with passenger space (`cargo_count < ship_capacity`)
+prefers `AI_SAIL` toward coastal water by a **threatened** own coastal colony
+(war-peer unit within MD≤3); else falls back to naval war hunt (foe sea / enemy
+coast). Cite: Colonization.pdf naval transport; Europe purchase Galleon/Frigate;
+Jones Frigate/MoW fallback; king_ref MoW. Full ships without space keep plain hunt.
 
 ### 2c. Linux thin — land war hunt (act-level)
 
 When at war with a Euro peer, **or** Indian hostility sticky with a tribe/Brave
-on the map, idle land military (Soldier / Dragoon / Scout — including formerly
-fortified/sentry) get `AI_MOVE` toward the nearest enemy land unit, enemy colony,
-or **at-war native Brave / tribe tile** (prefer `tribe.state.capital`). Idle
-`FORTIFY` / `FORTIFIED` / `SENTRY` are woken via `units_wake` then hunted.
-Adjacent → `ai_euro_try_attack`, preferring the foe with lower effective defense
-(fortified ×2); Indian adjacent requires `ai_diplo_indian_at_war`. Does not steal
-founders on FOUND goals. Act-level hunt / peace-border / scout explore share thin
-MP-drain goto advance with FOUND/MILITARY/CONTACT (§2c3). Full multi-step `20e6`
-combat scoring remains **PARKED**. Cite: `ai_diplo_indian_*`; Cortes capital
-treasure path; Colonization.pdf war.
+on the map, idle land military (Soldier / Dragoon / **Regular** /
+**Continental** / Scout — including formerly fortified/sentry) get `AI_MOVE`
+toward the nearest enemy land unit, enemy colony, or **at-war native Brave /
+tribe tile** (prefer `tribe.state.capital`). Idle `FORTIFY` / `FORTIFIED` /
+`SENTRY` are woken via `units_wake` then hunted. Adjacent → `ai_euro_try_attack`,
+preferring the foe with lower effective defense (fortified ×2); Indian adjacent
+requires `ai_diplo_indian_at_war`. Does not steal founders on FOUND goals.
+Act-level hunt / peace-border / scout explore share thin MP-drain goto advance
+with FOUND/MILITARY/CONTACT (§2c3). Full multi-step `20e6` combat scoring remains
+**PARKED**. Cite: `ai_diplo_indian_*`; Cortes capital treasure path;
+Colonization.pdf war / Defending a Colony.
 
 **Alarmed tribe MILITARY (planning F):** friction>50 → MILITARY; capital tribes
 prio 5 vs 3.
@@ -184,22 +187,40 @@ tools-short colony with hold `TOOLS`, unload via `colonies_transfer_from_unit`
 (structural cargo only). Pioneer delivery prefers this path when a wagon is on
 the same tile before the +10 stand-in.
 
-**Wagon haul (idle):** Wagon with free hold capacity or TOOLS / MUSKETS / HORSES
-cargo → `AI_MOVE` toward nearest matching short own colony (`TOOLS<20`,
-`MUSKETS`/`HORSES`<10). On a surplus colony (tools≥40 / muskets≥20 / horses≥20)
-with empty capacity, load that cargo via `colonies_transfer_to_unit` before
-hauling. Cite: manual Wagon Train cargo; `COLONIZE_CARGO_*`; §2d unload delivery.
-**PARK:** wagon FOOD load (FOOD remains colony stock / LABOR tally only).
+**Wagon haul (idle):** Wagon with free hold capacity or TOOLS / LUMBER / ORE /
+MUSKETS / HORSES / FOOD cargo → `AI_MOVE` toward nearest matching short own
+colony (`TOOLS`/`LUMBER`/`ORE`<20, `MUSKETS`/`HORSES`<10, food `<pop*2`). On a
+surplus colony (tools/lumber/ore≥40 / muskets≥20 / horses≥20 / food≥pop*4) with
+empty capacity, load that cargo via `colonies_transfer_to_unit` before hauling
+(load order tools>lumber>ore>muskets>horses>food). Cite: manual Wagon Train
+cargo; `COLONIZE_CARGO_*`; §2d unload delivery; 5cf6 lumber/ore_short.
 
-### 2d2. Linux thin — Caravel/Merchantman coastal haul (act)
+### 2d2. Linux thin — Caravel/Merchantman/Galleon coastal haul (act)
 
-Peace + idle Caravel/Merchantman with goods-hold capacity or TOOLS cargo →
-`AI_SAIL` toward coastal water by nearest own coastal colony that is
-tools-short (`stock[TOOLS]<20`) or food-short (`stock[FOOD] < pop*2`). Adjacent
-tools-short + TOOLS → `colonies_transfer_from_unit`; surplus (≥40) near ship →
-load TOOLS. **No invented FOOD cargo** — sail-toward only for food-short.
-Cite: Colonization.pdf naval transport / colony supply; euro_unit_act §2d TOOLS
-pattern. War hunt owns idle ships at war; Treasure Europe sail skips haul.
+Peace + idle Caravel/Merchantman/**Galleon** with goods-hold capacity or TOOLS /
+LUMBER / ORE / MUSKETS / HORSES / FOOD cargo → `AI_SAIL` toward coastal water by
+nearest own coastal colony short on that cargo (`TOOLS`/`LUMBER`/`ORE`<20,
+`MUSKETS`/`HORSES`<10, food `stock < pop*2`). Adjacent short + matching hold →
+`colonies_transfer_from_unit`; surplus (≥40 / ≥40 / ≥40 / ≥20 / ≥20 / ≥pop*4)
+near ship → load same ladder as wagon. Cite: Colonization.pdf naval transport /
+colony supply; euro_unit_act §2d haul pattern; docs/assets.md Europe purchase
+ladder (Galleon). War hunt owns idle ships at war; Treasure Europe sail skips
+haul.
+
+**Europe export sail (unparked):** when supply haul does not bind the ship, load
+FUN_364b_0636-eligible surplus (`stock>99` → leave 50; prefer Silver) at coastal
+own colony, then `AI_SAIL` Europe for existing dump-sell. Cite: FUN_364b_0688 /
+`europe_cargo_export_eligible`; Colonization.pdf Europe buy/sell; Custom House
+denylist (not Food/Lumber/Horses/Tools/Muskets). No invented sell rates.
+
+**Privateer loot sail:** peace Privateer already holding export-eligible goods
+→ `AI_SAIL` Europe dump-sell (no colony load). Cite: Privateer commerce raid /
+Europe sell; complements cargo-ship export.
+
+**Wagon inland→coast export feeder:** when supply haul does not bind the wagon,
+same FUN_364b load (prefer Silver) then `AI_MOVE` nearest own coastal colony;
+on coastal tile unload export holds into colony stock for ship pickup. Cite:
+§2d Wagon Train; §2d2 Europe export.
 
 ### 2d4. Linux thin — Jan de Witt foreign-colony TRADE_GOODS (act)
 
@@ -213,39 +234,53 @@ on foreign dock (ships may enter foreign Euro docks when de Witt + peace via
 Europe (existing dump-sell). Stock transfer only — no gold/price.
 Cite: docs/fandom_col1994.md Jan de Witt; `colonies_de_witt_transfer_*`.
 
-### 2d3. Linux thin — peace Soldier fortify (act)
+### 2d3. Linux thin — peace colony garrison fortify (act)
 
-Peace + idle Soldier on own colony tile → `units_order_fortify` if not already
-fortified (overrides explore/FOUND yank while on-tile; keeps off-colony
-MILITARY/CONTACT). Cite: case 0x0b fortify arm (`'F'`); Colonization.pdf fortify
-defense. At war: wake+hunt (§2c).
+Peace + idle Soldier / Dragoon / **Regular** / **Continental** (Army/Cavalry) on
+own colony tile → `units_order_fortify` if not already fortified (overrides
+explore/FOUND yank while on-tile; keeps off-colony MILITARY/CONTACT). Cite: case
+0x0b fortify arm (`'F'`); Colonization.pdf Defending a Colony ("fortify
+soldiers, dragoons, army, cavalry…"). At war: wake+hunt (§2c).
 
-**Peace colony-defense wake (MD≤2):** fortified/idle Soldier **or Dragoon** on
-own colony wakes via `units_wake` when a foreign Euro land unit is within
-Manhattan ≤2, then `AI_MOVE` toward that threat (adjacent `try_attack` may
-declare war). Extends peace fortify border; war already has global fortify-wake
-(§2c). Cite: Colonization.pdf Defending a Colony ("fortify soldiers, dragoons…");
-`units_wake`.
+**Peace Artillery fortify:** idle Artillery/Cannon on own colony (peace or war)
+→ `units_order_fortify` (same case 0x0b `'F'` arm; PDF "…or artillery"). At war
+off-colony: siege hunt toward fortified foreign Euro colonies (Stockade+).
 
-**Artillery fortify after siege:** idle Artillery/Cannon on own (captured)
-colony → `units_order_fortify` at peace **and** at war. Artillery is not a land
-war hunter, so garrison holds after siege. Cite: case 0x0b fortify `'F'`;
-Colonization.pdf fortify defense / Artillery; mirror king post-capture Regular
-fortify for Euro Artillery.
+**Peace colony-defense wake (MD≤2):** fortified/idle garrison above **or
+Artillery/Cannon** on own colony wakes via `units_wake` when a foreign Euro land
+unit is within Manhattan ≤2, then `AI_MOVE` toward that threat (adjacent
+`try_attack` may declare war). Extends peace fortify border; war already has
+global fortify-wake (§2c). Cite: Colonization.pdf Defending a Colony ("fortify
+soldiers, dragoons… or artillery"); `units_wake`.
+
+**Artillery fortify after siege:** covered by peace/war Artillery fortify above.
 
  **5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
  Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
  before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
  cargo. Case-7 deepen: prefer Hardy/Expert Pioneer or Master Carpenter already
- on Europe dock (consume dock slot; no free expert spawn). **`food_short>20`:**
- prefer Expert Farmer on Europe dock (same consume pattern). **Construction LABOR:**
+ on Europe dock (consume dock slot; no free expert spawn). **`tools_short>20`**
+ dock miss → prefer Master Blacksmith on Europe dock (Ore→Tools). **`food_short>20`:**
+ prefer Expert Farmer on Europe dock (same consume pattern); if Farmer miss and
+ nation has a coastal own colony, prefer Expert Fisherman on dock (coastal food
+ fallback). **Construction LABOR:**
  when any colony has Stockade/Warehouse/Lumber Mill/Drydock/Shipyard incomplete
  (`ai_euro_colony_wants_construction_labor`), prefer Master Carpenter on Europe
  dock (same consume / `hire_cost`; not tools/food short). **`lumber_short>20`:**
  when any colony wants lumberjack LABOR or has construction in progress with low
  lumber stock, prefer Expert Lumberjack on Europe dock (same consume pattern).
- Cite: europe.c Expert Lumberjacks pool; building_production Lumberjack→Lumber;
- euro_unit_act §2e Expert Lumberjack LABOR. Treasury: skip hire /
+ **`ore_short>20`:** Ore stock&lt;20 tallies → prefer Expert Ore/Silver Miner on
+ Europe dock (same consume). **`muskets_short>20`:** Muskets stock&lt;10 tallies →
+ prefer Master Gunsmith on Europe dock (same consume). **Unmissioned tribe:**
+ prefer Jesuit/Missionary on Europe dock (convert CONTACT; before Seasoned Scout).
+ **Peace + colonies≥1:**
+ prefer Seasoned Scout on Europe dock (CONTACT / fog explore) when no higher
+ shortage hire wins; else Elder Statesman (Town Hall liberty bells).
+ **Church/Cathedral present:** prefer Firebrand Preacher on Europe dock (crosses).
+ **Craft building + raw≥20:** prefer Master Distiller/Weaver/Tobacconist/Fur Trader
+ on Europe dock (Sugar/Cotton/Tobacco/Furs → Rum/Cloth/Cigars/Coats).
+ Cite: europe.c expert pools; building_production /
+ terrain_yields; euro_unit_act §2e field-assign / §2c2 / §2c6. Treasury: skip hire /
 tools-cargo when gold &lt; colonist `hire_cost`; Artillery uses Europe purchase
 **500$** (fall back to Soldier when underfunded). **At war + tools_short:** still
 prefer Soldier/Dragoon hire over Pioneer (profession_demand Pioneer is peace-only).
@@ -254,19 +289,23 @@ prefer Soldier/Dragoon hire over Pioneer (profession_demand Pioneer is peace-onl
 ≥ 2:** prefer Veteran Soldier when type exists and gold covers cost (`@UNIT`
 cost, else NAMES `@JOB` Soldier→Veteran Soldiers **2000$**). Missing type/cost
 → plain Soldier (**PARK** comment). Cite: `COLONIZE/NAMES.TXT` `@JOB`.
-**Ship board military:** at war, idle Soldier, Dragoon, **or Artillery/Cannon**
-on coastal own colony boards an empty transport (`cargo_count==0`) with
-passenger space via `units_board` / `units_board_stacked` before hunt yank /
-Artillery on-colony fortify — **except** when the colony is threatened (stay to
-defend). Cite: Colonization.pdf naval transport / Defending a Colony ("fortify
-soldiers, dragoons, army, cavalry, or artillery").
-**Ship unload military:** at war, ship with Soldier cargo adjacent to own
-threatened coastal colony (war-peer MD≤3) unloads one Soldier onto the colony
-tile via `units_unload_passenger` (before move-scoring gate + after sail).
-Cite: Colonization.pdf naval transport / Defending a Colony; complements board
-+ war-transport sail-to-threatened-port.
+**Ship board military:** at war, idle Soldier / Dragoon / **Regular** /
+**Continental** (Army/Cavalry) / Artillery/Cannon on coastal own colony boards
+an empty transport (`cargo_count==0`) with passenger space via `units_board` /
+`units_board_stacked` before hunt yank / Artillery on-colony fortify — **except**
+when the colony is threatened (stay to defend). Cite: Colonization.pdf naval
+transport / Defending a Colony ("fortify soldiers, dragoons, army, cavalry, or
+artillery").
+**Ship unload military:** at war, ship with military cargo adjacent to own
+threatened coastal colony (war-peer MD≤3) unloads one passenger onto the colony
+tile — prefer Soldier, else Regular/Continental Army, else Dragoon/Continental
+Cavalry, else Artillery (mirror king MoW unload ladder + board list) via
+`units_unload_passenger` (before move-scoring gate + after sail). Cite:
+Colonization.pdf naval transport / Defending a Colony; king_ref MoW unload;
+complements board + war-transport sail-to-threatened-port.
 **Done:** transport at Europe dump-sells all commodity holds with Europe bid via
-`europe_sell_unit_hold` / `europe_sell_proceeds` (tax); nat↔europe gold sync.
+`europe_sell_unit_hold` / `europe_sell_proceeds` (tax); nat↔europe gold sync
+(Merchantman/Caravel/Galleon **and Privateer** — `units_is_transport` holds).
 Skips holds whose cargo type bit is set in `nation.boycott_bitmap` (wiki Boycott /
 king refuse — goods blocked in Europe; no invented prices). Cite: Colonization.pdf
 Europe buy/sell + tax; fandom Boycott (Col).
@@ -337,6 +376,62 @@ colony without Custom House queues it after Drydock→Shipyard prefer.
 Cite: docs/fandom_col1994.md Stuyvesant; colony.c Custom House gate;
 founding_fathers elect comment.
 
+**Peace Church construction prefer:** idle colony with Stockade already owned,
+no Church/Cathedral → queue Church when buildable (after defense/storage/naval/
+Custom House prefers). Cite: building_production.md Church→Crosses;
+Colonization.pdf Church / immigration.
+
+**Wartime Armory construction prefer:** at war with a Euro peer, idle colony
+with Stockade, no Armory/Magazine/Arsenal → queue Armory when buildable (after
+Church prefer so wartime muskets beat crosses). Cite: building_production.md
+Armory Tools→Muskets; Colonization.pdf Defending a Colony.
+
+**Wartime Magazine construction prefer:** at war, Armory owned, no Magazine/
+Arsenal → queue Magazine when buildable. Cite: building_production.md Magazine
+doubles musket output.
+
+**Peace Printing Press construction prefer:** idle colony with Stockade+Church
+owned, no Printing Press/Newspaper → queue Printing Press when buildable.
+Cite: building_production.md Printing Press +50% liberty bells.
+
+**Peace Schoolhouse construction prefer:** idle colony with Stockade, pop≥4, no
+Schoolhouse/College/University → queue Schoolhouse when buildable (after Press).
+Cite: building_production.md Schoolhouse teach faculty 1.
+
+**Peace Newspaper construction prefer:** Printing Press owned → Newspaper when
+buildable. Cite: building_production.md Newspaper +100% liberty bells.
+
+**Peace College construction prefer:** Schoolhouse owned, pop≥8 → College when
+buildable. Cite: building_production.md College faculty 2.
+
+**Peace University construction prefer:** College owned, pop≥10 → University
+when buildable. Cite: building_production.md University faculty 3.
+
+**Peace Cathedral construction prefer:** Church owned, pop≥8 → Cathedral when
+buildable. Cite: building_production.md Cathedral crosses.
+
+**Wartime Arsenal construction prefer:** at war, Adam Smith elected, Magazine
+owned, no Arsenal → queue Arsenal when buildable. Cite: building_production.md
+Arsenal factory muskets (Adam Smith); Colonization.pdf.
+
+**Stable construction prefer:** fortified (Stockade/Fort/Fortress), no Stable →
+queue Stable when buildable (peace or war). Cite: building_production.md Stable
+horse breeding.
+
+**Carpenter's Shop / Lumber Mill construction prefer:** idle → Shop when unmet;
+Shop owned → Lumber Mill. Cite: building_production.md lumber chain.
+
+**Blacksmith's House / Shop / Iron Works construction prefer:** ore≥20 →
+House; House owned → Shop; Adam Smith + Shop → Iron Works. Cite:
+building_production.md Ore→Tools / factory tools (Adam Smith).
+
+**Craft shop/factory construction prefer:** Distiller/Weaver/Tobacconist/Fur
+House→Shop→Factory when raw stock≥20; factories need Adam Smith. Cite:
+building_production.md craft chains; dock craft hire stock≥20 gate.
+
+**Capitol / Capitol Expansion construction prefer:** fortified → Capitol;
+Capitol owned → Expansion. Cite: building_production.md Capitol liberty bells.
+
 **Custom House auto-sell:** `europe_custom_house_autosell` from
 `turn_produce` / `turn_run_colony_production` — `FUN_364b_0688` stock>99
 leave 50; `FUN_364b_0636` denylist (not Food/Lumber/Horses/Tools/Muskets);
@@ -370,13 +465,21 @@ profession 8) → admit + `colonies_assign_field` on a free ocean/sea-lane surro
 terrain_yields Fisherman (Ocean/Sea Lane fish); building_production; Skills Chart.
 Parallel to Farmer field-assign. No invented fish rates.
 
-**Expert Sugar / Tobacco Planter field-assign (unparked):** idle Expert Sugar
-Planter / Tobacco Planter → admit + `colonies_assign_field` on a free surround
-with positive matching yield (`COLONIZE_JOB_SUGAR_PLANTER` /
-`_TOBACCO_PLANTER`; prefer higher `colony_yield_for_tile`). Off-tile MD≤8 →
-LABOR goto. Cite: terrain_yields Sugar (Savannah/Swamp) / Tobacco
-(Grassland/Marsh); Colonization.pdf Skills Chart. Parallel to Farmer field-assign.
-No invented crop rates.
+**Expert Sugar / Tobacco / Cotton Planter + Fur Trapper field-assign
+(unparked):** idle Expert Sugar/Tobacco/Cotton Planter or Fur Trapper → admit +
+`colonies_assign_field` on a free surround with positive matching yield
+(`COLONIZE_JOB_SUGAR_PLANTER` / `_TOBACCO_PLANTER` / `_COTTON_PLANTER` /
+`_FUR_TRAPPER`; prefer higher `colony_yield_for_tile`). Off-tile MD≤8 → LABOR
+goto. Cite: terrain_yields Sugar/Tobacco/Cotton/Fur; Colonization.pdf Skills
+Chart. Parallel to Farmer field-assign. No invented crop rates.
+
+**Elder Statesman / Firebrand Preacher / Expert Teacher / Master Carpenter
+workplace assign (unparked):** idle Elder Statesman → Town Hall; Firebrand
+Preacher → Church else Cathedral; Expert Teacher → Schoolhouse else College else
+University; Master Carpenter → Carpenter's Shop else Lumber Mill (highest owned;
+construction LABOR join remains fallback without Shop/Mill). Off-tile MD≤8 →
+LABOR goto. Cite: building_production.md Skills Chart jobs 13, 16–18;
+Colonization.pdf. Parallel to craft workplace assign. No invented rates.
 
 **FOUND on Indian homeland:** `colonies_found_with_indian_land` (FUN_4cc6_07c2
 gold charge; Minuit FF 2 → free). Short gold → PARK (no despawn); thin human
@@ -390,8 +493,9 @@ indian land purchase; `colonies_indian_land_purchase_gold`.
 Like land adjacent-foe: when choosing naval `try_attack` target —
 **Privateer** prefers Merchantman/Caravel cargo over warships; **Frigate**
 prefers warships over cargo (complement); else lower type defense
-(`ai_euro_naval_best_adjacent_foe`). **PARKED:** `FUN_157e_004a`
-vet/Drake/damage combat×8 mods (no unit damage byte wired).
+(`ai_euro_naval_best_adjacent_foe`). **Done (thin FUN_157e_004a):** vet Soldier/
+Dragoon profession `0x15` +50% land toughness; Drake Privateer +50% naval
+toughness. **PARKED:** ship damage byte `0x3150` subtract (no named live field).
 
 **PARK:** Wagon load FOOD — euro AI uses FOOD only for colony stock shortage /
 LABOR tallies; haul loads TOOLS / MUSKETS / HORSES (§2d / §2d2). No wagon FOOD
@@ -403,17 +507,27 @@ goto once at fresh MP (`pick_md > goto_md`) — mirror CONTACT sticky deepen
 without max-md walk drift on dispatcher sticky waves. Cite: Colonization.pdf
 Seasoned Scout; euro_unit_act §2c2.
 
-**PARK:** deep `FUN_521d_20e6` combat scoring (vet/terrain/artillery tables,
-multi-hex threat weights) — thin adjacent-toughness pick + 2-step goto only.
+**Done (thin Artillery siege / Dragoon open):** off-colony Artillery at war hunts
+fortified foreign Euro colonies (Stockade+; MD slack ≤3 vs open); adjacent-foe
+prefers higher fort %. Dragoon hunt prefers open colonies (leave forts to
+Artillery). On own colony Artillery still FORTIFY. Cite: king_ref Artillery
+siege / Dragoon open bias; Colonization.pdf Artillery.
+
+**PARK:** deep `FUN_521d_20e6` combat scoring (terrain/artillery tables,
+multi-hex threat weights) — thin adjacent-toughness pick includes fortified ×2,
+colony Stockade/Fort/Fortress %, and FUN_157e_004a vet/Drake +50% peels +
+2-step goto only.
 
 **Done:** Treasure → Europe gold via `europe_cash_treasure` (LE16 hold value;
 despawn; Expected→Harbor tick). **PARK:** value unset / KINGGALLEON2 extra share.
 
-### 2g. Linux thin — ocean west-explore HS bias
+### 2g. Linux thin — ocean west-explore / east-Europe HS bias
 
 When ship is on high seas and goto is westward, ocean `20e6` score prefers
-westward HS steps (structural score only; no invented MP). Full ocean branch
-still R5 / PARKED.
+westward HS steps (structural score only; no invented MP). When goto is
+eastward (Treasure/Europe exit / eastern HS), prefer eastward HS steps —
+complement west-explore. Cite: Colonization.pdf Treasure Trains → Europe;
+`units_find_eastern_high_seas_tile`. Full ocean branch still R5 / PARKED.
 
 ### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 

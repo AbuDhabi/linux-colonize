@@ -46,6 +46,7 @@ typedef struct AiEuroInventory {
   int lumber_short;
   int muskets_short;
   int food_short;
+  int ore_short; /* 5cf6-shaped Ore tally for Expert Ore Miner dock hire */
   int found_flags; /* dock/construction tally stand-in for −0x5f48 */
   int profession_demand[16]; /* decremented by passenger types */
   int colony_count;

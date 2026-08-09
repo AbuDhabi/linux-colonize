@@ -71,11 +71,13 @@ int units_cortes_conquest_treasure_gold(
 );
 
 /*
- * Post-win fallout stand-in for FUN_5fef_31ea (structural):
+ * Post-win fallout stand-in for FUN_5fef_31ea / inlined FUN_5fef_1b0e:
  * If defender was native on a tribe tile and no other same-nation Braves remain
- * on that tile after win, destroy tribe. Cortes treasure when gold_amount>0
- * (caller-known) or gold_amount<=0 with Cortes + rng peel. May adjust Indian
- * relation via ai_diplo helpers when col1 is set.
+ * on that tile after win, destroy tribe. Before destroy: subjugated convert-join
+ * when tribe.mission low-nibble == attacker (PEDIA Sepulveda / @INDIANSLAVES) —
+ * threshold 4|8 (±Spanish/Sepulveda/Las Casas), roll dos_rng_range(0,12).
+ * Cortes treasure when gold_amount>0 or gold_amount<=0 with Cortes + rng peel.
+ * May adjust Indian relation via ai_diplo helpers when col1 is set.
  */
 bool units_try_native_settlement_fallout(
   ColonizeCol1Save* col1,

@@ -44,6 +44,7 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_TAX = 6,
   AI_POPUP_TAG_KING_LETTER = 7, /* thin 160a independence rename (letter cinematic PARKED) */
   AI_POPUP_TAG_FF_CONGRESS = 8, /* Continental Congress FF elect chrome */
+  AI_POPUP_TAG_KING_DUMP_GOODS = 9, /* refuse dump-goods second cargo CHOICE */
   AI_POPUP_TAG_CONTACT_MEET = 10,
   AI_POPUP_TAG_CONTACT_TEACH = 11,
   AI_POPUP_TAG_CONTACT_GIFT = 12,

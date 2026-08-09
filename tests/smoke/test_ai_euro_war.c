@@ -5,6 +5,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -1198,6 +1199,274 @@ static int smoke_land_war_hunt_multistep(void) {
 }
 
 /*
+ * Thin land war hunt: Continental Army advances toward foe (same multi-step
+ * arm as Soldier). Cite: euro_unit_act §2c; Defending a Colony army.
+ */
+static int smoke_continental_army_land_hunt(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 3;
+  const int own_y = 3;
+  const int foe_x = 10;
+  const int foe_y = 3;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("cont-hunt alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies); /* no own colony — avoid LABOR yank; hunt alone */
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* army = units_get(&units, own_id);
+  if (!army) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cont-hunt spawn army");
+  }
+  army->nation_id = nation;
+  army->orders = 0;
+  army->moves_left = 3;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_army = units_get(&units, foe_id);
+  if (!foe_army) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cont-hunt spawn foe");
+  }
+  foe_army->nation_id = foe;
+  foe_army->orders = 0;
+  foe_army->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset(); /* no MILITARY goal — act hunt alone must multi-step */
+
+  uint32_t turn = 31;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 43;
+
+  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  army = units_get(&units, own_id);
+  foe_army = units_get(&units, foe_id);
+  if (!army || !army->active || !foe_army || !foe_army->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cont-hunt: both armys should remain (foe far)");
+  }
+
+  const int dist1 = abs(army->x - foe_army->x) + abs(army->y - foe_army->y);
+  const int steps = dist0 - dist1;
+  /* Thin 20e6: two scored advances in one act (movement 3). */
+  if (steps < 2) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: cont-hunt dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
+      dist0,
+      dist1,
+      steps,
+      army->x,
+      army->y,
+      army->goto_x,
+      army->goto_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Army land war hunt multi-step (≥2 tiles closer)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: Continental Army land war hunt ok (steps=%d)\n",
+    steps
+  );
+  return 0;
+}
+
+/*
+ * Thin land war hunt: Continental Cavalry advances toward foe (same multi-step
+ * arm as Soldier). Cite: euro_unit_act §2c; Defending a Colony cavalry.
+ */
+static int smoke_continental_cavalry_land_hunt(void) {
+  const int nation = 1;
+  const int foe = 2;
+  const int own_x = 3;
+  const int own_y = 3;
+  const int foe_x = 10;
+  const int foe_y = 3;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("cont-hunt alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies); /* no own colony — avoid LABOR yank; hunt alone */
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* cav = units_get(&units, own_id);
+  if (!cav) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cont-hunt spawn cav");
+  }
+  cav->nation_id = nation;
+  cav->orders = 0;
+  cav->moves_left = 3;
+
+  const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
+  ColonizeUnit* foe_cav = units_get(&units, foe_id);
+  if (!foe_cav) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cont-hunt spawn foe");
+  }
+  foe_cav->nation_id = foe;
+  foe_cav->orders = 0;
+  foe_cav->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset(); /* no MILITARY goal — act hunt alone must multi-step */
+
+  uint32_t turn = 31;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 43;
+
+  const int dist0 = abs(own_x - foe_x) + abs(own_y - foe_y);
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  cav = units_get(&units, own_id);
+  foe_cav = units_get(&units, foe_id);
+  if (!cav || !cav->active || !foe_cav || !foe_cav->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cont-hunt: both cavs should remain (foe far)");
+  }
+
+  const int dist1 = abs(cav->x - foe_cav->x) + abs(cav->y - foe_cav->y);
+  const int steps = dist0 - dist1;
+  /* Thin 20e6: two scored advances in one act (movement 3). */
+  if (steps < 2) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: cont-hunt dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
+      dist0,
+      dist1,
+      steps,
+      cav->x,
+      cav->y,
+      cav->goto_x,
+      cav->goto_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Cavalry land war hunt multi-step (≥2 tiles closer)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: Continental Cavalry land war hunt ok (steps=%d)\n",
+    steps
+  );
+  return 0;
+}
+
+/*
  * Sticky CONTACT re-hunt: fortified Soldier (hunter adjacent-attack skipped)
  * with moves left next to a war foe — sticky still try_attacks.
  */
@@ -1680,6 +1949,843 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer-weak ok\n");
+  return 0;
+}
+
+/*
+ * Thin 20e6 land adjacent-foe: same-type Soldiers — prefer open-field over
+ * Stockade colony tile (+100% defense). Cite: colonies_fortification_defense_bonus_percent;
+ * units_resolve_land_combat_ff Stockade replace fortified ×2.
+ */
+static int smoke_land_adjacent_foe_prefer_open_over_stockade(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("adj-stockade alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_type_count = 1;
+  ColonizeColony* foe_col = &colonies.colonies[0];
+  foe_col->id = 0;
+  foe_col->active = true;
+  foe_col->nation_id = foe_nat;
+  foe_col->x = own_x;
+  foe_col->y = own_y - 1; /* N: Stockade colony */
+  foe_col->population = 2;
+  foe_col->colonist_count = 2;
+  foe_col->has_building[0] = true;
+  ColonizeColony* own = &colonies.colonies[1];
+  own->id = 1;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 1;
+  own->y = 1;
+  own->population = 1;
+  own->colonist_count = 1;
+  colonies.colony_count = 2;
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-stockade spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 1;
+
+  /* Stockade defender to the north (first dir) — tougher (def 4→8). */
+  const int stock_id = units_spawn(&units, 0, own_x, own_y - 1);
+  ColonizeUnit* stock = units_get(&units, stock_id);
+  if (!stock) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-stockade spawn stockade foe");
+  }
+  stock->nation_id = foe_nat;
+  stock->orders = 0;
+  stock->moves_left = 0;
+
+  /* Open-field same Soldier to the south — preferred (def 4). */
+  const int open_id = units_spawn(&units, 0, own_x, own_y + 1);
+  ColonizeUnit* open = units_get(&units, open_id);
+  if (!open) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-stockade spawn open foe");
+  }
+  open->nation_id = foe_nat;
+  open->orders = 0;
+  open->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+
+  uint32_t turn = 42;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  stock = units_get(&units, stock_id);
+  open = units_get(&units, open_id);
+
+  const int open_dead = open == NULL || !open->active;
+  const int stock_alive = stock && stock->active;
+  const int own_alive = soldier && soldier->active;
+
+  if (!open_dead || !stock_alive || !own_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: adj-stockade own=%d open_dead=%d stock_alive=%d\n",
+      own_alive,
+      open_dead,
+      stock_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected attack on open-field Soldier, Stockade left alone");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer open over Stockade ok\n");
+  return 0;
+}
+
+/*
+ * FUN_157e_004a vet peel: same-type Soldiers — prefer non-veteran (profession
+ * none) over Veteran (UNITS_JOB_SOLDIER → +50% toughness). Cite: FUN_157e_004a
+ * type Soldier/Dragoon + profession 0x15.
+ */
+static int smoke_land_adjacent_foe_prefer_non_veteran(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("adj-vet alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 8;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-vet spawn own");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 1;
+  soldier->profession = UNITS_JOB_NONE;
+
+  /* Veteran to the north (first octant) — tougher via +50%. */
+  const int vet_id = units_spawn(&units, 0, own_x, own_y - 1);
+  ColonizeUnit* vet = units_get(&units, vet_id);
+  if (!vet) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-vet spawn veteran");
+  }
+  vet->nation_id = foe_nat;
+  vet->orders = 0;
+  vet->moves_left = 0;
+  vet->profession = UNITS_JOB_SOLDIER;
+
+  /* Plain Soldier to the south — preferred. */
+  const int plain_id = units_spawn(&units, 0, own_x, own_y + 1);
+  ColonizeUnit* plain = units_get(&units, plain_id);
+  if (!plain) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-vet spawn plain");
+  }
+  plain->nation_id = foe_nat;
+  plain->orders = 0;
+  plain->moves_left = 0;
+  plain->profession = UNITS_JOB_NONE;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+
+  uint32_t turn = 46;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 47;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  vet = units_get(&units, vet_id);
+  plain = units_get(&units, plain_id);
+
+  const int plain_dead = plain == NULL || !plain->active;
+  const int vet_alive = vet && vet->active;
+  const int own_alive = soldier && soldier->active;
+
+  if (!plain_dead || !vet_alive || !own_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: adj-vet own=%d plain_dead=%d vet_alive=%d\n",
+      own_alive,
+      plain_dead,
+      vet_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected attack on non-veteran Soldier, veteran left alone");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer non-veteran ok\n");
+  return 0;
+}
+
+/*
+ * FUN_157e_004a Drake peel: Man-O-War between Drake Privateer (N) and equal
+ * Privateer without Drake (S) — prefer non-Drake (+50% toughness). Cite:
+ * FUN_157e_004a type 0x10 + FF Drake; fandom Drake.
+ */
+static int smoke_naval_adjacent_foe_prefer_non_drake(void) {
+  const int nation = 1;
+  const int foe_drake = 2;
+  const int foe_plain = 3;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("adj-drake alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 16;
+  units.types[0].defense = 16;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Privateer");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].attack = 8;
+  units.types[1].defense = 8;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* own = units_get(&units, own_id);
+  if (!own) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-drake spawn own");
+  }
+  own->nation_id = nation;
+  own->orders = 0;
+  own->moves_left = 1;
+
+  const int drake_id = units_spawn(&units, 1, own_x, own_y - 1);
+  ColonizeUnit* drake_u = units_get(&units, drake_id);
+  if (!drake_u) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-drake spawn Drake Privateer");
+  }
+  drake_u->nation_id = foe_drake;
+  drake_u->orders = 0;
+  drake_u->moves_left = 0;
+
+  const int plain_id = units_spawn(&units, 1, own_x, own_y + 1);
+  ColonizeUnit* plain = units_get(&units, plain_id);
+  if (!plain) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-drake spawn plain Privateer");
+  }
+  plain->nation_id = foe_plain;
+  plain->orders = 0;
+  plain->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.head.founding_father[FF_FRANCIS_DRAKE] = (int8_t)foe_drake;
+  col1.nation[foe_drake].founding_fathers[FF_FRANCIS_DRAKE / 8] |=
+    (uint8_t)(1u << (FF_FRANCIS_DRAKE % 8));
+  /* Pre-arm Privateer spawn mask so diplo balance does not spawn extra ships. */
+  col1.nation[nation].privateer_spawn_mask =
+    (uint8_t)((1u << foe_drake) | (1u << foe_plain));
+  ai_diplo_declare_war(&col1, nation, foe_drake);
+  ai_diplo_declare_war(&col1, nation, foe_plain);
+
+  ai_goals_reset();
+
+  uint32_t turn = 47;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 48;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  own = units_get(&units, own_id);
+  drake_u = units_get(&units, drake_id);
+  plain = units_get(&units, plain_id);
+
+  const int plain_dead = plain == NULL || !plain->active;
+  const int drake_alive = drake_u && drake_u->active;
+  const int own_alive = own && own->active;
+
+  if (!plain_dead || !drake_alive || !own_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: adj-drake own=%d plain_dead=%d drake_alive=%d\n",
+      own_alive,
+      plain_dead,
+      drake_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected attack on non-Drake Privateer, Drake Privateer left alone");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: naval adjacent-foe prefer non-Drake ok\n");
+  return 0;
+}
+
+/*
+ * Artillery adjacent-foe: prefer Stockade colony Soldier over open-field
+ * (siege — opposite of non-Artillery prefer-open). Cite: king_ref Artillery
+ * adjacent-fort; Colonization.pdf Artillery.
+ */
+static int smoke_artillery_adjacent_prefer_stockade(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("art-adj alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 12;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 4;
+  units.types[1].defense = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_type_count = 1;
+  ColonizeColony* foe_col = &colonies.colonies[0];
+  foe_col->id = 0;
+  foe_col->active = true;
+  foe_col->nation_id = foe_nat;
+  foe_col->x = own_x;
+  foe_col->y = own_y + 1; /* S: Stockade — Artillery should prefer */
+  foe_col->population = 2;
+  foe_col->colonist_count = 2;
+  foe_col->has_building[0] = true;
+  ColonizeColony* own = &colonies.colonies[1];
+  own->id = 1;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 1;
+  own->y = 1;
+  own->population = 1;
+  own->colonist_count = 1;
+  colonies.colony_count = 2;
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* art = units_get(&units, own_id);
+  if (!art) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-adj spawn artillery");
+  }
+  art->nation_id = nation;
+  art->orders = 0;
+  art->moves_left = 1;
+
+  const int open_id = units_spawn(&units, 1, own_x, own_y - 1); /* N open */
+  ColonizeUnit* open = units_get(&units, open_id);
+  if (!open) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-adj spawn open");
+  }
+  open->nation_id = foe_nat;
+  open->orders = 0;
+  open->moves_left = 0;
+
+  const int stock_id = units_spawn(&units, 1, own_x, own_y + 1); /* S stockade */
+  ColonizeUnit* stock = units_get(&units, stock_id);
+  if (!stock) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-adj spawn stockade");
+  }
+  stock->nation_id = foe_nat;
+  stock->orders = 0;
+  stock->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+  uint32_t turn = 43;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  art = units_get(&units, own_id);
+  open = units_get(&units, open_id);
+  stock = units_get(&units, stock_id);
+  const int stock_dead = stock == NULL || !stock->active;
+  const int open_alive = open && open->active;
+  const int art_alive = art && art->active;
+
+  if (!stock_dead || !open_alive || !art_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: art-adj art=%d stock_dead=%d open_alive=%d\n",
+      art_alive,
+      stock_dead,
+      open_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("Artillery should attack Stockade foe, leave open Soldier");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Artillery adjacent prefer Stockade ok\n");
+  return 0;
+}
+
+/*
+ * Artillery off-colony siege hunt: prefer Stockade colony (farther) over nearer
+ * open colony (MD slack ≤3). Cite: king_ref Artillery siege hunt.
+ */
+static int smoke_artillery_siege_hunt_prefer_stockade(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 20;
+  map.height = 20;
+  map.tile_count = 400;
+  map.terrain = calloc(400, 1);
+  map.layer2 = calloc(400, 1);
+  map.layer3 = calloc(400, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("art-hunt alloc map");
+  }
+  for (int i = 0; i < 400; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_type_count = 1;
+  /* Near open foe colony at (8,5); Stockade at (10,5) — MD 5 vs 3 from (5,5). */
+  ColonizeColony* open_col = &colonies.colonies[0];
+  open_col->id = 0;
+  open_col->active = true;
+  open_col->nation_id = foe_nat;
+  open_col->x = 8;
+  open_col->y = 5;
+  open_col->population = 1;
+  open_col->colonist_count = 1;
+  ColonizeColony* stock_col = &colonies.colonies[1];
+  stock_col->id = 1;
+  stock_col->active = true;
+  stock_col->nation_id = foe_nat;
+  stock_col->x = 10;
+  stock_col->y = 5;
+  stock_col->population = 2;
+  stock_col->colonist_count = 2;
+  stock_col->has_building[0] = true;
+  colonies.colony_count = 2;
+
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* art = units_get(&units, own_id);
+  if (!art) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-hunt spawn");
+  }
+  art->nation_id = nation;
+  art->orders = 0;
+  art->moves_left = 1;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+  uint32_t turn = 44;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  art = units_get(&units, own_id);
+  if (!art || !art->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("art-hunt artillery despawned");
+  }
+  if (art->goto_x != 10 || art->goto_y != 5) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: art-hunt goto=(%d,%d) want Stockade (10,5)\n",
+      art->goto_x,
+      art->goto_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("Artillery siege hunt should prefer Stockade colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Artillery siege hunt prefer Stockade ok\n");
+  return 0;
+}
+
+/*
+ * Dragoon land hunt: prefer open colony over farther Stockade (MD slack ≤3).
+ * Cite: king_ref Dragoon open bias; leave fortified ports to Artillery.
+ */
+static int smoke_dragoon_hunt_prefer_open(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 20;
+  map.height = 20;
+  map.tile_count = 400;
+  map.terrain = calloc(400, 1);
+  map.layer2 = calloc(400, 1);
+  map.layer3 = calloc(400, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dragoon-hunt alloc map");
+  }
+  for (int i = 0; i < 400; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 6;
+  units.types[0].defense = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_type_count = 1;
+  /* Near Stockade (8,5); open at (10,5) — Dragoon should take open within slack. */
+  ColonizeColony* stock_col = &colonies.colonies[0];
+  stock_col->id = 0;
+  stock_col->active = true;
+  stock_col->nation_id = foe_nat;
+  stock_col->x = 8;
+  stock_col->y = 5;
+  stock_col->population = 2;
+  stock_col->colonist_count = 2;
+  stock_col->has_building[0] = true;
+  ColonizeColony* open_col = &colonies.colonies[1];
+  open_col->id = 1;
+  open_col->active = true;
+  open_col->nation_id = foe_nat;
+  open_col->x = 10;
+  open_col->y = 5;
+  open_col->population = 1;
+  open_col->colonist_count = 1;
+  colonies.colony_count = 2;
+
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* drag = units_get(&units, own_id);
+  if (!drag) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dragoon-hunt spawn");
+  }
+  drag->nation_id = nation;
+  drag->orders = 0;
+  drag->moves_left = 4;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+  uint32_t turn = 45;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  drag = units_get(&units, own_id);
+  if (!drag || !drag->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dragoon-hunt despawned");
+  }
+  if (drag->goto_x != 10 || drag->goto_y != 5) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: dragoon-hunt goto=(%d,%d) want open (10,5)\n",
+      drag->goto_x,
+      drag->goto_y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("Dragoon hunt should prefer open colony over Stockade");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Dragoon hunt prefer open ok\n");
   return 0;
 }
 
@@ -2390,6 +3496,578 @@ static int smoke_peace_dragoon_border_wake(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(stderr, "smoke_ai_euro_war: peace Dragoon border wake ok\n");
+  return 0;
+}
+
+/*
+ * Peace fortified Artillery on colony wakes when foreign Euro land unit enters
+ * MD≤2 (same Soldier/Dragoon arm). Cite: Colonization.pdf Defending a Colony
+ * (…or artillery); euro_unit_act §2d3; units_wake.
+ */
+static int smoke_peace_artillery_border_wake(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("arty-border alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 3;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 4;
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* arty = units_get(&units, own_id);
+  if (!arty) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("arty-border spawn artillery");
+  }
+  arty->nation_id = nation;
+  arty->orders = UNITS_ORDER_FORTIFIED;
+  arty->moves_left = 1;
+
+  const int foe_id = units_spawn(&units, 1, 6, 4);
+  ColonizeUnit* foe_u = units_get(&units, foe_id);
+  if (!foe_u) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("arty-border spawn foe");
+  }
+  foe_u->nation_id = foe;
+  foe_u->orders = 0;
+  foe_u->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+
+  ai_goals_reset();
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int x0 = arty->x;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  arty = units_get(&units, own_id);
+  foe_u = units_get(&units, foe_id);
+  if (!arty || !arty->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    fprintf(stderr, "smoke_ai_euro_war: peace Artillery border wake ok (combat despawn)\n");
+    return 0;
+  }
+
+  const int woken = arty->orders != UNITS_ORDER_FORTIFIED && arty->orders != UNITS_ORDER_FORTIFY;
+  const int hunting =
+    units_orders_follow_goto(arty->orders) || arty->x != x0 || (foe_u && !foe_u->active);
+  const int toward =
+    (arty->goto_x == 6 && arty->goto_y == 4) || arty->x > x0 || (foe_u && !foe_u->active);
+  if (!woken || !hunting || !toward) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: arty-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      arty->orders,
+      arty->goto_x,
+      arty->goto_y,
+      arty->x,
+      arty->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected peace-fortified Artillery to wake for MD≤2 border threat");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Artillery border wake ok\n");
+  return 0;
+}
+
+/*
+ * Peace fortified Regular on colony wakes when foreign Euro land unit enters
+ * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
+ */
+static int smoke_peace_regular_border_wake(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("regular-border alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 3;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 4;
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* reg = units_get(&units, own_id);
+  if (!reg) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("regular-border spawn regular");
+  }
+  reg->nation_id = nation;
+  reg->orders = UNITS_ORDER_FORTIFIED;
+  reg->moves_left = 3;
+
+  const int foe_id = units_spawn(&units, 1, 6, 4);
+  ColonizeUnit* foe_u = units_get(&units, foe_id);
+  if (!foe_u) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("regular-border spawn foe");
+  }
+  foe_u->nation_id = foe;
+  foe_u->orders = 0;
+  foe_u->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+
+  ai_goals_reset();
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int x0 = reg->x;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  reg = units_get(&units, own_id);
+  foe_u = units_get(&units, foe_id);
+  if (!reg || !reg->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    fprintf(stderr, "smoke_ai_euro_war: peace Regular border wake ok (combat despawn)\n");
+    return 0;
+  }
+
+  const int woken = reg->orders != UNITS_ORDER_FORTIFIED && reg->orders != UNITS_ORDER_FORTIFY;
+  const int hunting =
+    units_orders_follow_goto(reg->orders) || reg->x != x0 || (foe_u && !foe_u->active);
+  const int toward =
+    (reg->goto_x == 6 && reg->goto_y == 4) || reg->x > x0 || (foe_u && !foe_u->active);
+  if (!woken || !hunting || !toward) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: regular-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      reg->orders,
+      reg->goto_x,
+      reg->goto_y,
+      reg->x,
+      reg->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected peace-fortified Regular to wake for MD≤2 border threat");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Regular border wake ok\n");
+  return 0;
+}
+
+/*
+ * 5d04 treasury: at war, prefer Artillery but gold < Europe purchase 500$ →
+ * fall back to Soldier hire (hire_cost), not unpaid Artillery fiction.
+ */
+
+/*
+ * Peace fortified Continental Cavalry on colony wakes when foreign Euro land unit enters
+ * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
+ */
+
+/*
+ * Peace fortified Continental Army on colony wakes when foreign Euro land unit enters
+ * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
+ */
+static int smoke_peace_continental_army_border_wake(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("carmy-border alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 3;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 4;
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* army = units_get(&units, own_id);
+  if (!army) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmy-border spawn regular");
+  }
+  army->nation_id = nation;
+  army->orders = UNITS_ORDER_FORTIFIED;
+  army->moves_left = 3;
+
+  const int foe_id = units_spawn(&units, 1, 6, 4);
+  ColonizeUnit* foe_u = units_get(&units, foe_id);
+  if (!foe_u) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmy-border spawn foe");
+  }
+  foe_u->nation_id = foe;
+  foe_u->orders = 0;
+  foe_u->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+
+  ai_goals_reset();
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int x0 = army->x;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  army = units_get(&units, own_id);
+  foe_u = units_get(&units, foe_id);
+  if (!army || !army->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    fprintf(stderr, "smoke_ai_euro_war: peace Continental Army border wake ok (combat despawn)\n");
+    return 0;
+  }
+
+  const int woken = army->orders != UNITS_ORDER_FORTIFIED && army->orders != UNITS_ORDER_FORTIFY;
+  const int hunting =
+    units_orders_follow_goto(army->orders) || army->x != x0 || (foe_u && !foe_u->active);
+  const int toward =
+    (army->goto_x == 6 && army->goto_y == 4) || army->x > x0 || (foe_u && !foe_u->active);
+  if (!woken || !hunting || !toward) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: carmy-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      army->orders,
+      army->goto_x,
+      army->goto_y,
+      army->x,
+      army->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected peace-fortified Continental Army to wake for MD≤2 border threat");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Continental Army border wake ok\n");
+  return 0;
+}
+
+/*
+ * 5d04 treasury: at war, prefer Artillery but gold < Europe purchase 500$ →
+ * fall back to Soldier hire (hire_cost), not unpaid Artillery fiction.
+ */
+
+/*
+ * Peace fortified Continental Cavalry on colony wakes when foreign Euro land unit enters
+ * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
+ */
+static int smoke_peace_continental_cavalry_border_wake(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("ccav-border alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 3;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 4;
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* cav = units_get(&units, own_id);
+  if (!cav) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccav-border spawn continental cavalry");
+  }
+  cav->nation_id = nation;
+  cav->orders = UNITS_ORDER_FORTIFIED;
+  cav->moves_left = 3;
+
+  const int foe_id = units_spawn(&units, 1, 6, 4);
+  ColonizeUnit* foe_u = units_get(&units, foe_id);
+  if (!foe_u) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccav-border spawn foe");
+  }
+  foe_u->nation_id = foe;
+  foe_u->orders = 0;
+  foe_u->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+
+  ai_goals_reset();
+
+  uint32_t turn = 25;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  const int x0 = cav->x;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  cav = units_get(&units, own_id);
+  foe_u = units_get(&units, foe_id);
+  if (!cav || !cav->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    fprintf(stderr, "smoke_ai_euro_war: peace Continental Cavalry border wake ok (combat despawn)\n");
+    return 0;
+  }
+
+  const int woken = cav->orders != UNITS_ORDER_FORTIFIED && cav->orders != UNITS_ORDER_FORTIFY;
+  const int hunting =
+    units_orders_follow_goto(cav->orders) || cav->x != x0 || (foe_u && !foe_u->active);
+  const int toward =
+    (cav->goto_x == 6 && cav->goto_y == 4) || cav->x > x0 || (foe_u && !foe_u->active);
+  if (!woken || !hunting || !toward) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: ccav-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      cav->orders,
+      cav->goto_x,
+      cav->goto_y,
+      cav->x,
+      cav->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected peace-fortified Continental Cavalry to wake for MD≤2 border threat");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Continental Cavalry border wake ok\n");
   return 0;
 }
 
@@ -3698,6 +5376,450 @@ static int smoke_dragoon_board_empty_transport(void) {
 }
 
 /*
+ * At war: idle Regular on coastal own colony boards empty transport. Cite:
+ * Defending a Colony army; euro_unit_act §2b2 / §2d3 ship board; king_ref Regular.
+ */
+static int smoke_regular_board_empty_transport(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("rboard alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("rboard colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  ColonizeColony* enemy = &colonies.colonies[1];
+  enemy->id = 1;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 14;
+  enemy->y = 14;
+  enemy->population = 1;
+  enemy->colonist_count = 1;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* reg = units_get(&units, uid);
+  if (!reg) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("rboard spawn regular");
+  }
+  reg->nation_id = nation;
+  reg->orders = 0;
+  reg->moves_left = 1;
+  reg->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("rboard spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 0;
+  ship->cargo_count = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  reg = units_get(&units, uid);
+  ship = units_get(&units, sid);
+  const int aboard = reg && reg->aboard_ship_id == sid;
+  const int cargo_ok = ship && ship->cargo_count >= 1;
+  if (!aboard || !cargo_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: rboard aboard=%d cargo=%d\n",
+      aboard,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Regular to board empty coastal transport");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Regular board empty transport ok\n");
+  return 0;
+}
+
+/*
+ * At war: idle Continental Army on coastal own colony boards empty transport.
+ * Cite: Defending a Colony army; euro_unit_act §2b2 / §2d3; king_ref Cont. Army.
+ */
+static int smoke_continental_army_board_empty_transport(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("caboard alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("caboard colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  ColonizeColony* enemy = &colonies.colonies[1];
+  enemy->id = 1;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 14;
+  enemy->y = 14;
+  enemy->population = 1;
+  enemy->colonist_count = 1;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* reg = units_get(&units, uid);
+  if (!reg) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("caboard spawn army");
+  }
+  reg->nation_id = nation;
+  reg->orders = 0;
+  reg->moves_left = 1;
+  reg->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("caboard spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 0;
+  ship->cargo_count = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  reg = units_get(&units, uid);
+  ship = units_get(&units, sid);
+  const int aboard = reg && reg->aboard_ship_id == sid;
+  const int cargo_ok = ship && ship->cargo_count >= 1;
+  if (!aboard || !cargo_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: caboard aboard=%d cargo=%d\n",
+      aboard,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Army to board empty coastal transport");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Continental Army board empty transport ok\n");
+  return 0;
+}
+
+/*
+ * At war: idle Artillery on coastal own colony boards empty transport (same
+ * Soldier/Dragoon embark path; before on-colony fortify). Cite: Colonization.pdf
+ * naval transport / Defending a Colony; euro_unit_act §2d3 ship board military.
+ */
+
+/*
+ * At war: idle Continental Cavalry on coastal own colony boards empty transport.
+ * Cite: Defending a Colony army; euro_unit_act §2b2 / §2d3; king_ref Cont. Army.
+ */
+static int smoke_continental_cavalry_board_empty_transport(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("ccavboard alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavboard colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  ColonizeColony* enemy = &colonies.colonies[1];
+  enemy->id = 1;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 14;
+  enemy->y = 14;
+  enemy->population = 1;
+  enemy->colonist_count = 1;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* cav = units_get(&units, uid);
+  if (!cav) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavboard spawn army");
+  }
+  cav->nation_id = nation;
+  cav->orders = 0;
+  cav->moves_left = 1;
+  cav->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavboard spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 0;
+  ship->cargo_count = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 30;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  cav = units_get(&units, uid);
+  ship = units_get(&units, sid);
+  const int aboard = cav && cav->aboard_ship_id == sid;
+  const int cargo_ok = ship && ship->cargo_count >= 1;
+  if (!aboard || !cargo_ok) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: ccavboard aboard=%d cargo=%d\n",
+      aboard,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Cavalry to board empty coastal transport");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Continental Cavalry board empty transport ok\n");
+  return 0;
+}
+
+/*
  * At war: idle Artillery on coastal own colony boards empty transport (same
  * Soldier/Dragoon embark path; before on-colony fortify). Cite: Colonization.pdf
  * naval transport / Defending a Colony; euro_unit_act §2d3 ship board military.
@@ -4040,6 +6162,696 @@ static int smoke_unload_military_threatened(void) {
 }
 
 /*
+ * Threatened-port unload: Dragoon-only cargo → unload Dragoon (Soldier ladder
+ * fallback). Cite: euro_unit_act §2b2; king_ref MoW unload else Dragoon.
+ */
+static int smoke_unload_dragoon_threatened(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dunload alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dunload colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
+  units.types[0].movement = 1; /* after unload, no same-act hunt into threat */
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 6;
+  units.types[0].defense = 4;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 0;
+  units.types[2].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* drag = units_get(&units, uid);
+  if (!drag) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dunload spawn dragoon");
+  }
+  drag->nation_id = nation;
+  drag->orders = 0;
+  drag->moves_left = 0;
+  drag->muskets = 50;
+  drag->horses = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* galleon = units_get(&units, sid);
+  if (!galleon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dunload spawn galleon");
+  }
+  galleon->nation_id = nation;
+  galleon->orders = 0;
+  galleon->moves_left = 4;
+  galleon->cargo_count = 0;
+
+  if (!units_board(&units, uid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dunload board setup");
+  }
+
+  const int threat_id = units_spawn(&units, 2, 5, 4);
+  ColonizeUnit* threat = units_get(&units, threat_id);
+  if (!threat) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dunload spawn threat");
+  }
+  threat->nation_id = foe;
+  threat->orders = 0;
+  threat->moves_left = 0;
+
+  ai_goals_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+  }
+  col1.nation[nation].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+  /* Block Privateer spawn noise. */
+  col1.nation[nation].privateer_spawn_mask = (uint8_t)(1u << foe);
+
+  uint32_t turn = 13;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 10;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  drag = units_get(&units, uid);
+  galleon = units_get(&units, sid);
+  if (!drag || !drag->active || drag->aboard_ship_id >= 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: dunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      drag ? drag->aboard_ship_id : -99,
+      drag ? (int)drag->active : 0,
+      galleon ? galleon->cargo_count : -1,
+      drag ? drag->x : -1,
+      drag ? drag->y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Dragoon unloaded at threatened coastal colony");
+  }
+  const int near_colony = abs(drag->x - 4) + abs(drag->y - 4) <= 1;
+  if (!near_colony) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Dragoon unloaded near threatened colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Dragoon unload threatened colony ok\n");
+  return 0;
+}
+
+/*
+ * Threatened-port unload: Regular-only cargo → unload Regular. Cite: king_ref
+ * MoW Regular-prefer; euro_unit_act §2b2.
+ */
+static int smoke_unload_regular_threatened(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("runload alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("runload colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 0;
+  units.types[2].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* reg = units_get(&units, uid);
+  if (!reg) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("runload spawn regular");
+  }
+  reg->nation_id = nation;
+  reg->orders = 0;
+  reg->moves_left = 0;
+  reg->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("runload spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 4;
+  ship->cargo_count = 0;
+  if (!units_board(&units, uid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("runload board regular");
+  }
+
+  const int tid = units_spawn(&units, 2, 5, 4);
+  ColonizeUnit* threat = units_get(&units, tid);
+  if (!threat) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("runload spawn threat");
+  }
+  threat->nation_id = foe;
+  threat->orders = 0;
+  threat->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 28;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  reg = units_get(&units, uid);
+  ship = units_get(&units, sid);
+  if (!reg || !reg->active || reg->aboard_ship_id >= 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: runload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      reg ? reg->aboard_ship_id : -99,
+      reg ? reg->active : 0,
+      ship ? ship->cargo_count : -1,
+      reg ? reg->x : -1,
+      reg ? reg->y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Regular unloaded at threatened coastal colony");
+  }
+  if (abs(reg->x - 4) > 1 || abs(reg->y - 4) > 1) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Regular unloaded near threatened colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Regular unload threatened colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace: idle Soldier on own colony → FORTIFY. Cite: euro_unit_act §2d3.
+ */
+
+/*
+ * Threatened-port unload: Continental Cavalry-only cargo → unload Continental Cavalry. Cite: king_ref
+ * MoW Continental Cavalry-prefer; euro_unit_act §2b2.
+ */
+
+/*
+ * Threatened-port unload: Continental Army-only cargo → unload Continental Army. Cite: king_ref
+ * MoW Continental Army-prefer; euro_unit_act §2b2.
+ */
+static int smoke_unload_continental_army_threatened(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("carmyunload alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmyunload colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 0;
+  units.types[2].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* army = units_get(&units, uid);
+  if (!army) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmyunload spawn regular");
+  }
+  army->nation_id = nation;
+  army->orders = 0;
+  army->moves_left = 0;
+  army->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmyunload spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 4;
+  ship->cargo_count = 0;
+  if (!units_board(&units, uid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmyunload board regular");
+  }
+
+  const int tid = units_spawn(&units, 2, 5, 4);
+  ColonizeUnit* threat = units_get(&units, tid);
+  if (!threat) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("carmyunload spawn threat");
+  }
+  threat->nation_id = foe;
+  threat->orders = 0;
+  threat->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 28;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  army = units_get(&units, uid);
+  ship = units_get(&units, sid);
+  if (!army || !army->active || army->aboard_ship_id >= 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: carmyunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      army ? army->aboard_ship_id : -99,
+      army ? army->active : 0,
+      ship ? ship->cargo_count : -1,
+      army ? army->x : -1,
+      army ? army->y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Army unloaded at threatened coastal colony");
+  }
+  if (abs(army->x - 4) > 1 || abs(army->y - 4) > 1) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Army unloaded near threatened colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Continental Army unload threatened colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace: idle Soldier on own colony → FORTIFY. Cite: euro_unit_act §2d3.
+ */
+
+/*
+ * Threatened-port unload: Continental Cavalry-only cargo → unload Continental Cavalry. Cite: king_ref
+ * MoW Continental Cavalry-prefer; euro_unit_act §2b2.
+ */
+static int smoke_unload_continental_cavalry_threatened(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("ccavunload alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavunload colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 0;
+  units.types[2].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* cav = units_get(&units, uid);
+  if (!cav) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavunload spawn regular");
+  }
+  cav->nation_id = nation;
+  cav->orders = 0;
+  cav->moves_left = 0;
+  cav->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavunload spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->orders = 0;
+  ship->moves_left = 4;
+  ship->cargo_count = 0;
+  if (!units_board(&units, uid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavunload board regular");
+  }
+
+  const int tid = units_spawn(&units, 2, 5, 4);
+  ColonizeUnit* threat = units_get(&units, tid);
+  if (!threat) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("ccavunload spawn threat");
+  }
+  threat->nation_id = foe;
+  threat->orders = 0;
+  threat->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 28;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  cav = units_get(&units, uid);
+  ship = units_get(&units, sid);
+  if (!cav || !cav->active || cav->aboard_ship_id >= 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: ccavunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      cav ? cav->aboard_ship_id : -99,
+      cav ? cav->active : 0,
+      ship ? ship->cargo_count : -1,
+      cav ? cav->x : -1,
+      cav ? cav->y : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Cavalry unloaded at threatened coastal colony");
+  }
+  if (abs(cav->x - 4) > 1 || abs(cav->y - 4) > 1) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Cavalry unloaded near threatened colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: Continental Cavalry unload threatened colony ok\n");
+  return 0;
+}
+
+/*
  * Peace: idle Soldier on own colony → FORTIFY. Cite: euro_unit_act §2d3.
  */
 static int smoke_peace_soldier_fortify_colony(void) {
@@ -4149,6 +6961,684 @@ static int smoke_peace_soldier_fortify_colony(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(stderr, "smoke_ai_euro_war: peace soldier fortify colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace Dragoon fortify: idle Dragoon on own colony → FORTIFY (same arm as
+ * Soldier). Cite: euro_unit_act §2d3; Colonization.pdf Defending a Colony.
+ */
+static int smoke_peace_dragoon_fortify_colony(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-dragoon-fortify alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Dragoon");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 3;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* drag = units_get(&units, uid);
+  if (!drag) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-dragoon-fortify spawn");
+  }
+  drag->nation_id = nation;
+  drag->moves_left = 4;
+  drag->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  drag = units_get(&units, uid);
+  if (!drag || !drag->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify dragoon should remain");
+  }
+  if (drag->orders != UNITS_ORDER_FORTIFY && drag->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: peace-dragoon-fortify orders=%d pos=(%d,%d)\n",
+      drag->orders,
+      drag->x,
+      drag->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected idle Dragoon on colony to FORTIFY at peace");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace dragoon fortify colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace Regular fortify: idle Regular on own colony → FORTIFY. Cite:
+ * euro_unit_act §2d3; Colonization.pdf Defending a Colony.
+ */
+static int smoke_peace_regular_fortify_colony(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-regular-fortify alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* reg = units_get(&units, uid);
+  if (!reg) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-regular-fortify spawn");
+  }
+  reg->nation_id = nation;
+  reg->moves_left = 3;
+  reg->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  reg = units_get(&units, uid);
+  if (!reg || !reg->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify regular should remain");
+  }
+  if (reg->orders != UNITS_ORDER_FORTIFY && reg->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: peace-regular-fortify orders=%d pos=(%d,%d)\n",
+      reg->orders,
+      reg->x,
+      reg->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Regular FORTIFY on own colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Regular fortify colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace Continental Army fortify on own colony. Cite: Defending a Colony
+ * ("…army, cavalry…"); euro_unit_act §2d3.
+ */
+static int smoke_peace_continental_fortify_colony(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-cont-fortify alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Army");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 4;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* army = units_get(&units, uid);
+  if (!army) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-cont-fortify spawn");
+  }
+  army->nation_id = nation;
+  army->moves_left = 3;
+  army->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  army = units_get(&units, uid);
+  if (!army || !army->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify continental should remain");
+  }
+  if (army->orders != UNITS_ORDER_FORTIFY && army->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: peace-cont-fortify orders=%d pos=(%d,%d)\n",
+      army->orders,
+      army->x,
+      army->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Army FORTIFY on own colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Continental Army fortify colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace Continental Cavalry fortify on own colony. Cite: Defending a Colony
+ * ("…cavalry…"); euro_unit_act §2d3.
+ */
+static int smoke_peace_continental_cavalry_fortify_colony(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-cont-cav-fortify alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Continental Cavalry");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 3;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* cav = units_get(&units, uid);
+  if (!cav) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-cont-cav-fortify spawn");
+  }
+  cav->nation_id = nation;
+  cav->moves_left = 4;
+  cav->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  cav = units_get(&units, uid);
+  if (!cav || !cav->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify continental cavalry should remain");
+  }
+  if (cav->orders != UNITS_ORDER_FORTIFY && cav->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: peace-cont-cav-fortify orders=%d pos=(%d,%d)\n",
+      cav->orders,
+      cav->x,
+      cav->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Continental Cavalry FORTIFY on own colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Continental Cavalry fortify colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace Artillery fortify on own colony. Cite: Defending a Colony ("…or
+ * artillery"); euro_unit_act §2d3.
+ */
+static int smoke_peace_artillery_fortify_colony(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-art-fortify alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Artillery");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 3;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* art = units_get(&units, uid);
+  if (!art) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-art-fortify spawn");
+  }
+  art->nation_id = nation;
+  art->moves_left = 1;
+  art->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  art = units_get(&units, uid);
+  if (!art || !art->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify artillery should remain");
+  }
+  if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: peace-art-fortify orders=%d pos=(%d,%d)\n",
+      art->orders,
+      art->x,
+      art->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Artillery FORTIFY on own colony in peace");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Artillery fortify colony ok\n");
+  return 0;
+}
+
+/*
+ * Peace Cannon fortify on own colony (Artillery name alias). Cite: Defending a
+ * Colony ("…or artillery"); ai_euro_is_artillery_name Cannon; euro_unit_act §2d3.
+ */
+static int smoke_peace_cannon_fortify_colony(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("peace-cannon-fortify alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Cannon");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 3;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* art = units_get(&units, uid);
+  if (!art) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-cannon-fortify spawn");
+  }
+  art->nation_id = nation;
+  art->moves_left = 1;
+  art->orders = 0;
+
+  ai_goals_reset();
+  ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 20;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  art = units_get(&units, uid);
+  if (!art || !art->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("peace-fortify cannon should remain");
+  }
+  if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: peace-cannon-fortify orders=%d pos=(%d,%d)\n",
+      art->orders,
+      art->x,
+      art->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Cannon FORTIFY on own colony in peace");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: peace Cannon fortify colony ok\n");
   return 0;
 }
 
@@ -4457,6 +7947,372 @@ static int smoke_war_transport_threatened_colony(void) {
   return 0;
 }
 
+/*
+ * War transport: idle Man-O-War with passenger space prefers threatened own
+ * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
+ */
+static int smoke_mow_war_transport_threatened(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("mowtrans alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  /* Land colony at (4,4); coastal via water neighbours. */
+  map.terrain[4 * 16 + 4] = 1;
+  map.terrain[4 * 16 + 5] = 1;
+  map.terrain[5 * 16 + 4] = 1;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mowtrans colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+  units.types[0].cargo = 6;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  /* Own Man-O-War far south — closer to threatened colony than to distant foe. */
+  const int own_id = units_spawn(&units, 0, 3, 10);
+  ColonizeUnit* mow = units_get(&units, own_id);
+  if (!mow) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mowtrans spawn mow");
+  }
+  mow->nation_id = nation;
+  mow->orders = 0;
+  mow->moves_left = 4;
+  mow->cargo_count = 0;
+
+  /* Foe soldier adjacent to own colony (threat MD≤3). */
+  const int threat_id = units_spawn(&units, 1, 5, 4);
+  ColonizeUnit* threat = units_get(&units, threat_id);
+  if (!threat) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mowtrans spawn threat");
+  }
+  threat->nation_id = foe;
+  threat->orders = 0;
+  threat->moves_left = 0;
+
+  /* Distant foe ship — must not win over threatened port. */
+  const int foe_ship_id = units_spawn(&units, 0, 14, 14);
+  ColonizeUnit* foe_ship = units_get(&units, foe_ship_id);
+  if (!foe_ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mowtrans spawn foe ship");
+  }
+  foe_ship->nation_id = foe;
+  foe_ship->orders = 0;
+  foe_ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mowtrans expected war");
+  }
+
+  ai_goals_reset();
+
+  uint32_t turn = 32;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  mow = units_get(&units, own_id);
+  if (!mow || !mow->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mowtrans mow should remain");
+  }
+
+  /* Expect AI_SAIL toward coastal water near (4,4), not distant foe (14,14). */
+  int near_colony = 0;
+  if (mow->orders == UNITS_ORDER_AI_SAIL) {
+    const int gd = abs(mow->goto_x - 4) + abs(mow->goto_y - 4);
+    const int fd = abs(mow->goto_x - 14) + abs(mow->goto_y - 14);
+    near_colony = gd <= 2 && gd < fd;
+  }
+  const int moved_closer =
+    abs(mow->x - 4) + abs(mow->y - 4) < abs(3 - 4) + abs(10 - 4);
+
+  if (!near_colony && !moved_closer) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: mowtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      mow->orders,
+      mow->goto_x,
+      mow->goto_y,
+      mow->x,
+      mow->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Man-O-War sail toward threatened own coastal colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: Man-O-War war transport threatened ok (near=%d closer=%d)\n",
+    near_colony,
+    moved_closer
+  );
+  return 0;
+}
+
+/*
+ * War transport: idle Frigate with passenger space prefers threatened own
+ * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
+ */
+static int smoke_frigate_war_transport_threatened(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("frigtrans alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  /* Land colony at (4,4); coastal via water neighbours. */
+  map.terrain[4 * 16 + 4] = 1;
+  map.terrain[4 * 16 + 5] = 1;
+  map.terrain[5 * 16 + 4] = 1;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("frigtrans colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+  units.types[0].cargo = 6;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Soldier");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  /* Own Frigate far south — closer to threatened colony than to distant foe. */
+  const int own_id = units_spawn(&units, 0, 3, 10);
+  ColonizeUnit* frig = units_get(&units, own_id);
+  if (!frig) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("frigtrans spawn frig");
+  }
+  frig->nation_id = nation;
+  frig->orders = 0;
+  frig->moves_left = 4;
+  frig->cargo_count = 0;
+
+  /* Foe soldier adjacent to own colony (threat MD≤3). */
+  const int threat_id = units_spawn(&units, 1, 5, 4);
+  ColonizeUnit* threat = units_get(&units, threat_id);
+  if (!threat) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("frigtrans spawn threat");
+  }
+  threat->nation_id = foe;
+  threat->orders = 0;
+  threat->moves_left = 0;
+
+  /* Distant foe ship — must not win over threatened port. */
+  const int foe_ship_id = units_spawn(&units, 0, 14, 14);
+  ColonizeUnit* foe_ship = units_get(&units, foe_ship_id);
+  if (!foe_ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("frigtrans spawn foe ship");
+  }
+  foe_ship->nation_id = foe;
+  foe_ship->orders = 0;
+  foe_ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+  if (!ai_diplo_at_war(&col1, nation, foe)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("frigtrans expected war");
+  }
+
+  ai_goals_reset();
+
+  uint32_t turn = 32;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  frig = units_get(&units, own_id);
+  if (!frig || !frig->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("frigtrans frig should remain");
+  }
+
+  /* Expect AI_SAIL toward coastal water near (4,4), not distant foe (14,14). */
+  int near_colony = 0;
+  if (frig->orders == UNITS_ORDER_AI_SAIL) {
+    const int gd = abs(frig->goto_x - 4) + abs(frig->goto_y - 4);
+    const int fd = abs(frig->goto_x - 14) + abs(frig->goto_y - 14);
+    near_colony = gd <= 2 && gd < fd;
+  }
+  const int moved_closer =
+    abs(frig->x - 4) + abs(frig->y - 4) < abs(3 - 4) + abs(10 - 4);
+
+  if (!near_colony && !moved_closer) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: frigtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      frig->orders,
+      frig->goto_x,
+      frig->goto_y,
+      frig->x,
+      frig->y
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Frigate sail toward threatened own coastal colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_war: Frigate war transport threatened ok (near=%d closer=%d)\n",
+    near_colony,
+    moved_closer
+  );
+  return 0;
+}
+
 int main(void) {
   if (smoke_mid_hire_mil() != 0) {
     return 1;
@@ -4473,10 +8329,31 @@ int main(void) {
   if (smoke_dragoon_board_empty_transport() != 0) {
     return 1;
   }
+  if (smoke_regular_board_empty_transport() != 0) {
+    return 1;
+  }
+  if (smoke_continental_army_board_empty_transport() != 0) {
+    return 1;
+  }
+  if (smoke_continental_cavalry_board_empty_transport() != 0) {
+    return 1;
+  }
   if (smoke_artillery_board_empty_transport() != 0) {
     return 1;
   }
   if (smoke_unload_military_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_unload_dragoon_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_unload_regular_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_unload_continental_army_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_unload_continental_cavalry_threatened() != 0) {
     return 1;
   }
   if (smoke_at_war_tools_prefer_soldier() != 0) {
@@ -4488,10 +8365,34 @@ int main(void) {
   if (smoke_peace_soldier_fortify_colony() != 0) {
     return 1;
   }
+  if (smoke_peace_dragoon_fortify_colony() != 0) {
+    return 1;
+  }
+  if (smoke_peace_regular_fortify_colony() != 0) {
+    return 1;
+  }
+  if (smoke_peace_continental_fortify_colony() != 0) {
+    return 1;
+  }
+  if (smoke_peace_continental_cavalry_fortify_colony() != 0) {
+    return 1;
+  }
+  if (smoke_peace_artillery_fortify_colony() != 0) {
+    return 1;
+  }
+  if (smoke_peace_cannon_fortify_colony() != 0) {
+    return 1;
+  }
   if (smoke_artillery_fortify_colony() != 0) {
     return 1;
   }
   if (smoke_war_transport_threatened_colony() != 0) {
+    return 1;
+  }
+  if (smoke_mow_war_transport_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_frigate_war_transport_threatened() != 0) {
     return 1;
   }
   if (smoke_g_stance_own3_prio7() != 0) {
@@ -4527,13 +8428,37 @@ int main(void) {
   if (smoke_land_war_hunt_multistep() != 0) {
     return 1;
   }
+  if (smoke_continental_army_land_hunt() != 0) {
+    return 1;
+  }
+  if (smoke_continental_cavalry_land_hunt() != 0) {
+    return 1;
+  }
   if (smoke_sticky_contact_rehunt() != 0) {
     return 1;
   }
   if (smoke_land_adjacent_foe_prefer_weak() != 0) {
     return 1;
   }
+  if (smoke_land_adjacent_foe_prefer_open_over_stockade() != 0) {
+    return 1;
+  }
+  if (smoke_land_adjacent_foe_prefer_non_veteran() != 0) {
+    return 1;
+  }
+  if (smoke_artillery_adjacent_prefer_stockade() != 0) {
+    return 1;
+  }
+  if (smoke_artillery_siege_hunt_prefer_stockade() != 0) {
+    return 1;
+  }
+  if (smoke_dragoon_hunt_prefer_open() != 0) {
+    return 1;
+  }
   if (smoke_naval_adjacent_foe_prefer_weak() != 0) {
+    return 1;
+  }
+  if (smoke_naval_adjacent_foe_prefer_non_drake() != 0) {
     return 1;
   }
   if (smoke_privateer_prefer_cargo_prey() != 0) {
@@ -4546,6 +8471,18 @@ int main(void) {
     return 1;
   }
   if (smoke_peace_dragoon_border_wake() != 0) {
+    return 1;
+  }
+  if (smoke_peace_artillery_border_wake() != 0) {
+    return 1;
+  }
+  if (smoke_peace_regular_border_wake() != 0) {
+    return 1;
+  }
+  if (smoke_peace_continental_army_border_wake() != 0) {
+    return 1;
+  }
+  if (smoke_peace_continental_cavalry_border_wake() != 0) {
     return 1;
   }
   fprintf(stderr, "smoke_ai_euro_war: ok\n");

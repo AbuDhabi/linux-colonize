@@ -967,6 +967,70 @@ int units_cortes_conquest_treasure_gold(
   return amount * 100;
 }
 
+/*
+ * FUN_5fef_31ea / 1b0e subjugated convert-join threshold (before rng).
+ * mission 0xff → ineligible (-1). Else low-nibble must equal attacker.
+ * Base 4, Jesuit bit0x10 → 8; Spanish +4; Sepulveda +4; Las Casas −4.
+ * Succeed when dos_rng_range(0,12) < threshold. Cite: viceroy ~101155–101184;
+ * PEDIA @FATHER23; GAME.TXT @INDIANSLAVES.
+ */
+static int units_subjugated_convert_join_threshold(
+  const ColonizeCol1Save* col1,
+  int attacker_nation_id,
+  uint8_t mission
+) {
+  if (!col1 || attacker_nation_id < 0 || attacker_nation_id > 3) {
+    return -1;
+  }
+  if ((int8_t)mission < 0) {
+    return -1; /* COL1_TRIBE_MISSION_NONE 0xff */
+  }
+  if ((mission & COL1_TRIBE_MISSION_NATION_MASK) != (uint8_t)attacker_nation_id) {
+    return -1;
+  }
+  int thr = (mission & COL1_TRIBE_MISSION_JESUIT_BIT) ? 8 : 4;
+  if (attacker_nation_id == 2) {
+    thr += 4; /* Spanish nation id — same as Cortes peel */
+  }
+  if (founding_fathers_sepulveda_convert_join_bonus(col1, attacker_nation_id)) {
+    thr += 4;
+  }
+  if (founding_fathers_nation_has(col1, attacker_nation_id, FF_BARTOLOME_DE_LAS_CASAS)) {
+    thr -= 4;
+  }
+  return thr;
+}
+
+/* Spawn Colonists + Convert profession (@JOB 27). Returns unit id or -1. */
+static int units_spawn_subjugated_convert(
+  ColonizeUnitPool* units,
+  int x,
+  int y,
+  int nation_id
+) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return -1;
+  }
+  int ti = units_find_type(units, "Colonists");
+  if (ti < 0) {
+    ti = units_find_type(units, "Free Colonists");
+  }
+  if (ti < 0) {
+    return -1;
+  }
+  const int id = units_spawn_allow_stack(units, ti, x, y);
+  if (id < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(units, id);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, nation_id);
+  u->profession = 27; /* NAMES @JOB Convert / COLONIZE_PROF_CONVERT */
+  return id;
+}
+
 bool units_try_native_settlement_fallout(
   ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
@@ -981,8 +1045,8 @@ bool units_try_native_settlement_fallout(
   /*
    * Post-win stand-in for FUN_5fef_31ea (structural): destroy native village
    * when the last same-nation Brave leaves the tribe tile after combat win.
-   * Cortes treasure: gold_amount>0 (caller) or peel FUN_5fef_31ea when
-   * gold_amount<=0 + Cortes + rng. Non-Cortes unknown amount stays no-spawn.
+   * Convert-join (before destroy) when mission owned by attacker; Cortes
+   * treasure after. Non-Cortes unknown amount stays no-spawn.
    */
   if (!col1 || !units || defender_nation_id < 4) {
     return false;
@@ -998,13 +1062,31 @@ bool units_try_native_settlement_fallout(
    * FUN_5fef_31ea stack-local -0xcc (rich): map to ColonizeCol1TribeState.capital
    * before destroy. Cite: col1_save.h capital bit; fandom capital / Aztec treasure;
    * viceroy_unpacked.c ~101416–101466 (-0xcc doubles / boosts amount).
+   * Mission byte (+5): convert-join owner + Jesuit bit0x10.
    */
   int rich_capital = 0;
+  uint8_t mission = COL1_TRIBE_MISSION_NONE;
   if (col1->tribe) {
     for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
       if ((int)col1->tribe[i].x == tile_x && (int)col1->tribe[i].y == tile_y) {
         rich_capital = col1->tribe[i].state.capital ? 1 : 0;
+        mission = col1->tribe[i].mission;
         break;
+      }
+    }
+  }
+
+  /*
+   * Subjugated convert-join before tribe destroy (DOS order: convert then
+   * treasure). Cite: FUN_5fef_1b0e ~101155–101184; @INDIANSLAVES 0x1cbf.
+   */
+  if (attacker_nation_id >= 0 && attacker_nation_id < 4 && rng) {
+    const int thr =
+      units_subjugated_convert_join_threshold(col1, attacker_nation_id, mission);
+    if (thr >= 0) {
+      const int roll = dos_rng_range(rng, 0, 12);
+      if (roll < thr) {
+        (void)units_spawn_subjugated_convert(units, tile_x, tile_y, attacker_nation_id);
       }
     }
   }

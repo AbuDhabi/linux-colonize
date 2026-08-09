@@ -79,8 +79,8 @@
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
  * PARK: 160a letter cinematic; full embark UI chrome; dump-goods boycott modal
- * (pick API: ai_king_pick_dump_goods_cargo; Europe bid>0 eligibility + weight
- * Done; modal CHOICE / VGA PARKED).
+ * CHOICE Done (pick API + Europe bid>0 weight for auto; KING_DUMP_GOODS for
+ * human; VGA PARKED).
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
@@ -1557,7 +1557,8 @@ static void ai_king_tax_accept_hike(ColonizeTurnContext* ctx, int human) {
 /*
  * FUN_43f7_38fd_5be8 Refuse path: boycott stand-in + Sugar freeze + REF grow,
  * tax unchanged. Used by auto refuse and ai_king_apply_popup_result (Refuse).
- * Human queue: follow-up OK after Refuse (Sugar boycott chrome; holds already OK).
+ * Human queue: dump-goods CHOICE when eligible cargos remain, else follow-up
+ * OK after Refuse (lists boycott_bitmap cargos).
  */
 static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
@@ -1569,31 +1570,93 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   /*
    * Dump-goods second cargo (FUN_38fd_3dc8): pick among cargos not already
    * boycotted. Sugar already set above. When ctx->europe present, candidate
-   * mask = cargos with live bid > 0 (local_7a stand-in; refuse must not dump
-   * zero-price goods), then weight-pick by bid. When europe NULL → all
-   * non-boycotted, uniform. Dump modal CHOICE PARKED.
+   * mask = cargos with live bid > 0. Human popups → CHOICE modal (tag
+   * KING_DUMP_GOODS); else RNG via ai_king_pick_dump_goods_cargo.
    * Cite: FUN_38fd_3dc8 / wiki Boycott “named goods” / king_ref dump-goods.
    */
-  if (ctx->rng) {
-    const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
-    uint16_t candidate_mask = all_cargos;
-    const int* bids = NULL;
-    int bid_buf[COLONIZE_CARGO_COUNT];
-    if (ctx->europe) {
-      const EuropeScreen* eu = ctx->europe;
-      candidate_mask = 0;
-      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        const int bid = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
-        bid_buf[c] = bid;
-        if (bid > 0) {
-          candidate_mask = (uint16_t)(candidate_mask | (uint16_t)(1u << c));
+  const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
+  uint16_t candidate_mask = all_cargos;
+  const int* bids = NULL;
+  int bid_buf[COLONIZE_CARGO_COUNT];
+  if (ctx->europe) {
+    const EuropeScreen* eu = ctx->europe;
+    candidate_mask = 0;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      const int bid = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
+      bid_buf[c] = bid;
+      if (bid > 0) {
+        candidate_mask = (uint16_t)(candidate_mask | (uint16_t)(1u << c));
+      }
+    }
+    bids = bid_buf;
+  }
+  const uint16_t eligible =
+    (uint16_t)(candidate_mask & (uint16_t)~nat->boycott_bitmap);
+  int dump_choice_enqueued = 0;
+  if (ai_king_human_popups(ctx) && eligible != 0) {
+    /* Build up to AI_POPUP_CHOICE_MAX labels (prefer highest bid when known). */
+    int idxs[COLONIZE_CARGO_COUNT];
+    int n = 0;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      if ((eligible & (uint16_t)(1u << c)) == 0) {
+        continue;
+      }
+      if (bids && bids[c] <= 0) {
+        continue;
+      }
+      idxs[n++] = c;
+    }
+    if (bids && n > 1) {
+      for (int a = 0; a < n - 1; ++a) {
+        for (int b = a + 1; b < n; ++b) {
+          if (bids[idxs[b]] > bids[idxs[a]]) {
+            const int tmp = idxs[a];
+            idxs[a] = idxs[b];
+            idxs[b] = tmp;
+          }
         }
       }
-      bids = bid_buf;
     }
+    if (n > AI_POPUP_CHOICE_MAX) {
+      n = AI_POPUP_CHOICE_MAX;
+    }
+    if (n > 0) {
+      char labels[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+      int ids[AI_POPUP_CHOICE_MAX];
+      const char* label_ptrs[AI_POPUP_CHOICE_MAX];
+      for (int i = 0; i < n; ++i) {
+        const char* nm = ai_king_cargo_name(idxs[i]);
+        snprintf(labels[i], sizeof(labels[i]), "%s", nm ? nm : "Cargo");
+        ids[i] = idxs[i];
+        label_ptrs[i] = labels[i];
+      }
+      char body[AI_POPUP_BODY_LEN];
+      snprintf(
+        body,
+        sizeof(body),
+        "The colonies refuse the tax (stays at %u%%). Sugar is boycotted. "
+        "Name another good to dump from Europe trade:",
+        nat->tax_rate
+      );
+      dump_choice_enqueued = ai_popup_enqueue_choice_ctx(
+                               ctx->ai_popups,
+                               AI_POPUP_TAG_KING_DUMP_GOODS,
+                               human,
+                               ai_king_crown_nation(human),
+                               (int)nat->tax_rate,
+                               "Dump Goods",
+                               body,
+                               label_ptrs,
+                               ids,
+                               n
+                             )
+                               ? 1
+                               : 0;
+    }
+  }
+  if (!dump_choice_enqueued && ctx->rng) {
     const int picked =
-      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng,
-                                    bids);
+      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids);
     if (picked >= 0 && picked < COLONIZE_CARGO_COUNT) {
       nat->boycott_bitmap =
         (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << picked));
@@ -1603,35 +1666,108 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   if (ctx->status && ctx->status_size) {
     char cargos[96];
     if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-      snprintf(ctx->status, ctx->status_size,
-               "Audience: the colonies refuse the tax increase! Tax stays at %u%%. "
-               "Boycotted in Europe: %s.",
-               nat->tax_rate, cargos);
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        dump_choice_enqueued
+          ? "Audience: refuse tax (stays %u%%). Boycotted so far: %s. Choose dump goods."
+          : "Audience: the colonies refuse the tax increase! Tax stays at %u%%. "
+            "Boycotted in Europe: %s.",
+        nat->tax_rate,
+        cargos
+      );
     } else {
-      snprintf(ctx->status, ctx->status_size,
-               "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
-               nat->tax_rate);
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
+        nat->tax_rate
+      );
     }
   }
-  /* FUN_43f7_38fd_5be8 refuse follow-up OK (lists all boycott_bitmap cargos).
-   * Europe bid>0 eligibility + weight Done; dump modal CHOICE PARKED. */
+  /* Follow-up OK when no dump CHOICE pending (auto / no eligible / queue full). */
+  if (!dump_choice_enqueued && ai_king_human_popups(ctx)) {
+    char body[AI_POPUP_BODY_LEN];
+    char cargos[96];
+    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
+      snprintf(
+        body,
+        sizeof(body),
+        "The colonies refuse the tax increase (stays at %u%%). "
+        "Boycotted in Europe: %s.",
+        nat->tax_rate,
+        cargos
+      );
+    } else {
+      snprintf(
+        body,
+        sizeof(body),
+        "The colonies refuse the tax increase (stays at %u%%). "
+        "Sugar is boycotted in Europe.",
+        nat->tax_rate
+      );
+    }
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups,
+      AI_POPUP_TAG_KING_TAX,
+      human,
+      ai_king_crown_nation(human),
+      (int)nat->tax_rate,
+      "Royal Audience",
+      body
+    );
+  }
+}
+
+static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human, int cargo) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << cargo));
+  if (ctx->status && ctx->status_size) {
+    char cargos[96];
+    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Dump goods: boycotted in Europe: %s.",
+        cargos
+      );
+    }
+  }
   if (ai_king_human_popups(ctx)) {
     char body[AI_POPUP_BODY_LEN];
     char cargos[96];
     if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-      snprintf(body, sizeof(body),
-               "The colonies refuse the tax increase (stays at %u%%). "
-               "Boycotted in Europe: %s.",
-               nat->tax_rate, cargos);
+      snprintf(
+        body,
+        sizeof(body),
+        "The colonies refuse the tax increase (stays at %u%%). "
+        "Boycotted in Europe: %s.",
+        nat->tax_rate,
+        cargos
+      );
     } else {
-      snprintf(body, sizeof(body),
-               "The colonies refuse the tax increase (stays at %u%%). "
-               "Sugar is boycotted in Europe.",
-               nat->tax_rate);
+      snprintf(
+        body,
+        sizeof(body),
+        "The colonies refuse the tax increase (stays at %u%%).",
+        nat->tax_rate
+      );
     }
-    (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                  ai_king_crown_nation(human), (int)nat->tax_rate,
-                                  "Royal Audience", body);
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups,
+      AI_POPUP_TAG_KING_TAX,
+      human,
+      ai_king_crown_nation(human),
+      (int)nat->tax_rate,
+      "Royal Audience",
+      body
+    );
   }
 }
 
@@ -3023,6 +3159,10 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
         ai_king_tax_refuse_hike(ctx, human);
       }
+      break;
+    case AI_POPUP_TAG_KING_DUMP_GOODS:
+      /* Dump-goods modal: choice_id is cargo index to OR into boycott_bitmap. */
+      ai_king_apply_dump_goods_choice(ctx, human, popup->result_choice_id);
       break;
     case AI_POPUP_TAG_KING_MERC:
       /* FUN_43f7_2244: Hire → spend/spawn at offer-time port; Decline → gate. */

@@ -1337,6 +1337,11 @@ static int europe_custom_house_cargo_eligible(int cargo_type) {
   return cargo_type >= 0 && cargo_type < COLONIZE_CARGO_COUNT;
 }
 
+/* FUN_364b_0636 denylist — shared with AI peace Europe export sail. */
+int europe_cargo_export_eligible(int cargo_type) {
+  return europe_custom_house_cargo_eligible(cargo_type);
+}
+
 static int europe_custom_house_bit_enabled(uint16_t bits, int cargo_type) {
   /* bits==0 → all eligible (no per-cargo UI yet). */
   if (bits == 0) {

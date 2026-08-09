@@ -71,8 +71,8 @@ bool founding_fathers_sepulveda_convert_join_bonus(
   int nation
 ) {
   /*
-   * docs/fandom_col1994.md Juan de Sepulveda — higher convert-join chance.
-   * Ownership only; raise-join call site PARKED (needs 2820/4528 path).
+   * docs/fandom_col1994.md / PEDIA @FATHER23 — higher convert-join chance.
+   * Wired: units_try_native_settlement_fallout FUN_5fef_31ea threshold +4.
    */
   return founding_fathers_nation_has(col1, nation, FF_JUAN_DE_SEPULVEDA);
 }
@@ -704,10 +704,9 @@ static void apply_effect(
        * Jesuit-grade mid convert for plain Missionary. */
       break;
     case FF_JUAN_DE_SEPULVEDA:
-      /* docs/fandom_col1994.md: higher chance subjugated Indians convert/join.
-       * Ownership gate: founding_fathers_sepulveda_convert_join_bonus.
-       * PARKED call site: needs FUN_4d56_2820/4528 convert-join outcome —
-       * ai_contact missionary convert pulse ≠ subjugated join; no invent %. */
+      /* PEDIA @FATHER23 / fandom: higher chance subjugated Indians convert/join.
+       * Ownership gate + FUN_5fef_31ea peel in units_try_native_settlement_fallout
+       * (threshold +4). Missionary convert pulse is a different path. */
       break;
     case FF_BARTOLOME_DE_LAS_CASAS:
       /* PEDIA @FATHER24 / fandom_col1994.md: existing Indian converts

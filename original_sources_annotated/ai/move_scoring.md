@@ -79,9 +79,12 @@ of `20e6` (not the quiet Brave path). Until then:
 - Mid-turn ship XY: fixture waypoints (1–2 tiles off golden until ocean score)
 
 Combat / land Euro arms: **OPEN** (unpark #4). Thin adjacent-foe pick prefers
-weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`). Thin naval
-adjacent-foe pick prefers lower defense (`ai_euro_naval_best_adjacent_foe`;
-damage mods PARKED). Ocean west-explore HS bias deepened when ship on HS.
-Naval AI_SAIL uses scored ocean 2-step (mirror land multi-step; full drain PARKED
+weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`), including
+own-colony Stockade/Fort/Fortress % bonus (mirrors combat resolve) and
+FUN_157e_004a vet Soldier/Dragoon +50%. Thin naval adjacent-foe pick prefers
+lower defense (`ai_euro_naval_best_adjacent_foe`) including Drake Privateer
++50%; damage-byte subtract PARKED. Ocean west-explore HS bias deepened when ship on HS.
+Ocean east-Europe HS bias deepened when goto is eastward (Treasure/Europe exit
+complement). Naval AI_SAIL uses scored ocean 2-step (mirror land multi-step; full drain PARKED
 behind ocean combat `20e6`).
 Ocean/ship / deep fog explore / colony-tile deep T3 still R5.

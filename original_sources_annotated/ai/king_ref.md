@@ -79,8 +79,9 @@ second cargo: **Done** (OR bit via `ai_king_pick_dump_goods_cargo` when
 Sugar + second, holds after partial clear). Europe bid eligibility +
 price-weight (`local_7a` stand-in via `ctx->europe` cargo bids): **Done** —
 when europe set, candidates require `bid > 0`, then roulette by bid; europe
-NULL → uniform among all non-boycotted. Dump-goods modal CHOICE remains
-**PARKED** (wiki Boycott; do not invent a fixed second refuse cargo).
+NULL → uniform among all non-boycotted. Dump-goods modal CHOICE — **Done**
+(`AI_POPUP_TAG_KING_DUMP_GOODS`; apply ORs chosen cargo then `KING_TAX` OK).
+Auto / no-popups still RNG-picks via `ai_king_pick_dump_goods_cargo`.
 
 ### Thin `1528` REF arrival announce
 
@@ -297,5 +298,5 @@ dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 - Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias + SoL50 mid-band + Cont. abbrev skip Done above; deep type-id table still PARKED)
 - MoW hold fill + multi-unload — **Done** (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
 - REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison cap-2/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
-- Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status/OK) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE — **PARKED**; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
+- Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status/OK) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE (`KING_DUMP_GOODS`) — **Done**; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
 - `160a` letter cinematic — **PARKED** (thin rename + OK chain Done)

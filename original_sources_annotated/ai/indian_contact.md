@@ -185,7 +185,10 @@ stays **PARK** (Linux kills only when displace is blocked).
 **Las Casas** (PEDIA `@FATHER24` / `docs/fandom_col1994.md`): existing Indian
 converts (`NAMES` `@JOB` Convert / profession 27) assimilate as free colonists
 (profession 19) on elect + FF ownership tick in `founding_fathers.c` — not the
-missionary convert-pulse path.  **Sepulveda** convert-join remains **PARKED** (no 2820/4528 join hook).
+missionary convert-pulse path.  **Sepulveda** convert-join is wired in
+`units_try_native_settlement_fallout` (FUN_5fef_31ea peel: mission low-nibble
+== attacker; threshold 4|8 ±Spanish/Sepulveda/Las Casas; roll 0..12; spawn
+Convert profession 27). Missionary pulse remains a different path.
  **Cortes** conquest treasure: **Done** — `units_try_native_settlement_fallout`
  wired from `units_resolve_land_combat_ff` when `units_set_native_fallout_context`
  is set; `units_cortes_conquest_treasure_gold` peels FUN_5fef_31ea when
@@ -264,3 +267,6 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   AI_MOVE/GOTO within MD≤3; lead pick prefers goto toward raid-gate Euro colony
   when known, else nearest-lead (`ai_contact_indian_raids`). Deep alarmed escort
   scoring inside quiet `14fe` still PARKED. Cite: indian_raid_outcomes.md §1.
+- **Done (thin village Meet CHOICE):** already-met human Euro on exact tribe tile
+  → `ai_contact_try_village_meet` enqueues Trade/Gift/Demand/Teach/Leave via
+  `game_after_unit_action`. Unmet still WELCOME-only. Deep `2820` PARKED.
