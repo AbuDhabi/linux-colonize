@@ -591,6 +591,7 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
 }
 
 static int g_units_last_combat = 0;
+static ColonizeEnterReason g_units_last_enter_reason = COLONIZE_ENTER_OK;
 static const ColonizeCol1Save* g_units_ff_col1 = NULL;
 static ColonizeCol1Save* g_units_fallout_col1 = NULL;
 static ColonizeWorldMap* g_units_fallout_map = NULL;
@@ -691,6 +692,40 @@ void units_set_combat_colonies(const ColonizeColonyPool* colonies) {
 
 int units_last_combat_outcome(void) {
   return g_units_last_combat;
+}
+
+ColonizeEnterReason units_last_enter_reason(void) {
+  return g_units_last_enter_reason;
+}
+
+const char* units_enter_reason_status(ColonizeEnterReason reason) {
+  switch (reason) {
+  case COLONIZE_ENTER_OK:
+  case COLONIZE_ENTER_DOCK:
+    return "Moved";
+  case COLONIZE_ENTER_LANDFALL:
+    return "Landfall";
+  case COLONIZE_ENTER_COMBAT_LAND:
+  case COLONIZE_ENTER_COMBAT_NAVAL:
+    return "Combat";
+  case COLONIZE_ENTER_BOUNCE_FOREIGN:
+    return "Cannot attack (non-combat unit)";
+  case COLONIZE_ENTER_BOUNCE_PEACE:
+    return "At peace — cannot attack";
+  case COLONIZE_ENTER_BLOCKED_DOMAIN:
+    return "Wrong terrain";
+  case COLONIZE_ENTER_BLOCKED_EDGE:
+    return "Map edge";
+  case COLONIZE_ENTER_BLOCKED_HS_SAIL:
+    return "Need sail order for high seas";
+  case COLONIZE_ENTER_VILLAGE_ILLEGAL:
+    return "Illegal entry into village";
+  case COLONIZE_ENTER_NO_MP:
+    return "No moves left";
+  case COLONIZE_ENTER_BLOCKED:
+  default:
+    return "Move blocked";
+  }
 }
 
 static int units_foreign_at(
@@ -1603,6 +1638,218 @@ int units_coastal_fort_fire_pulse(
   return sunk;
 }
 
+/*
+ * DOS DS:0x5236 combat role stand-in: attack > 0 or carried muskets/horses.
+ * Non-combat movers bounce off foreign stacks instead of fighting.
+ */
+static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  if (!pool || !u) {
+    return false;
+  }
+  if (u->muskets > 0 || u->horses > 0) {
+    return true;
+  }
+  const ColonizeUnitType* t = units_type(pool, u->type_index);
+  return t && t->attack > 0;
+}
+
+static bool units_is_wagon_type(const ColonizeUnitPool* pool, int type_index) {
+  const ColonizeUnitType* t = units_type(pool, type_index);
+  return t && t->name && strstr(t->name, "Wagon") != NULL;
+}
+
+static bool units_at_war_for_move(int a, int b) {
+  if (a < 0 || b < 0 || a == b) {
+    return false;
+  }
+  /* Natives vs Euro: always fightable when combat role. */
+  if (a >= 4 || b >= 4) {
+    return true;
+  }
+  if (!g_units_ff_col1) {
+    return true; /* tests / no diplo: allow combat */
+  }
+  return ai_diplo_at_war(g_units_ff_col1, a, b);
+}
+
+static bool units_village_squat_illegal(
+  const ColonizeUnitPool* pool,
+  const ColonizeUnitType* type,
+  const ColonizeUnit* mover,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int mover_nation,
+  const ColonizeColonyPool* colonies
+) {
+  if (!pool || !type || !map || !map->layer2 || mover_nation < 0 || mover_nation >= 4) {
+    return false;
+  }
+  const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+  if (idx >= (size_t)map->width * (size_t)map->height) {
+    return false;
+  }
+  if ((map->layer2[idx] & MAP_OCCUPANCY_HAS_CITY) == 0) {
+    return false;
+  }
+  const int cid = colonies ? colonies_id_at(colonies, x, y) : -1;
+  if (cid >= 0) {
+    return false;
+  }
+  const char* n = type->name;
+  const int missionary = n && strstr(n, "Missionary") != NULL;
+  const int combatish =
+    (mover && (mover->muskets > 0 || mover->horses > 0)) ||
+    (n &&
+     (strstr(n, "Soldier") != NULL || strstr(n, "Scout") != NULL || strstr(n, "Dragoon") != NULL ||
+      strstr(n, "Regular") != NULL || strstr(n, "Army") != NULL || strstr(n, "Cavalry") != NULL ||
+      strstr(n, "Artillery") != NULL)) ||
+    (type->attack > 0);
+  return !missionary && !combatish;
+}
+
+static void units_try_capture_foreign_colony(
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  int unit_id
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !colonies || units_is_sea(pool, unit_id)) {
+    return;
+  }
+  const int cid = colonies_id_at(colonies, u->x, u->y);
+  ColonizeColony* col = colonies_get_mut(colonies, cid);
+  if (!col || !col->active) {
+    return;
+  }
+  if (col->nation_id < 0 || col->nation_id > 3 || col->nation_id == u->nation_id) {
+    return;
+  }
+  /* Still contested if a foreign unit remains on the tile. */
+  if (units_foreign_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
+    return;
+  }
+  (void)colonies_capture(colonies, cid, u->nation_id);
+}
+
+ColonizeEnterReason units_enter_probe(
+  const ColonizeUnitPool* pool,
+  int type_index,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int mover_id,
+  const ColonizeColonyPool* colonies
+) {
+  g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
+  if (!pool || type_index < 0 || type_index >= pool->type_count || !map) {
+    return g_units_last_enter_reason;
+  }
+  if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_EDGE;
+    return g_units_last_enter_reason;
+  }
+
+  int mover_nation = -1;
+  const ColonizeUnit* mover = (mover_id >= 0) ? units_get_const(pool, mover_id) : NULL;
+  if (mover) {
+    mover_nation = mover->nation_id;
+  }
+
+  const ColonizeUnitType* type = &pool->types[type_index];
+  const bool sea = type->domain == COLONIZE_UNIT_DOMAIN_SEA;
+  const bool water = map_tile_is_water(map, x, y);
+  const bool land = map_tile_is_land(map, x, y);
+
+  const int foe = units_foreign_at(pool, x, y, mover_id, mover_nation);
+  if (foe >= 0) {
+    const bool foe_sea = units_is_sea(pool, foe);
+    if (sea && foe_sea) {
+      const ColonizeUnit* fu = units_get_const(pool, foe);
+      const int foe_nation = fu ? fu->nation_id : -1;
+      if (mover && !units_at_war_for_move(mover_nation, foe_nation)) {
+        g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
+      } else {
+        /* Ships fight on contact (attack may be 0 in @UNIT for transports). */
+        g_units_last_enter_reason = COLONIZE_ENTER_COMBAT_NAVAL;
+      }
+      return g_units_last_enter_reason;
+    }
+    if (sea != foe_sea) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
+      return g_units_last_enter_reason;
+    }
+    /* Land × land foreign. */
+    if (!mover) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
+      return g_units_last_enter_reason;
+    }
+    const ColonizeUnit* fu = units_get_const(pool, foe);
+    const int foe_nation = fu ? fu->nation_id : -1;
+    if (!units_is_combat_role(pool, mover)) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_FOREIGN;
+      return g_units_last_enter_reason;
+    }
+    if (!units_at_war_for_move(mover_nation, foe_nation)) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
+      return g_units_last_enter_reason;
+    }
+    g_units_last_enter_reason = COLONIZE_ENTER_COMBAT_LAND;
+    return g_units_last_enter_reason;
+  }
+
+  if (sea) {
+    /*
+     * 4720 reason 5: eastward high-seas step without sail/goto intent.
+     * Cite: FUN_4720_015c / docs/move_enter.md.
+     */
+    if (mover && map_tile_is_high_seas(map, x, y) && x > mover->x &&
+        !units_orders_follow_goto(mover->orders)) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_HS_SAIL;
+      return g_units_last_enter_reason;
+    }
+    if (water) {
+      g_units_last_enter_reason = COLONIZE_ENTER_OK;
+      return g_units_last_enter_reason;
+    }
+    if (land && colonies && mover_nation >= 0) {
+      const int cid = colonies_id_at(colonies, x, y);
+      const ColonizeColony* col = colonies_get(colonies, cid);
+      if (col && col->active && col->nation_id == mover_nation) {
+        g_units_last_enter_reason = COLONIZE_ENTER_DOCK;
+        return g_units_last_enter_reason;
+      }
+      if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 && g_units_ff_col1 &&
+          founding_fathers_de_witt_allows_foreign_colony_trade(g_units_ff_col1, mover_nation) &&
+          !ai_diplo_at_war(g_units_ff_col1, mover_nation, col->nation_id)) {
+        g_units_last_enter_reason = COLONIZE_ENTER_DOCK;
+        return g_units_last_enter_reason;
+      }
+      if (col && col->active) {
+        g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
+        return g_units_last_enter_reason;
+      }
+    }
+    if (land) {
+      g_units_last_enter_reason = COLONIZE_ENTER_LANDFALL;
+      return g_units_last_enter_reason;
+    }
+    g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
+    return g_units_last_enter_reason;
+  }
+
+  if (!land) {
+    g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
+    return g_units_last_enter_reason;
+  }
+  if (units_village_squat_illegal(pool, type, mover, map, x, y, mover_nation, colonies)) {
+    g_units_last_enter_reason = COLONIZE_ENTER_VILLAGE_ILLEGAL;
+    return g_units_last_enter_reason;
+  }
+  g_units_last_enter_reason = COLONIZE_ENTER_OK;
+  return g_units_last_enter_reason;
+}
+
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -1612,80 +1859,9 @@ bool units_can_enter(
   int mover_id,
   const ColonizeColonyPool* colonies
 ) {
-  if (!pool || type_index < 0 || type_index >= pool->type_count || !map) {
-    return false;
-  }
-  if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
-    return false;
-  }
-
-  int mover_nation = -1;
-  const ColonizeUnit* mover = (mover_id >= 0) ? units_get_const(pool, mover_id) : NULL;
-  if (mover) {
-    mover_nation = mover->nation_id;
-  }
-
-  /* Friendly stacks OK; foreign on-map unit blocks (combat via units_try_move). */
-  if (units_foreign_at(pool, x, y, mover_id, mover_nation) >= 0) {
-    return false;
-  }
-
-  const ColonizeUnitType* type = &pool->types[type_index];
-  const bool water = map_tile_is_water(map, x, y);
-  if (type->domain == COLONIZE_UNIT_DOMAIN_SEA) {
-    if (water) {
-      return true;
-    }
-    /* Own-nation colony dock: ships may enter coastal settlement tiles. */
-    if (colonies && map_tile_is_land(map, x, y) && mover_nation >= 0) {
-      const int cid = colonies_id_at(colonies, x, y);
-      const ColonizeColony* col = colonies_get(colonies, cid);
-      if (col && col->active && col->nation_id == mover_nation) {
-        return true;
-      }
-      /*
-       * Jan de Witt: foreign Euro colony dock at peace (trade berth).
-       * Requires g_units_ff_col1 from turn_refresh. Cite: fandom Jan de Witt;
-       * founding_fathers_de_witt_allows_foreign_colony_trade.
-       */
-      if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 && g_units_ff_col1 &&
-          founding_fathers_de_witt_allows_foreign_colony_trade(g_units_ff_col1, mover_nation) &&
-          !ai_diplo_at_war(g_units_ff_col1, mover_nation, col->nation_id)) {
-        return true;
-      }
-    }
-    return false;
-  }
-  if (!map_tile_is_land(map, x, y)) {
-    return false;
-  }
-  /*
-   * DOS: euro settlers may not squat on Indian village tiles (Danger:
-   * "Illegal entry into village"). Missionaries use Meet/enter; armed /
-   * mounted units may contest the tile. Layer2 has_city marks villages +
-   * colonies; colony tiles stay enterable.
-   */
-  if (mover_nation >= 0 && mover_nation < 4 && map->layer2) {
-    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
-    if (idx < (size_t)map->width * (size_t)map->height &&
-        (map->layer2[idx] & MAP_OCCUPANCY_HAS_CITY) != 0) {
-      const int cid = colonies ? colonies_id_at(colonies, x, y) : -1;
-      if (cid < 0) {
-        const char* n = type->name;
-        const int missionary = strstr(n, "Missionary") != NULL;
-        const int combatish =
-          (mover && (mover->muskets > 0 || mover->horses > 0)) ||
-          strstr(n, "Soldier") != NULL || strstr(n, "Scout") != NULL ||
-          strstr(n, "Dragoon") != NULL || strstr(n, "Regular") != NULL ||
-          strstr(n, "Army") != NULL || strstr(n, "Cavalry") != NULL ||
-          strstr(n, "Artillery") != NULL;
-        if (!missionary && !combatish) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
+  const ColonizeEnterReason r =
+    units_enter_probe(pool, type_index, map, x, y, mover_id, colonies);
+  return r == COLONIZE_ENTER_OK || r == COLONIZE_ENTER_DOCK;
 }
 
 int units_move_cost(
@@ -1701,7 +1877,11 @@ int units_move_cost(
   if (units_is_sea(pool, unit_id)) {
     return 1;
   }
-  return map_move_cost_at(map, dest_x, dest_y);
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u) {
+    return map_move_cost_at(map, dest_x, dest_y);
+  }
+  return map_move_cost_step(map, u->x, u->y, dest_x, dest_y);
 }
 
 bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
@@ -1823,6 +2003,7 @@ bool units_try_move(
   ColonizeDosRng* rng
 ) {
   g_units_last_combat = 0;
+  g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
   ColonizeUnit* unit = units_get(pool, unit_id);
   if (!unit || !map) {
     return false;
@@ -1831,6 +2012,7 @@ bool units_try_move(
     return false;
   }
   if (unit->moves_left <= 0) {
+    g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
     return false;
   }
   if (unit->x == dest_x && unit->y == dest_y) {
@@ -1845,17 +2027,38 @@ bool units_try_move(
   /* Fortification defense uses defender's colony tile (set before combat). */
   units_set_combat_colonies(colonies);
 
-  const int foe = units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id);
-  if (foe >= 0) {
-    /* Land attack into occupied tile; naval / mixed still blocked. */
-    if (units_is_sea(pool, unit_id) || units_is_sea(pool, foe)) {
+  const ColonizeEnterReason reason =
+    units_enter_probe(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies);
+  g_units_last_enter_reason = reason;
+
+  if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
+      reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
+      reason == COLONIZE_ENTER_BLOCKED_HS_SAIL || reason == COLONIZE_ENTER_VILLAGE_ILLEGAL ||
+      reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_NO_MP ||
+      reason == COLONIZE_ENTER_BLOCKED) {
+    return false;
+  }
+
+  if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+    const int foe = units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id);
+    if (foe < 0) {
       return false;
     }
-    if (!units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1)) {
-      return false; /* attacker lost / despawned */
+    bool won = false;
+    if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+      won = units_resolve_naval_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
+    } else {
+      won = units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
+    }
+    if (!won) {
+      return false;
     }
     unit = units_get(pool, unit_id);
     if (!unit) {
+      return false;
+    }
+    /* After win, dest must be clear of foreigners for enter. */
+    if (units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
       return false;
     }
   } else if (colonies) {
@@ -1871,8 +2074,20 @@ bool units_try_move(
       return false;
     }
   }
-  if (!units_can_enter(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies)) {
+
+  /* Dock / OK: domain enterability already confirmed by probe. */
+  if (reason != COLONIZE_ENTER_OK && reason != COLONIZE_ENTER_DOCK &&
+      reason != COLONIZE_ENTER_COMBAT_LAND && reason != COLONIZE_ENTER_COMBAT_NAVAL) {
     return false;
+  }
+  if (!units_can_enter(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies)) {
+    /* Combat cleared foe — re-probe should be OK/DOCK now. */
+    const ColonizeEnterReason after =
+      units_enter_probe(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies);
+    g_units_last_enter_reason = after;
+    if (after != COLONIZE_ENTER_OK && after != COLONIZE_ENTER_DOCK) {
+      return false;
+    }
   }
 
   const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
@@ -1924,6 +2139,19 @@ bool units_try_move(
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+
+  /* Wagon / ship-stack on Euro settlement: DOS 465b:08f8 exhaust MP. */
+  if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0 &&
+      units_is_wagon_type(pool, unit->type_index)) {
+    unit->moves_left = 0;
+  }
+
+  if (colonies) {
+    units_try_capture_foreign_colony(pool, (ColonizeColonyPool*)colonies, unit_id);
+  }
+
+  g_units_last_enter_reason =
+    (reason == COLONIZE_ENTER_DOCK) ? COLONIZE_ENTER_DOCK : COLONIZE_ENTER_OK;
   return true;
 }
 

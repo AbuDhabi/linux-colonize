@@ -340,20 +340,14 @@ add_test(NAME smoke_popup COMMAND smoke_popup)
 
 add_executable(smoke_ai_popup
   tests/smoke/test_ai_popup.c
-  src/core/ai_popup.c
-  src/core/popup.c
-  src/core/font.c
-  src/core/assets.c
-  src/core/ss.c
-  src/core/madspack.c
-  src/core/strutil.c
-  src/core/map_menu.c
-  src/platform/diagnostics.c
-  src/platform/dos_compat/dos_compat.c
 )
+
 target_include_directories(smoke_ai_popup PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(smoke_ai_popup PRIVATE colonize_core)
+
 add_test(NAME smoke_ai_popup COMMAND smoke_ai_popup WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_pick_music
@@ -634,25 +628,13 @@ add_test(NAME smoke_reports COMMAND smoke_reports WORKING_DIRECTORY ${CMAKE_SOUR
 
 add_executable(smoke_map_menu
   tests/smoke/test_map_menu.c
-  src/core/map_menu.c
-  src/core/assets.c
-  src/core/font.c
-  src/core/ff.c
-  src/core/madspack.c
-  src/platform/diagnostics.c
-  src/core/strutil.c
-  src/platform/dos_compat/dos_compat.c
 )
 
 target_include_directories(smoke_map_menu PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-if(COLONIZE_DEBUG_MENU)
-  target_compile_definitions(smoke_map_menu PRIVATE COLONIZE_DEBUG_MENU=1)
-else()
-  target_compile_definitions(smoke_map_menu PRIVATE COLONIZE_DEBUG_MENU=0)
-endif()
+target_link_libraries(smoke_map_menu PRIVATE colonize_core)
 
 add_test(NAME smoke_map_menu COMMAND smoke_map_menu WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 

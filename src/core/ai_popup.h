@@ -58,7 +58,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_DIPLO_ALLIANCE = 22,
   AI_POPUP_TAG_DIPLO_BREAK = 23,
   AI_POPUP_TAG_DIPLO_BOYCOTT = 24,
-  AI_POPUP_TAG_DIPLO_FA = 25 /* thin FA 3f41 report / gift chrome (F2–F9 PARKED) */
+  AI_POPUP_TAG_DIPLO_FA = 25, /* thin FA 3f41 report / gift chrome (F2–F9 PARKED) */
+  AI_POPUP_TAG_LANDFALL = 26 /* ship→bare land: unload one / activate all / cancel */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

@@ -10,6 +10,7 @@ the deep detail.
 | **Catalog peel ranking** (what to label next) | [catalog_peel_ranking.md](catalog_peel_ranking.md) |
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
+| Move-into-tile authority (enter / combat / landfall) | [move_enter.md](move_enter.md) |
 | Project goals / acceptance order | [project_goals.md](project_goals.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | **AI transcription gap** (Euro / Indian FUN_*, roadmap) | [ai_transcription.md](ai_transcription.md) |

@@ -886,6 +886,18 @@ int main(void) {
       return 1;
     }
     map_tile_set_road(&tmap, fx, fy, true);
+    map_tile_set_road(&tmap, px, py, true); /* DOS FA road-pair both tiles */
+    if (map_move_cost_step(&tmap, px, py, fx, fy) != 1) {
+      fprintf(
+        stderr,
+        "roaded forest step cost expected 1 got %d\n",
+        map_move_cost_step(&tmap, px, py, fx, fy)
+      );
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
     if (map_move_cost_at(&tmap, fx, fy) != 1) {
       fprintf(stderr, "roaded forest cost expected 1 got %d\n", map_move_cost_at(&tmap, fx, fy));
       map_free(&tmap);
@@ -2335,6 +2347,247 @@ int main(void) {
     units_despawn(&pool, scid);
     units_despawn(&pool, scid2);
     map_free(&lmap);
+  }
+
+  /* Enter-probe matrix: bounce / domain / land combat / naval / capture. */
+  {
+    const int pioneer_t = pioneer;
+    const int soldier = units_find_type(&pool, "Soldiers");
+    const int brave = units_find_type(&pool, "Braves");
+    const int caravel_t = caravel;
+    const int colonist_t = colonist;
+    if (pioneer_t < 0 || soldier < 0 || brave < 0 || caravel_t < 0) {
+      fprintf(stderr, "enter-probe: missing unit types\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int ax = -1, ay = -1, dx = -1, dy = -1;
+    for (int y = 1; y < (int)map.height - 1 && ax < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && ax < 0; ++x) {
+        if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 1, y) &&
+            units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
+          ax = x;
+          ay = y;
+          dx = x + 1;
+          dy = y;
+        }
+      }
+    }
+    if (ax < 0) {
+      fprintf(stderr, "enter-probe: no free land pair\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* Friendly stack → OK; can_enter true. */
+    {
+      const int a = units_spawn(&pool, colonist_t, ax, ay);
+      const int b = units_spawn_allow_stack(&pool, pioneer_t, ax, ay);
+      ColonizeUnit* ua = units_get(&pool, a);
+      ColonizeUnit* ub = units_get(&pool, b);
+      if (!ua || !ub) {
+        fprintf(stderr, "enter-probe friendly spawn failed\n");
+        return 1;
+      }
+      ua->nation_id = 0;
+      ub->nation_id = 0;
+      const ColonizeEnterReason r =
+        units_enter_probe(&pool, ub->type_index, &map, ax, ay, b, NULL);
+      if (r != COLONIZE_ENTER_OK || !units_can_enter(&pool, ub->type_index, &map, ax, ay, b, NULL)) {
+        fprintf(stderr, "enter-probe friendly expected OK got %d\n", (int)r);
+        return 1;
+      }
+      units_despawn(&pool, a);
+      units_despawn(&pool, b);
+    }
+
+    /* Pioneer into Brave → bounce (non-combat). */
+    {
+      const int pid = units_spawn(&pool, pioneer_t, ax, ay);
+      const int bid = units_spawn_allow_stack(&pool, brave, dx, dy);
+      ColonizeUnit* p = units_get(&pool, pid);
+      ColonizeUnit* br = units_get(&pool, bid);
+      if (!p || !br) {
+        fprintf(stderr, "enter-probe bounce spawn failed\n");
+        return 1;
+      }
+      p->nation_id = 0;
+      br->nation_id = 4;
+      p->moves_left = 3;
+      const ColonizeEnterReason r =
+        units_enter_probe(&pool, p->type_index, &map, dx, dy, pid, NULL);
+      if (r != COLONIZE_ENTER_BOUNCE_FOREIGN) {
+        fprintf(stderr, "enter-probe pioneer bounce expected got %d\n", (int)r);
+        return 1;
+      }
+      if (units_try_move(&pool, pid, &map, dx, dy, NULL, NULL)) {
+        fprintf(stderr, "enter-probe pioneer should not enter Brave tile\n");
+        return 1;
+      }
+      if (units_last_enter_reason() != COLONIZE_ENTER_BOUNCE_FOREIGN) {
+        fprintf(stderr, "enter-probe last reason bounce got %d\n", (int)units_last_enter_reason());
+        return 1;
+      }
+      units_despawn(&pool, pid);
+      units_despawn(&pool, bid);
+    }
+
+    /* Soldier into Brave → combat land; can_enter false. */
+    {
+      const int sid = units_spawn(&pool, soldier, ax, ay);
+      const int bid = units_spawn_allow_stack(&pool, brave, dx, dy);
+      ColonizeUnit* s = units_get(&pool, sid);
+      ColonizeUnit* br = units_get(&pool, bid);
+      if (!s || !br) {
+        fprintf(stderr, "enter-probe combat spawn failed\n");
+        return 1;
+      }
+      s->nation_id = 0;
+      br->nation_id = 4;
+      s->moves_left = 3;
+      const ColonizeEnterReason r =
+        units_enter_probe(&pool, s->type_index, &map, dx, dy, sid, NULL);
+      if (r != COLONIZE_ENTER_COMBAT_LAND) {
+        fprintf(stderr, "enter-probe combat land expected got %d\n", (int)r);
+        return 1;
+      }
+      if (units_can_enter(&pool, s->type_index, &map, dx, dy, sid, NULL)) {
+        fprintf(stderr, "enter-probe can_enter should be false for combat dest\n");
+        return 1;
+      }
+      units_despawn(&pool, sid);
+      units_despawn(&pool, bid);
+    }
+
+    /* Domain deny: land into ocean when adjacent water exists. */
+    {
+      int ox = -1, oy = -1;
+      for (int y = 0; y < (int)map.height && ox < 0; ++y) {
+        for (int x = 0; x < (int)map.width && ox < 0; ++x) {
+          if (map_tile_is_water(&map, x, y) && abs(x - ax) <= 1 && abs(y - ay) <= 1 &&
+              !(x == ax && y == ay)) {
+            ox = x;
+            oy = y;
+          }
+        }
+      }
+      if (ox >= 0) {
+        const int pid = units_spawn(&pool, pioneer_t, ax, ay);
+        ColonizeUnit* p = units_get(&pool, pid);
+        if (p) {
+          p->nation_id = 0;
+          const ColonizeEnterReason r =
+            units_enter_probe(&pool, p->type_index, &map, ox, oy, pid, NULL);
+          if (r != COLONIZE_ENTER_BLOCKED_DOMAIN) {
+            fprintf(stderr, "enter-probe domain deny expected got %d\n", (int)r);
+            return 1;
+          }
+        }
+        units_despawn(&pool, pid);
+      }
+    }
+
+    /* Capture-on-enter: soldier onto empty foreign colony. */
+    {
+      ColonizeColonyPool colonies;
+      colonies_init(&colonies);
+      if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
+          !colonies_load_buildings(&colonies, &names)) {
+        fprintf(stderr, "enter-probe colonies init failed\n");
+        return 1;
+      }
+      const int cid =
+        colonies_found(&colonies, &map, dx, dy, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+      if (cid < 0) {
+        fprintf(stderr, "enter-probe found rival colony failed\n");
+        return 1;
+      }
+      ColonizeColony* col = colonies_get_mut(&colonies, cid);
+      if (col) {
+        col->nation_id = 1;
+        col->population = 1;
+      }
+      const int sid = units_spawn(&pool, soldier, ax, ay);
+      ColonizeUnit* s = units_get(&pool, sid);
+      if (!s) {
+        fprintf(stderr, "enter-probe capture soldier spawn failed\n");
+        return 1;
+      }
+      s->nation_id = 0;
+      s->moves_left = 5;
+      if (!units_try_move(&pool, sid, &map, dx, dy, &colonies, NULL)) {
+        fprintf(stderr, "enter-probe capture move failed reason=%d\n", (int)units_last_enter_reason());
+        return 1;
+      }
+      col = colonies_get_mut(&colonies, cid);
+      if (!col || col->nation_id != 0) {
+        fprintf(
+          stderr,
+          "enter-probe capture expected nation 0 got %d\n",
+          col ? col->nation_id : -1
+        );
+        return 1;
+      }
+      units_despawn(&pool, sid);
+      (void)colonist_t;
+    }
+
+    /* Naval move-into combat. */
+    {
+      int wx = -1, wy = -1, wx2 = -1, wy2 = -1;
+      for (int y = 1; y < (int)map.height - 1 && wx < 0; ++y) {
+        for (int x = 1; x < (int)map.width - 1 && wx < 0; ++x) {
+          if (map_tile_is_water(&map, x, y) && map_tile_is_water(&map, x + 1, y) &&
+              units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
+            wx = x;
+            wy = y;
+            wx2 = x + 1;
+            wy2 = y;
+          }
+        }
+      }
+      if (wx < 0) {
+        fprintf(stderr, "enter-probe: no water pair for naval\n");
+        return 1;
+      }
+      const int a = units_spawn(&pool, caravel_t, wx, wy);
+      const int b = units_spawn_allow_stack(&pool, caravel_t, wx2, wy2);
+      ColonizeUnit* ua = units_get(&pool, a);
+      ColonizeUnit* ub = units_get(&pool, b);
+      if (!ua || !ub) {
+        fprintf(stderr, "enter-probe naval spawn failed\n");
+        return 1;
+      }
+      ua->nation_id = 0;
+      ub->nation_id = 1;
+      ua->moves_left = 4;
+      const ColonizeEnterReason r =
+        units_enter_probe(&pool, ua->type_index, &map, wx2, wy2, a, NULL);
+      if (r != COLONIZE_ENTER_COMBAT_NAVAL) {
+        fprintf(stderr, "enter-probe naval combat expected got %d\n", (int)r);
+        return 1;
+      }
+      pool.types[caravel_t].attack = 99;
+      pool.types[caravel_t].defense = 1;
+      if (!units_try_move(&pool, a, &map, wx2, wy2, NULL, NULL)) {
+        fprintf(stderr, "enter-probe naval move combat failed\n");
+        return 1;
+      }
+      if (units_get_const(&pool, b) != NULL) {
+        fprintf(stderr, "enter-probe naval defender should be gone\n");
+        return 1;
+      }
+      ua = units_get(&pool, a);
+      if (!ua || ua->x != wx2 || ua->y != wy2) {
+        fprintf(stderr, "enter-probe naval winner should occupy tile\n");
+        return 1;
+      }
+      units_despawn(&pool, a);
+    }
   }
 
   fprintf(

@@ -230,6 +230,7 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
+static void game_after_unit_action(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
 static void game_wait_next_unit(ColonizeGameState* game);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
@@ -418,6 +419,49 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
 
 static void game_apply_ai_popup_result(ColonizeGameState* game) {
   if (!game || !game->ai_popups.has_result) {
+    return;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_LANDFALL) {
+    if (!game->ai_popups.result_cancelled) {
+      const int ship_id = game->ai_popups.result_nation_a;
+      const int dest_x = game->ai_popups.result_nation_b;
+      const int dest_y = game->ai_popups.result_payload;
+      const int choice = game->ai_popups.result_choice_id;
+      ColonizeUnit* ship = units_get(&game->units, ship_id);
+      if (ship && units_is_sea(&game->units, ship_id) && choice != 3) {
+        if (choice == 2) {
+          const int n = units_landfall_unload_all(
+            &game->units, ship_id, &game->world_map, dest_x, dest_y, &game->colonies
+          );
+          if (n > 0) {
+            const int first = units_id_at(&game->units, dest_x, dest_y);
+            if (first >= 0) {
+              game->units.selected_id = first;
+            }
+            snprintf(game->status, sizeof(game->status), "Landfall: %d ashore", n);
+            game_after_unit_action(game);
+          } else {
+            set_status(game, "Landfall failed", NULL);
+          }
+        } else {
+          int pax_id = units_first_cargo_with_moves(&game->units, ship_id);
+          if (pax_id < 0 && ship->cargo_count > 0) {
+            pax_id = ship->cargo_ids[0];
+          }
+          if (pax_id >= 0 &&
+              units_unload_passenger(
+                &game->units, ship_id, pax_id, &game->world_map, dest_x, dest_y, &game->colonies
+              )) {
+            game->units.selected_id = pax_id;
+            snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
+            game_after_unit_action(game);
+          } else {
+            set_status(game, "Cannot disembark here", NULL);
+          }
+        }
+      }
+    }
+    ai_popup_consume_result(&game->ai_popups);
     return;
   }
   ColonizeTurnContext ctx;
@@ -2768,7 +2812,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       if (!units_try_move(
             &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
           )) {
-        set_status(game, "Move blocked", NULL);
+        set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
         return false;
       }
       const int n = units_disembark_all(&game->units, sid, dest_x, dest_y);
@@ -2782,20 +2826,50 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       return true;
     }
     if (dest_land && !dest_water) {
-      const int pax_id = units_first_cargo_with_moves(&game->units, sid);
-      if (pax_id < 0) {
+      const ColonizeEnterReason landfall = units_enter_probe(
+        &game->units, selected->type_index, &game->world_map, dest_x, dest_y, sid, colonies
+      );
+      if (landfall != COLONIZE_ENTER_LANDFALL) {
+        set_status(game, units_enter_reason_status(landfall), NULL);
+        return false;
+      }
+      const int pax_ready = units_first_cargo_with_moves(&game->units, sid);
+      if (pax_ready < 0 && selected->cargo_count <= 0) {
         set_status(game, "No unit ready to disembark", NULL);
         return false;
       }
-      if (!units_unload_passenger(
-            &game->units, sid, pax_id, &game->world_map, dest_x, dest_y, colonies
-          )) {
-        set_status(game, "Move blocked", NULL);
-        return false;
+      {
+        const char* labels[] = {"Unload one", "Activate all", "Cancel"};
+        const int ids[] = {1, 2, 3};
+        if (!ai_popup_enqueue_choice_ctx(
+              &game->ai_popups,
+              AI_POPUP_TAG_LANDFALL,
+              sid,
+              dest_x,
+              dest_y,
+              "Landfall",
+              "Disembark onto shore?",
+              labels,
+              ids,
+              3
+            )) {
+          if (pax_ready < 0) {
+            set_status(game, "No unit ready to disembark", NULL);
+            return false;
+          }
+          if (!units_unload_passenger(
+                &game->units, sid, pax_ready, &game->world_map, dest_x, dest_y, colonies
+              )) {
+            set_status(game, "Move blocked", NULL);
+            return false;
+          }
+          game->units.selected_id = pax_ready;
+          snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
+          game_after_unit_action(game);
+          return true;
+        }
       }
-      game->units.selected_id = pax_id;
-      snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
-      game_after_unit_action(game);
+      set_status(game, "Landfall…", NULL);
       return true;
     }
   }
@@ -2813,7 +2887,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
         set_status(game, "Move failed", NULL);
         game_after_unit_action(game);
       } else {
-        set_status(game, "Move blocked", NULL);
+        set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
       }
       return false;
     }

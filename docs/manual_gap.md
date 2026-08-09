@@ -60,7 +60,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
-| Terrain move costs (forest >1 MP, roads, rivers) | Done | Phase 7 costs; full-MP enter; partial overspend via DOS `range(1,cost)` (charges MP even on fail) |
+| Terrain move costs (forest >1 MP, roads, rivers) | Partial | Base costs + full-MP / partial overspend; DOS road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). Full `terr_cost*3` table still simplified |
 | Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools; ORDERS Clear Forest / Plow Fields / Build Road |
@@ -68,7 +68,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Dump cargo overboard | Done | ORDERS Dump Cargo Overboard → first goods hold |
 | Pillage | Partial | ORDERS: military loots foreign Euro colony stock or clears plow/road; thin vs full `2b5a` body |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
-| Landfall confirm + activate-all ashore | Partial | Simplified: unload ready cargo; full dialog deferred |
+| Landfall confirm + activate-all ashore | Done | Ship→bare land: CHOICE unload one / activate all / cancel (`AI_POPUP_TAG_LANDFALL`); ship stays at sea — [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
 | Trade routes (TRADE menu) | Partial | ORDERS Begin Trade Route sets `@ORDERS` index 2 on ship/wagon; TRADE Create/Edit/Delete still stubbed |
 
@@ -125,8 +125,8 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Partial | Land T0: move into foreign unit → attack/defense (+ fortified ×2); loser despawned. Naval T0 via `units_resolve_naval_combat`; AI hunt thin |
-| Capture colony | Partial | T0 `colonies_capture` (Euro owner swap; Indian raid abandons) — AI / combat paths |
+| Land / naval attack | Partial | Land: combat role (`attack>0`) fights; non-combat / peace bounce. Naval: human/AI move-into ship combat T0. Deep `5fef` PARKED — [move_enter.md](move_enter.md) |
+| Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons |
 | Stockade / fort / fortress defense % | Done | Land combat: +100%/+150%/+200% via `colonies_fortification_defense_bonus_percent`; coastal Fort/Fortress naval fire `units_coastal_fort_fire_pulse` (FUN_364b_03f6). PARK: ship-slow formula |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
 
