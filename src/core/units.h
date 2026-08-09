@@ -237,6 +237,40 @@ void units_founder_loot(
   int* out_horses
 );
 
+/*
+ * Enter-probe outcomes (DOS FUN_4720 / FUN_465b shaped). See docs/move_enter.md.
+ * units_can_enter is true only for OK / DOCK (pathfinding / Go-To).
+ */
+typedef enum ColonizeEnterReason {
+  COLONIZE_ENTER_OK = 0,
+  COLONIZE_ENTER_DOCK = 1,
+  COLONIZE_ENTER_LANDFALL = 2,
+  COLONIZE_ENTER_COMBAT_LAND = 3,
+  COLONIZE_ENTER_COMBAT_NAVAL = 4,
+  COLONIZE_ENTER_BOUNCE_FOREIGN = 5,
+  COLONIZE_ENTER_BOUNCE_PEACE = 6,
+  COLONIZE_ENTER_BLOCKED_DOMAIN = 7,
+  COLONIZE_ENTER_BLOCKED_EDGE = 8,
+  COLONIZE_ENTER_BLOCKED_HS_SAIL = 9, /* 4720 reason 5: HS east without sail */
+  COLONIZE_ENTER_VILLAGE_ILLEGAL = 10,
+  COLONIZE_ENTER_NO_MP = 11,
+  COLONIZE_ENTER_BLOCKED = 12
+} ColonizeEnterReason;
+
+ColonizeEnterReason units_enter_probe(
+  const ColonizeUnitPool* pool,
+  int type_index,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int mover_id,
+  const ColonizeColonyPool* colonies
+);
+/* Last reason from units_enter_probe / units_try_move (0 if none). */
+ColonizeEnterReason units_last_enter_reason(void);
+/* Short player status for a probe reason (never NULL). */
+const char* units_enter_reason_status(ColonizeEnterReason reason);
+
 bool units_can_enter(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -246,7 +280,7 @@ bool units_can_enter(
   int mover_id,
   const ColonizeColonyPool* colonies
 );
-/* Destination MP cost (terrain + road/river); sea units always 1. */
+/* Destination MP cost (terrain + road/river pair); sea units always 1. */
 int units_move_cost(
   const ColonizeUnitPool* pool,
   int unit_id,

@@ -180,7 +180,19 @@ void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on);
 void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on);
 /* Clear forest canopy to base land type; preserves river/hill overlay bits. */
 bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y);
-/* Land movement cost stub (pedia terrain); road/river halves (min 1). Sea = 1. */
+/*
+ * Land movement cost stub (pedia terrain base). Dest road/river still halves
+ * for single-tile queries. Prefer map_move_cost_step for actual moves
+ * (DOS FA road-pair + cardinal river pair → cost 1). Sea callers use 1.
+ */
 int map_move_cost_at(const ColonizeWorldMap* map, int x, int y);
+/* DOS 465b-shaped step cost from→to (road both / river both+cardinal → 1). */
+int map_move_cost_step(
+  const ColonizeWorldMap* map,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+);
 
 #endif

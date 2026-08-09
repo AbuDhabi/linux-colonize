@@ -1374,3 +1374,45 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
   }
   return base;
 }
+
+/*
+ * DOS FUN_465b cost head (simplified base table, not full terr_cost*3):
+ *   both FA road bits → 1; both river + cardinal axis → 1.
+ * Else keep dest road/river halve (prior Linux pathfinding / AI goldens).
+ */
+int map_move_cost_step(
+  const ColonizeWorldMap* map,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+) {
+  if (!map || !map_tile_is_land(map, to_x, to_y)) {
+    return 1;
+  }
+  const int pedia = map_pedia_terrain_index_at(map, to_x, to_y);
+  int base = 1;
+  if (pedia >= 8 && pedia <= 23) {
+    base = 2;
+  } else if (pedia == 6 || pedia == 7) {
+    base = 2;
+  } else if (pedia == 28) {
+    base = 2;
+  } else if (pedia == 27) {
+    base = 3;
+  }
+  if (map_tile_has_road(map, from_x, from_y) && map_tile_has_road(map, to_x, to_y)) {
+    return 1;
+  }
+  if (map_tile_has_river(map, from_x, from_y) && map_tile_has_river(map, to_x, to_y) &&
+      (from_x == to_x || from_y == to_y)) {
+    return 1;
+  }
+  if (map_tile_has_road(map, to_x, to_y) || map_tile_has_river(map, to_x, to_y)) {
+    base = base / 2;
+    if (base < 1) {
+      base = 1;
+    }
+  }
+  return base;
+}
