@@ -685,6 +685,105 @@ int main(void) {
     eu.gold,
     eu.dock_count
   );
+
+  /*
+   * Volume prices: FUN_38fd_1dfa/0058 — sell pushes nr toward fall*100 → bid−1.
+   * Sugar: fall=6 vol=1 → sell 300 tons (delta 600) drops bid 4→3; ask=bid+1+1=5.
+   * Cite: NAMES.TXT @CARGO; viceroy_unpacked.c FUN_38fd_0058.
+   */
+  {
+    EuropeScreen vol;
+    char verr[128];
+    if (!europe_load(&vol, "COLONIZE", verr, sizeof(verr))) {
+      fprintf(stderr, "volume: reload failed: %s\n", verr);
+      europe_free(&eu);
+      return 1;
+    }
+    europe_cheat_add_gold(&vol, 50000);
+    /* Need a harbor ship to buy/sell holds. */
+    if (vol.harbor_ships < 1) {
+      EuropeHarborShip* s = &vol.harbor[0];
+      memset(s, 0, sizeof(*s));
+      snprintf(s->name, sizeof(s->name), "Caravel");
+      s->type_index = 0;
+      vol.harbor_ships = 1;
+      vol.selected_harbor = 0;
+    }
+    const int sugar = COLONIZE_CARGO_SUGAR;
+    const int bid0 = vol.cargo[sugar].bid;
+    if (bid0 != 4) {
+      fprintf(stderr, "volume: Sugar start bid want 4 got %d\n", bid0);
+      europe_free(&vol);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Direct volume apply: sell 400 (<<1 = 800) drops bid past fall*100. */
+    europe_apply_volume_price(&vol, sugar, 400, 0);
+    if (vol.cargo[sugar].bid != 3 || vol.cargo[sugar].ask != 5) {
+      fprintf(
+        stderr,
+        "volume: after sell-400 Sugar bid/ask=%d/%d want 3/5 nr=%d\n",
+        vol.cargo[sugar].bid,
+        vol.cargo[sugar].ask,
+        (int)vol.trade_nr[sugar]
+      );
+      europe_free(&vol);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Buy 300 (<<1=600) raises bid back via rise*100. */
+    europe_apply_volume_price(&vol, sugar, 300, 1);
+    if (vol.cargo[sugar].bid != 4) {
+      fprintf(
+        stderr,
+        "volume: after buy-300 Sugar bid=%d want 4 nr=%d\n",
+        vol.cargo[sugar].bid,
+        (int)vol.trade_nr[sugar]
+      );
+      europe_free(&vol);
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "europe volume price rise/fall ok\n");
+    europe_free(&vol);
+  }
+
+  /* EOT attrition tick: Trade Goods attrition=+4 kept on nr (0058 all-cargo). */
+  {
+    EuropeScreen tick;
+    char terr[128];
+    if (!europe_load(&tick, "COLONIZE", terr, sizeof(terr))) {
+      fprintf(stderr, "tick: reload failed: %s\n", terr);
+      europe_free(&eu);
+      return 1;
+    }
+    const int tg = COLONIZE_CARGO_TRADE_GOODS;
+    europe_apply_volume_price(&tick, tg, 50, 0);
+    const int nr1 = tick.trade_nr[tg];
+    const int attr = tick.cargo[tg].attrition;
+    europe_tick_market_prices(&tick);
+    if (tick.trade_nr[tg] != (int16_t)(nr1 + attr)) {
+      fprintf(
+        stderr,
+        "tick: Trade Goods nr %d→%d want %+d attrition\n",
+        nr1,
+        (int)tick.trade_nr[tg],
+        attr
+      );
+      europe_free(&tick);
+      europe_free(&eu);
+      return 1;
+    }
+    if (tick.cargo[tg].ask != tick.cargo[tg].bid + tick.cargo[tg].burden + 1) {
+      fprintf(stderr, "tick: ask/burden after EOT\n");
+      europe_free(&tick);
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "europe EOT market attrition tick ok\n");
+    europe_free(&tick);
+  }
+
   europe_free(&eu);
   diag_shutdown();
   return 0;

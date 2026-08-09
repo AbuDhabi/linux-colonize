@@ -81,6 +81,14 @@ typedef struct EuropeCargoQuote {
   char name[32];
   int bid; /* port pays this when you sell */
   int ask; /* you pay this when you buy */
+  /* @CARGO dynamics — FUN_38fd_0058 / 1d80 / 1dfa. */
+  int low;
+  int high;
+  int burden;
+  int rise;
+  int fall;
+  int attrition;
+  int volatility;
 } EuropeCargoQuote;
 
 typedef struct EuropeDockImmigrant {
@@ -183,6 +191,8 @@ typedef struct EuropeScreen {
   uint16_t liberty_bells_last_turn;
   EuropeCargoQuote cargo[EUROPE_CARGO_MAX];
   int cargo_count;
+  /* FUN_38fd trade.nr[16] stand-in — volume traffic for rise/fall thresholds. */
+  int16_t trade_nr[EUROPE_CARGO_MAX];
   EuropeRecruitClass classes[EUROPE_CLASS_MAX];
   int class_count;
   EuropeDockImmigrant dock[EUROPE_DOCK_MAX];
@@ -327,6 +337,18 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
+/*
+ * FUN_38fd_0058 peel after buy/sell: apply nr ± (amount<<volatility), then
+ * rise/fall ±1 bid within [low,high]; ask = bid+burden+1.
+ * sign_for_buy: buy → negative volume (1d80), sell → positive (1dfa).
+ * Cite: viceroy_unpacked.c FUN_38fd_1d80/1dfa/0058; NAMES.TXT @CARGO.
+ */
+void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy);
+/*
+ * FUN_38fd_0058 EOT peel (param_2 < 0): nr += attrition per cargo, then
+ * rise/fall ±1 within [low,high]. Cite: viceroy_unpacked.c FUN_38fd_0058.
+ */
+void europe_tick_market_prices(EuropeScreen* eu);
 /*
  * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
  * No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).

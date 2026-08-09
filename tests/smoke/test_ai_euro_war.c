@@ -2792,7 +2792,7 @@ static int smoke_dragoon_hunt_prefer_open(void) {
 /*
  * Thin 20e6 naval adjacent-foe pick: Man-O-War between high-defense foe (N) and
  * weak Caravel (S). Prefer weaker defense (old first-dir scan would hit N).
- * Cite: FUN_521d_20e6 naval combat thin; damage mods PARKED (no damage byte).
+ * Cite: FUN_521d_20e6 naval combat thin; FUN_157e_004a holds/damage Done.
  */
 static int smoke_naval_adjacent_foe_prefer_weak(void) {
   const int nation = 1;
@@ -2923,6 +2923,149 @@ static int smoke_naval_adjacent_foe_prefer_weak(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(stderr, "smoke_ai_euro_war: naval adjacent-foe prefer-weak ok\n");
+  return 0;
+}
+
+/*
+ * FUN_157e_004a holds_occupied (0x3150): equal Caravels N/S — loaded foe is
+ * weaker (def − holds) so prefer attack on loaded. Cite: FUN_157e_004a.
+ */
+static int smoke_naval_adjacent_foe_prefer_loaded(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("naval-holds alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 8;
+  units.types[0].defense = 8;
+  units.type_count = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].attack = 0;
+  units.types[1].defense = 4;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* own = units_get(&units, own_id);
+  if (!own) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("naval-holds spawn own");
+  }
+  own->nation_id = nation;
+  own->orders = 0;
+  own->moves_left = 1;
+
+  const int empty_id = units_spawn(&units, 1, own_x, own_y - 1);
+  ColonizeUnit* empty = units_get(&units, empty_id);
+  if (!empty) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("naval-holds spawn empty");
+  }
+  empty->nation_id = foe_nat;
+  empty->orders = 0;
+  empty->moves_left = 0;
+
+  const int loaded_id = units_spawn(&units, 1, own_x, own_y + 1);
+  ColonizeUnit* loaded = units_get(&units, loaded_id);
+  if (!loaded) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("naval-holds spawn loaded");
+  }
+  loaded->nation_id = foe_nat;
+  loaded->orders = 0;
+  loaded->moves_left = 0;
+  loaded->hold_goods_type[0] = 1;
+  loaded->hold_goods_amount[0] = 100;
+  loaded->hold_goods_type[1] = 2;
+  loaded->hold_goods_amount[1] = 50;
+  loaded->hold_goods_type[2] = 3;
+  loaded->hold_goods_amount[2] = 25;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+
+  uint32_t turn = 43;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 43;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  own = units_get(&units, own_id);
+  empty = units_get(&units, empty_id);
+  loaded = units_get(&units, loaded_id);
+
+  const int loaded_dead = loaded == NULL || !loaded->active;
+  const int empty_alive = empty && empty->active;
+  const int own_alive = own && own->active;
+
+  if (!loaded_dead || !empty_alive || !own_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: naval-holds own=%d loaded_dead=%d empty_alive=%d\n",
+      own_alive,
+      loaded_dead,
+      empty_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected attack on loaded Caravel (holds_occupied), empty left alone");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: naval adjacent-foe prefer-loaded ok\n");
   return 0;
 }
 
@@ -8456,6 +8599,9 @@ int main(void) {
     return 1;
   }
   if (smoke_naval_adjacent_foe_prefer_weak() != 0) {
+    return 1;
+  }
+  if (smoke_naval_adjacent_foe_prefer_loaded() != 0) {
     return 1;
   }
   if (smoke_naval_adjacent_foe_prefer_non_drake() != 0) {

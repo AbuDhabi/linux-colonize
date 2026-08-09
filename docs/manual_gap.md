@@ -107,7 +107,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Food / production / hammers | Partial | Simplified stubs in `turn.c` |
 | Liberty bells / crosses counters | Partial | Accumulators; FF election via `founding_fathers_tick` |
 | Full production formulas, spoilage, boycotts | Partial | SoL field/craft/hammers/bells; warehouse spoilage clamp EOT (`colonies_apply_warehouse_spoilage` / FUN_15eb_0a50); boycotts structural diplo |
-| Market prices driven by trade volume | Missing | Static bid/ask display only |
+| Market prices driven by trade volume | Partial | T0: buy/sell update `trade_nr` + FUN_38fd_0058 rise/fall ±1 bid (`europe_apply_volume_price`); full colony→price_group half PARKED |
 | Turn order: natives first, then EN→FR→SP→DU | Partial | Human-centric; Euro sail + Indian growth/pulse; King/REF structural — [ai_transcription.md](ai_transcription.md) |
 
 ### Indians
@@ -132,11 +132,11 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; KINGGALLEON2 PARK; Congress UI PARKED |
-| Pedia / F3 Congress report | Partial | Data / articles; no election |
-| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); VGA PARKED |
-| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); deep `10f0` / arrival / letter chrome PARKED |
-| F10 Colonization Score | Partial | Schedule exists; win loop incomplete |
+| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE one-per-@FATHERS-type **Done** structural; KINGGALLEON2 PARK; F3 portrait grid PARKED |
+| Pedia / F3 Congress report | Partial | Data / articles; debate elect via popup; no election on F3 plate |
+| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED |
+| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win (1850+no crown) / lose (no ports after REF) latches **Done** thin; deep `10f0` / DECLARAT anim PARKED |
+| F10 Colonization Score | Partial | Schedule exists; WoI → declared flag; achieve from endgame latch; retire opens score |
 
 ### AI Europeans
 
@@ -150,9 +150,9 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Quit / Exit | Done | |
-| Retire → score / HoF | Partial | Score path thin; HoF stub |
-| Revolution victory / failure | Missing | |
-| Auto-end 1800 / 1850 | Missing | |
+| Retire → score / HoF | Partial | Retire opens F10 score then title; session HoF shows last score; persistent HoF table stub |
+| Revolution victory / failure | Partial | Thin: lose all coastal ports (after REF present); win year≥1850 + no crown units (`unknown46[4]`) |
+| Auto-end 1800 / 1850 | Partial | Peacetime year≥1800 latch + popup; WoI win at 1850+no crown; forced retire UI still thin |
 
 ---
 

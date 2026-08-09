@@ -403,12 +403,6 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
         continue;
       }
       (void)start_hi;
-      (void)low;
-      (void)high;
-      (void)rise;
-      (void)fall;
-      (void)attrition;
-      (void)volatility;
 
       EuropeCargoQuote* q = &eu->cargo[eu->cargo_count++];
       str_copy_trunc(q->name, sizeof(q->name), line);
@@ -416,9 +410,23 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
       if (q->bid < 0) {
         q->bid = 0;
       }
-      q->ask = q->bid + burden + 1;
+      q->low = low;
+      q->high = high;
+      q->burden = burden;
+      q->rise = rise;
+      q->fall = fall;
+      q->attrition = attrition;
+      q->volatility = volatility;
+      if (q->volatility < 0) {
+        q->volatility = 0;
+      }
+      if (q->volatility > 15) {
+        q->volatility = 15;
+      }
+      q->ask = q->bid + q->burden + 1;
     }
   }
+  memset(eu->trade_nr, 0, sizeof(eu->trade_nr));
 
   const ColonizeMsgSection* classes = assets_msg_find(names, "CLASS");
   if (classes) {
@@ -1282,6 +1290,115 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   return credited;
 }
 
+void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy) {
+  /*
+   * Thin FUN_38fd_1d80/1dfa + 0058(0, cargo) peel:
+   *   buy:  nr -= amount << volatility
+   *   sell: nr += amount << volatility
+   * Then 0058 single-cargo: nr += attrition; rise/fall ±1 bid in [low,high];
+   * nr -= attrition (net attrition 0 when param_2 >= 0).
+   * Cite: viceroy_unpacked.c ~58947–58985; NAMES.TXT @CARGO rise/fall.
+   * Defers full 0058 colony→price_group_state half (unknown46 overlay).
+   */
+  if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count ||
+      cargo_type >= EUROPE_CARGO_MAX) {
+    return;
+  }
+  EuropeCargoQuote* q = &eu->cargo[cargo_type];
+  int shift = q->volatility;
+  if (shift < 0) {
+    shift = 0;
+  }
+  if (shift > 15) {
+    shift = 15;
+  }
+  const int delta = amount << shift;
+  int nr = (int)eu->trade_nr[cargo_type];
+  if (is_buy) {
+    nr -= delta;
+  } else {
+    nr += delta;
+  }
+  /* 0058 single-cargo: temporary attrition then rise/fall thresholds. */
+  int attrition = q->attrition;
+  nr += attrition;
+  const int rise = q->rise;
+  const int fall = q->fall;
+  if (rise > 0 && nr <= -(rise * 100) && q->bid < q->high) {
+    nr += rise * 100;
+    q->bid += 1;
+  }
+  if (fall > 0 && nr >= fall * 100 && q->bid > q->low) {
+    nr -= fall * 100;
+    q->bid -= 1;
+  }
+  nr -= attrition;
+  /* Only clamp when @CARGO low/high were loaded (high > low). */
+  if (q->high > q->low) {
+    if (q->bid < q->low) {
+      q->bid = q->low;
+    }
+    if (q->bid > q->high) {
+      q->bid = q->high;
+    }
+  }
+  if (q->bid < 0) {
+    q->bid = 0;
+  }
+  q->ask = q->bid + q->burden + 1;
+  if (nr < -32768) {
+    nr = -32768;
+  }
+  if (nr > 32767) {
+    nr = 32767;
+  }
+  eu->trade_nr[cargo_type] = (int16_t)nr;
+}
+
+void europe_tick_market_prices(EuropeScreen* eu) {
+  /*
+   * FUN_38fd_0058(..., 0xffff) nation EOT: for each cargo, nr += attrition
+   * (kept — unlike post-trade single-cargo which undoes attrition), then
+   * rise/fall ±1 bid in [low,high]. Cite: viceroy_unpacked.c ~58947–58984.
+   */
+  if (!eu) {
+    return;
+  }
+  for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
+    EuropeCargoQuote* q = &eu->cargo[c];
+    int nr = (int)eu->trade_nr[c] + q->attrition;
+    const int rise = q->rise;
+    const int fall = q->fall;
+    if (rise > 0 && nr <= -(rise * 100) && q->bid < q->high) {
+      nr += rise * 100;
+      q->bid += 1;
+    }
+    if (fall > 0 && nr >= fall * 100 && q->bid > q->low) {
+      nr -= fall * 100;
+      q->bid -= 1;
+    }
+    if (q->high > q->low) {
+      if (q->bid < q->low) {
+        q->bid = q->low;
+      }
+      if (q->bid > q->high) {
+        q->bid = q->high;
+      }
+    }
+    if (q->bid < 0) {
+      q->bid = 0;
+    }
+    q->ask = q->bid + q->burden + 1;
+    if (nr < -32768) {
+      nr = -32768;
+    }
+    if (nr > 32767) {
+      nr = 32767;
+    }
+    eu->trade_nr[c] = (int16_t)nr;
+  }
+}
+
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
     return 0;
@@ -1317,6 +1434,7 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   eu->gold += gained;
   ship->hold_goods_amount[hold_index] = 0;
   ship->hold_goods_type[hold_index] = 0;
+  europe_apply_volume_price(eu, ctype, amt, 0);
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
@@ -1420,6 +1538,7 @@ int europe_custom_house_autosell(
     if (nation == human_nation) {
       eu->gold += gained;
     }
+    europe_apply_volume_price(eu, c, amount, 0);
   }
   if (total > 0) {
     snprintf(eu->status, sizeof(eu->status), "Custom House sold goods for %d$.", total);
@@ -1458,6 +1577,7 @@ int europe_sell_unit_hold(
   eu->gold += gained;
   u->hold_goods_amount[hold_index] = 0;
   u->hold_goods_type[hold_index] = 0;
+  europe_apply_volume_price(eu, ctype, amt, 0);
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
@@ -1537,6 +1657,9 @@ int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amo
   }
   const int bought = buy - remaining;
   eu->gold -= bought * ask;
+  if (bought > 0) {
+    europe_apply_volume_price(eu, cargo_type, bought, 1);
+  }
   snprintf(
     eu->status,
     sizeof(eu->status),

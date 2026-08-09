@@ -22,6 +22,7 @@
 #include "core/europe.h"
 #include "core/ff.h"
 #include "core/font.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/map_gen.h"
 #include "core/map_menu.h"
@@ -98,6 +99,9 @@ struct ColonizeGameState {
   ColonizeReportsView reports;
   bool reports_ok;
   bool in_report;
+  bool report_exits_to_menu; /* Retire: close score → title menu */
+  int hof_last_score; /* last Retire Colonization Score (session HoF stub) */
+  bool hof_has_entry;
   ColonizeReportId report_id;
   EuropeScreen europe;
   bool europe_ok;
@@ -373,6 +377,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
   ai_king_apply_popup_result(&ctx, &game->ai_popups);
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);
   ai_diplo_apply_popup_result(&ctx, &game->ai_popups);
+  founding_fathers_apply_popup_result(&ctx, &game->ai_popups);
   ai_popup_consume_result(&game->ai_popups);
 }
 
@@ -933,12 +938,22 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   }
   game->in_report = true;
   game->report_id = id;
+  game->report_exits_to_menu = false;
   game->in_pedia = false;
   game->in_europe = false;
   game->in_colony = false;
   game->in_debug_atlas = false;
   snprintf(game->status, sizeof(game->status), "%s", reports_title(id));
   diag_info("Opened report %s (%s)", reports_title(id), reports_background_name(id));
+}
+
+static void game_open_retire_score(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  game_open_report(game, COLONIZE_REPORT_SCORE);
+  game->report_exits_to_menu = true;
+  set_status(game, "Retired — Colonization Score", "Enter/Esc returns to menu");
 }
 
 static void game_open_debug_atlas(ColonizeGameState* game) {
@@ -2536,7 +2551,13 @@ static void activate_menu_selection(ColonizeGameState* game) {
   }
 
   if (strstr(choice, "Hall of Fame") != NULL || strstr(choice, "HALL") != NULL) {
-    set_status(game, "Hall of Fame", "not implemented yet");
+    if (game->hof_has_entry) {
+      char line[96];
+      snprintf(line, sizeof(line), "Last retired score: %d", game->hof_last_score);
+      set_status(game, "Hall of Fame", line);
+    } else {
+      set_status(game, "Hall of Fame", "No retired scores yet");
+    }
     return;
   }
 
@@ -3916,10 +3937,8 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       ColonizeInputState empty;
       memset(&empty, 0, sizeof(empty));
       map_menu_handle_input(&game->map_menu, &empty, NULL, true);
-      game->in_menu = true;
-      sound_stop_bgm();
-      sound_play(SOUND_TITLE_ID);
-      set_status(game, "Retired to main menu", NULL);
+      /* Manual pp.10–12 retire → score; HoF insert still stub. */
+      game_open_retire_score(game);
       return true;
     }
     case MAP_MENU_ACTION_EXIT:
@@ -4366,6 +4385,22 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER) {
       game->in_report = false;
       diag_info("Left report screen.");
+      if (game->report_exits_to_menu) {
+        game->report_exits_to_menu = false;
+        /* Session HoF stub: record F10 total on Retire (FUN_41f2_0f56 thin). */
+        if (game->col1_ok) {
+          ColonizeScoreBreakdown sc;
+          reports_compute_score(
+            &sc, &game->col1, game->human_nation, &game->colonies, &game->europe
+          );
+          game->hof_last_score = sc.total;
+          game->hof_has_entry = true;
+        }
+        game->in_menu = true;
+        sound_stop_bgm();
+        sound_play(SOUND_TITLE_ID);
+        set_status(game, "Retired to main menu", NULL);
+      }
       return true;
     }
     /* F-keys switch reports (F2–F10) or open terrain pedia (F1). */

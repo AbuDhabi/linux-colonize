@@ -404,6 +404,11 @@ static void reports_render_congress(
   reports_draw_line(font, fb, 8, *y, line, 14);
   *y += step;
 
+  /* FUN_3f41_0618 congress report includes tax rate. */
+  snprintf(line, line_sz, "Tax rate: %u%%", (unsigned)nat->tax_rate);
+  reports_draw_line(font, fb, 8, *y, line, 15);
+  *y += step;
+
   snprintf(
     line,
     line_sz,
@@ -1326,9 +1331,10 @@ void reports_compute_score(
     out->villages_penalty = -(out->difficulty + 1) * out->villages_burned;
 
     /*
-     * Independence is not fully simulated yet. Heuristic: AI "withdrawn"
-     * (control==2) means that power achieved independence; human declare
-     * year / achieve flags stay unset until WoI is wired into the save.
+     * Independence: WoI latch head.unknown46[0] (ai_king). Declare year not
+     * separately latched yet — early-revolution % stays 0 until a year field
+     * is wired. Achieve stays false until revolution victory sequence.
+     * AI "withdrawn" (control==2) still counts toward foreign recognition.
      */
     for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
       if (n == human) {
@@ -1338,8 +1344,8 @@ void reports_compute_score(
         out->prior_nations++;
       }
     }
-    out->independence_declared = false;
-    out->independence_achieved = false;
+    out->independence_declared = col1->head.unknown46[0] != 0;
+    out->independence_achieved = col1->head.unknown46[4] == 1;
     out->declare_year = 0;
   } else {
     out->year = 0;

@@ -951,7 +951,14 @@ bool col1_bridge_apply(
                      save->player[local.human_nation].country_name);
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       europe->cargo[i].bid = nat->trade.euro_price[i];
-      europe->cargo[i].ask = nat->trade.euro_price[i] + 1;
+      europe->trade_nr[i] = nat->trade.nr[i];
+      {
+        int burden = europe->cargo[i].burden;
+        if (burden < 0) {
+          burden = 0;
+        }
+        europe->cargo[i].ask = europe->cargo[i].bid + burden + 1;
+      }
     }
   }
 
@@ -1219,6 +1226,7 @@ bool col1_bridge_capture(
         bid = 255;
       }
       nat->trade.euro_price[i] = (uint8_t)bid;
+      nat->trade.nr[i] = europe->trade_nr[i];
     }
   }
 

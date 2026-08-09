@@ -1380,6 +1380,43 @@ bool units_resolve_naval_combat_ff(
   if (defense < 0) {
     defense = 0;
   }
+  /*
+   * FUN_157e_004a peels (naval): Privateer + ship_damaged (0x3148 bit7) → −2;
+   * holds_occupied (0x3150 / Col1 unit+0x0c) subtracted for both sides.
+   * Cite: viceroy_unpacked.c FUN_157e_004a; col1_save.h ship_damaged.
+   */
+  if (strstr(at->name, "Privateer") != NULL && (atk->col1_unknown15 & 0x80u) != 0) {
+    attack -= 2;
+    if (attack < 0) {
+      attack = 0;
+    }
+  }
+  if (strstr(dt->name, "Privateer") != NULL && (def->col1_unknown15 & 0x80u) != 0) {
+    defense -= 2;
+    if (defense < 0) {
+      defense = 0;
+    }
+  }
+  {
+    int atk_holds = 0;
+    int def_holds = 0;
+    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      if (atk->hold_goods_amount[i] > 0 && atk->hold_goods_amount[i] < 255) {
+        ++atk_holds;
+      }
+      if (def->hold_goods_amount[i] > 0 && def->hold_goods_amount[i] < 255) {
+        ++def_holds;
+      }
+    }
+    attack -= atk_holds;
+    defense -= def_holds;
+    if (attack < 0) {
+      attack = 0;
+    }
+    if (defense < 0) {
+      defense = 0;
+    }
+  }
   attack = units_drake_scale_strength(pool, atk, attack, col1);
   defense = units_drake_scale_strength(pool, def, defense, col1);
   const int total = attack + defense;
