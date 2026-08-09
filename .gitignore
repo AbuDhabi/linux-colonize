@@ -9,7 +9,7 @@ test-assets/
 colonize-linux.log
 ripped_sound/
 reference_music/
-dosbox-x-dumps/
+dosbox-x-dumps/**/
 *.pyc
 tools/brave_dump/shots
 **/__pycache__/**
