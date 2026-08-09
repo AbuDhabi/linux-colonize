@@ -433,8 +433,15 @@ Thin case-7 treasury gate (skip hire below colonist `hire_cost`; Artillery 500$;
 dock Hardy/Expert Pioneer or Master Carpenter only when already on Europe dock).
 Thin Treasure → coastal colony `AI_MOVE`; peace Missionary/Jesuit CONTACT toward
 unmissioned tribes (skip Alarm≥55). Expert Lumberjack field-assign **Done**
-(`ai_euro_try_lumberjack_field_assign`).
-**OPEN (unpark #4):** remaining deep combat multi-step / ocean-naval `20e6`;
+(`ai_euro_try_lumberjack_field_assign`). Expert Teacher Europe-dock hire when
+Schoolhouse/College/University owned **Done** (parallel Preacher↔Church).
+Wagon hire-once for lumber/ore/muskets/horses/food short (TOOLS preferred cargo)
+**Done**. Thin Treasure adjacent/hunt + weak-foe hunt prefer **Done**.
+Thin land adjacent combat chain (drain `moves_left` across foes) **Done**.
+Wagon surplus load prefers FOOD when `food_short>20` **Done**.
+Thin lumber/ore/muskets/horses/food cargo hire stand-in (mirror tools ship/colony)
+**Done**.
+**OPEN (unpark #4):** remaining deep combat scoring / ocean-naval `20e6`;
 leftover mid `5d04` matrix; deep −0x6790 G table. Thin ocean east-Europe HS bias
 **Done** (complement west-explore). Odd deviations OK; not T3 / LCG
 goldens (those stay R5).

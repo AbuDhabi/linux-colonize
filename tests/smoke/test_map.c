@@ -446,6 +446,64 @@ int main(void) {
 #endif
 #endif
 
+  /* Runtime plow overlay: PHYS0 149 when MAP_IMPROVE_PLOWED set. */
+  {
+    ColonizeWorldMap plow_map;
+    memset(&plow_map, 0, sizeof(plow_map));
+    plow_map.width = 4;
+    plow_map.height = 4;
+    plow_map.tile_count = 16;
+    plow_map.terrain = calloc(16, 1);
+    plow_map.layer2 = calloc(16, 1);
+    plow_map.layer3 = calloc(16, 1);
+    plow_map.improve = calloc(16, 1);
+    plow_map.seen = calloc(16, 1);
+    if (!plow_map.terrain || !plow_map.layer2 || !plow_map.layer3 || !plow_map.improve ||
+        !plow_map.seen) {
+      fprintf(stderr, "plow overlay alloc failed\n");
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    plow_map.terrain[0] = 1; /* plains */
+    if (map_phys0_plow_sprite_at(&plow_map, 0, 0) != -1) {
+      fprintf(stderr, "plow overlay expected -1 before set\n");
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    map_tile_set_plowed(&plow_map, 0, 0, true);
+    if (map_phys0_plow_sprite_at(&plow_map, 0, 0) != 149) {
+      fprintf(
+        stderr,
+        "plow overlay expected PHYS0 149 got %d\n",
+        map_phys0_plow_sprite_at(&plow_map, 0, 0)
+      );
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    if (map_phys0_road_sprite_at(&plow_map, 0, 0) != -1) {
+      fprintf(stderr, "road overlay expected -1 before set\n");
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    map_tile_set_road(&plow_map, 0, 0, true);
+    if (map_phys0_road_sprite_at(&plow_map, 0, 0) != 80) {
+      fprintf(
+        stderr,
+        "road overlay expected PHYS0 80 got %d\n",
+        map_phys0_road_sprite_at(&plow_map, 0, 0)
+      );
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    map_free(&plow_map);
+    fprintf(stderr, "plow overlay PHYS0 149 ok; road isolated PHYS0 80 ok\n");
+  }
+
   fprintf(stderr,
     "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles%s%s)\n",
     sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),

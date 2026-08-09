@@ -420,7 +420,7 @@ int units_last_combat_outcome(void);
 /* True if orders byte means "follow goto_x/y". */
 static inline bool units_orders_follow_goto(int orders) {
   return orders == UNITS_ORDER_GOTO || orders == UNITS_ORDER_AI_SAIL ||
-         orders == UNITS_ORDER_AI_MOVE;
+         orders == UNITS_ORDER_AI_MOVE || orders == UNITS_ORDER_TRADE_ROUTE;
 }
 
 /* True if unit is ordered to stick to another unit id. */
@@ -735,6 +735,7 @@ void units_end_turn(ColonizeUnitPool* pool);
 #define UNITS_JOB_SOLDIER 21  /* Veteran Soldiers */
 #define UNITS_JOB_SCOUT 22    /* Seasoned Scouts */
 #define UNITS_JOB_DRAGOON 23  /* Veteran Dragoons */
+#define UNITS_JOB_MISSIONARY 24 /* Jesuit Missionaries expert; plain bless uses NONE */
 #define UNITS_JOB_NONE 28     /* no expert skill (plain Pioneer/Soldier) */
 
 /* Equipped map/fence icons (ICONS.SS); expert variants when profession matches. */

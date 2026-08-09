@@ -300,6 +300,50 @@ int main(void) {
         "hardy+tools map icon #101"
       );
     }
+    /* Church bless: Leave as Missionary when Church present; absent without. */
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col != NULL, "colony mut for missionary eject");
+      const int church = colonies_find_building(&pool, "Church");
+      CHECK(church >= 0, "Church building type");
+      int roles[COLONIZE_EJECT_ROLE_COUNT];
+      const int n0 = colonies_list_eject_roles(&pool, cid, 0, roles, COLONIZE_EJECT_ROLE_COUNT);
+      int has_miss = 0;
+      for (int i = 0; i < n0; ++i) {
+        if (roles[i] == COLONIZE_EJECT_MISSIONARY) {
+          has_miss = 1;
+        }
+      }
+      CHECK(!has_miss, "no Missionary leave-as without Church");
+      if (col && church >= 0) {
+        col->has_building[church] = true;
+      }
+      /* Need a colonist on site. */
+      const int uidm = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      CHECK(uidm >= 0, "spawn for missionary admit");
+      ColonizeUnit* oum = units_get(&units, uidm);
+      if (oum && col) {
+        oum->nation_id = col->nation_id;
+      }
+      const int adm = colonies_admit_unit(&pool, cid, &units, uidm);
+      CHECK(adm >= 0, "admit before missionary eject");
+      const int n1 = colonies_list_eject_roles(&pool, cid, adm, roles, COLONIZE_EJECT_ROLE_COUNT);
+      has_miss = 0;
+      for (int i = 0; i < n1; ++i) {
+        if (roles[i] == COLONIZE_EJECT_MISSIONARY) {
+          has_miss = 1;
+        }
+      }
+      CHECK(has_miss, "Missionary leave-as with Church");
+      const int mej =
+        colonies_eject_colonist(&pool, cid, adm, &units, COLONIZE_EJECT_MISSIONARY);
+      CHECK(mej >= 0, "eject as Missionary");
+      const ColonizeUnit* miss = units_get_const(&units, mej);
+      CHECK(miss && miss->active, "missionary unit active");
+      const ColonizeUnitType* mt = units_type(&units, miss->type_index);
+      CHECK(mt && strstr(mt->name, "Missionar") != NULL, "Missionaries unit type");
+      CHECK(miss->profession == UNITS_JOB_NONE, "plain Church bless is non-Jesuit");
+    }
   }
 
   int buildable[32];

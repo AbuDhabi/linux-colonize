@@ -28,6 +28,8 @@
 #define PHYS0_MOUNTAIN_BASE 32
 #define PHYS0_HILL_BASE 48
 #define PHYS0_FOREST_BASE 64
+#define PHYS0_ROAD_ISOLATED 80 /* 80–88 band; connectivity mask still PARKED */
+#define PHYS0_PLOWED 149
 #define PHYS0_MOUNTAIN_ISOLATED 32 /* layer-3 arctic peak: isolated mountain */
 #define PHYS0_TUNDRA_CANOPY 64 /* isolated forest canopy on y=0 */
 #define PHYS0_LAND_TRANSITION_BASE 104 /* MAPEDIT 0x69+q − 1; N/E/S/W colour-0 masks */
@@ -1310,6 +1312,30 @@ bool map_tile_is_plowed(const ColonizeWorldMap* map, int x, int y) {
     return false;
   }
   return (map->improve[y * map->width + x] & MAP_IMPROVE_PLOWED) != 0;
+}
+
+/*
+ * Runtime plow overlay (not MAPEDIT static art). PHYS0 atlas #149 — see
+ * docs/assets.md. Drawn after hill/river/resource overlays on the main map and
+ * colony area view.
+ */
+int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_tile_is_plowed(map, x, y)) {
+    return -1;
+  }
+  return PHYS0_PLOWED;
+}
+
+/*
+ * Runtime road overlay. PHYS0 80–88 is the road band; connectivity RE is still
+ * open, so blit isolated **80** for any road tile (visible playability). Cite:
+ * docs/assets.md roads; map_tile_has_road / Col1 mask.
+ */
+int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map_tile_has_road(map, x, y)) {
+    return -1;
+  }
+  return PHYS0_ROAD_ISOLATED;
 }
 
 void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on) {

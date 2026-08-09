@@ -425,7 +425,18 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
-  /* TRADE — screens / features not wired yet. */
+  /* TRADE */
+  if (strcmp(label, "Create Trade Route") == 0) {
+    return MAP_MENU_ACTION_TRADE_CREATE;
+  }
+  if (strcmp(label, "Edit Trade Route") == 0) {
+    return MAP_MENU_ACTION_TRADE_EDIT;
+  }
+  if (strcmp(label, "Delete Trade Route") == 0) {
+    return MAP_MENU_ACTION_TRADE_DELETE;
+  }
+
+  /* TRADE — remaining screens / features not wired yet. */
   return MAP_MENU_ACTION_UNIMPLEMENTED;
 }
 
@@ -452,6 +463,9 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_GOTO_PORT:
     case MAP_MENU_ACTION_GOTO_PLACE:
     case MAP_MENU_ACTION_TRADE_ROUTE:
+    case MAP_MENU_ACTION_TRADE_CREATE:
+    case MAP_MENU_ACTION_TRADE_EDIT:
+    case MAP_MENU_ACTION_TRADE_DELETE:
     case MAP_MENU_ACTION_RETURN_EUROPE:
     case MAP_MENU_ACTION_FORTIFY:
     case MAP_MENU_ACTION_ANCHOR:
@@ -1520,6 +1534,12 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Go to Place";
     case MAP_MENU_ACTION_TRADE_ROUTE:
       return "Begin Trade Route";
+    case MAP_MENU_ACTION_TRADE_CREATE:
+      return "Create Trade Route";
+    case MAP_MENU_ACTION_TRADE_EDIT:
+      return "Edit Trade Route";
+    case MAP_MENU_ACTION_TRADE_DELETE:
+      return "Delete Trade Route";
     case MAP_MENU_ACTION_RETURN_EUROPE:
       return "Return to Europe";
     case MAP_MENU_ACTION_FORTIFY:

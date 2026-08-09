@@ -43,11 +43,12 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | NEW WORLD / AMERICA / CUSTOMIZE | Done | `src/core/new_game.c`, `map_gen.c` |
 | Difficulty, nation, leader, king audience, sail | Done | Wizard flow functional |
-| Hall of Fame | Partial | Stub / not entered on retire |
+| Hall of Fame | Partial | Title shows last retired score; persists to `HOF.TXT` (thin table stub) |
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
 | Fog of war / unexplored blackness | Partial | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; units/tribes/colonies hidden in fog; Go-To reveals; cheat Reveal. Scenario `.MP` starts fully seen |
 | Zoom / hidden terrain VIEW modes | Missing | Menu stubs |
-| Roads on map | Missing | Not drawn |
+| Roads on map | Partial | PHYS0 **80** isolated stand-in via `map_phys0_road_sprite_at`; 80–88 connectivity PARKED |
+| Plowed fields on map | Done | PHYS0 **149** via `map_phys0_plow_sprite_at` (main map + colony area) |
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
 | Colonizopedia | Done | `pedia.c` |
 | Reports F1–F10 | Done | `reports.c` |
@@ -70,7 +71,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Landfall confirm + activate-all ashore | Done | Ship→bare land: CHOICE unload one / activate all / cancel (`AI_POPUP_TAG_LANDFALL`); ship stays at sea — [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
-| Trade routes (TRADE menu) | Partial | ORDERS Begin Trade Route sets `@ORDERS` index 2 on ship/wagon; TRADE Create/Edit/Delete still stubbed |
+| Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; thin unload-all / surplus-load at colony (Europe sell on 999); Col1 load/unload nibbles still thin |
 
 ### Colonies
 
@@ -91,14 +92,14 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Open Europe (**E**), sail **H** / **S** | Done | Multi-turn Expected Soon / Bound For *region*; passengers + holds persist |
-| Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter later |
+| Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter Done; pick-among-pool UI PARKED |
 | Market bid / ask display | Done | Bottom strip from `NAMES.TXT` `@CARGO` |
 | Buy / sell goods (drag / L / = / + / U) | Done | Drag market↔hold; **L**/**=**/**+** buy, **U**/**-**/**_** sell |
 | Buy ships / artillery | Done | **P** purchase menu (screenshot gold: Artillery 500 … Frigate 5000) |
 | Hire Royal University / Train | Done | **T** / `@JOB` hire costs; expert → docks |
 | Recruit pool (3) + passage | Done | **R** dialog; passage starts 100, +16 per recruit (Unverified formula) |
 | Dock sentry / board on sail | Partial | Default sentry; Don’t/Board/Move-front menu; full equip/bless later |
-| Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; map/fence icons; colony admit dumps gear; eject popup spends stock |
+| Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; Leave-as Missionary with Church/Cathedral **Done**; fence icons; colony admit dumps gear |
 | Tax rate / boycotts / king tax events | Partial | Structural tax→REF + refuse/boycott flag (`ai_king`); audience UI **Done** structural (`ai_popup`); VGA chrome PARKED — [ai_transcription.md](ai_transcription.md) |
 
 ### Economy and turn sequence
@@ -152,7 +153,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Quit / Exit | Done | |
-| Retire → score / HoF | Partial | Retire opens F10 score then title; session HoF shows last score; persistent HoF table stub |
+| Retire → score / HoF | Partial | Retire opens F10 score then title; last score persists via `HOF.TXT` |
 | Revolution victory / failure | Partial | Thin: lose all coastal ports (after REF present); win year≥1850 + no crown units (`unknown46[4]`) |
 | Auto-end 1800 / 1850 | Partial | Peacetime year≥1800 latch + popup; WoI win at 1850+no crown; forced retire UI still thin |
 
@@ -166,7 +167,7 @@ Aligned with early manual chapters (short playable loop first), then the
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
 2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; boycotts / volume prices later
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
-4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route byte); TRADE editor still open
+4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE load/unload nibbles still thin
 5. **Fog of war / exploration**
 6. **Combat** (land first; colony defense) — T0 land/naval/capture + fort % + coastal fort fire in; ship-slow / deep `20e6` still PARKED
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
@@ -175,7 +176,7 @@ Aligned with early manual chapters (short playable loop first), then the
    structural `ai_popup`; deep/VGA PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** — Create/Edit/Delete TRADE menu (Begin Trade Route order byte Done)
+10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + thin stop cargo **Done**; Col1 nibble UI still thin
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---
@@ -188,8 +189,9 @@ units / naval passengers, founding a colony, and Europe buy/sell/recruit/hire**.
 king/REF (incl. audience/confirm/merc), FF elect, and early Euro AI (seed-100 T2
 + thin expand/war) are in; next playability work is leftover **FF hooks**
 (Sepulveda/Cortes), deep mid-planner `20e6`, and VGA / deep AI bodies — not
-waiting on missing combat/capture prerequisites. Still thin on TRADE route
-editor UI, Congress UI, and full 1:1 AI bodies.
+waiting on missing combat/capture prerequisites. TRADE Create/Edit/Begin
+aim+cycle is thin; cargo load/unload nibbles, Congress UI, and full 1:1 AI
+bodies remain.
 
 ## See also
 

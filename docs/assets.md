@@ -191,7 +191,7 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 ### Map overlay compositing
 
-**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. Remaining gaps are fog-of-war, roads, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
+**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** blit isolated PHYS0 **80** (80–88 connectivity PARKED). Remaining gaps are fog-of-war polish, road connectivity, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
 
 Authority for static map art is decompiled **`MAPEDIT.EXE` /
 `original_sources_decompiled/mapedit.c`** (no RTLink), not VICEROY’s runtime buffers.
@@ -205,6 +205,9 @@ The Linux port draws cleared terrain from `TERRAIN.SS` (bits 0–4), then compos
 3. **Forest canopy** — PHYS0 **64+mask** (non-scrub)
 4. **Overlays** — coast fragments/corners; hills/mountains/rivers; resources; rumours; estuaries  
    On coast tiles: coast PHYS0 → masked ocean into palette-0 holes → resource/estuary layers
+5. **Plow** (runtime) — PHYS0 **149** when `map_tile_is_plowed` / Col1 plow bit
+6. **Road** (runtime) — PHYS0 **80** isolated when `map_tile_has_road` (80–88 connectivity PARKED)
+7. **Fog fringe** — PHYS0 **104–107** on seen tiles toward unseen cardinals
 
 **Terrain byte decode (layer 1):** `terrain_index = byte & 0x1f`. Indices 0–7 are cleared land; 8–23 are forests (type = `index & 7`); 24–26 are arctic/ocean/high seas.
 
@@ -258,7 +261,9 @@ Layer-3 `0x0e` on AMER2 `(43,68)` is a lone tundra peak drawn as isolated mounta
 
 Class index = terrain `& 0x1f`, except mountain → **27**, hill → **28** (`FUN_19b7_0006`). Table value `0` remaps to type 6; `−1` means no resource.
 
-Roads and fog overlays are not drawn yet.
+Roads blit PHYS0 **80** (isolated stand-in) via `map_phys0_road_sprite_at` when
+`map_tile_has_road`; full **80–88** connectivity mask still PARKED. Plowed tiles
+blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
 
 **Coastal ocean.** Enabled by default. MAPEDIT: land underlayer → fragments **108+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary (+ fish when present). Details: [decomp_inventory.md](decomp_inventory.md).
 
@@ -270,7 +275,7 @@ Roads and fog overlays are not drawn yet.
 
 Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this MAPEDIT path (`docs/viceroy_tables.md`).
 
-Not drawn yet: fog of war; roads; per-tile texture variation from DOS RAM buffers; coast animation frames.
+Not drawn yet: road **connectivity** (80–88 band; isolated **80** is drawn); per-tile texture variation from DOS RAM buffers; coast animation frames. Fog fringe (**104–107**) and plow (**149**) are drawn.
 
 Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md). World-map **feature art** (forest/hill/mountain/coast) uses MAPEDIT rules above, not those VICEROY tables.
 
@@ -282,7 +287,7 @@ On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **
 
 **DEBUG** (CMake `COLONIZE_DEBUG_MENU`): **Sprite Viewer** (same as `` ` ``) and **Show Mouse Coords** (toggles the pixel HUD attached to the pointer; on by default).
 
-Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Fortify (land/ship harbor) / Sentry / Disband, Clear Forest↔Plow / Build Road, Go to Place↔Port, Pillage, Dump Cargo Overboard, Begin Trade Route (order byte), Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. ORDERS plain-key hotkeys + Alt+menu titles; TRADE Create/Edit/Delete still stub.
+Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Fortify (land/ship harbor) / Sentry / Disband, Clear Forest↔Plow / Build Road, Go to Place↔Port, Pillage, Dump Cargo Overboard, Begin Trade Route (aim first stop + cycle), TRADE Create/Delete / Edit (append colony or Europe stop; load/unload UI thin), Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. ORDERS plain-key hotkeys + Alt+menu titles.
 
 ### Main-map right panel
 
@@ -389,7 +394,7 @@ Single-pixel black separators split the sections: top bar vs middle band, buildi
 
 A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacksmith's House, Weaver's / Tobacconist's / Distiller's / Fur Trader's houses. Warehouse, Stockade, and Docks are **not** free. Founding defaults `building_in_production` to **Stockade**. Until Stockade is built, the fortification strip shows the post-and-rail fence (`BUILDING.SS` **#16**) bottom-right. Coastal colonies without Docks show empty coast (`BUILDING.SS` **#45**) above the fence. Empty building slots use tree clumps (`BUILDING.SS` 42–47). Founding with **B** disbands the map unit into a Town Hall colonist (skill/`profession` preserved) and dumps carried tools/muskets/horses into the warehouse.
 
-**Drag or select-then-click** assignment: drag a colonist (or fence unit) onto a building, area/minimap tile, or the fence; short click still selects, and a second click assigns. Outside units are admitted into the colony on assign; carried tools/muskets/horses go to the warehouse. Drop/click the fence with a colony colonist selected to open a **Leave as** popup (Colonist / Pioneer / Soldier / Scout / Dragoon, gated by stock). Working colonists use skill sprites (Hardy Pioneer **#58**, Veteran Soldier **#59**); outside/map icons follow equipment (pioneer/soldier/scout/dragoon; expert sprites only when `profession` matches that role — e.g. hardy pioneer with muskets uses non-veteran soldier **#74**). Skill sticks across admit/eject and gear changes. The people band shows colony colonists and fence/on-tile units on the same row (outside group to the right, with a gap). Production preview (`colony_preview.c`) drives area/settlement badges, people meters, and the Production tab without mutating stock. The Production multipurpose pane lists every produced cargo type (grey shortfall rows) plus hammers, packing slots into a dynamic grid as the set of types changes; crosses/bells stay on the people meters. With no docked/selected transport, all six hold slots show empty-hold covers. SoL uses Col1 `rebel_dividend`/`rebel_divisor` when the colony is bridged from a save; otherwise 0% SoL / 100% Tory.
+**Drag or select-then-click** assignment: drag a colonist (or fence unit) onto a building, area/minimap tile, or the fence; short click still selects, and a second click assigns. Outside units are admitted into the colony on assign; carried tools/muskets/horses go to the warehouse. Drop/click the fence with a colony colonist selected to open a **Leave as** popup (Colonist / Pioneer / Soldier / Scout / Dragoon / Missionary if Church or Cathedral, gated by stock). Working colonists use skill sprites (Hardy Pioneer **#58**, Veteran Soldier **#59**); outside/map icons follow equipment (pioneer/soldier/scout/dragoon; expert sprites only when `profession` matches that role — e.g. hardy pioneer with muskets uses non-veteran soldier **#74**). Skill sticks across admit/eject and gear changes. The people band shows colony colonists and fence/on-tile units on the same row (outside group to the right, with a gap). Production preview (`colony_preview.c`) drives area/settlement badges, people meters, and the Production tab without mutating stock. The Production multipurpose pane lists every produced cargo type (grey shortfall rows) plus hammers, packing slots into a dynamic grid as the set of types changes; crosses/bells stay on the people meters. With no docked/selected transport, all six hold slots show empty-hold covers. SoL uses Col1 `rebel_dividend`/`rebel_divisor` when the colony is bridged from a save; otherwise 0% SoL / 100% Tory.
 
 | Key / click | Action |
 |-------------|--------|
@@ -399,7 +404,7 @@ A new colony gets the classic free starters: Town Hall, Carpenter's Shop, Blacks
 | Construction **BUY** / **CHANGE** | Buy remaining project (multifunction BUY); Change popup lists projects only (no Buy row; **C** also opens Change) |
 | **B** / Buy | Finish current project: gold = remaining hammers; spend `tools_cost` from warehouse |
 | Drag / click ship cargo / hold | Select transport; drag warehouse↔hold to load/unload |
-| Fence **Leave as** | Eject/equip popup; last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 3 colonists |
+| Fence **Leave as** | Eject/equip popup (Colonist / Pioneer / Soldier / Scout / Dragoon / **Missionary** if Church/Cathedral); last colonist confirms **abandon** (cargo lost); Stockade/Fort/Fortress cannot drop below 3 colonists |
 | **L** / **U** | Load highest-value cargo; unload first hold |
 | **=** / **+** | Full / partial load of selected warehouse cargo |
 | Esc | Close message / jobs / eject / construction, then return to map |
