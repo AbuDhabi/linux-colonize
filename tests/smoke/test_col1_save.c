@@ -1238,6 +1238,83 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      /* Walk passenger chain: origin 0xff, pioneer tools in cargo_hold[5]. */
+      {
+        int cur = -1;
+        for (uint16_t ui = 0; ui < save.head.unit_count; ++ui) {
+          if (save.unit[ui].transport_chain.next_unit_idx == (int16_t)ship_ci &&
+              save.unit[ui].nation_id == 0) {
+            cur = (int)ui;
+            break;
+          }
+        }
+        /* Prefer chain head (prev < 0). */
+        for (uint16_t ui = 0; ui < save.head.unit_count; ++ui) {
+          const ColonizeCol1Unit* u = &save.unit[ui];
+          if (u->nation_id != 0 || u->transport_chain.next_unit_idx < 0) {
+            continue;
+          }
+          if (u->transport_chain.prev_unit_idx < 0) {
+            cur = (int)ui;
+            break;
+          }
+        }
+        int saw_pax = 0;
+        int saw_tools = 0;
+        for (int step = 0; step < 8 && cur >= 0 && cur < (int)save.head.unit_count; ++step) {
+          const ColonizeCol1Unit* u = &save.unit[cur];
+          if (cur == ship_ci) {
+            break;
+          }
+          saw_pax++;
+          if (u->origin != 0xff) {
+            fprintf(
+              stderr,
+              "fleet export: passenger[%d] origin=%u want 0xff\n",
+              cur,
+              (unsigned)u->origin
+            );
+            units_set_occupancy_map(NULL);
+            col1_save_free(&save);
+            map_free(&map);
+            assets_msg_free(&names);
+            return 1;
+          }
+          if (u->type == 2 && u->cargo_hold[5] == 100) {
+            saw_tools = 1;
+          }
+          if (u->profession == 20) {
+            fprintf(
+              stderr,
+              "fleet export: English Discoverer passenger[%d] prof=%u want 28 (not Hardy)\n",
+              cur,
+              (unsigned)u->profession
+            );
+            units_set_occupancy_map(NULL);
+            col1_save_free(&save);
+            map_free(&map);
+            assets_msg_free(&names);
+            return 1;
+          }
+          cur = u->transport_chain.next_unit_idx;
+        }
+        if (saw_pax < 1) {
+          fprintf(stderr, "fleet export: no passengers in chain to ship_ci=%d\n", ship_ci);
+          units_set_occupancy_map(NULL);
+          col1_save_free(&save);
+          map_free(&map);
+          assets_msg_free(&names);
+          return 1;
+        }
+        if (!saw_tools) {
+          fprintf(stderr, "fleet export: pioneer missing cargo_hold[5]=100 tools\n");
+          units_set_occupancy_map(NULL);
+          col1_save_free(&save);
+          map_free(&map);
+          assets_msg_free(&names);
+          return 1;
+        }
+      }
       if (native_vis_bad) {
         fprintf(stderr, "fleet export: %d natives with nonzero vis_mask\n", native_vis_bad);
         units_set_occupancy_map(NULL);

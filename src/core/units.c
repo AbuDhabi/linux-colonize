@@ -1473,7 +1473,36 @@ bool units_can_enter(
     }
     return false;
   }
-  return map_tile_is_land(map, x, y);
+  if (!map_tile_is_land(map, x, y)) {
+    return false;
+  }
+  /*
+   * DOS: euro settlers may not squat on Indian village tiles (Danger:
+   * "Illegal entry into village"). Missionaries use Meet/enter; armed /
+   * mounted units may contest the tile. Layer2 has_city marks villages +
+   * colonies; colony tiles stay enterable.
+   */
+  if (mover_nation >= 0 && mover_nation < 4 && map->layer2) {
+    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+    if (idx < (size_t)map->width * (size_t)map->height &&
+        (map->layer2[idx] & MAP_OCCUPANCY_HAS_CITY) != 0) {
+      const int cid = colonies ? colonies_id_at(colonies, x, y) : -1;
+      if (cid < 0) {
+        const char* n = type->name;
+        const int missionary = strstr(n, "Missionary") != NULL;
+        const int combatish =
+          (mover && (mover->muskets > 0 || mover->horses > 0)) ||
+          strstr(n, "Soldier") != NULL || strstr(n, "Scout") != NULL ||
+          strstr(n, "Dragoon") != NULL || strstr(n, "Regular") != NULL ||
+          strstr(n, "Army") != NULL || strstr(n, "Cavalry") != NULL ||
+          strstr(n, "Artillery") != NULL;
+        if (!missionary && !combatish) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 int units_move_cost(
@@ -3090,12 +3119,18 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   if (!slot) {
     return -1;
   }
+  /* units_slot reuses inactive rows — clear like units_spawn_allow_stack.
+   * home_tribe_id must be -1 so Col1 origin exports as 0xff (DOS cargo UI);
+   * leftover 0 looks like tribe[0] and breaks passenger treatment. */
+  const ColonizeUnitType* type = &pool->types[type_index];
   slot->id = pool->next_id++;
   slot->type_index = type_index;
   slot->x = ship->x;
   slot->y = ship->y;
   slot->moves_left = 0;
   slot->active = true;
+  slot->nation_id = 0;
+  slot->col1_vis_mask = 0;
   units_set_nation(slot, ship->nation_id);
   slot->aboard_ship_id = ship->id;
   slot->cargo_count = 0;
@@ -3105,7 +3140,29 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->orders = 1; /* sentry aboard */
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
+  slot->follow_unit_id = -1;
   slot->profession = UNITS_JOB_NONE;
+  slot->tools = 0;
+  slot->muskets = 0;
+  slot->horses = 0;
+  slot->home_tribe_id = -1;
+  slot->turns_worked = 0;
+  slot->last_dir = 0;
+  slot->col1_unknown15 = 0;
+  slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+  if (strstr(type->name, "Pioneer") != NULL) {
+    slot->tools = UNITS_EQUIP_TOOLS_MAX;
+  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
+    slot->muskets = UNITS_EQUIP_MUSKETS;
+    slot->horses = UNITS_EQUIP_HORSES;
+  } else if (
+    strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
+    strstr(type->name, "Army") != NULL
+  ) {
+    slot->muskets = UNITS_EQUIP_MUSKETS;
+  } else if (strstr(type->name, "Scout") != NULL) {
+    slot->horses = UNITS_EQUIP_HORSES;
+  }
   ship->cargo_ids[ship->cargo_count++] = slot->id;
   pool->unit_count++;
   return slot->id;
@@ -3153,10 +3210,14 @@ int units_spawn_ship_with_cargo(
   return ship_id;
 }
 
-/* Discoverer/Explorer: experts for all. Else French→Hardy Pioneer, Spanish→Veteran Soldier. */
+/*
+ * Match DOS COLONY00 starters: French→Hardy Pioneer (prof 20); Discoverer/Explorer
+ * English get Veteran Soldier (21) but plain pioneer (28). Spanish→Veteran Soldier.
+ * (Old: hardy=easy||French wrongly set English Discoverer pioneer to 20.)
+ */
 static void units_starter_skills(int nation_id, int difficulty, int* pioneer_job, int* soldier_job) {
   const bool easy = difficulty <= 1;
-  const bool hardy = easy || nation_id == 1;
+  const bool hardy = nation_id == 1;
   const bool veteran = easy || nation_id == 2;
   if (pioneer_job) {
     *pioneer_job = hardy ? UNITS_JOB_PIONEER : UNITS_JOB_NONE;

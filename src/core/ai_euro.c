@@ -3985,7 +3985,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       const int own =
         inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
       if (own >= 1) {
-        /* Optional secondary FOUND at tribe tiles (F may raise prio later). */
+        /* Optional secondary FOUND near tribes — never on the village tile
+         * (DOS asserts "Illegal entry into village" for euro squatters). */
         if (ctx->col1->tribe) {
           for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
             const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
@@ -4001,8 +4002,6 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
                   &fx,
                   &fy)) {
               ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 1);
-            } else {
-              ai_goals_upsert_secondary(nation_id, (int)t->x, (int)t->y, AI_GOAL_FOUND, 1);
             }
           }
         }
@@ -4101,7 +4100,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* F: tribe-adjacent FOUND prio 2; alarmed → MILITARY. */
+  /* F: tribe-adjacent FOUND prio 2; alarmed → MILITARY. Never FOUND on village. */
   if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
     for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
@@ -4113,8 +4112,6 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         if (ai_euro_pick_founding_tile(
               ctx->map, ctx->colonies, nation_id, t->x, t->y, own_f, &fx, &fy)) {
           ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
-        } else {
-          ai_goals_upsert_secondary(nation_id, t->x, t->y, AI_GOAL_FOUND, 1);
         }
       }
       if (t->alarm[nation_id].friction > 50) {
@@ -4200,12 +4197,17 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           int tx = 0;
           int ty = 0;
           int have_t = 0;
-          /* Prefer tribe-adjacent secondary FOUND stand-in (tribe tile). */
+          /* Prefer tribe-adjacent FOUND (never the village tile itself). */
           if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
               ctx->col1->head.tribe_count > 0) {
-            tx = ctx->col1->tribe[0].x;
-            ty = ctx->col1->tribe[0].y;
-            have_t = 1;
+            const ColonizeCol1Tribe* t0 = &ctx->col1->tribe[0];
+            const int own_g =
+              inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
+            if (ai_euro_pick_founding_tile(
+                  ctx->map, ctx->colonies, nation_id, (int)t0->x, (int)t0->y, own_g, &tx,
+                  &ty)) {
+              have_t = 1;
+            }
           } else if (ai_goals_best_found_tile(nation_id, &tx, &ty)) {
             have_t = 1;
           }

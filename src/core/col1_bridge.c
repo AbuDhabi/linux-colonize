@@ -837,8 +837,13 @@ bool col1_bridge_apply(
       }
       u->profession = (int)src->profession;
       u->turns_worked = (int)src->turns_worked;
-      /* DOS unit+0x06 / origin: home tribe index for Braves. */
-      u->home_tribe_id = (int)src->origin;
+      /* DOS unit+0x06 / origin: home tribe index for Braves only; 0xff = none.
+       * Euros always -1 (starter bugs exported origin=0 which is tribe[0]). */
+      if ((src->nation_id & 0xF) < 4 || src->origin == 0xff) {
+        u->home_tribe_id = -1;
+      } else {
+        u->home_tribe_id = (int)src->origin;
+      }
       u->col1_unknown15 =
         (uint8_t)((src->unknown15_lo & 0x7fu) | (src->ship_damaged ? 0x80u : 0u));
       u->col1_ai_plan = src->ai_plan;
@@ -960,10 +965,144 @@ bool col1_bridge_apply(
   return true;
 }
 
+static int col1_bridge_tribe_at(const ColonizeCol1Save* save, int x, int y) {
+  if (!save || !save->tribe) {
+    return -1;
+  }
+  for (uint16_t i = 0; i < save->head.tribe_count; ++i) {
+    if ((int)save->tribe[i].x == x && (int)save->tribe[i].y == y) {
+      return (int)i;
+    }
+  }
+  return -1;
+}
+
+static int col1_bridge_unit_is_missionary(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* t = units_type(units, u->type_index);
+  return t && strstr(t->name, "Missionary") != NULL;
+}
+
+/*
+ * Last-chance DOS hygiene before export: board co-located land onto own ships,
+ * and nudge settler-ish euros off village tiles (Danger Will Robinson).
+ */
+static void col1_bridge_sanitize_units_for_dos(
+  ColonizeUnitPool* units,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* save
+) {
+  if (!units || !map) {
+    return;
+  }
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* land = &units->units[i];
+    if (!land->active || land->nation_id < 0 || land->nation_id > 3) {
+      continue;
+    }
+    if (land->aboard_ship_id >= 0 || units_is_sea(units, land->id)) {
+      continue;
+    }
+    /* Same-tile own ship → board (fixes ocean sentry orphans). */
+    for (int s = 0; s < COLONIZE_UNITS_MAX; ++s) {
+      ColonizeUnit* ship = &units->units[s];
+      if (!ship->active || ship->nation_id != land->nation_id) {
+        continue;
+      }
+      if (!units_is_sea(units, ship->id) || ship->x != land->x || ship->y != land->y) {
+        continue;
+      }
+      if (units_board_stacked(units, land->id, ship->id)) {
+        break;
+      }
+    }
+  }
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* land = &units->units[i];
+    if (!land->active || land->nation_id < 0 || land->nation_id > 3) {
+      continue;
+    }
+    if (land->aboard_ship_id >= 0 || units_is_sea(units, land->id)) {
+      continue;
+    }
+    if (col1_bridge_unit_is_missionary(units, land)) {
+      continue;
+    }
+    if (land->muskets > 0 || land->horses > 0) {
+      continue;
+    }
+    if (col1_bridge_tribe_at(save, land->x, land->y) < 0) {
+      continue;
+    }
+    int dest_x = -1;
+    int dest_y = -1;
+    for (int rad = 1; rad <= 3 && dest_x < 0; ++rad) {
+      for (int dy = -rad; dy <= rad; ++dy) {
+        for (int dx = -rad; dx <= rad; ++dx) {
+          if (abs(dx) != rad && abs(dy) != rad) {
+            continue;
+          }
+          const int nx = land->x + dx;
+          const int ny = land->y + dy;
+          if (!map_tile_is_land(map, nx, ny)) {
+            continue;
+          }
+          if (col1_bridge_tribe_at(save, nx, ny) >= 0) {
+            continue;
+          }
+          if (colonies && colonies_id_at(colonies, nx, ny) >= 0) {
+            continue;
+          }
+          if (!units_can_enter(units, land->type_index, map, nx, ny, land->id, colonies)) {
+            continue;
+          }
+          dest_x = nx;
+          dest_y = ny;
+          break;
+        }
+        if (dest_x >= 0) {
+          break;
+        }
+      }
+    }
+    if (dest_x < 0) {
+      /* Fallback: any adjacent land, even if crowded. */
+      for (int d = 0; d < 8; ++d) {
+        const int nx = land->x + k_dx[d];
+        const int ny = land->y + k_dy[d];
+        if (map_tile_is_land(map, nx, ny) && col1_bridge_tribe_at(save, nx, ny) < 0) {
+          dest_x = nx;
+          dest_y = ny;
+          break;
+        }
+      }
+    }
+    if (dest_x >= 0) {
+      diag_info(
+        "DOS sanitize: moved euro unit %d off village (%d,%d)->(%d,%d)",
+        land->id,
+        land->x,
+        land->y,
+        dest_x,
+        dest_y
+      );
+      land->x = dest_x;
+      land->y = dest_y;
+    }
+  }
+}
+
 bool col1_bridge_capture(
   ColonizeCol1Save* save,
   const ColonizeWorldMap* map,
-  const ColonizeUnitPool* units,
+  ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
   const EuropeScreen* europe,
   uint16_t year,
@@ -996,6 +1135,8 @@ bool col1_bridge_capture(
   if (human_nation < 0 || human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     human_nation = 0;
   }
+
+  col1_bridge_sanitize_units_for_dos(units, map, colonies, save);
 
   save->head.year = year;
   save->head.autumn = autumn;
@@ -1245,9 +1386,14 @@ bool col1_bridge_capture(
         (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
       dst->unknown15_lo = (uint8_t)(src->col1_unknown15 & 0x7fu);
       dst->ship_damaged = (src->col1_unknown15 & 0x80u) != 0 ? 1u : 0u;
-      dst->origin =
-        (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
-                                                                    : (src->home_tribe_id & 0xff));
+      /* Euros never carry a home-tribe origin; natives use tribe index / 0xff. */
+      if ((src->nation_id & 0xF) < 4) {
+        dst->origin = 0xff;
+      } else {
+        dst->origin =
+          (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
+                                                                      : (src->home_tribe_id & 0xff));
+      }
       dst->ai_plan =
         src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
       dst->facing = (uint8_t)(src->last_dir & 7);

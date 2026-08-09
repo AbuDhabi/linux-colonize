@@ -252,6 +252,14 @@ bool colonies_can_found(
   if (colonies_id_at(pool, x, y) >= 0) {
     return false;
   }
+  /* Indian village tiles carry layer2 has_city without a colony row. */
+  if (map->layer2) {
+    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+    if (idx < (size_t)map->width * (size_t)map->height &&
+        (map->layer2[idx] & MAP_OCCUPANCY_HAS_CITY) != 0) {
+      return false;
+    }
+  }
   return true;
 }
 
