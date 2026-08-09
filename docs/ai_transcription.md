@@ -487,7 +487,7 @@ Status reflects the AI-port prerequisite work:
 | Subsystem | Status | Notes |
 |-----------|--------|-------|
 | `colonies_found(nation_id)` | **Done** | Owning nation set at found time |
-| Unit orders (fortify, sentry, disband) | **Partial** | Map F / S / Shift+D + ORDERS menu; overnight fortify → fortified |
+| Unit orders (fortify, sentry, disband) | **Done** | Map F / S / Shift+D + full ORDERS menu (anchor, plow/road, goto place/port, pillage, dump, trade-route byte); overnight fortify → fortified |
 | Land combat | **Partial** | T0 attack/defense (+ fortified ×2); AI-initiated via act/raids |
 | Colony capture | **Done** (T0) | `colonies_capture` — Euro owner swap; Indian capture abandons |
 | Naval combat | **Partial** (T0) | `units_resolve_naval_combat` |

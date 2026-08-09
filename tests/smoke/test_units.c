@@ -1268,6 +1268,137 @@ int main(void) {
     }
   }
 
+  /* Dump overboard / anchor / trade route / pillage. */
+  {
+    const int caravel_t = units_find_type(&pool, "Caravel");
+    int sx = -1, sy = -1;
+    for (int y = 1; y < (int)map.height - 1 && sx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && sx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) && !map_tile_is_high_seas(&map, x, y)) {
+          sx = x;
+          sy = y;
+        }
+      }
+    }
+    if (caravel_t < 0 || sx < 0) {
+      fprintf(stderr, "dump/anchor: no caravel or sea tile\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int ship = units_spawn(&pool, caravel_t, sx, sy);
+    ColonizeUnit* sh = units_get(&pool, ship);
+    if (!sh) {
+      fprintf(stderr, "dump ship spawn failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    sh->nation_id = 0;
+    if (units_load_goods(&pool, ship, COLONIZE_CARGO_SUGAR, 40) != 40) {
+      fprintf(stderr, "load sugar for dump failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int ctype = -1, amt = -1;
+    if (units_dump_cargo_overboard(&pool, ship, &ctype, &amt) != 40 || ctype != COLONIZE_CARGO_SUGAR ||
+        amt != 40 || units_first_goods_hold(&pool, ship) >= 0) {
+      fprintf(stderr, "dump overboard failed ctype=%d amt=%d\n", ctype, amt);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (!units_order_trade_route(&pool, ship) || sh->orders != UNITS_ORDER_TRADE_ROUTE ||
+        sh->moves_left != 0) {
+      fprintf(stderr, "trade route order failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_clear_orders(&pool, ship);
+
+    /* Anchor: need own colony adjacent/on tile — found a tiny colony next to ship. */
+    ColonizeColonyPool cpool;
+    colonies_init(&cpool);
+    int cx = -1, cy = -1;
+    for (int dy = -1; dy <= 1 && cx < 0; ++dy) {
+      for (int dx = -1; dx <= 1 && cx < 0; ++dx) {
+        const int tx = sx + dx;
+        const int ty = sy + dy;
+        if (map_coords_inset(&map, tx, ty) && map_tile_is_land(&map, tx, ty)) {
+          cx = tx;
+          cy = ty;
+        }
+      }
+    }
+    if (cx < 0) {
+      fprintf(stderr, "anchor: no land near ship\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (colonies_found(&cpool, &map, cx, cy, 0, -1, UNITS_JOB_NONE, 0, 0, 0) < 0) {
+      fprintf(stderr, "anchor colony found failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    sh = units_get(&pool, ship);
+    if (sh) {
+      sh->moves_left = 4;
+    }
+    if (!units_order_anchor(&pool, ship, &cpool) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
+      fprintf(stderr, "anchor order failed orders=%d\n", sh ? sh->orders : -1);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, ship);
+
+    /* Pillage improvements on land. */
+    int px = -1, py = -1;
+    for (int y = 1; y < (int)map.height - 1 && px < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && px < 0; ++x) {
+        if (map_tile_is_land(&map, x, y) && !map_tile_is_high_seas(&map, x, y)) {
+          px = x;
+          py = y;
+        }
+      }
+    }
+    const int soldier = units_find_type(&pool, "Soldiers");
+    const int mil = units_spawn(&pool, soldier >= 0 ? soldier : pioneer, px, py);
+    ColonizeUnit* mu = units_get(&pool, mil);
+    if (!mu || px < 0) {
+      fprintf(stderr, "pillage spawn failed\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    mu->nation_id = 0;
+    mu->moves_left = 1;
+    map_tile_set_road(&map, px, py, true);
+    char pmsg[64];
+    if (!units_pillage(&pool, mil, &map, NULL, pmsg, sizeof(pmsg)) ||
+        map_tile_has_road(&map, px, py)) {
+      fprintf(stderr, "pillage road failed: %s\n", pmsg);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, mil);
+  }
+
   /* Land combat T0: Soldier (atk2) vs Brave (def1) — attacker wins without RNG. */
   {
     const int soldier = units_find_type(&pool, "Soldiers");

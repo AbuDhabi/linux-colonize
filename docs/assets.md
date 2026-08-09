@@ -282,7 +282,7 @@ On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **
 
 **DEBUG** (CMake `COLONIZE_DEBUG_MENU`): **Sprite Viewer** (same as `` ` ``) and **Show Mouse Coords** (toggles the pixel HUD attached to the pointer; on by default).
 
-Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. Trade menu entries still stub.
+Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Fortify / Anchor / Sentry / Disband, Clear Forest / Plow / Build Road, Go to Place / Go to Port, Pillage, Dump Cargo Overboard, Begin Trade Route (order byte), Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. TRADE Create/Edit/Delete still stub.
 
 ### Main-map right panel
 
@@ -434,7 +434,7 @@ Ship→**non-colony land** with a passenger that has moves left: **landfall unlo
 
 Selected units **blink** (sprite on/off), except while executing **Go-To** (always drawn so pathing stays visible). The tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
 
-**Go-To:** drag from a blinking unit to a destination tile (CURSOR.SS #1 appears after ≥1 logical pixel of drag; pathfinding uses DOS-style destination cost flood nearby, BFS farther). The unit walks at **10 steps/sec** until out of moves and resumes after end of turn. Order byte is `@ORDERS` index 3.
+**Go-To:** drag from a blinking unit to a destination tile (CURSOR.SS #1 appears after ≥1 logical pixel of drag; pathfinding uses DOS-style destination cost flood nearby, BFS farther), or ORDERS **Go to Place** (click destination) / **Go to Port** (next owned colony). The unit walks at **10 steps/sec** until out of moves and resumes after end of turn. Order byte is `@ORDERS` index 3.
 
 Calendar: one turn per year until **1600**, then Spring and Autumn each year. Colony top bar / reports use `game_year` + `game_autumn`. When the Col1 **Autosave** option is set, end-turn writes slot **9** (and slot **8** on decade Spring years).
 
