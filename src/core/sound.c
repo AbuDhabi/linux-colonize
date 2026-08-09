@@ -743,34 +743,52 @@ static void sound_parse_handler_tracks(
   }
 }
 
+static int sound_event_priority(uint8_t status) {
+  /* At equal ticks: program/CC/pitch before note-off/note-on. */
+  if (status == 0xc0) {
+    return 0;
+  }
+  if (status == 0xb0) {
+    return 1;
+  }
+  if (status == 0xe0) {
+    return 2;
+  }
+  if (status == 0x80) {
+    return 3;
+  }
+  return 4;
+}
+
+static int sound_event_cmp(const void* a, const void* b) {
+  const SoundMidiEvent* ea = (const SoundMidiEvent*)a;
+  const SoundMidiEvent* eb = (const SoundMidiEvent*)b;
+  if (ea->tick < eb->tick) {
+    return -1;
+  }
+  if (ea->tick > eb->tick) {
+    return 1;
+  }
+  const int pri_a = sound_event_priority(ea->status);
+  const int pri_b = sound_event_priority(eb->status);
+  if (pri_a != pri_b) {
+    return pri_a - pri_b;
+  }
+  if (ea->status < eb->status) {
+    return -1;
+  }
+  if (ea->status > eb->status) {
+    return 1;
+  }
+  return 0;
+}
+
 static void sound_finalize_song_events(SoundSong* song) {
-  if (!song || song->event_count <= 0) {
+  if (!song || song->event_count <= 1) {
     return;
   }
-  /* Stable event order by tick; at equal ticks: program/CC/pitch before notes. */
-  for (int a = 0; a < song->event_count - 1; ++a) {
-    for (int b = a + 1; b < song->event_count; ++b) {
-      const SoundMidiEvent* ea = &song->events[a];
-      const SoundMidiEvent* eb = &song->events[b];
-      int pri_a = (ea->status == 0xc0)   ? 0
-                  : (ea->status == 0xb0) ? 1
-                  : (ea->status == 0xe0) ? 2
-                  : (ea->status == 0x80) ? 3
-                                         : 4;
-      int pri_b = (eb->status == 0xc0)   ? 0
-                  : (eb->status == 0xb0) ? 1
-                  : (eb->status == 0xe0) ? 2
-                  : (eb->status == 0x80) ? 3
-                                         : 4;
-      const bool swap = eb->tick < ea->tick ||
-                        (eb->tick == ea->tick && (pri_b < pri_a || (pri_b == pri_a && eb->status < ea->status)));
-      if (swap) {
-        SoundMidiEvent tmp = song->events[a];
-        song->events[a] = song->events[b];
-        song->events[b] = tmp;
-      }
-    }
-  }
+  /* Songs can exceed 10k events; O(n²) sorting made startup take several seconds. */
+  qsort(song->events, (size_t)song->event_count, sizeof(song->events[0]), sound_event_cmp);
 }
 
 /* FUN_1000_19bc tables: BGM at 0x2A6E (ids 0x20..), event at 0x2AC4 (ids 0x40..). */
