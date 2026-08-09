@@ -1364,7 +1364,20 @@ bool col1_bridge_capture(
         }
         dst->vis_mask = vis;
       }
-      dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
+      {
+        /* Col1 +0x05 is moves_spent (FUN_1427_13b0), not moves_left. */
+        const ColonizeUnitType* ut = units_type(units, src->type_index);
+        const int max_mp = ut && ut->movement > 0 ? ut->movement : 1;
+        int spent = 0;
+        if (src->aboard_ship_id >= 0 || src->orders == 1) {
+          spent = 0;
+        } else if (src->moves_left <= 0) {
+          spent = max_mp;
+        } else if (src->moves_left < max_mp) {
+          spent = max_mp - src->moves_left;
+        }
+        dst->moves = (uint8_t)(spent < 0 ? 0 : (spent > 255 ? 255 : spent));
+      }
       if (src->aboard_ship_id >= 0) {
         dst->orders = 1; /* sentry if aboard */
       } else if (src->orders != 0) {
@@ -1381,7 +1394,15 @@ bool col1_bridge_capture(
         dst->goto_x = (uint8_t)src->goto_x;
         dst->goto_y = (uint8_t)src->goto_y;
       }
-      dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
+      {
+        /* FUN_1427_06b4: transports (cargo>0) always profession 0. */
+        const ColonizeUnitType* ut = units_type(units, src->type_index);
+        if (ut && ut->cargo > 0) {
+          dst->profession = 0;
+        } else {
+          dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
+        }
+      }
       dst->turns_worked =
         (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
       dst->unknown15_lo = (uint8_t)(src->col1_unknown15 & 0x7fu);
