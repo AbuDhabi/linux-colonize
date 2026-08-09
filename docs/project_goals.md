@@ -40,6 +40,7 @@ save/interop-visible behavior, not by cloning the DOS codebase structure.
 - Save and load are **100% interoperable** with the original:
   - Start in DOS → load in the port → continue.
   - Start in the port → load in DOS → continue.
+  - Default save/data directory is `<exe>/COLONIZE` (DOS-style layout); override with `--save-dir` / `--data-dir`.
 - Round-trips preserve Col1 layout and unknown regions as documented in
   [savegame.md](savegame.md).
 - Path to a complete decomp-backed field map (opaque regions, connectivity,

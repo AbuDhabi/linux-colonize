@@ -27,6 +27,7 @@ typedef struct ColonizeSavePayload {
   uint8_t map_seed;
 } ColonizeSavePayload;
 
+/* Default: <exe>/COLONIZE (created if missing). Override with --save-dir. */
 const char* savegame_default_dir(void);
 
 /* Original DOS slot path: <dir>/COLONY00.SAV .. COLONY09.SAV (slot 0..9). */

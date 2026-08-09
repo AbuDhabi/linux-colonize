@@ -104,7 +104,9 @@ Advanced by `turn_end()` in `src/core/turn.c` (and written back on Save):
 
 Autosave (when `game_options.autosave` is set): slot **9** every turn, slot **8** when entering a decade Spring year.
 
-Default save directory is `<exe>/saves` (via `savegame_default_dir()`), overridable with `--save-dir`.
+Default save directory is `<exe>/COLONIZE` (via `savegame_default_dir()`), matching
+the DOS install layout so Linux and DOS can share the same `COLONY##.SAV` pile.
+The directory is created empty on startup if missing. Override with `--save-dir`.
 
 Manual Save/Load (map menu, title **LOAD**, **S**/**L**) opens a wood slot popup:
 - **Save** lists slots **0–7** (`COLONY00`–`COLONY07`); confirming overwrites the chosen slot.
