@@ -1,5 +1,6 @@
 #include "core/map_menu.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -59,6 +60,104 @@ static void map_menu_trim(char* text) {
   while (n > 0 && (text[n - 1] == ' ' || text[n - 1] == '\t' || text[n - 1] == '\r')) {
     text[--n] = '\0';
   }
+}
+
+/* Parse ~ hotkeys from MENU.TXT (space / Shift+D chords, else first ~letter). */
+static void map_menu_parse_hotkey(const char* label_raw, MapMenuItem* item) {
+  item->hotkey = 0;
+  item->hotkey_shift = false;
+  item->hotkey_space = false;
+  if (!label_raw || !item) {
+    return;
+  }
+  if (strstr(label_raw, "~s~p~a~c~e") != NULL || strstr(label_raw, "~S~P~A~C~E") != NULL) {
+    item->hotkey_space = true;
+    return;
+  }
+  if (strstr(label_raw, "~s~h~i~f~t") != NULL || strstr(label_raw, "~S~H~I~F~T") != NULL) {
+    for (const char* p = label_raw; *p; ++p) {
+      if (*p == '~' && p[1] && ((p[1] >= 'A' && p[1] <= 'Z') || (p[1] >= 'a' && p[1] <= 'z'))) {
+        if ((p[1] == 'D' || p[1] == 'd') &&
+            (p == label_raw || p[-1] == '-' || p[-1] == '~' || p[-1] == ' ')) {
+          /* Prefer the trailing ~D after shift- */
+          item->hotkey = 'D';
+          item->hotkey_shift = true;
+        }
+      }
+    }
+    if (item->hotkey == 'D') {
+      return;
+    }
+  }
+  for (const char* p = label_raw; *p; ++p) {
+    if (*p != '~' || !p[1]) {
+      continue;
+    }
+    const unsigned char ch = (unsigned char)p[1];
+    if (isalnum(ch)) {
+      item->hotkey = (char)toupper(ch);
+      return;
+    }
+  }
+}
+
+static char map_menu_parse_title_hotkey(const char* title_raw) {
+  if (!title_raw) {
+    return 0;
+  }
+  for (const char* p = title_raw; *p; ++p) {
+    if (*p == '~' && p[1] && isalpha((unsigned char)p[1])) {
+      return (char)toupper((unsigned char)p[1]);
+    }
+  }
+  return 0;
+}
+
+static int map_menu_visible_item_count(const MapMenuPulldown* menu) {
+  if (!menu) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < menu->item_count; ++i) {
+    if (menu->items[i].visible) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+/* Map visible row index → item index; -1 if out of range. */
+static int map_menu_item_index_from_visible(const MapMenuPulldown* menu, int visible_row) {
+  if (!menu || visible_row < 0) {
+    return -1;
+  }
+  int row = 0;
+  for (int i = 0; i < menu->item_count; ++i) {
+    if (!menu->items[i].visible) {
+      continue;
+    }
+    if (row == visible_row) {
+      return i;
+    }
+    ++row;
+  }
+  return -1;
+}
+
+static int map_menu_visible_row_from_item(const MapMenuPulldown* menu, int item_index) {
+  if (!menu || item_index < 0 || item_index >= menu->item_count) {
+    return -1;
+  }
+  if (!menu->items[item_index].visible) {
+    return -1;
+  }
+  int row = 0;
+  for (int i = 0; i < item_index; ++i) {
+    if (menu->items[i].visible) {
+      ++row;
+    }
+  }
+  return row;
 }
 
 static int map_menu_text_width(const ColonizeFont* font, const char* text) {
@@ -412,7 +511,141 @@ static void map_menu_append_item(
   snprintf(item->label, sizeof(item->label), "%s", label_raw);
   item->action = action;
   item->separator = (action == MAP_MENU_ACTION_SEPARATOR);
+  item->visible = true;
   item->enabled = !item->separator && map_menu_action_enabled(action);
+  if (item->separator) {
+    item->hotkey = 0;
+    item->hotkey_shift = false;
+    item->hotkey_space = false;
+    item->label[0] = '\0';
+  } else {
+    map_menu_parse_hotkey(label_raw, item);
+  }
+}
+
+static int map_menu_find_action_index(
+  const MapMenuPulldown* menu,
+  MapMenuAction action,
+  int start
+) {
+  if (!menu) {
+    return -1;
+  }
+  for (int i = start; i < menu->item_count; ++i) {
+    if (menu->items[i].action == action) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* Insert empty-label separator after the given item index (FUN_4b58_07d6). */
+static bool map_menu_insert_separator_at(MapMenuPulldown* menu, int after_index) {
+  if (!menu || after_index < 0 || after_index >= menu->item_count) {
+    return false;
+  }
+  if (menu->item_count >= MAP_MENU_MAX_ITEMS) {
+    return false;
+  }
+  if (after_index + 1 < menu->item_count && menu->items[after_index + 1].separator) {
+    return true;
+  }
+  const int insert_at = after_index + 1;
+  memmove(
+    &menu->items[insert_at + 1],
+    &menu->items[insert_at],
+    (size_t)(menu->item_count - insert_at) * sizeof(menu->items[0])
+  );
+  MapMenuItem* sep = &menu->items[insert_at];
+  memset(sep, 0, sizeof(*sep));
+  sep->action = MAP_MENU_ACTION_SEPARATOR;
+  sep->separator = true;
+  sep->visible = true;
+  sep->enabled = false;
+  menu->item_count++;
+  return true;
+}
+
+static void map_menu_insert_sep_after_action(MapMenuPulldown* menu, MapMenuAction after) {
+  const int i = map_menu_find_action_index(menu, after, 0);
+  if (i >= 0) {
+    map_menu_insert_separator_at(menu, i);
+  }
+}
+
+/*
+ * DOS FUN_74a4_0000 inserts empty-label separators (not in MENU.TXT except PEDIA
+ * --- which we skip on load and re-insert here). Cite: viceroy_unpacked.c:119308+.
+ */
+static void map_menu_insert_dos_separators(MapMenuPulldown* menu) {
+  if (!menu) {
+    return;
+  }
+  if (strcmp(menu->section_name, "GAME") == 0) {
+    /*
+     * Order: Options, Colony Report, SEP, Sound, Pick Music, SEP, Save, Load,
+     * SEP, DECLARE, SEP, Retire, Exit. Cite: FUN_74a4_0000 @ 119308–119325.
+     */
+    if (menu->item_count >= 2) {
+      map_menu_insert_separator_at(menu, 1); /* after Colony Report Options */
+    }
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_PICK_MUSIC);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_LOAD);
+    {
+      const int retire = map_menu_find_action_index(menu, MAP_MENU_ACTION_RETIRE, 0);
+      if (retire >= 1) {
+        map_menu_insert_separator_at(menu, retire - 1); /* after DECLARE */
+      }
+    }
+    return;
+  }
+  if (strcmp(menu->section_name, "VIEW") == 0) {
+    /*
+     * Move, View, Europe, SEP, Find, SEP, ZoomIn, ZoomOut, SEP,
+     * four zoom levels, SEP, Hidden, Center. Cite: 119337–119358.
+     */
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_EUROPE);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_FIND_COLONY);
+    {
+      const int find = map_menu_find_action_index(menu, MAP_MENU_ACTION_FIND_COLONY, 0);
+      /* find, sep, ZoomIn, ZoomOut → sep after ZoomOut */
+      if (find >= 0 && find + 3 < menu->item_count && menu->items[find + 1].separator) {
+        map_menu_insert_separator_at(menu, find + 3);
+      }
+    }
+    {
+      const int center = map_menu_find_action_index(menu, MAP_MENU_ACTION_CENTER_VIEW, 0);
+      /* … z15, Hidden, Center → sep after z15 (= center-2) */
+      if (center >= 2) {
+        map_menu_insert_separator_at(menu, center - 2);
+      }
+    }
+    return;
+  }
+  if (strcmp(menu->section_name, "ORDERS") == 0) {
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_SENTRY);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_PILLAGE);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_RETURN_EUROPE);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_NO_ORDERS);
+    return;
+  }
+  if (strcmp(menu->section_name, "REPORTS") == 0) {
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_REPORT_TERRAIN);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_REPORT_ECONOMIC);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_REPORT_INDIAN);
+    return;
+  }
+  if (strcmp(menu->section_name, "CUP") == 0) {
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_CHEAT_SET_HUMAN);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION);
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_CHEAT_MEMORY_CHECK);
+    return;
+  }
+  if (strcmp(menu->section_name, "PEDIA") == 0) {
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_PEDIA_TERRAIN);
+    return;
+  }
 }
 
 static bool map_menu_load_section(
@@ -438,6 +671,7 @@ static bool map_menu_load_section(
   map_menu_strip_hash_only(title);
   map_menu_trim(title);
   str_copy_trunc(menu->title, sizeof(menu->title), title);
+  menu->title_hotkey = map_menu_parse_title_hotkey(title);
 
   for (int i = 1; i < sec->line_count && menu->item_count < MAP_MENU_MAX_ITEMS; ++i) {
     char label[MAP_MENU_LABEL_LEN];
@@ -454,7 +688,7 @@ static bool map_menu_load_section(
       continue;
     }
     MapMenuAction action = map_menu_classify(section_name, classify_label);
-    /* MENU.TXT lists ~Fortify twice: land fortify then ship Anchor. */
+    /* MENU.TXT lists ~Fortify twice: land (0x302) then ship (0x303). */
     if (strcmp(section_name, "ORDERS") == 0 && action == MAP_MENU_ACTION_FORTIFY) {
       for (int j = 0; j < menu->item_count; ++j) {
         if (menu->items[j].action == MAP_MENU_ACTION_FORTIFY) {
@@ -463,8 +697,13 @@ static bool map_menu_load_section(
         }
       }
     }
+    /* Skip MENU.TXT --- for PEDIA — DOS inserts the sep in FUN_74a4_0000. */
+    if (action == MAP_MENU_ACTION_SEPARATOR) {
+      continue;
+    }
     map_menu_append_item(menu, label, action);
   }
+  map_menu_insert_dos_separators(menu);
   bar->menu_count++;
   return true;
 }
@@ -563,6 +802,338 @@ void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible) {
   }
 }
 
+static void map_menu_refresh_orders_dos(
+  MapMenuPulldown* orders,
+  const MapMenuOrdersContext* ctx
+) {
+  if (!orders) {
+    return;
+  }
+
+  /* Reset: separators visible; items visible+enabled until rules hide/gray. */
+  for (int i = 0; i < orders->item_count; ++i) {
+    MapMenuItem* it = &orders->items[i];
+    if (it->separator) {
+      it->visible = true;
+      it->enabled = false;
+      continue;
+    }
+    it->visible = true;
+    it->enabled = true;
+  }
+
+  const ColonizeUnit* u = NULL;
+  const bool have_unit =
+    ctx && ctx->units && ctx->selected_id >= 0 &&
+    (u = units_get_const(ctx->units, ctx->selected_id)) != NULL && u->active &&
+    units_is_on_map(u);
+
+  /* FUN_2b5a_0902 View Pieces — no active map unit selected. */
+  if (!have_unit) {
+    for (int i = 0; i < orders->item_count; ++i) {
+      MapMenuItem* it = &orders->items[i];
+      if (it->separator) {
+        continue;
+      }
+      switch (it->action) {
+        case MAP_MENU_ACTION_WAIT_UNIT:
+        case MAP_MENU_ACTION_NO_ORDERS:
+        case MAP_MENU_ACTION_FORTIFY:
+        case MAP_MENU_ACTION_SENTRY:
+        case MAP_MENU_ACTION_BUILD_COLONY:
+          it->enabled = false;
+          break;
+        case MAP_MENU_ACTION_DUMP_OVERBOARD:
+        case MAP_MENU_ACTION_ANCHOR:
+        case MAP_MENU_ACTION_JOIN_COLONY:
+        case MAP_MENU_ACTION_CLEAR_FOREST:
+        case MAP_MENU_ACTION_PLOW_FIELDS:
+        case MAP_MENU_ACTION_BUILD_ROAD:
+        case MAP_MENU_ACTION_LOAD_CARGO:
+        case MAP_MENU_ACTION_UNLOAD_CARGO:
+        case MAP_MENU_ACTION_PILLAGE:
+        case MAP_MENU_ACTION_RETURN_EUROPE:
+        case MAP_MENU_ACTION_GOTO_PORT:
+        case MAP_MENU_ACTION_GOTO_PLACE:
+        case MAP_MENU_ACTION_TRADE_ROUTE:
+          it->visible = false;
+          it->enabled = false;
+          break;
+        default:
+          break;
+      }
+    }
+    /* DOS also hides sep cmds 0xff / 0x100 (after Pillage / after Return). */
+    {
+      int after_pillage = -1;
+      int after_return = -1;
+      for (int i = 0; i < orders->item_count; ++i) {
+        if (orders->items[i].action == MAP_MENU_ACTION_PILLAGE) {
+          after_pillage = i;
+        }
+        if (orders->items[i].action == MAP_MENU_ACTION_RETURN_EUROPE) {
+          after_return = i;
+        }
+      }
+      if (after_pillage >= 0 && after_pillage + 1 < orders->item_count &&
+          orders->items[after_pillage + 1].separator) {
+        orders->items[after_pillage + 1].visible = false;
+      }
+      if (after_return >= 0 && after_return + 1 < orders->item_count &&
+          orders->items[after_return + 1].separator) {
+        orders->items[after_return + 1].visible = false;
+      }
+    }
+    return;
+  }
+
+  /* FUN_2b5a_0b34 Move Pieces. */
+  const bool sea = units_is_sea(ctx->units, ctx->selected_id);
+  const bool land = !sea;
+  const bool pioneer = land && units_is_pioneer(ctx->units, ctx->selected_id);
+  const bool transport = units_is_transport(ctx->units, ctx->selected_id);
+  const int ux = u->x;
+  const int uy = u->y;
+  const int pedia =
+    ctx->map ? map_pedia_terrain_index_at(ctx->map, ux, uy) : -1;
+  const bool forest = pedia >= 8 && pedia <= 23;
+  /* DOS 0x1b/0x1c hill classes; also arctic/mountains via pedia 24/27. */
+  const bool hills = (pedia == 0x1b || pedia == 0x1c || pedia == 24 || pedia == 27);
+  /*
+   * DOS local_c via FUN_281f_0b78: unit appears in profession/founder table.
+   * Approximate: land non-transport (colonists / military / pioneers).
+   */
+  const bool can_found_unit = land && !transport;
+  const int cid_here =
+    ctx->colonies ? colonies_id_at(ctx->colonies, ux, uy) : -1;
+  const ColonizeColony* col_here =
+    (cid_here >= 0) ? colonies_get(ctx->colonies, cid_here) : NULL;
+  const bool on_own_colony =
+    col_here && col_here->nation_id == u->nation_id;
+  const bool on_euro_settlement = col_here != NULL;
+  const bool high_seas =
+    ctx->map && units_on_high_seas(ctx->map, ux, uy);
+  const bool has_goods =
+    transport && units_first_goods_hold(ctx->units, ctx->selected_id) >= 0;
+  const int cargo_cap = transport ? units_goods_hold_count(ctx->units, ctx->selected_id) : 0;
+
+  /* 0x317 Pillage — always hidden in 0b34. */
+  for (int i = 0; i < orders->item_count; ++i) {
+    if (orders->items[i].action == MAP_MENU_ACTION_PILLAGE) {
+      orders->items[i].visible = false;
+      orders->items[i].enabled = false;
+    }
+  }
+
+  /* Build / Join (0x310 / 0x311). */
+  for (int i = 0; i < orders->item_count; ++i) {
+    MapMenuItem* it = &orders->items[i];
+    if (it->action == MAP_MENU_ACTION_BUILD_COLONY) {
+      if (!can_found_unit) {
+        it->visible = false;
+      } else if (on_own_colony) {
+        it->visible = false; /* hide Build when on colony */
+      } else {
+        it->enabled = ctx->map && ctx->colonies &&
+                      colonies_can_found(ctx->colonies, ctx->map, ux, uy);
+      }
+    } else if (it->action == MAP_MENU_ACTION_JOIN_COLONY) {
+      if (!can_found_unit) {
+        it->visible = false;
+      } else if (!on_own_colony) {
+        it->visible = false;
+      }
+    }
+  }
+
+  /* Clear / Plow / Road — disable if not Pioneer; hide Clear↔Plow by terrain. */
+  for (int i = 0; i < orders->item_count; ++i) {
+    MapMenuItem* it = &orders->items[i];
+    if (it->action != MAP_MENU_ACTION_CLEAR_FOREST &&
+        it->action != MAP_MENU_ACTION_PLOW_FIELDS &&
+        it->action != MAP_MENU_ACTION_BUILD_ROAD) {
+      continue;
+    }
+    if (!pioneer) {
+      it->enabled = false;
+    }
+  }
+  for (int i = 0; i < orders->item_count; ++i) {
+    MapMenuItem* it = &orders->items[i];
+    if (forest) {
+      if (it->action == MAP_MENU_ACTION_PLOW_FIELDS) {
+        it->visible = false;
+      }
+    } else {
+      if (it->action == MAP_MENU_ACTION_CLEAR_FOREST) {
+        it->visible = false;
+      }
+    }
+    if (hills &&
+        (it->action == MAP_MENU_ACTION_CLEAR_FOREST ||
+         it->action == MAP_MENU_ACTION_PLOW_FIELDS)) {
+      it->visible = false;
+    }
+  }
+
+  /* Fortify land (0x302) vs ship (0x303). */
+  for (int i = 0; i < orders->item_count; ++i) {
+    MapMenuItem* it = &orders->items[i];
+    if (land) {
+      if (it->action == MAP_MENU_ACTION_ANCHOR) {
+        it->visible = false;
+      }
+    } else {
+      if (it->action == MAP_MENU_ACTION_FORTIFY) {
+        it->visible = false;
+      }
+      if (it->action == MAP_MENU_ACTION_RETURN_EUROPE && !high_seas) {
+        it->enabled = false;
+      }
+      if (it->action == MAP_MENU_ACTION_GOTO_PLACE) {
+        it->visible = false;
+      }
+    }
+  }
+  if (land) {
+    for (int i = 0; i < orders->item_count; ++i) {
+      MapMenuItem* it = &orders->items[i];
+      if (it->action == MAP_MENU_ACTION_RETURN_EUROPE ||
+          it->action == MAP_MENU_ACTION_GOTO_PORT) {
+        it->visible = false;
+      }
+    }
+  }
+
+  /* Load/Unload/Trade/Dump — hide if no cargo capacity. */
+  if (cargo_cap <= 0) {
+    for (int i = 0; i < orders->item_count; ++i) {
+      MapMenuItem* it = &orders->items[i];
+      if (it->action == MAP_MENU_ACTION_LOAD_CARGO ||
+          it->action == MAP_MENU_ACTION_UNLOAD_CARGO ||
+          it->action == MAP_MENU_ACTION_TRADE_ROUTE ||
+          it->action == MAP_MENU_ACTION_DUMP_OVERBOARD) {
+        it->visible = false;
+      }
+    }
+  } else {
+    if (!on_euro_settlement) {
+      for (int i = 0; i < orders->item_count; ++i) {
+        MapMenuItem* it = &orders->items[i];
+        if (it->action == MAP_MENU_ACTION_LOAD_CARGO ||
+            it->action == MAP_MENU_ACTION_UNLOAD_CARGO) {
+          it->enabled = false;
+        }
+      }
+    }
+    if (!has_goods) {
+      for (int i = 0; i < orders->item_count; ++i) {
+        if (orders->items[i].action == MAP_MENU_ACTION_DUMP_OVERBOARD) {
+          orders->items[i].enabled = false;
+        }
+      }
+    }
+  }
+
+  /* Activate: unit under cursor. */
+  for (int i = 0; i < orders->item_count; ++i) {
+    if (orders->items[i].action == MAP_MENU_ACTION_ACTIVATE_UNIT) {
+      orders->items[i].enabled =
+        ctx->units && units_id_at(ctx->units, ctx->cursor_x, ctx->cursor_y) >= 0;
+    }
+  }
+}
+
+void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
+  if (!bar) {
+    return;
+  }
+  for (int m = 0; m < bar->menu_count; ++m) {
+    MapMenuPulldown* menu = &bar->menus[m];
+    if (strcmp(menu->section_name, "DEBUG") == 0) {
+      continue; /* port-only */
+    }
+    if (strcmp(menu->section_name, "ORDERS") == 0) {
+      map_menu_refresh_orders_dos(menu, ctx);
+      continue;
+    }
+    for (int i = 0; i < menu->item_count; ++i) {
+      MapMenuItem* it = &menu->items[i];
+      if (it->separator) {
+        it->visible = true;
+        it->enabled = false;
+        continue;
+      }
+      it->visible = true;
+      if (strcmp(menu->section_name, "CUP") == 0) {
+        it->enabled =
+          (it->action == MAP_MENU_ACTION_CHEAT_REVEAL_MAP ||
+           it->action == MAP_MENU_ACTION_CHEAT_KILL_INDIANS);
+        continue;
+      }
+      it->enabled = map_menu_action_enabled(it->action);
+    }
+  }
+}
+
+bool map_menu_open_alt_hotkey(MapMenuBar* bar, char letter) {
+  if (!bar || !bar->loaded || !letter) {
+    return false;
+  }
+  const char want = (char)toupper((unsigned char)letter);
+  for (int i = 0; i < bar->menu_count; ++i) {
+    MapMenuPulldown* menu = &bar->menus[i];
+    if (!menu->visible || menu->title_hotkey != want) {
+      continue;
+    }
+    if (bar->open_index == i) {
+      bar->open_index = -1;
+      bar->hover_item = -1;
+    } else {
+      bar->open_index = i;
+      bar->hover_item = -1;
+    }
+    return true;
+  }
+  return false;
+}
+
+MapMenuAction map_menu_orders_hotkey(
+  const MapMenuBar* bar,
+  char letter,
+  bool shift,
+  bool space
+) {
+  if (!bar) {
+    return MAP_MENU_ACTION_NONE;
+  }
+  const MapMenuPulldown* orders = NULL;
+  for (int i = 0; i < bar->menu_count; ++i) {
+    if (strcmp(bar->menus[i].section_name, "ORDERS") == 0) {
+      orders = &bar->menus[i];
+      break;
+    }
+  }
+  if (!orders) {
+    return MAP_MENU_ACTION_NONE;
+  }
+  const char want = letter ? (char)toupper((unsigned char)letter) : 0;
+  for (int i = 0; i < orders->item_count; ++i) {
+    const MapMenuItem* it = &orders->items[i];
+    if (!it->visible || !it->enabled || it->separator) {
+      continue;
+    }
+    if (space && it->hotkey_space) {
+      return it->action;
+    }
+    if (!space && want && it->hotkey == want && it->hotkey_shift == shift &&
+        !it->hotkey_space) {
+      return it->action;
+    }
+  }
+  return MAP_MENU_ACTION_NONE;
+}
+
 static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
   /* 8px right of the old origin (4); COLONIZOPEDIA sits above the minimap strip. */
   int x = 12;
@@ -599,6 +1170,9 @@ static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
 static int map_menu_dropdown_width(const MapMenuPulldown* menu, const ColonizeFont* font) {
   int max_w = map_menu_text_width(font, menu->title) + 12;
   for (int i = 0; i < menu->item_count; ++i) {
+    if (!menu->items[i].visible) {
+      continue;
+    }
     const int w = map_menu_text_width(font, menu->items[i].label) + 12;
     if (w > max_w) {
       max_w = w;
@@ -629,9 +1203,13 @@ static void map_menu_dropdown_rect(
 ) {
   const MapMenuPulldown* menu = &bar->menus[menu_index];
   const int item_h = map_menu_item_height(font);
+  const int vis = map_menu_visible_item_count(menu);
   int x = menu->title_x;
   int w = map_menu_dropdown_width(menu, font);
-  int h = 2 + menu->item_count * item_h + 2;
+  int h = 2 + vis * item_h + 2;
+  if (h < 4) {
+    h = 4;
+  }
   if (x + w > 318) {
     x = 318 - w;
   }
@@ -698,12 +1276,10 @@ static int map_menu_item_at(
   if (x < dx || x >= dx + dw || y < dy || y >= dy + dh) {
     return -1;
   }
+  const MapMenuPulldown* menu = &bar->menus[bar->open_index];
   const int item_h = map_menu_item_height(font);
-  const int idx = (y - dy - 2) / item_h;
-  if (idx < 0 || idx >= bar->menus[bar->open_index].item_count) {
-    return -1;
-  }
-  return idx;
+  const int vis_row = (y - dy - 2) / item_h;
+  return map_menu_item_index_from_visible(menu, vis_row);
 }
 
 MapMenuAction map_menu_handle_input(
@@ -759,7 +1335,7 @@ MapMenuAction map_menu_handle_input(
       const MapMenuAction action = mi->action;
       bar->open_index = -1;
       bar->hover_item = -1;
-      if (!mi->enabled || mi->separator || action == MAP_MENU_ACTION_SEPARATOR) {
+      if (!mi->enabled || mi->separator || !mi->visible || action == MAP_MENU_ACTION_SEPARATOR) {
         return MAP_MENU_ACTION_NONE;
       }
       return action;
@@ -870,7 +1446,14 @@ void map_menu_render(
 
   const int item_h = map_menu_item_height(font);
   for (int i = 0; i < open->item_count; ++i) {
-    const int iy = dy + 2 + i * item_h;
+    if (!open->items[i].visible) {
+      continue;
+    }
+    const int vis_row = map_menu_visible_row_from_item(open, i);
+    if (vis_row < 0) {
+      continue;
+    }
+    const int iy = dy + 2 + vis_row * item_h;
     if (open->items[i].separator) {
       const int mid = iy + item_h / 2;
       map_menu_hline(framebuffer, mid, dx + 4, dx + dw - 5, MAP_MENU_COL_RULE_ITEM);
@@ -942,7 +1525,7 @@ const char* map_menu_action_name(MapMenuAction action) {
     case MAP_MENU_ACTION_FORTIFY:
       return "Fortify";
     case MAP_MENU_ACTION_ANCHOR:
-      return "Anchor";
+      return "Fortify"; /* ship row — same label in MENU.TXT */
     case MAP_MENU_ACTION_SENTRY:
       return "Sentry";
     case MAP_MENU_ACTION_DISBAND:

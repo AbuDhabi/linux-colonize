@@ -7,6 +7,7 @@
 #include "core/assets.h"
 #include "core/font.h"
 #include "core/ss.h"
+#include "core/units.h"
 #include "platform/platform.h"
 
 /*
@@ -19,7 +20,7 @@
  */
 #define MAP_MENU_BAR_H 8
 #define MAP_MENU_MAX_MENUS 8
-#define MAP_MENU_MAX_ITEMS 24
+#define MAP_MENU_MAX_ITEMS 32 /* DOS ORDERS = 20 labels + 4 seps; leave headroom */
 #define MAP_MENU_TITLE_LEN 24
 #define MAP_MENU_LABEL_LEN 40
 
@@ -59,8 +60,8 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_GOTO_PLACE,
   MAP_MENU_ACTION_TRADE_ROUTE,
   MAP_MENU_ACTION_RETURN_EUROPE,
-  MAP_MENU_ACTION_FORTIFY,
-  MAP_MENU_ACTION_ANCHOR, /* 2nd ~Fortify row: ship Anchor in harbor */
+  MAP_MENU_ACTION_FORTIFY, /* land Fortify (MENU first ~Fortify / cmd 0x302) */
+  MAP_MENU_ACTION_ANCHOR,  /* ship Fortify (MENU second ~Fortify / cmd 0x303) */
   MAP_MENU_ACTION_SENTRY,
   MAP_MENU_ACTION_DISBAND,
   MAP_MENU_ACTION_DUMP_OVERBOARD,
@@ -109,7 +110,11 @@ typedef struct MapMenuItem {
   char label[MAP_MENU_LABEL_LEN];
   MapMenuAction action;
   bool enabled; /* false = grayed; click does nothing useful */
+  bool visible; /* false = omitted from dropdown (context alternate rows) */
   bool separator; /* horizontal rule; label ignored */
+  char hotkey; /* 0 = none; A–Z / 0–9 from ~ markers */
+  bool hotkey_shift; /* Shift+hotkey (Disband) */
+  bool hotkey_space; /* Space bar (No Orders) */
 } MapMenuItem;
 
 typedef struct MapMenuPulldown {
@@ -120,6 +125,7 @@ typedef struct MapMenuPulldown {
   int title_x;
   int title_w;
   bool visible; /* false = reserve layout slot but do not draw/hit */
+  char title_hotkey; /* Alt+letter to open; 0 if none */
 } MapMenuPulldown;
 
 typedef struct MapMenuBar {
@@ -131,12 +137,48 @@ typedef struct MapMenuBar {
   bool loaded;
 } MapMenuBar;
 
+/*
+ * Live unit/map context for menu enable/hide (DOS FUN_2b5a_0b34 Move Pieces /
+ * FUN_2b5a_0902 View Pieces). When selected_id is invalid → View Pieces baseline.
+ */
+typedef struct MapMenuOrdersContext {
+  const ColonizeUnitPool* units;
+  const ColonizeWorldMap* map;
+  const ColonizeColonyPool* colonies;
+  int selected_id;
+  int cursor_x;
+  int cursor_y;
+  int human_nation;
+  bool europe_ok;
+} MapMenuOrdersContext;
+
 void map_menu_init(MapMenuBar* bar);
 void map_menu_free(MapMenuBar* bar);
 bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt);
 
 /* Show/hide the CHEAT title; layout slot stays reserved either way. */
 void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible);
+
+/*
+ * Refresh all pull-downs: DOS empty-label separators stay visible; ORDERS
+ * hide/gray from unit/tile (0b34/0902); other menus gray unimplemented rows.
+ * Cite: FUN_74a4_0000 seps; FUN_4b58_0552/05c6; FUN_2b5a_0b34.
+ */
+void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx);
+
+/* Back-compat alias used by game_loop. */
+static inline void map_menu_refresh_orders(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
+  map_menu_refresh(bar, ctx);
+}
+
+/* Alt+letter opens the matching bar menu (title ~hotkey). True if opened/toggled. */
+bool map_menu_open_alt_hotkey(MapMenuBar* bar, char letter);
+
+/*
+ * Plain ORDERS hotkey (no Alt): first visible+enabled item matching key/shift/space.
+ * Returns MAP_MENU_ACTION_NONE if none.
+ */
+MapMenuAction map_menu_orders_hotkey(const MapMenuBar* bar, char letter, bool shift, bool space);
 
 /* True if (x,y) is over the bar or an open dropdown (consumes map clicks). */
 bool map_menu_hit_ui(const MapMenuBar* bar, int x, int y);

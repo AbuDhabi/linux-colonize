@@ -183,6 +183,49 @@ struct ColonizeGameState {
   char status[128];
 };
 
+static void game_refresh_orders_menu(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  MapMenuOrdersContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.units = game->units_ok ? &game->units : NULL;
+  ctx.map = game->world_map_ok ? &game->world_map : NULL;
+  ctx.colonies = game->colonies_ok ? &game->colonies : NULL;
+  ctx.selected_id = game->units_ok ? game->units.selected_id : -1;
+  ctx.cursor_x = game->map_cursor_x;
+  ctx.cursor_y = game->map_cursor_y;
+  ctx.human_nation = game->human_nation;
+  ctx.europe_ok = game->europe_ok;
+  map_menu_refresh_orders(&game->map_menu, &ctx);
+}
+
+static char game_key_letter(ColonizeKey key) {
+  switch (key) {
+    case COLONIZE_KEY_A: return 'A';
+    case COLONIZE_KEY_B: return 'B';
+    case COLONIZE_KEY_C: return 'C';
+    case COLONIZE_KEY_D: return 'D';
+    case COLONIZE_KEY_E: return 'E';
+    case COLONIZE_KEY_F: return 'F';
+    case COLONIZE_KEY_G: return 'G';
+    case COLONIZE_KEY_H: return 'H';
+    case COLONIZE_KEY_I: return 'I';
+    case COLONIZE_KEY_L: return 'L';
+    case COLONIZE_KEY_N: return 'N';
+    case COLONIZE_KEY_O: return 'O';
+    case COLONIZE_KEY_P: return 'P';
+    case COLONIZE_KEY_Q: return 'Q';
+    case COLONIZE_KEY_R: return 'R';
+    case COLONIZE_KEY_S: return 'S';
+    case COLONIZE_KEY_T: return 'T';
+    case COLONIZE_KEY_U: return 'U';
+    case COLONIZE_KEY_V: return 'V';
+    case COLONIZE_KEY_W: return 'W';
+    default: return 0;
+  }
+}
+
 static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
@@ -245,6 +288,9 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_W: return "W";
     case COLONIZE_KEY_I: return "I";
     case COLONIZE_KEY_N: return "N";
+    case COLONIZE_KEY_A: return "A";
+    case COLONIZE_KEY_G: return "G";
+    case COLONIZE_KEY_V: return "V";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -4066,9 +4112,9 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     case MAP_MENU_ACTION_ANCHOR: {
       const int uid = game->units.selected_id;
       if (uid < 0 || !units_order_anchor(&game->units, uid, &game->colonies)) {
-        set_status(game, "Cannot anchor (need ship in harbor)", NULL);
+        set_status(game, "Cannot fortify", NULL);
       } else {
-        set_status(game, "Anchored", NULL);
+        set_status(game, "Fortifying", NULL);
         game_wait_next_unit(game);
       }
       return true;
@@ -5786,7 +5832,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
-    /* Alt-W/I/N unlocks CHEAT; Alt-W alone turns it off (COLONIZE README). */
+    /* Alt-W/I/N unlocks CHEAT; Alt-W alone turns it off (COLONIZE README).
+     * Other Alt+letter opens map menu titles (~GAME, ~VIEW, ~ORDERS, …). */
     if (input->alt_held && input->last_key != COLONIZE_KEY_NONE) {
       const ColonizeKey k = input->last_key;
       if (k == COLONIZE_KEY_W || k == COLONIZE_KEY_I || k == COLONIZE_KEY_N) {
@@ -5811,7 +5858,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         return true;
       }
+      const char alt_letter = game_key_letter(k);
+      if (alt_letter && map_menu_open_alt_hotkey(&game->map_menu, alt_letter)) {
+        return true;
+      }
     }
+
+    game_refresh_orders_menu(game);
 
     const ColonizeFont* menu_font = game->colony_font_ok ? &game->colony_font :
                                     (game->menu_font_ok ? &game->menu_font : NULL);
@@ -5842,6 +5895,21 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (input->mouse_left_clicked && (click_on_menu_ui || menu_was_open)) {
       /* Menu open/close consumed the click. */
       return true;
+    }
+
+    /* Plain ORDERS hotkeys (same as choosing the enabled ORDERS item). */
+    if (!input->alt_held && input->last_key != COLONIZE_KEY_NONE) {
+      const bool space = (input->last_key == COLONIZE_KEY_SPACE);
+      const char letter = space ? 0 : game_key_letter(input->last_key);
+      const MapMenuAction order_hk = map_menu_orders_hotkey(
+        &game->map_menu, letter, input->shift_held, space
+      );
+      if (order_hk != MAP_MENU_ACTION_NONE) {
+        if (!game_apply_map_menu_action(game, order_hk)) {
+          return false;
+        }
+        return true;
+      }
     }
 
     if ((input->mouse_left_clicked || input->mouse_right_clicked || input->mouse_left_released ||
