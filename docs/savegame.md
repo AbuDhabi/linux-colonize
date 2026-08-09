@@ -132,7 +132,11 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   mid-campaign census still **DOS-parity preserved** (no freshen)
 - Colony capture: specialty nibbles, `warehouse_level` / `capitol_level`,
   owner `visible_to_euro`; Col1-only AI timers preserved by xy match
-- Unit `vis_mask`: owner euro bit on spawn / `units_set_nation` / capture fallback
+- Unit `vis_mask`: euro owner bit only on spawn/`units_set_nation`/capture;
+  natives export 0 (fixes fog-visible Indians/AI). Ship `holds_occupied` =
+  goods only — passengers use `transport_chain` (fixes fake food stacks).
+- Discovery: `discovery_of_the_new_world` + `named_new_world` set when human
+  sees land (`col1_bridge_sync_new_world_discovery`); capture safety net.
 - `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
   `save_path_blob` stay zero / RMW-preserved
 
@@ -143,7 +147,9 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 - Full mid-campaign AI nation blobs beyond fields AI already mutates in-place
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): occupancy orphans
-cleared. Newgame template smoke checks density + blank census + `vis_mask`.
+cleared. Newgame template smoke checks density, blank census, `vis_mask`,
+discovery sync, fleet `holds_occupied` / native vis. Archived
+`unowned units all visible.sav` was the DOS repro for the vis/holds/discovery bugs.
 
 ### Verified fixtures
 

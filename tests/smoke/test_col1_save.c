@@ -1071,6 +1071,27 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* Discovery must stay 0 until land is seen (COLONY00-shaped). */
+    if (save.head.event.discovery_of_the_new_world || save.player[0].named_new_world) {
+      fprintf(stderr, "newgame export: discovery flags set too early\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Reveal land then sync discovery for mid-campaign DOS continue. */
+    map_reveal_tile(&map, 20, 20, 0);
+    col1_bridge_sync_new_world_discovery(&save, &map, 0);
+    if (!save.head.event.discovery_of_the_new_world || !save.player[0].named_new_world) {
+      fprintf(stderr, "newgame export: discovery flags not set after land reveal\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    fprintf(stderr, "newgame discovery flag sync ok\n");
     {
       int pacific = 0;
       int suppress = 0;
@@ -1136,6 +1157,96 @@ int main(void) {
         return 1;
       }
       (void)sea_nz;
+    }
+    /* Starter fleet + brave: holds_occupied goods-only; native vis_mask 0. */
+    {
+      units_reset(&units);
+      if (!units_load_types(&units, &names)) {
+        fprintf(stderr, "fleet export: reload types failed\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int ship_id = units_spawn_euro_starter_fleet(&units, 0, 0, 40, 30, 45, 30);
+      if (ship_id < 0) {
+        fprintf(stderr, "fleet export: starter fleet failed\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int brave_ty = units_find_type(&units, "Brave");
+      const int bid = units_spawn_allow_stack(&units, brave_ty >= 0 ? brave_ty : 0, 25, 25);
+      if (bid >= 0) {
+        ColonizeUnit* b = units_get(&units, bid);
+        if (b) {
+          units_set_nation(b, 6); /* Arawak */
+        }
+      }
+      if (!col1_bridge_capture(
+            &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 40, 30, ship_id, err,
+            sizeof(err)
+          )) {
+        fprintf(stderr, "fleet export: capture: %s\n", err);
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      int ship_ci = -1;
+      int native_vis_bad = 0;
+      for (uint16_t ui = 0; ui < save.head.unit_count; ++ui) {
+        const ColonizeCol1Unit* u = &save.unit[ui];
+        if ((u->nation_id & 0xF) >= 4 && u->vis_mask != 0) {
+          native_vis_bad++;
+        }
+        if (u->type == 13 || (units_type(&units, u->type) &&
+                              strstr(units_type(&units, u->type)->name, "Caravel"))) {
+          ship_ci = (int)ui;
+        }
+      }
+      /* Find caravel by cargo chain: ship with prev pointing to passenger. */
+      for (uint16_t ui = 0; ui < save.head.unit_count; ++ui) {
+        const ColonizeCol1Unit* u = &save.unit[ui];
+        if (u->transport_chain.prev_unit_idx >= 0 && u->transport_chain.next_unit_idx < 0 &&
+            (u->nation_id & 0xF) < 4) {
+          ship_ci = (int)ui;
+          break;
+        }
+      }
+      if (ship_ci < 0) {
+        fprintf(stderr, "fleet export: ship not found\n");
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (save.unit[ship_ci].holds_occupied != 0) {
+        fprintf(
+          stderr,
+          "fleet export: ship holds_occupied=%u want 0 (passengers≠goods)\n",
+          (unsigned)save.unit[ship_ci].holds_occupied
+        );
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (native_vis_bad) {
+        fprintf(stderr, "fleet export: %d natives with nonzero vis_mask\n", native_vis_bad);
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      fprintf(stderr, "fleet export holds/vis ok (ship_ci=%d)\n", ship_ci);
     }
     units_set_occupancy_map(NULL);
     col1_save_free(&save);

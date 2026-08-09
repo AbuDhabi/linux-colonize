@@ -1214,9 +1214,12 @@ bool col1_bridge_capture(
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
       {
-        uint8_t vis = (uint8_t)(src->col1_vis_mask & 0xF);
-        if (vis == 0 && (src->nation_id & 0xF) < 4) {
-          vis = (uint8_t)(1u << (src->nation_id & 3));
+        /* DOS fog draw: (0x10<<viewer) & vis_mask. Export owner bit only for
+         * euros; natives stay 0 until observed (P6 pollute fix). */
+        const int nat = src->nation_id & 0xF;
+        uint8_t vis = 0;
+        if (nat >= 0 && nat < 4) {
+          vis = (uint8_t)(1u << (nat & 3));
         }
         dst->vis_mask = vis;
       }
@@ -1293,7 +1296,12 @@ bool col1_bridge_capture(
         if (gi == 0) {
           dst->cargo_hold[2] = 255; /* COL1 empty-hold sentinel seen in starters */
         }
-        dst->holds_occupied = (uint8_t)(src->cargo_count + gi);
+        /* Goods only — passengers live in transport_chain (not hold slots). */
+        dst->holds_occupied = (uint8_t)gi;
+      }
+      /* DOS COLONY00: pioneer tools as cargo_hold[5]=100 on the passenger unit. */
+      if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
+        dst->cargo_hold[5] = 100;
       }
       dst->transport_chain.next_unit_idx = -1;
       dst->transport_chain.prev_unit_idx = -1;
@@ -1360,10 +1368,51 @@ bool col1_bridge_capture(
     col1_stuff_census_fill_blank(&save->stuff, units, colonies);
   }
 
+  /* Mid-campaign: do not leave discovery unset for DOS woodcut re-fire. */
+  col1_bridge_sync_new_world_discovery(save, map, human_nation);
+
   if (err && err_size) {
     err[0] = '\0';
   }
   return true;
+}
+
+void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation) {
+  if (!save || human_nation < 0 || human_nation > 3) {
+    return;
+  }
+  save->head.event.discovery_of_the_new_world = 1;
+  save->player[human_nation].named_new_world = 1;
+}
+
+void col1_bridge_sync_new_world_discovery(
+  ColonizeCol1Save* save,
+  const ColonizeWorldMap* map,
+  int human_nation
+) {
+  if (!save || human_nation < 0 || human_nation > 3) {
+    return;
+  }
+  if (save->head.event.discovery_of_the_new_world &&
+      save->player[human_nation].named_new_world) {
+    return;
+  }
+  if (!map || !map->terrain || !map->seen) {
+    return;
+  }
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      if (!map_tile_seen_by(map, x, y, human_nation)) {
+        continue;
+      }
+      if (map_tile_is_land(map, x, y)) {
+        col1_bridge_mark_new_world_discovered(save, human_nation);
+        return;
+      }
+    }
+  }
 }
 
 bool col1_contact_adjacent_tribe(

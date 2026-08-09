@@ -632,7 +632,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
         ColonizeUnit* u = units_get(ctx->units, id);
         if (u) {
-          u->nation_id = ctx->human_nation;
+          units_set_nation(u, ctx->human_nation);
           u->orders = UNITS_ORDER_SENTRY;
           u->profession = d->profession;
           u->goto_x = 0;

@@ -3756,7 +3756,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   if (!pax) {
     return;
   }
-  pax->nation_id = nation_id;
+  units_set_nation(pax, nation_id);
   if (from_dock && ctx->europe && dock_idx >= 0 && dock_idx < ctx->europe->dock_count) {
     pax->profession = ctx->europe->dock[dock_idx].profession;
   }
