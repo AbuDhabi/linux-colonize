@@ -191,8 +191,9 @@ one exists.
 
 ## `COLONIZE/` data index
 
-Runtime data root (~289 files). Override with `--data-dir`. Formats and screen wiring:
-[assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`.
+Runtime data root (~289 files). Intended location at runtime: `COLONIZE/` next to
+the Linux executable (same pile as DOS). Override with `--data-dir`. Formats and
+screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`.
 
 ### Extension counts
 

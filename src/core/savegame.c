@@ -10,18 +10,6 @@
 #define COLONIZE_SAVE_MAGIC 0x5a4c4f43u
 #define COLONIZE_SAVE_VERSION 1u
 
-const char* savegame_default_dir(void) {
-  static char save_dir[512];
-  const char* exe_dir = diag_exe_dir();
-  if (exe_dir && exe_dir[0] != '\0') {
-    snprintf(save_dir, sizeof(save_dir), "%s/saves", exe_dir);
-  } else {
-    snprintf(save_dir, sizeof(save_dir), "./saves");
-  }
-  diag_info("Default save directory resolved to: %s", save_dir);
-  return save_dir;
-}
-
 static bool ensure_dir(const char* path, char* err_buf, size_t err_buf_size) {
   struct stat st;
   if (stat(path, &st) == 0) {
@@ -44,6 +32,27 @@ static bool ensure_dir(const char* path, char* err_buf, size_t err_buf_size) {
   snprintf(err_buf, err_buf_size, "Failed to create directory %s: %s", path, strerror(errno));
   diag_error("%s", err_buf);
   return false;
+}
+
+const char* savegame_default_dir(void) {
+  static char save_dir[512];
+  static bool resolved = false;
+  if (resolved) {
+    return save_dir;
+  }
+  const char* exe_dir = diag_exe_dir();
+  if (exe_dir && exe_dir[0] != '\0') {
+    snprintf(save_dir, sizeof(save_dir), "%s/COLONIZE", exe_dir);
+  } else {
+    snprintf(save_dir, sizeof(save_dir), "./COLONIZE");
+  }
+  char err[256];
+  if (!ensure_dir(save_dir, err, sizeof(err))) {
+    diag_warn("Could not create default COLONIZE directory: %s", err);
+  }
+  diag_info("Default save directory resolved to: %s", save_dir);
+  resolved = true;
+  return save_dir;
 }
 
 static void path_for_slot(char* out, size_t out_size, const char* save_dir, const char* slot_name) {

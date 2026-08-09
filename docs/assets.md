@@ -3,7 +3,11 @@
 For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox memory
 dumps, see [original_index.md](original_index.md).
 
-Runtime data lives under `COLONIZE/` (override with `--data-dir`).
+Original game data (required to play) belongs in a `COLONIZE/` directory next to
+the executable — the same layout as a DOS install. The port creates that folder
+empty on startup if it is missing; copy the shipped MicroProse files into it.
+Override the search root with `--data-dir`. Saves default to the same directory
+(see [savegame.md](savegame.md); override with `--save-dir`).
 
 ## Text Encoding
 
@@ -568,6 +572,8 @@ Title/map BGM via `sound_play` / `sound_set_bgm` is enabled (`COLONIZE_SOUND_PLA
 
 ## Discovery Order
 
-1. Explicit `--data-dir`
+Intended install layout: put original game files in `<executable-dir>/COLONIZE/`.
+
+1. Explicit `--data-dir` (if that path exists)
 2. `<executable-dir>/COLONIZE`
 3. `./COLONIZE` (working directory)
