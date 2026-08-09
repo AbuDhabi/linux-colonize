@@ -1178,6 +1178,22 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      /* Match human deploy: idle ship with goto==xy (not stale landfall). */
+      {
+        ColonizeUnit* ship = units_get(&units, ship_id);
+        if (ship) {
+          ship->orders = 0;
+          ship->goto_x = ship->x;
+          ship->goto_y = ship->y;
+          for (int c = 0; c < ship->cargo_count; ++c) {
+            ColonizeUnit* pax = units_get(&units, ship->cargo_ids[c]);
+            if (pax) {
+              pax->goto_x = ship->x;
+              pax->goto_y = ship->y;
+            }
+          }
+        }
+      }
       const int brave_ty = units_find_type(&units, "Brave");
       const int bid = units_spawn_allow_stack(&units, brave_ty >= 0 ? brave_ty : 0, 25, 25);
       if (bid >= 0) {
@@ -1319,6 +1335,57 @@ int main(void) {
             stderr,
             "fleet export: ship profession=%u want 0 (FUN_1427_06b4 transport)\n",
             (unsigned)save.unit[ship_ci].profession
+          );
+          units_set_occupancy_map(NULL);
+          col1_save_free(&save);
+          map_free(&map);
+          assets_msg_free(&names);
+          return 1;
+        }
+        if (save.unit[ship_ci].moves != 0) {
+          fprintf(
+            stderr,
+            "fleet export: ship moves_spent=%u want 0 (full MP)\n",
+            (unsigned)save.unit[ship_ci].moves
+          );
+          units_set_occupancy_map(NULL);
+          col1_save_free(&save);
+          map_free(&map);
+          assets_msg_free(&names);
+          return 1;
+        }
+        /* FUN_1427_02ca: ship tile path owner nibble = nation (not 0xf unowned). */
+        {
+          const uint8_t sx = save.unit[ship_ci].x;
+          const uint8_t sy = save.unit[ship_ci].y;
+          const size_t ti = (size_t)sy * (size_t)save.map.width + (size_t)sx;
+          const uint8_t path = (save.map.path && ti < save.map.tile_count) ? save.map.path[ti] : 0xffu;
+          const uint8_t owner = (uint8_t)((path >> 4) & 0x0fu);
+          if (owner != 0) {
+            fprintf(
+              stderr,
+              "fleet export: ship tile path=0x%02x owner=%u want nation 0 (FUN_137f_0228)\n",
+              (unsigned)path,
+              (unsigned)owner
+            );
+            units_set_occupancy_map(NULL);
+            col1_save_free(&save);
+            map_free(&map);
+            assets_msg_free(&names);
+            return 1;
+          }
+        }
+        /* Idle ship (orders==0): goto must equal xy (not stale landfall). */
+        if (save.unit[ship_ci].orders == 0 &&
+            (save.unit[ship_ci].goto_x != save.unit[ship_ci].x ||
+             save.unit[ship_ci].goto_y != save.unit[ship_ci].y)) {
+          fprintf(
+            stderr,
+            "fleet export: idle ship goto=(%u,%u) want xy=(%u,%u) (COLONY00)\n",
+            (unsigned)save.unit[ship_ci].goto_x,
+            (unsigned)save.unit[ship_ci].goto_y,
+            (unsigned)save.unit[ship_ci].x,
+            (unsigned)save.unit[ship_ci].y
           );
           units_set_occupancy_map(NULL);
           col1_save_free(&save);

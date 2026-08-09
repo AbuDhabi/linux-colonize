@@ -22,6 +22,8 @@ bool units_advance_goto_one_step(
   ColonizeDosRng* rng
 );
 static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id);
+static void units_map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff);
+static ColonizeWorldMap* g_units_occupancy_map = NULL;
 
 static void units_trim(char* s) {
   char* start = s;
@@ -234,6 +236,20 @@ void units_set_nation(ColonizeUnit* unit, int nation_id) {
   } else {
     /* Natives: not visible through euro fog until observed (EOT / contact). */
     unit->col1_vis_mask = 0;
+  }
+  /*
+   * Spawn sets nation after units_spawn_allow_stack already refreshed occupancy
+   * with nation 0 — restamp owner now (FUN_1427_02ca).
+   */
+  if (g_units_occupancy_map && units_is_on_map(unit) && unit->x < 200 && unit->y < 200) {
+    if (nation_id > 3 && g_units_occupancy_map->layer2) {
+      const int i = unit->y * g_units_occupancy_map->width + unit->x;
+      if (i >= 0 && (size_t)i < g_units_occupancy_map->tile_count &&
+          (g_units_occupancy_map->layer2[i] & MAP_OCCUPANCY_HAS_CITY) != 0) {
+        return;
+      }
+    }
+    units_map_set_owner_nibble(g_units_occupancy_map, unit->x, unit->y, nation_id);
   }
 }
 
@@ -578,7 +594,6 @@ static int g_units_last_combat = 0;
 static const ColonizeCol1Save* g_units_ff_col1 = NULL;
 static ColonizeCol1Save* g_units_fallout_col1 = NULL;
 static ColonizeWorldMap* g_units_fallout_map = NULL;
-static ColonizeWorldMap* g_units_occupancy_map = NULL;
 static int g_units_conquest_gold = -1;
 static const ColonizeColonyPool* g_units_combat_colonies = NULL;
 
@@ -606,6 +621,47 @@ static int units_tile_has_on_map_unit(const ColonizeUnitPool* pool, int x, int y
   return 0;
 }
 
+/*
+ * FUN_1427_02ca: when a unit is alone on a tile, stamp layer3 owner (nation).
+ * Indians skip when the tribe bit is set (FUN_137f_0598). Leaving a tile
+ * (FUN_1427_023a) clears presence only — owner nibble stays claimed.
+ */
+static void units_claim_tile_owner_from_stack(
+  ColonizeUnitPool* pool,
+  ColonizeWorldMap* map,
+  int x,
+  int y,
+  int except_id
+) {
+  if (!pool || !map || !map->layer3) {
+    return;
+  }
+  if (x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return;
+  }
+  int nation = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->id == except_id) {
+      continue;
+    }
+    if (u->x == x && u->y == y) {
+      nation = u->nation_id;
+      break;
+    }
+  }
+  if (nation < 0) {
+    return;
+  }
+  if (nation > 3 && map->layer2) {
+    const uint8_t l2 = map->layer2[y * map->width + x];
+    if ((l2 & MAP_OCCUPANCY_HAS_CITY) != 0) {
+      return; /* village tile keeps tribe owner */
+    }
+  }
+  units_map_set_owner_nibble(map, x, y, nation);
+}
+
 static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id) {
   if (!g_units_occupancy_map || !pool) {
     return;
@@ -614,6 +670,9 @@ static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, i
   map_occupancy_set_layer2(
     g_units_occupancy_map, x, y, MAP_OCCUPANCY_HAS_UNIT, present != 0
   );
+  if (present) {
+    units_claim_tile_owner_from_stack(pool, g_units_occupancy_map, x, y, except_id);
+  }
 }
 
 void units_set_native_fallout_context(
@@ -3778,10 +3837,23 @@ void units_new_world_start(
   if (ship_id < 0) {
     return;
   }
-  /* Human starts with ship selected; clear goto until player sets course (orders keep landfall dest). */
+  /*
+   * Human starts with ship selected and idle. Clear GOTO orders but pin goto to
+   * the ship's tile (COLONY00). Keeping landfall in goto with orders=0 made DOS
+   * treat the caravel as unloaded / peel transport_chain on select/move.
+   */
   ColonizeUnit* ship = units_get(pool, ship_id);
   if (ship) {
     ship->orders = 0;
+    ship->goto_x = ship->x;
+    ship->goto_y = ship->y;
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      ColonizeUnit* pax = units_get(pool, ship->cargo_ids[c]);
+      if (pax) {
+        pax->goto_x = ship->x;
+        pax->goto_y = ship->y;
+      }
+    }
   }
   pool->selected_id = ship_id;
 }
