@@ -1314,6 +1314,18 @@ int main(void) {
           assets_msg_free(&names);
           return 1;
         }
+        if (save.unit[ship_ci].profession != 0) {
+          fprintf(
+            stderr,
+            "fleet export: ship profession=%u want 0 (FUN_1427_06b4 transport)\n",
+            (unsigned)save.unit[ship_ci].profession
+          );
+          units_set_occupancy_map(NULL);
+          col1_save_free(&save);
+          map_free(&map);
+          assets_msg_free(&names);
+          return 1;
+        }
       }
       if (native_vis_bad) {
         fprintf(stderr, "fleet export: %d natives with nonzero vis_mask\n", native_vis_bad);

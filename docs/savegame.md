@@ -139,8 +139,11 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   goods only — passengers use `transport_chain` (fixes fake food stacks).
 - Boarded euros: `origin=0xff` (`home_tribe_id=-1`), pioneer `cargo_hold[5]=100`
   tools; Discoverer English pioneer profession `28` (Hardy is French-only).
+  Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — that made DOS peel
+  the caravel out of `transport_chain` (sidebar unloaded, land units left behind).
   Capture nudges settler-ish euros off village tiles and boards same-tile
   orphans onto own ships (DOS "Illegal entry into village" / ocean sentry).
+- Col1 unit `moves` exported as **moves_spent** (not moves_left).
 - Discovery: `discovery_of_the_new_world` + `named_new_world` set when human
   sees land (`col1_bridge_sync_new_world_discovery`); capture safety net.
 - `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
@@ -154,9 +157,10 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): occupancy orphans
 cleared. Newgame template smoke checks density, blank census, `vis_mask`,
-discovery sync, fleet `holds_occupied` / passenger `origin`+tools / native vis.
-Archived `unowned units all visible.sav` was the DOS repro for the
-vis/holds/discovery bugs; `loaded units wrong.sav` for cargo origin/village.
+discovery sync, fleet `holds_occupied` / passenger `origin`+tools / ship
+`profession=0` / native vis. Archived `unowned units all visible.sav` was the
+DOS repro for the vis/holds/discovery bugs; `loaded units still wrong.sav` for
+ship profession peeling the transport chain.
 
 ### Verified fixtures
 

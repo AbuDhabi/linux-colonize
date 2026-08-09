@@ -188,7 +188,12 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->goto_x = 0xFF;
   slot->goto_y = 0xFF;
   slot->follow_unit_id = -1;
-  slot->profession = UNITS_JOB_NONE;
+  /*
+   * FUN_1427_06b4: type cargo>0 → profession 0 (ships/wagons); else 0x1c.
+   * Exporting ships as profession 28 makes DOS treat the tile as a land stack
+   * and peel the caravel off its transport_chain (sidebar "unloaded").
+   */
+  slot->profession = type->cargo > 0 ? 0 : UNITS_JOB_NONE;
   slot->tools = 0;
   slot->muskets = 0;
   slot->horses = 0;
@@ -3523,7 +3528,7 @@ int units_spawn_euro_starter_fleet(
     return -1;
   }
   units_set_nation(ship, nation_id);
-  ship->profession = UNITS_JOB_NONE;
+  ship->profession = 0; /* FUN_1427_06b4 transport profession */
   if (goto_x >= 0 && goto_x < 255 && goto_y >= 0 && goto_y < 255) {
     ship->orders = UNITS_ORDER_GOTO;
     ship->goto_x = goto_x;
