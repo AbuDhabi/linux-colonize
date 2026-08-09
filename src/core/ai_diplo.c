@@ -398,7 +398,7 @@ static int ai_diplo_privateer_spawn_armed(
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
     return 0;
   }
-  return (col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] &
+  return (col1->nation[nation_id].privateer_spawn_mask &
           (uint8_t)(1u << peer)) != 0;
 }
 
@@ -410,8 +410,8 @@ static void ai_diplo_privateer_spawn_set(
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
     return;
   }
-  col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] =
-    (uint8_t)(col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] |
+  col1->nation[nation_id].privateer_spawn_mask =
+    (uint8_t)(col1->nation[nation_id].privateer_spawn_mask |
               (uint8_t)(1u << peer));
 }
 
@@ -423,8 +423,8 @@ static void ai_diplo_privateer_spawn_clear(
   if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4) {
     return;
   }
-  col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] =
-    (uint8_t)(col1->nation[nation_id].unknown26[AI_DIPLO_PRIVATEER_SPAWN_SLOT] &
+  col1->nation[nation_id].privateer_spawn_mask =
+    (uint8_t)(col1->nation[nation_id].privateer_spawn_mask &
               (uint8_t)~(1u << peer));
 }
 
@@ -785,7 +785,7 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
   if (!col1 || euro_nation < 0 || euro_nation >= 4) {
     return AI_DIPLO_STICKY_CLEAR;
   }
-  return col1->nation[euro_nation].unknown26[AI_DIPLO_INDIAN_HOSTILE_STICKY];
+  return col1->nation[euro_nation].indian_hostility_sticky;
 }
 
 /*
@@ -815,7 +815,7 @@ void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
   if (any_war) {
     next = any_very_low ? AI_DIPLO_STICKY_DEEP : AI_DIPLO_STICKY_AT_WAR;
   }
-  col1->nation[euro_nation].unknown26[AI_DIPLO_INDIAN_HOSTILE_STICKY] = next;
+  col1->nation[euro_nation].indian_hostility_sticky = next;
 }
 
 /*
@@ -895,21 +895,21 @@ static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
   }
-  return &col1->nation[nation].unknown26[peer];
+  return &col1->nation[nation].treaty_timer[peer];
 }
 
 static uint8_t* ai_diplo_flag_byte(ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
   }
-  return &col1->nation[nation].unknown26[AI_DIPLO_FLAG_BASE + peer];
+  return &col1->nation[nation].diplo_flag[peer];
 }
 
 static const uint8_t* ai_diplo_flag_byte_const(const ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
   }
-  return &col1->nation[nation].unknown26[AI_DIPLO_FLAG_BASE + peer];
+  return &col1->nation[nation].diplo_flag[peer];
 }
 
 /* Mirror WAR/ALLY into nation_relation for legacy readers (derived only). */

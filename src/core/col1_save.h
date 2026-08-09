@@ -76,16 +76,23 @@
 typedef struct ColonizeCol1Tut1 {
   uint8_t nr13 : 1;
   uint8_t nr14 : 1;
-  uint8_t unknown01 : 1;
+  uint8_t unknown01 : 1; /* tut bit; no distinct cite — keep opaque */
   uint8_t nr15 : 1;
   uint8_t nr16 : 1;
   uint8_t nr17 : 1;
-  uint8_t unknown02 : 1;
+  uint8_t unknown02 : 1; /* tut bit; no distinct cite — keep opaque */
   uint8_t nr19 : 1;
 } ColonizeCol1Tut1;
 
 typedef struct ColonizeCol1GameOptions {
-  uint16_t unused01 : 7; /* DOS 0x5382 bits used for scenario/WoI/REF — not pure pad */
+  /* DS:0x5382 low byte — WoI/REF latches (was unused01). */
+  uint16_t woi : 1; /* 0x01 — declare independence */
+  uint16_t ref_present : 1; /* 0x02 — REF arrived */
+  uint16_t woi_crosses_event : 1; /* 0x04 */
+  uint16_t independence_chrome : 1; /* 0x08 */
+  uint16_t calendar_latch : 1; /* 0x10 */
+  uint16_t independence_force : 1; /* 0x20 — bypass REF/event gates */
+  uint16_t ref_unit_threshold : 1; /* 0x40 — raises REF unit count thresh */
   uint16_t tutorial_hints : 1;
   uint16_t water_color_cycling : 1;
   uint16_t combat_analysis : 1;
@@ -159,12 +166,12 @@ typedef struct ColonizeCol1Head {
   uint16_t map_size_x; /* typically 58 (visible 56 + border) */
   uint16_t map_size_y; /* typically 72 (visible 70 + border) */
   ColonizeCol1Tut1 tut1;
-  uint8_t unknown03;
+  uint8_t unknown03; /* head pad; no gameplay cite in unpacked — save R/W */
   ColonizeCol1GameOptions game_options;
   ColonizeCol1ColonyReportOptions colony_report_options;
   ColonizeCol1Tut2 tut2;
   ColonizeCol1Tut3 tut3;
-  uint8_t unknown39[2];
+  uint8_t unknown39[2]; /* head pad; no gameplay cite — save R/W */
   uint16_t year;
   uint16_t autumn; /* non-zero if autumn */
   uint16_t turn;
@@ -181,7 +188,7 @@ typedef struct ColonizeCol1Head {
   uint16_t show_entire_map; /* DS:0x53a2 — Complete Map cheat / post-win */
   uint16_t fixed_nation_map_view; /* DS:0x53a4; 0xffff = none */
   uint8_t difficulty; /* 0 Discoverer .. 4 Viceroy */
-  uint8_t unknown43[2];
+  uint8_t unknown43[2]; /* head pad; no gameplay cite — save R/W */
   int8_t founding_father[COLONIZE_COL1_FF_COUNT];
   /* DS:0x53c2 / 0x53c4 / 0x53c6 — UI/turn latches (was unknown44[6]). */
   uint16_t turn_loop_running; /* 0x53c2; Esc clears (FUN_2b5a_3104); main loop sets */
@@ -193,16 +200,18 @@ typedef struct ColonizeCol1Head {
   uint16_t expeditionary_force[4]; /* regulars, dragoons, man-o-wars, artillery */
   uint16_t backup_force[4];
   /*
-   * DS:0x53ea — DOS price_group_state[16] (FUN_38fd_0058). Linux also overlays
-   * king stand-ins in the first bytes (WoI/REF/boycott/merc/congress) — do not
-   * treat as pure price groups until stand-ins migrate (ai_king.c).
+   * DS:0x53ea — DOS uint16 price_group_state[16] (FUN_38fd_0058).
+   * Linux king stand-ins overlay first 6 bytes of the same 32 (ai_king.c):
+   *   [0] WoI  [1] REF  [2] boycott  [3] merc  [4] unused  [5] congress
+   * Those bytes collide with DOS price words 0–2 until stand-ins migrate to
+   * game_options.woi / ref_present (0x5382).
    */
   union {
     uint8_t unknown46[32];
     uint16_t price_group_state[16];
   };
   ColonizeCol1EventFlags event;
-  uint8_t unknown05[2];
+  uint8_t unknown05[2]; /* head pad after event; no gameplay cite — save R/W */
 } ColonizeCol1Head;
 
 typedef struct ColonizeCol1Player {
@@ -215,10 +224,12 @@ typedef struct ColonizeCol1Player {
   uint8_t diplomacy;
 } ColonizeCol1Player;
 
-typedef struct ColonizeCol1DurationNibble {
-  uint8_t low : 4;
-  uint8_t high : 4;
-} ColonizeCol1DurationNibble;
+/* Colony +0x60 — packed colonist specialty nibbles (FUN_15eb_0c7a / 0cbc). */
+typedef struct ColonizeCol1SpecialtyNibble {
+  uint8_t even : 4; /* colonist 2*i */
+  uint8_t odd : 4; /* colonist 2*i+1 */
+} ColonizeCol1SpecialtyNibble;
+typedef ColonizeCol1SpecialtyNibble ColonizeCol1DurationNibble; /* legacy alias */
 
 typedef struct ColonizeCol1Buildings {
   uint32_t fortification : 3;
@@ -296,7 +307,7 @@ typedef struct ColonizeCol1Colony {
   uint8_t population;
   uint8_t occupation[COLONIZE_COL1_COLONY_POP_MAX];
   uint8_t profession[COLONIZE_COL1_COLONY_POP_MAX];
-  ColonizeCol1DurationNibble duration[16];
+  ColonizeCol1SpecialtyNibble specialty[16]; /* +0x60; was duration[] */
   /* +0x70 — 20-byte citizen-index table (0xff empty); ring [0..7] is map surround. */
   int8_t tiles[COLONIZE_COL1_COLONY_TILES];
   ColonizeCol1Buildings buildings;
@@ -313,7 +324,8 @@ typedef struct ColonizeCol1Colony {
   uint8_t depletion_counter; /* +0x97; INC, wrap at 50 */
   uint16_t hammers_purchased; /* +0x98; FUN_2f2b_5e44 BUY adds remainder */
   uint16_t stock[COLONIZE_COL1_CARGO_TYPES];
-  uint8_t unknown13[8]; /* includes per-nation visible counts at +0..+3 in some saves */
+  uint8_t visible_to_euro[4]; /* +0xba; fog 0x10<<euro — FUN_364b_1ba8 */
+  uint8_t unknown13_pad[4]; /* +0xbe..; found-zero; no reader cite */
   uint32_t rebel_dividend;
   uint32_t rebel_divisor;
 } ColonizeCol1Colony;
@@ -329,14 +341,16 @@ typedef struct ColonizeCol1Unit {
   uint8_t type;
   uint8_t nation_id : 4;
   uint8_t vis_mask : 4; /* DS:0x3147 hi; 0x10<<euro — FUN_1427_0992/0c72 */
-  uint8_t unknown15; /* bit7 = ship damaged (FUN_1427_13b0); other bits live */
+  uint8_t unknown15_lo : 7; /* live AI/cargo/orders latches @ 0x3148 */
+  uint8_t ship_damaged : 1; /* bit7 — FUN_1427_13b0 */
   uint8_t moves;
   uint8_t origin; /* unknown16[0]: home tribe / origin settlement */
   uint8_t ai_plan; /* unknown16[1]: ASCII plan; default 'X' (0x58) */
   uint8_t orders;
   uint8_t goto_x;
   uint8_t goto_y;
-  uint8_t unknown18; /* low 3 = facing */
+  uint8_t facing : 3; /* 0..7 last dir — FUN_1427_0968 */
+  uint8_t facing_pad : 5;
   uint8_t holds_occupied;
   uint8_t cargo_item_0 : 4;
   uint8_t cargo_item_1 : 4;
@@ -359,19 +373,19 @@ typedef struct ColonizeCol1NationTrade {
 } ColonizeCol1NationTrade;
 
 typedef struct ColonizeCol1Nation {
-  uint8_t unknown19;
+  uint8_t nation_flags; /* +0; live bits 0x04/0x08/0x40 @ −0x77f8 (was unknown19) */
   uint8_t tax_rate;
   uint8_t recruit[3];
-  uint8_t unused07;
+  uint8_t tax_hike_count; /* +5; FUN_38fd_44a4 INC (was unused07) */
   uint8_t recruit_count;
   uint8_t founding_fathers[4];
-  uint8_t unknown21;
+  uint8_t unknown21; /* +0xb; no reader cite — opaque */
   uint16_t liberty_bells_total;
   uint16_t liberty_bells_last_turn;
-  uint8_t unknown22[2];
+  int16_t unknown22; /* +0x10; written FUN_38fd_5be8; role thin */
   int16_t next_founding_father;
   uint16_t founding_father_count;
-  uint16_t unused08;
+  uint16_t ff_count_end_prob; /* smcol; cleared on independence; no FF-prob reader */
   uint8_t villages_burned;
   uint8_t rebel_sentiment; /* nation+0x19 */
   uint8_t unknown23_pad[4];
@@ -382,9 +396,21 @@ typedef struct ColonizeCol1Nation {
   uint32_t gold;
   uint16_t current_crosses;
   uint16_t needed_crosses;
-  uint8_t unknown25[6]; /* [2..5] euro peer bytes @ −0x77c4 path */
+  uint8_t return_from_europe_x; /* +0x32; FUN_48d3_007a landfall */
+  uint8_t return_from_europe_y;
+  uint8_t euro_relation[4]; /* −0x77c4 peer bytes / FUN_15b3_* */
   uint8_t relation_by_indian[8];
-  uint8_t unknown26[12]; /* Linux diplo stand-ins; exact DS PARKED */
+  /* Linux diplo stand-ins (exact DS PARKED). Array + named views. */
+  union {
+    uint8_t unknown26[12];
+    struct {
+      uint8_t treaty_timer[4];
+      uint8_t diplo_flag[4];
+      uint8_t indian_hostility_sticky;
+      uint8_t privateer_spawn_mask;
+      uint8_t unknown26_pad[2];
+    };
+  };
   ColonizeCol1NationTrade trade;
 } ColonizeCol1Nation;
 
@@ -408,7 +434,8 @@ typedef struct ColonizeCol1Tribe {
   ColonizeCol1TribeState state;
   uint8_t population;
   uint8_t mission; /* 0xff none; else European nation id */
-  uint8_t unknown28[2];
+  uint8_t growth_accum; /* +0; +=pop, clear when >19 — FUN_4d56_152e */
+  uint8_t unknown28_pad; /* +1; unproven */
   uint8_t last_bought;
   uint8_t last_sold;
   ColonizeCol1TribeAlarm alarm[4];
@@ -426,17 +453,25 @@ typedef struct ColonizeCol1Indian {
   uint8_t muskets;
   uint8_t horse_herds;
   uint8_t unknown31c;
-  uint16_t horse_breeding; /* smcol; weaker DOS cite */
-  uint8_t unknown31d[2];
+  uint16_t horse_breeding; /* +10; ±0x32 on acquire/tick — FUN_5bfb_* / 4d56 */
+  uint8_t unknown31d[2]; /* no reader cite */
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
   int16_t contact_state[4];
   /* +0x36 — signed relation accumulator; spill ±8 → FUN_281f_0d6c (FUN_4d56_152e). */
   int8_t euro_relation_accum[4];
-  uint8_t met_by_player[4];
-  uint8_t unknown33[8]; /* per-euro peace bit 0x40 */
+  /*
+   * +0x3a — per-euro diplo flags (was met_by_player).
+   * DOS: bit0x20 met, bit0x40 peace (FUN_5bfb_0182 / FUN_15b3_*).
+   * Linux meet still sets the byte non-zero; peace uses bit 0x40.
+   */
+  uint8_t euro_diplo[4];
+  uint8_t unknown33[8]; /* +0x3e; opaque in DOS (Linux formerly parked peace here) */
   uint16_t alarm_by_player[4];
 } ColonizeCol1Indian;
+
+#define COL1_INDIAN_MET_BIT 0x20u
+#define COL1_INDIAN_PEACE_BIT 0x40u
 
 /*
  * Stuff (727): FUN_75c2_0288 writes 33 DS chunks (not one contiguous RAM block).
@@ -446,11 +481,10 @@ typedef struct ColonizeCol1Indian {
  * Census bytes are DOS-parity preserved on RMW/export — do not recompute from
  * live pools to “freshen” mid-turn lag (intentional interop).
  *
- * unknown36 is NOT map connectivity (that is post_map). It holds remaining FA /
- * tribe tallies / padding after the proven early census window.
+ * Late DS chunks (file 140+) are NOT map connectivity (that is post_map).
  */
 typedef struct ColonizeCol1Stuff {
-  uint8_t unknown34[12]; /* DS:0x9566 — save R/W only */
+  uint8_t unknown34[12]; /* DS:0x9566 — save R/W only (vestigial) */
   uint8_t all_unit_counts[4]; /* DS:0x8cfc — per-euro unit totals (FUN_4962_0018) */
   uint8_t colony_counts[4]; /* DS:0x9298 — per-euro colony totals */
   /* File 20..63 mid-window (was unknown_stuff_20[44]) — FUN_4962_0018. */
@@ -470,7 +504,21 @@ typedef struct ColonizeCol1Stuff {
   uint8_t veteran_teach_threshold[4];
   uint8_t field_combat_totals[4]; /* DS:0x942c — land combat not in colony / not A|G */
   uint8_t unit_type_counts[4][19]; /* DS:0x924c — nation × unit-type (FUN_4962_0018) */
-  uint8_t unknown36[577]; /* remaining FA / tribe blobs — NOT connectivity */
+  /* File 140..716 — was unknown36[577]; DS-named save chunks (FUN_75c2_0288). */
+  uint8_t unknown_ds_947e[16];
+  uint8_t unknown_ds_95f2[16]; /* AI flag bytes — FUN_4d56_4528 / 5952_035e */
+  uint8_t unknown_ds_94a6[64];
+  uint8_t unknown_ds_94e6[64]; /* FUN_5952_035e tallies */
+  uint8_t unknown_ds_95b2[64];
+  uint8_t unknown_ds_9526[64];
+  uint8_t unknown_ds_918c[64];
+  uint8_t unknown_ds_9572[64];
+  uint8_t unknown_ds_944e[8]; /* pop word totals sibling (FUN_4962_0018 ADD) */
+  uint8_t ui_toggle_336; /* DS:0x336 — FUN_2f2b_* */
+  uint8_t tribe_data_9184[8];
+  uint8_t unknown_ds_9622[8];
+  uint8_t unknown_ds_962a[8];
+  uint8_t tribe_dwellings_91cc[128];
   uint16_t x; /* DS:0x8540 — focus tile */
   uint16_t y; /* DS:0x853e */
   uint8_t zoom_level; /* DS:0x184 lo — 0..3 (FUN_2b5a_0f92) */
@@ -491,8 +539,8 @@ typedef struct ColonizeCol1PostMap {
   uint8_t land_connectivity[COLONIZE_COL1_CONNECT_PLANE_SIZE];
   uint16_t continent_tally_a[16];
   uint16_t continent_tally_b[16];
-  uint8_t unknown_post_604[4]; /* save-path SS local_8 / LCG reseed blob */
-  uint8_t unknown_ds_8d80[4]; /* DS:0x8d80 — boot timer dword (FUN_75c2_2d46); not seed */
+  uint8_t save_path_blob[4]; /* SS:local_8 on FUN_75c2_0288; was unknown_post_604 */
+  uint32_t boot_timer; /* DS:0x8d80 — FUN_75c2_2d46; LCG mix-in; not seed */
   uint16_t prime_resource_seed; /* DS:0x190 — FUN_684c_08c0 mapgen; full u16 */
 } ColonizeCol1PostMap;
 
@@ -568,6 +616,7 @@ typedef struct ColonizeCol1Map {
 typedef struct ColonizeCol1Save {
   ColonizeCol1Head head;
   ColonizeCol1Player player[COLONIZE_COL1_NATION_COUNT];
+  /* DS:0x948e × 0x18 — save R/W only in unpacked VICEROY (smcol: unexplored + click xy). */
   uint8_t other[COLONIZE_COL1_OTHER_SIZE];
   ColonizeCol1Colony* colony;
   ColonizeCol1Unit* unit;

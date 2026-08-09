@@ -88,11 +88,12 @@ port I/O in the native build.
   `original_saves/COLONY00.SAV` / `COLONY01.SAV`. **Codec ≠ complete field
   semantics** — opaque-byte RE track: [save_format_map.md](save_format_map.md)
   (P0–P4 done for proven peels: atlas, post_map/stuff split, community renames,
-  connectivity rebuild + 00f2 cache parity, stuff census + colony warehouse/
-  capitol/flags/AI/timers/`tiles[20]`, head map_mode + UI latches, zoom trio,
-  indian `contact_state` + `euro_relation_accum`, `veteran_teach_threshold`.
-  Post-P4b HOLD list cleared; other atlas opaques remain). Census = DOS-parity
-  preserve (no freshen on export).
+  connectivity rebuild + 00f2 cache parity, stuff census + DS-named late chunks,
+  colony specialty/AI/timers/`tiles[20]`, head WoI bits + map_mode + zoom,
+  indian `euro_diplo` / contact / accum, nation return-xy / diplo stand-ins.
+  **P5 naming track done** — remaining opaques closed as save-only/vestigial.
+  Census = DOS-parity preserve (no freshen on export). Bridge rebuild of FA
+  matrices / mask density still open for Linux→DOS).
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,

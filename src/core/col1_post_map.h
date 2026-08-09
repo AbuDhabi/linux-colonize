@@ -8,7 +8,7 @@
 
 /*
  * FUN_67f4_0088 — rebuild sea/land connectivity planes + continent tallies.
- * Does not touch the 10-byte post_map tail (unknown_post_604 / 8d80 / 190).
+ * Does not touch the 10-byte post_map tail (save_path_blob / boot_timer / seed).
  *
  * Requires live terrain + layer3 continent IDs (FUN_67bf_0000 /
  * map_gen_assign_continents). Standard 58×72 maps only (15×18 ÷4 grid).

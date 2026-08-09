@@ -1069,7 +1069,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      if (save.post_map.prime_resource_seed != 0 || save.post_map.unknown_post_604[0] != 0) {
+      if (save.post_map.prime_resource_seed != 0 || save.post_map.save_path_blob[0] != 0) {
         fprintf(stderr, "newgame export: post_map tail should stay zero on template\n");
         units_set_occupancy_map(NULL);
         col1_save_free(&save);

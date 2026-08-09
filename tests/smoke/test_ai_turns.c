@@ -204,16 +204,16 @@ static bool compare_ai_state(
   /* Tribe growth accumulators / pop. */
   for (unsigned i = 0; i < exp->head.tribe_count && i < got->head.tribe_count; ++i) {
     if (got->tribe[i].population != exp->tribe[i].population ||
-        got->tribe[i].unknown28[0] != exp->tribe[i].unknown28[0]) {
+        got->tribe[i].growth_accum != exp->tribe[i].growth_accum) {
       fprintf(
         stderr,
         "%s tribe[%u] pop/acc got %u/%u expected %u/%u\n",
         step_label,
         i,
         got->tribe[i].population,
-        got->tribe[i].unknown28[0],
+        got->tribe[i].growth_accum,
         exp->tribe[i].population,
-        exp->tribe[i].unknown28[0]
+        exp->tribe[i].growth_accum
       );
       ok = false;
       break;

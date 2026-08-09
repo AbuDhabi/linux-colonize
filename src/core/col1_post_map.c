@@ -348,8 +348,8 @@ void col1_post_map_rebuild_connectivity(
 
   /* Preserve 10-byte tail; clear planes + tallies then fill (FUN_67f4_0088). */
   uint8_t tail[10];
-  memcpy(tail, out->unknown_post_604, 4);
-  memcpy(tail + 4, out->unknown_ds_8d80, 4);
+  memcpy(tail, out->save_path_blob, 4);
+  memcpy(tail + 4, &out->boot_timer, 4);
   memcpy(tail + 8, &out->prime_resource_seed, 2);
 
   memset(out, 0, sizeof(*out));
@@ -365,8 +365,8 @@ void col1_post_map_rebuild_connectivity(
   post_cheap_cache_reset(&cache);
   post_fill_tallies(map, out);
 
-  memcpy(out->unknown_post_604, tail, 4);
-  memcpy(out->unknown_ds_8d80, tail + 4, 4);
+  memcpy(out->save_path_blob, tail, 4);
+  memcpy(&out->boot_timer, tail + 4, 4);
   memcpy(&out->prime_resource_seed, tail + 8, 2);
   /* Blank-template export: stamp mapgen seed when live map has one. */
   if (out->prime_resource_seed == 0 && map->prime_resource_seed != 0) {

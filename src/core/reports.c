@@ -1092,7 +1092,7 @@ static void reports_render_indian(
       }
     }
 
-    const bool met = ind->met_by_player[human] != 0 || villages > 0;
+    const bool met = ind->euro_diplo[human] != 0 || villages > 0;
     if (!met && villages == 0) {
       continue;
     }
