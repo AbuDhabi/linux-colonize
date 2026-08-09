@@ -11,7 +11,7 @@
  * --seconds N forces a fixed length instead of duration_ticks.
  * Filenames: 0xID_Title.wav (titles from GAME.TXT @PICKMUSIC* + known extras).
  * --rename-only renames existing song_XX.wav / 0xXX*.wav without re-rendering.
- * --ab dumps the four reference songs into .context/music-ab as 0xID_port.wav
+ * --ab dumps the four reference songs into build/music-ab as 0xID_port.wav
  *   at reference lengths (for tools/compare_music_ab.py).
  */
 #include <ctype.h>
@@ -446,14 +446,14 @@ int main(int argc, char** argv) {
   }
 
   if (ab_mode) {
-    out_dir = "./.context/music-ab";
+    out_dir = "./build/music-ab";
     song_count = 0;
     for (size_t i = 0; i < sizeof(k_ab_songs) / sizeof(k_ab_songs[0]); ++i) {
       songs[song_count] = k_ab_songs[i].id;
       ab_seconds[song_count] = k_ab_songs[i].seconds;
       song_count++;
     }
-    mkdir(".context", 0755);
+    mkdir("build", 0755);
     mkdir(out_dir, 0755);
     for (size_t i = 0; i < sizeof(k_ab_songs) / sizeof(k_ab_songs[0]); ++i) {
       char ref_link[512];

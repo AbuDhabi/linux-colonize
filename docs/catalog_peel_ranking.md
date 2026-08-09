@@ -9,9 +9,9 @@ Companion: peel protocol + live metrics in
 AI 1:1 port status stays in [`ai_transcription.md`](ai_transcription.md)
 (Layer D) — orthogonal to this queue.
 
-**Workflow reminder:** shard JSON under `.context/peel_shards/` → merge
+**Workflow reminder** (if peeling again): draft purpose shards → merge
 `scripts/fun_catalog_seed.json` → `python3 scripts/gen_fun_catalog.py` → update
-this file + README metrics.
+this file + README metrics. VICEROY purpose bulk is already closed (below).
 
 ---
 

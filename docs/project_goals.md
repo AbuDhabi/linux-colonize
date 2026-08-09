@@ -54,6 +54,25 @@ save/interop-visible behavior, not by cloning the DOS codebase structure.
 - By project end, draft gaps should be reduced to nothing for gameplay-affecting
   logic (RNG, combat, AI decisions, production, diplomacy, etc.).
 
+## Rules accuracy bar
+
+Prefer real rules from `Colonization.pdf`, [fandom_col1994.md](fandom_col1994.md),
+and NAMES/decomp before inventing stand-ins.
+
+- "Rough" means incomplete wiring/UI, **not** made-up powers.
+- If the real effect needs a missing hook: implement the closest real behavior,
+  or PARK with a comment naming the intended effect — no gold/crosses fiction.
+- Cite the source effect in the code comment for each Founding Father / rule
+  change.
+
+Authority order for effect semantics: original code / NAMES / decomp →
+`Colonization.pdf` → [fandom_col1994.md](fandom_col1994.md) → documented
+temporary stub only if those give no usable rule.
+
+Forbidden: inventing gold/tools/moves/crosses stand-ins when the manual/wiki
+already names the real power (e.g. Smith factory gate, Drake privateer +50%,
+Brewster dock filter).
+
 ---
 
 ## Acceptance order (when goals conflict)
