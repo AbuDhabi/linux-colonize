@@ -1868,12 +1868,46 @@ void map_gen_assign_continents(ColonizeWorldMap* map) {
   free(labels);
   free(counts);
 
-  /* FUN_281f_068c after clear: OR flag bit 0x20 on ocean/HS (inset walk). */
+  /*
+   * FUN_684c_08c0: western ocean pacific strip (mask/layer2 0x20).
+   * param_1==0 → walk until x >= width/2 or land; else until width-16.
+   * New-world generate uses the param_1==0 cutoff.
+   */
+  const int pacific_xmax = w / 2;
   for (int y = 1; y < h - 1; ++y) {
-    for (int x = 1; x < w - 1; ++x) {
-      const uint8_t t = (uint8_t)(map->terrain[y * w + x] & 0x1fu);
-      if (t == T_OCEAN || t == T_HIGH_SEAS) {
-        map->layer2[y * w + x] = (uint8_t)(map->layer2[y * w + x] | 0x20u);
+    for (int x = 1; x < pacific_xmax; ++x) {
+      if (!is_water_tile(map->terrain[y * w + x])) {
+        break;
+      }
+      map->layer2[y * w + x] =
+        (uint8_t)(map->layer2[y * w + x] | MAP_LAYER2_PACIFIC);
+    }
+  }
+
+  /*
+   * FUN_684c_08c0: offshore prime suppress (0x04) — ocean/HS with no in-bounds
+   * land neighbour in the DS:0xc8/0xde 20-ring (FUN_281f_0302 + 0768).
+   */
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      if (!is_water_tile(map->terrain[y * w + x])) {
+        continue;
+      }
+      int has_land = 0;
+      for (int k = 0; k < 20; ++k) {
+        const int nx = x + k_nbr20_dx[k];
+        const int ny = y + k_nbr20_dy[k];
+        if (!inset_bounds(nx, ny, w, h)) {
+          continue;
+        }
+        if (!is_water_tile(map->terrain[ny * w + nx])) {
+          has_land = 1;
+          break;
+        }
+      }
+      if (!has_land) {
+        map->layer2[y * w + x] =
+          (uint8_t)(map->layer2[y * w + x] | MAP_LAYER2_SUPPRESS);
       }
     }
   }

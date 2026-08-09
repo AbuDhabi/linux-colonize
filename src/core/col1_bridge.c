@@ -5,9 +5,23 @@
 #include <string.h>
 
 #include "core/col1_post_map.h"
+#include "core/col1_stuff_census.h"
 #include "core/turn.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
+
+/* DS:0xc8 / 0xde — same 20-ring as map_gen offshore suppress. */
+static const int k_mask_nbr20_dx[20] = {
+  0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2
+};
+static const int k_mask_nbr20_dy[20] = {
+  -1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1
+};
+
+static int col1_mask_is_water_mp(uint8_t mp_terrain) {
+  const uint8_t t = (uint8_t)(mp_terrain & 0x1fu);
+  return t == 25u || t == 26u; /* ocean / high seas */
+}
 
 #define COL1_FAIL(err, err_size, ...)           \
   do {                                          \
@@ -455,6 +469,76 @@ void col1_bridge_sync_map_occupancy(
   }
 }
 
+void col1_bridge_sync_map_density(ColonizeCol1Save* save, const ColonizeWorldMap* map) {
+  if (!save || !save->map.mask || !map || !map->terrain) {
+    return;
+  }
+  if (save->head.map_size_x != map->width || save->head.map_size_y != map->height) {
+    return;
+  }
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+  const int pacific_xmax = w / 2;
+  const size_t n = save->map.tile_count < map->tile_count ? save->map.tile_count : map->tile_count;
+
+  for (size_t i = 0; i < n; ++i) {
+    const int x = (int)(i % (size_t)w);
+    const int y = (int)(i / (size_t)w);
+    uint8_t m = save->map.mask[i];
+    const uint8_t purchased = (uint8_t)(m & 0x10u);
+    /* Recompute suppress + pacific; keep purchased unless layer2 knows better. */
+    m = (uint8_t)(m & (uint8_t)~(0x04u | 0x20u));
+
+    const uint8_t l2 = (map->layer2 && i < map->tile_count) ? map->layer2[i] : 0u;
+    if ((l2 & MAP_LAYER2_SUPPRESS) != 0) {
+      m = (uint8_t)(m | 0x04u);
+    }
+    if ((l2 & MAP_LAYER2_PACIFIC) != 0) {
+      m = (uint8_t)(m | 0x20u);
+    }
+    if ((l2 & MAP_LAYER2_PURCHASED) != 0) {
+      m = (uint8_t)(m | 0x10u);
+    } else {
+      m = (uint8_t)(m | purchased);
+    }
+
+    /* FUN_684c_08c0 western pacific walk (param_1==0 → width/2). */
+    if (x >= 1 && x < pacific_xmax && y >= 1 && y < h - 1) {
+      int western_water = 1;
+      for (int wx = 1; wx <= x; ++wx) {
+        if (!col1_mask_is_water_mp(map->terrain[(size_t)y * (size_t)w + (size_t)wx])) {
+          western_water = 0;
+          break;
+        }
+      }
+      if (western_water) {
+        m = (uint8_t)(m | 0x20u);
+      }
+    }
+
+    /* Offshore suppress: water with no inset land neighbour in 20-ring. */
+    if (col1_mask_is_water_mp(map->terrain[i])) {
+      int has_land = 0;
+      for (int k = 0; k < 20; ++k) {
+        const int nx = x + k_mask_nbr20_dx[k];
+        const int ny = y + k_mask_nbr20_dy[k];
+        if (nx < 1 || ny < 1 || nx >= w - 1 || ny >= h - 1) {
+          continue;
+        }
+        if (!col1_mask_is_water_mp(map->terrain[(size_t)ny * (size_t)w + (size_t)nx])) {
+          has_land = 1;
+          break;
+        }
+      }
+      if (!has_land) {
+        m = (uint8_t)(m | 0x04u);
+      }
+    }
+
+    save->map.mask[i] = m;
+  }
+}
+
 bool col1_bridge_apply(
   const ColonizeCol1Save* save,
   ColonizeWorldMap* map,
@@ -513,9 +597,11 @@ bool col1_bridge_apply(
        * bit 0x40 for roads — mirror improve road into that bit.
        */
       if (map->layer2) {
-        uint8_t l2 = (uint8_t)(m & 0x03u);
+        /* Occupancy + density from Col1 mask; road → FA bit (not rumour 0x08). */
+        uint8_t l2 = (uint8_t)(m & (uint8_t)(0x03u | MAP_LAYER2_SUPPRESS | MAP_LAYER2_PURCHASED |
+                                              MAP_LAYER2_PACIFIC));
         if ((m & 0x08u) != 0) {
-          l2 = (uint8_t)(l2 | 0x40u);
+          l2 = (uint8_t)(l2 | MAP_LAYER2_FA_ROAD);
         }
         map->layer2[i] = l2;
       }
@@ -953,7 +1039,10 @@ bool col1_bridge_capture(
     col1_post_map_rebuild_connectivity(&save->post_map, map);
   }
 
-  /* Nations: update human treasury/tax/prices; leave AI blob intact. */
+  /*
+   * Nations / indian: live Col1 snapshot already holds AI diplo/contact blobs.
+   * Refresh human economy from Europe UI; leave other nations' bytes intact.
+   */
   if (europe) {
     ColonizeCol1Nation* nat = &save->nation[human_nation];
     nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
@@ -974,9 +1063,10 @@ bool col1_bridge_capture(
     }
   }
 
-  /* Rebuild colony list (human + any already in save for other nations is dropped
-   * when we replace the array — keep it simple: export live colonies only). */
+  /* Rebuild colony list from live colonies; preserve Col1-only fields by xy. */
   {
+    const ColonizeCol1Colony* old_colony = save->colony;
+    const uint16_t old_count = save->head.colony_count;
     uint16_t n = (uint16_t)colonies->colony_count;
     if (n > COLONIZE_COLONIES_MAX) {
       n = COLONIZE_COLONIES_MAX;
@@ -996,6 +1086,14 @@ bool col1_bridge_capture(
       }
       ColonizeCol1Colony* dst = &neu[written++];
       memset(dst, 0, sizeof(*dst));
+      if (old_colony) {
+        for (uint16_t oi = 0; oi < old_count; ++oi) {
+          if (old_colony[oi].x == (uint8_t)src->x && old_colony[oi].y == (uint8_t)src->y) {
+            *dst = old_colony[oi];
+            break;
+          }
+        }
+      }
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
       str_copy_trunc(dst->name, sizeof(dst->name), src->name);
@@ -1013,6 +1111,10 @@ bool col1_bridge_capture(
           dst->building_in_production = (uint8_t)src->building_in_production;
         }
       }
+      for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+        dst->profession[p] = 0;
+        dst->occupation[p] = 0;
+      }
       for (int p = 0; p < dst->population; ++p) {
         const ColonizeColonist* c = &src->colonists[p];
         int prof = c->profession;
@@ -1027,6 +1129,15 @@ bool col1_bridge_capture(
         } else {
           dst->occupation[p] = (uint8_t)UNITS_JOB_COLONIST;
         }
+      }
+      /* Specialty nibbles: pack profession low nibble pairs (FUN_15eb_0c7a). */
+      for (int s = 0; s < 16; ++s) {
+        const int e = s * 2;
+        const int o = e + 1;
+        dst->specialty[s].even =
+          (uint8_t)(e < dst->population ? (dst->profession[e] & 0x0fu) : 0u);
+        dst->specialty[s].odd =
+          (uint8_t)(o < dst->population ? (dst->profession[o] & 0x0fu) : 0u);
       }
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
         int s = src->stock[c];
@@ -1050,6 +1161,11 @@ bool col1_bridge_capture(
         dst->tiles[cti] = (int8_t)who;
       }
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
+      dst->warehouse_level = (uint8_t)dst->buildings.warehouse;
+      dst->capitol_level = (uint8_t)dst->buildings.capitol;
+      if (src->nation_id >= 0 && src->nation_id < 4) {
+        dst->visible_to_euro[src->nation_id] = 1;
+      }
       {
         uint16_t bits = src->custom_house_bits;
         memcpy(&dst->custom_house, &bits, sizeof(bits));
@@ -1097,7 +1213,13 @@ bool col1_bridge_capture(
       dst->y = (uint8_t)src->y;
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
-      dst->vis_mask = (uint8_t)(src->col1_vis_mask & 0xF);
+      {
+        uint8_t vis = (uint8_t)(src->col1_vis_mask & 0xF);
+        if (vis == 0 && (src->nation_id & 0xF) < 4) {
+          vis = (uint8_t)(1u << (src->nation_id & 3));
+        }
+        dst->vis_mask = vis;
+      }
       dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
       if (src->aboard_ship_id >= 0) {
         dst->orders = 1; /* sentry if aboard */
@@ -1230,6 +1352,13 @@ bool col1_bridge_capture(
    * from live units/colonies + tribe villages (not stale layer2 spawn bits).
    */
   col1_bridge_sync_map_occupancy(save, (ColonizeWorldMap*)map, units, colonies, save);
+  /* Density: suppress / purchased / pacific (FUN_684c_08c0 / FUN_137f_015e). */
+  col1_bridge_sync_map_density(save, map);
+
+  /* Blank-template census only — never freshen mid-campaign lag. */
+  if (col1_stuff_census_window_is_blank(&save->stuff)) {
+    col1_stuff_census_fill_blank(&save->stuff, units, colonies);
+  }
 
   if (err && err_size) {
     err[0] = '\0';

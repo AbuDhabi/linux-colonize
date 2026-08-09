@@ -178,6 +178,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->moves_left = type->movement;
   slot->active = true;
   slot->nation_id = 0;
+  slot->col1_vis_mask = 0x1u; /* default nation 0 owner bit until units_set_nation */
   slot->aboard_ship_id = -1;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
@@ -196,7 +197,6 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->last_dir = 0;
   slot->col1_unknown15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
-  slot->col1_vis_mask = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
   } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
@@ -216,6 +216,16 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   }
   diag_info("Spawned unit id=%d type=%s at (%d,%d)", slot->id, type->name, x, y);
   return slot->id;
+}
+
+void units_set_nation(ColonizeUnit* unit, int nation_id) {
+  if (!unit) {
+    return;
+  }
+  unit->nation_id = nation_id;
+  if (nation_id >= 0 && nation_id < 4) {
+    unit->col1_vis_mask = (uint8_t)(unit->col1_vis_mask | (uint8_t)(1u << (nation_id & 3)));
+  }
 }
 
 int units_spawn_treasure_train(
@@ -246,7 +256,7 @@ int units_spawn_treasure_train(
   if (!u) {
     return -1;
   }
-  u->nation_id = nation_id;
+  units_set_nation(u, nation_id);
   const unsigned g = (unsigned)gold;
   u->hold_goods_amount[0] = (int)(g & 0xffu);
   u->hold_goods_amount[1] = (int)((g >> 8) & 0xffu);

@@ -478,10 +478,11 @@ typedef struct ColonizeCol1Indian {
  * Chunk sizes sum to 727; see docs/save_format_map.md §Stuff. Port keeps one
  * packed blob for RMW. Census fields named from FUN_4962_0018 + save I/O.
  *
- * Census bytes are DOS-parity preserved on RMW/export — do not recompute from
- * live pools to “freshen” mid-turn lag (intentional interop).
+ * Census: mid-campaign RMW preserves lag (no freshen). Blank templates only:
+ * col1_stuff_census_fill_blank (FUN_4962_0018).
  *
- * Late DS chunks (file 140+) are NOT map connectivity (that is post_map).
+ * Late DS chunks (file 140+) are NOT map connectivity (that is post_map);
+ * export-OK zero when blank (save I/O only in unpacked VICEROY).
  */
 typedef struct ColonizeCol1Stuff {
   uint8_t unknown34[12]; /* DS:0x9566 — save R/W only (vestigial) */

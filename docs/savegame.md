@@ -12,7 +12,7 @@ Three layers — do not conflate them:
 |-------|--------|----------------|
 | **Codec** (`col1_save_read` ↔ `write`) | Strong | Byte-identical round-trip of original 3.0 fixtures |
 | **Linux import** (`col1_bridge_apply`) | Strong for mapped fields | Originals load and play in the port |
-| **Linux→DOS export** (`col1_bridge_capture`) | Partial | DOS can load/play only if occupancy and opaque defaults are sane |
+| **Linux→DOS export** (`col1_bridge_capture`) | Strong for templates | Occupancy + density + blank census + colony levels; late `unknown_ds_*` / `other` stay zero/RMW |
 
 `col1_save_read_*` / `col1_save_write_*` are intended to be **byte-identical**
 round-trips of original 3.0 saves: every section is read into a packed struct
@@ -124,26 +124,26 @@ via `units_set_occupancy_map` on spawn/move/despawn.
 
 Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_map.md)**.
 
-These survive capture today and may still fault or desync DOS play after the
-occupancy fix:
+**P6 bridge rebuild (done for playable templates):**
 
-- `post_map` (614) — connectivity planes + continent tallies rebuilt on blank
-  templates (`col1_post_map_rebuild_connectivity` / `FUN_67f4_0088`, including
-  `FUN_6662_00f2` dest cache); `prime_resource_seed` stamped from mapgen when
-  present; `boot_timer` / `save_path_blob` still zero / RMW-preserved
-- Stuff late DS chunks (`unknown_ds_*` / tribe dwellings) named for RMW; not
-  rebuilt on export; census **DOS-parity preserved** (no freshen)
-- Colony specialty/visibility/AI fields named; rebuild still zeros many on
-  new-colony capture (`warehouse_level` / `capitol_level` named but not live)
-- Mask `suppress` / `purchased` / `pacific` — not synthesized on pure templates
-- AI `nation[]` / `indian[]` blobs — only human gold/tax/crosses/prices updated
-- `vis_mask` (nation high nibble) — preserved on apply→capture; spawn leaves 0
+- Mask density: `col1_bridge_sync_map_density` — `pacific` / offshore `suppress`
+  from terrain (`FUN_684c_08c0`); deplete/purchase from `layer2` / mask preserve
+- Blank-template stuff census: `col1_stuff_census_fill_blank` (`FUN_4962_0018`);
+  mid-campaign census still **DOS-parity preserved** (no freshen)
+- Colony capture: specialty nibbles, `warehouse_level` / `capitol_level`,
+  owner `visible_to_euro`; Col1-only AI timers preserved by xy match
+- Unit `vis_mask`: owner euro bit on spawn / `units_set_nation` / capture fallback
+- `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
+  `save_path_blob` stay zero / RMW-preserved
 
-**Fixture probe** (`tests-save-misc/unit flags error.sav`): after occupancy
-rebuild, `has_unit`/`has_city` orphans are gone (the `@UNITFLAG (47,14) (Arawak)`
-case). Template exports fill `post_map` connectivity when blank; mask
-`pacific`/`suppress`/`purchased` synthesis and stuff FA matrices remain the
-main Linux→DOS export gaps (named, not invented).
+**Still RMW / zero-on-template (no DOS gameplay writer for rebuild):**
+
+- Stuff late `unknown_ds_*` / `tribe_dwellings_91cc` (save I/O only in unpacked)
+- `other[24]`, king / `price_group_state` overlay discipline (human prices only)
+- Full mid-campaign AI nation blobs beyond fields AI already mutates in-place
+
+**Fixture probe** (`tests-save-misc/unit flags error.sav`): occupancy orphans
+cleared. Newgame template smoke checks density + blank census + `vis_mask`.
 
 ### Verified fixtures
 

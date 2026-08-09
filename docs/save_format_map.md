@@ -1,8 +1,9 @@
 # Col1 save format map (roadmap + field atlas)
 
 Living inventory of every `COLONY##.SAV` region and the path to a
-**decomp-backed** field map. Codec layout, byte-identical RMW, and the P0–P5
-naming track are done; Linux→DOS bridge rebuild of every named blob is **not**.
+**decomp-backed** field map. Codec layout, byte-identical RMW, P0–P5 naming,
+and P6 template export rebuild (density / blank census / colony levels) are
+done; unread late `unknown_ds_*` stay zero-on-template by cite.
 
 Companion: [savegame.md](savegame.md) (interop / bridge / gaps summary).
 Structs: [`src/core/col1_save.h`](../src/core/col1_save.h).
@@ -268,10 +269,9 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 Port packing (727): `unknown34` + census + DS-named late chunks (was
 `unknown36[577]`) + cursor/viewport. **Not connectivity** (that is `post_map`).
 
-**Census policy (DOS parity):** RMW/export **preserves** census bytes. Do not
-recompute from live pools to “freshen” mid-turn lag (`FUN_4962_0018` can leave
-withdrawn-AI rows stale — intentional interop). Template blank-fill, if ever
-added, must match `0018` byte-exact — never a Linux truthier recount.
+**Census policy (DOS parity):** RMW/export **preserves** census bytes when the
+window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
+`col1_stuff_census_fill_blank` mirrors `FUN_4962_0018` counters from live pools.
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
@@ -285,7 +285,7 @@ added, must match `0018` byte-exact — never a Linux truthier recount.
 | Plane | Status | Notes |
 |-------|--------|-------|
 | `tile` | `mapped` | Terrain bitfield |
-| `mask` | `partial` | Bits named; occupancy rebuilt on export; `suppress`/`purchased`/`pacific` **not** synthesized on blank templates (export gap, not naming HOLD) |
+| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2 |
 | `path` | `mapped` | Region + visitor |
 | `seen` | `mapped` | Fog / score nibbles |
 
@@ -332,6 +332,7 @@ planes byte-exact). Tail preserved; blank templates may stamp
 | **P3 — Export rebuild** | Template/new-game rebuilds connectivity (+ required defaults) so DOS survives past UNITFLAG | Linux→DOS smoke; remaining holes documented | **Done** |
 | **P4 — Deep leftovers** | Colony opaques, indian contact, stuff FA/counts, pathfinder | Cite + value ranges | **Done** |
 | **P5 — Remaining holes** | Ready peels + nation/head pads + `unknown36` chunk split + `other`/head vestigial close | Every byte named or closed save-only/vestigial + DS | **Done** |
+| **P6 — Linux→DOS interop** | Mask density, blank census, colony capture fill, vis_mask, AI blob discipline | Template export smoke; fixture RMW identical | **Done** |
 
 ```mermaid
 flowchart TB
@@ -342,6 +343,7 @@ flowchart TB
   export[P3 Bridge rebuild for DOS-safe new-game]
   deep[P4 Colony nation indian head leftovers]
   p5[P5 Map remaining holes]
+  p6[P6 Full Linux DOS interop]
   codec --> atlas
   atlas --> absorb
   atlas --> connect
@@ -349,20 +351,21 @@ flowchart TB
   connect --> export
   export --> deep
   deep --> p5
+  p5 --> p6
 ```
 
 ### Remaining HOLD
 
-**P5 complete** for the atlas naming track: every former bare hole is either
-`mapped`, `partial` with a cite, `community` with DS, or closed as
-**save-only / vestigial** (no gameplay reader in unpacked VICEROY).
+**P5 naming + P6 template interop complete.** Former export gaps closed:
 
-Still not “100% Linux→DOS rebuild”: `other`, many `unknown_ds_*` stuff chunks,
-king/`price_group` overlay, and mask `suppress`/`purchased`/`pacific` synthesis
-remain RMW-preserve or zero-on-template — naming done, bridge rebuild deferred.
+- Mask `suppress` / `purchased` / `pacific` synthesized on capture
+- Blank-template census fill; mid-campaign census still preserved
+- Colony specialty / warehouse / capitol / visibility on capture
+- Late `unknown_ds_*` / `tribe_dwellings` / `other` / boot path blob: **export-OK
+  zero** (save I/O only in unpacked VICEROY — no invented FA rebuild)
 
 Standing rules: keep RMW sizes; do not invent blobs without decomp evidence;
-**census** = DOS-parity preserve only — never “freshen” on export (see Stuff §).
+**census** mid-campaign = DOS-parity preserve only (see Stuff §).
 
 ---
 
