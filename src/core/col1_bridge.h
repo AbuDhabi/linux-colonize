@@ -117,4 +117,20 @@ bool col1_contact_adjacent_tribe(
   int* out_first_indian_nation
 );
 
+/*
+ * FUN_4720_049e / head.event: mark New World discovery + named_new_world so
+ * DOS does not re-fire the woodcut on load. No-op if already set.
+ */
+void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation);
+
+/*
+ * If human has seen any land tile and discovery flags are still clear, set them.
+ * Used after reveal and as capture safety net for mid-campaign Linux saves.
+ */
+void col1_bridge_sync_new_world_discovery(
+  ColonizeCol1Save* save,
+  const ColonizeWorldMap* map,
+  int human_nation
+);
+
 #endif

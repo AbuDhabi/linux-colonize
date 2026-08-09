@@ -947,7 +947,7 @@ int colonies_eject_colonist(
   }
   ColonizeUnit* u = units_get(units, uid);
   if (u) {
-    u->nation_id = col->nation_id;
+    units_set_nation(u, col->nation_id);
     u->profession = profession;
     u->tools = tools_take;
     u->muskets = muskets_take;

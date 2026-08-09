@@ -1363,7 +1363,7 @@ static int ai_king_spawn_landing(ColonizeTurnContext* ctx, int nation_id, int hx
   }
   ColonizeUnit* u = units_get(ctx->units, uid);
   if (u) {
-    u->nation_id = nation_id;
+    units_set_nation(u, nation_id);
     u->orders = UNITS_ORDER_AI_MOVE;
     u->goto_x = hx;
     u->goto_y = hy;
@@ -1899,7 +1899,7 @@ static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int 
   }
   ColonizeUnit* u = units_get(ctx->units, uid);
   if (u) {
-    u->nation_id = nation_id;
+    units_set_nation(u, nation_id);
     u->orders = UNITS_ORDER_AI_MOVE;
     u->goto_x = x;
     u->goto_y = y;
@@ -1931,7 +1931,7 @@ static int ai_king_mow_embark_land(ColonizeTurnContext* ctx, int nation_id, int 
       if (uid >= 0) {
         ColonizeUnit* u = units_get(ctx->units, uid);
         if (u) {
-          u->nation_id = nation_id;
+          units_set_nation(u, nation_id);
         }
         if (units_board_stacked(ctx->units, uid, ship_id)) {
           return 1;
@@ -2067,7 +2067,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     if (sid >= 0) {
       ColonizeUnit* ship = units_get(ctx->units, sid);
       if (ship) {
-        ship->nation_id = crown;
+        units_set_nation(ship, crown);
         ship->orders = UNITS_ORDER_AI_SAIL;
         ship->goto_x = sx;
         ship->goto_y = sy;
@@ -2091,7 +2091,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     if (sid2 >= 0) {
       ColonizeUnit* ship2 = units_get(ctx->units, sid2);
       if (ship2) {
-        ship2->nation_id = crown;
+        units_set_nation(ship2, crown);
         ship2->orders = UNITS_ORDER_AI_SAIL;
         ship2->goto_x = wx;
         ship2->goto_y = wy;

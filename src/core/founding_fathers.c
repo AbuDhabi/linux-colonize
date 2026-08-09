@@ -550,7 +550,7 @@ static bool effect_jones_frigate(
   }
   ColonizeUnit* ship = units_get(units, sid);
   if (ship) {
-    ship->nation_id = nation_id;
+    units_set_nation(ship, nation_id);
   }
   return true;
 }

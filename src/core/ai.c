@@ -607,7 +607,7 @@ static void ai_spawn_brave_near(
   if (id >= 0) {
     ColonizeUnit* u = units_get(units, id);
     if (u) {
-      u->nation_id = nation_id;
+      units_set_nation(u, nation_id);
       u->goto_x = 0xFF;
       u->goto_y = 0xFF;
       u->home_tribe_id = tribe_index;
@@ -927,7 +927,7 @@ static void ai_fix_human_nation_ids(ColonizeUnitPool* units, int human_nation) {
     if (u->nation_id == 0 && human_nation != 0) {
       /* Heuristic: human starter set is the only nation-0 units before AI fleets.
          Call this BEFORE spawning AI fleets, or tag only pre-AI units. */
-      u->nation_id = human_nation;
+      units_set_nation(u, human_nation);
     }
   }
 }

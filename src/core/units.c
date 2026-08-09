@@ -178,7 +178,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->moves_left = type->movement;
   slot->active = true;
   slot->nation_id = 0;
-  slot->col1_vis_mask = 0x1u; /* default nation 0 owner bit until units_set_nation */
+  slot->col1_vis_mask = 0; /* FUN_1427_0992: owner bit via units_set_nation */
   slot->aboard_ship_id = -1;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
@@ -224,7 +224,11 @@ void units_set_nation(ColonizeUnit* unit, int nation_id) {
   }
   unit->nation_id = nation_id;
   if (nation_id >= 0 && nation_id < 4) {
-    unit->col1_vis_mask = (uint8_t)(unit->col1_vis_mask | (uint8_t)(1u << (nation_id & 3)));
+    /* Euro owner visibility only — clear polluted foreign bits (DOS draw uses hi nibble). */
+    unit->col1_vis_mask = (uint8_t)(1u << (nation_id & 3));
+  } else {
+    /* Natives: not visible through euro fog until observed (EOT / contact). */
+    unit->col1_vis_mask = 0;
   }
 }
 
@@ -3092,7 +3096,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->y = ship->y;
   slot->moves_left = 0;
   slot->active = true;
-  slot->nation_id = ship->nation_id;
+  units_set_nation(slot, ship->nation_id);
   slot->aboard_ship_id = ship->id;
   slot->cargo_count = 0;
   memset(slot->cargo_ids, 0, sizeof(slot->cargo_ids));
@@ -3457,7 +3461,7 @@ int units_spawn_euro_starter_fleet(
   if (!ship) {
     return -1;
   }
-  ship->nation_id = nation_id;
+  units_set_nation(ship, nation_id);
   ship->profession = UNITS_JOB_NONE;
   if (goto_x >= 0 && goto_x < 255 && goto_y >= 0 && goto_y < 255) {
     ship->orders = UNITS_ORDER_GOTO;
@@ -3482,7 +3486,7 @@ int units_spawn_euro_starter_fleet(
     if (!pax) {
       continue;
     }
-    pax->nation_id = nation_id;
+    units_set_nation(pax, nation_id);
     pax->profession = cargo_jobs[i];
     pax->orders = 1; /* sentry aboard */
     pax->goto_x = goto_x >= 0 ? goto_x : 0xFF;

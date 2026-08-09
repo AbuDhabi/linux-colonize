@@ -2488,6 +2488,9 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
         }
         map_reveal_radius(&game->world_map, c->x, c->y, game->human_nation, 2);
       }
+      if (game->col1_ok) {
+        col1_bridge_sync_new_world_discovery(&game->col1, &game->world_map, game->human_nation);
+      }
     }
     if (game->units.selected_id >= 0) {
       const ColonizeUnit* u = units_get_const(&game->units, game->units.selected_id);
@@ -2768,6 +2771,9 @@ static void game_after_unit_action(ColonizeGameState* game) {
   }
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
+    if (game->col1_ok && u->nation_id == game->human_nation) {
+      col1_bridge_sync_new_world_discovery(&game->col1, &game->world_map, game->human_nation);
+    }
   }
   /* Thin LCR: Scout on rumour clears (de Soto → reveal); no invented gold. */
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
@@ -4263,6 +4269,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         u = units_get(&game->units, u->id);
         if (u && u->nation_id >= 0 && u->nation_id <= 3) {
           map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
+          if (game->col1_ok && u->nation_id == game->human_nation) {
+            col1_bridge_sync_new_world_discovery(
+              &game->col1, &game->world_map, game->human_nation
+            );
+          }
         }
       }
       if (stepped > 0 && game->units.selected_id >= 0) {

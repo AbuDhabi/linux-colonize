@@ -173,7 +173,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200 |
-| `vis_mask` | 4 bits | `mapped` | `0x10<<euro` visibility (`FUN_1427_0992`); RMW-preserved; spawn 0 |
+| `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`); natives 0 on spawn/capture |
 | `unknown15_lo` / `ship_damaged` | 1 | `partial` | bit7 damaged (`FUN_1427_13b0`); lo bits AI latches |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
 | `origin` | 1 | `mapped` | Brave home tribe |

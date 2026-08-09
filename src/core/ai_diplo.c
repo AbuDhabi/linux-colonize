@@ -474,7 +474,7 @@ static int ai_diplo_war_privateer_spawn(
   }
   ColonizeUnit* ship = units_get(ctx->units, sid);
   if (ship) {
-    ship->nation_id = nation_id;
+    units_set_nation(ship, nation_id);
     ship->orders = UNITS_ORDER_AI_SAIL;
     /* Station-keep goto (self): Privateer hunt always re-aims in ai_euro. */
     ship->goto_x = sx;
