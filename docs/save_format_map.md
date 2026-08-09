@@ -142,16 +142,18 @@ as peels land.
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `name` / `nation_id` / `population` | — | `mapped` | |
-| `unknown08_1b` / `unknown08_1d` / `unknown08_1e` | 3 | `opaque` | +0x1b/1d/1e; found zeros / census clears |
+| `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; ship/AI planner bits (`FUN_4962_0018` / `5952_035e`) |
 | `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; SoL/starvation/build-busy/… (`FUN_364b_0688`) |
+| `build_ai_flags` | 1 | `partial` | +0x1d; bit7 `wants_construction` (`0x80`) |
+| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`) |
 | `occupation` / `profession` | 64 | `mapped` | |
 | `duration[16]` | 16 | `partial` | Named “work duration”; not deeply bridged |
-| `tiles[8]` | 8 | `mapped` | Surround citizen index |
-| `unknown10` | 12 | `opaque` | +0x78..; weak +0x7c production touches |
+| `tiles[20]` | 20 | `mapped` | +0x70; ring `[0..7]`; `[8..19]` empty `0xff` in fixtures |
 | `buildings` / `custom_house` | — | `mapped` | `unused05` pad |
-| `unknown11_8c` / `unknown11_8f` | 2 | `partial` | AI counters; INC cap `0x7f` |
+| `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; gates pioneer |
 | `specialty_cargo` | 1 | `mapped` | +0x8d; `0xff` none (`FUN_5952_0306`) |
 | `labor_shortage` | 1 | `mapped` | +0x8e |
+| `cargo_idle_turns` | 1 | `mapped` | +0x8f; cleared on unload; AI score `*8` |
 | `cargo_produced_mask` | 2 | `mapped` | +0x90; bit per cargo (`FUN_364b_0688`) |
 | `hammers` / `building_in_production` | — | `mapped` | |
 | `warehouse_level` | 1 | `mapped` | +0x95; cap `100*(1+level)` (`FUN_15eb_0a50`) |
@@ -211,7 +213,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `muskets` / `horse_herds` | 2 | `mapped` | smcol + purchase path |
 | `horse_breeding` + remaining unknown31 pad | 5 | `partial` | smcol name; weaker DOS cite |
 | `contact_state[4]` | 8 | `mapped` | +0x2e; per-euro FSM 0/1/2 (`FUN_5bfb_*`) |
-| `unknown32_tail[4]` | 4 | `opaque` | +0x36..; searched, no reader cite |
+| `euro_relation_accum[4]` | 4 | `mapped` | +0x36; signed spill → `FUN_281f_0d6c` (`FUN_4d56_152e`) |
 | `unknown33` | 8 | `partial` | Per-euro peace bit `0x40` (Linux contact) |
 
 ### Stuff (727)
@@ -232,7 +234,7 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 40 | 4 | `0x9418` | `ship_counts[4]` |
 | 44 | 8 | `0x941c` | `land_combat_strength[4]` — Σ combat mode 1 (u16) |
 | 52 | 4 | `0x9424` | `armed_ship_counts[4]` |
-| 56 | 4 | `0x9428` | `unknown_9428[4]` — AI reads; writer outside `0018` |
+| 56 | 4 | `0x9428` | `veteran_teach_threshold[4]` — reader-only / vestigial writer |
 | 60 | 4 | `0x942c` | `field_combat_totals[4]` — land not in colony / not A\|G |
 | 64 | 76 | `0x924c` | `unit_type_counts[4][19]` — `FUN_4962_0018` |
 | 140 | 16 | `0x947e` | |
@@ -270,7 +272,7 @@ added, must match `0018` byte-exact — never a Linux truthier recount.
 | `unknown34` | 12 | `partial` | DS:`0x9566` |
 | `all_unit_counts[4]` | 4 | `mapped` | DS:`0x8cfc` |
 | `colony_counts[4]` | 4 | `mapped` | DS:`0x9298` |
-| mid-window (44) | 44 | `mapped` | See chunk table; `unknown_9428` still opaque |
+| mid-window (44) | 44 | `mapped` | See chunk table; `veteran_teach_threshold` reader-only |
 | `unit_type_counts[4][19]` | 76 | `mapped` | DS:`0x924c` |
 | `unknown36` | 577 | `community` | FA / tribes — **not** connectivity |
 | `x` / `y` | 4 | `mapped` | DS `0x8540` / `0x853e` focus |
@@ -303,8 +305,8 @@ Replaces legacy `unknown_e[504]` + `unknown_f[110]` (same bytes). Proven from
 
 Smcol’s post-connectivity carve (18+16+28+10+1+1) sums to the same **74** tail
 bytes but **does not** match these DOS writes — prefer DOS. Mid-window census
-chunks are named from `FUN_4962_0018` increment conditions (`unknown_9428`
-still opaque).
+chunks are named from `FUN_4962_0018` increment conditions.
+`veteran_teach_threshold` (`0x9428`) is reader-only (no writer in unpacked image).
 
 **Export rebuild (P3+P4):** `col1_post_map_rebuild_connectivity` (`FUN_67f4_0088`)
 runs from `col1_bridge_capture` when `post_map` is all-zero. Planes + tallies
@@ -349,11 +351,12 @@ flowchart TB
 
 ### Remaining HOLD (post-P4b)
 
-1. Stuff `unknown_9428[4]` — AI reads; writer not in `FUN_4962_0018`.
-2. Indian `unknown32_tail[4]` (+0x36..); `contact_state[4]` mapped.
-3. Colony `unknown10[12]`; residual `unknown08_1b/1d/1e`, `unknown11_8c/8f`.
-4. Keep RMW sizes; do not invent blobs without decomp evidence.
-5. **Census:** DOS-parity preserve only — never “freshen” on export (see Stuff §).
+**Cleared** for this list (colony tiles/AI bytes/timers, indian accum,
+`veteran_teach_threshold` named). Broader atlas still has unrelated
+`opaque`/`partial` holes (`unknown13`, nation pads, `unknown36`, post_map tail, …).
+
+Standing rules: keep RMW sizes; do not invent blobs without decomp evidence;
+**census** = DOS-parity preserve only — never “freshen” on export (see Stuff §).
 
 ---
 

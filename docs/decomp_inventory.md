@@ -89,9 +89,10 @@ port I/O in the native build.
   semantics** — opaque-byte RE track: [save_format_map.md](save_format_map.md)
   (P0–P4 done for proven peels: atlas, post_map/stuff split, community renames,
   connectivity rebuild + 00f2 cache parity, stuff census + colony warehouse/
-  capitol/flags, head map_mode + UI latches, zoom trio, indian `contact_state`.
-  HOLD: `unknown_9428`, indian `unknown32_tail`, colony `unknown10` + residual
-  pads). Census = DOS-parity preserve (no freshen on export).
+  capitol/flags/AI/timers/`tiles[20]`, head map_mode + UI latches, zoom trio,
+  indian `contact_state` + `euro_relation_accum`, `veteran_teach_threshold`.
+  Post-P4b HOLD list cleared; other atlas opaques remain). Census = DOS-parity
+  preserve (no freshen on export).
 
 - `GAME.TXT` / palette / MADSPACK+FAB / `.PIK` decode: done for menu background
 - Decomp exports (`original_sources_decompiled/viceroy_unpacked.c`,
@@ -167,7 +168,7 @@ Ordered pipeline recovered for the Linux port:
 1. **Human ends turn** — Space / ORDERS → No Orders (`LABELS.TXT` “End of Turn”)
 2. **Advance calendar** — `head.year` / `autumn` / `turn` (`@TIMECHANGE` in `GAME.TXT`):
    one turn/year until 1600; thereafter Spring then Autumn each year
-3. **Colony production** — field harvest from `tiles[8]` (`NAMES.TXT` yields) − food
+3. **Colony production** — field harvest from map-ring `tiles[0..7]` (`NAMES.TXT` yields) − food
    consume 2/colonist; lumberjack → lumber (carpenter invents 1 lumber if none);
    settlement craft (`colony_craft.c`: raw→goods by workplace); hammers toward
    `building_in_production` (Colony Space = free production + UI deltas;

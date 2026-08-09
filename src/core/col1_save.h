@@ -67,6 +67,9 @@
 #define COLONIZE_COL1_CARGO_TYPES 16u
 #define COLONIZE_COL1_FF_COUNT 25u
 #define COLONIZE_COL1_COLONY_POP_MAX 32u
+/* DOS citizen-index table at colony+0x70 (FUN_364b_1ba8 memset 0x14); ring = [0..7]. */
+#define COLONIZE_COL1_COLONY_TILES 20u
+#define COLONIZE_COL1_COLONY_TILE_RING 8u
 
 #pragma pack(push, 1)
 
@@ -257,6 +260,18 @@ typedef struct ColonizeCol1CustomHouse {
   uint16_t muskets : 1;
 } ColonizeCol1CustomHouse;
 
+/* Colony +0x1b — FUN_4962_0018 ship probe + FUN_5952_035e AI planner. */
+typedef struct ColonizeCol1ColonyAiFlags {
+  uint8_t nearby_armed_ship : 1; /* 0x01 — non-MoW armed ship nearby */
+  uint8_t nearby_man_o_war : 1; /* 0x02 — MoW / cargo-ship pressure */
+  uint8_t needs_military : 1; /* 0x04 */
+  uint8_t defense_surplus : 1; /* 0x08 */
+  uint8_t needs_colonists : 1; /* 0x10 */
+  uint8_t specialist_pressure : 1; /* 0x20 */
+  uint8_t needs_garrison : 1; /* 0x40 */
+  uint8_t expansion_pressure : 1; /* 0x80 — unworked / expand */
+} ColonizeCol1ColonyAiFlags;
+
 /* Colony +0x1c — FUN_364b_0688 / 0114 / founding paths. */
 typedef struct ColonizeCol1ColonyFlags {
   uint8_t ref_landing : 1; /* 0x01 — REF landing target */
@@ -274,22 +289,22 @@ typedef struct ColonizeCol1Colony {
   uint8_t y;
   char name[24];
   uint8_t nation_id;
-  uint8_t unknown08_1b; /* +0x1b; census clears low bits (& 0xfc) */
+  ColonizeCol1ColonyAiFlags ai_flags; /* +0x1b */
   ColonizeCol1ColonyFlags flags; /* +0x1c */
-  uint8_t unknown08_1d; /* +0x1d; found-path zero */
-  uint8_t unknown08_1e; /* +0x1e */
+  uint8_t build_ai_flags; /* +0x1d; bit7 wants_construction (0x80); other bits unnamed */
+  uint8_t garrison_quota; /* +0x1e; threat>>3 — FUN_5952_035e; DEC on assign */
   uint8_t population;
   uint8_t occupation[COLONIZE_COL1_COLONY_POP_MAX];
   uint8_t profession[COLONIZE_COL1_COLONY_POP_MAX];
   ColonizeCol1DurationNibble duration[16];
-  int8_t tiles[8]; /* citizen index per surrounding tile; -1 / 0xFF empty */
-  uint8_t unknown10[12]; /* +0x78..; production touches at +0x7c — names HOLD */
+  /* +0x70 — 20-byte citizen-index table (0xff empty); ring [0..7] is map surround. */
+  int8_t tiles[COLONIZE_COL1_COLONY_TILES];
   ColonizeCol1Buildings buildings;
   ColonizeCol1CustomHouse custom_house;
-  uint8_t unknown11_8c; /* +0x8c; AI colony counter (INC cap 0x7f) */
+  uint8_t improve_timer; /* +0x8c; INC cap 0x7f — FUN_5952_035e; gates pioneer */
   uint8_t specialty_cargo; /* +0x8d; 0xff = none — FUN_5952_0306 */
   uint8_t labor_shortage; /* +0x8e; LABOR unload decrements */
-  uint8_t unknown11_8f; /* +0x8f; AI counter; cleared on unload path */
+  uint8_t cargo_idle_turns; /* +0x8f; cleared on unload; AI score *8 */
   uint16_t cargo_produced_mask; /* +0x90; bit per cargo this tick — FUN_364b_0688 */
   uint16_t hammers;
   uint8_t building_in_production;
@@ -416,7 +431,8 @@ typedef struct ColonizeCol1Indian {
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
   int16_t contact_state[4];
-  uint8_t unknown32_tail[4]; /* +0x36..+0x39; no DOS reader cite yet */
+  /* +0x36 — signed relation accumulator; spill ±8 → FUN_281f_0d6c (FUN_4d56_152e). */
+  int8_t euro_relation_accum[4];
   uint8_t met_by_player[4];
   uint8_t unknown33[8]; /* per-euro peace bit 0x40 */
   uint16_t alarm_by_player[4];
@@ -446,7 +462,12 @@ typedef struct ColonizeCol1Stuff {
   uint8_t ship_counts[4]; /* DS:0x9418 — ship unit count */
   uint16_t land_combat_strength[4]; /* DS:0x941c — Σ land combat mode 1 (word) */
   uint8_t armed_ship_counts[4]; /* DS:0x9424 — ships with combat table≠0 */
-  uint8_t unknown_9428[4]; /* DS:0x9428 — AI reads; writer outside 0018 */
+  /*
+   * DS:0x9428 — AI RNG ≤ byte → profession 0x15 (Veteran Soldier).
+   * Reader-only / vestigial in observed saves; writer not in unpacked VICEROY
+   * (skipped by FUN_4962_0018). RMW-preserved.
+   */
+  uint8_t veteran_teach_threshold[4];
   uint8_t field_combat_totals[4]; /* DS:0x942c — land combat not in colony / not A|G */
   uint8_t unit_type_counts[4][19]; /* DS:0x924c — nation × unit-type (FUN_4962_0018) */
   uint8_t unknown36[577]; /* remaining FA / tribe blobs — NOT connectivity */
