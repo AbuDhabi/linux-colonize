@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare port dumps under .context/music-ab against reference_music WAVs."""
+"""Compare port dumps under build/music-ab against reference_music WAVs."""
 from __future__ import annotations
 
 import array
@@ -9,7 +9,7 @@ import sys
 import wave
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-AB = os.path.join(ROOT, ".context", "music-ab")
+AB = os.path.join(ROOT, "build", "music-ab")
 
 SONGS = [
     ("0x21", "Bird Song", 46),

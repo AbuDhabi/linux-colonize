@@ -4,9 +4,6 @@ Layer D hygiene for tax → declare → REF → war. Linux:
 [`src/core/ai_king.c`](../../src/core/ai_king.c) — **partial structural port**.
 Odd deviations OK; not T3.
 
-Peels: `.context/peel_shards/layer_b_nation_colors_43f7.json`,
-`layer_c_turn_eot.json`.
-
 ## `FUN_43f7_2424` peacetime vs wartime
 
 ```

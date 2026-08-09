@@ -20,11 +20,7 @@ the deep detail.
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
 | Col1 opaque field atlas / RE roadmap | [save_format_map.md](save_format_map.md) |
-
-Session notes under [`.context/`](../.context/) (unpark queues, marathon logs) are
-**scratch** — merge status into the docs above when it changes; prefer
-[ai_transcription.md](ai_transcription.md) / [manual_gap.md](manual_gap.md) as
-canonical.
+| Seed-100 Brave / early-AI fidelity | [seed100_brave.md](seed100_brave.md) |
 
 This file is a **navigation layer**. It does not re-copy compositor algorithms,
 MADSPACK layouts, or full bring-up checklists.

@@ -70,9 +70,6 @@ missions slow hostility.
 | `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE trigger PARKED |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
 
-Peels: `.context/peel_shards/layer_c_4d56.json`, `layer_b_ai_diplo.json`,
-`layer_c_spent_465b.json` (`4528`), `layer_c_colony_sim_ticks.json` (`2154` thunk).
-
 ## Meet / trade `5bfb_022e` checklist (Linux)
 
 0. **First contact** (`FUN_5bfb_022e` unmet / `FUN_5bfb_0182`): when

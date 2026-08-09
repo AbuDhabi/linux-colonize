@@ -1,6 +1,8 @@
 # Seed-100 Brave / early-AI notes
 
-Working notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
+Durable notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
+Companion status: [ai_transcription.md](ai_transcription.md),
+[`original_sources_annotated/ai/move_scoring.md`](../original_sources_annotated/ai/move_scoring.md).
 
 ## Status (call-graph annotation + phase 17)
 

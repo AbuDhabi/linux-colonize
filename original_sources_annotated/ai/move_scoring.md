@@ -21,7 +21,7 @@
 
 | Class | Rows | Notes |
 |-------|------|-------|
-| Multi-step / Inca | **0** | River-first peels; see `.context/seed100-brave.md` |
+| Multi-step / Inca | **0** | River-first peels; see [`docs/seed100_brave.md`](../../docs/seed100_brave.md) |
 | Spent-only (XY match) | t2 Apache; t2 Sioux | Post-ADD writer; dump-free exhausted |
 
 ## Coarse fog (`DS:0x9faa`, size `0x10e`)
@@ -34,7 +34,7 @@
 ## Init / mid peels
 
 Thirteen seed-100 init tiles + mid-turn peels (incl. river multi-step and a
-few cascade fixes). See `.context/seed100-brave.md`.
+few cascade fixes). See [`docs/seed100_brave.md`](../../docs/seed100_brave.md).
 
 ## Quiet ASM (DOS)
 

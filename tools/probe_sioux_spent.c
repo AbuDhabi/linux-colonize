@@ -245,7 +245,7 @@ static void probe_one(const char* path) {
     "(Sioux head=9, Apache head=6). Golden T2 spent=3 is post-ADD.\n"
     "Presence/ocean/capital-adjacent predicates break T1 or other cost=6/9\n"
     "goldens — keep k_quiet_brave_t2 overlays. Hang VR_B465X last resort.\n"
-    "See tools/brave_dump/midturn_465b.md and .context/seed100-brave.md.\n"
+    "See tools/brave_dump/midturn_465b.md and docs/seed100_brave.md.\n"
   );
 
   map_free(&map);

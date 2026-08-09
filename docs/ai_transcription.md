@@ -265,9 +265,9 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
 ### Unparked queue (2026-08-07)
 
 Structural Full T0/T1 slices unlocked six tracks that were still labeled
-**PARKED**. Compact mirror: [`.context/unpark-2026-08-07.md`](../.context/unpark-2026-08-07.md).
-Deep line-by-line bodies, hang dumps, MAPEDIT, `COLDIG`, letter/MoW chrome, and
-VGA-identical dialog polish remain correctly **PARKED** (see R0 / R5).
+**PARKED**. Deep line-by-line bodies, hang dumps, MAPEDIT, `COLDIG`,
+letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
+(see R0 / R5).
 
 | # | Track | Status |
 |--:|-------|--------|
@@ -521,7 +521,7 @@ mid-planner share the next Euro path.
 | `original_memory_dumps/dosbox_save_state_brave/` | Live Brave pulse dumps |
 | `tools/brave_dump/` | Hang-dump tooling (**parked** / overlay-unsafe). Fog/dir notes: `init_20e6_4753.md`; spent: `midturn_465b.md`. Prefer coarse-fog port + goldens |
 | `tools/diff_turns.c` | Manual SAV↔SAV unit/tribe/crosses dump |
-| [`.context/seed100-brave.md`](../.context/seed100-brave.md) | Durable Brave fidelity notes / open LCG burns |
+| [seed100_brave.md](seed100_brave.md) | Durable Brave fidelity notes / open LCG burns |
 | `COLONIZE/TRIBE.TXT`, `NAMES.TXT` `@TRIBES` / `@SCENARIO` | AMERICA villages / landfalls |
 | `GAME.TXT` `@RAID*` | Raid message tags → `AiRaidKind` loot picker in `ai_contact` |
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
