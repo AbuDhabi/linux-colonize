@@ -598,6 +598,31 @@ typedef struct ColonizeCol1TradeStop {
   uint8_t pad;
 } ColonizeCol1TradeStop;
 
+/*
+ * Packed cargo types in trade-stop nibble blobs (3 bytes → 6 slots).
+ * Same low-then-high nibble order as ColonizeCol1Unit cargo_item_0..5.
+ */
+static inline int col1_trade_nibble_cargo(const uint8_t nibbles[3], int i) {
+  if (!nibbles || i < 0 || i >= 6) {
+    return -1;
+  }
+  const uint8_t b = nibbles[i >> 1];
+  return (i & 1) ? (int)((b >> 4) & 0x0fu) : (int)(b & 0x0fu);
+}
+
+static inline void col1_trade_nibble_set(uint8_t nibbles[3], int i, int cargo) {
+  if (!nibbles || i < 0 || i >= 6) {
+    return;
+  }
+  const unsigned t = (unsigned)cargo & 0x0fu;
+  const int bi = i >> 1;
+  if (i & 1) {
+    nibbles[bi] = (uint8_t)((nibbles[bi] & 0x0fu) | (t << 4));
+  } else {
+    nibbles[bi] = (uint8_t)((nibbles[bi] & 0xf0u) | t);
+  }
+}
+
 typedef struct ColonizeCol1TradeRoute {
   char name[32];
   uint8_t sea; /* non-zero = sea route */

@@ -4272,10 +4272,9 @@ static int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, i
 }
 
 /*
- * Thin stop service (before advancing): at own colony unload all goods holds;
- * if empty, load one surplus chunk (tools>lumber>ore>muskets>horses>food).
- * Europe=999 ship: sell commodity holds via europe_sell_unit_hold.
- * Full Col1 load/unload nibble UI still thin. Cite: ColonizeCol1TradeStop;
+ * Stop service (before advancing): Europe=999 ship sells holds; own colony
+ * uses colonies_trade_route_service_stop (Col1 load/unload nibbles when set).
+ * TRADE Edit nibble UI still thin. Cite: ColonizeCol1TradeStop;
  * Colonization.pdf Trade Routes.
  */
 static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit* u) {
@@ -4291,7 +4290,8 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
   if (si < 0 || si >= (int)r->dest_count) {
     return;
   }
-  const uint16_t cidx = r->stop[si].colony_index;
+  const ColonizeCol1TradeStop* st = &r->stop[si];
+  const uint16_t cidx = st->colony_index;
   if (cidx == 999) {
     if (units_is_sea(&game->units, u->id) && (u->x >= 200 || u->y >= 200 ||
                                                 map_tile_is_high_seas(&game->world_map, u->x, u->y))) {
@@ -4327,47 +4327,7 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
   } else if (u->x != col->x || u->y != col->y) {
     return;
   }
-  int had_goods = 0;
-  const int n = units_goods_hold_count(&game->units, u->id);
-  for (int h = 0; h < n; ++h) {
-    if (u->hold_goods_amount[h] <= 0 || u->hold_goods_amount[h] >= 255) {
-      continue;
-    }
-    had_goods = 1;
-    bool full = false;
-    (void)colonies_transfer_from_unit(&game->colonies, cid, &game->units, u->id, h, &full);
-  }
-  if (had_goods) {
-    return;
-  }
-  static const int k_load[] = {
-    COLONIZE_CARGO_TOOLS,
-    COLONIZE_CARGO_LUMBER,
-    COLONIZE_CARGO_ORE,
-    COLONIZE_CARGO_MUSKETS,
-    COLONIZE_CARGO_HORSES,
-    COLONIZE_CARGO_FOOD
-  };
-  ColonizeColony* cmut = colonies_get_mut(&game->colonies, cid);
-  if (!cmut) {
-    return;
-  }
-  for (size_t i = 0; i < sizeof(k_load) / sizeof(k_load[0]); ++i) {
-    const int ct = k_load[i];
-    int amt = 20;
-    if (ct == COLONIZE_CARGO_MUSKETS || ct == COLONIZE_CARGO_HORSES) {
-      amt = 10;
-    }
-    if (ct == COLONIZE_CARGO_FOOD) {
-      amt = cmut->population > 0 ? cmut->population * 2 : 10;
-    }
-    if (cmut->stock[ct] < amt * 2) {
-      continue; /* need surplus-ish stock */
-    }
-    if (colonies_transfer_to_unit(&game->colonies, cid, &game->units, u->id, ct, amt) > 0) {
-      break;
-    }
-  }
+  (void)colonies_trade_route_service_stop(&game->colonies, cid, &game->units, u->id, st);
 }
 
 /* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
@@ -4661,8 +4621,8 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     }
     case MAP_MENU_ACTION_TRADE_EDIT: {
       /* Thin stop editor: append cursor colony (or Europe=999 for sea) to last
-       * named route. Full cargo load/unload nibble UI still later. Cite:
-       * ColonizeCol1TradeStop; docs/manual_gap.md TRADE. */
+       * named route; autofill load/unload nibbles from selected unit + surplus.
+       * Full cargo picker UI still later. Cite: ColonizeCol1TradeStop. */
       if (!game->col1_ok) {
         set_status(game, "No save data for trade routes", NULL);
         return true;
@@ -4714,14 +4674,21 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       ColonizeCol1TradeStop* st = &r->stop[r->dest_count];
       memset(st, 0, sizeof(*st));
       st->colony_index = stop_idx;
+      {
+        const ColonizeColony* fill_c =
+          (stop_idx == 999) ? NULL : colonies_get(&game->colonies, (int)stop_idx);
+        colonies_trade_stop_autofill(st, fill_c, &game->units, game->units.selected_id);
+      }
       r->dest_count++;
       snprintf(
         game->status,
         sizeof(game->status),
-        "%s +%s (%d/4) — load/unload UI later",
+        "%s +%s (%d/4) unload=%u load=%u",
         r->name,
         stop_label,
-        (int)r->dest_count
+        (int)r->dest_count,
+        (unsigned)st->unload_count,
+        (unsigned)st->load_count
       );
       return true;
     }

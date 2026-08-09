@@ -1840,19 +1840,7 @@ static void colony_screen_draw_transports(
 }
 
 static int colony_screen_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
-  if (!col1 || !colony || !col1->colony) {
-    return 0;
-  }
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if ((int)c->x == colony->x && (int)c->y == colony->y) {
-      if (c->rebel_divisor == 0) {
-        return 0;
-      }
-      return (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
-    }
-  }
-  return 0;
+  return colony_prod_sol_percent(col1, colony);
 }
 
 static void colony_screen_draw_people(

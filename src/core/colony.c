@@ -1645,6 +1645,204 @@ int colonies_de_witt_transfer_to_colony(
   );
 }
 
+static int colonies_trade_surplus_load_amount(const ColonizeColony* c, int ct) {
+  int amt = 20;
+  if (ct == COLONIZE_CARGO_MUSKETS || ct == COLONIZE_CARGO_HORSES) {
+    amt = 10;
+  }
+  if (ct == COLONIZE_CARGO_FOOD) {
+    amt = c->population > 0 ? c->population * 2 : 10;
+  }
+  return amt;
+}
+
+void colonies_trade_stop_autofill(
+  ColonizeCol1TradeStop* stop,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  int unit_id
+) {
+  if (!stop) {
+    return;
+  }
+  stop->unload_count = 0;
+  stop->load_count = 0;
+  memset(stop->unload_cargo_nibbles, 0, sizeof(stop->unload_cargo_nibbles));
+  memset(stop->load_cargo_nibbles, 0, sizeof(stop->load_cargo_nibbles));
+
+  if (units && unit_id >= 0) {
+    const ColonizeUnit* u = units_get_const(units, unit_id);
+    if (u) {
+      int seen[COLONIZE_CARGO_COUNT];
+      memset(seen, 0, sizeof(seen));
+      int uc = 0;
+      const int n = units_goods_hold_count(units, unit_id);
+      for (int h = 0; h < n && uc < 6; ++h) {
+        const int ct = u->hold_goods_type[h];
+        const int amt = u->hold_goods_amount[h];
+        if (amt <= 0 || amt >= 255 || ct < 0 || ct >= COLONIZE_CARGO_COUNT || seen[ct]) {
+          continue;
+        }
+        seen[ct] = 1;
+        col1_trade_nibble_set(stop->unload_cargo_nibbles, uc, ct);
+        uc++;
+      }
+      stop->unload_count = (uint8_t)uc;
+    }
+  }
+
+  if (!colony) {
+    return; /* Europe: sell path; no load list */
+  }
+  static const int k_load[] = {
+    COLONIZE_CARGO_TOOLS,
+    COLONIZE_CARGO_LUMBER,
+    COLONIZE_CARGO_ORE,
+    COLONIZE_CARGO_MUSKETS,
+    COLONIZE_CARGO_HORSES,
+    COLONIZE_CARGO_FOOD
+  };
+  int lc = 0;
+  for (size_t i = 0; i < sizeof(k_load) / sizeof(k_load[0]) && lc < 6; ++i) {
+    const int ct = k_load[i];
+    const int amt = colonies_trade_surplus_load_amount(colony, ct);
+    if (colony->stock[ct] < amt * 2) {
+      continue;
+    }
+    col1_trade_nibble_set(stop->load_cargo_nibbles, lc, ct);
+    lc++;
+  }
+  stop->load_count = (uint8_t)lc;
+}
+
+int colonies_trade_route_service_stop(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  const ColonizeCol1TradeStop* stop
+) {
+  if (!pool || !units || !stop) {
+    return 0;
+  }
+  ColonizeColony* cmut = colonies_get_mut(pool, colony_id);
+  ColonizeUnit* u = units_get(units, unit_id);
+  if (!cmut || !u) {
+    return 0;
+  }
+
+  int moved = 0;
+  const int unload_n = (int)stop->unload_count;
+  if (unload_n > 0) {
+    for (int i = 0; i < unload_n && i < 6; ++i) {
+      const int want = col1_trade_nibble_cargo(stop->unload_cargo_nibbles, i);
+      if (want < 0 || want >= COLONIZE_CARGO_COUNT) {
+        continue;
+      }
+      /* Re-scan holds each pass — unload may compact. */
+      for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX; ++guard) {
+        const int n = units_goods_hold_count(units, unit_id);
+        int found = -1;
+        for (int h = 0; h < n; ++h) {
+          if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
+              u->hold_goods_type[h] == want) {
+            found = h;
+            break;
+          }
+        }
+        if (found < 0) {
+          break;
+        }
+        bool full = false;
+        if (colonies_transfer_from_unit(pool, colony_id, units, unit_id, found, &full) > 0) {
+          moved = 1;
+        } else {
+          break;
+        }
+      }
+    }
+  } else {
+    int had_goods = 0;
+    for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX; ++guard) {
+      const int n = units_goods_hold_count(units, unit_id);
+      int found = -1;
+      for (int h = 0; h < n; ++h) {
+        if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255) {
+          found = h;
+          break;
+        }
+      }
+      if (found < 0) {
+        break;
+      }
+      had_goods = 1;
+      bool full = false;
+      if (colonies_transfer_from_unit(pool, colony_id, units, unit_id, found, &full) > 0) {
+        moved = 1;
+      } else {
+        break;
+      }
+    }
+    /* Thin fallback: unload-all then surplus only when unit arrived empty. */
+    if (had_goods) {
+      return moved;
+    }
+  }
+
+  const int load_n = (int)stop->load_count;
+  if (load_n > 0) {
+    for (int i = 0; i < load_n && i < 6; ++i) {
+      const int ct = col1_trade_nibble_cargo(stop->load_cargo_nibbles, i);
+      if (ct < 0 || ct >= COLONIZE_CARGO_COUNT) {
+        continue;
+      }
+      const int amt = colonies_trade_surplus_load_amount(cmut, ct);
+      if (cmut->stock[ct] < amt) {
+        continue;
+      }
+      if (colonies_transfer_to_unit(pool, colony_id, units, unit_id, ct, amt) > 0) {
+        moved = 1;
+      }
+    }
+    return moved;
+  }
+
+  /* Surplus ladder when no Col1 load list (and empty-arrival for unload-all path). */
+  {
+    int has_goods = 0;
+    const int n = units_goods_hold_count(units, unit_id);
+    for (int h = 0; h < n; ++h) {
+      if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255) {
+        has_goods = 1;
+        break;
+      }
+    }
+    if (has_goods) {
+      return moved;
+    }
+  }
+  static const int k_load[] = {
+    COLONIZE_CARGO_TOOLS,
+    COLONIZE_CARGO_LUMBER,
+    COLONIZE_CARGO_ORE,
+    COLONIZE_CARGO_MUSKETS,
+    COLONIZE_CARGO_HORSES,
+    COLONIZE_CARGO_FOOD
+  };
+  for (size_t i = 0; i < sizeof(k_load) / sizeof(k_load[0]); ++i) {
+    const int ct = k_load[i];
+    const int amt = colonies_trade_surplus_load_amount(cmut, ct);
+    if (cmut->stock[ct] < amt * 2) {
+      continue;
+    }
+    if (colonies_transfer_to_unit(pool, colony_id, units, unit_id, ct, amt) > 0) {
+      moved = 1;
+      break;
+    }
+  }
+  return moved;
+}
+
 int colonies_best_load_cargo(const ColonizeColony* colony) {
   if (!colony) {
     return -1;

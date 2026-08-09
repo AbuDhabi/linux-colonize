@@ -240,7 +240,7 @@ Bold entries on the manual chart = free at colony founding. **`**`** = requires 
 
 ## Production modifiers (sentiment & difficulty)
 
-Documented in manual ch. independence / colony people view; applied in EOT production (field/craft/hammers/bells/crosses). Preview craft path may omit Col1 SoL until screen has save bridge.
+Documented in manual ch. independence / colony people view; applied in EOT production (field/craft/hammers/bells/crosses). SoL % via `colony_prod_sol_percent` (Col1 rebel fields, else nation liberty_bells/4).
 
 | Condition | Effect on **all** colony production |
 |-----------|--------------------------------------|

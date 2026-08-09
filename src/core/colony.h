@@ -12,6 +12,7 @@
 /* Forward declaration to avoid pulling in font headers. */
 typedef struct ColonizeFont ColonizeFont;
 typedef struct ColonizeCol1Save ColonizeCol1Save;
+typedef struct ColonizeCol1TradeStop ColonizeCol1TradeStop;
 typedef struct ColonizeUnitPool ColonizeUnitPool;
 
 #define COLONIZE_COLONIES_MAX 32
@@ -378,6 +379,31 @@ int colonies_de_witt_transfer_to_colony(
 
 /* Best cargo type for L-key load (excludes horses/tools/muskets); -1 if none. */
 int colonies_best_load_cargo(const ColonizeColony* colony);
+
+/*
+ * TRADE stop cargo at own colony: honor Col1 unload/load nibble lists when
+ * counts > 0; else unload-all then surplus ladder (tools…food). Returns 1 if
+ * any transfer happened. Cite: ColonizeCol1TradeStop; Colonization.pdf Trade Routes.
+ */
+int colonies_trade_route_service_stop(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  const ColonizeCol1TradeStop* stop
+);
+
+/*
+ * Thin TRADE Edit helper: fill unload nibbles from selected unit holds;
+ * for a colony stop, fill load nibbles from surplus ladder (tools…food).
+ * Europe (colony NULL): unload only. Cite: ColonizeCol1TradeStop.
+ */
+void colonies_trade_stop_autofill(
+  ColonizeCol1TradeStop* stop,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  int unit_id
+);
 
 /* ICONS.SS settlement marker #0–3 by fortification (none/stockade/fort/fortress). */
 int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony);

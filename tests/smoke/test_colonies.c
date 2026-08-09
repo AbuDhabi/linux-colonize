@@ -2,8 +2,10 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
+#include "core/colony_production.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -564,6 +566,165 @@ int main(void) {
       }
       CHECK(!colonies_destroy_building(&pool, cid, town), "refuse destroy Town Hall");
       CHECK(c->has_building[town], "Town Hall remains");
+    }
+  }
+
+  /*
+   * SoL %: Col1 rebel fields when present; else nation liberty_bells/4.
+   * Cite: colony_prod_sol_percent; FUN_43f7_0004-shaped; manual_gap SoL display.
+   */
+  {
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "sol colony");
+    if (c) {
+      ColonizeCol1Save col1;
+      ColonizeCol1Colony col1c;
+      memset(&col1, 0, sizeof(col1));
+      memset(&col1c, 0, sizeof(col1c));
+      col1.colony = &col1c;
+      col1.head.colony_count = 1;
+      col1c.x = (uint8_t)c->x;
+      col1c.y = (uint8_t)c->y;
+      col1c.nation_id = (uint8_t)c->nation_id;
+      col1c.rebel_dividend = 50;
+      col1c.rebel_divisor = 100;
+      CHECK(colony_prod_sol_percent(&col1, c) == 50, "SoL from rebel 50/100");
+      CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus +1 at 50%");
+      col1c.rebel_dividend = 0;
+      col1c.rebel_divisor = 0;
+      col1.nation[c->nation_id].liberty_bells_total = 200; /* /4 → 50 */
+      CHECK(colony_prod_sol_percent(&col1, c) == 50, "SoL bells fallback 200/4");
+      CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus from bells fallback");
+      col1.nation[c->nation_id].liberty_bells_total = 400; /* /4 → 100 */
+      CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL bells cap 100");
+      CHECK(colony_prod_sol_bonus(&col1, c) == 2, "SoL bonus +2 at 100%");
+    }
+  }
+
+  /*
+   * TRADE Edit autofill: unload from unit holds; load from colony surplus.
+   * Cite: colonies_trade_stop_autofill.
+   */
+  {
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+    units.types[0].movement = 2;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[0].cargo = 2;
+
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "autofill colony");
+    if (c) {
+      c->stock[COLONIZE_CARGO_TOOLS] = 80;
+      c->stock[COLONIZE_CARGO_LUMBER] = 80;
+      c->stock[COLONIZE_CARGO_ORE] = 5;
+      const int wid = units_spawn(&units, 0, c->x, c->y);
+      ColonizeUnit* w = units_get(&units, wid);
+      CHECK(w != NULL, "autofill wagon");
+      if (w) {
+        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 20) == 20, "autofill FOOD hold");
+        ColonizeCol1TradeStop st;
+        memset(&st, 0, sizeof(st));
+        st.colony_index = (uint16_t)cid;
+        colonies_trade_stop_autofill(&st, c, &units, wid);
+        CHECK(st.unload_count == 1, "autofill unload FOOD");
+        CHECK(
+          col1_trade_nibble_cargo(st.unload_cargo_nibbles, 0) == COLONIZE_CARGO_FOOD,
+          "autofill unload nibble FOOD"
+        );
+        CHECK(st.load_count >= 2, "autofill load tools+lumber surplus");
+        CHECK(
+          col1_trade_nibble_cargo(st.load_cargo_nibbles, 0) == COLONIZE_CARGO_TOOLS,
+          "autofill load TOOLS first"
+        );
+        CHECK(
+          col1_trade_nibble_cargo(st.load_cargo_nibbles, 1) == COLONIZE_CARGO_LUMBER,
+          "autofill load LUMBER second"
+        );
+        /* Europe: unload only */
+        ColonizeCol1TradeStop eu;
+        memset(&eu, 0, sizeof(eu));
+        eu.colony_index = 999;
+        colonies_trade_stop_autofill(&eu, NULL, &units, wid);
+        CHECK(eu.unload_count == 1 && eu.load_count == 0, "Europe autofill unload-only");
+      }
+    }
+  }
+
+  /*
+   * TRADE stop Col1 nibbles: unload only listed cargo; load listed cargo.
+   * Cite: ColonizeCol1TradeStop; colonies_trade_route_service_stop.
+   */
+  {
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+    units.types[0].movement = 2;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[0].cargo = 2;
+
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "trade-nibble colony");
+    if (c) {
+      c->stock[COLONIZE_CARGO_TOOLS] = 80;
+      c->stock[COLONIZE_CARGO_LUMBER] = 80;
+      c->stock[COLONIZE_CARGO_FOOD] = 5;
+      const int tools0 = c->stock[COLONIZE_CARGO_TOOLS];
+      const int lumber0 = c->stock[COLONIZE_CARGO_LUMBER];
+
+      const int wid = units_spawn(&units, 0, c->x, c->y);
+      ColonizeUnit* w = units_get(&units, wid);
+      CHECK(w != NULL, "trade-nibble wagon spawn");
+      if (w) {
+        w->nation_id = c->nation_id;
+        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 20) == 20, "load FOOD onto wagon");
+        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) == 20, "load TOOLS onto wagon");
+
+        ColonizeCol1TradeStop st;
+        memset(&st, 0, sizeof(st));
+        st.colony_index = (uint16_t)cid;
+        st.unload_count = 1;
+        col1_trade_nibble_set(st.unload_cargo_nibbles, 0, COLONIZE_CARGO_TOOLS);
+        st.load_count = 1;
+        col1_trade_nibble_set(st.load_cargo_nibbles, 0, COLONIZE_CARGO_LUMBER);
+
+        CHECK(
+          colonies_trade_route_service_stop(&pool, cid, &units, wid, &st) == 1,
+          "trade nibble service moves cargo"
+        );
+        CHECK(c->stock[COLONIZE_CARGO_TOOLS] == tools0 + 20, "unload TOOLS only into warehouse");
+        CHECK(c->stock[COLONIZE_CARGO_FOOD] == 5, "FOOD stay on wagon (not in unload list)");
+        int food_left = 0;
+        int lumber_on = 0;
+        int tools_on = 0;
+        const int nh = units_goods_hold_count(&units, wid);
+        for (int h = 0; h < nh; ++h) {
+          if (w->hold_goods_type[h] == COLONIZE_CARGO_FOOD) {
+            food_left += w->hold_goods_amount[h];
+          }
+          if (w->hold_goods_type[h] == COLONIZE_CARGO_LUMBER) {
+            lumber_on += w->hold_goods_amount[h];
+          }
+          if (w->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+            tools_on += w->hold_goods_amount[h];
+          }
+        }
+        CHECK(food_left == 20, "FOOD remains on wagon after selective unload");
+        CHECK(tools_on == 0, "TOOLS hold cleared");
+        CHECK(lumber_on == 20, "load LUMBER per Col1 load nibble");
+        CHECK(c->stock[COLONIZE_CARGO_LUMBER] == lumber0 - 20, "warehouse LUMBER decreased");
+        CHECK(
+          col1_trade_nibble_cargo(st.unload_cargo_nibbles, 0) == COLONIZE_CARGO_TOOLS,
+          "nibble pack TOOLS low"
+        );
+        CHECK(
+          col1_trade_nibble_cargo(st.load_cargo_nibbles, 0) == COLONIZE_CARGO_LUMBER,
+          "nibble pack LUMBER low"
+        );
+      }
     }
   }
 
