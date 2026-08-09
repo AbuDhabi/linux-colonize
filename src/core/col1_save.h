@@ -433,7 +433,14 @@ typedef struct ColonizeCol1Tribe {
   uint8_t nation_id;
   ColonizeCol1TribeState state;
   uint8_t population;
-  uint8_t mission; /* 0xff none; else European nation id */
+  /*
+   * 0xff none; else low nibble = European nation id (0..3).
+   * Bit 0x10 = Jesuit-grade mission (FUN_5bfb / FUN_5fef_31ea convert odds).
+   */
+  uint8_t mission;
+#define COL1_TRIBE_MISSION_NONE 0xffu
+#define COL1_TRIBE_MISSION_NATION_MASK 0x0fu
+#define COL1_TRIBE_MISSION_JESUIT_BIT 0x10u
   uint8_t growth_accum; /* +0; +=pop, clear when >19 — FUN_4d56_152e */
   uint8_t unknown28_pad; /* +1; unproven */
   uint8_t last_bought;

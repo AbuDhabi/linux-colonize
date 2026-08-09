@@ -271,10 +271,10 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 
 | # | Track | Status |
 |--:|-------|--------|
-| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); deep `2820` / gift-amount / VGA remain PARKED |
-| 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; VGA / `160a` / dump-goods remain PARKED |
-| 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery **Done**; Sepulveda join% + KINGGALLEON2 still PARK; Congress UI PARKED |
-| 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep `20e6` only; fields / Drydock / Shipyard / FOOD / workplace / construction pick **Done** |
+| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; deep `2820` / gift-amount / VGA remain PARKED |
+| 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
+| 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); KINGGALLEON2 still PARK; Congress UI PARKED |
+| 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep ocean/`−0x6790` / damage-byte; land fort% + siege/open hunt + FUN_157e_004a vet/Drake toughness **Done**; construction prefers (…/craft houses/shops/factories/Capitol/Expansion/Fortress/WHE/Blacksmith House+Shop+Carpenter Shop) **Done**; case-7 dock expert matrix (…/Weaver/Fur Trader/Tobacconist) **Done**; civic/craft workplace assign **Done**; peace Soldier/Dragoon/**Regular/Continental/Artillery** fortify + MD≤2 border wake **Done**; war hunt/board/unload **Regular/Continental** **Done**; war transport Galleon/Frigate/**Man-O-War** **Done**; ship/wagon haul + Galleon cargo + Europe export + Privateer loot sail + wagon feeder (FUN_364b) **Done**; ocean east-Europe HS bias **Done** |
 | 5 | Indian×Euro `15b3` + fuller `153e` | **Done** structural + Privateer spawn **Done** (8g prize PARK); FA `3f41` full UI PARKED |
 | 6 | `manual_gap.md` hygiene | Done this pass |
 
@@ -435,7 +435,8 @@ Thin Treasure → coastal colony `AI_MOVE`; peace Missionary/Jesuit CONTACT towa
 unmissioned tribes (skip Alarm≥55). Expert Lumberjack field-assign **Done**
 (`ai_euro_try_lumberjack_field_assign`).
 **OPEN (unpark #4):** remaining deep combat multi-step / ocean-naval `20e6`;
-leftover mid `5d04` matrix; deep −0x6790 G table. Odd deviations OK; not T3 / LCG
+leftover mid `5d04` matrix; deep −0x6790 G table. Thin ocean east-Europe HS bias
+**Done** (complement west-explore). Odd deviations OK; not T3 / LCG
 goldens (those stay R5).
 
 ### R5 — Toward 1:1 (T2/T3)
@@ -494,11 +495,11 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas **Done**; Sepulveda / Cortes hooks still OPEN (unpark #3); Congress UI PARKED |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 / Congress UI PARKED |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / merc via `ai_popup` **Done** structural; VGA chrome PARKED; `smoke_ai_king` |
 
-Suggested manual order: finish leftover **unpark #3** FF hooks (Sepulveda /
-Cortes) and **unpark #4** deep land/ocean `20e6`, then deepen PARKED bodies
+Suggested manual order: finish leftover **unpark #3** KINGGALLEON2 (non-Cortes
+royal-galleon share) if evidence appears, and **unpark #4** deep land/ocean `20e6`, then deepen PARKED bodies
 (VGA dialog chrome, FA `3f41`, letter cinematic, full `2820`/`4528`). **R1 Euro
 settle (T0)** and **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial
 (quiet mid-turn default, **2** Brave spent-only residuals — call graph annotated

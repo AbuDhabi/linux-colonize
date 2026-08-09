@@ -4328,8 +4328,41 @@ int main(void) {
     if ((col1.nation[0].boycott_bitmap & (1u << 1)) == 0) {
       return fail("apply Refuse should freeze Sugar boycott bit");
     }
-    /* R2: Sugar refuse follow-up OK after Refuse apply (FUN_43f7_38fd_5be8). */
+    /* Dump-goods CHOICE after Refuse (Sugar set; second cargo player-picked). */
     {
+      int found_dump = 0;
+      int dump_qi = -1;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_DUMP_GOODS &&
+            pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+          found_dump = 1;
+          dump_qi = i;
+          break;
+        }
+      }
+      if (!found_dump) {
+        return fail("apply Refuse should enqueue KING_DUMP_GOODS CHOICE");
+      }
+      /* Pick Furs if offered, else first choice id. */
+      int pick = pop.queue[dump_qi].choice_ids[0];
+      for (int ci = 0; ci < pop.queue[dump_qi].choice_count; ++ci) {
+        if (pop.queue[dump_qi].choice_ids[ci] == COLONIZE_CARGO_FURS) {
+          pick = COLONIZE_CARGO_FURS;
+          break;
+        }
+      }
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = pick;
+      pop.result_tag = AI_POPUP_TAG_KING_DUMP_GOODS;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 1;
+      pop.result_payload = 20;
+      ai_king_apply_popup_result(&ctx, &pop);
+      ai_popup_consume_result(&pop);
+      if ((col1.nation[0].boycott_bitmap & (1u << pick)) == 0) {
+        return fail("dump-goods CHOICE should OR chosen cargo boycott bit");
+      }
       int found_refuse_ok = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX &&
@@ -4340,7 +4373,7 @@ int main(void) {
         }
       }
       if (!found_refuse_ok) {
-        return fail("apply Refuse should enqueue Sugar boycott follow-up OK");
+        return fail("dump-goods apply should enqueue boycott follow-up OK");
       }
     }
 

@@ -85,11 +85,11 @@ bool founding_fathers_brebeuf_missionaries_are_experts(
  */
 
 /*
- * Juan de Sepulveda (docs/fandom_col1994.md Religious):
+ * Juan de Sepulveda (docs/fandom_col1994.md Religious / PEDIA @FATHER23):
  * Higher chance subjugated Indians “convert” and join a colony.
- * Ownership gate only — convert-join outcome needs FUN_4d56_2820 / 4528 body;
- * no Linux join-chance path yet. Call site PARKED in ai_contact (mission
- * convert pulse ≠ subjugated convert-join). No invented join %.
+ * Ownership gate; convert-join peel in units_try_native_settlement_fallout
+ * (FUN_5fef_31ea / 1b0e — not missionary pulse, not 2820). Threshold +4 when
+ * owned. Cite: COLONIZE/PEDIA.TXT @FATHER23; GAME.TXT @INDIANSLAVES.
  */
 bool founding_fathers_sepulveda_convert_join_bonus(
   const ColonizeCol1Save* col1,

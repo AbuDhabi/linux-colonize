@@ -419,6 +419,92 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   return 1;
 }
 
+static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nation_id) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_MEET &&
+        st->queue[i].kind == AI_POPUP_KIND_CHOICE && st->queue[i].nation_a == e &&
+        st->queue[i].nation_b == nation_id) {
+      return 1;
+    }
+  }
+  if (st->open && st->current.tag == AI_POPUP_TAG_CONTACT_MEET &&
+      st->current.kind == AI_POPUP_KIND_CHOICE && st->current.nation_a == e &&
+      st->current.nation_b == nation_id) {
+    return 1;
+  }
+  return 0;
+}
+
+static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int nation_id) {
+  if (!ctx || !ctx->ai_popups) {
+    return;
+  }
+  const char* tribe = ai_contact_tribe_name(nation_id);
+  char body[AI_POPUP_BODY_LEN];
+  snprintf(
+    body,
+    sizeof(body),
+    "You enter a %s village. How do you wish to greet the natives?",
+    tribe
+  );
+  char title[AI_POPUP_TITLE_LEN];
+  snprintf(title, sizeof(title), "%s", tribe);
+  static const char* labels[] = {"Trade", "Gift", "Demand", "Teach", "Leave"};
+  static const int ids[] = {
+    AI_CONTACT_CHOICE_TRADE,
+    AI_CONTACT_CHOICE_GIFT,
+    AI_CONTACT_CHOICE_DEMAND,
+    AI_CONTACT_CHOICE_TEACH,
+    AI_CONTACT_CHOICE_LEAVE
+  };
+  ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups,
+    AI_POPUP_TAG_CONTACT_MEET,
+    e,
+    nation_id,
+    0,
+    title,
+    body,
+    labels,
+    ids,
+    5
+  );
+  {
+    char st[96];
+    snprintf(st, sizeof(st), "Visiting the %s.", tribe);
+    ai_contact_set_status(ctx, st);
+  }
+}
+
+int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int indian_nation) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  if (indian_nation < 4 || indian_nation > 11) {
+    return 0;
+  }
+  if (!ai_contact_euro_is_human(ctx, euro_nation) || !ctx->ai_popups) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  /* Already met only — unmet uses WELCOME. */
+  if (!ind->euro_diplo[euro_nation]) {
+    return 0;
+  }
+  if (ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
+    return 0;
+  }
+  if (ai_contact_meet_choice_pending(ctx->ai_popups, euro_nation, indian_nation) ||
+      ai_contact_welcome_pending(ctx->ai_popups, euro_nation, indian_nation)) {
+    return 0;
+  }
+  ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation);
+  return 1;
+}
+
 /* Isolated from quiet-pulse LCG (seed-100 TURN goldens). */
 static void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out) {
   uint32_t seed = 0xC07Au ^ (uint32_t)(nation_id * 97);
@@ -462,10 +548,9 @@ static int ai_contact_is_missionary(const ColonizeUnitPool* units, const Coloniz
  * docs/fandom_col1994.md Father Jean de Brebeuf.
  * Las Casas Convert→Free Colonist assimilate: founding_fathers elect +
  * ownership tick (PEDIA @FATHER24) — not this convert-pulse path.
- * Sepulveda convert-join (docs/fandom_col1994.md): ownership gate
- * founding_fathers_sepulveda_convert_join_bonus — PARKED call site here;
- * no subjugated convert-join outcome path (needs 2820/4528). Do not invent
- * join % on this mission convert pulse.
+ * Sepulveda convert-join (PEDIA @FATHER23 / FUN_5fef_31ea): wired in
+ * units_try_native_settlement_fallout when conquering a mission-owned tribe;
+ * this missionary convert pulse is a different path (no invent join % here).
  */
 static int ai_contact_is_jesuit_grade(
   const ColonizeCol1Save* col1,
@@ -1279,7 +1364,11 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
           break; /* one mid-refuse pulse per tribe per call */
         }
       }
+      /* Nation in low nibble; Jesuit-grade sets bit0x10 (FUN_5bfb / 5fef_31ea). */
       t->mission = (uint8_t)e;
+      if (ai_contact_is_jesuit_grade(ctx->col1, ctx->units, other)) {
+        t->mission = (uint8_t)(t->mission | COL1_TRIBE_MISSION_JESUIT_BIT);
+      }
       /*
        * Mid-range Jesuit convert friction polish (40..54): stronger −2 decay
        * on establish (matches meet-pulse mission pacify mid band). Peaceful
@@ -1440,7 +1529,7 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
     if ((int)t->nation_id != nation_id || t->mission == 0xff) {
       continue;
     }
-    const int euro = (int)t->mission;
+    const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
     if (euro < 0 || euro > 3) {
       continue;
     }
@@ -1555,7 +1644,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     if (t->mission == 0xff) {
       continue;
     }
-    const int euro = (int)t->mission;
+    const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
     if (euro < 0 || euro > 3) {
       continue;
     }
@@ -1580,7 +1669,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     if (t->mission == 0xff) {
       continue;
     }
-    const int euro = (int)t->mission;
+    const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
     if (euro < 0 || euro > 3) {
       continue;
     }
@@ -1778,7 +1867,8 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
               t->alarm[e].friction--;
             }
             if (t->mission == 0xff && t->alarm[e].friction < 30) {
-              t->mission = (uint8_t)e; /* mission offer; convert via CHOICE/pulse */
+              /* Thin meet offer: nation only (no Jesuit unit on this Brave path). */
+              t->mission = (uint8_t)e;
             }
             break;
           }

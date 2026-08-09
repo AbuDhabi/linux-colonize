@@ -429,7 +429,8 @@ int main(void) {
     col1.nation[0].relation_by_indian[0] = 80;
     const uint16_t crosses_m = col1.nation[0].current_crosses;
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].mission != 0) {
+    if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0 ||
+        (col1.tribe[0].mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0) {
       return fail("mid-range Jesuit convert should establish mission");
     }
     if (col1.nation[0].current_crosses != (uint16_t)(crosses_m + 1)) {
@@ -479,7 +480,8 @@ int main(void) {
     col1.nation[0].relation_by_indian[0] = 80;
     const uint16_t crosses_br = col1.nation[0].current_crosses;
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].mission != 0) {
+    if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0 ||
+        (col1.tribe[0].mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0) {
       return fail("Brebeuf plain Missionary mid should establish mission");
     }
     if (col1.nation[0].current_crosses != (uint16_t)(crosses_br + 1)) {
@@ -3059,6 +3061,35 @@ int main(void) {
         fprintf(stderr, "smoke_ai_contact: convert OK status '%s'\n", st_pop);
         return fail("convert success should set accept-conversion status");
       }
+    }
+
+    /* Village-enter Meet CHOICE: already-met human on tribe → Trade…Leave. */
+    {
+      ai_popup_clear(&pop);
+      ind->euro_diplo[0] = 1;
+      ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
+      col1.nation[0].relation_by_indian[0] = 100;
+      ind->alarm_by_player[0] = 10;
+      st_pop[0] = '\0';
+      if (!ai_contact_try_village_meet(&ctx, 0, 4)) {
+        return fail("village meet should enqueue for already-met human");
+      }
+      if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET ||
+          pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+        return fail("village meet should enqueue CONTACT_MEET CHOICE");
+      }
+      if (pop.queue[0].choice_count < 5) {
+        return fail("village Meet CHOICE should offer Trade/Gift/Demand/Teach/Leave");
+      }
+      /* Unmet must not use village meet (WELCOME path). */
+      ai_popup_clear(&pop);
+      ind->euro_diplo[0] = 0;
+      if (ai_contact_try_village_meet(&ctx, 0, 4)) {
+        return fail("unmet village must not enqueue Meet CHOICE");
+      }
+      /* Restore met for leftover arms. */
+      ind->euro_diplo[0] = 1;
+      ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
     }
 
     ctx.ai_popups = NULL;

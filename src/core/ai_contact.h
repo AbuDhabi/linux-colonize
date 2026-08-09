@@ -22,8 +22,8 @@
  * (40..54) convert gated on Jesuit-grade; plain Missionary + Brebeuf unlocks.
  * Las Casas Convert→Free Colonist assimilate lives in founding_fathers
  * (PEDIA @FATHER24 elect + ownership tick). Sepulveda convert-join:
- * founding_fathers_sepulveda_convert_join_bonus ownership gate; raise-join
- * call site PARKED (needs 2820/4528 — no existing convert-join outcome).
+ * founding_fathers_sepulveda_convert_join_bonus + FUN_5fef_31ea peel in
+ * units_try_native_settlement_fallout (mission-owned tribe conquer).
  * Full 2820/4528 stay PARKED. Thin Brave escort (units_follow_unit) and
  * @RAIDBURN colonies_destroy_building + building-name status: Done thin.
  *
@@ -66,6 +66,14 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
  * call started first contact. indian_nation is Col1 id 4..11.
  */
 int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
+
+/*
+ * Village-enter Meet CHOICE (already-met human Euro on tribe tile). Enqueues
+ * Trade/Gift/Demand/Teach/Leave. First-contact still uses WELCOME only.
+ * Cite: indian_contact.md village Meet CHOICE; FUN_5bfb_022e. Deep 2820 PARKED.
+ * Returns 1 if a CHOICE was enqueued.
+ */
+int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
 
 /* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);

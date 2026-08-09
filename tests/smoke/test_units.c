@@ -1507,6 +1507,7 @@ int main(void) {
     col1.tribe[0].x = 10;
     col1.tribe[0].y = 10;
     col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE; /* no convert-join RNG before Cortes */
     col1.head.founding_father[FF_HERNAN_CORTES] = 0;
     col1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] |=
       (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
@@ -1629,6 +1630,7 @@ int main(void) {
     col1.tribe[0].x = 11;
     col1.tribe[0].y = 10;
     col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
     tmap.layer3[10 * 20 + 11] = (uint8_t)((4u << 4) | 1u);
     const int bid2 = units_spawn_allow_stack(&pool, brave_ti, 11, 10);
     const int sid2 = units_spawn_allow_stack(&pool, soldier_ti, 11, 10);
@@ -1681,6 +1683,130 @@ int main(void) {
     units_set_native_fallout_context(NULL, NULL, -1);
     free(tmap.layer3);
     free(col1.tribe);
+  }
+
+  /* FUN_5fef_31ea convert-join: mission-owned tribe + Sepulveda/Spanish/Jesuit. */
+  {
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.tribe_count = 1;
+    col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+    if (!col1.tribe) {
+      fprintf(stderr, "convert-join tribe alloc failed\n");
+      return 1;
+    }
+    col1.tribe[0].x = 12;
+    col1.tribe[0].y = 12;
+    col1.tribe[0].nation_id = 5;
+    /* Spanish (2) + Jesuit bit + Sepulveda → threshold 8+4+4=16 → always join. */
+    col1.tribe[0].mission =
+      (uint8_t)(2u | COL1_TRIBE_MISSION_JESUIT_BIT);
+    col1.head.founding_father[FF_JUAN_DE_SEPULVEDA] = 2;
+    col1.nation[2].founding_fathers[FF_JUAN_DE_SEPULVEDA / 8] |=
+      (uint8_t)(1u << (FF_JUAN_DE_SEPULVEDA % 8));
+
+    ColonizeWorldMap tmap;
+    memset(&tmap, 0, sizeof(tmap));
+    tmap.width = 20;
+    tmap.height = 20;
+    tmap.layer3 = calloc(400, 1);
+    if (!tmap.layer3) {
+      free(col1.tribe);
+      fprintf(stderr, "convert-join tmap alloc failed\n");
+      return 1;
+    }
+    tmap.layer3[12 * 20 + 12] = (uint8_t)((5u << 4) | 1u);
+
+    const int brave_ti = units_find_type(&pool, "Braves");
+    const int soldier_ti = units_find_type(&pool, "Soldiers");
+    const int colonist_ti = units_find_type(&pool, "Colonists");
+    if (brave_ti < 0 || soldier_ti < 0 || colonist_ti < 0) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "convert-join types missing\n");
+      return 1;
+    }
+
+    const int bid = units_spawn_allow_stack(&pool, brave_ti, 12, 12);
+    const int sid = units_spawn_allow_stack(&pool, soldier_ti, 12, 12);
+    ColonizeUnit* brave = units_get(&pool, bid);
+    ColonizeUnit* soldier = units_get(&pool, sid);
+    if (!brave || !soldier) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "convert-join spawn failed\n");
+      return 1;
+    }
+    brave->nation_id = 5;
+    soldier->nation_id = 2;
+    pool.types[soldier_ti].attack = 99;
+    pool.types[brave_ti].defense = 1;
+
+    ColonizeDosRng crng;
+    dos_rng_seed(&crng, 1);
+    units_set_native_fallout_context(&col1, &tmap, -1);
+    if (!units_resolve_land_combat_ff(&pool, sid, bid, &crng, &col1)) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "convert-join combat: attacker should win\n");
+      return 1;
+    }
+    int convert_id = -1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool.units[i];
+      if (!u->active || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      if (u->x == 12 && u->y == 12 && u->nation_id == 2 && u->profession == 27) {
+        convert_id = u->id;
+        break;
+      }
+    }
+    if (convert_id < 0) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "Sepulveda convert-join: expected Convert profession 27 on tile\n");
+      return 1;
+    }
+    units_despawn(&pool, convert_id);
+
+    /* No mission → no convert even with Sepulveda. */
+    col1.head.tribe_count = 1;
+    col1.tribe[0].x = 13;
+    col1.tribe[0].y = 12;
+    col1.tribe[0].nation_id = 5;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    tmap.layer3[12 * 20 + 13] = (uint8_t)((5u << 4) | 1u);
+    const int bid2 = units_spawn_allow_stack(&pool, brave_ti, 13, 12);
+    const int sid2 = units_spawn_allow_stack(&pool, soldier_ti, 13, 12);
+    brave = units_get(&pool, bid2);
+    soldier = units_get(&pool, sid2);
+    brave->nation_id = 5;
+    soldier->nation_id = 2;
+    dos_rng_seed(&crng, 1);
+    if (!units_resolve_land_combat_ff(&pool, sid2, bid2, &crng, &col1)) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "convert-join no-mission combat failed\n");
+      return 1;
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool.units[i];
+      if (!u->active || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      if (u->x == 13 && u->y == 12 && u->nation_id == 2 && u->profession == 27) {
+        free(tmap.layer3);
+        free(col1.tribe);
+        fprintf(stderr, "convert-join must not spawn without mission\n");
+        return 1;
+      }
+    }
+
+    units_set_native_fallout_context(NULL, NULL, -1);
+    free(tmap.layer3);
+    free(col1.tribe);
+    fprintf(stderr, "smoke_units: Sepulveda convert-join ok\n");
   }
 
   /* FUN_3844_0004: Treasure outside colony despawns after >8 ticks. */

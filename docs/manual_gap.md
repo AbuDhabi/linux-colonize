@@ -132,7 +132,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt **Done**; Sepulveda join% / KINGGALLEON2 PARK; Congress UI PARKED |
+| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; KINGGALLEON2 PARK; Congress UI PARKED |
 | Pedia / F3 Congress report | Partial | Data / articles; no election |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); VGA PARKED |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); deep `10f0` / arrival / letter chrome PARKED |
@@ -171,7 +171,7 @@ Aligned with early manual chapters (short playable loop first), then the
    `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
    `FUN_5bfb_022e` / `0182`); later meet / trade / teach / gift (**Done**
    structural `ai_popup`; deep/VGA PARKED)
-8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda join% / KINGGALLEON2 PARK; Cortes/de Witt Done; Congress UI later)
+8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** (manual notes mouse; lower priority for core loop)
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
