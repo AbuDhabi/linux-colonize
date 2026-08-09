@@ -443,6 +443,23 @@ void col1_bridge_sync_map_occupancy(
         continue;
       }
       col1_occupancy_or_xy(save, map, width, height, u->x, u->y, MAP_OCCUPANCY_HAS_UNIT);
+      /*
+       * FUN_1427_02ca / FUN_137f_0228: euro unit tiles must carry owner nibble.
+       * Human fleets that sailed without claiming left ocean as path=fx; DOS then
+       * peels the transport stack on select/move (patch F: path=01 fixes it).
+       * Natives: AI already stamps owners; village tiles keep tribe high nibble.
+       */
+      if (u->nation_id >= 0 && u->nation_id < 4 && u->x >= 0 && u->y >= 0 && u->x < width &&
+          u->y < height) {
+        const size_t ti = (size_t)u->y * (size_t)width + (size_t)u->x;
+        const uint8_t hi = (uint8_t)(((unsigned)u->nation_id & 0x0fu) << 4);
+        if (save && save->map.path && ti < tile_count) {
+          save->map.path[ti] = (uint8_t)((save->map.path[ti] & 0x0fu) | hi);
+        }
+        if (map && map->layer3 && ti < map->tile_count) {
+          map->layer3[ti] = (uint8_t)((map->layer3[ti] & 0x0fu) | hi);
+        }
+      }
     }
   }
 
@@ -819,7 +836,8 @@ bool col1_bridge_apply(
     ColonizeUnit* u = units_get(units, id);
     if (u) {
       u->nation_id = src->nation_id;
-      /* COL1 moves are spent-ish; treat 0 as full refresh for playability. */
+      /* COL1 moves are spent-ish; treat 0 as full refresh for playability.
+       * (Full moves_spent import would retune Brave AI vs TURN goldens.) */
       const ColonizeUnitType* ut = units_type(units, ti);
       u->moves_left = (src->moves == 0 && ut) ? ut->movement : (int)src->moves;
       u->orders = (int)src->orders;
@@ -1365,18 +1383,29 @@ bool col1_bridge_capture(
         dst->vis_mask = vis;
       }
       {
-        /* Col1 +0x05 is moves_spent (FUN_1427_13b0), not moves_left. */
+        /*
+         * Col1 +0x05 is moves_spent for ships/wagons/aboard (COLONY00 = 0 when
+         * full). Land/Brave export keeps moves_left so AI TURN goldens stay
+         * stable until a full spent-semantics migration.
+         */
         const ColonizeUnitType* ut = units_type(units, src->type_index);
-        const int max_mp = ut && ut->movement > 0 ? ut->movement : 1;
-        int spent = 0;
-        if (src->aboard_ship_id >= 0 || src->orders == 1) {
-          spent = 0;
-        } else if (src->moves_left <= 0) {
-          spent = max_mp;
-        } else if (src->moves_left < max_mp) {
-          spent = max_mp - src->moves_left;
+        const bool transport = ut && ut->cargo > 0;
+        if (src->aboard_ship_id >= 0 || transport) {
+          const int max_mp = ut && ut->movement > 0 ? ut->movement : 1;
+          int spent = 0;
+          /* Idle transports (no goto/sail): always export full MP like COLONY00. */
+          if (src->aboard_ship_id >= 0 || src->orders == UNITS_ORDER_SENTRY ||
+              src->orders == UNITS_ORDER_NONE || !units_orders_follow_goto(src->orders)) {
+            spent = 0;
+          } else if (src->moves_left <= 0) {
+            spent = max_mp;
+          } else if (src->moves_left < max_mp) {
+            spent = max_mp - src->moves_left;
+          }
+          dst->moves = (uint8_t)(spent < 0 ? 0 : (spent > 255 ? 255 : spent));
+        } else {
+          dst->moves = (uint8_t)(src->moves_left < 0 ? 0 : src->moves_left);
         }
-        dst->moves = (uint8_t)(spent < 0 ? 0 : (spent > 255 ? 255 : spent));
       }
       if (src->aboard_ship_id >= 0) {
         dst->orders = 1; /* sentry if aboard */
@@ -1385,14 +1414,30 @@ bool col1_bridge_capture(
       } else {
         dst->orders = 0;
       }
-      /* Col1 Braves use (0,0) for no-goto; keep that convention on export. */
-      if (src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE || src->goto_x < 0 ||
-          src->goto_y < 0) {
-        dst->goto_x = 0;
-        dst->goto_y = 0;
-      } else {
-        dst->goto_x = (uint8_t)src->goto_x;
-        dst->goto_y = (uint8_t)src->goto_y;
+      /*
+       * Goto: idle on-map ships must use goto==xy (COLONY00). Human starter
+       * cleared ORDER_GOTO but left landfall in goto — DOS peeled the caravel
+       * out of transport_chain on select/move. Do not rewrite land/Brave goto
+       * (TURN AI goldens keep landfall after unload). Europe keeps landfall.
+       */
+      {
+        const ColonizeUnitType* ut_goto = units_type(units, src->type_index);
+        const bool transport = ut_goto && ut_goto->cargo > 0;
+        const bool follow = units_orders_follow_goto(src->orders);
+        const bool europe = col1_coord_is_europe((uint8_t)src->x, (uint8_t)src->y);
+        const bool native = (src->nation_id & 0xF) >= 4;
+        const bool goto_none = src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE ||
+                               src->goto_x < 0 || src->goto_y < 0;
+        if (transport && !follow && !europe) {
+          dst->goto_x = dst->x;
+          dst->goto_y = dst->y;
+        } else if (goto_none || (native && !follow)) {
+          dst->goto_x = 0;
+          dst->goto_y = 0;
+        } else {
+          dst->goto_x = (uint8_t)src->goto_x;
+          dst->goto_y = (uint8_t)src->goto_y;
+        }
       }
       {
         /* FUN_1427_06b4: transports (cargo>0) always profession 0. */

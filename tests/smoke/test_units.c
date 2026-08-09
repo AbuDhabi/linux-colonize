@@ -100,17 +100,53 @@ int main(void) {
     assets_msg_free(&names);
     return 1;
   }
-  /* Discoverer (diff 0) England: Hardy Pioneer + Veteran Soldier. */
+  /* Discoverer (diff 0) England: plain Pioneer + Veteran Soldier (COLONY00).
+   * Hardy Pioneer is French-only, not all Discoverer nations. */
   {
     const ColonizeUnit* p0 = units_get_const(&pool, ship->cargo_ids[0]);
     const ColonizeUnit* p1 = units_get_const(&pool, ship->cargo_ids[1]);
-    if (!p0 || !p1 || p0->profession != UNITS_JOB_PIONEER || p1->profession != UNITS_JOB_SOLDIER) {
+    if (!p0 || !p1 || p0->profession != UNITS_JOB_NONE || p1->profession != UNITS_JOB_SOLDIER) {
       fprintf(
         stderr,
-        "Discoverer England expected Hardy+Veteran professions (got %d,%d)\n",
+        "Discoverer England expected plain+Veteran professions (got %d,%d)\n",
         p0 ? p0->profession : -1,
         p1 ? p1->profession : -1
       );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+  /* Discoverer French: Hardy Pioneer + Veteran Soldier. */
+  {
+    ColonizeUnitPool fr;
+    memset(&fr, 0, sizeof(fr));
+    fr.type_count = pool.type_count;
+    memcpy(fr.types, pool.types, sizeof(pool.types));
+    const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, ship->x + 1, ship->y, 40, 10);
+    ColonizeUnit* fs = units_get(&fr, fid);
+    if (!fs || fs->cargo_count < 2) {
+      fprintf(stderr, "French Discoverer fleet missing cargo\n");
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* fp0 = units_get_const(&fr, fs->cargo_ids[0]);
+    const ColonizeUnit* fp1 = units_get_const(&fr, fs->cargo_ids[1]);
+    if (!fp0 || !fp1 || fp0->profession != UNITS_JOB_PIONEER ||
+        fp1->profession != UNITS_JOB_SOLDIER) {
+      fprintf(
+        stderr,
+        "Discoverer French expected Hardy+Veteran (got %d,%d)\n",
+        fp0 ? fp0->profession : -1,
+        fp1 ? fp1->profession : -1
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (fs->profession != 0) {
+      fprintf(stderr, "starter ship profession want 0 got %d\n", fs->profession);
       map_free(&map);
       assets_msg_free(&names);
       return 1;

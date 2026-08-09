@@ -139,11 +139,17 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   goods only — passengers use `transport_chain` (fixes fake food stacks).
 - Boarded euros: `origin=0xff` (`home_tribe_id=-1`), pioneer `cargo_hold[5]=100`
   tools; Discoverer English pioneer profession `28` (Hardy is French-only).
-  Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — that made DOS peel
-  the caravel out of `transport_chain` (sidebar unloaded, land units left behind).
-  Capture nudges settler-ish euros off village tiles and boards same-tile
-  orphans onto own ships (DOS "Illegal entry into village" / ocean sentry).
-- Col1 unit `moves` exported as **moves_spent** (not moves_left).
+  Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — ships must look like
+  transports. Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
+  as **moves_spent** (0 when full MP). Stale landfall with `orders=0` made DOS
+  peel the caravel out of `transport_chain` (sidebar unloaded, land units left
+  behind). Land/Brave `moves` still exported as moves_left (TURN golden compat).
+  Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
+  / `FUN_137f_0228`) on spawn/move and capture — unowned ocean under a human
+  fleet (`path=fx`) peels cargo on DOS select/move; COLONY00 / working patch F
+  use owner `0` (`path=x1`). Capture nudges settler-ish euros off village tiles
+  and boards same-tile orphans onto own ships (DOS "Illegal entry into village"
+  / ocean sentry).
 - Discovery: `discovery_of_the_new_world` + `named_new_world` set when human
   sees land (`col1_bridge_sync_new_world_discovery`); capture safety net.
 - `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
@@ -151,16 +157,20 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 
 **Still RMW / zero-on-template (no DOS gameplay writer for rebuild):**
 
-- Stuff late `unknown_ds_*` / `tribe_dwellings_91cc` (save I/O only in unpacked)
+- Stuff late `unknown_ds_*` / `tribe_dwellings_91cc` (save I/O only in unpacked;
+  blank dwellings → DOS “0 Villages” speech — still not rebuilt from `tribe[]`)
 - `other[24]`, king / `price_group_state` overlay discipline (human prices only)
 - Full mid-campaign AI nation blobs beyond fields AI already mutates in-place
 
 **Fixture probe** (`tests-save-misc/unit flags error.sav`): occupancy orphans
 cleared. Newgame template smoke checks density, blank census, `vis_mask`,
 discovery sync, fleet `holds_occupied` / passenger `origin`+tools / ship
-`profession=0` / native vis. Archived `unowned units all visible.sav` was the
-DOS repro for the vis/holds/discovery bugs; `loaded units still wrong.sav` for
-ship profession peeling the transport chain.
+`profession=0` / native vis / idle fleet `goto==xy` / `moves` as spent /
+ship-tile path owner nibble.
+Archived `unowned units all visible.sav` was the DOS repro for the
+vis/holds/discovery bugs; `loaded units still wrong.sav` for the unloaded
+caravel / peeled transport_chain (pre-fix: ship `profession=28`,
+`moves=4` as left, stale landfall `goto`, then `path=fx` under fleet).
 
 ### Verified fixtures
 
