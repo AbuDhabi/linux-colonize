@@ -1333,6 +1333,13 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    if (!units_orders_follow_goto(sh->orders)) {
+      fprintf(stderr, "trade route should follow goto for advance\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
     units_clear_orders(&pool, ship);
 
     /* Anchor: need own colony adjacent/on tile — found a tiny colony next to ship. */

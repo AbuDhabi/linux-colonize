@@ -100,7 +100,7 @@ struct ColonizeGameState {
   bool reports_ok;
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
-  int hof_last_score; /* last Retire Colonization Score (session HoF stub) */
+  int hof_last_score; /* last Retire Colonization Score (session + HOF.TXT) */
   bool hof_has_entry;
   ColonizeReportId report_id;
   EuropeScreen europe;
@@ -1951,6 +1951,9 @@ static void fill_fallback_palette(ColonizePalette* palette) {
   }
 }
 
+static void game_hof_load(ColonizeGameState* game);
+static void game_hof_save(const ColonizeGameState* game);
+
 ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
   if (!game || !config) {
@@ -2018,6 +2021,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     snprintf(game->status, sizeof(game->status), "Colonization Linux Port");
     diag_info("Asset validation succeeded for data_dir=%s", game->resolved_data_dir);
   }
+  game_hof_load(game);
 
   game->palette_ok = assets_load_palette(game->resolved_data_dir, &game->palette);
   if (!game->palette_ok) {
@@ -4106,6 +4110,290 @@ static void game_wait_next_unit(ColonizeGameState* game) {
   snprintf(game->status, sizeof(game->status), "%s", "Continue turn.");
 }
 
+/* Thin persistent HoF: COLONIZE/HOF.TXT holds last retired score (one line). */
+static void game_hof_path(const ColonizeGameState* game, char* out, size_t out_size) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (!game) {
+    return;
+  }
+  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, "HOF.TXT", out, out_size)) {
+    snprintf(out, out_size, "%s/HOF.TXT", game->resolved_data_dir);
+  }
+}
+
+static void game_hof_load(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  char path[640];
+  game_hof_path(game, path, sizeof(path));
+  FILE* f = fopen(path, "r");
+  if (!f) {
+    return;
+  }
+  int score = 0;
+  if (fscanf(f, "%d", &score) == 1 && score != 0) {
+    game->hof_last_score = score;
+    game->hof_has_entry = true;
+  }
+  fclose(f);
+}
+
+static void game_hof_save(const ColonizeGameState* game) {
+  if (!game || !game->hof_has_entry) {
+    return;
+  }
+  char path[640];
+  game_hof_path(game, path, sizeof(path));
+  FILE* f = fopen(path, "w");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "%d\n", game->hof_last_score);
+  fclose(f);
+}
+
+/*
+ * Resolve Col1 trade-stop to map coords. colony_index 999 = Europe (eastern HS
+ * for ships; coastal land for wagons). Returns 1 if *ox,*oy set.
+ * Cite: ColonizeCol1TradeStop; Colonization.pdf Trade Routes.
+ */
+static int game_trade_stop_coords(
+  ColonizeGameState* game,
+  const ColonizeUnit* u,
+  uint16_t colony_index,
+  int* ox,
+  int* oy
+) {
+  if (!game || !u || !ox || !oy) {
+    return 0;
+  }
+  if (colony_index == 999) {
+    if (units_is_sea(&game->units, u->id)) {
+      int sx = 0;
+      int sy = 0;
+      if (units_find_eastern_high_seas_tile(&game->units, &game->world_map, u->y, &sx, &sy)) {
+        *ox = sx;
+        *oy = sy;
+        return 1;
+      }
+    }
+    /* Land: nearest own coastal colony as Europe sail stand-in. */
+    int best = -1;
+    int bx = 0;
+    int by = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &game->colonies.colonies[i];
+      if (!c->active || c->nation_id != game->human_nation) {
+        continue;
+      }
+      if (!map_tile_is_coastal(&game->world_map, c->x, c->y)) {
+        continue;
+      }
+      const int d = abs(c->x - u->x) + abs(c->y - u->y);
+      if (best < 0 || d < best) {
+        best = d;
+        bx = c->x;
+        by = c->y;
+      }
+    }
+    if (best < 0) {
+      return 0;
+    }
+    *ox = bx;
+    *oy = by;
+    return 1;
+  }
+  const ColonizeColony* c = colonies_get(&game->colonies, (int)colony_index);
+  if (!c || !c->active) {
+    return 0;
+  }
+  if (units_is_sea(&game->units, u->id)) {
+    /* Ships aim coastal water next to colony. */
+    static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    int best = -1;
+    int bx = c->x;
+    int by = c->y;
+    for (int d = 0; d < 8; ++d) {
+      const int nx = c->x + dx[d];
+      const int ny = c->y + dy[d];
+      if (!map_tile_is_water(&game->world_map, nx, ny)) {
+        continue;
+      }
+      const int dist = abs(nx - u->x) + abs(ny - u->y);
+      if (best < 0 || dist < best) {
+        best = dist;
+        bx = nx;
+        by = ny;
+      }
+    }
+    *ox = bx;
+    *oy = by;
+    return 1;
+  }
+  *ox = c->x;
+  *oy = c->y;
+  return 1;
+}
+
+/*
+ * Aim TRADE_ROUTE unit at stop index. Linux stand-in: follow_unit_id = route
+ * slot (0..11); turns_worked = stop index. Load/unload nibbles still thin.
+ */
+static int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i) {
+  if (!game || !game->col1_ok || !u || u->orders != UNITS_ORDER_TRADE_ROUTE) {
+    return 0;
+  }
+  const int route = u->follow_unit_id;
+  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return 0;
+  }
+  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
+  if (r->dest_count <= 0) {
+    return 0;
+  }
+  int si = stop_i % (int)r->dest_count;
+  if (si < 0) {
+    si = 0;
+  }
+  int tx = 0;
+  int ty = 0;
+  if (!game_trade_stop_coords(game, u, r->stop[si].colony_index, &tx, &ty)) {
+    return 0;
+  }
+  u->goto_x = tx;
+  u->goto_y = ty;
+  u->turns_worked = si;
+  return 1;
+}
+
+/*
+ * Thin stop service (before advancing): at own colony unload all goods holds;
+ * if empty, load one surplus chunk (tools>lumber>ore>muskets>horses>food).
+ * Europe=999 ship: sell commodity holds via europe_sell_unit_hold.
+ * Full Col1 load/unload nibble UI still thin. Cite: ColonizeCol1TradeStop;
+ * Colonization.pdf Trade Routes.
+ */
+static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit* u) {
+  if (!game || !u || !game->col1_ok) {
+    return;
+  }
+  const int route = u->follow_unit_id;
+  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return;
+  }
+  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
+  const int si = u->turns_worked;
+  if (si < 0 || si >= (int)r->dest_count) {
+    return;
+  }
+  const uint16_t cidx = r->stop[si].colony_index;
+  if (cidx == 999) {
+    if (units_is_sea(&game->units, u->id) && (u->x >= 200 || u->y >= 200 ||
+                                                map_tile_is_high_seas(&game->world_map, u->x, u->y))) {
+      /* Sell from front — europe_sell_unit_hold may compact holds. */
+      for (int guard = 0; guard < 8; ++guard) {
+        const int n = units_goods_hold_count(&game->units, u->id);
+        int sold = 0;
+        for (int h = 0; h < n; ++h) {
+          if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255) {
+            if (europe_sell_unit_hold(&game->europe, &game->units, u->id, h) > 0) {
+              sold = 1;
+            }
+            break;
+          }
+        }
+        if (!sold) {
+          break;
+        }
+      }
+    }
+    return;
+  }
+  int cid = (int)cidx;
+  const ColonizeColony* col = colonies_get(&game->colonies, cid);
+  if (!col || !col->active || col->nation_id != game->human_nation) {
+    return;
+  }
+  /* Ship: allow adjacent coastal berth. */
+  if (units_is_sea(&game->units, u->id)) {
+    if (abs(u->x - col->x) > 1 || abs(u->y - col->y) > 1) {
+      return;
+    }
+  } else if (u->x != col->x || u->y != col->y) {
+    return;
+  }
+  int had_goods = 0;
+  const int n = units_goods_hold_count(&game->units, u->id);
+  for (int h = 0; h < n; ++h) {
+    if (u->hold_goods_amount[h] <= 0 || u->hold_goods_amount[h] >= 255) {
+      continue;
+    }
+    had_goods = 1;
+    bool full = false;
+    (void)colonies_transfer_from_unit(&game->colonies, cid, &game->units, u->id, h, &full);
+  }
+  if (had_goods) {
+    return;
+  }
+  static const int k_load[] = {
+    COLONIZE_CARGO_TOOLS,
+    COLONIZE_CARGO_LUMBER,
+    COLONIZE_CARGO_ORE,
+    COLONIZE_CARGO_MUSKETS,
+    COLONIZE_CARGO_HORSES,
+    COLONIZE_CARGO_FOOD
+  };
+  ColonizeColony* cmut = colonies_get_mut(&game->colonies, cid);
+  if (!cmut) {
+    return;
+  }
+  for (size_t i = 0; i < sizeof(k_load) / sizeof(k_load[0]); ++i) {
+    const int ct = k_load[i];
+    int amt = 20;
+    if (ct == COLONIZE_CARGO_MUSKETS || ct == COLONIZE_CARGO_HORSES) {
+      amt = 10;
+    }
+    if (ct == COLONIZE_CARGO_FOOD) {
+      amt = cmut->population > 0 ? cmut->population * 2 : 10;
+    }
+    if (cmut->stock[ct] < amt * 2) {
+      continue; /* need surplus-ish stock */
+    }
+    if (colonies_transfer_to_unit(&game->colonies, cid, &game->units, u->id, ct, amt) > 0) {
+      break;
+    }
+  }
+}
+
+/* If TRADE_ROUTE unit is at current stop (or has no goto), service then advance. */
+static void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) {
+  if (!game || !u || u->orders != UNITS_ORDER_TRADE_ROUTE) {
+    return;
+  }
+  const int route = u->follow_unit_id;
+  if (route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return;
+  }
+  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
+  if (r->dest_count <= 0) {
+    return;
+  }
+  const int at_dest =
+    (u->goto_x >= UNITS_GOTO_NONE || u->goto_y >= UNITS_GOTO_NONE) ||
+    (u->x == u->goto_x && u->y == u->goto_y);
+  if (!at_dest) {
+    return;
+  }
+  game_trade_route_service_stop(game, u);
+  const int next = (u->turns_worked + 1) % (int)r->dest_count;
+  (void)game_trade_route_aim_stop(game, u, next);
+}
+
 /* Returns false if the game should quit. */
 static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
   switch (action) {
@@ -4295,10 +4583,178 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       const int sid = game->units.selected_id;
       if (sid < 0 || !units_order_trade_route(&game->units, sid)) {
         set_status(game, "Select a ship or wagon", NULL);
-      } else {
-        set_status(game, "Trade route begun (edit stops via TRADE menu)", NULL);
-        game_wait_next_unit(game);
+        return true;
       }
+      ColonizeUnit* u = units_get(&game->units, sid);
+      /* Aim last named route with stops (sea/land match when possible). */
+      int route = -1;
+      if (game->col1_ok && u) {
+        const int want_sea = units_is_sea(&game->units, sid) ? 1 : 0;
+        for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+          const ColonizeCol1TradeRoute* r = &game->col1.trade_route[i];
+          if (r->name[0] == '\0' || r->dest_count <= 0) {
+            continue;
+          }
+          if ((r->sea != 0) == (want_sea != 0)) {
+            route = i;
+          } else if (route < 0) {
+            route = i; /* fallback any route with stops */
+          }
+        }
+      }
+      if (route >= 0 && u) {
+        u->follow_unit_id = route;
+        u->turns_worked = 0;
+        if (game_trade_route_aim_stop(game, u, 0)) {
+          snprintf(
+            game->status,
+            sizeof(game->status),
+            "Trade route: %s (stop 1/%d)",
+            game->col1.trade_route[route].name,
+            (int)game->col1.trade_route[route].dest_count
+          );
+        } else {
+          set_status(game, "Trade route begun (could not aim first stop)", NULL);
+        }
+      } else {
+        set_status(game, "Trade route begun (add stops via TRADE Edit)", NULL);
+      }
+      game_wait_next_unit(game);
+      return true;
+    }
+    case MAP_MENU_ACTION_TRADE_CREATE: {
+      if (!game->col1_ok) {
+        set_status(game, "No save data for trade routes", NULL);
+        return true;
+      }
+      ColonizeCol1Save* col1 = &game->col1;
+      int slot = -1;
+      for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+        if (col1->trade_route[i].name[0] == '\0' && col1->trade_route[i].dest_count == 0) {
+          slot = i;
+          break;
+        }
+      }
+      if (slot < 0) {
+        set_status(game, "Trade route list full (12)", NULL);
+        return true;
+      }
+      ColonizeCol1TradeRoute* r = &col1->trade_route[slot];
+      memset(r, 0, sizeof(*r));
+      snprintf(r->name, sizeof(r->name), "Route %d", slot + 1);
+      /* Sea route if a ship is selected; else land/wagon. Cite: Col1 sea byte. */
+      const int sid = game->units.selected_id;
+      const ColonizeUnit* u = (sid >= 0) ? units_get_const(&game->units, sid) : NULL;
+      r->sea = (u && units_is_sea(&game->units, sid)) ? 1u : 0u;
+      r->dest_count = 0;
+      if (col1->head.trade_route_count < (uint16_t)(slot + 1)) {
+        col1->head.trade_route_count = (uint16_t)(slot + 1);
+      }
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Created %s (%s) — add stops via Edit (thin)",
+        r->name,
+        r->sea ? "sea" : "land"
+      );
+      return true;
+    }
+    case MAP_MENU_ACTION_TRADE_EDIT: {
+      /* Thin stop editor: append cursor colony (or Europe=999 for sea) to last
+       * named route. Full cargo load/unload nibble UI still later. Cite:
+       * ColonizeCol1TradeStop; docs/manual_gap.md TRADE. */
+      if (!game->col1_ok) {
+        set_status(game, "No save data for trade routes", NULL);
+        return true;
+      }
+      int last = -1;
+      for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+        if (game->col1.trade_route[i].name[0] != '\0') {
+          last = i;
+        }
+      }
+      if (last < 0) {
+        set_status(game, "No trade routes — Create first", NULL);
+        return true;
+      }
+      ColonizeCol1TradeRoute* r = &game->col1.trade_route[last];
+      if (r->dest_count >= 4) {
+        snprintf(game->status, sizeof(game->status), "%s full (4 stops)", r->name);
+        return true;
+      }
+      const int cid =
+        colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
+      uint16_t stop_idx = 999; /* Europe sentinel in Col1 */
+      const char* stop_label = "Europe";
+      if (cid >= 0) {
+        const ColonizeColony* c = colonies_get(&game->colonies, cid);
+        if (!c || !c->active || c->nation_id != game->human_nation) {
+          set_status(game, "Edit: cursor must be own colony (or Europe for sea)", NULL);
+          return true;
+        }
+        stop_idx = (uint16_t)cid;
+        stop_label = c->name[0] ? c->name : "colony";
+      } else if (!r->sea) {
+        set_status(game, "Edit: put cursor on own colony to add stop", NULL);
+        return true;
+      }
+      /* Avoid duplicate consecutive stop. */
+      if (r->dest_count > 0 &&
+          r->stop[r->dest_count - 1].colony_index == stop_idx) {
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "%s already ends at %s (%d/4)",
+          r->name,
+          stop_label,
+          (int)r->dest_count
+        );
+        return true;
+      }
+      ColonizeCol1TradeStop* st = &r->stop[r->dest_count];
+      memset(st, 0, sizeof(*st));
+      st->colony_index = stop_idx;
+      r->dest_count++;
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "%s +%s (%d/4) — load/unload UI later",
+        r->name,
+        stop_label,
+        (int)r->dest_count
+      );
+      return true;
+    }
+    case MAP_MENU_ACTION_TRADE_DELETE: {
+      if (!game->col1_ok) {
+        set_status(game, "No save data for trade routes", NULL);
+        return true;
+      }
+      int last = -1;
+      for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+        if (game->col1.trade_route[i].name[0] != '\0' ||
+            game->col1.trade_route[i].dest_count > 0) {
+          last = i;
+        }
+      }
+      if (last < 0) {
+        set_status(game, "No trade routes to delete", NULL);
+        return true;
+      }
+      char gone[32];
+      snprintf(gone, sizeof(gone), "%s", game->col1.trade_route[last].name);
+      memset(&game->col1.trade_route[last], 0, sizeof(game->col1.trade_route[last]));
+      {
+        uint16_t hi = 0;
+        for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+          if (game->col1.trade_route[i].name[0] != '\0' ||
+              game->col1.trade_route[i].dest_count > 0) {
+            hi = (uint16_t)(i + 1);
+          }
+        }
+        game->col1.head.trade_route_count = hi;
+      }
+      snprintf(game->status, sizeof(game->status), "Deleted %s", gone[0] ? gone : "route");
       return true;
     }
     case MAP_MENU_ACTION_DUMP_OVERBOARD: {
@@ -4594,6 +5050,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
           continue;
         }
+        if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
+          game_trade_route_retarget(game, u);
+        }
         if (!units_advance_goto_one_step(
               &game->units, u->id, &game->world_map, &game->colonies, &game->move_rng
             )) {
@@ -4601,6 +5060,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         stepped++;
         u = units_get(&game->units, u->id);
+        if (u && u->orders == UNITS_ORDER_TRADE_ROUTE) {
+          game_trade_route_retarget(game, u);
+        }
         if (u && u->nation_id >= 0 && u->nation_id <= 3) {
           map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
           if (game->col1_ok && u->nation_id == game->human_nation) {
@@ -4690,6 +5152,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           );
           game->hof_last_score = sc.total;
           game->hof_has_entry = true;
+          game_hof_save(game);
         }
         game->in_menu = true;
         sound_stop_bgm();
@@ -7151,6 +7614,21 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
                   oy
                 );
               }
+            }
+          }
+          /* Runtime plow / road: PHYS0 149 / 80 after static overlays, before fog. */
+          {
+            const int plow = map_phys0_plow_sprite_at(&game->world_map, mx, my);
+            if (plow >= 0 && plow < game->phys0.sprite_count) {
+              blit_map_sprite(
+                &game->phys0, plow, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+              );
+            }
+            const int road = map_phys0_road_sprite_at(&game->world_map, mx, my);
+            if (road >= 0 && road < game->phys0.sprite_count) {
+              blit_map_sprite(
+                &game->phys0, road, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+              );
             }
           }
           /* Fog transitional edges: PHYS0 104–107 black fringe toward unseen. */

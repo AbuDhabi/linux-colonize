@@ -96,8 +96,9 @@ tribe tile** (prefer `tribe.state.capital`). Idle `FORTIFY` / `FORTIFIED` /
 preferring the foe with lower effective defense (fortified ×2); Indian adjacent
 requires `ai_diplo_indian_at_war`. Does not steal founders on FOUND goals.
 Act-level hunt / peace-border / scout explore share thin MP-drain goto advance
-with FOUND/MILITARY/CONTACT (§2c3). Full multi-step `20e6` combat scoring remains
-**PARKED**. Cite: `ai_diplo_indian_*`; Cortes capital treasure path;
+with FOUND/MILITARY/CONTACT (§2c3). Adjacent combat **chains** while
+`moves_left` remain after enter (cap 8). Full multi-step `20e6` combat scoring
+remains **PARKED**. Cite: `ai_diplo_indian_*`; Cortes capital treasure path;
 Colonization.pdf war / Defending a Colony.
 
 **Alarmed tribe MILITARY (planning F):** friction>50 → MILITARY; capital tribes
@@ -182,6 +183,11 @@ Idle / arriving Pioneer or Hardy on an **own** colony tile when
 (cap 100) once per act; trim inventory `tools_short` and may decrement
 `urgency`. Wired in `ai_euro_unit_act` just before LABOR/COLONY join.
 
+**Ship/colony shortage cargo (hire side-effect):** after Europe hire board, when
+`tools_short>20` deliver TOOLS (+20 ship / +15 colony); else LUMBER / ORE
+(+20/+15); else MUSKETS / HORSES (+10/+10); else FOOD (+20/+15) when matching
+short >20. Cite: mid-5d04 tools-cargo stand-in deepen; 5cf6 tallies.
+
 **Wagon deepen (hire-once):** when a Wagon Train already exists and sits on a
 tools-short colony with hold `TOOLS`, unload via `colonies_transfer_from_unit`
 (structural cargo only). Pioneer delivery prefers this path when a wagon is on
@@ -202,7 +208,8 @@ LUMBER / ORE / MUSKETS / HORSES / FOOD cargo → `AI_SAIL` toward coastal water 
 nearest own coastal colony short on that cargo (`TOOLS`/`LUMBER`/`ORE`<20,
 `MUSKETS`/`HORSES`<10, food `stock < pop*2`). Adjacent short + matching hold →
 `colonies_transfer_from_unit`; surplus (≥40 / ≥40 / ≥40 / ≥20 / ≥20 / ≥pop*4)
-near ship → load same ladder as wagon. Cite: Colonization.pdf naval transport /
+near ship → load same ladder as wagon (FOOD first when `food_short>20`). Cite:
+Colonization.pdf naval transport /
 colony supply; euro_unit_act §2d haul pattern; docs/assets.md Europe purchase
 ladder (Galleon). War hunt owns idle ships at war; Treasure Europe sail skips
 haul.
@@ -255,8 +262,12 @@ soldiers, dragoons… or artillery"); `units_wake`.
 
 **Artillery fortify after siege:** covered by peace/war Artillery fortify above.
 
- **5d04 peace hire (thin, not full case-7 body):** `tools_short>30` + Wagon
- Train/Supply Train/Wagon type → hire wagon **once** (TOOLS loaded on wagon
+ **5d04 peace hire (thin, not full case-7 body):** `tools_short>30` or
+ `lumber_short>30` or `ore_short>30` or `muskets_short>20` or `horses_short>20` +
+ Wagon
+ Train/Supply Train/Wagon type → hire wagon **once** (TOOLS preferred else LUMBER
+ else ORE else MUSKETS else HORSES
+ loaded on wagon
  before board); else `tools_short>20` prefer Pioneer/Hardy + ship/colony tools
  cargo. Case-7 deepen: prefer Hardy/Expert Pioneer or Master Carpenter already
  on Europe dock (consume dock slot; no free expert spawn). **`tools_short>20`**
@@ -277,6 +288,8 @@ soldiers, dragoons… or artillery"); `units_wake`.
  prefer Seasoned Scout on Europe dock (CONTACT / fog explore) when no higher
  shortage hire wins; else Elder Statesman (Town Hall liberty bells).
  **Church/Cathedral present:** prefer Firebrand Preacher on Europe dock (crosses).
+ **Schoolhouse/College/University present:** prefer Expert Teacher on Europe dock
+ (education / Skills Chart job 18).
  **Craft building + raw≥20:** prefer Master Distiller/Weaver/Tobacconist/Fur Trader
  on Europe dock (Sugar/Cotton/Tobacco/Furs → Rum/Cloth/Cigars/Coats).
  Cite: europe.c expert pools; building_production /
@@ -316,8 +329,10 @@ road; among roads prefer tiles **already plowed** (Clear/Plow/Road sequence).
 Hardy real power: "Clears forest, plows fields, and builds roads faster"
 (Colonization.pdf) — prefer Hardy when both idle; no invented yields. Skip when
 `tools_short` or on-colony construction LABOR stay. Cite: Colonization.pdf
-Clear/Plow/Road. Remaining mid `5d04` wagon matrix / deep combat tails stay
-**OPEN** (unpark #4).
+Clear/Plow/Road. Remaining mid `5d04` deep economy / deep combat scoring stay
+**OPEN** (unpark #4). Wagon hire-once covers tools/lumber/ore (>30),
+muskets/horses (>20), and food (>30). Surplus load prefers FOOD when
+`food_short>20` (else tools ladder).
 
 ### 2e. Linux thin — LABOR bind (food/tools short + construction)
 
@@ -498,9 +513,8 @@ Dragoon profession `0x15` +50% land toughness; Drake Privateer +50% naval
 toughness; Privateer + `ship_damaged` (0x3148 bit7) → −2; holds_occupied
 (0x3150 / goods holds) subtracted — also in `units_resolve_naval_combat_ff`.
 
-**PARK:** Wagon load FOOD — euro AI uses FOOD only for colony stock shortage /
-LABOR tallies; haul loads TOOLS / MUSKETS / HORSES (§2d / §2d2). No wagon FOOD
-cargo path.
+**PARK:** (retired) Wagon load FOOD hire — now Done for hire-once when
+`food_short>30`. Surplus FOOD prefer when `food_short>20` **Done**.
 
 **Seasoned + sticky fog deepen:** Seasoned Scout fog-explore with
 `ai_diplo_indian_hostility_sticky` ≥ 2 and `map.seen` deepens a shallow prior
@@ -513,6 +527,11 @@ fortified foreign Euro colonies (Stockade+; MD slack ≤3 vs open); adjacent-foe
 prefers higher fort %. Dragoon hunt prefers open colonies (leave forts to
 Artillery). On own colony Artillery still FORTIFY. Cite: king_ref Artillery
 siege / Dragoon open bias; Colonization.pdf Artillery.
+
+**Done (thin Treasure adjacent prefer):** at equal land toughness, prefer Treasure
+over other units (loot — Colonization.pdf Treasure Trains / @LOOTCASH). Land war
+hunt also prefers Treasure within MD slack ≤3 vs nearer non-Treasure, then lower
+`land_foe_toughness` within the same slack.
 
 **PARK:** deep `FUN_521d_20e6` combat scoring (terrain/artillery tables,
 multi-hex threat weights) — thin adjacent-toughness pick includes fortified ×2,

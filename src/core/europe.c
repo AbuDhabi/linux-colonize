@@ -313,6 +313,7 @@ static const EuropePoolCand k_pool_cands[] = {
   {"Jesuit Missionaries", 24, 2},
   {"Elder Statesmen", 17, 1},
   {"Firebrand Preachers", 16, 1},
+  {"Expert Teachers", 18, 1},
   {"Master Distiller", 9, 2},
   {"Master Tobacconists", 10, 2},
   {"Master Weavers", 11, 2},

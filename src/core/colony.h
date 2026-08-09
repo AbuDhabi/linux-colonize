@@ -261,7 +261,8 @@ int colonies_list_eject_roles(
 #define COLONIZE_EJECT_SOLDIER 2
 #define COLONIZE_EJECT_SCOUT 3
 #define COLONIZE_EJECT_DRAGOON 4
-#define COLONIZE_EJECT_ROLE_COUNT 5
+#define COLONIZE_EJECT_MISSIONARY 5 /* Church/Cathedral bless — Colonization.pdf */
+#define COLONIZE_EJECT_ROLE_COUNT 6
 
 const char* colonies_eject_role_name(int role);
 

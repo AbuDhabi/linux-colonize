@@ -117,6 +117,10 @@ uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_base_sprite(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
+/* PHYS0 149 when tile is plowed (runtime improve); -1 otherwise. */
+int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y);
+/* PHYS0 80 isolated road when tile has road; full 80–88 connectivity PARKED. */
+int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* MAPEDIT coast layer count (0 if open ocean / land). */
 int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y);
 /*

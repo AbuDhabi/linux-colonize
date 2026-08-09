@@ -2962,11 +2962,16 @@ bool units_advance_goto_one_step(
   const int gx = u->goto_x;
   const int gy = u->goto_y;
   if (gx < 0 || gy < 0 || gx >= UNITS_GOTO_NONE || gy >= UNITS_GOTO_NONE) {
-    units_clear_orders(pool, unit_id);
+    if (u->orders != UNITS_ORDER_TRADE_ROUTE) {
+      units_clear_orders(pool, unit_id);
+    }
     return false;
   }
   if (u->x == gx && u->y == gy) {
-    units_clear_orders(pool, unit_id);
+    /* TRADE_ROUTE: stay ordered at stop so caller can advance to next dest. */
+    if (u->orders != UNITS_ORDER_TRADE_ROUTE) {
+      units_clear_orders(pool, unit_id);
+    }
     return false;
   }
   if (u->moves_left <= 0) {
@@ -2981,7 +2986,7 @@ bool units_advance_goto_one_step(
     return false;
   }
   u = units_get(pool, unit_id);
-  if (u && u->x == gx && u->y == gy) {
+  if (u && u->x == gx && u->y == gy && u->orders != UNITS_ORDER_TRADE_ROUTE) {
     units_clear_orders(pool, unit_id);
   }
   return true;

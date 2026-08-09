@@ -3492,14 +3492,18 @@ static int ai_euro_try_wagon_haul(
   } else if (has_food) {
     prefer_cargo = COLONIZE_CARGO_FOOD;
   }
-  /* On own colony with surplus + free hold → load before haul
-   * (tools>lumber>ore>muskets>horses>food). Cite: Colonization.pdf Wagon Train. */
+  /* On own colony with surplus + free hold → load before haul.
+   * Default ladder tools>lumber>ore>muskets>horses>food; when inventory
+   * food_short>20 prefer FOOD first (hungry colonies). Cite: Colonization.pdf
+   * Wagon Train; euro_unit_act §2d surplus FOOD deepen; 5cf6 food_short. */
   if (has_cap && prefer_cargo < 0) {
     const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
     if (cid >= 0) {
       ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
       if (c && c->active && c->nation_id == nation_id) {
-        static const int k_load_order[] = {
+        const AiEuroInventory* inv = ai_goals_inventory(nation_id);
+        const int food_first = inv && inv->food_short > 20;
+        static const int k_load_default[] = {
           COLONIZE_CARGO_TOOLS,
           COLONIZE_CARGO_LUMBER,
           COLONIZE_CARGO_ORE,
@@ -3507,8 +3511,20 @@ static int ai_euro_try_wagon_haul(
           COLONIZE_CARGO_HORSES,
           COLONIZE_CARGO_FOOD
         };
-        for (size_t i = 0; i < sizeof(k_load_order) / sizeof(k_load_order[0]); ++i) {
-          const int ct = k_load_order[i];
+        static const int k_load_food_first[] = {
+          COLONIZE_CARGO_FOOD,
+          COLONIZE_CARGO_TOOLS,
+          COLONIZE_CARGO_LUMBER,
+          COLONIZE_CARGO_ORE,
+          COLONIZE_CARGO_MUSKETS,
+          COLONIZE_CARGO_HORSES
+        };
+        const int* order = food_first ? k_load_food_first : k_load_default;
+        const size_t n_order =
+          food_first ? sizeof(k_load_food_first) / sizeof(k_load_food_first[0])
+                     : sizeof(k_load_default) / sizeof(k_load_default[0]);
+        for (size_t i = 0; i < n_order; ++i) {
+          const int ct = order[i];
           if (!ai_euro_colony_haul_cargo_surplus(c, ct)) {
             continue;
           }
@@ -4261,6 +4277,9 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
     if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
       inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
     }
+    if (c->stock[COLONIZE_CARGO_HORSES] < 10) {
+      inv->horses_short += 10 - c->stock[COLONIZE_CARGO_HORSES];
+    }
     if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
       inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
     }
@@ -4537,7 +4556,8 @@ static int ai_euro_try_wagon_tools_delivery(
  * shortage. Prefer structural wagon TOOLS unload when a hired Wagon Train is
  * on the colony tile (5d04 hire-once deepen); else +10 stock[TOOLS] stand-in
  * (cap 100) once per act; trims tools_short / urgency.
- * Deeper wagon / hire / treasury matrix remains OPEN (unpark #4).
+ * Deeper hire / treasury matrix remainders OPEN (unpark #4); wagon hire-once
+ * cargo ladder (tools/lumber/ore/muskets/horses) Done. FOOD wagon-load PARKED.
  */
 static int ai_euro_try_pioneer_tools_delivery(
   ColonizeTurnContext* ctx,
@@ -4702,6 +4722,14 @@ static int ai_euro_dock_name_is_preacher_expert(const char* name) {
     return 0;
   }
   return strstr(name, "Firebrand") != NULL || strstr(name, "Preacher") != NULL;
+}
+
+/* Europe dock Expert Teacher for case-7 school hire. */
+static int ai_euro_dock_name_is_teacher_expert(const char* name) {
+  if (!name || !name[0]) {
+    return 0;
+  }
+  return strstr(name, "Teacher") != NULL;
 }
 
 /* Europe dock Master Distiller for case-7 rum craft hire. */
@@ -4875,6 +4903,16 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
     ty = units_find_type(units, "Firebrand Preacher");
     if (ty < 0) {
       ty = units_find_type(units, "Preacher");
+    }
+    if (ty < 0) {
+      ty = units_find_type(units, "Free Colonist");
+    }
+    return ty;
+  }
+  if (strstr(dock_name, "Teacher")) {
+    ty = units_find_type(units, "Expert Teacher");
+    if (ty < 0) {
+      ty = units_find_type(units, "Teacher");
     }
     if (ty < 0) {
       ty = units_find_type(units, "Free Colonist");
@@ -5133,6 +5171,22 @@ static int ai_euro_dock_find_preacher_expert(const EuropeScreen* eu) {
   return -1;
 }
 
+/* First dock slot matching Expert Teacher; -1 if none. */
+static int ai_euro_dock_find_teacher_expert(const EuropeScreen* eu) {
+  if (!eu) {
+    return -1;
+  }
+  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+    if (!eu->dock[i].present) {
+      continue;
+    }
+    if (ai_euro_dock_name_is_teacher_expert(eu->dock[i].name)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /* True if nation has Church or Cathedral (Preacher workplace). */
 static int ai_euro_nation_has_church(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies) {
@@ -5150,6 +5204,34 @@ static int ai_euro_nation_has_church(ColonizeTurnContext* ctx, int nation_id) {
     }
     if (cathedral_id >= 0 && cathedral_id < COLONIZE_BUILDING_TYPES_MAX &&
         c->has_building[cathedral_id]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* True if nation has Schoolhouse, College, or University (Teacher workplace). */
+static int ai_euro_nation_has_school(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies) {
+    return 0;
+  }
+  const int school_id = colonies_find_building(ctx->colonies, "Schoolhouse");
+  const int college_id = colonies_find_building(ctx->colonies, "College");
+  const int university_id = colonies_find_building(ctx->colonies, "University");
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    if (school_id >= 0 && school_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[school_id]) {
+      return 1;
+    }
+    if (college_id >= 0 && college_id < COLONIZE_BUILDING_TYPES_MAX &&
+        c->has_building[college_id]) {
+      return 1;
+    }
+    if (university_id >= 0 && university_id < COLONIZE_BUILDING_TYPES_MAX &&
+        c->has_building[university_id]) {
       return 1;
     }
   }
@@ -5232,20 +5314,25 @@ static int ai_euro_dock_remove_at(EuropeScreen* eu, int idx) {
   return 1;
 }
 
-/* Stock +20 TOOLS on ship holds, else +15 to nearest own colony. Returns delivered. */
-static int ai_euro_tools_cargo_or_colony(
+/* Stock +ship_amt of cargo_type on ship holds, else +colony_amt to nearest own
+ * colony (cap 100). Returns delivered. Cite: euro_unit_act §2d tools/lumber
+ * cargo stand-in; 5cf6 shortage tallies. */
+static int ai_euro_cargo_or_colony(
   ColonizeTurnContext* ctx,
   int nation_id,
-  ColonizeUnit* ship
+  ColonizeUnit* ship,
+  int cargo_type,
+  int ship_amt,
+  int colony_amt
 ) {
-  if (!ctx || !ship) {
+  if (!ctx || !ship || ship_amt <= 0) {
     return 0;
   }
   int delivered = 0;
   if (units_goods_hold_count(ctx->units, ship->id) > 0) {
-    delivered = units_load_goods(ctx->units, ship->id, COLONIZE_CARGO_TOOLS, 20);
+    delivered = units_load_goods(ctx->units, ship->id, cargo_type, ship_amt);
   }
-  if (delivered <= 0 && ctx->colonies) {
+  if (delivered <= 0 && ctx->colonies && colony_amt > 0) {
     ColonizeColony* nearest = NULL;
     int best_d = -1;
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -5260,15 +5347,25 @@ static int ai_euro_tools_cargo_or_colony(
       }
     }
     if (nearest) {
-      int stock = nearest->stock[COLONIZE_CARGO_TOOLS] + 15;
+      int stock = nearest->stock[cargo_type] + colony_amt;
       if (stock > 100) {
         stock = 100;
       }
-      nearest->stock[COLONIZE_CARGO_TOOLS] = stock;
-      delivered = 15;
+      nearest->stock[cargo_type] = stock;
+      delivered = colony_amt;
     }
   }
   return delivered;
+}
+
+static int ai_euro_tools_cargo_or_colony(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  return ai_euro_cargo_or_colony(
+    ctx, nation_id, ship, COLONIZE_CARGO_TOOLS, 20, 15
+  );
 }
 
 static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
@@ -5284,8 +5381,10 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
    * Europe-dock board while colony_count < 6; at war prefer Soldier/Dragoon;
-   * colonies>=2 also Artillery when type exists. Peace: tools_short>30 + Wagon
-   * type → hire wagon once; else tools_short>20 prefer Pioneer/Hardy + tools
+   * colonies>=2 also Artillery when type exists. Peace: tools_short>30,
+   * lumber_short>30, or ore_short>30 + Wagon type → hire wagon once (TOOLS
+   * preferred, else LUMBER, else ORE aboard); else tools_short>20 prefer
+   * Pioneer/Hardy + tools
    * cargo stand-in (ship +20 / colony +15). Case-7 deepen: prefer Hardy/Expert
    * Pioneer or Master Carpenter already on Europe dock (no free spawn fiction).
    * **`lumber_short>20`:** prefer Expert Lumberjack on Europe dock (same consume
@@ -5624,6 +5723,24 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
   /*
+   * Peace case-7 education deepen: Schoolhouse/College/University present +
+   * Expert Teacher on Europe dock → prefer that type. Cite: europe.c Expert
+   * Teachers; building_production.md Skills Chart job 18; Colonization.pdf
+   * Education / Teacher.
+   */
+  if (hire_ty < 0 && inv && !at_war && ctx->europe &&
+      ai_euro_nation_has_school(ctx, nation_id)) {
+    dock_idx = ai_euro_dock_find_teacher_expert(ctx->europe);
+    if (dock_idx >= 0) {
+      const int dock_ty =
+        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
+      if (dock_ty >= 0) {
+        hire_ty = dock_ty;
+        from_dock = 1;
+      }
+    }
+  }
+  /*
    * Peace case-7 craft deepen: Distiller/Weaver/Tobacconist/Fur Trader on Europe
    * dock when a colony has the craft building + raw stock≥20. Cite: europe.c
    * Master Distiller/Weavers/Tobacconists/Fur Traders; building_production craft
@@ -5670,11 +5787,15 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
   /*
-   * Peace thin wagon / tools matrix: Wagon once when tools_short>30; else
+   * Peace thin wagon / supply matrix: Wagon once when tools/lumber/ore_short>30
+   * or muskets/horses_short>20 or food_short>30 (tally caps differ); else
    * Pioneer/Hardy when tools_short>20; else 5c3c profession_demand → Pioneer.
+   * Cite: euro_unit_act §2d wagon haul / 5cf6; Colonization.pdf Wagon Train.
    */
   if (hire_ty < 0 && inv && !at_war) {
-    if (inv->tools_short > 30 && !ai_euro_nation_has_wagon(ctx->units, nation_id)) {
+    if ((inv->tools_short > 30 || inv->lumber_short > 30 || inv->ore_short > 30 ||
+         inv->muskets_short > 20 || inv->horses_short > 20 || inv->food_short > 30) &&
+        !ai_euro_nation_has_wagon(ctx->units, nation_id)) {
       const int wagon_ty = ai_euro_find_wagon_type(ctx->units);
       if (wagon_ty >= 0) {
         hire_ty = wagon_ty;
@@ -5765,12 +5886,30 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /*
-   * Wagon hire: load TOOLS onto the wagon before boarding (aboard units are
-   * off-map so units_is_transport would fail). Else Pioneer tools ride ship.
+   * Wagon hire: load TOOLS (preferred), else LUMBER, else ORE, else MUSKETS,
+   * else HORSES, else FOOD onto the wagon before boarding. Cite: 5cf6 shorts;
+   * Colonization.pdf Wagon Train; euro_unit_act §2d haul ladder.
    */
-  int wagon_loaded = 0;
-  if (inv && inv->tools_short > 30 && hired_wagon) {
-    wagon_loaded = units_load_goods(ctx->units, uid, COLONIZE_CARGO_TOOLS, 20);
+  int wagon_loaded_tools = 0;
+  int wagon_loaded_lumber = 0;
+  int wagon_loaded_ore = 0;
+  int wagon_loaded_muskets = 0;
+  int wagon_loaded_horses = 0;
+  int wagon_loaded_food = 0;
+  if (hired_wagon && inv) {
+    if (inv->tools_short > 30) {
+      wagon_loaded_tools = units_load_goods(ctx->units, uid, COLONIZE_CARGO_TOOLS, 20);
+    } else if (inv->lumber_short > 30) {
+      wagon_loaded_lumber = units_load_goods(ctx->units, uid, COLONIZE_CARGO_LUMBER, 20);
+    } else if (inv->ore_short > 30) {
+      wagon_loaded_ore = units_load_goods(ctx->units, uid, COLONIZE_CARGO_ORE, 20);
+    } else if (inv->muskets_short > 20) {
+      wagon_loaded_muskets = units_load_goods(ctx->units, uid, COLONIZE_CARGO_MUSKETS, 20);
+    } else if (inv->horses_short > 20) {
+      wagon_loaded_horses = units_load_goods(ctx->units, uid, COLONIZE_CARGO_HORSES, 20);
+    } else if (inv->food_short > 30) {
+      wagon_loaded_food = units_load_goods(ctx->units, uid, COLONIZE_CARGO_FOOD, 20);
+    }
   }
 
   if (!units_board_stacked(ctx->units, uid, ship->id)) {
@@ -5792,14 +5931,14 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   /*
    * Thin tools-cargo stand-in (threshold lowered from >40 to >20). Pioneer/Hardy:
    * equip tools + ship hold +20 or nearest-colony +15. Wagon already loaded above;
-   * if wagon load failed, fall back to ship/colony delivery.
+   * if wagon TOOLS load failed, fall back to ship/colony delivery.
    * Master Carpenter dock hire skips tools equip (builder, not pioneer).
    */
   if (inv && inv->tools_short > 20) {
     int delivered = 0;
     if (hired_wagon) {
-      delivered = wagon_loaded;
-      if (delivered <= 0) {
+      delivered = wagon_loaded_tools;
+      if (delivered <= 0 && inv->tools_short > 30) {
         delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
       }
     } else if (hired_pioneer) {
@@ -5817,6 +5956,166 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
       } else {
         inv->tools_short = 0;
       }
+    }
+  }
+  /*
+   * Thin lumber/ore cargo stand-in (mirror tools): when matching short >20 and
+   * tools path did not dominate (tools_short≤20), load ship +20 or colony +15.
+   * Cite: euro_unit_act §2d leftover mid-5d04; 5cf6 lumber/ore_short.
+   */
+  if (inv && inv->tools_short <= 20 && inv->lumber_short > 20) {
+    int delivered = 0;
+    if (hired_wagon) {
+      delivered = wagon_loaded_lumber;
+      if (delivered <= 0 && inv->lumber_short > 30) {
+        delivered = ai_euro_cargo_or_colony(
+          ctx, nation_id, ship, COLONIZE_CARGO_LUMBER, 20, 15
+        );
+      }
+    } else {
+      delivered = ai_euro_cargo_or_colony(
+        ctx, nation_id, ship, COLONIZE_CARGO_LUMBER, 20, 15
+      );
+    }
+    if (delivered > 0) {
+      if (inv->lumber_short > delivered) {
+        inv->lumber_short -= delivered;
+      } else {
+        inv->lumber_short = 0;
+      }
+      wagon_loaded_lumber = 0; /* avoid double-trim below */
+    }
+  } else if (inv && inv->tools_short <= 20 && inv->lumber_short <= 20 &&
+             inv->ore_short > 20) {
+    int delivered = 0;
+    if (hired_wagon) {
+      delivered = wagon_loaded_ore;
+      if (delivered <= 0 && inv->ore_short > 30) {
+        delivered =
+          ai_euro_cargo_or_colony(ctx, nation_id, ship, COLONIZE_CARGO_ORE, 20, 15);
+      }
+    } else {
+      delivered =
+        ai_euro_cargo_or_colony(ctx, nation_id, ship, COLONIZE_CARGO_ORE, 20, 15);
+    }
+    if (delivered > 0) {
+      if (inv->ore_short > delivered) {
+        inv->ore_short -= delivered;
+      } else {
+        inv->ore_short = 0;
+      }
+      wagon_loaded_ore = 0;
+    }
+  } else if (
+    inv && inv->tools_short <= 20 && inv->lumber_short <= 20 && inv->ore_short <= 20 &&
+    inv->muskets_short > 20
+  ) {
+    int delivered = 0;
+    if (hired_wagon) {
+      delivered = wagon_loaded_muskets;
+      if (delivered <= 0) {
+        delivered = ai_euro_cargo_or_colony(
+          ctx, nation_id, ship, COLONIZE_CARGO_MUSKETS, 10, 10
+        );
+      }
+    } else {
+      delivered = ai_euro_cargo_or_colony(
+        ctx, nation_id, ship, COLONIZE_CARGO_MUSKETS, 10, 10
+      );
+    }
+    if (delivered > 0) {
+      if (inv->muskets_short > delivered) {
+        inv->muskets_short -= delivered;
+      } else {
+        inv->muskets_short = 0;
+      }
+      wagon_loaded_muskets = 0;
+    }
+  } else if (
+    inv && inv->tools_short <= 20 && inv->lumber_short <= 20 && inv->ore_short <= 20 &&
+    inv->muskets_short <= 20 && inv->horses_short > 20
+  ) {
+    int delivered = 0;
+    if (hired_wagon) {
+      delivered = wagon_loaded_horses;
+      if (delivered <= 0) {
+        delivered = ai_euro_cargo_or_colony(
+          ctx, nation_id, ship, COLONIZE_CARGO_HORSES, 10, 10
+        );
+      }
+    } else {
+      delivered = ai_euro_cargo_or_colony(
+        ctx, nation_id, ship, COLONIZE_CARGO_HORSES, 10, 10
+      );
+    }
+    if (delivered > 0) {
+      if (inv->horses_short > delivered) {
+        inv->horses_short -= delivered;
+      } else {
+        inv->horses_short = 0;
+      }
+      wagon_loaded_horses = 0;
+    }
+  } else if (
+    inv && inv->tools_short <= 20 && inv->lumber_short <= 20 && inv->ore_short <= 20 &&
+    inv->muskets_short <= 20 && inv->horses_short <= 20 && inv->food_short > 20
+  ) {
+    int delivered = 0;
+    if (hired_wagon) {
+      delivered = wagon_loaded_food;
+      if (delivered <= 0 && inv->food_short > 30) {
+        delivered = ai_euro_cargo_or_colony(
+          ctx, nation_id, ship, COLONIZE_CARGO_FOOD, 20, 15
+        );
+      }
+    } else {
+      delivered = ai_euro_cargo_or_colony(
+        ctx, nation_id, ship, COLONIZE_CARGO_FOOD, 20, 15
+      );
+    }
+    if (delivered > 0) {
+      if (inv->food_short > delivered) {
+        inv->food_short -= delivered;
+      } else {
+        inv->food_short = 0;
+      }
+      wagon_loaded_food = 0;
+    }
+  }
+  /* Wagon lumber/ore/muskets load: trim matching inventory short. */
+  if (inv && wagon_loaded_lumber > 0) {
+    if (inv->lumber_short > wagon_loaded_lumber) {
+      inv->lumber_short -= wagon_loaded_lumber;
+    } else {
+      inv->lumber_short = 0;
+    }
+  }
+  if (inv && wagon_loaded_ore > 0) {
+    if (inv->ore_short > wagon_loaded_ore) {
+      inv->ore_short -= wagon_loaded_ore;
+    } else {
+      inv->ore_short = 0;
+    }
+  }
+  if (inv && wagon_loaded_muskets > 0) {
+    if (inv->muskets_short > wagon_loaded_muskets) {
+      inv->muskets_short -= wagon_loaded_muskets;
+    } else {
+      inv->muskets_short = 0;
+    }
+  }
+  if (inv && wagon_loaded_horses > 0) {
+    if (inv->horses_short > wagon_loaded_horses) {
+      inv->horses_short -= wagon_loaded_horses;
+    } else {
+      inv->horses_short = 0;
+    }
+  }
+  if (inv && wagon_loaded_food > 0) {
+    if (inv->food_short > wagon_loaded_food) {
+      inv->food_short -= wagon_loaded_food;
+    } else {
+      inv->food_short = 0;
     }
   }
 }
@@ -6801,9 +7100,32 @@ static int ai_euro_try_ship_trade_haul(
   }
 
   /* On surplus coastal own colony with free hold → load construction/military/
-   * food ladder. Ships berth on adjacent water (colonies_id_at usually misses). */
+   * food ladder. Ships berth on adjacent water (colonies_id_at usually misses).
+   * When food_short>20 prefer FOOD first (mirror wagon haul). */
   if (has_cap && !has_tools && !has_lumber && !has_ore && !has_muskets && !has_horses &&
       !has_food) {
+    const AiEuroInventory* inv = ai_goals_inventory(nation_id);
+    const int food_first = inv && inv->food_short > 20;
+    static const int k_ship_load_default[] = {
+      COLONIZE_CARGO_TOOLS,
+      COLONIZE_CARGO_LUMBER,
+      COLONIZE_CARGO_ORE,
+      COLONIZE_CARGO_MUSKETS,
+      COLONIZE_CARGO_HORSES,
+      COLONIZE_CARGO_FOOD
+    };
+    static const int k_ship_load_food_first[] = {
+      COLONIZE_CARGO_FOOD,
+      COLONIZE_CARGO_TOOLS,
+      COLONIZE_CARGO_LUMBER,
+      COLONIZE_CARGO_ORE,
+      COLONIZE_CARGO_MUSKETS,
+      COLONIZE_CARGO_HORSES
+    };
+    const int* k_ship_load = food_first ? k_ship_load_food_first : k_ship_load_default;
+    const size_t n_ship =
+      food_first ? sizeof(k_ship_load_food_first) / sizeof(k_ship_load_food_first[0])
+                 : sizeof(k_ship_load_default) / sizeof(k_ship_load_default[0]);
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
@@ -6812,15 +7134,7 @@ static int ai_euro_try_ship_trade_haul(
       if (!ai_euro_tiles_near(ship->x, ship->y, c->x, c->y)) {
         continue;
       }
-      static const int k_ship_load[] = {
-        COLONIZE_CARGO_TOOLS,
-        COLONIZE_CARGO_LUMBER,
-        COLONIZE_CARGO_ORE,
-        COLONIZE_CARGO_MUSKETS,
-        COLONIZE_CARGO_HORSES,
-        COLONIZE_CARGO_FOOD
-      };
-      for (size_t li = 0; li < sizeof(k_ship_load) / sizeof(k_ship_load[0]); ++li) {
+      for (size_t li = 0; li < n_ship; ++li) {
         const int ct = k_ship_load[li];
         if (!ai_euro_colony_haul_cargo_surplus(c, ct)) {
           continue;
@@ -7607,8 +7921,10 @@ static int ai_euro_land_has_useful_goto(const ColonizeUnit* u, const ColonizeWor
  * Prefer capital tribe tiles (tie-break closer MD) — Cortes rich_capital path.
  * When prefer_fortified (Artillery siege): foreign Euro Stockade/Fort/Fortress
  * colonies beat open ones (MD slack ≤3 vs nearest open). When prefer_open
- * (Dragoon/Soldier): open colonies beat fortified (same slack). Cite: king_ref
- * Artillery siege / Dragoon open bias; Colonization.pdf. Full 20e6 PARKED.
+ * (Dragoon/Soldier): open colonies beat fortified (same slack). Non-siege unit
+ * hunt: Treasure beats non-Treasure, then lower toughness, within MD slack ≤3
+ * (loot / thin 20e6). Cite: king_ref Artillery siege / Dragoon open bias;
+ * Colonization.pdf Treasure Trains / Defending a Colony. Full 20e6 PARKED.
  */
 static int ai_euro_land_war_hunt_target(
   ColonizeTurnContext* ctx,
@@ -7626,6 +7942,8 @@ static int ai_euro_land_war_hunt_target(
   int best = -1;
   int best_cap = 0;
   int best_fort = prefer_open ? 9999 : -1;
+  int best_treasure = 0;
+  int best_tough = 0;
   int bx = 0;
   int by = 0;
 
@@ -7648,26 +7966,55 @@ static int ai_euro_land_war_hunt_target(
         continue;
       }
       const int dist = abs(f->x - from_x) + abs(f->y - from_y);
+      const int treasure = ai_euro_is_treasure_name(units_display_name(ctx->units, f));
+      const int tough = ai_euro_land_foe_toughness(ctx, ctx->units, f);
       if (prefer_open && f->nation_id >= 0 && f->nation_id <= 3) {
         const int fb = ai_euro_colony_fort_bonus_at(ctx->colonies, f->x, f->y, f->nation_id);
         if (best < 0 || fb < best_fort || (fb == best_fort && dist < best)) {
           best = dist;
           best_fort = fb;
           best_cap = 0;
+          best_treasure = treasure;
+          best_tough = tough;
           bx = f->x;
           by = f->y;
         } else if (fb == 0 && best_fort > 0 && dist <= best + 3) {
           best = dist;
           best_fort = 0;
           best_cap = 0;
+          best_treasure = treasure;
+          best_tough = tough;
           bx = f->x;
           by = f->y;
         }
-      } else if (best < 0 || dist < best) {
-        best = dist;
-        best_cap = 0;
-        bx = f->x;
-        by = f->y;
+      } else {
+        /* Treasure > toughness > distance; MD slack ≤3 for treasure/toughness. */
+        int better = 0;
+        if (best < 0) {
+          better = 1;
+        } else if (treasure != best_treasure) {
+          if (treasure && dist <= best + 3) {
+            better = 1;
+          } else if (!treasure && dist + 3 < best) {
+            better = 1;
+          }
+        } else if (tough != best_tough) {
+          if (tough < best_tough && dist <= best + 3) {
+            better = 1;
+          } else if (tough > best_tough && dist + 3 < best) {
+            better = 1;
+          }
+        } else if (dist < best) {
+          better = 1;
+        }
+        if (better) {
+          best = dist;
+          best_cap = 0;
+          best_treasure = treasure;
+          best_tough = tough;
+          bx = f->x;
+          by = f->y;
+        }
       }
     }
   }
@@ -7790,7 +8137,8 @@ static int ai_euro_land_foe_toughness(
  * Best adjacent war foe for land attack (thin 20e6 combat scoring): prefer
  * lower effective defense / non-fortified / weaker colony fort / non-veteran.
  * Artillery prefers higher fort % (siege — king_ref Artillery adjacent-fort).
- * Returns foe unit id or -1.
+ * Non-siege: at equal toughness prefer Treasure (loot — Colonization.pdf
+ * Treasure Trains / @LOOTCASH). Returns foe unit id or -1.
  *
  * PARK: deep FUN_521d_20e6 combat scoring (terrain/artillery tables,
  * multi-hex threat weights, −0x6790) — thin adjacent-toughness pick + 2-step
@@ -7808,6 +8156,7 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
   int best_id = -1;
   int best_tough = 0;
   int best_fort = -1;
+  int best_treasure = 0;
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
@@ -7837,31 +8186,54 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
         ? ai_euro_colony_fort_bonus_at(ctx->colonies, f->x, f->y, f->nation_id)
         : 0;
     const int tough = ai_euro_land_foe_toughness(ctx, ctx->units, f);
+    const int treasure = ai_euro_is_treasure_name(units_display_name(ctx->units, f));
     if (siege) {
       if (best_id < 0 || fort > best_fort || (fort == best_fort && tough < best_tough)) {
         best_id = foe;
         best_fort = fort;
         best_tough = tough;
+        best_treasure = treasure;
       }
-    } else if (best_id < 0 || tough < best_tough) {
+    } else if (
+      best_id < 0 || tough < best_tough ||
+      (tough == best_tough && treasure && !best_treasure)
+    ) {
       best_id = foe;
       best_tough = tough;
+      best_treasure = treasure;
     }
   }
   return best_id;
 }
 
-/* Attack adjacent enemy land unit while at war (prefer weaker foe). */
+/*
+ * Attack adjacent enemy land unit while at war (prefer weaker foe).
+ * Thin multi-step combat: keep fighting while moves remain after enter
+ * (MP drained by try_move on win). Cap steps so a failed spend cannot spin.
+ * Cite: euro_unit_act §2c / sticky re-hunt; deep 20e6 scoring PARKED.
+ */
 static void ai_euro_land_try_adjacent_attack(ColonizeTurnContext* ctx, ColonizeUnit* u) {
-  const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
-  if (foe < 0) {
-    return;
+  for (int step = 0; step < 8 && u && u->active && u->moves_left > 0; ++step) {
+    const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
+    if (foe < 0) {
+      return;
+    }
+    const ColonizeUnit* f = units_get_const(ctx->units, foe);
+    if (!f) {
+      return;
+    }
+    const int ml0 = u->moves_left;
+    const int ax = u->x;
+    const int ay = u->y;
+    ai_euro_try_attack(ctx, u, f->x, f->y);
+    if (!u->active) {
+      return;
+    }
+    /* No progress (lost MP and tile) → stop to avoid infinite retry. */
+    if (u->moves_left >= ml0 && u->x == ax && u->y == ay) {
+      return;
+    }
   }
-  const ColonizeUnit* f = units_get_const(ctx->units, foe);
-  if (!f) {
-    return;
-  }
-  ai_euro_try_attack(ctx, u, f->x, f->y);
 }
 
 /*
@@ -9195,17 +9567,27 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   /*
    * Sticky CONTACT re-hunt: if moves remain and an adjacent foreign Euro is
-   * at war, try_attack the weakest adjacent foe once more (dispatcher sticky
-   * waves still apply). Deep 20e6 multi-step combat scoring PARKED.
+   * at war, chain try_attack while MP lasts (mirror land_try_adjacent_attack
+   * multi-step; dispatcher sticky waves still apply). Deep 20e6 scoring PARKED.
    */
   if (u->active && u->moves_left > 0 && ctx->col1_ok && ctx->col1 &&
       !units_is_sea(ctx->units, u->id)) {
-    const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
-    if (foe >= 0) {
+    for (int step = 0; step < 8 && u->active && u->moves_left > 0; ++step) {
+      const int foe = ai_euro_land_best_adjacent_foe(ctx, u);
+      if (foe < 0) {
+        break;
+      }
       const ColonizeUnit* f = units_get_const(ctx->units, foe);
       /* Sticky CONTACT is Euro-peer war only (Indians stay on contact/raid paths). */
-      if (f && f->nation_id >= 0 && f->nation_id <= 3) {
-        ai_euro_try_attack(ctx, u, f->x, f->y);
+      if (!f || f->nation_id < 0 || f->nation_id > 3) {
+        break;
+      }
+      const int ml0 = u->moves_left;
+      const int ax = u->x;
+      const int ay = u->y;
+      ai_euro_try_attack(ctx, u, f->x, f->y);
+      if (!u->active || (u->moves_left >= ml0 && u->x == ax && u->y == ay)) {
+        break;
       }
     }
   }

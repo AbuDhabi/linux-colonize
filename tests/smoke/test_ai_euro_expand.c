@@ -692,6 +692,501 @@ static int smoke_tools_cargo_hire(void) {
 }
 
 /*
+ * lumber_short high, tools stocked: after dock Expert Lumberjack hire, ship/colony
+ * gets LUMBER cargo stand-in (not TOOLS). Cite: euro_unit_act §2d mid-5d04;
+ * 5cf6 lumber_short.
+ */
+static int smoke_lumber_cargo_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("lumber-cargo alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Warehouse");
+  colonies.building_types[0].hammers = 80;
+  colonies.building_type_count = 1;
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 0;
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = 0;
+    c->hammers = 10;
+  }
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int lumber0 = colonies.colonies[0].stock[COLONIZE_CARGO_LUMBER];
+
+  const int ship_id = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("lumber-cargo spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Expert Lumberjacks");
+  europe.dock[0].profession = 5;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int boarded = 0;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+    if (ty && strstr(ty->name, "Lumberjack")) {
+      boarded = 1;
+      break;
+    }
+  }
+
+  int ship_lumber = 0;
+  int ship_tools = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (ship->hold_goods_amount[h] <= 0 || ship->hold_goods_amount[h] >= 255) {
+      continue;
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_LUMBER) {
+      ship_lumber += ship->hold_goods_amount[h];
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+      ship_tools += ship->hold_goods_amount[h];
+    }
+  }
+  const int colony_lumber_rose =
+    colonies.colonies[0].stock[COLONIZE_CARGO_LUMBER] >= lumber0 + 15 ||
+    colonies.colonies[1].stock[COLONIZE_CARGO_LUMBER] >= 15 ||
+    colonies.colonies[2].stock[COLONIZE_CARGO_LUMBER] >= 15;
+
+  if (!boarded || ship_tools > 0 || !(ship_lumber >= 20 || colony_lumber_rose)) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: lumber-cargo boarded=%d ship_lumber=%d ship_tools=%d "
+      "colony_lumber=%d/%d/%d dock=%d\n",
+      boarded,
+      ship_lumber,
+      ship_tools,
+      colonies.colonies[0].stock[COLONIZE_CARGO_LUMBER],
+      colonies.colonies[1].stock[COLONIZE_CARGO_LUMBER],
+      colonies.colonies[2].stock[COLONIZE_CARGO_LUMBER],
+      europe.dock_count
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Lumberjack hire + LUMBER cargo/colony (not TOOLS)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: lumber-cargo hire ok\n");
+  return 0;
+}
+
+/*
+ * food_short high, tools/lumber stocked: after dock Expert Farmer hire, ship/colony
+ * gets FOOD cargo stand-in. Cite: euro_unit_act §2d mid-5d04; 5cf6 food_short.
+ */
+static int smoke_food_cargo_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("food-cargo alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 8;
+    c->colonist_count = 8;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 40;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 40;
+    c->stock[COLONIZE_CARGO_HORSES] = 40;
+    c->stock[COLONIZE_CARGO_FOOD] = 0; /* food_short = pop*2 each → 48 */
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int food0 = colonies.colonies[0].stock[COLONIZE_CARGO_FOOD];
+
+  const int ship_id = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("food-cargo spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Expert Farmers");
+  europe.dock[0].profession = 0;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int boarded = 0;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+    if (ty && strstr(ty->name, "Farmer")) {
+      boarded = 1;
+      break;
+    }
+  }
+
+  int ship_food = 0;
+  int ship_tools = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (ship->hold_goods_amount[h] <= 0 || ship->hold_goods_amount[h] >= 255) {
+      continue;
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_FOOD) {
+      ship_food += ship->hold_goods_amount[h];
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+      ship_tools += ship->hold_goods_amount[h];
+    }
+  }
+  const int colony_food_rose =
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] >= food0 + 15 ||
+    colonies.colonies[1].stock[COLONIZE_CARGO_FOOD] >= 15 ||
+    colonies.colonies[2].stock[COLONIZE_CARGO_FOOD] >= 15;
+
+  if (!boarded || ship_tools > 0 || !(ship_food >= 20 || colony_food_rose)) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: food-cargo boarded=%d ship_food=%d ship_tools=%d "
+      "colony_food=%d/%d/%d\n",
+      boarded,
+      ship_food,
+      ship_tools,
+      colonies.colonies[0].stock[COLONIZE_CARGO_FOOD],
+      colonies.colonies[1].stock[COLONIZE_CARGO_FOOD],
+      colonies.colonies[2].stock[COLONIZE_CARGO_FOOD]
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Farmer hire + FOOD cargo/colony (not TOOLS)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: food-cargo hire ok\n");
+  return 0;
+}
+
+/*
+ * horses_short high, other stocks full: after dock Seasoned Scout hire, ship/colony
+ * gets HORSES cargo stand-in (+10). Cite: euro_unit_act §2d mid-5d04; horses_short.
+ */
+static int smoke_horses_cargo_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("horses-cargo alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Seasoned Scout");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 40;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 40;
+    c->stock[COLONIZE_CARGO_HORSES] = 0; /* horses_short tally */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int horses0 = colonies.colonies[0].stock[COLONIZE_CARGO_HORSES];
+
+  const int ship_id = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("horses-cargo spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Seasoned Scouts");
+  europe.dock[0].profession = 22;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int boarded = 0;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+    if (ty && strstr(ty->name, "Scout")) {
+      boarded = 1;
+      break;
+    }
+  }
+
+  int ship_horses = 0;
+  int ship_tools = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (ship->hold_goods_amount[h] <= 0 || ship->hold_goods_amount[h] >= 255) {
+      continue;
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_HORSES) {
+      ship_horses += ship->hold_goods_amount[h];
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+      ship_tools += ship->hold_goods_amount[h];
+    }
+  }
+  const int colony_horses_rose =
+    colonies.colonies[0].stock[COLONIZE_CARGO_HORSES] >= horses0 + 10 ||
+    colonies.colonies[1].stock[COLONIZE_CARGO_HORSES] >= 10 ||
+    colonies.colonies[2].stock[COLONIZE_CARGO_HORSES] >= 10;
+
+  if (!boarded || ship_tools > 0 || !(ship_horses >= 10 || colony_horses_rose)) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: horses-cargo boarded=%d ship_horses=%d ship_tools=%d "
+      "colony_horses=%d/%d/%d\n",
+      boarded,
+      ship_horses,
+      ship_tools,
+      colonies.colonies[0].stock[COLONIZE_CARGO_HORSES],
+      colonies.colonies[1].stock[COLONIZE_CARGO_HORSES],
+      colonies.colonies[2].stock[COLONIZE_CARGO_HORSES]
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Scout hire + HORSES cargo/colony (not TOOLS)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: horses-cargo hire ok\n");
+  return 0;
+}
+
+/*
  * tools_short == 40 (2 colonies tools=0): threshold lowered from >40 to >20 —
  * still prefer Pioneer + tools cargo / colony +15 (no Wagon type in pool).
  */
@@ -1039,6 +1534,713 @@ static int smoke_wagon_hire_once(void) {
     "smoke_ai_euro_expand: wagon-hire once ok (wagon_tools=%d then Pioneer)\n",
     wagon_tools
   );
+  return 0;
+}
+
+/*
+ * lumber_short>30 (tools plentiful) + Wagon Train → hire wagon once with LUMBER
+ * aboard. Cite: euro_unit_act §2d / 5cf6 lumber_short; Colonization.pdf Wagon.
+ */
+static int smoke_wagon_hire_lumber_once(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-lumber alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Wagon Train");
+  units.types[2].movement = 2;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
+  colonies.building_type_count = 1;
+  static const int cx[2] = {4, 6};
+  static const int cy[2] = {4, 6};
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = cx[i];
+    c->y = cy[i];
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* no tools short */
+    c->stock[COLONIZE_CARGO_LUMBER] = 0; /* short when constructing */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = 0; /* Stockade → lumber_short tallies */
+  }
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-lumber spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 800;
+
+  ai_goals_reset();
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int wagon_boarded = 0;
+  int wagon_lumber = 0;
+  ship = units_get(&units, ship_id);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (!ty || strstr(ty->name, "Wagon") == NULL) {
+        continue;
+      }
+      wagon_boarded = 1;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (pax->hold_goods_amount[h] > 0 && pax->hold_goods_amount[h] < 255 &&
+            pax->hold_goods_type[h] == COLONIZE_CARGO_LUMBER) {
+          wagon_lumber += pax->hold_goods_amount[h];
+        }
+      }
+    }
+  }
+  if (!wagon_boarded || wagon_lumber < 20) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: wagon lumber boarded=%d lumber=%d cargo=%d\n",
+      wagon_boarded,
+      wagon_lumber,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Wagon Train hire with LUMBER aboard");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr,
+    "smoke_ai_euro_expand: wagon-hire lumber once ok (wagon_lumber=%d)\n",
+    wagon_lumber
+  );
+  return 0;
+}
+
+/*
+ * ore_short>30 (tools/lumber plentiful) + Wagon Train → hire wagon once with ORE
+ * aboard. Cite: euro_unit_act §2d / 5cf6 ore_short; Colonization.pdf Wagon.
+ */
+static int smoke_wagon_hire_ore_once(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-ore alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Wagon Train");
+  units.types[2].movement = 2;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  static const int cx[2] = {4, 6};
+  static const int cy[2] = {4, 6};
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = cx[i];
+    c->y = cy[i];
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 0; /* ore_short=40 >30 */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-ore spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 800;
+
+  ai_goals_reset();
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int wagon_boarded = 0;
+  int wagon_ore = 0;
+  ship = units_get(&units, ship_id);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (!ty || strstr(ty->name, "Wagon") == NULL) {
+        continue;
+      }
+      wagon_boarded = 1;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (pax->hold_goods_amount[h] > 0 && pax->hold_goods_amount[h] < 255 &&
+            pax->hold_goods_type[h] == COLONIZE_CARGO_ORE) {
+          wagon_ore += pax->hold_goods_amount[h];
+        }
+      }
+    }
+  }
+  if (!wagon_boarded || wagon_ore < 20) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: wagon ore boarded=%d ore=%d cargo=%d\n",
+      wagon_boarded,
+      wagon_ore,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Wagon Train hire with ORE aboard");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: wagon-hire ore once ok (wagon_ore=%d)\n", wagon_ore);
+  return 0;
+}
+
+/*
+ * muskets_short>20 (tools/lumber/ore plentiful) + Wagon → hire with MUSKETS.
+ * Tally caps at 10/colony so gate is >20 (not >30). Cite: euro_unit_act §2d.
+ */
+static int smoke_wagon_hire_muskets_once(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-muskets alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Wagon Train");
+  units.types[2].movement = 2;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  static const int cx[3] = {4, 6, 8};
+  static const int cy[3] = {4, 6, 8};
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = cx[i];
+    c->y = cy[i];
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 40;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 0; /* short=30 >20 */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-muskets spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 800;
+
+  ai_goals_reset();
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int wagon_boarded = 0;
+  int wagon_muskets = 0;
+  ship = units_get(&units, ship_id);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (!ty || strstr(ty->name, "Wagon") == NULL) {
+        continue;
+      }
+      wagon_boarded = 1;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (pax->hold_goods_amount[h] > 0 && pax->hold_goods_amount[h] < 255 &&
+            pax->hold_goods_type[h] == COLONIZE_CARGO_MUSKETS) {
+          wagon_muskets += pax->hold_goods_amount[h];
+        }
+      }
+    }
+  }
+  if (!wagon_boarded || wagon_muskets < 20) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: wagon muskets boarded=%d muskets=%d cargo=%d\n",
+      wagon_boarded,
+      wagon_muskets,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Wagon Train hire with MUSKETS aboard");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr, "smoke_ai_euro_expand: wagon-hire muskets once ok (wagon_muskets=%d)\n", wagon_muskets
+  );
+  return 0;
+}
+
+/*
+ * horses_short>20 + Wagon → hire with HORSES. Cite: euro_unit_act §2d haul ladder.
+ */
+static int smoke_wagon_hire_horses_once(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-horses alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Wagon Train");
+  units.types[2].movement = 2;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  static const int cx[3] = {4, 6, 8};
+  static const int cy[3] = {4, 6, 8};
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = cx[i];
+    c->y = cy[i];
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 40;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 40;
+    c->stock[COLONIZE_CARGO_HORSES] = 0; /* short=30 >20 */
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-horses spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 800;
+
+  ai_goals_reset();
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int wagon_boarded = 0;
+  int wagon_horses = 0;
+  ship = units_get(&units, ship_id);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (!ty || strstr(ty->name, "Wagon") == NULL) {
+        continue;
+      }
+      wagon_boarded = 1;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (pax->hold_goods_amount[h] > 0 && pax->hold_goods_amount[h] < 255 &&
+            pax->hold_goods_type[h] == COLONIZE_CARGO_HORSES) {
+          wagon_horses += pax->hold_goods_amount[h];
+        }
+      }
+    }
+  }
+  if (!wagon_boarded || wagon_horses < 20) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: wagon horses boarded=%d horses=%d cargo=%d\n",
+      wagon_boarded,
+      wagon_horses,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Wagon Train hire with HORSES aboard");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(
+    stderr, "smoke_ai_euro_expand: wagon-hire horses once ok (wagon_horses=%d)\n", wagon_horses
+  );
+  return 0;
+}
+
+/*
+ * food_short>30 + Wagon → hire with FOOD. Cite: euro_unit_act §2d; 5cf6 food_short.
+ */
+static int smoke_wagon_hire_food_once(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-food alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Wagon Train");
+  units.types[2].movement = 2;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  static const int cx[2] = {4, 6};
+  static const int cy[2] = {4, 6};
+  for (int i = 0; i < 2; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = cx[i];
+    c->y = cy[i];
+    c->population = 20; /* food_short += 40 each → 80 >30 */
+    c->colonist_count = 20;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 40;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 40;
+    c->stock[COLONIZE_CARGO_HORSES] = 40;
+    c->stock[COLONIZE_CARGO_FOOD] = 0;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int ship_id = units_spawn_allow_stack(&units, 1, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-food spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 800;
+
+  ai_goals_reset();
+
+  uint32_t turn = 26;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int wagon_boarded = 0;
+  int wagon_food = 0;
+  ship = units_get(&units, ship_id);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (!ty || strstr(ty->name, "Wagon") == NULL) {
+        continue;
+      }
+      wagon_boarded = 1;
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (pax->hold_goods_amount[h] > 0 && pax->hold_goods_amount[h] < 255 &&
+            pax->hold_goods_type[h] == COLONIZE_CARGO_FOOD) {
+          wagon_food += pax->hold_goods_amount[h];
+        }
+      }
+    }
+  }
+  if (!wagon_boarded || wagon_food < 20) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: wagon food boarded=%d food=%d cargo=%d\n",
+      wagon_boarded,
+      wagon_food,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Wagon Train hire with FOOD aboard");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: wagon-hire food once ok (wagon_food=%d)\n", wagon_food);
   return 0;
 }
 
@@ -4034,6 +5236,160 @@ static int smoke_dock_preacher_hire(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(stderr, "smoke_ai_euro_expand: dock Firebrand Preacher hire ok\n");
+  return 0;
+}
+
+/*
+ * Case-7 dock Expert Teacher: peace + Schoolhouse owned + Europe dock has
+ * Expert Teachers → board Teacher (consume dock; spend gold). Cite: europe.c
+ * Expert Teachers pool; building_production.md Skills Chart job 18;
+ * Colonization.pdf Education / Teacher.
+ */
+static int smoke_dock_teacher_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dock-teacher alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Teacher");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Schoolhouse");
+  colonies.building_type_count = 1;
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 2;
+  c->colonist_count = 2;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_LUMBER] = 40;
+  c->stock[COLONIZE_CARGO_ORE] = 40;
+  c->stock[COLONIZE_CARGO_MUSKETS] = 40;
+  c->has_building[0] = true;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dock-teacher spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Expert Teachers");
+  europe.dock[0].profession = 18;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 23;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 54;
+
+  const uint32_t gold_before = col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int teacher_boarded = 0;
+  int free_colonist_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int ci = 0; ci < ship->cargo_count; ++ci) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[ci]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && strstr(ty->name, "Teacher")) {
+        teacher_boarded = 1;
+      }
+      if (ty && strstr(ty->name, "Free Colonist")) {
+        free_colonist_boarded = 1;
+      }
+    }
+  }
+  const int dock_cleared = (europe.dock_count == 0);
+  const int gold_spent = (col1.nation[nation].gold < gold_before + 50u);
+
+  if (!teacher_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: dock teacher=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      teacher_boarded,
+      free_colonist_boarded,
+      europe.dock_count,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Expert Teacher dock hire + dock consume + gold spend");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Teacher hire ok\n");
   return 0;
 }
 
@@ -15718,6 +17074,139 @@ static int smoke_wagon_food_load_haul(void) {
 }
 
 /*
+ * When food_short>20 and colony has both TOOLS and FOOD surplus, wagon prefers
+ * FOOD load first (not tools ladder). Cite: euro_unit_act §2d surplus FOOD
+ * deepen; 5cf6 food_short.
+ */
+static int smoke_wagon_food_prefer_over_tools(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wagon-food-prefer alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+  units.types[0].movement = 2;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* surplus = &colonies.colonies[0];
+  surplus->id = 0;
+  surplus->active = true;
+  surplus->nation_id = nation;
+  surplus->x = 10;
+  surplus->y = 10;
+  surplus->population = 3;
+  surplus->colonist_count = 3;
+  surplus->stock[COLONIZE_CARGO_TOOLS] = 50; /* surplus tools (≥40) */
+  surplus->stock[COLONIZE_CARGO_FOOD] = 30;  /* surplus food (≥pop*4=12) */
+  surplus->building_in_production = -1;
+  /* Large food deficit → inventory food_short > 20. */
+  ColonizeColony* hungry = &colonies.colonies[1];
+  hungry->id = 1;
+  hungry->active = true;
+  hungry->nation_id = nation;
+  hungry->x = 4;
+  hungry->y = 4;
+  hungry->population = 12;
+  hungry->colonist_count = 12;
+  hungry->stock[COLONIZE_CARGO_TOOLS] = 5; /* tools-short too */
+  hungry->stock[COLONIZE_CARGO_FOOD] = 0;  /* food_short += 24 */
+  hungry->building_in_production = -1;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int wid = units_spawn(&units, 0, 10, 10);
+  ColonizeUnit* wagon = units_get(&units, wid);
+  if (!wagon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wagon-food-prefer spawn");
+  }
+  wagon->nation_id = nation;
+  wagon->moves_left = 2;
+  wagon->orders = 0;
+
+  ai_goals_reset();
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 35;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  wagon = units_get(&units, wid);
+  int food_aboard = 0;
+  int tools_aboard = 0;
+  if (wagon && wagon->active) {
+    for (int h = 0; h < 2; ++h) {
+      if (wagon->hold_goods_amount[h] <= 0 || wagon->hold_goods_amount[h] >= 255) {
+        continue;
+      }
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_FOOD) {
+        food_aboard += wagon->hold_goods_amount[h];
+      }
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+        tools_aboard += wagon->hold_goods_amount[h];
+      }
+    }
+  }
+  if (!wagon || !wagon->active || food_aboard <= 0 || tools_aboard > 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: food-prefer food=%d tools=%d orders=%d\n",
+      food_aboard,
+      tools_aboard,
+      wagon ? wagon->orders : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected FOOD prefer over tools when food_short>20");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: wagon food prefer over tools ok\n");
+  return 0;
+}
+
+/*
  * Caravel with FOOD cargo adjacent to food-short coastal colony → unload via
  * colonies_transfer_from_unit. Cite: Colonization.pdf naval transport; §2d2;
  * 5cf6 food_short.
@@ -17376,10 +18865,34 @@ int main(void) {
   if (smoke_tools_cargo_hire() != 0) {
     return 1;
   }
+  if (smoke_lumber_cargo_hire() != 0) {
+    return 1;
+  }
+  if (smoke_food_cargo_hire() != 0) {
+    return 1;
+  }
+  if (smoke_horses_cargo_hire() != 0) {
+    return 1;
+  }
   if (smoke_tools_mid_threshold_hire() != 0) {
     return 1;
   }
   if (smoke_wagon_hire_once() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_hire_lumber_once() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_hire_ore_once() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_hire_muskets_once() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_hire_horses_once() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_hire_food_once() != 0) {
     return 1;
   }
   if (smoke_wagon_tools_delivery() != 0) {
@@ -17410,6 +18923,9 @@ int main(void) {
     return 1;
   }
   if (smoke_wagon_food_load_haul() != 0) {
+    return 1;
+  }
+  if (smoke_wagon_food_prefer_over_tools() != 0) {
     return 1;
   }
   if (smoke_ship_trade_haul_tools_short() != 0) {
@@ -17689,6 +19205,9 @@ int main(void) {
     return 1;
   }
   if (smoke_dock_preacher_hire() != 0) {
+    return 1;
+  }
+  if (smoke_dock_teacher_hire() != 0) {
     return 1;
   }
   if (smoke_dock_distiller_hire() != 0) {

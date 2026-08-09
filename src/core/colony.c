@@ -812,10 +812,30 @@ const char* colonies_eject_role_name(int role) {
     return "Scout";
   case COLONIZE_EJECT_DRAGOON:
     return "Dragoon";
+  case COLONIZE_EJECT_MISSIONARY:
+    return "Missionary";
   case COLONIZE_EJECT_COLONIST:
   default:
     return "Colonist";
   }
+}
+
+static int colonies_has_church_or_cathedral(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col
+) {
+  if (!pool || !col) {
+    return 0;
+  }
+  const int church = colonies_find_building(pool, "Church");
+  const int cath = colonies_find_building(pool, "Cathedral");
+  if (church >= 0 && church < COLONIZE_BUILDING_TYPES_MAX && col->has_building[church]) {
+    return 1;
+  }
+  if (cath >= 0 && cath < COLONIZE_BUILDING_TYPES_MAX && col->has_building[cath]) {
+    return 1;
+  }
+  return 0;
 }
 
 int colonies_list_eject_roles(
@@ -847,6 +867,11 @@ int colonies_list_eject_roles(
   if (n < out_max && col->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS &&
       col->stock[COLONIZE_CARGO_HORSES] >= UNITS_EQUIP_HORSES) {
     out_roles[n++] = COLONIZE_EJECT_DRAGOON;
+  }
+  /* Church bless: leave as Missionary (no cargo cost). Cite: Colonization.pdf
+   * Establishing a Mission / Church; building_production Missionary; fandom bless. */
+  if (n < out_max && colonies_has_church_or_cathedral(pool, col)) {
+    out_roles[n++] = COLONIZE_EJECT_MISSIONARY;
   }
   return n;
 }
@@ -911,6 +936,12 @@ int colonies_eject_colonist(
     horses_take = UNITS_EQUIP_HORSES;
     type_name = "Dragoons";
     break;
+  case COLONIZE_EJECT_MISSIONARY:
+    if (!colonies_has_church_or_cathedral(pool, col)) {
+      return -1;
+    }
+    type_name = "Missionaries";
+    break;
   case COLONIZE_EJECT_COLONIST:
   default:
     type_name = "Colonists";
@@ -921,7 +952,13 @@ int colonies_eject_colonist(
   if (type_index < 0) {
     type_index = c->unit_type_index;
   }
-  const int profession = c->profession;
+  int profession = c->profession;
+  if (role == COLONIZE_EJECT_MISSIONARY) {
+    /* Church bless → ordinary Missionary; keep Jesuit (job 24) if already skilled. */
+    if (profession != UNITS_JOB_MISSIONARY) {
+      profession = UNITS_JOB_NONE;
+    }
+  }
 
   colonies_clear_colonist_tile(col, colonist_index);
   for (int i = colonist_index; i < col->colonist_count - 1; ++i) {

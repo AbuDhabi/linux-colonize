@@ -1598,6 +1598,138 @@ static int smoke_sticky_contact_rehunt(void) {
 }
 
 /*
+ * Thin multi-step land adjacent combat: Soldier with MP>1 kills foe A then
+ * continues onto adjacent foe B in the same act (drain moves_left). Cite:
+ * euro_unit_act §2c multi-step combat; ai_euro_land_try_adjacent_attack chain.
+ */
+static int smoke_land_adjacent_combat_chain(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("combat-chain alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  /* Soldier — foeA — foeB in a line (east). */
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("combat-chain spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 3;
+
+  const int foe_a = units_spawn(&units, 0, 6, 5);
+  ColonizeUnit* fa = units_get(&units, foe_a);
+  const int foe_b = units_spawn(&units, 0, 7, 5);
+  ColonizeUnit* fb = units_get(&units, foe_b);
+  if (!fa || !fb) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("combat-chain spawn foes");
+  }
+  fa->nation_id = foe;
+  fa->orders = 0;
+  fa->moves_left = 0;
+  fb->nation_id = foe;
+  fb->orders = 0;
+  fb->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL; /* deterministic attack>=defense wins */
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  fa = units_get(&units, foe_a);
+  fb = units_get(&units, foe_b);
+  const int a_dead = !fa || !fa->active;
+  const int b_dead = !fb || !fb->active;
+  if (!a_dead || !b_dead) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: chain soldier=%d,%d moves=%d a_dead=%d b_dead=%d\n",
+      soldier ? soldier->x : -1,
+      soldier ? soldier->y : -1,
+      soldier ? soldier->moves_left : -1,
+      a_dead,
+      b_dead
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("land adjacent combat chain should kill both foes in one act");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: land adjacent combat chain ok\n");
+  return 0;
+}
+
+/*
  * Thin mid-hire Artillery: at war, colonies>=2, gold, Europe ship with Soldier
  * already aboard → prefer Artillery (Cannon name fallback). If Artillery/Cannon
  * type missing from pool, hire falls back to Soldier/Dragoon path (documented).
@@ -1949,6 +2081,454 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer-weak ok\n");
+  return 0;
+}
+
+/*
+ * Thin 20e6 land adjacent-foe: equal toughness Scout (N, first dir) vs Treasure
+ * (S) → prefer Treasure loot. Cite: Colonization.pdf Treasure Trains / @LOOTCASH.
+ */
+static int smoke_land_adjacent_foe_prefer_treasure(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("adj-treasure alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 8;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Scout");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 0;
+  units.types[1].defense = 0;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Treasure");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 0;
+  units.types[2].defense = 0;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-treasure spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 1;
+
+  const int scout_id = units_spawn(&units, 1, own_x, own_y - 1); /* N first */
+  ColonizeUnit* scout = units_get(&units, scout_id);
+  if (!scout) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-treasure spawn scout");
+  }
+  scout->nation_id = foe_nat;
+  scout->orders = 0;
+  scout->moves_left = 0;
+
+  const int treasure_id = units_spawn(&units, 2, own_x, own_y + 1); /* S */
+  ColonizeUnit* treasure = units_get(&units, treasure_id);
+  if (!treasure) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("adj-treasure spawn treasure");
+  }
+  treasure->nation_id = foe_nat;
+  treasure->orders = 0;
+  treasure->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+
+  uint32_t turn = 41;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  scout = units_get(&units, scout_id);
+  treasure = units_get(&units, treasure_id);
+
+  const int treasure_dead = treasure == NULL || !treasure->active;
+  const int scout_alive = scout && scout->active;
+  const int own_alive = soldier && soldier->active;
+
+  if (!treasure_dead || !scout_alive || !own_alive) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: adj-treasure own=%d treasure_dead=%d scout_alive=%d\n",
+      own_alive,
+      treasure_dead,
+      scout_alive
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected attack on Treasure over equal-toughness Scout");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer Treasure ok\n");
+  return 0;
+}
+
+/*
+ * Land war hunt: nearer Scout (MD=2) vs Treasure (MD=4, slack ≤3) → prefer
+ * Treasure goto. Cite: Colonization.pdf Treasure Trains; euro_unit_act hunt.
+ */
+static int smoke_land_hunt_prefer_treasure(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 20;
+  map.height = 20;
+  map.tile_count = 400;
+  map.terrain = calloc(400, 1);
+  map.layer2 = calloc(400, 1);
+  map.layer3 = calloc(400, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("hunt-treasure alloc map");
+  }
+  for (int i = 0; i < 400; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 8;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Scout");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 0;
+  units.types[1].defense = 0;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Treasure");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 0;
+  units.types[2].defense = 0;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-treasure spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 3;
+
+  const int scout_id = units_spawn(&units, 1, 7, 5); /* MD=2 */
+  ColonizeUnit* scout = units_get(&units, scout_id);
+  if (!scout) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-treasure spawn scout");
+  }
+  scout->nation_id = foe_nat;
+  scout->orders = 0;
+  scout->moves_left = 0;
+
+  const int treasure_id = units_spawn(&units, 2, 9, 5); /* MD=4 ≤ 2+3 */
+  ColonizeUnit* treasure = units_get(&units, treasure_id);
+  if (!treasure) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-treasure spawn treasure");
+  }
+  treasure->nation_id = foe_nat;
+  treasure->orders = 0;
+  treasure->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+  uint32_t turn = 45;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  if (!soldier || !soldier->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-treasure soldier despawned");
+  }
+  /* Goto or moved toward Treasure x=9 (not stuck on Scout x=7). */
+  const int toward_treasure =
+    (soldier->goto_x == 9 && soldier->goto_y == 5) || soldier->x > 7 ||
+    (soldier->orders == UNITS_ORDER_AI_MOVE && soldier->goto_x >= 8);
+  if (!toward_treasure) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: hunt-treasure xy=(%d,%d) goto=(%d,%d) orders=%d\n",
+      soldier->x,
+      soldier->y,
+      soldier->goto_x,
+      soldier->goto_y,
+      soldier->orders
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("Soldier hunt should prefer Treasure over nearer Scout");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: land hunt prefer Treasure ok\n");
+  return 0;
+}
+
+/*
+ * Land war hunt toughness: nearer Soldier (MD=2, def 8) vs farther Free Colonist
+ * (MD=4, def 1, slack ≤3) → prefer weaker Colonist. Cite: thin 20e6 / euro_unit_act.
+ */
+static int smoke_land_hunt_prefer_weak(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 20;
+  map.height = 20;
+  map.tile_count = 400;
+  map.terrain = calloc(400, 1);
+  map.layer2 = calloc(400, 1);
+  map.layer3 = calloc(400, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("hunt-weak alloc map");
+  }
+  for (int i = 0; i < 400; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 8;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[1].attack = 0;
+  units.types[1].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  colonies.colony_count = 1;
+
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-weak spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 3;
+
+  const int strong_id = units_spawn(&units, 0, 7, 5); /* MD=2 Soldier */
+  ColonizeUnit* strong = units_get(&units, strong_id);
+  if (!strong) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-weak spawn strong");
+  }
+  strong->nation_id = foe_nat;
+  strong->orders = 0;
+  strong->moves_left = 0;
+
+  const int weak_id = units_spawn(&units, 1, 9, 5); /* MD=4 Colonist */
+  ColonizeUnit* weak = units_get(&units, weak_id);
+  if (!weak) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-weak spawn weak");
+  }
+  weak->nation_id = foe_nat;
+  weak->orders = 0;
+  weak->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe_nat);
+
+  ai_goals_reset();
+  uint32_t turn = 46;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  if (!soldier || !soldier->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("hunt-weak soldier despawned");
+  }
+  const int toward_weak =
+    (soldier->goto_x == 9 && soldier->goto_y == 5) || soldier->x > 7 ||
+    (soldier->orders == UNITS_ORDER_AI_MOVE && soldier->goto_x >= 8);
+  if (!toward_weak) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: hunt-weak xy=(%d,%d) goto=(%d,%d) orders=%d\n",
+      soldier->x,
+      soldier->y,
+      soldier->goto_x,
+      soldier->goto_y,
+      soldier->orders
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("Soldier hunt should prefer weaker Colonist within MD slack");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: land hunt prefer weak ok\n");
   return 0;
 }
 
@@ -8580,7 +9160,19 @@ int main(void) {
   if (smoke_sticky_contact_rehunt() != 0) {
     return 1;
   }
+  if (smoke_land_adjacent_combat_chain() != 0) {
+    return 1;
+  }
   if (smoke_land_adjacent_foe_prefer_weak() != 0) {
+    return 1;
+  }
+  if (smoke_land_adjacent_foe_prefer_treasure() != 0) {
+    return 1;
+  }
+  if (smoke_land_hunt_prefer_treasure() != 0) {
+    return 1;
+  }
+  if (smoke_land_hunt_prefer_weak() != 0) {
     return 1;
   }
   if (smoke_land_adjacent_foe_prefer_open_over_stockade() != 0) {
