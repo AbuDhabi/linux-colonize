@@ -273,8 +273,8 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 |--:|-------|--------|
 | 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; deep `2820` / gift-amount / VGA remain PARKED |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
-| 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); KINGGALLEON2 still PARK; Congress UI PARKED |
-| 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep ocean/`−0x6790` / damage-byte; land fort% + siege/open hunt + FUN_157e_004a vet/Drake toughness **Done**; construction prefers (…/craft houses/shops/factories/Capitol/Expansion/Fortress/WHE/Blacksmith House+Shop+Carpenter Shop) **Done**; case-7 dock expert matrix (…/Weaver/Fur Trader/Tobacconist) **Done**; civic/craft workplace assign **Done**; peace Soldier/Dragoon/**Regular/Continental/Artillery** fortify + MD≤2 border wake **Done**; war hunt/board/unload **Regular/Continental** **Done**; war transport Galleon/Frigate/**Man-O-War** **Done**; ship/wagon haul + Galleon cargo + Europe export + Privateer loot sail + wagon feeder (FUN_364b) **Done**; ocean east-Europe HS bias **Done** |
+| 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); human Congress debate CHOICE (**Done** structural); KINGGALLEON2 still PARK; F3 portrait grid / VGA PARKED |
+| 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep −0x6790; naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done** |
 | 5 | Indian×Euro `15b3` + fuller `153e` | **Done** structural + Privateer spawn **Done** (8g prize PARK); FA `3f41` full UI PARKED |
 | 6 | `manual_gap.md` hygiene | Done this pass |
 

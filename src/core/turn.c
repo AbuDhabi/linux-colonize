@@ -7,6 +7,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
@@ -859,6 +860,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     case TURN_PROC_FINISH: {
       proc->show_indicator = false;
       turn_run_king_stub(ctx);
+      /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */
+      if (ctx->europe) {
+        europe_tick_market_prices(ctx->europe);
+      }
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(
         ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, ctx->map

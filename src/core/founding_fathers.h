@@ -165,4 +165,10 @@ int founding_fathers_revere_auto_arm(
 /* Elect at most one FF per eligible nation when the bells threshold is met. */
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 
+/*
+ * Apply Continental Congress debate CHOICE (AI_POPUP_TAG_FF_CONGRESS).
+ * choice_id = FF index. Cite: FUN_4345_06d2 category debate; ai_popup.
+ */
+void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState* popups);
+
 #endif

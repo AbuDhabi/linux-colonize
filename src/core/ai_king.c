@@ -30,11 +30,12 @@
  *   Hire apply/auto success → follow-up OK (same status body).
  *   Decline apply → follow-up OK ("Mercenaries declined."; gate unknown46[3]).
  * 160a rename: player[human].country_name → "United Colonies"
- *   (letter cinematic PARKED — thin rename + OK chain Done).
- *   unknown46[4] unused — writable Col1 country_name exists.
+ *   (letter cinematic PARKED — thin rename + KING_LETTER Done).
+ *   unknown46[4] endgame latch: 0 none / 1 won / 2 lost.
  *   On declare + ai_popups: thin rename OK + "War of Independence begins" OK.
  * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE Confirm/Not yet
  *   when ctx->ai_popups; auto-declare when NULL; same-turn 1528 may overwrite status).
+ * Revolution end: lose if 0 coastal ports; win if year≥1850 + no crown units.
  * SoL restless chrome (40..49): status + INFO OK when human sees restless.
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
@@ -44,10 +45,17 @@
 #define AI_KING_REF_PRESENT_BYTE 1
 #define AI_KING_BOYCOTT_BYTE 2
 #define AI_KING_MERC_HIRED_BYTE 3
-/* AI_KING_RENAMED_BYTE 4 reserved if country_name unavailable — not used. */
+/* Endgame latch: 0 none, 1 revolution won, 2 revolution lost (was rename-reserved). */
+#define AI_KING_ENDGAME_BYTE 4
+#define AI_KING_ENDGAME_NONE 0
+#define AI_KING_ENDGAME_WON 1
+#define AI_KING_ENDGAME_LOST 2
+#define AI_KING_ENDGAME_PEACE_1800 3
 #define AI_KING_CONGRESS_BYTE 5
 
 #define AI_KING_INDEP_COUNTRY "United Colonies"
+#define AI_KING_YEAR_CAP 1850
+#define AI_KING_PEACE_YEAR_CAP 1800
 
 /* Structural refuse thresholds (exact DOS 38fd_5be8 gates still thin). */
 #define AI_KING_BOYCOTT_TAX_MIN 20
@@ -1918,6 +1926,8 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * Congress status below; same-turn 0982/1528 wave may overwrite if it spawns
    * (wave only writes status when non-empty arrival — leave congress if empty).
    * Human queue: thin rename OK + WoI-begins OK (FUN_43f7_160a / 1a26 chain).
+   * Letter chrome: KING_LETTER body uses DECLARAT-shaped wording (full
+   * DECLARAT.PIK / FONTKING letter-anim still PARKED).
    */
   snprintf(ctx->col1->player[human].country_name,
            sizeof(ctx->col1->player[human].country_name), "%s", AI_KING_INDEP_COUNTRY);
@@ -1930,10 +1940,12 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   }
   if (ai_king_human_popups(ctx)) {
     /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED — KING_LETTER tag). */
+    /* FUN_43f7_160a + GAME.TXT @INDEPENDENCE (letter-anim cinematic PARKED). */
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_KING_LETTER, human, ai_king_crown_nation(human), 0,
-      "United Colonies",
-      "The colonies are renamed the United Colonies."
+      "Declaration of Independence",
+      "Continental Congress signs Declaration of Independence! "
+      "Abuses and usurpations cited! The colonies are renamed the United Colonies."
     );
     /* FUN_43f7_1a26 / 2564: WoI begins OK after Confirm/auto declare. */
     (void)ai_popup_enqueue_ok_ctx(
@@ -3081,6 +3093,106 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   }
 }
 
+/*
+ * Revolution end (fandom Independence / manual 1800–1850):
+ *   Lose: WoI + zero coastal human ports.
+ *   Win: WoI + year≥1850 + no crown REF units on map.
+ * Latches unknown46[4]; score reads won/lost. Cite: docs/fandom_col1994.md.
+ */
+static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human) {
+  if (!ctx || human < 0 || human > 3) {
+    return 0;
+  }
+  int n = 0;
+  if (ctx->colonies && ctx->map) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      if (map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        ++n;
+      }
+    }
+  }
+  /* Col1 colony list (smoke / bridge) when runtime pool empty. */
+  if (n == 0 && ctx->col1_ok && ctx->col1 && ctx->map && ctx->col1->colony) {
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+      if ((int)c->nation_id != human) {
+        continue;
+      }
+      if (map_tile_is_coastal(ctx->map, (int)c->x, (int)c->y)) {
+        ++n;
+      }
+    }
+  }
+  return n;
+}
+
+static int ai_king_crown_units_alive(const ColonizeTurnContext* ctx, int crown) {
+  if (!ctx || !ctx->units || crown < 0) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == crown) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_already) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  if (!ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  if (ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] != AI_KING_ENDGAME_NONE) {
+    return; /* already resolved */
+  }
+  const int human = ctx->human_nation;
+  const int crown = ai_king_crown_nation(human);
+  const int ports = ai_king_human_coastal_ports(ctx, human);
+  /*
+   * Lose: all coastal ports gone, and REF was already invading before this
+   * turn's wave (avoid clobbering same-turn 1528 declare/arrival chrome).
+   * Cite: docs/fandom_col1994.md Independence — lose all ports.
+   */
+  if (ports <= 0 && ref_already) {
+    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size,
+               "The Revolution has failed — all port colonies lost.");
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed",
+        "The Revolution has failed. All port colonies are lost."
+      );
+    }
+    return;
+  }
+  const int year = (int)ctx->col1->head.year;
+  if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) <= 0) {
+    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_WON;
+    ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = 0;
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size,
+               "Independence won! The Royal Expeditionary Force is defeated.");
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Independence",
+        "Independence is won! The Royal Expeditionary Force is no more."
+      );
+    }
+  }
+}
+
 void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   if (!ctx) {
     return;
@@ -3097,6 +3209,28 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     ai_king_tax_event(ctx);
+    /*
+     * Peacetime calendar end (manual pp.10–12 / 1800–1850): without WoI,
+     * year≥1800 latches once. Cite: docs/manual_gap.md Auto-end.
+     */
+    if (ctx->col1_ok && ctx->col1 &&
+        ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
+        (int)ctx->col1->head.year >= AI_KING_PEACE_YEAR_CAP) {
+      ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_PEACE_1800;
+      if (ctx->status && ctx->status_size) {
+        snprintf(ctx->status, ctx->status_size,
+                 "The colonial era ends (%d). Retire to see your score.",
+                 AI_KING_PEACE_YEAR_CAP);
+      }
+      if (ai_king_human_popups(ctx)) {
+        (void)ai_popup_enqueue_ok_ctx(
+          ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation,
+          ai_king_crown_nation(ctx->human_nation), AI_KING_PEACE_YEAR_CAP,
+          "Colonial Era Ends",
+          "The year 1800 arrives. Retire to record your Colonization Score."
+        );
+      }
+    }
     /*
      * Thin pre-declare SoL chrome:
      * SoL AI_KING_RESTLESS_SOL_MIN..(DECLARE_MIN-1) → restless status line
@@ -3135,8 +3269,13 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   }
 
   if (ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
+    const int ref_already =
+      ctx->col1_ok && ctx->col1 &&
+      ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] != 0;
     ai_king_ref_wave(ctx);
     ai_king_war_act(ctx);
+    /* Lose only after REF was already present (not same-turn declare/wave). */
+    ai_king_check_revolution_end(ctx, ref_already);
   }
 
   if (ctx->active_turn_nation) {

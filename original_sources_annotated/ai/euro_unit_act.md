@@ -495,7 +495,8 @@ Like land adjacent-foe: when choosing naval `try_attack` target —
 prefers warships over cargo (complement); else lower type defense
 (`ai_euro_naval_best_adjacent_foe`). **Done (thin FUN_157e_004a):** vet Soldier/
 Dragoon profession `0x15` +50% land toughness; Drake Privateer +50% naval
-toughness. **PARKED:** ship damage byte `0x3150` subtract (no named live field).
+toughness; Privateer + `ship_damaged` (0x3148 bit7) → −2; holds_occupied
+(0x3150 / goods holds) subtracted — also in `units_resolve_naval_combat_ff`.
 
 **PARK:** Wagon load FOOD — euro AI uses FOOD only for colony stock shortage /
 LABOR tallies; haul loads TOOLS / MUSKETS / HORSES (§2d / §2d2). No wagon FOOD

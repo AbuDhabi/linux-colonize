@@ -1896,6 +1896,59 @@ int main(void) {
     fprintf(stderr, "smoke_founding_fathers: Cortes AI treasure gold=%d ok\n", gold);
   }
 
+  /* Human + ai_popups: debate CHOICE (one per @FATHERS type), elect on apply. */
+  {
+    ColonizeCol1Save dcol1;
+    col1_save_init(&dcol1);
+    seed_unclaimed(&dcol1);
+    ColonizeCol1Nation* dnat = &dcol1.nation[0];
+    memset(dnat, 0, sizeof(*dnat));
+    dnat->liberty_bells_total = 40;
+    dnat->next_founding_father = 0;
+    dnat->founding_father_count = 0;
+
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char dstatus[128];
+    dstatus[0] = '\0';
+    ColonizeTurnContext dctx;
+    memset(&dctx, 0, sizeof(dctx));
+    dctx.human_nation = 0;
+    dctx.col1 = &dcol1;
+    dctx.col1_ok = true;
+    dctx.status = dstatus;
+    dctx.status_size = sizeof(dstatus);
+    dctx.ai_popups = &pop;
+
+    founding_fathers_tick(&dctx);
+    if (dnat->founding_father_count != 0) {
+      return fail("debate path must not elect before CHOICE apply");
+    }
+    if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_CHOICE ||
+        pop.queue[0].tag != AI_POPUP_TAG_FF_CONGRESS || pop.queue[0].choice_count < 2) {
+      fprintf(stderr, "smoke_founding_fathers: debate queue_count=%d kind=%d choices=%d\n",
+              pop.queue_count,
+              pop.queue_count > 0 ? (int)pop.queue[0].kind : -1,
+              pop.queue_count > 0 ? pop.queue[0].choice_count : -1);
+      return fail("expected FF debate CHOICE with ≥2 category candidates");
+    }
+    /* Simulate player picking first choice (Adam Smith / Trade). */
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_tag = AI_POPUP_TAG_FF_CONGRESS;
+    pop.result_choice_id = pop.queue[0].choice_ids[0];
+    pop.result_nation_a = 0;
+    pop.result_payload = (int)pop.queue[0].payload;
+    pop.queue_count = 0;
+    founding_fathers_apply_popup_result(&dctx, &pop);
+    if (dnat->founding_father_count != 1 ||
+        !founding_fathers_nation_has(&dcol1, 0, pop.result_choice_id)) {
+      return fail("debate apply must elect chosen founding father");
+    }
+    fprintf(stderr, "smoke_founding_fathers: Congress debate CHOICE ok\n");
+  }
+
   printf("smoke_founding_fathers: OK\n");
   return 0;
 }

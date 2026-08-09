@@ -6284,6 +6284,16 @@ static int ai_euro_tile_under_enemy_fort_fire(
   int x,
   int y
 );
+static int ai_euro_naval_foe_toughness(
+  ColonizeTurnContext* ctx,
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* f
+);
+static int ai_euro_land_foe_toughness(
+  ColonizeTurnContext* ctx,
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* f
+);
 
 static int ai_euro_ocean_score_step(
   ColonizeTurnContext* ctx,
@@ -6302,13 +6312,19 @@ static int ai_euro_ocean_score_step(
    * invented MP (full ocean 20e6 still PARKED / R5).
    * East-Europe deepen: when goto is eastward (Treasure/Europe exit /
    * eastern HS), prefer eastward HS steps — complement west-explore.
-   * Cite: Colonization.pdf Treasure Trains → Europe; units_find_eastern_high_seas_tile.
+   * Combat deepen (FUN_157e_004a / thin 20e6): when at war, bonus for steps
+   * that sit adjacent to a weaker foe ship (prefer engage); small penalty
+   * adjacent to tougher foe. Cite: Colonization.pdf Treasure Trains → Europe;
+   * units_find_eastern_high_seas_tile; FUN_157e_004a.
    */
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   const int on_hs = map_tile_is_high_seas(ctx->map, u->x, u->y);
   const int west_explore = goal_x < u->x;
   const int east_europe = goal_x > u->x;
+  const int at_war =
+    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, u->nation_id);
+  const int own_tough = ai_euro_naval_foe_toughness(ctx, ctx->units, u);
   int best = -999999;
   int bdx = 0;
   int bdy = 0;
@@ -6359,6 +6375,30 @@ static int ai_euro_ocean_score_step(
     if (ai_euro_tile_under_enemy_fort_fire(ctx, u->nation_id, nx, ny)) {
       score -= 800;
     }
+    /* Thin combat: prefer closing on weaker adjacent foe ships. */
+    if (at_war) {
+      for (int ad = 0; ad < 8; ++ad) {
+        const int ax = nx + dx[ad];
+        const int ay = ny + dy[ad];
+        const int fid = units_id_at(ctx->units, ax, ay);
+        if (fid < 0 || !units_is_sea(ctx->units, fid)) {
+          continue;
+        }
+        const ColonizeUnit* f = units_get_const(ctx->units, fid);
+        if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id > 3) {
+          continue;
+        }
+        if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+          continue;
+        }
+        const int ft = ai_euro_naval_foe_toughness(ctx, ctx->units, f);
+        if (ft < own_tough) {
+          score += 18;
+        } else if (ft > own_tough) {
+          score -= 8;
+        }
+      }
+    }
     if (ctx->rng) {
       score += dos_rng_range(ctx->rng, 0, 2);
     }
@@ -6392,6 +6432,9 @@ static int ai_euro_score_move(
   }
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const int at_war =
+    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, u->nation_id);
+  const int own_tough = at_war ? ai_euro_land_foe_toughness(ctx, ctx->units, u) : 0;
   int best = -999999;
   int bdx = 0;
   int bdy = 0;
@@ -6413,6 +6456,31 @@ static int ai_euro_score_move(
     }
     const int dist = abs(goal_x - nx) + abs(goal_y - ny);
     int score = 1000 - dist * 10;
+    /* Thin land combat 20e6: prefer closing on weaker adjacent war foes. */
+    if (at_war) {
+      for (int ad = 0; ad < 8; ++ad) {
+        const int ax = nx + dx[ad];
+        const int ay = ny + dy[ad];
+        const int fid = units_id_at(ctx->units, ax, ay);
+        if (fid < 0 || units_is_sea(ctx->units, fid)) {
+          continue;
+        }
+        const ColonizeUnit* f = units_get_const(ctx->units, fid);
+        if (!f || f->nation_id == u->nation_id) {
+          continue;
+        }
+        if (f->nation_id >= 0 && f->nation_id <= 3 &&
+            !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+          continue;
+        }
+        const int ft = ai_euro_land_foe_toughness(ctx, ctx->units, f);
+        if (ft < own_tough) {
+          score += 14;
+        } else if (ft > own_tough) {
+          score -= 6;
+        }
+      }
+    }
     if (ctx->rng) {
       score += dos_rng_range(ctx->rng, 0, 3);
     }
@@ -7390,10 +7458,30 @@ static int ai_euro_war_transport_target(
 }
 
 /*
+ * Occupied goods holds — Col1 unit+0x0c / DS:0x3150 holds_occupied.
+ * FUN_157e_004a subtracts this from ship combat×8 for type 0x0d..0x12.
+ */
+static int ai_euro_ship_holds_occupied(const ColonizeUnit* u) {
+  if (!u) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    const int amt = u->hold_goods_amount[i];
+    if (amt > 0 && amt < 255) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+/*
  * Effective defense for thin 20e6 naval adjacent-foe pick.
- * FUN_157e_004a peel: Drake Privateer +50% (×3/2) when FF owned — mirrors
- * units_drake_scale_strength. PARK: ship damage byte 0x3150 subtract until a
- * named live field exists. Cite: FUNCTION_CATALOG FUN_157e_004a; fandom Drake.
+ * FUN_157e_004a peels:
+ *   - Privateer (type 0x0b) + ship_damaged (0x3148 bit7 / col1_unknown15 bit7) → −2
+ *   - ship band: subtract holds_occupied (0x3150)
+ *   - Drake Privateer +50% (×3/2) when FF owned — mirrors units_drake_scale_strength
+ * Cite: FUNCTION_CATALOG FUN_157e_004a; fandom Drake; col1_save.h ship_damaged.
  */
 static int ai_euro_naval_foe_toughness(
   ColonizeTurnContext* ctx,
@@ -7405,6 +7493,18 @@ static int ai_euro_naval_foe_toughness(
   }
   const ColonizeUnitType* t = units_type(units, f->type_index);
   int def = t ? t->defense : 0;
+  if (def < 0) {
+    def = 0;
+  }
+  /* FUN_157e_004a: type==0x0b Privateer + damaged bit → base −2 before ×8. */
+  if (t && strstr(t->name, "Privateer") != NULL && (f->col1_unknown15 & 0x80u) != 0) {
+    def -= 2;
+    if (def < 0) {
+      def = 0;
+    }
+  }
+  /* FUN_157e_004a: ship type band subtracts holds_occupied (0x3150). */
+  def -= ai_euro_ship_holds_occupied(f);
   if (def < 0) {
     def = 0;
   }

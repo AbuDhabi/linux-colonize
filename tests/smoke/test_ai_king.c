@@ -4673,6 +4673,144 @@ int main(void) {
     ctx.ai_popups = NULL;
   }
 
+  /* Revolution lose: WoI + REF already present + zero coastal ports → unknown46[4]=2. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1; /* REF already invading */
+    end.head.unknown46[4] = 0;
+    end.head.year = 1785;
+    end.player[0].control = 0;
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("rev-end alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 1; /* all land — no coastal ports */
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+
+    char estatus[160];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 2) {
+      fprintf(stderr, "smoke_ai_king: rev-lose endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("WoI + REF + no coastal ports should latch revolution lost");
+    }
+    if (!strstr(estatus, "failed") && !strstr(estatus, "port")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("rev-lose should set failure status");
+    }
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution lose (no ports) ok\n");
+  }
+
+  /* Revolution win: WoI + year≥1850 + no crown units → unknown46[4]=1. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1;
+    end.head.unknown46[4] = 0;
+    end.head.year = 1850;
+    end.player[0].control = 0;
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain) {
+      return fail("rev-win alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 25; /* ocean */
+    }
+    emap.terrain[5 + 5 * 16] = 1;
+    emap.terrain[6 + 5 * 16] = 25; /* coast neighbor */
+    /* Found a coastal colony for human so lose path doesn't fire. */
+    {
+      ColonizeColony* c = &cp.colonies[0];
+      memset(c, 0, sizeof(*c));
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      cp.colony_count = 1;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+    /* No crown units. */
+
+    char estatus[160];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 1) {
+      fprintf(stderr, "smoke_ai_king: rev-win endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("WoI + 1850 + no crown units should latch revolution won");
+    }
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution win (1850) ok\n");
+  }
+
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);

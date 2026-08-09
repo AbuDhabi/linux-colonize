@@ -267,7 +267,7 @@ Crown **Man-O-War** (Galleon fallback) during `war_act`:
 
 Steps on water only; naval combat if a human ship blocks. 0982 boards up to
 ship capacity into `cargo_ids` (Regular-then-Dragoon); multi-unload here.
-**PARK:** embark UI chrome; `160a` letter cinematic.
+**PARK:** embark UI chrome; `160a` letter cinematic (thin `@INDEPENDENCE` KING_LETTER Done).
 
 ### REF idle / post-capture garrison (one-stack)
 

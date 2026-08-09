@@ -1,6 +1,7 @@
 #include "core/founding_fathers.h"
 
 #include "core/ai_diplo.h"
+#include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
 #include "core/units.h"
@@ -204,6 +205,70 @@ static void effect_pocahontas_reset_alarm(ColonizeCol1Save* col1, int nation_id)
 
 static bool ff_unclaimed(const ColonizeCol1Save* col1, int idx) {
   return col1->head.founding_father[idx] < 0;
+}
+
+/* NAMES.TXT @FATHERS type column (0=Trade … 4=Religious). */
+static const uint8_t k_ff_type[COLONIZE_COL1_FF_COUNT] = {
+  0, 0, 0, 0, 0, /* Trade 0–4 */
+  1, 1, 1, 1, 1, /* Exploration 5–9 */
+  2, 2, 2, 2, 2, /* Military 10–14 (Cortes…JPJ) */
+  3, 3, 3, 3, 3, /* Political 15–19 */
+  4, 4, 4, 4, 4  /* Religious 20–24 */
+};
+
+static const char* k_ff_short_names[COLONIZE_COL1_FF_COUNT] = {
+  "Adam Smith",
+  "Jakob Fugger",
+  "Peter Minuit",
+  "Peter Stuyvesant",
+  "Jan de Witt",
+  "Ferdinand Magellan",
+  "Francisco Coronado",
+  "Hernando de Soto",
+  "Henry Hudson",
+  "Sieur De La Salle",
+  "Hernan Cortes",
+  "George Washington",
+  "Paul Revere",
+  "Francis Drake",
+  "John Paul Jones",
+  "Thomas Jefferson",
+  "Pocahontas",
+  "Thomas Paine",
+  "Simon Bolivar",
+  "Benjamin Franklin",
+  "William Brewster",
+  "William Penn",
+  "Jean de Brebeuf",
+  "Juan de Sepulveda",
+  "Bartolome de las Casas"
+};
+
+/* First unclaimed FF of @FATHERS type, else -1. */
+static int ff_first_unclaimed_of_type(const ColonizeCol1Save* col1, int type) {
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    if ((int)k_ff_type[i] == type && ff_unclaimed(col1, i)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static int ff_debate_pending(const AiPopupState* p) {
+  if (!p) {
+    return 0;
+  }
+  if (p->open && p->current.tag == AI_POPUP_TAG_FF_CONGRESS &&
+      p->current.kind == AI_POPUP_KIND_CHOICE) {
+    return 1;
+  }
+  for (int i = 0; i < p->queue_count; ++i) {
+    if (p->queue[i].tag == AI_POPUP_TAG_FF_CONGRESS &&
+        p->queue[i].kind == AI_POPUP_KIND_CHOICE) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 static int pick_candidate(const ColonizeCol1Save* col1, const ColonizeCol1Nation* nat) {
@@ -721,23 +786,19 @@ static void apply_effect(
 }
 
 /* Returns true if a founding father was elected for this nation. */
-static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+static bool elect_commit(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int idx
+) {
+  if (!ctx || !ctx->col1 || idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
     return false;
   }
-
+  if (!ff_unclaimed(ctx->col1, idx)) {
+    return false;
+  }
   ColonizeCol1Save* col1 = ctx->col1;
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
-  const unsigned needed = founding_fathers_bells_needed(nat->founding_father_count);
-  if ((unsigned)nat->liberty_bells_total < needed) {
-    return false;
-  }
-
-  const int idx = pick_candidate(col1, nat);
-  if (idx < 0) {
-    return false;
-  }
-
   col1->head.founding_father[idx] = (int8_t)nation_id;
   nat->founding_fathers[idx / 8] |= (uint8_t)(1u << (idx % 8));
   if (nat->founding_father_count < 65535u) {
@@ -751,24 +812,123 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
   if (ctx->status && ctx->status_size > 0 && nation_id == ctx->human_nation) {
     snprintf(ctx->status, ctx->status_size, "Founding Father elected (#%d)", idx);
   }
-  /*
-   * Thin Continental Congress elect chrome (presentation only). Debate pick
-   * UI / F3 full report PARKED. Cite: reports F3 Congress; founding_fathers.h.
-   */
   if (ctx->ai_popups && nation_id == ctx->human_nation) {
     char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body), "Founding Father #%d joins the Continental Congress.", idx);
+    snprintf(
+      body,
+      sizeof(body),
+      "%s joins the Continental Congress.",
+      k_ff_short_names[idx]
+    );
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups,
       AI_POPUP_TAG_FF_CONGRESS,
       nation_id,
       -1,
-      idx,
+      -1, /* payload -1: announce OK, not debate apply */
       "Continental Congress",
       body
     );
   }
   return true;
+}
+
+/* Returns true if a founding father was elected (or debate CHOICE enqueued). */
+static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+
+  ColonizeCol1Save* col1 = ctx->col1;
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  const unsigned needed = founding_fathers_bells_needed(nat->founding_father_count);
+  if ((unsigned)nat->liberty_bells_total < needed) {
+    return false;
+  }
+
+  /*
+   * Human + popup queue: Continental Congress debate CHOICE — one unclaimed
+   * candidate per @FATHERS type (FUN_4345_06d2 / 015a stand-in). Wait if a
+   * debate CHOICE is already pending. AI / no-queue: auto pick_candidate.
+   */
+  if (nation_id == ctx->human_nation && ctx->ai_popups) {
+    if (ff_debate_pending(ctx->ai_popups)) {
+      return false;
+    }
+    char labels[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+    int ids[AI_POPUP_CHOICE_MAX];
+    int n = 0;
+    const int preferred = (int)nat->next_founding_father;
+    for (int type = 0; type < 5 && n < AI_POPUP_CHOICE_MAX; ++type) {
+      int idx = -1;
+      if (preferred >= 0 && preferred < (int)COLONIZE_COL1_FF_COUNT &&
+          (int)k_ff_type[preferred] == type && ff_unclaimed(col1, preferred)) {
+        idx = preferred;
+      } else {
+        idx = ff_first_unclaimed_of_type(col1, type);
+      }
+      if (idx < 0) {
+        continue;
+      }
+      snprintf(labels[n], sizeof(labels[n]), "%s", k_ff_short_names[idx]);
+      ids[n] = idx;
+      n++;
+    }
+    if (n >= 2) {
+      const char* choice_ptrs[AI_POPUP_CHOICE_MAX];
+      for (int i = 0; i < n; ++i) {
+        choice_ptrs[i] = labels[i];
+      }
+      (void)ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups,
+        AI_POPUP_TAG_FF_CONGRESS,
+        nation_id,
+        -1,
+        needed,
+        "Continental Congress",
+        "The Congress debates who should join next.",
+        choice_ptrs,
+        ids,
+        n
+      );
+      if (ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "Congress debates founding fathers.");
+      }
+      return false; /* elect on choice apply */
+    }
+    if (n == 1) {
+      return elect_commit(ctx, nation_id, ids[0]);
+    }
+    return false;
+  }
+
+  const int idx = pick_candidate(col1, nat);
+  if (idx < 0) {
+    return false;
+  }
+  return elect_commit(ctx, nation_id, idx);
+}
+
+void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState* popups) {
+  if (!ctx || !popups || !popups->has_result) {
+    return;
+  }
+  if (popups->result_tag != AI_POPUP_TAG_FF_CONGRESS) {
+    return;
+  }
+  if (popups->result_cancelled) {
+    return;
+  }
+  /* Debate CHOICE stores bells-needed in payload (>0). Announce OK uses -1. */
+  if (popups->result_payload <= 0) {
+    return;
+  }
+  const int idx = popups->result_choice_id;
+  const int nation = popups->result_nation_a >= 0 ? popups->result_nation_a : ctx->human_nation;
+  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
+    return;
+  }
+  (void)elect_commit(ctx, nation, idx);
 }
 
 void founding_fathers_tick(ColonizeTurnContext* ctx) {
