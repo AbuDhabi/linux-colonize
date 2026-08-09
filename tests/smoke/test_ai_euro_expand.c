@@ -1187,6 +1187,170 @@ static int smoke_horses_cargo_hire(void) {
 }
 
 /*
+ * muskets_short high, other stocks full: after dock Master Gunsmith hire,
+ * ship/colony gets MUSKETS cargo stand-in (+10). Cite: euro_unit_act §2d mid-5d04.
+ */
+static int smoke_muskets_cargo_hire(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("muskets-cargo alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Gunsmith");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40;
+    c->stock[COLONIZE_CARGO_LUMBER] = 40;
+    c->stock[COLONIZE_CARGO_ORE] = 40;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 0; /* muskets_short tally */
+    c->stock[COLONIZE_CARGO_HORSES] = 40;
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int muskets0 = colonies.colonies[0].stock[COLONIZE_CARGO_MUSKETS];
+
+  const int ship_id = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("muskets-cargo spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Master Gunsmiths");
+  europe.dock[0].profession = 15;
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 22;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int boarded = 0;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+    if (ty && strstr(ty->name, "Gunsmith")) {
+      boarded = 1;
+      break;
+    }
+  }
+
+  int ship_muskets = 0;
+  int ship_tools = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (ship->hold_goods_amount[h] <= 0 || ship->hold_goods_amount[h] >= 255) {
+      continue;
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_MUSKETS) {
+      ship_muskets += ship->hold_goods_amount[h];
+    }
+    if (ship->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
+      ship_tools += ship->hold_goods_amount[h];
+    }
+  }
+  const int colony_muskets_rose =
+    colonies.colonies[0].stock[COLONIZE_CARGO_MUSKETS] >= muskets0 + 10 ||
+    colonies.colonies[1].stock[COLONIZE_CARGO_MUSKETS] >= 10 ||
+    colonies.colonies[2].stock[COLONIZE_CARGO_MUSKETS] >= 10;
+
+  if (!boarded || ship_tools > 0 || !(ship_muskets >= 10 || colony_muskets_rose)) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: muskets-cargo boarded=%d ship_muskets=%d ship_tools=%d "
+      "colony_muskets=%d/%d/%d\n",
+      boarded,
+      ship_muskets,
+      ship_tools,
+      colonies.colonies[0].stock[COLONIZE_CARGO_MUSKETS],
+      colonies.colonies[1].stock[COLONIZE_CARGO_MUSKETS],
+      colonies.colonies[2].stock[COLONIZE_CARGO_MUSKETS]
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Gunsmith hire + MUSKETS cargo/colony (not TOOLS)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: muskets-cargo hire ok\n");
+  return 0;
+}
+
+/*
  * tools_short == 40 (2 colonies tools=0): threshold lowered from >40 to >20 —
  * still prefer Pioneer + tools cargo / colony +15 (no Wagon type in pool).
  */
@@ -18872,6 +19036,9 @@ int main(void) {
     return 1;
   }
   if (smoke_horses_cargo_hire() != 0) {
+    return 1;
+  }
+  if (smoke_muskets_cargo_hire() != 0) {
     return 1;
   }
   if (smoke_tools_mid_threshold_hire() != 0) {
