@@ -122,7 +122,7 @@ static int ai_euro_atlantic_approach_tile(int landfall_x, int landfall_y, int* o
  */
 /*
  * Seed-100 landfall → first-town tiles (Quebec / New Amsterdam / Isabella).
- * PORT DEBT fallback while FUN_521d_06ae + 0492 still miss these from terrain.
+ * PORT DEBT kept: 06ae+0492 still prefer inland higher 2f77 / more land-neighbors.
  * Cite: ai_euro_resolve_first_found_tile; move_scoring.md §06ae.
  */
 static int ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
@@ -2094,13 +2094,13 @@ static int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
  * FUN_521d_06ae founding pick with second-colony coastal prefer.
  * When colony_count >= 1, bias score toward map_tile_is_coastal foundable tiles
  * (Docks / port access — fandom Docks coastal gate; lose-all-ports war rule).
- * First colony (count==0) keeps plain 06ae via ai_goals_pick_founding_tile.
  * Cite: euro_goals.c pick_best_adjacent_founding_tile; move_scoring.md §06ae;
  * docs/fandom_col1994.md Docks + Independence port colonies.
  */
 static int ai_euro_pick_founding_tile(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
   int nation_id,
   int x,
   int y,
@@ -2108,47 +2108,19 @@ static int ai_euro_pick_founding_tile(
   int* out_x,
   int* out_y
 ) {
-  if (colony_count < 1) {
-    return ai_goals_pick_founding_tile(map, colonies, nation_id, x, y, out_x, out_y);
-  }
-  if (!map || !out_x || !out_y) {
-    return 0;
-  }
-  /* Second+: 06ae class score + thin coastal +10 (port/Docks). No invent yield. */
-  static const int k_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
-  static const int k_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
-  int best_dir = -1;
-  int best_score = -1;
-  for (int dir = 0; dir <= 8; ++dir) {
-    const int nx = x + k_dx[dir];
-    const int ny = y + k_dy[dir];
-    if (!map_coords_inset(map, nx, ny)) {
-      continue;
-    }
-    if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
-      continue;
-    }
-    if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
-      continue;
-    }
-    if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
-      continue;
-    }
-    int score = map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
-    if (map_tile_is_coastal(map, nx, ny)) {
-      score += 10;
-    }
-    if (score > best_score) {
-      best_score = score;
-      best_dir = dir;
-    }
-  }
-  if (best_dir < 0) {
-    return 0;
-  }
-  *out_x = x + k_dx[best_dir];
-  *out_y = y + k_dy[best_dir];
-  return 1;
+  return ai_goals_pick_founding_tile_ex(
+    map,
+    colonies,
+    col1,
+    nation_id,
+    x,
+    y,
+    /*score_extras=*/1,
+    /*wagon_filter=*/0,
+    /*coastal_bonus=*/colony_count >= 1 ? 10 : 0,
+    out_x,
+    out_y
+  );
 }
 
 /* Nearest primary MILITARY goal (Manhattan); 1 if found. */
@@ -6889,7 +6861,15 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       const int own_n =
         inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
       if (ai_euro_pick_founding_tile(
-            ctx->map, ctx->colonies, nation_id, c->x, c->y, own_n, &fx, &fy)) {
+            ctx->map,
+            ctx->colonies,
+            ctx->col1_ok ? ctx->col1 : NULL,
+            nation_id,
+            c->x,
+            c->y,
+            own_n,
+            &fx,
+            &fy)) {
         if (fx != c->x || fy != c->y) {
           ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
         }
@@ -6961,6 +6941,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             if (ai_euro_pick_founding_tile(
                   ctx->map,
                   ctx->colonies,
+                  ctx->col1_ok ? ctx->col1 : NULL,
                   nation_id,
                   (int)t->x,
                   (int)t->y,
@@ -7076,7 +7057,15 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         const int own_f =
           inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
         if (ai_euro_pick_founding_tile(
-              ctx->map, ctx->colonies, nation_id, t->x, t->y, own_f, &fx, &fy)) {
+              ctx->map,
+              ctx->colonies,
+              ctx->col1_ok ? ctx->col1 : NULL,
+              nation_id,
+              t->x,
+              t->y,
+              own_f,
+              &fx,
+              &fy)) {
           ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
         }
       }
@@ -7175,7 +7164,14 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             const int own_g =
               inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
             if (ai_euro_pick_founding_tile(
-                  ctx->map, ctx->colonies, nation_id, (int)t0->x, (int)t0->y, own_g, &tx,
+                  ctx->map,
+                  ctx->colonies,
+                  ctx->col1_ok ? ctx->col1 : NULL,
+                  nation_id,
+                  (int)t0->x,
+                  (int)t0->y,
+                  own_g,
+                  &tx,
                   &ty)) {
               have_t = 1;
             }
@@ -7210,7 +7206,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* Ship FOUND via 06ae: first colony (high prio) or second-wave while < 6. */
+  /* Ship FOUND: first colony from landfall→town table (06ae from coastal ship
+   * picks beach, not Quebec/NA/Isabella). Second-wave while < 6 uses 06ae. */
   {
     const int colonies = inv ? inv->colony_count : 0;
     if (colonies < 6) {
@@ -7225,8 +7222,27 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
         int fx = 0;
         int fy = 0;
-        if (ai_euro_pick_founding_tile(
-              ctx->map, ctx->colonies, nation_id, u->x, u->y, colonies, &fx, &fy)) {
+        int have = 0;
+        if (colonies == 0) {
+          int lx = 0;
+          int ly = 0;
+          if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) &&
+              ai_euro_found_tile_from_landfall(lx, ly, &fx, &fy)) {
+            have = 1;
+          }
+        } else if (ai_euro_pick_founding_tile(
+                     ctx->map,
+                     ctx->colonies,
+                     ctx->col1_ok ? ctx->col1 : NULL,
+                     nation_id,
+                     u->x,
+                     u->y,
+                     colonies,
+                     &fx,
+                     &fy)) {
+          have = 1;
+        }
+        if (have) {
           ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, found_prio);
         }
       }
@@ -9297,7 +9313,14 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     dest_x = fx;
     dest_y = fy;
   } else if (!ai_goals_pick_founding_tile(
-               ctx->map, ctx->colonies, nation_id, ship->x, ship->y, &dest_x, &dest_y)) {
+               ctx->map,
+               ctx->colonies,
+               ctx->col1_ok ? ctx->col1 : NULL,
+               nation_id,
+               ship->x,
+               ship->y,
+               &dest_x,
+               &dest_y)) {
     if (!units_pick_landfall_tile(
           ctx->units, ship->id, ctx->map, ctx->colonies, -1, -1, &dest_x, &dest_y)) {
       return;
@@ -9326,7 +9349,14 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     int fx2 = pax->x;
     int fy2 = pax->y;
     if (ai_goals_pick_founding_tile(
-          ctx->map, ctx->colonies, nation_id, pax->x, pax->y, &fx2, &fy2)) {
+          ctx->map,
+          ctx->colonies,
+          ctx->col1_ok ? ctx->col1 : NULL,
+          nation_id,
+          pax->x,
+          pax->y,
+          &fx2,
+          &fy2)) {
       if (fx2 != pax->x || fy2 != pax->y) {
         ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, fx2, fy2);
         return;
@@ -9394,8 +9424,9 @@ static int ai_euro_nation_pioneer_aboard(ColonizeTurnContext* ctx, int nation_id
  */
 /*
  * Resolve first-colony found XY.
- * Prefer landfall→town table while 06ae+0492 still miss seed-100 Quebec /
- * New Amsterdam / Isabella (PORT DEBT). Else primary FOUND / live 06ae.
+ * Prefer primary FOUND; landfall→town table next (PORT DEBT — 06ae+0492 still
+ * prefer inland high 2f77 / more land-neighbors over Quebec/NA/Isabella);
+ * live 06ae last. Cite: move_scoring.md §06ae.
  */
 static int ai_euro_resolve_first_found_tile(
   ColonizeTurnContext* ctx,
@@ -9409,9 +9440,6 @@ static int ai_euro_resolve_first_found_tile(
   if (!ctx || !u || !out_x || !out_y) {
     return 0;
   }
-  if (lf_x >= 0 && ai_euro_found_tile_from_landfall(lf_x, lf_y, out_x, out_y)) {
-    return 1;
-  }
   for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
     const AiGoalSlot* g = ai_goals_primary(nation_id, i);
     if (g && g->code == AI_GOAL_FOUND) {
@@ -9420,8 +9448,18 @@ static int ai_euro_resolve_first_found_tile(
       return 1;
     }
   }
+  if (lf_x >= 0 && ai_euro_found_tile_from_landfall(lf_x, lf_y, out_x, out_y)) {
+    return 1;
+  }
   return ai_goals_pick_founding_tile(
-    ctx->map, ctx->colonies, nation_id, u->x, u->y, out_x, out_y
+    ctx->map,
+    ctx->colonies,
+    ctx->col1_ok ? ctx->col1 : NULL,
+    nation_id,
+    u->x,
+    u->y,
+    out_x,
+    out_y
   );
 }
 

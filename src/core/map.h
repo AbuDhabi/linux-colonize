@@ -113,6 +113,11 @@ int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id)
 
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y);
+/*
+ * FUN_281f_0722 / FUN_137f_01ca — continent id = layer3 low nibble.
+ * Cite: accessors.c continent_id; ai.c ai_continent_id.
+ */
+int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_base_sprite(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
