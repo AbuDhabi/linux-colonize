@@ -143,6 +143,11 @@ void year_turn_loop(void) {
       }
       /* Restore human/focus nation from 0x5398 / override 0x53a4. */
       mid_turn_indian_tables(); /* FUN_4d56_1b3a — NOT full 1816 */
+      /*
+       * HYPOTHESIS (no XREF in this export): DOS may also have looped
+       * indian_slot 0..7 → FUN_4d56_1816 here (or after the Euro act loop).
+       * See mid_pass_indian_rank.md — do not treat as recovered call edge.
+       */
     }
 
     /* ---- Nation loop EN..DU ------------------------------------------- */

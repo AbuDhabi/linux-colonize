@@ -31,6 +31,7 @@ FUN_130d_0290 year_turn_loop          [thunk 281f_0546]
          clear all moves_spent (0x3149)
          rank euros          281f_0550 → 5bfb_00f8
          mid_turn_indian     281f_0676 → 4d56_1b3a   (NOT full 1816)
+         /* ? for i in 0..7: 1816(i) — hypothesis only; see mid_pass doc */
        for nation 0..3:
          DS:0x5394 = nation
          if control != withdrawn:
@@ -40,6 +41,7 @@ FUN_130d_0290 year_turn_loop          [thunk 281f_0546]
          if control == human:
            merc offer        281f_0668 → 43f7_2244
            Move Pieces       281f_062c → 2b5a_3b68
+       /* ? or 1816 loop here (after Euro) — alt hypothesis */
        calendar tick (year / autumn @TIMECHANGE shape)
        year_end_chrome       281f_061e → 3844_0442
      } while DS:0x53c2
@@ -150,7 +152,9 @@ Planner guts (not EOT orchestration, but contact siblings):
 ## Open RE
 
 - `MULTINEXT` / `TIMECHANGE` / `SEASONS`: string table only — **reconfirmed** no FUN_* XREF ([`mid_pass_indian_rank.md`](mid_pass_indian_rank.md))
-- `FUN_4d56_1816` call site unresolved — **reconfirmed** definition-only @81543
+- `FUN_4d56_1816` call site unresolved — **reconfirmed** definition-only @81543;
+  working guess: lost `130d` far-thunk loop (after `1b3a` or after Euro act) —
+  see [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) (hypothesis, not XREF)
 - Demo autoplay / independence splash (`130d_019e` / `0222`): PARKED; thin LAB in [`year_loop.c`](year_loop.c)
 - `FUN_3844_0442` dialogs: **UI mapped** in [`year_end_chrome.md`](year_end_chrome.md); port PARKED
 - Deep AI bodies (`20e6` land/ship, `2820`, `4528`, `2154`, loot): **mapped**; port PARKED — see

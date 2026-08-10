@@ -61,6 +61,31 @@ missing far-ptr). Body annotated in [`indian_nation_turn.c`](../ai/indian_nation
 Linux runs `ai_indian_nation_turn` (`1816`-shaped) in `TURN_PROC_INDIAN`;
 DOS resolved `130d` only shows mid-pass **`1b3a`**.
 
+### Working assumption (not an XREF)
+
+`1816` is a full nation turn (indian slot `0..7` → active `slot+4`, chrome,
+alarm, growth, relation, Brave act loop) — the Indian twin of
+`521d_6d8e`, **not** a child of `1b3a`. Every other year-loop heavyweight has a
+`281f_*` far thunk; **none** targets `1816`. So the gap is likely a lost
+thunk / overlay far-ptr, not dead code.
+
+**Best guess for the missing caller:** `FUN_130d_0290`, with
+`for indian_slot in 0..7: far_thunk(1816, slot)`, either:
+
+1. Mid-pass, immediately after `1b3a` (manual “natives first”; adjacency of
+   `1816`/`1b3a` in segment `4d56`), or
+2. After the Euro 0..3 EOT+act loop, before calendar (Linux
+   `TURN_PROC_INDIAN` order).
+
+Treat as **hypothesis only** until a CALLF / thunk recovers. Do not invent a
+call edge in extracts or the catalog. Linux’s post-`6a09` pulse is
+`1816`-*shaped* for golden init; that does not prove DOS init called `1816`.
+
+Brave edge cases: unknown parent / order can skew LCG and “when Indians act
+vs Euros,” which may feed dir/peel mismatches. It does **not** explain the
+remaining seed-100 **spent-only** holdouts (post-`465b` `0x3149` writer —
+[`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
+
 ## Calendar string table (reconfirmed)
 
 | String | Asm locus | FUN_* XREF |

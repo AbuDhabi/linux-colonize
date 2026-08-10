@@ -126,6 +126,11 @@ static void indian_alarm_prelude_parked(int indian_index) {
 /*
  * Ghidra: FUN_4d56_1816 | indian_nation_turn
  *
+ * Call site: unresolved in this export. Working guess (hypothesis only):
+ *   FUN_130d_0290 far-thunk loop for indian_slot 0..7 — after mid-pass 1b3a
+ *   (“natives first”) or after Euro 0..3 act (Linux INDIAN order). See
+ *   turn/mid_pass_indian_rank.md. Not proven; no invented XREF.
+ *
  * param_1 = indian slot 0..7; active nation = param_1 + 4.
  *
  * Sections:
