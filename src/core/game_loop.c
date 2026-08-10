@@ -4173,8 +4173,16 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
   game_apply_turn_autosave(game, result);
   game_europe_deliver_bound_ships(game);
+  if (result && result->request_europe_open && game->europe_ok) {
+    game->europe.open_on_dock = true;
+  }
   if (game->europe_ok && game->europe.open_on_dock) {
     game->in_europe = true;
+  }
+  if (result && result->year_end_defeat) {
+    snprintf(game->status, sizeof(game->status), "Defeat: no colonies remain.");
+  } else if (result && result->year_end_victory) {
+    snprintf(game->status, sizeof(game->status), "Victory: independence won.");
   }
   const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
   if (sel && sel->active) {

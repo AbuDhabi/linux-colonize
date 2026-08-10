@@ -2148,27 +2148,6 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* FUN_521d_6d8e entry: FUN_281f_04ca reseeds from timer word. */
   ai_nation_reseed(ctx);
 
-  /* Tick AI crosses (+2 base; colony churches add more via production count). */
-  if (ctx->col1_ok && ctx->col1) {
-    ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-    if (nat->needed_crosses == 0) {
-      nat->needed_crosses = 14;
-    }
-    unsigned cur = (unsigned)nat->current_crosses + 2u;
-    if (ctx->colonies) {
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* c = &ctx->colonies->colonies[i];
-        if (c->active && c->nation_id == nation_id) {
-          cur += (unsigned)colony_prod_colony_crosses(ctx->colonies, c);
-        }
-      }
-    }
-    if (cur > 65535u) {
-      cur = 65535u;
-    }
-    nat->current_crosses = (uint16_t)cur;
-  }
-
   if (!ctx->map) {
     return;
   }

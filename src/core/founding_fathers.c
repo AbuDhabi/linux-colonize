@@ -27,9 +27,43 @@
 #define FF_BOLIVAR_SOL_PERCENT 20u
 #define FF_LA_SALLE_STOCKADE_POP 3
 
-unsigned founding_fathers_bells_needed(unsigned elected_count) {
-  /* First at 40, second at 80, … — linear stand-in for FUN_4345_0982. */
-  return 40u * (elected_count + 1u);
+unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation) {
+  /*
+   * FUN_4345_0982 — next liberty-bell threshold.
+   * Human (control==0): base=(diff+3)*2; else AI: base=14-diff; then *8.
+   * Year >1599/1649/1699/1749 each add +50%. Threshold (count+1)*base+1,
+   * halved when count==0. WoI (0x5382&1): diff*0x5dc+2000.
+   */
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 40u;
+  }
+  const unsigned elected_count = col1->nation[nation].founding_father_count;
+  if (col1->head.game_options.woi) {
+    const unsigned diff = (unsigned)col1->head.difficulty;
+    return diff * 0x5dcu + 2000u;
+  }
+  const int human = (nation < 4 && col1->player[nation].control == 0);
+  const unsigned diff = (unsigned)col1->head.difficulty;
+  unsigned base = human ? (diff + 3u) * 2u : (14u - diff);
+  base *= 8u;
+  const unsigned year = (unsigned)col1->head.year;
+  if (year > 0x63fu) {
+    base += base >> 1;
+  }
+  if (year > 0x671u) {
+    base += base >> 1;
+  }
+  if (year > 0x6a3u) {
+    base += base >> 1;
+  }
+  if (year > 0x6d5u) {
+    base += base >> 1;
+  }
+  unsigned need = (elected_count + 1u) * base + 1u;
+  if (elected_count == 0u) {
+    need >>= 1;
+  }
+  return need;
 }
 
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index) {
@@ -913,7 +947,7 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
   }
   ensure_next_candidate(ctx, nation_id);
 
-  const unsigned needed = founding_fathers_bells_needed(nat->founding_father_count);
+  const unsigned needed = founding_fathers_bells_needed(col1, nation_id);
   if ((unsigned)nat->liberty_bells_total < needed) {
     return false;
   }
@@ -950,7 +984,7 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   /* Lock candidate first (choose → accumulate → join). Elect if already funded. */
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation];
   nat->next_founding_father = (int16_t)idx;
-  const unsigned needed = founding_fathers_bells_needed(nat->founding_father_count);
+  const unsigned needed = founding_fathers_bells_needed(ctx->col1, nation);
   if ((unsigned)nat->liberty_bells_total >= needed) {
     (void)elect_commit(ctx, nation, idx);
   } else if (ctx->status && ctx->status_size > 0 && nation == ctx->human_nation) {

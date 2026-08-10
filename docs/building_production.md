@@ -227,7 +227,7 @@ From manual player-aid **Building Chart** + [`NAMES.TXT`](../COLONIZE/NAMES.TXT)
 | **University** | 200 | 100 | 10 | Teach all skills (faculty 3) |
 | **Warehouse** | 80 | 0 | 1 | +100 storage |
 | **Warehouse Expansion** | 80 | 20 | 1 | +100 storage |
-| **Stable** | 64 | 0 | 1 | Horse breeding |
+| **Stable** | 64 | 0 | 1 | Horse breeding (≥2 horses + food surplus; Stable raises cap) |
 | **Church** | 52 | 0 | 3 | Crosses; missionaries |
 | **Cathedral** | 176 | 100 | 8 | More crosses |
 | **Printing Press** | 52 | 20 | 1 | +50% liberty bells |

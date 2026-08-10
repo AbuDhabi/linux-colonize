@@ -185,7 +185,7 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
 
 /*
  * FUN_364b_0688 thin: latch +0x1c sol_50 (0x04) / sol_100 (0x02) from SoL %.
- * Clears when SoL drops below the threshold (DOS clears ~95 / 50).
+ * DOS clears sol_100 below ~95 and sol_50 below 50 (hysteresis).
  */
 void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Save* col1) {
   if (!colony || !colony->active) {
@@ -197,8 +197,11 @@ void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Sav
       (uint8_t)(COLONIZE_COLONY_FLAG_SOL_100 | COLONIZE_COLONY_FLAG_SOL_50);
   } else if (sol >= 50) {
     colony->colony_flags |= COLONIZE_COLONY_FLAG_SOL_50;
-    colony->colony_flags =
-      (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SOL_100);
+    /* DOS: clear sol_100 only when SoL < 95 (keep latch at 95..99). */
+    if (sol < 95) {
+      colony->colony_flags =
+        (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SOL_100);
+    }
   } else {
     colony->colony_flags = (uint8_t)(colony->colony_flags &
                                      (uint8_t)~(COLONIZE_COLONY_FLAG_SOL_50 |

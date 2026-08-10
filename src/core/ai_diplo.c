@@ -1578,6 +1578,13 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
   if (ctx->col1_ok && ctx->col1) {
     score += (int)(ctx->col1->nation[nation_id].gold / 50u);
   }
+  /* FUN_5bfb_00f8 place: stronger (rank 0) → +6, weakest → 0. */
+  if (ctx->euro_power_rank_ok) {
+    const int place = (int)ctx->euro_power_rank[nation_id];
+    if (place >= 0 && place < 4) {
+      score += (3 - place) * 2;
+    }
+  }
   return score;
 }
 

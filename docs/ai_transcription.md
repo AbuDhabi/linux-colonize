@@ -279,7 +279,7 @@ unannotated bodies.
 | `FUN_521d_20e6` (non-quiet) | `ai_euro_score_step` | T0 adjacent step toward goal |
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` / `ai_euro_unit_act` Europe exit | NEW WORLD: `map_gen_euro_landfall` (`FUN_684c` HS rim); Europe→map uses landfall goto not sentinel Y; T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
-| AI crosses tick | `ai_euro_nation_turn` | +2 / needed default 14 |
+| AI crosses tick | `turn_run_nation_ticks` | +2 / needed default 14; immigrant at Europe on threshold |
 | King / REF AI | `ai_king_nation_turn` | **Partial structural** `43f7` peace/war; `smoke_ai_king` |
 | Diplomacy | `ai_diplo_*` | **Partial structural** bilateral `15b3` + `10ec`/`13b0` balance |
 | Colony capture | `colonies_capture` | military / REF / Indian raid |

@@ -2288,20 +2288,58 @@ int main(void) {
     }
     foe->nation_id = 1;
 
+    char fort_status[80];
+    fort_status[0] = '\0';
     const int sunk =
-      units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL);
+      units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, 0, fort_status, sizeof(fort_status));
     if (sunk < 1 || (units_get(&pool, foe_id) && units_get(&pool, foe_id)->active)) {
       fprintf(stderr, "Fort at war should sink adjacent enemy ship (sunk=%d)\n", sunk);
       pool.types[caravel_ti].defense = old_def;
       return 1;
     }
+    if (strstr(fort_status, "sank") == NULL) {
+      fprintf(stderr, "fort fire want sank status got '%s'\n", fort_status);
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+
+    /* Ship-slow: fort miss leaves ship with moves_left=0. */
+    ai_diplo_declare_war(&fcol1, 0, 1);
+    pool.types[caravel_ti].defense = 100; /* fort atk 4 loses */
+    const int slow_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
+    foe = units_get(&pool, slow_id);
+    if (!foe) {
+      fprintf(stderr, "ship-slow spawn failed\n");
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+    foe->nation_id = 1;
+    foe->moves_left = 4;
+    if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0) != 0) {
+      fprintf(stderr, "ship-slow: fort should miss high-def ship\n");
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+    foe = units_get(&pool, slow_id);
+    if (!foe || !foe->active || foe->moves_left != 0) {
+      fprintf(
+        stderr,
+        "ship-slow: want active moves=0 got active=%d moves=%d\n",
+        foe ? foe->active : 0,
+        foe ? foe->moves_left : -1
+      );
+      pool.types[caravel_ti].defense = old_def;
+      return 1;
+    }
+    units_despawn(&pool, slow_id);
+    pool.types[caravel_ti].defense = 2;
 
     /* Peace: no fire (unless Privateer). */
     ai_diplo_make_peace(&fcol1, 0, 1);
     const int peace_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
     foe = units_get(&pool, peace_id);
     foe->nation_id = 1;
-    if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL) != 0) {
+    if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0) != 0) {
       fprintf(stderr, "Fort at peace should not sink Caravel\n");
       pool.types[caravel_ti].defense = old_def;
       return 1;
@@ -2316,7 +2354,7 @@ int main(void) {
       ColonizeUnit* pr = units_get(&pool, pid);
       pr->nation_id = 1;
       const int psunk =
-        units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL);
+        units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0);
       if (psunk < 1 || (units_get(&pool, pid) && units_get(&pool, pid)->active)) {
         fprintf(stderr, "Fort should sink Privateer at peace\n");
         pool.types[priv_ti].defense = old_pdef;

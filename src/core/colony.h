@@ -67,6 +67,8 @@ typedef struct ColonizeColonist {
   int building_type;   /* workplace @BUILDING index, or -1 */
   int field_job;       /* @JOB field index 0..8, or -1 */
   bool active;
+  /* FUN_364b_0688 education: turns in current workplace (DOS 0d1c counter). */
+  uint8_t turns_in_job;
 } ColonizeColonist;
 
 typedef struct ColonizeColony {
@@ -421,9 +423,16 @@ void colonies_specialty_cargo_update(
 /*
  * EOT spoilage: clamp each stock to warehouse capacity (FUN_15eb_0a50 /
  * FUN_15eb_0c52). Call after production + Custom House (wiki: auto-sell before
- * spoilage). Returns total units discarded.
+ * spoilage). Returns total units discarded. When out_first_cargo != NULL and any
+ * spoil occurs, writes the first spoiled cargo index. When out_type_count != NULL,
+ * writes how many distinct cargo types spoiled.
  */
-int colonies_apply_warehouse_spoilage(ColonizeColonyPool* pool, ColonizeColony* colony);
+int colonies_apply_warehouse_spoilage(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  int* out_first_cargo,
+  int* out_type_count
+);
 
 /* Move up to `amount` of cargo_type from colony stock into a transport unit. Returns amount moved. */
 int colonies_transfer_to_unit(
