@@ -118,9 +118,9 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [ai_transcription.md](ai_transcription.md) |
-| Meet menus, trade, teach skills | Partial | Structural auto-meet/trade/teach (`ai_contact_*`); player dialogs **Done** structural (`ai_popup`); deep `2820` / VGA PARKED — [ai_transcription.md](ai_transcription.md) |
-| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural with unpark #1; incite still thin |
-| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` kinds); player dialog **Done** structural (`ai_popup`); deep `2820`/`4528` bodies still PARKED |
+| Meet menus, trade, teach skills | Partial | Structural auto-meet/trade/teach (`ai_contact_*`); sea/wagon hold trade + gift/demand widgets **Done** thin; deep `2820` / VGA PARKED — [ai_transcription.md](ai_transcription.md) |
+| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural (`@INDIANSCONVERT` colony name); foreign-mission heresy 50/50 **Done** thin; HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold still PARKED |
+| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); deep `2820`/`4528` still PARKED |
 
 ### Combat and diplomacy
 
@@ -172,8 +172,9 @@ Aligned with early manual chapters (short playable loop first), then the
 6. **Combat** (land first; colony defense) — T0 land/naval/capture + fort % + coastal fort fire in; ship-slow / deep `20e6` still PARKED
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
    `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
-   `FUN_5bfb_022e` / `0182`); later meet / trade / teach / gift (**Done**
-   structural `ai_popup`; deep/VGA PARKED)
+   `FUN_5bfb_022e` / `0182`; thin land-grant purchased+owner on occupied tile);
+   later meet / trade / teach / gift (**Done** structural `ai_popup`; deep/VGA
+   PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + thin cargo picker **Done**; VGA TRADE chrome PARKED

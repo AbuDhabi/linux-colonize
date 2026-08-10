@@ -1125,8 +1125,16 @@ bool units_try_native_settlement_fallout(
     if (col1->nation[attacker_nation_id].villages_burned < 255u) {
       col1->nation[attacker_nation_id].villages_burned++;
     }
-    ai_diplo_indian_relation_delta(col1, tribe_nation, attacker_nation_id, -5);
-    ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
+    if (rich_capital) {
+      /*
+       * Fandom Capital destroy: hostile tribe surrenders once — hostility
+       * reset + peace; no new capital (destroyed). Cite: docs/fandom_col1994.md.
+       */
+      ai_diplo_indian_capital_surrender(col1, tribe_nation, attacker_nation_id);
+    } else {
+      ai_diplo_indian_relation_delta(col1, tribe_nation, attacker_nation_id, -5);
+      ai_diplo_indian_hostility_sync(col1, attacker_nation_id);
+    }
   }
 
   if (attacker_nation_id >= 0 && attacker_nation_id < 4 &&

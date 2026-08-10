@@ -12765,7 +12765,9 @@ static int smoke_indian_land_found(void) {
     }
   }
 
-  /* Phase 2: short gold → PARK (seed colony remains; no second colony). */
+  /* Phase 2: short gold → PARK (seed colony remains; no second colony).
+   * Phase 1 stamped MAP_LAYER2_PURCHASED on (fx,fy); clear so charge still
+   * applies (founding must not treat prior buy as free forever for this smoke). */
   {
     smoke_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
@@ -12777,6 +12779,12 @@ static int smoke_indian_land_found(void) {
     col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[0] = 0;
     col1.nation[nation].founding_father_count = 0;
+    {
+      const size_t idx = (size_t)fy * (size_t)map.width + (size_t)fx;
+      if (map.layer2 && idx < map.tile_count) {
+        map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_LAYER2_PURCHASED);
+      }
+    }
 
     const int uid = units_spawn(&units, 0, fx, fy);
     ColonizeUnit* founder = units_get(&units, uid);

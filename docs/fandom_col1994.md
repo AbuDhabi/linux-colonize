@@ -169,13 +169,17 @@ Port: combat Missing; Europe buy/sell Partial; equip Partial.
 | First contact | Leader offers peace + small land grant; reject → war. Peace → visit, trade, learn skills, gifts. |
 | Alarm | Encroachment / military presence raise alarm (`!` green → red). Alarmed units may refuse trade, attack, kill scouts. French national bonus slows hostility; missions slow it; Pocahontas resets + halves future growth. |
 | Capital destroy | Hostile tribe surrenders once; hostility reset; no new capital. |
-| Teach / trade / missions | Elder skills; sea/land trade; missionaries (expert via Brebeuf). |
+| Teach / trade / missions | Elder skills; sea/land trade; missionaries (expert via Brebeuf); denounce foreign mission 50/50. |
 | Nation bias | Spanish pushed toward conquest (Aztec/Inca treasure); French toward cooperation. |
 
 Port: villages + light AI Partial; first contact **Done** structural
-(`FUN_5bfb_022e` `@INDIANWELCOME` → `0182` peace / `@INDIANSHUN` war; land grant
-copy-only); meet/trade/teach/missions/alarm Partial (`ai_popup`; deep VGA PARKED).
-Tribe tech colors: `@TRIBES` in `NAMES.TXT`.
+(`FUN_5bfb_022e` `@INDIANWELCOME` → `0182` peace / `@INDIANSHUN` war; thin land
+grant stamps purchased+owner on occupied tile); capital destroy surrender
+**Done** thin; sea/wagon trade-goods drain **Done** thin; foreign-mission
+heresy 50/50 **Done** thin; colony encroachment **Done** thin; meet/trade/teach/
+missions/alarm Partial
+(`ai_popup`; deep VGA / WARPATH gold PARKED). Tribe tech colors:
+`@TRIBES` in `NAMES.TXT`.
 
 ---
 

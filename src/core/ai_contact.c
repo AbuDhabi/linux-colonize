@@ -58,8 +58,9 @@ enum {
 
 /* Gift amount CHOICE ids (CONTACT_GIFT; FUN_5bfb_102a amount stand-in). */
 enum {
-  AI_CONTACT_GIFT_SMALL = 1, /* −5 gold, friction −1 */
-  AI_CONTACT_GIFT_LARGE = 2  /* −10 gold, friction −2 */
+  AI_CONTACT_GIFT_SMALL = 1,    /* −5 gold, friction −1 */
+  AI_CONTACT_GIFT_LARGE = 2,    /* −10 gold, friction −2 */
+  AI_CONTACT_GIFT_GENEROUS = 3  /* −20 gold, friction −3 (deep amount arm thin) */
 };
 
 /* Demand amount CHOICE ids (CONTACT_DEMAND; tools vs gold stand-in). */
@@ -92,13 +93,55 @@ static void ai_contact_human_chrome(
 }
 
 /* @TRIBES order (Inca..Tupi); matches col1_bridge encounter labels. */
+static const ColonizeMsgCatalog* s_contact_names;
+
+static void ai_contact_bind_names(const ColonizeTurnContext* ctx) {
+  s_contact_names = (ctx && ctx->names) ? ctx->names : NULL;
+}
+
 static const char* ai_contact_tribe_name(int nation_id) {
+  static char live[32];
   static const char* k_names[8] = {
       "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
   };
   const int idx = nation_id - 4;
   if (idx < 0 || idx >= 8) {
     return "natives";
+  }
+  if (s_contact_names) {
+    const ColonizeMsgSection* tribes = assets_msg_find(s_contact_names, "TRIBES");
+    if (tribes) {
+      int row = 0;
+      for (int i = 0; i < tribes->line_count; ++i) {
+        const char* line = tribes->lines[i];
+        if (!line || line[0] == '\0' || line[0] == ';') {
+          continue;
+        }
+        if (row == idx) {
+          /* Field 2 = short name. */
+          const char* p = strchr(line, ',');
+          if (p) {
+            ++p;
+            while (*p == ' ' || *p == '\t') {
+              ++p;
+            }
+            size_t n = 0;
+            while (*p && *p != ',' && n + 1 < sizeof(live)) {
+              live[n++] = *p++;
+            }
+            while (n > 0 && (live[n - 1] == ' ' || live[n - 1] == '\t')) {
+              --n;
+            }
+            live[n] = '\0';
+            if (live[0]) {
+              return live;
+            }
+          }
+          break;
+        }
+        row++;
+      }
+    }
   }
   return k_names[idx];
 }
@@ -156,6 +199,15 @@ static void ai_contact_clear_peace(ColonizeCol1Save* col1, int indian_nation, in
   }
   col1->indian[idx].euro_diplo[euro_nation] =
     (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] & (uint8_t)~COL1_INDIAN_PEACE_BIT);
+}
+
+void ai_contact_indian_capital_surrender(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+) {
+  /* Thin wrapper — body lives in ai_diplo (units fallout link). */
+  ai_diplo_indian_capital_surrender(col1, indian_nation, euro_nation);
 }
 
 /*
@@ -252,6 +304,120 @@ static int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_
   return 0;
 }
 
+/*
+ * FUN_137f_0228 stand-in: stamp layer3 owner high nibble (0..14; 0xf unowned).
+ * Cite: ai_set_owner_nibble / units_map_set_owner_nibble.
+ */
+static void ai_contact_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff) {
+  if (!map || !map->layer3 || !map_coords_inset(map, x, y)) {
+    return;
+  }
+  const size_t i = (size_t)y * (size_t)map->width + (size_t)x;
+  if (i >= map->tile_count) {
+    return;
+  }
+  const uint8_t low = (uint8_t)(map->layer3[i] & 0x0fu);
+  const uint8_t hi = (uint8_t)(((unsigned)nation_or_ff & 0x0fu) << 4);
+  map->layer3[i] = (uint8_t)(low | hi);
+}
+
+/*
+ * Mark tile as gifted/purchased tribal land (FUN_281f_068c bit 0x10).
+ * Used by WELCOME land grant and colonies_found_with_indian_land spend path.
+ */
+static void ai_contact_mark_tile_purchased(
+  ColonizeCol1Save* col1,
+  ColonizeWorldMap* map,
+  int x,
+  int y
+) {
+  if (col1 && col1->map.mask && col1->head.map_size_x > 0 && x >= 0 && y >= 0) {
+    const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
+    if (idx < col1->map.tile_count) {
+      col1->map.mask[idx] = (uint8_t)(col1->map.mask[idx] | 0x10u);
+    }
+  }
+  if (map && map->layer2 && map_coords_inset(map, x, y)) {
+    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+    if (idx < map->tile_count) {
+      map->layer2[idx] = (uint8_t)(map->layer2[idx] | MAP_LAYER2_PURCHASED);
+    }
+  }
+}
+
+/* Euro land unit of e adjacent to a Brave of nation_id (grant / meet apply). */
+static ColonizeUnit* ai_contact_find_adjacent_euro(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int e,
+  int* near_x,
+  int* near_y
+);
+
+/*
+ * @INDIANWELCOME land grant: Euro land unit occupying the gifted tile.
+ * Prefer Brave adjacency; else tribe adjacency (game_loop first-contact path).
+ */
+static ColonizeUnit* ai_contact_find_land_grant_unit(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int e
+) {
+  if (!ctx || !ctx->units || e < 0 || e > 3) {
+    return NULL;
+  }
+  ColonizeUnit* by_brave = ai_contact_find_adjacent_euro(ctx, nation_id, e, NULL, NULL);
+  if (by_brave && !units_is_sea(ctx->units, by_brave->id)) {
+    return by_brave;
+  }
+  if (!ctx->col1 || !ctx->col1->tribe) {
+    return NULL;
+  }
+  static const int dx[9] = {0, 0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[9] = {0, -1, -1, 0, 1, 1, 1, 0, -1};
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    for (int d = 0; d < 9; ++d) {
+      const int oid = units_id_at(ctx->units, (int)t->x + dx[d], (int)t->y + dy[d]);
+      if (oid < 0) {
+        continue;
+      }
+      ColonizeUnit* other = units_get(ctx->units, oid);
+      if (!other || other->nation_id != e) {
+        continue;
+      }
+      if (units_is_sea(ctx->units, other->id)) {
+        continue;
+      }
+      return other;
+    }
+  }
+  return NULL;
+}
+
+/*
+ * Thin WELCOME land grant (GAME.TXT: "land you now occupy as a gift").
+ * Stamp MAP_LAYER2_PURCHASED + euro owner nibble on the contacting unit tile.
+ * Deep DOS grant radius / multi-tile arms remain PARKED.
+ */
+static void ai_contact_apply_welcome_land_grant(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int e
+) {
+  ColonizeUnit* u = ai_contact_find_land_grant_unit(ctx, nation_id, e);
+  if (!u) {
+    return;
+  }
+  ai_contact_mark_tile_purchased(ctx->col1, ctx->map, u->x, u->y);
+  if (ctx->map) {
+    ai_contact_set_owner_nibble(ctx->map, u->x, u->y, e);
+  }
+}
+
 static void ai_contact_apply_welcome_accept(
   ColonizeTurnContext* ctx,
   ColonizeCol1Indian* ind,
@@ -271,7 +437,22 @@ static void ai_contact_apply_welcome_accept(
       ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, (int)(100u - cur));
     }
   }
+  /* Fresh peace: clear alarm/friction toward this Euro (fandom first contact). */
+  ind->alarm_by_player[e] = 0;
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id != nation_id) {
+        continue;
+      }
+      t->alarm[e].friction = 0;
+      t->alarm[e].attacks = 0;
+    }
+  }
   ai_diplo_indian_hostility_sync(ctx->col1, e);
+
+  /* Land grant on occupied tile (copy-only → thin ownership write). */
+  ai_contact_apply_welcome_land_grant(ctx, nation_id, e);
 
   const char* tribe = ai_contact_tribe_name(nation_id);
   const char* euro = ai_contact_euro_name(e);
@@ -333,6 +514,18 @@ static void ai_contact_apply_welcome_reject(
   }
   if (ind->alarm_by_player[e] < 80u) {
     ind->alarm_by_player[e] = 80u;
+  }
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id != nation_id) {
+        continue;
+      }
+      if (t->alarm[e].friction < 80u) {
+        t->alarm[e].friction = 80u;
+      }
+      t->alarm[e].attacks++;
+    }
   }
   ai_diplo_indian_hostility_sync(ctx->col1, e);
 
@@ -399,6 +592,7 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
     return 0;
   }
+  ai_contact_bind_names(ctx);
   if (indian_nation < 4 || indian_nation > 11) {
     return 0;
   }
@@ -474,7 +668,29 @@ static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int
   );
   {
     char st[96];
-    snprintf(st, sizeof(st), "Visiting the %s.", tribe);
+    /*
+     * GAME.TXT @INDIANHELLO1 / @INDIANHELLO2 thin: cool alarm → worthy welcome;
+     * hot mid+ → ruthless greeting. Cite: indian_contact.md meet §1.
+     */
+    const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+    const int hot = ind && ind->alarm_by_player[e] >= 40;
+    if (hot) {
+      snprintf(
+        st,
+        sizeof(st),
+        "The %s tribe greets the most ruthless of the %s.",
+        tribe,
+        ai_contact_euro_name(e)
+      );
+    } else {
+      snprintf(
+        st,
+        sizeof(st),
+        "The %s tribe welcomes the most worthy of the %s.",
+        tribe,
+        ai_contact_euro_name(e)
+      );
+    }
     ai_contact_set_status(ctx, st);
   }
 }
@@ -483,6 +699,7 @@ int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int i
   if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
     return 0;
   }
+  ai_contact_bind_names(ctx);
   if (indian_nation < 4 || indian_nation > 11) {
     return 0;
   }
@@ -574,20 +791,24 @@ static int ai_contact_is_jesuit_grade(
   return 0;
 }
 
-/* Soldier / Scout / Pioneer — encroachment types that raise tribe alarm. */
+/* Soldier / Scout / Pioneer / Dragoon / Artillery — encroachment types. */
 static int ai_contact_is_encroacher(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* name = units_display_name(units, u);
   if (!name) {
     return 0;
   }
+  /* "Soldier" also matches Veteran Soldier; Dragoon/Artillery = military presence. */
   return strstr(name, "Soldier") != NULL || strstr(name, "Scout") != NULL ||
-         strstr(name, "Pioneer") != NULL;
+         strstr(name, "Pioneer") != NULL || strstr(name, "Dragoon") != NULL ||
+         strstr(name, "Artillery") != NULL;
 }
 
 /*
- * Pocahontas (wiki/fandom): Indian alarm generated half as fast for the Euro
- * that elected her. Halve positive friction/alarm bumps toward that nation.
- * Cite: docs/fandom_col1994.md Pocahontas; Colonization.pdf FF table.
+ * Alarm growth dampers (wiki/fandom Alarm):
+ * - Pocahontas: Indian alarm generated half as fast for that Euro.
+ * - French (nation 1): national bonus slows hostility (same half-rate).
+ * Stack when both apply (quarter). Floor; +1 bumps may become 0.
+ * Cite: docs/fandom_col1994.md Indians / Pocahontas; Colonization.pdf FF table.
  */
 static int ai_contact_alarm_bump_amount(
   const ColonizeCol1Save* col1,
@@ -597,11 +818,15 @@ static int ai_contact_alarm_bump_amount(
   if (amount <= 0) {
     return 0;
   }
+  int n = amount;
   if (col1 && euro >= 0 && euro <= 3 &&
       founding_fathers_nation_has(col1, euro, FF_POCAHONTAS)) {
-    return amount / 2; /* floor; +1 bumps become 0 */
+    n /= 2;
   }
-  return amount;
+  if (euro == 1) { /* France */
+    n /= 2;
+  }
+  return n;
 }
 
 /* Bump uint8 friction toward cap 100. */
@@ -633,7 +858,8 @@ static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
  * adjacent to tribe, low alarm/friction → set Col1 tribe.state.learned and
  * optionally grant a native-teachable profession on the unit.
  * Teach dialog widgets Done structural (ai_popup); VGA chrome PARKED; status thinned.
- * Full @TRIBES good-string parse PARKED — static cargo / nation_id maps below.
+ * @TRIBES flavor goods are trade chrome (ai_contact_tribe_flavor_good); teach uses
+ * cargo / nation_id outdoor maps below.
  */
 static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* name = units_display_name(units, u);
@@ -671,6 +897,8 @@ static int ai_contact_profession_from_cargo(int cargo) {
  * Rough Col1 nation_id (4..11) → primary taught skill. Order matches
  * NAMES.TXT @TRIBES (Inca..Tupi). Fish has no cargo id — nation only.
  * Returns -1 if out of band (caller falls back to Farmer).
+ * @TRIBES field-3 flavor goods (Jewelled Relics, …) are trade chrome, not
+ * teach skills — see ai_contact_tribe_flavor_good.
  */
 static int ai_contact_profession_from_nation(int nation_id) {
   static const int k_by_indian[8] = {
@@ -688,6 +916,68 @@ static int ai_contact_profession_from_nation(int nation_id) {
     return -1;
   }
   return k_by_indian[idx];
+}
+
+/*
+ * NAMES.TXT @TRIBES field-3 flavor trade goods (Inca..Tupi). Prefer live parse
+ * from ctx->names when present; else static table matching stock COLONIZE/NAMES.TXT.
+ * Used for trade chrome only (not teach skills).
+ */
+static const char* ai_contact_tribe_flavor_good(const ColonizeTurnContext* ctx, int nation_id) {
+  static char live[48];
+  static const char* k_flavor[8] = {
+      "Jewelled Relics", /* Inca */
+      "Gold Bars",       /* Aztec */
+      "Bone Jewelry",    /* Arawak */
+      "Wood Carvings",   /* Iroquois */
+      "Turquoise",       /* Cherokee */
+      "Beads",           /* Apache */
+      "Beads",           /* Sioux */
+      "Gems",            /* Tupi */
+  };
+  const int idx = nation_id - 4;
+  if (idx < 0 || idx >= 8) {
+    return "goods";
+  }
+  if (ctx && ctx->names) {
+    const ColonizeMsgSection* tribes = assets_msg_find(ctx->names, "TRIBES");
+    if (tribes) {
+      int row = 0;
+      for (int i = 0; i < tribes->line_count; ++i) {
+        const char* line = tribes->lines[i];
+        if (!line || line[0] == '\0' || line[0] == ';') {
+          continue;
+        }
+        if (row == idx) {
+          /* Name, short, good, tech, color — want third CSV field. */
+          const char* p = strchr(line, ',');
+          if (p) {
+            p = strchr(p + 1, ',');
+          }
+          if (p) {
+            ++p;
+            while (*p == ' ' || *p == '\t') {
+              ++p;
+            }
+            size_t n = 0;
+            while (*p && *p != ',' && n + 1 < sizeof(live)) {
+              live[n++] = *p++;
+            }
+            while (n > 0 && (live[n - 1] == ' ' || live[n - 1] == '\t')) {
+              --n;
+            }
+            live[n] = '\0';
+            if (live[0]) {
+              return live;
+            }
+          }
+          break;
+        }
+        row++;
+      }
+    }
+  }
+  return k_flavor[idx];
 }
 
 /*
@@ -755,13 +1045,20 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        * high alarm/friction → refuse teach (status thinned; ai_popup Done).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
+        char refuse_fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          refuse_fb,
+          sizeof(refuse_fb),
+          "The %s refuse to teach.",
+          ai_contact_tribe_name(nation_id)
+        );
         ai_contact_human_chrome(
           ctx,
           e,
           AI_POPUP_TAG_CONTACT_TEACH,
           nation_id,
           "Teach",
-          "Natives refuse to teach."
+          refuse_fb
         );
         break; /* one refuse pulse per tribe per call */
       }
@@ -771,13 +1068,20 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        * Alarm / Teach; indian_contact.md teach-skill pulse.
        */
       if (ind->alarm_by_player[e] >= 40 || t->alarm[e].friction >= 40) {
+        char refuse_fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          refuse_fb,
+          sizeof(refuse_fb),
+          "The %s refuse to teach.",
+          ai_contact_tribe_name(nation_id)
+        );
         ai_contact_human_chrome(
           ctx,
           e,
           AI_POPUP_TAG_CONTACT_TEACH,
           nation_id,
           "Teach",
-          "Natives refuse to teach."
+          refuse_fb
         );
         break; /* one mid-refuse pulse per tribe per call */
       }
@@ -798,20 +1102,22 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
       if (taught_scout) {
+        char line[96];
+        snprintf(
+          line,
+          sizeof(line),
+          "The %s teach Seasoned Scout.",
+          ai_contact_tribe_name(nation_id)
+        );
         ai_contact_human_chrome(
-          ctx,
-          e,
-          AI_POPUP_TAG_CONTACT_TEACH,
-          nation_id,
-          "Teach",
-          "Natives teach Seasoned Scout."
+          ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", line
         );
       } else {
         char line[96];
         snprintf(
           line,
           sizeof(line),
-          "Natives teach %s skills.",
+          "The %s teach outdoor skills.",
           ai_contact_tribe_name(nation_id)
         );
         ai_contact_human_chrome(
@@ -898,33 +1204,51 @@ static void ai_contact_apply_gift_gold(
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
   if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction >= 40) {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse gifts.",
+      ai_contact_tribe_name(nation_id)
+    );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", "Natives refuse gifts."
+      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", refuse_fb
     );
     return;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
   if (nat->gold < gold_cost) {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse gifts.",
+      ai_contact_tribe_name(nation_id)
+    );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", "Natives refuse gifts."
+      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", refuse_fb
     );
     return;
   }
   nat->gold -= gold_cost;
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, friction_decay);
-  ai_contact_human_chrome(
-    ctx,
-    e,
-    AI_POPUP_TAG_CONTACT_GIFT,
-    nation_id,
-    "Gift",
-    "Gift of gold eases tensions."
-  );
+  {
+    char gift_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      gift_fb,
+      sizeof(gift_fb),
+      "Gift of gold eases tensions with the %s.",
+      ai_contact_tribe_name(nation_id)
+    );
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", gift_fb
+    );
+  }
 }
 
 /*
- * Human Gift amount CHOICE (Small −5 / Large −10). Returns 1 if enqueued.
- * Cite: FUN_5bfb_102a amount stand-in; indian_contact.md.
+ * Human Gift amount CHOICE (Small −5 / Large −10 / Generous −20). Returns 1 if
+ * enqueued. Cite: FUN_5bfb_102a amount stand-in; indian_contact.md.
  */
 static int ai_contact_enqueue_gift_amount_choice(
   ColonizeTurnContext* ctx,
@@ -941,8 +1265,8 @@ static int ai_contact_enqueue_gift_amount_choice(
   if (gold < 5u) {
     return 0; /* cannot pay Small — caller refuses */
   }
-  const char* labels[2];
-  int ids[2];
+  const char* labels[3];
+  int ids[3];
   int n = 0;
   labels[n] = "Small gift (5 gold)";
   ids[n] = AI_CONTACT_GIFT_SMALL;
@@ -950,6 +1274,11 @@ static int ai_contact_enqueue_gift_amount_choice(
   if (gold >= 10u) {
     labels[n] = "Large gift (10 gold)";
     ids[n] = AI_CONTACT_GIFT_LARGE;
+    n++;
+  }
+  if (gold >= 20u) {
+    labels[n] = "Generous gift (20 gold)";
+    ids[n] = AI_CONTACT_GIFT_GENEROUS;
     n++;
   }
   char title[AI_POPUP_TITLE_LEN];
@@ -1006,6 +1335,59 @@ static ColonizeColony* ai_contact_nearest_tools_colony(
   return best_ci >= 0 ? &ctx->colonies->colonies[best_ci] : NULL;
 }
 
+/*
+ * Nearest Euro Wagon Train with TOOLS hold ≥20 (GAME.TXT @INDIANWAGONS
+ * reparations stand-in). Reach matches auto-trade wagon band (French 5 / else 4).
+ */
+static ColonizeUnit* ai_contact_nearest_tools_wagon(
+  ColonizeTurnContext* ctx,
+  int e,
+  int near_x,
+  int near_y,
+  int* out_hold
+) {
+  if (out_hold) {
+    *out_hold = -1;
+  }
+  if (!ctx || !ctx->units || e < 0 || e > 3) {
+    return NULL;
+  }
+  const int max_dist = (e == 1) ? 5 : 4;
+  int best_id = -1;
+  int best_hold = -1;
+  int best_d = 99;
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    ColonizeUnit* u = &ctx->units->units[ui];
+    if (!u->active || u->nation_id != e) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+    if (!ty || !strstr(ty->name, "Wagon") || ty->cargo <= 0) {
+      continue;
+    }
+    const int dist = ai_contact_dist(u->x, u->y, near_x, near_y);
+    if (dist > max_dist || dist >= best_d) {
+      continue;
+    }
+    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+      if (u->hold_goods_type[h] == COLONIZE_CARGO_TOOLS &&
+          u->hold_goods_amount[h] >= 20) {
+        best_d = dist;
+        best_id = u->id;
+        best_hold = h;
+        break;
+      }
+    }
+  }
+  if (best_id < 0) {
+    return NULL;
+  }
+  if (out_hold) {
+    *out_hold = best_hold;
+  }
+  return units_get(ctx->units, best_id);
+}
+
 static int ai_contact_demand_can_pay_tools(
   ColonizeTurnContext* ctx,
   int e,
@@ -1014,6 +1396,9 @@ static int ai_contact_demand_can_pay_tools(
   int near_y
 ) {
   if (ai_contact_nearest_tools_colony(ctx, e, near_x, near_y)) {
+    return 1;
+  }
+  if (ai_contact_nearest_tools_wagon(ctx, e, near_x, near_y, NULL)) {
     return 1;
   }
   return other && other->tools >= 20;
@@ -1025,8 +1410,8 @@ static int ai_contact_demand_can_pay_gold(const ColonizeTurnContext* ctx, int e)
 }
 
 /*
- * Mid-band demand tools drain (−10 stock or unit tools) + friction −3.
- * Cite: FUN_5bfb_102a / 1092; indian_contact.md mid demand (tools path).
+ * Mid-band demand tools drain (−10 stock / wagon hold / unit tools) + friction −3.
+ * Cite: FUN_5bfb_102a / 1092; GAME.TXT @INDIANWAGONS; indian_contact.md mid demand.
  */
 static int ai_contact_apply_demand_tools(
   ColonizeTurnContext* ctx,
@@ -1045,31 +1430,58 @@ static int ai_contact_apply_demand_tools(
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
   if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction < 40) {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse demands.",
+      ai_contact_tribe_name(nation_id)
+    );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", refuse_fb
     );
     return 0;
   }
   ColonizeColony* c = ai_contact_nearest_tools_colony(ctx, e, near_x, near_y);
+  int wag_hold = -1;
+  ColonizeUnit* wag =
+    c ? NULL : ai_contact_nearest_tools_wagon(ctx, e, near_x, near_y, &wag_hold);
   if (c) {
     c->stock[COLONIZE_CARGO_TOOLS] -= 10;
+  } else if (wag && wag_hold >= 0) {
+    wag->hold_goods_amount[wag_hold] -= 10;
+    if (wag->hold_goods_amount[wag_hold] <= 0) {
+      wag->hold_goods_amount[wag_hold] = 0;
+      wag->hold_goods_type[wag_hold] = 0;
+    }
   } else if (other && other->tools >= 20) {
     other->tools -= 10;
   } else {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse demands.",
+      ai_contact_tribe_name(nation_id)
+    );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", refuse_fb
     );
     return 0;
   }
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
-  ai_contact_human_chrome(
-    ctx,
-    e,
-    AI_POPUP_TAG_CONTACT_DEMAND,
-    nation_id,
-    "Demand",
-    "Tribute paid; tensions ease."
-  );
+  {
+    char trib_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      trib_fb,
+      sizeof(trib_fb),
+      "Tribute paid; tensions ease with the %s.",
+      ai_contact_tribe_name(nation_id)
+    );
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", trib_fb
+    );
+  }
   return 1;
 }
 
@@ -1091,28 +1503,46 @@ static int ai_contact_apply_demand_gold(
   }
   const int friction = ai_contact_pair_friction(ind, ctx->col1, nation_id, e);
   if (friction >= 55 || ind->alarm_by_player[e] >= 55 || friction < 40) {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse demands.",
+      ai_contact_tribe_name(nation_id)
+    );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", refuse_fb
     );
     return 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
   if (nat->gold < 50u) {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse demands.",
+      ai_contact_tribe_name(nation_id)
+    );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", refuse_fb
     );
     return 0;
   }
   nat->gold -= 15u;
   ai_contact_friction_decay(ind, ctx->col1, nation_id, e, 3);
-  ai_contact_human_chrome(
-    ctx,
-    e,
-    AI_POPUP_TAG_CONTACT_DEMAND,
-    nation_id,
-    "Demand",
-    "Tribute paid; tensions ease."
-  );
+  {
+    char trib_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      trib_fb,
+      sizeof(trib_fb),
+      "Tribute paid; tensions ease with the %s.",
+      ai_contact_tribe_name(nation_id)
+    );
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", trib_fb
+    );
+  }
   return 1;
 }
 
@@ -1230,31 +1660,51 @@ static void ai_contact_gift_or_demand(
         }
       }
       const int demand_band = tribe_fr >= 40;
-      ai_contact_human_chrome(
-        ctx,
-        e,
-        demand_band ? AI_POPUP_TAG_CONTACT_DEMAND : AI_POPUP_TAG_CONTACT_GIFT,
-        nation_id,
-        demand_band ? "Demand" : "Gift",
-        demand_band ? "Natives refuse demands." : "Natives refuse gifts."
-      );
+      {
+        char refuse_fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          refuse_fb,
+          sizeof(refuse_fb),
+          demand_band ? "The %s refuse demands." : "The %s refuse gifts.",
+          ai_contact_tribe_name(nation_id)
+        );
+        ai_contact_human_chrome(
+          ctx,
+          e,
+          demand_band ? AI_POPUP_TAG_CONTACT_DEMAND : AI_POPUP_TAG_CONTACT_GIFT,
+          nation_id,
+          demand_band ? "Demand" : "Gift",
+          refuse_fb
+        );
+      }
     }
     return; /* alarmed / very high — raids handle hostility; no invented gold penalty */
   }
 
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
 
-  /* Low friction gift / tribute (auto Large −10; amount CHOICE is Meet→Gift). */
+  /* Low friction gift / tribute (auto Large −10; Generous −20 when gold≥40). */
   if (friction < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (nat->gold < 10u) {
+      char refuse_fb[AI_POPUP_BODY_LEN];
+      snprintf(
+        refuse_fb,
+        sizeof(refuse_fb),
+        "The %s refuse gifts.",
+        ai_contact_tribe_name(nation_id)
+      );
       ai_contact_human_chrome(
-        ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", "Natives refuse gifts."
+        ctx, e, AI_POPUP_TAG_CONTACT_GIFT, nation_id, "Gift", refuse_fb
       );
       return;
     }
     if (nat->gold < 20u) {
       return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
+    }
+    if (nat->gold >= 40u) {
+      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
+      return;
     }
     ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 10u, 2);
     return;
@@ -1274,23 +1724,35 @@ static void ai_contact_gift_or_demand(
     ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
     return;
   }
-  ai_contact_human_chrome(
-    ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
-  );
+  {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s refuse demands.",
+      ai_contact_tribe_name(nation_id)
+    );
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", refuse_fb
+    );
+  }
 }
 
 /*
- * Missionary adjacent to tribe → convert pulse (5bfb checklist / fandom Alarm):
+ * Missionary adjacent to tribe → convert / heresy pulse (5bfb / fandom
+ * Missionaries / wiki heresy denounce):
  *  - mission unset (0xff) → set mission owner, alarm/friction decay (−1
  *    peaceful / −2 Jesuit mid-range 40..54), +1 nation crosses; human status
- *    "Natives accept conversion."
- *  - mission already set (own or foreign) → skip convert pulse (one-shot;
- *    no re-crosses / no steal). Cite: indian_contact.md convert once.
- *  - alarmed (≥55 refuse-talk gate) → refuse convert with status; no crosses
- *  - mid (40..54): Jesuit-grade only (PEDIA @JOB24 name/prof 24, or Brebeuf
- *    ownership → plain Missionary counts as expert). Else mid refuse polish
- *    (same refuse line; no crosses). Cite: docs/fandom_col1994.md Brebeuf.
- * Teach/convert dialog widgets Done structural (ai_popup); full 2820/4528 PARKED.
+ *    "The %s accept conversion." / "… at %s."
+ *  - own mission already set → skip (one-shot; no re-crosses).
+ *  - foreign mission → denounce heresy 50/50 (wiki/HandWiki equal chance):
+ *      success → replace with denouncer nation (regular cross — GameFAQs:
+ *      heresy install is not Jesuit-bright), +1 crosses;
+ *      fail → despawn denouncer (burned at the stake).
+ *    Cite: docs/manual_gap.md; fandom Missionaries denounce; WARPATH gold PARKED.
+ *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
+ *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
+ * Teach/convert widgets Done structural; WARPATH gold / deep 2820 PARKED.
  */
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
@@ -1300,19 +1762,15 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
     return;
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  ColonizeDosRng local;
+  ai_contact_local_rng(ctx, nation_id, &local);
+  ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
 
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
     ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
     if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    /*
-     * Convert once: mission already set → skip pulse entirely (own keep or
-     * foreign no-steal). Matches teach one-shot; no repeated crosses.
-     */
-    if (t->mission != 0xff) {
       continue;
     }
     for (int d = 0; d < 8; ++d) {
@@ -1330,19 +1788,92 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
       const int e = other->nation_id;
       /*
        * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
-       * refuse convert / crosses (status thinned; ai_popup Done).
+       * refuse convert / heresy / crosses (status thinned; ai_popup Done).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
+        char refuse_fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          refuse_fb,
+          sizeof(refuse_fb),
+          "The %s refuse conversion.",
+          ai_contact_tribe_name(nation_id)
+        );
         ai_contact_human_chrome(
           ctx,
           e,
           AI_POPUP_TAG_CONTACT_CONVERT,
           nation_id,
           "Mission",
-          "Natives refuse conversion."
+          refuse_fb
         );
         break; /* one refuse pulse per tribe per call */
       }
+
+      /* Own mission keep — convert once (no re-crosses). */
+      if (t->mission != COL1_TRIBE_MISSION_NONE &&
+          (t->mission & COL1_TRIBE_MISSION_NATION_MASK) == (uint8_t)e) {
+        break;
+      }
+
+      /*
+       * Foreign mission → heresy denounce (50/50). Cite: Wikipedia /
+       * HandWiki Colonization; fandom Missionaries denounce; GameFAQs
+       * heresy install is regular (no Jesuit bit).
+       */
+      if (t->mission != COL1_TRIBE_MISSION_NONE) {
+        const int foreign =
+          (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
+        const int roll = dos_rng_range(rng, 0, 99);
+        if (roll < 50) {
+          t->mission = (uint8_t)e; /* regular mission; no Jesuit-bright bit */
+          ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+          if (nat->current_crosses < 0xffffu) {
+            nat->current_crosses++;
+          }
+          {
+            char heresy_fb[AI_POPUP_BODY_LEN];
+            snprintf(
+              heresy_fb,
+              sizeof(heresy_fb),
+              "Heresy denounced; the %s burn the foreign mission.",
+              ai_contact_tribe_name(nation_id)
+            );
+            ai_contact_human_chrome(
+              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", heresy_fb
+            );
+          }
+          /* Thin: previous mission owner learns their mission burned. */
+          if (foreign >= 0 && foreign <= 3 && foreign != e &&
+              ai_contact_euro_is_human(ctx, foreign)) {
+            char lose_fb[AI_POPUP_BODY_LEN];
+            snprintf(
+              lose_fb,
+              sizeof(lose_fb),
+              "The %s burn your mission!",
+              ai_contact_tribe_name(nation_id)
+            );
+            ai_contact_human_chrome(
+              ctx, foreign, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", lose_fb
+            );
+          }
+        } else {
+          units_despawn(ctx->units, oid);
+          {
+            char heresy_fb[AI_POPUP_BODY_LEN];
+            snprintf(
+              heresy_fb,
+              sizeof(heresy_fb),
+              "The %s burn your missionary at the stake.",
+              ai_contact_tribe_name(nation_id)
+            );
+            ai_contact_human_chrome(
+              ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", heresy_fb
+            );
+          }
+        }
+        break; /* one heresy pulse per tribe per call */
+      }
+
       /*
        * Mid-alarm (40..54): Jesuit-grade only. Plain Missionary refuses
        * unless nation owns Brebeuf (fandom experts). Cite: COLONIZE/PEDIA.TXT
@@ -1353,13 +1884,20 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
           (ind->alarm_by_player[e] >= 40 && ind->alarm_by_player[e] < 55) ||
           (t->alarm[e].friction >= 40 && t->alarm[e].friction < 55);
         if (mid && !ai_contact_is_jesuit_grade(ctx->col1, ctx->units, other)) {
+          char refuse_fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            refuse_fb,
+            sizeof(refuse_fb),
+            "The %s refuse conversion.",
+            ai_contact_tribe_name(nation_id)
+          );
           ai_contact_human_chrome(
             ctx,
             e,
             AI_POPUP_TAG_CONTACT_CONVERT,
             nation_id,
             "Mission",
-            "Natives refuse conversion."
+            refuse_fb
           );
           break; /* one mid-refuse pulse per tribe per call */
         }
@@ -1397,14 +1935,44 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
       if (nat->current_crosses < 0xffffu) {
         nat->current_crosses++;
       }
-      ai_contact_human_chrome(
-        ctx,
-        e,
-        AI_POPUP_TAG_CONTACT_CONVERT,
-        nation_id,
-        "Mission",
-        "Natives accept conversion."
-      );
+      {
+        /* GAME.TXT @INDIANSCONVERT: name nearest Euro colony when known. */
+        char convert_fb[AI_POPUP_BODY_LEN];
+        const char* col_name = NULL;
+        int best_d = 99;
+        if (ctx->colonies) {
+          for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+            const ColonizeColony* c = &ctx->colonies->colonies[ci];
+            if (!c->active || c->nation_id != e || !c->name[0]) {
+              continue;
+            }
+            const int dist = ai_contact_dist(c->x, c->y, t->x, t->y);
+            if (dist < best_d) {
+              best_d = dist;
+              col_name = c->name;
+            }
+          }
+        }
+        if (col_name && best_d <= 8) {
+          snprintf(
+            convert_fb,
+            sizeof(convert_fb),
+            "The %s accept conversion at %s.",
+            ai_contact_tribe_name(nation_id),
+            col_name
+          );
+        } else {
+          snprintf(
+            convert_fb,
+            sizeof(convert_fb),
+            "The %s accept conversion.",
+            ai_contact_tribe_name(nation_id)
+          );
+        }
+        ai_contact_human_chrome(
+          ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", convert_fb
+        );
+      }
       break; /* one convert pulse per tribe per call */
     }
   }
@@ -1503,6 +2071,28 @@ static void ai_contact_missionary_flee(ColonizeTurnContext* ctx, int nation_id) 
         continue;
       }
       if (ai_contact_flee_one_tile(ctx, other, t->x, t->y)) {
+        /*
+         * When mission unset, convert refuse chrome already wrote this pulse —
+         * keep that status. Flee status when an established mission can't hold
+         * amid alarm (missionary withdraws).
+         */
+        if (t->mission != COL1_TRIBE_MISSION_NONE) {
+          char flee_fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            flee_fb,
+            sizeof(flee_fb),
+            "Your missionary flees the %s village.",
+            ai_contact_tribe_name(nation_id)
+          );
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_MEET,
+            nation_id,
+            "Mission",
+            flee_fb
+          );
+        }
         break; /* one flee pulse per tribe per call */
       }
     }
@@ -1526,7 +2116,7 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
     ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id != nation_id || t->mission == 0xff) {
+    if ((int)t->nation_id != nation_id || t->mission == COL1_TRIBE_MISSION_NONE) {
       continue;
     }
     const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
@@ -1552,6 +2142,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
     return;
   }
+  ai_contact_bind_names(ctx);
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   ai_contact_clamp_alarms(ind);
 
@@ -1574,13 +2165,21 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         if (ind->euro_diplo[e] && ind->alarm_by_player[e] < 30) {
-          /* Pocahontas: half-rate alarm growth (wiki/fandom). */
+          /* Pocahontas/French: half-rate alarm growth (wiki/fandom). */
           const int bump = ai_contact_alarm_bump_amount(
             ctx->col1, e, 5 + (4 - diff)
           );
           if (bump > 0) {
             ind->alarm_by_player[e] =
               (uint16_t)(ind->alarm_by_player[e] + (uint16_t)bump);
+            if (ctx->col1->tribe) {
+              for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+                ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+                if ((int)t->nation_id == nation_id) {
+                  ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
+                }
+              }
+            }
           }
         }
       }
@@ -1594,7 +2193,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /*
-   * Encroachment deepen (dialog chrome PARKED): Soldier/Scout/Pioneer within
+   * Encroachment deepen (dialog chrome PARKED): Soldier/Scout/Pioneer/Dragoon within
    * Chebyshev ≤2 of a tribe with no mission → +2 tribe friction + alarm_by_player
    * toward that Euro (cap 100). Pocahontas halves bump (wiki/fandom half-rate).
    */
@@ -1620,14 +2219,98 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
         if ((int)t->nation_id != nation_id) {
           continue;
         }
-        if (t->mission != 0xff) {
+        if (t->mission != COL1_TRIBE_MISSION_NONE) {
           continue; /* mission present → no encroachment bump */
         }
         if (ai_contact_dist(u->x, u->y, t->x, t->y) > 2) {
           continue;
         }
+        const int fr_before = (int)t->alarm[e].friction;
         ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
         ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
+        /*
+         * GAME.TXT @INDIANCOMMENT thin: first cross into mid friction →
+         * overuse concern status (dialog widgets PARKED).
+         */
+        if (fr_before < 40 && (int)t->alarm[e].friction >= 40) {
+          char comment_fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            comment_fb,
+            sizeof(comment_fb),
+            "The %s are concerned about land use near their settlements.",
+            ai_contact_tribe_name(nation_id)
+          );
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_MEET,
+            nation_id,
+            "Natives",
+            comment_fb
+          );
+        }
+      }
+    }
+  }
+
+  /*
+   * Colony encroachment (fandom Alarm; GAME.TXT @INDIANFOREST2 colony wording):
+   * Euro colony within Chebyshev ≤2 of unmissioned tribe → same +2 bump as
+   * unit encroachers (Pocahontas/French half). Reuses @INDIANCOMMENT mid-cross.
+   * Road/forest bribe CHOICE PARKED (no invented gold).
+   */
+  if (ctx->colonies) {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      const int e = c->nation_id;
+      const int bump = ai_contact_alarm_bump_amount(ctx->col1, e, 2);
+      if (bump <= 0) {
+        continue;
+      }
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+        if ((int)t->nation_id != nation_id) {
+          continue;
+        }
+        if (t->mission != COL1_TRIBE_MISSION_NONE) {
+          continue;
+        }
+        if (ai_contact_dist(c->x, c->y, t->x, t->y) > 2) {
+          continue;
+        }
+        const int fr_before = (int)t->alarm[e].friction;
+        ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
+        ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
+        if (fr_before < 40 && (int)t->alarm[e].friction >= 40) {
+          char comment_fb[AI_POPUP_BODY_LEN];
+          if (c->name[0]) {
+            snprintf(
+              comment_fb,
+              sizeof(comment_fb),
+              "The %s are concerned that %s encroaches on lands near their settlements.",
+              ai_contact_tribe_name(nation_id),
+              c->name
+            );
+          } else {
+            snprintf(
+              comment_fb,
+              sizeof(comment_fb),
+              "The %s are concerned about land use near their settlements.",
+              ai_contact_tribe_name(nation_id)
+            );
+          }
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_MEET,
+            nation_id,
+            "Natives",
+            comment_fb
+          );
+        }
       }
     }
   }
@@ -1641,7 +2324,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     if ((int)t->nation_id != nation_id) {
       continue;
     }
-    if (t->mission == 0xff) {
+    if (t->mission == COL1_TRIBE_MISSION_NONE) {
       continue;
     }
     const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
@@ -1666,7 +2349,7 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     if ((int)t->nation_id != nation_id) {
       continue;
     }
-    if (t->mission == 0xff) {
+    if (t->mission == COL1_TRIBE_MISSION_NONE) {
       continue;
     }
     const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
@@ -1675,14 +2358,23 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
     }
     if (t->alarm[euro].friction >= 80 || ind->alarm_by_player[euro] >= 80) {
       t->mission = 0xff;
-      ai_contact_human_chrome(
-        ctx,
-        euro,
-        AI_POPUP_TAG_CONTACT_RAID,
-        nation_id,
-        "Mission",
-        "Natives burn your mission."
-      );
+      {
+        char burn_fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          burn_fb,
+          sizeof(burn_fb),
+          "The %s burn your missions!",
+          ai_contact_tribe_name(nation_id)
+        );
+        ai_contact_human_chrome(
+          ctx,
+          euro,
+          AI_POPUP_TAG_CONTACT_RAID,
+          nation_id,
+          "Mission",
+          burn_fb
+        );
+      }
     }
   }
 }
@@ -1703,12 +2395,77 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
       delta = (ind->alarm_by_player[e] > 40) ? -1 : 1;
     }
     ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, delta);
+    /*
+     * Goods/relation tick deepen (fandom Alarm cools / rises with band):
+     *  - met + alarm cool (<40) → tribe friction −1 (floor 0; <40 band)
+     *  - met + alarm hot (>40) → tribe friction +1 (cap 100)
+     * Same bands as relation ±1. Cite: indian_contact.md relation tick;
+     * deep 4962 census PARKED.
+     */
+    if (ind->euro_diplo[e] && ctx->col1->tribe) {
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+        if ((int)t->nation_id != nation_id) {
+          continue;
+        }
+        if (ind->alarm_by_player[e] < 40) {
+          if (t->alarm[e].friction > 0 && t->alarm[e].friction < 40) {
+            t->alarm[e].friction--;
+          }
+        } else {
+          /* alarm ≥40 mid/hot band — slight friction rise */
+          ai_contact_bump_u8_cap100(&t->alarm[e].friction, 1);
+        }
+      }
+    }
   }
 }
 
 /*
+ * FUN_4d56_2af6 abort-trade close (catalog): clear tribe last_bought /
+ * last_sold bookkeeping before refuse chrome. Deep demand-table wipe at
+ * DOS −25000 stays PARKED (no Linux table). Cite: FUNCTION_CATALOG 2af6.
+ */
+static void ai_contact_clear_tribe_last_goods(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
+    return;
+  }
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    t->last_bought = 0xffu;
+    t->last_sold = 0xffu;
+  }
+}
+
+/*
+ * Outdoor cargo natives of this nation typically trade (teach last_sold map).
+ * Fish (Arawak) has no cargo id → 0xff. Cite: indian_contact.md profession map.
+ */
+static uint8_t ai_contact_nation_primary_sold_cargo(int nation_id) {
+  static const uint8_t k_sold[8] = {
+      COLONIZE_CARGO_SILVER,  /* 4 Inca */
+      COLONIZE_CARGO_ORE,     /* 5 Aztec */
+      0xffu,                  /* 6 Arawak — fish */
+      COLONIZE_CARGO_FURS,    /* 7 Iroquois */
+      COLONIZE_CARGO_TOBACCO, /* 8 Cherokee */
+      COLONIZE_CARGO_COTTON,  /* 9 Apache */
+      COLONIZE_CARGO_FURS,    /* 10 Sioux */
+      COLONIZE_CARGO_SUGAR,   /* 11 Tupi */
+  };
+  const int idx = nation_id - 4;
+  if (idx < 0 || idx >= 8) {
+    return 0xffu;
+  }
+  return k_sold[idx];
+}
+
+/*
  * Thin peaceful auto-trade (FUN_5bfb_022e / 2aac…311e stand-in).
- * Colony trade-goods → alarm/friction decay. No invented price math.
+ * Colony warehouse or nearby ship/wagon hold TRADE_GOODS → alarm/friction decay.
+ * Sea/land trade (fandom); no invented price math. Deep 2820 buy PARKED.
  */
 static int ai_contact_auto_trade(
   ColonizeTurnContext* ctx,
@@ -1718,49 +2475,139 @@ static int ai_contact_auto_trade(
   int near_x,
   int near_y
 ) {
-  if (!ctx || !ctx->colonies || !ctx->col1_ok || !ctx->col1 || !ind) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind) {
     return 0;
   }
   if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 50) {
     return 0;
   }
+  /* French (1): cooperation bias — slightly longer wagon/ship reach (fandom). */
+  const int max_dist = (e == 1) ? 5 : 4;
   int best_ci = -1;
-  int best_score = -1;
-  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-    ColonizeColony* c = &ctx->colonies->colonies[ci];
-    if (!c->active || c->nation_id != e) {
-      continue;
-    }
-    const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
-    if (dist > 4 || c->stock[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
-      continue;
-    }
-    const int score = c->stock[COLONIZE_CARGO_TRADE_GOODS] * 4 - dist;
-    if (score > best_score) {
-      best_score = score;
-      best_ci = ci;
+  int best_colony_score = -1;
+  if (ctx->colonies) {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id != e) {
+        continue;
+      }
+      const int dist = ai_contact_dist(c->x, c->y, near_x, near_y);
+      if (dist > max_dist || c->stock[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
+        continue;
+      }
+      const int score = c->stock[COLONIZE_CARGO_TRADE_GOODS] * 4 - dist;
+      if (score > best_colony_score) {
+        best_colony_score = score;
+        best_ci = ci;
+      }
     }
   }
-  if (best_ci < 0) {
+  int best_ship = -1;
+  int best_hold = -1;
+  int best_ship_score = -1;
+  if (ctx->units) {
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      ColonizeUnit* u = &ctx->units->units[ui];
+      if (!u->active || u->nation_id != e) {
+        continue;
+      }
+      /* Sea ship or land Wagon Train hold (fandom sea/land trade). */
+      const int sea = units_is_sea(ctx->units, u->id);
+      if (!sea) {
+        const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+        if (!ty || !strstr(ty->name, "Wagon") || ty->cargo <= 0) {
+          continue;
+        }
+      }
+      const int dist = ai_contact_dist(u->x, u->y, near_x, near_y);
+      if (dist > max_dist) {
+        continue;
+      }
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (u->hold_goods_type[h] != COLONIZE_CARGO_TRADE_GOODS ||
+            u->hold_goods_amount[h] <= 0) {
+          continue;
+        }
+        const int score = u->hold_goods_amount[h] * 4 - dist;
+        if (score > best_ship_score) {
+          best_ship_score = score;
+          best_ship = u->id;
+          best_hold = h;
+        }
+      }
+    }
+  }
+  const int use_colony =
+    best_ci >= 0 && (best_ship < 0 || best_colony_score >= best_ship_score);
+  if (!use_colony && best_ship < 0) {
     return 0;
   }
-  ColonizeColony* c = &ctx->colonies->colonies[best_ci];
-  c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+  /*
+   * Thin 2820 hard-bargain stand-in: mid alarm 45..49 still trades but skips
+   * relation bump and tribe friction decay (tense haggle / 306c tension).
+   * Check before alarm decay. Deep buy/price arms PARKED.
+   */
+  const int hard =
+    (ind->alarm_by_player[e] >= 45 && ind->alarm_by_player[e] < 50);
+  if (use_colony) {
+    ColonizeColony* c = &ctx->colonies->colonies[best_ci];
+    c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+  } else {
+    ColonizeUnit* ship = units_get(ctx->units, best_ship);
+    if (!ship || best_hold < 0) {
+      return 0;
+    }
+    ship->hold_goods_amount[best_hold]--;
+    if (ship->hold_goods_amount[best_hold] <= 0) {
+      ship->hold_goods_amount[best_hold] = 0;
+      ship->hold_goods_type[best_hold] = 0;
+    }
+  }
   if (ind->alarm_by_player[e] > 0) {
     ind->alarm_by_player[e]--;
   }
   if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id == nation_id && t->alarm[e].friction > 0) {
+      if ((int)t->nation_id == nation_id && !hard && t->alarm[e].friction > 0) {
         t->alarm[e].friction--;
+      }
+      /* Book-keeping: Europeans sold trade goods; natives' outdoor good offered. */
+      if ((int)t->nation_id == nation_id) {
+        t->last_bought = (uint8_t)COLONIZE_CARGO_TRADE_GOODS;
+        {
+          const uint8_t sold = ai_contact_nation_primary_sold_cargo(nation_id);
+          if (sold != 0xffu) {
+            t->last_sold = sold;
+          }
+        }
       }
     }
   }
-  ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
-  ai_contact_human_chrome(
-    ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade accepted."
-  );
+  if (!hard) {
+    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, 2);
+  }
+  {
+    char trade_fb[AI_POPUP_BODY_LEN];
+    if (hard) {
+      snprintf(
+        trade_fb,
+        sizeof(trade_fb),
+        "Trade concluded after a hard bargain. The %s offer %s.",
+        ai_contact_tribe_name(nation_id),
+        ai_contact_tribe_flavor_good(ctx, nation_id)
+      );
+    } else {
+      snprintf(
+        trade_fb,
+        sizeof(trade_fb),
+        "Trade accepted. The %s offer %s.",
+        ai_contact_tribe_name(nation_id),
+        ai_contact_tribe_flavor_good(ctx, nation_id)
+      );
+    }
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", trade_fb);
+  }
   return 1;
 }
 
@@ -1810,6 +2657,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
     return;
   }
+  ai_contact_bind_names(ctx);
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
 
   /*
@@ -1866,7 +2714,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
                 t->alarm[e].friction < 40) {
               t->alarm[e].friction--;
             }
-            if (t->mission == 0xff && t->alarm[e].friction < 30) {
+            if (t->mission == COL1_TRIBE_MISSION_NONE && t->alarm[e].friction < 30) {
               /* Thin meet offer: nation only (no Jesuit unit on this Brave path). */
               t->mission = (uint8_t)e;
             }
@@ -1884,7 +2732,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
 
       /*
        * Human already met: no spontaneous refuse/gift/trade chrome from Brave
-       * adjacency (village visit / Meet CHOICE PARKED). AI euros keep silent
+       * adjacency (village visit / Meet CHOICE Done thin). AI euros keep silent
        * stand-ins below.
        */
       if (human) {
@@ -2202,8 +3050,9 @@ static void ai_contact_raid_secondary_loot(
 }
 
 /*
- * Raid gate Euro: highest friction among met candidates (≥40), prefer at-war,
- * tie-break lower relation. Cite: indian_raid_outcomes.md §1 gate.
+ * Raid gate Euro: highest friction among met candidates (≥40; Spain ≥35
+ * conquest bias), prefer at-war, tie-break lower relation. Cite:
+ * indian_raid_outcomes.md §1 gate; docs/fandom_col1994.md nation bias.
  */
 static int ai_contact_raid_gate_target(
   ColonizeTurnContext* ctx,
@@ -2239,14 +3088,17 @@ static int ai_contact_raid_gate_target(
          * (fandom Alarm — missions slow hostility). Mission tribes only
          * raise the gate in the burn band (≥80). Cite: indian_contact.md.
          */
-        if (t->mission != 0xff && (int)t->alarm[e].friction < 80) {
+        if (t->mission != COL1_TRIBE_MISSION_NONE && (int)t->alarm[e].friction < 80) {
           continue;
         }
         alarm = (int)t->alarm[e].friction;
       }
     }
     if (alarm < 40) {
-      continue;
+      /* Spain (2): fandom conquest bias — slightly earlier raid gate (35). */
+      if (!(e == 2 && alarm >= 35)) {
+        continue;
+      }
     }
     const int at_war = ai_diplo_indian_at_war(ctx->col1, e, indian_idx);
     const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
@@ -2453,6 +3305,16 @@ static void ai_contact_apply_raid_loot(
         if (u->moves_left > 0) {
           u->moves_left = 0;
         }
+        /* Thin harbor damage: dump one hold cargo ton if present. */
+        for (int h = 0; h < 6; ++h) {
+          if (u->hold_goods_amount[h] > 0) {
+            u->hold_goods_amount[h]--;
+            if (u->hold_goods_amount[h] == 0) {
+              u->hold_goods_type[h] = 0;
+            }
+            break;
+          }
+        }
         break;
       }
     }
@@ -2566,6 +3428,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   if (nation_id < 4 || nation_id > 11 || !ctx->col1->tribe) {
     return;
   }
+  ai_contact_bind_names(ctx);
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   ColonizeDosRng local;
   ai_contact_local_rng(ctx, nation_id, &local);
@@ -2646,8 +3509,68 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       if (!f || f->nation_id != target_euro || units_is_sea(ctx->units, foe)) {
         continue;
       }
-      if (units_resolve_land_combat(ctx->units, brave->id, foe, rng)) {
+      /* Snapshot gear before combat despawn (GAME.TXT @INDIANWIN1/@INDIANWIN2). */
+      const int foe_muskets = f->muskets;
+      const int foe_horses = f->horses;
+      const int brave_won =
+        units_resolve_land_combat(ctx->units, brave->id, foe, rng) ? 1 : 0;
+      int seized_muskets = 0;
+      int seized_horses = 0;
+      if (brave_won) {
+        ColonizeUnit* br = units_get(ctx->units, brave->id);
+        if (br && br->active) {
+          if (foe_muskets > 0) {
+            br->muskets += foe_muskets;
+            seized_muskets = 1;
+          } else if (foe_horses > 0) {
+            br->horses += foe_horses;
+            seized_horses = 1;
+          }
+        }
         units_try_move(ctx->units, brave->id, ctx->map, nx, ny, ctx->colonies, rng);
+      }
+      /* GAME.TXT @INDIANWIN0 / WIN1 / WIN2 / @INDIANLOSE thin ambush chrome. */
+      if (ai_contact_euro_is_human(ctx, target_euro)) {
+        char ambush_fb[AI_POPUP_BODY_LEN];
+        if (brave_won) {
+          if (seized_muskets) {
+            snprintf(
+              ambush_fb,
+              sizeof(ambush_fb),
+              "The %s ambush your units! Muskets seized by braves!",
+              ai_contact_tribe_name(nation_id)
+            );
+          } else if (seized_horses) {
+            snprintf(
+              ambush_fb,
+              sizeof(ambush_fb),
+              "The %s ambush your units! Horses seized by braves!",
+              ai_contact_tribe_name(nation_id)
+            );
+          } else {
+            snprintf(
+              ambush_fb,
+              sizeof(ambush_fb),
+              "The %s ambush your units!",
+              ai_contact_tribe_name(nation_id)
+            );
+          }
+        } else {
+          snprintf(
+            ambush_fb,
+            sizeof(ambush_fb),
+            "Your units defeat a %s ambush.",
+            ai_contact_tribe_name(nation_id)
+          );
+        }
+        ai_contact_human_chrome(
+          ctx,
+          target_euro,
+          AI_POPUP_TAG_CONTACT_RAID,
+          nation_id,
+          "Raid",
+          ambush_fb
+        );
       }
       {
         /* Pocahontas: half-rate alarm growth (wiki/fandom). */
@@ -2710,8 +3633,15 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         if (brave->x == c->x && brave->y == c->y) {
           const AiRaidKind kind = ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng);
           ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
+          int abandoned = 0;
+          char abandoned_name[40];
+          abandoned_name[0] = '\0';
           if (c->population <= 1 && max_alarm >= 70) {
+            if (c->name[0]) {
+              snprintf(abandoned_name, sizeof(abandoned_name), "%s", c->name);
+            }
             colonies_capture(ctx->colonies, best_cid, nation_id);
+            abandoned = 1;
           }
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
             ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -2741,30 +3671,240 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           }
           /*
            * High-friction successful raid → escalate Indian×Euro hostility
-           * (4cc6_00f2 via ai_diplo). Full 4528/2820 dialog PARKED.
+           * (4cc6_00f2 via ai_diplo). If treaty/peace still held → clear peace
+           * bit (@INDIANWAR). Full 4528/2820 dialog PARKED.
            */
+          const int had_peace =
+            ai_contact_indian_has_peace(ctx->col1, nation_id, target_euro);
+          const int was_at_war =
+            ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4);
           if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
             const int host = (max_alarm >= 80) ? -5 : -3;
             ai_diplo_indian_relation_delta(ctx->col1, nation_id, target_euro, host);
+            if (had_peace) {
+              ai_contact_clear_peace(ctx->col1, nation_id, target_euro);
+            }
+            ai_diplo_indian_hostility_sync(ctx->col1, target_euro);
           }
           /*
            * Thin raid outcome status for human target (full @RAID* dialog PARKED).
            * @RAIDNOTHING (GAME.TXT): "raiding party wiped out" — empty warehouse /
            * no lootable stock also lands here (no invented cargo). Cite:
            * COLONIZE/GAME.TXT @RAIDNOTHING; indian_raid_outcomes.md.
+           * @INDIANWAR when peace broken; @INDIANSURPRISE when not yet at war.
            */
           if (ai_contact_euro_is_human(ctx, target_euro)) {
             char raid_line[96];
-            const char* raid_body = "Natives raid your colony.";
-            if (kind == AI_RAID_NOTHING) {
-              raid_body = "Native raiding party wiped out.";
+            const char* raid_body = NULL;
+            const char* tribe = ai_contact_tribe_name(nation_id);
+            if (abandoned && abandoned_name[0]) {
+              if (kind == AI_RAID_SCALP || kind == AI_RAID_BURN) {
+                /* GAME.TXT @INDIANBURNCOLONY thin. */
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s burn %s to the ground!",
+                  tribe,
+                  abandoned_name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s overrun %s!",
+                  tribe,
+                  abandoned_name
+                );
+              }
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_NOTHING) {
+              /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}!" */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party wiped out in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party wiped out!",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else if (had_peace && max_alarm >= 55) {
+              /* GAME.TXT @INDIANWAR thin — provocations break the treaty. */
+              snprintf(
+                raid_line,
+                sizeof(raid_line),
+                "The %s declare war! Prepare for WAR!",
+                tribe
+              );
+              raid_body = raid_line;
+            } else if (!was_at_war) {
+              /* GAME.TXT @INDIANSURPRISE thin — deniable raid before open war. */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s make a surprise raid near %s! Their chief denies involvement.",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s make a surprise raid! Their chief denies involvement.",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_SHIP) {
+              /* GAME.TXT @RAIDSHIP thin. */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party attacks harbor in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s raid your harbor.",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_SCALP) {
+              /* GAME.TXT @RAIDSCALP thin (WINCOLONY when abandon handled above). */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party takes scalps in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s massacre colonists at your colony!",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_GOLD) {
+              /* GAME.TXT @RAIDGOLD thin. */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party seizes strongboxes in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s raid your treasury!",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
             } else if (kind == AI_RAID_BURN && s_last_burn_building[0]) {
               snprintf(
                 raid_line,
                 sizeof(raid_line),
-                "Natives burn your %s.",
+                "The %s burn your %s.",
+                tribe,
                 s_last_burn_building
               );
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_BURN) {
+              /* GAME.TXT @RAIDBURN thin (no named building). */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party burns buildings in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party burns buildings!",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_STORES) {
+              /* GAME.TXT @RAIDSTORES thin. */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party attacks stores in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party attacks your stores!",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else if (kind == AI_RAID_WREAK) {
+              /* GAME.TXT @RAIDWREAK thin. */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party wreaks havoc in %s!",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "%s raiding party wreaks havoc!",
+                  tribe
+                );
+              }
+              raid_body = raid_line;
+            } else {
+              /* Generic successful raid chrome when kind-specific line unused. */
+              if (c->name[0]) {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s raid %s.",
+                  tribe,
+                  c->name
+                );
+              } else {
+                snprintf(
+                  raid_line,
+                  sizeof(raid_line),
+                  "The %s raid your colony.",
+                  tribe
+                );
+              }
               raid_body = raid_line;
             }
             ai_contact_human_chrome(
@@ -2776,7 +3916,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               raid_body
             );
           }
-        } else {
+        } else if (max_alarm >= 70) {
+          /*
+           * Approach march only in high-friction capture band (≥70). Mid gate
+           * 40..69 keeps on-tile loot/combat but must not walk Braves — seed-100
+           * TURN4→5 is already at-war for some tribes; approach broke the golden.
+           * Cite: indian_raid_outcomes.md; smoke_ai_turns.
+           */
           int sdx = (c->x > brave->x) - (c->x < brave->x);
           int sdy = (c->y > brave->y) - (c->y < brave->y);
           units_try_move(
@@ -2817,31 +3963,64 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
          * When displaced (not despawned) and status buffer present → human
          * warn line. Dialog warn widgets Done structural (ai_popup); VGA PARKED.
          *
-         * PARK (Marathon2 R6): DOS RNG kill/warn/displace when a flee tile
-         * exists — Linux never kills if displace succeeds (warn already).
-         * Blocked-path despawn below is the thin stand-in only
-         * (indian_raid_outcomes.md §9).
+         * Thin RNG kill-with-flee (unpark): at very-high alarm (≥95), ~1/4
+         * chance kill even when a flee tile exists (DOS 359c kill/warn/displace
+         * stand-in). Alarm 90..94 keeps prefer-displace (smoke). Blocked-path
+         * despawn remains. Cite: indian_raid_outcomes.md §9.
          */
-        if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
-          ai_contact_human_chrome(
-            ctx,
-            e,
-            AI_POPUP_TAG_CONTACT_RAID,
-            nation_id,
-            "Scout",
-            "Scout warned away from village."
+        {
+          int killed = 0;
+          char scout_fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            scout_fb,
+            sizeof(scout_fb),
+            "The %s kill your Scout.",
+            ai_contact_tribe_name(nation_id)
           );
-        } else {
-          /* Blocked only — RNG kill-with-flee-tile stays PARKED (above). */
-          units_despawn(ctx->units, foe);
-          ai_contact_human_chrome(
-            ctx,
-            e,
-            AI_POPUP_TAG_CONTACT_RAID,
-            nation_id,
-            "Scout",
-            "Natives kill your Scout."
-          );
+          if (ind->alarm_by_player[e] >= 95) {
+            const int roll = dos_rng_range(rng, 0, 99);
+            if (roll < 25) {
+              units_despawn(ctx->units, foe);
+              ai_contact_human_chrome(
+                ctx,
+                e,
+                AI_POPUP_TAG_CONTACT_RAID,
+                nation_id,
+                "Scout",
+                scout_fb
+              );
+              killed = 1;
+            }
+          }
+          if (!killed) {
+            if (ai_contact_displace_scout(ctx, f, brave->x, brave->y)) {
+              char warn_fb[AI_POPUP_BODY_LEN];
+              snprintf(
+                warn_fb,
+                sizeof(warn_fb),
+                "The %s warn your Scout away from their village.",
+                ai_contact_tribe_name(nation_id)
+              );
+              ai_contact_human_chrome(
+                ctx,
+                e,
+                AI_POPUP_TAG_CONTACT_RAID,
+                nation_id,
+                "Scout",
+                warn_fb
+              );
+            } else {
+              units_despawn(ctx->units, foe);
+              ai_contact_human_chrome(
+                ctx,
+                e,
+                AI_POPUP_TAG_CONTACT_RAID,
+                nation_id,
+                "Scout",
+                scout_fb
+              );
+            }
+          }
         }
       }
     }
@@ -2852,6 +4031,7 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   if (!ctx || !popup || !popup->has_result) {
     return;
   }
+  ai_contact_bind_names(ctx);
   const int e = popup->result_nation_a;
   const int nation_id = popup->result_nation_b;
   if (e < 0 || e > 3 || nation_id < 4 || nation_id > 11) {
@@ -2888,6 +4068,8 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
       ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 5u, 1);
     } else if (popup->result_choice_id == AI_CONTACT_GIFT_LARGE) {
       ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 10u, 2);
+    } else if (popup->result_choice_id == AI_CONTACT_GIFT_GENEROUS) {
+      ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
     }
     return;
   }
@@ -2947,14 +4129,23 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
      * Thin dismiss OK (FUN_5bfb_022e Leave). No trade/gift/teach side effects.
      * Deep 2820 leave/dialog matrix PARKED. Cite: indian_contact.md Meet CHOICE.
      */
-    ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Contact", "Farewell."
-    );
+    {
+      char leave_fb[AI_POPUP_BODY_LEN];
+      snprintf(
+        leave_fb,
+        sizeof(leave_fb),
+        "Farewell to the %s.",
+        ai_contact_tribe_name(nation_id)
+      );
+      ai_contact_human_chrome(
+        ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Contact", leave_fb
+      );
+    }
     break;
   case AI_CONTACT_CHOICE_TRADE:
     /*
      * Thin auto-trade (FUN_5bfb_022e / 2aac…311e). Success → "Trade accepted."
-     * Alarmed / very-low relation → haggle refuse OK "Natives refuse to trade."
+     * Alarmed / very-low relation → haggle refuse OK "The %s refuse to trade."
      * (2aac refuse arm stand-in; fandom Alarm). No goods otherwise → haggle
      * stub OK "Trade concluded." Deep buy/hard-bargain PARKED in FUN_4d56_2820.
      */
@@ -2963,14 +4154,25 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
         ind->alarm_by_player[e] >= 50 ||
         ai_diplo_indian_relation(ctx->col1, nation_id, e) < 40;
       if (refuse_trade) {
-        ai_contact_human_chrome(
-          ctx,
-          e,
-          AI_POPUP_TAG_CONTACT_REFUSE,
-          nation_id,
-          "Trade",
-          "Natives refuse to trade."
-        );
+        /* FUN_4d56_2af6 abort: clear tribe last-goods bookkeeping. */
+        ai_contact_clear_tribe_last_goods(ctx, nation_id);
+        {
+          char refuse_fb[AI_POPUP_BODY_LEN];
+          snprintf(
+            refuse_fb,
+            sizeof(refuse_fb),
+            "The %s refuse to trade.",
+            ai_contact_tribe_name(nation_id)
+          );
+          ai_contact_human_chrome(
+            ctx,
+            e,
+            AI_POPUP_TAG_CONTACT_REFUSE,
+            nation_id,
+            "Trade",
+            refuse_fb
+          );
+        }
         break;
       }
       if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y)) {
@@ -3002,7 +4204,7 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   case AI_CONTACT_CHOICE_DEMAND: {
     /*
      * Mid-band + human popups → tools/gold amount CHOICE (FUN_5bfb_102a).
-     * Alarmed (≥55) → gift_or_demand refuse OK "Natives refuse demands."
+     * Alarmed (≥55) → gift_or_demand refuse OK "The %s refuse demands."
      * (CONTACT_DEMAND; no amount CHOICE / no drain). Cite:
      * indian_contact.md demand amount widget / alarmed refuse.
      */
@@ -3020,8 +4222,15 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, near_x, near_y);
     } else if (ind->alarm_by_player[e] >= 55 || friction >= 55) {
       /* No adjacent Euro unit — still show alarmed refuse chrome. */
+      char refuse_fb[AI_POPUP_BODY_LEN];
+      snprintf(
+        refuse_fb,
+        sizeof(refuse_fb),
+        "The %s refuse demands.",
+        ai_contact_tribe_name(nation_id)
+      );
       ai_contact_human_chrome(
-        ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", "Natives refuse demands."
+        ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Demand", refuse_fb
       );
     }
     break;

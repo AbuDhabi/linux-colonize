@@ -225,9 +225,10 @@ int colonies_found(
 /*
  * Gold to buy Indian homeland tile (FUN_4cc6_07c2). Manual/wiki Minuit:
  * Indians no longer demand payment → 0 via founding_fathers_nation_has(FF 2).
- * Returns 0 outside homeland radius (village 1 / capital city 2; pdf Indian Land).
- * DOS also spends this from pioneer plow/road + colony tile-buy; those callers
- * remain PORT outside this module.
+ * Returns 0 outside homeland radius (village 1 / capital city 2; pdf Indian Land),
+ * or when tile already has MAP_LAYER2_PURCHASED / Col1 mask 0x10 (WELCOME gift
+ * or prior buy). DOS also spends this from pioneer plow/road + colony tile-buy;
+ * those callers remain PORT outside this module.
  */
 int colonies_indian_land_purchase_gold(
   const ColonizeCol1Save* col1,

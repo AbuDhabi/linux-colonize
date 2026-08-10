@@ -153,7 +153,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_2154` | ~321 | Larger Indian action body; from `5bfb` via `2a1f_0434` | `ai_contact_indian_raids` (thin) | **partial** (structural) |
 | `FUN_4d56_2820` | ~1396 | Heavy decision + nested trade `2aac…311e` | meet/trade auto-haggle | **partial** (T0; deep PARKED) |
 | `FUN_4d56_2aac`…`311e` | nested | Trade buy/haggle/demand helpers | `ai_contact_indian_meet_trade` | **partial** (auto only) |
-| `FUN_4d56_3582` | ~51 | Small helper after `2820` | — | **parked** |
+| `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
 | `FUN_4d56_417e` | ~188 | Mid-size helper | — | **parked** |
 | `FUN_4d56_4528` | ~3073 | Settlement enter/raid | `ai_contact_indian_raids` + `@RAID*` kinds | **partial** (structural outcomes) |
 
@@ -271,7 +271,7 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 
 | # | Track | Status |
 |--:|-------|--------|
-| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; deep `2820` / gift-amount / VGA remain PARKED |
+| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; gift-amount CHOICE **Done** thin; deep `2820` / VGA remain PARKED |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
 | 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); human Congress debate CHOICE (**Done** structural); KINGGALLEON2 still PARK; F3 portrait grid / VGA PARKED |
 | 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep −0x6790 (thin G prio ladder own≥2/3/4→6/7/8 Done); naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done**; thin Europe ship buy ladder (Caravel/Merchantman/Galleon/Frigate) **Done**; mid-game colonies≥6 ship-buy+war hire **Done**; Col1 `labor_shortage` (+0x8e) LABOR join **Done**; `garrison_quota` (+0x1e) fortify DEC **Done**; `specialty_cargo` (+0x8d) haul prefer **Done**; `cargo_idle_turns` (+0x8f) haul score **Done**; `improve_timer` (+0x8c) pioneer gate **Done**; `build_ai_flags` (+0x1d bit7) wants_construction **Done**; `cargo_produced_mask` (+0x90) haul prefer **Done**; `ai_flags` (+0x1b) MoW→COLONY_ALT **Done**; `colony_flags` (+0x1c) starvation LABOR **Done**; `hammers_purchased` (+0x98) BUY **Done**; `colony_flags` sol_50/sol_100 latch **Done**; `depletion_counter` (+0x97) ore/silver wrap+suppress **Done**; `warehouse_level`/`capitol_level` (+0x95/+0x96) **Done** |
@@ -370,16 +370,41 @@ Smoke: `smoke_ai_contact`.
 (`5bfb_022e` first-contact `@INDIANWELCOME` Yes/No on **land** only → `0182`
 `@INDIANPEACE` / `@INDIANCOME` or `@INDIANSHUN`+war; peaceful path ends after
 COME — no chained Meet CHOICE). Later teach / gift / demand CHOICE apply
-handlers remain for village-enter (trigger PARKED). Thin human-facing
+handlers remain for village-enter (**Done** thin trigger). Thin human-facing
 `ctx->status` for teach/convert/raid **Done**; Brave-adjacency auto refuse/
 gift/trade chrome for humans **removed** (matched DOS first-contact exit +
 no ship hail).
 
-**Still PARKED:** full `2154`/`2820`/`4528` bodies; village-enter Meet CHOICE
-trigger; Brave escort deep `14fe`; full `@TRIBES` flavor-good parse; DOS RNG
-kill/warn branch; VGA-identical dialog chrome (chief portrait / `FUN_281f_04ac`);
-deep gift-amount arms; literal map land-grant ownership writes (WELCOME grant
-remains copy-only).
+**Still PARKED:** full `2154`/`2820`/`4528` bodies; Brave escort deep `14fe`;
+VGA-identical dialog chrome (chief portrait / `FUN_281f_04ac`); multi-tile
+WELCOME land-grant radius (thin occupied-tile stamp **Done**). Scout `359c` RNG
+kill-with-flee **Done** thin (alarm≥95 ~1/4); French alarm half-rate + trade
+reach **Done**. `@TRIBES` flavor trade chrome **Done** (live NAMES when
+`ctx->names`; static fallback). Gift amount CHOICE Generous −20/−3 **Done** thin
+(deep `2820` haggle matrix still PARKED; hard-bargain mid-alarm **Done** thin).
+Spanish raid gate 35 **Done** thin. Capital destroy surrender **Done** thin.
+Trade-refuse `2af6` last-goods clear **Done** thin. Sea-hold / wagon-hold trade-goods drain **Done** thin (fandom sea/land). Hard-bargain
+skips tribe friction decay **Done** thin.
+Harbor `@RAIDSHIP` hold-cargo dump + status **Done** thin.
+`@INDIANWAGONS` demand tools-from-wagon hold **Done** thin.
+`@INDIANSCONVERT` colony-name convert status **Done** thin.
+`@INDIANCOMMENT` encroachment mid-cross status **Done** thin.
+WELCOME Accept clears alarm/friction; Reject floors friction ≥80 + attacks++ **Done** thin.
+Missionary flee status (established mission) **Done** thin.
+Teach/gift/demand/raid/convert/trade-refuse status tribe naming **Done** thin.
+`@INDIANCOMMENT` / missionary flee / harbor / scout-kill tribe naming **Done** thin.
+Foreign-mission heresy denounce 50/50 **Done** thin (incite/WARPATH gold PARKED).
+Ambush `@INDIANWIN1`/`WIN2` muskets/horses seize **Done** thin.
+Peaceful relation-tick tribe friction −1 **Done** thin.
+Raid `@INDIANSURPRISE` / peace-break `@INDIANWAR` **Done** thin.
+`@INDIANSURPRISE` near-colony naming **Done** thin.
+Dragoon/Artillery encroachment **Done** thin.
+Village `@INDIANHELLO1`/`HELLO2` worthy/ruthless greet **Done** thin.
+Colony encroachment (Chebyshev ≤2, `@INDIANCOMMENT` / FOREST2-shaped) **Done** thin.
+`@RAIDNOTHING` tribe+colony wipeout + Scout displace tribe warn **Done** thin.
+`@RAIDSTORES`/`@RAIDWREAK`/`@RAIDGOLD` tribe+colony raid chrome **Done** thin.
+`@RAIDSCALP`/`@RAIDSHIP` tribe+colony raid chrome **Done** thin.
+`@RAIDBURN` buildings (no named structure) + `@INDIANSURPRISE` near-colony **Done** thin.
 
 ### R3.5 — Euro diplomacy (`15b3` / `5bfb`) (**partial structural port**)
 

@@ -13,8 +13,9 @@
  *
  * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): full meet/raid decision
  * matrix + nested trade 2aac…311e (dispatch / buy / hard-bargain / demand).
- * Linux keeps thin trade-goods→alarm + Trade CHOICE refuse/concluded chrome +
- * gift/demand / teach / convert / @RAID* stand-ins only — no 2820 body port
+ * Linux keeps thin trade-goods→alarm (colony / ship / wagon hold) + Trade
+ * CHOICE refuse/concluded chrome + gift/demand / teach / convert / @RAID*
+ * stand-ins only — no 2820 body port
  * (Marathon2 R6 / R5 / R4 / prior R14 PARK).
  *
  * Jesuit-grade convert: PEDIA @JOB24 name/prof 24, or nation owns Brebeuf
@@ -77,6 +78,17 @@ int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int i
 
 /* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
+
+/*
+ * Fandom capital-destroy surrender: when a capital village falls, reset that
+ * Indian nation's alarm/friction toward the attacker and restore peace once.
+ * Cite: docs/fandom_col1994.md Capital destroy; units_try_native_settlement_fallout.
+ */
+void ai_contact_indian_capital_surrender(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+);
 
 /* FUN_4d56_4528 / 5fef_0f14 raid outcomes + 359c scout stub. */
 void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);

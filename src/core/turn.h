@@ -52,6 +52,8 @@ typedef struct ColonizeTurnContext {
   AiPopupState* ai_popups;
   /* Optional GAME.TXT catalog for @INDIAN* contact copy. */
   const ColonizeMsgCatalog* messages;
+  /* Optional NAMES.TXT for @TRIBES flavor-good live parse (contact trade). */
+  const ColonizeMsgCatalog* names;
 } ColonizeTurnContext;
 
 typedef struct ColonizeTurnResult {
