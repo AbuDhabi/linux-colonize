@@ -201,9 +201,15 @@ difficulty/nation; landfall `goto`);
 AMERICA villages from `TRIBE.TXT` + Brave per village; NEW WORLD / CUSTOMIZE procedural
 villages (cap ~84). Human starter `nation_id` matches chosen power.
 
-**Parked (later):** deep Euro `20e6` / T3 planner; deep Indian `2820`/`4528` + VGA meet chrome;
+**Parked (later):** deep Euro `20e6` / T3 planner (**mapped** —
+[`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md) /
+[`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md));
+deep Indian `2820`/`4528` + VGA meet chrome (**mapped** —
+[`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md) /
+[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md));
 deep King/REF (`10f0` economy, letter cinematic, exact `0x5382`). Early-AI T2 gate is green
 (`test-saves-ai/TURN1`…`TURN7`). Roadmap: [ai_transcription.md](ai_transcription.md).
+Year-end `0442` UI: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
 
 Evidence:
 

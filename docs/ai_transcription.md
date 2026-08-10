@@ -269,7 +269,7 @@ unannotated bodies.
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Structural phases (prelude → growth → relation → pulse → meet/raid); quiet T2 overlays; thin maps `indian_contact.md` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
-| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` + `5bfb` meet; player dialogs **Done** structural (`ai_popup`); deep `2820`/`4528` / VGA PARKED |
+| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` + `5bfb` meet; player dialogs **Done** structural (`ai_popup`); deep `2820`/`4528` **mapped** (port PARKED); VGA PARKED |
 | `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Partial structural** 6d8e; T2 seed-100 fixture |
 | `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
 | `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
@@ -300,7 +300,7 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 
 | # | Track | Status |
 |--:|-------|--------|
-| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; gift-amount CHOICE **Done** thin; deep `2820` / VGA remain PARKED |
+| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; gift-amount CHOICE **Done** thin; deep `2820` **mapped** ([`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)); VGA PARKED |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
 | 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); human Congress debate CHOICE (**Done** structural); KINGGALLEON2 still PARK; F3 portrait grid / VGA PARKED |
 | 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep −0x6790 (thin G prio ladder own≥2/3/4→6/7/8 Done); naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done**; thin Europe ship buy ladder (Caravel/Merchantman/Galleon/Frigate) **Done**; mid-game colonies≥6 ship-buy+war hire **Done**; Col1 `labor_shortage` (+0x8e) LABOR join **Done**; `garrison_quota` (+0x1e) fortify DEC **Done**; `specialty_cargo` (+0x8d) haul prefer **Done**; `cargo_idle_turns` (+0x8f) haul score **Done**; `improve_timer` (+0x8c) pioneer gate **Done**; `build_ai_flags` (+0x1d bit7) wants_construction **Done**; `cargo_produced_mask` (+0x90) haul prefer **Done**; `ai_flags` (+0x1b) MoW→COLONY_ALT **Done**; `colony_flags` (+0x1c) starvation LABOR **Done**; `hammers_purchased` (+0x98) BUY **Done**; `colony_flags` sol_50/sol_100 latch **Done**; `depletion_counter` (+0x97) ore/silver wrap+suppress **Done**; `warehouse_level`/`capitol_level` (+0x95/+0x96) **Done** |
@@ -426,13 +426,16 @@ handlers remain for village-enter (**Done** thin trigger). Thin human-facing
 gift/trade chrome for humans **removed** (matched DOS first-contact exit +
 no ship hail).
 
-**Still PARKED:** full `2154`/`2820`/`4528` bodies; Brave escort deep `14fe`;
+**Still PARKED (port):** full `2154`/`2820`/`4528` **bodies** — section-mapped in
+[`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md) /
+[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md);
+Brave escort deep `14fe`;
 VGA-identical dialog chrome (chief portrait / `FUN_281f_04ac`); multi-tile
 WELCOME land-grant radius (thin occupied-tile stamp **Done**). Scout `359c` RNG
 kill-with-flee **Done** thin (alarm≥95 ~1/4); French alarm half-rate + trade
 reach **Done**. `@TRIBES` flavor trade chrome **Done** (live NAMES when
 `ctx->names`; static fallback). Gift amount CHOICE Generous −20/−3 **Done** thin
-(deep `2820` haggle matrix still PARKED; hard-bargain mid-alarm **Done** thin).
+(deep `2820` haggle matrix mapped / port PARKED; hard-bargain mid-alarm **Done** thin).
 Spanish raid gate 35 **Done** thin. Capital destroy surrender **Done** thin.
 Trade-refuse `2af6` last-goods clear **Done** thin. Sea-hold / wagon-hold trade-goods drain **Done** thin (fandom sea/land). Hard-bargain
 skips tribe friction decay **Done** thin.
@@ -517,7 +520,10 @@ Thin land adjacent combat chain (drain `moves_left` across foes) **Done**.
 Wagon surplus load prefers FOOD when `food_short>20` **Done**.
 Thin lumber/ore/muskets/horses/food cargo hire stand-in (mirror tools ship/colony)
 **Done**.
-**OPEN (unpark #4):** remaining deep combat scoring / ocean-naval `20e6`;
+**OPEN (unpark #4):** remaining deep combat scoring / ocean-naval `20e6`
+(**section-mapped** [`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md) /
+[`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md);
+port still OPEN);
 leftover mid `5d04` matrix (colonies≥6 ship-buy + war/peace shortage hire **Done**; Free Colonist settle gated ≥6); deep −0x6790 G table (thin prio ladder Done). Thin ocean east-Europe HS bias
 **Done** (complement west-explore). Thin Europe ship buy ladder **Done**: Caravel (no ship / full / colonies≥6), Merchantman
 (cargo pressure), Galleon (at war), Frigate (at war, 5000$) —
@@ -528,9 +534,9 @@ Odd deviations OK; not T3 / LCG goldens (those stay R5).
 
 ### R5 — Toward 1:1 (T2/T3)
 
-1. Remaining `FUN_521d_20e6` branches (Euro combat, explore, ocean/ship, colony tiles).
+1. Remaining `FUN_521d_20e6` **port** (Euro combat, explore, ocean/ship — maps Done).
 2. Full `5b66` order/combat arms (thin map done) and remaining `5d04`.
-3. Full `4d56` large bodies + nested `2820` helpers.
+3. Full `4d56` large bodies + nested `2820` helpers (**maps Done**; port OPEN).
 4. Golden / hang-dump coverage for mid-game turns (not only seed-100 turn 0).
 
 ### R6 — King / REF (`43f7`) (**partial structural port**)

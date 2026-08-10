@@ -137,7 +137,7 @@ Major thunks (catalog):
 | FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** |
 | FINISH human refresh | return to Move Pieces | MP + select next | **Done** |
 | FINISH autosave | `130d_0172` | autosave flags | **Done** |
-| Year-end chrome | `3844_0442` | — | **PARKED** (dialogs / victory / anniversary) |
+| Year-end chrome | `3844_0442` | — | **UI mapped** ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md)); port **PARKED** |
 | Demo autoplay | `130d` `0x828` tail | — | **PARKED** |
 
 ### Known reshape (do not paper over)
@@ -173,9 +173,12 @@ Linux runs; Linux is Euro AI then Indians.
   + `130d` year/autumn math).
 - **`FUN_4d56_1816` call site**: unresolved in the Ghidra export (overlay/thunk
   gap). Linux still implements `1816`-shaped nation turns from annotated structure.
-- **`FUN_3844_0442`**: catalogued and Layer-D sectioned; victory / defeat /
-  anniversary / auto-declare dialogs not ported as a module.
+- **`FUN_3844_0442`**: **UI mapped**
+  ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
+  victory / defeat / anniversary / auto-declare dialogs not ported as a module.
 - **Demo / independence splash** (`130d_019e` / `0222`): PARKED.
+- **Deep AI** (`20e6` / `2820` / `4528`): section-mapped under
+  `original_sources_annotated/ai/`; Linux port still PARKED (unpark #4).
 
 ---
 
