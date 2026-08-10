@@ -26,7 +26,7 @@ Gap map: [`manual_gap.md`](manual_gap.md). Navigation: [`original_index.md`](ori
 
 **Election (wiki):** Liberty Bells attract Fathers. After the first colony produces bells, the player picks from a random set of one not-yet-had Father **per category** (five choices). Non-exclusive (every nation can recruit the same Father). Viewed on the Continental Congress screen.
 
-**Port:** FF election Missing ([`manual_gap.md`](manual_gap.md)); `@FATHERS` century weights live in `NAMES.TXT` / pedia — verify effects in decomp before coding.
+**Port:** Choose-then-accumulate wired (`next_founding_father` / Congress debate CHOICE → lock candidate → elect at `40*(count+1)` bells; after elect `next=-1`). Century-weighted random pick still a stand-in (first unclaimed per type). DOS `FUN_4345_0982` cost curve PARKED.
 
 ### Trade
 

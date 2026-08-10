@@ -953,6 +953,7 @@ int main(void) {
     map_tile_set_road(&tmap, px, py, false);
     char pmsg[64];
     pu3->moves_left = 1;
+    /* Plains road: terr_cost 1 → completes on first work-tick. */
     if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg)) ||
         !map_tile_has_road(&tmap, px, py) || pu3->tools != 80 || pu3->moves_left != 0) {
       fprintf(
@@ -970,10 +971,34 @@ int main(void) {
     }
     pu3->moves_left = 1;
     pu3->tools = 100;
+    pu3->orders = UNITS_ORDER_NONE;
+    pu3->turns_worked = 0;
     const int farm_base = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
-    if (!units_pioneer_plow(&pool, pid3, &tmap, pmsg, sizeof(pmsg)) ||
-        !map_tile_is_plowed(&tmap, px, py) || pu3->tools != 80) {
-      fprintf(stderr, "phase7 plow failed (%s)\n", pmsg);
+    /* Plains plow: terr_cost+2 = 3 turns for non-Hardy; drive ticks to completion. */
+    if (!units_pioneer_plow(&pool, pid3, &tmap, pmsg, sizeof(pmsg))) {
+      fprintf(stderr, "phase7 plow start failed (%s)\n", pmsg);
+      map_free(&tmap);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    while (pu3->orders == UNITS_ORDER_CLEAR_PLOW) {
+      if (!units_pioneer_work_tick(&pool, pid3, &tmap, pmsg, sizeof(pmsg))) {
+        fprintf(stderr, "phase7 plow tick failed (%s)\n", pmsg);
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+    if (!map_tile_is_plowed(&tmap, px, py) || pu3->tools != 80) {
+      fprintf(
+        stderr,
+        "phase7 plow failed plowed=%d tools=%d (%s)\n",
+        (int)map_tile_is_plowed(&tmap, px, py),
+        pu3->tools,
+        pmsg
+      );
       map_free(&tmap);
       map_free(&map);
       assets_msg_free(&names);

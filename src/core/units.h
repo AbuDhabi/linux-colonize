@@ -549,7 +549,14 @@ int units_advance_all_goto(
 );
 
 bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id);
-/* Plow (clear forest if needed) / road on unit tile. Spends 20 tools + remaining moves. */
+/*
+ * Start/continue pioneer terrain work (DOS FUN_479b_01a6 / 0526).
+ * Clear Forest and Plow Fields are separate jobs (P on forest clears only;
+ * P on open land plows). Road is R. Each job takes terr_cost[+2 for
+ * clear/plow] turns (Hardy Pioneer halves); tools −20 on completion.
+ * First call sets orders + one work-tick; further ticks via
+ * units_pioneer_work_tick / turn_refresh.
+ */
 bool units_pioneer_plow(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -558,6 +565,15 @@ bool units_pioneer_plow(
   size_t err_size
 );
 bool units_pioneer_road(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size
+);
+/* One work-tick for CLEAR_PLOW / BUILD_ROAD orders. Returns true if unit still
+ * has that order (in progress or just started). */
+bool units_pioneer_work_tick(
   ColonizeUnitPool* pool,
   int unit_id,
   ColonizeWorldMap* map,

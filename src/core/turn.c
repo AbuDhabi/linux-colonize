@@ -107,6 +107,13 @@ void turn_refresh_moves_for_nation(
       u->moves_left = 0;
       continue;
     }
+    /* Pioneer clear/plow/road: overnight work-tick (FUN_479b_01a6 / 0526). */
+    if (map &&
+        (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD)) {
+      (void)units_pioneer_work_tick(pool, u->id, map, NULL, 0);
+      u->moves_left = 0;
+      continue;
+    }
     if (units_orders_skip_turn(u)) {
       u->moves_left = 0;
       continue;

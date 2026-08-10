@@ -24,6 +24,11 @@ void col1_save_init(ColonizeCol1Save* save) {
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     save->head.founding_father[i] = -1;
   }
+  /* next_founding_father: -1 = need Continental Congress debate (FUN_4345_06d2).
+   * Zero would falsely lock Adam Smith without a player choice. */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    save->nation[n].next_founding_father = -1;
+  }
 }
 
 void col1_save_free(ColonizeCol1Save* save) {

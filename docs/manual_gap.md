@@ -64,12 +64,12 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Terrain move costs (forest >1 MP, roads, rivers) | Partial | DOS `terr_cost` table + full-MP / partial overspend; road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). PARK: unit MP `*3` scale (Brave already `table*3`) |
 | Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
-| Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools; ORDERS Clear Forest / Plow Fields / Build Road |
+| Pioneer clear / plow / road (P / R) | Done | Multi-turn FUN_479b: clear/plow = `terr_cost+2`, road = `terr_cost`, Hardy halves; −20 tools on complete; clear and plow are separate jobs |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
 | Dump cargo overboard | Done | ORDERS Dump Cargo Overboard → first goods hold |
 | Pillage | Partial | ORDERS: military loots foreign Euro colony stock or clears plow/road; thin vs full `2b5a` body |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
-| Landfall confirm + activate-all ashore | Done | Ship→bare land: CHOICE unload one / activate all / cancel (`AI_POPUP_TAG_LANDFALL`); ship stays at sea — [move_enter.md](move_enter.md) |
+| Landfall confirm + activate-all ashore | Done | Ship→bare land: `@LANDFALL` Stay With Ships / Make Landfall (`AI_POPUP_TAG_LANDFALL`); Make Landfall unloads all; ship stays at sea — [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
 | Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; stop service honors Col1 load/unload nibbles when counts>0 (else unload-all / surplus ladder); Edit autofill + thin cargo picker (unload→load multi-select); Europe sell on 999; VGA TRADE chrome PARKED |
 
