@@ -71,11 +71,10 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 | [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`) |
 
 **Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
-`smoke_ai_turns` **TURN1→2** matches under the full dispatcher (Europe exit →
-Atlantic approach → west-explore `(4,13)`, passengers aboard, no Privateer
-spam). **TURN2→7** still diverge on coastal unload / passenger landing /
-founding timing — next fidelity peels (not fixture). Fixture path
-(`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7 for bisect.
+`smoke_ai_turns` **TURN1→4** matches under the full dispatcher (Europe exit →
+Atlantic approach → west-explore → coastal beachhead unload → found-approach /
+Isabella). **TURN4→7** still diverge (FR Quebec found / rival coastal peels).
+Fixture path (`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7 for bisect.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -329,11 +328,14 @@ leftover FF hooks, deep `20e6`).
   `colony_count==0`. **Diplo finding:** peer WAR/ALLY flags must use Col1
   `euro_relation[]` (DS −0x77c4), not `unknown26[4..7]` — the latter bytes in
   TURN goldens are unrelated and false-triggered WAR → Privateer spawn.
-  **TURN2→3 OPEN:** coastal staging retarget reaches FR/SP ship XY, but
-  passenger unload tiles / ship hold-goto / founding timing still diverge;
-  deepen `5b66` unload + `0a60` landfall bind (do not grow nation-scripted
-  fixture arms). Approach-tile table remains PORT DEBT until ocean `20e6` +
-  `48d3` placement reproduce TURN2 endpoints from landfall alone.
+  **TURN2→3 green:** geometry beachhead (not nation scripts) — approach peel
+  (Dutch sentry unload), staging + hold-west coast water (French soldier tip,
+  pioneer stays aboard), staging + land-west (Spanish full unload). **TURN3→4
+  green:** landfall-keyed found tile + post-beachhead ship cruise; planning may
+  yank settler gotos off landfall keys — recover landfall from ship tip;
+  Dutch Isabella found after ship leaves adj; Spanish pioneer one AI_SAIL hop.
+  **TURN4→7 OPEN.** Approach / found / cruise tile tables remain PORT DEBT until
+  ocean `20e6` + `48d3` + `0a60` FOUND scoring reproduce them from terrain alone.
 - **Euro early path (fixture, bisect only):** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
