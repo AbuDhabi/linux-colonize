@@ -120,7 +120,7 @@ as peels land.
 | `nation_relation[4]` | 8 | `mapped` | |
 | `rebel_sentiment_report` + `unknown45_pad[8]` | 10 | `mapped` | DS:`0x53d0` |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |
-| `unknown46` / `price_group_state[16]` | 32 | `partial` | DOS prices @`0x53ea`; Linux king bytes 0–5 overlay words 0–2 |
+| `unknown46` / `price_group_state[16]` | 32 | `partial` | DOS prices @`0x53ea`; Linux king bytes 0–5 overlay words 0–2. Smcol/supplemental: only **rum/cigars/cloth/coats** form a live price group (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); other slots change with trades but are believed unused by the price formula |
 | `event` | 2 | `mapped` | Woodcut / discovery flags |
 | `unknown05` | 2 | `opaque` | Save R/W; no gameplay cite |
 
@@ -136,7 +136,7 @@ as peels land.
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `other[]` | **24** | `community` | DS:`0x948e`; save R/W only in unpacked; smcol unexplored + click xy |
+| `other[]` | **24** | `community` | DS:`0x948e`; save R/W only in unpacked. Smcol carve: `unknown51a[18]` (“unexplored”) + `click_before_open_colony` x,y (`uint16`×2) + `unknown51b[2]` |
 
 ### Colony (202 × C)
 
@@ -162,8 +162,8 @@ as peels land.
 | `depletion_counter` | 1 | `mapped` | +0x97; INC on ore/silver field yield; wrap at 50 → `MAP_LAYER2_SUPPRESS` on worked tile (`FUN_364b_033a`) |
 | `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`); Linux field + accumulate on `colonies_buy_construction` |
 | `stock[16]` | 32 | `mapped` | |
-| `visible_to_euro[4]` | 4 | `mapped` | +0xba; fog `0x10<<euro` |
-| `unknown13_pad[4]` | 4 | `opaque` | +0xbe; found-zero; no reader |
+| `visible_to_euro[4]` | 4 | `partial` | +0xba; **smcol `population_on_map[4]`** — fog-of-war population as each Euro sees this colony. Founding (`FUN_364b_1ba8`) writes `1` per slot (and only when tile seen via map `0x10<<euro`); lategame fixtures store real/estimate pops (owner slot ≈ live `population`). Port still names/exports as visibility latch — **misnamed** vs smcol+fixtures |
+| `unknown13_pad[4]` | 4 | `community` | +0xbe; **smcol `fortification_on_map[4]`** (0 none … 3 fortress). Founding clears to 0; lategame COLONY00/05 non-zero and track stockade/fort/fortress per viewer — **not** “found-zero”. Updater/reader cite still open |
 | `rebel_dividend` / `rebel_divisor` | 8 | `mapped` | SoL display |
 
 Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.md)).
@@ -178,8 +178,9 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
 | `origin` | 1 | `mapped` | Brave home tribe |
 | `ai_plan` | 1 | `mapped` | Default `0x58` / `'X'` |
-| `facing` / `facing_pad` | 1 | `mapped` | Low 3 = last dir (`FUN_1427_0968`) |
-| Cargo / profession / `turns_worked` / chain | — | `mapped` | |
+| `facing` / `facing_pad` | 1 | `mapped` | Low 3 = last dir (`FUN_1427_0968`); smcol still `unknown18` |
+| Cargo / `turns_worked` / chain | — | `mapped` | |
+| `profession` | 1 | `mapped` | Job id; **Treasure** (`type==0x0a`): smcol + DOS Europe exit — value is gold/100 (`profession*100` cash; `FUN_48d3_06ba`) |
 
 ### Nation (316 × 4)
 
@@ -195,7 +196,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
 | `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget |
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
-| `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo) |
+| `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo: WAR`0x01` PEACE`0x02` ALLY`0x04` MET`0x40`). Smcol’s attitude?/status/piracy bitfield **disagrees** — prefer DOS |
 | `relation_by_indian[8]` | 8 | `mapped` | |
 | `treaty_timer` / sticky / privateer | 12 | `partial` | Linux stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here |
 | `trade` (240) | 240 | `mapped` | euro_price / nr / gold / tons |
@@ -205,9 +206,9 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `nation_id` / `state` / `population` / `mission` | — | `mapped` | `unused09` pad |
-| `growth_accum` | 1 | `mapped` | +=pop; clear when >19 (`FUN_4d56_152e`) |
+| `growth_accum` | 1 | `mapped` | +=pop; clear when >19 (`FUN_4d56_152e`); smcol `growth_counter` |
 | `unknown28_pad` | 1 | `opaque` | No cite |
-| `last_bought` / `last_sold` / `alarm[4]` | — | `mapped` | |
+| `last_bought` / `last_sold` / `alarm[4]` | — | `mapped` | `alarm.attacks`: smcol — rises on dwelling attacks, falls when brave attacks / drifts; may act as retaliation budget |
 
 ### Indian (78 × 8)
 
@@ -218,7 +219,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `lands_bought` | 1 | `mapped` | `FUN_479b_00ca` INC |
 | `unknown31_flags` | 1 | `partial` | Linux contact prelude bit `0x20` |
 | `muskets` / `horse_herds` | 2 | `mapped` | |
-| `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`) |
+| `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`). Smcol: herds→breeding each turn; cash horses at ≥25; notes a DOS bug where only one tribe breeds and breeding += herds×(non-extinct count) |
 | `unknown31*` pads | 3+ | `opaque` | Closed as no-reader pads |
 | `contact_state[4]` | 8 | `mapped` | +0x2e; FSM 0/1/2 |
 | `euro_relation_accum[4]` | 4 | `mapped` | +0x36; spill → `FUN_281f_0d6c` |
@@ -255,7 +256,7 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 428 | 64 | `0x918c` | `unknown_ds_918c` — save I/O |
 | 492 | 64 | `0x9572` | `unknown_ds_9572` — save I/O |
 | 556 | 8 | `0x944e` | `unknown_ds_944e` — pop word totals |
-| 564 | 1 | `0x336` | `ui_toggle_336` — `FUN_2f2b_*` |
+| 564 | 1 | `0x336` | `ui_toggle_336` — `FUN_2f2b_*` toggle (key `0x4e`); smcol `show_colony_prod_quantities` |
 | 565 | 8 | `0x9184` | `tribe_data_9184` |
 | 573 | 8 | `0x9622` | `unknown_ds_9622` — save I/O |
 | 581 | 8 | `0x962a` | `unknown_ds_962a` — save I/O |
@@ -277,7 +278,7 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 |-------|------|--------|-------|
 | `unknown34` | 12 | `opaque` | DS:`0x9566` save R/W vestigial |
 | census + mid-window | 128 | `mapped` | See chunk table |
-| late DS chunks (577) | 577 | `partial` | Named `unknown_ds_*` / tribe_* / `ui_toggle_336` |
+| late DS chunks (577) | 577 | `partial` | Named `unknown_ds_*` / tribe_* / `ui_toggle_336` (smcol: `show_colony_prod_quantities`) |
 | `x` / `y` / zoom / viewport | 10 | `mapped` | Focus + camera |
 
 ### Map layers (W×H each)
@@ -285,7 +286,7 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 | Plane | Status | Notes |
 |-------|--------|-------|
 | `tile` | `mapped` | Terrain bitfield |
-| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2 |
+| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol: `suppress` also clears exhausted / far-ocean prime resources (not LCR removal) |
 | `path` | `mapped` | Region + visitor |
 | `seen` | `mapped` | Fog / score nibbles |
 
@@ -298,14 +299,25 @@ Replaces legacy `unknown_e[504]` + `unknown_f[110]` (same bytes). Proven from
 |----------|------|-----|-------|--------|-------|
 | 0 | 270 | `0x86f6` | `sea_connectivity[270]` | `mapped` | 15×18 neighbor bits; fill `local_24==1`; rebuilt on blank export |
 | 270 | 270 | `0x85e8` | `land_connectivity[270]` | `mapped` | fill `local_24==0`; rebuilt on blank export |
-| 540 | 32 | `0x945e` | `continent_tally_a[16]` | `mapped` | land terrain-class filter; rebuilt |
-| 572 | 32 | `0x85c8` | `continent_tally_b[16]` | `mapped` | land tile counts; rebuilt |
+| 540 | 32 | `0x945e` | `continent_tally_a[16]` | `mapped` | land terrain-class filter; rebuilt. Smcol mis-splits this region as `unknown_map38c*` / partial `strategy` |
+| 572 | 32 | `0x85c8` | `continent_tally_b[16]` | `mapped` | land tile counts; rebuilt. Smcol hint: cheat **Show Strategy** numbers live in this post-connect window (their `strategy` field is undersized / misaligned) |
 | 604 | 4 | SS:`local_8` | `save_path_blob` | `mapped` | Save-path blob; not filled by 67f4 |
 | 608 | 4 | `0x8d80` | `boot_timer` | `mapped` | `FUN_75c2_2d46`; **not** seed |
 | 612 | 2 | `0x190` | `prime_resource_seed` | `mapped` | full u16; `FUN_684c_08c0` mapgen |
 
-Smcol’s post-connectivity carve does **not** match these DOS writes — prefer DOS.
+Smcol’s post-connectivity carve does **not** match these DOS writes — prefer DOS
+(`unknown_map38c2`/`c3`/`strategy`/`unknown_map38d` + 1-byte `prime_resource_seed`
++ pad). Port keeps full u16 seed @612 and 16×u16 tallies.
 `veteran_teach_threshold` (`0x9428`) is reader-only (no writer in unpacked image).
+
+**Connectivity algorithm (smcol `supplemental-info.md`, community):** each plane is
+15×18 **column-major** quads (4×4 tiles); rightmost column of quads is always
+zero (map width 58 is not divisible by 4). Per adjacent pair: pick an anchor among the four inner tiles
+(sea: water ∩ region_id sea-lane; land: land walkable), pathfind with hop
+cap **≤6**, set symmetric neighbor bits. Smcol reports a DOS bug that
+mis-fills **NE/SW** bits in rare cases — byte-exact rebuild vs original saves
+must relax those bits if comparing naive A*. Port rebuild follows
+`FUN_67f4_0088` (COLONY00 planes byte-exact including that quirk).
 
 **Export rebuild (P3+P4):** `col1_post_map_rebuild_connectivity` (`FUN_67f4_0088`)
 runs from `col1_bridge_capture` when `post_map` is all-zero. Planes + tallies
@@ -366,6 +378,35 @@ flowchart TB
 
 Standing rules: keep RMW sizes; do not invent blobs without decomp evidence;
 **census** mid-campaign = DOS-parity preserve only (see Stuff §).
+
+---
+
+## Smcol audit (2026-08-10)
+
+Re-read of [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility)
+(`smcol_sav_struct.json` + `supplemental-info.md` + README changelog) against this
+atlas. Most named fields were already absorbed in P2 or superseded by DOS peels.
+
+**New / corrected community clues absorbed above:**
+
+| Smcol claim | Port action |
+|-------------|-------------|
+| Colony +0xba / +0xbe = fog population / fortification per Euro | Atlas corrected (`partial`/`community`); fixtures corroborate; founding cite `FUN_364b_1ba8` |
+| Treasure `profession` = gold/100 | Documented on unit `profession` (DOS Europe-exit already knew) |
+| `other` = 18 + click xy + 2 | Documented carve |
+| Stuff `0x336` = show colony prod quantities | Community alias on `ui_toggle_336` |
+| Price-group mechanics (only processed goods) | Note on `price_group_state` |
+| Connectivity quad algorithm + NE/SW bug | Note under post_map (rebuild still DOS-cited) |
+| `suppress` prime-resource cases; tribe growth/alarm/horse lore | Notes on mapped fields |
+
+**Already known / prefer DOS (do not take smcol literally):**
+
+- Post-map after connectivity (`strategy` / `unknown_map38*` / 1-byte seed) — wrong carve
+- Trade-route load/unload blob order — smcol swapped vs `FUN_647e`
+- `euro_relation` attitude/status/piracy bitfield — conflicts with `FUN_15b3` WAR/PEACE/ALLY/MET
+- Head `tile_selection_mode` / `manual_save_flag` / `end_of_turn_sign` — port has `map_mode` + `turn_loop_running` / `map_modal_active` / `no_unit_selected` from DS
+- Tribe `BLCS.brave_missing` vs port `state.artillery` — keep DOS name until re-cited
+- Colony AI / specialty / capitol bytes smcol still calls `unknown*` — port ahead
 
 ---
 
