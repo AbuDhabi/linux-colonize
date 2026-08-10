@@ -195,9 +195,9 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
 | `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget |
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
-| `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` |
+| `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo) |
 | `relation_by_indian[8]` | 8 | `mapped` | |
-| `treaty_timer` / `diplo_flag` / sticky / privateer | 12 | `partial` | Linux stand-ins (`ai_diplo.c`); union w/ `unknown26[12]` |
+| `treaty_timer` / sticky / privateer | 12 | `partial` | Linux stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here |
 | `trade` (240) | 240 | `mapped` | euro_price / nr / gold / tons |
 
 ### Tribe (18 × T)

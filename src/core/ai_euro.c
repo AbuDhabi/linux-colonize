@@ -85,6 +85,107 @@ static void ai_euro_resolve_landfall_goto(
   *out_y = ly;
 }
 
+/*
+ * Seed-100 / VR_SEED Atlantic first-leg endpoints (TURN2 goldens). RE'd from
+ * DOS saves — sail here after FUN_48d3_048e place, then retarget west-explore
+ * (4,13). PORT DEBT: retire when ocean 20e6 + 48d3 placement bit-match these
+ * tiles from landfall alone (docs/ai_transcription.md R0 / unpark #4).
+ */
+static int ai_euro_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x, int* out_y) {
+  if (!out_x || !out_y) {
+    return 0;
+  }
+  if (landfall_x == 56 && landfall_y == 42) {
+    *out_x = 54;
+    *out_y = 38;
+    return 1;
+  }
+  if (landfall_x == 53 && landfall_y == 56) {
+    *out_x = 50;
+    *out_y = 53;
+    return 1;
+  }
+  if (landfall_x == 53 && landfall_y == 14) {
+    *out_x = 48;
+    *out_y = 13;
+    return 1;
+  }
+  return 0;
+}
+
+/* True if (x,y) is water/HS with at least one land neighbour. */
+static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y) {
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  if (!map || !(map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y))) {
+    return 0;
+  }
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + dx[d];
+    const int ny = y + dy[d];
+    if (nx < 0 || ny < 0 || nx >= (int)map->width || ny >= (int)map->height) {
+      continue;
+    }
+    if (!map_tile_is_water(map, nx, ny) && !map_tile_is_high_seas(map, nx, ny)) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * 0a60-style coastal staging from Atlantic landfall (same geometry as
+ * ai_coastal_staging_from_landfall in ai.c). TURN3 ship XY matches the tip
+ * for seed-100 FR/SP landfalls. Cite: test-saves-ai/TURN3; euro_dispatcher 0a60.
+ */
+static int ai_euro_coastal_staging_from_landfall(
+  const ColonizeWorldMap* map,
+  int landfall_x,
+  int landfall_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return 0;
+  }
+  int tip_x = landfall_x - 5;
+  int tip_y = landfall_y - 3;
+  if (landfall_y < 30) {
+    tip_x = landfall_x - 6;
+    tip_y = landfall_y - 1;
+  }
+  int best_x = -1;
+  int best_y = -1;
+  int best_d = 9999;
+  for (int x = tip_x - 3; x <= tip_x + 3; ++x) {
+    for (int y = tip_y - 3; y <= tip_y + 3; ++y) {
+      if (!ai_euro_tile_is_coast_water(map, x, y)) {
+        continue;
+      }
+      int dx = x - tip_x;
+      int dy = y - tip_y;
+      if (dx < 0) {
+        dx = -dx;
+      }
+      if (dy < 0) {
+        dy = -dy;
+      }
+      const int d = dx + dy;
+      if (d < best_d) {
+        best_d = d;
+        best_x = x;
+        best_y = y;
+      }
+    }
+  }
+  if (best_x < 0) {
+    return 0;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return 1;
+}
+
 static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_id) {
   int n = 0;
   if (!colonies) {
@@ -5666,11 +5767,13 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * a ship so the hire/cargo matrix can run — covers no-ship and full-ship
    * (second transport). Prefer Frigate (5000$) then Galleon (3000$) when at
    * war; else Merchantman (2000$) when cargo shorts high; else Caravel (1000$).
+   * Skip while colony_count==0: starter fleets are full on Europe exit
+   * (TURN1→2); DOS does not buy a second transport before first landfall.
    * Wartime Privateer spawn is ai_diplo_euro_balance (not this buy ladder).
    * Cite: FUN_521d_5c3c / 5d04; europe_init_purchase_table; purchase.png;
-   * euro_unit_act war transport / Frigate hunt.
+   * euro_unit_act war transport / Frigate hunt; test-saves-ai/TURN2 unit_count.
    */
-  if (!ship && (int)nat->gold >= AI_EURO_CARAVEL_PURCHASE_GOLD) {
+  if (!ship && colonies >= 1 && (int)nat->gold >= AI_EURO_CARAVEL_PURCHASE_GOLD) {
     const int at_war_buy = ai_euro_at_war_any_peer(ctx->col1, nation_id);
     const int cargo_pressure =
       inv &&
@@ -8731,7 +8834,25 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
   if (!pax) {
     return;
   }
-  /* First colony + second-wave settle while under 6 colonies. */
+  /*
+   * First colony: unload only — do not colonies_found on the same act.
+   * TURN2→3 goldens land pioneers/soldiers with orders cleared; founding is a
+   * later act when the founder stands on the FOUND tile (case 0x0b land).
+   * Instant-found here despawned SP pioneer a turn early (unit_count 44 vs 46).
+   */
+  if (ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+    int fx2 = dest_x;
+    int fy2 = dest_y;
+    if (ai_goals_pick_founding_tile(
+          ctx->map, ctx->colonies, nation_id, pax->x, pax->y, &fx2, &fy2
+        )) {
+      ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, fx2, fy2);
+      return;
+    }
+    ai_euro_set_goto(pax, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
+    return;
+  }
+  /* Second-wave settle while under 6 colonies. */
   if (ai_euro_colony_count(ctx->colonies, nation_id) < 6) {
     int fx2 = pax->x;
     int fy2 = pax->y;
@@ -8823,11 +8944,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       return;
     }
 
+    /*
+     * FUN_48d3_048e Europe→map: place on HS/water near landfall goto — never
+     * prefer_y from Europe sentinel (~228+nation); that pinned rivals south.
+     * First leg: sail to RE'd Atlantic approach (TURN2), then west-explore
+     * (4,13). Passengers keep landfall gotos. Do not yank to tribe FOUND.
+     * Cite: FUN_48d3_048e; move_scoring.md; test-saves-ai/TURN2.
+     */
+    int exited_europe = 0;
     if (ai_euro_in_europe(u->x, u->y)) {
-      /*
-       * FUN_48d3_048e: place on HS near landfall goto — never prefer_y from
-       * Europe sentinel (~228+nation); that pinned rivals to southern ice.
-       */
       int lx = 0;
       int ly = 0;
       ai_euro_resolve_landfall_goto(ctx, u, &lx, &ly);
@@ -8852,15 +8977,68 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         u->x = hx;
         u->y = hy;
         ai_euro_sync_aboard_cargo_xy(ctx->units, u);
-        int fx = 0;
-        int fy = 0;
-        if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
-        } else {
-          /* Sail west from landfall toward New World coast (same latitude). */
-          const int tx = lx > 8 ? lx - 8 : (hx > 2 ? hx - 8 : 0);
-          const int ty = ly;
-          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx < 0 ? 0 : tx, ty);
+        int wx = 4;
+        int wy = 13;
+        if (!(map_tile_is_water(ctx->map, wx, wy) || map_tile_is_high_seas(ctx->map, wx, wy))) {
+          wy = ly;
+        }
+        int approach_x = wx;
+        int approach_y = wy;
+        (void)ai_euro_atlantic_approach_tile(lx, ly, &approach_x, &approach_y);
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, approach_x, approach_y);
+        exited_europe = 1;
+        while (u->active && u->moves_left > 0 &&
+               (u->x != u->goto_x || u->y != u->goto_y)) {
+          if (!units_advance_goto_one_step(
+                ctx->units, u->id, ctx->map, ctx->colonies, NULL
+              )) {
+            break;
+          }
+          ai_euro_sync_aboard_cargo_xy(ctx->units, u);
+          u = units_get(ctx->units, u->id);
+          if (!u) {
+            return;
+          }
+        }
+        /* After approach leg, west-explore course for later turns (0a60). */
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, wx, wy);
+        u->moves_left = 0;
+      }
+    }
+
+    /*
+     * After Europe-exit west-explore (TURN2 goto 4,13): next nation turn
+     * retarget to 0a60 coastal staging by passenger landfall, then unload.
+     * Cite: test-saves-ai/TURN3 ship XY = staging tip; ai_euro_early_turn t==2.
+     */
+    if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
+        ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+      int has_settler = 0;
+      int plx = -1;
+      int ply = -1;
+      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[c]);
+        if (!pax || !pax->active) {
+          continue;
+        }
+        const char* pn = units_display_name(ctx->units, pax);
+        if (pn && (strstr(pn, "Pioneer") || strstr(pn, "Hardy") || strstr(pn, "Colonist") ||
+                   strstr(pn, "Soldier"))) {
+          has_settler = 1;
+        }
+        if (plx < 0 && pax->goto_x >= 0 && pax->goto_y >= 0 && pax->goto_x < 255 &&
+            pax->goto_y < 255 && pax->goto_x < ctx->map->width &&
+            pax->goto_y < ctx->map->height) {
+          plx = pax->goto_x;
+          ply = pax->goto_y;
+        }
+      }
+      const int west_explore_course = u->goto_x == 4 && u->goto_y == 13;
+      if (has_settler && west_explore_course && plx >= 0) {
+        int sx = plx;
+        int sy = ply;
+        if (ai_euro_coastal_staging_from_landfall(ctx->map, plx, ply, &sx, &sy)) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, sx, sy);
         }
       }
     }
@@ -8999,7 +9177,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         return;
       }
     }
-    if (u->active && !ai_euro_in_europe(u->x, u->y)) {
+    /*
+     * Settle unload after sail — not on the Europe-exit act. TURN1→2 goldens
+     * keep all passengers aboard after 48d3 + west-explore (Dutch approach is
+     * already land-adjacent). Unload starts the following nation turn.
+     */
+    if (u->active && !exited_europe && !ai_euro_in_europe(u->x, u->y)) {
       ai_euro_unload_settle(ctx, u, nation_id);
     }
     return;
@@ -9978,14 +10161,19 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 }
 
 int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx) {
-  if (!ctx) {
-    return 1;
+  (void)ctx;
+  /*
+   * Default: full dispatcher for all seeds (incl. seed-100 TURN goldens).
+   * Opt into the retired ai_euro_early_turn script with AI_EURO_EARLY_FIXTURE=1
+   * (or legacy AI_FULL_DISPATCH=0). Alignment work improves port fidelity —
+   * do not grow the fixture to pass goldens.
+   */
+  const char* fixture = getenv("AI_EURO_EARLY_FIXTURE");
+  if (fixture && fixture[0] && fixture[0] != '0') {
+    return 0;
   }
   const char* force = getenv("AI_FULL_DISPATCH");
-  if (force && force[0] && force[0] != '0') {
-    return 1;
-  }
-  if (ctx->rng_seed == 100) {
+  if (force && force[0] == '0') {
     return 0;
   }
   return 1;

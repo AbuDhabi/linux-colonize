@@ -14,14 +14,12 @@
  * FUN_15b3_* bilateral Euro×Euro bytes + 6d8e timers + 5bfb war/ally.
  * Thin map: original_sources_annotated/ai/euro_diplo.md
  *
- * nation[a].unknown26[0..3] = treaty timers toward peer
- * nation[a].unknown26[4..7] = diplo flag byte toward peer (15b3 stand-in)
- * nation[a].unknown26[8]   = Indian hostility sticky (0 clear / 1 at-war /
- *                             2 very-low deepen; synced from relation matrix)
- * nation[a].unknown26[9]   = wartime Privateer spawn mask (bit peer =
- *                             commissioned once this war; clear on peace)
- * Exact DS −0x77c4 offset PARKED. Indian×Euro full 15b3 matrix PORT DEBT
- * (thin stand-ins: peaceful drift + feeler + war hit + sticky sync).
+ * Peer flags: `nation[a].euro_relation[b]` (DS −0x77c4 / Col1 mapped).
+ * Do NOT use unknown26[4..7] for flags — those save bytes are unrelated and
+ * false-triggered WAR (Privateer spam on seed-100 TURN1→2).
+ * Remaining unknown26 Linux stand-ins (timers / sticky / privateer mask):
+ *   [0..3] treaty timers  [8] Indian sticky  [9] Privateer spawn mask
+ * Indian×Euro full 15b3 matrix still PORT DEBT (thin feeler / war-hit / sticky).
  */
 
 #define AI_DIPLO_FLAG_BASE 4
@@ -939,14 +937,15 @@ static uint8_t* ai_diplo_flag_byte(ColonizeCol1Save* col1, int nation, int peer)
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
   }
-  return &col1->nation[nation].diplo_flag[peer];
+  /* FUN_15b3 / DS −0x77c4 — mapped Col1 euro_relation[peer]. */
+  return &col1->nation[nation].euro_relation[peer];
 }
 
 static const uint8_t* ai_diplo_flag_byte_const(const ColonizeCol1Save* col1, int nation, int peer) {
   if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
     return NULL;
   }
-  return &col1->nation[nation].diplo_flag[peer];
+  return &col1->nation[nation].euro_relation[peer];
 }
 
 /* Mirror WAR/ALLY into nation_relation for legacy readers (derived only). */

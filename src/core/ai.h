@@ -17,8 +17,8 @@
  * European / Indian / King AI (Full T0/T1 surface).
  *
  * New-game: Col1 template + rival fleets + tribes/Braves.
- * Euro: seed-100 early fixture (smoke_ai_turns) or full dispatcher
- *   (ai_euro.c — goals/hire/act/scoring) when AI_FULL_DISPATCH=1 or rng≠100.
+ * Euro: full dispatcher by default (ai_euro.c). Opt into retired seed-100
+ *   early fixture with AI_EURO_EARLY_FIXTURE=1 (bisect only).
  * Indian: growth + quiet pulse + contact/meet/trade/raids (ai_contact.c).
  * King: tax / SoL declare / REF waves (ai_king.c).
  */
