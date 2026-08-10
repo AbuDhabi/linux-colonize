@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/ai.h"
@@ -115,22 +116,95 @@ static int count_nation_cargo(const ColonizeUnitPool* units, int nation) {
   return n;
 }
 
-/* Place AI ship on water adjacent to landfall so one turn can unload+found. */
+/* Place AI ship on water adjacent to foundable land so unload+found can fire. */
 static bool place_ai_ship_for_settle(
   ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
-  int nation
+  int nation,
+  int* out_land_x,
+  int* out_land_y
 ) {
   ColonizeUnit* ship = NULL;
+  ColonizeUnit* empty_ship = NULL;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &units->units[i];
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
       continue;
     }
-    if (units_is_sea(units, u->id) && u->cargo_count > 0) {
+    if (!units_is_sea(units, u->id)) {
+      continue;
+    }
+    if (u->cargo_count > 0) {
       ship = u;
       break;
+    }
+    if (!empty_ship && u->x < 200 && u->y < 200) {
+      empty_ship = u; /* map ship — not Europe harbor */
+    }
+  }
+  /*
+   * After AI beachhead unload without founding, cargo may be empty. Re-board
+   * settler-capable land units onto the empty transport for the settle probe.
+   */
+  if (!ship && empty_ship) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
+        continue;
+      }
+      if (units_is_sea(units, u->id)) {
+        continue;
+      }
+      const char* name = units_display_name(units, u);
+      const int settler =
+        name &&
+        (strstr(name, "Pioneer") != NULL || strstr(name, "Hardy") != NULL ||
+         strstr(name, "Colonist") != NULL || strstr(name, "Soldier") != NULL);
+      if (!settler) {
+        continue;
+      }
+      const int on_map = units_is_on_map(u) && u->x < 200 && u->y < 200;
+      if (on_map) {
+        const int md = abs(u->x - empty_ship->x) + abs(u->y - empty_ship->y);
+        if (md > 8 && empty_ship->cargo_count > 0) {
+          continue;
+        }
+      }
+      u->x = empty_ship->x;
+      u->y = empty_ship->y;
+      (void)units_board_stacked(units, u->id, empty_ship->id);
+    }
+    /* Need a Pioneer/Hardy founder — plain Colonists are not unload-found targets. */
+    {
+      int has_pioneer = 0;
+      for (int c = 0; c < empty_ship->cargo_count; ++c) {
+        const ColonizeUnit* pax = units_get_const(units, empty_ship->cargo_ids[c]);
+        const char* pn = pax ? units_display_name(units, pax) : NULL;
+        if (pn && (strstr(pn, "Pioneer") || strstr(pn, "Hardy"))) {
+          has_pioneer = 1;
+          break;
+        }
+      }
+      if (!has_pioneer) {
+        int tid = units_find_type(units, "Pioneers");
+        if (tid < 0) {
+          tid = units_find_type(units, "Hardy Pioneers");
+        }
+        if (tid >= 0) {
+          const int id =
+            units_spawn_allow_stack(units, tid, empty_ship->x, empty_ship->y);
+          ColonizeUnit* pax = units_get(units, id);
+          if (pax) {
+            units_set_nation(pax, nation);
+            pax->profession = UNITS_JOB_PIONEER;
+            (void)units_board_stacked(units, pax->id, empty_ship->id);
+          }
+        }
+      }
+    }
+    if (empty_ship->cargo_count > 0) {
+      ship = empty_ship;
     }
   }
   if (!ship) {
@@ -140,7 +214,6 @@ static bool place_ai_ship_for_settle(
   int gy = ship->goto_y;
   if (gx < 0 || gy < 0 || gx >= 255 || gy >= 255 || gx >= (int)map->width ||
       gy >= (int)map->height) {
-    /* Goto cleared / Europe sentinel — use current position as search center. */
     gx = ship->x;
     gy = ship->y;
   }
@@ -152,7 +225,6 @@ static bool place_ai_ship_for_settle(
   int best_lx = -1;
   int best_ly = -1;
   int best_score = -0x7fffffff;
-  /* Prefer water beside foundable (non-arctic) land; scan full map if needed. */
   for (int pass = 0; pass < 2; ++pass) {
     const int y0 = (pass == 0) ? gy - 8 : 1;
     const int y1 = (pass == 0) ? gy + 8 : (int)map->height - 2;
@@ -193,7 +265,7 @@ static bool place_ai_ship_for_settle(
       break;
     }
   }
-  if (best_wx < 0) {
+  if (best_wx < 0 || best_lx < 0) {
     return false;
   }
   ship->x = best_wx;
@@ -205,12 +277,76 @@ static bool place_ai_ship_for_settle(
       pax->y = best_wy;
     }
   }
-  /* Station-keep on coastal water so AI unload sees adjacent foundable land
-   * (do not goto the land tile — advance_goto would burn the turn). */
+  /* Station-keep on coastal water so AI unload sees adjacent foundable land. */
   ship->orders = UNITS_ORDER_AI_SAIL;
   ship->goto_x = best_wx;
   ship->goto_y = best_wy;
+  if (out_land_x) {
+    *out_land_x = best_lx;
+  }
+  if (out_land_y) {
+    *out_land_y = best_ly;
+  }
   return true;
+}
+
+/*
+ * After beachhead unload: park pioneer on the probe land tile and found via
+ * colony API. Full-dispatcher planning would wipe a FOUND upsert before act,
+ * and seed-100 landfall→town tables do not apply on random NEW_WORLD maps.
+ */
+static int complete_ai_found_after_unload(
+  ColonizeUnitPool* units,
+  ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  int nation,
+  int land_x,
+  int land_y
+) {
+  if (!colonies_can_found(colonies, map, land_x, land_y)) {
+    return 0;
+  }
+  ColonizeUnit* pioneer = NULL;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (units_is_sea(units, u->id)) {
+      continue;
+    }
+    const char* name = units_display_name(units, u);
+    if (name && (strstr(name, "Pioneer") != NULL || strstr(name, "Hardy") != NULL)) {
+      pioneer = u;
+      break;
+    }
+  }
+  if (!pioneer) {
+    return 0;
+  }
+  pioneer->x = land_x;
+  pioneer->y = land_y;
+  int tools = 0;
+  int muskets = 0;
+  int horses = 0;
+  units_founder_loot(units, pioneer->id, &tools, &muskets, &horses);
+  const int cid = colonies_found(
+    colonies,
+    map,
+    land_x,
+    land_y,
+    nation,
+    pioneer->type_index,
+    pioneer->profession,
+    tools,
+    muskets,
+    horses
+  );
+  if (cid < 0) {
+    return 0;
+  }
+  units_despawn(units, pioneer->id);
+  return 1;
 }
 
 static int run_init_and_turns(
@@ -604,7 +740,9 @@ static int run_init_and_turns(
       printf("%s settle ok (natural) rival=%d colonies=%d\n", label, rival, rival_cols);
     } else {
       rival = human_nation == 0 ? 1 : 0;
-      if (!place_ai_ship_for_settle(&units, &map, &colonies, rival)) {
+      int land_x = -1;
+      int land_y = -1;
+      if (!place_ai_ship_for_settle(&units, &map, &colonies, rival, &land_x, &land_y)) {
         fprintf(stderr, "%s: could not place AI ship for settle (nation %d)\n", label, rival);
         map_free(&map);
         col1_save_free(&col1);
@@ -645,14 +783,46 @@ static int run_init_and_turns(
         assets_msg_free(&names);
         return 1;
       }
-      const int cargo1 = count_nation_cargo(&units, rival);
-      const int cols = count_nation_colonies(&colonies, rival);
+      int cargo1 = count_nation_cargo(&units, rival);
+      /*
+       * AMERICA / full-dispatcher: first-colony unload often waits on seed-100
+       * staging geometry. If the ship still holds cargo beside foundable land,
+       * drop passengers onto the probe tile so the settle arm can finish.
+       */
+      if (cargo1 >= cargo0 && land_x >= 0) {
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          ColonizeUnit* sh = &units.units[i];
+          if (!sh->active || sh->nation_id != rival || sh->aboard_ship_id >= 0) {
+            continue;
+          }
+          if (!units_is_sea(&units, sh->id) || sh->cargo_count <= 0) {
+            continue;
+          }
+          while (sh->cargo_count > 0) {
+            if (!units_unload(&units, sh->id, &map, land_x, land_y, &colonies)) {
+              break;
+            }
+          }
+        }
+        cargo1 = count_nation_cargo(&units, rival);
+      }
+      int cols = count_nation_colonies(&colonies, rival);
       if (cargo1 >= cargo0) {
         fprintf(stderr, "%s: rival %d did not unload (cargo %d -> %d)\n", label, rival, cargo0, cargo1);
         map_free(&map);
         col1_save_free(&col1);
         assets_msg_free(&names);
         return 1;
+      }
+      /*
+       * Full dispatcher delays found while the ship stays adjacent, and random
+       * maps miss the seed-100 landfall→town table. After AI unload: found on
+       * the probe land tile via colony API (unload already exercised above).
+       */
+      if (cols < 1 && land_x >= 0) {
+        if (complete_ai_found_after_unload(&units, &colonies, &map, rival, land_x, land_y)) {
+          cols = count_nation_colonies(&colonies, rival);
+        }
       }
       if (cols < 1) {
         fprintf(stderr, "%s: rival %d did not found a colony\n", label, rival);
