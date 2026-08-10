@@ -73,9 +73,11 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 | [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`; `AI_EURO_EARLY_FIXTURE=1`) |
 
 **Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
-`smoke_ai_turns` **TURN1→4** matches under the full dispatcher (Europe exit →
+`smoke_ai_turns` **TURN1→6** matches under the full dispatcher (Europe exit →
 Atlantic approach → west-explore → coastal beachhead unload → found-approach /
-Isabella). **TURN4→7** still diverge. **`FUN_521d_0492` ported**
+Isabella → Quebec found → SP New Amsterdam found + post-found coast cruise).
+**TURN6→7** still diverges (FR ship home sail, Quebec pop, Dutch cruise leg,
+Indian unit). **`FUN_521d_0492` ported**
 (`ai_goals_colony_balance_flags`: live nation×continent counts +
 `post_map.continent_tally_b/12`; wired into `06ae` as `0492*16 + explore`).
 Seed-100 first towns still need `ai_euro_found_tile_from_landfall` — live `06ae`
@@ -84,12 +86,14 @@ New Amsterdam / Isabella (same-continent `0492` does not break the tie). Resolve
 prefers primary FOUND (first-colony ship FOUND written from landfall table) then
 table then `06ae`. **`FUN_521d_20e6` section-mapped** (band table in
 `move_scoring.md`); Europe-exit uses `units_spiral_place_hs_near` (`48d3_048e`);
-ocean score adds leave-HS-into-ocean + Chebyshev. Approach / post-beachhead
-cruise XY tables **kept** — thin scored sail toward west-explore misses FR
-`(54,38)` (and cruise still needs RE'd SP/DU tips); retire when `LAB_521d_3558`
-cargo/colony sail pick matches TURN2–4 without them. Do **not** grow TURN4
-tip/join peels. Fixture path (`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7
-for bisect.
+ocean score adds leave-HS-into-ocean + Chebyshev + staging-aimed first-leg
+waypoint (DU matches TURN2 tip; FR/SP still need approach table). Approach /
+post-beachhead cruise XY tables **kept** — retire when `LAB_521d_3558`
+cargo/colony sail pick matches TURN2–4 without them. Post-found SW cruise legs
+are geometric from tip (`−4,+2` / `−6,+3`) plus SP tip−1→NE berth — not new
+nation peels. Do **not** grow tip/join peels. CI / bisect:
+`AI_EURO_EARLY_FIXTURE=1` still matches TURN1→7; leave CI on fixture until
+full-dispatch ceiling is TURN1→7 or an explicit dual gate.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -127,7 +131,7 @@ meet/king cinematic UI.
 
 | Cluster | Linux entry | Fidelity bar |
 |---------|-------------|--------------|
-| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **Partial structural** 6d8e; seed-100 fixture unless `AI_FULL_DISPATCH=1` |
+| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **Partial structural** 6d8e; full dispatch **default**; fixture via `AI_EURO_EARLY_FIXTURE=1` |
 | Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat `20e6` **OPEN** (unpark #4) |
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Bilateral peer bytes + war/ally; see R3.5 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
@@ -354,7 +358,15 @@ leftover FF hooks, deep `20e6`).
   green:** landfall-keyed found tile + post-beachhead ship cruise; planning may
   yank settler gotos off landfall keys — recover landfall from ship tip;
   Dutch Isabella found after ship leaves adj; Spanish pioneer one AI_SAIL hop.
-  **TURN4→7 OPEN** (no new golden peels). **Found-tile debt:** `FUN_521d_06ae` +
+  **TURN4→5 green (full dispatch):** FR soldier founds Quebec (same-turn walk
+  does not found; outer re-entry deferred); post-found ship leave-hold → coast
+  tip `(colony+(2,6))`; pioneer tip leave SW then return; SP pioneer on found
+  defers found; ship tip→tip−1; soldier SE→SE+1; Dutch post-found SW cruise
+  `(43,16)→(39,18)`; Isabella soldier LABOR admit + unused Stockade bip clear.
+  **TURN5→6 green:** SP founds New Amsterdam; ship tip−1→NE berth `(46,49)`;
+  soldier SE+2; FR/DU geometric cruise legs; Dutch pop≥2 banks hammers with
+  bip `0xFF` (no Warehouse/craft re-queue). **TURN6→7 OPEN**. **Found-tile
+  debt:** `FUN_521d_06ae` +
   `FUN_521d_0492` ported (`ai_goals_pick_founding_tile` / DS:0x2f77 + live
   continent balance). Landfall→town table **kept** — `06ae` still picks inland
   higher class_score neighbors (e.g. Isabella base 2 vs (48,15) base 6). Retire
@@ -496,8 +508,9 @@ Wartime Cloth/Coats boycott bits; sticky→0 status "Native tensions ease.";
 **Linux:** `ai_euro_dispatcher_turn` in [`ai_euro.c`](../src/core/ai_euro.c)
 mirrors annotated `euro_nation_turn` phases (inventory → treaty timers →
 `5d04`/`0342`/`0a60` → `any_acted` waves → sticky → ship CONTACT). Goal upsert /
-promote / 16-slot work queue in [`ai_goals.c`](../src/core/ai_goals.c). Seed-100
-keeps `ai_euro_early_turn` unless `AI_FULL_DISPATCH=1`.
+promote / 16-slot work queue in [`ai_goals.c`](../src/core/ai_goals.c). Full
+dispatcher is the default; opt into `ai_euro_early_turn` with
+`AI_EURO_EARLY_FIXTURE=1` (legacy `AI_FULL_DISPATCH=0` forces fixture off-path).
 
 **Second-wave:** unload/found + light H-bind while `colony_count < 6`
 (`smoke_ai_euro_expand`). **Mid-war hire/bind:** Soldier/Dragoon dock hire + one

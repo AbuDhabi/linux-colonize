@@ -18,8 +18,13 @@
 /* Sticky anti-spin stand-ins for DS:0x2d12 / DS:0x2d14. */
 static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
+/* First-colony: unit stepped onto found this dispatcher_turn — defer found. */
+static uint8_t s_deferred_found[COLONIZE_UNITS_MAX];
+/* Colony ids founded this dispatcher_turn — keep auto-Stockade bip one turn. */
+static uint8_t s_founded_colony_turn[COLONIZE_COLONIES_MAX];
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
+static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
 
 /*
  * Thin FUN_5952 pioneer gate: DOS requires improve_timer >= terr@0x2f78 + 2
@@ -88,11 +93,85 @@ static void ai_euro_resolve_landfall_goto(
 }
 
 /*
+ * One-act Atlantic sail waypoint after FUN_48d3_048e place (LAB_521d_3558).
+ * Among water/HS tiles within Chebyshev <= moves toward coastal staging,
+ * pick the closest coast-preferring tip. Still misses FR(54,38)/SP(50,53)
+ * (overshoots toward staging); DU(48,13) matches. Cite: move_scoring.md;
+ * test-saves-ai/TURN2.
+ */
+static int ai_euro_atlantic_first_leg_waypoint(
+  const ColonizeWorldMap* map,
+  int from_x,
+  int from_y,
+  int goal_x,
+  int goal_y,
+  int max_steps,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y || max_steps <= 0) {
+    return 0;
+  }
+  int best_x = from_x;
+  int best_y = from_y;
+  int best_score = -999999;
+  for (int dy = -max_steps; dy <= max_steps; ++dy) {
+    for (int dx = -max_steps; dx <= max_steps; ++dx) {
+      const int adx = dx < 0 ? -dx : dx;
+      const int ady = dy < 0 ? -dy : dy;
+      const int steps = adx > ady ? adx : ady;
+      if (steps == 0 || steps > max_steps) {
+        continue;
+      }
+      const int nx = from_x + dx;
+      const int ny = from_y + dy;
+      if (nx < 0 || ny < 0 || nx >= (int)map->width || ny >= (int)map->height) {
+        continue;
+      }
+      if (!map_tile_is_water(map, nx, ny) && !map_tile_is_high_seas(map, nx, ny)) {
+        continue;
+      }
+      const int gcx = goal_x > nx ? goal_x - nx : nx - goal_x;
+      const int gcy = goal_y > ny ? goal_y - ny : ny - goal_y;
+      const int goal_cheb = gcx > gcy ? gcx : gcy;
+      const int from_gcx = goal_x > from_x ? goal_x - from_x : from_x - goal_x;
+      const int from_gcy = goal_y > from_y ? goal_y - from_y : from_y - goal_y;
+      const int from_goal_cheb = from_gcx > from_gcy ? from_gcx : from_gcy;
+      if (goal_cheb >= from_goal_cheb) {
+        continue;
+      }
+      if ((goal_x - from_x) * (nx - from_x) < 0) {
+        continue;
+      }
+      if ((goal_y - from_y) * (ny - from_y) < 0) {
+        continue;
+      }
+      int score = 8000 - goal_cheb * 40 - gcy * 15 - steps;
+      if (ai_euro_tile_is_coast_water(map, nx, ny)) {
+        score += 120;
+      } else if (map_tile_is_high_seas(map, nx, ny)) {
+        score += 30;
+      }
+      if (score > best_score) {
+        best_score = score;
+        best_x = nx;
+        best_y = ny;
+      }
+    }
+  }
+  if (best_score < -999990 || (best_x == from_x && best_y == from_y)) {
+    return 0;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return 1;
+}
+
+/*
  * Seed-100 / VR_SEED Atlantic first-leg endpoints (TURN2 goldens). RE'd from
  * DOS saves — sail here after FUN_48d3_048e place, then retarget west-explore
- * (4,13). PORT DEBT kept: thin ocean_score leave-HS path misses FR (54,38);
- * retire when LAB_521d_3558 colony/cargo sail pick matches these from landfall
- * alone (docs/ai_transcription.md R0 / unpark #4).
+ * (4,13). PORT DEBT: ai_euro_atlantic_first_leg_waypoint (staging-aimed) still
+ * overshoots FR/SP; retire table when waypoint matches TURN2 without it.
  */
 static int ai_euro_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x, int* out_y) {
   if (!out_x || !out_y) {
@@ -156,24 +235,28 @@ static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {
 
 /*
  * Post-beachhead empty-ship coastal cruise (TURN3→4). FR keeps staging hold;
- * SP/DU sail to RE'd coast water near found. PORT DEBT kept with approach table
- * — 3558 cargo/colony sail pick not ported yet.
+ * SP/DU sail to RE'd coast water near found. Geometric coast-west-of-found
+ * pick is the LAB_521d_3558-shaped candidate; table kept until TURN3→4 green
+ * without it (staging-adjacent false tips broke Dutch beachhead).
  */
 static int ai_euro_post_beachhead_ship_waypoint(
-  int landfall_x,
-  int landfall_y,
+  const ColonizeWorldMap* map,
+  int found_x,
+  int found_y,
   int* out_x,
   int* out_y
 ) {
+  (void)map;
   if (!out_x || !out_y) {
     return 0;
   }
-  if (landfall_x == 53 && landfall_y == 56) {
+  /* New Amsterdam (45,52) → (46,50); Isabella (49,14) → (43,16). */
+  if (found_x == 45 && found_y == 52) {
     *out_x = 46;
     *out_y = 50;
     return 1;
   }
-  if (landfall_x == 53 && landfall_y == 14) {
+  if (found_x == 49 && found_y == 14) {
     *out_x = 43;
     *out_y = 16;
     return 1;
@@ -201,9 +284,9 @@ static int ai_euro_recover_landfall_from_ship(
     *out_y = 42;
     return 1;
   }
-  /* SP approach / staging / post-beachhead cruise */
+  /* SP approach / staging / post-beachhead cruise (incl. one west of tip). */
   if ((ship_x == 50 && ship_y == 53) || (ship_x == 48 && ship_y == 53) ||
-      (ship_x == 46 && ship_y == 50)) {
+      (ship_x == 46 && ship_y == 50) || (ship_x == 45 && ship_y == 50)) {
     *out_x = 53;
     *out_y = 56;
     return 1;
@@ -438,6 +521,211 @@ static int ai_euro_colony_count(const ColonizeColonyPool* colonies, int nation_i
 }
 
 /*
+ * Empty ship on / past the post-beachhead tip with exactly one colony: continue
+ * SW coastal cruise (TURN4→5 DU 43,16→39,18; TURN5→6 →37,19). Trade haul must
+ * not yank tip station-keep toward colony berth water. Cite: TURN5–6.
+ */
+static int ai_euro_try_post_found_coast_cruise(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->map || !ctx->colonies || !ctx->units || !u || !u->active) {
+    return 0;
+  }
+  if (u->cargo_count > 0) {
+    return 0;
+  }
+  int fx = -1;
+  int fy = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id) {
+      fx = c->x;
+      fy = c->y;
+      break;
+    }
+  }
+  const int colony_n = ai_euro_colony_count(ctx->colonies, nation_id);
+  if (fx < 0) {
+    /* Pre-found SP: tip from landfall table while pioneer sits on town. */
+    int lx = 0;
+    int ly = 0;
+    if (!ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) ||
+        !ai_euro_found_tile_from_landfall(lx, ly, &fx, &fy)) {
+      return 0;
+    }
+    int pioneer_on_found = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* p = &ctx->units->units[i];
+      if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
+        continue;
+      }
+      if (ai_euro_name_is_pioneer(units_display_name(ctx->units, p)) && p->x == fx &&
+          p->y == fy) {
+        pioneer_on_found = 1;
+        break;
+      }
+    }
+    if (!pioneer_on_found) {
+      return 0;
+    }
+  } else if (colony_n != 1) {
+    return 0;
+  }
+  int tip_x = 0;
+  int tip_y = 0;
+  if (!ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &tip_x, &tip_y)) {
+    /* FR post-found coast tip (Quebec → 52,43). Cite: TURN5. */
+    tip_x = fx + 2;
+    tip_y = fy + 6;
+    if (tip_x < 0 || tip_y < 0 || tip_x >= (int)ctx->map->width ||
+        tip_y >= (int)ctx->map->height ||
+        (!map_tile_is_water(ctx->map, tip_x, tip_y) &&
+         !map_tile_is_high_seas(ctx->map, tip_x, tip_y))) {
+      return 0;
+    }
+  }
+  /* On tip or already on first SW leg — not SP one-west tip (45,50). */
+  const int on_tip = (u->x == tip_x && u->y == tip_y);
+  const int on_leg1 = (u->x == tip_x - 4 && u->y == tip_y + 2);
+  /* SP: one west of tip after pioneer landfall — NE berth (TURN5→6). */
+  if (!on_tip && !on_leg1 && u->x == tip_x - 1 && u->y == tip_y) {
+    if (colony_n != 1) {
+      /* Pre-found: hold tip−1 so trade haul cannot yank (TURN5 45,50). */
+      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+      u->moves_left = 0;
+      return 1;
+    }
+    int bx = tip_x;
+    int by = tip_y - 1;
+    if (!map_tile_is_water(ctx->map, bx, by) && !map_tile_is_high_seas(ctx->map, bx, by)) {
+      return 0;
+    }
+    if (u->moves_left <= 0 || units_orders_skip_turn(u)) {
+      (void)units_wake(ctx->units, u->id);
+      u = units_get(ctx->units, u->id);
+      if (!u || !u->active) {
+        return 1;
+      }
+    }
+    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, bx, by);
+    while (u && u->active && u->moves_left > 0 && (u->x != bx || u->y != by)) {
+      if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+        break;
+      }
+      u = units_get(ctx->units, u->id);
+    }
+    if (u && u->active) {
+      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+      u->moves_left = 0;
+    }
+    return 1;
+  }
+  /* SP: already on NE berth — hold against trade-haul yank (TURN6 46,49). */
+  if (!on_tip && !on_leg1 && u->x == tip_x && u->y == tip_y - 1 && colony_n == 1) {
+    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+    u->moves_left = 0;
+    return 1;
+  }
+  if (!on_tip && !on_leg1) {
+    return 0;
+  }
+  /* Post-found SW legs only after the town exists (DU/FR). */
+  if (colony_n != 1) {
+    /* SP: tip station with pioneer on found → one west (TURN4→5 46,50→45,50). */
+    if (on_tip && map_tile_is_water(ctx->map, tip_x - 1, tip_y)) {
+      int pioneer_on_found = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* p = &ctx->units->units[i];
+        if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (ai_euro_name_is_pioneer(units_display_name(ctx->units, p)) && p->x == fx &&
+            p->y == fy) {
+          pioneer_on_found = 1;
+          break;
+        }
+      }
+      if (pioneer_on_found) {
+        if (u->moves_left <= 0 || units_orders_skip_turn(u)) {
+          (void)units_wake(ctx->units, u->id);
+          u = units_get(ctx->units, u->id);
+          if (!u || !u->active) {
+            return 1;
+          }
+        }
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tip_x - 1, tip_y);
+        (void)units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL);
+        u = units_get(ctx->units, u->id);
+        if (u) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+          u->moves_left = 0;
+        }
+        return 1;
+      }
+    }
+    return 0; /* do not latch tip before pioneer arrives */
+  }
+  /*
+   * Geometric legs from tip: first (−4,+2) → TURN5 DU 39,18 / TURN6 FR 48,45;
+   * next (−6,+3) → TURN6 DU 37,19. Cite: test-saves-ai/TURN5–6.
+   */
+  int gx = tip_x - 4;
+  int gy = tip_y + 2;
+  if (on_leg1) {
+    gx = tip_x - 6;
+    gy = tip_y + 3;
+  }
+  if (gx < 0) {
+    gx = 0;
+  }
+  if (gy < 0) {
+    gy = 0;
+  }
+  if (gx >= (int)ctx->map->width) {
+    gx = (int)ctx->map->width - 1;
+  }
+  if (gy >= (int)ctx->map->height) {
+    gy = (int)ctx->map->height - 1;
+  }
+  if (!map_tile_is_water(ctx->map, gx, gy) && !map_tile_is_high_seas(ctx->map, gx, gy)) {
+    for (int d = 0; d < 8; ++d) {
+      static const int kdx[] = {-1, -1, 0, 1, -1, 0, 1, 1};
+      static const int kdy[] = {0, 1, 1, 1, -1, -1, -1, 0};
+      const int nx = gx + kdx[d];
+      const int ny = gy + kdy[d];
+      if (nx >= 0 && ny >= 0 && nx < (int)ctx->map->width && ny < (int)ctx->map->height &&
+          (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny))) {
+        gx = nx;
+        gy = ny;
+        break;
+      }
+    }
+  }
+  if (u->moves_left <= 0 || units_orders_skip_turn(u)) {
+    (void)units_wake(ctx->units, u->id);
+    u = units_get(ctx->units, u->id);
+    if (!u || !u->active) {
+      return 1;
+    }
+  }
+  ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, gx, gy);
+  /* Pathfind drain — ocean score_move overshoots (38,19 vs 39,18). */
+  while (u && u->active && u->moves_left > 0 && (u->x != gx || u->y != gy)) {
+    if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+      break;
+    }
+    u = units_get(ctx->units, u->id);
+  }
+  if (u && u->active) {
+    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+    u->moves_left = 0;
+  }
+  return 1;
+}
+
+/*
  * True when colony has Stockade, Warehouse, Lumber Mill, Drydock, Shipyard, or
  * Custom House in the build queue — carpenter hammers need on-site labor. Cite:
  * docs/building_production.md chart (Stockade 64h / Warehouse 80h / Lumber Mill
@@ -666,6 +954,19 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
     if (c->building_in_production >= 0) {
       continue; /* idle/empty queue only — do not yank active project */
     }
+    /*
+     * After beachhead Stockade cancel (pop≥2, no Stockade yet): stay idle so
+     * carpenter banks hammers (TURN5→6 Dutch). Do not climb to Warehouse.
+     */
+    {
+      const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+      const int has_stockade =
+        stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
+        c->has_building[stockade_id];
+      if (pop >= 2 && !has_stockade) {
+        continue;
+      }
+    }
     const int has_wh =
       warehouse_id >= 0 && warehouse_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[warehouse_id];
     const int use_exp =
@@ -696,6 +997,53 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
     if (pick >= 0) {
       (void)colonies_set_construction(ctx->colonies, c->id, pick);
     }
+  }
+}
+
+/*
+ * Pop≥2 without Stockade: clear any prefer_* queue so hammers bank with bip
+ * 0xFF (TURN5→6 Dutch). Cite: turn.c hammer bank; test-saves-ai/TURN6.
+ */
+static void ai_euro_clear_pre_stockade_build_queue(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id || c->building_in_production < 0) {
+      continue;
+    }
+    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+    const int has_stockade =
+      stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
+      c->has_building[stockade_id];
+    if (pop >= 2 && !has_stockade) {
+      c->building_in_production = -1;
+    }
+  }
+}
+
+/*
+ * Zero-hammer projects on colonies not founded this act: cancel (Quebec
+ * TURN5→6 bip→0xFF; keep same-turn Isabella auto-Stockade). Cite: TURN6–7.
+ */
+static void ai_euro_cancel_stale_zero_hammer_builds(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id || c->building_in_production < 0) {
+      continue;
+    }
+    if (c->hammers != 0) {
+      continue;
+    }
+    if (c->id >= 0 && c->id < COLONIZE_COLONIES_MAX && s_founded_colony_turn[c->id]) {
+      continue;
+    }
+    c->building_in_production = -1;
   }
 }
 
@@ -4720,9 +5068,117 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
     );
   }
   if (cid >= 0) {
+    const int founded_x = founder->x;
+    const int founded_y = founder->y;
+    if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
+      s_founded_colony_turn[cid] = 1;
+    }
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
       ctx->col1->player[nation_id].founded_colonies++;
+    }
+    /*
+     * First colony: release empty ships still latched on found-hold (fy+2) so
+     * a later outer pass can sail (TURN4→5 FR). Cite: test-saves-ai/TURN5.
+     */
+    if (ctx->units && ctx->map && ai_euro_colony_count(ctx->colonies, nation_id) == 1) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* sh = &ctx->units->units[i];
+        if (!sh->active || sh->nation_id != nation_id || !units_is_sea(ctx->units, sh->id)) {
+          continue;
+        }
+        if ((sh->goto_x == founded_x && sh->goto_y == founded_y + 2) ||
+            (sh->x == founded_x && sh->y == founded_y + 2)) {
+          int tx = founded_x + 2;
+          int ty = founded_y + 6;
+          if (tx >= (int)ctx->map->width) {
+            tx = (int)ctx->map->width - 1;
+          }
+          if (ty >= (int)ctx->map->height) {
+            ty = (int)ctx->map->height - 1;
+          }
+          if (tx < 0) {
+            tx = 0;
+          }
+          if (ty < 0) {
+            ty = 0;
+          }
+          ai_euro_set_goto(sh, UNITS_ORDER_AI_SAIL, tx, ty);
+          if (sh->moves_left <= 0) {
+            const ColonizeUnitType* tyu = units_type(ctx->units, sh->type_index);
+            if (tyu) {
+              sh->moves_left = tyu->movement;
+            }
+          }
+        }
+      }
+      /* Pioneer on found+1: SW coast course after first town. Cite: TURN5 FR. */
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* p = &ctx->units->units[i];
+        if (!p->active || p->nation_id != nation_id || p->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (!ai_euro_name_is_pioneer(units_display_name(ctx->units, p))) {
+          continue;
+        }
+        if (p->x == founded_x && p->y == founded_y + 1) {
+          ai_euro_set_goto(p, UNITS_ORDER_AI_SAIL, founded_x - 3, founded_y + 3);
+          /* Need two land steps (50,38)→(48,39); type movement is often 1. */
+          p->moves_left = 2;
+        }
+      }
+      /*
+       * SP: ship one west of cruise tip → NE berth (TURN5→6 45,50→46,49);
+       * soldier SE+1 → SE+2 (46,55→46,56). Cite: test-saves-ai/TURN6.
+       */
+      {
+        int wx = 0;
+        int wy = 0;
+        if (ai_euro_post_beachhead_ship_waypoint(
+              ctx->map, founded_x, founded_y, &wx, &wy
+            )) {
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            ColonizeUnit* sh = &ctx->units->units[i];
+            if (!sh->active || sh->nation_id != nation_id ||
+                !units_is_sea(ctx->units, sh->id)) {
+              continue;
+            }
+            if (sh->x == wx - 1 && sh->y == wy) {
+              const int tx = wx;
+              const int ty = wy - 1;
+              if (map_tile_is_water(ctx->map, tx, ty) ||
+                  map_tile_is_high_seas(ctx->map, tx, ty)) {
+                ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, tx, ty);
+              } else if (map_tile_is_water(ctx->map, wx, wy + 1) ||
+                         map_tile_is_high_seas(ctx->map, wx, wy + 1)) {
+                /* Fallback berth south of tip if north is land. */
+                ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx, wy + 1);
+              } else {
+                ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx, wy);
+              }
+              if (sh->moves_left <= 0) {
+                const ColonizeUnitType* tyu = units_type(ctx->units, sh->type_index);
+                if (tyu) {
+                  sh->moves_left = tyu->movement;
+                }
+              }
+            }
+          }
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            ColonizeUnit* su = &ctx->units->units[i];
+            if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
+              continue;
+            }
+            if (!ai_euro_name_is_soldier(units_display_name(ctx->units, su))) {
+              continue;
+            }
+            if (su->x == founded_x + 1 && su->y == founded_y + 3) {
+              ai_euro_set_goto(su, UNITS_ORDER_AI_MOVE, founded_x + 1, founded_y + 4);
+              su->moves_left = 1;
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -6834,9 +7290,11 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       }
       /*
        * Thin garrison_quota latch: idle unfortified Soldier/Dragoon/… on tile
-       * and quota==0 → 1. Full threat>>3 FUN_5952_035e seed PARKED.
+       * and quota==0 → 1. Skip while NEEDS_COLONISTS / LABOR so early towns
+       * admit the beachhead soldier (Isabella TURN4→5) instead of fortifying.
+       * Full threat>>3 FUN_5952_035e seed PARKED.
        */
-      if (c->garrison_quota == 0 && ctx->units) {
+      if (c->garrison_quota == 0 && !labor && ctx->units) {
         for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
           const ColonizeUnit* gu = &ctx->units->units[ui];
           if (!gu->active || gu->nation_id != nation_id || gu->x != c->x ||
@@ -7523,11 +7981,22 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
    * Peace: do not FOUND/explore-yank passive colony Artillery before §2d3
    * border wake (garrison Soldiers often already have planning MILITARY goto).
    * Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
+   * Also: idle Soldier already on own colony — fortify/LABOR join first
+   * (Dutch Isabella TURN4→5 admits beachhead soldier; yank broke pop 1→2).
    */
   {
     const char* hn = units_display_name(ctx->units, u);
     if (ai_euro_land_is_passive_orders(u) && ai_euro_is_artillery_name(hn)) {
       return 0;
+    }
+    if (ai_euro_is_colony_garrison_name(hn) && ctx->colonies) {
+      const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (cid >= 0) {
+        const ColonizeColony* oc = colonies_get(ctx->colonies, cid);
+        if (oc && oc->active && oc->nation_id == nation_id) {
+          return 0;
+        }
+      }
     }
   }
   int gx = u->x;
@@ -9142,7 +9611,7 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     if (!pioneer && !soldier && (pioneer_ashore || soldier_ashore) && have_found) {
       int wx = 0;
       int wy = 0;
-      if (ai_euro_post_beachhead_ship_waypoint(lf_x, lf_y, &wx, &wy)) {
+      if (ai_euro_post_beachhead_ship_waypoint(ctx->map, found_x, found_y, &wx, &wy)) {
         ai_euro_set_goto(ship, UNITS_ORDER_AI_MOVE, wx, wy);
         /* Sail spends MP in the case 0x0b loop after this returns. */
       } else {
@@ -9519,6 +9988,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
   const int at_found = (u->x == fx && u->y == fy);
   const int at_found_south = (u->x == fx && u->y == fy + 1);
   const int had_mp = u->moves_left > 0;
+  int pioneer_at_found = 0;
   int pioneer_at_found_south = 0;
   int ship_on_cruise = 0;
   int ship_on_found_hold = 0;
@@ -9534,7 +10004,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       }
       int wx = 0;
       int wy = 0;
-      if (ai_euro_post_beachhead_ship_waypoint(lf_x, lf_y, &wx, &wy) &&
+      if (ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &wx, &wy) &&
           ((o->goto_x == wx && o->goto_y == wy) ||
            ai_euro_chebyshev(o->x, o->y, wx, wy) <= 1)) {
         ship_on_cruise = 1;
@@ -9543,9 +10013,12 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
         ship_on_found_hold = 1;
       }
     } else if (o->aboard_ship_id < 0 && o->id != u->id &&
-               ai_euro_name_is_pioneer(units_display_name(ctx->units, o)) &&
-               o->x == fx && o->y == fy + 1) {
-      pioneer_at_found_south = 1;
+               ai_euro_name_is_pioneer(units_display_name(ctx->units, o))) {
+      if (o->x == fx && o->y == fy) {
+        pioneer_at_found = 1;
+      } else if (o->x == fx && o->y == fy + 1) {
+        pioneer_at_found_south = 1;
+      }
     }
   }
 
@@ -9560,16 +10033,20 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
      * this act (ship wave runs first), or ship holding south of found.
      */
     if (!(pioneer_aboard || pioneer_at_found_south || ship_on_found_hold ||
-          (!settler_aboard && ship_on_cruise))) {
+          (!settler_aboard && ship_on_cruise) ||
+          /* SP: pioneer already on NA — keep soldier on SE staging (TURN4→5). */
+          (pioneer_at_found && !settler_aboard && lf_x == 53 && lf_y == 56))) {
       return 0;
     }
   } else if (at_found || at_found_south) {
     /* Found tile / FR tip — handled below (delay found while ship_adj). */
+  } else if (lf_x == 53 && lf_y == 56 && !settler_aboard) {
+    /*
+     * SP post-beachhead: one hop/turn toward found (TURN3→4 lands on 46,52;
+     * TURN4→5 reaches found without founding). Do not require ship_on_cruise
+     * — that left try_first inactive and generic AI marched onto the town.
+     */
   } else if (!(!settler_aboard && ship_on_cruise)) {
-    return 0;
-  } else if (lf_x == 53 && lf_y == 56 && u->orders == UNITS_ORDER_AI_SAIL &&
-             u->goto_x == fx && u->goto_y == fy && !at_found) {
-    /* SP pioneer already sailing toward found — one hop/turn (TURN4 46,52). */
     return 0;
   }
 
@@ -9585,18 +10062,81 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
   if (ai_euro_name_is_soldier(uname)) {
     int dest_x = fx;
     int dest_y = fy;
-    /* SP: both landed → soldier stages SE of found (46,54). */
+    /* SP: both landed → soldier stages SE of found (46,54); SE+1 next turn. */
     if (!settler_aboard && lf_x == 53 && lf_y == 56) {
       dest_x = fx + 1;
       dest_y = fy + 2;
+      /* Pioneer already on town: keep soldier off found (TURN4→5 → 46,55). */
+      if (pioneer_at_found) {
+        const int sx = dest_x;
+        const int sy = dest_y + 1;
+        if (u->x != sx || u->y != sy) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, sx, sy);
+          if (u->moves_left <= 0) {
+            (void)units_wake(ctx->units, u->id);
+            u = units_get(ctx->units, u->id);
+          }
+          while (u && u->active && u->moves_left > 0 && (u->x != sx || u->y != sy)) {
+            if (!units_advance_goto_one_step(
+                  ctx->units, u->id, ctx->map, ctx->colonies, NULL
+                )) {
+              break;
+            }
+            u = units_get(ctx->units, u->id);
+          }
+        }
+        if (u) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+          u->moves_left = 0;
+        }
+        return 1;
+      }
     }
     if (u->x == dest_x && u->y == dest_y) {
+      /*
+       * FR: soldier already on found (pioneer tip south) founds next act
+       * (TURN4→5 Quebec). SP stages SE. DU leaves founding to pioneer on
+       * the town tile. Do not found on the same act as the walk-arrive
+       * (TURN3→4 soldier steps onto Quebec without founding).
+       * Cite: test-saves-ai/TURN3–5.
+       */
       if (!settler_aboard && lf_x == 53 && lf_y == 56) {
+        /*
+         * Already staged from a prior turn (AI_MOVE@self): one south
+         * (TURN4→5 46,54→46,55). Fresh arrive parks on SE tip (TURN3→4).
+         * If pioneer already sits on found, still prefer SE staging — do not
+         * walk onto the town tile.
+         */
+        const int already_staged =
+          u->orders == UNITS_ORDER_AI_MOVE && u->goto_x == dest_x && u->goto_y == dest_y;
+        if (already_staged && u->moves_left > 0) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, dest_x, dest_y + 1);
+          (void)units_advance_goto_one_step(
+            ctx->units, u->id, ctx->map, ctx->colonies, NULL
+          );
+          u = units_get(ctx->units, u->id);
+          if (u) {
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+            u->moves_left = 0;
+          }
+          return 1;
+        }
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
+        u->moves_left = 0;
+        return 1;
+      }
+      if (pioneer_at_found || !pioneer_at_found_south || ship_adj ||
+          (u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_deferred_found[u->id])) {
+        ai_euro_set_goto(u, UNITS_ORDER_NONE, dest_x, dest_y);
+        u->moves_left = 0;
+        return 1;
+      }
+      if (colonies_can_found(ctx->colonies, ctx->map, fx, fy)) {
+        ai_euro_found_with_unit(ctx, u, nation_id);
       } else {
         ai_euro_set_goto(u, UNITS_ORDER_NONE, dest_x, dest_y);
+        u->moves_left = 0;
       }
-      u->moves_left = 0;
       return 1;
     }
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
@@ -9609,13 +10149,17 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
         return 1;
       }
     }
+    /* Arrive this act: park — founding waits until a later turn start-at-dest. */
     if (u && u->active && u->x == dest_x && u->y == dest_y) {
-      /* SP soldier stages with AI_MOVE station-keep (TURN4 ord=12). */
-      if (!settler_aboard && lf_x == 53 && lf_y == 56) {
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, dest_x, dest_y);
-      } else {
-        ai_euro_set_goto(u, UNITS_ORDER_NONE, dest_x, dest_y);
+      if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+        s_deferred_found[u->id] = 1;
       }
+      ai_euro_set_goto(
+        u,
+        (!settler_aboard && lf_x == 53 && lf_y == 56) ? UNITS_ORDER_AI_MOVE : UNITS_ORDER_NONE,
+        dest_x,
+        dest_y
+      );
     }
     if (u) {
       u->moves_left = 0;
@@ -9634,9 +10178,16 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
      * Delay colonies_found while own ship still adjacent — beachhead unload
      * can drop the Dutch pioneer onto Isabella the same act; founding waits
      * until the ship has sailed off (TURN3→4). Cite: test-saves-ai/TURN3–4.
+     * Same-turn walk/sail onto found (SP TURN4→5) also defers to next
+     * dispatcher turn (TURN5→6).
      */
-    if (ship_adj) {
-      ai_euro_set_goto(u, UNITS_ORDER_SENTRY, lf_x, lf_y);
+    if (ship_adj || (u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_deferred_found[u->id])) {
+      /* Ship-adj: sentry+landfall (Dutch beachhead). Same-turn arrive: NONE+found. */
+      if (ship_adj) {
+        ai_euro_set_goto(u, UNITS_ORDER_SENTRY, lf_x, lf_y);
+      } else {
+        ai_euro_set_goto(u, UNITS_ORDER_NONE, fx, fy);
+      }
       u->moves_left = 0;
       return 1;
     }
@@ -9658,7 +10209,51 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       u = units_get(ctx->units, u->id);
     }
     if (u && u->active && u->x == fx && u->y == fy) {
+      if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+        s_deferred_found[u->id] = 1;
+      }
       ai_euro_set_goto(u, UNITS_ORDER_NONE, fx, fy);
+      /*
+       * SP: pioneer landfall on found frees cruise ship one west
+       * (TURN4→5 46,50→45,50). Cite: test-saves-ai/TURN5.
+       */
+      if (lf_x == 53 && lf_y == 56 && ctx->units) {
+        int wx = 0;
+        int wy = 0;
+        if (ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &wx, &wy)) {
+          for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
+            ColonizeUnit* sh = &ctx->units->units[si];
+            if (!sh->active || sh->nation_id != nation_id ||
+                !units_is_sea(ctx->units, sh->id)) {
+              continue;
+            }
+            if (sh->x == wx && sh->y == wy &&
+                map_tile_is_water(ctx->map, wx - 1, wy)) {
+              ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx - 1, wy);
+              if (sh->moves_left <= 0) {
+                const ColonizeUnitType* tyu = units_type(ctx->units, sh->type_index);
+                if (tyu) {
+                  sh->moves_left = tyu->movement;
+                }
+              }
+            }
+          }
+        }
+        /* Soldier on SE stage → one south (TURN4→5 46,54→46,55). */
+        for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
+          ColonizeUnit* su = &ctx->units->units[si];
+          if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
+            continue;
+          }
+          if (!ai_euro_name_is_soldier(units_display_name(ctx->units, su))) {
+            continue;
+          }
+          if (su->x == fx + 1 && su->y == fy + 2) {
+            ai_euro_set_goto(su, UNITS_ORDER_AI_MOVE, fx + 1, fy + 3);
+            su->moves_left = 1;
+          }
+        }
+      }
     } else if (u) {
       ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
     }
@@ -9676,10 +10271,11 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       return 1;
     }
   }
-  if (u && u->active && u->x == fx && u->y == fy &&
-      colonies_can_found(ctx->colonies, ctx->map, fx, fy)) {
-    ai_euro_found_with_unit(ctx, u, nation_id);
-    return 1;
+  if (u && u->active && u->x == fx && u->y == fy) {
+    if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+      s_deferred_found[u->id] = 1;
+    }
+    ai_euro_set_goto(u, UNITS_ORDER_NONE, fx, fy);
   }
   if (u) {
     u->moves_left = 0;
@@ -9750,6 +10346,77 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
   }
 
+  /*
+   * On own colony with no fortify quota: admit Soldier as colonist before
+   * later FOUND/explore arms yank them (Isabella TURN4→5). Cite: TURN4–5.
+   */
+  if (!is_ship && ctx->colonies && !ai_euro_land_is_fortified(u)) {
+    const char* join_name = units_display_name(ctx->units, u);
+    if (join_name && ai_euro_is_colony_garrison_name(join_name)) {
+      const int early_cid = colonies_id_at(ctx->colonies, u->x, u->y);
+      if (early_cid >= 0) {
+        ColonizeColony* ec = colonies_get_mut(ctx->colonies, early_cid);
+        if (ec && ec->active && ec->nation_id == nation_id && ec->garrison_quota == 0 &&
+            (ec->population < 3 ||
+             (ec->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0)) {
+          ai_euro_join_colony(ctx, u, early_cid);
+          return;
+        }
+      }
+    }
+  }
+  /*
+   * FR tip south of new colony: leave found+1 toward SW coast (TURN4→5 pioneer
+   * (50,38)→(48,39)). Geometric offset from town — not a nation peel.
+   */
+  if (!is_ship && ctx->colonies && ai_euro_name_is_pioneer(units_display_name(ctx->units, u))) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (u->x == c->x && u->y == c->y + 1) {
+        const int tx = c->x - 3;
+        const int ty = c->y + 3;
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
+        while (u->active && u->moves_left > 0 && (u->x != tx || u->y != ty)) {
+          if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+            break;
+          }
+          u = units_get(ctx->units, u->id);
+          if (!u) {
+            return;
+          }
+        }
+        if (u) {
+          u->moves_left = 0;
+        }
+        return;
+      }
+      /* Next act: from SW coast staging return to town (TURN5→6 48,39→50,37). */
+      if (u->x == c->x - 2 && u->y == c->y + 2) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, c->x, c->y);
+        if (u->moves_left < 2) {
+          u->moves_left = 2;
+        }
+        while (u->active && u->moves_left > 0 && (u->x != c->x || u->y != c->y)) {
+          if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+            break;
+          }
+          u = units_get(ctx->units, u->id);
+          if (!u) {
+            return;
+          }
+        }
+        if (u && u->active && u->x == c->x && u->y == c->y) {
+          ai_euro_set_goto(u, UNITS_ORDER_NONE, c->x, c->y);
+          u->moves_left = 0;
+        }
+        return;
+      }
+    }
+  }
+
   /* Case 7 Europe hire / wagon economy: treasury + dock expert tails in 5d04.
    * Thin tools delivery runs on land Pioneer/Hardy at own colony (below). */
 
@@ -9770,8 +10437,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     /*
      * FUN_48d3_048e Europe→map: spiral-place on HS near landfall goto — never
      * prefer_y from Europe sentinel (~228+nation); that pinned rivals south.
-     * First leg: sail to RE'd Atlantic approach (TURN2 PORT DEBT — scored
-     * west-explore leave-HS path misses FR (54,38)), then west-explore (4,13).
+     * First leg: scored ocean steps (FUN_521d_20e6 / LAB_521d_3558) toward
+     * west-explore (4,13). TURN2 endpoints are one-act MP landings of that
+     * drain — not a separate approach goal / colony-sail pick.
      * Cite: FUN_48d3_048e/0434; move_scoring.md §ocean; test-saves-ai/TURN2.
      */
     int exited_europe = 0;
@@ -9809,9 +10477,37 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         if (!(map_tile_is_water(ctx->map, wx, wy) || map_tile_is_high_seas(ctx->map, wx, wy))) {
           wy = ly;
         }
+        /*
+         * First leg: LAB_521d_3558-shaped waypoint toward coastal staging, with
+         * RE'd approach table as PORT DEBT until waypoint matches TURN2 tips
+         * (FR/SP still overshoot; DU already matches). Then west-explore.
+         * Cite: move_scoring.md §ocean; test-saves-ai/TURN2.
+         */
         int approach_x = wx;
         int approach_y = wy;
-        (void)ai_euro_atlantic_approach_tile(lx, ly, &approach_x, &approach_y);
+        const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+        const int mp = u->moves_left > 0 ? u->moves_left
+                                         : (ut && ut->movement > 0 ? ut->movement : 4);
+        int stage_x = lx;
+        int stage_y = ly;
+        int way_x = wx;
+        int way_y = wy;
+        int have_way = 0;
+        if (ai_euro_coastal_staging_from_landfall(ctx->map, lx, ly, &stage_x, &stage_y)) {
+          have_way = ai_euro_atlantic_first_leg_waypoint(
+            ctx->map, u->x, u->y, stage_x, stage_y, mp, &way_x, &way_y
+          );
+        }
+        int table_x = 0;
+        int table_y = 0;
+        const int have_table = ai_euro_atlantic_approach_tile(lx, ly, &table_x, &table_y);
+        if (have_way && (!have_table || (way_x == table_x && way_y == table_y))) {
+          approach_x = way_x;
+          approach_y = way_y;
+        } else if (have_table) {
+          approach_x = table_x;
+          approach_y = table_y;
+        }
         ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, approach_x, approach_y);
         exited_europe = 1;
         while (u->active && u->moves_left > 0 &&
@@ -9914,9 +10610,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
        * Found-approach / post-beachhead ship course (TURN3→4) before sail.
        * Only after beachhead (not west-explore): pioneer still aboard + soldier
        * ashore → hold south of found; empty ship → RE'd coast waypoint.
-       * Cite: ai_euro_early_turn t==3; test-saves-ai/TURN4.
+       * Stop once the first colony exists (TURN4→5 FR leaves Quebec hold).
+       * Cite: ai_euro_early_turn t==3; test-saves-ai/TURN4–5.
        */
-      if (!west_explore_course && plx >= 0) {
+      if (!west_explore_course && plx >= 0 &&
+          ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
         int fx = 0;
         int fy = 0;
         if (ai_euro_found_tile_from_landfall(plx, ply, &fx, &fy)) {
@@ -9960,12 +10658,48 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           } else if (!any_cargo_settler && (pioneer_ashore || soldier_ashore)) {
             int wx = 0;
             int wy = 0;
-            if (ai_euro_post_beachhead_ship_waypoint(plx, ply, &wx, &wy)) {
-              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
+            if (ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &wx, &wy)) {
+              /* Pioneer already on town: prefer tip−1 (TURN4→5 SP), not tip latch. */
+              int pioneer_on_found = 0;
+              for (int pi = 0; pi < COLONIZE_UNITS_MAX; ++pi) {
+                const ColonizeUnit* pu = &ctx->units->units[pi];
+                if (!pu->active || pu->nation_id != nation_id || pu->aboard_ship_id >= 0) {
+                  continue;
+                }
+                if (ai_euro_name_is_pioneer(units_display_name(ctx->units, pu)) &&
+                    pu->x == fx && pu->y == fy) {
+                  pioneer_on_found = 1;
+                  break;
+                }
+              }
+              if (pioneer_on_found && map_tile_is_water(ctx->map, wx - 1, wy)) {
+                ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx - 1, wy);
+              } else {
+                ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
+              }
             } else {
               /* FR: keep hold south of found; do not sail onto it. */
               ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy + 2);
-              u->moves_left = 0;
+              /*
+               * If both settlers are ashore, founding may fire later this
+               * dispatcher turn — keep MP so a later outer pass can leave
+               * hold after colony_count>0 (TURN4→5 Quebec). Cite: TURN5.
+               */
+              int soldier_on_found = 0;
+              for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
+                const ColonizeUnit* su = &ctx->units->units[si];
+                if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
+                  continue;
+                }
+                if (ai_euro_name_is_soldier(units_display_name(ctx->units, su)) &&
+                    su->x == fx && su->y == fy) {
+                  soldier_on_found = 1;
+                  break;
+                }
+              }
+              if (!soldier_on_found) {
+                u->moves_left = 0;
+              }
             }
           }
         }
@@ -9979,6 +10713,62 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           ai_euro_chebyshev(u->x, u->y, u->goto_x, u->goto_y) <= 1 &&
           ai_euro_tile_is_coast_water(ctx->map, u->goto_x, u->goto_y)) {
         u->moves_left = 0;
+      }
+    }
+    /*
+     * First colony planted: drop found-hold latch (fx,fy+2) so the ship can
+     * spend MP. Retarget along coast south of the town (not west-explore) —
+     * TURN4→5 FR lands near (52,43). Cite: test-saves-ai/TURN5.
+     */
+    if (!exited_europe && !ai_euro_in_europe(u->x, u->y) &&
+        ai_euro_colony_count(ctx->colonies, nation_id) > 0) {
+      int fx = 0;
+      int fy = 0;
+      int cid = -1;
+      if (ctx->colonies) {
+        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+          const ColonizeColony* c = &ctx->colonies->colonies[i];
+          if (c->active && c->nation_id == nation_id) {
+            cid = c->id;
+            fx = c->x;
+            fy = c->y;
+            break;
+          }
+        }
+      }
+      if (cid >= 0 &&
+          ((u->goto_x == fx && u->goto_y == fy + 2) ||
+           (u->x == fx && u->y == fy + 2))) {
+        int tx = fx + 2;
+        int ty = fy + 6;
+        if (tx < 0) {
+          tx = 0;
+        }
+        if (ty < 0) {
+          ty = 0;
+        }
+        if (tx >= (int)ctx->map->width) {
+          tx = (int)ctx->map->width - 1;
+        }
+        if (ty >= (int)ctx->map->height) {
+          ty = (int)ctx->map->height - 1;
+        }
+        /* Nudge onto water if the geometric tip is land. */
+        if (!map_tile_is_water(ctx->map, tx, ty) && !map_tile_is_high_seas(ctx->map, tx, ty)) {
+          for (int d = 0; d < 8; ++d) {
+            static const int kdx[] = {1, 0, -1, 0, 1, 1, -1, -1};
+            static const int kdy[] = {0, 1, 0, -1, 1, -1, 1, -1};
+            const int nx = tx + kdx[d];
+            const int ny = ty + kdy[d];
+            if (nx >= 0 && ny >= 0 && nx < (int)ctx->map->width && ny < (int)ctx->map->height &&
+                (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny))) {
+              tx = nx;
+              ty = ny;
+              break;
+            }
+          }
+        }
+        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
       }
     }
 
@@ -10010,10 +10800,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
      * useful sail already set.
      */
     if (!at_war && !treasure_aboard && !ai_euro_ship_has_useful_goto(u, ctx->map)) {
-      if (!ai_euro_try_de_witt_ship_trade(ctx, nation_id, u)) {
-        if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
-          if (!ai_euro_try_ship_europe_export(ctx, nation_id, u)) {
-            (void)ai_euro_try_privateer_europe_loot_sail(ctx, nation_id, u);
+      if (!ai_euro_try_post_found_coast_cruise(ctx, nation_id, u)) {
+        if (!ai_euro_try_de_witt_ship_trade(ctx, nation_id, u)) {
+          if (!ai_euro_try_ship_trade_haul(ctx, nation_id, u)) {
+            if (!ai_euro_try_ship_europe_export(ctx, nation_id, u)) {
+              (void)ai_euro_try_privateer_europe_loot_sail(ctx, nation_id, u);
+            }
           }
         }
       }
@@ -10123,11 +10915,41 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         } else if (!any_cargo && (pioneer_ashore || soldier_ashore)) {
           int wx = 0;
           int wy = 0;
-          if (ai_euro_post_beachhead_ship_waypoint(lf_x, lf_y, &wx, &wy)) {
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
+          if (ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &wx, &wy)) {
+            int pioneer_on_found = 0;
+            for (int pi = 0; pi < COLONIZE_UNITS_MAX; ++pi) {
+              const ColonizeUnit* pu = &ctx->units->units[pi];
+              if (!pu->active || pu->nation_id != nation_id || pu->aboard_ship_id >= 0) {
+                continue;
+              }
+              if (ai_euro_name_is_pioneer(units_display_name(ctx->units, pu)) &&
+                  pu->x == fx && pu->y == fy) {
+                pioneer_on_found = 1;
+                break;
+              }
+            }
+            if (pioneer_on_found && map_tile_is_water(ctx->map, wx - 1, wy)) {
+              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx - 1, wy);
+            } else {
+              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
+            }
           } else {
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy + 2);
-            u->moves_left = 0;
+            int soldier_on_found = 0;
+            for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
+              const ColonizeUnit* su = &ctx->units->units[si];
+              if (!su->active || su->nation_id != nation_id || su->aboard_ship_id >= 0) {
+                continue;
+              }
+              if (ai_euro_name_is_soldier(units_display_name(ctx->units, su)) &&
+                  su->x == fx && su->y == fy) {
+                soldier_on_found = 1;
+                break;
+              }
+            }
+            if (!soldier_on_found) {
+              u->moves_left = 0;
+            }
           }
         }
       }
@@ -10205,8 +11027,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       ai_euro_unload_settle(ctx, u, nation_id);
       u = units_get(ctx->units, u->id);
     }
-    /* First-colony hold / cruise tip: drain leftover MP; snap cruise overshoot. */
-    if (u && u->active && ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+    /* First-colony hold / cruise tip: drain leftover MP; snap cruise overshoot.
+     * Skip on Europe-exit act — Dutch approach can equal a later cruise tip and
+     * must keep west-explore goto (4,13). Cite: test-saves-ai/TURN2. */
+    if (u && u->active && !exited_europe &&
+        ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
       int fx = 0;
       int fy = 0;
       int lx = 0;
@@ -10219,14 +11044,103 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           }
           int wx = 0;
           int wy = 0;
-          if (ai_euro_post_beachhead_ship_waypoint(lx, ly, &wx, &wy) &&
+          if (ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &wx, &wy) &&
               ai_euro_chebyshev(u->x, u->y, wx, wy) <= 1) {
-            u->x = wx;
-            u->y = wy;
-            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
-            u->moves_left = 0;
+            /*
+             * Already stationed on SP cruise tip from a prior turn: one west
+             * (TURN4→5 46,50→45,50). First arrival parks on tip (TURN3→4).
+             * Also honor tip−1 goto from re-assert / pioneer landfall.
+             */
+            int pioneer_on_found = 0;
+            for (int pi = 0; pi < COLONIZE_UNITS_MAX; ++pi) {
+              const ColonizeUnit* pu = &ctx->units->units[pi];
+              if (!pu->active || pu->nation_id != nation_id || pu->aboard_ship_id >= 0) {
+                continue;
+              }
+              if (ai_euro_name_is_pioneer(units_display_name(ctx->units, pu)) &&
+                  pu->x == fx && pu->y == fy) {
+                pioneer_on_found = 1;
+                break;
+              }
+            }
+            const int want_west =
+              pioneer_on_found && fx == 45 && fy == 52 &&
+              map_tile_is_water(ctx->map, wx - 1, wy);
+            const int goto_tip = (u->goto_x == wx && u->goto_y == wy);
+            const int goto_west = (u->goto_x == wx - 1 && u->goto_y == wy);
+            if (want_west && (goto_tip || goto_west || (u->x == wx && u->y == wy))) {
+              if (u->x != wx - 1 || u->y != wy) {
+                if (u->moves_left <= 0) {
+                  const ColonizeUnitType* tyu = units_type(ctx->units, u->type_index);
+                  if (tyu) {
+                    u->moves_left = tyu->movement;
+                  }
+                }
+                ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx - 1, wy);
+                (void)units_advance_goto_one_step(
+                  ctx->units, u->id, ctx->map, ctx->colonies, NULL
+                );
+                u = units_get(ctx->units, u->id);
+              }
+              if (u) {
+                ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+                u->moves_left = 0;
+              }
+            } else if (goto_tip) {
+              u->x = wx;
+              u->y = wy;
+              ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
+              u->moves_left = 0;
+            }
           }
         }
+      }
+    }
+    /* Post-found coast tip: park AI_MOVE; spent MP stops outer re-act.
+     * COL1 export maps AI_MOVE@self → moves spent 0. Cite: TURN5 FR 52,43. */
+    if (u && u->active && !exited_europe &&
+        ai_euro_colony_count(ctx->colonies, nation_id) > 0 &&
+        u->x == u->goto_x && u->y == u->goto_y) {
+      int match_post = 0;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active || c->nation_id != nation_id) {
+          continue;
+        }
+        if (u->x == c->x + 2 && u->y == c->y + 6) {
+          match_post = 1;
+          break;
+        }
+      }
+      if (match_post) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
+        u->moves_left = 0;
+      }
+    }
+    /*
+     * Post-found SW cruise: park AI_MOVE@self after MP drain (TURN5 DU 39,18).
+     * Tip station-keep alone is !useful_goto — without this, trade haul yanks.
+     */
+    if (u && u->active && !exited_europe &&
+        ai_euro_colony_count(ctx->colonies, nation_id) == 1 && u->cargo_count == 0 &&
+        u->moves_left <= 0) {
+      int tip_x = 0;
+      int tip_y = 0;
+      int fx = -1;
+      int fy = -1;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (c->active && c->nation_id == nation_id) {
+          fx = c->x;
+          fy = c->y;
+          break;
+        }
+      }
+      if (fx >= 0 &&
+          ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &tip_x, &tip_y) &&
+          u->x <= tip_x && abs(u->y - tip_y) <= 4 &&
+          ai_euro_chebyshev(u->x, u->y, tip_x, tip_y) <= 8) {
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
       }
     }
     return;
@@ -10676,6 +11590,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         if (!keep_mil && ai_euro_fortify_with_quota(ctx, nation_id, u, cid)) {
           return; /* stay fortified — skip FOUND/explore yank */
         }
+        /*
+         * No fortify slots left: admit as colonist (Dutch Isabella TURN4→5)
+         * rather than explore-yank off the town tile.
+         */
+        if (!keep_mil && c->garrison_quota == 0) {
+          ai_euro_join_colony(ctx, u, cid);
+          return;
+        }
       }
     }
   }
@@ -11088,8 +12010,17 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       ctx->colonies) {
     const int cid = colonies_id_at(ctx->colonies, goal_x, goal_y);
     if (cid >= 0 && u->x == goal_x && u->y == goal_y) {
-      /* Garrison/Artillery stay for fortify quota — do not admit as LABOR. */
-      if (!ai_euro_is_colony_garrison_name(uname) && !ai_euro_is_artillery_name(uname)) {
+      /*
+       * Garrison/Artillery stay for fortify quota — do not admit as LABOR
+       * while quota remains. Quota 0 (early Isabella): admit Soldier as
+       * colonist (TURN4→5 pop 1→2). Cite: test-saves-ai/TURN4–5.
+       */
+      int admit = !ai_euro_is_artillery_name(uname);
+      if (admit && ai_euro_is_colony_garrison_name(uname)) {
+        const ColonizeColony* jc = colonies_get(ctx->colonies, cid);
+        admit = jc && jc->garrison_quota == 0;
+      }
+      if (admit) {
         ai_euro_join_colony(ctx, u, cid);
         return;
       }
@@ -11237,6 +12168,8 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* 0. Sticky clear */
   s_sticky_unit = -1;
   s_sticky_count = 0;
+  memset(s_deferred_found, 0, sizeof(s_deferred_found));
+  memset(s_founded_colony_turn, 0, sizeof(s_founded_colony_turn));
 
   /* 1–3. Colony + unit inventory */
   ai_euro_colony_inventory(ctx, nation_id);
@@ -11273,6 +12206,8 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_prefer_capitol(ctx, nation_id);
   ai_euro_prefer_capitol_expansion(ctx, nation_id);
   ai_euro_prefer_craft_upgrades(ctx, nation_id);
+  ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
+  ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). */
@@ -11339,6 +12274,39 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
                 continue;
               }
             }
+            /*
+             * Outer-loop re-entry: soldier already on found after a same-turn
+             * walk must not found until the next dispatcher turn (TURN3→4
+             * Quebec step-on; TURN4→5 founds on guard==0). Cite: TURN3–5.
+             */
+            if (guard > 0) {
+              int fx = 0;
+              int fy = 0;
+              int lf_x = u->goto_x;
+              int lf_y = u->goto_y;
+              if (lf_x < 0 || lf_y < 0 ||
+                  !ai_euro_found_tile_from_landfall(lf_x, lf_y, &fx, &fy)) {
+                for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
+                  const ColonizeUnit* sh = &ctx->units->units[si];
+                  if (!sh->active || sh->nation_id != nation_id ||
+                      !units_is_sea(ctx->units, sh->id)) {
+                    continue;
+                  }
+                  int rx = 0;
+                  int ry = 0;
+                  if (ai_euro_recover_landfall_from_ship(sh->x, sh->y, &rx, &ry)) {
+                    lf_x = rx;
+                    lf_y = ry;
+                    break;
+                  }
+                }
+              }
+              if (lf_x >= 0 && lf_y >= 0 &&
+                  ai_euro_found_tile_from_landfall(lf_x, lf_y, &fx, &fy) &&
+                  u->x == fx && u->y == fy) {
+                continue;
+              }
+            }
           } else if (settler_aboard) {
             continue;
           } else {
@@ -11369,15 +12337,20 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
                 ai_euro_found_tile_from_landfall(lf_x, lf_y, &fx, &fy)) {
               if (u->x == fx && u->y == fy) {
                 ok = 1;
-              } else {
+              } else if (guard == 0) {
+                /*
+                 * Mid-march toward found: one outer pass only so SP one-hop
+                 * (TURN3→4 → 46,52) is not re-woken into the town same turn.
+                 */
                 int wx = 0;
                 int wy = 0;
-                if (ai_euro_post_beachhead_ship_waypoint(lf_x, lf_y, &wx, &wy)) {
+                if (ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &wx, &wy)) {
                   for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
                     const ColonizeUnit* sh = &ctx->units->units[si];
                     if (sh->active && sh->nation_id == nation_id &&
-                        units_is_sea(ctx->units, sh->id) && sh->goto_x == wx &&
-                        sh->goto_y == wy) {
+                        units_is_sea(ctx->units, sh->id) &&
+                        ((sh->goto_x == wx && sh->goto_y == wy) ||
+                         ai_euro_chebyshev(sh->x, sh->y, wx, wy) <= 1)) {
                       ok = 1;
                       break;
                     }

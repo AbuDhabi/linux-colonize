@@ -1452,6 +1452,12 @@ bool col1_bridge_capture(
           if (src->aboard_ship_id >= 0 || src->orders == UNITS_ORDER_SENTRY ||
               src->orders == UNITS_ORDER_NONE || !units_orders_follow_goto(src->orders)) {
             spent = 0;
+          } else if (
+            src->orders == UNITS_ORDER_AI_MOVE && src->goto_x == src->x &&
+            src->goto_y == src->y
+          ) {
+            /* Station-keep tip (TURN5 FR 52,43): COL1 moves spent = 0. */
+            spent = 0;
           } else if (src->moves_left <= 0) {
             spent = max_mp;
           } else if (src->moves_left < max_mp) {

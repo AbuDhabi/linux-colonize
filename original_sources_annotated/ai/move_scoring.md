@@ -84,7 +84,7 @@ Naval type tests elsewhere use open upper **(0x0c, 0x13)** — wider than dispat
 | Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
 | Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
 | Linux | `ai_goals_pick_founding_tile` / `_ex`: DS:0x2f77 class founding byte; `param_4` extras = **`0492(candidate continent)*0x10 + (explore&0xf)`** per empty land neighbor (`ai_goals_colony_balance_flags`: live nation×continent + `continent_tally_b/12`). Explore thin (`seen→1`). Second+ coastal +10 via `coastal_bonus` |
-| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` **kept** — 06ae+0492 still miss seed-100 coastal towns (inland 2f77 / neighbor-count wins). Resolve: FOUND → table → 06ae. First-colony ship FOUND uses table, not ship-tile 06ae |
+| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` **kept** — 06ae+0492 still miss seed-100 coastal towns (inland 2f77 / neighbor-count wins). Resolve: FOUND → table → 06ae. First-colony ship FOUND uses table, not ship-tile 06ae. Full-dispatch ceiling TURN1→6 with table. |
 
 Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
 
@@ -96,7 +96,7 @@ Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helpe
 | Annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
 | Place | `FUN_48d3_048e` spiral + `0434` (HS-only); Linux `units_spiral_place_hs_near` |
 | Linux scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid, thin war engage |
-| PORT DEBT | Atlantic approach + post-beachhead cruise XY — retire when TURN1→4 green without them (see `ai_transcription.md`) |
+| PORT DEBT | Atlantic approach + post-beachhead cruise XY — retire when TURN1→4 green without them (see `ai_transcription.md`). Post-found SW cruise / SP tip−1 berth are geometric from tip (full-dispatch TURN4→6). |
 
 Land / combat / explore OPEN arms: [`move_scoring_land.md`](move_scoring_land.md)
 (orders `0x42`/`0x65`/`0x46`/`0x39`…; explore ring `2912`). Thin adjacent-foe pick

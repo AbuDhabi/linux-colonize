@@ -30,11 +30,29 @@ def main(path: Path) -> None:
     print(f"segs ES={es:04x} CS={cs:04x} SS={ss:04x} DS={ds:04x}")
 
     b1930 = HDR + CS1930 * 16
-    print(f"1930:2A4D (hook) {mem[b1930 + 0x2A4D : b1930 + 0x2A50].hex()}")
-    cave = mem[b1930 + 0x294D : b1930 + 0x294D + 0x30]
-    print(f"1930:294D cave head {cave[:16].hex()} … hang? {cave[-2:]==bytes.fromhex('ebfe') or bytes.fromhex('ebfe') in cave}")
-    if bytes.fromhex("ebfe") in cave:
-        print(f"  EB FE at cave+{cave.find(bytes.fromhex('ebfe')):#x}")
+    print(f"1930:2A4D (forge) {mem[b1930 + 0x2A4D : b1930 + 0x2A50].hex()}")
+    print(f"1930:1452 (RETF hook) {mem[b1930 + 0x1452 : b1930 + 0x1455].hex()}")
+    for cave_ip in (0x15D4, 0x1782, 0x15CF, 0x294D):
+        cave = mem[b1930 + cave_ip : b1930 + cave_ip + 0x40]
+        if bytes.fromhex("ebfe") in cave[:0x3D]:
+            print(f"1930:{cave_ip:04x} cave head {cave[:16].hex()} EB FE +{cave.find(bytes.fromhex('ebfe')):#x}")
+
+    # RETF counter (v12+)
+    for sseg in (ss, 0x237d, GAME_DS):
+        base = HDR + sseg * 16
+        if base + 0x7F02 < len(mem):
+            cnt = struct.unpack_from("<H", mem, base + 0x7F00)[0]
+            print(f"SS:{sseg:04x}:7F00 RETF count={cnt}")
+
+    sp = regs["SP"]
+    for stack_ss in (ss, GAME_DS, 0x237d):
+        sbase = HDR + stack_ss * 16
+        if 0 <= sp < 0xfffc:
+            ip, cseg = struct.unpack_from("<HH", mem, sbase + sp)
+            print(f"[SS={stack_ss:04x}:SP={sp:04x}] -> {cseg:04x}:{ip:04x} (RETF slot?)")
+        if regs["BX"] and regs["BX"] < 0xfffc:
+            ip, cseg = struct.unpack_from("<HH", mem, sbase + regs["BX"])
+            print(f"[SS={stack_ss:04x}:BX={regs['BX']:04x}] -> {cseg:04x}:{ip:04x}")
 
     # Scratch log — v4+ uses CS:29C0 (v3 wrote 2385:7000, often zero/EMS)
     b1930 = HDR + CS1930 * 16

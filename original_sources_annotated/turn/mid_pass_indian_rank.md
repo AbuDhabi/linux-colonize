@@ -85,9 +85,8 @@ Do **not** invent a `130d → 1816` edge. Order vs Euro EOT remains
 explain seed-100 **spent-only** holdouts (post-`465b` `0x3149` —
 [`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
 
-**Narrowed edge:** first mid-turn overlay-`0x0C` forge (`vr_2a02_v3`) has
-`[SS:SI]=1930:238b` (manager resume), not year-loop. Probe v4: external ret
-only — [`vr_1554.md`](../../tools/brave_dump/vr_1554.md). Skip loader/`0E52`.
+**Narrowed edge:** RETF peels abandoned (v7–v12). v13 = forge `2A4D` skip
+`1930:238B` + `CCx81` — [`vr_1554.md`](../../tools/brave_dump/vr_1554.md).
 
 ## Calendar string table (reconfirmed)
 
