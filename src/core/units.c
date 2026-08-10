@@ -4404,6 +4404,80 @@ bool units_find_high_seas_tile(
   return true;
 }
 
+/*
+ * FUN_48d3_0434: HS (0x1a) + empty or own nation.
+ * FUN_48d3_048e: expand radius; for each ring scan horizontal then vertical
+ * edges with ±radius offsets (decomp ~77836–77876).
+ */
+static bool units_hs_place_tile_ok(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int nation_id,
+  int x,
+  int y
+) {
+  if (!map || x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
+    return false;
+  }
+  if (!map_tile_is_high_seas(map, x, y)) {
+    return false;
+  }
+  if (!pool) {
+    return true;
+  }
+  const int id = units_id_at(pool, x, y);
+  if (id < 0) {
+    return true;
+  }
+  if (nation_id < 0) {
+    return false;
+  }
+  const ColonizeUnit* u = units_get_const(pool, id);
+  return u && u->nation_id == nation_id;
+}
+
+bool units_spiral_place_hs_near(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int nation_id,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return false;
+  }
+  const int max_dim = (int)map->width > (int)map->height ? (int)map->width : (int)map->height;
+  for (int e = 0; e < max_dim; ++e) {
+    /* Horizontal bands at y = start_y ± e, x from start_x-e .. start_x+e */
+    for (int x = start_x - e; x <= start_x + e; ++x) {
+      for (int si = 0; si < 2; ++si) {
+        const int yoff = (si == 0) ? -e : e;
+        const int y = start_y + yoff;
+        if (units_hs_place_tile_ok(pool, map, nation_id, x, y)) {
+          *out_x = x;
+          *out_y = y;
+          return true;
+        }
+      }
+    }
+    /* Vertical bands at x = start_x ± e, y from start_y-e .. start_y+e */
+    for (int y = start_y - e; y <= start_y + e; ++y) {
+      for (int si = 0; si < 2; ++si) {
+        const int xoff = (si == 0) ? -e : e;
+        const int x = start_x + xoff;
+        if (units_hs_place_tile_ok(pool, map, nation_id, x, y)) {
+          *out_x = x;
+          *out_y = y;
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 bool units_find_eastern_high_seas_tile(
   const ColonizeUnitPool* pool,
   const ColonizeWorldMap* map,

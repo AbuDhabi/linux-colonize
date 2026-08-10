@@ -44,7 +44,8 @@ so `smoke_ai_turns` stays green. When Linux output disagrees with a golden:
 3. Fix or deepen the ported path (unpark blockers as needed).
 4. Do **not** add seed-/turn-/nation-only exception tables unless they are
    explicitly documented as temporary PORT DEBT with a retire criterion
-   (e.g. Atlantic approach tiles until ocean `20e6` + `48d3` match).
+   (e.g. Atlantic approach tiles until `LAB_521d_3558` cargo/colony sail matches;
+   `48d3_048e` spiral place is Done).
 
 The retired seed-100 `ai_euro_early_turn` fixture remains available via
 `AI_EURO_EARLY_FIXTURE=1` for regression bisect only. Default path is the full
@@ -80,9 +81,14 @@ Seed-100 first towns still need `ai_euro_found_tile_from_landfall` — live `06a
 prefers inland higher DS:0x2f77 / more land-neighbor tiles over coastal Quebec /
 New Amsterdam / Isabella (same-continent `0492` does not break the tie). Resolve
 prefers primary FOUND (first-colony ship FOUND written from landfall table) then
-table then `06ae`. Approach / post-beachhead ship cruise tables stay PORT DEBT
-until ocean `20e6` + `48d3`. Do **not** grow TURN4 tip/join peels. Fixture path
-(`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7 for bisect.
+table then `06ae`. **`FUN_521d_20e6` section-mapped** (band table in
+`move_scoring.md`); Europe-exit uses `units_spiral_place_hs_near` (`48d3_048e`);
+ocean score adds leave-HS-into-ocean + Chebyshev. Approach / post-beachhead
+cruise XY tables **kept** — thin scored sail toward west-explore misses FR
+`(54,38)` (and cruise still needs RE'd SP/DU tips); retire when `LAB_521d_3558`
+cargo/colony sail pick matches TURN2–4 without them. Do **not** grow TURN4
+tip/join peels. Fixture path (`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7
+for bisect.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -347,7 +353,9 @@ leftover FF hooks, deep `20e6`).
   continent balance). Landfall→town table **kept** — `06ae` still picks inland
   higher class_score neighbors (e.g. Isabella base 2 vs (48,15) base 6). Retire
   table only when TURN1→4 green without it. Approach / post-beachhead ship XY
-  still PORT DEBT until ocean `20e6` + `48d3`.
+  still PORT DEBT: approach/cruise XY kept (thin ocean leave-HS misses FR
+  `(54,38)`; full `LAB_521d_3558` cargo/colony sail OPEN). `48d3_048e` spiral
+  place + `20e6` band map Done.
 - **Euro early path (fixture, bisect only):** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6

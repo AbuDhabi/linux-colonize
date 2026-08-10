@@ -600,6 +600,20 @@ bool units_find_high_seas_tile(
   int* out_x,
   int* out_y
 );
+/*
+ * FUN_48d3_048e + 0434 — expanding spiral from (start_x,start_y) for a High Seas
+ * tile (terrain 0x1a) that is empty or owned by nation_id (-1 = empty only).
+ * Cite: viceroy_unpacked.c ~77810; move_scoring.md §ocean.
+ */
+bool units_spiral_place_hs_near(
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  int start_x,
+  int start_y,
+  int nation_id,
+  int* out_x,
+  int* out_y
+);
 /* Prefer western rim of eastern high seas near prefer_y — Atlantic approach. */
 bool units_find_eastern_high_seas_tile(
   const ColonizeUnitPool* pool,
