@@ -796,6 +796,29 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "europe EOT market attrition tick ok\n");
+
+    /* Phase 4 rise/fall status crumb. */
+    tick.cargo[tg].bid = 10;
+    tick.cargo[tg].low = 1;
+    tick.cargo[tg].high = 20;
+    tick.cargo[tg].fall = 1;
+    tick.cargo[tg].rise = 1;
+    tick.cargo[tg].attrition = 0;
+    tick.trade_nr[tg] = 100; /* ≥ fall*100 → bid−1 */
+    tick.status[0] = '\0';
+    europe_tick_market_prices(&tick, NULL, NULL);
+    if (tick.cargo[tg].bid != 9 || strstr(tick.status, "fell") == NULL) {
+      fprintf(
+        stderr,
+        "market fall status want bid=9+'fell' got bid=%d '%s'\n",
+        tick.cargo[tg].bid,
+        tick.status
+      );
+      europe_free(&tick);
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "europe market rise/fall status ok\n");
     europe_free(&tick);
   }
 
@@ -829,6 +852,69 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "europe price_group colony half ok\n");
+  }
+
+  /*
+   * 0058 phases 2–3: cargos 9..12 pressure *100; cargos 1..4 no *100.
+   * bid > ratio → +mid; bid < ratio → −mid.
+   */
+  {
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.year = 1492;
+    /* Ledgers: rum-group all 10 → sum=40, ratio=(40*3)/10=12. */
+    for (int c = 9; c <= 12; ++c) {
+      col1.head.price_group_state[c] = 10;
+    }
+    /* Sugar ledger 10; half food 0 + sugar..tobacco → sum for phase3. */
+    col1.head.price_group_state[COLONIZE_CARGO_SUGAR] = 10;
+    col1.head.price_group_state[COLONIZE_CARGO_TOBACCO] = 10;
+    col1.head.price_group_state[COLONIZE_CARGO_COTTON] = 10;
+    col1.head.price_group_state[COLONIZE_CARGO_FURS] = 20; /* halved → 10 */
+
+    EuropeScreen tick;
+    memset(&tick, 0, sizeof(tick));
+    tick.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      tick.cargo[c].rise = 4;
+      tick.cargo[c].fall = 4;
+      tick.cargo[c].low = 1;
+      tick.cargo[c].high = 20;
+      tick.cargo[c].attrition = 0;
+    }
+    /* Rum bid 20 > ratio 12 → sign +1 → nr += 4*100 = 400. */
+    tick.cargo[COLONIZE_CARGO_RUM].bid = 20;
+    /* Cigars bid 1 < 12 → nr -= 400. */
+    tick.cargo[COLONIZE_CARGO_CIGARS].bid = 1;
+    /* Sugar bid 50 >> ratio → +mid (4, no *100). */
+    tick.cargo[COLONIZE_CARGO_SUGAR].bid = 50;
+
+    europe_tick_market_prices(&tick, &col1, NULL);
+    /* Phase2 ±400 then phase4 rise/fall absorbs ±(mid*100) into bid. */
+    if (tick.cargo[COLONIZE_CARGO_RUM].bid != 19 || tick.trade_nr[COLONIZE_CARGO_RUM] != 0) {
+      fprintf(
+        stderr,
+        "phase2 rum bid/nr want 19/0 got %d/%d\n",
+        tick.cargo[COLONIZE_CARGO_RUM].bid,
+        (int)tick.trade_nr[COLONIZE_CARGO_RUM]
+      );
+      return 1;
+    }
+    if (tick.cargo[COLONIZE_CARGO_CIGARS].bid != 2 || tick.trade_nr[COLONIZE_CARGO_CIGARS] != 0) {
+      fprintf(
+        stderr,
+        "phase2 cigars bid/nr want 2/0 got %d/%d\n",
+        tick.cargo[COLONIZE_CARGO_CIGARS].bid,
+        (int)tick.trade_nr[COLONIZE_CARGO_CIGARS]
+      );
+      return 1;
+    }
+    /* Phase3 +4 mid stays in nr (below fall*100 threshold). */
+    if (tick.trade_nr[COLONIZE_CARGO_SUGAR] != 4) {
+      fprintf(stderr, "phase3 sugar nr want 4 got %d\n", (int)tick.trade_nr[COLONIZE_CARGO_SUGAR]);
+      return 1;
+    }
+    fprintf(stderr, "europe market phase2/3 pressure ok\n");
   }
 
   europe_free(&eu);

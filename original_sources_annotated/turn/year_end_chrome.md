@@ -5,8 +5,10 @@ Full string / subst / threshold map for year-end Euro chrome. Annotated body:
 [`between_turns.md`](between_turns.md) ·
 [`docs/turn_between_players.md`](../../docs/turn_between_players.md).
 
-**Port status:** mapped; Linux has no dedicated year-end module (king/war thin
-in `ai_king`; dialogs **PARKED**).
+**Port status:** section B defeat + C1 victory (fleet + REF pool thin + force
+bypass + show_entire_map + calendar_latch) + C2 SoL peace/pressure + D rival
+pressure + D auto-declare war + E anniversary (gated on !calendar_latch)
+**Done** thin (`turn_run_year_end_chrome`); HoF dialogs **PARKED**.
 
 Decomp: `viceroy_unpacked.c` **58430–58680**. Thunk `281f_061e`.
 
@@ -58,7 +60,7 @@ Decomp: `viceroy_unpacked.c` **58430–58680**. Thunk `281f_061e`.
 | D declare | `0416` 1/2 | rival alt / country name |
 | D declare | `0422` | dual strings `0xf4b`/`0xf3f` |
 | D declare | `0416` 3 | buffer `0x833c` |
-| E anniversary | `0438` 0 | difficulty name `0x53a6`→`−0x7c6c` |
+| E anniversary | `0438` 0 | difficulty name `0x53a6`→`−0x7c6c` (**Done** thin in status) |
 | E anniversary | `0416` 1 | human `0x540e` |
 | E game-over | `0438` 0 | difficulty name |
 | E game-over | `0416` 1 | human `0x540e` |

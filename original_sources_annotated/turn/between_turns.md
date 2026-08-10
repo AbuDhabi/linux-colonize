@@ -115,7 +115,7 @@ game_do_end_turn
 | `3844_00f2` | Per Euro before act | Split across SETUP / EURO / FINISH |
 | `43f7_2424` | Inside `00f2` | FINISH `ai_king_nation_turn` |
 | Indians | Mid-pass `4d56_1b3a` only | Full `1816`-shaped turns 4..11 |
-| `3844_0442` | Every year tick | Mostly PARKED (king/war thin elsewhere) |
+| `3844_0442` | Every year tick | B/C1(+REF pool)/C2/D/E status **Done** thin; HoF PARKED |
 
 ## Pointers (planner guts — do not duplicate)
 
@@ -132,15 +132,16 @@ game_do_end_turn
 
 | DOS body | Map | Depth / port |
 |----------|-----|--------------|
-| `364b_0688` | [`colony_eot_production.md`](colony_eot_production.md) | **Deepened** F–H/K/O–P + B/C/D; birth/starve **Done** |
+| `364b_0688` | [`colony_eot_production.md`](colony_eot_production.md) | **Deepened** F–H/K/O–P + B/C/D; birth/starve **Done**; AI dump-sell **Done** thin; education F–G **Done** thin |
 | `364b_03f6` | [`coastal_fort_fire.md`](coastal_fort_fire.md) | Phase map; Linux SETUP reshape; pulse **Done** thin |
-| `38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) | **Deepened** 5e52§4–6 + 0058§1–3; market half **Done** thin |
-| `4962_0018` / `0606` | [`census_tally.md`](census_tally.md) | Phase map; blank census partial; live EOT lag |
+| `38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) | **Deepened** 5e52§4–6 + 0058§1–3; market half + phases 2–3 **Done** thin |
+| `4962_0018` / `0606` | [`census_tally.md`](census_tally.md) | Phase map; blank census partial; live colony+unit tallies **Done** thin; profession tally **Done** thin |
 | `48d3_06ba` | [`europe_exit_landfall.md`](europe_exit_landfall.md) | Phase map; treasure tax cap **Done** |
 | `48d3_03d0`/`0002`/`064e` + `55b6` | [`europe_finish_bridge.md`](europe_finish_bridge.md) | Helpers + Europe UI gate; bound deliver reshape |
 | `4345_0a22` | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) | Accrue+elect; Linux ticks Partial |
-| `5bfb_00f8` / `4d56_1b3a` | [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) | Rank PARKED; Indians reshape |
-| Ship-ready / spawn | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) | Arms mapped; port PARKED / ticks elsewhere |
+| `5bfb_00f8` / `4d56_1b3a` | [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) | Rank **Done** thin (`turn_rank_euro_nations`); Indians reshape |
+| Ship-ready / spawn | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) | Ready + §C Merc **Done** thin |
+| `3844_0442` | Every year tick | B/C1(+REF pool)/C2/D/E status **Done** thin; HoF PARKED |
 
 Planner guts (not EOT orchestration, but contact siblings):
 

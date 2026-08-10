@@ -1369,13 +1369,12 @@ void europe_tick_market_prices(
   struct ColonizeColonyPool* colonies
 ) {
   /*
-   * FUN_38fd_0058(..., 0xffff) nation EOT: for each cargo, nr += attrition
-   * (kept — unlike post-trade single-cargo which undoes attrition), then
-   * rise/fall ±1 bid in [low,high]. Cite: viceroy_unpacked.c ~58947–58984.
-   *
-   * Colony → price_group_state half (DS:0x53ea): sum Euro colony warehouse
-   * stock per cargo, then subtract (sum >> 7) from the group word (floor 0).
-   * Cite: viceroy_unpacked.c ~58809–58818; turn/europe_nation_eot.md.
+   * FUN_38fd_0058(..., 0xffff) nation EOT:
+   *   phase 1 — colony/price_group half (Done thin)
+   *   phase 2 — cargos 9..12 pressure nudge (*100)
+   *   phase 3 — cargos 1..4 pressure nudge (no *100; year bias on fur)
+   *   phase 4 — nr += attrition (kept), rise/fall ±1 bid
+   * Cite: viceroy_unpacked.c ~58787–58984; turn/europe_nation_eot.md.
    */
   if (!eu) {
     return;
@@ -1402,6 +1401,107 @@ void europe_tick_market_prices(
       col1->head.price_group_state[c] = (uint16_t)pg;
     }
   }
+
+  /* Phases 2–3: ledger from price_group + nation trade.tons (floor 1). */
+  if (col1) {
+    long ledger[16];
+    for (int c = 0; c < 16; ++c) {
+      long s = (long)col1->head.price_group_state[c];
+      for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+        const int32_t t = col1->nation[n].trade.tons[c];
+        if (t > 0) {
+          s += (long)t;
+        }
+      }
+      ledger[c] = s;
+    }
+
+    /* Phase 2 — Rum..Coats (9..12): pressure += sign * mid * 100. */
+    {
+      long sum = ledger[9] + ledger[10] + ledger[11] + ledger[12];
+      if (sum <= 0) {
+        sum = 1;
+      }
+      for (int c = 9; c <= 12; ++c) {
+        if (c >= eu->cargo_count) {
+          break;
+        }
+        long L = ledger[c];
+        if (L <= 0) {
+          L = 1;
+        }
+        const long ratio = (sum * 3) / L;
+        const int bid = eu->cargo[c].bid;
+        int sign = 0;
+        if (bid > (int)ratio) {
+          sign = 1;
+        } else if (bid < (int)ratio) {
+          sign = -1;
+        }
+        const int mid = (eu->cargo[c].rise + eu->cargo[c].fall) / 2;
+        const int delta = sign * mid * 100;
+        int nr = (int)eu->trade_nr[c] + delta;
+        if (nr < -32768) {
+          nr = -32768;
+        }
+        if (nr > 32767) {
+          nr = 32767;
+        }
+        eu->trade_nr[c] = (int16_t)nr;
+      }
+    }
+
+    /* Phase 3 — Sugar..Furs (1..4): pressure += mid * sign (no ×100). */
+    {
+      long half0 = ledger[0] / 2;
+      long sum = half0 + ledger[1] + ledger[2] + ledger[3];
+      if (sum <= 0) {
+        sum = 1;
+      }
+      const int year = (int)col1->head.year;
+      for (int c = 1; c <= 4; ++c) {
+        if (c >= eu->cargo_count) {
+          break;
+        }
+        long L = ledger[c];
+        if (c == 4) {
+          L /= 2;
+        }
+        if (L <= 0) {
+          L = 1;
+        }
+        long ratio = (sum * 3) / L;
+        if (c == 4) {
+          if (year < 0x6a4) {
+            ratio += 1; /* < 1700 */
+          }
+          if (year < 0x640) {
+            ratio += 1; /* < 1600 */
+          }
+        }
+        const int bid = eu->cargo[c].bid;
+        int sign = 0;
+        if (bid > (int)ratio) {
+          sign = 1;
+        } else if (bid < (int)ratio) {
+          sign = -1;
+        }
+        const int mid = (eu->cargo[c].rise + eu->cargo[c].fall) / 2;
+        const int delta = mid * sign;
+        int nr = (int)eu->trade_nr[c] + delta;
+        if (nr < -32768) {
+          nr = -32768;
+        }
+        if (nr > 32767) {
+          nr = 32767;
+        }
+        eu->trade_nr[c] = (int16_t)nr;
+      }
+    }
+  }
+
+  int last_rise = -1;
+  int last_fall = -1;
   for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
     EuropeCargoQuote* q = &eu->cargo[c];
     int nr = (int)eu->trade_nr[c] + q->attrition;
@@ -1410,10 +1510,12 @@ void europe_tick_market_prices(
     if (rise > 0 && nr <= -(rise * 100) && q->bid < q->high) {
       nr += rise * 100;
       q->bid += 1;
+      last_rise = c;
     }
     if (fall > 0 && nr >= fall * 100 && q->bid > q->low) {
       nr -= fall * 100;
       q->bid -= 1;
+      last_fall = c;
     }
     if (q->high > q->low) {
       if (q->bid < q->low) {
@@ -1434,6 +1536,101 @@ void europe_tick_market_prices(
       nr = 32767;
     }
     eu->trade_nr[c] = (int16_t)nr;
+  }
+  /* Phase 4 dialog crumbs 0xfa8 / 0xfb0 → status (full dialog PARKED). */
+  if (last_rise >= 0) {
+    const char* nm =
+      (eu->cargo[last_rise].name[0]) ? eu->cargo[last_rise].name : "Goods";
+    snprintf(eu->status, sizeof(eu->status), "Market: %s price rose.", nm);
+  } else if (last_fall >= 0) {
+    const char* nm =
+      (eu->cargo[last_fall].name[0]) ? eu->cargo[last_fall].name : "Goods";
+    snprintf(eu->status, sizeof(eu->status), "Market: %s price fell.", nm);
+  }
+}
+
+void europe_tick_immigration_pressure(
+  EuropeScreen* eu,
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
+  int nation_id
+) {
+  /*
+   * FUN_38fd_584a thin: score ≈ colony pop sum + unit count; <<1 if <4000; +8;
+   * cap 4000; AI/non-human ((8-diff)*score)>>3; nation0 *2/3.
+   * Write +0x30; accumulate +0x2e. Cite: europe_nation_eot.md phase 4; ~68248.
+   */
+  if (!eu || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  int pop = 0;
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (c->active && c->nation_id == nation_id) {
+        pop += c->colonist_count > 0 ? c->colonist_count : c->population;
+      }
+    }
+  }
+  int units_n = 0;
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (u->active && u->nation_id == nation_id) {
+        units_n++;
+      }
+    }
+  }
+  int score = pop + units_n;
+  if (score < 4000) {
+    score <<= 1;
+  }
+  score += 8;
+  if (score > 4000) {
+    score = 4000;
+  }
+  if (col1) {
+    const int control =
+      (nation_id < 4) ? (int)col1->player[nation_id].control : 1;
+    if (nation_id > 3 || control != 0) {
+      int diff = (int)col1->head.difficulty;
+      if (diff < 0) {
+        diff = 0;
+      }
+      if (diff > 8) {
+        diff = 8;
+      }
+      score = ((8 - diff) * score) >> 3;
+    }
+    if (nation_id == 0) {
+      score = (score << 1) / 3;
+    }
+  }
+  eu->immigration_score = (int16_t)score;
+  int delta = score / 32;
+  if (delta < 1) {
+    delta = 1;
+  }
+  int press = (int)eu->immigration_pressure + delta;
+  if (press > 32767) {
+    press = 32767;
+  }
+  if (press < 0) {
+    press = 0;
+  }
+  eu->immigration_pressure = (int16_t)press;
+  /*
+   * Phase 5 gate: score < pressure → dock immigrant crumb + clear accumulator.
+   * Full 46d4 profession roll / Recruit UI PARKED.
+   */
+  if (eu->immigration_score > 0 && eu->immigration_score < eu->immigration_pressure) {
+    eu->immigration_pressure = 0;
+    if (europe_immigrant_from_pool(eu)) {
+      /* DOS human follow may set DS:0x14c — open Europe on dock. */
+      eu->open_on_dock = true;
+      snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
+    }
   }
 }
 
@@ -1578,8 +1775,108 @@ int europe_custom_house_autosell(
     }
     europe_apply_volume_price(eu, c, amount, 0);
   }
+  if (total > 0 && nation == human_nation) {
+    if (colony->name[0]) {
+      snprintf(
+        eu->status,
+        sizeof(eu->status),
+        "Custom House in %s sold for %d$.",
+        colony->name,
+        total
+      );
+    } else {
+      snprintf(eu->status, sizeof(eu->status), "Custom House sold goods for %d$.", total);
+    }
+  }
+  return total;
+}
+
+int europe_ai_colony_dump_sell(
+  EuropeScreen* eu,
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  int human_nation
+) {
+  /*
+   * FUN_364b_0688 phase O: non-human Euro (nation≤3, control≠0) sells warehouse
+   * surplus for gold before spoilage. Stock is not reduced here — spoilage clamps.
+   * Cite: viceroy_unpacked.c ~57806–57848; 291f_0a2e → 38fd_1dfa.
+   */
+  if (!eu || !colony || !colony->active) {
+    return 0;
+  }
+  const int nation = colony->nation_id;
+  if (nation < 0 || nation > 3 || nation == human_nation) {
+    return 0;
+  }
+
+  int tax = eu->tax_percent;
+  if (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
+    tax = (int)col1->nation[nation].tax_rate;
+  }
+  if (tax < 0) {
+    tax = 0;
+  }
+  if (tax > 100) {
+    tax = 100;
+  }
+
+  int total = 0;
+  for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
+    const int cap = colonies_warehouse_capacity(pool, colony, c);
+    if (cap <= 0) {
+      continue;
+    }
+    const int surplus = colony->stock[c] - cap;
+    if (surplus <= 0) {
+      continue;
+    }
+    /* Horses: DOS adds surplus to Europe horses word; sell amount → 0. */
+    if (c == COLONIZE_CARGO_HORSES) {
+      unsigned h = (unsigned)eu->nation_horses[nation] + (unsigned)surplus;
+      if (h > 65535u) {
+        h = 65535u;
+      }
+      eu->nation_horses[nation] = (uint16_t)h;
+      continue;
+    }
+    if (c >= eu->cargo_count) {
+      continue;
+    }
+    const int bid = eu->cargo[c].bid;
+    if (bid <= 0) {
+      continue;
+    }
+    /*
+     * Muskets: DOS while surplus>49: Europe musket counter++, amount−50; then
+     * sell remainder for gold.
+     */
+    int amount = surplus;
+    if (c == COLONIZE_CARGO_MUSKETS) {
+      while (amount > 49) {
+        if (eu->nation_musket_batches[nation] < 65535u) {
+          eu->nation_musket_batches[nation]++;
+        }
+        amount -= 50;
+      }
+      if (amount <= 0) {
+        continue;
+      }
+    }
+    const int gained = (bid * amount * (100 - tax)) / 100;
+    total += gained;
+    if (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
+      col1->nation[nation].gold += (uint32_t)gained;
+      if (c < COLONIZE_COL1_CARGO_TYPES) {
+        col1->nation[nation].trade.tons[c] += amount;
+        col1->nation[nation].trade.gold[c] += gained;
+      }
+    }
+    europe_apply_volume_price(eu, c, amount, 0);
+  }
   if (total > 0) {
-    snprintf(eu->status, sizeof(eu->status), "Custom House sold goods for %d$.", total);
+    snprintf(eu->status, sizeof(eu->status), "AI warehouse dump-sold for %d$.", total);
   }
   return total;
 }

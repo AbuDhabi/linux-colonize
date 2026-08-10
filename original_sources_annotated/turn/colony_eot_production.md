@@ -14,7 +14,8 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 **Port status:** Linux **Partial** — spine in `turn_run_colony_production` /
 `turn_produce_one_colony` (`src/core/turn.c`); shared rules in
 `colony_production.c` / `colony_craft.c`. **Birth + starve-kill Done** (I–J).
-F–H / K / O-sell / P msgs **mapped** below; port **PARKED**.
+**AI dump-sell Done** thin (O). **Education F–H Done** thin. K / P msgs
+**mapped**; port **PARKED**.
 
 ## Sibling — `FUN_364b_03f6` (coastal fort fire)
 
@@ -146,7 +147,12 @@ specialty in `1..4` and nation skill-flag at `specialty−0x6bd0` clear:
 - Threshold RNG: base 99; job 0x19 → 199; job 0x1a → +200.
 - On roll 0: set skill flag; `0cae` assign specialty; msg `0xe1f`.
 
-**Port:** F–H **PARKED**.
+**Port:** F–G **Done** thin (`turns_in_job` + Teacher in Schoolhouse/College/
+University graduates Free/Indentured/Criminal/Convert → teacher `field_job`
+specialty if set, else Farmer or Carpenter); no-students status **Done** thin.
+H random field skill **Done** thin (Free Colonist on field 0..4, 1/100 → that
+profession). Nation skill-flags / deep school-job tables **PARKED**. `0x5384|0x80`
+gates education msgs.
 
 ## Deep — K build advisories (57696–57728)
 
@@ -162,7 +168,9 @@ Gated `!(0x5384 & 0x20)`. Scratch demand words vs missing net yield:
 | `0x8e66` | 0xf == 0xe (paired) | `0xe8b` |
 | `0x8e76` | 0xf ==0 | `0xe8f` |
 
-**Port:** chrome **PARKED**.
+**Port:** hammers-zero / tools / lumber/ore/food / rum/cigars/cloth/coats /
+muskets(+tools paired) status **Done** thin; `0x5384` report-bit gates **Done**
+thin (show when bit clear); scratch-demand net-yield probe still thin vs stock.
 
 ## Deep — O / P AI dump-sell + spoilage msgs
 
@@ -176,7 +184,8 @@ For cargo `1..15` with surplus `stock − warehouse_cap > 0`:
 - Then spoilage: if surplus &gt; reserved cap `aiStack_e4[c]`, subtract excess
   (lose `local_74` if ≥2) or clamp stock to cap.
 
-Linux: `colonies_apply_warehouse_spoilage` (trim only); no AI auto-sell.
+Linux: `colonies_apply_warehouse_spoilage` (trim); `europe_ai_colony_dump_sell`
+**Done** thin (`nation_horses[]` / `nation_musket_batches[]` on EuropeScreen).
 
 ### P — spoilage msgs (57874–57931)
 
@@ -185,7 +194,9 @@ Linux: `colonies_apply_warehouse_spoilage` (trim only); no AI auto-sell.
 - Human century-crossing stock msgs `0xebb` / tip `0xec7` once
   (`5387|2`) when stock crosses 100s.
 
-**Port:** msgs **PARKED**; trim **Done**.
+**Port:** msgs **Done** thin (human Europe status line); multi-type → "goods"
+phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
+(cross 100s → status + `tut3.nr6` once-latch); trim **Done**.
 
 ## Linux correspondence
 
@@ -198,6 +209,9 @@ Linux: `colonies_apply_warehouse_spoilage` (trim only); no AI auto-sell.
 | C/D SoL flags | `colony_prod_refresh_sol_flags` (sol_50/100); food starve reshape |
 | L hammers | `colony_prod_colony_hammers` + complete |
 | O spoilage trim | `colonies_apply_warehouse_spoilage` |
-| O AI dump-sell | **PARKED** |
-| F–H / K / P | **Mapped**; port **PARKED** |
+| O AI dump-sell | `europe_ai_colony_dump_sell` **Done** thin |
+| F–H education | `turn_produce_one_colony` **Done** thin |
+| Horse breed | `turn_produce_one_colony` **Done** thin (Stable cap) |
+| P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; dialogs PARKED |
+| K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; demand table PARKED |
 | I birth / J starve-kill | **Done** (`turn_produce_one_colony`) |

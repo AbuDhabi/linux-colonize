@@ -19,8 +19,10 @@ DOS year-loop mid-pass (before EN..DU nation loop), not Linux's full
 3. Sort scores + perm (`291f_0ed0`→`1cf8_000a`)
 4. Write inverse rank: `DS:0x917c[perm[i]] = i`
 
-**Linux:** no full rank-table writer. Thin naval-weight comments in
-`ai_diplo.c` only. Mid-pass rank **PARKED** vs batch-after-human pipeline.
+**Linux:** `turn_rank_euro_nations` **Done** thin — fills
+`ctx->euro_power_rank[]` in `TURN_PROC_SETUP` (0 = strongest). Live colony/pop
++ gold/100; live `land_combat_strength` via census refresh. Diplo military score
+uses place. Not a save DS:0x917c writer (RMW layout PARKED).
 
 ---
 

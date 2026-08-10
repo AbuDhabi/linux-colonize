@@ -5,9 +5,12 @@
 #include <string.h>
 
 #include "core/ai.h"
+#include "core/ai_diplo.h"
+#include "core/col1_stuff_census.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/unit_chrome.h"
@@ -16,6 +19,35 @@
 static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
   if (ctx && ctx->active_turn_nation) {
     *ctx->active_turn_nation = nation_id;
+  }
+}
+
+/*
+ * FUN_3844_00f2 per-unit fog reveal (281f_07a0 → 13f1_02f8). Radius 1 thin
+ * (deep LOS PARKED). Also reveal own colonies radius 2 (Finish human chrome).
+ * Cite: nation_eot.c unit walk; game_loop human fog.
+ */
+static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->map || nation_id < 0) {
+    return;
+  }
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
+        continue;
+      }
+      map_reveal_radius(ctx->map, u->x, u->y, nation_id, 1);
+    }
+  }
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      map_reveal_radius(ctx->map, c->x, c->y, nation_id, 2);
+    }
   }
 }
 
@@ -219,6 +251,23 @@ static bool turn_building_name_has(const ColonizeColonyPool* pool, const Coloniz
   return false;
 }
 
+/*
+ * DOS 0x5384 colony-report bits: msgs fire when the matching bit is clear
+ * (defaults 0 in COL saves). Cite: viceroy ~57558/57696; colony_eot_production.md.
+ */
+static int turn_report_ok_trained(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_when_colonists_trained;
+}
+static int turn_report_ok_raw(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_raw_materials_shortages;
+}
+static int turn_report_ok_food(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_food_shortages;
+}
+static int turn_report_ok_new_cargo(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_new_cargos_available;
+}
+
 static int turn_count_field_job(const ColonizeColony* colony, int field_job) {
   if (!colony) {
     return 0;
@@ -254,6 +303,10 @@ static void turn_produce_one_colony(
   }
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
   colony->cargo_produced_mask = 0;
+  int stock_before[COLONIZE_CARGO_COUNT];
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    stock_before[c] = colony->stock[c];
+  }
   const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop <= 0) {
     return;
@@ -373,7 +426,15 @@ static void turn_produce_one_colony(
   }
   if (field_food < consumed && out) {
     out->food_shortages++;
+    if (europe && colony->nation_id == human_nation && turn_report_ok_food(col1)) {
+      if (colony->name[0]) {
+        snprintf(europe->status, sizeof(europe->status), "Food shortage in %s.", colony->name);
+      } else {
+        snprintf(europe->status, sizeof(europe->status), "Food shortage.");
+      }
+    }
   }
+  const int food_surplus_turn = field_food - consumed;
   /*
    * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
    * Kill only if already latched last turn and still short (DOS 0x8e5a path
@@ -411,6 +472,13 @@ static void turn_produce_one_colony(
       newborn->field_job = -1;
       colony->colonist_count++;
       colony->population = colony->colonist_count;
+      if (europe && colony->nation_id == human_nation) {
+        if (colony->name[0]) {
+          snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Colony birth.");
+        }
+      }
     }
 
     /*
@@ -437,10 +505,186 @@ static void turn_produce_one_colony(
       );
       colony->colonist_count--;
       colony->population = colony->colonist_count;
+      if (europe && colony->nation_id == human_nation) {
+        if (colony->name[0]) {
+          snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
+        }
+      }
     }
   }
 
   colony_prod_refresh_sol_flags(colony, col1);
+
+  /*
+   * Horse breeding (manual / fandom): ≥2 horses + food surplus this turn →
+   * breed floor(surplus/2) horses, each costing 1 food. Cap 2 without Stable,
+   * 4 with Stable (deep herd-size ladder PARKED). Cite: docs/fandom_col1994.md;
+   * building_production.md Stable; FreeCol/Col1 surplus-food breed.
+   */
+  if (colony->stock[COLONIZE_CARGO_HORSES] >= 2 && food_surplus_turn > 0) {
+    const int has_stable = turn_building_name_has(pool, colony, "Stable");
+    const int cap = has_stable ? 4 : 2;
+    int breed = food_surplus_turn / 2;
+    if (breed > cap) {
+      breed = cap;
+    }
+    if (breed > colony->stock[COLONIZE_CARGO_FOOD]) {
+      breed = colony->stock[COLONIZE_CARGO_FOOD];
+    }
+      if (breed > 0) {
+        colony->stock[COLONIZE_CARGO_FOOD] =
+          turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - breed);
+        colony->stock[COLONIZE_CARGO_HORSES] =
+          turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed);
+        if (delta) {
+          delta->goods[COLONIZE_CARGO_FOOD] -= breed;
+          delta->food_net -= breed;
+          delta->goods[COLONIZE_CARGO_HORSES] += breed;
+        }
+        if (europe && colony->nation_id == human_nation) {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            has_stable ? "Stable bred %d horses." : "Horses bred: %d.",
+            breed
+          );
+        }
+      }
+  }
+
+  /*
+   * FUN_364b_0688 phases F–G thin: Schoolhouse/College/University education.
+   * Teachers (profession Teacher) in school buildings; students = Free/
+   * Indentured/Criminal/Convert in school. turns_in_job++ each tick; when
+   * teacher ≥ 4/6/8 (by tier), graduate one student → Farmer (Schoolhouse),
+   * Carpenter (College+). Deep specialty table / msgs PARKED.
+   * Cite: ~57502–57589; docs/building_production.md; colony_eot_production.md.
+   */
+  if (pool) {
+    int school_tier = 0; /* 1 Schoolhouse, 2 College, 3 University */
+    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+      if (!colony->has_building[bi]) {
+        continue;
+      }
+      const char* bn = pool->building_types[bi].name;
+      if (!bn) {
+        continue;
+      }
+      if (strstr(bn, "University") != NULL) {
+        school_tier = 3;
+      } else if (strstr(bn, "College") != NULL && school_tier < 2) {
+        school_tier = 2;
+      } else if (strstr(bn, "Schoolhouse") != NULL && school_tier < 1) {
+        school_tier = 1;
+      }
+    }
+    if (school_tier > 0) {
+      const int need = (school_tier == 1) ? 4 : (school_tier == 2) ? 6 : 8;
+      int teachers[8];
+      int students[32];
+      int n_teach = 0;
+      int n_stud = 0;
+      for (int ci = 0; ci < colony->colonist_count; ++ci) {
+        ColonizeColonist* c = &colony->colonists[ci];
+        if (!c->active) {
+          continue;
+        }
+        if (c->turns_in_job < 255) {
+          c->turns_in_job++;
+        }
+        if (c->building_type < 0 || c->building_type >= pool->building_type_count) {
+          continue;
+        }
+        const char* bn = pool->building_types[c->building_type].name;
+        if (!bn ||
+            (strstr(bn, "Schoolhouse") == NULL && strstr(bn, "College") == NULL &&
+             strstr(bn, "University") == NULL)) {
+          continue;
+        }
+        if (c->profession == COLONIZE_PROF_TEACHER) {
+          if (n_teach < 8) {
+            teachers[n_teach++] = ci;
+          }
+        } else if (
+          c->profession == COLONIZE_PROF_FREE_COLONIST ||
+          c->profession == COLONIZE_PROF_INDENTURED ||
+          c->profession == COLONIZE_PROF_CRIMINAL ||
+          c->profession == COLONIZE_PROF_CONVERT ||
+          c->profession < 0
+        ) {
+          if (n_stud < 32) {
+            students[n_stud++] = ci;
+          }
+        }
+      }
+      const int students_at_start = n_stud;
+      for (int t = 0; t < n_teach && n_stud > 0; ++t) {
+        ColonizeColonist* teacher = &colony->colonists[teachers[t]];
+        if ((int)teacher->turns_in_job < need) {
+          continue;
+        }
+        /* Specialty: teacher field_job 0..8 if set; else Farmer / Carpenter. */
+        int skill = (school_tier >= 2) ? COLONIZE_PROF_CARPENTER : COLONIZE_JOB_FARMER;
+        if (teacher->field_job >= 0 && teacher->field_job < COLONIZE_FIELD_JOB_COUNT) {
+          skill = teacher->field_job;
+        }
+        ColonizeColonist* student = &colony->colonists[students[n_stud - 1]];
+        student->profession = skill;
+        student->turns_in_job = 0;
+        teacher->turns_in_job = 0;
+        n_stud--;
+        if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
+          const char* tier_name =
+            (school_tier >= 3) ? "University" : (school_tier == 2) ? "College" : "Schoolhouse";
+          snprintf(europe->status, sizeof(europe->status), "%s graduate.", tier_name);
+        }
+      }
+      /* Teacher ready but no students at start → DOS 0xde7 crumb. */
+      if (students_at_start == 0 && europe && colony->nation_id == human_nation &&
+          turn_report_ok_trained(col1)) {
+        for (int t = 0; t < n_teach; ++t) {
+          ColonizeColonist* teacher = &colony->colonists[teachers[t]];
+          if ((int)teacher->turns_in_job >= need) {
+            snprintf(europe->status, sizeof(europe->status), "No students to teach.");
+            break;
+          }
+        }
+      }
+    }
+
+    /*
+     * Phase H thin — random field skill discover (DOS ~57590–57614).
+     * Free Colonist on field job 0..4: 1/100 → gain that field profession.
+     * Treasure/already-skilled / nation skill-flags / school-job thresholds PARKED.
+     */
+    for (int ci = 0; ci < colony->colonist_count; ++ci) {
+      ColonizeColonist* c = &colony->colonists[ci];
+      if (!c->active) {
+        continue;
+      }
+      if (c->profession != COLONIZE_PROF_FREE_COLONIST && c->profession >= 0) {
+        continue;
+      }
+      if (c->field_job < 0 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
+        continue;
+      }
+      unsigned seed = 1u;
+      if (col1) {
+        seed = (unsigned)col1->head.turn * 1103515245u + (unsigned)col1->head.year + 12345u;
+      }
+      seed = seed * 1103515245u + 12345u + (unsigned)(ci * 17 + colony->id * 31);
+      const unsigned roll = (seed >> 16) & 0x7fffu;
+      if ((roll % 100u) == 0u) {
+        c->profession = c->field_job;
+        c->turns_in_job = 0;
+        if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
+          snprintf(europe->status, sizeof(europe->status), "Colonist learned a skill.");
+        }
+      }
+    }
+  }
 
   /*
    * Lumber fallback: if no lumberjacks but a carpenter building exists,
@@ -513,15 +757,98 @@ static void turn_produce_one_colony(
         delta->hammers_added = hammers;
       }
 
-      if (colony->building_in_production >= 0 &&
-          colonies_try_complete_building(pool, colony->id)) {
-        if (delta) {
-          delta->building_completed = true;
+      if (colony->building_in_production >= 0) {
+        const int bip = colony->building_in_production;
+        const char* bname = NULL;
+        if (bip >= 0 && bip < pool->building_type_count) {
+          bname = pool->building_types[bip].name;
         }
-        if (out) {
-          out->buildings_completed++;
+        if (colonies_try_complete_building(pool, colony->id)) {
+          if (delta) {
+            delta->building_completed = true;
+          }
+          if (out) {
+            out->buildings_completed++;
+          }
+          if (europe && colony->nation_id == human_nation) {
+            if (bname && bname[0]) {
+              snprintf(europe->status, sizeof(europe->status), "%s completed.", bname);
+            } else {
+              snprintf(europe->status, sizeof(europe->status), "Building completed.");
+            }
+          }
+        } else if (
+          colony->nation_id == human_nation && europe && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
+          (!col1 || !col1->head.colony_report_options.report_tools_needed_for_production)
+        ) {
+          /* K tools crumb (0x8e76 / 0xe8f); gate !(5384&0x10). */
+          snprintf(europe->status, sizeof(europe->status), "Need tools.");
         }
       }
+    } else if (
+      colony->building_in_production >= 0 && colony->nation_id == human_nation && europe &&
+      turn_report_ok_raw(col1)
+    ) {
+      /*
+       * Phase K thin: construction queued but zero hammers this tick.
+       * Gate !(5384&0x20). Cite: colony_eot_production.md Deep K.
+       */
+      snprintf(
+        europe->status,
+        sizeof(europe->status),
+        "No hammers for construction."
+      );
+    }
+  }
+
+  /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
+  if (colony->nation_id == human_nation && europe && europe->status[0] == '\0' &&
+      turn_report_ok_raw(col1)) {
+    if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 &&
+        turn_building_name_has(pool, colony, "Carpenter")) {
+      snprintf(europe->status, sizeof(europe->status), "Need lumber.");
+    } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 &&
+               turn_building_name_has(pool, colony, "Blacksmith")) {
+      snprintf(europe->status, sizeof(europe->status), "Need ore.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_FOOD] == 0 && colony->colonist_count > 0
+    ) {
+      snprintf(europe->status, sizeof(europe->status), "Need food.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_RUM] == 0 &&
+      turn_building_name_has(pool, colony, "Distiller")
+    ) {
+      snprintf(europe->status, sizeof(europe->status), "Need rum.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_CIGARS] == 0 &&
+      turn_building_name_has(pool, colony, "Tobacconist")
+    ) {
+      snprintf(europe->status, sizeof(europe->status), "Need cigars.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_CLOTH] == 0 &&
+      turn_building_name_has(pool, colony, "Weaver")
+    ) {
+      snprintf(europe->status, sizeof(europe->status), "Need cloth.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_COATS] == 0 &&
+      turn_building_name_has(pool, colony, "Fur Trader")
+    ) {
+      snprintf(europe->status, sizeof(europe->status), "Need coats.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_MUSKETS] == 0 && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
+      (turn_building_name_has(pool, colony, "Armory") ||
+       turn_building_name_has(pool, colony, "Magazine") ||
+       turn_building_name_has(pool, colony, "Arsenal"))
+    ) {
+      /* 0x8e66 paired tools+muskets empty. */
+      snprintf(europe->status, sizeof(europe->status), "Need tools for muskets.");
+    } else if (
+      colony->stock[COLONIZE_CARGO_MUSKETS] == 0 &&
+      (turn_building_name_has(pool, colony, "Armory") ||
+       turn_building_name_has(pool, colony, "Magazine") ||
+       turn_building_name_has(pool, colony, "Arsenal"))
+    ) {
+      snprintf(europe->status, sizeof(europe->status), "Need muskets.");
     }
   }
 
@@ -535,9 +862,99 @@ static void turn_produce_one_colony(
    */
   if (europe) {
     (void)europe_custom_house_autosell(europe, pool, colony, col1, human_nation);
+    /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
+    (void)europe_ai_colony_dump_sell(europe, pool, colony, col1, human_nation);
   }
-  /* Spoilage after Custom House (wiki Custom House before spoilage). */
-  (void)colonies_apply_warehouse_spoilage(pool, colony);
+  /* Spoilage after Custom House / AI dump-sell (wiki Custom House before spoilage). */
+  {
+    int first_spoil = -1;
+    int spoil_types = 0;
+    const int spoiled =
+      colonies_apply_warehouse_spoilage(pool, colony, &first_spoil, &spoil_types);
+    /* Phase P thin: human spoilage status; multi-type → goods phrasing. */
+    if (spoiled > 0 && europe && colony->nation_id == human_nation) {
+      const char* wh =
+        (colony->warehouse_level > 1u) ? "Expanded warehouse" : "Warehouse";
+      const char* where = (colony->name[0]) ? colony->name : NULL;
+      if (spoil_types > 1) {
+        if (where) {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            "%s in %s spoiled %d goods.",
+            wh,
+            where,
+            spoiled
+          );
+        } else {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            "%s spoiled %d goods.",
+            wh,
+            spoiled
+          );
+        }
+      } else if (
+        first_spoil >= 0 && first_spoil < europe->cargo_count &&
+        europe->cargo[first_spoil].name[0]
+      ) {
+        if (where) {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            "%s in %s spoiled %d %s.",
+            wh,
+            where,
+            spoiled,
+            europe->cargo[first_spoil].name
+          );
+        } else {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            "%s spoiled %d %s.",
+            wh,
+            spoiled,
+            europe->cargo[first_spoil].name
+          );
+        }
+      } else {
+        snprintf(
+          europe->status,
+          sizeof(europe->status),
+          "%s spoiled %d goods.",
+          wh,
+          spoiled
+        );
+      }
+    } else if (europe && colony->nation_id == human_nation) {
+      /*
+       * Phase P century tip thin: stock crosses a 100s boundary upward.
+       * Once-per-campaign latch DS:0x5387 bit1 → head.tut3.nr6.
+       * Cite: colony_eot_production.md Deep P; viceroy ~57915.
+       */
+      const int latched = col1 && col1->head.tut3.nr6;
+      if (!latched && turn_report_ok_new_cargo(col1)) {
+        for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+          const int before = stock_before[c];
+          const int after = colony->stock[c];
+          if (after >= 100 && before / 100 < after / 100) {
+            snprintf(
+              europe->status,
+              sizeof(europe->status),
+              "Stockpile crossed %d00.",
+              after / 100
+            );
+            if (col1) {
+              col1->head.tut3.nr6 = 1;
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
 }
 
 void turn_run_colony_production(
@@ -569,7 +986,10 @@ int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
     ctx->colonies,
     ctx->map,
     ctx->col1_ok ? ctx->col1 : NULL,
-    ctx->rng
+    ctx->rng,
+    ctx->human_nation,
+    ctx->status,
+    ctx->status_size
   );
 }
 
@@ -669,8 +1089,10 @@ static void turn_push_dock_immigrant(EuropeScreen* europe, ColonizeTurnResult* o
     return;
   }
   if (europe_immigrant_from_pool(europe)) {
+    europe->open_on_dock = true; /* DS:0x14c after dock immigrant */
     if (out) {
       out->immigrants_arrived++;
+      out->request_europe_open = true;
     }
   }
 }
@@ -749,33 +1171,262 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
     }
     europe_tick_voyages(ctx->europe, ctx->units);
+    europe_tick_immigration_pressure(
+      ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation
+    );
   }
 
-  if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
-    ColonizeCol1Nation* nat = &ctx->col1->nation[ctx->human_nation];
-    nat->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
-    {
-      unsigned total = (unsigned)nat->liberty_bells_total + (unsigned)bells;
-      if (total > 65535u) {
-        total = 65535u;
+  /*
+   * FUN_4345_0a22 / nation EOT: accrue bells+crosses for every active Euro
+   * nation (human + AI). Dock immigrant / Europe chrome stays human-only above.
+   * Cite: turn/nation_ticks_bells_ff.md; DOS per-nation 00f2.
+   */
+  if (ctx->col1_ok && ctx->col1) {
+    for (int n = 0; n < 4; ++n) {
+      uint8_t control = 1;
+      if (n < (int)COLONIZE_COL1_NATION_COUNT) {
+        control = ctx->col1->player[n].control;
       }
-      nat->liberty_bells_total = (uint16_t)total;
-    }
-    {
-      unsigned cur = (unsigned)nat->current_crosses + (unsigned)crosses;
-      if (cur > 65535u) {
-        cur = 65535u;
+      if (control == 2) {
+        continue; /* withdrawn */
       }
-      nat->current_crosses = (uint16_t)cur;
+      int nb = 0;
+      int nc = 0;
+      turn_count_bells_and_crosses_for_nation(
+        ctx->colonies, n, ctx->col1, &nb, &nc
+      );
+      ColonizeCol1Nation* nat = &ctx->col1->nation[n];
+      nat->liberty_bells_last_turn = (uint16_t)(nb > 65535 ? 65535 : nb);
+      {
+        unsigned total = (unsigned)nat->liberty_bells_total + (unsigned)nb;
+        if (total > 65535u) {
+          total = 65535u;
+        }
+        nat->liberty_bells_total = (uint16_t)total;
+      }
+      {
+        unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
+        if (cur > 65535u) {
+          cur = 65535u;
+        }
+        nat->current_crosses = (uint16_t)cur;
+      }
+      /*
+       * AI Euro crosses: +2 /turn here (was ai_euro_nation_turn); churches in nc.
+       * Threshold → Free Colonist at Europe (236,236). Human dock stays above.
+       * Cite: nation_ticks_bells_ff.md; 38fd_5e52.
+       */
+      if (n != ctx->human_nation) {
+        {
+          unsigned cur = (unsigned)nat->current_crosses + 2u;
+          if (cur > 65535u) {
+            cur = 65535u;
+          }
+          nat->current_crosses = (uint16_t)cur;
+        }
+        if (nat->needed_crosses == 0) {
+          nat->needed_crosses = TURN_AI_DEFAULT_NEEDED_CROSSES;
+        }
+        if (ctx->units) {
+          while (nat->needed_crosses > 0 &&
+                 nat->current_crosses >= nat->needed_crosses) {
+            nat->current_crosses = 0;
+            unsigned need = (unsigned)nat->needed_crosses + 1u;
+            if (need > 65535u) {
+              need = 65535u;
+            }
+            nat->needed_crosses = (uint16_t)need;
+            const int tid = units_find_type(ctx->units, "Colonists");
+            const int type_index = tid >= 0 ? tid : 0;
+            const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
+            ColonizeUnit* u = units_get(ctx->units, id);
+            if (u) {
+              units_set_nation(u, n);
+              u->orders = UNITS_ORDER_SENTRY;
+              u->profession = COLONIZE_PROF_FREE_COLONIST;
+              u->goto_x = 0;
+              u->goto_y = 0;
+              u->moves_left = 0;
+            }
+            if (out) {
+              out->immigrants_arrived++;
+            }
+          }
+        }
+      }
+      /* Human Europe screen is authoritative for human nation counters. */
+      if (n == ctx->human_nation && ctx->europe) {
+        nat->current_crosses = ctx->europe->current_crosses;
+        nat->needed_crosses = ctx->europe->needed_crosses;
+        nat->liberty_bells_total = ctx->europe->liberty_bells_total;
+        nat->liberty_bells_last_turn = ctx->europe->liberty_bells_last_turn;
+      }
     }
-    if (ctx->europe) {
-      nat->current_crosses = ctx->europe->current_crosses;
-      nat->needed_crosses = ctx->europe->needed_crosses;
-      nat->liberty_bells_total = ctx->europe->liberty_bells_total;
-      nat->liberty_bells_last_turn = ctx->europe->liberty_bells_last_turn;
-    }
-    /* Rough FF election from liberty bells (human); full cost/effects PARKED. */
     founding_fathers_tick(ctx);
+  }
+
+  /*
+   * FUN_3844_00f2 §C rare immigrant Merchantman (every 8th turn, peacetime).
+   * Year≥1600 keeps smoke_ai_turns early T2 clean. Census/dialog PARKED.
+   * Cite: nation_eot_ship_spawn.md §C.
+   */
+  if (ctx->units && ctx->game_year && ctx->turn_number && *ctx->game_year >= 1600u &&
+      (*ctx->turn_number & 7u) == 0u) {
+    const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[0] != 0;
+    if (!woi) {
+      int ti = units_find_type(ctx->units, "Merchantman");
+      if (ti < 0) {
+        ti = 0x11;
+      }
+      int x = 236;
+      int y = 236;
+      if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
+          ctx->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
+        x = (int)ctx->col1->nation[ctx->human_nation].return_from_europe_x;
+        y = (int)ctx->col1->nation[ctx->human_nation].return_from_europe_y;
+        if (x == 0 && y == 0) {
+          x = 236;
+          y = 236;
+        }
+      }
+      const int id = units_spawn_allow_stack(ctx->units, ti, x, y);
+      ColonizeUnit* u = units_get(ctx->units, id);
+      if (u) {
+        units_set_nation(u, ctx->human_nation);
+        u->orders = UNITS_ORDER_AI_SAIL;
+        u->col1_unknown15 = (uint8_t)(u->col1_unknown15 | 0x40u);
+        u->goto_x = x;
+        u->goto_y = y;
+        /* FUN_48d3_0002 landfall duration: usually 1; 2 if RNG>89 + docks/colonies. */
+        int dur = 1;
+        int colonies_n = 0;
+        if (ctx->colonies) {
+          for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+            if (ctx->colonies->colonies[i].active &&
+                ctx->colonies->colonies[i].nation_id == ctx->human_nation) {
+              colonies_n++;
+            }
+          }
+        }
+        const int docks = ctx->europe ? ctx->europe->dock_count + ctx->europe->harbor_ships : 0;
+        if (ctx->rng && docks > 2 && colonies_n > 0 && dos_rng_range(ctx->rng, 0, 99) > 89) {
+          dur = 2;
+        }
+        u->turns_worked = (uint8_t)dur;
+        if (ctx->status && ctx->status_size > 0) {
+          snprintf(ctx->status, ctx->status_size, "Immigrant ship arrives.");
+        }
+      }
+    }
+  }
+}
+
+int turn_rank_euro_nations(
+  const ColonizeCol1Save* col1,
+  const ColonizeColonyPool* colonies,
+  uint8_t out_rank[4]
+) {
+  /*
+   * FUN_5bfb_00f8: score = gold/100 + 2*colony_count + pop_proxy + land_combat.
+   * Sort descending; inverse rank[nation] = place (0 = strongest).
+   * Cite: viceroy_unpacked.c ~96506–96531; turn/mid_pass_indian_rank.md.
+   */
+  if (!out_rank) {
+    return -1;
+  }
+  int score[4];
+  int perm[4];
+  for (int n = 0; n < 4; ++n) {
+    perm[n] = n;
+    int colonies_n = 0;
+    int pop = 0;
+    if (colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &colonies->colonies[i];
+        if (!c->active || c->nation_id != n) {
+          continue;
+        }
+        colonies_n++;
+        pop += c->population > 0 ? c->population : c->colonist_count;
+      }
+    }
+    int gold100 = 0;
+    int land = 0;
+    if (col1 && n < (int)COLONIZE_COL1_NATION_COUNT) {
+      gold100 = (int)(col1->nation[n].gold / 100u);
+      /* Land combat from stuff census when present; colony/pop always live. */
+      land = (int)col1->stuff.land_combat_strength[n];
+    }
+    score[n] = gold100 + colonies_n * 2 + pop + land;
+  }
+  /* Stable insertion sort by score descending; perm tracks nation ids. */
+  for (int i = 1; i < 4; ++i) {
+    const int s = score[i];
+    const int p = perm[i];
+    int j = i;
+    while (j > 0 && score[j - 1] < s) {
+      score[j] = score[j - 1];
+      perm[j] = perm[j - 1];
+      j--;
+    }
+    score[j] = s;
+    perm[j] = p;
+  }
+  for (int place = 0; place < 4; ++place) {
+    out_rank[perm[place]] = (uint8_t)place;
+  }
+  return 0;
+}
+
+void turn_tally_professions(
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  int nation_id,
+  uint8_t out_hist[32]
+) {
+  /*
+   * FUN_4962_0606: zero hist[0x1d]; count unit specialties + colony jobs.
+   * Linux: profession / field_job stand-ins; 32 slots (covers @JOB range).
+   */
+  if (!out_hist) {
+    return;
+  }
+  memset(out_hist, 0, 32);
+  if (nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      const int p = u->profession;
+      if (p >= 0 && p < 32 && out_hist[p] < 255u) {
+        out_hist[p]++;
+      }
+    }
+  }
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      for (int ci = 0; ci < c->colonist_count; ++ci) {
+        const ColonizeColonist* col = &c->colonists[ci];
+        if (!col->active) {
+          continue;
+        }
+        int p = col->profession;
+        if (p < 0 && col->field_job >= 0) {
+          p = col->field_job;
+        }
+        if (p >= 0 && p < 32 && out_hist[p] < 255u) {
+          out_hist[p]++;
+        }
+      }
+    }
   }
 }
 
@@ -799,6 +1450,9 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
     (void)units_tick_treasure_outside_colony(
       ctx->units, ctx->colonies, n, ctx->status, ctx->status_size
     );
+    (void)units_tick_ship_build_ready(
+      ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size, NULL
+    );
     ai_euro_nation_turn(ctx, n);
   }
 }
@@ -819,6 +1473,265 @@ void turn_run_indian_stub(ColonizeTurnContext* ctx) {
 
 void turn_run_king_stub(ColonizeTurnContext* ctx) {
   ai_king_nation_turn(ctx);
+}
+
+void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
+  /*
+   * FUN_3844_0442 thin peels:
+   *   B — peacetime, year≥1600, zero human colonies → defeat latch
+   *   C1 — WoI + zero crown colonies → victory (fleet + REF pool thin)
+   *   E — anniversary years 1790/1840 status (dialogs PARKED)
+   * Cite: viceroy_unpacked.c ~58430+; turn/year_end_chrome.md.
+   */
+  if (!ctx || !out) {
+    return;
+  }
+  const uint16_t year =
+    (ctx->game_year) ? *ctx->game_year
+                     : (ctx->col1_ok && ctx->col1) ? ctx->col1->head.year : 0;
+
+  const int splash_done =
+    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.calendar_latch;
+
+  /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10. */
+  if (!splash_done && (year == 0x6feu || year == 0x730u) && ctx->status &&
+      ctx->status_size > 0 && !out->year_end_defeat && !out->year_end_victory) {
+    static const char* k_diff[] = {
+      "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+    };
+    const int d =
+      (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : -1;
+    const char* dname = (d >= 0 && d <= 4) ? k_diff[d] : NULL;
+    if (dname) {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Anniversary year %u (%s).",
+        (unsigned)year,
+        dname
+      );
+    } else {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Anniversary year %u.",
+        (unsigned)year
+      );
+    }
+  }
+  /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED. */
+  if (!splash_done && (year == 0x708u || year == 0x73au) && ctx->status &&
+      ctx->status_size > 0 && !out->year_end_defeat && !out->year_end_victory) {
+    static const char* k_diff[] = {
+      "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+    };
+    const int d =
+      (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : -1;
+    const char* dname = (d >= 0 && d <= 4) ? k_diff[d] : NULL;
+    const char* richest = NULL;
+    int best_pop = -1;
+    if (ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active || c->nation_id != ctx->human_nation) {
+          continue;
+        }
+        if (c->colonist_count > best_pop && c->name[0] != '\0') {
+          best_pop = c->colonist_count;
+          richest = c->name;
+        }
+      }
+    }
+    if (richest && dname) {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Game era ends %u (%s, %s).",
+        (unsigned)year,
+        dname,
+        richest
+      );
+    } else if (richest) {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Game era ends %u (%s).",
+        (unsigned)year,
+        richest
+      );
+    } else if (dname) {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Game era ends %u (%s).",
+        (unsigned)year,
+        dname
+      );
+    } else {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "Game era ends %u.",
+        (unsigned)year
+      );
+    }
+    /* DOS clears 0x53c2 then LAB_0b4a ORs bit4 when stopped. */
+    if (ctx->col1_ok && ctx->col1) {
+      ctx->col1->head.game_options.calendar_latch = 1;
+      ctx->col1->head.turn_loop_running = 0;
+    }
+  }
+
+  const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[0] != 0;
+  /* unknown46[4]==1 = independence achieved (reports); also skip re-fire. */
+  const int already_won =
+    ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[4] == 1;
+
+  /*
+   * Section C1 thin: WoI + (no crown colonies | force) + fleet thin + REF pool
+   * thin. Force (0x5382 bit5) bypasses fleet/REF gates. Cite: year_end_chrome.md.
+   */
+  if (woi && !already_won && !out->year_end_defeat) {
+    const int crown = (ctx->human_nation == 0) ? 1 : 0;
+    int crown_colonies = 0;
+    if (ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (c->active && c->nation_id == crown) {
+          crown_colonies++;
+        }
+      }
+    }
+    const int force =
+      ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.independence_force;
+    int warships = 0;
+    if (ctx->units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &ctx->units->units[i];
+        if (!u->active || u->nation_id != crown) {
+          continue;
+        }
+        /* DOS crown warship types 0x06 / 0x08 / 0x0b. */
+        if (u->type_index == 0x06 || u->type_index == 0x08 || u->type_index == 0x0b) {
+          warships++;
+        }
+      }
+    }
+    const int fleet_cap =
+      (ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.ref_unit_threshold) ? 1 : 8;
+    const int colony_gate = (crown_colonies == 0) || force;
+    const int fleet_thin = warships < fleet_cap;
+    /* DOS: (2-(53dc==0)-(53e0==0)+53da) < 4 — expeditionary_force[0/1/3]. */
+    int ref_score = 2;
+    if (ctx->col1_ok && ctx->col1) {
+      const uint16_t* ef = ctx->col1->head.expeditionary_force;
+      if (ef[1] == 0) {
+        ref_score--;
+      }
+      if (ef[3] == 0) {
+        ref_score--;
+      }
+      ref_score += (int)ef[0];
+    }
+    const int ref_thin = ref_score < 4;
+    if (colony_gate && (fleet_thin || force) && (ref_thin || force)) {
+      out->year_end_victory = true;
+      if (ctx->col1_ok && ctx->col1) {
+        ctx->col1->head.unknown46[4] = 1;
+        ctx->col1->head.game_options.independence_chrome = 1; /* 0x5382|8 */
+        ctx->col1->head.show_entire_map = 1; /* LAB_0b4a → DS:0x53a2 */
+        ctx->col1->head.game_options.calendar_latch = 1; /* LAB_0b4a when stopped */
+        ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
+      }
+      if (ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
+      }
+      return;
+    }
+
+    /*
+     * Section C2 thin: WoI with crown still present — SoL proxy pressure/peace
+     * status (dialogs PARKED). Cite: year_end_chrome.md C2.
+     */
+    if (crown_colonies > 0 && ctx->status && ctx->status_size > 0 && ctx->col1_ok &&
+        ctx->col1) {
+      const unsigned human_b =
+        (ctx->human_nation >= 0 && ctx->human_nation < 4)
+          ? (unsigned)ctx->col1->nation[ctx->human_nation].liberty_bells_total
+          : 0u;
+      const unsigned crown_b = (unsigned)ctx->col1->nation[crown].liberty_bells_total;
+      const unsigned sol =
+        ((crown_b + 1u) * 100u) / (human_b + crown_b + 1u);
+      if (sol > 89u) {
+        snprintf(ctx->status, ctx->status_size, "Crown peace offer.");
+      } else if (sol > 79u) {
+        snprintf(ctx->status, ctx->status_size, "Independence pressure.");
+      }
+    }
+  }
+
+  /*
+   * Section D thin: peacetime rival liberty pressure (auto-declare PARKED).
+   * If any AI Euro has liberty_bells_total ≥ human + 40, status once.
+   * Cite: year_end_chrome.md Rival SoL.
+   */
+  if (!woi && ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size > 0 &&
+      !out->year_end_defeat && !out->year_end_victory) {
+    const unsigned human_bells =
+      (ctx->human_nation >= 0 && ctx->human_nation < 4)
+        ? (unsigned)ctx->col1->nation[ctx->human_nation].liberty_bells_total
+        : 0u;
+    for (int n = 0; n < 4; ++n) {
+      if (n == ctx->human_nation) {
+        continue;
+      }
+      if (ctx->col1->player[n].control == 2) {
+        continue;
+      }
+      const unsigned rival = (unsigned)ctx->col1->nation[n].liberty_bells_total;
+      /*
+       * Auto-declare thin: rival liberty ≫ human (×3 and ≥120) → war.
+       * Full dialog / europe flag bit2 PARKED. Cite: year_end_chrome.md D.
+       */
+      if (rival >= 120u && rival >= human_bells * 3u + 1u) {
+        ai_diplo_declare_war(ctx->col1, n, ctx->human_nation);
+        snprintf(ctx->status, ctx->status_size, "Rival declares war.");
+        break;
+      }
+      if (rival >= human_bells + 40u) {
+        snprintf(ctx->status, ctx->status_size, "Rival SoL pressure.");
+        break;
+      }
+    }
+  }
+
+  if (year < 1600) {
+    return;
+  }
+  /* Section B: peacetime only. */
+  if (woi) {
+    return;
+  }
+  int human_colonies = 0;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == ctx->human_nation) {
+        human_colonies++;
+      }
+    }
+  }
+  if (human_colonies != 0) {
+    return;
+  }
+  out->year_end_defeat = true;
+  if (ctx->col1_ok && ctx->col1) {
+    ctx->col1->head.game_options.calendar_latch = 1; /* LAB_0b4a when stopped */
+    ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
+  }
+  if (ctx->status && ctx->status_size > 0) {
+    snprintf(ctx->status, ctx->status_size, "Defeat: no colonies remain.");
+  }
 }
 
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {
@@ -842,9 +1755,16 @@ static int turn_next_euro_ai(const ColonizeTurnContext* ctx, int start) {
 }
 
 static void turn_finish_status(ColonizeTurnContext* ctx, const ColonizeTurnResult* result) {
-  (void)result;
   if (!ctx || !ctx->status || ctx->status_size == 0 || !ctx->game_year || !ctx->game_autumn ||
       !ctx->turn_number) {
+    return;
+  }
+  if (result && result->year_end_defeat) {
+    snprintf(ctx->status, ctx->status_size, "Defeat: no colonies remain.");
+    return;
+  }
+  if (result && result->year_end_victory) {
+    snprintf(ctx->status, ctx->status_size, "Victory: independence won.");
     return;
   }
   char date[32];
@@ -907,6 +1827,24 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);
+      /* Mid-pass Euro rank (FUN_5bfb_00f8) — DOS before nation loop; Linux SETUP. */
+      ctx->euro_power_rank_ok =
+        turn_rank_euro_nations(
+          ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->euro_power_rank
+        ) == 0;
+      /* FUN_4962_0606 profession tally for each Euro nation (DOS per-nation 00f2). */
+      for (int n = 0; n < 4; ++n) {
+        turn_tally_professions(ctx->colonies, ctx->units, n, ctx->profession_tally[n]);
+      }
+      ctx->profession_tally_ok = true;
+      /* Live census peel: colony + unit/combat tallies (FUN_4962_0018). */
+      if (ctx->col1_ok && ctx->col1) {
+        col1_stuff_census_refresh_colony_counts(
+          &ctx->col1->stuff,
+          ctx->colonies,
+          ctx->units
+        );
+      }
       proc->nation_cursor = 0;
       {
         const int next = turn_next_euro_ai(ctx, 0);
@@ -924,6 +1862,11 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       const int n = proc->nation_cursor;
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
+      /*
+       * AI fog reveal (00f2 / 281f_07a0) PARKED for smoke_ai_turns T2 —
+       * revealing rivals early changes found-tile / unit paths. Human FINISH
+       * still reveals. Cite: nation_eot.c; turn_between_players.md.
+       */
       if (ctx->units) {
         turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
         if (n >= 0 && n < 4) {
@@ -934,6 +1877,19 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             ctx->status,
             ctx->status_size
           );
+          int want_eu = 0;
+          (void)units_tick_ship_build_ready(
+            ctx->units,
+            ctx->colonies,
+            n,
+            ctx->human_nation,
+            ctx->status,
+            ctx->status_size,
+            &want_eu
+          );
+          if (want_eu && n == ctx->human_nation) {
+            proc->result.request_europe_open = true;
+          }
         }
       }
       ai_euro_nation_turn(ctx, n);
@@ -966,6 +1922,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     case TURN_PROC_FINISH: {
       proc->show_indicator = false;
       turn_run_king_stub(ctx);
+      turn_run_year_end_chrome(ctx, &proc->result);
       /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */
       if (ctx->europe) {
         europe_tick_market_prices(
@@ -973,6 +1930,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         );
       }
       turn_set_active_nation(ctx, ctx->human_nation);
+      turn_reveal_fog_for_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(
         ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, ctx->map
       );
@@ -984,6 +1942,19 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->status,
           ctx->status_size
         );
+        int want_eu = 0;
+        (void)units_tick_ship_build_ready(
+          ctx->units,
+          ctx->colonies,
+          ctx->human_nation,
+          ctx->human_nation,
+          ctx->status,
+          ctx->status_size,
+          &want_eu
+        );
+        if (want_eu) {
+          proc->result.request_europe_open = true;
+        }
         if (ctx->europe && ctx->col1_ok && ctx->col1) {
           (void)units_cortes_cash_coastal_treasures(
             ctx->units,

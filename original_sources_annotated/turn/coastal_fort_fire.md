@@ -9,7 +9,9 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 [`docs/turn_between_players.md`](../../docs/turn_between_players.md).
 
 **Port:** **Done** thin — `units_coastal_fort_fire_pulse` /
-`turn_run_coastal_fort_fire`. Ship-slow formula still **PARKED**.
+`turn_run_coastal_fort_fire`. Ship-slow on miss: `moves_left=0` **Done** thin;
+human sank/slowed status **Done** thin; damaged bit7 / deep DOS formula
+**PARKED** (bit7 vs ship-build).
 
 ## Call sites / reshape
 
@@ -52,4 +54,6 @@ Do not “fix” docs to nest fort fire inside Linux production.
 `units_coastal_fort_attack_strength`: Fortress → tier 2 else Fort → 1;
 `atk = 4 * tier * (1 + arty_on_colony_tile)`. Pulse: water neighbors; hostile =
 Euro/Indian at war **or** Privateer; `units_fort_vs_ship` roll; win → despawn
-ship. AI flee/skip: `ai_euro.c` (Marathon8).
+ship; lose → **ship-slow thin** (`moves_left=0`; damaged bit7 PARKED — conflicts
+with ship-build latch). Deep DOS combat chrome still **PARKED**. AI flee/skip:
+`ai_euro.c` (Marathon8).

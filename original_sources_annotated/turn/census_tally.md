@@ -42,9 +42,10 @@ Helper: `FUN_4962_0006` — saturating +1 to 255.
 
 | DOS | Linux | Fidelity |
 |-----|-------|----------|
-| Full EOT census | no live mid-campaign freshen | Intentional lag |
+| Full EOT census | `col1_stuff_census_refresh_colony_counts` in SETUP | Colony + unit/combat tallies **Done** thin |
 | Blank-template fill | `col1_stuff_census_fill_blank` | **Partial** |
 | Colony `+0x1b` ship bits | `ai_euro_refresh_colony_ai_flags` | Thin |
+| Profession hist `0606` | `turn_tally_professions` → `ctx->profession_tally[4][32]` | **Done** thin (all Euro SETUP) |
 
 ---
 
@@ -64,8 +65,9 @@ Helper: `FUN_4962_0006` — saturating +1 to 255.
 
 ### Linux
 
-No dedicated port. Profession data on live units/jobs. **PARKED** as EOT
-histogram writer.
+Runtime **`turn_tally_professions`** fills `ctx->profession_tally[4][32]` in SETUP
+for every Euro nation (colonist jobs + unit professions). DS:0x9430 RMW writer
+still **PARKED**.
 
 **Order in `3844_00f2`:** `0606` → Europe EOT `5e52` → … → production →
 census `0018` → king `2424`.

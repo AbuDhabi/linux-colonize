@@ -207,6 +207,23 @@ int units_tick_treasure_outside_colony(
   size_t status_size
 );
 /*
+ * FUN_3844_00f2 ship-build ready: Col1 types 0x0d..0x12 with +0x3148 bit7
+ * (Linux col1_unknown15 bit7; same bit as ship_damaged for Frigate 0x0b —
+ * construction gate excludes 0x0b). +1 turns_worked (+2 on any colony tile);
+ * threshold = type.defense (DOS 0x5235 = NAMES @UNIT combat).
+ * Clears bit7 on complete; human status line; *want_europe_open=1 if finished
+ * off-colony. Returns ships completed. Cite: nation_eot_ship_spawn.md §A.
+ */
+int units_tick_ship_build_ready(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int human_nation,
+  char* status,
+  size_t status_size,
+  int* want_europe_open
+);
+/*
  * Cortes free king galleon stand-in: each Treasure of nation on an own coastal
  * colony → europe_cash_treasure (tax = Crown share) + despawn. Cite: fandom
  * Hernan Cortes; GAME.TXT @KINGGALLEON3. Syncs col1 nation gold. Returns
@@ -388,15 +405,18 @@ int units_coastal_fort_attack_strength(
 /*
  * EOT pulse: each Fort/Fortress colony fires on adjacent ocean ships that are
  * at war with the colony owner, or Privateers (peace ignored). Fort win →
- * sink ship (no hold plunder). Fort loss → no effect (no temp attacker).
- * Returns ships sunk. Cite: FUN_364b_03f6.
+ * sink ship (no hold plunder). Fort loss → ship-slow (moves_left=0).
+ * Optional human status line. Returns ships sunk. Cite: FUN_364b_03f6.
  */
 int units_coastal_fort_fire_pulse(
   ColonizeUnitPool* units,
   const ColonizeColonyPool* colonies,
   const ColonizeWorldMap* map,
   const ColonizeCol1Save* col1,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  int human_nation,
+  char* status,
+  size_t status_size
 );
 
 /* After units_try_move: 0 none, 1 attacker won, -1 attacker lost. */

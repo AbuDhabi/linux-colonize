@@ -221,6 +221,18 @@ typedef struct EuropeScreen {
   bool open_on_dock; /* set when Expected→Harbor this tick */
   /* William Brewster: exclude Petty Criminals / Indentured Servants from pool. */
   bool brewster_no_criminals;
+  /*
+   * FUN_38fd_5e52 / 584a immigration pressure: +0x30 score, +0x2e accumulate.
+   * Cite: europe_nation_eot.md phase 4–5.
+   */
+  int16_t immigration_score;
+  int16_t immigration_pressure;
+  /*
+   * FUN_364b_0688 O — per-nation Europe horses word / musket×50 batches
+   * (AI dump-sell). Cite: colony_eot_production.md.
+   */
+  uint16_t nation_horses[4];
+  uint16_t nation_musket_batches[4];
   char status[160];
 } EuropeScreen;
 
@@ -345,15 +357,27 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
  */
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy);
 /*
- * FUN_38fd_0058 EOT peel (param_2 < 0): nr += attrition per cargo, then
- * rise/fall ±1 within [low,high]. Optional col1/colonies apply the colony
- * ledger → price_group_state half (DS:0x53ea). Cite: viceroy_unpacked.c
- * FUN_38fd_0058; turn/europe_nation_eot.md.
+ * FUN_38fd_0058 EOT peel (param_2 < 0): optional col1/colonies apply colony
+ * ledger → price_group_state half (DS:0x53ea); phases 2–3 nudge trade_nr
+ * (Europe +0x5c pressure) for cargos 9..12 (*100) and 1..4 (no *100); then
+ * nr += attrition per cargo and rise/fall ±1 within [low,high].
+ * Cite: viceroy_unpacked.c FUN_38fd_0058; turn/europe_nation_eot.md.
  */
 void europe_tick_market_prices(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
   struct ColonizeColonyPool* colonies
+);
+/*
+ * FUN_38fd_584a / 5e52 phase 4 thin: immigration_score from colony pop + units;
+ * accumulate into immigration_pressure. Cite: europe_nation_eot.md.
+ */
+void europe_tick_immigration_pressure(
+  EuropeScreen* eu,
+  const struct ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  const struct ColonizeCol1Save* col1,
+  int nation_id
 );
 /*
  * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
@@ -384,6 +408,25 @@ struct ColonizeCol1Save;
  * Returns total gold credited. PARK: per-cargo UI chrome (FUN_15eb_0326).
  */
 int europe_custom_house_autosell(
+  EuropeScreen* eu,
+  struct ColonizeColonyPool* pool,
+  struct ColonizeColony* colony,
+  struct ColonizeCol1Save* col1,
+  int human_nation
+);
+
+/*
+ * FUN_364b_0688 phase O — AI / non-human Euro dump-sell before spoilage.
+ * For cargo 1..15 with stock > warehouse cap: credit gold for surplus via
+ * bid×amount×(100−tax)/100 (nation tax_rate; no WoI skip — matches 1dfa),
+ * apply volume price, leave stock for spoilage clamp. Horses: DOS transfers
+ * surplus to Europe horses word (no gold); muskets in 50-batches then sell
+ * remainder. Cite: colony_eot_production.md O.
+ * Muskets: DOS batches of 50 → Europe musket counter then sell remainder —
+ * thin sells full surplus (counter PARKED). Returns total gold credited.
+ * Cite: viceroy_unpacked.c ~57806–57848; turn/colony_eot_production.md.
+ */
+int europe_ai_colony_dump_sell(
   EuropeScreen* eu,
   struct ColonizeColonyPool* pool,
   struct ColonizeColony* colony,

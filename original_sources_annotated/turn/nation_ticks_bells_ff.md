@@ -19,15 +19,18 @@ duplicate — see pointers below.
 | 4 | 73356–71 | Threshold `4345_0982` via `291f_0f66`: peacetime elect `291f_0fec`→`4345_0342(next)`; else wartime branch; **zero** `+0xc` |
 
 DOS spends/clears the total counter on elect; Linux keeps cumulative bells
-(threshold `40*(count+1)` — `FUN_4345_0982` curve **PARKED**).
+(`FUN_4345_0982` via `founding_fathers_bells_needed` — difficulty / human-vs-AI /
+year bands / WoI override **Done** thin; zero-on-elect still PARKED).
 
 ## Linux
 
 | DOS | Linux | Notes |
 |-----|-------|-------|
-| Per-colony accrue in `0688` | `turn_run_nation_ticks` sums colony bells/crosses once / SETUP | Human-nation focused |
+| Per-colony accrue in `0688` | `turn_run_nation_ticks` sums colony bells/crosses per Euro nation in SETUP | Human + AI (`control!=2`); dock immigrants human-only |
 | Idle crosses | **+2** crosses/turn until first dock immigrant | Human Europe pool |
-| Debate / elect | `founding_fathers_tick` | **Human first**, then AI Euro (`control==1`); ≤1 elect / nation / call |
+| AI crosses | **+2**/turn + colony churches in SETUP ticks | Was `ai_euro_nation_turn`; needed default **14** |
+| Crosses threshold | Human → dock immigrant; AI → Europe (236,236) Free Colonist | **Done** thin |
+| Debate / elect | `founding_fathers_tick` | **Human first**, then AI Euro (`control==1`); ≤1 elect / nation / call; threshold `4345_0982` **Done** thin |
 
 Sources: [`src/core/turn.c`](../../src/core/turn.c)
 `turn_run_nation_ticks`; [`src/core/founding_fathers.c`](../../src/core/founding_fathers.c).

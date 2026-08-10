@@ -588,8 +588,20 @@ int main(void) {
     /* Warehouse spoilage clamp (FUN_15eb_0a50): tools above base 100 → 100. */
     c->stock[COLONIZE_CARGO_TOOLS] = 150;
     CHECK(colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) == 100, "base tools cap 100");
-    CHECK(colonies_apply_warehouse_spoilage(&pool, c) == 50, "spoil 50 tools over cap");
+    CHECK(colonies_apply_warehouse_spoilage(&pool, c, NULL, NULL) == 50, "spoil 50 tools over cap");
     CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "tools clamped to 100");
+    /* Multi-type spoil → type count. */
+    c->stock[COLONIZE_CARGO_TOOLS] = 150;
+    c->stock[COLONIZE_CARGO_LUMBER] = 150;
+    int first = -1, types = 0;
+    CHECK(
+      colonies_apply_warehouse_spoilage(&pool, c, &first, &types) == 100,
+      "spoil 100 across two cargos"
+    );
+    CHECK(types == 2, "spoil type count 2");
+    CHECK(first == COLONIZE_CARGO_LUMBER || first == COLONIZE_CARGO_TOOLS, "first spoil set");
+    CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "tools reclamped");
+    CHECK(c->stock[COLONIZE_CARGO_LUMBER] == 100, "lumber clamped");
     const int stockade_b = colonies_find_building(&pool, "Stockade");
     CHECK(stockade_b >= 0, "stockade type for fortification check");
     c->has_building[stockade_b] = true;
@@ -695,6 +707,15 @@ int main(void) {
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0, "sol_100 latch at 100%");
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 stays at 100%");
+      /* DOS hysteresis: sol_100 stays while SoL in 95..99. */
+      col1.nation[c->nation_id].liberty_bells_total = 388; /* /4 → 97 */
+      CHECK(colony_prod_sol_percent(&col1, c) == 97, "SoL 97 for hysteresis");
+      colony_prod_refresh_sol_flags(c, &col1);
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0, "sol_100 holds at 97%");
+      col1.nation[c->nation_id].liberty_bells_total = 360; /* /4 → 90 */
+      colony_prod_refresh_sol_flags(c, &col1);
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) == 0, "sol_100 clear below 95%");
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 holds at 90%");
       col1.nation[c->nation_id].liberty_bells_total = 0;
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & (COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100)) == 0,

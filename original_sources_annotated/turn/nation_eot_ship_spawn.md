@@ -36,8 +36,12 @@ Host: `FUN_3844_00f2` @58305–58425. Bridge: [`between_turns.md`](between_turns
 
 ### Linux
 
-Ship construction progress / ready chrome largely **PARKED**. Europe open on arrivals:
-`game_europe_deliver_bound_ships`. Colony ship-build UI separate.
+Ship construction progress / ready chrome: Linux **`units_tick_ship_build_ready`**
+(thin) — types `0x0d..0x12` + `col1_unknown15` bit7; `+1`/`+2` `turns_worked`;
+threshold = `type.defense` (DOS `0x5235` = NAMES `@UNIT` combat; **Done** thin);
+clear bit7; Europe open on arrivals: `game_europe_deliver_bound_ships`. Off-colony
+ship-ready sets `ColonizeTurnResult.request_europe_open` → `europe.open_on_dock`
+(DS:0x14c). Colony ship-build UI / starting the bit still separate.
 
 ---
 
@@ -81,4 +85,6 @@ If `local_4 == 1`:
 
 Dock immigrants / crosses thresholds live in `turn_run_nation_ticks` (SETUP).
 Bound-ship delivery in `game_finish_end_turn`. Atomic every-8-turns Merc spawn
-from census pressure **PARKED** as DOS `00f2` tail.
+from census pressure: Linux **Done** thin (`turn_run_nation_ticks`, year≥1600,
+`turn&7==0`, peacetime; `48d3_0002` duration 1/2 **Done** thin; census/dialog
+PARKED).

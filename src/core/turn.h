@@ -29,6 +29,8 @@
 #define TURN_BIANNUAL_YEAR 1600
 #define TURN_FOOD_PER_COLONIST 2
 #define TURN_DEFAULT_NEEDED_CROSSES 8
+/* AI Euro immigrant threshold seed (ai_euro_nation_turn / Col1 rivals). */
+#define TURN_AI_DEFAULT_NEEDED_CROSSES 14
 
 typedef struct ColonizeTurnContext {
   uint32_t* turn_number;
@@ -54,12 +56,27 @@ typedef struct ColonizeTurnContext {
   const ColonizeMsgCatalog* messages;
   /* Optional NAMES.TXT for @TRIBES flavor-good live parse (contact trade). */
   const ColonizeMsgCatalog* names;
+  /*
+   * FUN_5bfb_00f8 inverse rank filled in TURN_PROC_SETUP (0 = strongest).
+   * euro_power_rank_ok set when turn_rank_euro_nations ran this EOT.
+   */
+  uint8_t euro_power_rank[4];
+  bool euro_power_rank_ok;
+  /*
+   * FUN_4962_0606 profession histogram per Euro nation (SETUP). Indices are
+   * @JOB / profession ids 0..31; counts saturate at 255.
+   */
+  uint8_t profession_tally[4][32];
+  bool profession_tally_ok;
 } ColonizeTurnContext;
 
 typedef struct ColonizeTurnResult {
   bool advanced;
   bool request_autosave_turn;   /* slot 9 when autosave option set */
   bool request_autosave_decade; /* slot 8 when year % 10 == 0 */
+  bool year_end_defeat; /* FUN_3844_0442 B: year≥1600, no human colonies, peacetime */
+  bool year_end_victory; /* FUN_3844_0442 C1 thin: WoI + no crown colonies */
+  bool request_europe_open; /* ship-build ready off-colony (DS:0x14c stand-in) */
   int colonies_produced;
   int food_shortages;
   int immigrants_arrived;
@@ -136,8 +153,31 @@ void turn_run_colony_production(
  */
 int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx);
 
-/* Crosses → dock immigrant; liberty bells counters (human nation + Col1). */
+/* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
+
+/*
+ * FUN_5bfb_00f8 — rank Euro nations by gold/100 + 2*colonies + pop + land combat.
+ * Writes inverse rank into out_rank[nation] (0 = strongest). Returns 0 on success.
+ * Cite: viceroy_unpacked.c ~96506–96531; turn/mid_pass_indian_rank.md.
+ */
+int turn_rank_euro_nations(
+  const ColonizeCol1Save* col1,
+  const ColonizeColonyPool* colonies,
+  uint8_t out_rank[4]
+);
+
+/*
+ * FUN_4962_0606 thin — profession histogram for one Euro nation from colony
+ * colonist jobs + map units' profession. out[32] saturates at 255.
+ * Cite: turn/census_tally.md; viceroy_unpacked.c ~78332–78373.
+ */
+void turn_tally_professions(
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  int nation_id,
+  uint8_t out_hist[32]
+);
 
 /* EN→FR→SP→DU AI nations (skip human); calls ai_euro_nation_turn. */
 void turn_run_european_ai_stubs(ColonizeTurnContext* ctx);
@@ -145,6 +185,13 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx);
 /* Indian AI (growth + Brave pulse + contact) / King phase (tax/REF). */
 void turn_run_indian_stub(ColonizeTurnContext* ctx);
 void turn_run_king_stub(ColonizeTurnContext* ctx);
+
+/*
+ * FUN_3844_0442 section B thin: year≥1600 && human colonies==0 && !WoI →
+ * set out->year_end_defeat + status. Full chrome PARKED.
+ * Cite: turn/year_end_chrome.md.
+ */
+void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 
 /*
  * Refresh moves for units of one nation (4..11 = natives when nation >= 4).

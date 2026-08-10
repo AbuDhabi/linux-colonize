@@ -51,8 +51,12 @@
 #define FF_JUAN_DE_SEPULVEDA 23
 #define FF_BARTOLOME_DE_LAS_CASAS 24
 
-/* Bells required to elect the next FF given how many already elected. */
-unsigned founding_fathers_bells_needed(unsigned elected_count);
+/*
+ * Bells required to elect the next FF (FUN_4345_0982).
+ * Difficulty / human-vs-AI / year band / WoI override. elected_count from
+ * nation.founding_father_count. Fallback linear 40*(n+1) if col1 NULL.
+ */
+unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation);
 
 /* True if nation owns FF index (head owner or nation bitmask). */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);

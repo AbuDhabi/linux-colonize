@@ -342,6 +342,66 @@ int units_tick_treasure_outside_colony(
   return removed;
 }
 
+int units_tick_ship_build_ready(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int human_nation,
+  char* status,
+  size_t status_size,
+  int* want_europe_open
+) {
+  if (!pool || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  if (want_europe_open) {
+    *want_europe_open = 0;
+  }
+  int completed = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    /* DOS: type > 0x0c && type < 0x13 && type != 0x0b (redundant). */
+    if (u->type_index <= 0x0c || u->type_index >= 0x13) {
+      continue;
+    }
+    if ((u->col1_unknown15 & 0x80u) == 0) {
+      continue;
+    }
+    if (u->turns_worked < 255) {
+      u->turns_worked++;
+    }
+    int on_colony = 0;
+    if (colonies && colonies_id_at(colonies, u->x, u->y) >= 0) {
+      on_colony = 1;
+      if (u->turns_worked < 255) {
+        u->turns_worked++;
+      }
+    }
+    const ColonizeUnitType* ty = units_type(pool, u->type_index);
+    /*
+     * DOS type*0xe+0x5235 = NAMES @UNIT combat (Linux defense). Loader writes
+     * attack→5236 then combat→5235. Cite: viceroy ~121115; nation_eot_ship_spawn.md.
+     */
+    int threshold = ty && ty->defense > 0 ? ty->defense : 4;
+    if (u->turns_worked < threshold) {
+      continue;
+    }
+    u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
+    completed++;
+    if (nation_id == human_nation && status && status_size > 0) {
+      const char* name = (ty && ty->name[0]) ? ty->name : "Ship";
+      snprintf(status, status_size, "%s construction complete.", name);
+    }
+    if (!on_colony && want_europe_open) {
+      *want_europe_open = 1;
+    }
+  }
+  return completed;
+}
+
 int units_cortes_cash_coastal_treasures(
   ColonizeUnitPool* pool,
   ColonizeColonyPool* colonies,
@@ -1573,6 +1633,12 @@ static bool units_fort_vs_ship(
     units_despawn(pool, defender_id);
     return true;
   }
+  /*
+   * Ship-slow thin: surviving ship loses remaining MP. Damaged bit7 shares
+   * under-construction latch for types 0xd..0x12 — leave bit clear here;
+   * deep damage/repair PARKED. Cite: coastal_fort_fire.md.
+   */
+  def->moves_left = 0;
   return false;
 }
 
@@ -1581,7 +1647,10 @@ int units_coastal_fort_fire_pulse(
   const ColonizeColonyPool* colonies,
   const ColonizeWorldMap* map,
   const ColonizeCol1Save* col1,
-  ColonizeDosRng* rng
+  ColonizeDosRng* rng,
+  int human_nation,
+  char* status,
+  size_t status_size
 ) {
   if (!units || !colonies || !map) {
     return 0;
@@ -1622,8 +1691,18 @@ int units_coastal_fort_fire_pulse(
         targets[n_tg++] = u->id;
       }
       for (int t = 0; t < n_tg; ++t) {
+        const ColonizeUnit* before = units_get(units, targets[t]);
+        const int ship_nation = before ? before->nation_id : -1;
+        const int human_chrome =
+          status && status_size > 0 &&
+          (col->nation_id == human_nation || ship_nation == human_nation);
         if (units_fort_vs_ship(units, atk, targets[t], rng, col1)) {
           sunk++;
+          if (human_chrome) {
+            snprintf(status, status_size, "Coastal fort sank a ship.");
+          }
+        } else if (human_chrome) {
+          snprintf(status, status_size, "Coastal fort slowed a ship.");
         }
       }
     }

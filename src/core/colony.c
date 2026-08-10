@@ -1565,20 +1565,39 @@ void colonies_specialty_cargo_update(
   }
 }
 
-int colonies_apply_warehouse_spoilage(ColonizeColonyPool* pool, ColonizeColony* colony) {
+int colonies_apply_warehouse_spoilage(
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  int* out_first_cargo,
+  int* out_type_count
+) {
+  if (out_first_cargo) {
+    *out_first_cargo = -1;
+  }
+  if (out_type_count) {
+    *out_type_count = 0;
+  }
   if (!colony || !colony->active) {
     return 0;
   }
   int spoiled = 0;
+  int types = 0;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     const int cap = colonies_warehouse_capacity(pool, colony, c);
     if (cap <= 0) {
       continue;
     }
     if (colony->stock[c] > cap) {
+      if (out_first_cargo && *out_first_cargo < 0) {
+        *out_first_cargo = c;
+      }
+      types++;
       spoiled += colony->stock[c] - cap;
       colony->stock[c] = cap;
     }
+  }
+  if (out_type_count) {
+    *out_type_count = types;
   }
   return spoiled;
 }
