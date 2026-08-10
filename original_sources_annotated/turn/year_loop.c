@@ -142,11 +142,12 @@ void year_turn_loop(void) {
         /* units[unit_i].moves_spent = 0; */
       }
       /* Restore human/focus nation from 0x5398 / override 0x53a4. */
-      mid_turn_indian_tables(); /* FUN_4d56_1b3a — NOT full 1816 */
+      mid_turn_indian_tables(); /* FUN_4d56_1b3a — tables only */
       /*
-       * HYPOTHESIS (no XREF in this export): DOS may also have looped
-       * indian_slot 0..7 → FUN_4d56_1816 here (or after the Euro act loop).
-       * See mid_pass_indian_rank.md — do not treat as recovered call edge.
+       * FUN_4d56_1816 (full Indian nation turn) is LIVE but not called from
+       * resolved 130d text: overlay thunk 0x1C9A0 → loader → JMPF 1816, far
+       * ret 1930:1554 (Return Vector). Dispatcher unknown — do not invent a
+       * 130d call edge. See mid_pass_indian_rank.md.
        */
     }
 

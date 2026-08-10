@@ -126,10 +126,10 @@ static void indian_alarm_prelude_parked(int indian_index) {
 /*
  * Ghidra: FUN_4d56_1816 | indian_nation_turn
  *
- * Call site: unresolved in this export. Working guess (hypothesis only):
- *   FUN_130d_0290 far-thunk loop for indian_slot 0..7 — after mid-pass 1b3a
- *   (“natives first”) or after Euro 0..3 act (Linux INDIAN order). See
- *   turn/mid_pass_indian_rank.md. Not proven; no invented XREF.
+ * Entry (hang dumps): resident thunk file 0x1C9A0 — CALLF overlay loader
+ * (1930:0E52) then JMPF 4d56:1816. Far return always 1930:1554 (Return
+ * Vector). Ghidra has no CALLF XREF; dispatcher who invokes the thunk is
+ * still open — not a proven 130d edge. See turn/mid_pass_indian_rank.md.
  *
  * param_1 = indian slot 0..7; active nation = param_1 + 4.
  *

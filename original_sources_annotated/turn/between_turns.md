@@ -153,9 +153,10 @@ Planner guts (not EOT orchestration, but contact siblings):
 ## Open RE
 
 - `MULTINEXT` / `TIMECHANGE` / `SEASONS`: string table only — **reconfirmed** no FUN_* XREF ([`mid_pass_indian_rank.md`](mid_pass_indian_rank.md))
-- `FUN_4d56_1816` call site unresolved — **reconfirmed** definition-only @81543;
-  working guess: lost `130d` far-thunk loop (after `1b3a` or after Euro act) —
-  see [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) (hypothesis, not XREF)
+- `FUN_4d56_1816`: **live** via overlay thunk `0x1C9A0` → loader → `JMPF 1816`;
+  far ret always **`1930:1554`** (Return Vector). Ghidra still definition-only;
+  **dispatcher** (who invokes the thunk) open — not a proven `130d` edge.
+  See [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md)
 - Demo autoplay / independence splash (`130d_019e` / `0222`): PARKED; thin LAB in [`year_loop.c`](year_loop.c)
 - `FUN_3844_0442` dialogs: **UI mapped** in [`year_end_chrome.md`](year_end_chrome.md); port PARKED
 - Deep AI bodies (`20e6` land/ship, `2820`, `4528`, `2154`, loot): **mapped**; port PARKED — see

@@ -61,7 +61,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 | Step | Linux | DOS |
 |------|-------|-----|
-| Nation turn | `ai_indian_nation_turn` (`1816`-shaped) | Mid-pass only `FUN_4d56_1b3a` in resolved `130d`; full `1816` XREF **open** |
+| Nation turn | `ai_indian_nation_turn` (`1816`-shaped) | Mid-pass `1b3a` in `130d`; full `1816` **live** via overlay thunk / Return Vector `1930:1554` — **dispatcher** XREF still open |
 
 ### `TURN_PROC_FINISH` (no indicator)
 
@@ -180,9 +180,10 @@ Linux runs; Linux is Euro AI then Indians.
 - **`MULTINEXT` / `TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
   no FUN_* XREF ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
   Calendar from `@TIMECHANGE` + `130d` year/autumn math.
-- **`FUN_4d56_1816` call site**: unresolved (**reconfirmed** definition-only
-  @81543). Hunt + **working assumption** (lost `130d` far-thunk for-loop;
-  natives-after-`1b3a` vs after-Euro — hypothesis only): same mid-pass doc.
+- **`FUN_4d56_1816`**: body **live** (hang dumps); entry = resident thunk
+  `0x1C9A0` → overlay loader → `JMPF 1816`; far ret **`1930:1554`**. Ghidra
+  still definition-only; **who dispatches the thunk** open (not a proven
+  `130d` edge). Map: [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md).
   Linux still runs `1816`-shaped nation turns.
 - **`FUN_3844_0442`**: **UI mapped**
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));

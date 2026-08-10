@@ -2604,7 +2604,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_152e` | 81387 | 156 | ai | Village growth accumulator to pop++ | known | ai/indian_nation_turn.c; src/core/ai.c |
-| `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn entry (alarm, unit loop, relation ticks) | known | ai/indian_nation_turn.c; src/core/ai.c |
+| `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn (live via overlay thunk 0x1C9A0 → JMPF; ret 1930:1554; dispatcher XREF open) | known | ai/indian_nation_turn.c; turn/mid_pass_indian_rank.md; src/core/ai.c |
 | `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, tribe probes, colony ownership — does **not** call 2154 | known | turn/mid_pass_indian_rank.md; ai/indian_contact.md |
 | `FUN_4d56_2154` | 81743 | 321 | ai | Meet economics: tribe neighborhood → DS:0x9e* gift/demand tables (from 5bfb_022e) | known | ai/indian_meet_scoring_2154.md; ai/indian_contact.md |
 | `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | ai/indian_trade_2820.md; indian_trade_helpers.c |

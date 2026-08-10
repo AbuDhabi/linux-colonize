@@ -49,57 +49,36 @@ Related: [`indian_contact.md`](../ai/indian_contact.md).
 
 ---
 
-## `FUN_4d56_1816` call-site XREF (reconfirmed 2026-08-10)
+## `FUN_4d56_1816` — Indian nation turn (live; overlay-dispatched)
 
-| Probe | Result |
-|-------|--------|
-| `rg FUN_4d56_1816` in `.c` | **Definition only** @81543 — zero call sites |
-| Same in `.asm` | Label `FUN_4d56_1816` only; **no CALLF/JMPF** to `4d56:1816` (false hits: `2f2b` locals, `5952:1816` jump) |
-| Mid-pass sibling | `281f_0676` → **`1b3a`** (resolved) |
-| Other `4d56` thunks | `2154`, `2820`, `4528`, … — **not** `1816` |
+Body annotated in [`indian_nation_turn.c`](../ai/indian_nation_turn.c).
+Linux: `ai_indian_nation_turn` in `TURN_PROC_INDIAN`.
 
-**Verdict:** call site still **unresolved** in this Ghidra export (overlay /
-missing far-ptr). Body annotated in [`indian_nation_turn.c`](../ai/indian_nation_turn.c).
-Linux runs `ai_indian_nation_turn` (`1816`-shaped) in `TURN_PROC_INDIAN`;
-DOS resolved `130d` only shows mid-pass **`1b3a`**.
+### Mapped (hang dumps 2026-08-10)
 
-### Working assumption (not an XREF)
+| Item | Value |
+|------|-------|
+| Role | Full Indian nation turn (slot `0..7` → active `slot+4`; chrome, alarm, growth, relation, Brave act loop) — twin of `521d_6d8e`, **not** a child of `1b3a` |
+| Live | **Yes** — [`vr_1816.md`](../../tools/brave_dump/vr_1816.md) hang in body (`param_1=0` on Brave seed) |
+| Entry | Resident thunk file **`0x1C9A0`** / mem `~0x22858`: `CALLF` overlay loader (`1930:0E52`) → `JMPF 4d56:1816` |
+| Far return | Always **`1930:1554`** (overlay **Return Vector**) — same inside body and after loader returns ([`vr_0e52.md`](../../tools/brave_dump/vr_0e52.md)) |
+| Static Ghidra | Definition-only @81543 — no `CALLF`/`JMPF` to `4d56:1816`; no `281f_*` thunk to `1816` |
+| Mid-pass | `281f_0676` → **`1b3a` only** (tables); does not call `1816` |
 
-`1816` is a full nation turn (indian slot `0..7` → active `slot+4`, chrome,
-alarm, growth, relation, Brave act loop) — the Indian twin of
-`521d_6d8e`, **not** a child of `1b3a`. Every other year-loop heavyweight has a
-`281f_*` far thunk; **none** targets `1816`. So the gap is likely a lost
-thunk / overlay far-ptr, not dead code.
+### Still open — dispatcher XREF
 
-**Best guess for the missing caller:** `FUN_130d_0290`, with
-`for indian_slot in 0..7: far_thunk(1816, slot)`, either:
+Who **invokes** the thunk / Return Vector (the real “caller”) is **not** a
+recovered `FUN_*`. No static `CALLF *:2430` in dumps; thunk-entry hang stack
+was alias noise ([`vr_1930.md`](../../tools/brave_dump/vr_1930.md)).
 
-1. Mid-pass, immediately after `1b3a` (manual “natives first”; adjacency of
-   `1816`/`1b3a` in segment `4d56`), or
-2. After the Euro 0..3 EOT+act loop, before calendar (Linux
-   `TURN_PROC_INDIAN` order).
+Do **not** invent a `130d → 1816` edge. Order vs Euro EOT (natives-after-`1b3a`
+vs after Euro act) remains **hypothesis**. Unknown parent/order can skew LCG
+timing; it does **not** explain seed-100 **spent-only** holdouts (post-`465b`
+`0x3149` — [`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
 
-Treat as **hypothesis only** until a CALLF / thunk recovers. Do not invent a
-call edge in extracts or the catalog. Linux’s post-`6a09` pulse is
-`1816`-*shaped* for golden init; that does not prove DOS init called `1816`.
-
-**Hang probe:** [`tools/brave_dump/vr_1816.md`](../../tools/brave_dump/vr_1816.md)
-→ `COLONIZE/VR_1816.EXE` (`python3 tools/brave_dump/patch_1816_hang.py`). Logs
-far return + slot at `DS:7000` on entry; no-hang only counts if stub survives
-in live Memory (overlay reloc).
-
-**Dump `dump_1816` (2026-08-10):** hang **fired** — body is live. Stack ret
-`1930:1554` (overlay Return Vector CS), `param_1=0`. Not dead code.
-
-**Dump `dump_1930_2`:** thunk hang **fired** (`EB FE` @ file `0x1C9A0` /
-mem `0x22858`). `[SS:SP]=CC81:1B87` (+ slot `0`) — aliases into `4d56` act-loop
-`CALL 0934` region; **not** a clean `130d` caller. No static `CALLF` to the
-thunk in the dump. Details: [`vr_1930.md`](../../tools/brave_dump/vr_1930.md).
-
-Brave edge cases: unknown parent / order can skew LCG and “when Indians act
-vs Euros,” which may feed dir/peel mismatches. It does **not** explain the
-remaining seed-100 **spent-only** holdouts (post-`465b` `0x3149` writer —
-[`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
+**Next peel (dispatcher):** map `1930:14FC`/`1554` Return Vector — who
+`CALLF`s/`JMPF`s into it, and how it indexes the resident thunk at `0x1C9A0`.
+Skip further loader/`0E52` hangs; they only reconfirm `1554`.
 
 ## Calendar string table (reconfirmed)
 
