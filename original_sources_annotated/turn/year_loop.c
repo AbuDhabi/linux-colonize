@@ -145,9 +145,10 @@ void year_turn_loop(void) {
       mid_turn_indian_tables(); /* FUN_4d56_1b3a — tables only */
       /*
        * FUN_4d56_1816 (full Indian nation turn) is LIVE but not called from
-       * resolved 130d text: overlay thunk 0x1C9A0 → loader → JMPF 1816, far
-       * ret 1930:1554 (Return Vector). Dispatcher unknown — do not invent a
-       * 130d call edge. See mid_pass_indian_rank.md.
+       * resolved 130d text: overlay thunk 0x1C9A0 → loader → JMPF 1816; far
+       * ret forged to 1930:1554 by 1930:2A02 (overlay id 0x0C). Year-loop
+       * FUN_* still open — do not invent a 130d call edge. See
+       * mid_pass_indian_rank.md / tools/brave_dump/vr_1554.md.
        */
     }
 

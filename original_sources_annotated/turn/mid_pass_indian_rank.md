@@ -67,18 +67,27 @@ Linux: `ai_indian_nation_turn` in `TURN_PROC_INDIAN`.
 
 ### Still open — dispatcher XREF
 
-Who **invokes** the thunk / Return Vector (the real “caller”) is **not** a
-recovered `FUN_*`. No static `CALLF *:2430` in dumps; thunk-entry hang stack
-was alias noise ([`vr_1930.md`](../../tools/brave_dump/vr_1930.md)).
+Who **invokes** the thunk is **not** yet a recovered year-loop `FUN_*`.
+Static map ([`vr_1554.md`](../../tools/brave_dump/vr_1554.md)):
 
-Do **not** invent a `130d → 1816` edge. Order vs Euro EOT (natives-after-`1b3a`
-vs after Euro act) remains **hypothesis**. Unknown parent/order can skew LCG
-timing; it does **not** explain seed-100 **spent-only** holdouts (post-`465b`
-`0x3149` — [`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
+| Fact | Detail |
+|------|--------|
+| `1930:1554` | Only `JMP 1446` (overlay epilogue) — not a call target |
+| Forge | **`1930:2A02`** XCHG’s real far ret on `[SS:SI]` → `1930:1554`; queues real ret at `[CS:3952]` |
+| Thunk | File `0x1C9A0` trailer overlay id **`0x0C`** |
+| Dead path | `15CF` `CALLF *:1816` skipped by `EB 3D` at `15CD` |
 
-**Next peel (dispatcher):** map `1930:14FC`/`1554` Return Vector — who
-`CALLF`s/`JMPF`s into it, and how it indexes the resident thunk at `0x1C9A0`.
-Skip further loader/`0E52` hangs; they only reconfirm `1554`.
+No static `CALLF *:2430` in dumps; thunk-entry hang stack was alias noise
+([`vr_1930.md`](../../tools/brave_dump/vr_1930.md)).
+
+Do **not** invent a `130d → 1816` edge. Order vs Euro EOT remains
+**hypothesis**. Unknown parent/order can skew LCG timing; it does **not**
+explain seed-100 **spent-only** holdouts (post-`465b` `0x3149` —
+[`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
+
+**Narrowed edge:** first mid-turn overlay-`0x0C` forge (`vr_2a02_v3`) has
+`[SS:SI]=1930:238b` (manager resume), not year-loop. Probe v4: external ret
+only — [`vr_1554.md`](../../tools/brave_dump/vr_1554.md). Skip loader/`0E52`.
 
 ## Calendar string table (reconfirmed)
 

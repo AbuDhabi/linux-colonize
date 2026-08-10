@@ -29,7 +29,8 @@ year bands / WoI override **Done** thin; zero-on-elect still PARKED).
 | Per-colony accrue in `0688` | `turn_run_nation_ticks` sums colony bells/crosses per Euro nation in SETUP | Human + AI (`control!=2`); dock immigrants human-only |
 | Idle crosses | **+2** crosses/turn until first dock immigrant | Human Europe pool |
 | AI crosses | **+2**/turn + colony churches in SETUP ticks | Was `ai_euro_nation_turn`; needed default **14** |
-| Crosses threshold | Human → dock immigrant; AI → Europe (236,236) Free Colonist | **Done** thin |
+| Crosses threshold | Human → dock immigrant; AI → Europe Free Colonist **PARKED** (T2 TURN7 sits at needed) | Human **Done** thin; AI spawn unpark with golden refresh |
+
 | Debate / elect | `founding_fathers_tick` | **Human first**, then AI Euro (`control==1`); ≤1 elect / nation / call; threshold `4345_0982` **Done** thin |
 
 Sources: [`src/core/turn.c`](../../src/core/turn.c)

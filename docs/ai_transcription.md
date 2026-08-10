@@ -66,11 +66,11 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 | [`ai_king.c`](../src/core/ai_king.c) | Tax / SoL declare / REF waves / war act (`43f7` partial structural; `king_ref.md`) |
 | [`ai_popup.c`](../src/core/ai_popup.c) | Shared OK/CHOICE queue for contact / diplo / king player dialogs |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, post-spawn native pulse |
-| `ai_euro_nation_turn` | Reseed, AI crosses; **full dispatcher by default**; fixture only if `AI_EURO_EARLY_FIXTURE=1` |
+| `ai_euro_nation_turn` | Reseed; **full dispatcher by default**; fixture only if `AI_EURO_EARLY_FIXTURE=1` (crosses in `turn_run_nation_ticks`) |
 | `ai_indian_nation_turn` | `1816` phases: prelude → growth → relation → pulse → meet/raids |
 | `ai_king_nation_turn` | Replaces king stub in EOT FINISH |
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
-| [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`) |
+| [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`; `AI_EURO_EARLY_FIXTURE=1`) |
 
 **Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
 `smoke_ai_turns` **TURN1→4** matches under the full dispatcher (Europe exit →
@@ -279,7 +279,7 @@ unannotated bodies.
 | `FUN_521d_20e6` (non-quiet) | `ai_euro_score_step` | T0 adjacent step toward goal |
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` / `ai_euro_unit_act` Europe exit | NEW WORLD: `map_gen_euro_landfall` (`FUN_684c` HS rim); Europe→map uses landfall goto not sentinel Y; T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
-| AI crosses tick | `turn_run_nation_ticks` | +2 / needed default 14; immigrant at Europe on threshold |
+| AI crosses tick | `turn_run_nation_ticks` | +2 / needed default 14; Europe Free Colonist on threshold **PARKED** (T2 TURN7) |
 | King / REF AI | `ai_king_nation_turn` | **Partial structural** `43f7` peace/war; `smoke_ai_king` |
 | Diplomacy | `ai_diplo_*` | **Partial structural** bilateral `15b3` + `10ec`/`13b0` balance |
 | Colony capture | `colonies_capture` | military / REF / Indian raid |

@@ -7519,6 +7519,17 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
       return 0;
     }
   }
+  /*
+   * Peace: do not FOUND/explore-yank passive colony Artillery before §2d3
+   * border wake (garrison Soldiers often already have planning MILITARY goto).
+   * Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
+   */
+  {
+    const char* hn = units_display_name(ctx->units, u);
+    if (ai_euro_land_is_passive_orders(u) && ai_euro_is_artillery_name(hn)) {
+      return 0;
+    }
+  }
   int gx = u->x;
   int gy = u->y;
   int fx = 0;
@@ -10355,6 +10366,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
             return;
           }
           if (!ai_euro_land_has_useful_goto(u, ctx->map)) {
+            ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
+          } else if (ai_euro_is_artillery_name(uname)) {
+            /* Artillery: planning rarely sets MILITARY; gate FOUND must not stick. */
             ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, tx, ty);
           }
           peace_border_hunted = 1;

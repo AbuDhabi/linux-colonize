@@ -1213,8 +1213,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
       /*
        * AI Euro crosses: +2 /turn here (was ai_euro_nation_turn); churches in nc.
-       * Threshold → Free Colonist at Europe (236,236). Human dock stays above.
-       * Cite: nation_ticks_bells_ff.md; 38fd_5e52.
+       * Threshold → Europe Free Colonist is PARKED — seed-100 TURN6→7 goldens sit
+       * at needed (14/14) without convert; human dock path above stays Done.
+       * Cite: nation_ticks_bells_ff.md; test-saves-ai/TURN7; smoke_ai_turns.
        */
       if (n != ctx->human_nation) {
         {
@@ -1226,32 +1227,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         }
         if (nat->needed_crosses == 0) {
           nat->needed_crosses = TURN_AI_DEFAULT_NEEDED_CROSSES;
-        }
-        if (ctx->units) {
-          while (nat->needed_crosses > 0 &&
-                 nat->current_crosses >= nat->needed_crosses) {
-            nat->current_crosses = 0;
-            unsigned need = (unsigned)nat->needed_crosses + 1u;
-            if (need > 65535u) {
-              need = 65535u;
-            }
-            nat->needed_crosses = (uint16_t)need;
-            const int tid = units_find_type(ctx->units, "Colonists");
-            const int type_index = tid >= 0 ? tid : 0;
-            const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
-            ColonizeUnit* u = units_get(ctx->units, id);
-            if (u) {
-              units_set_nation(u, n);
-              u->orders = UNITS_ORDER_SENTRY;
-              u->profession = COLONIZE_PROF_FREE_COLONIST;
-              u->goto_x = 0;
-              u->goto_y = 0;
-              u->moves_left = 0;
-            }
-            if (out) {
-              out->immigrants_arrived++;
-            }
-          }
         }
       }
       /* Human Europe screen is authoritative for human nation counters. */
