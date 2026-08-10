@@ -239,10 +239,10 @@ static int unit_is_ship(uint8_t type) {
  * Thin sticky CONTACT re-hunt (Linux): end of `ai_euro_unit_act` — if moves
  * remain and an adjacent foreign Euro is at war, `try_attack` once more.
  *
- * Linux: ai_euro_nation_turn reseeds, ticks crosses, then either
- * ai_euro_early_turn (seed-100 fixture) or ai_euro_dispatcher_turn (structural
- * 6d8e: inventory, treaty timers, 5d04→0342→0a60, any_acted waves, sticky,
- * ship CONTACT). Mid-planner **OPEN** (unpark #4): mid 5d04 wagon matrix,
+ * Linux: ai_euro_nation_turn reseeds, ticks crosses, then
+ * ai_euro_dispatcher_turn by default (structural 6d8e). Opt into retired
+ * ai_euro_early_turn with AI_EURO_EARLY_FIXTURE=1 (bisect only).
+ * Mid-planner **OPEN** (unpark #4): mid 5d04 wagon matrix,
  * deep fog CONTACT rings, multi-step land/combat 20e6, deeper 5b66 case-7.
  * Thin done: CONTACT tribe ring MD 2–4; adjacent-foe prefer weak/non-fortified.
  * Full T3 / ocean fixture retirement R5.
@@ -334,11 +334,11 @@ void euro_nation_turn(int nation_id) {
 /*
  * Linux cross-reference (not DOS):
  *   ai_euro_nation_turn
- *     → if rng_seed==100 && !AI_FULL_DISPATCH: ai_euro_early_turn (fixture)
- *     → else: ai_euro_dispatcher_turn (ai_euro.c) — structural 6d8e
+ *     → ai_euro_dispatcher_turn by default (ai_euro.c)
+ *     → AI_EURO_EARLY_FIXTURE=1: retired ai_euro_early_turn (bisect only)
  *       treaty timers + ai_diplo_euro_balance (see ai/euro_diplo.md)
  * PORT DEBT → OPEN (unpark #4): mid-game 5d04 wagon matrix, deeper 0a60 E–H,
- * multi-step 20e6 land/combat, 5b66 case 7.
+ * multi-step 20e6 land/combat, 5b66 case 7 / coastal unload (TURN2→3).
  * Linux thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
  * colony water; adjacent → try_attack. Full 20e6 naval scoring still PARKED (ocean/T3).
  * Linux thin (5b66): at-war land hunt — idle Soldier/Dragoon/Scout AI_MOVE →

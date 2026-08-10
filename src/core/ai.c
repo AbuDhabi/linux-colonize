@@ -2173,7 +2173,7 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  /* Seed-100 early fixture keeps smoke_ai_turns green unless AI_FULL_DISPATCH=1. */
+  /* Opt-in early fixture (AI_EURO_EARLY_FIXTURE=1). Default is full dispatcher. */
   if (!ai_euro_use_full_dispatch(ctx) && ai_euro_early_turn(ctx, nation_id)) {
     return;
   }

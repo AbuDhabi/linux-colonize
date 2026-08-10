@@ -34,37 +34,48 @@ save-diff. Planner modules are already split (`ai_euro` / `ai_contact` /
 `ai_diplo` / `ai_king` / `ai_goals` / `ai_popup`); `ai.c` keeps init, pulse,
 and nation-turn entry.
 
+### Golden alignment (how to work)
+
+**Alignment means improving port fidelity to DOS**, not scripting special cases
+so `smoke_ai_turns` stays green. When Linux output disagrees with a golden:
+
+1. Diff the field (unit xy/orders/goto, colony, tribe, diplo bytes).
+2. Trace the DOS FUN_* / annotated thin map that owns that mutation.
+3. Fix or deepen the ported path (unpark blockers as needed).
+4. Do **not** add seed-/turn-/nation-only exception tables unless they are
+   explicitly documented as temporary PORT DEBT with a retire criterion
+   (e.g. Atlantic approach tiles until ocean `20e6` + `48d3` match).
+
+The retired seed-100 `ai_euro_early_turn` fixture remains available via
+`AI_EURO_EARLY_FIXTURE=1` for regression bisect only. Default path is the full
+dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
+
 ---
 
 ## Current Linux surface (Full T0/T1)
 
 | Piece | Role |
 |-------|------|
-| [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | Init, seed-100 early Euro fixture, Indian pulse / nation entry |
+| [`src/core/ai.h`](../src/core/ai.h) / [`ai.c`](../src/core/ai.c) | Init, optional early Euro fixture (`AI_EURO_EARLY_FIXTURE`), Indian pulse / nation entry |
 | [`ai_goals.c`](../src/core/ai_goals.c) | Primary/secondary/work goal tables (`521d_0000…0906`) |
 | [`ai_euro.c`](../src/core/ai_euro.c) | Full dispatcher: plan/`5d04` hire, `0a60` goals, `5b66` act, Euro `20e6` step |
-| [`ai_diplo.c`](../src/core/ai_diplo.c) | Bilateral `15b3` + `5bfb` war/ally (`euro_diplo.md` partial structural) |
+| [`ai_diplo.c`](../src/core/ai_diplo.c) | Bilateral `15b3` via `euro_relation[]` + `5bfb` war/ally (`euro_diplo.md`) |
 | [`ai_contact.c`](../src/core/ai_contact.c) | Indian prelude/meet/trade/raids (`4d56`/`5bfb`/`@RAID*` partial structural) |
 | [`ai_king.c`](../src/core/ai_king.c) | Tax / SoL declare / REF waves / war act (`43f7` partial structural; `king_ref.md`) |
 | [`ai_popup.c`](../src/core/ai_popup.c) | Shared OK/CHOICE queue for contact / diplo / king player dialogs |
 | `ai_init_new_game` | Col1 template, rival fleets, tribes/Braves, post-spawn native pulse |
-| `ai_euro_nation_turn` | Reseed, AI crosses; seed-100 fixture **or** `ai_euro_dispatcher_turn` (`AI_FULL_DISPATCH=1` / non-100) |
+| `ai_euro_nation_turn` | Reseed, AI crosses; **full dispatcher by default**; fixture only if `AI_EURO_EARLY_FIXTURE=1` |
 | `ai_indian_nation_turn` | `1816` phases: prelude → growth → relation → pulse → meet/raids |
 | `ai_king_nation_turn` | Replaces king stub in EOT FINISH |
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
 | [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`) |
 
-**Claims (T2 early AI):** with VR_SEED=100 and idle human, `smoke_ai_turns` matches
-`test-saves-ai/TURN2`…`TURN7` on calendar, AI crosses, colonies (sites/names/pop/bip/hammers),
-euro units (xy/orders/goto), Braves (xy/moves/turns_worked), and tribe pop/accumulators.
-Seed-100 Euro path uses landfall-derived coastal staging + found-site helper
-(`ai_euro_found_tile_from_landfall`); ship approach / mid-turn waypoints still
-fixture unless `AI_FULL_DISPATCH=1`. Full-dispatch Europe exit places on HS near
-landfall goto (`FUN_48d3_048e` stand-in) — never `prefer_y` from Europe sentinel
-(~228+nation), which pinned rivals to southern ice. NEW WORLD landfalls come from
-`map_gen_euro_landfall` (`FUN_684c` `LAB_684c_1b4c` HS rim). Mid-turn Braves: quiet ASM + mid peels + residual overlays on
-spent-only holdouts (R0; quiet residuals **2 rows** t2 Apache/Sioux;
-empiricism keeps its larger overlay set via `AI_EMPIRICISM=1`).
+**Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
+`smoke_ai_turns` **TURN1→2** matches under the full dispatcher (Europe exit →
+Atlantic approach → west-explore `(4,13)`, passengers aboard, no Privateer
+spam). **TURN2→7** still diverge on coastal unload / passenger landing /
+founding timing — next fidelity peels (not fixture). Fixture path
+(`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7 for bisect.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -310,7 +321,20 @@ leftover FF hooks, deep `20e6`).
   Hang **`VR_B465X` → `dump_b465x3`** is the last-resort localizer (see
   `tools/brave_dump/midturn_465b.md`). Empiricism mid-turn overlays retained
   under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map irrelevant.
-- **Euro early path:** T2 coastal ship gotos from
+- **Euro early path (full dispatcher, 2026-08-10):** Default is
+  `ai_euro_dispatcher_turn` (opt into retired fixture with
+  `AI_EURO_EARLY_FIXTURE=1`). **TURN1→2 green:** `FUN_48d3_048e` place near
+  landfall → sail RE'd Atlantic approach → west-explore goto `(4,13)` with
+  passengers aboard; no same-act unload; no Europe ship-buy while
+  `colony_count==0`. **Diplo finding:** peer WAR/ALLY flags must use Col1
+  `euro_relation[]` (DS −0x77c4), not `unknown26[4..7]` — the latter bytes in
+  TURN goldens are unrelated and false-triggered WAR → Privateer spawn.
+  **TURN2→3 OPEN:** coastal staging retarget reaches FR/SP ship XY, but
+  passenger unload tiles / ship hold-goto / founding timing still diverge;
+  deepen `5b66` unload + `0a60` landfall bind (do not grow nation-scripted
+  fixture arms). Approach-tile table remains PORT DEBT until ocean `20e6` +
+  `48d3` placement reproduce TURN2 endpoints from landfall alone.
+- **Euro early path (fixture, bisect only):** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
   SP pioneer + FR found peels). Dutch join uses first nation colony. Atlantic

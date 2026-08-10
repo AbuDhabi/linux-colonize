@@ -25,12 +25,14 @@ Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 
 | Slot | Use |
 |------|-----|
-| `nation[a].unknown26[0..3]` | Treaty timers toward peer (6d8e §4) |
-| `nation[a].unknown26[4..7]` | Diplo flag byte toward peer (`15b3` mirror) |
+| `nation[a].euro_relation[b]` | **Peer diplo flags** (DS −0x77c4 / `FUN_15b3_*`) — WAR/PEACE/ALLY/MET |
+| `nation[a].unknown26[0..3]` | Treaty timers toward peer (6d8e §4) — Linux stand-in |
 | `nation[a].unknown26[8]` | Indian hostility sticky (`0` clear / `1` at-war / `2` very-low deepen) |
 | `nation[a].unknown26[9]` | Wartime Privateer spawn mask (`bit peer` = commissioned once this war) |
 
-Exact DS `−0x77c4` Col1 field rename PARKED.
+**2026-08-10:** Flags moved off `unknown26[4..7]`. Those save bytes are not
+`15b3` peer flags — reading them as WAR false-commissioned Privateers on
+seed-100 TURN1→2 while `euro_relation[]` stayed zero (peace).
 
 ### Bit constants (Linux)
 
