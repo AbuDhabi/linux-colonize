@@ -164,6 +164,10 @@ port I/O in the native build.
 
 ## End-of-turn recovery checklist
 
+Full orchestration map (Linux `TURN_PROC_*` ↔ DOS `FUN_130d_0290` /
+`FUN_3844_*`, Layer D extracts): [turn_between_players.md](turn_between_players.md)
+· [`original_sources_annotated/turn/between_turns.md`](../original_sources_annotated/turn/between_turns.md).
+
 Ordered pipeline recovered for the Linux port:
 
 1. **Human ends turn** — Space / ORDERS → No Orders (`LABELS.TXT` “End of Turn”)
