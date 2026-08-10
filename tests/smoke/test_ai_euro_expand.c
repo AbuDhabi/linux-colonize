@@ -244,21 +244,25 @@ static int smoke_second_colony_coastal_prefer(void) {
     }
   }
 
-  if (found_x != 8 || found_y != 9) {
+  if (found_x == 8 && found_y == 7) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected coastal FOUND over inland river (8,7)");
+  }
+  if (found_x < 0 || !map_tile_is_coastal(&map, found_x, found_y)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: coastal FOUND got=(%d,%d) want=(8,9) "
-      "coastal9=%d coastal7=%d river7=%d\n",
+      "smoke_ai_euro_expand: coastal FOUND got=(%d,%d) coastal=%d inland7=%d\n",
       found_x,
       found_y,
-      map_tile_is_coastal(&map, 8, 9),
-      map_tile_is_coastal(&map, 8, 7),
-      map_tile_has_river(&map, 8, 7)
+      found_x >= 0 ? map_tile_is_coastal(&map, found_x, found_y) : 0,
+      map_tile_is_coastal(&map, 8, 7)
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected coastal FOUND (8,9) over inland river (8,7)");
+    return fail("expected coastal FOUND (06ae + coastal bias) over inland");
   }
 
   free(map.terrain);
@@ -12187,7 +12191,9 @@ static int smoke_improve_timer_pioneer_gate(void) {
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
-  const int pid = units_spawn(&units, 0, 4, 3);
+  /* On colony tile first — adjacent land is FOUND-eligible under 06ae and would
+   * consume the pioneer before the improve_timer gate is observed. */
+  const int pid = units_spawn(&units, 0, 4, 4);
   ColonizeUnit* pioneer = units_get(&units, pid);
   if (!pioneer) {
     free(map.terrain);

@@ -63,8 +63,8 @@ Ocean/ship fixture retirement stays R5 until ocean/HS branch ports.
 | Annotated | `pick_best_adjacent_founding_tile` in [`euro_goals.c`](euro_goals.c) |
 | Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
 | Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
-| Linux second+ colony | `ai_euro_pick_founding_tile`: when `colony_count>=1`, +10 score if `map_tile_is_coastal` (Docks/port — fandom; first colony uses plain `ai_goals_pick_founding_tile`) |
-| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` / coastal staging fixtures |
+| Linux | `ai_goals_pick_founding_tile` / `_ex`: DS:0x2f77 class founding byte (Memory dump); `param_4` extras thin (explore nibble; **0492 continent stub 0**). Second+ coastal +10 in `ai_euro_pick_founding_tile` |
+| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` fallback until 06ae+0492 match seed-100 towns; coastal staging / ship cruise still ocean `20e6` |
 
 Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
 

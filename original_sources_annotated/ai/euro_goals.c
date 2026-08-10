@@ -341,7 +341,8 @@ int walk_unit_stack_to_end(int unit_index) {
  * explore-mask terms when param_4≠0. Returns best dir index (0..8).
  *
  * Called from Euro FUN_521d_20e6 via 2a1f_04ac when scoring founding moves.
- * Linux: ai_euro_found_tile_from_landfall is PORT DEBT vs this scorer.
+ * Linux: ai_goals_pick_founding_tile uses DS:0x2f77; landfall→town table is
+ * remaining PORT DEBT fallback until 0492 extras match seed-100 towns.
  *
  * param_1 = nation, param_2/3 = x/y, param_4 = score-extras gate,
  * param_5 = wagon-vs-not filter bit.
@@ -364,9 +365,9 @@ int pick_best_adjacent_founding_tile(int nation_id, int x, int y,
     }
     if (map_tile_in_bounds(nx, ny) && !ocean_or_high_seas(nx, ny) &&
         (dir == 8 || ok)) {
-      int score = 0; /* terrain_class yield byte @ 0x2f77 + extras */
+      int score = 0; /* terrain_class byte @ 0x2f77 — Linux map_dos_terr_found_score_byte */
       if (score_extras) {
-        /* neighbor explore/owner walk — PARKED detail */
+        /* neighbor explore/owner walk; 0492*0x10 — Linux stub until Col1 continents */
         (void)tile_explore_mask;
         (void)continent_id;
       }

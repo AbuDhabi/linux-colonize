@@ -73,8 +73,13 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 **Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
 `smoke_ai_turns` **TURN1→4** matches under the full dispatcher (Europe exit →
 Atlantic approach → west-explore → coastal beachhead unload → found-approach /
-Isabella). **TURN4→7** still diverge (FR Quebec found / rival coastal peels).
-Fixture path (`AI_EURO_EARLY_FIXTURE=1`) still matches TURN1→7 for bisect.
+Isabella). **TURN4→7** still diverge. Found-tile XY table is **in retirement**
+via real `FUN_521d_06ae` (`ai_goals_pick_founding_tile` uses DS:0x2f77 class
+bytes; `0492` continent extras still stub) — landfall→Quebec/NA/Isabella remains
+fallback until 06ae+0492 match those towns from terrain alone. Approach /
+post-beachhead ship cruise tables stay PORT DEBT until ocean `20e6` + `48d3`.
+Do **not** grow TURN4 tip/join peels. Fixture path (`AI_EURO_EARLY_FIXTURE=1`)
+still matches TURN1→7 for bisect.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -330,12 +335,14 @@ leftover FF hooks, deep `20e6`).
   TURN goldens are unrelated and false-triggered WAR → Privateer spawn.
   **TURN2→3 green:** geometry beachhead (not nation scripts) — approach peel
   (Dutch sentry unload), staging + hold-west coast water (French soldier tip,
-  pioneer stays aboard), staging + land-west (Spanish full unload). **TURN3→4
+  pioneer stays aboard), staging + land-west (Spanish full unload).   **TURN3→4
   green:** landfall-keyed found tile + post-beachhead ship cruise; planning may
   yank settler gotos off landfall keys — recover landfall from ship tip;
   Dutch Isabella found after ship leaves adj; Spanish pioneer one AI_SAIL hop.
-  **TURN4→7 OPEN.** Approach / found / cruise tile tables remain PORT DEBT until
-  ocean `20e6` + `48d3` + `0a60` FOUND scoring reproduce them from terrain alone.
+  **TURN4→7 OPEN** (no new golden peels). **Found-tile debt:** `FUN_521d_06ae`
+  ported (`ai_goals_pick_founding_tile` / DS:0x2f77); landfall→town table still
+  fallback until `0492` continent extras reproduce Quebec/NA/Isabella.
+  Approach / post-beachhead ship XY still PORT DEBT until ocean `20e6` + `48d3`.
 - **Euro early path (fixture, bisect only):** T2 coastal ship gotos from
   `ai_coastal_staging_from_landfall`; found tiles from
   `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
