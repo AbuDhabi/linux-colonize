@@ -28,7 +28,8 @@
 #define PHYS0_MOUNTAIN_BASE 32
 #define PHYS0_HILL_BASE 48
 #define PHYS0_FOREST_BASE 64
-#define PHYS0_ROAD_ISOLATED 80 /* 80–88 band; connectivity mask still PARKED */
+#define PHYS0_ROAD_ISOLATED 80 /* no road/tribe-connected 8-neigh */
+#define PHYS0_ROAD_DIR0 81     /* +d for MAPEDIT 8-walk d=0..7 (N..NW) */
 #define PHYS0_PLOWED 149
 #define PHYS0_MOUNTAIN_ISOLATED 32 /* layer-3 arctic peak: isolated mountain */
 #define PHYS0_TUNDRA_CANOPY 64 /* isolated forest canopy on y=0 */
@@ -1327,15 +1328,72 @@ int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * Runtime road overlay. PHYS0 80–88 is the road band; connectivity RE is still
- * open, so blit isolated **80** for any road tile (visible playability). Cite:
- * docs/assets.md roads; map_tile_has_road / Col1 mask.
+ * Road 8-neighbor mask (FUN_6ba1_04e4 / MAPEDIT FUN_1a47_04de): bit d set when
+ * neighbor has road. Dir order = mapedit_neigh8 (N,NE,E,SE,S,SW,W,NW).
+ * DOS also treats tribe layer2&0x0a; Linux uses road bit only (pioneer roads).
  */
-int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
+  uint8_t m = 0;
+  if (!map) {
+    return 0;
+  }
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + mapedit_neigh8_dx[d];
+    const int ny = y + mapedit_neigh8_dy[d];
+    if (map_tile_has_road(map, nx, ny)) {
+      m = (uint8_t)(m | (uint8_t)(1u << d));
+    }
+  }
+  return m;
+}
+
+/*
+ * Runtime road overlay (FUN_6ba1_0938 / MAPEDIT FUN_1a47_0932):
+ * - no connected 8-neigh → single PHYS0 **80** (isolated)
+ * - else multi-blit PHYS0 **81+d** per connected neighbor (no isolated 80)
+ * Cite: docs/assets.md roads; viceroy ASM MOV AX,0x51 / ADD AX,0x52.
+ */
+int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y) {
   if (!map_tile_has_road(map, x, y)) {
+    return 0;
+  }
+  const uint8_t m = map_road_neigh8_mask(map, x, y);
+  if (m == 0) {
+    return 1;
+  }
+  int n = 0;
+  for (int d = 0; d < 8; ++d) {
+    if ((m & (uint8_t)(1u << d)) != 0) {
+      n++;
+    }
+  }
+  return n;
+}
+
+int map_phys0_road_layer_sprite_at(const ColonizeWorldMap* map, int x, int y, int index) {
+  if (!map_tile_has_road(map, x, y) || index < 0) {
     return -1;
   }
-  return PHYS0_ROAD_ISOLATED;
+  const uint8_t m = map_road_neigh8_mask(map, x, y);
+  if (m == 0) {
+    return (index == 0) ? PHYS0_ROAD_ISOLATED : -1;
+  }
+  int k = 0;
+  for (int d = 0; d < 8; ++d) {
+    if ((m & (uint8_t)(1u << d)) == 0) {
+      continue;
+    }
+    if (k == index) {
+      return PHYS0_ROAD_DIR0 + d;
+    }
+    k++;
+  }
+  return -1;
+}
+
+/* First road layer (isolated 80 or first directional stub); prefer layer API. */
+int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y) {
+  return map_phys0_road_layer_sprite_at(map, x, y, 0);
 }
 
 void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on) {
@@ -1377,34 +1435,56 @@ bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y) {
   return true;
 }
 
+/*
+ * DS:0x2f76 terrain move-cost byte (stride 0x10), from brave Memory dump.
+ * FUN_465b_0000: spent = table[class] * 3 (roads/rivers/owner can force 1).
+ * Shared with ai.c Brave scoring / ai_dos_move_spent.
+ */
+static const uint8_t k_map_dos_terr_cost[32] = {
+  1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 1, 3, 2, 13, 255, 255
+};
+
+int map_dos_terr_cost_byte(int terr_class) {
+  return (int)k_map_dos_terr_cost[terr_class & 31];
+}
+
+int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  return map_resource_terrain_class(map_get_terrain(map, x, y));
+}
+
 int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map_tile_is_land(map, x, y)) {
     return 1;
   }
-  const int pedia = map_pedia_terrain_index_at(map, x, y);
-  int base = 1;
-  if (pedia >= 8 && pedia <= 23) {
-    base = 2; /* forest / scrub */
-  } else if (pedia == 6 || pedia == 7) {
-    base = 2; /* marsh / swamp */
-  } else if (pedia == 28) {
-    base = 2; /* hills */
-  } else if (pedia == 27) {
-    base = 3; /* mountains */
+  /*
+   * NAMES.TXT movement scale: terr_cost[class] (not DOS *3). Dest road/river
+   * still halves for single-tile queries. Brave keeps table*3 (ai_dos_move_spent).
+   * PARK: unit MP *3 scale.
+   */
+  int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, x, y));
+  if (spent > 100) {
+    spent = 1; /* table 255 sentinel */
+  }
+  if (spent < 1) {
+    spent = 1;
   }
   if (map_tile_has_road(map, x, y) || map_tile_has_river(map, x, y)) {
-    base = base / 2;
-    if (base < 1) {
-      base = 1;
+    spent = spent / 2;
+    if (spent < 1) {
+      spent = 1;
     }
   }
-  return base;
+  return spent;
 }
 
 /*
- * DOS FUN_465b cost head (simplified base table, not full terr_cost*3):
- *   both FA road bits → 1; both river + cardinal axis → 1.
- * Else keep dest road/river halve (prior Linux pathfinding / AI goldens).
+ * DOS FUN_465b cost head (NAMES MP scale): terr_cost[class(dest)];
+ *   both FA road bits → 1; both river + cardinal axis → 1;
+ *   else dest road/river halves (Linux pathfinding / prior goldens).
+ * Cite: move_spent.c; map_dos_terr_cost_byte. Full DOS *3 PARKED until MP scale.
  */
 int map_move_cost_step(
   const ColonizeWorldMap* map,
@@ -1416,17 +1496,6 @@ int map_move_cost_step(
   if (!map || !map_tile_is_land(map, to_x, to_y)) {
     return 1;
   }
-  const int pedia = map_pedia_terrain_index_at(map, to_x, to_y);
-  int base = 1;
-  if (pedia >= 8 && pedia <= 23) {
-    base = 2;
-  } else if (pedia == 6 || pedia == 7) {
-    base = 2;
-  } else if (pedia == 28) {
-    base = 2;
-  } else if (pedia == 27) {
-    base = 3;
-  }
   if (map_tile_has_road(map, from_x, from_y) && map_tile_has_road(map, to_x, to_y)) {
     return 1;
   }
@@ -1434,11 +1503,18 @@ int map_move_cost_step(
       (from_x == to_x || from_y == to_y)) {
     return 1;
   }
+  int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, to_x, to_y));
+  if (spent > 100) {
+    spent = 1;
+  }
+  if (spent < 1) {
+    spent = 1;
+  }
   if (map_tile_has_road(map, to_x, to_y) || map_tile_has_river(map, to_x, to_y)) {
-    base = base / 2;
-    if (base < 1) {
-      base = 1;
+    spent = spent / 2;
+    if (spent < 1) {
+      spent = 1;
     }
   }
-  return base;
+  return spent;
 }

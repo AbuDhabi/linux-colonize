@@ -490,18 +490,50 @@ int main(void) {
       return 1;
     }
     map_tile_set_road(&plow_map, 0, 0, true);
-    if (map_phys0_road_sprite_at(&plow_map, 0, 0) != 80) {
+    if (map_phys0_road_layer_count(&plow_map, 0, 0) != 1 ||
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0) != 80) {
       fprintf(
         stderr,
-        "road overlay expected PHYS0 80 got %d\n",
-        map_phys0_road_sprite_at(&plow_map, 0, 0)
+        "road overlay expected isolated PHYS0 80 (count=%d sprite=%d)\n",
+        map_phys0_road_layer_count(&plow_map, 0, 0),
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 0, 0)
+      );
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    /* N neighbor → stub 81 only (FUN_6ba1_0938 multi-blit; no isolated 80). */
+    map_tile_set_road(&plow_map, 0, 1, true); /* center (0,1) + north (0,0) */
+    if (map_phys0_road_layer_count(&plow_map, 0, 1) != 1 ||
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0) != 81) {
+      fprintf(
+        stderr,
+        "road N-connect expected PHYS0 81 (count=%d sprite=%d)\n",
+        map_phys0_road_layer_count(&plow_map, 0, 1),
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0)
+      );
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    /* Add S neighbor of (0,1) at (0,2) → stubs 81 (N) + 85 (S). */
+    map_tile_set_road(&plow_map, 0, 2, true);
+    if (map_phys0_road_layer_count(&plow_map, 0, 1) != 2 ||
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0) != 81 ||
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 1) != 85) {
+      fprintf(
+        stderr,
+        "road N+S expected 81,85 (count=%d a=%d b=%d)\n",
+        map_phys0_road_layer_count(&plow_map, 0, 1),
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 0),
+        map_phys0_road_layer_sprite_at(&plow_map, 0, 1, 1)
       );
       map_free(&plow_map);
       map_free(&map);
       return 1;
     }
     map_free(&plow_map);
-    fprintf(stderr, "plow overlay PHYS0 149 ok; road isolated PHYS0 80 ok\n");
+    fprintf(stderr, "plow overlay PHYS0 149 ok; road 80–88 connectivity ok\n");
   }
 
   fprintf(stderr,

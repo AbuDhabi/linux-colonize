@@ -119,7 +119,12 @@ int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_forest_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* PHYS0 149 when tile is plowed (runtime improve); -1 otherwise. */
 int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y);
-/* PHYS0 80 isolated road when tile has road; full 80–88 connectivity PARKED. */
+/*
+ * Road overlays (FUN_6ba1_0938): isolated PHYS0 80, else multi-blit 81+d per
+ * connected 8-neighbor (N..NW). Prefer layer count/sprite; sprite_at = layer 0.
+ */
+int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y);
+int map_phys0_road_layer_sprite_at(const ColonizeWorldMap* map, int x, int y, int index);
 int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y);
 /* MAPEDIT coast layer count (0 if open ocean / land). */
 int map_phys0_coast_layer_count(const ColonizeWorldMap* map, int x, int y);
@@ -185,9 +190,18 @@ void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on);
 /* Clear forest canopy to base land type; preserves river/hill overlay bits. */
 bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y);
 /*
- * Land movement cost stub (pedia terrain base). Dest road/river still halves
- * for single-tile queries. Prefer map_move_cost_step for actual moves
- * (DOS FA road-pair + cardinal river pair → cost 1). Sea callers use 1.
+ * DOS FUN_19b7_0006 / 465b terrain class: hill bit → 28, mountain → 27,
+ * else terrain & 0x1f.
+ */
+int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y);
+/*
+ * DOS DS:0x2f76 terr_cost byte (stride 0x10). Brave spent = byte*3; human/Euro
+ * map_move_cost_* uses byte at NAMES movement scale. Cite: move_spent.c.
+ */
+int map_dos_terr_cost_byte(int terr_class);
+/*
+ * Land movement cost: terr_cost[class] (NAMES scale). Prefer map_move_cost_step
+ * for actual moves (DOS FA road-pair + cardinal river pair → cost 1). Sea → 1.
  */
 int map_move_cost_at(const ColonizeWorldMap* map, int x, int y);
 /* DOS 465b-shaped step cost from→to (road both / river both+cardinal → 1). */

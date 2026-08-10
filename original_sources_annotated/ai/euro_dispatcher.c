@@ -44,12 +44,15 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * ~748 lines — difficulty-scaled treasury bump, colony/dock scan, NEW WORLD
  * wagon (type 0x12), Europe hire loop (→ 5c3c). Called from 6d8e via
  * 2a1f_0554 BEFORE promote/0a60.
- * Linux thin: Europe-dock hire while colonies<6; at-war prefers Soldier/Dragoon;
+ * Linux thin: peace dock/wagon/shortage hire at any colony_count; Free
+ * Colonist settle spam gated colonies≥6; mid-game still ship-buy + at-war
+ * Soldier/Dragoon/Veteran/Artillery hire;
  * colonies>=2 also Artillery (Cannon fallback) when type exists — mil already
  * aboard or every-other hire turn. Peace tools matrix (thin): tools_short>30 +
  * Wagon Train/Supply Train/Wagon type → hire wagon once (TOOLS on wagon);
  * else tools_short>20 prefer Pioneer/Hardy + ship +20 TOOLS or colony +15.
- * Deeper NEW WORLD wagon / 5d04 matrix — **OPEN** (unpark #4; not T3).
+ * No Europe free-space ship → thin buy ladder **Done**: Caravel 1000$ /
+ * Merchantman 2000$ (cargo) / Galleon 3000$ / Frigate 5000$ (at war). Deeper 5d04 OPEN.
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
@@ -134,7 +137,7 @@ void euro_nation_colony_goals_pass(int nation_id) {
  *   C clear work queue                 D own-colony (LABOR / work-queue)
  *   E foreign-colony mid-mil thin + scout explore stand-in; deep **OPEN** (unpark #4)
  *   F tribe FOUND/MILITARY
- *   G continent stance thin (≥2 col); deep −0x6790 **OPEN** (unpark #4)
+ *   G continent stance thin (≥2 col; prio 6/7/8); deep −0x6790 **OPEN** (unpark #4)
  *   H bind founders→FOUND (light)
  *
  * Linux: seed-100 still uses ai_euro_early_turn sail/unload/found peels unless

@@ -5360,6 +5360,122 @@ static int smoke_g_stance_own3_prio7(void) {
 }
 
 /*
+ * G stance deepen: own≥4 colonies + at war → MILITARY primary prio 8
+ * (stand-in for −0x6790; no invented gold). Cite: euro_dispatcher G / decomp.
+ */
+static int smoke_g_stance_own4_prio8(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("g4 alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 4; ++i) {
+    ColonizeColony* own = &colonies.colonies[i];
+    own->id = i;
+    own->active = true;
+    own->nation_id = nation;
+    own->x = 3 + i * 2;
+    own->y = 4;
+    own->population = 2;
+    own->colonist_count = 2;
+    own->stock[COLONIZE_CARGO_FOOD] = 20;
+    own->building_in_production = -1;
+  }
+  ColonizeColony* enemy = &colonies.colonies[4];
+  enemy->id = 4;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 12;
+  enemy->y = 10;
+  enemy->population = 2;
+  enemy->colonist_count = 2;
+  enemy->stock[COLONIZE_CARGO_FOOD] = 20;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 5;
+  colonies.next_id = 5;
+
+  const int sid = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* soldier = units_get(&units, sid);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("g4 spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->moves_left = 1;
+  soldier->orders = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 24;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  const int mil_prio =
+    ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
+  if (mil_prio < 8) {
+    fprintf(stderr, "smoke_ai_euro_war: G own≥4 mil_prio=%d (want ≥8)\n", mil_prio);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected G stance MILITARY prio ≥8 with own≥4 at war");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: G own≥4 prio8 ok (mil_prio=%d)\n", mil_prio);
+  return 0;
+}
+
+/*
  * Naval multi-step: Frigate AI_SAIL war hunt with moves_left≥2 advances two
  * scored ocean steps in one act (mirror land 2-step) and spends remaining MP.
  * Cite: euro_unit_act §2c4 / §2b Frigate war hunt.
@@ -5496,6 +5612,149 @@ static int smoke_naval_multistep_sail(void) {
  * At war + own colonies ≥ 3 + Dragoon type present → prefer Dragoon hire
  * over Soldier. Cite: euro_dispatcher mid-hire deepen; fandom Dragoon.
  */
+
+/*
+ * Thin 5d04 mid-game: colonies ≥ 6 still hires wartime Soldier onto Europe ship.
+ * Peace settle matrix stays gated <6. Cite: unpark #4 leftover mid 5d04.
+ */
+static int smoke_mid_hire_mil_colonies_ge6(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("mid-hire-ge6 alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
+  units.types[1].movement = 1;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 2;
+  units.types[2].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 6; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + (i % 3) * 2;
+    c->y = 2 + (i / 3) * 2;
+    c->population = 2;
+    c->colonist_count = 2;
+    c->stock[COLONIZE_CARGO_FOOD] = 40;
+    c->building_in_production = -1;
+  }
+  ColonizeColony* enemy = &colonies.colonies[6];
+  enemy->id = 6;
+  enemy->active = true;
+  enemy->nation_id = foe;
+  enemy->x = 12;
+  enemy->y = 12;
+  enemy->population = 2;
+  enemy->colonist_count = 2;
+  enemy->stock[COLONIZE_CARGO_FOOD] = 20;
+  enemy->building_in_production = -1;
+  colonies.colony_count = 7;
+  colonies.next_id = 7;
+
+  const int ship_id = units_spawn_allow_stack(&units, 0, 200, 100);
+  ColonizeUnit* ship = units_get(&units, ship_id);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("mid-hire-ge6 spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+  col1.nation[foe].gold = 500;
+  ai_diplo_declare_war(&col1, nation, foe);
+  col1.nation[nation].gold = 500;
+  const uint32_t gold_before = col1.nation[nation].gold;
+
+  ai_goals_reset();
+
+  uint32_t turn = 44;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int soldier_boarded = 0;
+  for (int c = 0; c < ship->cargo_count; ++c) {
+    const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+    if (!pax) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+    if (ty && strstr(ty->name, "Soldier")) {
+      soldier_boarded = 1;
+      break;
+    }
+  }
+  const int gold_spent = (int)gold_before > (int)col1.nation[nation].gold;
+  if (!soldier_boarded || !gold_spent) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: mid-hire-ge6 boarded=%d gold_spent=%d gold=%u cargo=%d\n",
+      soldier_boarded,
+      gold_spent,
+      col1.nation[nation].gold,
+      ship->cargo_count
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected wartime Soldier hire at colonies>=6");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: mid-hire colonies>=6 ok\n");
+  return 0;
+}
+
 static int smoke_mid_hire_dragoon_prefer(void) {
   const int nation = 1;
   const int foe = 2;
@@ -7577,6 +7836,134 @@ static int smoke_unload_continental_cavalry_threatened(void) {
 /*
  * Peace: idle Soldier on own colony → FORTIFY. Cite: euro_unit_act §2d3.
  */
+
+/*
+ * Col1 +0x1e garrison_quota: with quota=1, only one of two idle Soldiers
+ * fortifies (other stays idle). Cite: save_format_map.md; FUN_5952_035e DEC.
+ */
+static int smoke_garrison_quota_one_fortify(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("garrison-quota alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5;
+  c->y = 5;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  c->garrison_quota = 1; /* only one fortify slot */
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid0 = units_spawn_allow_stack(&units, 0, 5, 5);
+  const int uid1 = units_spawn_allow_stack(&units, 0, 5, 5);
+  ColonizeUnit* s0 = units_get(&units, uid0);
+  ColonizeUnit* s1 = units_get(&units, uid1);
+  if (!s0 || !s1) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("garrison-quota spawn");
+  }
+  s0->nation_id = nation;
+  s0->moves_left = 1;
+  s0->orders = 0;
+  s1->nation_id = nation;
+  s1->moves_left = 1;
+  s1->orders = 0;
+
+  ai_goals_reset();
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+
+  uint32_t turn = 55;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  s0 = units_get(&units, uid0);
+  s1 = units_get(&units, uid1);
+  c = &colonies.colonies[0];
+  int fortified = 0;
+  int idle = 0;
+  for (int i = 0; i < 2; ++i) {
+    const ColonizeUnit* s = (i == 0) ? s0 : s1;
+    if (!s || !s->active) {
+      continue;
+    }
+    if (s->orders == UNITS_ORDER_FORTIFY || s->orders == UNITS_ORDER_FORTIFIED) {
+      fortified++;
+    } else {
+      idle++;
+    }
+  }
+  if (fortified != 1 || idle != 1 || c->garrison_quota != 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: garrison_quota fortified=%d idle=%d quota=%u\n",
+      fortified,
+      idle,
+      (unsigned)c->garrison_quota
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected exactly one fortify consuming garrison_quota 1→0");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: garrison_quota one fortify ok\n");
+  return 0;
+}
+
 static int smoke_peace_soldier_fortify_colony(void) {
   const int nation = 1;
 
@@ -9040,6 +9427,9 @@ int main(void) {
   if (smoke_mid_hire_mil() != 0) {
     return 1;
   }
+  if (smoke_mid_hire_mil_colonies_ge6() != 0) {
+    return 1;
+  }
   if (smoke_mid_hire_dragoon_prefer() != 0) {
     return 1;
   }
@@ -9085,6 +9475,9 @@ int main(void) {
   if (smoke_fortify_wake_hunt() != 0) {
     return 1;
   }
+  if (smoke_garrison_quota_one_fortify() != 0) {
+    return 1;
+  }
   if (smoke_peace_soldier_fortify_colony() != 0) {
     return 1;
   }
@@ -9119,6 +9512,9 @@ int main(void) {
     return 1;
   }
   if (smoke_g_stance_own3_prio7() != 0) {
+    return 1;
+  }
+  if (smoke_g_stance_own4_prio8() != 0) {
     return 1;
   }
   if (smoke_mid_hire_artillery() != 0) {

@@ -78,6 +78,11 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
  */
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
+/*
+ * Latch Col1 +0x1c sol_50 / sol_100 from colony SoL % (FUN_364b_0688).
+ */
+void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Save* col1);
+
 int colony_prod_crosses_worker(const char* building_name, int profession);
 int colony_prod_bells_worker(const char* building_name, int profession);
 int colony_prod_hammers_worker(const char* building_name, int profession);

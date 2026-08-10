@@ -24,6 +24,96 @@ static int failures = 0;
     } \
   } while (0)
 
+
+/* Col1 +0x98: BUY construction accumulates hammers_purchased remainder. */
+static int smoke_hammers_purchased_buy(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stockade");
+  pool.building_types[0].hammers = 64;
+  pool.building_types[0].tools_cost = 0;
+  pool.building_type_count = 1;
+  ColonizeColony* c = &pool.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->building_in_production = 0;
+  c->hammers = 14;
+  c->hammers_purchased = 0;
+  pool.colony_count = 1;
+  int gold = 200;
+  const int expect = 64 - 14;
+  if (!colonies_buy_construction(&pool, 0, &gold)) {
+    fprintf(stderr, "hammers_purchased: buy failed\n");
+    return 1;
+  }
+  if (c->hammers_purchased != (uint16_t)expect || gold != 200 - expect) {
+    fprintf(stderr, "hammers_purchased=%u gold=%d expect=%d\n",
+            (unsigned)c->hammers_purchased, gold, expect);
+    return 1;
+  }
+  if ((c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) == 0) {
+    fprintf(stderr, "expected build_complete flag after BUY\n");
+    return 1;
+  }
+  fprintf(stderr, "smoke_colonies: hammers_purchased buy ok\n");
+  return 0;
+}
+
+/* Col1 +0x95/+0x96: warehouse_level drives 100*(1+level); capitol INC on complete. */
+static int smoke_warehouse_capitol_levels(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Warehouse");
+  pool.building_types[0].hammers = 10;
+  pool.building_types[0].tools_cost = 0;
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Capitol");
+  pool.building_types[1].hammers = 10;
+  pool.building_types[1].tools_cost = 0;
+  pool.building_type_count = 2;
+  ColonizeColony* c = &pool.colonies[0];
+  memset(c, 0, sizeof(*c));
+  c->id = 0;
+  c->active = true;
+  c->building_in_production = -1;
+  pool.colony_count = 1;
+
+  if (colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) != 100) {
+    fprintf(stderr, "warehouse_level0 cap want 100\n");
+    return 1;
+  }
+  c->warehouse_level = 1;
+  if (colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) != 200) {
+    fprintf(stderr, "warehouse_level1 cap want 200 got %d\n",
+            colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS));
+    return 1;
+  }
+  c->warehouse_level = 0;
+  c->building_in_production = 0;
+  c->hammers = 10;
+  if (!colonies_try_complete_building(&pool, 0) || c->warehouse_level != 1) {
+    fprintf(stderr, "Warehouse complete warehouse_level=%u\n",
+            (unsigned)c->warehouse_level);
+    return 1;
+  }
+  if (colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) != 200) {
+    fprintf(stderr, "after Warehouse cap want 200\n");
+    return 1;
+  }
+  c->building_in_production = 1;
+  c->hammers = 10;
+  if (!colonies_try_complete_building(&pool, 0) || c->capitol_level != 1) {
+    fprintf(stderr, "Capitol complete capitol_level=%u\n", (unsigned)c->capitol_level);
+    return 1;
+  }
+  fprintf(stderr, "smoke_colonies: warehouse/capitol levels ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -590,6 +680,10 @@ int main(void) {
       col1c.rebel_divisor = 100;
       CHECK(colony_prod_sol_percent(&col1, c) == 50, "SoL from rebel 50/100");
       CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus +1 at 50%");
+      c->colony_flags = 0;
+      colony_prod_refresh_sol_flags(c, &col1);
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 latch at 50%");
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) == 0, "sol_100 clear at 50%");
       col1c.rebel_dividend = 0;
       col1c.rebel_divisor = 0;
       col1.nation[c->nation_id].liberty_bells_total = 200; /* /4 → 50 */
@@ -598,6 +692,13 @@ int main(void) {
       col1.nation[c->nation_id].liberty_bells_total = 400; /* /4 → 100 */
       CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL bells cap 100");
       CHECK(colony_prod_sol_bonus(&col1, c) == 2, "SoL bonus +2 at 100%");
+      colony_prod_refresh_sol_flags(c, &col1);
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0, "sol_100 latch at 100%");
+      CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 stays at 100%");
+      col1.nation[c->nation_id].liberty_bells_total = 0;
+      colony_prod_refresh_sol_flags(c, &col1);
+      CHECK((c->colony_flags & (COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100)) == 0,
+            "SoL flags clear when SoL drops");
     }
   }
 
@@ -649,6 +750,83 @@ int main(void) {
         eu.colony_index = 999;
         colonies_trade_stop_autofill(&eu, NULL, &units, wid);
         CHECK(eu.unload_count == 1 && eu.load_count == 0, "Europe autofill unload-only");
+      }
+    }
+  }
+
+  /*
+   * TRADE cargo picker setter: explicit unload TOOLS + load SILVER (not autofill).
+   * Cite: colonies_trade_stop_set_cargos; ColonizeCol1TradeStop.
+   */
+  {
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 1;
+    snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+    units.types[0].movement = 2;
+    units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[0].cargo = 2;
+
+    ColonizeColony* c = colonies_get_mut(&pool, cid);
+    CHECK(c != NULL, "picker colony");
+    if (c) {
+      c->stock[COLONIZE_CARGO_TOOLS] = 40;
+      c->stock[COLONIZE_CARGO_SILVER] = 80;
+      c->stock[COLONIZE_CARGO_FOOD] = 5;
+      const int tools0 = c->stock[COLONIZE_CARGO_TOOLS];
+      const int silver0 = c->stock[COLONIZE_CARGO_SILVER];
+
+      const int wid = units_spawn(&units, 0, c->x, c->y);
+      ColonizeUnit* w = units_get(&units, wid);
+      CHECK(w != NULL, "picker wagon");
+      if (w) {
+        w->nation_id = c->nation_id;
+        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) == 20, "picker TOOLS");
+        CHECK(units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 20) == 20, "picker FOOD");
+
+        ColonizeCol1TradeStop st;
+        memset(&st, 0, sizeof(st));
+        st.colony_index = (uint16_t)cid;
+        const int unload_t[] = {COLONIZE_CARGO_TOOLS};
+        const int load_t[] = {COLONIZE_CARGO_SILVER};
+        colonies_trade_stop_set_cargos(&st, unload_t, 1, load_t, 1);
+        CHECK(st.unload_count == 1 && st.load_count == 1, "picker counts");
+        CHECK(
+          col1_trade_nibble_cargo(st.unload_cargo_nibbles, 0) == COLONIZE_CARGO_TOOLS,
+          "picker unload TOOLS"
+        );
+        CHECK(
+          col1_trade_nibble_cargo(st.load_cargo_nibbles, 0) == COLONIZE_CARGO_SILVER,
+          "picker load SILVER"
+        );
+        CHECK(
+          colonies_trade_route_service_stop(&pool, cid, &units, wid, &st) == 1,
+          "picker service"
+        );
+        CHECK(c->stock[COLONIZE_CARGO_TOOLS] == tools0 + 20, "picker unload TOOLS");
+        CHECK(c->stock[COLONIZE_CARGO_SILVER] == silver0 - 20, "picker load SILVER");
+        int food_left = 0;
+        int silver_on = 0;
+        const int nh = units_goods_hold_count(&units, wid);
+        for (int h = 0; h < nh; ++h) {
+          if (w->hold_goods_type[h] == COLONIZE_CARGO_FOOD) {
+            food_left += w->hold_goods_amount[h];
+          }
+          if (w->hold_goods_type[h] == COLONIZE_CARGO_SILVER) {
+            silver_on += w->hold_goods_amount[h];
+          }
+        }
+        CHECK(food_left == 20, "picker FOOD stays aboard");
+        CHECK(silver_on == 20, "picker SILVER aboard");
+
+        /* Europe: unload list only */
+        ColonizeCol1TradeStop eu;
+        memset(&eu, 0, sizeof(eu));
+        eu.colony_index = 999;
+        colonies_trade_stop_set_cargos(&eu, unload_t, 1, load_t, 1);
+        /* Force load_count 0 for Europe sell path semantics in setter use. */
+        colonies_trade_stop_set_cargos(&eu, unload_t, 1, NULL, 0);
+        CHECK(eu.unload_count == 1 && eu.load_count == 0, "Europe picker unload-only");
       }
     }
   }
@@ -730,6 +908,12 @@ int main(void) {
 
   if (failures == 0) {
     printf("smoke_colonies: all checks passed\n");
+    if (smoke_hammers_purchased_buy() != 0) {
+      return 1;
+    }
+    if (smoke_warehouse_capitol_levels() != 0) {
+      return 1;
+    }
     return 0;
   }
   fprintf(stderr, "smoke_colonies: %d failure(s)\n", failures);

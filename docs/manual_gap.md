@@ -47,7 +47,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
 | Fog of war / unexplored blackness | Partial | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; units/tribes/colonies hidden in fog; Go-To reveals; cheat Reveal. Scenario `.MP` starts fully seen |
 | Zoom / hidden terrain VIEW modes | Missing | Menu stubs |
-| Roads on map | Partial | PHYS0 **80** isolated stand-in via `map_phys0_road_sprite_at`; 80–88 connectivity PARKED |
+| Roads on map | Done | PHYS0 **80** isolated / **81–88** multi-blit stubs via `map_phys0_road_layer_*` (`FUN_6ba1_0938`) |
 | Plowed fields on map | Done | PHYS0 **149** via `map_phys0_plow_sprite_at` (main map + colony area) |
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
 | Colonizopedia | Done | `pedia.c` |
@@ -61,7 +61,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
-| Terrain move costs (forest >1 MP, roads, rivers) | Partial | Base costs + full-MP / partial overspend; DOS road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). Full `terr_cost*3` table still simplified |
+| Terrain move costs (forest >1 MP, roads, rivers) | Partial | DOS `terr_cost` table + full-MP / partial overspend; road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). PARK: unit MP `*3` scale (Brave already `table*3`) |
 | Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Phase 7: context P/R when Pioneer selected; tools; ORDERS Clear Forest / Plow Fields / Build Road |
@@ -71,7 +71,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Landfall confirm + activate-all ashore | Done | Ship→bare land: CHOICE unload one / activate all / cancel (`AI_POPUP_TAG_LANDFALL`); ship stays at sea — [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
-| Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; stop service honors Col1 load/unload nibbles when counts>0 (else unload-all / surplus ladder); Edit autofills unload from selected unit + load from colony surplus; Europe sell on 999; full cargo picker UI still thin |
+| Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; stop service honors Col1 load/unload nibbles when counts>0 (else unload-all / surplus ladder); Edit autofill + thin cargo picker (unload→load multi-select); Europe sell on 999; VGA TRADE chrome PARKED |
 
 ### Colonies
 
@@ -146,7 +146,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; deep land `20e6` **OPEN** (unpark #4) |
+| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; deep land `20e6` **OPEN** (unpark #4) |
 
 ### Win / end sequences
 
@@ -176,7 +176,7 @@ Aligned with early manual chapters (short playable loop first), then the
    structural `ai_popup`; deep/VGA PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill **Done**; full cargo picker UI still thin
+10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + thin cargo picker **Done**; VGA TRADE chrome PARKED
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---
@@ -190,8 +190,8 @@ king/REF (incl. audience/confirm/merc), FF elect, and early Euro AI (seed-100 T2
 + thin expand/war) are in; next playability work is leftover **FF hooks**
 (Sepulveda/Cortes), deep mid-planner `20e6`, and VGA / deep AI bodies — not
 waiting on missing combat/capture prerequisites. TRADE Create/Edit/Begin
-aim+cycle + stop nibble honor + Edit autofill is thin; full cargo picker UI, Congress UI, and full 1:1 AI
-bodies remain.
+aim+cycle + stop nibble honor + Edit autofill + thin cargo picker are in; VGA TRADE
+chrome, Congress UI, and full 1:1 AI bodies remain.
 
 ## See also
 

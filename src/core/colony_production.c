@@ -183,6 +183,29 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
   return 0;
 }
 
+/*
+ * FUN_364b_0688 thin: latch +0x1c sol_50 (0x04) / sol_100 (0x02) from SoL %.
+ * Clears when SoL drops below the threshold (DOS clears ~95 / 50).
+ */
+void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Save* col1) {
+  if (!colony || !colony->active) {
+    return;
+  }
+  const int sol = colony_prod_sol_percent(col1, colony);
+  if (sol >= 100) {
+    colony->colony_flags |=
+      (uint8_t)(COLONIZE_COLONY_FLAG_SOL_100 | COLONIZE_COLONY_FLAG_SOL_50);
+  } else if (sol >= 50) {
+    colony->colony_flags |= COLONIZE_COLONY_FLAG_SOL_50;
+    colony->colony_flags =
+      (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SOL_100);
+  } else {
+    colony->colony_flags = (uint8_t)(colony->colony_flags &
+                                     (uint8_t)~(COLONIZE_COLONY_FLAG_SOL_50 |
+                                                COLONIZE_COLONY_FLAG_SOL_100));
+  }
+}
+
 int colony_prod_crosses_worker(const char* building_name, int profession) {
   if (!building_name ||
       (!colony_prod_name_has(building_name, "Church") &&

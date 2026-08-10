@@ -1726,14 +1726,17 @@ int main(void) {
     }
     if (!colonies_buy_construction(&pool, cid, &gold) || gold != 500 - expect_cost ||
         !col->has_building[whe] || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
-        col->building_in_production >= 0) {
+        col->building_in_production >= 0 ||
+        col->hammers_purchased != (uint16_t)expect_cost) {
       fprintf(
         stderr,
-        "buy construction failed gold=%d has=%d tools=%d proj=%d\n",
+        "buy construction failed gold=%d has=%d tools=%d proj=%d purchased=%u expect=%d\n",
         gold,
         col->has_building[whe] ? 1 : 0,
         col->stock[COLONIZE_CARGO_TOOLS],
-        col->building_in_production
+        col->building_in_production,
+        (unsigned)col->hammers_purchased,
+        expect_cost
       );
       if (font_ok) {
         ff_free(&font);

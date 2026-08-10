@@ -46,7 +46,7 @@ switch (orders) cases 7..0x0b
 
 | Lines | Concern |
 |-------|---------|
-| 91583–91591 | Unload / labor — `colony+0x8e--`, order `'G'` |
+| 91583–91591 | Unload / labor — `colony+0x8e--`, order `'G'` | **Done** thin (`labor_shortage` + admit) |
 | 91603–91616 | Goal-priority → order `'B'` |
 | 92151–92167 | Fortify? colony-check → order `'F'`, dir=8 |
 | 92176–92212 | Apply orders 5/6/0xc; idle → `'0'` |
@@ -243,6 +243,11 @@ Cite: docs/fandom_col1994.md Jan de Witt; `colonies_de_witt_transfer_*`.
 
 ### 2d3. Linux thin — peace colony garrison fortify (act)
 
+**`garrison_quota` (+0x1e):** fortify consumes quota (DEC); planning thin-latches
+`=1` when idle unfortified garrison sits on colony (full `threat>>3` seed PARKED).
+Cite: save_format_map.md; FUN_5952_035e.
+
+
 Peace + idle Soldier / Dragoon / **Regular** / **Continental** (Army/Cavalry) on
 own colony tile → `units_order_fortify` if not already fortified (overrides
 explore/FOUND yank while on-tile; keeps off-colony MILITARY/CONTACT). Cite: case
@@ -330,9 +335,102 @@ Hardy real power: "Clears forest, plows fields, and builds roads faster"
 (Colonization.pdf) — prefer Hardy when both idle; no invented yields. Skip when
 `tools_short` or on-colony construction LABOR stay. Cite: Colonization.pdf
 Clear/Plow/Road. Remaining mid `5d04` deep economy / deep combat scoring stay
-**OPEN** (unpark #4). Wagon hire-once covers tools/lumber/ore (>30),
-muskets/horses (>20), and food (>30). Surplus load prefers FOOD when
-`food_short>20` (else tools ladder).
+**OPEN** (unpark #4). Colonies≥6 planning hard-return removed (ship-buy + war/peace shortage hire **Done**; Free Colonist settle gated). Thin Europe ship buy ladder **Done**: Caravel (no ship / full), Merchantman
+(cargo pressure), Galleon (at war), Frigate (at war, 5000$) — `smoke_5d04_buy_*`.
+Wagon hire-once covers tools/lumber/ore (>30), muskets/horses (>20), and food
+(>30). Surplus load prefers FOOD when `food_short>20` (else tools ladder).
+
+### 2d5. Linux thin — Col1 `labor_shortage` (+0x8e)
+
+Runtime `ColonizeColony.labor_shortage` bridged from Col1. Planning D upserts
+`AI_GOAL_LABOR` when `>0` (and thin-latches `=1` when other LABOR needs fire;
+full `FUN_5952_035e` seed PARKED). `colonies_admit_unit` decrements on join
+(decomp ~91589 / order `'G'`). Cite: save_format_map.md +0x8e.
+
+### 2d6. Linux thin — Col1 `specialty_cargo` (+0x8d)
+
+Runtime `ColonizeColony.specialty_cargo` bridged from Col1 (`0xff` = none).
+Inventory refreshes via `colonies_specialty_cargo_update` (FUN_5952_0306 shape:
+warehouse-cap / boycott clear). Wagon/ship surplus load tries specialty first.
+Smoke: `smoke_specialty_cargo_haul_prefer`. Cite: save_format_map.md +0x8d.
+
+### 2d7. Linux thin — Col1 `cargo_idle_turns` (+0x8f)
+
+Runtime `ColonizeColony.cargo_idle_turns` bridged from Col1. Euro inventory INC
+cap `0x7f` (FUN_5952_035e); `colonies_transfer_from_unit` clears on goods unload
+(~90249). Haul short-colony pick maximizes `idle*8 - MD` (~87677). Smoke:
+`smoke_cargo_idle_turns_haul_prefer`. Cite: save_format_map.md +0x8f.
+
+### 2d8. Linux thin — Col1 `improve_timer` (+0x8c)
+
+Runtime `ColonizeColony.improve_timer` bridged from Col1. Inventory INC cap
+`0x7f`. AI pioneer plow/road skips colony surround until timer ≥ 2 (thin stand-in
+for terr@0x2f78+2; full table PARKED). Successful plow/road clears timer
+(~94546). Smoke: `smoke_improve_timer_pioneer_gate`. Cite: save_format_map.md
++0x8c; FUN_5952 ~93663.
+
+### 2d9. Linux thin — Col1 `build_ai_flags` (+0x1d bit7)
+
+Runtime `ColonizeColony.build_ai_flags` bridged from Col1. Bit7
+`COLONIZE_BUILD_AI_WANTS_CONSTRUCTION` latches construction LABOR (even without
+`building_in_production`). Planning sets bit when named construction is live;
+`colonies_clear_construction` / complete clears it (~95710). Smoke:
+`smoke_build_ai_flags_wants_construction`. Cite: save_format_map.md +0x1d;
+FUN_5952 ~94660 / ~95792.
+
+### 2d10. Linux thin — Col1 `cargo_produced_mask` (+0x90)
+
+Runtime `ColonizeColony.cargo_produced_mask` bridged from Col1. Cleared at
+colony production start; OR bit per cargo with positive yield/craft
+(`FUN_364b_0688`). Wagon/ship surplus load prefers produced cargos after
+specialty. Smoke: `smoke_cargo_produced_mask_haul_prefer`. Cite:
+save_format_map.md +0x90.
+
+### 2d11. Linux thin — Col1 `ai_flags` (+0x1b)
+
+Runtime `ColonizeColony.ai_flags` bridged from Col1. Planning refreshes ship
+bits via MD≤5 foreign armed sea scan (MoW → 0x02, else attack>0 → 0x01;
+`FUN_4962_0018`). Idle COLONY primary uses code/prio **8** when MoW bit set,
+else **5** (euro_dispatcher). Thin latches needs_colonists / needs_garrison.
+Smoke: `smoke_colony_ai_flags_mow_colony_alt`. Cite: save_format_map.md +0x1b.
+
+### 2d12. Linux thin — Col1 `colony_flags` (+0x1c)
+
+Runtime `ColonizeColony.colony_flags` bridged from Col1. Starvation (0x08)
+latches when food < pop×2 (production + planning); forces LABOR. Thin wagon
+(0x20) / coastal (0x40) / small-AI (0x10) latches. Smoke:
+`smoke_colony_flags_starvation_labor`. Cite: save_format_map.md +0x1c;
+FUN_364b_0688.
+
+### 2d13. Linux thin — Col1 `hammers_purchased` (+0x98)
+
+Runtime `ColonizeColony.hammers_purchased` bridged from Col1.
+`colonies_buy_construction` adds BUY remainder (gold cost) to the counter
+(`FUN_2f2b_5e44`) and sets `build_complete` (+0x1c bit7). Smoke:
+`smoke_hammers_purchased_buy` / colony-screen BUY. Cite: save_format_map.md
++0x98.
+
+### 2d14. Linux thin — Col1 SoL latches on `colony_flags` (+0x1c)
+
+`colony_prod_refresh_sol_flags` sets sol_50 (0x04) / sol_100 (0x02) from
+`colony_prod_sol_percent` (≥50 / ≥100); clears on drop. Called from colony
+production and Euro planning. Cite: FUN_364b_0688 ~55373; smoke_colonies SoL
+flag checks.
+
+### 2d15. Linux thin — Col1 `depletion_counter` (+0x97)
+
+Runtime `ColonizeColony.depletion_counter` bridged from Col1. Each ore/silver
+field yield INC; wrap at 50 subtracts 50 and sets `MAP_LAYER2_SUPPRESS` on the
+worked tile (`FUN_364b_033a` feature 4). Smoke: turn `depletion_counter
+wrap+suppress`. Cite: save_format_map.md +0x97.
+
+### 2d16. Linux thin — Col1 `warehouse_level` / `capitol_level` (+0x95/+0x96)
+
+Runtime fields bridged from Col1. Warehouse capacity uses `100*(1+level)`
+(`FUN_15eb_0a50`); level also derived from Warehouse / Expansion buildings and
+INC on complete. Capitol level INC on Capitol / Capitol Expansion complete
+(`FUN_364b_0114`). Smoke: `smoke_warehouse_capitol_levels`. Cite:
+save_format_map.md +0x95/+0x96.
 
 ### 2e. Linux thin — LABOR bind (food/tools short + construction)
 

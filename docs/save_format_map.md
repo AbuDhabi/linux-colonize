@@ -143,24 +143,24 @@ as peels land.
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `x` / `y` / `name` / `nation_id` / `population` | — | `mapped` | |
-| `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; ship/AI planner bits (`FUN_4962_0018` / `5952_035e`) |
-| `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; SoL/starvation/build-busy/… (`FUN_364b_0688`) |
-| `build_ai_flags` | 1 | `partial` | +0x1d; bit7 `wants_construction`; other bits reserved |
-| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`) |
+| `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; ship/AI planner bits — Linux field + MoW/armed ship scan + COLONY 5|8; thin needs_colonists/garrison |
+| `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; Linux `colony_flags` — starvation→LABOR + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
+| `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — Linux field + LABOR latch + clear on queue done; other bits reserved |
+| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
 | `occupation` / `profession` | 64 | `mapped` | |
 | `specialty[16]` | 16 | `mapped` | +0x60; colonist specialty nibbles (`FUN_15eb_0c7a`; was `duration`) |
 | `tiles[20]` | 20 | `mapped` | +0x70; ring `[0..7]`; `[8..19]` empty `0xff` in fixtures |
 | `buildings` / `custom_house` | — | `mapped` | `unused05` pad |
-| `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; gates pioneer |
-| `specialty_cargo` | 1 | `mapped` | +0x8d; `0xff` none (`FUN_5952_0306`) |
-| `labor_shortage` | 1 | `mapped` | +0x8e |
-| `cargo_idle_turns` | 1 | `mapped` | +0x8f; cleared on unload; AI score `*8` |
-| `cargo_produced_mask` | 2 | `mapped` | +0x90; bit per cargo (`FUN_364b_0688`) |
+| `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; Linux field + pioneer gate (≥2 thin) + clear on plow/road |
+| `specialty_cargo` | 1 | `mapped` | +0x8d; `0xff` none (`FUN_5952_0306`); Linux field + haul prefer + warehouse-cap clear |
+| `labor_shortage` | 1 | `mapped` | +0x8e; Linux `ColonizeColony.labor_shortage` + admit decrement + AI LABOR latch |
+| `cargo_idle_turns` | 1 | `mapped` | +0x8f; INC cap `0x7f` (`FUN_5952_035e`); clear on goods unload; AI haul score `*8` |
+| `cargo_produced_mask` | 2 | `mapped` | +0x90; bit per cargo (`FUN_364b_0688`); Linux field + clear/OR on produce + haul prefer |
 | `hammers` / `building_in_production` | — | `mapped` | |
-| `warehouse_level` | 1 | `mapped` | +0x95; cap `100*(1+level)` (`FUN_15eb_0a50`) |
-| `capitol_level` | 1 | `mapped` | +0x96; Capitol / Expansion (`0x1e`/`0x1f`) |
-| `depletion_counter` | 1 | `mapped` | +0x97; wrap at 50 |
-| `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`) |
+| `warehouse_level` | 1 | `mapped` | +0x95; Linux field; cap `100*(1+level)` (`FUN_15eb_0a50`); INC on Warehouse/Expansion complete; also derived from `has_building` |
+| `capitol_level` | 1 | `mapped` | +0x96; Linux field; INC on Capitol/Expansion complete (`FUN_364b_0114`); bridged |
+| `depletion_counter` | 1 | `mapped` | +0x97; INC on ore/silver field yield; wrap at 50 → `MAP_LAYER2_SUPPRESS` on worked tile (`FUN_364b_033a`) |
+| `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`); Linux field + accumulate on `colonies_buy_construction` |
 | `stock[16]` | 32 | `mapped` | |
 | `visible_to_euro[4]` | 4 | `mapped` | +0xba; fog `0x10<<euro` |
 | `unknown13_pad[4]` | 4 | `opaque` | +0xbe; found-zero; no reader |

@@ -686,6 +686,27 @@ bool col1_bridge_apply(
       memcpy(&bits, &src->custom_house, sizeof(bits));
       dst->custom_house_bits = bits;
     }
+    dst->labor_shortage = src->labor_shortage;
+    dst->garrison_quota = src->garrison_quota;
+    dst->specialty_cargo = src->specialty_cargo;
+    dst->cargo_idle_turns = src->cargo_idle_turns;
+    dst->improve_timer = src->improve_timer;
+    dst->build_ai_flags = src->build_ai_flags;
+    {
+      uint8_t af = 0;
+      memcpy(&af, &src->ai_flags, sizeof(af));
+      dst->ai_flags = af;
+    }
+    {
+      uint8_t cf = 0;
+      memcpy(&cf, &src->flags, sizeof(cf));
+      dst->colony_flags = cf;
+    }
+    dst->cargo_produced_mask = src->cargo_produced_mask;
+    dst->hammers_purchased = src->hammers_purchased;
+    dst->depletion_counter = src->depletion_counter;
+    dst->warehouse_level = src->warehouse_level;
+    dst->capitol_level = src->capitol_level;
     col1_apply_colony_buildings(colonies, dst, &src->buildings);
     const int pop = src->population > COLONIZE_COLONY_POP_MAX ? COLONIZE_COLONY_POP_MAX
                                                               : (int)src->population;
@@ -1328,8 +1349,12 @@ bool col1_bridge_capture(
         dst->tiles[cti] = (int8_t)who;
       }
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
-      dst->warehouse_level = (uint8_t)dst->buildings.warehouse;
-      dst->capitol_level = (uint8_t)dst->buildings.capitol;
+      dst->warehouse_level = src->warehouse_level > (uint8_t)dst->buildings.warehouse
+                               ? src->warehouse_level
+                               : (uint8_t)dst->buildings.warehouse;
+      dst->capitol_level = src->capitol_level > (uint8_t)dst->buildings.capitol
+                             ? src->capitol_level
+                             : (uint8_t)dst->buildings.capitol;
       if (src->nation_id >= 0 && src->nation_id < 4) {
         dst->visible_to_euro[src->nation_id] = 1;
       }
@@ -1337,6 +1362,23 @@ bool col1_bridge_capture(
         uint16_t bits = src->custom_house_bits;
         memcpy(&dst->custom_house, &bits, sizeof(bits));
       }
+      dst->labor_shortage = src->labor_shortage;
+      dst->garrison_quota = src->garrison_quota;
+      dst->specialty_cargo = src->specialty_cargo;
+      dst->cargo_idle_turns = src->cargo_idle_turns;
+      dst->improve_timer = src->improve_timer;
+      dst->build_ai_flags = src->build_ai_flags;
+      {
+        uint8_t af = src->ai_flags;
+        memcpy(&dst->ai_flags, &af, sizeof(af));
+      }
+      {
+        uint8_t cf = src->colony_flags;
+        memcpy(&dst->flags, &cf, sizeof(cf));
+      }
+      dst->cargo_produced_mask = src->cargo_produced_mask;
+      dst->hammers_purchased = src->hammers_purchased;
+      dst->depletion_counter = src->depletion_counter;
     }
     free(save->colony);
     save->colony = neu;

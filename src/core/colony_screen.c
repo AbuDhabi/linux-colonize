@@ -1249,9 +1249,12 @@ static void colony_screen_render_minimap(
         if (plow >= 0 && plow < phys0->sprite_count) {
           colony_screen_blit_scaled_15(phys0, plow, framebuffer, tile_x, tile_y);
         }
-        const int road = map_phys0_road_sprite_at(map, mx, my);
-        if (road >= 0 && road < phys0->sprite_count) {
-          colony_screen_blit_scaled_15(phys0, road, framebuffer, tile_x, tile_y);
+        const int road_n = map_phys0_road_layer_count(map, mx, my);
+        for (int ri = 0; ri < road_n; ++ri) {
+          const int road = map_phys0_road_layer_sprite_at(map, mx, my, ri);
+          if (road >= 0 && road < phys0->sprite_count) {
+            colony_screen_blit_scaled_15(phys0, road, framebuffer, tile_x, tile_y);
+          }
         }
       }
     }

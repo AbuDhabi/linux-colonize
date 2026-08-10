@@ -138,6 +138,9 @@ void colony_craft_one_colony(
     colony->stock[rec->in_cargo] -= actual_in;
     colony->stock[rec->out_cargo] =
       colony_craft_clamp(colony->stock[rec->out_cargo] + actual_out);
+    if (actual_out > 0) {
+      colony->cargo_produced_mask |= (uint16_t)(1u << rec->out_cargo);
+    }
     if (delta) {
       delta->goods[rec->in_cargo] -= actual_in;
       delta->goods[rec->out_cargo] += actual_out;

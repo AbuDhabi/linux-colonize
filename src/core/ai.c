@@ -2281,22 +2281,10 @@ static void ai_find_home_tribe(
   }
 }
 
-/*
- * DS:0x2f76 terrain move-cost byte (stride 0x10), from brave Memory dump.
- * FUN_465b_0000: spent += table[terr] * 3 (roads/rivers/owner can force 1).
- * Quiet Brave scoring subtracts table[terr] (not ×3) off river/fa.
- */
-static const uint8_t k_ai_dos_terr_cost[32] = {
-  1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 1, 3, 2, 13, 255, 255
-};
+/* terr_cost table + class: map_dos_terr_cost_byte / map_dos_terr_class_at. */
 
 static int ai_dos_terr_class(const ColonizeWorldMap* map, int x, int y) {
-  const uint8_t b = ai_terrain_at(map, x, y);
-  /* FUN_13e4_000e: hill bit 0x20 → 0x1b/0x1c from major 0x80; else low 5 bits. */
-  if ((b & 0x20u) != 0) {
-    return ((b & 0x80u) != 0) ? 27 : 28;
-  }
-  return (int)(b & 0x1fu);
+  return map_dos_terr_class_at(map, x, y);
 }
 
 /*
@@ -2672,7 +2660,7 @@ static int ai_native_pick_dir_asm(
         score += 1;
       } else {
         const int terr = ai_dos_terr_class(map, nx, ny) & 31;
-        terr_delta = -(int)k_ai_dos_terr_cost[terr];
+        terr_delta = -map_dos_terr_cost_byte(terr);
         score += terr_delta;
       }
     }
@@ -2941,7 +2929,7 @@ static int ai_dos_move_spent(
   int dir
 ) {
   const int terr = ai_dos_terr_class(map, to_x, to_y);
-  int spent = (int)k_ai_dos_terr_cost[terr & 31] * 3;
+  int spent = map_dos_terr_cost_byte(terr) * 3;
   /* FUN_465b: both mask flags &0x0a → cost 1 (ASM TEST AL,0xa). */
   const int fa_from = ai_mask_fa_flags(map, from_x, from_y);
   const int fa_to = ai_mask_fa_flags(map, to_x, to_y);

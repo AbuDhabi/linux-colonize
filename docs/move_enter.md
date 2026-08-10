@@ -30,7 +30,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 | Mover | Dest | DOS | Linux | Status |
 |-------|------|-----|-------|--------|
-| Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | Simplified 1/2/3 base + full-MP + `range(1,cost)` via `map_move_cost_step` | Partial (table simplified) |
+| Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | DOS `terr_cost` table via `map_move_cost_*` (NAMES MP scale; Brave keeps `*3`); road/river pair→1; full-MP + `range(1,cost)` | Partial (`*3` unit-MP scale PARK) |
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
 | Land | River both + cardinal | Cost **1** | Both river + axis → 1; else dest river still halves | Done |
 | Land | Ocean / HS (25/26) | Domain deny; ocean↔land force-max if no Euro settlement | Domain deny | Done |
