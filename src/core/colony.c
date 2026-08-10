@@ -384,9 +384,24 @@ int colonies_indian_land_purchase_gold(
   int y,
   int nation_id
 ) {
-  (void)map;
   if (!col1 || nation_id < 0 || nation_id > 3) {
     return 0;
+  }
+  /*
+   * Already gifted / bought tribal land (layer2 MAP_LAYER2_PURCHASED, or Col1
+   * mask bit 0x10). First-contact WELCOME grant stamps this; founding must not
+   * charge again. Cite: GAME.TXT @INDIANWELCOME; FUN_281f_068c.
+   */
+  if (map && map->layer2 && map_coords_inset(map, x, y)) {
+    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+    if (idx < map->tile_count && (map->layer2[idx] & MAP_LAYER2_PURCHASED) != 0) {
+      return 0;
+    }
+  } else if (col1->map.mask && col1->head.map_size_x > 0 && x >= 0 && y >= 0) {
+    const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
+    if (idx < col1->map.tile_count && (col1->map.mask[idx] & 0x10u) != 0) {
+      return 0;
+    }
   }
   int tribe_i = -1;
   int dist = 9999;

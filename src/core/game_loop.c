@@ -3928,6 +3928,7 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->status_size = sizeof(game->status);
   ctx->ai_popups = &game->ai_popups;
   ctx->messages = &game->messages;
+  ctx->names = game->names_ok ? &game->names : NULL;
 }
 
 /* Purchased-ship cargo tags (see europe_board_sentry_dockers): 0 = Colonists,

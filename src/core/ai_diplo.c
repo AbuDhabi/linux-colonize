@@ -818,6 +818,43 @@ void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
   col1->nation[euro_nation].indian_hostility_sticky = next;
 }
 
+void ai_diplo_indian_capital_surrender(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+) {
+  if (!col1 || euro_nation < 0 || euro_nation > 3) {
+    return;
+  }
+  const int idx = indian_nation - 4;
+  if (idx < 0 || idx >= 8) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &col1->indian[idx];
+  ind->alarm_by_player[euro_nation] = 0;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if ((int)t->nation_id != indian_nation) {
+        continue;
+      }
+      t->alarm[euro_nation].friction = 0;
+      t->alarm[euro_nation].attacks = 0;
+      /* Fandom: no new capital after capital falls. */
+      t->state.capital = 0;
+    }
+  }
+  ind->euro_diplo[euro_nation] =
+    (uint8_t)(ind->euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
+  {
+    const uint8_t cur = ai_diplo_indian_relation(col1, indian_nation, euro_nation);
+    if (cur < 100u) {
+      ai_diplo_indian_relation_delta(col1, indian_nation, euro_nation, (int)(100u - cur));
+    }
+  }
+  ai_diplo_indian_hostility_sync(col1, euro_nation);
+}
+
 /*
  * euro_balance Indian matrix arm: peace feeler → sticky sync → harassment.
  * Sticky→pressure: sticky==2 skips feeler + human "Natives remain hostile."

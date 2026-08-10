@@ -1401,11 +1401,19 @@ int main(void) {
       return fail("Minuit: free found must not spend gold");
     }
 
-    /* Insufficient gold without Minuit blocks found. */
+    /* Insufficient gold without Minuit blocks found.
+     * Prior found stamped MAP_LAYER2_PURCHASED on (fx,fy) — clear so cost
+     * still applies (WELCOME/found buy must not double-charge same tile). */
     seed_unclaimed(&mcol1);
     mnat->founding_father_count = 0;
     mnat->founding_fathers[0] = 0;
     mcol1.indian[0].lands_bought = 0;
+    {
+      const size_t idx = (size_t)fy * (size_t)mmap.width + (size_t)fx;
+      if (mmap.layer2 && idx < mmap.tile_count) {
+        mmap.layer2[idx] = (uint8_t)(mmap.layer2[idx] & (uint8_t)~MAP_LAYER2_PURCHASED);
+      }
+    }
     uint32_t poor = 10;
     colonies_init(&mpool);
     const int cid_poor =

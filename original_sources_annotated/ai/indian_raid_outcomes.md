@@ -2,7 +2,8 @@
 
 Maps settlement-raid / loot clusters for a **reasonable** Linux port in
 `ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) stays PARKED;
-player raid/warn **status chrome thinned**; **widgets** still **OPEN** (unpark #1).
+player raid/warn **status chrome thinned**; dialog **widgets** **Done**
+structural (`ai_popup`; VGA PARKED).
 
 Related: [`indian_contact.md`](indian_contact.md).
 
@@ -18,18 +19,26 @@ Related: [`indian_contact.md`](indian_contact.md).
 
 ## Linux phase arms (`ai_contact_indian_raids`)
 
-1. **Gate** — among Euros with max(`alarm_by_player`, tribe friction) ≥ ~40,
+1. **Gate** — among Euros with max(`alarm_by_player`, tribe friction) ≥ ~40
+   (**Spain ≥35** — fandom conquest bias),
    prefer Indian×Euro **at-war** (`ai_diplo_indian_at_war` / relation `<50`);
    then highest friction; tie-break lower `ai_diplo_indian_relation`
    (very-low hostility). Mid friction: prefer **non-mission** villages —
    mission tribes only raise the gate in the burn band (**≥80**). Cite: fandom
-   Alarm — missions slow hostility. **Done (thin):** post-pulse Brave escort via
+   Alarm — missions slow hostility; nation bias (Spanish conquest). **Done (thin):** post-pulse Brave escort via
    `units_follow_unit` — same-nation AI_MOVE/GOTO within MD≤3; lead pick prefers
    goto toward raid-gate Euro colony when known, else nearest-lead. Deep escort
    inside quiet `14fe` still **PARKED**.
-2. **Adjacent combat** — `units_resolve_land_combat` vs target-nation land unit
-3. **Colony approach** — Chebyshev walk toward colony ≤6; among equal distance,
-   prefer colony whose warehouse holds muskets (≥5) or horses (≥1) so secondary
+2. **Adjacent combat** — `units_resolve_land_combat` vs target-nation land unit;
+   on Brave win, snapshot foe `muskets`/`horses` and transfer onto Brave
+   (muskets prefer, else horses — GAME.TXT `@INDIANWIN1` / `@INDIANWIN2`);
+   human thin status **"The %s ambush your units!"** (+ **"Muskets/Horses seized
+   by braves!"** when gear seized) / **"Your units defeat a %s ambush."**
+   (`@INDIANWIN0` / `@INDIANLOSE`).
+3. **Colony approach** — Chebyshev walk toward colony ≤6 **only when**
+   friction/alarm **≥70** (capture band). Mid gate 40..69 keeps on-tile loot /
+   combat but must not march (seed-100 TURN4→5 already at-war for some tribes).
+   Among equal distance, prefer colony whose warehouse holds muskets (≥5) or horses (≥1) so secondary
    military loot can fire; else prefer tools ≥10 (high-friction secondary −1);
    else prefer higher **silver** stock (GOLD-kind / wealth approach — colony
    precious-metal cargo; nation treasury `@RAIDGOLD` drain stays separate)
@@ -44,25 +53,35 @@ Related: [`indian_contact.md`](indian_contact.md).
    - military side-steal: −5 muskets stock, else −1 horse stock, else same from
      target-nation unit gear on the colony tile
    - high friction (≥80): also −1 tools (second cargo type beside primary)
-6. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon)
+6. **Capture** — high band + tiny pop → `colonies_capture` (Indian → abandon);
+   human thin **"The %s overrun %s!"** when abandoned colony is named
+   (non-SCALP/BURN); SCALP/BURN abandon → **"The %s burn %s to the ground!"**
+   (`@INDIANBURNCOLONY` thin).
 7. **Friction/alarm escalate** — successful loot (`kind != NOTHING`) → tribe
    `alarm[].friction` and `indian.alarm_by_player` **+2** each (cap **100**).
    **Pocahontas** halves the bump (wiki/fandom half-rate). Cite:
    `docs/fandom_col1994.md` Pocahontas / Alarm.
 8. **Hostility tick** — successful loot (`kind != NOTHING`) + friction ≥55 →
    `ai_diplo_indian_relation_delta` (−3, or −5 if ≥80). Deep 4528/2820 PARKED.
-   Human target thin status: loot → **"Natives raid your colony."**;
-   `NOTHING` (empty warehouse / no lootable stock) → **"Native raiding party
-   wiped out."** (`GAME.TXT` `@RAIDNOTHING`). Full `@RAID*` dialog widgets
+   Human target thin status: loot → **"The %s raid your colony."** (tribe name)
+   when already at war; else **@INDIANSURPRISE** **"… surprise raid near %s! … chief
+   denies involvement."** when not at war; **@INDIANWAR** **"… declare war!"**
+   when peace bit cleared by high-friction escalate;
+   `SCALP` → **"%s raiding party takes scalps in %s!"** (`@RAIDSCALP`);
+   `GOLD` → **"%s raiding party seizes strongboxes in %s!"** (`@RAIDGOLD`);
+   `SHIP` → **"%s raiding party attacks harbor in %s!"** (`@RAIDSHIP`);
+   `STORES`/`WREAK`/`BURN` → tribe+colony stores/havoc/buildings lines;
+   `NOTHING` (empty warehouse / no lootable stock) → **"%s raiding party wiped
+   out in %s!"** (`GAME.TXT` `@RAIDNOTHING`, tribe + colony). Full `@RAID*` dialog widgets
    **Done** structural (`ai_popup`); DOS body / VGA chrome PARKED.
 9. **Scout hostility** (`359c`-shaped) — alarm ≥90 + Scout name adjacent to Brave:
    prefer **displace** 1–2 free land tiles away (direct xy nudge + `AI_MOVE` goto);
    when displaced (not despawned) and status buffer present → human
-   **"Scout warned away from village."**; **despawn only if** no free tile
-   (**"Natives kill your Scout."**). DOS RNG kill/warn/displace when a flee
-   tile exists stays **PARKED** (Marathon2 R6 — warn already; Linux never
-   kills if displace succeeds). Dialog warn **widgets** **Done** structural
-   (`ai_popup`); VGA chrome PARKED.
+   **"The %s warn your Scout away from their village."**; **despawn only if** no free tile
+   (**"The %s kill your Scout."**). **Thin RNG kill-with-flee Done:** at alarm
+   **≥95**, ~1/4 chance kill even when a flee tile exists (90..94 prefer
+   displace). Dialog warn **widgets** **Done** structural (`ai_popup`); VGA
+   chrome PARKED.
 10. **PARKED** — deep `FUN_4d56_2820` (~1.4k; thunk `2a1f_044c`) meet/raid
    decision matrix + nested `2aac…311e` haggle (not this post-pulse path;
    Marathon2 R6 keeps PARK — no body port); full `4528` settlement body; ship
@@ -79,17 +98,17 @@ UI strings, not numeric tables. Linux uses the **kind enum** to pick loot:
 
 | Tag | Kind | Linux loot stand-in |
 |-----|------|---------------------|
-| `@RAIDNOTHING` | NOTHING | No stock change; thin status **"Native raiding party wiped out."** (`GAME.TXT`) |
-| `@RAIDWREAK` | WREAK | Multi: food + tools + friction bump |
-| `@RAIDSTORES` | STORES | Decrement highest-value lootable cargo stock |
-| `@RAIDBURN` | BURN | Kind gated on construction **or** lumber stock **or** non-Town-Hall built building; clear production / drain lumber; `colonies_destroy_building` when stock empty; human status names building when destroyed |
-| `@RAIDSCALP` | SCALP | Population −1 if pop > 1 |
-| `@RAIDSHIP` | SHIP | Coastal harbor: damage nearby Euro ship MP/HP stub |
-| `@RAIDGOLD` | GOLD | Nation gold −N (treasury raid) |
+| `@RAIDNOTHING` | NOTHING | No stock change; thin status **"%s raiding party wiped out in %s!"** (tribe + colony; `GAME.TXT`) |
+| `@RAIDWREAK` | WREAK | Multi: food + tools + friction bump; thin status **"%s raiding party wreaks havoc in %s!"** |
+| `@RAIDSTORES` | STORES | Decrement highest-value lootable cargo stock; thin status **"%s raiding party attacks stores in %s!"** |
+| `@RAIDBURN` | BURN | Kind gated on construction **or** lumber stock **or** non-Town-Hall built building; clear production / drain lumber; `colonies_destroy_building` when stock empty; human status names building when destroyed, else **"%s raiding party burns buildings in %s!"** |
+| `@RAIDSCALP` | SCALP | Population −1 if pop > 1; thin status **"%s raiding party takes scalps in %s!"** |
+| `@RAIDSHIP` | SHIP | Coastal harbor: zero nearby Euro ship MP; dump 1 hold cargo ton; status **"%s raiding party attacks harbor in %s!"** when colony named |
+| `@RAIDGOLD` | GOLD | Nation gold −N (treasury raid); thin status **"%s raiding party seizes strongboxes in %s!"** when colony named |
 
 ## Exit criteria for deeper extract
 
 - Sectioned `4528` with threat / combat / loot / dialog clusters named
 - `5fef_0f14` line-faithful goods picker
-- Status chrome **thinned**; dialog **widgets** still **OPEN** (unpark #1)
+- Status chrome **thinned**; dialog **widgets** **Done** structural (`ai_popup`)
 - Full `4528` / `5fef` line-faithful bodies still PARKED

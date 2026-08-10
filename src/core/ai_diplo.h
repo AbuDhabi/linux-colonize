@@ -108,6 +108,16 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation);
 
+/*
+ * Fandom capital-destroy surrender: reset alarm/friction toward euro, set
+ * indian peace bit, floor relation. Cite: docs/fandom_col1994.md Capital destroy.
+ */
+void ai_diplo_indian_capital_surrender(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation
+);
+
 /* Apply human choice from map AI popup (alliance / peace / war / break
  * Accept/Refuse). Alliance Accept → form_alliance_ctx (follow-up OK
  * "Alliance formed…" + treaty timer ≥8 if was 0); peace Accept →
