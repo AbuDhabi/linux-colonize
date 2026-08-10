@@ -222,6 +222,127 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
   return true;
 }
 
+/* GAME.TXT common dialog @width (e.g. @LANDFALL); matches cheat_list / new_game. */
+#define AI_POPUP_DEFAULT_WIDTH 190
+#define AI_POPUP_WRAP_MAX 16
+
+static void ai_popup_fill_row(
+  ColonizeFramebuffer8* fb, int x0, int y0, int x1, int y1, uint8_t color
+) {
+  if (!fb || !fb->pixels || x1 < x0 || y1 < y0) {
+    return;
+  }
+  for (int y = y0; y <= y1; ++y) {
+    if (y < 0 || y >= fb->height) {
+      continue;
+    }
+    for (int x = x0; x <= x1; ++x) {
+      if (x >= 0 && x < fb->width) {
+        fb->pixels[y * fb->width + x] = color;
+      }
+    }
+  }
+}
+
+/* Nation-wizard style: unbold FONTINTR + black (0) drop-shadow. */
+static void ai_popup_draw_shadowed(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  if (!font || !text || !text[0]) {
+    return;
+  }
+  font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
+  font_draw_text_unbold(font, fb, x, y, text, color);
+}
+
+/*
+ * Flow-wrap body to pixel max_w (DOS FUN_6f74_1198 / new_game_wrap_prompt_flow).
+ * Honors embedded '\n'. Returns number of output lines.
+ */
+static int ai_popup_wrap_body(
+  const ColonizeFont* font,
+  const char* body,
+  char out[][AI_POPUP_BODY_LEN],
+  int max_out,
+  int max_w
+) {
+  int count = 0;
+  if (!body || !body[0] || max_out <= 0) {
+    return 0;
+  }
+  char accum[AI_POPUP_BODY_LEN];
+  accum[0] = '\0';
+
+  const char* p = body;
+  while (*p && count < max_out) {
+    while (*p == ' ') {
+      p++;
+    }
+    if (!*p) {
+      break;
+    }
+    if (*p == '\n') {
+      if (accum[0]) {
+        snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+        count++;
+        accum[0] = '\0';
+        if (count >= max_out) {
+          return count;
+        }
+      } else {
+        out[count][0] = '\0';
+        count++;
+      }
+      p++;
+      continue;
+    }
+
+    const char* start = p;
+    while (*p && *p != ' ' && *p != '\n') {
+      p++;
+    }
+    char word[AI_POPUP_BODY_LEN];
+    size_t n = (size_t)(p - start);
+    if (n >= sizeof(word)) {
+      n = sizeof(word) - 1;
+    }
+    memcpy(word, start, n);
+    word[n] = '\0';
+
+    const int word_w = font_text_width(font, word);
+    if (accum[0]) {
+      const int space_w = font_text_width(font, " ");
+      if (font_text_width(font, accum) + space_w + word_w > max_w) {
+        snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+        count++;
+        accum[0] = '\0';
+        if (count >= max_out) {
+          return count;
+        }
+      }
+    }
+    size_t len = strlen(accum);
+    if (accum[0] && len + 1 < sizeof(accum)) {
+      accum[len++] = ' ';
+      accum[len] = '\0';
+    }
+    for (const char* w = word; *w && len + 1 < sizeof(accum); ++w) {
+      accum[len++] = *w;
+    }
+    accum[len] = '\0';
+  }
+  if (accum[0] && count < max_out) {
+    snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+    count++;
+  }
+  return count;
+}
+
 void ai_popup_render(
   AiPopupState* st,
   const ColonizeFont* font,
@@ -237,61 +358,42 @@ void ai_popup_render(
 
   const AiPopupRequest* req = &st->current;
   const int line_h = font ? (font->max_height + 2) : 8;
-  const int pad_x = 8;
-  const int pad_y = 6;
-  const int title_h = req->title[0] ? line_h + 2 : 0;
-  /*
-   * Wrap width from font (FONTINTR is ~2× FONTTINY). GAME.TXT @LANDFALL
-   * @width=190 at intro size; keep dialog readable on 320-wide map.
-   */
-  const int char_w = (font && font->max_width > 0) ? (int)font->max_width : 6;
-  int wrap_cols = 40;
-  if (char_w > 0) {
-    wrap_cols = (190 - pad_x * 2) / char_w;
-    if (wrap_cols < 20) {
-      wrap_cols = 20;
-    }
-    if (wrap_cols > 48) {
-      wrap_cols = 48;
-    }
+  /* Match new_game_render_list_dialog / cheat_list_render padding. */
+  const int pad_x = 6;
+  const int pad_y = 4;
+  const int title_gap = req->title[0] ? 2 : 0;
+
+  int dialog_w = AI_POPUP_DEFAULT_WIDTH;
+  if (dialog_w > framebuffer->width - 8) {
+    dialog_w = framebuffer->width - 8;
   }
-  const int body_chars = (int)strlen(req->body);
-  int body_lines = 0;
-  if (body_chars > 0) {
-    const char* p = req->body;
-    while (*p) {
-      size_t n = 0;
-      while (p[n] && n < (size_t)wrap_cols && p[n] != '\n') {
-        n++;
-      }
-      body_lines++;
-      p += n;
-      if (*p == '\n') {
-        p++;
-      }
-    }
+  const int text_max_w = dialog_w - POPUP_FRAME_INSET * 2 - pad_x * 2;
+
+  char wrapped[AI_POPUP_WRAP_MAX][AI_POPUP_BODY_LEN];
+  int wrapped_count = 0;
+  if (req->body[0]) {
+    wrapped_count =
+      ai_popup_wrap_body(font, req->body, wrapped, AI_POPUP_WRAP_MAX, text_max_w);
   }
-  const int body_h = body_lines > 0 ? body_lines * line_h + 2 : 0;
+
+  const int title_h = req->title[0] ? line_h + title_gap : 0;
+  const int body_h = wrapped_count > 0 ? wrapped_count * line_h + 2 : 0;
   const int options_h = req->choice_count * line_h;
   int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + title_h + body_h + options_h + pad_y;
-  if (dialog_h < 48) {
-    dialog_h = 48;
+  if (dialog_h < 40) {
+    dialog_h = 40;
   }
   if (dialog_h > framebuffer->height - 8) {
     dialog_h = framebuffer->height - 8;
   }
 
-  int dialog_w = wrap_cols * char_w + pad_x * 2 + POPUP_FRAME_INSET * 2;
-  if (dialog_w < 200) {
-    dialog_w = 200;
-  }
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
   int dialog_x = (framebuffer->width - dialog_w) / 2;
   int dialog_y = (framebuffer->height - dialog_h) / 2;
   if (dialog_y < MAP_MENU_BAR_H + 2) {
     dialog_y = MAP_MENU_BAR_H + 2;
+  }
+  if (dialog_y + dialog_h > framebuffer->height) {
+    dialog_y = framebuffer->height - dialog_h;
   }
 
   ColonizePopupColors local_colors;
@@ -326,42 +428,43 @@ void ai_popup_render(
 
   int text_y = inner_y + pad_y;
   if (req->title[0] && font) {
-    font_draw_text(font, framebuffer, inner_x + pad_x, text_y, req->title, text_color);
+    ai_popup_draw_shadowed(
+      font, framebuffer, inner_x + pad_x, text_y, req->title, text_color
+    );
     text_y += title_h;
   }
 
-  if (req->body[0] && font) {
-    char line[64];
-    const char* p = req->body;
-    while (*p && text_y + line_h <= inner_y + inner_h - options_h - pad_y) {
-      size_t n = 0;
-      while (p[n] && n < (size_t)wrap_cols && p[n] != '\n') {
-        n++;
-      }
-      if (n >= sizeof(line)) {
-        n = sizeof(line) - 1;
-      }
-      memcpy(line, p, n);
-      line[n] = '\0';
-      font_draw_text(font, framebuffer, inner_x + pad_x, text_y, line, text_color);
-      text_y += line_h;
-      p += n;
-      if (*p == '\n') {
-        p++;
-      }
+  for (int i = 0; i < wrapped_count; ++i) {
+    if (text_y + line_h > inner_y + inner_h - options_h - pad_y) {
+      break;
     }
+    ai_popup_draw_shadowed(
+      font, framebuffer, inner_x + pad_x, text_y, wrapped[i], text_color
+    );
+    text_y += line_h;
+  }
+  if (wrapped_count > 0) {
     text_y += 2;
   }
 
   st->list_y0 = text_y;
   for (int i = 0; i < req->choice_count; ++i) {
-    const uint8_t col = (i == st->selection) ? select_color : text_color;
-    if (font) {
-      font_draw_text(
-        font, framebuffer, inner_x + pad_x, text_y, req->choices[i], col
+    const int row_y = text_y + i * line_h;
+    if (i == st->selection) {
+      ai_popup_fill_row(
+        framebuffer,
+        inner_x + 2,
+        row_y - 1,
+        inner_x + inner_w - 3,
+        row_y + line_h - 2,
+        select_color
       );
     }
-    text_y += line_h;
+    if (font) {
+      ai_popup_draw_shadowed(
+        font, framebuffer, inner_x + pad_x, row_y, req->choices[i], text_color
+      );
+    }
   }
 }
 
