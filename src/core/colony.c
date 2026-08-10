@@ -823,6 +823,16 @@ int colonies_admit_unit(
   if (col->garrison_quota > 0) {
     col->garrison_quota--;
   }
+  /*
+   * Early Isabella TURN4→5: beachhead soldier join cancels unused Stockade
+   * auto-start (hammers still 0) → COL1 bip 0xFF. Cite: test-saves-ai/TURN5.
+   */
+  if (col->hammers == 0 && col->building_in_production >= 0) {
+    const int stockade = colonies_find_building(pool, "Stockade");
+    if (stockade >= 0 && col->building_in_production == stockade) {
+      col->building_in_production = -1;
+    }
+  }
   return idx;
 }
 
