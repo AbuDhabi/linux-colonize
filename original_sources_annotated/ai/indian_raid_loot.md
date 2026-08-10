@@ -1,0 +1,76 @@
+# Colony raid loot + plunder pick (`FUN_5fef_0f14` / `016c`)
+
+Combat siblings used by Indian raid / naval plunder. Port stand-ins live in
+`ai_contact_indian_raids` / `units_plunder_*` — see
+[`indian_raid_outcomes.md`](indian_raid_outcomes.md).
+
+---
+
+## `FUN_5fef_016c` — pick cargo slot to plunder
+
+| Item | Value |
+|------|-------|
+| Lines | **99209–99286** (~78) |
+| Thunk | `FUN_2a1f_06b0` |
+| Args | `param_1` = victim unit (holds); `param_2` = attacker (nation) |
+
+### Algorithm
+
+1. `slot_count = victim+0x3150`; if 0 → return −1
+2. If attacker hold capacity (`2a1f_01a0`) ≥ count → can take; else skip
+3. **Human** Euro attacker (`0x543f==0`): build CHOICE menu of cargos
+   (`0be6` type / `0c68` qty / name `@CARGO`); cancel → −1; pick → 0-based slot;
+   sets `DS:0xa154` busy flag
+4. **AI**: score each slot = `euro_price[type][nation] * qty` (`-0x7b44` table);
+   sort (`291f_0ed0`); pick best index
+
+**Linux:** `units_plunder_ship_holds` / raid STORES arm — goods-value sort shape;
+human CHOICE **thin/PARKED**.
+
+---
+
+## `FUN_5fef_0f14` — Indian raid colony loot + tension
+
+| Item | Value |
+|------|-------|
+| Lines | **99738–100035** (~298) |
+| Thunk | `FUN_2a1f_06c8` |
+| Args | Indian nation-ish `param_1`, colony index `param_2`, … `param_4` force flag |
+
+### Setup
+
+Bind Indian (`0a42`), colony (`09e6` → `0x8542`); tribe name subst; RNG reseed;
+roll difficulty-adjusted threshold vs colony defense probe `0ab0`.
+
+### Kind roll `local_6` ∈ {0..4}
+
+| Kind | Meaning | Fail → nothing |
+|------|---------|----------------|
+| 0 | Nothing / scare chrome only | early `LAB_5fef_123a` |
+| 1 | **Goods** from warehouse (`+0x9a` stocks) | empty after 100 tries |
+| 2 | **Building** destroy (`0bbe`) | no valid building after filters |
+| 3 | **Unit** at colony (ship type 0xd..0x12 walk) | no unit / `088a` fail |
+| 4 | **Gold** drain from Euro treasury | insufficient gold |
+
+Difficulty / year / building-present gates can demote 2/3/4 → 1 or 0.
+`param_4!=0` can skip the soft “nothing” early out.
+
+### Apply + tension
+
+| Kind | Effect | Tension delta arg to `0d6c` |
+|------|--------|------------------------------|
+| 1 | Halve-ish stock (clamp 1..10 roll); horses/tools side effects on tribe | `0xfffc` (−4) |
+| 2 | Remove building; reassign jobs if needed | `0xfff4` (−12) |
+| 3 | Combat apply `2a1f_06e0`→`5fef_0352` vs unit | `0xfff0` (−16) |
+| 4 | Subtract rolled gold from nation ledger | `0xfff8` (−8) |
+| 0 | Scare dialog only | skip `0d6c` |
+
+Then clear war/chrome word at `(param_3*9 + euro)*2 + 0x54f6`.
+
+Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
+
+### Linux
+
+`@RAID*` kind picker in `ai_contact_indian_raids` — **structural**; not
+line-faithful to `0f14` RNG ladders. Friction/alarm escalate documented in
+raid_outcomes. Deep `0f14` port **PARKED**.

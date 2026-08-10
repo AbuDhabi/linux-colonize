@@ -96,8 +96,15 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_130d_0172` | `autosave_pick_slot` | `turn/year_loop.c` | FINISH autosave flags + `game_apply_turn_autosave` |
 | `FUN_130d_019e` / `0222` | `demo_end_splash` / `independence_splash` | `turn/year_loop.c` | PARKED |
 | `FUN_3844_0004` | `eot_treasure_tick` | `turn/nation_eot.c` | `units_tick_treasure_outside_colony` |
-| `FUN_3844_00f2` | `nation_eot` | `turn/nation_eot.c` | Split: SETUP production/ticks + EURO treasure + FINISH king/market |
+| `FUN_3844_00f2` | `nation_eot` | `turn/nation_eot.c` + `nation_eot_ship_spawn.md` | Split: SETUP production/ticks + EURO treasure + FINISH king/market |
 | `FUN_3844_0442` | `year_end_chrome` (full UI mapped) | `turn/year_end_chrome.c` + `year_end_chrome.md` | PARKED dialogs; king/war thin in `ai_king` |
+| `FUN_364b_0688` | `colony_eot_production` | `turn/colony_eot_production.md` | `turn_run_colony_production` (partial) |
+| `FUN_38fd_5e52` / `0058` | Europe nation EOT / market | `turn/europe_nation_eot.md` | Market in FINISH; rest PARKED |
+| `FUN_4962_0018` / `0606` | census / profession tally | `turn/census_tally.md` | Blank fill partial; live EOT lag |
+| `FUN_48d3_06ba` | Europe-exit landfall / tax | `turn/europe_exit_landfall.md` | Treasure tax / arrivals reshape |
+| `FUN_5bfb_00f8` / `4d56_1b3a` | rank euros / mid Indian tables | `turn/mid_pass_indian_rank.md` | Rank PARKED; Indians reshape |
+| `FUN_4d56_2154` | meet economics scorer | `ai/indian_meet_scoring_2154.md` | PARKED (not raid) |
+| `FUN_5fef_0f14` / `016c` | raid loot / plunder pick | `ai/indian_raid_loot.md` | Structural raid stand-ins |
 | `FUN_281f_0644` | → `nation_eot` / `3844_00f2` | `turn/between_turns.md` | — |
 | `FUN_281f_061e` | → `year_end_chrome` / `3844_0442` | `turn/between_turns.md` | — |
 | `FUN_281f_0546` | → `year_turn_loop` / `130d_0290` | `turn/between_turns.md` | — |
@@ -163,7 +170,8 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 - [x] `FUN_521d_0a60` sectioned (mid-game **OPEN** — unpark #4)
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] Between-turns Layer D (`turn/year_loop.c`, `nation_eot.c`, `year_end_chrome.c`, `between_turns.md`)
-- [x] Parked-body maps: `20e6` land/ship, `2820` nest, `4528` head, `0442` UI (`year_end_chrome.md`)
+- [x] Between-turns callee maps (production / Europe EOT / census / landfall / mid-pass / ship-spawn)
+- [x] Parked-body maps: `20e6` land/ship, `2820` nest, `4528` head, `2154` meet score, `5fef` loot, `0442` UI
 - [x] This symbol map
 
 ## Out of scope for Layer D deepen (T0 Linux ports exist)
@@ -172,7 +180,7 @@ Deep extracts below are still thin/parked; Linux T0 counterparts live under `src
 
 | Cluster | Linux T0 |
 |---------|----------|
-| `FUN_4d56_2154` / `2820` / `4528` raids | `ai_contact.c` (partial structural; thin maps) |
+| `FUN_4d56_2154` / `2820` / `4528` | `ai_contact.c` (partial; maps: meet_2154 / trade_2820 / settlement_4528) |
 | Euro/ocean `20e6` / full `5b66` / `5d04` | `ai_euro.c` |
 | Goal tables `0000…0906` | `ai_goals.c` |
 | Diplomacy `15b3` / `5bfb` | `ai_diplo.c` (bilateral unknown26[4+peer]; euro_diplo.md) |

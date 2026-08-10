@@ -16,7 +16,8 @@ Related: [`indian_contact.md`](indian_contact.md). Stubs:
 | `FUN_4d56_3582` closer | 83460–83476 | ~17 |
 | Catalog “~1396” | shell + nest | — |
 
-Sibling (not caller): `FUN_4d56_2154` @81743–82062 via thunk `2a1f_0434`
+Sibling (not caller): `FUN_4d56_2154` @81743–82057 — meet economics scorer
+([`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md)), thunk `2a1f_0434`.
 (raid-adjacent action). `2820` thunk: `2a1f_044c`. Mid-turn `1b3a` does **not**
 call either.
 

@@ -15,10 +15,10 @@ Related: [`indian_contact.md`](indian_contact.md),
 | Symbol | Role |
 |--------|------|
 | `FUN_4d56_4528` | Settlement enter / raid contact (thunk `2a1f_016c`) — head: human warn CHOICE + ship abort; **no direct `5fef` calls** |
-| `FUN_5fef_0f14` | Colony raid loot + tension (goods/building/unit/gold) — **sibling** path |
-| `FUN_5fef_016c` / `0352` / `0ec0` | Plunder pick / apply outcome / sweep — PARKED deep |
+| `FUN_5fef_0f14` | Colony raid loot + tension (goods/building/unit/gold) — **mapped** [`indian_raid_loot.md`](indian_raid_loot.md) |
+| `FUN_5fef_016c` / `0352` / `0ec0` | Plunder pick (**mapped** `016c`) / apply outcome / sweep — `0352`/`0ec0` still PARKED deep |
 | `FUN_4d56_359c` | Relation-gated kill / warn / displace by RNG — thin: displace Scout, despawn if blocked |
-| `FUN_4d56_2154` | Larger action body from `5bfb` — raid-adjacent; not `1b3a` |
+| `FUN_4d56_2154` | Meet economics scorer from `5bfb_022e` — **mapped** [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); **not** raid |
 
 ### `4528` head vs Linux phase arms
 

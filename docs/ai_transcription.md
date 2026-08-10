@@ -106,7 +106,8 @@ flowchart TD
   indian --> growth[FUN_4d56_152e growth]
   indian --> unitAct["per-unit act thunk ~0x42191"]
   unitAct --> score
-  unitAct --> raids[FUN_4d56_2154 / 2820 / 4528]
+  unitAct --> raids[FUN_4d56_2820 / 4528]
+  unitAct --> meetEcon[FUN_4d56_2154 meet economics]
   king --> tax[tax / REF funding]
   king --> ref[REF land / war turn]
 ```
@@ -179,7 +180,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_152e` | ~156 | Village growth accumulator → pop++ | `ai_grow_villages` | **partial** (T0) |
 | `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
 | `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
-| `FUN_4d56_2154` | ~321 | Larger Indian action body; from `5bfb` via `2a1f_0434` | `ai_contact_indian_raids` (thin) | **partial** (structural) |
+| `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | thin gift/demand | **mapped**; port PARKED |
 | `FUN_4d56_2820` | ~1396 | Heavy decision + nested trade `2aac…311e` | meet/trade auto-haggle | **partial** (T0; deep PARKED) |
 | `FUN_4d56_2aac`…`311e` | nested | Trade buy/haggle/demand helpers | `ai_contact_indian_meet_trade` | **partial** (auto only) |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
@@ -426,9 +427,12 @@ handlers remain for village-enter (**Done** thin trigger). Thin human-facing
 gift/trade chrome for humans **removed** (matched DOS first-contact exit +
 no ship hail).
 
-**Still PARKED (port):** full `2154`/`2820`/`4528` **bodies** — section-mapped in
+**Still PARKED (port):** full `2154`/`2820`/`4528`/`5fef` loot **bodies** —
+section-mapped in
+[`indian_meet_scoring_2154.md`](../original_sources_annotated/ai/indian_meet_scoring_2154.md) /
 [`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md) /
-[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md);
+[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md) /
+[`indian_raid_loot.md`](../original_sources_annotated/ai/indian_raid_loot.md);
 Brave escort deep `14fe`;
 VGA-identical dialog chrome (chief portrait / `FUN_281f_04ac`); multi-tile
 WELCOME land-grant radius (thin occupied-tile stamp **Done**). Scout `359c` RNG

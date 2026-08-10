@@ -1,0 +1,86 @@
+# Europe nation EOT + market dynamics
+
+Decomp: `original_sources_decompiled/viceroy_unpacked.c`.
+Caller (DOS): `FUN_3844_00f2` via `291f_0a90` (`5e52`) and nested
+`291f_0cbc` (`0058`). Linux reshape: `europe_tick_market_prices` /
+`europe_apply_volume_price` in FINISH; full `5e52` immigrant/tax/FF arms
+mostly **PARKED**.
+
+Bridge: [`between_turns.md`](between_turns.md) ·
+[`docs/turn_between_players.md`](../../docs/turn_between_players.md).
+
+---
+
+## `FUN_38fd_5e52` — Europe nation EOT
+
+| Item | Value |
+|------|-------|
+| Lines | **68539–68623** (~85) |
+| Thunk | `FUN_291f_0a90` |
+| Arg | `param_1` = nation id |
+| Early out | `DS:0x5382 & 1` (war) → return |
+
+### Phases
+
+| # | Lines | Role |
+|---|-------|------|
+| 0 | 68553 | Skip if wartime |
+| 1 | 68554–55 | Page Europe `281f_0582`→`38fd_0000`; reseed `04ca` from `0x83a6` |
+| 2 | 68556 | Clear Europe-block flag bit `0x20` at `*[0x84fc]` |
+| 3 | 68557 | **Market EOT** `291f_0cbc`→`38fd_0058(0, 0xffff)` |
+| 4 | 68558–67 | Immigration pressure `0b34`→`38fd_584a` → `+0x30` / accumulate `+0x2e` |
+| 5 | 68568–615 | If score < pressure: pick dock slot; roll profession `0afc`→`46d4`; spawn harbor `0b26`→`0718`; dialogs; else Recruit UI `0d2c`→`4884`; may set `DS:0x14c` |
+| 6 | 68617–20 | King tax-raise `0b7a`→`5be8`; on reject FF cargo gift `0c84`→`5930` |
+
+### Key DS
+
+| Addr | Use |
+|------|-----|
+| `0x5382` | War / chrome gates |
+| `0x538e` | Turn (immigrant season `&3`) |
+| `0x83a6` | RNG reseed |
+| `0x84fc` | Nation Europe block (`nation*0x13c`) |
+| `0x543f+n*0x34` | Player control |
+
+### Linux
+
+| DOS | Linux | Fidelity |
+|-----|-------|----------|
+| Phase 3 market | `europe_tick_market_prices` (FINISH) | **Partial** |
+| Pressure / recruit / tax / FF | dock immigrants in `turn_run_nation_ticks`; king tax elsewhere | **PARKED** as atomic `5e52` |
+
+---
+
+## `FUN_38fd_0058` — market dynamics
+
+| Item | Value |
+|------|-------|
+| Lines | **58741–59005** (~265) |
+| Thunk | `FUN_291f_0cbc` |
+| Args | `param_1==0` full EOT peel; `param_2` cargo or `0xffff` = all |
+
+### Phases
+
+| # | Role |
+|---|------|
+| 1 | Price groups `0..0xf`: copy `DS:0x53ea[g]`; sum nation ledgers; human decays `0x53ea` |
+| 2 | Cargos **9..12**: ratio vs sum; nudge pressure `+0x5c` or clamp bid `+0x4c` |
+| 3 | `param_1==0`: cargos **1..4**; year bonuses; pressure ± |
+| 4 | All cargos **0..15**: attrition; rise/fall ±1 bid + dialogs `0xfa8`/`0xfb0`; write ask preview `0x84bc`; if `param_2≥0` undo attrition |
+
+### Key DS
+
+| Addr | Use |
+|------|-----|
+| `0x53ea[16]` | `price_group_state` |
+| `0x84fc+0x4c` / `+0x5c` | Bid / pressure per cargo |
+| `0x96fe..` | `@CARGO` low/rise/fall |
+| `0x538a` / `0x53a6` | Year / difficulty |
+
+### Linux
+
+| DOS | Linux |
+|-----|-------|
+| EOT all-cargo | `europe_tick_market_prices` |
+| Post buy/sell | `europe_apply_volume_price` |
+| Colony → `0x53ea` half | **PARKED** |

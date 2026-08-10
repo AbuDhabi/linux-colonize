@@ -8,6 +8,8 @@ internals stay in [ai_transcription.md](ai_transcription.md).
 Layer D extracts + thin callgraph:
 [`original_sources_annotated/turn/`](../original_sources_annotated/turn/)
 ([`between_turns.md`](../original_sources_annotated/turn/between_turns.md)).
+Callee depth maps: production, Europe EOT/market, census, landfall, mid-pass
+rank/`1b3a`, ship-ready/spawn (same folder).
 
 Bring-up checklist (shorter): [decomp_inventory.md](decomp_inventory.md)
 “End-of-turn recovery checklist”.
@@ -106,18 +108,22 @@ flowchart TD
 
 Major thunks (catalog):
 
-| Thunk | Real body | Role |
-|-------|-----------|------|
-| `281f_0644` | `3844_00f2` | Nation EOT |
-| `281f_0638` | `521d_6d8e` | Euro AI dispatcher |
-| `281f_062c` | `2b5a_3b68` | Human Move/View Pieces |
-| `281f_0676` | `4d56_1b3a` | Mid-turn Indian tables |
-| `281f_061e` | `3844_0442` | Year-end chrome |
-| `281f_0668` | `43f7_2244` | Human merc offer |
-| `291f_0a66` | `43f7_2424` | SoL / king (inside `00f2`) |
-| `291f_0950` | `364b_0688` | Colony production |
-| `291f_0a90` | `38fd_5e52` | Europe nation EOT |
-| `291f_0a58` | `3844_0004` | Treasure tick |
+| Thunk | Real body | Role | Layer D |
+|-------|-----------|------|---------|
+| `281f_0644` | `3844_00f2` | Nation EOT | [`nation_eot.c`](../original_sources_annotated/turn/nation_eot.c) |
+| `281f_0638` | `521d_6d8e` | Euro AI dispatcher | ai/ |
+| `281f_062c` | `2b5a_3b68` | Human Move/View Pieces | — |
+| `281f_0676` | `4d56_1b3a` | Mid-turn Indian tables | [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md) |
+| `281f_0550` | `5bfb_00f8` | Rank Euro nations | same |
+| `281f_061e` | `3844_0442` | Year-end chrome | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) |
+| `281f_0668` | `43f7_2244` | Human merc offer | — |
+| `291f_0a66` | `43f7_2424` | SoL / king (inside `00f2`) | ai/king_ref |
+| `291f_0950` | `364b_0688` | Colony production | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
+| `291f_0a90` | `38fd_5e52` | Europe nation EOT | [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md) |
+| `291f_0cbc` | `38fd_0058` | Market dynamics | same |
+| `291f_0a74` / `0a9e` | `4962_0018` / `0606` | Census / profession tally | [`census_tally.md`](../original_sources_annotated/turn/census_tally.md) |
+| `291f_0a82` | `48d3_06ba` | Europe-exit / tax treasures | [`europe_exit_landfall.md`](../original_sources_annotated/turn/europe_exit_landfall.md) |
+| `291f_0a58` | `3844_0004` | Treasure tick | nation_eot.c |
 
 ---
 
@@ -127,14 +133,14 @@ Major thunks (catalog):
 |------------|----------|--------------|----------|
 | Human already done | `2b5a_3b68` inside `130d` | (prior frame) | Reshape — intentional |
 | SETUP calendar | `130d` post-nation tick | `turn_advance_calendar` | **Done** (`@TIMECHANGE`) |
-| SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** (SoL/spoilage; formulas open) |
+| SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** — map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
 | SETUP fort fire | `364b_03f6` | `turn_run_coastal_fort_fire` | **Done** |
-| SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** |
+| SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** — [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md) |
 | EURO treasure | `3844_0004` | `units_tick_treasure_outside_colony` | **Partial** |
-| EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` OPEN) |
-| INDIAN | `4d56_1b3a` mid only; `1816` XREF open | `ai_indian_nation_turn` | **Partial structural** (quiet T2; deep raid PARKED) |
+| EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
+| INDIAN | `4d56_1b3a` mid only; `1816` XREF open | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md) |
 | FINISH king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
-| FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** |
+| FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md) |
 | FINISH human refresh | return to Move Pieces | MP + select next | **Done** |
 | FINISH autosave | `130d_0172` | autosave flags | **Done** |
 | Year-end chrome | `3844_0442` | — | **UI mapped** ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md)); port **PARKED** |
@@ -172,13 +178,17 @@ Linux runs; Linux is Euro AI then Indians.
   string table; no FUN_* XREF yet (calendar behavior recovered from `@TIMECHANGE`
   + `130d` year/autumn math).
 - **`FUN_4d56_1816` call site**: unresolved in the Ghidra export (overlay/thunk
-  gap). Linux still implements `1816`-shaped nation turns from annotated structure.
+  gap). Hunt notes:
+  [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md).
+  Linux still implements `1816`-shaped nation turns from annotated structure.
 - **`FUN_3844_0442`**: **UI mapped**
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
   victory / defeat / anniversary / auto-declare dialogs not ported as a module.
 - **Demo / independence splash** (`130d_019e` / `0222`): PARKED.
-- **Deep AI** (`20e6` / `2820` / `4528`): section-mapped under
-  `original_sources_annotated/ai/`; Linux port still PARKED (unpark #4).
+- **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
+  under `original_sources_annotated/ai/`; Linux port still PARKED (unpark #4).
+- **Nation EOT arms** (ship-ready / immigrant spawn / full census freshen):
+  mapped; mostly PARKED vs SETUP ticks + finish deliveries.
 
 ---
 

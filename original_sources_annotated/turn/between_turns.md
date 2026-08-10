@@ -10,7 +10,13 @@ Annotated extracts:
 |-------|------|
 | `FUN_130d_0290` (+ autosave/splash) | [`year_loop.c`](year_loop.c) |
 | `FUN_3844_00f2` + `0004` | [`nation_eot.c`](nation_eot.c) |
-| `FUN_3844_0442` | [`year_end_chrome.c`](year_end_chrome.c) |
+| Ship-ready + immigrant spawn arms | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) |
+| `FUN_364b_0688` production | [`colony_eot_production.md`](colony_eot_production.md) |
+| `FUN_38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) |
+| `FUN_4962_0018` / `0606` | [`census_tally.md`](census_tally.md) |
+| `FUN_48d3_06ba` | [`europe_exit_landfall.md`](europe_exit_landfall.md) |
+| Mid-pass `1b3a` + rank `5bfb_00f8` + `1816` XREF | [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) |
+| `FUN_3844_0442` | [`year_end_chrome.c`](year_end_chrome.c) · [`year_end_chrome.md`](year_end_chrome.md) |
 
 ## DOS end-to-end
 
@@ -117,14 +123,34 @@ game_do_end_turn
 | King / REF | [`ai/king_ref.md`](../ai/king_ref.md) |
 | AI fidelity tiers | [`docs/ai_transcription.md`](../../docs/ai_transcription.md) |
 
+## Orchestration callees (mapped)
+
+| DOS body | Map | Port |
+|----------|-----|------|
+| `364b_0688` | [`colony_eot_production.md`](colony_eot_production.md) | Partial production |
+| `38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) | Market partial; rest PARKED |
+| `4962_0018` / `0606` | [`census_tally.md`](census_tally.md) | Blank census partial; live EOT lag |
+| `48d3_06ba` | [`europe_exit_landfall.md`](europe_exit_landfall.md) | Treasure/tax partial |
+| `5bfb_00f8` / `4d56_1b3a` | [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) | Rank PARKED; Indians reshape |
+| Ship-ready / spawn | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) | PARKED / ticks elsewhere |
+
+Planner guts (not EOT orchestration, but contact siblings):
+
+| Body | Map |
+|------|-----|
+| `4d56_2154` meet economics | [`../ai/indian_meet_scoring_2154.md`](../ai/indian_meet_scoring_2154.md) |
+| `5fef_0f14` / `016c` raid loot | [`../ai/indian_raid_loot.md`](../ai/indian_raid_loot.md) |
+
 ## Open RE
 
 - `MULTINEXT` / `TIMECHANGE` / `SEASONS` strings: table only, no FUN_* XREF yet
-- `FUN_4d56_1816` call site unresolved in export (overlay/thunk gap); Linux still runs `1816`-shaped nation turns
+- `FUN_4d56_1816` call site unresolved in export (overlay/thunk gap); Linux still runs `1816`-shaped nation turns — hunt notes in [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md)
 - Demo autoplay tail in `130d` (`0x828`): PARKED
 - `FUN_3844_0442` dialogs: **UI mapped** in [`year_end_chrome.md`](year_end_chrome.md); port PARKED
-- Deep AI bodies (`20e6` land/ship, `2820`, `4528`): **mapped**; port PARKED — see
+- Deep AI bodies (`20e6` land/ship, `2820`, `4528`, `2154`, loot): **mapped**; port PARKED — see
   [`move_scoring_land.md`](../ai/move_scoring_land.md),
   [`move_scoring_ship.md`](../ai/move_scoring_ship.md),
   [`indian_trade_2820.md`](../ai/indian_trade_2820.md),
-  [`indian_settlement_4528.md`](../ai/indian_settlement_4528.md)
+  [`indian_settlement_4528.md`](../ai/indian_settlement_4528.md),
+  [`indian_meet_scoring_2154.md`](../ai/indian_meet_scoring_2154.md),
+  [`indian_raid_loot.md`](../ai/indian_raid_loot.md)

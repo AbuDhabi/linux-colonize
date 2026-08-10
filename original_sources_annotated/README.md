@@ -114,7 +114,8 @@ deep extracts.
      26 `2a1f` act thunks + 16 helpers).
    - **Done:** `FUN_684c_08c0` (30 non-thunk bodies + 67 `281f`/`291f` thunks).
    - **Done:** turn/EOT neighborhood `FUN_130d_0290` ∪ `FUN_3844_00f2` ∪
-     `FUN_3844_0442` (36 callees).
+     `FUN_3844_0442` (36 callees) + callee depth maps (production / Europe /
+     census / landfall / mid-pass / ship-spawn).
    - **Done:** move-spent `FUN_465b_0000` (26 callees — post-ADD chrome /
      foreign tails).
    - **Done:** map unit-order ∪ colony people-band
@@ -173,8 +174,16 @@ the catalog only mirrors light-label status.
 | [`turn/between_turns.md`](turn/between_turns.md) | Thin map: year loop / nation EOT / year-end ↔ Linux `TURN_PROC_*` |
 | [`turn/year_loop.c`](turn/year_loop.c) | `FUN_130d_0290` (+ autosave/splash helpers) |
 | [`turn/nation_eot.c`](turn/nation_eot.c) | `FUN_3844_00f2` + treasure `0004` |
+| [`turn/nation_eot_ship_spawn.md`](turn/nation_eot_ship_spawn.md) | Ship-build ready + immigrant ship spawn arms |
+| [`turn/colony_eot_production.md`](turn/colony_eot_production.md) | `FUN_364b_0688` colony EOT production phases |
+| [`turn/europe_nation_eot.md`](turn/europe_nation_eot.md) | `FUN_38fd_5e52` + market `0058` |
+| [`turn/census_tally.md`](turn/census_tally.md) | `FUN_4962_0018` / `0606` |
+| [`turn/europe_exit_landfall.md`](turn/europe_exit_landfall.md) | `FUN_48d3_06ba` |
+| [`turn/mid_pass_indian_rank.md`](turn/mid_pass_indian_rank.md) | `4d56_1b3a` + `5bfb_00f8` + `1816` XREF |
 | [`turn/year_end_chrome.c`](turn/year_end_chrome.c) | `FUN_3844_0442` year-end chrome |
 | [`turn/year_end_chrome.md`](turn/year_end_chrome.md) | Full `0442` string / subst / threshold UI map |
+| [`ai/indian_meet_scoring_2154.md`](ai/indian_meet_scoring_2154.md) | Meet economics `2154` (not raid) |
+| [`ai/indian_raid_loot.md`](ai/indian_raid_loot.md) | `5fef_0f14` / `016c` loot pick |
 
 ## Deep naming rules (extracted `.c` only)
 

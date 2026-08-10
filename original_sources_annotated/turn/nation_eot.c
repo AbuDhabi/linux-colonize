@@ -119,10 +119,9 @@ void nation_eot(void) {
       continue; /* destroyed */
     }
     /*
-     * Ship under construction on map (type 0xd..0x12, flag bit 0x80):
-     * bump turns_worked; double if on colony tile; when turns >= type table
-     * at 0x5235, clear bit 0x80 and dialog "ship ready" for human.
-     * Sets DS:0x14c=1 if no colony at tile (open Europe screen later).
+     * Ship-build ready — full gate/progress in turn/nation_eot_ship_spawn.md §A.
+     * Type 0xd..0x12 + flag 0x80; +1/+2 turns_worked; threshold type*0xe+0x5235;
+     * clear 0x80; human dialog; DS:0x14c=1 if not on colony tile.
      */
     (void)nation_lo;
   }
@@ -145,9 +144,9 @@ void nation_eot(void) {
 
   /* ---- 10. Immigrant / ship spawn (rare) ------------------------------ */
   /*
-   * If (a89b || a89a>3) && nation dock flag clear && !war bit0 of 0x5382
-   * && (turn & 7)==0: maybe dialog + spawn_unit type 0x11 with landfall
-   * goto duration; apply_tax_delta for human.
+   * Full gate/spawn in turn/nation_eot_ship_spawn.md §C.
+   * (a89b || a89a>3) && dock flag clear && !(0x5382&1) && (turn&7)==0 →
+   * human confirm → spawn type 0x11 + landfall goto + flag 0x40 + tax chrome.
    */
   (void)spawn_unit;
   (void)landfall_goto_duration;

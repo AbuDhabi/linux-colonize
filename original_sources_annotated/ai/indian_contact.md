@@ -73,7 +73,7 @@ missions slow hostility.
 | Symbol | Thunk | Real callers (decomp) | Not |
 |--------|-------|----------------------|-----|
 | `FUN_4d56_1b3a` | `281f_0676` | Mid-turn helper: clear `0x5b04` tables, tribe `41f2_0266`, colony ownership probes | Does **not** call `2154` |
-| `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb` neighborhood** (~96088) after meet/diplo scoring | Not from `1b3a` |
+| `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb_022e`** meet path — fills `0x9e*` gift/demand tables | **Mapped** [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); not raid |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | **Mapped** [`indian_trade_2820.md`](indian_trade_2820.md); port PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | **Mapped** head [`indian_settlement_4528.md`](indian_settlement_4528.md); mid-body PARKED (decomp soup) |
 | `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin |
@@ -295,7 +295,9 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
 
 ## PORT DEBT
 
-- Full `2154` (~321), `2820` (~1.4k), `4528` (~3k) — **PARKED** (deep bodies)
+- Full `2820` / `4528` mid-bodies — **mapped** head/nest; port **PARKED**
+- `2154` meet economics — **mapped**; port PARKED
+- `5fef_0f14` / `016c` — **mapped**; port PARKED (structural raid stand-ins exist)
 - **Deep `FUN_4d56_2820` (thunk `2a1f_044c`) specifically PARKED:** ~1.4k-line
   meet/raid decision matrix; nested trade `2aac` (good dispatch) → `2af6` /
   `2bbc` (AI buy) / `2b92` / `311e` (demand / no-deal); choice loops,

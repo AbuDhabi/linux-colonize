@@ -1319,7 +1319,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_052e` | 31891 | 10 | thunk | Far thunk → FUN_6f30_0062 (splash/image load+blit via resource stream) | inferred |  |
 | `FUN_281f_053c` | 31901 | 9 | thunk | Far thunk → LAB_130d_019c (empty far RETF no-op) | inferred |  |
 | `FUN_281f_0546` | 31910 | 10 | thunk | Far thunk → FUN_130d_0290 (main game year/turn loop) | inferred |  |
-| `FUN_281f_0550` | 31920 | 10 | thunk | Far thunk → FUN_5bfb_00f8 (rank Euro nations by strength) | inferred |  |
+| `FUN_281f_0550` | 31920 | 10 | thunk | Far thunk → FUN_5bfb_00f8 (rank Euro nations by strength) | inferred | turn/mid_pass_indian_rank.md |
 | `FUN_281f_055e` | 31930 | 10 | ui | Far thunk → FUN_49dd_0424 (camera-follow map chrome; human-visible AI) | inferred | ai/euro_dispatcher.c |
 | `FUN_281f_056a` | 31940 | 10 | thunk | Far thunk → FUN_1984_04f6 (tear down status chrome strip/overlays) | inferred |  |
 | `FUN_281f_0574` | 31950 | 10 | thunk | Far thunk → FUN_41f2_14a8 (end-game score → rebate + HoF) | inferred |  |
@@ -1745,10 +1745,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0a4a` | 36120 | 10 | thunk | Far thunk → FUN_647e_001a (bind colonist-slot pointer (slot×10→DS:0x9e18)) | inferred |  |
 | `FUN_291f_0a58` | 36130 | 10 | thunk | Far thunk → FUN_3844_0004 (EOT treasure tick) | inferred |  |
 | `FUN_291f_0a66` | 36140 | 10 | thunk | Far thunk → FUN_43f7_2424 (nation SoL refresh + threshold chrome) | inferred |  |
-| `FUN_291f_0a74` | 36150 | 10 | thunk | Far thunk → FUN_4962_0018 (census units/colonies/cargo) | inferred |  |
-| `FUN_291f_0a82` | 36160 | 10 | thunk | Far thunk → FUN_48d3_06ba (Europe-exit landfall; tax treasures) | inferred |  |
-| `FUN_291f_0a90` | 36170 | 10 | thunk | Far thunk → FUN_38fd_5e52 (Europe nation EOT market/tax/pool) | inferred |  |
-| `FUN_291f_0a9e` | 36180 | 10 | thunk | Far thunk → FUN_4962_0606 (tally nation profession counts) | inferred |  |
+| `FUN_291f_0a74` | 36150 | 10 | thunk | Far thunk → FUN_4962_0018 (census units/colonies/cargo) | inferred | turn/census_tally.md |
+| `FUN_291f_0a82` | 36160 | 10 | thunk | Far thunk → FUN_48d3_06ba (Europe-exit landfall; tax treasures) | inferred | turn/europe_exit_landfall.md |
+| `FUN_291f_0a90` | 36170 | 10 | thunk | Far thunk → FUN_38fd_5e52 (Europe nation EOT market/tax/pool) | inferred | turn/europe_nation_eot.md |
+| `FUN_291f_0a9e` | 36180 | 10 | thunk | Far thunk → FUN_4962_0606 (tally nation profession counts) | inferred | turn/census_tally.md |
 | `FUN_291f_0aac` | 36190 | 10 | thunk | Far thunk → FUN_78d8_00c4 (reload resource far-ptrs from stream) | inferred |  |
 | `FUN_291f_0aba` | 36200 | 10 | thunk | Far thunk → FUN_75c2_20e2 (endgame/victory announce dialog) | inferred |  |
 | `FUN_291f_0ac8` | 36210 | 10 | thunk | Far thunk → FUN_6f74_0404 (format nation name into dialog subst) | inferred |  |
@@ -1912,7 +1912,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0380` | 37740 | 10 | mapgen | Far thunk → FUN_1aea_000c (map keyboard/hotkey dispatch into colony/mapdraw/sound) | inferred |  |
 | `FUN_2a1f_038a` | 37750 | 10 | mapgen | Far thunk → FUN_7ab9_00be (handle image-load status) | inferred |  |
 | `FUN_2a1f_0398` | 37760 | 10 | ai | Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
-| `FUN_2a1f_0434` | 37770 | 10 | mapgen | Far thunk → FUN_4d56_2154 (larger Indian action/raid body) | inferred |  |
+| `FUN_2a1f_0434` | 37770 | 10 | mapgen | Far thunk → FUN_4d56_2154 (meet economics / 0x9e* tables) | inferred | ai/indian_meet_scoring_2154.md |
 | `FUN_2a1f_0440` | 37780 | 10 | mapgen | Far thunk → FUN_4d56_0038 (small Indian AI helper; calls into 00e0 / map probes) | inferred | docs/ai_transcription.md |
 | `FUN_2a1f_044c` | 37790 | 10 | mapgen | Far thunk → FUN_4d56_2820 (heavy Indian decision / raid-scale logic) | inferred | ai/indian_trade_2820.md |
 | `FUN_2a1f_016c` | 37330 | 10 | mapgen | Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact) | inferred | ai/indian_settlement_4528.md; ai/move_spent.c §3 |
@@ -1964,9 +1964,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0688` | 38250 | 10 | mapgen | Far thunk → FUN_6f74_37cc (set tertiary side-art DS:0x1f60 then flush/run) | inferred |  |
 | `FUN_2a1f_0694` | 38260 | 10 | mapgen | Far thunk → FUN_5f7a_020e (native cargo trade: price, pick stock, confirm sell/barter) | inferred |  |
 | `FUN_2a1f_06a2` | 38270 | 10 | mapgen | Far thunk → FUN_5f7a_000e (colony native-meet gold dialog; ±100 treasury) | inferred |  |
-| `FUN_2a1f_06b0` | 38280 | 10 | combat | EMS thunk → FUN_5fef_016c (pick cargo slot to plunder) | inferred |  |
+| `FUN_2a1f_06b0` | 38280 | 10 | combat | EMS thunk → FUN_5fef_016c (pick cargo slot to plunder) | inferred | ai/indian_raid_loot.md |
 | `FUN_2a1f_06bc` | 38290 | 10 | mapgen | Far thunk → FUN_5fef_16ea (remap specialty id after combat demotion) | inferred |  |
-| `FUN_2a1f_06c8` | 38300 | 10 | combat | EMS thunk → FUN_5fef_0f14 (Indian raid colony loot + tension) | inferred |  |
+| `FUN_2a1f_06c8` | 38300 | 10 | combat | EMS thunk → FUN_5fef_0f14 (Indian raid colony loot + tension) | inferred | ai/indian_raid_loot.md |
 | `FUN_2a1f_06d4` | 38310 | 10 | combat | EMS thunk → FUN_5fef_172c (post-combat specialty/type change) | inferred |  |
 | `FUN_2a1f_06e0` | 38320 | 10 | combat | EMS thunk → FUN_5fef_0352 (apply combat outcome) | inferred |  |
 | `FUN_2a1f_06ec` | 38330 | 19 | mapgen | EMS page-in stub only (no further far call) | inferred |  |
@@ -2285,7 +2285,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_364b_033a` | 56977 | 39 | colony | Area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7 | inferred |  |
 | `FUN_364b_03f6` | 57016 | 107 | colony | Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean | **Done** thin (`units_coastal_fort_fire_pulse`); ship-slow PARK |
 | `FUN_364b_0636` | 57123 | 29 | colony | Customs-house auto-sell gate for cargo type | inferred |  |
-| `FUN_364b_0688` | 57152 | 803 | colony | Colony EOT production/stock/SoL/construction tick (DS:0x8542) | inferred |  |
+| `FUN_364b_0688` | 57152 | 803 | colony | Colony EOT production/stock/SoL/construction tick (DS:0x8542) | inferred | turn/colony_eot_production.md |
 | `FUN_364b_1aec` | 57955 | 15 | colony | Bind colony; assign unit into workplace via 2f3e | inferred |  |
 | `FUN_364b_1b1a` | 57970 | 16 | colony | Bind colony; place unit into colonist slot (0c36) | inferred |  |
 | `FUN_364b_1b4c` | 57986 | 15 | colony | Refresh colony warehouse-capacity slots from pop/buildings | inferred |  |
@@ -2297,7 +2297,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_3844_0004` | 58268 | 37 | turn | EOT treasure tick (type0/prof 0x1b): after 8 turns outside colony, remove + msg | inferred | turn/nation_eot.c |
-| `FUN_3844_00f2` | 58305 | 125 | turn | Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass | inferred | turn/nation_eot.c; turn/between_turns.md |
+| `FUN_3844_00f2` | 58305 | 125 | turn | Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass | inferred | turn/nation_eot.c; turn/nation_eot_ship_spawn.md; turn/between_turns.md |
 | `FUN_3844_0442` | 58430 | 265 | turn | Year-end Euro chrome: independence, diplomacy, calendar events | inferred | turn/year_end_chrome.c; turn/year_end_chrome.md |
 
 ### Segment `38fd` (81 defs) — trade — Nation Europe market / cargo trade (nation*0x13c via 0x84fc)
@@ -2307,7 +2307,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_0000` | 58695 | 12 | trade | Set current nation index and Europe-market base (nation*0x13c) | inferred | docs/savegame.md |
 | `FUN_38fd_0016` | 58707 | 15 | trade | Europe effective price = euro_price[cargo] + adj (floor 0) | inferred | docs/savegame.md |
 | `FUN_38fd_0040` | 58722 | 19 | trade | Europe ask helper: euro_price[cargo] - 1 (floor 0) | inferred |  |
-| `FUN_38fd_0058` | 58741 | 269 | trade | Market dynamics: adjust euro_price[] / pressure from colony ledgers | inferred | docs/savegame.md |
+| `FUN_38fd_0058` | 58741 | 269 | trade | Market dynamics: adjust euro_price[] / pressure from colony ledgers | inferred | turn/europe_nation_eot.md; docs/savegame.md |
 | `FUN_38fd_05e8` | 59010 | 10 | trade | Test cargo boycott bit in nation boycott_bitmap | inferred | docs/savegame.md |
 | `FUN_38fd_05fc` | 59020 | 28 | trade | Count Europe-harbor cargo units | inferred |  |
 | `FUN_38fd_0666` | 59048 | 25 | trade | Resolve Nth harbor unit index | inferred |  |
@@ -2383,7 +2383,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_584a` | 68248 | 57 | trade | Recruit-passage / immigration pressure score | inferred |  |
 | `FUN_38fd_5930` | 68305 | 115 | trade | Europe EOT FF cargo gift / grant | inferred |  |
 | `FUN_38fd_5be8` | 68420 | 119 | trade | King tax-raise proposal dialog | inferred | docs/savegame.md |
-| `FUN_38fd_5e52` | 68539 | 88 | trade | Europe nation end-of-turn (market + tax + pool) | inferred | docs/savegame.md |
+| `FUN_38fd_5e52` | 68539 | 88 | trade | Europe nation end-of-turn (market + tax + pool) | inferred | turn/europe_nation_eot.md; docs/savegame.md |
 | `FUN_38fd_6024` | 68627 | 755 | trade | New-game init Europe market state (all 4 nations) | inferred | docs/savegame.md |
 
 ### Segment `3f3f` (1 defs) — platform — CRC/LFSR step
@@ -2529,15 +2529,15 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_48d3_0434` | 77786 | 24 | ai | Tile OK for HS landfall ship place? (bounds, HS, owner) | inferred | docs/ai_transcription.md |
 | `FUN_48d3_048e` | 77810 | 95 | ai | Spiral-place ship on HS near landfall goto (Euro AI) | inferred | src/core/ai.c |
 | `FUN_48d3_064e` | 77905 | 38 | ai | For each ship on tile, spiral-place near landfall goto (048e) | inferred | docs/ai_transcription.md |
-| `FUN_48d3_06ba` | 77943 | 150 | ai | Europe-exit landfall: tax treasures; focus arriving ship | inferred | docs/ai_transcription.md |
+| `FUN_48d3_06ba` | 77943 | 150 | ai | Europe-exit landfall: tax treasures; focus arriving ship | inferred | turn/europe_exit_landfall.md; docs/ai_transcription.md |
 
 ### Segment `4962` (4 defs) — ai — Per-nation unit/colony/cargo census tallies
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_4962_0006` | 78093 | 18 | ai | Saturating byte add (cap 0xff) for census counters | inferred |  |
-| `FUN_4962_0018` | 78111 | 221 | ai | Census units/colonies/cargo tallies for one nation | inferred |  |
-| `FUN_4962_0606` | 78332 | 46 | ai | Tally nation profession counts from units + colony jobs | inferred |  |
+| `FUN_4962_0018` | 78111 | 221 | ai | Census units/colonies/cargo tallies for one nation | inferred | turn/census_tally.md |
+| `FUN_4962_0606` | 78332 | 46 | ai | Tally nation profession counts from units + colony jobs | inferred | turn/census_tally.md |
 | `FUN_4962_06b6` | 78378 | 48 | ai | Indian relation-tick census (tribes/units/goods recount) | known | ai/indian_nation_turn.c; FUN_2a1f_0270 |
 
 ### Segment `49dd` (9 defs) — ui — Unit cargo / profession status panels
@@ -2605,8 +2605,8 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_152e` | 81387 | 156 | ai | Village growth accumulator to pop++ | known | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn entry (alarm, unit loop, relation ticks) | known | ai/indian_nation_turn.c; src/core/ai.c |
-| `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, tribe probes, colony ownership — does **not** call 2154 | known | ai/indian_contact.md |
-| `FUN_4d56_2154` | 81743 | 321 | ai | Larger Indian action body (raid-adjacent); called from 5bfb via 2a1f_0434 | inferred | ai/indian_contact.md; docs/ai_transcription.md |
+| `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, tribe probes, colony ownership — does **not** call 2154 | known | turn/mid_pass_indian_rank.md; ai/indian_contact.md |
+| `FUN_4d56_2154` | 81743 | 321 | ai | Meet economics: tribe neighborhood → DS:0x9e* gift/demand tables (from 5bfb_022e) | known | ai/indian_meet_scoring_2154.md; ai/indian_contact.md |
 | `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | ai/indian_trade_2820.md; indian_trade_helpers.c |
 | `FUN_4d56_2aac` | 82286 | 39 | ai | Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse | inferred | ai/indian_trade_2820.md |
 | `FUN_4d56_2af6` | 82325 | 29 | ai | Abort trade close: clear tribe last-goods flags, reshuffle demand → 3582 | inferred | ai/indian_trade_2820.md |
@@ -2671,7 +2671,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_5bfb_0000` | 96448 | 58 | ai | Cargo/treasury census outs for diplomacy (nation filter) | inferred | FUN_2a1f_0634 |
-| `FUN_5bfb_00f8` | 96506 | 30 | ai | Rank four Euro nations by strength into order table | inferred |  |
+| `FUN_5bfb_00f8` | 96506 | 30 | ai | Rank four Euro nations by strength into order table | inferred | turn/mid_pass_indian_rank.md |
 | `FUN_5bfb_0182` | 96536 | 29 | ai | Set diplomacy bit0x40 + human peace/teach dialogs | inferred | FUN_2a1f_0650 |
 | `FUN_5bfb_022e` | 96565 | 540 | ai | Indian unit contact/meet body (first contact, gifts, demand) | inferred | FUN_2a1f_066c |
 | `FUN_5bfb_102a` | 97105 | 24 | ai | Diplomacy multi-line dialog present (N option pumps) | inferred | FUN_2a1f_0618 |
@@ -2696,10 +2696,10 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_5fef_0000` | 99111 | 98 | combat | Pick best defender unit at tile by combat score walk | inferred |  |
-| `FUN_5fef_016c` | 99209 | 83 | combat | Pick cargo slot to plunder (human menu or AI goods-value sort) | inferred |  |
+| `FUN_5fef_016c` | 99209 | 83 | combat | Pick cargo slot to plunder (human menu or AI goods-value sort) | inferred | ai/indian_raid_loot.md |
 | `FUN_5fef_0352` | 99292 | 416 | combat | Apply combat outcome: capture/convert, type strip, naval loot, destroy | inferred |  |
 | `FUN_5fef_0ec0` | 99708 | 30 | combat | Sweep units applying 0352 vs target; compact indices after kills | inferred |  |
-| `FUN_5fef_0f14` | 99738 | 302 | combat | Indian raid loot from colony (goods/building/unit/gold) + tension | inferred |  |
+| `FUN_5fef_0f14` | 99738 | 302 | combat | Indian raid loot from colony (goods/building/unit/gold) + tension | inferred | ai/indian_raid_loot.md |
 | `FUN_5fef_16ea` | 100040 | 24 | combat | Remap specialty id after combat demotion (vet→colonist path) | inferred |  |
 | `FUN_5fef_172c` | 100064 | 94 | combat | Post-combat soldier/dragoon specialty or type change (promote/strip) | inferred |  |
 | `FUN_5fef_1908` | 100158 | 93 | combat | Treasure capture: ransom dialog, credit gold, remove treasure unit | inferred |  |
