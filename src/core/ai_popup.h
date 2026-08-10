@@ -15,8 +15,9 @@
  * Map-level AI popup queue + wood dialog (text OK / text + choices).
  *
  * AI turn code enqueues requests onto ColonizeTurnContext.ai_popups; the game
- * loop presents them after the turn processor is idle (one at a time). Visual
- * chrome matches cheat_list / save_load (popup_draw + WOODTILE); not VGA-identical.
+ * loop presents them after the turn processor is idle (one at a time). Chrome
+ * is popup_draw + WOODTILE; text matches nation-wizard wood dialogs: FONTINTR
+ * unbold + black drop-shadow, @COLORS basic/select, default @width=190.
  *
  * Choice results: has_result + result_choice_id; caller/game_loop applies by tag.
  * Esc / click-outside / right-click cancels (result_cancelled).
