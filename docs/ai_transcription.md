@@ -6,7 +6,8 @@ correspondence** with the original planners.
 
 Navigation / bring-up status live elsewhere; this file owns the AI FUN_*
 inventory and roadmap. See also [original_index.md](original_index.md),
-[decomp_inventory.md](decomp_inventory.md), [manual_gap.md](manual_gap.md),
+[decomp_inventory.md](decomp_inventory.md), [turn_between_players.md](turn_between_players.md),
+[manual_gap.md](manual_gap.md),
 [data_vs_hardcoded.md](data_vs_hardcoded.md).
 
 ---
@@ -109,6 +110,10 @@ flowchart TD
   king --> tax[tax / REF funding]
   king --> ref[REF land / war turn]
 ```
+
+EOT orchestration (calendar / production / nation order / `130d`↔`TURN_PROC_*`):
+[turn_between_players.md](turn_between_players.md). This file owns planner
+fidelity only.
 
 ---
 
@@ -648,6 +653,7 @@ planner arms.
 
 - [original_index.md](original_index.md) — FUN_* navigation
 - [decomp_inventory.md](decomp_inventory.md) — EOT pipeline / bring-up
+- [turn_between_players.md](turn_between_players.md) — full between-turns map (`130d`/`3844` ↔ `TURN_PROC_*`)
 - [manual_gap.md](manual_gap.md) — feature checklist vs manual
 - [data_vs_hardcoded.md](data_vs_hardcoded.md) — bake-into-C rule for AI
 - [savegame.md](savegame.md) — Col1 nation / tribe / unit blobs

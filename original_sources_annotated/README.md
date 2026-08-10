@@ -10,8 +10,8 @@ names — put renames and labels here instead.
 1. **[`MODULE_MAP.md`](MODULE_MAP.md)** — segment prefix → system cluster.
 2. **[`FUNCTION_CATALOG.md`](FUNCTION_CATALOG.md)** — every `FUN_*` (line, size,
    one-line purpose or `unknown`).
-3. **Deep extracts** (AI today; GSOUND interpreter) — files under `ai/` /
-   `sound/` + [`SYMBOL_MAP.md`](SYMBOL_MAP.md).
+3. **Deep extracts** (AI; between-turns; GSOUND interpreter) — files under
+   `ai/` / `turn/` / `sound/` + [`SYMBOL_MAP.md`](SYMBOL_MAP.md).
 4. **Raw export** — `viceroy_unpacked.c` / `.asm` or `mapedit.c` when still
    unlabeled. Bytes there always win on control-flow conflicts.
 
@@ -164,6 +164,10 @@ the catalog only mirrors light-label status.
 | [`ai/indian_contact.md`](ai/indian_contact.md) | Thin map: meet / trade / gift / teach / missions |
 | [`ai/indian_raid_outcomes.md`](ai/indian_raid_outcomes.md) | Thin map: `@RAID*` outcomes / `4528` stand-ins |
 | [`ai/king_ref.md`](ai/king_ref.md) | Thin map: King / tax / REF (`43f7`) |
+| [`turn/between_turns.md`](turn/between_turns.md) | Thin map: year loop / nation EOT / year-end ↔ Linux `TURN_PROC_*` |
+| [`turn/year_loop.c`](turn/year_loop.c) | `FUN_130d_0290` (+ autosave/splash helpers) |
+| [`turn/nation_eot.c`](turn/nation_eot.c) | `FUN_3844_00f2` + treasure `0004` |
+| [`turn/year_end_chrome.c`](turn/year_end_chrome.c) | `FUN_3844_0442` year-end chrome |
 
 ## Deep naming rules (extracted `.c` only)
 
@@ -204,3 +208,7 @@ the catalog only mirrors light-label status.
   sectioned `0a60`; thin maps for `5b66` + Euro/ocean `20e6`/`06ae`. Full
   `5d04` / `5b66` / land `20e6` mid-planner **OPEN** (unpark #4); ocean/T3 + raid
   deep bodies still PARKED. See `docs/ai_transcription.md` Unparked queue.
+- **Between-turns Layer D:** `turn/year_loop.c` (`130d_0290`),
+  `turn/nation_eot.c` (`3844_00f2`/`0004`), `turn/year_end_chrome.c` (`0442`),
+  thin map `turn/between_turns.md`. Bridge doc:
+  `docs/turn_between_players.md`.

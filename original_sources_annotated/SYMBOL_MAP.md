@@ -1,7 +1,8 @@
 # Symbol map — Ghidra ↔ annotated ↔ Linux
 
-Phase 1 AI-critical symbols + Euro early-settle Layer D. Prefer annotated
-files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c`.
+Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
+(`130d` / `3844`). Prefer annotated files when listed; otherwise use
+`original_sources_decompiled/viceroy_unpacked.c`.
 
 ## Functions
 
@@ -89,6 +90,16 @@ files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c
 | `thunk_FUN_2a1f_050c` | → `euro_unit_colony_goals` / `0a60` | `ai/euro_dispatcher.c` | — |
 | `thunk_FUN_2a1f_04f4` | → `move_scoring` / `20e6` | `ai/euro_unit_act.md` | — |
 | `thunk_FUN_2a1f_04ac` | → `pick_best_adjacent_founding_tile` / `06ae` | `ai/euro_goals.c` | — |
+| `FUN_130d_0290` | `year_turn_loop` | `turn/year_loop.c` | `turn_processor_*` / `game_do_end_turn` (reshape) |
+| `FUN_130d_0172` | `autosave_pick_slot` | `turn/year_loop.c` | FINISH autosave flags + `game_apply_turn_autosave` |
+| `FUN_130d_019e` / `0222` | `demo_end_splash` / `independence_splash` | `turn/year_loop.c` | PARKED |
+| `FUN_3844_0004` | `eot_treasure_tick` | `turn/nation_eot.c` | `units_tick_treasure_outside_colony` |
+| `FUN_3844_00f2` | `nation_eot` | `turn/nation_eot.c` | Split: SETUP production/ticks + EURO treasure + FINISH king/market |
+| `FUN_3844_0442` | `year_end_chrome` | `turn/year_end_chrome.c` | PARKED (dialogs); king/war thin in `ai_king` |
+| `FUN_281f_0644` | → `nation_eot` / `3844_00f2` | `turn/between_turns.md` | — |
+| `FUN_281f_061e` | → `year_end_chrome` / `3844_0442` | `turn/between_turns.md` | — |
+| `FUN_281f_0546` | → `year_turn_loop` / `130d_0290` | `turn/between_turns.md` | — |
+| (callgraph) | — | `turn/between_turns.md` | `docs/turn_between_players.md` |
 
 ## DS addresses / globals
 
@@ -149,6 +160,7 @@ files when listed; otherwise use `original_sources_decompiled/viceroy_unpacked.c
 - [x] `ai/euro_goals.c` goal tables + founding helpers
 - [x] `FUN_521d_0a60` sectioned (mid-game **OPEN** — unpark #4)
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
+- [x] Between-turns Layer D (`turn/year_loop.c`, `nation_eot.c`, `year_end_chrome.c`, `between_turns.md`)
 - [x] This symbol map
 
 ## Out of scope for Layer D deepen (T0 Linux ports exist)

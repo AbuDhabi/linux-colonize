@@ -65,7 +65,7 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `7455` | 7 | mapgen | inferred | Map plane buffer alloc (pitch 0x853a → terrain/L2/L3) | [catalog](FUNCTION_CATALOG.md) |
 | `1101` | 6 | ui | inferred | 16-row glyph/bitmap blit helpers | [catalog](FUNCTION_CATALOG.md) |
 | `5952` | 6 | colony | inferred | Colony production / buildings / stock tick (DS:0x8542) | [catalog](FUNCTION_CATALOG.md) |
-| `130d` | 5 | turn | known | Main game year/turn loop + intro splash | [catalog](FUNCTION_CATALOG.md) |
+| `130d` | 5 | turn | known | Main game year/turn loop + intro splash | [catalog](FUNCTION_CATALOG.md); [turn/](turn/between_turns.md) |
 | `13f1` | 5 | mapdraw | inferred | Exploration-bit / fog reveal around units & colonies | [catalog](FUNCTION_CATALOG.md) |
 | `15dc` | 5 | ai | known | Tribe / Indian current-context setters & lookups | [catalog](FUNCTION_CATALOG.md) |
 | `2047` | 5 | platform | known | DOS Ctrl-C/Break / INT21 abort handlers | [catalog](FUNCTION_CATALOG.md) |
@@ -88,7 +88,7 @@ Confidence here is for the **segment cluster**, not every function. Unlabeled se
 | `1a0a` | 3 | ui | inferred | VGA page-flip / palette-cycle animation | [catalog](FUNCTION_CATALOG.md) |
 | `1c0c` | 3 | platform | known | Timer / tick word readers (custom + BIOS 046c) | [catalog](FUNCTION_CATALOG.md) |
 | `2059` | 3 | sound | known | Sound driver jump table | [catalog](FUNCTION_CATALOG.md) |
-| `3844` | 3 | turn | inferred | Euro EOT treasure / ship-ready unit chrome | [catalog](FUNCTION_CATALOG.md) |
+| `3844` | 3 | turn | inferred | Euro EOT treasure / ship-ready / year-end chrome | [catalog](FUNCTION_CATALOG.md); [turn/](turn/between_turns.md) |
 | `4720` | 3 | ui | inferred | Ship embark / naval-move validity + order UI (DS:0x9e4e) | [catalog](FUNCTION_CATALOG.md) |
 | `5f7a` | 3 | trade | inferred | Colony native-trade / cargo sell & buy | [catalog](FUNCTION_CATALOG.md) |
 | `6f30` | 3 | ui | inferred | Splash / image load+blit via resource stream | [catalog](FUNCTION_CATALOG.md) |

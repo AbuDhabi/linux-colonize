@@ -197,7 +197,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_130d_0172` | 6220 | 18 | turn | Autosave slot 8 on decade Spring, else slot 9 | known | docs/savegame.md |
 | `FUN_130d_019e` | 6238 | 24 | turn | Compose demo/autoplay end splash strings → 000a | inferred |  |
 | `FUN_130d_0222` | 6262 | 21 | turn | Compose independence-declared splash strings → 000a | inferred |  |
-| `FUN_130d_0290` | 6283 | 236 | turn | Main game year/turn loop (nations, year/season, chrome) | known |  |
+| `FUN_130d_0290` | 6283 | 236 | turn | Main game year/turn loop (nations, year/season, chrome) | known | turn/year_loop.c; docs/turn_between_players.md |
 
 ### Segment `137f` (26 defs) — mapgen — Map plane accessors (terrain/layer2/3)
 
@@ -2295,9 +2295,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_3844_0004` | 58268 | 37 | turn | EOT treasure tick (type0/prof 0x1b): after 8 turns outside colony, remove + msg | inferred |  |
-| `FUN_3844_00f2` | 58305 | 125 | turn | Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass | inferred |  |
-| `FUN_3844_0442` | 58430 | 265 | turn | Year-end Euro chrome: independence, diplomacy, calendar events | inferred |  |
+| `FUN_3844_0004` | 58268 | 37 | turn | EOT treasure tick (type0/prof 0x1b): after 8 turns outside colony, remove + msg | inferred | turn/nation_eot.c |
+| `FUN_3844_00f2` | 58305 | 125 | turn | Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass | inferred | turn/nation_eot.c; turn/between_turns.md |
+| `FUN_3844_0442` | 58430 | 265 | turn | Year-end Euro chrome: independence, diplomacy, calendar events | inferred | turn/year_end_chrome.c |
 
 ### Segment `38fd` (81 defs) — trade — Nation Europe market / cargo trade (nation*0x13c via 0x84fc)
 
