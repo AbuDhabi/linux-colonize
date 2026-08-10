@@ -38,7 +38,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
 | Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
-| Ship | Bare land | Landfall UI reasons 2/3 | Landfall CHOICE (one / all / cancel) | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay With Ships / Make Landfall | Done |
 
 ---
 

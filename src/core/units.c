@@ -511,27 +511,12 @@ void units_founder_loot(
   int muskets = 0;
   int horses = 0;
   const ColonizeUnit* unit = units_get_const(pool, unit_id);
-  const ColonizeUnitType* type = unit ? units_type(pool, unit->type_index) : NULL;
   if (unit) {
+    /* Trust carried gear fields. Do not invent 100 tools from the type name —
+     * that hid FUN_479b_0158 wear (depleted pioneers looked fully stocked). */
     tools = unit->tools > 0 ? unit->tools : 0;
     muskets = unit->muskets > 0 ? unit->muskets : 0;
     horses = unit->horses > 0 ? unit->horses : 0;
-  }
-  if (tools == 0 && muskets == 0 && horses == 0 && type) {
-    /* Fallback for units spawned before gear fields were set. */
-    if (strstr(type->name, "Pioneer") != NULL) {
-      tools = UNITS_EQUIP_TOOLS_MAX;
-    } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
-      muskets = UNITS_EQUIP_MUSKETS;
-      horses = UNITS_EQUIP_HORSES;
-    } else if (
-      strstr(type->name, "Soldier") != NULL || strstr(type->name, "Regular") != NULL ||
-      strstr(type->name, "Army") != NULL
-    ) {
-      muskets = UNITS_EQUIP_MUSKETS;
-    } else if (strstr(type->name, "Scout") != NULL) {
-      horses = UNITS_EQUIP_HORSES;
-    }
   }
   if (out_tools) {
     *out_tools = tools;
@@ -2195,7 +2180,8 @@ bool units_orders_skip_turn(const ColonizeUnit* unit) {
   if (!unit || !unit->active) {
     return false;
   }
-  return unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFIED;
+  return unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFIED ||
+         unit->orders == UNITS_ORDER_CLEAR_PLOW || unit->orders == UNITS_ORDER_BUILD_ROAD;
 }
 
 bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
@@ -3061,6 +3047,193 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
 
 #define UNITS_PIONEER_TOOL_COST 20
 
+/*
+ * DOS FUN_479b: clear/plow needs terr_cost[class]+2; road needs terr_cost.
+ * Hardy Pioneer (profession 20) halves. Cite: viceroy_unpacked FUN_479b_01a6/0526.
+ */
+static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldMap* map, bool road) {
+  int needed = map_dos_terr_cost_byte(map_dos_terr_class_at(map, u->x, u->y));
+  if (needed > 100) {
+    needed = 1;
+  }
+  if (needed < 1) {
+    needed = 1;
+  }
+  if (!road) {
+    needed += 2;
+  }
+  if (u->profession == UNITS_JOB_PIONEER) {
+    needed >>= 1;
+  }
+  return needed;
+}
+
+static bool units_pioneer_tile_can_clear_or_plow(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  bool* out_clearing
+) {
+  if (!map_tile_is_land(map, x, y) || map_tile_is_high_seas(map, x, y)) {
+    return false;
+  }
+  const int pedia = map_pedia_terrain_index_at(map, x, y);
+  if (pedia == 24 || pedia == 27) {
+    return false; /* Arctic / mountains */
+  }
+  if (pedia >= 8 && pedia <= 23) {
+    if (out_clearing) {
+      *out_clearing = true;
+    }
+    return true;
+  }
+  if (map_tile_is_plowed(map, x, y)) {
+    return false;
+  }
+  if (out_clearing) {
+    *out_clearing = false;
+  }
+  return true;
+}
+
+static void units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
+  /* FUN_479b_0158: cargo_hold[5] / tools −20; type→Free Colonist when <20. */
+  if (u->tools >= UNITS_PIONEER_TOOL_COST) {
+    u->tools -= UNITS_PIONEER_TOOL_COST;
+  } else {
+    u->tools = 0;
+  }
+  if (u->tools < UNITS_PIONEER_TOOL_COST) {
+    u->tools = 0;
+    u->orders = UNITS_ORDER_NONE;
+    if (pool) {
+      const int colonist = units_find_type(pool, "Colonists");
+      if (colonist >= 0) {
+        u->type_index = colonist;
+      }
+    }
+  }
+}
+
+bool units_pioneer_work_tick(
+  ColonizeUnitPool* pool,
+  int unit_id,
+  ColonizeWorldMap* map,
+  char* err,
+  size_t err_size
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !map || !u->active || !units_is_on_map(u)) {
+    return false;
+  }
+  const bool road = (u->orders == UNITS_ORDER_BUILD_ROAD);
+  const bool clear_plow = (u->orders == UNITS_ORDER_CLEAR_PLOW);
+  if (!road && !clear_plow) {
+    return false;
+  }
+  if (!units_is_pioneer(pool, unit_id) || u->tools < UNITS_PIONEER_TOOL_COST) {
+    u->orders = UNITS_ORDER_NONE;
+    u->turns_worked = 0;
+    if (err && err_size) {
+      snprintf(err, err_size, "Need tools");
+    }
+    return false;
+  }
+
+  if (road) {
+    if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y) ||
+        map_tile_has_road(map, u->x, u->y)) {
+      u->orders = UNITS_ORDER_NONE;
+      u->turns_worked = 0;
+      if (err && err_size) {
+        snprintf(err, err_size, "Cannot build road here");
+      }
+      return false;
+    }
+  } else {
+    bool clearing = false;
+    if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing)) {
+      u->orders = UNITS_ORDER_NONE;
+      u->turns_worked = 0;
+      if (err && err_size) {
+        snprintf(err, err_size, "Cannot plow here");
+      }
+      return false;
+    }
+    (void)clearing;
+  }
+
+  /* FUN_281f_0934 stand-in: exhaust MP for this act. */
+  u->moves_left = 0;
+  if (u->turns_worked < 255) {
+    u->turns_worked++;
+  }
+  const int needed = units_pioneer_work_needed(u, map, road);
+  if (u->turns_worked < needed) {
+    if (err && err_size) {
+      if (road) {
+        snprintf(err, err_size, "Building road (%d/%d)", u->turns_worked, needed);
+      } else {
+        bool clearing = false;
+        (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
+        snprintf(
+          err,
+          err_size,
+          clearing ? "Clearing forest (%d/%d)" : "Plowing (%d/%d)",
+          u->turns_worked,
+          needed
+        );
+      }
+    }
+    return true;
+  }
+
+  u->turns_worked = 0;
+  u->orders = UNITS_ORDER_NONE;
+  if (road) {
+    map_tile_set_road(map, u->x, u->y, true);
+    units_pioneer_wear_tools(pool, u);
+    if (err && err_size) {
+      snprintf(
+        err,
+        err_size,
+        "Road built (-%d tools, %d left)",
+        UNITS_PIONEER_TOOL_COST,
+        u->tools
+      );
+    }
+  } else {
+    bool clearing = false;
+    (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
+    if (clearing) {
+      map_tile_clear_forest(map, u->x, u->y);
+      units_pioneer_wear_tools(pool, u);
+      if (err && err_size) {
+        snprintf(
+          err,
+          err_size,
+          "Forest cleared (-%d tools, %d left)",
+          UNITS_PIONEER_TOOL_COST,
+          u->tools
+        );
+      }
+    } else {
+      map_tile_set_plowed(map, u->x, u->y, true);
+      units_pioneer_wear_tools(pool, u);
+      if (err && err_size) {
+        snprintf(
+          err,
+          err_size,
+          "Plowed (-%d tools, %d left)",
+          UNITS_PIONEER_TOOL_COST,
+          u->tools
+        );
+      }
+    }
+  }
+  return true;
+}
+
 bool units_pioneer_plow(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -3075,7 +3248,7 @@ bool units_pioneer_plow(
     }
     return false;
   }
-  if (u->moves_left <= 0) {
+  if (u->orders != UNITS_ORDER_CLEAR_PLOW && u->moves_left <= 0) {
     if (err && err_size) {
       snprintf(err, err_size, "No moves left");
     }
@@ -3087,36 +3260,17 @@ bool units_pioneer_plow(
     }
     return false;
   }
-  if (!map_tile_is_land(map, u->x, u->y) || map_tile_is_high_seas(map, u->x, u->y)) {
+  if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, NULL)) {
     if (err && err_size) {
       snprintf(err, err_size, "Cannot plow here");
     }
     return false;
   }
-  const int pedia = map_pedia_terrain_index_at(map, u->x, u->y);
-  /* Arctic / mountains (hills are plowable). */
-  if (pedia == 24 || pedia == 27) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Cannot plow here");
-    }
-    return false;
+  if (u->orders != UNITS_ORDER_CLEAR_PLOW) {
+    u->turns_worked = 0;
+    u->orders = UNITS_ORDER_CLEAR_PLOW;
   }
-  if (map_tile_is_plowed(map, u->x, u->y)) {
-    if (err && err_size) {
-      snprintf(err, err_size, "Already plowed");
-    }
-    return false;
-  }
-  if (pedia >= 8 && pedia <= 23) {
-    map_tile_clear_forest(map, u->x, u->y);
-  }
-  map_tile_set_plowed(map, u->x, u->y, true);
-  u->tools -= UNITS_PIONEER_TOOL_COST;
-  u->moves_left = 0;
-  if (err && err_size) {
-    snprintf(err, err_size, "Plowed (-%d tools)", UNITS_PIONEER_TOOL_COST);
-  }
-  return true;
+  return units_pioneer_work_tick(pool, unit_id, map, err, err_size);
 }
 
 bool units_pioneer_road(
@@ -3133,7 +3287,7 @@ bool units_pioneer_road(
     }
     return false;
   }
-  if (u->moves_left <= 0) {
+  if (u->orders != UNITS_ORDER_BUILD_ROAD && u->moves_left <= 0) {
     if (err && err_size) {
       snprintf(err, err_size, "No moves left");
     }
@@ -3157,13 +3311,11 @@ bool units_pioneer_road(
     }
     return false;
   }
-  map_tile_set_road(map, u->x, u->y, true);
-  u->tools -= UNITS_PIONEER_TOOL_COST;
-  u->moves_left = 0;
-  if (err && err_size) {
-    snprintf(err, err_size, "Road built (-%d tools)", UNITS_PIONEER_TOOL_COST);
+  if (u->orders != UNITS_ORDER_BUILD_ROAD) {
+    u->turns_worked = 0;
+    u->orders = UNITS_ORDER_BUILD_ROAD;
   }
-  return true;
+  return units_pioneer_work_tick(pool, unit_id, map, err, err_size);
 }
 
 static bool units_adjacent(int ax, int ay, int bx, int by) {

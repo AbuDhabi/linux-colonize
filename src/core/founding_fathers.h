@@ -9,8 +9,11 @@
 /*
  * Founding-father election from liberty bells (manual / wiki effect table).
  *
- * Cost curve (gate, not spend): elect when
- *   liberty_bells_total >= 40 * (founding_father_count + 1)
+ * Flow (DOS FUN_4345_0a22 / 06d2 / 0342):
+ *   1. After liberty bells exist, if next_founding_father < 0 → Congress
+ *      debate (one unclaimed Father per category) or AI auto-pick into next.
+ *   2. Accumulate bells until liberty_bells_total >= 40 * (count + 1).
+ *   3. Elect the locked-in next_founding_father; then next = -1 (re-debate).
  * Bells are never decremented — DOS threshold/spend recovery still PARKED.
  *
  * founding_fathers_tick: at most one elect per nation per call —
@@ -19,7 +22,6 @@
  * Effects follow Colonization.pdf + docs/fandom_col1994.md (+ NAMES/decomp).
  * "Rough" means incomplete UI/wiring — not invented gold/crosses stand-ins.
  * Missing hooks: elect ownership only + PARKED comment naming the real effect.
- * Congress debate UI PARKED.
  */
 
 /* FF indices (NAMES / COL1 order). */

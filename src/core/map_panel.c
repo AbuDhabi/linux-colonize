@@ -940,6 +940,10 @@ void map_panel_render(
     text_y += 16;
 
     char line[64];
+    if (selected->tools > 0) {
+      snprintf(line, sizeof(line), "Tools: %d", selected->tools);
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+    }
     snprintf(
       line, sizeof(line), "%s %d", panel ? panel->label_moves : "Moves:", selected->moves_left
     );

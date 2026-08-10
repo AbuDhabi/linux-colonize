@@ -4154,8 +4154,9 @@ static int ai_euro_try_de_witt_foreign_trade(
  * Pioneer plow/road tile improve planner.
  * Cite: Colonization.pdf Clear/Plow/Road; Hardy Pioneer "Clears forest, plows
  * fields, and builds roads faster" — prefer Hardy when both idle (faster work,
- * not invented yields). units_pioneer_plow clears forest then plows in one API
- * call (real order); units_pioneer_road sets road bit. Requires map.improve.
+ * not invented yields). units_pioneer_plow starts CLEAR_PLOW (forest clear or
+ * plow — separate DOS jobs); units_pioneer_road starts BUILD_ROAD. Multi-turn
+ * via terr_cost formula + units_pioneer_work_tick. Requires map.improve.
  */
 
 static int ai_euro_pioneer_tile_can_plow(const ColonizeWorldMap* map, int x, int y) {
@@ -4268,7 +4269,7 @@ static int ai_euro_pioneer_improve_target(
 
 /*
  * Idle Hardy/Expert Pioneer with tools → improve nearby colony surround.
- * On-tile: units_pioneer_plow (clear+plow) or units_pioneer_road. Off-tile:
+ * On-tile: units_pioneer_plow (clear or plow) or units_pioneer_road. Off-tile:
  * AI_MOVE toward target (re-aims over FOUND). Skip when tools_short (tools
  * delivery) or on-colony construction LABOR stay. Cite: Colonization.pdf
  * Pioneer Clear/Plow/Road; Hardy faster work. Returns 1 if worked or routed.

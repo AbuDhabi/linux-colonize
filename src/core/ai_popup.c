@@ -237,12 +237,40 @@ void ai_popup_render(
 
   const AiPopupRequest* req = &st->current;
   const int line_h = font ? (font->max_height + 2) : 8;
-  const int pad_x = 6;
-  const int pad_y = 4;
+  const int pad_x = 8;
+  const int pad_y = 6;
   const int title_h = req->title[0] ? line_h + 2 : 0;
-  /* Body: up to 4 wrapped visual lines by crude char budget. */
+  /*
+   * Wrap width from font (FONTINTR is ~2× FONTTINY). GAME.TXT @LANDFALL
+   * @width=190 at intro size; keep dialog readable on 320-wide map.
+   */
+  const int char_w = (font && font->max_width > 0) ? (int)font->max_width : 6;
+  int wrap_cols = 40;
+  if (char_w > 0) {
+    wrap_cols = (190 - pad_x * 2) / char_w;
+    if (wrap_cols < 20) {
+      wrap_cols = 20;
+    }
+    if (wrap_cols > 48) {
+      wrap_cols = 48;
+    }
+  }
   const int body_chars = (int)strlen(req->body);
-  const int body_lines = body_chars <= 0 ? 0 : (body_chars + 39) / 40;
+  int body_lines = 0;
+  if (body_chars > 0) {
+    const char* p = req->body;
+    while (*p) {
+      size_t n = 0;
+      while (p[n] && n < (size_t)wrap_cols && p[n] != '\n') {
+        n++;
+      }
+      body_lines++;
+      p += n;
+      if (*p == '\n') {
+        p++;
+      }
+    }
+  }
   const int body_h = body_lines > 0 ? body_lines * line_h + 2 : 0;
   const int options_h = req->choice_count * line_h;
   int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + title_h + body_h + options_h + pad_y;
@@ -253,7 +281,10 @@ void ai_popup_render(
     dialog_h = framebuffer->height - 8;
   }
 
-  int dialog_w = 200;
+  int dialog_w = wrap_cols * char_w + pad_x * 2 + POPUP_FRAME_INSET * 2;
+  if (dialog_w < 200) {
+    dialog_w = 200;
+  }
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
@@ -300,12 +331,11 @@ void ai_popup_render(
   }
 
   if (req->body[0] && font) {
-    /* Crude wrap at ~40 chars. */
-    char line[48];
+    char line[64];
     const char* p = req->body;
     while (*p && text_y + line_h <= inner_y + inner_h - options_h - pad_y) {
       size_t n = 0;
-      while (p[n] && n < 40 && p[n] != '\n') {
+      while (p[n] && n < (size_t)wrap_cols && p[n] != '\n') {
         n++;
       }
       if (n >= sizeof(line)) {

@@ -436,7 +436,7 @@ Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) fo
 | Space | End turn (`src/core/turn.c`): advance calendar (`@TIMECHANGE`), run colony production + nation ticks, Euro/Indian AI + King/REF, refresh human movement |
 | ORDERS → Wait | Select next human unit with remaining moves (“Continue turn.”); if none and End of Turn option is set, show “End of Turn” |
 
-Ship→**non-colony land** with a ready passenger: **landfall CHOICE** (unload one / activate all / cancel); ship stays at sea. Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain. Enter rules: [move_enter.md](move_enter.md).
+Ship→**non-colony land** with a ready passenger: **landfall CHOICE** (`@LANDFALL` Stay With Ships / Make Landfall); Make Landfall unloads all ashore; ship stays at sea. Ship→**own colony** land: dock and **disembark all** (clear sentry). Multi-unit tile click opens a wood **stack popup** — first click wakes sentry cargo, second selects; awake cargo can walk onto land to disembark. **O**/**U** remain. Enter rules: [move_enter.md](move_enter.md).
 
 Selected units **blink** (sprite on/off), except while executing **Go-To** (always drawn so pathing stays visible). The tile cursor is shown only when no unit is selected. Units with `moves_left == 0` cannot be selected (tile under them is selected instead). Awake passengers (sentry cleared) with moves can be selected from the stack popup. When the active unit spends its last move, the next human unit with moves is selected; if none remain, tile-select mode resumes.
 

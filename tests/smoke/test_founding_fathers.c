@@ -81,8 +81,8 @@ int main(void) {
   if (nat->gold != gold_smith) {
     return fail("Smith must not invent gold");
   }
-  if (nat->next_founding_father != 1) {
-    return fail("next_founding_father not advanced to 1");
+  if (nat->next_founding_father != -1) {
+    return fail("next_founding_father not cleared to -1 after elect");
   }
   if (strstr(status, "Founding Father elected") == NULL) {
     return fail("status line missing");
@@ -1896,15 +1896,15 @@ int main(void) {
     fprintf(stderr, "smoke_founding_fathers: Cortes AI treasure gold=%d ok\n", gold);
   }
 
-  /* Human + ai_popups: debate CHOICE (one per @FATHERS type), elect on apply. */
+  /* Human + ai_popups: choose first (next < 0), accumulate, then elect. */
   {
     ColonizeCol1Save dcol1;
     col1_save_init(&dcol1);
     seed_unclaimed(&dcol1);
     ColonizeCol1Nation* dnat = &dcol1.nation[0];
     memset(dnat, 0, sizeof(*dnat));
-    dnat->liberty_bells_total = 40;
-    dnat->next_founding_father = 0;
+    dnat->liberty_bells_total = 10; /* bells exist, below elect threshold */
+    dnat->next_founding_father = -1;
     dnat->founding_father_count = 0;
 
     AiPopupState pop;
@@ -1925,6 +1925,9 @@ int main(void) {
     if (dnat->founding_father_count != 0) {
       return fail("debate path must not elect before CHOICE apply");
     }
+    if (dnat->next_founding_father != -1) {
+      return fail("debate pending must leave next_founding_father unset");
+    }
     if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_CHOICE ||
         pop.queue[0].tag != AI_POPUP_TAG_FF_CONGRESS || pop.queue[0].choice_count < 2) {
       fprintf(stderr, "smoke_founding_fathers: debate queue_count=%d kind=%d choices=%d\n",
@@ -1933,18 +1936,31 @@ int main(void) {
               pop.queue_count > 0 ? pop.queue[0].choice_count : -1);
       return fail("expected FF debate CHOICE with ≥2 category candidates");
     }
-    /* Simulate player picking first choice (Adam Smith / Trade). */
+    const int chosen = pop.queue[0].choice_ids[0];
     pop.has_result = true;
     pop.result_cancelled = false;
     pop.result_tag = AI_POPUP_TAG_FF_CONGRESS;
-    pop.result_choice_id = pop.queue[0].choice_ids[0];
+    pop.result_choice_id = chosen;
     pop.result_nation_a = 0;
-    pop.result_payload = (int)pop.queue[0].payload;
+    pop.result_payload = 1;
     pop.queue_count = 0;
     founding_fathers_apply_popup_result(&dctx, &pop);
+    if (dnat->founding_father_count != 0) {
+      return fail("debate apply below threshold must only lock next, not elect");
+    }
+    if (dnat->next_founding_father != chosen) {
+      return fail("debate apply must lock chosen founding father as next");
+    }
+    ai_popup_init(&pop);
+    dctx.ai_popups = &pop;
+    dnat->liberty_bells_total = 40;
+    founding_fathers_tick(&dctx);
     if (dnat->founding_father_count != 1 ||
-        !founding_fathers_nation_has(&dcol1, 0, pop.result_choice_id)) {
-      return fail("debate apply must elect chosen founding father");
+        !founding_fathers_nation_has(&dcol1, 0, chosen)) {
+      return fail("threshold tick must elect previously locked founding father");
+    }
+    if (pop.queue_count > 0 && pop.queue[0].kind == AI_POPUP_KIND_CHOICE) {
+      return fail("elect path must not re-open debate CHOICE");
     }
     fprintf(stderr, "smoke_founding_fathers: Congress debate CHOICE ok\n");
   }

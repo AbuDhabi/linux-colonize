@@ -888,8 +888,11 @@ bool col1_bridge_apply(
       u->col1_ai_plan = src->ai_plan;
       u->col1_vis_mask = src->vis_mask;
       u->last_dir = (int)src->facing;
-      /* Commodity hold slots (passengers board separately via transport chain). */
-      {
+      /*
+       * Commodity holds: ships/wagons only. Land pioneers store tools in
+       * cargo_hold[5] (DOS unit+0x15) — not a goods slot.
+       */
+      if (units_is_sea(units, id) || units_is_transport(units, id)) {
         const uint8_t items[6] = {
           src->cargo_item_0,
           src->cargo_item_1,
@@ -905,6 +908,8 @@ bool col1_bridge_apply(
             u->hold_goods_amount[h] = amt;
           }
         }
+      } else if (src->cargo_hold[5] > 0 && src->cargo_hold[5] <= 100) {
+        u->tools = (int)src->cargo_hold[5];
       }
     }
     id_by_index[i] = id;
@@ -1561,9 +1566,11 @@ bool col1_bridge_capture(
         /* Goods only — passengers live in transport_chain (not hold slots). */
         dst->holds_occupied = (uint8_t)gi;
       }
-      /* DOS COLONY00: pioneer tools as cargo_hold[5]=100 on the passenger unit. */
-      if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
-        dst->cargo_hold[5] = 100;
+      /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count. */
+      if (src->tools > 0 && src->tools <= 100 && !units_is_sea(units, src->id)) {
+        dst->cargo_hold[5] = (uint8_t)src->tools;
+      } else if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
+        dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
       }
       dst->transport_chain.next_unit_idx = -1;
       dst->transport_chain.prev_unit_idx = -1;
