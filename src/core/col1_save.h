@@ -74,8 +74,8 @@
 #pragma pack(push, 1)
 
 typedef struct ColonizeCol1Tut1 {
-  uint8_t nr13 : 1;
-  uint8_t nr14 : 1;
+  uint8_t nr13 : 1; /* nawagers sheet: Pioneer message flag */
+  uint8_t nr14 : 1; /* nawagers sheet: Soldier message flag */
   uint8_t unknown01 : 1; /* tut bit; no distinct cite — keep opaque */
   uint8_t nr15 : 1;
   uint8_t nr16 : 1;

@@ -60,8 +60,10 @@ Catalog: [FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md
 
 **Community oracles** (cite → prove):
 [smcol_sav_struct.json](https://github.com/pavelbel/smcol_saves_utility),
-[Format.md](https://github.com/hegemogy/Colonization-SAV-files),
+[nawagers/Colonization-SAV-files `Format.md`](https://github.com/nawagers/Colonization-SAV-files)
+(upstream; [hegemogy fork](https://github.com/hegemogy/Colonization-SAV-files) lags),
 [viceroy savegame.h](https://github.com/hegemogy/viceroy).
+Byte-level sheet (sparse): [nawagers Google sheet](https://docs.google.com/spreadsheets/d/1_IOGjJbMT43z2Tcr-Rhdwkg65iBaAV7Lo3XRl-08hII/).
 
 **Fixtures:** `original_saves/COLONY00.SAV`, `COLONY01.SAV`,
 `original_saves/valid-lategame-saves/COLONY{00–08,10}.SAV`,
@@ -98,7 +100,7 @@ as peels land.
 |-------|------|--------|-------|
 | `sig_colonize` / `sig_eof` / `save_version` | 9+1+2 | `mapped` | `COLONIZE\0` + `0x1A`; ver **73** |
 | `map_size_x` / `map_size_y` | 4 | `mapped` | Typically 58×72 |
-| `tut1.*` known bits | — | `mapped` | Tutorial flags |
+| `tut1.*` known bits | — | `mapped` | Tutorial flags. Nawagers sheet: bit0/bit1 = Pioneer/Soldier message flags (`nr13`/`nr14`) |
 | `tut1.unknown01` / `unknown02` | 2 bits | `opaque` | No distinct cite — closed as tut pad |
 | `unknown03` | 1 | `opaque` | Save R/W; no gameplay cite |
 | `game_options.woi`…`ref_unit_threshold` | 7 bits | `mapped` | DS:`0x5382` WoI/REF latches (was `unused01`) |
@@ -172,7 +174,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200 |
+| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200 (fixtures often `228+nation` diagonal; nawagers also notes 235/239/243 travel states) |
 | `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`); natives 0 on spawn/capture |
 | `unknown15_lo` / `ship_damaged` | 1 | `partial` | bit7 damaged (`FUN_1427_13b0`); lo bits AI latches |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
@@ -286,9 +288,9 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 | Plane | Status | Notes |
 |-------|--------|-------|
 | `tile` | `mapped` | Terrain bitfield |
-| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol: `suppress` also clears exhausted / far-ocean prime resources (not LCR removal) |
-| `path` | `mapped` | Region + visitor |
-| `seen` | `mapped` | Fog / score nibbles |
+| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol/nawagers: `suppress` clears exhausted / far-ocean primes (not LCR). Nawagers: forest prime pattern is land pattern shifted **+4 columns** (clearing forest can reveal a different prime) |
+| `path` | `mapped` | Region + visitor. Nawagers: low nibble = path region (oceans/continents numbered independently; >15 → `0xF`); high nibble = last visitor (`0xF` unvisited; LCR cleared only on occupy, not 8-neighbor reveal) |
+| `seen` | `mapped` | Fog / score nibbles (nawagers: hi bits Euro visibility; lo nibble colony-site AI score) |
 
 ### Post-map (`ColonizeCol1PostMap`, 614)
 
@@ -407,6 +409,26 @@ atlas. Most named fields were already absorbed in P2 or superseded by DOS peels.
 - Head `tile_selection_mode` / `manual_save_flag` / `end_of_turn_sign` — port has `map_mode` + `turn_loop_running` / `map_modal_active` / `no_unit_selected` from DS
 - Tribe `BLCS.brave_missing` vs port `state.artillery` — keep DOS name until re-cited
 - Colony AI / specialty / capitol bytes smcol still calls `unknown*` — port ahead
+
+---
+
+## Nawagers audit (2026-08-10)
+
+[nawagers/Colonization-SAV-files](https://github.com/nawagers/Colonization-SAV-files)
+is the **upstream** of the `hegemogy/Colonization-SAV-files` fork already cited.
+`Format.md` there is slightly ahead of the fork (correct terrain base table;
+Sea/Land Route Maps named; post-connect tail sized as Unknown F = **74** =
+our continent tallies 64 + 10-byte seed/path/timer tail; seed near F+`0x47`).
+
+**Useful community notes absorbed:** tut1 Pioneer/Soldier message bits;
+path/seen visitor+score semantics; forest prime +4-column shift; Europe
+sentinel travel anecdotes; colony fog pop/fort guess (same as smcol — already
+promoted). Connectivity prose overlaps smcol `supplemental-info.md`.
+
+**No new byte map beyond what we have:** `colonization.py` is an early partial
+codec (orders/cargo/tools RE notes). The linked Google sheet is sparse (~header
+labels only). Pacific-to-column-41 claim conflicts with DOS/port `width/2`
+pacific walk — prefer `FUN_684c_08c0`.
 
 ---
 
