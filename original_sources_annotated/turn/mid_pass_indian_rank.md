@@ -81,6 +81,16 @@ Treat as **hypothesis only** until a CALLF / thunk recovers. Do not invent a
 call edge in extracts or the catalog. Linux’s post-`6a09` pulse is
 `1816`-*shaped* for golden init; that does not prove DOS init called `1816`.
 
+**Hang probe:** [`tools/brave_dump/vr_1816.md`](../../tools/brave_dump/vr_1816.md)
+→ `COLONIZE/VR_1816.EXE` (`python3 tools/brave_dump/patch_1816_hang.py`). Logs
+far return + slot at `DS:7000` on entry; no-hang only counts if stub survives
+in live Memory (overlay reloc).
+
+**Dump `dump_1816` (2026-08-10):** hang **fired** — body is live. Stack ret
+`1930:1554` (overlay Return Vector CS), `param_1=0`. Not dead code. Static
+Ghidra XREF still missing; next peel is who enters that overlay vector.
+Parser: `tools/brave_dump/parse_1816_dump.py`.
+
 Brave edge cases: unknown parent / order can skew LCG and “when Indians act
 vs Euros,” which may feed dir/peel mismatches. It does **not** explain the
 remaining seed-100 **spent-only** holdouts (post-`465b` `0x3149` writer —
