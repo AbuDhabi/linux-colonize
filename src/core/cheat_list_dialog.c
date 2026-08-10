@@ -168,6 +168,69 @@ bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog
   return true;
 }
 
+bool cheat_list_open_trade_cargos(
+  CheatListDialog* dlg,
+  CheatListKind kind,
+  uint16_t initial_mask
+) {
+  if (!dlg ||
+      (kind != CHEAT_LIST_KIND_TRADE_UNLOAD && kind != CHEAT_LIST_KIND_TRADE_LOAD)) {
+    return false;
+  }
+  static const char* const k_cargo[] = {
+    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
+    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
+    "Coats",       "Trade Goods", "Tools", "Muskets"
+  };
+  cheat_list_init(dlg);
+  dlg->has_result = false;
+  dlg->kind = kind;
+  dlg->width = 160;
+  dlg->multi_select = true;
+  dlg->selected_mask = initial_mask;
+  str_copy_trunc(
+    dlg->prompt,
+    sizeof(dlg->prompt),
+    kind == CHEAT_LIST_KIND_TRADE_UNLOAD ? "Unload cargos (Space toggle, Enter OK)"
+                                        : "Load cargos (Space toggle, Enter OK)"
+  );
+  for (int i = 0; i < 16 && i < CHEAT_LIST_MAX_OPTIONS; ++i) {
+    const int on = (initial_mask & (uint16_t)(1u << i)) != 0;
+    snprintf(
+      dlg->options[i],
+      sizeof(dlg->options[i]),
+      "%s %s",
+      on ? "[x]" : "[ ]",
+      k_cargo[i]
+    );
+    dlg->option_ids[i] = i; /* @CARGO index */
+  }
+  dlg->option_count = 16;
+  dlg->open = true;
+  return true;
+}
+
+static void cheat_list_refresh_trade_labels(CheatListDialog* dlg) {
+  if (!dlg || !dlg->multi_select) {
+    return;
+  }
+  static const char* const k_cargo[] = {
+    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
+    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
+    "Coats",       "Trade Goods", "Tools", "Muskets"
+  };
+  for (int i = 0; i < dlg->option_count && i < 16; ++i) {
+    const int on = (dlg->selected_mask & (uint16_t)(1u << i)) != 0;
+    snprintf(
+      dlg->options[i],
+      sizeof(dlg->options[i]),
+      "%s %s",
+      on ? "[x]" : "[ ]",
+      k_cargo[i]
+    );
+  }
+}
+
 static int cheat_list_option_at_y(const CheatListDialog* dlg, int mouse_y) {
   if (!dlg || dlg->line_h <= 0 || dlg->option_count <= 0) {
     return -1;
@@ -196,8 +259,29 @@ static void cheat_list_confirm(CheatListDialog* dlg, int idx) {
   dlg->has_result = true;
   dlg->result_kind = dlg->kind;
   dlg->result_id = dlg->option_ids[idx];
+  dlg->result_mask = dlg->multi_select ? dlg->selected_mask : 0;
   str_copy_trunc(dlg->result_label, sizeof(dlg->result_label), dlg->options[idx]);
   cheat_list_close(dlg);
+}
+
+static void cheat_list_confirm_multi(CheatListDialog* dlg) {
+  if (!dlg) {
+    return;
+  }
+  dlg->has_result = true;
+  dlg->result_kind = dlg->kind;
+  dlg->result_id = -1;
+  dlg->result_mask = dlg->selected_mask;
+  dlg->result_label[0] = '\0';
+  cheat_list_close(dlg);
+}
+
+static void cheat_list_toggle_multi(CheatListDialog* dlg, int idx) {
+  if (!dlg || !dlg->multi_select || idx < 0 || idx >= dlg->option_count) {
+    return;
+  }
+  dlg->selected_mask ^= (uint16_t)(1u << idx);
+  cheat_list_refresh_trade_labels(dlg);
 }
 
 bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* input) {
@@ -217,7 +301,16 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
     dlg->selection++;
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
+  if (dlg->multi_select) {
+    if (input->last_key == COLONIZE_KEY_SPACE) {
+      cheat_list_toggle_multi(dlg, dlg->selection);
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_ENTER) {
+      cheat_list_confirm_multi(dlg);
+      return true;
+    }
+  } else if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
     if (dlg->selection >= 0 && dlg->selection < dlg->option_count) {
       cheat_list_confirm(dlg, dlg->selection);
     }
@@ -235,7 +328,11 @@ bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* inp
     const int idx = cheat_list_option_at_y(dlg, my);
     if (idx >= 0) {
       dlg->selection = idx;
-      cheat_list_confirm(dlg, idx);
+      if (dlg->multi_select) {
+        cheat_list_toggle_multi(dlg, idx);
+      } else {
+        cheat_list_confirm(dlg, idx);
+      }
     }
     return true;
   }

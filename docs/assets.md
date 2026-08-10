@@ -191,7 +191,7 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 
 ### Map overlay compositing
 
-**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** blit isolated PHYS0 **80** (80–88 connectivity PARKED). Remaining gaps are fog-of-war polish, road connectivity, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
+**Fidelity status:** static AMER2 art matches MAPEDIT for coasts, estuaries, land–land transitions, forest/hill/mountain/river connectivity, special resources, and rumours. **Plowed fields** use runtime PHYS0 **149**; **roads** use PHYS0 **80** isolated or multi-blit **81–88** directional stubs (`FUN_6ba1_0938`). Land MP uses DOS `terr_cost` table at NAMES scale (`map_move_cost_*`). Remaining gaps are fog-of-war polish, coast animation, and per-tile texture variation (see [decomp_inventory.md](decomp_inventory.md)).
 
 Authority for static map art is decompiled **`MAPEDIT.EXE` /
 `original_sources_decompiled/mapedit.c`** (no RTLink), not VICEROY’s runtime buffers.
@@ -206,7 +206,7 @@ The Linux port draws cleared terrain from `TERRAIN.SS` (bits 0–4), then compos
 4. **Overlays** — coast fragments/corners; hills/mountains/rivers; resources; rumours; estuaries  
    On coast tiles: coast PHYS0 → masked ocean into palette-0 holes → resource/estuary layers
 5. **Plow** (runtime) — PHYS0 **149** when `map_tile_is_plowed` / Col1 plow bit
-6. **Road** (runtime) — PHYS0 **80** isolated when `map_tile_has_road` (80–88 connectivity PARKED)
+6. **Road** (runtime) — PHYS0 **80** isolated, else multi-blit **81+d** per connected 8-neighbor (`map_phys0_road_layer_*`)
 7. **Fog fringe** — PHYS0 **104–107** on seen tiles toward unseen cardinals
 
 **Terrain byte decode (layer 1):** `terrain_index = byte & 0x1f`. Indices 0–7 are cleared land; 8–23 are forests (type = `index & 7`); 24–26 are arctic/ocean/high seas.
@@ -261,9 +261,10 @@ Layer-3 `0x0e` on AMER2 `(43,68)` is a lone tundra peak drawn as isolated mounta
 
 Class index = terrain `& 0x1f`, except mountain → **27**, hill → **28** (`FUN_19b7_0006`). Table value `0` remaps to type 6; `−1` means no resource.
 
-Roads blit PHYS0 **80** (isolated stand-in) via `map_phys0_road_sprite_at` when
-`map_tile_has_road`; full **80–88** connectivity mask still PARKED. Plowed tiles
-blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
+Roads blit via `map_phys0_road_layer_*` when `map_tile_has_road`: isolated
+PHYS0 **80**, else one stub per connected 8-neighbor (**81**=N … **88**=NW;
+`FUN_6ba1_0938` / MAPEDIT `FUN_1a47_0932`). Not a forest-style 16-mask.
+Plowed tiles blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
 
 **Coastal ocean.** Enabled by default. MAPEDIT: land underlayer → fragments **108+4×mask+q** / corners **150–153** → masked ocean into colour-0 holes → estuary (+ fish when present). Details: [decomp_inventory.md](decomp_inventory.md).
 
@@ -275,7 +276,7 @@ blit PHYS0 **149** via `map_phys0_plow_sprite_at`.
 
 Older VICEROY quadrant / RAM-buffer coast heuristics are **superseded** by this MAPEDIT path (`docs/viceroy_tables.md`).
 
-Not drawn yet: road **connectivity** (80–88 band; isolated **80** is drawn); per-tile texture variation from DOS RAM buffers; coast animation frames. Fog fringe (**104–107**) and plow (**149**) are drawn.
+Not drawn yet: per-tile texture variation from DOS RAM buffers; coast animation frames. Fog fringe (**104–107**), plow (**149**), and road **80–88** connectivity are drawn.
 
 Tile compositing tables extracted from `VICEROY.EXE` live in `src/data/viceroy_tables.{h,c}`; see [viceroy_tables.md](viceroy_tables.md). World-map **feature art** (forest/hill/mountain/coast) uses MAPEDIT rules above, not those VICEROY tables.
 
@@ -287,7 +288,7 @@ On the main map, the top strip is the DOS menu bar from `MENU.TXT`: **GAME**, **
 
 **DEBUG** (CMake `COLONIZE_DEBUG_MENU`): **Sprite Viewer** (same as `` ` ``) and **Show Mouse Coords** (toggles the pixel HUD attached to the pointer; on by default).
 
-Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Fortify (land/ship harbor) / Sentry / Disband, Clear Forest↔Plow / Build Road, Go to Place↔Port, Pillage, Dump Cargo Overboard, Begin Trade Route (aim first stop + cycle; Col1 load/unload nibbles honored when set), TRADE Create/Delete / Edit (append colony or Europe stop; autofill unload from selected unit + load from surplus; full cargo picker UI thin), Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. ORDERS plain-key hotkeys + Alt+menu titles.
+Working items today: Save/Load, Retire, Exit, **Pick Music**, European Status, Find Colony, Center View, Activate unit, Wait for next unit, Fortify (land/ship harbor) / Sentry / Disband, Clear Forest↔Plow / Build Road, Go to Place↔Port, Pillage, Dump Cargo Overboard, Begin Trade Route (aim first stop + cycle; Col1 load/unload nibbles honored when set), TRADE Create/Delete / Edit (append colony or Europe stop; autofill + thin unload/load cargo picker), Build/Join Colony, Load/Unload Cargo (board/unload), Return to Europe, No Orders (end turn), full **COLONIZOPEDIA** menu (cargo / units / terrain / skills / buildings / fathers / misc; divider after terrain), **F1** terrain info at cursor, and **REPORTS** F2–F10. ORDERS plain-key hotkeys + Alt+menu titles.
 
 ### Main-map right panel
 

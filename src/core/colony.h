@@ -92,7 +92,89 @@ typedef struct ColonizeColony {
    * yet; AI / new colonies). Cite: FUN_15eb_0302 colony+0x8a.
    */
   uint16_t custom_house_bits;
+  /*
+   * Col1 +0x8e LABOR demand counter. Unload/join decrements (FUN_521d_5b66
+   * ~91589). Cite: save_format_map.md; euro_unit_act case 0x0b.
+   */
+  uint8_t labor_shortage;
+  /*
+   * Col1 +0x1e garrison fortify quota. DEC on fortify/'A' assign; seeded by
+   * threat>>3 (FUN_5952_035e) — Linux thin-latches 1 when idle garrison needs
+   * fortify. Cite: save_format_map.md; euro_unit_act §2d3.
+   */
+  uint8_t garrison_quota;
+  /*
+   * Col1 +0x8d specialty cargo index (`0xff` = none). FUN_5952_0306 set/clear
+   * from warehouse stock vs capacity + boycott. Haul prefers this cargo.
+   */
+  uint8_t specialty_cargo;
+  /*
+   * Col1 +0x8f cargo-idle turns. INC cap 0x7f each Euro inventory pulse
+   * (FUN_5952_035e); cleared when goods unload into the colony. Haul target
+   * score adds idle*8. Cite: save_format_map.md; viceroy ~87677 / ~90249.
+   */
+  uint8_t cargo_idle_turns;
+  /*
+   * Col1 +0x8c improve timer. INC cap 0x7f (FUN_5952_035e); gates AI pioneer
+   * plow/road until timer ≥ thin threshold (terr_cost+2 stand-in); cleared on
+   * successful improve. Cite: save_format_map.md; FUN_5952 ~93663 / ~94546.
+   */
+  uint8_t improve_timer;
+  /*
+   * Col1 +0x1d build AI flags. Bit7 (0x80) = wants_construction (FUN_5952).
+   * Latches construction LABOR when set (Col1 import or Linux construction).
+   */
+  uint8_t build_ai_flags;
+  /*
+   * Col1 +0x1b AI planner flags (FUN_4962_0018 / FUN_5952_035e). Ship-pressure
+   * bits 0x01/0x02 drive COLONY goal 5|8; other bits thin-latched.
+   */
+  uint8_t ai_flags;
+  /*
+   * Col1 +0x1c colony flags (FUN_364b_0688). Starvation 0x08 latches LABOR;
+   * wagon_train / coastal thin-latched.
+   */
+  uint8_t colony_flags;
+  /*
+   * Col1 +0x90 cargo-produced mask (bit per cargo). Cleared then OR'd during
+   * colony EOT production (FUN_364b_0688). Haul prefers produced surplus.
+   */
+  uint16_t cargo_produced_mask;
+  /*
+   * Col1 +0x98 hammers purchased via BUY (FUN_2f2b_5e44). Accumulates remainder
+   * hammers paid with gold.
+   */
+  uint16_t hammers_purchased;
+  /*
+   * Col1 +0x97 depletion counter. INC on ore/silver field work; wrap at 50
+   * triggers MAP_LAYER2_SUPPRESS on the worked tile (FUN_364b_033a feature 4).
+   */
+  uint8_t depletion_counter;
+  /*
+   * Col1 +0x95 warehouse level. Capacity = 100*(1+level) (FUN_15eb_0a50).
+   * Also derived from Warehouse / Warehouse Expansion when those are built.
+   */
+  uint8_t warehouse_level;
+  /*
+   * Col1 +0x96 capitol level. INC on Capitol / Capitol Expansion complete
+   * (FUN_364b_0114). Bridged; deeper use stays thin.
+   */
+  uint8_t capitol_level;
 } ColonizeColony;
+
+#define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
+#define COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP 0x01u
+#define COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR 0x02u
+#define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
+#define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
+#define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
+#define COLONIZE_COLONY_FLAG_SOL_100 0x02u
+#define COLONIZE_COLONY_FLAG_SOL_50 0x04u
+#define COLONIZE_COLONY_FLAG_STARVATION 0x08u
+#define COLONIZE_COLONY_FLAG_SMALL_AI 0x10u
+#define COLONIZE_COLONY_FLAG_WAGON_TRAIN 0x20u
+#define COLONIZE_COLONY_FLAG_COASTAL 0x40u
+#define COLONIZE_COLONY_FLAG_BUILD_COMPLETE 0x80u
 
 typedef struct ColonizeColonyPool {
   ColonizeColony colonies[COLONIZE_COLONIES_MAX];
@@ -323,6 +405,19 @@ int colonies_warehouse_capacity(
 );
 
 /*
+ * FUN_5952_0306: set/clear specialty_cargo (+0x8d).
+ * want_set cleared when stock >= warehouse capacity or boycotted.
+ * Cite: viceroy_unpacked.c FUN_5952_0306; FUN_15eb_0a50 capacity.
+ */
+void colonies_specialty_cargo_update(
+  const ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  int cargo_type,
+  int want_set,
+  int boycotted
+);
+
+/*
  * EOT spoilage: clamp each stock to warehouse capacity (FUN_15eb_0a50 /
  * FUN_15eb_0c52). Call after production + Custom House (wiki: auto-sell before
  * spoilage). Returns total units discarded.
@@ -403,6 +498,18 @@ void colonies_trade_stop_autofill(
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   int unit_id
+);
+
+/*
+ * Thin TRADE cargo picker: set unload/load nibble lists explicitly (cap 6 each).
+ * cargo_type values are @CARGO indices 0..15. Cite: ColonizeCol1TradeStop.
+ */
+void colonies_trade_stop_set_cargos(
+  ColonizeCol1TradeStop* stop,
+  const int* unload_types,
+  int unload_n,
+  const int* load_types,
+  int load_n
 );
 
 /* ICONS.SS settlement marker #0–3 by fortification (none/stockade/fort/fortress). */

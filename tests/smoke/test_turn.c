@@ -743,6 +743,108 @@ int main(void) {
     fprintf(stderr, "custom house autosell ok\n");
   }
 
+  /*
+   * Col1 +0x97 depletion_counter: ore/silver field work INC; wrap at 50 sets
+   * MAP_LAYER2_SUPPRESS on the worked tile (FUN_364b_033a feature 4).
+   */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "depletion: map load failed: %s\n", err);
+      return 1;
+    }
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names) ||
+        !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+      fprintf(stderr, "depletion: names/buildings failed\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    int cx = -1, cy = -1, fx = -1, fy = -1, ftile = -1;
+    for (int y = 1; y < (int)map.height - 1 && ftile < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && ftile < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+          continue;
+        }
+        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+          int dx = 0, dy = 0;
+          colonies_field_tile_delta(ti, &dx, &dy);
+          const int yld =
+            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_ORE_MINER);
+          if (yld > 0) {
+            cx = x;
+            cy = y;
+            fx = x + dx;
+            fy = y + dy;
+            ftile = ti;
+            break;
+          }
+        }
+      }
+    }
+    if (ftile < 0) {
+      fprintf(stderr, "depletion: no ore-miner field site\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_ORE_MINER)) {
+      fprintf(stderr, "depletion: assign ore miner failed\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    col->building_in_production = -1;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
+    col->depletion_counter = 0x31; /* one INC wraps */
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    turn_colony_free_production(&pool, col, &map, &prod, &delta);
+    if (col->depletion_counter != 0) {
+      fprintf(
+        stderr,
+        "depletion_counter wrap got %u want 0\n",
+        (unsigned)col->depletion_counter
+      );
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const uint8_t after_l2 =
+      map.layer2 ? map.layer2[fy * map.width + fx] : 0;
+    if ((after_l2 & MAP_LAYER2_SUPPRESS) == 0) {
+      fprintf(
+        stderr,
+        "depletion wrap did not set LAYER2_SUPPRESS at (%d,%d) after=%02x\n",
+        fx,
+        fy,
+        after_l2
+      );
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    if (delta.ore <= 0 && delta.goods[COLONIZE_CARGO_SILVER] <= 0) {
+      fprintf(stderr, "depletion: expected ore/silver yield\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    fprintf(stderr, "depletion_counter wrap+suppress ok\n");
+    assets_msg_free(&names);
+    map_free(&map);
+  }
+
   fprintf(stderr, "turn tests ok\n");
   diag_shutdown();
   return 0;

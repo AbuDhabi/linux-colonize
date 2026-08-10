@@ -274,7 +274,7 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 | 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; deep `2820` / gift-amount / VGA remain PARKED |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
 | 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); human Congress debate CHOICE (**Done** structural); KINGGALLEON2 still PARK; F3 portrait grid / VGA PARKED |
-| 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep −0x6790; naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done** |
+| 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep −0x6790 (thin G prio ladder own≥2/3/4→6/7/8 Done); naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done**; thin Europe ship buy ladder (Caravel/Merchantman/Galleon/Frigate) **Done**; mid-game colonies≥6 ship-buy+war hire **Done**; Col1 `labor_shortage` (+0x8e) LABOR join **Done**; `garrison_quota` (+0x1e) fortify DEC **Done**; `specialty_cargo` (+0x8d) haul prefer **Done**; `cargo_idle_turns` (+0x8f) haul score **Done**; `improve_timer` (+0x8c) pioneer gate **Done**; `build_ai_flags` (+0x1d bit7) wants_construction **Done**; `cargo_produced_mask` (+0x90) haul prefer **Done**; `ai_flags` (+0x1b) MoW→COLONY_ALT **Done**; `colony_flags` (+0x1c) starvation LABOR **Done**; `hammers_purchased` (+0x98) BUY **Done**; `colony_flags` sol_50/sol_100 latch **Done**; `depletion_counter` (+0x97) ore/silver wrap+suppress **Done**; `warehouse_level`/`capitol_level` (+0x95/+0x96) **Done** |
 | 5 | Indian×Euro `15b3` + fuller `153e` | **Done** structural + Privateer spawn **Done** (8g prize PARK); FA `3f41` full UI PARKED |
 | 6 | `manual_gap.md` hygiene | Done this pass |
 
@@ -442,9 +442,13 @@ Wagon surplus load prefers FOOD when `food_short>20` **Done**.
 Thin lumber/ore/muskets/horses/food cargo hire stand-in (mirror tools ship/colony)
 **Done**.
 **OPEN (unpark #4):** remaining deep combat scoring / ocean-naval `20e6`;
-leftover mid `5d04` matrix; deep −0x6790 G table. Thin ocean east-Europe HS bias
-**Done** (complement west-explore). Odd deviations OK; not T3 / LCG
-goldens (those stay R5).
+leftover mid `5d04` matrix (colonies≥6 ship-buy + war/peace shortage hire **Done**; Free Colonist settle gated ≥6); deep −0x6790 G table (thin prio ladder Done). Thin ocean east-Europe HS bias
+**Done** (complement west-explore). Thin Europe ship buy ladder **Done**: Caravel (no ship / full / colonies≥6), Merchantman
+(cargo pressure), Galleon (at war), Frigate (at war, 5000$) —
+`smoke_5d04_buy_*`. Mid-game planning no longer hard-returns at colonies≥6
+(ship-buy + war hire + peace shortage/dock/wagon continue; Free Colonist settle gated).
+Wartime Privateer spawn stays in `ai_diplo_euro_balance`.
+Odd deviations OK; not T3 / LCG goldens (those stay R5).
 
 ### R5 — Toward 1:1 (T2/T3)
 

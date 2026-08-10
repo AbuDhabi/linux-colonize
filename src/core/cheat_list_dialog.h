@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "core/assets.h"
 #include "core/font.h"
@@ -21,7 +22,9 @@
 typedef enum CheatListKind {
   CHEAT_LIST_KIND_NONE = 0,
   CHEAT_LIST_KIND_SETVIEW,
-  CHEAT_LIST_KIND_KILL_INDIANS
+  CHEAT_LIST_KIND_KILL_INDIANS,
+  CHEAT_LIST_KIND_TRADE_UNLOAD,
+  CHEAT_LIST_KIND_TRADE_LOAD
 } CheatListKind;
 
 typedef struct CheatListDialog {
@@ -33,10 +36,14 @@ typedef struct CheatListDialog {
   char options[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
   int option_ids[CHEAT_LIST_MAX_OPTIONS]; /* fog nation / tribe nation_id / etc. */
   int option_count;
+  /* Multi-select (TRADE unload/load): Space/click toggles; Enter confirms. */
+  bool multi_select;
+  uint16_t selected_mask; /* bit i = option i selected */
   /* Set when the user confirms; survives close so the caller can apply. */
   bool has_result;
   CheatListKind result_kind;
   int result_id;
+  uint16_t result_mask; /* multi_select confirm bitmask */
   char result_label[CHEAT_LIST_LABEL_LEN];
   /* Last computed layout (for hit-testing). */
   int dialog_x;
@@ -58,6 +65,16 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
  * option_ids are native nation ids 4..11.
  */
 bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog* names);
+
+/*
+ * Thin TRADE cargo picker (@CARGO 0..15). multi_select; preselect bits from
+ * initial_mask. Enter confirms result_mask; Esc cancels. Cite: TRADE Edit.
+ */
+bool cheat_list_open_trade_cargos(
+  CheatListDialog* dlg,
+  CheatListKind kind,
+  uint16_t initial_mask
+);
 
 /*
  * Keyboard / mouse. Returns true if the event was consumed.

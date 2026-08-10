@@ -1,5 +1,6 @@
 #include "core/turn.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -244,6 +245,8 @@ static void turn_produce_one_colony(
   if (!pool || !colony || !colony->active) {
     return;
   }
+  /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
+  colony->cargo_produced_mask = 0;
   const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   if (pop <= 0) {
     return;
@@ -260,6 +263,7 @@ static void turn_produce_one_colony(
     if (tc.food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
+      colony->cargo_produced_mask |= (uint16_t)(1u << COLONIZE_CARGO_FOOD);
       field_food += tc.food;
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] += tc.food;
@@ -269,6 +273,7 @@ static void turn_produce_one_colony(
         tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
       colony->stock[tc.secondary_cargo] =
         turn_clamp_stock(colony->stock[tc.secondary_cargo] + tc.secondary_amount);
+      colony->cargo_produced_mask |= (uint16_t)(1u << tc.secondary_cargo);
       if (delta) {
         delta->goods[tc.secondary_cargo] += tc.secondary_amount;
       }
@@ -311,6 +316,9 @@ static void turn_produce_one_colony(
         continue;
       }
       colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + add);
+      if (add > 0) {
+        colony->cargo_produced_mask |= (uint16_t)(1u << cargo);
+      }
       if (delta) {
         delta->goods[cargo] += add;
       }
@@ -320,6 +328,29 @@ static void turn_produce_one_colony(
         field_lumber += add;
       } else if (cargo == COLONIZE_CARGO_ORE) {
         field_ore += add;
+      }
+      /*
+       * Col1 +0x97: INC per ore/silver field yield; wrap at 50 →
+       * MAP_LAYER2_SUPPRESS on worked tile (FUN_364b_033a feature 4).
+       */
+      if (add > 0 &&
+          (cargo == COLONIZE_CARGO_ORE || cargo == COLONIZE_CARGO_SILVER)) {
+        colony->depletion_counter =
+          (uint8_t)(colony->depletion_counter + 1u);
+        if (colony->depletion_counter > 0x31u) {
+          colony->depletion_counter =
+            (uint8_t)(colony->depletion_counter - 0x32u);
+          if (map) {
+            /* Production API takes const map; deplete mutates layer2. */
+            map_occupancy_set_layer2(
+              (ColonizeWorldMap*)(uintptr_t)map,
+              colony->x + dx,
+              colony->y + dy,
+              MAP_LAYER2_SUPPRESS,
+              true
+            );
+          }
+        }
       }
     }
   }
@@ -336,6 +367,17 @@ static void turn_produce_one_colony(
   if (field_food < consumed && out) {
     out->food_shortages++;
   }
+  /* FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need. */
+  {
+    const int need = pop * TURN_FOOD_PER_COLONIST;
+    if (colony->stock[COLONIZE_CARGO_FOOD] < need) {
+      colony->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
+    } else {
+      colony->colony_flags =
+        (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_STARVATION);
+    }
+  }
+  colony_prod_refresh_sol_flags(colony, col1);
 
   /*
    * Lumber fallback: if no lumberjacks but a carpenter building exists,
@@ -345,6 +387,7 @@ static void turn_produce_one_colony(
       turn_building_name_has(pool, colony, "Carpenter")) {
     colony->stock[COLONIZE_CARGO_LUMBER] =
       turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + 1);
+    colony->cargo_produced_mask |= (uint16_t)(1u << COLONIZE_CARGO_LUMBER);
     if (delta) {
       delta->lumber += 1;
       delta->goods[COLONIZE_CARGO_LUMBER] += 1;

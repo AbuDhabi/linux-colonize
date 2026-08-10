@@ -72,6 +72,10 @@ struct ColonizeGameState {
   MapMenuBar map_menu;
   PickMusicDialog pick_music;
   CheatListDialog cheat_list;
+  /* Thin TRADE Edit cargo picker: route/stop being edited; phase unload→load. */
+  int trade_edit_route; /* -1 = idle */
+  int trade_edit_stop;
+  bool trade_edit_need_load; /* after unload confirm, open load picker */
   AiPopupState ai_popups;
   SaveLoadDialog save_load;
   UnitStackPopup unit_stack;
@@ -558,6 +562,64 @@ static void game_open_cheat_kill_indians(ColonizeGameState* game) {
   }
 }
 
+static uint16_t game_trade_stop_mask_from_nibbles(const uint8_t nibbles[3], int count) {
+  uint16_t m = 0;
+  for (int i = 0; i < count && i < 6; ++i) {
+    const int ct = col1_trade_nibble_cargo(nibbles, i);
+    if (ct >= 0 && ct < 16) {
+      m = (uint16_t)(m | (uint16_t)(1u << ct));
+    }
+  }
+  return m;
+}
+
+static void game_trade_mask_to_types(uint16_t mask, int* out, int* out_n) {
+  int n = 0;
+  if (!out || !out_n) {
+    return;
+  }
+  for (int c = 0; c < 16 && n < 6; ++c) {
+    if ((mask & (uint16_t)(1u << c)) != 0) {
+      out[n++] = c;
+    }
+  }
+  *out_n = n;
+}
+
+static void game_open_trade_unload_picker(ColonizeGameState* game) {
+  if (!game || game->trade_edit_route < 0 || !game->col1_ok) {
+    return;
+  }
+  ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_edit_route];
+  if (game->trade_edit_stop < 0 || game->trade_edit_stop >= (int)r->dest_count) {
+    return;
+  }
+  const ColonizeCol1TradeStop* st = &r->stop[game->trade_edit_stop];
+  const uint16_t mask =
+    game_trade_stop_mask_from_nibbles(st->unload_cargo_nibbles, (int)st->unload_count);
+  if (!cheat_list_open_trade_cargos(&game->cheat_list, CHEAT_LIST_KIND_TRADE_UNLOAD, mask)) {
+    set_status(game, "Trade cargo picker unavailable", NULL);
+    game->trade_edit_route = -1;
+  }
+}
+
+static void game_open_trade_load_picker(ColonizeGameState* game) {
+  if (!game || game->trade_edit_route < 0 || !game->col1_ok) {
+    return;
+  }
+  ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_edit_route];
+  if (game->trade_edit_stop < 0 || game->trade_edit_stop >= (int)r->dest_count) {
+    return;
+  }
+  const ColonizeCol1TradeStop* st = &r->stop[game->trade_edit_stop];
+  const uint16_t mask =
+    game_trade_stop_mask_from_nibbles(st->load_cargo_nibbles, (int)st->load_count);
+  if (!cheat_list_open_trade_cargos(&game->cheat_list, CHEAT_LIST_KIND_TRADE_LOAD, mask)) {
+    set_status(game, "Trade cargo picker unavailable", NULL);
+    game->trade_edit_route = -1;
+  }
+}
+
 static void game_apply_cheat_list_result(ColonizeGameState* game) {
   if (!game || !game->cheat_list.has_result) {
     return;
@@ -565,11 +627,62 @@ static void game_apply_cheat_list_result(ColonizeGameState* game) {
   const CheatListKind kind = game->cheat_list.result_kind;
   const int id = game->cheat_list.result_id;
   const char* label = game->cheat_list.result_label;
+  const uint16_t mask = game->cheat_list.result_mask;
   game->cheat_list.has_result = false;
   if (kind == CHEAT_LIST_KIND_SETVIEW) {
     game_apply_setview(game, id, label);
   } else if (kind == CHEAT_LIST_KIND_KILL_INDIANS) {
     game_apply_kill_indians(game, id, label);
+  } else if (kind == CHEAT_LIST_KIND_TRADE_UNLOAD || kind == CHEAT_LIST_KIND_TRADE_LOAD) {
+    if (game->trade_edit_route < 0 || !game->col1_ok) {
+      return;
+    }
+    ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_edit_route];
+    if (game->trade_edit_stop < 0 || game->trade_edit_stop >= (int)r->dest_count) {
+      game->trade_edit_route = -1;
+      return;
+    }
+    ColonizeCol1TradeStop* st = &r->stop[game->trade_edit_stop];
+    int types[6];
+    int n = 0;
+    game_trade_mask_to_types(mask, types, &n);
+    if (kind == CHEAT_LIST_KIND_TRADE_UNLOAD) {
+      int load_types[6];
+      int ln = 0;
+      for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
+        load_types[ln++] = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
+      }
+      colonies_trade_stop_set_cargos(st, types, n, load_types, ln);
+      if (game->trade_edit_need_load && st->colony_index != 999) {
+        game_open_trade_load_picker(game);
+      } else {
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "%s stop unload=%u load=%u",
+          r->name,
+          (unsigned)st->unload_count,
+          (unsigned)st->load_count
+        );
+        game->trade_edit_route = -1;
+      }
+    } else {
+      int unload_types[6];
+      int un = 0;
+      for (int i = 0; i < (int)st->unload_count && i < 6; ++i) {
+        unload_types[un++] = col1_trade_nibble_cargo(st->unload_cargo_nibbles, i);
+      }
+      colonies_trade_stop_set_cargos(st, unload_types, un, types, n);
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "%s stop unload=%u load=%u",
+        r->name,
+        (unsigned)st->unload_count,
+        (unsigned)st->load_count
+      );
+      game->trade_edit_route = -1;
+    }
   }
 }
 
@@ -1998,6 +2111,9 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   map_menu_init(&game->map_menu);
   pick_music_init(&game->pick_music);
   cheat_list_init(&game->cheat_list);
+  game->trade_edit_route = -1;
+  game->trade_edit_stop = -1;
+  game->trade_edit_need_load = false;
   ai_popup_init(&game->ai_popups);
   save_load_init(&game->save_load);
   new_game_init(&game->new_game);
@@ -4621,8 +4737,8 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     }
     case MAP_MENU_ACTION_TRADE_EDIT: {
       /* Thin stop editor: append cursor colony (or Europe=999 for sea) to last
-       * named route; autofill load/unload nibbles from selected unit + surplus.
-       * Full cargo picker UI still later. Cite: ColonizeCol1TradeStop. */
+       * named route; autofill then open cargo picker (unload → load). Cite:
+       * ColonizeCol1TradeStop; cheat_list_open_trade_cargos. */
       if (!game->col1_ok) {
         set_status(game, "No save data for trade routes", NULL);
         return true;
@@ -4680,16 +4796,18 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         colonies_trade_stop_autofill(st, fill_c, &game->units, game->units.selected_id);
       }
       r->dest_count++;
+      game->trade_edit_route = last;
+      game->trade_edit_stop = (int)r->dest_count - 1;
+      game->trade_edit_need_load = (stop_idx != 999);
       snprintf(
         game->status,
         sizeof(game->status),
-        "%s +%s (%d/4) unload=%u load=%u",
+        "%s +%s (%d/4) — pick unload/load",
         r->name,
         stop_label,
-        (int)r->dest_count,
-        (unsigned)st->unload_count,
-        (unsigned)st->load_count
+        (int)r->dest_count
       );
+      game_open_trade_unload_picker(game);
       return true;
     }
     case MAP_MENU_ACTION_TRADE_DELETE: {
@@ -7583,7 +7701,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               }
             }
           }
-          /* Runtime plow / road: PHYS0 149 / 80 after static overlays, before fog. */
+          /* Runtime plow / road: PHYS0 149 / 80–88 after static overlays, before fog. */
           {
             const int plow = map_phys0_plow_sprite_at(&game->world_map, mx, my);
             if (plow >= 0 && plow < game->phys0.sprite_count) {
@@ -7591,11 +7709,16 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
                 &game->phys0, plow, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
               );
             }
-            const int road = map_phys0_road_sprite_at(&game->world_map, mx, my);
-            if (road >= 0 && road < game->phys0.sprite_count) {
-              blit_map_sprite(
-                &game->phys0, road, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
-              );
+            const int road_n = map_phys0_road_layer_count(&game->world_map, mx, my);
+            for (int ri = 0; ri < road_n; ++ri) {
+              const int road =
+                map_phys0_road_layer_sprite_at(&game->world_map, mx, my, ri);
+              if (road >= 0 && road < game->phys0.sprite_count) {
+                blit_map_sprite(
+                  &game->phys0, road, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                  map_origin_y
+                );
+              }
             }
           }
           /* Fog transitional edges: PHYS0 104–107 black fringe toward unseen. */

@@ -778,12 +778,38 @@ int main(void) {
     const int fy = py;
     tmap.terrain[py * tmap.width + px] = 2; /* plains */
     tmap.terrain[fy * tmap.width + fx] = 10; /* mixed forest */
+    /* DOS terr_cost table (NAMES scale; Brave uses *3): class10=2, class9=1, class27=3. */
     if (map_move_cost_at(&tmap, fx, fy) != 2) {
       fprintf(stderr, "forest move cost expected 2 got %d\n", map_move_cost_at(&tmap, fx, fy));
       map_free(&tmap);
       map_free(&map);
       assets_msg_free(&names);
       return 1;
+    }
+    {
+      const uint8_t save = tmap.terrain[fy * tmap.width + fx];
+      tmap.terrain[fy * tmap.width + fx] = 9; /* terr_cost[9]=1 */
+      if (map_move_cost_at(&tmap, fx, fy) != 1) {
+        fprintf(stderr, "class9 move cost expected 1 got %d\n", map_move_cost_at(&tmap, fx, fy));
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      tmap.terrain[fy * tmap.width + fx] = (uint8_t)(2 | 0xa0); /* mountain → class 27, cost 3 */
+      if (map_dos_terr_class_at(&tmap, fx, fy) != 27 || map_move_cost_at(&tmap, fx, fy) != 3) {
+        fprintf(
+          stderr,
+          "mountain class/cost expected 27/3 got %d/%d\n",
+          map_dos_terr_class_at(&tmap, fx, fy),
+          map_move_cost_at(&tmap, fx, fy)
+        );
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      tmap.terrain[fy * tmap.width + fx] = save;
     }
     const int pid = units_spawn(&pool, pioneer, px, py);
     ColonizeUnit* pu = units_get(&pool, pid);

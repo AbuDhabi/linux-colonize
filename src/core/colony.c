@@ -87,6 +87,7 @@ void colonies_init(ColonizeColonyPool* pool) {
     for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
       pool->colonies[i].tiles[t] = -1;
     }
+    pool->colonies[i].specialty_cargo = 0xff; /* Col1 +0x8d none */
   }
 }
 
@@ -525,6 +526,7 @@ int colonies_found(
   slot->y = y;
   slot->nation_id = nation_id;
   slot->building_in_production = -1;
+  slot->specialty_cargo = 0xff;
   slot->active = true;
   for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
     slot->tiles[t] = -1;
@@ -799,6 +801,13 @@ int colonies_admit_unit(
   c->field_job = -1;
   const int idx = col->colonist_count++;
   col->population = col->colonist_count;
+  /* Col1 +0x8e / +0x1e: LABOR join co-decrements demand counters (~87701). */
+  if (col->labor_shortage > 0) {
+    col->labor_shortage--;
+  }
+  if (col->garrison_quota > 0) {
+    col->garrison_quota--;
+  }
   return idx;
 }
 
@@ -1095,6 +1104,9 @@ bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id) {
     return false;
   }
   col->building_in_production = -1;
+  /* FUN_5952 ~95710: drop wants_construction with queue clear. */
+  col->build_ai_flags =
+    (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
   return true;
 }
 
@@ -1182,8 +1194,22 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
   if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX) {
     col->has_building[bid] = true;
   }
+  /* Col1 +0x95/+0x96: INC warehouse / capitol levels on matching completes. */
+  if (bt->name[0] != '\0') {
+    if (strcmp(bt->name, "Warehouse") == 0 && col->warehouse_level < 1u) {
+      col->warehouse_level = 1;
+    } else if (strcmp(bt->name, "Warehouse Expansion") == 0) {
+      col->warehouse_level = 2;
+    } else if (strcmp(bt->name, "Capitol") == 0 && col->capitol_level < 1u) {
+      col->capitol_level = 1;
+    } else if (strcmp(bt->name, "Capitol Expansion") == 0) {
+      col->capitol_level = 2;
+    }
+  }
   col->hammers = 0;
   col->building_in_production = -1;
+  col->build_ai_flags =
+    (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
   return true;
 }
 
@@ -1206,12 +1232,24 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gol
   }
   const int prev_hammers = col->hammers;
   *gold -= gold_cost;
+  /* FUN_2f2b_5e44: accumulate remainder hammers bought with gold (+0x98). */
+  if (gold_cost > 0) {
+    const unsigned sum = (unsigned)col->hammers_purchased + (unsigned)gold_cost;
+    col->hammers_purchased = sum > 0xffffu ? 0xffffu : (uint16_t)sum;
+  }
   col->hammers = bt->hammers;
   if (!colonies_try_complete_building(pool, colony_id)) {
     *gold += gold_cost;
     col->hammers = prev_hammers;
+    if (gold_cost > 0) {
+      col->hammers_purchased =
+        (uint16_t)(col->hammers_purchased >= (uint16_t)gold_cost
+                     ? col->hammers_purchased - (uint16_t)gold_cost
+                     : 0);
+    }
     return false;
   }
+  col->colony_flags |= COLONIZE_COLONY_FLAG_BUILD_COMPLETE;
   return true;
 }
 
@@ -1460,18 +1498,56 @@ int colonies_warehouse_capacity(
   if (cargo_type == COLONIZE_CARGO_FOOD) {
     return 199;
   }
-  int cap = 100;
+  /* FUN_15eb_0a50: 100*(1+warehouse_level); buildings raise the level. */
+  int level = (int)colony->warehouse_level;
   if (pool) {
+    int derived = 0;
     const int wh = colonies_find_building(pool, "Warehouse");
     const int whe = colonies_find_building(pool, "Warehouse Expansion");
     if (wh >= 0 && colony->has_building[wh]) {
-      cap += 100;
+      derived = 1;
     }
     if (whe >= 0 && colony->has_building[whe]) {
-      cap += 100;
+      derived = 2;
+    }
+    if (derived > level) {
+      level = derived;
     }
   }
-  return cap;
+  if (level < 0) {
+    level = 0;
+  }
+  if (level > 2) {
+    level = 2;
+  }
+  return 100 * (1 + level);
+}
+
+void colonies_specialty_cargo_update(
+  const ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  int cargo_type,
+  int want_set,
+  int boycotted
+) {
+  if (!colony || !colony->active || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
+  /* FUN_5952_0306: stock >= warehouse cap → do not set / clear match. */
+  if (cap > 0 && cap <= colony->stock[cargo_type]) {
+    want_set = 0;
+  }
+  if (boycotted) {
+    want_set = 0;
+  }
+  if (want_set) {
+    colony->specialty_cargo = (uint8_t)cargo_type;
+    return;
+  }
+  if (colony->specialty_cargo == (uint8_t)cargo_type) {
+    colony->specialty_cargo = 0xff;
+  }
 }
 
 int colonies_apply_warehouse_spoilage(ColonizeColonyPool* pool, ColonizeColony* colony) {
@@ -1563,6 +1639,10 @@ int colonies_transfer_from_unit(
     return 0;
   }
   col->stock[ctype] += move;
+  /* Col1 +0x8f: goods unload clears cargo_idle_turns (decomp ~90249). */
+  if (move > 0) {
+    col->cargo_idle_turns = 0;
+  }
   if (move < got_amt) {
     /* Put remainder back into the same hold. */
     units_load_goods(units, unit_id, ctype, got_amt - move);
@@ -1654,6 +1734,52 @@ static int colonies_trade_surplus_load_amount(const ColonizeColony* c, int ct) {
     amt = c->population > 0 ? c->population * 2 : 10;
   }
   return amt;
+}
+
+void colonies_trade_stop_set_cargos(
+  ColonizeCol1TradeStop* stop,
+  const int* unload_types,
+  int unload_n,
+  const int* load_types,
+  int load_n
+) {
+  if (!stop) {
+    return;
+  }
+  stop->unload_count = 0;
+  stop->load_count = 0;
+  memset(stop->unload_cargo_nibbles, 0, sizeof(stop->unload_cargo_nibbles));
+  memset(stop->load_cargo_nibbles, 0, sizeof(stop->load_cargo_nibbles));
+  int uc = 0;
+  if (unload_types && unload_n > 0) {
+    int seen[COLONIZE_CARGO_COUNT];
+    memset(seen, 0, sizeof(seen));
+    for (int i = 0; i < unload_n && uc < 6; ++i) {
+      const int ct = unload_types[i];
+      if (ct < 0 || ct >= COLONIZE_CARGO_COUNT || seen[ct]) {
+        continue;
+      }
+      seen[ct] = 1;
+      col1_trade_nibble_set(stop->unload_cargo_nibbles, uc, ct);
+      uc++;
+    }
+  }
+  stop->unload_count = (uint8_t)uc;
+  int lc = 0;
+  if (load_types && load_n > 0) {
+    int seen[COLONIZE_CARGO_COUNT];
+    memset(seen, 0, sizeof(seen));
+    for (int i = 0; i < load_n && lc < 6; ++i) {
+      const int ct = load_types[i];
+      if (ct < 0 || ct >= COLONIZE_CARGO_COUNT || seen[ct]) {
+        continue;
+      }
+      seen[ct] = 1;
+      col1_trade_nibble_set(stop->load_cargo_nibbles, lc, ct);
+      lc++;
+    }
+  }
+  stop->load_count = (uint8_t)lc;
 }
 
 void colonies_trade_stop_autofill(
