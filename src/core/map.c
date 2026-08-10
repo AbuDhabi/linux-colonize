@@ -1436,16 +1436,25 @@ bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * DS:0x2f76 terrain move-cost byte (stride 0x10), from brave Memory dump.
- * FUN_465b_0000: spent = table[class] * 3 (roads/rivers/owner can force 1).
- * Shared with ai.c Brave scoring / ai_dos_move_spent.
+ * DS:0x2f76 terrain class records (stride 0x10), from brave Memory dump.
+ * Byte0 = move-cost (FUN_465b spent = table*3).
+ * Byte1 @ DS:0x2f77 = founding-site score (FUN_521d_06ae).
  */
 static const uint8_t k_map_dos_terr_cost[32] = {
   1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 2, 2, 2, 2, 3, 3, 2, 1, 1, 3, 2, 13, 255, 255
 };
 
+/* DS:0x2f77 founding score byte (same stride-16 records, offset +1). */
+static const uint8_t k_map_dos_terr_found_score[32] = {
+  0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 0, 0, 0, 6, 4, 0, 0, 88
+};
+
 int map_dos_terr_cost_byte(int terr_class) {
   return (int)k_map_dos_terr_cost[terr_class & 31];
+}
+
+int map_dos_terr_found_score_byte(int terr_class) {
+  return (int)k_map_dos_terr_found_score[terr_class & 31];
 }
 
 int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y) {

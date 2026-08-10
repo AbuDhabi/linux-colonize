@@ -72,7 +72,24 @@ void ai_goals_inventory_clear(int nation_id);
 
 /*
  * FUN_521d_06ae — pick best adjacent founding tile.
+ * score_extras: DOS param_4 (neighbor continent/explore extras).
+ * wagon_filter: DOS param_5 (1 when unit type is wagon 0x0b).
  * Returns 1 and writes out_x/out_y, or 0 if none.
+ */
+int ai_goals_pick_founding_tile_ex(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y,
+  int score_extras,
+  int wagon_filter,
+  int* out_x,
+  int* out_y
+);
+
+/*
+ * FUN_521d_06ae with score_extras=1, wagon_filter=0 (0a60 FOUND writer default).
  */
 int ai_goals_pick_founding_tile(
   const ColonizeWorldMap* map,

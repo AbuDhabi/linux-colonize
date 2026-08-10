@@ -1,7 +1,6 @@
 #include "core/ai_goals.h"
 
 #include "core/colony.h"
-#include "core/colony_yield.h"
 #include "core/map.h"
 
 #include <stdlib.h>
@@ -220,6 +219,107 @@ int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y) {
   return 0;
 }
 
+/*
+ * FUN_521d_06ae — pick_best_adjacent_founding_tile.
+ * Decomp viceroy_unpacked.c ~87237. Base score = DS:0x2f77[class]; when
+ * score_extras, add thin neighbor terms (0492 continent balance still stub 0;
+ * explore nibble from map_tile_seen_by). Cite: euro_goals.c; move_scoring.md.
+ */
+int ai_goals_pick_founding_tile_ex(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y,
+  int score_extras,
+  int wagon_filter,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y) {
+    return 0;
+  }
+  (void)wagon_filter; /* DOS own-tile wagon type filter — thin: colonies_can_found */
+  int best_dir = 8;
+  int best_score = -1;
+  int any = 0;
+  for (int dir = 0; dir <= 8; ++dir) {
+    const int nx = x + k_dir8_dx[dir];
+    const int ny = y + k_dir8_dy[dir];
+    if (!map_coords_inset(map, nx, ny)) {
+      continue;
+    }
+    /* Land, not ocean/HS (FUN_281f_0302 + !0768). */
+    if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
+      continue;
+    }
+    /* Arctic never foundable. */
+    if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
+      continue;
+    }
+    /*
+     * Tribe/owner gate (06d2/06be): empty or foundable. Stay (dir 8) may keep
+     * a non-foundable tile in DOS; Linux still requires can_found when pool set.
+     */
+    int ok = 1;
+    if (colonies) {
+      if (dir == 8) {
+        ok = colonies_can_found(colonies, map, nx, ny) ? 1 : 0;
+      } else if (!colonies_can_found(colonies, map, nx, ny)) {
+        ok = 0;
+      }
+    }
+    if (!(dir == 8 || ok)) {
+      continue;
+    }
+    if (!ok && dir == 8) {
+      continue;
+    }
+
+    /* Base: terrain-class founding byte @ DS:0x2f77. */
+    unsigned score = (unsigned)map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
+
+    if (score_extras) {
+      for (int nd = 0; nd < 8; ++nd) {
+        const int hx = nx + k_dir8_dx[nd];
+        const int hy = ny + k_dir8_dy[nd];
+        if (!map_coords_inset(map, hx, hy)) {
+          continue;
+        }
+        if (map_tile_is_water(map, hx, hy) || map_tile_is_high_seas(map, hx, hy)) {
+          continue;
+        }
+        /* Neighbor empty of colony (0682 owner < 0 stand-in). */
+        if (colonies && colonies_id_at(colonies, hx, hy) >= 0) {
+          continue;
+        }
+        /*
+         * DOS: 0492(nation, continent_id)*0x10 + (explore_mask & 0xf).
+         * Continent balance (0492) still stub 0 until Col1 continent tables port;
+         * explore nibble from seen bit (074a-shaped).
+         */
+        unsigned explore = 0;
+        if (map_tile_seen_by(map, hx, hy, nation_id)) {
+          explore = 1u; /* thin: seen → low nibble bit; full fog mask PARKED */
+        }
+        score += explore;
+      }
+    }
+
+    if ((int)score > best_score) {
+      best_score = (int)score;
+      best_dir = dir;
+      any = 1;
+    }
+  }
+  if (!any) {
+    return 0;
+  }
+  *out_x = x + k_dir8_dx[best_dir];
+  *out_y = y + k_dir8_dy[best_dir];
+  return 1;
+}
+
 int ai_goals_pick_founding_tile(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -229,50 +329,7 @@ int ai_goals_pick_founding_tile(
   int* out_x,
   int* out_y
 ) {
-  if (!map || !out_x || !out_y) {
-    return 0;
-  }
-  (void)nation_id;
-  int best_dir = -1;
-  int best_score = -1;
-  for (int dir = 0; dir <= 8; ++dir) {
-    const int nx = x + k_dir8_dx[dir];
-    const int ny = y + k_dir8_dy[dir];
-    if (!map_coords_inset(map, nx, ny)) {
-      continue;
-    }
-    if (map_tile_is_water(map, nx, ny)) {
-      continue;
-    }
-    /* Arctic never foundable — skip even if colonies pool is NULL. */
-    if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
-      continue;
-    }
-    if (colonies && !colonies_can_found(colonies, map, nx, ny) && dir != 8) {
-      continue;
-    }
-    if (colonies && dir == 8 && !colonies_can_found(colonies, map, nx, ny)) {
-      continue;
-    }
-    /* Food yield stand-in (not raw terrain index — arctic 24 was wrongly preferred). */
-    int score = 10;
-    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FARMER) * 3;
-    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FISHERMAN);
-    if (dir == 8) {
-      score += 2;
-    }
-    if (map_tile_has_river(map, nx, ny)) {
-      score += 3;
-    }
-    if (score > best_score) {
-      best_score = score;
-      best_dir = dir;
-    }
-  }
-  if (best_dir < 0) {
-    return 0;
-  }
-  *out_x = x + k_dir8_dx[best_dir];
-  *out_y = y + k_dir8_dy[best_dir];
-  return 1;
+  return ai_goals_pick_founding_tile_ex(
+    map, colonies, nation_id, x, y, /*score_extras=*/1, /*wagon_filter=*/0, out_x, out_y
+  );
 }

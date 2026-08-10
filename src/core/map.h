@@ -200,6 +200,11 @@ int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y);
  */
 int map_dos_terr_cost_byte(int terr_class);
 /*
+ * DOS DS:0x2f77 founding-site score byte (same stride-16 record, offset +1).
+ * FUN_521d_06ae base score. Cite: euro_goals.c; brave Memory dump.
+ */
+int map_dos_terr_found_score_byte(int terr_class);
+/*
  * Land movement cost: terr_cost[class] (NAMES scale). Prefer map_move_cost_step
  * for actual moves (DOS FA road-pair + cardinal river pair → cost 1). Sea → 1.
  */

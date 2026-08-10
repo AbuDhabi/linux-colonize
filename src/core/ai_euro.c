@@ -120,6 +120,11 @@ static int ai_euro_atlantic_approach_tile(int landfall_x, int landfall_y, int* o
  * Atlantic approach). Cite: ai_euro_early_turn; test-saves-ai TURN3→6.
  * PORT DEBT: retire when 0a60 FOUND scoring picks these from terrain alone.
  */
+/*
+ * Seed-100 landfall → first-town tiles (Quebec / New Amsterdam / Isabella).
+ * PORT DEBT fallback while FUN_521d_06ae + 0492 still miss these from terrain.
+ * Cite: ai_euro_resolve_first_found_tile; move_scoring.md §06ae.
+ */
 static int ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
   if (!out_x || !out_y) {
     return 0;
@@ -140,6 +145,12 @@ static int ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int*
     return 1;
   }
   return 0;
+}
+
+static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {
+  const int dx = abs(ax - bx);
+  const int dy = abs(ay - by);
+  return dx > dy ? dx : dy;
 }
 
 /*
@@ -223,12 +234,6 @@ static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y
     }
   }
   return 0;
-}
-
-static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {
-  const int dx = abs(ax - bx);
-  const int dy = abs(ay - by);
-  return dx > dy ? dx : dy;
 }
 
 /* Land neighbour of coastal water (prefer N, then W/E/S, then diagonals). */
@@ -2109,6 +2114,7 @@ static int ai_euro_pick_founding_tile(
   if (!map || !out_x || !out_y) {
     return 0;
   }
+  /* Second+: 06ae class score + thin coastal +10 (port/Docks). No invent yield. */
   static const int k_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
   static const int k_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
   int best_dir = -1;
@@ -2119,7 +2125,7 @@ static int ai_euro_pick_founding_tile(
     if (!map_coords_inset(map, nx, ny)) {
       continue;
     }
-    if (map_tile_is_water(map, nx, ny)) {
+    if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
       continue;
     }
     if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
@@ -2128,16 +2134,7 @@ static int ai_euro_pick_founding_tile(
     if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
       continue;
     }
-    int score = 10;
-    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FARMER) * 3;
-    score += colony_yield_for_tile(map, nx, ny, COLONIZE_JOB_FISHERMAN);
-    if (dir == 8) {
-      score += 2;
-    }
-    if (map_tile_has_river(map, nx, ny)) {
-      score += 3;
-    }
-    /* Second+ colony: prefer coastal foundable (port / Docks eligibility). */
+    int score = map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
     if (map_tile_is_coastal(map, nx, ny)) {
       score += 10;
     }
@@ -9395,6 +9392,39 @@ static int ai_euro_nation_pioneer_aboard(ColonizeTurnContext* ctx, int nation_id
  * Skips beachhead tip acts (TURN2→3) — only after pioneer stays aboard (FR) or
  * cargo is empty (SP/DU). Cite: ai_euro_early_turn t==3; test-saves-ai/TURN4.
  */
+/*
+ * Resolve first-colony found XY.
+ * Prefer landfall→town table while 06ae+0492 still miss seed-100 Quebec /
+ * New Amsterdam / Isabella (PORT DEBT). Else primary FOUND / live 06ae.
+ */
+static int ai_euro_resolve_first_found_tile(
+  ColonizeTurnContext* ctx,
+  ColonizeUnit* u,
+  int nation_id,
+  int lf_x,
+  int lf_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !u || !out_x || !out_y) {
+    return 0;
+  }
+  if (lf_x >= 0 && ai_euro_found_tile_from_landfall(lf_x, lf_y, out_x, out_y)) {
+    return 1;
+  }
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* g = ai_goals_primary(nation_id, i);
+    if (g && g->code == AI_GOAL_FOUND) {
+      *out_x = (int)g->x;
+      *out_y = (int)g->y;
+      return 1;
+    }
+  }
+  return ai_goals_pick_founding_tile(
+    ctx->map, ctx->colonies, nation_id, u->x, u->y, out_x, out_y
+  );
+}
+
 static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !u || !ctx->map || !ctx->units || !ctx->colonies) {
     return 0;
@@ -9413,25 +9443,28 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
     lf_x = u->goto_x;
     lf_y = u->goto_y;
   }
-  int fx = 0;
-  int fy = 0;
-  if (lf_x < 0 || !ai_euro_found_tile_from_landfall(lf_x, lf_y, &fx, &fy)) {
-    /* Planning may have yanked landfall goto — recover from nearby ship tip. */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* sh = &ctx->units->units[i];
-      if (!sh->active || sh->nation_id != nation_id || !units_is_sea(ctx->units, sh->id)) {
-        continue;
-      }
-      int rx = 0;
-      int ry = 0;
-      if (ai_euro_recover_landfall_from_ship(sh->x, sh->y, &rx, &ry)) {
-        lf_x = rx;
-        lf_y = ry;
-        break;
+  {
+    int discard_x = 0;
+    int discard_y = 0;
+    if (lf_x < 0 || !ai_euro_found_tile_from_landfall(lf_x, lf_y, &discard_x, &discard_y)) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* sh = &ctx->units->units[i];
+        if (!sh->active || sh->nation_id != nation_id || !units_is_sea(ctx->units, sh->id)) {
+          continue;
+        }
+        int rx = 0;
+        int ry = 0;
+        if (ai_euro_recover_landfall_from_ship(sh->x, sh->y, &rx, &ry)) {
+          lf_x = rx;
+          lf_y = ry;
+          break;
+        }
       }
     }
   }
-  if (lf_x < 0 || !ai_euro_found_tile_from_landfall(lf_x, lf_y, &fx, &fy)) {
+  int fx = 0;
+  int fy = 0;
+  if (!ai_euro_resolve_first_found_tile(ctx, u, nation_id, lf_x, lf_y, &fx, &fy)) {
     return 0;
   }
   const int pioneer_aboard = ai_euro_nation_pioneer_aboard(ctx, nation_id);
@@ -9577,8 +9610,12 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       (void)units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL);
       u = units_get(ctx->units, u->id);
     }
-    if (u) {
+    if (u && u->active && u->x == fx && u->y == fy) {
+      ai_euro_set_goto(u, UNITS_ORDER_NONE, fx, fy);
+    } else if (u) {
       ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
+    }
+    if (u) {
       u->moves_left = 0;
     }
     return 1;
