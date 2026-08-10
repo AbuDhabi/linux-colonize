@@ -87,9 +87,12 @@ far return + slot at `DS:7000` on entry; no-hang only counts if stub survives
 in live Memory (overlay reloc).
 
 **Dump `dump_1816` (2026-08-10):** hang **fired** — body is live. Stack ret
-`1930:1554` (overlay Return Vector CS), `param_1=0`. Not dead code. Static
-Ghidra XREF still missing; next peel is who enters that overlay vector.
-Parser: `tools/brave_dump/parse_1816_dump.py`.
+`1930:1554` (overlay Return Vector CS), `param_1=0`. Not dead code.
+
+**Dump `dump_1930_2`:** thunk hang **fired** (`EB FE` @ file `0x1C9A0` /
+mem `0x22858`). `[SS:SP]=CC81:1B87` (+ slot `0`) — aliases into `4d56` act-loop
+`CALL 0934` region; **not** a clean `130d` caller. No static `CALLF` to the
+thunk in the dump. Details: [`vr_1930.md`](../../tools/brave_dump/vr_1930.md).
 
 Brave edge cases: unknown parent / order can skew LCG and “when Indians act
 vs Euros,” which may feed dir/peel mismatches. It does **not** explain the
