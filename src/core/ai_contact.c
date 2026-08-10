@@ -3230,10 +3230,23 @@ static void ai_contact_apply_raid_loot(
   case AI_RAID_NOTHING:
     break;
   case AI_RAID_STORES: {
-    /* FUN_5fef_016c-shaped goods-value pick among lootable warehouse stock. */
+    /*
+     * FUN_5fef_0f14 kind1 + 016c pick: goods-value cargo, remove
+     * clamp(1..10) of up to half stock (decomp ~99913–99925).
+     */
     const int cargo = ai_contact_pick_stores_cargo(c);
     if (cargo >= 0 && c->stock[cargo] > 0) {
-      c->stock[cargo]--;
+      int half = c->stock[cargo] >> 1;
+      if (half > 10) {
+        half = 10;
+      }
+      if (half < 1) {
+        half = 1;
+      }
+      if (half > c->stock[cargo]) {
+        half = c->stock[cargo];
+      }
+      c->stock[cargo] -= half;
     }
     break;
   }
@@ -3281,11 +3294,23 @@ static void ai_contact_apply_raid_loot(
     break;
   case AI_RAID_GOLD:
     if (ctx && ctx->col1_ok && ctx->col1 && target_euro >= 0 && target_euro < 4) {
+      /*
+       * FUN_5fef_0f14 kind4: roll gold drain vs treasury (thin: 32..min(cap,treasury)).
+       * Cite: indian_raid_loot.md; decomp ~99876–99893 / 100017–100030.
+       */
       ColonizeCol1Nation* nat = &ctx->col1->nation[target_euro];
-      if (nat->gold > 25) {
-        nat->gold -= 25;
-      } else if (nat->gold > 0) {
-        nat->gold = 0;
+      if (nat->gold > 0) {
+        unsigned drain = 32u + (unsigned)(c->population > 0 ? c->population * 8 : 8);
+        if (drain < 50u) {
+          drain = 50u;
+        }
+        if (drain > 500u) {
+          drain = 500u;
+        }
+        if (drain > nat->gold) {
+          drain = nat->gold;
+        }
+        nat->gold -= (uint16_t)drain;
       }
     }
     break;

@@ -167,7 +167,8 @@ port I/O in the native build.
 Full orchestration map (Linux `TURN_PROC_*` ↔ DOS `FUN_130d_0290` /
 `FUN_3844_*`, Layer D extracts): [turn_between_players.md](turn_between_players.md)
 · [`original_sources_annotated/turn/between_turns.md`](../original_sources_annotated/turn/between_turns.md)
-(callee depth: production / Europe EOT / census / landfall / mid-pass / ship-spawn).
+(callee depth: production / Europe EOT / census / landfall / mid-pass / ship-spawn /
+fort fire / bells-FF / finish bridge).
 
 Ordered pipeline recovered for the Linux port:
 

@@ -34,7 +34,9 @@ The printed manual says converts are “unwilling to work inside manufacturing c
 Classic order (manual Production view; `README.TXT` “Space = free production”):
 
 1. **Harvest** — town-commons auto-yield + assigned field workers add to warehouse (same turn).
-2. **Food** — each colonist eats **2 food**; surplus accumulates toward growth (**200** food → new free colonist).
+2. **Food** — each colonist eats **2 food**; surplus accumulates toward growth (**200**
+   food → new free colonist — **Done** in `turn_produce_one_colony`). Starvation
+   latch + second-turn colonist loss (**Done**; last colonist preserved).
 3. **Manufacturing** — workers in processing buildings convert **input cargo → output cargo** from warehouse stock (including goods harvested this turn). Unmet input demand creates **shortfalls** (grey / “X” icons in Production view).
 4. **Hammers** — carpenters at Carpenter’s Shop / Lumber Mill consume **lumber** toward `building_in_production`.
 5. **Crosses / liberty bells** — accumulated into immigration / independence counters (not normal warehouse cargo).

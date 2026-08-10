@@ -4309,8 +4309,8 @@
       "FUN_364b_03f6": {
         "system": "colony",
         "purpose": "Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean",
-        "confidence": "inferred",
-        "links": ""
+        "confidence": "known",
+        "links": "turn/coastal_fort_fire.md"
       },
       "FUN_364b_0636": {
         "system": "colony",
@@ -12577,8 +12577,8 @@
       "FUN_291f_09ce": {
         "system": "thunk",
         "purpose": "Far thunk → FUN_364b_03f6 (coastal fort fire: spawn attacks vs enemy ships on adjacent ocean)",
-        "confidence": "inferred",
-        "links": ""
+        "confidence": "known",
+        "links": "turn/coastal_fort_fire.md"
       },
       "FUN_291f_09dc": {
         "system": "thunk",
