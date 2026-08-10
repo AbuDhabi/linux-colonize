@@ -133,7 +133,9 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 - Blank-template stuff census: `col1_stuff_census_fill_blank` (`FUN_4962_0018`);
   mid-campaign census still **DOS-parity preserved** (no freshen)
 - Colony capture: specialty nibbles, `warehouse_level` / `capitol_level`,
-  owner `visible_to_euro`; Col1-only AI timers preserved by xy match
+  owner fog slot on `visible_to_euro` (smcol: whole `[4]` is fog **population**
+  per Euro; +0xbe is fog **fortification** — see [save_format_map.md](save_format_map.md));
+  Col1-only AI timers preserved by xy match
 - Unit `vis_mask`: euro owner bit only on spawn/`units_set_nation`/capture;
   natives export 0 (fixes fog-visible Indians/AI). Ship `holds_occupied` =
   goods only — passengers use `transport_chain` (fixes fake food stacks).
@@ -202,4 +204,4 @@ exactly. `all_unit_counts` / `unit_type_counts` track euro units but can lag
 - [save_format_map.md](save_format_map.md) — field atlas + RE roadmap (P0–P4)
 - [hegemogy/viceroy `savegame.h`](https://github.com/hegemogy/viceroy)
 - [hegemogy/Colonization-SAV-files `Format.md`](https://github.com/hegemogy/Colonization-SAV-files)
-- [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility) (`smcol_sav_struct.json`)
+- [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility) (`smcol_sav_struct.json`, `supplemental-info.md`) — community oracle; see atlas **Smcol audit**

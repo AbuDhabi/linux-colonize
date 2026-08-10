@@ -324,8 +324,8 @@ typedef struct ColonizeCol1Colony {
   uint8_t depletion_counter; /* +0x97; INC, wrap at 50 */
   uint16_t hammers_purchased; /* +0x98; FUN_2f2b_5e44 BUY adds remainder */
   uint16_t stock[COLONIZE_COL1_CARGO_TYPES];
-  uint8_t visible_to_euro[4]; /* +0xba; fog 0x10<<euro — FUN_364b_1ba8 */
-  uint8_t unknown13_pad[4]; /* +0xbe..; found-zero; no reader cite */
+  uint8_t visible_to_euro[4]; /* +0xba; smcol population_on_map — fog pop per Euro; founding writes 1 (FUN_364b_1ba8) */
+  uint8_t unknown13_pad[4]; /* +0xbe; smcol fortification_on_map[4] (0..3); founding 0; lategame fixtures non-zero */
   uint32_t rebel_dividend;
   uint32_t rebel_divisor;
 } ColonizeCol1Colony;
@@ -360,7 +360,7 @@ typedef struct ColonizeCol1Unit {
   uint8_t cargo_item_5 : 4;
   uint8_t cargo_hold[6];
   uint8_t turns_worked;
-  uint8_t profession;
+  uint8_t profession; /* Treasure (type 0x0a): gold/100 — FUN_48d3_06ba / smcol */
   ColonizeCol1TransportChain transport_chain;
 } ColonizeCol1Unit;
 
@@ -522,7 +522,7 @@ typedef struct ColonizeCol1Stuff {
   uint8_t unknown_ds_918c[64];
   uint8_t unknown_ds_9572[64];
   uint8_t unknown_ds_944e[8]; /* pop word totals sibling (FUN_4962_0018 ADD) */
-  uint8_t ui_toggle_336; /* DS:0x336 — FUN_2f2b_* */
+  uint8_t ui_toggle_336; /* DS:0x336 — FUN_2f2b_* (smcol: show_colony_prod_quantities) */
   uint8_t tribe_data_9184[8];
   uint8_t unknown_ds_9622[8];
   uint8_t unknown_ds_962a[8];
@@ -649,7 +649,8 @@ typedef struct ColonizeCol1Map {
 typedef struct ColonizeCol1Save {
   ColonizeCol1Head head;
   ColonizeCol1Player player[COLONIZE_COL1_NATION_COUNT];
-  /* DS:0x948e × 0x18 — save R/W only in unpacked VICEROY (smcol: unexplored + click xy). */
+  /* DS:0x948e × 0x18 — save R/W only in unpacked VICEROY.
+   * Smcol: unknown[18] + click_before_open_colony x,y + unknown[2]. */
   uint8_t other[COLONIZE_COL1_OTHER_SIZE];
   ColonizeCol1Colony* colony;
   ColonizeCol1Unit* unit;
