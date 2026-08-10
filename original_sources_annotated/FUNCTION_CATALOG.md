@@ -1333,7 +1333,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_05d8` | 32030 | 10 | thunk | Far thunk → FUN_2059_005f (sound driver unload/shutdown entry) | inferred |  |
 | `FUN_281f_05e2` | 32040 | 10 | thunk | Far thunk → FUN_2047_011f (read abort-busy flag DS:0x26a2) | inferred |  |
 | `FUN_281f_05ec` | 32050 | 10 | thunk | Far thunk → FUN_75c2_2d28 (768-byte palette snapshot save/restore) | inferred |  |
-| `FUN_281f_05fa` | 32060 | 10 | thunk | Far thunk → FUN_38fd_55b6 (Europe screen entry + event loop) | inferred |  |
+| `FUN_281f_05fa` | 32060 | 10 | thunk | Far thunk → FUN_38fd_55b6 (Europe screen entry + event loop) | inferred | turn/europe_finish_bridge.md |
 | `FUN_281f_0608` | 32070 | 10 | thunk | Far thunk → FUN_2f2b_6cd4 (colony screen entry / main-loop teardown) | inferred |  |
 | `FUN_281f_0614` | 32080 | 10 | thunk | Far thunk → FUN_15eb_0142 (nearest colony by nation/continent; set active) | inferred |  |
 | `FUN_281f_061e` | 32090 | 10 | thunk | Far thunk → FUN_3844_0442 (year-end Euro chrome) | inferred |  |
@@ -1733,10 +1733,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_09a4` | 36000 | 10 | thunk | Far thunk → FUN_364b_1b1a (bind colony; place unit into colonist slot) | inferred |  |
 | `FUN_291f_09b2` | 36010 | 10 | thunk | Far thunk → FUN_364b_1ba8 (found colony: bump 539e; init colony record via DS:0x8542) | inferred |  |
 | `FUN_291f_09c0` | 36020 | 10 | thunk | Far thunk → FUN_364b_0636 (customs-house auto-sell gate for cargo type) | inferred |  |
-| `FUN_291f_09ce` | 36030 | 10 | thunk | Far thunk → FUN_364b_03f6 (coastal fort fire: spawn attacks vs enemy ships on adjacent ocean) | inferred |  |
+| `FUN_291f_09ce` | 36030 | 10 | thunk | Far thunk → FUN_364b_03f6 (coastal fort fire: spawn attacks vs enemy ships on adjacent ocean) | known | turn/coastal_fort_fire.md |
 | `FUN_291f_09dc` | 36040 | 10 | thunk | Far thunk → FUN_364b_0000 (colony message/confirm dialog; may set mode 337) | inferred |  |
 | `FUN_291f_09ea` | 36050 | 10 | thunk | Far thunk → FUN_38fd_0040 (Europe ask: euro_price−1) | inferred |  |
-| `FUN_291f_09f8` | 36060 | 10 | thunk | Far thunk → FUN_4345_0a22 (accrue liberty bells; FF election) | inferred |  |
+| `FUN_291f_09f8` | 36060 | 10 | thunk | Far thunk → FUN_4345_0a22 (accrue liberty bells; FF election) | inferred | turn/nation_ticks_bells_ff.md |
 | `FUN_291f_0a06` | 36070 | 10 | thunk | Far thunk → FUN_478c_00d0 (undo last unit spawn if colonist 0x17) | inferred |  |
 | `FUN_291f_0a14` | 36080 | 10 | thunk | Far thunk → FUN_5fef_1b0e (main combat engagement for move-into) | inferred | ai/move_spent.c §3 |
 | `FUN_291f_0a20` | 36090 | 10 | thunk | Far thunk → FUN_478c_002c (spawn colonist unit type 0x17) | inferred |  |
@@ -1754,7 +1754,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0ac8` | 36210 | 10 | thunk | Far thunk → FUN_6f74_0404 (format nation name into dialog subst) | inferred |  |
 | `FUN_291f_0ad4` | 36220 | 10 | thunk | Far thunk → FUN_6f74_378a (set side-art style=8 then flush dialog) | inferred |  |
 | `FUN_291f_0ae0` | 36230 | 10 | thunk | Far thunk → FUN_38fd_3dc8 (apply tax delta; may boycott) | inferred |  |
-| `FUN_291f_0aee` | 36240 | 10 | thunk | Far thunk → FUN_48d3_0002 (landfall/goto duration roll) | inferred |  |
+| `FUN_291f_0aee` | 36240 | 10 | thunk | Far thunk → FUN_48d3_0002 (landfall/goto duration roll) | inferred | turn/europe_finish_bridge.md |
 | `FUN_291f_0afc` | 36250 | 10 | thunk | Far thunk → FUN_38fd_46d4 (roll next dock immigrant profession) | inferred |  |
 | `FUN_291f_0b0a` | 36260 | 10 | thunk | Far thunk → FUN_38fd_1cf4 (exit Europe drag/sound mode) | inferred |  |
 | `FUN_291f_0b18` | 36270 | 10 | thunk | Far thunk → FUN_38fd_199e (force-refresh Europe panels) | inferred |  |
@@ -1883,8 +1883,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0210` | 37450 | 10 | mapgen | Far thunk → FUN_6662_0f74 (unit goto next-step director) | inferred |  |
 | `FUN_2a1f_021c` | 37460 | 10 | colony | EMS thunk → FUN_647e_057a (read packed building/cargo nibble) | inferred |  |
 | `FUN_2a1f_022a` | 37470 | 10 | colony | EMS thunk → FUN_647e_0522 (read packed colonist-slot nibble) | inferred |  |
-| `FUN_2a1f_0238` | 37480 | 10 | mapgen | Far thunk → FUN_48d3_064e (For each ship on tile, spiral-place near landfall goto) | inferred | docs/ai_transcription.md |
-| `FUN_2a1f_0246` | 37490 | 10 | mapgen | Far thunk → FUN_48d3_03d0 (Tick landfall delay; move/act unit when expired) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_0238` | 37480 | 10 | mapgen | Far thunk → FUN_48d3_064e (For each ship on tile, spiral-place near landfall goto) | inferred | turn/europe_finish_bridge.md |
+| `FUN_2a1f_0246` | 37490 | 10 | mapgen | Far thunk → FUN_48d3_03d0 (Tick landfall delay; move/act unit when expired) | inferred | turn/europe_finish_bridge.md |
 | `FUN_2a1f_0254` | 37500 | 10 | mapgen | Far thunk → FUN_48d3_0434 (Tile OK for HS landfall ship place?) | inferred | docs/ai_transcription.md |
 | `FUN_2a1f_0262` | 37510 | 10 | mapgen | Far thunk → FUN_48d3_048e (Spiral-place ship on HS near landfall goto) | inferred | src/core/ai.c |
 | `FUN_2a1f_0270` | 37520 | 10 | ai | indian_relation_tick thunk→4962_06b6 (recount tribes/units/goods) | known | original_sources_annotated/ai/indian_nation_turn.c |
@@ -2283,7 +2283,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_364b_0000` | 56822 | 60 | colony | Colony message/confirm dialog (title from DS:0x8542+2; may set mode 337) | inferred |  |
 | `FUN_364b_0114` | 56882 | 95 | colony | Complete construction project; apply upgrades/flags and reset hammers | inferred |  |
 | `FUN_364b_033a` | 56977 | 39 | colony | Area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7 | inferred |  |
-| `FUN_364b_03f6` | 57016 | 107 | colony | Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean | **Done** thin (`units_coastal_fort_fire_pulse`); ship-slow PARK |
+| `FUN_364b_03f6` | 57016 | 107 | colony | Coastal fort fire: spawn attacks vs enemy ships on adjacent ocean | **Done** thin (`units_coastal_fort_fire_pulse`); ship-slow PARK | turn/coastal_fort_fire.md |
 | `FUN_364b_0636` | 57123 | 29 | colony | Customs-house auto-sell gate for cargo type | inferred |  |
 | `FUN_364b_0688` | 57152 | 803 | colony | Colony EOT production/stock/SoL/construction tick (DS:0x8542) | inferred | turn/colony_eot_production.md |
 | `FUN_364b_1aec` | 57955 | 15 | colony | Bind colony; assign unit into workplace via 2f3e | inferred |  |
@@ -2379,7 +2379,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_4e8e` | 64915 | 974 | trade | Europe mouse/drag input dispatcher; decomp noisy | inferred |  |
 | `FUN_38fd_4f6e` | 65889 | 2205 | trade | Europe keyboard/hotkey input dispatcher; decomp noisy | inferred |  |
 | `FUN_38fd_5580` | 68094 | 20 | trade | Clear drag-pending flag; refresh market strip | inferred |  |
-| `FUN_38fd_55b6` | 68114 | 134 | trade | Europe screen entry + main event loop | inferred | docs/assets.md |
+| `FUN_38fd_55b6` | 68114 | 134 | trade | Europe screen entry + main event loop | inferred | turn/europe_finish_bridge.md; docs/assets.md |
 | `FUN_38fd_584a` | 68248 | 57 | trade | Recruit-passage / immigration pressure score | inferred |  |
 | `FUN_38fd_5930` | 68305 | 115 | trade | Europe EOT FF cargo gift / grant | inferred |  |
 | `FUN_38fd_5be8` | 68420 | 119 | trade | King tax-raise proposal dialog | inferred | docs/savegame.md |
@@ -2445,7 +2445,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_4345_0342` | 73044 | 133 | trade | Apply elected founding-father effects | inferred |  |
 | `FUN_4345_06d2` | 73177 | 116 | trade | FF congress debate / nominate UI | inferred |  |
 | `FUN_4345_0982` | 73293 | 40 | trade | Compute next liberty-bell threshold | inferred |  |
-| `FUN_4345_0a22` | 73333 | 144 | trade | Accrue liberty bells; trigger FF election | inferred |  |
+| `FUN_4345_0a22` | 73333 | 144 | trade | Accrue liberty bells; trigger FF election | inferred | turn/nation_ticks_bells_ff.md |
 
 ### Segment `43f7` (21 defs) — ai/ui — King/REF/tax/independence + @COUNTRY colors
 
@@ -2521,14 +2521,14 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_48d3_0002` | 77563 | 29 | ai | Landfall/goto duration roll (1 or 2 turns; docks/colony count) | inferred | docs/ai_transcription.md |
+| `FUN_48d3_0002` | 77563 | 29 | ai | Landfall/goto duration roll (1 or 2 turns; docks/colony count) | inferred | turn/europe_finish_bridge.md |
 | `FUN_48d3_007a` | 77592 | 44 | ai | Landfall arrival: stack goto/unload setup from active unit tile | inferred | docs/ai_transcription.md |
 | `FUN_48d3_015e` | 77636 | 96 | ai | Spiral-find nearest High Seas tile; set sail/goto order | inferred | docs/ai_transcription.md |
 | `FUN_48d3_0346` | 77732 | 29 | ai | Retarget stacked units after landfall/colony-goto arrival | inferred | docs/ai_transcription.md |
-| `FUN_48d3_03d0` | 77761 | 25 | ai | Tick landfall delay (315a); move/act unit when expired | inferred | docs/ai_transcription.md |
+| `FUN_48d3_03d0` | 77761 | 25 | ai | Tick landfall delay (315a); move/act unit when expired | inferred | turn/europe_finish_bridge.md |
 | `FUN_48d3_0434` | 77786 | 24 | ai | Tile OK for HS landfall ship place? (bounds, HS, owner) | inferred | docs/ai_transcription.md |
 | `FUN_48d3_048e` | 77810 | 95 | ai | Spiral-place ship on HS near landfall goto (Euro AI) | inferred | src/core/ai.c |
-| `FUN_48d3_064e` | 77905 | 38 | ai | For each ship on tile, spiral-place near landfall goto (048e) | inferred | docs/ai_transcription.md |
+| `FUN_48d3_064e` | 77905 | 38 | ai | For each ship on tile, spiral-place near landfall goto (048e) | inferred | turn/europe_finish_bridge.md |
 | `FUN_48d3_06ba` | 77943 | 150 | ai | Europe-exit landfall: tax treasures; focus arriving ship | inferred | turn/europe_exit_landfall.md; docs/ai_transcription.md |
 
 ### Segment `4962` (4 defs) — ai — Per-nation unit/colony/cargo census tallies

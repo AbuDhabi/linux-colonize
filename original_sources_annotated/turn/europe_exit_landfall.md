@@ -7,7 +7,8 @@
 | Host | `FUN_3844_00f2` after Europe nation EOT |
 
 Bridge: [`between_turns.md`](between_turns.md) ·
-[`docs/ai_transcription.md`](../../docs/ai_transcription.md).
+[`docs/ai_transcription.md`](../../docs/ai_transcription.md) ·
+[`europe_finish_bridge.md`](europe_finish_bridge.md) (helpers / Europe UI).
 
 ## Phases
 
@@ -38,7 +39,7 @@ Europe→map place: `48d3_048e` via `2a1f_0262` (Linux
 
 | DOS | Linux | Fidelity |
 |-----|-------|----------|
-| Treasure tax cash-in | `europe_cash_treasure` (+ Cortes path) | **Partial** |
+| Treasure tax cash-in | `europe_cash_treasure` (+ Cortes path) | **Done** — Crown cut `min(tax, 50)` |
 | Arriving-ship Europe focus | `game_europe_deliver_bound_ships` | Reshape |
 | Landfall delay ticks | Voyage timers / AI goto | Split |
 | Map landfall coords | `map_gen_euro_landfall` | Mapgen |

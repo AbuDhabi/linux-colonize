@@ -98,8 +98,11 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_3844_0004` | `eot_treasure_tick` | `turn/nation_eot.c` | `units_tick_treasure_outside_colony` |
 | `FUN_3844_00f2` | `nation_eot` | `turn/nation_eot.c` + `nation_eot_ship_spawn.md` | Split: SETUP production/ticks + EURO treasure + FINISH king/market |
 | `FUN_3844_0442` | `year_end_chrome` (full UI mapped) | `turn/year_end_chrome.c` + `year_end_chrome.md` | PARKED dialogs; king/war thin in `ai_king` |
-| `FUN_364b_0688` | `colony_eot_production` | `turn/colony_eot_production.md` | `turn_run_colony_production` (partial) |
-| `FUN_38fd_5e52` / `0058` | Europe nation EOT / market | `turn/europe_nation_eot.md` | Market in FINISH; rest PARKED |
+| `FUN_364b_0688` | `colony_eot_production` | `turn/colony_eot_production.md` | Partial — birth/starve Done; F–H mapped |
+| `FUN_364b_03f6` / `291f_09ce` | `coastal_fort_fire` | `turn/coastal_fort_fire.md` | `units_coastal_fort_fire_pulse` / `turn_run_coastal_fort_fire` |
+| `FUN_38fd_5e52` / `0058` | Europe nation EOT / market | `turn/europe_nation_eot.md` | Market half Done thin; 5e52 arms mapped |
+| `FUN_4345_0a22` / `291f_09f8` | bells + FF elect | `turn/nation_ticks_bells_ff.md` | `turn_run_nation_ticks` / `founding_fathers_tick` |
+| `FUN_48d3_0002` / `03d0` / `064e` + `38fd_55b6` | finish / Europe UI bridge | `turn/europe_finish_bridge.md` | `game_finish_end_turn` reshape |
 | `FUN_4962_0018` / `0606` | census / profession tally | `turn/census_tally.md` | Blank fill partial; live EOT lag |
 | `FUN_48d3_06ba` | Europe-exit landfall / tax | `turn/europe_exit_landfall.md` | Treasure tax / arrivals reshape |
 | `FUN_5bfb_00f8` / `4d56_1b3a` | rank euros / mid Indian tables | `turn/mid_pass_indian_rank.md` | Rank PARKED; Indians reshape |
@@ -171,6 +174,8 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] Between-turns Layer D (`turn/year_loop.c`, `nation_eot.c`, `year_end_chrome.c`, `between_turns.md`)
 - [x] Between-turns callee maps (production / Europe EOT / census / landfall / mid-pass / ship-spawn)
+- [x] Between-turns deep interiors (0688 F–H/K/O–P, 5e52/0058, fort fire, bells/FF, finish bridge)
+- [x] Between-turns port peels: birth/starve, treasure tax cap, price_group half, raid STORES/GOLD
 - [x] Parked-body maps: `20e6` land/ship, `2820` nest, `4528` head, `2154` meet score, `5fef` loot, `0442` UI
 - [x] This symbol map
 

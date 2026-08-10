@@ -541,6 +541,21 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+    /* FUN_48d3_06ba: Crown cut caps at 50% even if tax_rate is higher. */
+    eu.tax_percent = 75;
+    const int gold2 = eu.gold;
+    const int capped = europe_cash_treasure(&eu, 1000);
+    if (capped != 500 || eu.gold != gold2 + 500) {
+      fprintf(
+        stderr,
+        "cash_treasure 75%% tax must cap at 50%% credited=%d gold %d→%d\n",
+        capped,
+        gold2,
+        eu.gold
+      );
+      europe_free(&eu);
+      return 1;
+    }
   }
 
   /* Disembark Treasure passenger: cash-in + do not land as dock immigrant. */
@@ -761,7 +776,7 @@ int main(void) {
     europe_apply_volume_price(&tick, tg, 50, 0);
     const int nr1 = tick.trade_nr[tg];
     const int attr = tick.cargo[tg].attrition;
-    europe_tick_market_prices(&tick);
+    europe_tick_market_prices(&tick, NULL, NULL);
     if (tick.trade_nr[tg] != (int16_t)(nr1 + attr)) {
       fprintf(
         stderr,
@@ -782,6 +797,38 @@ int main(void) {
     }
     fprintf(stderr, "europe EOT market attrition tick ok\n");
     europe_free(&tick);
+  }
+
+  /* Colony → price_group_state half peel (0058 / DS:0x53ea). */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    col->stock[COLONIZE_CARGO_FOOD] = 256; /* >>7 = 2 */
+    pool.colony_count = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.price_group_state[COLONIZE_CARGO_FOOD] = 10;
+
+    EuropeScreen tick;
+    memset(&tick, 0, sizeof(tick));
+    tick.cargo_count = COLONIZE_CARGO_COUNT;
+    europe_tick_market_prices(&tick, &col1, &pool);
+    if (col1.head.price_group_state[COLONIZE_CARGO_FOOD] != 8) {
+      fprintf(
+        stderr,
+        "price_group decay want 8 got %u\n",
+        (unsigned)col1.head.price_group_state[COLONIZE_CARGO_FOOD]
+      );
+      return 1;
+    }
+    fprintf(stderr, "europe price_group colony half ok\n");
   }
 
   europe_free(&eu);

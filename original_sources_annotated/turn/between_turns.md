@@ -12,9 +12,12 @@ Annotated extracts:
 | `FUN_3844_00f2` + `0004` | [`nation_eot.c`](nation_eot.c) |
 | Ship-ready + immigrant spawn arms | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) |
 | `FUN_364b_0688` production | [`colony_eot_production.md`](colony_eot_production.md) |
+| `FUN_364b_03f6` coastal fort fire | [`coastal_fort_fire.md`](coastal_fort_fire.md) |
 | `FUN_38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) |
 | `FUN_4962_0018` / `0606` | [`census_tally.md`](census_tally.md) |
 | `FUN_48d3_06ba` | [`europe_exit_landfall.md`](europe_exit_landfall.md) |
+| `48d3` helpers + `38fd_55b6` | [`europe_finish_bridge.md`](europe_finish_bridge.md) |
+| `FUN_4345_0a22` bells / FF | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) |
 | Mid-pass `1b3a` + rank `5bfb_00f8` + `1816` XREF | [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) |
 | `FUN_3844_0442` | [`year_end_chrome.c`](year_end_chrome.c) · [`year_end_chrome.md`](year_end_chrome.md) |
 
@@ -125,14 +128,17 @@ game_do_end_turn
 
 ## Orchestration callees (mapped)
 
-| DOS body | Map | Port |
-|----------|-----|------|
-| `364b_0688` | [`colony_eot_production.md`](colony_eot_production.md) | Partial production |
-| `38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) | Market partial; rest PARKED |
-| `4962_0018` / `0606` | [`census_tally.md`](census_tally.md) | Blank census partial; live EOT lag |
-| `48d3_06ba` | [`europe_exit_landfall.md`](europe_exit_landfall.md) | Treasure/tax partial |
+| DOS body | Map | Depth / port |
+|----------|-----|--------------|
+| `364b_0688` | [`colony_eot_production.md`](colony_eot_production.md) | **Deepened** F–H/K/O–P + B/C/D; birth/starve **Done** |
+| `364b_03f6` | [`coastal_fort_fire.md`](coastal_fort_fire.md) | Phase map; Linux SETUP reshape; pulse **Done** thin |
+| `38fd_5e52` / `0058` | [`europe_nation_eot.md`](europe_nation_eot.md) | **Deepened** 5e52§4–6 + 0058§1–3; market half **Done** thin |
+| `4962_0018` / `0606` | [`census_tally.md`](census_tally.md) | Phase map; blank census partial; live EOT lag |
+| `48d3_06ba` | [`europe_exit_landfall.md`](europe_exit_landfall.md) | Phase map; treasure tax cap **Done** |
+| `48d3_03d0`/`0002`/`064e` + `55b6` | [`europe_finish_bridge.md`](europe_finish_bridge.md) | Helpers + Europe UI gate; bound deliver reshape |
+| `4345_0a22` | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) | Accrue+elect; Linux ticks Partial |
 | `5bfb_00f8` / `4d56_1b3a` | [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md) | Rank PARKED; Indians reshape |
-| Ship-ready / spawn | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) | PARKED / ticks elsewhere |
+| Ship-ready / spawn | [`nation_eot_ship_spawn.md`](nation_eot_ship_spawn.md) | Arms mapped; port PARKED / ticks elsewhere |
 
 Planner guts (not EOT orchestration, but contact siblings):
 
@@ -143,9 +149,9 @@ Planner guts (not EOT orchestration, but contact siblings):
 
 ## Open RE
 
-- `MULTINEXT` / `TIMECHANGE` / `SEASONS` strings: table only, no FUN_* XREF yet
-- `FUN_4d56_1816` call site unresolved in export (overlay/thunk gap); Linux still runs `1816`-shaped nation turns — hunt notes in [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md)
-- Demo autoplay tail in `130d` (`0x828`): PARKED
+- `MULTINEXT` / `TIMECHANGE` / `SEASONS`: string table only — **reconfirmed** no FUN_* XREF ([`mid_pass_indian_rank.md`](mid_pass_indian_rank.md))
+- `FUN_4d56_1816` call site unresolved — **reconfirmed** definition-only @81543
+- Demo autoplay / independence splash (`130d_019e` / `0222`): PARKED; thin LAB in [`year_loop.c`](year_loop.c)
 - `FUN_3844_0442` dialogs: **UI mapped** in [`year_end_chrome.md`](year_end_chrome.md); port PARKED
 - Deep AI bodies (`20e6` land/ship, `2820`, `4528`, `2154`, loot): **mapped**; port PARKED — see
   [`move_scoring_land.md`](../ai/move_scoring_land.md),

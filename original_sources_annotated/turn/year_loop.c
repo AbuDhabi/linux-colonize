@@ -75,8 +75,9 @@ void autosave_pick_slot(void) {
 }
 
 /*
- * Ghidra: FUN_130d_019e | demo_end_splash
- * Compose demo/autoplay end strings → FUN_130d_000a. PARKED in Linux.
+ * Ghidra: FUN_130d_019e | demo_end_splash  (~lines in year_loop extract)
+ * PARKED. Compose demo/autoplay end → FUN_130d_000a.
+ * LAB sketch: load string ids 0x106…; strcat nation/year crumbs; call 000a.
  */
 void demo_end_splash(void) {
   /* strcpy/strcat string ids 0x106..; FUN_130d_000a(buf) */
@@ -84,7 +85,8 @@ void demo_end_splash(void) {
 
 /*
  * Ghidra: FUN_130d_0222 | independence_splash
- * Compose independence-declared splash → 000a. PARKED (king path thin).
+ * PARKED (king path thin). Compose independence-declared → 000a.
+ * LAB sketch: string ids 0x11b…; optional crown name subst; FUN_130d_000a.
  */
 void independence_splash(void) {
   /* string ids 0x11b..; FUN_130d_000a(buf) */

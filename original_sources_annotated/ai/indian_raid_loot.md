@@ -69,8 +69,6 @@ Then clear war/chrome word at `(param_3*9 + euro)*2 + 0x54f6`.
 
 Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
 
-### Linux
-
-`@RAID*` kind picker in `ai_contact_indian_raids` — **structural**; not
-line-faithful to `0f14` RNG ladders. Friction/alarm escalate documented in
-raid_outcomes. Deep `0f14` port **PARKED**.
+**Linux:** `@RAID*` kind picker in `ai_contact_indian_raids` — structural.
+STORES half-stock clamp **Done** thin; GOLD drain peel **Done** thin. Full
+`0f14` RNG ladders / tension `0d6c` still **PARKED**.

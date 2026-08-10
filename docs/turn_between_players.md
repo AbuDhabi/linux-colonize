@@ -8,8 +8,9 @@ internals stay in [ai_transcription.md](ai_transcription.md).
 Layer D extracts + thin callgraph:
 [`original_sources_annotated/turn/`](../original_sources_annotated/turn/)
 ([`between_turns.md`](../original_sources_annotated/turn/between_turns.md)).
-Callee depth maps: production, Europe EOT/market, census, landfall, mid-pass
-rank/`1b3a`, ship-ready/spawn (same folder).
+Callee depth maps: production (deepened), Europe EOT/market (deepened), census,
+landfall, mid-pass rank/`1b3a`, ship-ready/spawn, fort fire, bells/FF, finish
+bridge (same folder).
 
 Bring-up checklist (shorter): [decomp_inventory.md](decomp_inventory.md)
 “End-of-turn recovery checklist”.
@@ -133,14 +134,14 @@ Major thunks (catalog):
 |------------|----------|--------------|----------|
 | Human already done | `2b5a_3b68` inside `130d` | (prior frame) | Reshape — intentional |
 | SETUP calendar | `130d` post-nation tick | `turn_advance_calendar` | **Done** (`@TIMECHANGE`) |
-| SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** — map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
+| SETUP production | `364b_0688` in `00f2` | `turn_run_colony_production` | **Partial** — birth/starve **Done**; map [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) |
 | SETUP fort fire | `364b_03f6` | `turn_run_coastal_fort_fire` | **Done** |
 | SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** — [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md) |
 | EURO treasure | `3844_0004` | `units_tick_treasure_outside_colony` | **Partial** |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
 | INDIAN | `4d56_1b3a` mid only; `1816` XREF open | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md) |
 | FINISH king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
-| FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md) |
+| FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half **Done** thin |
 | FINISH human refresh | return to Move Pieces | MP + select next | **Done** |
 | FINISH autosave | `130d_0172` | autosave flags | **Done** |
 | Year-end chrome | `3844_0442` | — | **UI mapped** ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md)); port **PARKED** |
@@ -174,21 +175,27 @@ Linux runs; Linux is Euro AI then Indians.
 
 ## Open RE
 
-- **`MULTINEXT` / `TIMECHANGE` / `SEASONS`**: present in `viceroy_unpacked.asm`
-  string table; no FUN_* XREF yet (calendar behavior recovered from `@TIMECHANGE`
-  + `130d` year/autumn math).
-- **`FUN_4d56_1816` call site**: unresolved in the Ghidra export (overlay/thunk
-  gap). Hunt notes:
-  [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md).
-  Linux still implements `1816`-shaped nation turns from annotated structure.
+- **`MULTINEXT` / `TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
+  no FUN_* XREF ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
+  Calendar from `@TIMECHANGE` + `130d` year/autumn math.
+- **`FUN_4d56_1816` call site**: unresolved (**reconfirmed** definition-only
+  @81543). Hunt notes in same mid-pass doc. Linux still runs `1816`-shaped
+  nation turns.
 - **`FUN_3844_0442`**: **UI mapped**
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
   victory / defeat / anniversary / auto-declare dialogs not ported as a module.
-- **Demo / independence splash** (`130d_019e` / `0222`): PARKED.
+- **Demo / independence splash** (`130d_019e` / `0222`): PARKED; thin LAB in
+  [`year_loop.c`](../original_sources_annotated/turn/year_loop.c).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
   under `original_sources_annotated/ai/`; Linux port still PARKED (unpark #4).
 - **Nation EOT arms** (ship-ready / immigrant spawn / full census freshen):
   mapped; mostly PARKED vs SETUP ticks + finish deliveries.
+- **Deep-map pass (docs):** `0688` F–H/K/O–P, `5e52`/`0058` interiors,
+  [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md),
+  [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md),
+  [`europe_finish_bridge.md`](../original_sources_annotated/turn/europe_finish_bridge.md).
+- **Unparked earlier (port):** colony birth + starve-kill; treasure tax
+  `min(tax,50)`; market `price_group_state` half; raid STORES/GOLD peels.
 
 ---
 

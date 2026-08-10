@@ -13,16 +13,13 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 
 **Port status:** Linux **Partial** — spine in `turn_run_colony_production` /
 `turn_produce_one_colony` (`src/core/turn.c`); shared rules in
-`colony_production.c` / `colony_craft.c`. Education, birth, starve-kill,
-building advisories, and most dialog chrome **PARKED** or thin.
+`colony_production.c` / `colony_craft.c`. **Birth + starve-kill Done** (I–J).
+F–H / K / O-sell / P msgs **mapped** below; port **PARKED**.
 
-## Sibling note — `FUN_364b_03f6` (coastal fort fire)
+## Sibling — `FUN_364b_03f6` (coastal fort fire)
 
-@57016–57118 (~107 lines); thunk `291f_09ce`. Counts coastal batteries,
-walks 8 ocean adjacencies, finds hostile ships (type 0xd..0x12), rolls hit
-vs fort power. **Linux:** `units_coastal_fort_fire_pulse` /
-`turn_run_coastal_fort_fire`. DOS nests this inside `0688` prologue; Linux
-runs it as a separate SETUP pulse after all colony production (reshape).
+Full map: [`coastal_fort_fire.md`](coastal_fort_fire.md). Nested here at
+`57227` (`291f_09ce`); Linux SETUP after all colony production (reshape).
 
 ## Colony offsets touched
 
@@ -81,14 +78,126 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | Complete build | `291f_097a` | `364b_0114` |
 | Depletion tile | `291f_0988` | `364b_033a` |
 
+## Deep — B / C / D formulas
+
+### B — cargo apply (57238–57348)
+
+- Per cargo `0..15`: net = `0b50(cargo)`; AI/Indian uses scratch gross−reserve
+  (`−0x7238` / `−0x71f6`) instead of live net.
+- Food (`cargo==0`) AI: `+= difficulty>>1` (`0x53a6`).
+- Add into `stock[+0x9a+2*c]`; floor 0.
+- Custom House (`09fc(0x12)` + mask): if stock>99 and eligible → sell
+  `stock−50` via `0a2e` (leave 50). Linux: `europe_custom_house_autosell`.
+- OR `cargo_produced_mask` (`+0x90`) when net>0; surplus clamp vs warehouse
+  `0d3a` → `aiStack_e4[c]` caps.
+
+### C — SoL accumulators (57349–57414)
+
+- SoL % = `0c86` → `local_b8`.
+- Rebel/Tory pair words `+0xc6/+0xc2` (and siblings) accumulate from bells
+  vs Tory pressure; decade-crossing chrome gated by prior SoL decade
+  (`local_8e`).
+
+### D — SoL / Tory / starve latches (57415–57485)
+
+| Condition | Flag `+0x1c` | Msg (human) |
+|-----------|--------------|-------------|
+| SoL ≥50 and bit4 clear | OR **0x04** (sol_50) | `0xd8a` |
+| SoL ≥100 and bit2 clear | OR **0x02** (sol_100) | `0xd98` |
+| SoL &lt;95 with bit2 set | AND ~0x02 | `0xda7` |
+| SoL &lt;50 with bit4 set | AND ~0x04 | `0xdb4` |
+| Decade up / down | chrome only | `0xdc1` / `0xdc8` |
+| Tory pressure ≥ difficulty band | OR / clear **0x08** (starvation-named bit; DOS Tory path) | `0xdd1` / `0xddd` |
+
+Linux `COLONIZE_COLONY_FLAG_STARVATION` is a **food-vs-need reshape** of bit3,
+not the Tory latch above. `colony_prod_refresh_sol_flags` covers sol_50/100.
+
+## Deep — F / G / H education
+
+### F — scan (57502–57539)
+
+For each colonist `i < pop`:
+
+- `0d1c` → turns-in-job counter; `0c0e` → specialty; `0c54` → current job.
+- Jobs **0x19 / 0x1a / 0x1c / 0x13** (schoolhouse student band) → append to
+  student list `aiStack_126` (`local_c4++`).
+- Specialty **0x12** (teacher) and &lt;3 teacher slots: map student-job →
+  schoolhouse level via table `job*8 + −0x715a`; need turns 4/6/8 by level;
+  if turns-in-job ≥ need → push teacher job into `aiStack_7e[local_6e++]`.
+- `0a7e` refresh colonist chrome.
+
+### G — graduate (57540–57589)
+
+For each pending teacher slot:
+
+- If no students: msg `0xde7` and break.
+- Pick random student index `04d4(0, c4−1)`.
+- If student job **0x1a** → set job **0x19** (`0cae`); msg `0xdf1`.
+- Else if **0x19** → set **0x1c**; msg `0xdff`.
+- Else set job = teacher’s target from `aiStack_7e`; subst name `−0x715e`;
+  msg `0xe0f`.
+- Compact student list.
+
+### H — random skill (57590–57614)
+
+Per colonist: skip Treasure job `0x1b`; skip if `0c9a` says already skilled;
+specialty in `1..4` and nation skill-flag at `specialty−0x6bd0` clear:
+
+- Threshold RNG: base 99; job 0x19 → 199; job 0x1a → +200.
+- On roll 0: set skill flag; `0cae` assign specialty; msg `0xe1f`.
+
+**Port:** F–H **PARKED**.
+
+## Deep — K build advisories (57696–57728)
+
+Gated `!(0x5384 & 0x20)`. Scratch demand words vs missing net yield:
+
+| Scratch | Probe `0b50` | Msg |
+|---------|--------------|-----|
+| `0x8e64` | cargo 0x10 (hammers/tools class) ==0 | `0xe66` |
+| `0x8e60` | 0xb | `0xe6d` |
+| `0x8e5e` | 0xa | `0xe74` |
+| `0x8e5c` | 9 | `0xe7c` |
+| `0x8e62` | 0xc | `0xe86` |
+| `0x8e66` | 0xf == 0xe (paired) | `0xe8b` |
+| `0x8e76` | 0xf ==0 | `0xe8f` |
+
+**Port:** chrome **PARKED**.
+
+## Deep — O / P AI dump-sell + spoilage msgs
+
+### O — AI dump-sell + trim (57806–57873)
+
+For cargo `1..15` with surplus `stock − warehouse_cap > 0`:
+
+- **Non-human** owner: sell surplus via `291f_0a2e`; muskets (0xf) convert
+  batches of 50 into Europe block counter; horses (8) add full surplus to
+  Europe horses word; credit Europe gold ledgers `+0xbc/+0x7c/+0x2a`.
+- Then spoilage: if surplus &gt; reserved cap `aiStack_e4[c]`, subtract excess
+  (lose `local_74` if ≥2) or clamp stock to cap.
+
+Linux: `colonies_apply_warehouse_spoilage` (trim only); no AI auto-sell.
+
+### P — spoilage msgs (57874–57931)
+
+- If any cargo spoiled (`local_72`): single-cargo subst vs multi `0xeb4`;
+  warehouse_level&gt;1 bumps string; dialog `09dc`.
+- Human century-crossing stock msgs `0xebb` / tip `0xec7` once
+  (`5387|2`) when stock crosses 100s.
+
+**Port:** msgs **PARKED**; trim **Done**.
+
 ## Linux correspondence
 
 | DOS | Linux |
 |-----|-------|
-| A fort fire (nested) | Separate SETUP `turn_run_coastal_fort_fire` |
+| A fort fire (nested) | Separate SETUP — [`coastal_fort_fire.md`](coastal_fort_fire.md) |
+| A bells/FF | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) |
 | B cargo apply | `turn_produce_one_colony` + craft/yield — **Partial** |
-| B Custom House | `europe_custom_house_autosell` |
-| C/D SoL flags | `colony_prod_refresh_sol_flags` |
+| B Custom House | `europe_custom_house_autosell` **Done** |
+| C/D SoL flags | `colony_prod_refresh_sol_flags` (sol_50/100); food starve reshape |
 | L hammers | `colony_prod_colony_hammers` + complete |
-| O spoilage | `colonies_apply_warehouse_spoilage` |
-| F–J education/birth/kill | **PARKED** / thin (starvation flag only) |
+| O spoilage trim | `colonies_apply_warehouse_spoilage` |
+| O AI dump-sell | **PARKED** |
+| F–H / K / P | **Mapped**; port **PARKED** |
+| I birth / J starve-kill | **Done** (`turn_produce_one_colony`) |

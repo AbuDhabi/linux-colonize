@@ -346,9 +346,15 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy);
 /*
  * FUN_38fd_0058 EOT peel (param_2 < 0): nr += attrition per cargo, then
- * rise/fall ±1 within [low,high]. Cite: viceroy_unpacked.c FUN_38fd_0058.
+ * rise/fall ±1 within [low,high]. Optional col1/colonies apply the colony
+ * ledger → price_group_state half (DS:0x53ea). Cite: viceroy_unpacked.c
+ * FUN_38fd_0058; turn/europe_nation_eot.md.
  */
-void europe_tick_market_prices(EuropeScreen* eu);
+void europe_tick_market_prices(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  struct ColonizeColonyPool* colonies
+);
 /*
  * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
  * No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).

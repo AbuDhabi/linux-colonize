@@ -83,4 +83,71 @@ Bridge: [`between_turns.md`](between_turns.md) ·
 |-----|-------|
 | EOT all-cargo | `europe_tick_market_prices` |
 | Post buy/sell | `europe_apply_volume_price` |
-| Colony → `0x53ea` half | **PARKED** |
+| Colony → `0x53ea` half | **Done** thin — `europe_tick_market_prices(eu, col1, colonies)` decays `head.price_group_state[c]` by colony stock sum `>> 7` |
+
+---
+
+## Deep — `5e52` phases 4–6
+
+Cite: **68558–68620**.
+
+### Phase 4 — immigration pressure (`584a`)
+
+| Item | Detail |
+|------|--------|
+| Lines | **68558–67** |
+| Call | `0b34`→`38fd_584a(DS:0x9e12, &local_c)` |
+| Write | `Europe+0x30 = score`; `Europe+0x2e += delta`; clamp `+0x2e ≥ 0` |
+
+`584a` (**68248–68300**): sum colony pops + unit count; `<<1` if &lt;4000; `+8`;
+cap 4000; AI scales `(8−diff)>>3`; nation0 `*2/3`.
+
+### Phase 5 — dock immigrant vs Recruit
+
+Gate: **`+0x30 < +0x2e`** (**68568**).
+
+| Branch | Steps |
+|--------|-------|
+| Spawn path | Clear `+0x2e`. Slot `04d4(0,2)`. **`46d4((0x538e&3)==0)`** season quad. **`0718(old_prof)`** harbor spawn; human msgs `0x1190` / tip `0x1197`; Europe flags `\|0x40` |
+| Else | **`4884(0,1)`** Recruit UI |
+| Human follow | May set **`DS:0x14c=1`** (open Europe — see [`europe_finish_bridge.md`](europe_finish_bridge.md)) |
+
+Callee args: `46d4(int season_force)`; `0718(int profession)`; `4884(0,1)`.
+
+### Phase 6 — tax then FF gift
+
+| Lines | Call | Meaning |
+|-------|------|---------|
+| 68617 | `0b7a`→`5be8()` | King tax audience; **1** = dialog ran |
+| 68618–19 | if **0**: `0c84`→`5930()` | FF cargo/gold grant path |
+
+Linux: dock immigrants / crosses in `turn_run_nation_ticks`; tax in `ai_king`;
+atomic `5e52` **PARKED**.
+
+---
+
+## Deep — `0058` phases 1–3
+
+Cite: **58787–58929** (phase 4 attrition already in table above).
+
+### Phase 1 — price_group + ledger half
+
+For `g=0..0xf`: seed from `DS:0x53ea[g]`; add nation ledgers at
+`(n*0x4f+g)*4 − 0x76fc`. If `param_1==0` and `0x9e12==0`:
+`0x53ea[g] −= (sum >> 7)`. Linux approximates with colony stock `>>7`.
+
+### Phase 2 — cargos **9..12**
+
+`sum = au[9]+…+au[12]`; per cargo ratio vs `0ec6(sum×3, cargo)`;
+`sign = sgn(bid[+0x4c] − ratio)`. EOT (`param_1==0`):
+`pressure[+0x5c] += sign * ((rise+fall)/2) * **100**`. Else clamp bid into
+`[low,high]`.
+
+### Phase 3 — cargos **1..4** (`param_1==0` only)
+
+Denom from half cargo-0 + au[1..3]; cargo **4** halves ledger before ratio;
+year &lt;`0x6a4` / &lt;`0x640` → +1/+2 to target. Nudge:
+`pressure[+0x5c] += ((rise+fall)/2) * sign` — **no ×100**.
+
+Cross-links: [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) ·
+[`ai/king_ref.md`](../ai/king_ref.md).

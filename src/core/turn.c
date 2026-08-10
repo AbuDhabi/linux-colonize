@@ -374,16 +374,72 @@ static void turn_produce_one_colony(
   if (field_food < consumed && out) {
     out->food_shortages++;
   }
-  /* FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need. */
+  /*
+   * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
+   * Kill only if already latched last turn and still short (DOS 0x8e5a path
+   * warns then removes; AI soft-skips mild deficit). Cite: ~57623–57694.
+   */
   {
     const int need = pop * TURN_FOOD_PER_COLONIST;
+    const int was_starving =
+      (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0;
     if (colony->stock[COLONIZE_CARGO_FOOD] < need) {
       colony->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
     } else {
       colony->colony_flags =
         (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_STARVATION);
     }
+
+    /*
+     * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
+     * subtract 200 food (docs/building_production.md; decomp ~57615–57622).
+     */
+    if (colony->stock[COLONIZE_CARGO_FOOD] >= 200 &&
+        colony->colonist_count < COLONIZE_COLONY_POP_MAX) {
+      colony->stock[COLONIZE_CARGO_FOOD] =
+        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - 200);
+      if (delta) {
+        delta->goods[COLONIZE_CARGO_FOOD] -= 200;
+        delta->food_net -= 200;
+      }
+      ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
+      memset(newborn, 0, sizeof(*newborn));
+      newborn->active = true;
+      newborn->unit_type_index = 0;
+      newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
+      newborn->building_type = -1;
+      newborn->field_job = -1;
+      colony->colonist_count++;
+      colony->population = colony->colonist_count;
+    }
+
+    /*
+     * Phase J — starve-kill one colonist on second consecutive shortfall.
+     * Never remove the last colonist (fandom: commons feeds ≥1; La Salle
+     * edge cases PARKED). Cite: ~57623–57694; docs/fandom_col1994.md.
+     */
+    if (was_starving &&
+        (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0 &&
+        colony->colonist_count > 1) {
+      const int kill_i = colony->colonist_count - 1;
+      for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+        if ((int)colony->tiles[ti] == kill_i) {
+          colony->tiles[ti] = (int8_t)-1;
+        } else if ((int)colony->tiles[ti] > kill_i) {
+          colony->tiles[ti] = (int8_t)((int)colony->tiles[ti] - 1);
+        }
+      }
+      for (int i = kill_i; i < colony->colonist_count - 1; ++i) {
+        colony->colonists[i] = colony->colonists[i + 1];
+      }
+      memset(
+        &colony->colonists[colony->colonist_count - 1], 0, sizeof(colony->colonists[0])
+      );
+      colony->colonist_count--;
+      colony->population = colony->colonist_count;
+    }
   }
+
   colony_prod_refresh_sol_flags(colony, col1);
 
   /*
@@ -912,7 +968,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_run_king_stub(ctx);
       /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */
       if (ctx->europe) {
-        europe_tick_market_prices(ctx->europe);
+        europe_tick_market_prices(
+          ctx->europe, ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies
+        );
       }
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(

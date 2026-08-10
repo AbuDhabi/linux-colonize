@@ -1302,11 +1302,20 @@ int main(void) {
       return fail("high-friction multi-loot raid should not be NOTHING");
     }
     /*
-     * Secondary −5 muskets; STORES value-sort may also primary-drain 1 musket
-     * (FUN_5fef_016c) → −6 total. Cite: indian_raid_outcomes.md multi-loot.
+     * Secondary −5 muskets; STORES primary takes half stock clamp 1..10
+     * (FUN_5fef_0f14). Cite: indian_raid_loot.md; indian_raid_outcomes.md.
      */
-    const int musk_expect =
-      (kind_ml == AI_RAID_STORES) ? (muskets_ml - 6) : (muskets_ml - 5);
+    int musk_expect = muskets_ml - 5;
+    if (kind_ml == AI_RAID_STORES) {
+      int half = muskets_ml >> 1;
+      if (half > 10) {
+        half = 10;
+      }
+      if (half < 1) {
+        half = 1;
+      }
+      musk_expect = muskets_ml - half - 5;
+    }
     if (c->stock[COLONIZE_CARGO_MUSKETS] != musk_expect) {
       return fail("multi-loot should steal muskets stock (secondary ± STORES)");
     }
@@ -1328,8 +1337,8 @@ int main(void) {
   /*
    * Raid muskets drain (STORES primary): warehouse holds only muskets (<5 so
    * secondary mil loot skips) at mid alarm (50 — below GOLD/SCALP/WREAK bands)
-   * → AI_RAID_STORES and muskets stock −1. Cite: indian_raid_outcomes.md
-   * @RAIDSTORES; GAME.TXT tag.
+   * → AI_RAID_STORES and muskets stock −1 (half of 3 → 1). Cite:
+   * indian_raid_outcomes.md @RAIDSTORES; GAME.TXT tag.
    */
   {
     euro->x = 10;

@@ -1278,7 +1278,13 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   if (tax > 100) {
     tax = 100;
   }
-  /* GAME.TXT @LOOTCASH / @KINGGALLEON3: Crown share = tax rate. */
+  /*
+   * FUN_48d3_06ba: Crown cut = min(tax_rate, 50). GAME.TXT @LOOTCASH still
+   * describes tax-rate share; DOS clamps the treasure path at 50%.
+   */
+  if (tax > 50) {
+    tax = 50;
+  }
   const int credited = (treasure_value * (100 - tax)) / 100;
   eu->gold += credited;
   snprintf(
@@ -1299,7 +1305,8 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
    * Then 0058 single-cargo: nr += attrition; rise/fall ±1 bid in [low,high];
    * nr -= attrition (net attrition 0 when param_2 >= 0).
    * Cite: viceroy_unpacked.c ~58947–58985; NAMES.TXT @CARGO rise/fall.
-   * Defers full 0058 colony→price_group_state half (unknown46 overlay).
+   * Defers full 0058 pressure/bid arms; colony→price_group_state half is in
+   * europe_tick_market_prices when col1+colonies are passed.
    */
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count ||
       cargo_type >= EUROPE_CARGO_MAX) {
@@ -1356,14 +1363,44 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
   eu->trade_nr[cargo_type] = (int16_t)nr;
 }
 
-void europe_tick_market_prices(EuropeScreen* eu) {
+void europe_tick_market_prices(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  struct ColonizeColonyPool* colonies
+) {
   /*
    * FUN_38fd_0058(..., 0xffff) nation EOT: for each cargo, nr += attrition
    * (kept — unlike post-trade single-cargo which undoes attrition), then
    * rise/fall ±1 bid in [low,high]. Cite: viceroy_unpacked.c ~58947–58984.
+   *
+   * Colony → price_group_state half (DS:0x53ea): sum Euro colony warehouse
+   * stock per cargo, then subtract (sum >> 7) from the group word (floor 0).
+   * Cite: viceroy_unpacked.c ~58809–58818; turn/europe_nation_eot.md.
    */
   if (!eu) {
     return;
+  }
+  if (col1 && colonies) {
+    for (int c = 0; c < 16; ++c) {
+      unsigned sum = 0;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* col = &colonies->colonies[i];
+        if (!col->active || col->nation_id < 0 || col->nation_id > 3) {
+          continue;
+        }
+        if (c < COLONIZE_CARGO_COUNT && col->stock[c] > 0) {
+          sum += (unsigned)col->stock[c];
+        }
+      }
+      unsigned pg = col1->head.price_group_state[c];
+      const unsigned decay = sum >> 7;
+      if (decay >= pg) {
+        pg = 0;
+      } else {
+        pg -= decay;
+      }
+      col1->head.price_group_state[c] = (uint16_t)pg;
+    }
   }
   for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
     EuropeCargoQuote* q = &eu->cargo[c];

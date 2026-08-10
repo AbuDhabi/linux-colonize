@@ -115,7 +115,7 @@ deep extracts.
    - **Done:** `FUN_684c_08c0` (30 non-thunk bodies + 67 `281f`/`291f` thunks).
    - **Done:** turn/EOT neighborhood `FUN_130d_0290` ∪ `FUN_3844_00f2` ∪
      `FUN_3844_0442` (36 callees) + callee depth maps (production / Europe /
-     census / landfall / mid-pass / ship-spawn).
+     census / landfall / mid-pass / ship-spawn / fort fire / bells-FF / finish).
    - **Done:** move-spent `FUN_465b_0000` (26 callees — post-ADD chrome /
      foreign tails).
    - **Done:** map unit-order ∪ colony people-band
@@ -175,11 +175,14 @@ the catalog only mirrors light-label status.
 | [`turn/year_loop.c`](turn/year_loop.c) | `FUN_130d_0290` (+ autosave/splash helpers) |
 | [`turn/nation_eot.c`](turn/nation_eot.c) | `FUN_3844_00f2` + treasure `0004` |
 | [`turn/nation_eot_ship_spawn.md`](turn/nation_eot_ship_spawn.md) | Ship-build ready + immigrant ship spawn arms |
-| [`turn/colony_eot_production.md`](turn/colony_eot_production.md) | `FUN_364b_0688` colony EOT production phases |
-| [`turn/europe_nation_eot.md`](turn/europe_nation_eot.md) | `FUN_38fd_5e52` + market `0058` |
+| [`turn/colony_eot_production.md`](turn/colony_eot_production.md) | `FUN_364b_0688` colony EOT (deepened F–H/K/O–P) |
+| [`turn/coastal_fort_fire.md`](turn/coastal_fort_fire.md) | `FUN_364b_03f6` coastal fort fire |
+| [`turn/europe_nation_eot.md`](turn/europe_nation_eot.md) | `FUN_38fd_5e52` + market `0058` (deepened) |
 | [`turn/census_tally.md`](turn/census_tally.md) | `FUN_4962_0018` / `0606` |
 | [`turn/europe_exit_landfall.md`](turn/europe_exit_landfall.md) | `FUN_48d3_06ba` |
-| [`turn/mid_pass_indian_rank.md`](turn/mid_pass_indian_rank.md) | `4d56_1b3a` + `5bfb_00f8` + `1816` XREF |
+| [`turn/europe_finish_bridge.md`](turn/europe_finish_bridge.md) | `48d3` helpers + `38fd_55b6` + finish deliver |
+| [`turn/nation_ticks_bells_ff.md`](turn/nation_ticks_bells_ff.md) | `FUN_4345_0a22` bells/FF ↔ nation ticks |
+| [`turn/mid_pass_indian_rank.md`](turn/mid_pass_indian_rank.md) | `4d56_1b3a` + `5bfb_00f8` + `1816` / TIMECHANGE RE |
 | [`turn/year_end_chrome.c`](turn/year_end_chrome.c) | `FUN_3844_0442` year-end chrome |
 | [`turn/year_end_chrome.md`](turn/year_end_chrome.md) | Full `0442` string / subst / threshold UI map |
 | [`ai/indian_meet_scoring_2154.md`](ai/indian_meet_scoring_2154.md) | Meet economics `2154` (not raid) |

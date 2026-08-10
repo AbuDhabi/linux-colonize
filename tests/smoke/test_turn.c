@@ -267,7 +267,7 @@ int main(void) {
     col->id = 1;
     col->has_building[carpenter] = true;
     col->building_in_production = stockade;
-    col->stock[COLONIZE_CARGO_FOOD] = 50;
+    col->stock[COLONIZE_CARGO_FOOD] = 100; /* under food cap 199; no birth mid-build */
     col->colonists[0].active = true;
     col->colonists[0].unit_type_index = 0;
     col->colonists[0].building_type = carpenter;
@@ -843,6 +843,88 @@ int main(void) {
     fprintf(stderr, "depletion_counter wrap+suppress ok\n");
     assets_msg_free(&names);
     map_free(&map);
+  }
+
+  /* FUN_364b_0688 birth: food≥200 after eat → Free Colonist, −200 food. */
+  {
+    ColonizeColonyPool birth_pool;
+    colonies_init(&birth_pool);
+    ColonizeColony* b = &birth_pool.colonies[0];
+    memset(b, 0, sizeof(*b));
+    b->active = true;
+    b->id = 1;
+    b->building_in_production = -1;
+    b->stock[COLONIZE_CARGO_FOOD] = 202; /* eat 2 → 200 → birth → 0 */
+    b->colonists[0].active = true;
+    b->colonists[0].unit_type_index = 0;
+    b->colonists[0].profession = UNITS_JOB_NONE;
+    b->colonists[0].building_type = -1;
+    b->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      b->tiles[t] = -1;
+    }
+    b->colonist_count = 1;
+    b->population = 1;
+    birth_pool.colony_count = 1;
+    ColonizeTurnResult br;
+    memset(&br, 0, sizeof(br));
+    turn_colony_free_production(&birth_pool, b, NULL, &br, NULL);
+    if (!b->active || b->colonist_count != 2) {
+      fprintf(stderr, "birth: colonist_count want 2 got %d\n", b->colonist_count);
+      return 1;
+    }
+    if (b->stock[COLONIZE_CARGO_FOOD] != 0) {
+      fprintf(stderr, "birth: food want 0 got %d\n", b->stock[COLONIZE_CARGO_FOOD]);
+      return 1;
+    }
+    if (b->colonists[1].profession != UNITS_JOB_COLONIST) {
+      fprintf(stderr, "birth: newborn should be Free Colonist job\n");
+      return 1;
+    }
+    fprintf(stderr, "colony birth food≥200 ok\n");
+  }
+
+  /* FUN_364b_0688 starve-kill: second consecutive STARVATION turn → lose one. */
+  {
+    ColonizeColonyPool starve_pool;
+    colonies_init(&starve_pool);
+    ColonizeColony* s = &starve_pool.colonies[0];
+    memset(s, 0, sizeof(*s));
+    s->active = true;
+    s->id = 1;
+    s->building_in_production = -1;
+    s->stock[COLONIZE_CARGO_FOOD] = 0; /* 2 pop need 4; stay starving */
+    s->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION; /* already warned */
+    for (int i = 0; i < 2; ++i) {
+      s->colonists[i].active = true;
+      s->colonists[i].unit_type_index = 0;
+      s->colonists[i].profession = UNITS_JOB_NONE;
+      s->colonists[i].building_type = -1;
+      s->colonists[i].field_job = -1;
+    }
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      s->tiles[t] = -1;
+    }
+    s->colonist_count = 2;
+    s->population = 2;
+    starve_pool.colony_count = 1;
+    ColonizeTurnResult sr;
+    memset(&sr, 0, sizeof(sr));
+    turn_colony_free_production(&starve_pool, s, NULL, &sr, NULL);
+    if (!s->active || s->colonist_count != 1) {
+      fprintf(
+        stderr,
+        "starve: colonist_count want 1 got %d active=%d\n",
+        s->colonist_count,
+        s->active
+      );
+      return 1;
+    }
+    if ((s->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
+      fprintf(stderr, "starve: STARVATION latch should remain\n");
+      return 1;
+    }
+    fprintf(stderr, "colony starve-kill ok\n");
   }
 
   fprintf(stderr, "turn tests ok\n");

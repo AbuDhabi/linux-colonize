@@ -47,12 +47,12 @@ Related: [`indian_contact.md`](../ai/indian_contact.md).
 
 ---
 
-## `FUN_4d56_1816` call-site XREF (resolved hunt)
+## `FUN_4d56_1816` call-site XREF (reconfirmed 2026-08-10)
 
 | Probe | Result |
 |-------|--------|
 | `rg FUN_4d56_1816` in `.c` | **Definition only** @81543 — zero call sites |
-| Same in `.asm` | Label only; **no CALLF/JMPF** to `4d56:1816` |
+| Same in `.asm` | Label `FUN_4d56_1816` only; **no CALLF/JMPF** to `4d56:1816` (false hits: `2f2b` locals, `5952:1816` jump) |
 | Mid-pass sibling | `281f_0676` → **`1b3a`** (resolved) |
 | Other `4d56` thunks | `2154`, `2820`, `4528`, … — **not** `1816` |
 
@@ -60,3 +60,14 @@ Related: [`indian_contact.md`](../ai/indian_contact.md).
 missing far-ptr). Body annotated in [`indian_nation_turn.c`](../ai/indian_nation_turn.c).
 Linux runs `ai_indian_nation_turn` (`1816`-shaped) in `TURN_PROC_INDIAN`;
 DOS resolved `130d` only shows mid-pass **`1b3a`**.
+
+## Calendar string table (reconfirmed)
+
+| String | Asm locus | FUN_* XREF |
+|--------|-----------|------------|
+| `MULTINEXT` | CODE_178 string table | **none** |
+| `TIMECHANGE` | same | **none** |
+| `SEASONS` | same | **none** |
+
+Behavior recovered from `@TIMECHANGE` + `130d` year/autumn math — see
+[`year_loop.c`](year_loop.c) / [`docs/turn_between_players.md`](../../docs/turn_between_players.md).
