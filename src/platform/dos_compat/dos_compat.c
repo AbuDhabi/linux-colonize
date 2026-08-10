@@ -101,6 +101,8 @@ bool dos_compat_normalize_asset_path(
     return true;
   }
 
-  dos_compat_trace_unknown("asset_path", 0);
+  /* Missing file is a normal probe failure — callers check the bool. Do not
+   * spam stderr via dos_compat_trace_unknown (that path is for unresolved
+   * DOS port I/O stubs, not optional asset lookups). */
   return false;
 }
