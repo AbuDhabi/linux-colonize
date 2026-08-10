@@ -16,6 +16,8 @@
 | Complete Map / Reveal | **Irrelevant** |
 | Coarse fog plane | Dual index; Linux buffer; `+8` gated |
 | DOS hang recipes | **Parked** (X/`dump_b465x3` only when dump-free done) |
+| Full `20e6` band table | **Done** (below) |
+| Ship band annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
 
 ## Quiet residual classes (phase 13)
 
@@ -42,11 +44,29 @@ few cascade fixes). See [`docs/seed100_brave.md`](../../docs/seed100_brave.md).
 - Gated facing / coarse fog
 - Stay-shaped LCG burn after each pick (Linux stream sync)
 
-## Euro / ocean / founding (thin section-map — mid-planner **OPEN**)
+## Full `FUN_521d_20e6` band table
 
-Full `FUN_521d_20e6` ~2180 lines (`viceroy_unpacked.c` ~88266–90445). Quiet
-Brave slice is annotated; **land/combat Euro scoring is OPEN** (unpark #4).
-Ocean/ship fixture retirement stays R5 until ocean/HS branch ports.
+Decomp: `viceroy_unpacked.c` **88266–90435** (~2170 lines). Callers: `5b66` via
+`2a1f_04f4` (nonzero abort). Nested act is **not** inside `20e6`.
+
+| Lines (approx) | LAB / gate | Role | Linux status |
+|----------------|------------|------|--------------|
+| 88266–88446 | prologue | Locals; load unit xy/type/orders | shared |
+| 88447–88458 | `local_34` / `local_90` | Ship iff type ∈ **[0x0d,0x12]**; terrain ocean `0x19` / HS `0x1a` | `units_is_sea` |
+| 88532–88605 | land prelude | Non-ship / mixed gates | partial land score |
+| 88606–88776 | `5888` / `4d2e` / `4f41` / `4ffa` / `506d` | Quiet Brave terrain + base | [`quiet_brave_scoring.c`](quiet_brave_scoring.c) **Done** |
+| 88777–88974 | `54f5` / `52aa` | Facing / fog / military −10 / colony pull | quiet **Done** |
+| 88975–89375 | `5183`…`2a59` | Euro land / combat / explore arms | thin `ai_euro_score_move` + foe pick; **OPEN** unpark #4 |
+| 89376–89383 | `304c` | Mid gate → ship or continue | — |
+| **89384–89870** | **`3558`** | **Ship band** — holds, probes, 8-dir adj flags, `06ae` unload (~89587), colony sail pick | thin `ai_euro_ocean_score_step`; cargo matrix **OPEN** |
+| 89866–89870 | `3fa6` | → `48d3_015e` spiral HS / set sail | partial (`units_find_*_high_seas`) |
+| 89871–90036 | `4393` / `4567` / `457e` / `4701` | type ∈ **(0x0c,0x13)** cargo-slot score | **OPEN** |
+| 90037–90224 | `47b9` / `48ab` | More ship / wagon follow-ons | **OPEN** |
+| 90225–90398 | `27f5` / `32e3` / `3356` / `5899` | Commit dir → `FUN_521d_20c6`; ship epilogue | step apply in act |
+| 90399–90435 | `5a78` | Clear / return 0 | — |
+
+Naval type tests elsewhere use open upper **(0x0c, 0x13)** — wider than dispatcher
+`SHIP_A..C` (`0x0a..0x0c`). Do not conflate.
 
 ### Callers
 
@@ -64,19 +84,18 @@ Ocean/ship fixture retirement stays R5 until ocean/HS branch ports.
 | Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
 | Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
 | Linux | `ai_goals_pick_founding_tile` / `_ex`: DS:0x2f77 class founding byte; `param_4` extras = **`0492(candidate continent)*0x10 + (explore&0xf)`** per empty land neighbor (`ai_goals_colony_balance_flags`: live nation×continent + `continent_tally_b/12`). Explore thin (`seen→1`). Second+ coastal +10 via `coastal_bonus` |
-| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` **kept** — 06ae+0492 still miss seed-100 coastal towns (inland 2f77 / neighbor-count wins). Resolve: FOUND → table → 06ae. First-colony ship FOUND uses table, not ship-tile 06ae. Coastal staging / ship cruise still ocean `20e6` |
+| Linux PORT DEBT | `ai_euro_found_tile_from_landfall` **kept** — 06ae+0492 still miss seed-100 coastal towns (inland 2f77 / neighbor-count wins). Resolve: FOUND → table → 06ae. First-colony ship FOUND uses table, not ship-tile 06ae |
 
 Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
 
-### Ocean / ship scoring (early-settle gap)
+### Ocean / ship scoring (`LAB_521d_3558`)
 
-Naval band in `20e6` is often `type ∈ (0x0c, 0x13)` — wider than dispatcher
-`SHIP_A..C` (`0x0a..0x0c`). Atlantic approach and T3–T6 coastal ship waypoints
-in Linux are still **fixture tables**. Retiring them needs the ocean/HS branch
-of `20e6` (not the quiet Brave path). Until then:
-
-- Seed-100 landfall gotos: `ai_coastal_staging_from_landfall` (T2)
-- Mid-turn ship XY: fixture waypoints (1–2 tiles off golden until ocean score)
+| Item | Detail |
+|------|--------|
+| Annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
+| Place | `FUN_48d3_048e` spiral + `0434` (HS-only); Linux `units_spiral_place_hs_near` |
+| Linux scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid, thin war engage |
+| PORT DEBT | Atlantic approach + post-beachhead cruise XY — retire when TURN1→4 green without them (see `ai_transcription.md`) |
 
 Combat / land Euro arms: **OPEN** (unpark #4). Thin adjacent-foe pick prefers
 weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`), including
@@ -87,4 +106,3 @@ lower defense (`ai_euro_naval_best_adjacent_foe`) including Drake Privateer
 Ocean east-Europe HS bias deepened when goto is eastward (Treasure/Europe exit
 complement). Naval AI_SAIL uses scored ocean 2-step (mirror land multi-step; full drain PARKED
 behind ocean combat `20e6`).
-Ocean/ship / deep fog explore / colony-tile deep T3 still R5.

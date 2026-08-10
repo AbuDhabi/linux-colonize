@@ -90,8 +90,9 @@ static void ai_euro_resolve_landfall_goto(
 /*
  * Seed-100 / VR_SEED Atlantic first-leg endpoints (TURN2 goldens). RE'd from
  * DOS saves — sail here after FUN_48d3_048e place, then retarget west-explore
- * (4,13). PORT DEBT: retire when ocean 20e6 + 48d3 placement bit-match these
- * tiles from landfall alone (docs/ai_transcription.md R0 / unpark #4).
+ * (4,13). PORT DEBT kept: thin ocean_score leave-HS path misses FR (54,38);
+ * retire when LAB_521d_3558 colony/cargo sail pick matches these from landfall
+ * alone (docs/ai_transcription.md R0 / unpark #4).
  */
 static int ai_euro_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x, int* out_y) {
   if (!out_x || !out_y) {
@@ -155,7 +156,8 @@ static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {
 
 /*
  * Post-beachhead empty-ship coastal cruise (TURN3→4). FR keeps staging hold;
- * SP/DU sail to RE'd coast water near found. PORT DEBT with approach table.
+ * SP/DU sail to RE'd coast water near found. PORT DEBT kept with approach table
+ * — 3558 cargo/colony sail pick not ported yet.
  */
 static int ai_euro_post_beachhead_ship_waypoint(
   int landfall_x,
@@ -7307,18 +7309,11 @@ static int ai_euro_ocean_score_step(
   int* out_dy
 ) {
   /*
-   * Naval/ocean branch of FUN_521d_20e6 (thin extract): prefer water tiles
-   * that reduce Chebyshev/Manhattan distance to goal; avoid land; slight
-   * preference for high-seas / west when goal is west of ship.
-   * West-explore deepen (0a60 / Atlantic HS): when ship is already on HS and
-   * goto is westward, prefer westward HS steps — structural score only, no
-   * invented MP (full ocean 20e6 still PARKED / R5).
-   * East-Europe deepen: when goto is eastward (Treasure/Europe exit /
-   * eastern HS), prefer eastward HS steps — complement west-explore.
-   * Combat deepen (FUN_157e_004a / thin 20e6): when at war, bonus for steps
-   * that sit adjacent to a weaker foe ship (prefer engage); small penalty
-   * adjacent to tougher foe. Cite: Colonization.pdf Treasure Trains → Europe;
-   * units_find_eastern_high_seas_tile; FUN_157e_004a.
+   * Naval/ocean branch of FUN_521d_20e6 / LAB_521d_3558 (thin extract):
+   * prefer water that reduces Manhattan + Chebyshev distance to goal; avoid land;
+   * HS west/east bias; leave eastern HS into ocean when westbound (Atlantic
+   * first leg). Full cargo/colony matrix in 3558 still OPEN.
+   * Cite: move_scoring.md §ocean; euro_ocean_scoring.c; FUN_157e_004a.
    */
   static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
@@ -7334,10 +7329,6 @@ static int ai_euro_ocean_score_step(
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
-    if (!map_coords_inset(ctx->map, nx, ny) &&
-        (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height)) {
-      continue;
-    }
     if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
       continue;
     }
@@ -7356,8 +7347,11 @@ static int ai_euro_ocean_score_step(
         continue;
       }
     }
-    int dist = abs(goal_x - nx) + abs(goal_y - ny);
-    int score = 2000 - dist * 12;
+    const int manh = abs(goal_x - nx) + abs(goal_y - ny);
+    const int cheb_dx = abs(goal_x - nx);
+    const int cheb_dy = abs(goal_y - ny);
+    const int cheb = cheb_dx > cheb_dy ? cheb_dx : cheb_dy;
+    int score = 2000 - manh * 12 - cheb * 4;
     const int step_hs = map_tile_is_high_seas(ctx->map, nx, ny);
     if (step_hs) {
       score += 5;
@@ -7367,6 +7361,10 @@ static int ai_euro_ocean_score_step(
     }
     if (on_hs && west_explore && step_hs && dx[d] < 0) {
       score += 6; /* HS west-explore: prefer westward HS tiles */
+    }
+    /* Leave eastern HS rim into ocean when sailing west (Atlantic first leg). */
+    if (on_hs && west_explore && !step_hs) {
+      score += 14;
     }
     if (east_europe && dx[d] > 0) {
       score += 4; /* east bias toward Europe / eastern HS */
@@ -9759,11 +9757,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
 
     /*
-     * FUN_48d3_048e Europe→map: place on HS/water near landfall goto — never
+     * FUN_48d3_048e Europe→map: spiral-place on HS near landfall goto — never
      * prefer_y from Europe sentinel (~228+nation); that pinned rivals south.
-     * First leg: sail to RE'd Atlantic approach (TURN2), then west-explore
-     * (4,13). Passengers keep landfall gotos. Do not yank to tribe FOUND.
-     * Cite: FUN_48d3_048e; move_scoring.md; test-saves-ai/TURN2.
+     * First leg: sail to RE'd Atlantic approach (TURN2 PORT DEBT — scored
+     * west-explore leave-HS path misses FR (54,38)), then west-explore (4,13).
+     * Cite: FUN_48d3_048e/0434; move_scoring.md §ocean; test-saves-ai/TURN2.
      */
     int exited_europe = 0;
     if (ai_euro_in_europe(u->x, u->y)) {
@@ -9773,7 +9771,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       int hx = lx;
       int hy = ly;
       int placed = 0;
-      if ((map_tile_is_high_seas(ctx->map, lx, ly) || map_tile_is_water(ctx->map, lx, ly)) &&
+      if (units_spiral_place_hs_near(ctx->units, ctx->map, lx, ly, u->nation_id, &hx, &hy)) {
+        placed = 1;
+      }
+      if (!placed &&
+          (map_tile_is_high_seas(ctx->map, lx, ly) || map_tile_is_water(ctx->map, lx, ly)) &&
           units_id_at(ctx->units, lx, ly) < 0) {
         hx = lx;
         hy = ly;

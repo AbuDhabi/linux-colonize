@@ -642,10 +642,13 @@ despawn; Expected→Harbor tick). **PARK:** value unset / KINGGALLEON2 extra sha
 ### 2g. Linux thin — ocean west-explore / east-Europe HS bias
 
 When ship is on high seas and goto is westward, ocean `20e6` score prefers
-westward HS steps (structural score only; no invented MP). When goto is
-eastward (Treasure/Europe exit / eastern HS), prefer eastward HS steps —
-complement west-explore. Cite: Colonization.pdf Treasure Trains → Europe;
-`units_find_eastern_high_seas_tile`. Full ocean branch still R5 / PARKED.
+westward HS steps and **leaving HS into ocean** (Atlantic first-leg). When goto
+is eastward (Treasure/Europe exit / eastern HS), prefer eastward HS steps.
+Europe-exit place uses `units_spiral_place_hs_near` (`FUN_48d3_048e` / `0434`).
+Cite: Colonization.pdf Treasure Trains → Europe; `move_scoring.md` band table;
+[`euro_ocean_scoring.c`](euro_ocean_scoring.c). Full `LAB_521d_3558` cargo/colony
+sail matrix still **OPEN**; approach/cruise XY tables kept until that matches
+TURN2–4 without peels.
 
 ### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 
