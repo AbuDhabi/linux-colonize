@@ -159,15 +159,22 @@ the catalog only mirrors light-label status.
 | [`ai/euro_dispatcher.c`](ai/euro_dispatcher.c) | `FUN_521d_6d8e` shell + sectioned `0a60` |
 | [`ai/euro_goals.c`](ai/euro_goals.c) | Goal tables + founding helpers (`0000`…`0906`) |
 | [`ai/euro_unit_act.md`](ai/euro_unit_act.md) | Thin section-map for `FUN_521d_5b66` |
-| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; Euro/ocean thin map; 2 spent residuals |
+| [`ai/move_scoring.md`](ai/move_scoring.md) | Quiet cutover; peels; Euro/ocean band table; 2 spent residuals |
+| [`ai/move_scoring_land.md`](ai/move_scoring_land.md) | `20e6` Euro land/combat/explore OPEN arms (mapped; port PARKED) |
+| [`ai/move_scoring_ship.md`](ai/move_scoring_ship.md) | `20e6` ship `3558` + cargo follow-ons (mapped; port PARKED) |
+| [`ai/euro_ocean_scoring.c`](ai/euro_ocean_scoring.c) | Ship-band annotated stubs (`3558` / `3fa6` / haul) |
 | [`ai/euro_diplo.md`](ai/euro_diplo.md) | Thin map: Euro×Euro / Indian×Euro diplomacy (`15b3` / `5bfb`) |
 | [`ai/indian_contact.md`](ai/indian_contact.md) | Thin map: meet / trade / gift / teach / missions |
+| [`ai/indian_trade_2820.md`](ai/indian_trade_2820.md) | `2820` + nest `2aac…311e` trade map (port PARKED) |
+| [`ai/indian_trade_helpers.c`](ai/indian_trade_helpers.c) | Named stubs for trade nest entry points |
 | [`ai/indian_raid_outcomes.md`](ai/indian_raid_outcomes.md) | Thin map: `@RAID*` outcomes / `4528` stand-ins |
+| [`ai/indian_settlement_4528.md`](ai/indian_settlement_4528.md) | `4528` authentic head only (mid-body soup deferred) |
 | [`ai/king_ref.md`](ai/king_ref.md) | Thin map: King / tax / REF (`43f7`) |
 | [`turn/between_turns.md`](turn/between_turns.md) | Thin map: year loop / nation EOT / year-end ↔ Linux `TURN_PROC_*` |
 | [`turn/year_loop.c`](turn/year_loop.c) | `FUN_130d_0290` (+ autosave/splash helpers) |
 | [`turn/nation_eot.c`](turn/nation_eot.c) | `FUN_3844_00f2` + treasure `0004` |
 | [`turn/year_end_chrome.c`](turn/year_end_chrome.c) | `FUN_3844_0442` year-end chrome |
+| [`turn/year_end_chrome.md`](turn/year_end_chrome.md) | Full `0442` string / subst / threshold UI map |
 
 ## Deep naming rules (extracted `.c` only)
 
@@ -212,3 +219,8 @@ the catalog only mirrors light-label status.
   `turn/nation_eot.c` (`3844_00f2`/`0004`), `turn/year_end_chrome.c` (`0442`),
   thin map `turn/between_turns.md`. Bridge doc:
   `docs/turn_between_players.md`.
+- **Parked-body maps (Layer D deepen):** `20e6` land/ship
+  (`move_scoring_land.md` / `move_scoring_ship.md` / expanded
+  `euro_ocean_scoring.c`); `2820` nest (`indian_trade_2820.md` + helpers);
+  `4528` authentic head (`indian_settlement_4528.md`); full `0442` UI
+  (`turn/year_end_chrome.md`). Port still PARKED.

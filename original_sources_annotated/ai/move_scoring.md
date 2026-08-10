@@ -56,12 +56,12 @@ Decomp: `viceroy_unpacked.c` **88266–90435** (~2170 lines). Callers: `5b66` vi
 | 88532–88605 | land prelude | Non-ship / mixed gates | partial land score |
 | 88606–88776 | `5888` / `4d2e` / `4f41` / `4ffa` / `506d` | Quiet Brave terrain + base | [`quiet_brave_scoring.c`](quiet_brave_scoring.c) **Done** |
 | 88777–88974 | `54f5` / `52aa` | Facing / fog / military −10 / colony pull | quiet **Done** |
-| 88975–89375 | `5183`…`2a59` | Euro land / combat / explore arms | thin `ai_euro_score_move` + foe pick; **OPEN** unpark #4 |
+| 88975–89375 | `5183`…`2a59` | Euro land / combat / explore arms | **Mapped** [`move_scoring_land.md`](move_scoring_land.md); thin Linux; port **PARKED** unpark #4 |
 | 89376–89383 | `304c` | Mid gate → ship or continue | — |
-| **89384–89870** | **`3558`** | **Ship band** — holds, probes, 8-dir adj flags, `06ae` unload (~89587), colony sail pick | thin `ai_euro_ocean_score_step`; cargo matrix **OPEN** |
+| **89384–89870** | **`3558`** | **Ship band** — holds, probes, `local_9c`, `06ae` unload, colony sail | **Mapped** [`move_scoring_ship.md`](move_scoring_ship.md) + [`euro_ocean_scoring.c`](euro_ocean_scoring.c); thin Linux; matrix **PARKED** |
 | 89866–89870 | `3fa6` | → `48d3_015e` spiral HS / set sail | partial (`units_find_*_high_seas`) |
-| 89871–90036 | `4393` / `4567` / `457e` / `4701` | type ∈ **(0x0c,0x13)** cargo-slot score | **OPEN** |
-| 90037–90224 | `47b9` / `48ab` | More ship / wagon follow-ons | **OPEN** |
+| 89871–90036 | `4393` / `4567` / `457e` / `4701` | type ∈ **(0x0c,0x13)** work-queue haul | **Mapped** in ship md; port **PARKED** |
+| 90037–90224 | `47b9` / `48ab` | More ship / wagon follow-ons | **Mapped** in ship md; port **PARKED** |
 | 90225–90398 | `27f5` / `32e3` / `3356` / `5899` | Commit dir → `FUN_521d_20c6`; ship epilogue | step apply in act |
 | 90399–90435 | `5a78` | Clear / return 0 | — |
 
@@ -92,13 +92,15 @@ Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helpe
 
 | Item | Detail |
 |------|--------|
+| Section map | [`move_scoring_ship.md`](move_scoring_ship.md) |
 | Annotated stub | [`euro_ocean_scoring.c`](euro_ocean_scoring.c) |
 | Place | `FUN_48d3_048e` spiral + `0434` (HS-only); Linux `units_spiral_place_hs_near` |
 | Linux scorer | `ai_euro_ocean_score_step`: dist to goal, HS ± west/east bias, leave-HS-into-ocean when westbound, fort avoid, thin war engage |
 | PORT DEBT | Atlantic approach + post-beachhead cruise XY — retire when TURN1→4 green without them (see `ai_transcription.md`) |
 
-Combat / land Euro arms: **OPEN** (unpark #4). Thin adjacent-foe pick prefers
-weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`), including
+Land / combat / explore OPEN arms: [`move_scoring_land.md`](move_scoring_land.md)
+(orders `0x42`/`0x65`/`0x46`/`0x39`…; explore ring `2912`). Thin adjacent-foe pick
+prefers weaker defense / non-fortified (`ai_euro_land_best_adjacent_foe`), including
 own-colony Stockade/Fort/Fortress % bonus (mirrors combat resolve) and
 FUN_157e_004a vet Soldier/Dragoon +50%. Thin naval adjacent-foe pick prefers
 lower defense (`ai_euro_naval_best_adjacent_foe`) including Drake Privateer

@@ -1868,7 +1868,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0142` | 37300 | 10 | mapgen | Far thunk → FUN_465b_0000 (move spent cost/ADD/post-ADD chrome) | inferred |  |
 | `FUN_2a1f_0150` | 37310 | 10 | mapgen | Far thunk → FUN_465b_0c1e (step unit in dir8 via move_spent_add) | known | ai/indian_nation_turn.c; ai/move_spent.c |
 | `FUN_2a1f_015e` | 37320 | 10 | mapgen | Far thunk → FUN_5f7a_0662 (dispatch colony native-trade session) | inferred |  |
-| `FUN_2a1f_016c` | 37330 | 10 | mapgen | Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact) | inferred | ai/move_spent.c §3; docs/ai_transcription.md |
+| `FUN_2a1f_016c` | 37330 | 10 | mapgen | Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact) | inferred | ai/indian_settlement_4528.md; ai/move_spent.c §3 |
 | `FUN_2a1f_0178` | 37340 | 10 | mapgen | Far thunk → FUN_65dd_0004 (lost-city/rumour RNG outcome resolve) | inferred |  |
 | `FUN_2a1f_0186` | 37350 | 10 | mapgen | Far thunk → FUN_5fef_1908 (treasure capture: ransom/gold/remove) | inferred |  |
 | `FUN_2a1f_0192` | 37360 | 10 | mapgen | Far thunk → FUN_5bfb_3180 (adj ship/unit combat loot around (x,y)) | inferred |  |
@@ -1914,7 +1914,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0398` | 37760 | 10 | ai | Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_2a1f_0434` | 37770 | 10 | mapgen | Far thunk → FUN_4d56_2154 (larger Indian action/raid body) | inferred |  |
 | `FUN_2a1f_0440` | 37780 | 10 | mapgen | Far thunk → FUN_4d56_0038 (small Indian AI helper; calls into 00e0 / map probes) | inferred | docs/ai_transcription.md |
-| `FUN_2a1f_044c` | 37790 | 10 | mapgen | Far thunk → FUN_4d56_2820 (heavy Indian decision / raid-scale logic) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_044c` | 37790 | 10 | mapgen | Far thunk → FUN_4d56_2820 (heavy Indian decision / raid-scale logic) | inferred | ai/indian_trade_2820.md |
+| `FUN_2a1f_016c` | 37330 | 10 | mapgen | Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact) | inferred | ai/indian_settlement_4528.md; ai/move_spent.c §3 |
 | `FUN_2a1f_0458` | 37800 | 10 | mapgen | Far thunk → FUN_5fef_0000 (pick best defender unit at tile by combat score walk) | inferred |  |
 | `FUN_2a1f_0464` | 37810 | 10 | mapgen | Far thunk → FUN_521d_0656 (walk unit stack/chain) | inferred |  |
 | `FUN_2a1f_0470` | 37820 | 10 | mapgen | Far thunk → FUN_521d_016a (upsert primary goal) | inferred | ai/euro_goals.c |
@@ -2297,7 +2298,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_3844_0004` | 58268 | 37 | turn | EOT treasure tick (type0/prof 0x1b): after 8 turns outside colony, remove + msg | inferred | turn/nation_eot.c |
 | `FUN_3844_00f2` | 58305 | 125 | turn | Nation EOT: treasure ticks, ship-build ready chrome, Europe EOT, colony pass | inferred | turn/nation_eot.c; turn/between_turns.md |
-| `FUN_3844_0442` | 58430 | 265 | turn | Year-end Euro chrome: independence, diplomacy, calendar events | inferred | turn/year_end_chrome.c |
+| `FUN_3844_0442` | 58430 | 265 | turn | Year-end Euro chrome: independence, diplomacy, calendar events | inferred | turn/year_end_chrome.c; turn/year_end_chrome.md |
 
 ### Segment `38fd` (81 defs) — trade — Nation Europe market / cargo trade (nation*0x13c via 0x84fc)
 
@@ -2606,19 +2607,19 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn entry (alarm, unit loop, relation ticks) | known | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, tribe probes, colony ownership — does **not** call 2154 | known | ai/indian_contact.md |
 | `FUN_4d56_2154` | 81743 | 321 | ai | Larger Indian action body (raid-adjacent); called from 5bfb via 2a1f_0434 | inferred | ai/indian_contact.md; docs/ai_transcription.md |
-| `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2aac` | 82286 | 39 | ai | Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2af6` | 82325 | 29 | ai | Abort trade close: clear tribe last-goods flags, reshuffle demand → 3582 | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2b92` | 82354 | 222 | ai | Player Indian buy-offer loop: price good, accept/haggle/reject dialog | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2bbc` | 82576 | 210 | ai | AI/non-human Indian buy-offer loop (same pricing, auto choices) | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2e92` | 82786 | 53 | ai | Trade no-deal exit (invalid good/capacity) → 311e demand or close | inferred | docs/ai_transcription.md |
-| `FUN_4d56_2f96` | 82839 | 189 | ai | Trade haggle (choice 2): bump offer/tension, resume buy dialog loop | inferred | docs/ai_transcription.md |
-| `FUN_4d56_306c` | 83028 | 193 | ai | Trade hard-bargain (choice 3): worse terms + tension, resume loop | inferred | docs/ai_transcription.md |
-| `FUN_4d56_311e` | 83221 | 239 | ai | Indian counter-demand: pick tribute goods + priced buy-back dialog | inferred | docs/ai_transcription.md |
-| `FUN_4d56_3582` | 83460 | 21 | ai | Small helper after 2820 | inferred | docs/ai_transcription.md |
+| `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | ai/indian_trade_2820.md; indian_trade_helpers.c |
+| `FUN_4d56_2aac` | 82286 | 39 | ai | Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_2af6` | 82325 | 29 | ai | Abort trade close: clear tribe last-goods flags, reshuffle demand → 3582 | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_2b92` | 82354 | 222 | ai | Player Indian buy-offer loop: price good, accept/haggle/reject dialog | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_2bbc` | 82576 | 210 | ai | AI/non-human Indian buy-offer loop (same pricing, auto choices) | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_2e92` | 82786 | 53 | ai | Trade no-deal exit (invalid good/capacity) → 311e demand or close | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_2f96` | 82839 | 189 | ai | Trade haggle (choice 2): bump offer/tension, resume buy dialog loop | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_306c` | 83028 | 193 | ai | Trade hard-bargain (choice 3): worse terms + tension, resume loop | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_311e` | 83221 | 239 | ai | Indian counter-demand: pick tribute goods + priced buy-back dialog | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_3582` | 83460 | 21 | ai | Small helper after 2820 | inferred | ai/indian_trade_2820.md |
 | `FUN_4d56_359c` | 83481 | 30 | ai | Relation-gated Indian attack on unit: kill / warn / displace by RNG | inferred | docs/ai_transcription.md |
 | `FUN_4d56_417e` | 83511 | 188 | ai | Mid-size Indian AI helper | inferred | docs/ai_transcription.md |
-| `FUN_4d56_4528` | 83699 | 3073 | ai | Largest Indian cluster (combat/raid-adjacent) | inferred | docs/ai_transcription.md |
+| `FUN_4d56_4528` | 83699 | 3073 | ai | Largest Indian cluster (combat/raid-adjacent) | inferred | ai/indian_settlement_4528.md; indian_raid_outcomes.md |
 
 ### Segment `521d` (29 defs) — ai — European AI planner
 
@@ -2646,7 +2647,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | known | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit/colony goal writer (sectioned; mid-game OPEN) | known | ai/euro_dispatcher.c; ai/euro_goals.c |
 | `FUN_521d_20c6` | 88247 | 19 | ai | Stamp unit orders=0x0B goto with dest (DL,BL)+param | inferred | ai/move_scoring.md; near FUN_521d_20e6 |
-| `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; ai/move_scoring.md; ai/euro_goals.c |
+| `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; move_scoring.md; move_scoring_land.md; move_scoring_ship.md |
 | `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); thin map | inferred | ai/euro_dispatcher.c; ai/euro_unit_act.md |
 | `FUN_521d_5c38` | 92261 | 8 | ai | Always-true predicate stub (Europe hire gate) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5c3c` | 92269 | 47 | ai | Try buy/hire Europe unit if treasury allows | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |

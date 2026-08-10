@@ -74,8 +74,8 @@ missions slow hostility.
 |--------|-------|----------------------|-----|
 | `FUN_4d56_1b3a` | `281f_0676` | Mid-turn helper: clear `0x5b04` tables, tribe `41f2_0266`, colony ownership probes | Does **not** call `2154` |
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb` neighborhood** (~96088) after meet/diplo scoring | Not from `1b3a` |
-| `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | Full body PARKED |
-| `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | Not quiet `14fe` |
+| `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | **Mapped** [`indian_trade_2820.md`](indian_trade_2820.md); port PARKED |
+| `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | **Mapped** head [`indian_settlement_4528.md`](indian_settlement_4528.md); mid-body PARKED (decomp soup) |
 | `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
 

@@ -67,6 +67,9 @@ year_end_chrome
   └─ epilogue: HoF / continue dialog / OR 0x5382 bit4
 ```
 
+Full string / subst / threshold table: [`year_end_chrome.md`](year_end_chrome.md)
+(port still PARKED).
+
 ## Linux column (batch-after-human)
 
 ```
@@ -118,4 +121,10 @@ game_do_end_turn
 
 - `MULTINEXT` / `TIMECHANGE` / `SEASONS` strings: table only, no FUN_* XREF yet
 - `FUN_4d56_1816` call site unresolved in export (overlay/thunk gap); Linux still runs `1816`-shaped nation turns
-- Demo autoplay tail in `130d` (`0x828`) and full `0442` dialog strings: PARKED
+- Demo autoplay tail in `130d` (`0x828`): PARKED
+- `FUN_3844_0442` dialogs: **UI mapped** in [`year_end_chrome.md`](year_end_chrome.md); port PARKED
+- Deep AI bodies (`20e6` land/ship, `2820`, `4528`): **mapped**; port PARKED — see
+  [`move_scoring_land.md`](../ai/move_scoring_land.md),
+  [`move_scoring_ship.md`](../ai/move_scoring_ship.md),
+  [`indian_trade_2820.md`](../ai/indian_trade_2820.md),
+  [`indian_settlement_4528.md`](../ai/indian_settlement_4528.md)

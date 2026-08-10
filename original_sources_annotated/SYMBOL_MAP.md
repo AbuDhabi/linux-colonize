@@ -79,7 +79,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_found_tile_from_landfall` (partial) |
 | `FUN_521d_0896` | `filter_profession_by_distance_wealth` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | `ai_goals_*` |
-| `FUN_521d_20e6` | `move_scoring` (Euro/ocean thin; quiet done) | `ai/euro_dispatcher.c` + `ai/move_scoring.md` | quiet + `ai_euro_score_step` |
+| `FUN_521d_20e6` | `move_scoring` (quiet Done; land/ship **mapped**) | `ai/move_scoring.md` + `move_scoring_land.md` + `move_scoring_ship.md` + `euro_ocean_scoring.c` | quiet + thin `ai_euro_score_*`; deep port PARKED |
 | `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` / `ai_euro_dispatcher_turn` |
 | `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game **OPEN**) | `ai/euro_dispatcher.c` | `ai_euro_colony_goals` + unpark #4 |
 | `FUN_521d_5d04` | `euro_nation_planning` (**OPEN** mid matrix) | `ai/euro_dispatcher.c` | `ai_euro_nation_planning` + unpark #4 |
@@ -90,12 +90,14 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `thunk_FUN_2a1f_050c` | → `euro_unit_colony_goals` / `0a60` | `ai/euro_dispatcher.c` | — |
 | `thunk_FUN_2a1f_04f4` | → `move_scoring` / `20e6` | `ai/euro_unit_act.md` | — |
 | `thunk_FUN_2a1f_04ac` | → `pick_best_adjacent_founding_tile` / `06ae` | `ai/euro_goals.c` | — |
+| `FUN_4d56_2820` + nest | `indian_trade_meet_shell` + helpers | `ai/indian_trade_2820.md` + `indian_trade_helpers.c` | `ai_contact_*` thin; deep PARKED |
+| `FUN_4d56_4528` | settlement enter/raid (head mapped) | `ai/indian_settlement_4528.md` | `ai_contact_indian_raids`; mid-body PARKED |
 | `FUN_130d_0290` | `year_turn_loop` | `turn/year_loop.c` | `turn_processor_*` / `game_do_end_turn` (reshape) |
 | `FUN_130d_0172` | `autosave_pick_slot` | `turn/year_loop.c` | FINISH autosave flags + `game_apply_turn_autosave` |
 | `FUN_130d_019e` / `0222` | `demo_end_splash` / `independence_splash` | `turn/year_loop.c` | PARKED |
 | `FUN_3844_0004` | `eot_treasure_tick` | `turn/nation_eot.c` | `units_tick_treasure_outside_colony` |
 | `FUN_3844_00f2` | `nation_eot` | `turn/nation_eot.c` | Split: SETUP production/ticks + EURO treasure + FINISH king/market |
-| `FUN_3844_0442` | `year_end_chrome` | `turn/year_end_chrome.c` | PARKED (dialogs); king/war thin in `ai_king` |
+| `FUN_3844_0442` | `year_end_chrome` (full UI mapped) | `turn/year_end_chrome.c` + `year_end_chrome.md` | PARKED dialogs; king/war thin in `ai_king` |
 | `FUN_281f_0644` | → `nation_eot` / `3844_00f2` | `turn/between_turns.md` | — |
 | `FUN_281f_061e` | → `year_end_chrome` / `3844_0442` | `turn/between_turns.md` | — |
 | `FUN_281f_0546` | → `year_turn_loop` / `130d_0290` | `turn/between_turns.md` | — |
@@ -161,6 +163,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 - [x] `FUN_521d_0a60` sectioned (mid-game **OPEN** — unpark #4)
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] Between-turns Layer D (`turn/year_loop.c`, `nation_eot.c`, `year_end_chrome.c`, `between_turns.md`)
+- [x] Parked-body maps: `20e6` land/ship, `2820` nest, `4528` head, `0442` UI (`year_end_chrome.md`)
 - [x] This symbol map
 
 ## Out of scope for Layer D deepen (T0 Linux ports exist)

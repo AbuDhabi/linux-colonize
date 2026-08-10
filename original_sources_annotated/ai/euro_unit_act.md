@@ -632,7 +632,10 @@ hunt also prefers Treasure within MD slack ≤3 vs nearer non-Treasure, then low
 `land_foe_toughness` within the same slack.
 
 **PARK:** deep `FUN_521d_20e6` combat scoring (terrain/artillery tables,
-multi-hex threat weights) — thin adjacent-toughness pick includes fortified ×2,
+multi-hex threat weights) — **section-mapped** in
+[`move_scoring_land.md`](move_scoring_land.md) /
+[`move_scoring_ship.md`](move_scoring_ship.md); port still OPEN unpark #4.
+Thin adjacent-toughness pick includes fortified ×2,
 colony Stockade/Fort/Fortress %, and FUN_157e_004a vet/Drake +50% peels +
 2-step goto only.
 

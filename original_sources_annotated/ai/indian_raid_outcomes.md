@@ -1,21 +1,31 @@
 # Indian raid outcomes — thin section-map
 
 Maps settlement-raid / loot clusters for a **reasonable** Linux port in
-`ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) stays PARKED;
-player raid/warn **status chrome thinned**; dialog **widgets** **Done**
-structural (`ai_popup`; VGA PARKED).
+`ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) body stays PARKED
+for port; **authentic head mapped** in
+[`indian_settlement_4528.md`](indian_settlement_4528.md). Player raid/warn
+**status chrome thinned**; dialog **widgets** **Done** structural (`ai_popup`;
+VGA PARKED).
 
-Related: [`indian_contact.md`](indian_contact.md).
+Related: [`indian_contact.md`](indian_contact.md),
+[`indian_trade_2820.md`](indian_trade_2820.md).
 
 ## Entry / wiring
 
 | Symbol | Role |
 |--------|------|
-| `FUN_4d56_4528` | Settlement enter / raid contact (thunk `2a1f_016c`) |
-| `FUN_5fef_0f14` | Colony raid loot + tension (goods/building/unit/gold) |
+| `FUN_4d56_4528` | Settlement enter / raid contact (thunk `2a1f_016c`) — head: human warn CHOICE + ship abort; **no direct `5fef` calls** |
+| `FUN_5fef_0f14` | Colony raid loot + tension (goods/building/unit/gold) — **sibling** path |
 | `FUN_5fef_016c` / `0352` / `0ec0` | Plunder pick / apply outcome / sweep — PARKED deep |
 | `FUN_4d56_359c` | Relation-gated kill / warn / displace by RNG — thin: displace Scout, despawn if blocked |
 | `FUN_4d56_2154` | Larger action body from `5bfb` — raid-adjacent; not `1b3a` |
+
+### `4528` head vs Linux phase arms
+
+DOS head (mapped): bind tribe → relation/friction → human warn strings
+`0x1710`…`0x172e` + CHOICE → early `LAB_4d56_4bf2` aborts (ship / cancel).
+Linux skips ship/warn VGA and jumps to structural raid phases below (combat /
+approach / `@RAID*` loot via `5fef`-shaped helpers).
 
 ## Linux phase arms (`ai_contact_indian_raids`)
 
