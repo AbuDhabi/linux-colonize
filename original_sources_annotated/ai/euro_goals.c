@@ -285,7 +285,8 @@ int founding_expansion_urgency(int nation_id) {
 /*
  * Ghidra: FUN_521d_0492 | colony_count_balance_flags
  * Compare continent colony target vs counted colonies; return bitfield
- * (−1/0/1 +2/+4 flags). Used by unit priority.
+ * (−1/0/1 +2/+4 flags). Used by 06ae founding extras and unit priority.
+ * Linux: ai_goals_colony_balance_flags (live counts + tally_b/12).
  */
 int colony_count_balance_flags(int unk_goal, int continent_or_nation) {
   (void)unk_goal;
@@ -341,8 +342,8 @@ int walk_unit_stack_to_end(int unit_index) {
  * explore-mask terms when param_4≠0. Returns best dir index (0..8).
  *
  * Called from Euro FUN_521d_20e6 via 2a1f_04ac when scoring founding moves.
- * Linux: ai_goals_pick_founding_tile uses DS:0x2f77; landfall→town table is
- * remaining PORT DEBT fallback until 0492 extras match seed-100 towns.
+ * Linux: ai_goals_pick_founding_tile uses DS:0x2f77 + 0492*16 extras; landfall→town
+ * table remains PORT DEBT (06ae still prefers inland high class_score).
  *
  * param_1 = nation, param_2/3 = x/y, param_4 = score-extras gate,
  * param_5 = wagon-vs-not filter bit.
@@ -367,7 +368,7 @@ int pick_best_adjacent_founding_tile(int nation_id, int x, int y,
         (dir == 8 || ok)) {
       int score = 0; /* terrain_class byte @ 0x2f77 — Linux map_dos_terr_found_score_byte */
       if (score_extras) {
-        /* neighbor explore/owner walk; 0492*0x10 — Linux stub until Col1 continents */
+        /* neighbor explore/owner walk; 0492*0x10 — Linux ai_goals_colony_balance_flags */
         (void)tile_explore_mask;
         (void)continent_id;
       }

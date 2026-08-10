@@ -864,6 +864,16 @@ uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y) {
   return map->layer3[y * map->width + x];
 }
 
+int map_continent_id_at(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return -1;
+  }
+  if (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) {
+    return -1;
+  }
+  return (int)(map_get_layer3(map, x, y) & 0x0fu);
+}
+
 uint8_t map_terrain_overlay(uint8_t terrain_byte) {
   return (uint8_t)(terrain_byte >> 5);
 }

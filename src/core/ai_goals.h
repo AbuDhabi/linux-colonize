@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/colony.h"
+#include "core/col1_save.h"
 #include "core/map.h"
 
 /* Linux port of FUN_521d_0000…0906 goal tables (annotated euro_goals.c). */
@@ -71,19 +72,36 @@ AiEuroInventory* ai_goals_inventory(int nation_id);
 void ai_goals_inventory_clear(int nation_id);
 
 /*
+ * FUN_521d_0492 — colony_count_balance_flags(nation, continent).
+ * Live nation×continent colony counts + post_map.continent_tally_b/12 target.
+ * Cite: viceroy_unpacked.c ~87098; DS:0x85c8 / 0x947e / 0x94e6.
+ */
+int ai_goals_colony_balance_flags(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  int continent_id
+);
+
+/*
  * FUN_521d_06ae — pick best adjacent founding tile.
  * score_extras: DOS param_4 (neighbor continent/explore extras).
  * wagon_filter: DOS param_5 (1 when unit type is wagon 0x0b).
+ * col1: optional (tally_b target); NULL → 0492 returns 0.
+ * coastal_bonus: Linux second+ colony port bias (0 = DOS-faithful).
  * Returns 1 and writes out_x/out_y, or 0 if none.
  */
 int ai_goals_pick_founding_tile_ex(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
   int nation_id,
   int x,
   int y,
   int score_extras,
   int wagon_filter,
+  int coastal_bonus,
   int* out_x,
   int* out_y
 );
@@ -94,6 +112,7 @@ int ai_goals_pick_founding_tile_ex(
 int ai_goals_pick_founding_tile(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
   int nation_id,
   int x,
   int y,

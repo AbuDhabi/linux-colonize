@@ -1,8 +1,10 @@
 #include "core/ai_goals.h"
 
 #include "core/colony.h"
+#include "core/col1_save.h"
 #include "core/map.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -220,19 +222,79 @@ int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y) {
 }
 
 /*
+ * FUN_521d_0492 — colony_count_balance_flags(nation, continent).
+ * Live Euro colony × layer3 continent tallies; target = continent_tally_b/12.
+ * +2 when no Euro colonies on continent (live sum==0; decomp 947e==summed).
+ * +4 when this nation has 0 on continent. Cite: viceroy_unpacked.c ~87098.
+ */
+int ai_goals_colony_balance_flags(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  int continent_id
+) {
+  if (!col1 || continent_id < 0 || continent_id > 15) {
+    return 0;
+  }
+  if (nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+
+  int nation_cont[4][16];
+  memset(nation_cont, 0, sizeof(nation_cont));
+  if (map && colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      const int cid = map_continent_id_at(map, c->x, c->y);
+      if (cid < 0 || cid > 15) {
+        continue;
+      }
+      nation_cont[c->nation_id][cid]++;
+    }
+  }
+
+  int sum_on_cont = 0;
+  for (int n = 0; n < 4; ++n) {
+    sum_on_cont += nation_cont[n][continent_id];
+  }
+
+  const unsigned target = (unsigned)col1->post_map.continent_tally_b[continent_id] / 12u;
+  int flags = 0;
+  if ((int)target > sum_on_cont) {
+    flags = 1;
+  } else if ((int)target < sum_on_cont) {
+    flags = -1;
+  }
+  /* Decomp: 947e == (947e + Σ94e6) ⇒ Σ nation colonies == 0. Prefer live sum. */
+  if (sum_on_cont == 0) {
+    flags += 2;
+  }
+  if (nation_cont[nation_id][continent_id] == 0) {
+    flags += 4;
+  }
+  return flags;
+}
+
+/*
  * FUN_521d_06ae — pick_best_adjacent_founding_tile.
  * Decomp viceroy_unpacked.c ~87237. Base score = DS:0x2f77[class]; when
- * score_extras, add thin neighbor terms (0492 continent balance still stub 0;
- * explore nibble from map_tile_seen_by). Cite: euro_goals.c; move_scoring.md.
+ * score_extras, add 0492(candidate continent)*0x10 + (explore & 0xf) per empty
+ * land neighbor. Cite: euro_goals.c; move_scoring.md.
  */
 int ai_goals_pick_founding_tile_ex(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
   int nation_id,
   int x,
   int y,
   int score_extras,
   int wagon_filter,
+  int coastal_bonus,
   int* out_x,
   int* out_y
 ) {
@@ -240,8 +302,8 @@ int ai_goals_pick_founding_tile_ex(
     return 0;
   }
   (void)wagon_filter; /* DOS own-tile wagon type filter — thin: colonies_can_found */
-  int best_dir = 8;
-  int best_score = -1;
+  int best_dir = -1;
+  int best_score = INT_MIN;
   int any = 0;
   for (int dir = 0; dir <= 8; ++dir) {
     const int nx = x + k_dir8_dx[dir];
@@ -277,9 +339,15 @@ int ai_goals_pick_founding_tile_ex(
     }
 
     /* Base: terrain-class founding byte @ DS:0x2f77. */
-    unsigned score = (unsigned)map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
+    int score = map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
+    if (coastal_bonus > 0 && map_tile_is_coastal(map, nx, ny)) {
+      score += coastal_bonus;
+    }
 
     if (score_extras) {
+      /* Decomp: 0492(nation, continent_of_candidate) once per empty neighbor. */
+      const int cand_cid = map_continent_id_at(map, nx, ny);
+      const int bal = ai_goals_colony_balance_flags(map, colonies, col1, nation_id, cand_cid);
       for (int nd = 0; nd < 8; ++nd) {
         const int hx = nx + k_dir8_dx[nd];
         const int hy = ny + k_dir8_dy[nd];
@@ -295,19 +363,19 @@ int ai_goals_pick_founding_tile_ex(
         }
         /*
          * DOS: 0492(nation, continent_id)*0x10 + (explore_mask & 0xf).
-         * Continent balance (0492) still stub 0 until Col1 continent tables port;
-         * explore nibble from seen bit (074a-shaped).
+         * Explore: thin seen→1 (074a plane low nibble PARKED).
+         * Score must stay signed — bal can be −1.
          */
-        unsigned explore = 0;
+        int explore = 0;
         if (map_tile_seen_by(map, hx, hy, nation_id)) {
-          explore = 1u; /* thin: seen → low nibble bit; full fog mask PARKED */
+          explore = 1;
         }
-        score += explore;
+        score += bal * 0x10 + (explore & 0xf);
       }
     }
 
-    if ((int)score > best_score) {
-      best_score = (int)score;
+    if (score > best_score) {
+      best_score = score;
       best_dir = dir;
       any = 1;
     }
@@ -323,6 +391,7 @@ int ai_goals_pick_founding_tile_ex(
 int ai_goals_pick_founding_tile(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
   int nation_id,
   int x,
   int y,
@@ -330,6 +399,16 @@ int ai_goals_pick_founding_tile(
   int* out_y
 ) {
   return ai_goals_pick_founding_tile_ex(
-    map, colonies, nation_id, x, y, /*score_extras=*/1, /*wagon_filter=*/0, out_x, out_y
+    map,
+    colonies,
+    col1,
+    nation_id,
+    x,
+    y,
+    /*score_extras=*/1,
+    /*wagon_filter=*/0,
+    /*coastal_bonus=*/0,
+    out_x,
+    out_y
   );
 }
