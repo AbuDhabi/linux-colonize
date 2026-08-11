@@ -13,6 +13,7 @@ the deep detail.
 | Move-into-tile authority (enter / combat / landfall) | [move_enter.md](move_enter.md) |
 | Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
 | Project goals / acceptance order | [project_goals.md](project_goals.md) |
+| **Whole-project roadmap** (phases / what’s next) | [roadmap.md](roadmap.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | **Between player turns** (full EOT map + Layer D `130d`/`3844`) | [turn_between_players.md](turn_between_players.md) |
 | **AI transcription gap** (Euro / Indian FUN_*, roadmap) | [ai_transcription.md](ai_transcription.md) |

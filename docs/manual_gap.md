@@ -166,7 +166,8 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 
 ## Suggested implementation order
 
-Aligned with early manual chapters (short playable loop first), then the
+Whole-project **phase priority** lives in [roadmap.md](roadmap.md). This list
+is the historical bring-up order (early manual chapters first), then the
 **unparked queue** in [ai_transcription.md](ai_transcription.md) (prereqs met):
 
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
@@ -201,6 +202,7 @@ chrome, Congress UI, and full 1:1 AI bodies remain.
 
 ## See also
 
+- [roadmap.md](roadmap.md) — whole-project phases / what’s next
 - [original_index.md](original_index.md) — decomp / data navigation
 - [unit_orders.md](unit_orders.md) — unit order mechanics + port status
 - [decomp_inventory.md](decomp_inventory.md) — bring-up and parked RE
