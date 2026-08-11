@@ -100,7 +100,7 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 | HS place | `units_spiral_place_hs_near` / `48d3_0434` | Matches `3fa6` intent |
 | `06ae` unload | Founding peels / landfall table | Live call inside `3558` with `local_9c` mask |
 | Work-queue haul | Thin specialty_cargo / haul scores in planning | Full `4393` distance-normalized pick |
-| Atlantic / cruise XY | PORT DEBT peels | Retire when ocean `20e6` matches TURN1→4 |
+| Atlantic / cruise tips | Latitude-band geometry | Retired XY peels; TURN1→7 under full dispatch |
 
 ## Related
 

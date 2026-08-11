@@ -4,8 +4,8 @@
  * Source: original_sources_decompiled/viceroy_unpacked.c ~86772–87403
  * Callers: FUN_521d_0a60 (upserts), FUN_521d_6d8e plan pass (0342),
  *          FUN_521d_20e6 founding (06ae via 2a1f_04ac).
- * Linux:   `src/core/ai_goals.c` (T0 port); founding tile helper still partial
- *          vs `ai_euro_found_tile_from_landfall` peels.
+ * Linux:   `src/core/ai_goals.c` (T0 port); first-colony sites via landfall
+ *          latitude geometry in `ai_euro.c` when adj 06ae misses coastal towns.
  *
  * Reference only — not compiled into the Linux binary.
  */
@@ -342,8 +342,8 @@ int walk_unit_stack_to_end(int unit_index) {
  * explore-mask terms when param_4≠0. Returns best dir index (0..8).
  *
  * Called from Euro FUN_521d_20e6 via 2a1f_04ac when scoring founding moves.
- * Linux: ai_goals_pick_founding_tile uses DS:0x2f77 + 0492*16 extras; landfall→town
- * table remains PORT DEBT (06ae still prefers inland high class_score).
+ * Linux: ai_goals_pick_founding_tile uses DS:0x2f77 + 0492*16 extras; first-colony
+ * sites use landfall latitude geometry when adj 06ae misses coastal towns.
  *
  * param_1 = nation, param_2/3 = x/y, param_4 = score-extras gate,
  * param_5 = wagon-vs-not filter bit.

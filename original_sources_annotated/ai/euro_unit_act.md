@@ -650,8 +650,8 @@ is eastward (Treasure/Europe exit / eastern HS), prefer eastward HS steps.
 Europe-exit place uses `units_spiral_place_hs_near` (`FUN_48d3_048e` / `0434`).
 Cite: Colonization.pdf Treasure Trains → Europe; `move_scoring.md` band table;
 [`euro_ocean_scoring.c`](euro_ocean_scoring.c). Full `LAB_521d_3558` cargo/colony
-sail matrix still **OPEN**; approach/cruise XY tables kept until that matches
-TURN2–4 without peels.
+sail matrix still **OPEN**; Atlantic approach / post-beachhead tips are
+latitude-band geometry (TURN1→7 without XY peels).
 
 ### 3. Combat / diplomacy tails (**OPEN** mid-planner; Indian raid deep PARKED)
 
