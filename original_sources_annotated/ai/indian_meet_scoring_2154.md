@@ -44,5 +44,5 @@ for gift/demand price tables (`DS:0x9e*`), not a raid action body.
 
 Meet gift/demand uses thin relation/alarm stand-ins in `ai_contact` /
 `ai_diplo`. **Partial `2154`:** colony 5×5 cover mask + tribe±2 forest/coast/food/ore
-buckets modulate Generous gift floor (gold≥30 when rich; cover suppresses). Full
-`0x9e*` table still **OPEN**.
+buckets → score `S=forest*2+coast+food+ore` maps Generous floors (S≥8→25, S≥6→30,
+else 40; cover suppresses). Full `0x9e*` table still **OPEN**. Cite: Series P.

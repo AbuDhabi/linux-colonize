@@ -318,6 +318,8 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   lead pick prefers goto toward raid-gate Euro colony when known, else
   nearest-lead (`ai_contact_indian_raids`). Deep alarmed escort scoring inside
   quiet `14fe` still PARKED. Cite: indian_raid_outcomes.md §1; Series N.
+- **Done (thin):** alarm≥80 colony approach MD≤8 + gold-before-tools at equal
+  distance (mil still first); mid alarm keeps tools-before-gold. Cite: Series Q.
 - **Done (thin village Meet CHOICE):** already-met human Euro on exact tribe tile
   → `ai_contact_try_village_meet` enqueues Trade/Gift/Demand/Teach/Leave via
   `game_after_unit_action`. Unmet still WELCOME-only. Deep `2820` PARKED.

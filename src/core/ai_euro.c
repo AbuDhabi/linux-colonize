@@ -8437,7 +8437,8 @@ static int ai_euro_is_cargo_ship_name(const char* name) {
 /*
  * LAB_521d_3558 peace colony-sail score (~89614–89711 thin):
  * prefer higher pop, nearer ship, docks present, hungrier idle timer.
- * Cite: move_scoring_ship.md; euro_ocean_scoring.c.
+ * War cargo: fort% + human-presence peel + 0x1b-shaped defense ladder
+ * (Stockade/Fort/Fortress). Cite: move_scoring_ship.md; Series O.
  */
 static int ai_euro_ocean_colony_sail_score(
   ColonizeTurnContext* ctx,
@@ -8463,6 +8464,17 @@ static int ai_euro_ocean_colony_sail_score(
     const int fort = ai_euro_colony_fort_bonus_at(ctx->colonies, c->x, c->y, nation_id);
     score += fort / 5;
     score += 14; /* war human-presence / fort peel thin */
+    /* Building flags 0x1b stand-in: Stockade +8 / Fort +16 / Fortress +24. */
+    const int fortress_id = colonies_find_building(ctx->colonies, "Fortress");
+    const int fort_id = colonies_find_building(ctx->colonies, "Fort");
+    const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
+    if (fortress_id >= 0 && c->has_building[fortress_id]) {
+      score += 24;
+    } else if (fort_id >= 0 && c->has_building[fort_id]) {
+      score += 16;
+    } else if (stockade_id >= 0 && c->has_building[stockade_id]) {
+      score += 8;
+    }
   }
   return score;
 }

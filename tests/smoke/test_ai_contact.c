@@ -1251,6 +1251,19 @@ int main(void) {
       return fail("rich neighborhood should Generous at gold 30–39 (−20)");
     }
     /*
+     * Series P: S≥8 floor → Generous at gold 25–29 (−20).
+     * Cite: indian_meet_scoring_2154.md; bucket-scaled floors.
+     */
+    col1.nation[0].gold = 27;
+    ind->alarm_by_player[0] = 10;
+    col1.tribe[0].alarm[0].friction = 10;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != 7u) {
+      fprintf(stderr, "smoke_ai_contact: S>=8 gift gold=%u (want 7)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("S>=8 neighborhood should Generous at gold 25–29 (−20)");
+    }
+    /*
      * 2154 cover mask: Euro colony 5×5 over the forest ring suppresses rich
      * floor → Large (−10) not Generous at gold 35. Cite: Series G1.
      */
@@ -2529,6 +2542,86 @@ int main(void) {
     }
     c_silver->active = false;
     colonies.colony_count = 1;
+  }
+
+  /*
+   * Series Q: alarm≥80 prefers silver wealth before tools at equal MD;
+   * alarm 55 keeps tools-before-gold. Cite: indian_raid_outcomes.md; Series Q.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 12;
+    euro->y = 12;
+    brave->x = 8;
+    brave->y = 8;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    brave->active = true;
+    ind->alarm_by_player[0] = 55;
+    col1.tribe[0].alarm[0].friction = 55;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.nation[0].relation_by_indian[0] = 40;
+    col1.nation[0].gold = 100;
+    ColonizeColony* c_tools = &colonies.colonies[0];
+    ColonizeColony* c_silver = &colonies.colonies[1];
+    c_tools->id = 0;
+    c_tools->active = true;
+    c_tools->nation_id = 0;
+    c_tools->x = 8;
+    c_tools->y = 8;
+    c_tools->population = 3;
+    c_tools->colonist_count = 3;
+    c_tools->building_in_production = -1;
+    memset(c_tools->stock, 0, sizeof(c_tools->stock));
+    c_tools->stock[COLONIZE_CARGO_FOOD] = 20;
+    c_tools->stock[COLONIZE_CARGO_TOOLS] = 12;
+    c_silver->id = 1;
+    c_silver->active = true;
+    c_silver->nation_id = 0;
+    c_silver->x = 8;
+    c_silver->y = 8;
+    c_silver->population = 3;
+    c_silver->colonist_count = 3;
+    c_silver->building_in_production = -1;
+    memset(c_silver->stock, 0, sizeof(c_silver->stock));
+    c_silver->stock[COLONIZE_CARGO_FOOD] = 20;
+    c_silver->stock[COLONIZE_CARGO_SILVER] = 8;
+    colonies.colony_count = 2;
+    const int tools_pref = c_tools->stock[COLONIZE_CARGO_TOOLS];
+    const int silver_pref = c_silver->stock[COLONIZE_CARGO_SILVER];
+    ai_contact_indian_raids(&ctx, 4);
+    if (c_tools->stock[COLONIZE_CARGO_TOOLS] >= tools_pref &&
+        col1.tribe[0].alarm[0].attacks == 0) {
+      return fail("alarm 55 should prefer tools colony over silver peer");
+    }
+    if (c_silver->stock[COLONIZE_CARGO_SILVER] != silver_pref) {
+      return fail("alarm 55 should not loot silver when tools peer tied");
+    }
+    /* Reset and hot alarm≥80 → silver before tools. */
+    c_tools->stock[COLONIZE_CARGO_TOOLS] = 12;
+    c_tools->stock[COLONIZE_CARGO_FOOD] = 20;
+    c_silver->stock[COLONIZE_CARGO_SILVER] = 8;
+    c_silver->stock[COLONIZE_CARGO_FOOD] = 20;
+    col1.tribe[0].alarm[0].attacks = 0;
+    brave->moves_left = 3;
+    brave->orders = UNITS_ORDER_NONE;
+    ind->alarm_by_player[0] = 80;
+    col1.tribe[0].alarm[0].friction = 80;
+    ai_contact_indian_raids(&ctx, 4);
+    if (c_silver->stock[COLONIZE_CARGO_SILVER] >= silver_pref &&
+        col1.tribe[0].alarm[0].attacks == 0) {
+      return fail("alarm≥80 should prefer silver wealth over tools peer");
+    }
+    if (c_tools->stock[COLONIZE_CARGO_TOOLS] != 12) {
+      return fail("alarm≥80 should not loot tools when silver peer tied");
+    }
+    c_silver->active = false;
+    colonies.colony_count = 1;
+    ind->alarm_by_player[0] = 0;
+    col1.tribe[0].alarm[0].friction = 0;
   }
 
   /*

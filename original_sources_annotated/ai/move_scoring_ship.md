@@ -101,7 +101,7 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 | `06ae` unload | Founding peels / landfall table | Live call inside `3558` with `local_9c` mask |
 | Work-queue haul | Thin `4393` distance-normalized pick (`flag_b=1`) | Full 16×6 cargo matrix |
 | Atlantic / cruise tips | `ai_euro_ocean_3558_*` thin ports (soft-tip prior) | Full cargo/colony matrix |
-| Colony sail pick | Peace score pop/idle/docks; war cargo when stance≠0 | Full war `0x1b` / fort matrix |
+| Colony sail pick | Peace score pop/idle/docks; war cargo when stance≠0 + Stockade/Fort/Fortress ladder (Series O) | Full war `0x1b` / fort matrix |
 | `−0x6790` stance | Thin `{0,3,4,6}` + sticky≥2 → mil nibble; war mil unload stance≠0 prefer 4 (Series I); peacetime sticky≥2+stance==4 Brave MD≤3 unload (Series L) | Exact nation×continent nibble table |
 
 ## Related
