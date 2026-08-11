@@ -1771,11 +1771,12 @@ static void ai_contact_gift_or_demand(
 
   /*
    * FUN_4d56_2154 thin neighborhood valuation: count land tiles in tribe ±2
-   * (forest / coastal) not covered by a Euro colony ring stand-in. Richer
-   * neighborhood → Generous (−20) at gold≥30; else gold≥40. Full DS:0x9e*
-   * table still OPEN. Cite: indian_meet_scoring_2154.md.
+   * (forest / coastal) not covered by a Euro colony ring stand-in. Bucket
+   * score S = forest*2 + coast + food + ore maps Generous floors (thin 0x9e*
+   * stand-in). Full DS:0x9e* table still OPEN. Cite: indian_meet_scoring_2154.md;
+   * Series P.
    */
-  int neighborhood_rich = 0;
+  int neighborhood_score = 0;
   if (ctx->map && ctx->col1->tribe) {
     /*
      * 2154 phase-1 cover mask: mark 5×5 work-rings around Euro colonies, then
@@ -1847,7 +1848,7 @@ static void ai_contact_gift_or_demand(
       }
       break; /* one tribe sample for thin port */
     }
-    neighborhood_rich = (forest_n + coast_n + food_n + ore_n) >= 6;
+    neighborhood_score = forest_n * 2 + coast_n + food_n + ore_n;
   }
 
   /* Low friction gift / tribute (auto Large −10; Generous −20 when purse allows). */
@@ -1869,7 +1870,13 @@ static void ai_contact_gift_or_demand(
     if (nat->gold < 20u) {
       return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
     }
-    const unsigned generous_floor = neighborhood_rich ? 30u : 40u;
+    /* S≥8 → floor 25; S≥6 → 30; else 40. Cite: Series P thin 0x9e* stand-in. */
+    unsigned generous_floor = 40u;
+    if (neighborhood_score >= 8) {
+      generous_floor = 25u;
+    } else if (neighborhood_score >= 6) {
+      generous_floor = 30u;
+    }
     if (nat->gold >= generous_floor) {
       ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
       return;
@@ -3853,28 +3860,45 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       int best_mil = 0;
       int best_tools = 0;
       int best_gold = 0;
+      /* Alarm≥80: MD≤8 + gold-before-tools at equal dist (Series Q). */
+      const int md_max = (max_alarm >= 80) ? 8 : 6;
+      const int hot_wealth = (max_alarm >= 80);
       for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
         ColonizeColony* c = &ctx->colonies->colonies[ci];
         if (!c->active || c->nation_id != target_euro) {
           continue;
         }
         const int d = ai_contact_dist(brave->x, brave->y, c->x, c->y);
-        if (d > 6) {
+        if (d > md_max) {
           continue;
         }
         /*
          * Prefer closer; at equal distance prefer muskets/horses (military
-         * secondary), else tools≥10 (high-friction secondary −1), else higher
-         * silver stock (GOLD-kind / wealth approach). Cite:
-         * indian_raid_outcomes.md multi-loot / colony approach; @RAIDGOLD.
+         * secondary). Peace/mid: tools≥10 then silver wealth. Hot alarm≥80:
+         * silver wealth before tools (GOLD-band). Cite:
+         * indian_raid_outcomes.md multi-loot / colony approach; @RAIDGOLD;
+         * Series Q.
          */
         const int mil = ai_contact_colony_has_military_loot(c);
         const int tools = ai_contact_colony_has_tools_loot(c);
         const int gold_w = ai_contact_colony_gold_wealth(c);
-        if (d < best_d || (d == best_d && mil && !best_mil) ||
-            (d == best_d && mil == best_mil && tools && !best_tools) ||
-            (d == best_d && mil == best_mil && tools == best_tools &&
-             gold_w > best_gold)) {
+        int better = 0;
+        if (d < best_d) {
+          better = 1;
+        } else if (d == best_d && mil && !best_mil) {
+          better = 1;
+        } else if (d == best_d && mil == best_mil) {
+          if (hot_wealth) {
+            if (gold_w > best_gold ||
+                (gold_w == best_gold && tools && !best_tools)) {
+              better = 1;
+            }
+          } else if ((tools && !best_tools) ||
+                     (tools == best_tools && gold_w > best_gold)) {
+            better = 1;
+          }
+        }
+        if (better) {
           best_d = d;
           best_cid = c->id;
           best_mil = mil;

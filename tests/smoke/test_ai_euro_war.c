@@ -9302,6 +9302,162 @@ static int smoke_war_transport_threatened_colony(void) {
 }
 
 /*
+ * Series O: war cargo colony-sail prefers Fortress coastal over bare at equal
+ * distance (0x1b defense ladder). Cite: move_scoring_ship.md; Series O.
+ */
+static int smoke_war_cargo_fortress_prefer(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("wcargo alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  /* Two coastal land colonies at (4,4) and (12,4). */
+  map.terrain[4 * 16 + 4] = 1;
+  map.terrain[4 * 16 + 5] = 1;
+  map.terrain[5 * 16 + 4] = 1;
+  map.terrain[4 * 16 + 12] = 1;
+  map.terrain[4 * 16 + 11] = 1;
+  map.terrain[5 * 16 + 12] = 1;
+  if (!map_tile_is_coastal(&map, 4, 4) || !map_tile_is_coastal(&map, 12, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wcargo colonies should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Galleon");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].cargo = 6;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fortress");
+  colonies.building_type_count = 1;
+
+  ColonizeColony* bare = &colonies.colonies[0];
+  bare->id = 0;
+  bare->active = true;
+  bare->nation_id = nation;
+  bare->x = 4;
+  bare->y = 4;
+  bare->population = 3;
+  bare->colonist_count = 3;
+  bare->stock[COLONIZE_CARGO_FOOD] = 40;
+  bare->building_in_production = -1;
+
+  ColonizeColony* fortress = &colonies.colonies[1];
+  fortress->id = 1;
+  fortress->active = true;
+  fortress->nation_id = nation;
+  fortress->x = 12;
+  fortress->y = 4;
+  fortress->population = 3;
+  fortress->colonist_count = 3;
+  fortress->stock[COLONIZE_CARGO_FOOD] = 40;
+  fortress->building_in_production = -1;
+  fortress->has_building[0] = true; /* Fortress */
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  /* Equidistant MD from (8,10): to (4,4)=10, to (12,4)=10. */
+  const int sid = units_spawn(&units, 0, 8, 10);
+  ColonizeUnit* galleon = units_get(&units, sid);
+  if (!galleon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wcargo spawn galleon");
+  }
+  galleon->nation_id = nation;
+  galleon->orders = 0;
+  galleon->moves_left = 4;
+  galleon->hold_goods_type[0] = COLONIZE_CARGO_MUSKETS;
+  galleon->hold_goods_amount[0] = 50;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[foe].gold = 100;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 7;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  galleon = units_get(&units, sid);
+  if (!galleon || !galleon->active) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("wcargo galleon should remain");
+  }
+  const int d_fort =
+    abs(galleon->goto_x - 12) + abs(galleon->goto_y - 4);
+  const int d_bare = abs(galleon->goto_x - 4) + abs(galleon->goto_y - 4);
+  const int prefer_fort =
+    galleon->orders == UNITS_ORDER_AI_SAIL && d_fort <= 2 && d_fort < d_bare;
+  const int moved_fort =
+    abs(galleon->x - 12) + abs(galleon->y - 4) < abs(galleon->x - 4) + abs(galleon->y - 4);
+  if (!prefer_fort && !moved_fort) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: wcargo orders=%d goto=(%d,%d) pos=(%d,%d) d_fort=%d d_bare=%d\n",
+      galleon->orders,
+      galleon->goto_x,
+      galleon->goto_y,
+      galleon->x,
+      galleon->y,
+      d_fort,
+      d_bare
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("war cargo sail should prefer Fortress colony over bare");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: war cargo Fortress prefer ok\n");
+  return 0;
+}
+
+/*
  * War transport: idle Man-O-War with passenger space prefers threatened own
  * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
  */
@@ -9705,6 +9861,9 @@ int main(void) {
     return 1;
   }
   if (smoke_unload_stance0_no_sticky() != 0) {
+    return 1;
+  }
+  if (smoke_war_cargo_fortress_prefer() != 0) {
     return 1;
   }
   if (smoke_unload_dragoon_threatened() != 0) {
