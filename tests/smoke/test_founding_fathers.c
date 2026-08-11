@@ -1128,6 +1128,9 @@ int main(void) {
         upool.types[6].domain = COLONIZE_UNIT_DOMAIN_LAND;
         upool.type_count = 7;
       }
+      /* Attacker type 0: raise attack so 004a×8 beats bare-colony 015e (×1.5). */
+      upool.types[0].attack = 4;
+      upool.types[0].defense = 2;
 
       const int atk = units_spawn_allow_stack(&upool, 0, 5, 6);
       if (atk < 0) {
@@ -1139,7 +1142,7 @@ int main(void) {
       ra->moves_left = 3;
 
       units_set_ff_col1(&ccol1);
-      /* Deterministic: Soldier atk 2 >= Soldier def 2 → attacker wins. */
+      /* Deterministic: atk 4×8=32 >= bare-colony def ((2+4)*16)>>2=24 → win. */
       if (!units_try_move(&upool, atk, &rmap, 6, 6, &rcol, NULL)) {
         units_set_ff_col1(NULL);
         map_free(&rmap);

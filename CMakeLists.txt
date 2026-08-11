@@ -70,6 +70,8 @@ add_library(colonize_core STATIC
   src/core/colony_production.c
   src/core/colony_craft.c
   src/core/colony_preview.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
   src/core/turn.c
   src/core/founding_fathers.c
   src/core/ai.c
@@ -239,6 +241,8 @@ add_executable(smoke_game_flow
   src/core/colony_production.c
   src/core/colony_craft.c
   src/core/colony_preview.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
   src/core/turn.c
   src/core/founding_fathers.c
   src/core/ai.c
@@ -299,6 +303,8 @@ add_executable(smoke_new_game
   src/core/colony_production.c
   src/core/colony_craft.c
   src/core/colony_preview.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
   src/core/turn.c
   src/core/founding_fathers.c
   src/core/ai.c
@@ -539,6 +545,8 @@ add_test(NAME smoke_map_panel COMMAND smoke_map_panel WORKING_DIRECTORY ${CMAKE_
 add_executable(smoke_units
   tests/smoke/test_units.c
   src/core/units.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
   src/core/unit_chrome.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -589,11 +597,14 @@ add_executable(smoke_colonies
   src/core/colony_production.c
   src/core/colony_yield.c
   src/core/units.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
   src/core/unit_chrome.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
   src/core/ai_popup.c
   src/core/popup.c
+  src/core/popup_msg.c
   src/core/map_menu.c
   src/core/europe.c
   src/core/pik.c
@@ -622,11 +633,14 @@ add_executable(smoke_reports
   src/core/col1_save.c
   src/core/colony.c
   src/core/units.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
   src/core/unit_chrome.c
   src/core/founding_fathers.c
   src/core/ai_diplo.c
   src/core/ai_popup.c
   src/core/popup.c
+  src/core/popup_msg.c
   src/core/map_menu.c
   src/core/dos_rng.c
   src/core/strutil.c

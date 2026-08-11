@@ -144,6 +144,7 @@ int main(int argc, char** argv) {
     uint32_t dt = now - prev_ticks;
     prev_ticks = now;
 
+    game_set_platform(game, platform);
     if (!game_update(game, &input, dt)) {
       running = false;
     }

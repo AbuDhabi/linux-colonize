@@ -131,7 +131,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Partial | Land: combat role (`attack>0`) fights; non-combat / peace bounce. Naval: human/AI move-into ship combat T0. Deep `5fef` PARKED — [move_enter.md](move_enter.md) |
+| Land / naval attack | Partial | Land/naval: `FUN_157e` strength + Combat Analysis option UI. Deep `5fef` engagement extras / outcome modals PARKED — [move_enter.md](move_enter.md) |
 | Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons |
 | Stockade / fort / fortress defense % | Done | Land combat: +100%/+150%/+200% via `colonies_fortification_defense_bonus_percent`; coastal Fort/Fortress naval fire `units_coastal_fort_fire_pulse` (FUN_364b_03f6). PARK: ship-slow formula |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |

@@ -5,6 +5,8 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/colony_yield.h"
+#include "core/combat_analysis.h"
+#include "core/combat_strength.h"
 #include "core/dos_rng.h"
 #include "core/col1_save.h"
 #include "core/founding_fathers.h"
@@ -2106,7 +2108,7 @@ int main(void) {
       fprintf(stderr, "Soldiers missing for fort-defense smoke\n");
       return 1;
     }
-    /* Deterministic: attack 3 vs base def 2 → atk wins; with Stockade def=4 → loses. */
+    /* Deterministic: attack 3→×8=24 vs Stockade def base2→16 ×2=32 → loses. */
     pool.types[soldier_ti].attack = 3;
     pool.types[soldier_ti].defense = 2;
     const int atk_id = units_spawn_allow_stack(&pool, soldier_ti, 5, 5);
@@ -2124,7 +2126,7 @@ int main(void) {
     col->has_building[1] = false;
     col->has_building[2] = false;
     units_set_combat_colonies(&colonies);
-    /* attack 3 vs defense 2*(1+100%)=4 → attacker loses when rng NULL (3 < 4). */
+    /* FUN_157e_015e Stockade local_1a=4 → ((4+4)*16)>>2=32 > atk 24. */
     if (units_resolve_land_combat_ff(&pool, atk_id, def_id, NULL, NULL)) {
       fprintf(stderr, "Stockade defense should beat attack 3 vs base 2\n");
       return 1;
@@ -2134,6 +2136,66 @@ int main(void) {
       return 1;
     }
     units_set_combat_colonies(NULL);
+
+    /* Veteran + fortify stack peels (FUN_157e_004a / 015e). */
+    {
+      ColonizeCombatStrengthCtx sctx;
+      memset(&sctx, 0, sizeof(sctx));
+      sctx.units = &pool;
+      sctx.colonies = &colonies;
+      const int vti = units_find_type(&pool, "Soldiers");
+      const int vid = units_spawn_allow_stack(&pool, vti, 6, 6);
+      ColonizeUnit* vu = units_get(&pool, vid);
+      if (!vu) {
+        fprintf(stderr, "vet spawn failed\n");
+        return 1;
+      }
+      vu->nation_id = 0;
+      vu->profession = UNITS_JOB_SOLDIER;
+      pool.types[vti].defense = 2;
+      ColonizeCombatSideFlags fl;
+      const int base = combat_unit_base_x8(&sctx, vid, 0, &fl);
+      /* 2*8=16 +50% vet = 24 */
+      if (base != 24 || (fl.flags & COMBAT_FLAG_VETERAN) == 0) {
+        fprintf(stderr, "vet base×8 want 24+flag got %d flags=%x\n", base, fl.flags);
+        return 1;
+      }
+      vu->orders = UNITS_ORDER_FORTIFIED;
+      col->x = 6;
+      col->y = 6;
+      col->has_building[0] = true;
+      col->has_building[1] = false;
+      col->has_building[2] = false;
+      const int eng = combat_engagement_strength(&sctx, vid, -1, &fl);
+      /* Stockade local_1a=4 + fortify +2 → 6; ((6+4)*24)>>2 = 60 */
+      if (eng != 60) {
+        fprintf(stderr, "Stockade+fortify engagement want 60 got %d\n", eng);
+        return 1;
+      }
+      units_despawn(&pool, vid);
+    }
+
+    /* Combat Analysis gate. */
+    {
+      ColonizeCol1Save ag;
+      memset(&ag, 0, sizeof(ag));
+      ag.player[0].control = 0;
+      ag.player[1].control = 1;
+      if (combat_analysis_should_show(&ag, 0, 1, 0)) {
+        fprintf(stderr, "analysis should be off when option clear\n");
+        return 1;
+      }
+      ag.head.game_options.combat_analysis = 1;
+      if (!combat_analysis_should_show(&ag, 0, 1, 0)) {
+        fprintf(stderr, "analysis should show for human attacker\n");
+        return 1;
+      }
+      if (combat_analysis_should_show(&ag, 1, 1, 0)) {
+        fprintf(stderr, "analysis should skip AI-only fight\n");
+        return 1;
+      }
+      fprintf(stderr, "smoke_units: combat analysis gate ok\n");
+    }
 
     /* Treasure capture: winner gets LE16 gold into nation treasury. */
     ColonizeCol1Save tcol1;

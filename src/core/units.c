@@ -6,6 +6,8 @@
 
 #include "core/ai_diplo.h"
 #include "core/col1_save.h"
+#include "core/combat_analysis.h"
+#include "core/combat_strength.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/strutil.h"
@@ -642,9 +644,35 @@ static ColonizeCol1Save* g_units_fallout_col1 = NULL;
 static ColonizeWorldMap* g_units_fallout_map = NULL;
 static int g_units_conquest_gold = -1;
 static const ColonizeColonyPool* g_units_combat_colonies = NULL;
+static int g_units_combat_human_nation = -1;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
+}
+
+void units_set_combat_human_nation(int human_nation) {
+  g_units_combat_human_nation = human_nation;
+}
+
+static ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Save* col1) {
+  ColonizeCombatStrengthCtx ctx;
+  ctx.units = NULL; /* filled by caller */
+  ctx.map = g_units_occupancy_map ? g_units_occupancy_map : g_units_fallout_map;
+  ctx.colonies = g_units_combat_colonies;
+  ctx.col1 = col1 ? col1 : g_units_ff_col1;
+  return ctx;
+}
+
+static void units_combat_maybe_present_analysis(
+  const ColonizeCol1Save* col1,
+  const ColonizeCombatEngagement* eng,
+  int atk_nation,
+  int def_nation
+) {
+  if (!eng || !combat_analysis_should_show(col1, atk_nation, def_nation, g_units_combat_human_nation)) {
+    return;
+  }
+  combat_analysis_present_if_hooked(eng);
 }
 
 void units_set_occupancy_map(ColonizeWorldMap* map) {
@@ -1296,49 +1324,43 @@ bool units_resolve_land_combat_ff(
   if (!at || !dt) {
     return false;
   }
-  int attack = at->attack;
-  int defense = dt->defense;
+
   /*
-   * Colony fortification (Stockade +100% / Fort +150% / Fortress +200%) when
-   * defender stands on own Euro colony tile. Cite: building_production.md;
-   * fandom Stockade/Fort/Fortress. Stockade replaces Fortify benefit inside —
-   * skip fortified ×2 when building bonus applies.
+   * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e.
+   * Cite: viceroy_unpacked.c FUN_157e_004a / 015e; combat_strength.c.
    */
-  int fort_bonus = 0;
-  if (g_units_combat_colonies) {
-    const int cid = colonies_id_at(g_units_combat_colonies, def->x, def->y);
-    if (cid >= 0) {
-      const ColonizeColony* col = colonies_get(g_units_combat_colonies, cid);
-      if (col && col->active && col->nation_id == def->nation_id && col->nation_id >= 0 &&
-          col->nation_id <= 3) {
-        fort_bonus = colonies_fortification_defense_bonus_percent(g_units_combat_colonies, col);
-      }
-    }
+  ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
+  sctx.units = pool;
+  ColonizeCombatEngagement eng;
+  memset(&eng, 0, sizeof(eng));
+  eng.attacker_id = attacker_id;
+  eng.defender_id = defender_id;
+  eng.is_naval = false;
+  eng.atk_strength = combat_unit_base_x8(&sctx, attacker_id, 1, &eng.atk_flags);
+  eng.def_strength =
+    combat_engagement_strength(&sctx, defender_id, attacker_id, &eng.def_flags);
+  if (eng.atk_strength < 0) {
+    eng.atk_strength = 0;
   }
-  if (fort_bonus > 0) {
-    defense = defense + (defense * fort_bonus) / 100;
-  } else if (def->orders == UNITS_ORDER_FORTIFIED || def->orders == UNITS_ORDER_FORTIFY) {
-    defense *= 2;
+  if (eng.def_strength < 0) {
+    eng.def_strength = 0;
   }
-  if (attack < 0) {
-    attack = 0;
-  }
-  if (defense < 0) {
-    defense = 0;
-  }
-  const int total = attack + defense;
-  bool atk_wins = false;
+
+  const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {
-    /* Both helpless — attacker takes the tile. */
-    atk_wins = true;
+    eng.atk_wins = true;
+    eng.roll = 0;
   } else if (!rng) {
-    /* Deterministic: attacker wins if attack >= defense. */
-    atk_wins = attack >= defense;
+    eng.atk_wins = eng.atk_strength >= eng.def_strength;
+    eng.roll = eng.atk_wins ? eng.atk_strength : eng.atk_strength + 1;
   } else {
-    const int roll = dos_rng_range(rng, 1, total);
-    atk_wins = roll <= attack;
+    eng.roll = dos_rng_range(rng, 1, total);
+    eng.atk_wins = eng.roll <= eng.atk_strength;
   }
-  if (atk_wins) {
+
+  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
+
+  if (eng.atk_wins) {
     const int def_x = def->x;
     const int def_y = def->y;
     const int def_nation = def->nation_id;
@@ -1464,64 +1486,39 @@ bool units_resolve_naval_combat_ff(
   if (!at || !dt) {
     return false;
   }
-  int attack = at->attack;
-  int defense = dt->defense;
-  if (attack < 0) {
-    attack = 0;
+
+  /* FUN_157e_004a for both sides (naval engagement uses base×8 peels). */
+  ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
+  sctx.units = pool;
+  ColonizeCombatEngagement eng;
+  memset(&eng, 0, sizeof(eng));
+  eng.attacker_id = attacker_id;
+  eng.defender_id = defender_id;
+  eng.is_naval = true;
+  eng.atk_strength = combat_unit_base_x8(&sctx, attacker_id, 1, &eng.atk_flags);
+  eng.def_strength = combat_unit_base_x8(&sctx, defender_id, 0, &eng.def_flags);
+  if (eng.atk_strength < 0) {
+    eng.atk_strength = 0;
   }
-  if (defense < 0) {
-    defense = 0;
+  if (eng.def_strength < 0) {
+    eng.def_strength = 0;
   }
-  /*
-   * FUN_157e_004a peels (naval): Privateer + ship_damaged (0x3148 bit7) → −2;
-   * holds_occupied (0x3150 / Col1 unit+0x0c) subtracted for both sides.
-   * Cite: viceroy_unpacked.c FUN_157e_004a; col1_save.h ship_damaged.
-   */
-  if (strstr(at->name, "Privateer") != NULL && (atk->col1_unknown15 & 0x80u) != 0) {
-    attack -= 2;
-    if (attack < 0) {
-      attack = 0;
-    }
-  }
-  if (strstr(dt->name, "Privateer") != NULL && (def->col1_unknown15 & 0x80u) != 0) {
-    defense -= 2;
-    if (defense < 0) {
-      defense = 0;
-    }
-  }
-  {
-    int atk_holds = 0;
-    int def_holds = 0;
-    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-      if (atk->hold_goods_amount[i] > 0 && atk->hold_goods_amount[i] < 255) {
-        ++atk_holds;
-      }
-      if (def->hold_goods_amount[i] > 0 && def->hold_goods_amount[i] < 255) {
-        ++def_holds;
-      }
-    }
-    attack -= atk_holds;
-    defense -= def_holds;
-    if (attack < 0) {
-      attack = 0;
-    }
-    if (defense < 0) {
-      defense = 0;
-    }
-  }
-  attack = units_drake_scale_strength(pool, atk, attack, col1);
-  defense = units_drake_scale_strength(pool, def, defense, col1);
-  const int total = attack + defense;
-  bool atk_wins = false;
+
+  const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {
-    atk_wins = true;
+    eng.atk_wins = true;
+    eng.roll = 0;
   } else if (!rng) {
-    atk_wins = attack >= defense;
+    eng.atk_wins = eng.atk_strength >= eng.def_strength;
+    eng.roll = eng.atk_wins ? eng.atk_strength : eng.atk_strength + 1;
   } else {
-    const int roll = dos_rng_range(rng, 1, total);
-    atk_wins = roll <= attack;
+    eng.roll = dos_rng_range(rng, 1, total);
+    eng.atk_wins = eng.roll <= eng.atk_strength;
   }
-  if (atk_wins) {
+
+  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
+
+  if (eng.atk_wins) {
     (void)units_plunder_ship_holds(pool, attacker_id, defender_id);
     units_despawn(pool, defender_id);
     g_units_last_combat = 1;
