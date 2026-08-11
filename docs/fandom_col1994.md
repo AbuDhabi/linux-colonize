@@ -115,17 +115,21 @@ Costs / min-pop: already catalogued in `NAMES.TXT` and summarized in [`building_
 
 ## Production / SoL
 
+Full catalog: [`sons_of_liberty.md`](sons_of_liberty.md).
+
 | Claim (wiki) | Porting note |
 |--------------|--------------|
 | Factory ≈ **1.5×** goods per raw (Adam Smith) | Aligns with port framing **6→9** throughput in [`building_production.md`](building_production.md); verify in decomp |
-| SoL **50%** / **100%** productivity bumps; can exceed 100% internally but display caps at 100% | [Sons of Liberty (Col)](https://civilization.fandom.com/wiki/Sons_of_Liberty_(Col)); port: field/craft/hammers/bells/crosses apply `colony_prod_sol_bonus`; Tory −1 PARK |
-| “Inefficient government”: too many Tory colonists (wiki: ≥10 easiest / ≥6 hardest) → **−1** on all production | Manual SoL ±1 qualitative; verify thresholds vs code |
+| SoL **50%** / **100%** productivity bumps; can exceed 100% internally but display caps at 100% | [Sons of Liberty (Col)](https://civilization.fandom.com/wiki/Sons_of_Liberty_(Col)); port: `colony_prod_sol_bonus`; DOS caps 100 after Bolivar |
+| “Inefficient government”: too many Tory colonists (wiki: ≥10 easiest / ≥6 hardest) → **−1** on all production | Thresh `10-diff` correct; magnitude is DOS `−⌊tories/thresh⌋` + sol latches — not a flat −1 ([sons_of_liberty.md](sons_of_liberty.md)); effect PARK |
 | Printing Press +50% / Newspaper +100% liberty bells from town-hall workers | Partial construction; multipliers Missing |
 | Jefferson ×1.5 on statesmen; Paine adds tax-rate factor (wiki: multiplicative with press/newspaper) | FF Missing |
 | Church raises passive crosses; Penn +50% crosses | Crosses → dock Partial; full formulas Missing |
-| Declare independence needs **overall** SoL ≥ **50%** | Independence Missing |
+| Declare independence needs **overall** SoL ≥ **50%** | Structural Partial (`ai_king`); see [sons_of_liberty.md](sons_of_liberty.md) |
 
 Liberty bells also feed FF election, then after independence feed [foreign intervention](#independence--win). Details: [Liberty Bell (Col)](https://civilization.fandom.com/wiki/Liberty_bell_(Col)) (long strategy page).
+
+Simon Bolivar wiki “+20% SoL”: DOS adds +20 on every SoL **read** while elected; port applies a one-shot dividend bump — [sons_of_liberty.md](sons_of_liberty.md).
 
 Terrain / field yields: see [`terrain_yields.md`](terrain_yields.md) — do not re-dump from wiki.
 
@@ -225,7 +229,7 @@ Port: all Missing except thin score schedule.
 | Fur Factory min pop | Adam Smith page says factories need pop **8** | [`building_production.md`](building_production.md) lists Fur Factory min **6** from `NAMES` | Prefer `NAMES` / code |
 | Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Decomp/port `1536-diff` → Viceroy **1532** | **Resolved** — [difficulty.md](difficulty.md) |
 | Custom House sell thresholds (100/50) | Strategy section on Custom House page | Decomp `FUN_364b_0688` (`stock>99` → leave 50) | **Done** structural autosell |
-| SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Decomp `10-diff` + manual | **Resolved** — [difficulty.md](difficulty.md); production −1 still PARK |
+| SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Decomp `10-diff` + `−⌊tories/thresh⌋` | **Resolved** — [sons_of_liberty.md](sons_of_liberty.md); production floor still PARK |
 | Fort/Fortress coastal bombardment strengths | Strategy sections (4+4 art / 8+8 art) | Not in `NAMES` building rows | Combat RE |
 
 ---

@@ -83,7 +83,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
 | Construction queue + buy with gold | Partial | Construction tab BUY/CHANGE; Change list uses min-pop / upgrade / FF gates; hammers = accumulated progress; `NAMES` tools×10; settlement banner (name + hammers; click → Change) **Done** thin |
 | Warehouse drag load/unload to ships / wagons | Done | Drag cargo↔hold (icon cursor); **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122** |
-| SoL / Tory display | Partial | Col1 rebel_dividend/divisor when present; else nation liberty_bells/4 stand-in (`colony_prod_sol_percent`); Tory right-aligned; people row includes fence units |
+| SoL / Tory display | Partial | Col1 rebel_dividend/divisor when present; else nation liberty_bells/4 stand-in (`colony_prod_sol_percent`); Tory right-aligned; people row includes fence units — [sons_of_liberty.md](sons_of_liberty.md) |
 | Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥3; last colonist confirms abandon (cargo lost) |
 | Fortification defense bonuses | Done | Land +100/150/200%; coastal Fort/Fortress fire EOT (`units_coastal_fort_fire_pulse`). Fence/docks art separate |
 
@@ -137,7 +137,7 @@ and [assets.md](assets.md); this file is the **feature checklist**.
 |----------------|--------|-------|
 | FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE one-per-@FATHERS-type **Done** structural; KINGGALLEON2 PARK; F3 portrait grid PARKED |
 | Pedia / F3 Congress report | Partial | Data / articles; debate elect via popup; no election on F3 plate |
-| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED |
+| Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win (1850+no crown) / lose (no ports after REF) latches **Done** thin; deep `10f0` / DECLARAT anim PARKED |
 | F10 Colonization Score | Partial | Schedule exists; WoI → declared flag; achieve from endgame latch; retire opens score |
 
