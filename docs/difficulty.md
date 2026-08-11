@@ -3,8 +3,9 @@
 Reference for what the new-game difficulty byte (`0` Discoverer … `4` Viceroy) changes
 in original Colonization rules, and how the Linux port tracks that today.
 
-Sentiment production math beyond the Tory threshold is owned by
-[building_production.md](building_production.md). Authority order:
+Sentiment production math beyond the Tory **threshold** is owned by
+[sons_of_liberty.md](sons_of_liberty.md) (building throughput without sentiment:
+[building_production.md](building_production.md)). Authority order:
 [project_goals.md](project_goals.md) (decomp / NAMES → manual → fandom).
 
 ## Sources
@@ -48,7 +49,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Indian land purchase | Harder → costlier for human, cheaper for AI | Wired |
 | Conquest treasure | Difficulty bands 0..3 (Gov+Vic share band 3) | Wired |
 | Score villages burned | `-(diff+1)*burned` | Wired |
-| Tory / inefficient gov | Threshold `10-diff` → −1 all production | **PARK** |
+| Tory / inefficient gov | Thresh `10-diff`; full mod `−⌊tories/thresh⌋` + sol latches | **PARK** floor — see [sons_of_liberty.md](sons_of_liberty.md) |
 | AI colony food | `+= difficulty>>1` | **PARK** |
 | Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
 | End-game score→gold rebate | `FUN_41f2_0b70` difficulty multiplier | **PARK** |
@@ -265,10 +266,11 @@ Manual + decomp (`viceroy_unpacked.c` ~57468): Tory pressure threshold
 threshold = 10 - difficulty   // Discoverer 10 … Viceroy 6
 ```
 
-When Tory share is at/above the threshold → **−1** to all colony production
-(and DOS latches colony flag bit `0x08`). Documented in
-[building_production.md](building_production.md); **`colony_prod_sol_bonus` PARK**
-(SoL +1/+2 only today).
+Production penalty is **not** a flat −1 at the threshold. DOS uses
+`−⌊tory_count / threshold⌋`, then adds +1/+2 from SoL latches — full formula and
+port status in [sons_of_liberty.md](sons_of_liberty.md). DOS also latches colony
+flag bit `0x08` on the inefficient path. Port: SoL +1/+2 only (`colony_prod_sol_bonus`);
+Tory floor **PARK**.
 
 ---
 
@@ -279,7 +281,7 @@ When Tory share is at/above the threshold → **−1** to all colony production
 | AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | Not in `src/` |
 | Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
 | Score→gold rebate `FUN_41f2_0b70` | FUNCTION_CATALOG | PARK |
-| Tory −1 production | ~57468; manual | PARK |
+| Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | PARK |
 
 ---
 
