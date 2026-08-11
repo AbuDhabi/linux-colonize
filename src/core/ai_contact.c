@@ -1727,6 +1727,7 @@ static void ai_contact_gift_or_demand(
     int forest_n = 0;
     int coast_n = 0;
     int food_n = 0;
+    int ore_n = 0; /* silverish/ore score-word stand-in (2154 local_a0) */
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
       if ((int)t->nation_id != nation_id) {
@@ -1752,6 +1753,15 @@ static void ai_contact_gift_or_demand(
           if (pedia >= 0 && pedia <= 7) {
             food_n++; /* plains/grass foodish bucket */
           }
+          /*
+           * Ore/silverish bucket (pedia hills/mountains stand-in 4..7 overlap
+           * food — count hills terrain class via coastal-adjacent rock: pedia
+           * 2..3 desert/tundra thin + hills 4 when not food-primary). Cite:
+           * indian_meet_scoring_2154.md local_a0; Series G1.
+           */
+          if (pedia == 4 || pedia == 5 || pedia == 6 || pedia == 7) {
+            ore_n++;
+          }
           if (map_tile_is_coastal(ctx->map, nx, ny)) {
             coast_n++;
           }
@@ -1759,7 +1769,7 @@ static void ai_contact_gift_or_demand(
       }
       break; /* one tribe sample for thin port */
     }
-    neighborhood_rich = (forest_n + coast_n + food_n) >= 6;
+    neighborhood_rich = (forest_n + coast_n + food_n + ore_n) >= 6;
   }
 
   /* Low friction gift / tribute (auto Large −10; Generous −20 when purse allows). */
@@ -2661,7 +2671,8 @@ static int ai_contact_auto_trade(
      * Deep nest PARKED. Cite: indian_trade_2820.md Open RE.
      */
     if (hard &&
-        ai_contact_nation_primary_sold_cargo(nation_id) == (uint8_t)COLONIZE_CARGO_SILVER &&
+        (ai_contact_nation_primary_sold_cargo(nation_id) == (uint8_t)COLONIZE_CARGO_SILVER ||
+         ai_contact_nation_primary_sold_cargo(nation_id) == (uint8_t)COLONIZE_CARGO_ORE) &&
         c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0) {
       c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
     }

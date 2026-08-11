@@ -343,6 +343,10 @@ int ai_goals_pick_founding_tile_ex(
     if (coastal_bonus > 0 && map_tile_is_coastal(map, nx, ny)) {
       score += coastal_bonus;
     }
+    /* First-colony (coastal≥40): west-of-origin bias toward Atlantic towns. */
+    if (coastal_bonus >= 40) {
+      score += (x - nx);
+    }
 
     if (score_extras) {
       /* Decomp: 0492(nation, continent_of_candidate) once per empty neighbor. */

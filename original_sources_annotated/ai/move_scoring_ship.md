@@ -99,10 +99,10 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 | Ocean step toward goto | `ai_euro_ocean_score_step` (HS west/east bias, fort avoid, thin war) | Full `local_9c` unload + colony sail matrix |
 | HS place | `units_spiral_place_hs_near` / `48d3_0434` | Matches `3fa6` intent |
 | `06ae` unload | Founding peels / landfall table | Live call inside `3558` with `local_9c` mask |
-| Work-queue haul | Thin specialty_cargo / haul scores in planning | Full `4393` distance-normalized pick |
-| Atlantic / cruise tips | `ai_euro_ocean_3558_*` thin ports (latitude seeds) | Full cargo/colony matrix; seed-free tips |
+| Work-queue haul | Thin `4393` distance-normalized pick (`flag_b=1`) | Full 16×6 cargo matrix |
+| Atlantic / cruise tips | `ai_euro_ocean_3558_*` thin ports (soft-tip prior) | Full cargo/colony matrix |
 | Colony sail pick | Peace score pop/idle/docks; war cargo when stance≠0 | Full war `0x1b` / fort matrix |
-| `−0x6790` stance | Thin `{0,3,4,6}` from live tallies | Exact nation×continent nibble table |
+| `−0x6790` stance | Thin `{0,3,4,6}` + sticky≥2 → mil nibble | Exact nation×continent nibble table |
 
 ## Related
 
