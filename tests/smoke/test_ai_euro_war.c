@@ -2059,8 +2059,9 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
   strong = units_get(&units, strong_id);
   weak = units_get(&units, weak_id);
 
-  const int weak_dead = weak == NULL || !weak->active;
-  const int strong_alive = strong && strong->active;
+  const int weak_dead =
+    weak == NULL || !weak->active || (weak->nation_id == nation);
+  const int strong_alive = strong && strong->active && strong->nation_id == foe_nat;
   const int own_alive = soldier && soldier->active;
 
   if (!weak_dead || !strong_alive || !own_alive) {

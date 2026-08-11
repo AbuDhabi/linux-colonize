@@ -8351,7 +8351,9 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
   if (!ctx || !ctx->units || !u) {
     return;
   }
-  const int foe = units_id_at(ctx->units, tx, ty);
+  const int foe = units_best_defender_at(
+    ctx->units, ctx->col1_ok ? ctx->col1 : NULL, tx, ty, u->id, u->id
+  );
   if (foe < 0) {
     return;
   }

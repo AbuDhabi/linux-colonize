@@ -183,11 +183,12 @@ fragment. Related sections are listed in the first column.
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | Combat Analysis (options bit) | After combat roll, human side | Done | Dual-column wood `combat_analysis.c` (`636c`-shaped); gated by `combat_analysis` |
-| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Missing | Gold may apply silently; ransom PARKED |
-| `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Missing | — |
-| `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Missing | — |
+| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | Structural OK via `units_set_combat_popups`; ransom CHOICE PARKED |
+| `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Partial | Capture + ship damage/sunk OK; burn colony chrome thin/PARK |
+| `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | Structural `AI_POPUP_TAG_COMBAT_EUROPE` |
+| `@DEMOTE` | Specialty strip / demote | Partial | Enqueued when demote lands human-facing |
 | `@SEIZURE*` | Privateer / seizure | Missing | — |
-| Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Partial | Raid OK/status |
+| Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Partial | Raid OK/status; Spanish ambush peel enqueues `@INDIANWIN1` |
 
 ### 10. Year-end / victory / HoF / retire
 
@@ -417,16 +418,16 @@ work.
 | `@NOLOOT` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@LOOT` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@LOOT2` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@LOOTCASH` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@LOOTCASH` | Partial | structural combat popup (`COMBAT_LOOT`); ransom PARKED |
 | `@LOOTFOREIGN` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@LOOTCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@LOOTCAPTURE` | Partial | structural combat popup on treasure capture |
 | `@WAGONCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@COLONISTCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@COLONISTCAPTURE2` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@CARGOCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@DEMOTE` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@SHIPDAMAGE` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@SHIPSUNK` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@DEMOTE` | Partial | structural when demote lands human-facing |
+| `@SHIPDAMAGE` | Partial | naval/arty damage-not-sink path |
+| `@SHIPSUNK` | Partial | naval sink after plunder |
 | `@RAIDNOTHING` | Partial | CONTACT_RAID OK thin |
 | `@RAIDWREAK` | Partial | CONTACT_RAID OK thin |
 | `@RAIDSTORES` | Partial | CONTACT_RAID OK thin |
@@ -450,14 +451,14 @@ work.
 | `@INDIANBURNCOLONY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANBURNCOLONY2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANSURPRISE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@CAPTURED` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@CAPTURED` | Partial | capture-alive non-combat Euro (`CAPTURED0`) |
 | `@CAPTURED2` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@CAPTURED3` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@BURNED` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@BURNED2` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@BURNED3` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@EUROPEWIN` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@EUROPELOSE` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@EUROPEWIN` | Done | structural combat outcome popup |
+| `@EUROPELOSE` | Done | structural combat outcome popup |
 | `@WAREHOUSEFULL` | Missing | no warehouse-full modal |
 | `@EXTORTSTUFF` | Missing | extort/ship anger dialogs missing |
 | `@EXTORTPOOR` | Missing | extort/ship anger dialogs missing |

@@ -87,12 +87,14 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## PARKED (not this track)
 
-Deep `FUN_5fef_1b0e` engagement extras (artillery/ambush/SoL/REF), ship-slow
-formula, village raid `4528`/`2820` VGA, full `465b` foreign diplo/war UI,
-Euro mid-planner `20e6`.
+Village raid `4528`/`2820` VGA, full `465b` foreign diplo/war UI, Euro mid-planner
+`20e6`, coastal fort ship-slow bit7/repair, VGA-identical combat chrome, full
+treasure ransom CHOICE.
 
-Combat strength `FUN_157e_004a`/`015e` + Combat Analysis (`636c`) are wired;
-outcome `@EUROPEWIN`/`@LOOT*` modals still Missing.
+Combat strength `FUN_157e_004a`/`015e` + `1b0e` peels (artillery/ambush/SoL/REF/
+difficulty) + best-defender `0000` + promote/demote + outcome apply `0352`/
+naval damage + structural `@EUROPEWIN`/`@LOOT*`/`@SHIP*`/`@DEMOTE` popups are
+wired. Combat Analysis (`636c`) Done.
 
 ## See also
 

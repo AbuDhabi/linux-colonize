@@ -122,6 +122,22 @@ static void combat_analysis_fill_side(
     if (flags->flags & COMBAT_FLAG_FORTIFY) {
       combat_analysis_push_line(lines, count, "Fortified +50%");
     }
+    if (flags->flags & COMBAT_FLAG_ARTILLERY) {
+      combat_analysis_push_line(lines, count, "Artillery -75%");
+    }
+    if (flags->flags2 & COMBAT_FLAG_ARTY_COLONY) {
+      combat_analysis_push_line(lines, count, "Artillery vs natives +100%");
+    }
+    if (flags->flags & COMBAT_FLAG_AMBUSH) {
+      combat_analysis_push_line(lines, count, "Ambush +50%");
+    }
+    if (flags->flags & COMBAT_FLAG_REF) {
+      combat_analysis_push_line(lines, count, "REF +50%");
+    }
+    if (flags->flags2 & COMBAT_FLAG_SOL) {
+      snprintf(buf, sizeof(buf), "SoL +%d%%", flags->sol_percent);
+      combat_analysis_push_line(lines, count, buf);
+    }
     if ((flags->flags & COMBAT_FLAG_MODE_ATK) && is_attacker) {
       /* Mode bit shown only as identity; no extra % line beyond base. */
     }

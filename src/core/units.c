@@ -10,12 +10,14 @@
 #include "core/combat_strength.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/popup_msg.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
 
 /* Defined later; used by naval hold plunder before combat despawn. */
 int units_load_goods(ColonizeUnitPool* pool, int unit_id, int cargo_type, int amount);
+int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
 bool units_advance_goto_one_step(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -645,6 +647,8 @@ static ColonizeWorldMap* g_units_fallout_map = NULL;
 static int g_units_conquest_gold = -1;
 static const ColonizeColonyPool* g_units_combat_colonies = NULL;
 static int g_units_combat_human_nation = -1;
+static AiPopupState* g_units_combat_popups = NULL;
+static const ColonizeMsgCatalog* g_units_combat_game_txt = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
@@ -652,6 +656,11 @@ void units_set_ff_col1(const ColonizeCol1Save* col1) {
 
 void units_set_combat_human_nation(int human_nation) {
   g_units_combat_human_nation = human_nation;
+}
+
+void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt) {
+  g_units_combat_popups = popups;
+  g_units_combat_game_txt = game_txt;
 }
 
 static ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Save* col1) {
@@ -832,6 +841,98 @@ static int units_foreign_at(
 }
 
 /*
+ * FUN_5fef_0000: walk stack for highest engagement toughness vs attacker.
+ * Artillery vs Indian attacker ×2; skip type.attack==0.
+ */
+int units_best_defender_at(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int attacker_id,
+  int except_id
+) {
+  if (!pool) {
+    return -1;
+  }
+  const ColonizeUnit* atk = units_get_const(pool, attacker_id);
+  const int atk_nat = atk ? atk->nation_id : -1;
+  ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
+  sctx.units = pool;
+
+  int best_id = -1;
+  int best_score = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->id == except_id || u->id == attacker_id) {
+      continue;
+    }
+    if (atk_nat >= 0 && u->nation_id == atk_nat) {
+      continue;
+    }
+    if (!combat_unit_is_combat_role(pool, u->id)) {
+      continue;
+    }
+    int score = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
+    const ColonizeUnitType* t = units_type(pool, u->type_index);
+    if (t && combat_type_is_artillery_name(t->name) && atk_nat > 3) {
+      score *= 2;
+    }
+    if (score > best_score) {
+      best_score = score;
+      best_id = u->id;
+    }
+  }
+  /* Fallback: any foreign unit (capture-only stacks with no combat role). */
+  if (best_id < 0 && atk) {
+    return units_foreign_at(pool, x, y, attacker_id, atk_nat);
+  }
+  return best_id;
+}
+
+static int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat_b) {
+  if (!col1) {
+    return g_units_combat_human_nation >= 0 &&
+           (nat_a == g_units_combat_human_nation || nat_b == g_units_combat_human_nation);
+  }
+  const int a_h =
+    (nat_a >= 0 && nat_a <= 3 && col1->player[nat_a].control == 0) ||
+    (g_units_combat_human_nation >= 0 && nat_a == g_units_combat_human_nation);
+  const int b_h =
+    (nat_b >= 0 && nat_b <= 3 && col1->player[nat_b].control == 0) ||
+    (g_units_combat_human_nation >= 0 && nat_b == g_units_combat_human_nation);
+  return a_h || b_h;
+}
+
+static void units_combat_enqueue_section(
+  AiPopupTag tag,
+  const char* section,
+  int nation_a,
+  int nation_b,
+  const char* string0,
+  const char* string1,
+  const char* fallback
+) {
+  if (!g_units_combat_popups || !section) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = string0;
+  tok.string1 = string1;
+  if (g_units_combat_game_txt) {
+    popup_msg_fill(g_units_combat_game_txt, section, &tok, fallback, body, sizeof(body));
+  } else {
+    snprintf(body, sizeof(body), "%s", fallback ? fallback : section);
+  }
+  (void)ai_popup_enqueue_ok_ctx(g_units_combat_popups, tag, nation_a, nation_b, 0, NULL, body);
+}
+
+/*
  * PEDIA George Washington: non-veteran soldier/dragoon who wins combat is
  * automatically upgraded. Name-based type swap (1eca-style) + profession bit
  * so display_name becomes Veteran when @UNIT has no separate Veteran type.
@@ -888,6 +989,357 @@ static void units_washington_promote_on_win(
       winner->type_index = tgt;
     }
     winner->profession = UNITS_JOB_SOLDIER;
+  }
+}
+
+/* FUN_5fef_16ea: demote profession remap. */
+static int units_demote_profession_remap(int profession, int woi) {
+  if (woi && profession == UNITS_JOB_SOLDIER) {
+    return -1; /* strip type instead */
+  }
+  if (profession == 26) { /* DOS 0x1a → 0x19 */
+    return 25;
+  }
+  if (profession == 25) { /* DOS 0x19 → 0x1c NONE */
+    return UNITS_JOB_NONE;
+  }
+  if (profession == UNITS_JOB_SCOUT || profession == UNITS_JOB_PIONEER ||
+      profession == UNITS_JOB_DRAGOON || profession == UNITS_JOB_MISSIONARY) {
+    return UNITS_JOB_NONE;
+  }
+  if (profession == UNITS_JOB_SOLDIER) {
+    return UNITS_JOB_NONE;
+  }
+  return profession;
+}
+
+/*
+ * FUN_5fef_172c chance promote: Soldier/Dragoon → veteran profession/type.
+ * Washington always promotes (caller); here RNG margin path.
+ */
+static int units_chance_promote_on_win(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* winner,
+  const ColonizeCol1Save* col1,
+  int atk_strength,
+  int def_strength,
+  int roll,
+  ColonizeDosRng* rng
+) {
+  if (!pool || !winner || !winner->active) {
+    return 0;
+  }
+  if (col1 && founding_fathers_nation_has(col1, winner->nation_id, FF_GEORGE_WASHINGTON)) {
+    return 0; /* Washington path already ran / will run */
+  }
+  const ColonizeUnitType* ut = units_type(pool, winner->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(pool, winner);
+  if ((dname && (strstr(dname, "Veteran") || strstr(dname, "Continental"))) ||
+      (tname &&
+       (strstr(tname, "Veteran") || strstr(tname, "Cont.") || strstr(tname, "Continental")))) {
+    return 0;
+  }
+  const int is_dragoon =
+    (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))) ||
+    (dname && (strstr(dname, "Dragoon") || strstr(dname, "Cavalry")));
+  const int is_soldier =
+    !is_dragoon &&
+    ((tname && strstr(tname, "Soldier") != NULL) || (dname && strstr(dname, "Soldier") != NULL));
+  if (!is_soldier && !is_dragoon) {
+    return 0;
+  }
+  /* Margin: how far roll beat the weaker side. Chance rises with margin. */
+  int margin = 0;
+  if (atk_strength + def_strength > 0) {
+    if (roll <= atk_strength) {
+      margin = atk_strength - roll + 1;
+    } else {
+      margin = roll - atk_strength;
+    }
+  }
+  int difficulty = col1 ? (int)col1->head.difficulty : 2;
+  int threshold = 8 + difficulty;
+  if (winner->profession == UNITS_JOB_COLONIST || winner->profession == UNITS_JOB_NONE) {
+    threshold += 5;
+  }
+  if (!rng) {
+    if (margin < threshold / 2) {
+      return 0;
+    }
+  } else {
+    const int r = dos_rng_range(rng, 1, threshold + margin);
+    if (r > margin + 2) {
+      return 0;
+    }
+  }
+  if (is_dragoon) {
+    int tgt = units_find_type(pool, "Veteran Dragoon");
+    if (tgt < 0) {
+      tgt = units_find_type(pool, "Cont. Cav.");
+    }
+    if (tgt >= 0) {
+      winner->type_index = tgt;
+    }
+    winner->profession = UNITS_JOB_DRAGOON;
+  } else {
+    int tgt = units_find_type(pool, "Veteran Soldier");
+    if (tgt < 0) {
+      tgt = units_find_type(pool, "Cont. Army");
+    }
+    if (tgt >= 0) {
+      winner->type_index = tgt;
+    }
+    winner->profession = UNITS_JOB_SOLDIER;
+  }
+  return 1;
+}
+
+/* Strip specialty / demote on loss when unit survives (capture path). */
+static int units_demote_on_loss(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* loser,
+  const ColonizeCol1Save* col1,
+  int human_facing
+) {
+  if (!pool || !loser || !loser->active) {
+    return 0;
+  }
+  const int woi = col1 && col1->head.game_options.woi;
+  const int old_prof = loser->profession;
+  const int mapped = units_demote_profession_remap(old_prof, woi);
+  int changed = 0;
+  if (mapped < 0) {
+    /* Strip soldier type toward Free Colonist. */
+    const int tgt = units_find_type(pool, "Free Colonist");
+    if (tgt >= 0) {
+      loser->type_index = tgt;
+      changed = 1;
+    }
+    loser->profession = UNITS_JOB_NONE;
+    changed = 1;
+  } else if (mapped != old_prof) {
+    loser->profession = mapped;
+    changed = 1;
+  }
+  if (changed && human_facing) {
+    const ColonizeUnitType* t = units_type(pool, loser->type_index);
+    units_combat_enqueue_section(
+      AI_POPUP_TAG_COMBAT_DEMOTE,
+      "DEMOTE",
+      loser->nation_id,
+      -1,
+      t ? t->name : "Unit",
+      NULL,
+      "Unit demoted."
+    );
+  }
+  return changed;
+}
+
+/*
+ * FUN_5fef_0352 thin: capture-alive non-combat Euro units; artillery damage bit;
+ * else despawn. Returns 1 if unit still active (captured/damaged), 0 if gone.
+ */
+static int units_apply_land_loss_outcome(
+  ColonizeUnitPool* pool,
+  int loser_id,
+  int winner_id,
+  const ColonizeCol1Save* col1,
+  int show_popups
+) {
+  ColonizeUnit* lose = units_get(pool, loser_id);
+  ColonizeUnit* win = units_get(pool, winner_id);
+  if (!lose || !win || !lose->active) {
+    return 0;
+  }
+  const ColonizeUnitType* lt = units_type(pool, lose->type_index);
+  const ColonizeUnitType* wt = units_type(pool, win->type_index);
+  const int human =
+    show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
+
+  /* Artillery: first loss → damaged bit7; already damaged → sink. */
+  if (lt && combat_type_is_artillery_name(lt->name)) {
+    if ((lose->col1_unknown15 & 0x80u) == 0) {
+      lose->col1_unknown15 |= 0x80u;
+      lose->moves_left = 0;
+      if (human) {
+        units_combat_enqueue_section(
+          AI_POPUP_TAG_COMBAT_SHIP,
+          "SHIPDAMAGE",
+          lose->nation_id,
+          win->nation_id,
+          lt->name,
+          wt ? wt->name : NULL,
+          "Artillery damaged."
+        );
+      }
+      (void)units_demote_on_loss(pool, lose, col1, human);
+      return 1;
+    }
+  }
+
+  /* Capture-alive: Euro non-combat (attack==0), not Treasure/Wagon. */
+  if (lose->nation_id >= 0 && lose->nation_id <= 3 && lt && lt->attack == 0) {
+    const int is_treasure = lt->name[0] && strstr(lt->name, "Treasure") != NULL;
+    const int is_wagon = lt->name[0] && strstr(lt->name, "Wagon") != NULL;
+    if (!is_treasure && !is_wagon) {
+      const int from_nat = lose->nation_id;
+      units_set_nation(lose, win->nation_id);
+      lose->orders = UNITS_ORDER_NONE;
+      lose->moves_left = 0;
+      (void)units_demote_on_loss(pool, lose, col1, human);
+      if (human) {
+        units_combat_enqueue_section(
+          AI_POPUP_TAG_COMBAT_CAPTURE,
+          "CAPTURED0",
+          win->nation_id,
+          from_nat,
+          lt->name,
+          wt ? wt->name : NULL,
+          "Unit captured."
+        );
+      }
+      return 1;
+    }
+  }
+
+  units_despawn(pool, loser_id);
+  return 0;
+}
+
+/* Thin FUN_5fef_0ec0: after combat loss, capture leftover non-combat same-nation stack. */
+static void units_sweep_stack_after_loss(
+  ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int loser_nation,
+  int winner_id,
+  const ColonizeCol1Save* col1
+) {
+  if (!pool || loser_nation < 0) {
+    return;
+  }
+  ColonizeUnit* win = units_get(pool, winner_id);
+  if (!win || !win->active) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->nation_id != loser_nation || u->id == winner_id) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(pool, u->type_index);
+    if (t && t->attack == 0 && u->nation_id >= 0 && u->nation_id <= 3) {
+      (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 0);
+    }
+  }
+}
+
+/* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
+static int units_apply_naval_loss_outcome(
+  ColonizeUnitPool* pool,
+  int loser_id,
+  int winner_id,
+  int loser_str,
+  int winner_str,
+  int show_popups,
+  const ColonizeCol1Save* col1
+) {
+  ColonizeUnit* lose = units_get(pool, loser_id);
+  ColonizeUnit* win = units_get(pool, winner_id);
+  if (!lose || !win || !lose->active) {
+    return 0;
+  }
+  const ColonizeUnitType* lt = units_type(pool, lose->type_index);
+  const ColonizeUnitType* wt = units_type(pool, win->type_index);
+  const int human =
+    show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
+
+  /* Close fight + weaker type attack: set damaged bit and escape (1b0e ship peel). */
+  const int lose_atk = lt ? lt->attack : 0;
+  const int win_atk = wt ? wt->attack : 0;
+  const int close = loser_str * 2 > winner_str && winner_str > 0;
+  if (close && lose_atk < win_atk && (lose->col1_unknown15 & 0x80u) == 0) {
+    lose->col1_unknown15 |= 0x80u;
+    lose->moves_left = 0;
+    if (human) {
+      units_combat_enqueue_section(
+        AI_POPUP_TAG_COMBAT_SHIP,
+        "SHIPDAMAGE",
+        lose->nation_id,
+        win->nation_id,
+        lt ? lt->name : "Ship",
+        wt ? wt->name : NULL,
+        "Ship damaged."
+      );
+    }
+    return 1;
+  }
+
+  (void)units_plunder_ship_holds(pool, winner_id, loser_id);
+  if (human) {
+    units_combat_enqueue_section(
+      AI_POPUP_TAG_COMBAT_SHIP,
+      "SHIPSUNK",
+      win->nation_id,
+      lose->nation_id,
+      lt ? lt->name : "Ship",
+      wt ? wt->name : NULL,
+      "Ship sunk."
+    );
+  }
+  units_despawn(pool, loser_id);
+  return 0;
+}
+
+static void units_combat_outcome_popups(
+  const ColonizeUnitPool* pool,
+  int winner_id,
+  int loser_id,
+  int atk_wins,
+  int atk_nation,
+  int def_nation,
+  int is_naval,
+  int ambush,
+  int loot_gold,
+  const ColonizeCol1Save* col1
+) {
+  if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
+    return;
+  }
+  const ColonizeUnit* win = units_get_const(pool, winner_id);
+  const ColonizeUnit* lose = units_get_const(pool, loser_id);
+  const ColonizeUnitType* wt = win ? units_type(pool, win->type_index) : NULL;
+  const ColonizeUnitType* lt = lose ? units_type(pool, lose->type_index) : NULL;
+  const char* wn = wt && wt->name[0] ? wt->name : "Unit";
+  const char* ln = lt && lt->name[0] ? lt->name : "Unit";
+
+  if (!is_naval) {
+    if (atk_wins) {
+      units_combat_enqueue_section(
+        AI_POPUP_TAG_COMBAT_EUROPE, "EUROPEWIN", atk_nation, def_nation, wn, ln, "Victory!"
+      );
+    } else {
+      units_combat_enqueue_section(
+        AI_POPUP_TAG_COMBAT_EUROPE, "EUROPELOSE", atk_nation, def_nation, wn, ln, "Defeat."
+      );
+    }
+    if (ambush && atk_wins) {
+      units_combat_enqueue_section(
+        AI_POPUP_TAG_COMBAT_AMBUSH, "INDIANWIN1", atk_nation, def_nation, wn, ln, "Ambush!"
+      );
+    }
+    if (loot_gold > 0 && atk_wins) {
+      char fb[64];
+      snprintf(fb, sizeof(fb), "Looted %d gold.", loot_gold);
+      units_combat_enqueue_section(
+        AI_POPUP_TAG_COMBAT_LOOT, "LOOTCASH", atk_nation, def_nation, wn, ln, fb
+      );
+    }
   }
 }
 
@@ -1326,28 +1778,29 @@ bool units_resolve_land_combat_ff(
   }
 
   /*
-   * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e.
-   * Cite: viceroy_unpacked.c FUN_157e_004a / 015e; combat_strength.c.
+   * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e + peels.
+   * Cite: viceroy_unpacked.c FUN_157e_004a / 015e / 5fef_1b0e; combat_strength.c.
    */
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
   sctx.units = pool;
+  ColonizeCombatEngageResult er;
+  combat_land_engage(&sctx, attacker_id, defender_id, &er);
+
   ColonizeCombatEngagement eng;
   memset(&eng, 0, sizeof(eng));
   eng.attacker_id = attacker_id;
   eng.defender_id = defender_id;
   eng.is_naval = false;
-  eng.atk_strength = combat_unit_base_x8(&sctx, attacker_id, 1, &eng.atk_flags);
-  eng.def_strength =
-    combat_engagement_strength(&sctx, defender_id, attacker_id, &eng.def_flags);
-  if (eng.atk_strength < 0) {
-    eng.atk_strength = 0;
-  }
-  if (eng.def_strength < 0) {
-    eng.def_strength = 0;
-  }
+  eng.atk_strength = er.atk_strength;
+  eng.def_strength = er.def_strength;
+  eng.atk_flags = er.atk_flags;
+  eng.def_flags = er.def_flags;
 
   const int total = eng.atk_strength + eng.def_strength;
-  if (total <= 0) {
+  if (er.force_defender_wins) {
+    eng.atk_wins = false;
+    eng.roll = eng.atk_strength + 1;
+  } else if (total <= 0) {
     eng.atk_wins = true;
     eng.roll = 0;
   } else if (!rng) {
@@ -1360,6 +1813,9 @@ bool units_resolve_land_combat_ff(
 
   units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
+  const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
+  int loot_gold = 0;
+
   if (eng.atk_wins) {
     const int def_x = def->x;
     const int def_y = def->y;
@@ -1367,25 +1823,43 @@ bool units_resolve_land_combat_ff(
     const int atk_nation = atk->nation_id;
     /*
      * Treasure capture: credit LE16 hold gold to Euro winner treasury, then
-     * despawn. Cite: FUNCTION_CATALOG FUN_5fef_1908; GAME.TXT @LOOTCAPTURE —
+     * apply outcome. Cite: FUN_5fef_1908; GAME.TXT @LOOTCAPTURE —
      * amount from unit only (no invented ransom). PARK: ransom dialog chrome.
      */
     if (col1 && atk_nation >= 0 && atk_nation <= 3 && dt->name[0] &&
         strstr(dt->name, "Treasure") != NULL) {
       const unsigned lo = (unsigned)(def->hold_goods_amount[0] & 0xff);
       const unsigned hi = (unsigned)(def->hold_goods_amount[1] & 0xff);
-      const int loot = (int)(lo | (hi << 8));
-      if (loot > 0) {
+      loot_gold = (int)(lo | (hi << 8));
+      if (loot_gold > 0) {
         ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
         const uint32_t g = mut->nation[atk_nation].gold;
-        const uint32_t add = (uint32_t)loot;
+        const uint32_t add = (uint32_t)loot_gold;
         mut->nation[atk_nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
+        units_combat_enqueue_section(
+          AI_POPUP_TAG_COMBAT_LOOT,
+          "LOOTCAPTURE",
+          atk_nation,
+          def_nation,
+          at->name,
+          dt->name,
+          "Treasure captured."
+        );
       }
     }
-    units_despawn(pool, defender_id);
+    units_combat_outcome_popups(
+      pool, attacker_id, defender_id, 1, atk_nation, def_nation, 0, ambush, loot_gold, col1
+    );
+    (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
+    units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, col1);
     atk = units_get(pool, attacker_id);
     if (atk) {
       units_washington_promote_on_win(pool, atk, col1);
+      if (units_chance_promote_on_win(
+            pool, atk, col1, eng.atk_strength, eng.def_strength, eng.roll, rng
+          )) {
+        /* promoted */
+      }
     }
     if (def_nation >= 4 && g_units_fallout_col1 && g_units_fallout_map) {
       (void)units_try_native_settlement_fallout(
@@ -1403,10 +1877,22 @@ bool units_resolve_land_combat_ff(
     g_units_last_combat = 1;
     return true;
   }
-  units_despawn(pool, attacker_id);
+  units_combat_outcome_popups(
+    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 0, ambush, 0, col1
+  );
+  {
+    const int atk_x = atk->x;
+    const int atk_y = atk->y;
+    const int atk_nation = atk->nation_id;
+    (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1);
+    units_sweep_stack_after_loss(pool, atk_x, atk_y, atk_nation, defender_id, col1);
+  }
   def = units_get(pool, defender_id);
   if (def) {
     units_washington_promote_on_win(pool, def, col1);
+    (void)units_chance_promote_on_win(
+      pool, def, col1, eng.atk_strength, eng.def_strength, eng.roll, rng
+    );
   }
   g_units_last_combat = -1;
   return false;
@@ -1487,22 +1973,21 @@ bool units_resolve_naval_combat_ff(
     return false;
   }
 
-  /* FUN_157e_004a for both sides (naval engagement uses base×8 peels). */
+  /* FUN_157e_004a + 1b0e difficulty peels for both sides. */
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
   sctx.units = pool;
+  ColonizeCombatEngageResult er;
+  combat_naval_engage(&sctx, attacker_id, defender_id, &er);
+
   ColonizeCombatEngagement eng;
   memset(&eng, 0, sizeof(eng));
   eng.attacker_id = attacker_id;
   eng.defender_id = defender_id;
   eng.is_naval = true;
-  eng.atk_strength = combat_unit_base_x8(&sctx, attacker_id, 1, &eng.atk_flags);
-  eng.def_strength = combat_unit_base_x8(&sctx, defender_id, 0, &eng.def_flags);
-  if (eng.atk_strength < 0) {
-    eng.atk_strength = 0;
-  }
-  if (eng.def_strength < 0) {
-    eng.def_strength = 0;
-  }
+  eng.atk_strength = er.atk_strength;
+  eng.def_strength = er.def_strength;
+  eng.atk_flags = er.atk_flags;
+  eng.def_flags = er.def_flags;
 
   const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {
@@ -1519,13 +2004,21 @@ bool units_resolve_naval_combat_ff(
   units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
   if (eng.atk_wins) {
-    (void)units_plunder_ship_holds(pool, attacker_id, defender_id);
-    units_despawn(pool, defender_id);
+    units_combat_outcome_popups(
+      pool, attacker_id, defender_id, 1, atk->nation_id, def->nation_id, 1, 0, 0, col1
+    );
+    (void)units_apply_naval_loss_outcome(
+      pool, defender_id, attacker_id, eng.def_strength, eng.atk_strength, 1, col1
+    );
     g_units_last_combat = 1;
     return true;
   }
-  (void)units_plunder_ship_holds(pool, defender_id, attacker_id);
-  units_despawn(pool, attacker_id);
+  units_combat_outcome_popups(
+    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 1, 0, 0, col1
+  );
+  (void)units_apply_naval_loss_outcome(
+    pool, attacker_id, defender_id, eng.atk_strength, eng.def_strength, 1, col1
+  );
   g_units_last_combat = -1;
   return false;
 }
@@ -2161,7 +2654,9 @@ bool units_try_move(
   }
 
   if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL) {
-    const int foe = units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id);
+    const int foe = units_best_defender_at(
+      pool, g_units_ff_col1, dest_x, dest_y, unit_id, unit_id
+    );
     if (foe < 0) {
       return false;
     }

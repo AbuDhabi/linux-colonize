@@ -62,7 +62,14 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_DIPLO_FA = 25, /* thin FA 3f41 report / gift chrome (F2–F9 PARKED) */
   AI_POPUP_TAG_LANDFALL = 26, /* ship→bare land: Stay With Ships / Make Landfall */
   /* Map confirm gates (disband / overboard / quit / retire / trade-delete). */
-  AI_POPUP_TAG_MAP_CONFIRM = 27
+  AI_POPUP_TAG_MAP_CONFIRM = 27,
+  /* Combat outcome structural modals (GAME.TXT @SECTION). */
+  AI_POPUP_TAG_COMBAT_EUROPE = 28,
+  AI_POPUP_TAG_COMBAT_LOOT = 29,
+  AI_POPUP_TAG_COMBAT_CAPTURE = 30,
+  AI_POPUP_TAG_COMBAT_SHIP = 31,
+  AI_POPUP_TAG_COMBAT_DEMOTE = 32,
+  AI_POPUP_TAG_COMBAT_AMBUSH = 33
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

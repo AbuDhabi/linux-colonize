@@ -104,7 +104,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** one-shot dividend bump |
 | Rebel sentiment points | Score +1 per point | **Wired** |
 | Year-end C2 / D SoL chrome | Peace / pressure / rival dialogs | **Thin / PARK** |
-| Combat popular-support % | Attacker side’s SoL/Tory share | **PARK** |
+| Combat popular-support % | Attacker side’s SoL/Tory share | **Wired** thin (`combat_apply_1b0e_peels` WoI SoL + REF +50%) |
 | Cont. Army muster by colony SoL | Declare-turn muster; &lt;50% = 0 | **PARK** |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |
 | Rebel accumulator EOT | Grow dividend/divisor from bells | **PARK** |
@@ -210,7 +210,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 | Rebel dividend/divisor EOT tick | `FUN_364b_0688` Phase C |
 | Tory floor `−⌊tories/thresh⌋` | decomp ~11880 |
 | DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 |
-| Combat popular-support attack % = side’s SoL/Tory share | Manual |
+| Combat popular-support attack % = side’s SoL/Tory share | Manual — **thin Wired** in `combat_apply_1b0e_peels` |
 | Continental Army muster by colony SoL | Manual |
 | Map population digit colors (white/green/blue) | Manual |
 | Decade SoL chrome messages | `colony_eot_production.md` |

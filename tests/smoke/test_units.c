@@ -11,6 +11,7 @@
 #include "core/col1_save.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
+#include "core/ai_popup.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
@@ -2917,6 +2918,216 @@ int main(void) {
       map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_OCCUPANCY_HAS_CITY);
       units_despawn(&pool, sid);
     }
+  }
+
+  /* Phase-2 combat: 1b0e peels, best-defender, capture, naval damage, popups. */
+  {
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    units_set_combat_popups(&pops, NULL);
+    units_set_combat_human_nation(0);
+
+    /* Spanish ambush +50% on colony vs Indian. */
+    {
+      ColonizeColonyPool cols;
+      colonies_init(&cols);
+      ColonizeColony* col = &cols.colonies[0];
+      col->id = 0;
+      col->active = true;
+      col->nation_id = 2;
+      col->x = 20;
+      col->y = 20;
+      cols.colony_count = 1;
+      units_set_combat_colonies(&cols);
+      const int spa_ti = units_find_type(&pool, "Soldiers");
+      const int ind_ti = units_find_type(&pool, "Braves");
+      if (spa_ti < 0 || ind_ti < 0) {
+        fprintf(stderr, "phase2 ambush types missing\n");
+        return 1;
+      }
+      const int aid = units_spawn_allow_stack(&pool, spa_ti, 20, 20);
+      const int did = units_spawn_allow_stack(&pool, ind_ti, 20, 20);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      if (!a || !d) {
+        fprintf(stderr, "phase2 ambush spawn failed\n");
+        return 1;
+      }
+      a->nation_id = 2;
+      d->nation_id = 4;
+      ColonizeCombatStrengthCtx sctx;
+      memset(&sctx, 0, sizeof(sctx));
+      sctx.units = &pool;
+      sctx.colonies = &cols;
+      ColonizeCombatEngageResult er;
+      combat_land_engage(&sctx, aid, did, &er);
+      if ((er.atk_flags.flags & COMBAT_FLAG_AMBUSH) == 0) {
+        fprintf(stderr, "phase2 Spanish ambush flag missing\n");
+        return 1;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+      units_set_combat_colonies(NULL);
+      fprintf(stderr, "smoke_units: Spanish ambush peel ok\n");
+    }
+
+    /* Best defender: Artillery preferred over Colonist on same tile. */
+    {
+      const int sol = units_find_type(&pool, "Soldiers");
+      const int col = units_find_type(&pool, "Colonists");
+      const int arty = units_find_type(&pool, "Artillery");
+      if (sol < 0 || col < 0 || arty < 0) {
+        fprintf(stderr, "phase2 best-def types missing\n");
+        return 1;
+      }
+      const int atk = units_spawn_allow_stack(&pool, sol, 30, 30);
+      const int weak = units_spawn_allow_stack(&pool, col, 31, 30);
+      const int strong = units_spawn_allow_stack(&pool, arty, 31, 30);
+      ColonizeUnit* au = units_get(&pool, atk);
+      ColonizeUnit* wu = units_get(&pool, weak);
+      ColonizeUnit* su = units_get(&pool, strong);
+      if (!au || !wu || !su) {
+        fprintf(stderr, "phase2 best-def spawn failed\n");
+        return 1;
+      }
+      au->nation_id = 0;
+      wu->nation_id = 1;
+      su->nation_id = 1;
+      pool.types[arty].attack = 4;
+      pool.types[arty].defense = 8;
+      pool.types[col].attack = 0;
+      pool.types[col].defense = 1;
+      const int best = units_best_defender_at(&pool, NULL, 31, 30, atk, atk);
+      if (best != strong) {
+        fprintf(stderr, "phase2 best-def want arty id=%d got %d\n", strong, best);
+        return 1;
+      }
+      units_despawn(&pool, atk);
+      units_despawn(&pool, weak);
+      units_despawn(&pool, strong);
+      fprintf(stderr, "smoke_units: best-defender pick ok\n");
+    }
+
+    /* Capture-alive Colonists. */
+    {
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.head.difficulty = 2;
+      c1.player[0].control = 0;
+      const int sol = units_find_type(&pool, "Soldiers");
+      const int fc = units_find_type(&pool, "Colonists");
+      if (sol < 0 || fc < 0) {
+        fprintf(stderr, "phase2 capture types missing\n");
+        return 1;
+      }
+      const int aid = units_spawn_allow_stack(&pool, sol, 40, 40);
+      const int did = units_spawn_allow_stack(&pool, fc, 40, 40);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      if (!a || !d) {
+        fprintf(stderr, "phase2 capture spawn failed\n");
+        return 1;
+      }
+      a->nation_id = 0;
+      d->nation_id = 1;
+      pool.types[sol].attack = 8;
+      pool.types[fc].attack = 0;
+      pool.types[fc].defense = 1;
+      if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+        fprintf(stderr, "phase2 capture combat should win\n");
+        return 1;
+      }
+      d = units_get(&pool, did);
+      if (!d || !d->active || d->nation_id != 0) {
+        fprintf(stderr, "phase2 Colonists should be captured\n");
+        return 1;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+      fprintf(stderr, "smoke_units: capture-alive ok\n");
+    }
+
+    /* Naval damage-not-always-sink: weaker ship escapes damaged when close. */
+    {
+      const int frig = units_find_type(&pool, "Frigate");
+      const int car = units_find_type(&pool, "Caravel");
+      if (frig < 0 || car < 0) {
+        fprintf(stderr, "phase2 naval types missing\n");
+        return 1;
+      }
+      pool.types[frig].attack = 6;
+      pool.types[frig].defense = 6;
+      pool.types[car].attack = 5;
+      pool.types[car].defense = 5;
+      const int aid = units_spawn_allow_stack(&pool, frig, 2, 2);
+      const int did = units_spawn_allow_stack(&pool, car, 3, 2);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      if (!a || !d) {
+        fprintf(stderr, "phase2 naval spawn failed\n");
+        return 1;
+      }
+      a->nation_id = 0;
+      d->nation_id = 1;
+      if (!units_resolve_naval_combat_ff(&pool, aid, did, NULL, NULL)) {
+        fprintf(stderr, "phase2 naval should win\n");
+        return 1;
+      }
+      d = units_get(&pool, did);
+      if (!d || !d->active || (d->col1_unknown15 & 0x80u) == 0) {
+        fprintf(stderr, "phase2 weaker ship should survive damaged\n");
+        return 1;
+      }
+      units_despawn(&pool, aid);
+      units_despawn(&pool, did);
+      fprintf(stderr, "smoke_units: naval damage-escape ok\n");
+    }
+
+    /* Outcome popups enqueued for human side. */
+    {
+      ai_popup_clear(&pops);
+      units_set_combat_popups(&pops, NULL);
+      const int sol = units_find_type(&pool, "Soldiers");
+      if (sol < 0) {
+        fprintf(stderr, "phase2 popup types missing\n");
+        return 1;
+      }
+      const int aid = units_spawn_allow_stack(&pool, sol, 50, 50);
+      const int did = units_spawn_allow_stack(&pool, sol, 50, 50);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      a->nation_id = 0;
+      d->nation_id = 1;
+      pool.types[sol].attack = 8;
+      pool.types[sol].defense = 1;
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+      if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+        fprintf(stderr, "phase2 popup combat should win\n");
+        return 1;
+      }
+      int found = 0;
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_EUROPE) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        fprintf(stderr, "phase2 expected EUROPEWIN popup enqueue (queue=%d)\n", pops.queue_count);
+        return 1;
+      }
+      units_despawn(&pool, aid);
+      if (units_get(&pool, did) && units_get(&pool, did)->active) {
+        units_despawn(&pool, did);
+      }
+      fprintf(stderr, "smoke_units: combat outcome popup enqueue ok\n");
+    }
+
+    units_set_combat_popups(NULL, NULL);
+    units_set_combat_human_nation(-1);
   }
 
   fprintf(
