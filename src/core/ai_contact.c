@@ -10,6 +10,7 @@
 #include "core/popup_msg.h"
 #include "core/units.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1713,21 +1714,305 @@ static int ai_contact_enqueue_demand_amount_choice(
 }
 
 /*
- * Gift / demand structural stand-in (5bfb_102a / 1092 via ai_popup; VGA PARKED).
- * After peaceful meet adjacency (caller already gated alarmed / very-low rel):
- *  - alarmed (≥55 refuse-talk gate) → refuse gift/demand with status; no extra
- *    gold penalty beyond existing gift costs
- *  - low friction + Euro gold < 10 → refuse refuse (cannot pay −10 gift)
- *  - low friction + Euro gold >= 20 → gift: Euro −10 gold, friction −2
- *    (auto Large; human Meet Gift may enqueue Small/Large amount CHOICE first)
- *  - mid friction (40–54) + tools/gold → demand: auto prefers −10 tools from
- *    nearest colony warehouse when stock ≥20 (else unit tools ≥20, else −15
- *    gold when treasury ≥50); friction −3. Human Meet→Demand may enqueue
- *    tools-vs-gold amount CHOICE first. Cite: gift gold≥20 band mirrored for
- *    tools; gold stand-in needs a fuller purse (≥50) when tools are short.
- *  - very high covered by alarmed refuse / raids
- * Human-facing paths set a thin status line when ctx->status is present.
- * Source: fandom Alarm — alarmed natives may refuse trade/gifts.
+ * FUN_4d56_2154 meet economics: dual 16-word tables ask[] (DS:0x9e58) /
+ * bid[] (DS:0x9e78). Phases 1–5 from viceroy_unpacked.c 81743–82057.
+ * Cover: tribe-local 25-cell mask (full relative ring; 281f_0ce0 OPEN).
+ * Terrain: map_dos_terr_class_at (281f_078c). Divisor *(0x8d52/−0x69d6) →
+ * head.difficulty (0..4). Cite: indian_meet_scoring_2154.md.
+ */
+typedef struct AiContactMeetEcon2154 {
+  int16_t ask[16];
+  int16_t bid[16];
+} AiContactMeetEcon2154;
+
+static int ai_contact_2154_signed_quarter_double(int x) {
+  /* Decomp: abs via xor, >>2, restore sign, *2. */
+  const unsigned u = (unsigned)x;
+  const unsigned sign = (unsigned)(x >> 15);
+  const unsigned absv = (u ^ sign) - sign;
+  const unsigned q = absv >> 2;
+  return (int)(((q ^ sign) - sign) * 2u);
+}
+
+static int ai_contact_2154_clamp0_50(int v) {
+  if (v < 0) {
+    return 0;
+  }
+  if (v > 0x32) {
+    return 0x32;
+  }
+  return v;
+}
+
+static int ai_contact_meet_economics_2154(
+  ColonizeTurnContext* ctx,
+  int indian_nation,
+  const ColonizeCol1Tribe* tribe,
+  AiContactMeetEcon2154* out
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || !tribe || !out ||
+      indian_nation < 4 || indian_nation > 11) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  memset(out, 0, sizeof(*out));
+
+  /* Phase 1: tribe-local 25-cell cover from colony relative overlap. */
+  uint8_t cover[25];
+  memset(cover, 0, sizeof(cover));
+  const int tx = (int)tribe->x;
+  const int ty = (int)tribe->y;
+  if (ctx->colonies) {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      const ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      for (int ly = 0; ly < 5; ++ly) {
+        for (int lx = 0; lx < 5; ++lx) {
+          const int rel_x = tx - c->x + lx;
+          const int rel_y = ty - c->y + ly;
+          const int abs_x = rel_x - 2;
+          const int abs_y = rel_y - 2;
+          if (abs_x < 0 || abs_y < 0 || abs_x >= ctx->map->width ||
+              abs_y >= ctx->map->height) {
+            continue;
+          }
+          if (rel_x < 0 || rel_x > 4 || rel_y < 0 || rel_y > 4) {
+            continue;
+          }
+          /* Full relative ring stand-in for 281f_0ce0 work-slot gate. */
+          cover[ly * 5 + lx] = 1;
+        }
+      }
+    }
+  }
+
+  /* Phase 2–3: tribe ±2 terr_class buckets (skip covered local cells). */
+  int local_a0 = 0;
+  int local_9e = 0;
+  int local_9c = 0;
+  int local_5e = 0;
+  int local_74 = 0;
+  int local_5a = 0;
+  int local_6a = 0;
+  int local_6e = 0;
+  int local_58 = 0;
+  int local_7a = 0;
+  int local_68 = 0;
+  int local_7e = 0;
+  int local_66 = 0;
+
+  for (int y = ty - 2; y <= ty + 2; ++y) {
+    for (int x = tx - 2; x <= tx + 2; ++x) {
+      if (x < 0 || y < 0 || x >= ctx->map->width || y >= ctx->map->height) {
+        continue;
+      }
+      const int lx = x - tx + 2;
+      const int ly = y - ty + 2;
+      if (lx < 0 || lx > 4 || ly < 0 || ly > 4) {
+        continue;
+      }
+      if (cover[ly * 5 + lx]) {
+        continue;
+      }
+      const int terr = map_dos_terr_class_at(ctx->map, x, y) & 31;
+      if (terr == 0x1b) {
+        local_a0++;
+      }
+      if (terr == 0x1c) {
+        local_9c++;
+      }
+      if (terr == 0x18) {
+        local_5a += 4;
+      }
+      if (!(((terr < 8) || (terr > 15)) && ((terr < 16) || (terr > 23)))) {
+        /* Forest bands 8..15 / 16..23. */
+        local_6e++;
+        if (terr >= 8 && terr <= 15) {
+          local_9e = terr - 8;
+        }
+        if (terr >= 16 && terr <= 23) {
+          local_9e = terr - 16;
+        }
+        if (local_9e < 3) {
+          local_5e++;
+          local_5a += 2;
+        } else {
+          local_74++;
+          local_6a++;
+          if (local_9e == 5) {
+            local_58 += 2;
+          }
+          if (local_9e == 4) {
+            local_7e += 2;
+          }
+          if (local_9e == 3) {
+            local_68 += 2;
+          }
+        }
+      } else if (terr == 0x19 || terr == 0x1a) {
+        local_7a += (int)ind->tech + 1;
+        while (local_7a > 2) {
+          local_7a -= 3;
+          local_6e += 2;
+        }
+      } else if (terr < 8) {
+        if (terr == 5) {
+          local_58 += 4;
+        }
+        if (terr == 7) {
+          local_58 += 2;
+        }
+        if (terr == 4) {
+          local_7e += 4;
+        }
+        if (terr == 6) {
+          local_7e += 2;
+        }
+        if (terr == 3) {
+          local_68 += 4;
+        }
+        if (terr == 0) {
+          local_66 += 2;
+        }
+        if (terr == 2) {
+          local_68 += 1;
+          local_6e += 2;
+        }
+        if (terr < 2) {
+          if (terr == 1) {
+            local_6a += 4;
+          } else if (terr == 0) {
+            local_5a += 3;
+          }
+        } else if (terr < 6) {
+          local_6e += 3;
+          if ((terr & 4) != 0) {
+            local_6a += 2;
+          } else {
+            local_5a += 2;
+          }
+        } else {
+          local_66 += 1;
+          local_6e += 2;
+        }
+      }
+    }
+  }
+
+  /* Phase 4: write ask/bid words from tech, pop, buckets, indian fields. */
+  const int pop = (int)tribe->population;
+  const int pop1 = pop + 1;
+  int tech = (int)ind->tech;
+  if (tech > 6) {
+    tech = 6; /* avoid (7-tech) zero / negative */
+  }
+  const int diff = (int)ctx->col1->head.difficulty; /* DS 0x8d52/−0x69d6 stand-in */
+  int diff_div = diff;
+  if (diff_div < 1) {
+    diff_div = 1;
+  }
+
+  out->bid[0] = (int16_t)(((tech + pop1) * local_6e) / (7 - tech));
+  out->ask[0] = (int16_t)((pop1 * pop1 * 4) >> (1 < tech ? 1 : 0));
+  if (tech != 0) {
+    if (tech > 1) {
+      const int16_t word_c =
+        (int16_t)((uint16_t)ind->unknown31d[0] | ((uint16_t)ind->unknown31d[1] << 8));
+      out->bid[7] = (int16_t)((int)word_c / diff_div);
+      int a0_shift = local_a0 << 2;
+      if (tech > 2) {
+        a0_shift = local_a0 << 3;
+      }
+      out->bid[7] = (int16_t)((int)out->bid[7] + a0_shift);
+    }
+    if (ind->tech != 0) {
+      out->bid[6] =
+        (int16_t)((int)out->bid[6] + local_9c * 2 + local_a0 + local_66);
+    }
+  }
+  out->bid[4] =
+    (int16_t)((int)out->bid[4] + (local_5e * 2 + (local_74 >> 1)) / (tech + 1));
+  out->bid[12] =
+    (int16_t)ai_contact_2154_signed_quarter_double(((int)out->bid[4] + tech) * 2);
+  out->bid[2] = (int16_t)((int)out->bid[2] + local_7e);
+  out->bid[1] = (int16_t)((int)out->bid[1] + local_58);
+  out->ask[11] =
+    (int16_t)((tech + pop1) * pop1 + (local_6a >> 1) + local_5a);
+  out->bid[3] = (int16_t)((int)out->bid[3] + local_68);
+  {
+    const int b11 = ai_contact_2154_signed_quarter_double((tech + (int)out->bid[3]) * 2);
+    out->bid[11] = (int16_t)b11;
+    out->ask[3] = (int16_t)(b11 + local_6a);
+  }
+  out->ask[2] = (int16_t)((6 - tech) * pop1 + local_5a * 2 + 5);
+  out->ask[10] = (int16_t)(((pop1 * 2 - tech) + 7) * 2);
+  out->ask[12] = (int16_t)(local_5a * 8 + (int)out->bid[4]);
+  out->ask[9] = (int16_t)(((tech * 2 + pop1) * 2 + local_6a) * 2);
+  out->ask[13] = (int16_t)((tech + 2) * (pop + 4) + 8);
+  {
+    const int sh = ((local_5a >> 1) + 1) & 31;
+    out->ask[14] = (int16_t)((tech * pop1) << sh);
+  }
+  out->ask[15] = (int16_t)((-tech - ((int)ind->muskets - 7)) * 4);
+  out->bid[8] =
+    (int16_t)((int)ind->horse_breeding / ((diff >> 1) + 1));
+  out->ask[8] = (int16_t)((-tech - ((int)ind->horse_herds - 9)) * 4);
+  out->bid[15] = 0;
+
+  /* Phase 5: clamp ask 0..0x32; capital mix; tons mix; half-cross. */
+  for (int i = 0; i < 16; ++i) {
+    out->ask[i] = (int16_t)ai_contact_2154_clamp0_50((int)out->ask[i]);
+  }
+  if (tribe->state.capital) {
+    for (int i = 0; i < 8; ++i) {
+      out->ask[i] = (int16_t)((int)out->ask[i] << 1);
+    }
+    for (int i = 13; i < 16; ++i) {
+      out->ask[i] = (int16_t)((int)out->ask[i] + ((int)out->ask[i] >> 1));
+    }
+    for (int i = 7; i < 16; ++i) {
+      out->bid[i] = (int16_t)((int)out->bid[i] << 1);
+    }
+  }
+  for (int i = 0; i < 16; ++i) {
+    const int bid0 = (int)out->bid[i];
+    const int ask0 = (int)out->ask[i];
+    const int tons = (int)ind->tons[i];
+    if (tons < 1) {
+      if (tons < 0) {
+        out->bid[i] = (int16_t)(bid0 + ((tons + 0x32) / 100) * 2);
+      }
+    } else {
+      out->ask[i] = (int16_t)(((-0x32 - tons) / 100) * 2 + ask0);
+    }
+    {
+      const int bid1 = (int)out->bid[i];
+      out->bid[i] = (int16_t)(bid1 - ((int)out->ask[i] >> 1));
+      {
+        const int floor_b = (bid0 > 0) ? 1 : 0;
+        if ((int)out->bid[i] <= floor_b) {
+          out->bid[i] = (int16_t)floor_b;
+        }
+      }
+      out->ask[i] = (int16_t)((int)out->ask[i] - (bid1 >> 1));
+      {
+        const int floor_a = (ask0 > 0) ? 1 : 0;
+        if ((int)out->ask[i] < floor_a) {
+          out->ask[i] = (int16_t)floor_a;
+        }
+      }
+    }
+  }
+  return 1;
+}
+
+/*
+ * Gift / demand (5bfb_102a / 1092 via ai_popup; VGA PARKED).
+ * 2154 tables: gift Generous when ask[0]-bid[0]≥1, gold≥0x4b, thin RNG;
+ * else Large when gold≥20. Demand: ask[0]<bid[0] → gold-first else tools-first.
+ * Cite: indian_meet_scoring_2154.md; FUN_5bfb after 2a1f_0434.
  */
 static void ai_contact_gift_or_demand(
   ColonizeTurnContext* ctx,
@@ -1788,97 +2073,27 @@ static void ai_contact_gift_or_demand(
 
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
 
-  /*
-   * FUN_4d56_2154 thin neighborhood valuation: count land tiles in tribe ±2
-   * (forest / coastal) not covered by a Euro colony ring stand-in. Bucket
-   * score S = forest*2 + coast + food + ore maps Generous floors (thin 0x9e*
-   * stand-in). Full DS:0x9e* table still OPEN. Cite: indian_meet_scoring_2154.md;
-   * Series P.
-   */
-  int neighborhood_score = 0;
-  if (ctx->map && ctx->col1->tribe) {
-    /*
-     * 2154 phase-1 cover mask: mark 5×5 work-rings around Euro colonies, then
-     * count tribe±2 forest/coast only on uncovered cells. Cite:
-     * indian_meet_scoring_2154.md phases 1–3.
-     */
-    uint8_t covered[72][58];
-    memset(covered, 0, sizeof(covered));
-    if (ctx->colonies) {
-      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-        const ColonizeColony* c = &ctx->colonies->colonies[ci];
-        if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
-          continue;
-        }
-        for (int dy = -2; dy <= 2; ++dy) {
-          for (int dx = -2; dx <= 2; ++dx) {
-            const int nx = c->x + dx;
-            const int ny = c->y + dy;
-            if (nx >= 0 && ny >= 0 && nx < 58 && ny < 72 && nx < ctx->map->width &&
-                ny < ctx->map->height) {
-              covered[ny][nx] = 1;
-            }
-          }
-        }
-      }
-    }
-    int forest_n = 0;
-    int coast_n = 0;
-    int food_n = 0;
-    int ore_n = 0; /* silverish/ore score-word stand-in (2154 local_a0) */
-    int capital_ask = 0;
+  AiContactMeetEcon2154 econ;
+  memset(&econ, 0, sizeof(econ));
+  int have_econ = 0;
+  const ColonizeCol1Tribe* sample = NULL;
+  if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id != nation_id) {
-        continue;
+      if ((int)t->nation_id == nation_id) {
+        sample = t;
+        break;
       }
-      if (t->state.capital) {
-        capital_ask = 1;
-      }
-      for (int dy = -2; dy <= 2; ++dy) {
-        for (int dx = -2; dx <= 2; ++dx) {
-          const int nx = (int)t->x + dx;
-          const int ny = (int)t->y + dy;
-          if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
-            continue;
-          }
-          if (nx < 58 && ny < 72 && covered[ny][nx]) {
-            continue;
-          }
-          if (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny)) {
-            continue;
-          }
-          const int pedia = map_pedia_terrain_index_at(ctx->map, nx, ny);
-          if (pedia >= 8 && pedia <= 23) {
-            forest_n++;
-          }
-          if (pedia >= 0 && pedia <= 7) {
-            food_n++; /* plains/grass foodish bucket */
-          }
-          /*
-           * Ore/silverish bucket (pedia hills/mountains stand-in 4..7 overlap
-           * food — count hills terrain class via coastal-adjacent rock: pedia
-           * 2..3 desert/tundra thin + hills 4 when not food-primary). Cite:
-           * indian_meet_scoring_2154.md local_a0; Series G1.
-           */
-          if (pedia == 4 || pedia == 5 || pedia == 6 || pedia == 7) {
-            ore_n++;
-          }
-          if (map_tile_is_coastal(ctx->map, nx, ny)) {
-            coast_n++;
-          }
-        }
-      }
-      break; /* one tribe sample for thin port */
-    }
-    neighborhood_score = forest_n * 2 + coast_n + food_n + ore_n;
-    /* Capital village ask stand-in (2154 tribe-level bit). Cite: Series S. */
-    if (capital_ask) {
-      neighborhood_score += 2;
     }
   }
+  if (sample) {
+    have_econ = ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ);
+  }
+  const int ask0 = have_econ ? (int)econ.ask[0] : 0;
+  const int bid0 = have_econ ? (int)econ.bid[0] : 0;
+  const int delta = ask0 - bid0;
 
-  /* Low friction gift / tribute (auto Large −10; Generous −20 when purse allows). */
+  /* Low friction gift / tribute (2154 ask−bid + gold≥0x4b → Generous). */
   if (friction < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (nat->gold < 10u) {
@@ -1897,14 +2112,21 @@ static void ai_contact_gift_or_demand(
     if (nat->gold < 20u) {
       return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
     }
-    /* S≥8 → floor 25; S≥6 → 30; else 40. Cite: Series P thin 0x9e* stand-in. */
-    unsigned generous_floor = 40u;
-    if (neighborhood_score >= 8) {
-      generous_floor = 25u;
-    } else if (neighborhood_score >= 6) {
-      generous_floor = 30u;
+    /*
+     * DOS 5bfb after 2154: Generous when delta≥1, gold≥0x4b, and delta≥RNG
+     * (281f_04d4 stand-in). Else Large. Cite: indian_meet_scoring_2154.md.
+     */
+    int generous = 0;
+    if (delta >= 1 && nat->gold >= 0x4bu) {
+      ColonizeDosRng local;
+      ai_contact_local_rng(ctx, nation_id, &local);
+      ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
+      const int roll = dos_rng_range(rng, 1, 100);
+      if (delta >= roll) {
+        generous = 1;
+      }
     }
-    if (nat->gold >= generous_floor) {
+    if (generous) {
       ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
       return;
     }
@@ -1914,17 +2136,29 @@ static void ai_contact_gift_or_demand(
 
   /*
    * Mid friction (40–54) demand / payoff; ≥55 refused above.
-   * Auto prefers tools then gold; Meet→Demand may offer amount CHOICE.
-   * Cannot pay either path → refuse OK (follow-up polish; no invented drain).
-   * Cite: FUN_5bfb_102a / 1092; indian_contact.md mid demand.
+   * ask[0] < bid[0] → gold-first; else tools-first (DOS LAB_5bfb_096c shape).
    */
-  if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
-    ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
-    return;
-  }
-  if (ai_contact_demand_can_pay_gold(ctx, e)) {
-    ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
-    return;
+  {
+    const int gold_first = have_econ && ask0 < bid0;
+    if (gold_first) {
+      if (ai_contact_demand_can_pay_gold(ctx, e)) {
+        ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
+        return;
+      }
+      if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
+        ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
+        return;
+      }
+    } else {
+      if (ai_contact_demand_can_pay_tools(ctx, e, other, near_x, near_y)) {
+        ai_contact_apply_demand_tools(ctx, ind, nation_id, e, other, near_x, near_y);
+        return;
+      }
+      if (ai_contact_demand_can_pay_gold(ctx, e)) {
+        ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
+        return;
+      }
+    }
   }
   {
     char refuse_fb[AI_POPUP_BODY_LEN];

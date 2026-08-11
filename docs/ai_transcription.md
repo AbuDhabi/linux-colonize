@@ -182,7 +182,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_152e` | ~156 | Village growth accumulator → pop++ | `ai_grow_villages` | **partial** (T0) |
 | `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
 | `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
-| `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | thin gift/demand | **mapped**; port PARKED |
+| `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer; `0ce0` OPEN) |
 | `FUN_4d56_2820` | ~1396 | Heavy decision + nested trade `2aac…311e` | meet/trade auto-haggle | **partial** (T0; deep PARKED) |
 | `FUN_4d56_2aac`…`311e` | nested | Trade buy/haggle/demand helpers | `ai_contact_indian_meet_trade` | **partial** (auto only) |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
@@ -614,9 +614,10 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 
 **Phase 4 (Indian large bodies) — partial**
 
-- `2154`: colony 5×5 cover mask + forest/coast/food/ore buckets; bucket score
-  maps Generous floors (S≥8→25 / S≥6→30 / else 40); capital village +2;
-  cover suppresses (`smoke_ai_contact`).
+- `2154`: **Done** scorer — dual `ask[16]`/`bid[16]` (`0x9e58`/`0x9e78`) from
+  terr_class buckets + tribe/indian fields + capital/tons mix; gift uses
+  ask−bid + gold≥0x4b + RNG; demand ask↔bid preference (`smoke_ai_contact`).
+  `281f_0ce0` work-slot cover still OPEN one-liner.
 - `2820`: hard-bargain 45..54; primary extra trade-goods for all non-`0xff`
   teach primaries (silver/ore/tobacco/cotton/furs/sugar; Arawak fish single).
 - `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)
@@ -624,8 +625,7 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 - Series J: successful-raid friction/alarm kind-scaled (STORES +4, BURN/WREAK
   +12, SCALP +16, GOLD/SHIP +8; Pocahontas/France half).
 - Series M: `2820` hard-bargain primary extras beyond silver/ore.
-- Series P: `2154` bucket-scaled Generous floors (S≥8→25 / S≥6→30 / else 40).
-- Series S: `2154` capital-village `+2` neighborhood before gift floors.
+- Series P/S scalar `S` gift floors **retired** (replaced by `2154` tables).
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 
 **Phase 5 (alarmed act + claims) — partial**
@@ -653,7 +653,7 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 | Indian×Euro `15b3` / sticky / meet floor 96 | **T2**-shaped partial |
 | Ocean `3558` / first-colony `06ae` | Thin ports + soft-tip prior — **not T3** |
 | Mid `0a60` / `5d04` / `5b66` | Thin / partial — **not T3** |
-| `2154` / `2820` / `4528` bodies | Thin / partial — **not T3** |
+| `2154` / `2820` / `4528` bodies | `2154` scorer **Done**; `2820`/`4528` thin/partial — **not T3** |
 | Alarmed Indian unit-act | Escort peel + smoke — **not T3** |
 | Mid joint golden | MID01+MID02 pair Done (Linux-derived) |
 | Late joint golden | LATE01 structural Done — **not** T2 field-diff / blanket T3 |
