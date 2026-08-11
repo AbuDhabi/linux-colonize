@@ -8,7 +8,8 @@ Navigation / bring-up status live elsewhere; this file owns the AI FUN_*
 inventory and roadmap. See also [original_index.md](original_index.md),
 [decomp_inventory.md](decomp_inventory.md), [turn_between_players.md](turn_between_players.md),
 [manual_gap.md](manual_gap.md),
-[data_vs_hardcoded.md](data_vs_hardcoded.md).
+[data_vs_hardcoded.md](data_vs_hardcoded.md),
+[popups.md](popups.md) (player dialog / `ai_popup` checklist).
 
 ---
 

@@ -3,7 +3,8 @@
 Digest of [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) (MicroProse
 Instruction Manual + Technical Supplement, ~135 pages) compared to the current
 Linux bring-up. Deep implementation notes live in [decomp_inventory.md](decomp_inventory.md)
-and [assets.md](assets.md); this file is the **feature checklist**.
+and [assets.md](assets.md); this file is the **feature checklist**. Player-facing
+modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.md).
 
 **Legend**
 
