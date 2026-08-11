@@ -55,10 +55,11 @@ Globals for resolve: `units_set_ff_col1`, `units_set_combat_colonies`,
 ### Land (`combat_land_engage`)
 
 ```
-attacker: combat_unit_base_x8(mode=1)      // FUN_157e_004a attack
-defender: combat_engagement_strength()     // FUN_157e_015e (004a defense + site)
-both:     combat_apply_1b0e_peels()        // FUN_5fef_1b0e
-roll:     dos_rng_range(1, atk+def); attacker wins if roll <= atk
+atk = combat_unit_base_x8(mode=1)                    // FUN_157e_004a attack
+def = combat_engagement_strength()                   // FUN_157e_015e (may stash)
+atk = ((terrain_stash + 4) * atk >> 2) * 3 >> 1      // FUN_5fef_1b0e open-field
+both: combat_apply_1b0e_peels()
+roll: dos_rng_range(1, atk+def); attacker wins if roll <= atk
 ```
 
 Special: `force_defender_wins` if Scout attacks Artillery (no roll favor to atk).
@@ -88,9 +89,21 @@ No `015e` colony / village / terrain / fortify for ships.
 2. Site multiplier `local_1a`:
    - **A.** Own Euro colony: bare `2`; Stockade **or** Fort **or** Fortress `4`; Fortress then `<<=1` → `8`
    - **B.** Native village: `(village_probe_n + 1) * 2` (tech probes 1/2/3)
-   - **C.** Open terrain: `map_dos_terr_found_score_byte` under DOS-shaped gates (AI/native/WoI/village/fortify stash)
+   - **C.** Open terrain (`map_dos_terr_found_score_byte` / DS:0x2f77):
+     - **Apply to defender** (`8d02|0x80`): native defender, **or** foe is Euro and
+       (not WoI **or** foe is AI)
+     - **Stash to attacker** (`8d04` / `8d00|0x80`): Euro defender vs **native**
+       attacker, or vs **human** Euro under WoI (player attacking REF) — unless
+       either tile is a village (then apply to defender) or defender is Fortified
+       (then neither side gets terrain)
 3. Fortify / Fortified, land, `local_1a < 5` → `+2`
 4. Result: `((local_1a + 4) * base) >> 2`
+
+Land attacker strength (after `004a`, before peels) is always
+`((terrain_stash + 4) * atk >> 2) * 3 >> 1` (`FUN_5fef_1b0e`): the ×3/2 is the
+standing attack factor; non-zero `terrain_stash` is the Indian / WoI-REF
+**ambush** (terrain denied to the defender, given to the attacker). Colony /
+village / absorbed-terrain paths leave stash at 0.
 
 Colony effective multipliers vs base×8: bare ×1.5, Stockade/Fort ×2, Fortress ×3.
 Fortify on bare colony: `2+2=4` (×2). Fortify on Stockade/Fort: `4+2=6` (×2.5,
@@ -105,10 +118,15 @@ fortify does not stack.
 | Artillery open-field | Land, not on colony; arty and (not fortified **or** foe native) | `>>=2` (−75%) |
 | Arty vs natives on colony | Defender arty, attacker native | `<<=1` |
 | Spanish ambush | Attacker nation 2, defender native, on colony | +50% |
-| WoI REF | `ref_present`, land, Euro attacker | +50% |
-| WoI SoL | Land, Euro attacker | +`sol%` of strength (**thin**: always SoL, not Tory-share branch) |
+| WoI crown open-field | WoI, **crown** attacker, land tile (not ocean) | `+= difficulty * atk / 20` |
+| WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
+| WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
 | Discoverer damper | diff==0, human atk vs AI Euro | −25% |
 | Scout vs Artillery | Land | `force_defender_wins` |
+
+Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
+`ai_king_crown_nation`). WoI / `ref_present` read `game_options` and the
+`unknown46[0]/[1]` ai_king stand-ins.
 
 `combat_unit_toughness` = always `015e` (AI scoring).
 
@@ -132,8 +150,9 @@ Mirror DOS `0x8d00` / `0x8d02` / high / `a156` for Combat Analysis.
 | `COMBAT_FLAG_ARTILLERY` | `flags` / hi | Open-field ÷4 |
 | `COMBAT_FLAG_AMBUSH` | `flags` / hi | Spanish +50% |
 | `COMBAT_FLAG_FORTIFY` | `flags` | Fortify +2 `local_1a` |
-| `COMBAT_FLAG_REF` | `flags` / hi | REF +50% |
-| `COMBAT_FLAG_SOL` | `flags2` | SoL % applied |
+| `COMBAT_FLAG_REF` | `flags` / hi | Colony WoI +50% (crown or `ref_present`) |
+| `COMBAT_FLAG_TORIES` | `flags2` | Crown support % = 100−SoL |
+| `COMBAT_FLAG_REBELS` / `SOL` | `flags2` | Rebel support % = SoL |
 | `COMBAT_FLAG_ARTY_COLONY` | `flags2` | Arty×2 vs natives |
 
 Also stored: `base_combat`, `local_1a`, `terrain_byte`, `village_n`,
@@ -159,10 +178,12 @@ fights whoever stands on the tile via normal land combat.
 
 ## Outcomes
 
-### After roll (land and naval)
+### Resolve order (land and naval)
 
-1. Optional Combat Analysis (`combat_analysis_should_show` + presenter)
-2. Structural outcome popups (`units_combat_outcome_popups`) — [popups.md](popups.md) §9
+1. Optional Combat Analysis after strengths, **before** the roll
+   (`combat_analysis_should_show` + presenter)
+2. Roll / apply outcome
+3. Structural outcome popups (`units_combat_outcome_popups`) — [popups.md](popups.md) §9
 
 ### Land win (`units_resolve_land_combat_ff`)
 
@@ -205,13 +226,20 @@ euro / king REF / raid paths.
 ## Combat Analysis
 
 [`combat_analysis.c`](../src/core/combat_analysis.c) — `FUN_636c_0000`-shaped
-dual column.
+dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 
 - Gate: `game_options.combat_analysis` + human side (`FUN_5fef_1b0e` gate
   `0x5383&2`)
-- Lines from flags: Veteran, Drake, Cargo, Terrain, Village, Colony/Stockade/
-  Fortress, Fortified, Artillery, Ambush, REF, SoL + Strength + Roll +
-  Victory/Defeat
+- Layout:
+  1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
+  2. Attacker chrome + strength … defender strength + chrome (orders/allegiance)
+  3. Modifier rows per side (empty cell when that side has no matching flag)
+- Flag lines (LABELS-shaped): Veteran, Drake, Cargo, Terrain, Village,
+  Colony/Stockade/Fortress, Fortified, Artillery In Open, Spain Bonus,
+  Expeditionary Force, Tories/Rebels (WoI support %). No unit-name dump, no
+  “Combat N”, no roll, no Victory/Defeat.
+- Strength numbers are the post-modifier odds weights (`atk` / `def` in
+  `roll 1..(atk+def)`).
 - Input: Esc / Enter / Space / click dismiss
 - Presenter hook: tests / AI skip when unset (`combat_analysis_set_presenter`)
 

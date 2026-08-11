@@ -184,7 +184,7 @@ Deep mechanics: [combat.md](combat.md).
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| Combat Analysis (options bit) | After combat roll, human side | Done | Dual-column wood `combat_analysis.c` (`636c`-shaped); gated by `combat_analysis` |
+| Combat Analysis (options bit) | After strengths, before roll; human side | Done | Title + chrome/strength row + modifier columns (`636c`-shaped); gated by `combat_analysis` |
 | `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | `@LOOTCAPTURE` ransom Accept/Refuse Done; village `@LOOT`/`@NOLOOT` thin; `@LOOTCASH` is Europe fleet (not combat) |
 | `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`/`@BURNED*`; ship damage/sunk Done |
 | `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups |

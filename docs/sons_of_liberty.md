@@ -104,7 +104,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** one-shot dividend bump |
 | Rebel sentiment points | Score +1 per point | **Wired** |
 | Year-end C2 / D SoL chrome | Peace / pressure / rival dialogs | **Thin / PARK** |
-| Combat popular-support % | Attacker side’s SoL/Tory share | **Wired** thin (`combat_apply_1b0e_peels` WoI SoL + REF +50%) — [combat.md](combat.md) |
+| Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
 | Cont. Army muster by colony SoL | Declare-turn muster; &lt;50% = 0 | **PARK** |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |
 | Rebel accumulator EOT | Grow dividend/divisor from bells | **PARK** |

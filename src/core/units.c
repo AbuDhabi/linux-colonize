@@ -2018,6 +2018,9 @@ bool units_resolve_land_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
+  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
+  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
+
   const int total = eng.atk_strength + eng.def_strength;
   if (er.force_defender_wins) {
     eng.atk_wins = false;
@@ -2032,8 +2035,6 @@ bool units_resolve_land_combat_ff(
     eng.roll = dos_rng_range(rng, 1, total);
     eng.atk_wins = eng.roll <= eng.atk_strength;
   }
-
-  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
   const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
 
@@ -2243,6 +2244,9 @@ bool units_resolve_naval_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
+  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
+  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
+
   const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {
     eng.atk_wins = true;
@@ -2254,8 +2258,6 @@ bool units_resolve_naval_combat_ff(
     eng.roll = dos_rng_range(rng, 1, total);
     eng.atk_wins = eng.roll <= eng.atk_strength;
   }
-
-  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
   if (eng.atk_wins) {
     units_combat_outcome_popups(

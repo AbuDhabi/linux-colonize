@@ -28,8 +28,10 @@
 #define COMBAT_FLAG_FORTIFY 0x2000u /* 0x8d03 bit5 → expose as line bit */
 #define COMBAT_FLAG_ARTILLERY 0x0800u /* open-field >>2 (0x8d01/03 bit3) */
 #define COMBAT_FLAG_AMBUSH 0x1000u /* Spanish +50% (0x8d01 bit4) */
-#define COMBAT_FLAG_SOL 0x0002u /* a156 SoL band — stored in flags2 */
-#define COMBAT_FLAG_REF 0x8000u /* crown/REF +50% (0x8d01 bit7) */
+#define COMBAT_FLAG_TORIES 0x0002u /* a156 bit1 — crown attacker uses 100−SoL */
+#define COMBAT_FLAG_REBELS 0x0004u /* a156 bit2 — rebel attacker uses SoL */
+#define COMBAT_FLAG_SOL COMBAT_FLAG_REBELS /* legacy alias */
+#define COMBAT_FLAG_REF 0x8000u /* 0x8d01 bit7 — colony WoI +50% (crown or ref_present) */
 #define COMBAT_FLAG_ARTY_COLONY 0x0001u /* a156 bit0 artillery vs natives */
 
 typedef struct ColonizeCombatSideFlags {
@@ -38,7 +40,8 @@ typedef struct ColonizeCombatSideFlags {
   uint16_t flags2; /* a156-shaped: SoL / arty-colony */
   int base_combat; /* pre-×8 type combat byte (0x8d06) */
   int local_1a; /* 015e multiplier accumulator */
-  int terrain_byte; /* DS:0x2f77 when terrain applies */
+  int terrain_byte; /* DS:0x2f77 when terrain applies (to this side) */
+  int terrain_stash; /* 015e→0x8d04: denied to defender, applied to attacker */
   int village_n; /* 0..3 settlement probes */
   int holds_occupied; /* subtracted holds (ships) */
   int sol_percent; /* WoI popular-support % applied */
@@ -84,7 +87,8 @@ int combat_engagement_strength(
 );
 
 /*
- * FUN_5fef_1b0e peels on top of 157e strengths: artillery, ambush, SoL, REF,
+ * FUN_5fef_1b0e peels on top of 157e strengths: artillery, Spanish ambush,
+ * WoI colony REF +50% / Tory|Rebel %, crown open-field difficulty/20,
  * difficulty, Scout-vs-Arty forced lose. Fills io strengths+flags in place.
  */
 void combat_apply_1b0e_peels(
@@ -95,7 +99,10 @@ void combat_apply_1b0e_peels(
 );
 
 /*
- * Full land engage: 004a(atk)+015e(def)+1b0e peels.
+ * Full land engage: 004a(atk) scaled by ((8d04+4)*atk>>2)*3>>1 (always +50%
+ * attack factor; 8d04 = terrain stash from 015e), 015e(def), then 1b0e peels.
+ * Terrain stash (Indian vs Euro / human vs AI-Euro under WoI): defender gets
+ * no site terrain; attacker strength absorbs 0x8d04 instead.
  */
 void combat_land_engage(
   const ColonizeCombatStrengthCtx* ctx,

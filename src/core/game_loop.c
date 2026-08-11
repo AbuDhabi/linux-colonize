@@ -8937,6 +8937,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         (CombatAnalysisDialog*)&game->combat_analysis,
         popup_font,
         wood,
+        game->unit_icons_ok ? &game->unit_icons : NULL,
         &popup_cols,
         COLONIZE_COL_BASIC,
         COLONIZE_COL_SELECT,
