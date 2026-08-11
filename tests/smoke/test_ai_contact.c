@@ -3052,7 +3052,7 @@ int main(void) {
     }
 
     /*
-     * Hard-bargain thin (alarm 45..49): trade succeeds, no relation bump.
+     * Hard-bargain thin (alarm 45..54): trade succeeds, no relation bump.
      * Cite: indian_contact.md Meet CHOICE Trade; FUN_4d56_2820 stand-in.
      */
     {
@@ -3986,7 +3986,7 @@ int main(void) {
     if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
       return fail("capital surrender should set peace bit");
     }
-    if (ai_diplo_indian_relation(&col1, 4, 0) < 100) {
+    if (ai_diplo_indian_relation(&col1, 4, 0) < 96) {
       return fail("capital surrender should floor relation to peaceful");
     }
     /* Remaining villages must not become / stay capital (fandom). */

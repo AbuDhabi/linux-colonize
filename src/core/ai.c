@@ -1144,10 +1144,10 @@ static bool ai_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x
 }
 
 /*
- * Seed-100 / Atlantic first-town from landfall — latitude-band geometry (same
- * gate as ai_euro.c). Cite: test-saves-ai TURN3–6.
+ * FUN_521d_06ae / 0a60 first-colony seed from landfall (mirror ai_euro.c).
+ * Cite: test-saves-ai TURN3–6.
  */
-static bool ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
+static bool ai_euro_06ae_first_colony_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
   if (!out_x || !out_y || landfall_x < 0 || landfall_y < 0) {
     return false;
   }
@@ -1792,7 +1792,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       /* Hold on coast south of Quebec found tile (golden ship goto). */
       const int hold_x = found_x;
       const int hold_y = found_y + 2;
@@ -1828,7 +1828,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
         ai_unit_set_goal(pioneer, UNITS_ORDER_AI_SAIL, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
@@ -1854,7 +1854,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
         ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
@@ -1886,7 +1886,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = pioneer->goto_x;
         lf_y = pioneer->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (soldier) {
         ai_unit_set_goal(soldier, UNITS_ORDER_NONE, found_x, found_y);
         if (soldier->x != found_x || soldier->y != found_y) {
@@ -1916,7 +1916,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
         ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
@@ -1978,7 +1978,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
         ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
@@ -2000,7 +2000,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (pioneer) {
         ai_unit_set_goal(pioneer, UNITS_ORDER_AI_MOVE, found_x, found_y);
         ai_unit_spend_goto(ctx, pioneer);
@@ -2033,7 +2033,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
         lf_x = soldier->goto_x;
         lf_y = soldier->goto_y;
       }
-      (void)ai_euro_found_tile_from_landfall(lf_x, lf_y, &found_x, &found_y);
+      (void)ai_euro_06ae_first_colony_from_landfall(lf_x, lf_y, &found_x, &found_y);
       if (ship) {
         ai_unit_set_goal(ship, UNITS_ORDER_AI_SAIL, found_x, found_y);
         ai_unit_spend_goto(ctx, ship);

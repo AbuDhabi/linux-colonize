@@ -430,11 +430,12 @@ static void ai_contact_apply_welcome_accept(
   (void)ind;
   const uint8_t rel_before = ai_diplo_indian_relation(ctx->col1, nation_id, e);
   ai_contact_set_peace(ctx->col1, nation_id, e);
-  /* Peaceful floor so refuse-talk (relation < 40) cannot fire next tick. */
+  /* Peaceful meet baseline 96 (seed-100 TURN3+); refuse-talk is relation < 40. */
   {
     const uint8_t cur = ai_diplo_indian_relation(ctx->col1, nation_id, e);
-    if (cur < 100u) {
-      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, (int)(100u - cur));
+    const int target = 96;
+    if ((int)cur != target) {
+      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, target - (int)cur);
     }
   }
   /* Fresh peace: clear alarm/friction toward this Euro (fandom first contact). */
@@ -505,11 +506,18 @@ static void ai_contact_apply_welcome_reject(
     return;
   }
   ai_contact_clear_peace(ctx->col1, nation_id, e);
-  /* DOS +100 hostility → Linux at-war (relation < 50): force to 0. */
+  /*
+   * DOS +100 hostility → Linux at-war band (0 < relation < 50). Write a
+   * hostile floor (1), not unmet 0 — seed-100 early goldens keep r==0/sticky
+   * clear until first contact. Cite: FUN_4cc6_00f2; indian_contact.md.
+   */
   {
     const uint8_t cur = ai_diplo_indian_relation(ctx->col1, nation_id, e);
-    if (cur > 0) {
-      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -(int)cur);
+    const int target = 1;
+    if ((int)cur > target) {
+      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, target - (int)cur);
+    } else if ((int)cur < target) {
+      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, target - (int)cur);
     }
   }
   if (ind->alarm_by_player[e] < 80u) {
@@ -600,9 +608,9 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   if (ind->euro_diplo[euro_nation]) {
     return 0;
   }
-  /* DOS OR bit 0x20 before dialog. */
-  ind->euro_diplo[euro_nation] = 1;
-  ai_diplo_indian_relation_delta(ctx->col1, indian_nation, euro_nation, 5);
+  /* DOS OR bit 0x20 before dialog; accept ORs PEACE 0x40 → euro_diplo 0x60
+   * (96 in seed-100 TURN3+ goldens). Relation set by accept (96) / reject (1). */
+  ind->euro_diplo[euro_nation] = (uint8_t)(ind->euro_diplo[euro_nation] | 0x20u);
 
   if (ai_contact_euro_is_human(ctx, euro_nation) && ctx->ai_popups) {
     ai_contact_enqueue_welcome(ctx, euro_nation, indian_nation);
@@ -1683,7 +1691,49 @@ static void ai_contact_gift_or_demand(
 
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
 
-  /* Low friction gift / tribute (auto Large −10; Generous −20 when gold≥40). */
+  /*
+   * FUN_4d56_2154 thin neighborhood valuation: count land tiles in tribe ±2
+   * (forest / coastal) not covered by a Euro colony ring stand-in. Richer
+   * neighborhood → Generous (−20) at gold≥30; else gold≥40. Full DS:0x9e*
+   * table still OPEN. Cite: indian_meet_scoring_2154.md.
+   */
+  int neighborhood_rich = 0;
+  if (ctx->map && ctx->col1->tribe) {
+    int forest_n = 0;
+    int coast_n = 0;
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id != nation_id) {
+        continue;
+      }
+      for (int dy = -2; dy <= 2; ++dy) {
+        for (int dx = -2; dx <= 2; ++dx) {
+          const int nx = (int)t->x + dx;
+          const int ny = (int)t->y + dy;
+          if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+            continue;
+          }
+          if (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny)) {
+            continue;
+          }
+          if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+            continue;
+          }
+          const int pedia = map_pedia_terrain_index_at(ctx->map, nx, ny);
+          if (pedia >= 8 && pedia <= 23) {
+            forest_n++;
+          }
+          if (map_tile_is_coastal(ctx->map, nx, ny)) {
+            coast_n++;
+          }
+        }
+      }
+      break; /* one tribe sample for thin port */
+    }
+    neighborhood_rich = (forest_n + coast_n) >= 6;
+  }
+
+  /* Low friction gift / tribute (auto Large −10; Generous −20 when purse allows). */
   if (friction < 40) {
     /* Cannot pay −10 gift drain → refuse with status (widgets unparked). */
     if (nat->gold < 10u) {
@@ -1702,7 +1752,8 @@ static void ai_contact_gift_or_demand(
     if (nat->gold < 20u) {
       return; /* mid purse: skip silent (needs ≥20 band to auto-gift Large) */
     }
-    if (nat->gold >= 40u) {
+    const unsigned generous_floor = neighborhood_rich ? 30u : 40u;
+    if (nat->gold >= generous_floor) {
       ai_contact_apply_gift_gold(ctx, ind, nation_id, e, 20u, 3);
       return;
     }
@@ -2392,7 +2443,29 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
     }
     int delta = 0;
     if (ind->euro_diplo[e]) {
-      delta = (ind->alarm_by_player[e] > 40) ? -1 : 1;
+      if (ind->alarm_by_player[e] > 40) {
+        /*
+         * Hot band: −1 unless peaceful meet floor is locked (seed-100 keeps
+         * relation 96 while alarm wobbles 34–35). Cite: TURN6→7 goldens.
+         */
+        const uint8_t r = ai_diplo_indian_relation(ctx->col1, nation_id, e);
+        if ((ind->euro_diplo[e] & COL1_INDIAN_PEACE_BIT) != 0 &&
+            r >= 96) {
+          delta = 0;
+        } else {
+          delta = -1;
+        }
+      } else {
+        /*
+         * Cool band: climb toward peaceful meet floor 96; do not bump past it
+         * (seed-100 TURN3 keeps 96 after Euro-side unload welcome in the same
+         * EOT before this tick). Cite: test-saves-ai/TURN3; indian_contact.md.
+         */
+        const uint8_t r = ai_diplo_indian_relation(ctx->col1, nation_id, e);
+        if (r > 0 && r < 96) {
+          delta = 1;
+        }
+      }
     }
     ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, delta);
     /*
@@ -2543,12 +2616,12 @@ static int ai_contact_auto_trade(
     return 0;
   }
   /*
-   * Thin 2820 hard-bargain stand-in: mid alarm 45..49 still trades but skips
-   * relation bump and tribe friction decay (tense haggle / 306c tension).
-   * Check before alarm decay. Deep buy/price arms PARKED.
+   * Thin 2820 hard-bargain / price tension: mid alarm 45..54 still trades but
+   * skips relation bump and tribe friction decay (tense haggle / 306c). Deep
+   * buy/price arms (2b92/2bbc) still OPEN.
    */
   const int hard =
-    (ind->alarm_by_player[e] >= 45 && ind->alarm_by_player[e] < 50);
+    (ind->alarm_by_player[e] >= 45 && ind->alarm_by_player[e] < 55);
   if (use_colony) {
     ColonizeColony* c = &ctx->colonies->colonies[best_ci];
     c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
@@ -3158,10 +3231,11 @@ static void ai_contact_unit_goto_xy(const ColonizeUnit* u, int* out_x, int* out_
 }
 
 /*
- * Thin Brave escort lead pick (14fe): same-nation AI_MOVE/GOTO within MD≤3.
- * When raid gate Euro is known, prefer lead whose goto (or position) is closer
- * to that Euro's nearest colony; else nearest-lead by MD. Deep alarmed escort
- * scoring still PARKED. Cite: units_follow_unit; indian_raid_outcomes.md §1.
+ * Alarmed / mid-raid Brave escort lead pick (outside quiet 14fe).
+ * Same-nation AI_MOVE/GOTO within MD≤3 (≤4 when max alarm≥55). When raid gate
+ * Euro is known, prefer lead whose goto is closer to that Euro's colony; alarmed
+ * weights target distance 2×. Deep dir picker inside 14fe still PARKED.
+ * Cite: units_follow_unit; indian_raid_outcomes.md §1.
  */
 static int ai_contact_escort_pick_lead(
   ColonizeTurnContext* ctx,
@@ -3174,7 +3248,10 @@ static int ai_contact_escort_pick_lead(
     return -1;
   }
   int gate_euro = -1;
-  (void)ai_contact_raid_gate_target(ctx, ind, nation_id, &gate_euro, NULL);
+  int gate_alarm = 0;
+  (void)ai_contact_raid_gate_target(ctx, ind, nation_id, &gate_euro, &gate_alarm);
+  const int alarmed = gate_alarm >= 55;
+  const int md_max = alarmed ? 4 : 3;
 
   int lead = -1;
   int best_md = 99;
@@ -3191,7 +3268,7 @@ static int ai_contact_escort_pick_lead(
       continue;
     }
     const int md = abs(o->x - follower->x) + abs(o->y - follower->y);
-    if (md <= 0 || md > 3) {
+    if (md <= 0 || md > md_max) {
       continue;
     }
     int ax = o->x;
@@ -3200,7 +3277,9 @@ static int ai_contact_escort_pick_lead(
     const int target_d =
       gate_euro >= 0 ? ai_contact_nearest_euro_colony_dist(ctx, gate_euro, ax, ay) : 99;
     if (gate_euro >= 0) {
-      if (target_d < best_target_d || (target_d == best_target_d && md < best_md)) {
+      const int score_t = alarmed ? target_d * 2 : target_d;
+      const int best_t = alarmed ? best_target_d * 2 : best_target_d;
+      if (score_t < best_t || (score_t == best_t && md < best_md)) {
         best_target_d = target_d;
         best_md = md;
         lead = o->id;
@@ -3491,11 +3570,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
      * lower ai_diplo_indian_relation (very-low <40 hostility).
      * Cite: indian_raid_outcomes.md gate; FUN_4d56_4528 thin; fandom Alarm.
      *
-     * Thin Brave escort (14fe stand-in): idle Brave with no orders may
-     * units_follow_unit a same-nation Brave that already has AI_MOVE/GOTO.
-     * Lead pick prefers goto toward raid-gate Euro colony when known; else
-     * nearest-lead. Deep alarmed escort scoring still PARKED. Cite:
-     * units_follow_unit; indian_raid_outcomes.md §1.
+     * Alarmed unit-act escort (outside quiet 14fe): idle Brave may
+     * units_follow_unit a same-nation lead already AI_MOVE/GOTO. Lead pick
+     * prefers goto toward raid-gate Euro colony; when max alarm≥55 the same
+     * peel is the alarmed branch (deep dir picker inside 14fe still PARKED).
+     * Quiet seed-100 pulse unchanged. Cite: units_follow_unit;
+     * indian_raid_outcomes.md §1.
      */
     if (brave->orders == UNITS_ORDER_NONE && brave->moves_left > 0) {
       const int lead =
