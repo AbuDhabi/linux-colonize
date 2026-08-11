@@ -84,7 +84,7 @@ Naval type tests elsewhere use open upper **(0x0c, 0x13)** — wider than dispat
 | Decomp site | **Sole call** ~89587 inside `20e6` (land/non-naval walk; `type==0x0b` filter arg) |
 | Behavior | Score dirs 0..8 around unit/colony tile; prefer empty land; terrain + explore extras |
 | Linux | `ai_goals_pick_founding_tile` / `_ex`: DS:0x2f77 class founding byte; `param_4` extras = **`0492(candidate continent)*0x10 + (explore&0xf)`** per empty land neighbor (`ai_goals_colony_balance_flags`: live nation×continent + `continent_tally_b/12`). Explore thin (`seen→1`). Coastal +10 via `coastal_bonus` (first colony and later) |
-| Linux first colony | `ai_euro_found_tile_from_landfall` latitude-band geometry (not RE'd town peels) — adj `06ae` still prefers some inland higher 2f77 neighbors. Resolve: FOUND → geometry → 06ae. Full-dispatch ceiling TURN1→7. |
+| Linux first colony | `ai_euro_06ae_first_colony_from_landfall` thin port (latitude seed until multi-ring live `06ae`). Resolve: FOUND → 06ae seed → adj 06ae. Full-dispatch ceiling TURN1→7. |
 
 Do not confuse with `FUN_281f_04ac` sites inside `5b66` case 10 (different helper).
 

@@ -20,6 +20,8 @@
  * Remaining unknown26 Linux stand-ins (timers / sticky / privateer mask):
  *   [0..3] treaty timers  [8] Indian sticky  [9] Privateer spawn mask
  * Indian×Euro full 15b3 matrix still PORT DEBT (thin feeler / war-hit / sticky).
+ * Phase 1 deepen (T3 roadmap): unmet euro_relation==0 no longer stamped;
+ * relation==0 is unmet not war; peaceful meet floor 96 (seed-100 TURN3+).
  */
 
 #define AI_DIPLO_FLAG_BASE 4
@@ -89,14 +91,15 @@
 #define AI_DIPLO_INDIAN_VERY_LOW_REL 40
 #define AI_DIPLO_INDIAN_HOSTILE_EXTRA 10
 #define AI_DIPLO_INDIAN_HARASS_GOLD 2u
-/* Peace feeler content floor (mid-content; drift still climbs to 160).
+/* Peace feeler / first-meet content floor. Seed-100 TURN3+ write 96 on meet
+ * (not 100). Heal mid-band up to this ceiling; drift still climbs to 160.
  * Source: fandom Indians — peace → gifts / improve relations (no large gold). */
-#define AI_DIPLO_INDIAN_CONTENT_FLOOR 100u
+#define AI_DIPLO_INDIAN_PEACE_MEET 96u
+#define AI_DIPLO_INDIAN_CONTENT_FLOOR AI_DIPLO_INDIAN_PEACE_MEET
 #define AI_DIPLO_INDIAN_FEELER_HEAL 2
 #define AI_DIPLO_STICKY_CLEAR 0u
 #define AI_DIPLO_STICKY_AT_WAR 1u
 #define AI_DIPLO_STICKY_DEEP 2u
-
 /*
  * Franklin NW peace: either Euro in the pair owns Benjamin Franklin.
  * Source: docs/fandom_col1994.md — king's European wars no longer affect NW
@@ -673,8 +676,10 @@ static void ai_diplo_ally_longevity_timer(ColonizeCol1Save* col1, int from, int 
 
 /*
  * Peaceful Indian×Euro relation drift (not full 15b3 matrix).
- * Per tick: for each of 8 Indian slots, if < 160 and Euro not at war → +1 (cap 160).
- * Source: 6d8e §4 peaceful Indian drift; fandom alarm cools without encroachment.
+ * Per tick: for each of 8 Indian slots already contacted (r>0), if < 160 and
+ * Euro not at war → +1 (cap 160). Do not invent contact from r==0 (seed-100
+ * early goldens keep relation_by_indian at 0 until meet). Source: 6d8e §4;
+ * fandom alarm cools without encroachment.
  */
 static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || nation_id < 0 || nation_id >= 4) {
@@ -686,6 +691,16 @@ static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
   for (int i = 0; i < 8; ++i) {
     uint8_t r = nat->relation_by_indian[i];
+    if (r == 0) {
+      continue; /* unmet — not a drift candidate */
+    }
+    /*
+     * Seed-100 early goldens hold peaceful meet at 96 through TURN7 — do not
+     * auto-climb past the meet floor here (feeler/trade own further gains).
+     */
+    if (r >= AI_DIPLO_INDIAN_PEACE_MEET) {
+      continue;
+    }
     if (r < AI_DIPLO_INDIAN_DRIFT_CAP) {
       nat->relation_by_indian[i] = (uint8_t)(r + 1u);
     }
@@ -764,7 +779,9 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
 }
 
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
-  return ai_diplo_indian_read(col1, euro_nation, indian_idx) < AI_DIPLO_INDIAN_AT_WAR_REL;
+  const uint8_t r = ai_diplo_indian_read(col1, euro_nation, indian_idx);
+  /* Unmet (0) is not at war — only contacted low relations. */
+  return r > 0 && r < AI_DIPLO_INDIAN_AT_WAR_REL;
 }
 
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation) {
@@ -788,11 +805,11 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 
 /*
  * Sync unknown26[8] from relation_by_indian matrix (unpark #5 sticky deepen).
- *  0 — no Indian at-war slots (relation all ≥ 50)
- *  1 — any indian_at_war (relation < 50)
- *  2 — deepen when already hostile and any slot very low (< 40; contact
- *      peaceful-gift friction band inverted)
- * Source: 15b3 Indian hostility stand-in; contact alarm/friction <40 / ≥50 gates.
+ *  0 — no Indian at-war slots (all unmet r==0 or relation ≥ 50)
+ *  1 — any contacted indian_at_war (0 < relation < 50)
+ *  2 — deepen when already hostile and any slot very low (0 < relation < 40)
+ * Unmet r==0 is not war (seed-100 early TURN goldens). Source: 15b3 Indian
+ * hostility stand-in; contact alarm/friction <40 / ≥50 gates.
  */
 void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
   if (!col1 || euro_nation < 0 || euro_nation >= 4) {
@@ -802,6 +819,9 @@ void ai_diplo_indian_hostility_sync(ColonizeCol1Save* col1, int euro_nation) {
   int any_very_low = 0;
   for (int idx = 0; idx < 8; ++idx) {
     const uint8_t r = ai_diplo_indian_read(col1, euro_nation, idx);
+    if (r == 0) {
+      continue; /* unmet */
+    }
     if (r < AI_DIPLO_INDIAN_AT_WAR_REL) {
       any_war = 1;
     }
@@ -846,8 +866,10 @@ void ai_diplo_indian_capital_surrender(
     (uint8_t)(ind->euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
   {
     const uint8_t cur = ai_diplo_indian_relation(col1, indian_nation, euro_nation);
-    if (cur < 100u) {
-      ai_diplo_indian_relation_delta(col1, indian_nation, euro_nation, (int)(100u - cur));
+    if (cur < AI_DIPLO_INDIAN_PEACE_MEET) {
+      ai_diplo_indian_relation_delta(
+        col1, indian_nation, euro_nation, (int)(AI_DIPLO_INDIAN_PEACE_MEET - cur)
+      );
     }
   }
   ai_diplo_indian_hostility_sync(col1, euro_nation);
@@ -1522,20 +1544,21 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
     if (*t != 0) {
       continue;
     }
-    /* Expiry: break alliance if allied; else thin peace/met tweak. */
-    const uint8_t bits = ai_diplo_read(ctx->col1, nation_id, other);
-    if (bits & AI_DIPLO_ALLY) {
+    /* Expiry: break alliance if allied; else thin peace/met tweak.
+     * Use stored flags (not ai_diplo_read virtual PEACE|MET for unmet 0) so
+     * early turns do not stamp euro_relation in seed-100 goldens. */
+    uint8_t* f = ai_diplo_flag_byte(ctx->col1, nation_id, other);
+    if (!f) {
+      continue;
+    }
+    const uint8_t stored = *f;
+    if (stored & AI_DIPLO_ALLY) {
       ai_diplo_break_alliance_ctx(ctx, nation_id, other);
       continue;
     }
-    if (ctx->rng && dos_rng_range(ctx->rng, 1, 8) == 1) {
-      if (bits & AI_DIPLO_MET) {
-        uint8_t* f = ai_diplo_flag_byte(ctx->col1, nation_id, other);
-        if (f) {
-          *f = (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET);
-          ai_diplo_mirror_relation_summary(ctx->col1, nation_id);
-        }
-      }
+    if (ctx->rng && (stored & AI_DIPLO_MET) && dos_rng_range(ctx->rng, 1, 8) == 1) {
+      *f = (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET);
+      ai_diplo_mirror_relation_summary(ctx->col1, nation_id);
     }
   }
   /* Peaceful Indian relation drift (thin; full Indian×Euro 15b3 PORT DEBT). */
@@ -1912,7 +1935,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
     /* 10ec/13b0 ally eligibility. */
     if (self > 10 && other > 10 && abs(self - other) < 15) {
-      if ((bits & AI_DIPLO_ALLY) == 0) {
+      /* Stored flags only — ai_diplo_read invents PEACE|MET for unmet 0. */
+      const uint8_t* raw_f = ai_diplo_flag_byte_const(ctx->col1, nation_id, peer);
+      const uint8_t stored = raw_f ? *raw_f : 0;
+      if ((stored & AI_DIPLO_ALLY) == 0) {
         /*
          * Sticky→pressure deepen (unpark #5): sticky==2 refuses new alliances
          * this balance — deep native hostility blocks the improve-relations /
@@ -1929,6 +1955,12 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
               ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Natives", ctx->status
             );
           }
+        } else if (stored == 0) {
+          /*
+           * Unmet peer (euro_relation==0): do not invent PEACE|MET|ALLY.
+           * Seed-100 early TURN goldens keep flags clear until real contact.
+           * Cite: docs/ai_transcription.md joint diplo fields; euro_diplo.md.
+           */
         } else if (ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
           /*
            * Human-offer path (FUN_5bfb_13b0): AI nation offers alliance to the

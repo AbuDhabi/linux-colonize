@@ -766,31 +766,33 @@ int main(void) {
     ctx_d.col1_ok = true;
     ctx_d.rng = &rng_d;
     ctx_d.turn_number = &turn_d;
-    /* Nation 3 is peaceful (no war with anyone after break of 2-3 ally). */
+    /* Nation 3 is peaceful (no war with anyone after break of 2-3 ally).
+     * Drift only climbs slots below peaceful meet floor 96 (seed-100). */
     for (int i = 0; i < 8; ++i) {
-      col1.nation[3].relation_by_indian[i] = (uint8_t)(100 + i);
+      col1.nation[3].relation_by_indian[i] = (uint8_t)(50 + i);
     }
-    col1.nation[3].relation_by_indian[7] = 160; /* already at cap */
+    col1.nation[3].relation_by_indian[7] = 96; /* at meet floor — no drift */
     ai_diplo_treaty_timers(&ctx_d, 3);
     for (int i = 0; i < 7; ++i) {
-      if (col1.nation[3].relation_by_indian[i] != (uint8_t)(101 + i)) {
-        return fail("treaty_timers should +1 peaceful Indian relations under 160");
+      if (col1.nation[3].relation_by_indian[i] != (uint8_t)(51 + i)) {
+        return fail("treaty_timers should +1 peaceful Indian relations under meet floor");
       }
     }
-    if (col1.nation[3].relation_by_indian[7] != 160) {
-      return fail("Indian drift should not raise relations above 160");
+    if (col1.nation[3].relation_by_indian[7] != 96) {
+      return fail("Indian drift should not raise relations at/above meet floor 96");
     }
-    /* Second tick: still under cap for slots 0..6. */
+    /* Second tick: still under meet floor for slots 0..6. */
     ai_diplo_treaty_timers(&ctx_d, 3);
-    if (col1.nation[3].relation_by_indian[0] != 102) {
+    if (col1.nation[3].relation_by_indian[0] != 52) {
       return fail("Indian drift should apply +1 each treaty_timers tick");
     }
   }
 
   /*
    * Unpark #5: peace feeler — once per euro_balance, Euro at peace with peers,
-   * mid/high Indian slots (≥50, <100) heal +2 toward content floor 100.
-   * Hostile slots (<50) untouched; Euro×Euro war skips feeler.
+   * mid/high Indian slots (≥50, <96) heal +2 toward content floor 96
+   * (seed-100 TURN3 meet baseline). Hostile slots (<50) untouched; Euro×Euro
+   * war skips feeler.
    */
   {
     ColonizeDosRng rng_f;
@@ -808,18 +810,18 @@ int main(void) {
       col1.nation[3].relation_by_indian[i] = 90;
     }
     col1.nation[3].relation_by_indian[0] = 40; /* at-war slot: no feeler */
-    col1.nation[3].relation_by_indian[1] = 99; /* near floor: clamp to 100 */
-    col1.nation[3].relation_by_indian[2] = 100; /* already at floor */
+    col1.nation[3].relation_by_indian[1] = 95; /* near floor: clamp to 96 */
+    col1.nation[3].relation_by_indian[2] = 96; /* already at floor */
     col1.nation[3].unknown26[8] = 1;
     col1.nation[3].gold = 50; /* harassment will −2 (slot0 at war) */
     ai_diplo_euro_balance(&ctx_f, 3);
     if (col1.nation[3].relation_by_indian[0] != 40) {
       return fail("peace feeler must not heal indian_at_war slots");
     }
-    if (col1.nation[3].relation_by_indian[1] != 100) {
-      return fail("peace feeler should clamp heal to content floor 100");
+    if (col1.nation[3].relation_by_indian[1] != 96) {
+      return fail("peace feeler should clamp heal to content floor 96");
     }
-    if (col1.nation[3].relation_by_indian[2] != 100) {
+    if (col1.nation[3].relation_by_indian[2] != 96) {
       return fail("peace feeler should leave slots already at floor");
     }
     if (col1.nation[3].relation_by_indian[3] != 92) {

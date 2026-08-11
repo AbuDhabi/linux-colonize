@@ -76,7 +76,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_521d_052c` | `unit_desirability_score` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_0600` | `composite_unit_priority` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_0656` | `walk_unit_stack_to_end` | `ai/euro_goals.c` | `ai_goals_*` |
-| `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_found_tile_from_landfall` (partial) |
+| `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_06ae_first_colony_from_landfall` + `ai_goals_pick_founding_tile*` (partial) |
 | `FUN_521d_0896` | `filter_profession_by_distance_wealth` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_20e6` | `move_scoring` (quiet Done; land/ship **mapped**) | `ai/move_scoring.md` + `move_scoring_land.md` + `move_scoring_ship.md` + `euro_ocean_scoring.c` | quiet + thin `ai_euro_score_*`; deep port PARKED |

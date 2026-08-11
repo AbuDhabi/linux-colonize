@@ -219,6 +219,62 @@ static bool compare_ai_state(
       break;
     }
   }
+  if (got->head.tribe_count != exp->head.tribe_count) {
+    fprintf(
+      stderr,
+      "%s tribe_count got %u expected %u\n",
+      step_label,
+      got->head.tribe_count,
+      exp->head.tribe_count
+    );
+    ok = false;
+  }
+
+  /*
+   * Joint Euro↔Indian diplo fields (T3 roadmap Phase 0).
+   * euro_relation + sticky + relation_by_indian — false WAR already bit Privateer.
+   */
+  for (int n = 0; n < 4; ++n) {
+    for (int p = 0; p < 4; ++p) {
+      if (got->nation[n].euro_relation[p] != exp->nation[n].euro_relation[p]) {
+        fprintf(
+          stderr,
+          "%s nation[%d].euro_relation[%d] got 0x%02x expected 0x%02x\n",
+          step_label,
+          n,
+          p,
+          got->nation[n].euro_relation[p],
+          exp->nation[n].euro_relation[p]
+        );
+        ok = false;
+      }
+    }
+    if (got->nation[n].indian_hostility_sticky != exp->nation[n].indian_hostility_sticky) {
+      fprintf(
+        stderr,
+        "%s nation[%d].indian_hostility_sticky got %u expected %u\n",
+        step_label,
+        n,
+        (unsigned)got->nation[n].indian_hostility_sticky,
+        (unsigned)exp->nation[n].indian_hostility_sticky
+      );
+      ok = false;
+    }
+    for (int idx = 0; idx < 8; ++idx) {
+      if (got->nation[n].relation_by_indian[idx] != exp->nation[n].relation_by_indian[idx]) {
+        fprintf(
+          stderr,
+          "%s nation[%d].relation_by_indian[%d] got %u expected %u\n",
+          step_label,
+          n,
+          idx,
+          (unsigned)got->nation[n].relation_by_indian[idx],
+          (unsigned)exp->nation[n].relation_by_indian[idx]
+        );
+        ok = false;
+      }
+    }
+  }
   return ok;
 }
 

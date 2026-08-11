@@ -43,4 +43,6 @@ for gift/demand price tables (`DS:0x9e*`), not a raid action body.
 ## Linux
 
 Meet gift/demand uses thin relation/alarm stand-ins in `ai_contact` /
-`ai_diplo`. Full `0x9e*` table fill from neighborhood terrain **PARKED**.
+`ai_diplo`. **Partial `2154`:** tribe±2 forest/coast neighborhood count
+modulates Generous gift floor (gold≥30 when rich). Full `0x9e*` table fill
+from terrain buckets still **OPEN**.

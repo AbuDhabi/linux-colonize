@@ -831,6 +831,23 @@ target_link_libraries(smoke_ai_turns PRIVATE colonize_core)
 
 add_test(NAME smoke_ai_turns COMMAND smoke_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 # T2 early gate: full Euro dispatcher (TURN1→7). Fixture opt-in via AI_EURO_EARLY_FIXTURE=1 for bisect.
+# Joint Euro↔Indian harness (T3 roadmap Phase 0): early turns + mapgen + contact + diplo.
+add_custom_target(smoke_ai_joint
+  COMMAND ${CMAKE_COMMAND} -E echo "smoke_ai_joint: mapgen + turns + contact + diplo"
+  COMMAND $<TARGET_FILE:smoke_mapgen_seed100>
+  COMMAND $<TARGET_FILE:smoke_ai_turns>
+  COMMAND $<TARGET_FILE:smoke_ai_contact>
+  COMMAND $<TARGET_FILE:smoke_ai_diplo>
+  DEPENDS smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  COMMENT "Joint Euro↔Indian AI smokes (shared-surface gate)"
+)
+add_test(
+  NAME smoke_ai_joint
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target smoke_ai_joint
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 add_executable(smoke_sound
   tests/smoke/test_sound.c
   src/core/sound.c

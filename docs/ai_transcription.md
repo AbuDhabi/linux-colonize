@@ -79,16 +79,18 @@ Isabella → Quebec found → SP New Amsterdam found + post-found coast cruise �
 FR ship home sail / pioneer→Soldier / DU cruise leg3). **`FUN_521d_0492` ported**
 (`ai_goals_colony_balance_flags`: live nation×continent counts +
 `post_map.continent_tally_b/12`; wired into `06ae` as `0492*16 + explore`).
-First-colony sites use landfall **latitude-band geometry** (not RE'd town peels);
-live adj `06ae` still prefers some inland higher DS:0x2f77 neighbors (e.g.
-Quebec→49,37) so ship FOUND / resolve keep the geometric path ahead of 06ae.
+First-colony / Atlantic tips live in thin **`LAB_521d_3558` / `06ae` ports**
+(`ai_euro_ocean_3558_first_leg_tip`, `ai_euro_ocean_3558_empty_cruise_tip`,
+`ai_euro_06ae_first_colony_from_landfall`) — separate latitude stand-in helpers
+**retired**. Residual: ports still **seed** latitude-band preferred candidates
+until full cargo/colony `3558` matrix and multi-ring live `06ae` match goldens
+without seeds (adj `06ae` still prefers some inland higher DS:0x2f77).
 **`FUN_521d_20e6` section-mapped** (band table in `move_scoring.md`); Europe-exit
 uses `units_spiral_place_hs_near` (`48d3_048e`); ocean score adds
-leave-HS-into-ocean + Chebyshev + staging-aimed first-leg waypoint. Atlantic
-approach + post-beachhead cruise tips are **latitude-band geometry** (retired
-XY peels). Post-found SW cruise legs are geometric from tip (`−4,+2` / `−6,+3` /
-`−11,+6`) plus SP tip−1→NE berth — not nation peels. Do **not** grow tip/join
-peels. CI runs full dispatcher; `AI_EURO_EARLY_FIXTURE=1` remains for bisect.
+leave-HS-into-ocean + Chebyshev + empty-hold coastal cling. Post-found SW cruise
+legs are geometric from tip (`−4,+2` / `−6,+3` / `−11,+6`) plus SP tip−1→NE berth.
+Do **not** grow tip/join peels. CI runs full dispatcher; `AI_EURO_EARLY_FIXTURE=1`
+remains for bisect.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -364,16 +366,16 @@ leftover FF hooks, deep `20e6`).
   from SW leg1 → tip `(52,43)` AI_SAIL goto Quebec; pioneer at town → Soldier
   (tools deposit / muskets equip; pop stays 1); SP soldier SE+3; DU cruise
   leg3 `(37,19)→(32,22)`; Isabella stale zero-hammer bip clear. **Found /
-  sail geometry (no XY peels):** Atlantic approach + post-beachhead tips +
-  first-town from landfall are latitude-band offsets (mid FR tip uses
-  `fx+2,fy+6` when beachhead helper returns 0). `FUN_521d_06ae` + `0492`
-  ported; adj `06ae` still misses some coastal first towns (inland higher
-  class_score) — first-colony FOUND keeps landfall geometry ahead of live
-  06ae. `48d3_048e` spiral place + `20e6` band map Done. Thin `LAB_521d_3558`
-  cargo/colony sail OPEN (geometry covers TURN1→7 without tip peels).
+  sail (Phase 2):** Atlantic / cruise / first-town live in thin `3558`/`06ae`
+  ports (`ai_euro_ocean_3558_*`, `ai_euro_06ae_first_colony_from_landfall`);
+  latitude stand-in helpers retired; ports still seed preferred candidates
+  (mid FR tip uses `fx+2,fy+6` when cruise tip returns 0). `FUN_521d_06ae` +
+  `0492` ported; adj `06ae` still misses some coastal first towns. `48d3_048e`
+  spiral place + `20e6` band map Done. Full `LAB_521d_3558` cargo/colony sail
+  OPEN.
 - **Euro early path (fixture, bisect only):** T2 coastal ship gotos from
-  `ai_coastal_staging_from_landfall`; found tiles from landfall latitude
-  geometry (Quebec / New Amsterdam / Isabella). Dutch join uses first nation
+  `ai_coastal_staging_from_landfall`; found tiles from `06ae` landfall seed
+  (Quebec / New Amsterdam / Isabella). Dutch join uses first nation
   colony. Opt-in via `AI_EURO_EARLY_FIXTURE=1` only.
 - Keep this file and [original_index.md](original_index.md) status rows aligned
   when slices land.
@@ -543,14 +545,85 @@ leftover mid `5d04` matrix (colonies≥6 ship-buy + war/peace shortage hire **Do
 Wartime Privateer spawn stays in `ai_diplo_euro_balance`.
 Odd deviations OK; not T3 / LCG goldens (those stay R5).
 
-### R5 — Toward 1:1 (T2/T3)
+### R5 — Toward 1:1 (T2/T3) — Euro + Indian joint roadmap
 
-1. Remaining `FUN_521d_20e6` **port** (Euro combat, explore, ocean/ship — maps Done).
-2. Full `5b66` order/combat arms (thin map done) and remaining `5d04`.
-3. Full `4d56` large bodies + nested `2820` helpers (**maps Done**; port OPEN).
-4. Golden / hang-dump coverage for mid-game turns (not only seed-100 turn 0).
+Long-form phases: Euro planner + Indian nation act together (shared `20e6` /
+`15b3`/sticky / raids / FOUND). Do **not** claim blanket T3 for all AI.
 
-### R6 — King / REF (`43f7`) (**partial structural port**)
+**Phase 0 (harness) — Done**
+
+| In-scope golden fields | Out of scope (chrome) |
+|------------------------|------------------------|
+| Calendar / crosses / founded_colonies | VGA meet/diplo/king wood frames |
+| Colony xy/nation/pop/bip/hammers/name | FA `3f41` full dialog widgets |
+| All units (Euro + Braves): type/nation/xy/orders/goto; Brave moves/spent | Letter cinematic `160a` |
+| Tribe pop / growth_accum / tribe_count | MAPEDIT / `COLDIG` / F3 portraits |
+| `euro_relation[4]` per Euro nation | Privateer 8g treasury fiction |
+| `relation_by_indian[8]` + `indian_hostility_sticky` | Hang dumps as primary path |
+
+Gates: `smoke_ai_turns` (early joint), `smoke_mapgen_seed100`, `smoke_ai_contact`,
+`smoke_ai_diplo`. Aggregate: **`smoke_ai_joint`** CMake target/test.
+Mid-turn scaffold: [`test-saves-ai/JOINT_MIDTURN.md`](../test-saves-ai/JOINT_MIDTURN.md)
+(`MID*.SAV` / `LATE*.SAV` capture still OPEN).
+
+**Shared-surface PR policy:** any change to `20e6`, Indian×Euro `15b3`/sticky,
+raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
+
+**Phase 1 (shared foundation) — partial**
+
+- Indian×Euro fidelity: unmet `euro_relation==0` no longer stamped PEACE|MET|ALLY;
+  peaceful drift / sticky treat `relation_by_indian==0` as unmet (not war);
+  first-meet baseline **96** (seed-100 TURN3+); `euro_diplo` OR `0x20` then PEACE
+  `0x40` → 96; Euro-side unload welcome before Brave pulse moves contact away;
+  peace-meet floor holds relation under hot alarm wobble.
+- Land `20e6`: thin combat toughness + FoW unseen explore bonus; ocean empty-hold
+  coastal cling. Full land/combat/explore arms + combat-resolve field fidelity
+  remain **OPEN**.
+
+**Phase 2 (retire early Euro geometry) — Done (residual seeds)**
+
+- Deleted stand-ins `ai_euro_atlantic_approach_tile` /
+  `ai_euro_post_beachhead_ship_waypoint` / `ai_euro_found_tile_from_landfall`.
+- Replaced by thin ports: `ai_euro_ocean_3558_first_leg_tip`,
+  `ai_euro_ocean_3558_empty_cruise_tip`, `ai_euro_06ae_first_colony_from_landfall`.
+- TURN1→7 + Indian joint rows green. Residual: latitude-band **preferred seeds**
+  inside those ports until full `3558` cargo/colony matrix + multi-ring `06ae`.
+
+**Phase 3 (Euro mid-planner) — partial**
+
+- `0a60` G: live `0492` continent balance soft-caps war MILITARY prio and bumps
+  secondary FOUND when under `continent_tally_b/12` (thin `−0x6790`).
+- `3558` empty-hold coastal cling in `ai_euro_ocean_score_step`.
+- Deep E–H / full `−0x6790` nibble table / remaining `5d04` / full `5b66` /
+  full cargo `3558` matrix remain **OPEN**.
+
+**Phase 4 (Indian large bodies) — partial**
+
+- `2154`: tribe±2 forest/coast neighborhood modulates Generous gift floor
+  (gold≥30 when rich, else ≥40). Full `DS:0x9e*` table **OPEN**.
+- `2820`: hard-bargain tension band widened to alarm 45..54 (skip relation /
+  friction decay). Deep price `2b92`/`2bbc` nest **OPEN**.
+- `4528`: structural raids + alarmed escort deepen (below). Full ~3k body **OPEN**.
+- Growth `152e` / relation tick: prior T0 fidelity retained.
+
+**Phase 5 (alarmed act + claims) — partial**
+
+- Alarmed escort (outside quiet `14fe`): when raid-gate alarm≥55, lead pick
+  allows MD≤4 and 2× weights colony-target distance. Quiet seed-100 pulse
+  unchanged. Full alarmed dir picker inside `14fe` **PARKED**.
+- Mid/late joint saves: scaffold only (`JOINT_MIDTURN.md`); no `MID*.SAV` yet.
+
+**Per-module fidelity (honest — not blanket T3)**
+
+| Module | Claim |
+|--------|-------|
+| Early Euro TURN1→7 (`6d8e` path) | **T2** (joint fields) |
+| Quiet Brave / tribes seed-100 | **T2** |
+| Indian×Euro `15b3` / sticky / meet floor 96 | **T2**-shaped partial |
+| Ocean `3558` / first-colony `06ae` | Thin ports + seeds — **not T3** |
+| Mid `0a60` / `5d04` / `5b66` | Thin / partial — **not T3** |
+| `2154` / `2820` / `4528` bodies | Thin / partial — **not T3** |
+| Alarmed Indian unit-act | Escort peel only — **not T3** |### R6 — King / REF (`43f7`) (**partial structural port**)
 
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
@@ -620,7 +693,8 @@ mid-planner share the next Euro path.
 | `test-saves-mapgen/SEED100.SAV` | Golden tribes/Braves; `smoke_mapgen_seed100`; far-ocean probe |
 | `tools/probe_far_ocean_4753.c` | Phase 8: far tiles Linux ↔ SAV ocean/land |
 | `tools/probe_sioux_spent.c` | T1/T2 Brave cost-head + neighborhood oracle (spent residuals) |
-| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 gate; `smoke_ai_turns` |
+| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 joint gate; `smoke_ai_turns` (Euro+Indian+diplo fields) |
+| `test-saves-ai/JOINT_MIDTURN.md` | Mid-game joint golden scaffold + field policy |
 | `original_saves/COLONY00.SAV` / `COLONY01.SAV` | Rival fleets, sail, AI crosses |
 | `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
 | `original_memory_dumps/dosbox_save_state_brave/` | Live Brave pulse dumps |
@@ -631,7 +705,7 @@ mid-planner share the next Euro path.
 | `GAME.TXT` `@RAID*` | Raid message tags → `AiRaidKind` loot picker in `ai_contact` |
 | `tests/smoke/test_ai.c` | Init + multi-turn smoke |
 | `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
-| `tests/smoke/test_ai_turns.c` | T2 TURN1→7 field-diff |
+| `tests/smoke/test_ai_turns.c` | T2 TURN1→7 joint field-diff (Euro+Indian+diplo) |
 | `tests/smoke/test_ai_contact.c` | Meet + raids multi-loot + teach + gift + 359c + prelude |
 | `tests/smoke/test_ai_diplo.c` | War/ally, make_peace, privateer, FA gift |
 | `tests/smoke/test_ai_king.c` | REF/MoW cargo×2 + 10f0/boycott/1528/160a/2244/1eca |
@@ -642,14 +716,14 @@ mid-planner share the next Euro path.
 Smoke:
 
 ```bash
+cmake --build build --target smoke_ai_joint   # mapgen + turns + contact + diplo
 cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo
 ./build/smoke_mapgen_seed100   # cwd = repo root
-./build/smoke_ai_turns         # TURN1→7 gate
+./build/smoke_ai_turns         # TURN1→7 joint gate (Euro+Indian+diplo)
 ./build/smoke_ai_contact       # Indian meet/raid structural
 ./build/smoke_ai_diplo         # Euro bilateral diplo
 cmake --build build --target smoke_ai && ./build/smoke_ai
 ```
-
 ---
 
 ## Size sense
