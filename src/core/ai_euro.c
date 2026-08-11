@@ -9090,13 +9090,44 @@ static int ai_euro_colony_threatened_by_war(
 }
 
 /*
- * At war: ship with military cargo adjacent to own threatened coastal colony →
- * unload one passenger onto the colony tile (reinforce). Prefer Soldier, else
- * Regular/Continental Army, else Dragoon/Continental Cavalry, else
- * Artillery/Cannon — mirror king MoW unload ladder + board list.
- * Thin −0x6790 / local_9c 0x10: require continent stance ≠ 0; prefer stance==4.
- * Cite: move_scoring_ship.md; Series I. Returns 1 if a military passenger was
- * unloaded.
+ * Peacetime sticky mil-unload threat: Indian land unit (Brave stand-in) within
+ * MD≤3 of colony. Cite: move_scoring_ship.md peacetime −0x6790==4; Series L.
+ */
+static int ai_euro_colony_threatened_by_brave(
+  ColonizeTurnContext* ctx,
+  const ColonizeColony* c
+) {
+  if (!ctx || !ctx->units || !c || !c->active) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id < 4 || f->nation_id > 11) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, f->id)) {
+      continue;
+    }
+    if (abs(f->x - c->x) + abs(f->y - c->y) <= 3) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * War / peacetime-sticky mil unload: ship with military cargo adjacent to own
+ * threatened coastal colony → unload one passenger onto the colony tile.
+ * Prefer Soldier, else Regular/Continental Army, else Dragoon/Continental
+ * Cavalry, else Artillery/Cannon — mirror king MoW unload ladder + board list.
+ *
+ * Gate (Series I + L / local_9c 0x10-shaped):
+ *   - refresh −0x6790; stance==0 skips
+ *   - Euro×Euro at war: war-peer MD≤3 threat; prefer stance 4, allow other ≠0
+ *   - else sticky≥2 + stance==4: Indian Brave MD≤3 threat (peacetime mil path)
+ *
+ * Cite: move_scoring_ship.md peacetime −0x6790==4; Series L. Returns 1 if a
+ * military passenger was unloaded.
  */
 static int ai_euro_try_unload_military_threatened(
   ColonizeTurnContext* ctx,
@@ -9109,7 +9140,12 @@ static int ai_euro_try_unload_military_threatened(
   if (!ai_euro_is_ship_type(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
     return 0;
   }
-  if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+  if (!ctx->col1_ok || !ctx->col1) {
+    return 0;
+  }
+  const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  const int sticky = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
+  if (!at_war && sticky < 2) {
     return 0;
   }
   if (ship->cargo_count <= 0) {
@@ -9150,7 +9186,7 @@ static int ai_euro_try_unload_military_threatened(
   if (pax_id < 0) {
     return 0;
   }
-  /* Adjacent/same-tile own coastal colony threatened by war-peer; stance≠0. */
+  /* Adjacent/same-tile own coastal colony; war-peer or Brave threat; stance gate. */
   int dest_x = -1;
   int dest_y = -1;
   int any_x = -1;
@@ -9166,13 +9202,20 @@ static int ai_euro_try_unload_military_threatened(
     if (!ai_euro_tiles_near(ship->x, ship->y, col->x, col->y)) {
       continue;
     }
-    if (!ai_euro_colony_threatened_by_war(ctx, nation_id, col)) {
+    const int threatened =
+      at_war ? ai_euro_colony_threatened_by_war(ctx, nation_id, col)
+             : ai_euro_colony_threatened_by_brave(ctx, col);
+    if (!threatened) {
       continue;
     }
     const int cid = map_continent_id_at(ctx->map, col->x, col->y);
     const int st = ai_euro_continent_stance_at(nation_id, cid);
     if (st == 0) {
       continue; /* −0x6790 none: no mil unload bit */
+    }
+    /* Peacetime sticky path: require military nibble 4 (not expand/develop). */
+    if (!at_war && st != 4) {
+      continue;
     }
     if (any_x < 0) {
       any_x = col->x;
@@ -10823,13 +10866,14 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   /*
-   * War military unload — before move-scoring gate. Galleon/Frigate are not
-   * cargo-ship deferred, so 20e6 gate can abort the ship act before the war
+   * War / peacetime-sticky mil unload — before move-scoring gate. Galleon/Frigate
+   * are not cargo-ship deferred, so 20e6 gate can abort the ship act before the
    * unload arm. Drop Soldier at threatened coastal colony first. Cite:
-   * Colonization.pdf naval transport; euro_unit_act §2b2.
+   * Colonization.pdf naval transport; euro_unit_act §2b2; Series L sticky≥2.
    */
-  if (is_ship && ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id) &&
-      !ai_euro_in_europe(u->x, u->y)) {
+  if (is_ship && ctx->col1_ok && ctx->col1 && !ai_euro_in_europe(u->x, u->y) &&
+      (ai_euro_at_war_any_peer(ctx->col1, nation_id) ||
+       ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
     (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
   }
 
@@ -11348,9 +11392,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
       }
     }
-    if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
-      /* Drop Soldier at threatened own coastal colony before hunt sail. */
+    if (!ai_euro_in_europe(u->x, u->y) && !treasure_aboard &&
+        (at_war || ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
+      /* Drop Soldier at threatened own coastal colony (war or sticky mil). */
       (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+    }
+    if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
       /* War cargo → fortified own coast when −0x6790 stance ≠ 0. */
       if (ai_euro_try_ship_war_cargo_sail(ctx, nation_id, u)) {
         /* fall through to hunt only if still idle after course set */
@@ -11548,8 +11595,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (u->active && at_war && !ai_euro_in_europe(u->x, u->y) && u->moves_left > 0) {
       ai_euro_naval_try_adjacent_attack(ctx, u);
     }
-    /* War reinforce unload after sail arrival (Soldier → threatened colony). */
-    if (u->active && at_war && !ai_euro_in_europe(u->x, u->y)) {
+    /* War / sticky mil unload after sail arrival (Soldier → threatened colony). */
+    if (u->active && !ai_euro_in_europe(u->x, u->y) &&
+        (at_war || ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) >= 2)) {
       (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
     }
     /* HS / Europe arrival after sail steps — cash Treasure passengers. */

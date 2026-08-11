@@ -2666,13 +2666,14 @@ static int ai_contact_auto_trade(
     c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
     /*
      * Thin 2820 AI-buy price peel (2bbc-shaped): under hard-bargain tension,
-     * silver-primary nations charge one extra trade-goods when stock remains
-     * (harder price). Peace single-unit drain unchanged for CHOICE smokes.
-     * Deep nest PARKED. Cite: indian_trade_2820.md Open RE.
+     * nations with a mapped outdoor primary (non-0xff from teach map) charge
+     * one extra trade-goods when stock remains — silver/ore/tobacco/cotton/
+     * furs/sugar. Arawak fish (0xff) stays single drain. Peace single-unit
+     * drain unchanged for CHOICE smokes. Deep nest PARKED. Cite:
+     * indian_trade_2820.md; Series M.
      */
     if (hard &&
-        (ai_contact_nation_primary_sold_cargo(nation_id) == (uint8_t)COLONIZE_CARGO_SILVER ||
-         ai_contact_nation_primary_sold_cargo(nation_id) == (uint8_t)COLONIZE_CARGO_ORE) &&
+        ai_contact_nation_primary_sold_cargo(nation_id) != 0xffu &&
         c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0) {
       c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
     }
@@ -3327,10 +3328,10 @@ static void ai_contact_unit_goto_xy(const ColonizeUnit* u, int* out_x, int* out_
 
 /*
  * Alarmed / mid-raid Brave escort lead pick (outside quiet 14fe).
- * Same-nation AI_MOVE/GOTO within MD≤3 (≤4 when max alarm≥55). When raid gate
- * Euro is known, prefer lead whose goto is closer to that Euro's colony; alarmed
- * weights target distance 2×. Deep dir picker inside 14fe still PARKED.
- * Cite: units_follow_unit; indian_raid_outcomes.md §1.
+ * Same-nation AI_MOVE/GOTO within MD≤3 (≤4 when alarm≥55; ≤5 when ≥80). When
+ * raid gate Euro is known, prefer lead whose goto is closer to that Euro's
+ * colony; weight 2× at ≥55, 3× at ≥80. Deep dir picker inside 14fe still PARKED.
+ * Cite: units_follow_unit; indian_raid_outcomes.md §1; Series N.
  */
 static int ai_contact_escort_pick_lead(
   ColonizeTurnContext* ctx,
@@ -3345,8 +3346,11 @@ static int ai_contact_escort_pick_lead(
   int gate_euro = -1;
   int gate_alarm = 0;
   (void)ai_contact_raid_gate_target(ctx, ind, nation_id, &gate_euro, &gate_alarm);
+  /* Peace MD≤3; alarmed≥55 → MD≤4 + 2×; hot≥80 → MD≤5 + 3× (Series N). */
+  const int hot = gate_alarm >= 80;
   const int alarmed = gate_alarm >= 55;
-  const int md_max = alarmed ? 4 : 3;
+  const int md_max = hot ? 5 : (alarmed ? 4 : 3);
+  const int colony_w = hot ? 3 : (alarmed ? 2 : 1);
 
   int lead = -1;
   int best_md = 99;
@@ -3372,8 +3376,8 @@ static int ai_contact_escort_pick_lead(
     const int target_d =
       gate_euro >= 0 ? ai_contact_nearest_euro_colony_dist(ctx, gate_euro, ax, ay) : 99;
     if (gate_euro >= 0) {
-      const int score_t = alarmed ? target_d * 2 : target_d;
-      const int best_t = alarmed ? best_target_d * 2 : best_target_d;
+      const int score_t = target_d * colony_w;
+      const int best_t = best_target_d * colony_w;
       if (score_t < best_t || (score_t == best_t && md < best_md)) {
         best_target_d = target_d;
         best_md = md;

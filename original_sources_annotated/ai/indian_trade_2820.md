@@ -80,7 +80,7 @@ Subst slots: `281f_0438` slots 0..3 load cargo-name ptrs from table `−0x6840`.
 | Behavior | Linux (`ai_contact`) | This map |
 |----------|----------------------|----------|
 | Auto-trade / gift | Stand-in relation bumps | Full `2bbc` / `2b92` pricing |
-| Hard-bargain mid-alarm | Thin Done | Full `306c` loop |
+| Hard-bargain mid-alarm | Thin Done; primary extra TG for all non-`0xff` teach primaries (Series M) | Full `306c` loop |
 | Gift-amount CHOICE | `ai_popup` Done | Deep nest still PARKED |
 | VGA wood dialog | PARKED | `291f_019c` / `0438` subst |
 

@@ -7145,6 +7145,245 @@ static int smoke_unload_military_threatened(void) {
 }
 
 /*
+ * Series L: peacetime sticky≥2 + Brave MD≤3 → mil unload (no Euro×Euro war).
+ * Seed very-low Indian relation so euro_balance hostility_sync keeps sticky=2.
+ * Cite: move_scoring_ship.md −0x6790==4; ai_euro_try_unload_military_threatened.
+ */
+static int smoke_unload_sticky_brave_threatened(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("sunload alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+  map.terrain[4 * 16 + 3] = 25;
+  if (!map_tile_is_coastal(&map, 4, 4)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sunload colony should be coastal");
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 3;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 2;
+  units.types[0].defense = 2;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Galleon");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 6;
+  units.types[1].attack = 2;
+  units.types[1].defense = 2;
+  snprintf(units.types[2].name, sizeof(units.types[2].name), "Brave");
+  units.types[2].movement = 1;
+  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[2].attack = 1;
+  units.types[2].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* c = &colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 8;
+  c->colonist_count = 8;
+  c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_TOOLS] = 40;
+  c->building_in_production = -1;
+  colonies.colony_count = 1;
+  colonies.next_id = 1;
+
+  const int uid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* soldier = units_get(&units, uid);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sunload spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 0;
+  soldier->muskets = 50;
+
+  const int sid = units_spawn(&units, 1, 3, 4);
+  ColonizeUnit* galleon = units_get(&units, sid);
+  if (!galleon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sunload spawn galleon");
+  }
+  galleon->nation_id = nation;
+  galleon->orders = 0;
+  galleon->moves_left = 4;
+  galleon->cargo_count = 0;
+
+  if (!units_board(&units, uid, sid)) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sunload board setup");
+  }
+
+  const int brave_id = units_spawn(&units, 2, 5, 4);
+  ColonizeUnit* brave = units_get(&units, brave_id);
+  if (!brave) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sunload spawn Brave");
+  }
+  brave->nation_id = 4;
+  brave->orders = 0;
+  brave->moves_left = 0;
+
+  ai_goals_reset();
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 100;
+  col1.nation[nation].relation_by_indian[0] = 25;
+  col1.nation[nation].indian_hostility_sticky = 2;
+
+  uint32_t turn = 12;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 9;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, uid);
+  galleon = units_get(&units, sid);
+  if (ai_diplo_indian_hostility_sticky(&col1, nation) < 2) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sticky Brave smoke needs hostility_sync to keep sticky≥2");
+  }
+  if (!soldier || !soldier->active || soldier->aboard_ship_id >= 0) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_war: sticky munload aboard=%d active=%d cargo=%d\n",
+      soldier ? soldier->aboard_ship_id : -99,
+      soldier ? (int)soldier->active : 0,
+      galleon ? galleon->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sticky Brave threat should unload Soldier");
+  }
+  if (abs(soldier->x - 4) + abs(soldier->y - 4) > 1) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("sticky munload should land near colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: sticky Brave mil unload ok\n");
+  return 0;
+}
+
+/*
+ * Series L negative: preset sticky=2 with unmet Indian relations → euro_balance
+ * hostility_sync clears sticky (stance mil nibble / unload gate closes). Live
+ * very-low relation (sticky positive smoke) is required for peacetime unload.
+ * Cite: ai_diplo_indian_hostility_sync; Series L.
+ */
+static int smoke_unload_stance0_no_sticky(void) {
+  const int nation = 1;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].indian_hostility_sticky = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("zunload alloc map");
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  ai_goals_reset();
+  uint32_t turn = 12;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 9;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  if (ai_diplo_indian_hostility_sticky(&col1, nation) != 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("unmet relations should clear sticky (stance0 / mil path closed)");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_war: stance0 sticky-clear skip mil path ok\n");
+  return 0;
+}
+
+/*
  * Threatened-port unload: Dragoon-only cargo → unload Dragoon (Soldier ladder
  * fallback). Cite: euro_unit_act §2b2; king_ref MoW unload else Dragoon.
  */
@@ -9460,6 +9699,12 @@ int main(void) {
     return 1;
   }
   if (smoke_unload_military_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_unload_sticky_brave_threatened() != 0) {
+    return 1;
+  }
+  if (smoke_unload_stance0_no_sticky() != 0) {
     return 1;
   }
   if (smoke_unload_dragoon_threatened() != 0) {
