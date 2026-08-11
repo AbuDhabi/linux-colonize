@@ -207,7 +207,9 @@ typedef struct ColonyScreenView {
   int eject_line_h;
 
   ColonyMessageKind message_kind;
-  char message_text[160];
+  char message_text[240];
+  char message_choice0[48];
+  char message_choice1[48];
   int message_selection; /* 0=Yes/OK, 1=No for confirm */
   int pending_eject_colonist;
   int pending_eject_role;
@@ -265,7 +267,10 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text);
 void colony_screen_open_abandon_confirm(
   ColonyScreenView* view,
   int colonist_index,
-  int role
+  int role,
+  const char* body,
+  const char* choice_yes,
+  const char* choice_no
 );
 void colony_screen_close_message(ColonyScreenView* view);
 

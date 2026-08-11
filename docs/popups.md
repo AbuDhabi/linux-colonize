@@ -7,15 +7,18 @@ are secondary citations.
 
 Feature-level status also lives in [manual_gap.md](manual_gap.md) and
 [ai_transcription.md](ai_transcription.md). This file is the **popup checklist**.
+Authenticity vs GAME.TXT (invented vs wired): [popup_audit.md](popup_audit.md).
 
 ## Legend
 
 | Status | Meaning |
 |--------|---------|
 | **Done** | Playable wood/list modal with correct choices/behavior (VGA-identical chrome may still be parked) |
-| **Partial** | Thin OK, status line, simplified choices, hardcoded body, or logic without the full DOS dialog |
+| **Partial** | Thin OK, status line, simplified choices, incomplete GAME.TXT fidelity, or PARKED FA stand-in |
 | **Missing** | No user-facing modal in the port yet |
 | **n/a** | Catalog sentinel / not a player modal |
+
+**Partial** no longer means “invented English OK is fine.” Invented wood INFO OKs are demoted to status; real `@SECTION`s should be wired via `popup_msg_*`.
 
 Structural Done (choices work) is enough per [project_goals.md](project_goals.md);
 pixel VGA / portraits are end-game polish.
@@ -98,7 +101,7 @@ fragment. Related sections are listed in the first column.
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@LANDFALL` / `@LANDFALL2` | Ship→bare land with passengers | Done | `AI_POPUP_TAG_LANDFALL` |
+| `@LANDFALL` / `@LANDFALL2` | Ship→bare land with passengers | Done | `AI_POPUP_TAG_LANDFALL` + `popup_msg_fill` |
 | Stack picker | Multi-unit tile click | Done | [`unit_stack.c`](../src/core/unit_stack.c) |
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Done | `AI_POPUP_TAG_MAP_CONFIRM` |
 | `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
@@ -112,8 +115,8 @@ fragment. Related sections are listed in the first column.
 | Construction CHANGE | CHANGE / **C** | Done | [`colony_screen.c`](../src/core/colony_screen.c) |
 | Field jobs | Assign colonist to field | Done | Job list popup |
 | Leave-as (eject) | Fence with colonist | Done | Role list |
-| `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm |
-| `@KEEPSTOCKADE` / `@MORETHANTHREE` | Stockade min pop | Done | OK message (hardcoded English) |
+| `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
+| `@KEEPSTOCKADE` / `@MORETHANTHREE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
 | `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; **R** rename in colony |
 | `@LANDHO` | First land sight | Done | Name New World (`colony_region`); seed from NAMES `@COLONYNAME` per nation |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
@@ -133,7 +136,7 @@ fragment. Related sections are listed in the first column.
 | Europe dock orders | Don’t board / Board / Move front | Done | `EUROPE_MENU_DOCK` |
 | `@HOWMUCH4`/`5` | Buy/sell amount | Done | Europe **L**/**U** → howmuch |
 | `@PRICEUP` / `@PRICEDOWN` | Price change notice | Partial | Status lines |
-| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Partial | Map `ai_popup` Accept/Refuse + dump-goods; GAME.TXT bodies improving |
+| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; Tea Party follow-up still Partial |
 
 ### 6. Indian contact / trade / raids
 
@@ -173,7 +176,7 @@ fragment. Related sections are listed in the first column.
 | Crown capture | REF takes colony | Partial | `KING_CAPTURE` OK |
 | Revolution win/lose | End WoI | Partial | `INFO` OK + latches |
 | `@CONTINENTAL` FF elect | Founding Father debate | Done | `FF_CONGRESS` |
-| 1800 peacetime end | Auto-end | Partial | `INFO` “Colonial Era Ends” |
+| 1800 peacetime end | Auto-end | Partial | Status only (no GAME.TXT dialog) |
 
 ### 9. Combat / loot / capture
 
@@ -240,8 +243,10 @@ DEBUG sections: `MOTD`, `MOTD2`, `MEMORY`, `CREATE`, `CREATE2`, `CSHIP`,
 | Missing | ~23 |
 | **Total sites** | **93** |
 
-Counts shifted after 2026-08 feasible-popup pass (confirms, pickers, options,
-howmuch, EOT OK modals). Re-tally when the checklist is next audited in full.
+Counts shifted after 2026-08 feasible-popup pass and authenticity audit
+([popup_audit.md](popup_audit.md)): invented INFO OKs demoted to status; wired
+`@LANDFALL` / abandon / stockade / ships / FF / king tax+merc from GAME.TXT.
+Re-tally when the checklist is next audited in full.
 
 ### By `GAME.TXT` `@SECTION` (Appendix A)
 
@@ -395,7 +400,7 @@ work.
 | `@INDIANSCONVERT` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANGIVEFOOD` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANGIVESTUFF` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANCOMMENT` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
+| `@INDIANCOMMENT` | Done | Colony encroachment OK via `popup_msg_fill` |
 | `@INDIANBEGFOOD` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANWAR` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANGRUDGE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
@@ -518,7 +523,7 @@ work.
 | `@KINGLOWER` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGNOTHING` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGRAISE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@KINGTAX` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@KINGTAX` | Done | king tax body via `popup_msg_fill` |
 | `@KINGBLESS` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGLAUGH` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGWELCOME0` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
@@ -530,8 +535,8 @@ work.
 | `@KISSSORRY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@PRICEUP` | Partial | market price status lines |
 | `@PRICEDOWN` | Partial | market price status lines |
-| `@WHICHFREEDOM` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@FREEDOM` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@WHICHFREEDOM` | Done | FF debate body via `popup_msg_fill`; choices = FF names |
+| `@FREEDOM` | Done | FF elect announce via `popup_msg_fill` |
 | `@CLAND` | Done | customize wizard |
 | `@CCONT` | Done | customize wizard |
 | `@CTEMP` | Done | customize wizard |
@@ -774,8 +779,8 @@ From [`ai_popup.h`](../src/core/ai_popup.h):
 | `INFO` | OK | Generic notices (revolution, 1800, …) | Partial |
 | `KING_AUDIENCE` | CHOICE | `@TAXOPTIONS` / `38fd_5be8` | Done |
 | `KING_DUMP_GOODS` | CHOICE | Refuse dump cargo / `38fd_3dc8` | Done |
-| `KING_TAX` | OK | `@KINGTAX` / `@TEAPARTY` follow-up | Partial |
-| `KING_MERC` | CHOICE / OK | `@MERCENARIES` / `43f7_2244` | Done |
+| `KING_TAX` | CHOICE / OK | `@KINGTAX` + `@TAXOPTIONS`; Tea Party Partial | Done |
+| `KING_MERC` | CHOICE / OK | `@MERCENARIES` / `@MERCS` | Done |
 | `KING_CONGRESS` | CHOICE | `@DECLARE` / `43f7_2564` | Done |
 | `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Partial |
 | `KING_ARRIVAL` | OK | `@INVASION` / intervene `43f7_1528`/`10f0` | Partial |

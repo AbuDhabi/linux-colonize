@@ -13,9 +13,23 @@ static bool popup_msg_is_choice_word(const char* line) {
   if (!line || line[0] == '\0') {
     return false;
   }
-  return strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0 ||
-         strcmp(line, "OK") == 0 || strcmp(line, "Never mind.") == 0 ||
-         strncmp(line, "Unload the", 10) == 0;
+  if (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0 || strcmp(line, "OK") == 0 ||
+      strcmp(line, "Never mind.") == 0 || strncmp(line, "Unload the", 10) == 0) {
+    return true;
+  }
+  /* Common trailing choice labels (blank lines are stripped by assets_msg_load). */
+  if (strcmp(line, "Stay With Ships") == 0 || strcmp(line, "Make Landfall") == 0 ||
+      strcmp(line, "No thank you.") == 0 || strncmp(line, "Pay ", 4) == 0 ||
+      strncmp(line, "Kiss pinky", 10) == 0 || strncmp(line, "Hold '", 6) == 0 ||
+      strncmp(line, "Yes, it is God's will", 21) == 0 ||
+      strncmp(line, "Never! That would be folly", 26) == 0 ||
+      strncmp(line, "\"Never! That would be treasonous", 32) == 0 ||
+      strncmp(line, "\"Yes! Give me liberty", 21) == 0 ||
+      strcmp(line, "Cancel Action.") == 0 || strcmp(line, "Break Treaty.") == 0 ||
+      strcmp(line, "Accept") == 0 || strcmp(line, "Refuse") == 0) {
+    return true;
+  }
+  return false;
 }
 
 size_t popup_msg_section_body(
@@ -38,13 +52,13 @@ size_t popup_msg_section_body(
     if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
       continue;
     }
-    if (stop_before_choices && saw_prose && popup_msg_is_choice_word(line)) {
-      break;
-    }
     /* Skip lone "Name:" / "Amount:" / "Colony:" prompt labels for body. */
     if (strcmp(line, "Name:") == 0 || strcmp(line, "Amount:") == 0 ||
         strcmp(line, "Colony:") == 0) {
       continue;
+    }
+    if (stop_before_choices && saw_prose && popup_msg_is_choice_word(line)) {
+      break;
     }
     if (used > 0 && used + 1 < out_size) {
       out[used++] = ' ';
@@ -146,6 +160,12 @@ void popup_msg_apply_tokens(
         i += 8;
         continue;
       }
+      if (src[i + 1] == '%') {
+        dst[used++] = '%';
+        dst[used] = '\0';
+        i += 2;
+        continue;
+      }
     }
     dst[used++] = src[i++];
     dst[used] = '\0';
@@ -195,8 +215,16 @@ int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max
         strcmp(line, "Colony:") == 0) {
       continue;
     }
-    if (popup_msg_is_choice_word(line) ||
-        (saw_prose && (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0))) {
+    if (popup_msg_is_choice_word(line)) {
+      if (count < max_choices) {
+        str_copy_trunc(out[count], 48, line);
+        count++;
+      }
+      continue;
+    }
+    /* Once a choice was seen, further non-directive lines are also choices
+     * (e.g. second landfall option if matcher missed one). */
+    if (count > 0 && saw_prose) {
       if (count < max_choices) {
         str_copy_trunc(out[count], 48, line);
         count++;
@@ -205,7 +233,17 @@ int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max
     }
     saw_prose = 1;
   }
-  /* If section ends with Yes/No only collected after prose: rescan for Yes/No. */
+  /* Choice-only fragments (e.g. @TAXOPTIONS): no prose, collect all lines. */
+  if (count == 0 && !saw_prose) {
+    for (int i = 0; i < section->line_count && count < max_choices; ++i) {
+      const char* line = section->lines[i];
+      if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
+        continue;
+      }
+      str_copy_trunc(out[count], 48, line);
+      count++;
+    }
+  }
   if (count == 0) {
     for (int i = 0; i < section->line_count && count < max_choices; ++i) {
       const char* line = section->lines[i];

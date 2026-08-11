@@ -1,3 +1,4 @@
+#include "core/assets.h"
 #include "core/howmuch_dialog.h"
 #include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
@@ -83,6 +84,55 @@ int main(void) {
   name_entry_handle_input(&ne, &in);
   if (!ne.has_result || !ne.result_cancelled || strcmp(ne.result_name, "New England") != 0) {
     return fail("landho cancel should keep @COLONYNAME seed");
+  }
+
+  /* Authenticity: wired sections must fill from GAME.TXT when present. */
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    static const char* wired[] = {
+      "LANDFALL",
+      "KEEPSTOCKADE",
+      "ABANDON",
+      "DONTKNOWSHIPS",
+      "MADATSHIPS",
+      "INDIANCOMMENT",
+      "WHICHFREEDOM",
+      "FREEDOM",
+      "KINGTAX",
+      "MERCENARIES",
+      "MERCS",
+    };
+    PopupMsgTokens fill_tok;
+    memset(&fill_tok, 0, sizeof(fill_tok));
+    fill_tok.string0 = "Sioux";
+    fill_tok.string1 = "Jamestown";
+    fill_tok.number0 = 5;
+    fill_tok.has_number0 = true;
+    for (size_t i = 0; i < sizeof(wired) / sizeof(wired[0]); i++) {
+      char body[512];
+      popup_msg_fill(&game_txt, wired[i], &fill_tok, "FALLBACK", body, sizeof(body));
+      if (strcmp(body, "FALLBACK") == 0 || body[0] == '\0') {
+        fprintf(stderr, "smoke_popup_dialogs: %s fell back\n", wired[i]);
+        assets_msg_free(&game_txt);
+        return fail("popup_msg_fill must use GAME.TXT section");
+      }
+    }
+    char landfall_choices[4][48];
+    const ColonizeMsgSection* landfall = assets_msg_find(&game_txt, "LANDFALL");
+    int n = popup_msg_choices(landfall, landfall_choices, 4);
+    if (n < 2) {
+      assets_msg_free(&game_txt);
+      return fail("LANDFALL must expose Stay/Landfall choices");
+    }
+    char tax_choices[4][48];
+    const ColonizeMsgSection* taxopt = assets_msg_find(&game_txt, "TAXOPTIONS");
+    n = popup_msg_choices(taxopt, tax_choices, 4);
+    if (n < 2) {
+      assets_msg_free(&game_txt);
+      return fail("TAXOPTIONS must expose Kiss/Party choices");
+    }
+    assets_msg_free(&game_txt);
   }
 
   printf("smoke_popup_dialogs ok\n");

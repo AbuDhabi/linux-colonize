@@ -4,6 +4,7 @@
 #include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/popup_msg.h"
 #include "core/units.h"
 
 #include <stdint.h>
@@ -363,14 +364,23 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
       for (int i = 0; i < n; ++i) {
         choice_ptrs[i] = labels[i];
       }
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        ctx->messages,
+        "WHICHFREEDOM",
+        NULL,
+        "The Continental Congress will expand during its next session. Which Founding Father shall we appoint as its next member?",
+        body,
+        sizeof(body)
+      );
       (void)ai_popup_enqueue_choice_ctx(
         ctx->ai_popups,
         AI_POPUP_TAG_FF_CONGRESS,
         nation_id,
         -1,
         1, /* payload >0: debate apply sets next (not announce OK) */
-        "Continental Congress",
-        "The Congress debates who should join next.",
+        NULL,
+        body,
         choice_ptrs,
         ids,
         n
@@ -909,11 +919,17 @@ static bool elect_commit(
   }
   if (ctx->ai_popups && nation_id == ctx->human_nation) {
     char body[AI_POPUP_BODY_LEN];
-    snprintf(
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = k_ff_short_names[idx];
+    tok.string1 = "The";
+    popup_msg_fill(
+      ctx->messages,
+      "FREEDOM",
+      &tok,
+      "Founding Fathers announce that a new member has joined the Continental Congress!",
       body,
-      sizeof(body),
-      "%s joins the Continental Congress.",
-      k_ff_short_names[idx]
+      sizeof(body)
     );
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups,
@@ -921,7 +937,7 @@ static bool elect_commit(
       nation_id,
       -1,
       -1, /* payload -1: announce OK, not debate apply */
-      "Continental Congress",
+      NULL,
       body
     );
   }

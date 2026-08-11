@@ -233,6 +233,8 @@ void colony_screen_close_message(ColonyScreenView* view) {
   }
   view->message_kind = COLONY_MSG_NONE;
   view->message_text[0] = '\0';
+  view->message_choice0[0] = '\0';
+  view->message_choice1[0] = '\0';
   view->message_selection = 0;
   view->pending_eject_colonist = -1;
   view->pending_eject_role = COLONIZE_EJECT_COLONIST;
@@ -247,6 +249,8 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   colony_screen_close_eject(view);
   view->message_kind = COLONY_MSG_OK;
   snprintf(view->message_text, sizeof(view->message_text), "%s", text ? text : "");
+  view->message_choice0[0] = '\0';
+  view->message_choice1[0] = '\0';
   view->message_selection = 0;
   view->pending_eject_colonist = -1;
 }
@@ -254,7 +258,10 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
 void colony_screen_open_abandon_confirm(
   ColonyScreenView* view,
   int colonist_index,
-  int role
+  int role,
+  const char* body,
+  const char* choice_yes,
+  const char* choice_no
 ) {
   if (!view) {
     return;
@@ -266,9 +273,22 @@ void colony_screen_open_abandon_confirm(
   snprintf(
     view->message_text,
     sizeof(view->message_text),
-    "Abandon this colony? All cargo will be lost."
+    "%s",
+    body && body[0] ? body : "Shall we abandon this colony?"
   );
-  view->message_selection = 1; /* default No */
+  snprintf(
+    view->message_choice0,
+    sizeof(view->message_choice0),
+    "%s",
+    choice_yes && choice_yes[0] ? choice_yes : "Yes"
+  );
+  snprintf(
+    view->message_choice1,
+    sizeof(view->message_choice1),
+    "%s",
+    choice_no && choice_no[0] ? choice_no : "No"
+  );
+  view->message_selection = 1; /* @default=2 → No */
   view->pending_eject_colonist = colonist_index;
   view->pending_eject_role = role;
 }
@@ -2563,7 +2583,11 @@ static void colony_screen_draw_message_popup(
       );
     }
     const char* label =
-      (view->message_kind == COLONY_MSG_OK) ? "OK" : (i == 0 ? "Yes" : "No");
+      (view->message_kind == COLONY_MSG_OK)
+        ? "OK"
+        : (i == 0
+             ? (view->message_choice0[0] ? view->message_choice0 : "Yes")
+             : (view->message_choice1[0] ? view->message_choice1 : "No"));
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
     }
