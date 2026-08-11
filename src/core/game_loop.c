@@ -244,6 +244,82 @@ static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, vo
   }
 }
 
+static void game_set_view_center(ColonizeGameState* game, int x, int y);
+
+static bool game_move_is_near_human(
+  const ColonizeGameState* game,
+  const ColonizeUnit* mover,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int x,
+  int y
+) {
+  if (!game || !mover || !map || !colonies || !game->col1_ok) {
+    return false;
+  }
+  if (game->col1.head.show_entire_map ||
+      map_tile_seen_by(map, x, y, game->human_nation)) {
+    return true;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* human = &game->units.units[i];
+    if (!human->active || human->nation_id != game->human_nation ||
+        !units_is_on_map(human)) {
+      continue;
+    }
+    if (abs(human->x - x) <= 1 && abs(human->y - y) <= 1) {
+      return true;
+    }
+  }
+  for (int i = 0; i < colonies->colony_count; ++i) {
+    const ColonizeColony* colony = &colonies->colonies[i];
+    if (colony->active && colony->nation_id == game->human_nation &&
+        abs(colony->x - x) <= 1 && abs(colony->y - y) <= 1) {
+      return true;
+    }
+  }
+  (void)mover;
+  return false;
+}
+
+static void game_move_watch(
+  void* user,
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int unit_id,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  const ColonizeUnit* unit = pool ? units_get_const(pool, unit_id) : NULL;
+  if (!game || !unit || !map || !colonies || !game->platform || !game->col1_ok ||
+      unit->nation_id == game->human_nation) {
+    return;
+  }
+  const bool show =
+    (unit->nation_id >= 0 && unit->nation_id < 4)
+      ? game->col1.head.game_options.show_foreign_moves != 0
+      : game->col1.head.game_options.show_indian_moves != 0;
+  if (!show || !game_move_is_near_human(game, unit, map, colonies, to_x, to_y)) {
+    return;
+  }
+  game_set_view_center(game, to_x, to_y);
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  game_render(game, &fb, &pal);
+  if (platform_present(game->platform, &fb, &pal)) {
+    const uint32_t delay_ms =
+      game->col1.head.game_options.fast_piece_slide ? 80u : 100u;
+    platform_sleep_ms(delay_ms);
+  }
+  (void)from_x;
+  (void)from_y;
+}
+
 static void game_bind_combat_analysis(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -3330,6 +3406,7 @@ void game_destroy(ColonizeGameState* game) {
   if (!game) {
     return;
   }
+  units_set_move_watch(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   pik_free(&game->menu_bg);
@@ -5116,6 +5193,7 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 }
 
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
+  units_set_move_watch(NULL, NULL);
   game_apply_turn_autosave(game, result);
   game_europe_deliver_bound_ships(game);
   if (result && result->request_europe_open && game->europe_ok) {
@@ -5141,6 +5219,7 @@ static void game_do_end_turn(ColonizeGameState* game) {
   if (!game || turn_processor_active(&game->turn_proc)) {
     return;
   }
+  units_set_move_watch(game_move_watch, game);
   turn_processor_start(&game->turn_proc);
   /* Run setup immediately so calendar advances on the same input that ends the turn. */
   ColonizeTurnContext ctx;
@@ -5953,6 +6032,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   /* End-of-turn nation phases: advance one slice per frame; block other input. */
   if (turn_processor_active(&game->turn_proc)) {
+    units_set_move_watch(game_move_watch, game);
     ColonizeTurnContext ctx;
     game_fill_turn_context(game, &ctx);
     if (!turn_processor_advance(&game->turn_proc, &ctx)) {
@@ -5966,11 +6046,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     ai_popup_try_present_next(&game->ai_popups);
   }
 
-  /* Pace Go-To at 10 tile-steps/sec so pathing is visible. */
+  /* Pace Go-To at 10 tile-steps/sec, or 12.5 with Fast Piece Slide. */
   if (game->units_ok && game->world_map_ok) {
     game->goto_step_accum_ms += dt_ms;
-    if (game->goto_step_accum_ms >= 100u) {
-      game->goto_step_accum_ms -= 100u;
+    const uint32_t goto_step_ms =
+      (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
+    if (game->goto_step_accum_ms >= goto_step_ms) {
+      game->goto_step_accum_ms -= goto_step_ms;
       if (game->goto_step_accum_ms > 200u) {
         game->goto_step_accum_ms = 0; /* drop backlog after hitch */
       }

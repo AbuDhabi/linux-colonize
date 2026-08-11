@@ -231,6 +231,20 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   p->col1->head.year = 1492;
   p->col1->head.autumn = 0;
   p->col1->head.turn = 0;
+  /*
+   * DOS's new-game option word is 0xc680:
+   * Indian moves, foreign moves, autosave, combat analysis and tutorial help
+   * enabled; fast slide and end-of-turn disabled; water cycling enabled
+   * (the stored water bit is an inverted disable flag).
+   */
+  p->col1->head.game_options.show_indian_moves = 1;
+  p->col1->head.game_options.show_foreign_moves = 1;
+  p->col1->head.game_options.fast_piece_slide = 0;
+  p->col1->head.game_options.end_of_turn = 0;
+  p->col1->head.game_options.autosave = 1;
+  p->col1->head.game_options.combat_analysis = 1;
+  p->col1->head.game_options.water_color_cycling = 0;
+  p->col1->head.game_options.tutorial_hints = 1;
 
   /* Seed indian tech from @TRIBES when available. */
   for (int t = 0; t < 8; ++t) {

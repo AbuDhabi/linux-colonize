@@ -42,8 +42,11 @@ int main(void) {
   OptionsDialog od;
   ColonizeCol1GameOptions opts;
   memset(&opts, 0, sizeof(opts));
+  opts.show_indian_moves = 1;
+  opts.show_foreign_moves = 1;
   opts.autosave = 1;
-  opts.end_of_turn = 1;
+  opts.combat_analysis = 1;
+  opts.tutorial_hints = 1;
   if (!options_dialog_open_game(&od, NULL, &opts)) {
     return fail("options_open_game");
   }
@@ -51,6 +54,8 @@ int main(void) {
     return fail("options count");
   }
   memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_SPACE;
+  options_dialog_handle_input(&od, &in);
   in.last_key = COLONIZE_KEY_ENTER;
   options_dialog_handle_input(&od, &in);
   if (!od.has_result || od.result_cancelled) {
@@ -59,8 +64,17 @@ int main(void) {
   ColonizeCol1GameOptions applied;
   memset(&applied, 0, sizeof(applied));
   options_dialog_apply_game(&od, &applied);
-  if (!applied.autosave || !applied.end_of_turn) {
+  if (applied.show_indian_moves || !applied.show_foreign_moves ||
+      applied.fast_piece_slide || applied.end_of_turn || !applied.autosave ||
+      !applied.combat_analysis || applied.water_color_cycling ||
+      !applied.tutorial_hints) {
     return fail("options apply");
+  }
+  if (!options_dialog_open_game(&od, NULL, &applied) ||
+      od.values[0] != 0 || od.values[1] != 1 || od.values[2] != 0 ||
+      od.values[3] != 0 || od.values[4] != 1 || od.values[5] != 1 ||
+      od.values[6] != 1 || od.values[7] != 1) {
+    return fail("options reopen round-trip");
   }
 
   NameEntryDialog ne;

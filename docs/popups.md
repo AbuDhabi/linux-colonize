@@ -206,6 +206,14 @@ Deep mechanics: [combat.md](combat.md).
 See also [sons_of_liberty.md](sons_of_liberty.md),
 [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
 
+### 10a. Game Options
+
+The `GAMEOPTIONS` dialog persists all eight Col1 flags. End of Turn,
+Autosave, and Combat Analysis are active. Show Indian Moves and Show
+Foreign Moves now watch nearby AI tile steps during interactive end-turn
+processing; Fast Piece Slide shortens the tile-step interval. Water Color
+Cycling and Tutorial Hints remain persisted flags only until final polish.
+
 ### 11. Discovery / tutorial / woodcuts
 
 | Popup / `@SECTION`s | When | Status | Port |

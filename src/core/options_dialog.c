@@ -151,7 +151,8 @@ bool options_dialog_open_game(
     vals[3] = opts->end_of_turn ? 1 : 0;
     vals[4] = opts->autosave ? 1 : 0;
     vals[5] = opts->combat_analysis ? 1 : 0;
-    vals[6] = opts->water_color_cycling ? 1 : 0;
+    /* DOS stores this checkbox as a disable bit: clear means cycling on. */
+    vals[6] = opts->water_color_cycling ? 0 : 1;
     vals[7] = opts->tutorial_hints ? 1 : 0;
   }
   return options_load_section(
@@ -249,7 +250,8 @@ void options_dialog_apply_game(const OptionsDialog* dlg, ColonizeCol1GameOptions
   opts->end_of_turn = dlg->result_values[3] ? 1 : 0;
   opts->autosave = dlg->result_values[4] ? 1 : 0;
   opts->combat_analysis = dlg->result_values[5] ? 1 : 0;
-  opts->water_color_cycling = dlg->result_values[6] ? 1 : 0;
+  /* Preserve DOS polarity in the Col1 bitfield. */
+  opts->water_color_cycling = dlg->result_values[6] ? 0 : 1;
   opts->tutorial_hints = dlg->result_values[7] ? 1 : 0;
 }
 
@@ -322,6 +324,30 @@ static int options_option_at_y(const OptionsDialog* dlg, int mouse_y) {
     return -1;
   }
   return idx;
+}
+
+static void options_draw_checkbox(
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  bool checked,
+  uint8_t color
+) {
+  if (!framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  for (int py = 0; py < 7; ++py) {
+    for (int px = 0; px < 7; ++px) {
+      const bool edge = px == 0 || px == 6 || py == 0 || py == 6;
+      if (edge || checked) {
+        const int dx = x + px;
+        const int dy = y + py;
+        if (dx >= 0 && dy >= 0 && dx < framebuffer->width && dy < framebuffer->height) {
+          framebuffer->pixels[dy * framebuffer->width + dx] = color;
+        }
+      }
+    }
+  }
 }
 
 bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* input) {
@@ -437,16 +463,15 @@ void options_dialog_render(
         }
       }
     }
+    options_draw_checkbox(
+      framebuffer,
+      ix + pad_x,
+      row_y + (line_h > 7 ? (line_h - 7) / 2 : 0),
+      dlg->values[i] != 0,
+      text_color
+    );
     if (font) {
-      char row[OPTIONS_DIALOG_LABEL_LEN + 8];
-      snprintf(
-        row,
-        sizeof(row),
-        "%s %s",
-        dlg->values[i] ? "[x]" : "[ ]",
-        dlg->labels[i]
-      );
-      popup_draw_text_shadowed(font, framebuffer, ix + pad_x, row_y, row, text_color);
+      popup_draw_text_shadowed(font, framebuffer, ix + pad_x + 10, row_y, dlg->labels[i], text_color);
     }
   }
 }

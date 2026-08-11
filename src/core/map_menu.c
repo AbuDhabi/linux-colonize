@@ -238,7 +238,7 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Pick Music") == 0) {
       return MAP_MENU_ACTION_PICK_MUSIC;
     }
-    if (strcmp(label, "Options") == 0) {
+    if (strcmp(label, "Game Options") == 0 || strcmp(label, "Options") == 0) {
       return MAP_MENU_ACTION_OPTIONS;
     }
     if (strcmp(label, "Colony Report Options") == 0) {

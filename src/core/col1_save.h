@@ -94,7 +94,7 @@ typedef struct ColonizeCol1GameOptions {
   uint16_t independence_force : 1; /* 0x20 — bypass REF/event gates */
   uint16_t ref_unit_threshold : 1; /* 0x40 — raises REF unit count thresh */
   uint16_t tutorial_hints : 1;
-  uint16_t water_color_cycling : 1;
+  uint16_t water_color_cycling : 1; /* DOS 0x5383 bit0 is inverted: 0 = on */
   uint16_t combat_analysis : 1;
   uint16_t autosave : 1;
   uint16_t end_of_turn : 1;

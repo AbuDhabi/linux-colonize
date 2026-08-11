@@ -382,6 +382,24 @@ bool units_try_move(
 );
 
 /*
+ * Observe successful on-map tile moves. The callback is process-global, like
+ * the combat/FF context hooks, and is normally installed only by the
+ * interactive game loop while AI turns are being shown.
+ */
+typedef void (*ColonizeUnitsMoveWatchFn)(
+  void* user,
+  const ColonizeUnitPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int unit_id,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+);
+void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user);
+
+/*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
  * defender engagement (015e: colony/village/terrain/fortify). Probability =
  * atk/(atk+def). Optional Combat Analysis presenter after roll. Winner stays;
