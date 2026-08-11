@@ -11,7 +11,7 @@
 #include "platform/platform.h"
 
 /*
- * Wood name-entry dialog (@LANDHO / @COLONY / @RENAMECOLONY).
+ * Wood name-entry dialog (@COLONY / @RENAMECOLONY / @LANDHO).
  * Typing + Backspace; Enter confirms; Esc cancels.
  */
 
@@ -20,8 +20,9 @@
 
 typedef enum NameEntryKind {
   NAME_ENTRY_KIND_NONE = 0,
-  NAME_ENTRY_KIND_FOUND = 1,  /* @LANDHO / @COLONY */
-  NAME_ENTRY_KIND_RENAME = 2  /* @RENAMECOLONY */
+  NAME_ENTRY_KIND_FOUND = 1,  /* @COLONY */
+  NAME_ENTRY_KIND_RENAME = 2, /* @RENAMECOLONY */
+  NAME_ENTRY_KIND_LANDHO = 3  /* @LANDHO — name the New World */
 } NameEntryKind;
 
 typedef struct NameEntryDialog {

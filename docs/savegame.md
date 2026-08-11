@@ -152,8 +152,9 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   use owner `0` (`path=x1`). Capture nudges settler-ish euros off village tiles
   and boards same-tile orphans onto own ships (DOS "Illegal entry into village"
   / ocean sentry).
-- Discovery: `discovery_of_the_new_world` + `named_new_world` set when human
-  sees land (`col1_bridge_sync_new_world_discovery`); capture safety net.
+- Discovery: live play opens `@LANDHO` then sets `discovery_of_the_new_world` +
+  `named_new_world` on confirm; capture/load still uses
+  `col1_bridge_sync_new_world_discovery` as a safety net.
 - `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
   `save_path_blob` stay zero / RMW-preserved
 

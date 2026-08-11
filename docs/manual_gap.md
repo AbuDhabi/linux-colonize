@@ -78,7 +78,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump; name-entry `@LANDHO` |
+| Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump; name-entry `@COLONY` |
 | Join colony | Done | ORDERS Join Colony admits selected land unit on owned colony tile; else opens colony screen |
 | Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/font.h"
 #include "core/ui_colors.h"
 
 void popup_colors_from_ui(ColonizePopupColors* out) {
@@ -252,4 +253,19 @@ void popup_draw(
       *out_inner_h = h - POPUP_FRAME_INSET * 2;
     }
   }
+}
+
+void popup_draw_text_shadowed(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  if (!font || !framebuffer || !text || !text[0]) {
+    return;
+  }
+  font_draw_text_unbold(font, framebuffer, x + 1, y + 1, text, 0);
+  font_draw_text_unbold(font, framebuffer, x, y, text, color);
 }

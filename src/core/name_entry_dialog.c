@@ -31,10 +31,20 @@ static void name_entry_finish(NameEntryDialog* dlg, bool cancelled) {
   if (!cancelled) {
     str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), dlg->name);
     if (dlg->result_name[0] == '\0') {
-      str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), "Colony");
+      if (dlg->kind == NAME_ENTRY_KIND_LANDHO) {
+        /* Caller fills NAMES.TXT @COLONYNAME nation default. */
+        dlg->result_name[0] = '\0';
+      } else {
+        str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), "Colony");
+      }
     }
   } else {
-    dlg->result_name[0] = '\0';
+    /* Cancel: keep typed/seed text for LANDHO so discovery still names the land. */
+    if (dlg->kind == NAME_ENTRY_KIND_LANDHO) {
+      str_copy_trunc(dlg->result_name, sizeof(dlg->result_name), dlg->name);
+    } else {
+      dlg->result_name[0] = '\0';
+    }
   }
   dlg->open = false;
 }
@@ -184,13 +194,13 @@ void name_entry_render(
     while (*p == ' ') {
       ++p;
     }
-    font_draw_text(font, framebuffer, ix + pad, ty, line, text_color);
+    popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, line, text_color);
     ty += line_h;
   }
   ty = iy + pad + line_h * 3 + 2;
-  font_draw_text(font, framebuffer, ix + pad, ty, "Name:", text_color);
+  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Name:", text_color);
   ty += line_h;
   char shown[NAME_ENTRY_NAME_LEN + 2];
   snprintf(shown, sizeof(shown), "%s_", dlg->name);
-  font_draw_text(font, framebuffer, ix + pad, ty, shown, select_color);
+  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, shown, select_color);
 }

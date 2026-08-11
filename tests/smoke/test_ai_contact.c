@@ -452,8 +452,8 @@ int main(void) {
   }
 
   /*
-   * @INDIANCOMMENT thin: encroachment crossing friction into ≥40 → concern status.
-   * Cite: GAME.TXT @INDIANCOMMENT; indian_contact.md encroachment.
+   * Unit encroachment still bumps friction; @INDIANCOMMENT chrome only fires
+   * when a colony encroaches (GAME.TXT talks about colonies overusing land).
    */
   {
     char st_cmt[128];
@@ -469,9 +469,10 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction < 40) {
       return fail("comment-cross should bump friction into mid band");
     }
-    if (strstr(st_cmt, "concerned") == NULL && strstr(st_cmt, "land use") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: comment status '%s'\n", st_cmt);
-      return fail("encroachment mid-cross should set @INDIANCOMMENT status");
+    if (st_cmt[0] != '\0' &&
+        (strstr(st_cmt, "concerned") != NULL || strstr(st_cmt, "land use") != NULL)) {
+      fprintf(stderr, "smoke_ai_contact: unit-only comment status '%s'\n", st_cmt);
+      return fail("unit encroachment must not fire @INDIANCOMMENT chrome");
     }
     ctx.status = NULL;
     ctx.status_size = 0;

@@ -242,15 +242,15 @@ void howmuch_render(
       while (*p == ' ') {
         ++p;
       }
-      font_draw_text(font, framebuffer, ix + pad, ty, line, text_color);
+      popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, line, text_color);
       ty += line_h;
     }
   }
   ty = iy + pad + prompt_h + 2;
-  font_draw_text(font, framebuffer, ix + pad, ty, "Amount:", text_color);
+  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Amount:", text_color);
   ty += line_h;
   char shown[24];
   snprintf(shown, sizeof(shown), "%s_", dlg->field);
-  font_draw_text(font, framebuffer, ix + pad, ty, shown, select_color);
+  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, shown, select_color);
   (void)iw;
 }

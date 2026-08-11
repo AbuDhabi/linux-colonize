@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "core/font.h"
 #include "core/ss.h"
 #include "platform/platform.h"
 
@@ -59,6 +60,16 @@ void popup_draw(
   int* out_inner_y,
   int* out_inner_w,
   int* out_inner_h
+);
+
+/* Nation-wizard / ai_popup style: FONTINTR unbold + black (0) drop-shadow. */
+void popup_draw_text_shadowed(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
 );
 
 #endif

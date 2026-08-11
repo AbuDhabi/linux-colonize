@@ -1711,14 +1711,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        */
       if (ctx->units) {
         if (ai_diplo_war_privateer_spawn(ctx, nation_id, peer)) {
+          /* Status only — no DOS GAME.TXT dialog for wartime Privateer spawn. */
           ai_diplo_status_human_pair(
             ctx, nation_id, peer, "Privateer commissioned against %s"
           );
-          if (ctx->status && ctx->status[0] != '\0') {
-            ai_diplo_popup_ok(
-              ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Privateer", ctx->status
-            );
-          }
         }
       } else if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
         ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");

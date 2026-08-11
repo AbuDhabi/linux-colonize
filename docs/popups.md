@@ -52,8 +52,9 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
-Map modal input priority (`game_loop.c`): pick_music → save_load → cheat_list →
-**ai_popups** → unit_stack → map/menu.
+Modal input (`game_loop.c`): early gate before parent hotkeys (E/Q/etc.) —
+pick_music → save_load → options → name_entry → howmuch → cheat_list →
+**ai_popups** → unit_stack. Letters typed in name/howmuch do not switch views.
 
 **Out of main tables:** MAPEDIT.EXE ([`MAPEDIT.TXT`](../COLONIZE/MAPEDIT.TXT) —
 19 sections), Colonizopedia articles, F2–F10 report *plates* (unless a nested
@@ -113,7 +114,8 @@ fragment. Related sections are listed in the first column.
 | Leave-as (eject) | Fence with colonist | Done | Role list |
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm |
 | `@KEEPSTOCKADE` / `@MORETHANTHREE` | Stockade min pop | Done | OK message (hardcoded English) |
-| `@LANDHO` / `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; **R** rename in colony |
+| `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; **R** rename in colony |
+| `@LANDHO` | First land sight | Done | Name New World (`colony_region`); seed from NAMES `@COLONYNAME` per nation |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
 | `@WAREHOUSEFULL` | Warehouse overflow | Partial | Spoilage → `ai_popup` OK (`@SPOIL*`) |
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Missing | — |
@@ -289,7 +291,7 @@ work.
 | `@NOCITY` | Done | OK when no colonies |
 | `@VICEROY` | Done | new-game wizard |
 | `@VICEROY2` | Done | new-game wizard |
-| `@LANDHO` | Done | name entry after found |
+| `@LANDHO` | Done | first land sight → name New World |
 | `@COLONY` | Done | name entry after found |
 | `@RENAMECOLONY` | Done | colony **R** rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |

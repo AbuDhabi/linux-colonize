@@ -2315,30 +2315,9 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
         if (ai_contact_dist(u->x, u->y, t->x, t->y) > 2) {
           continue;
         }
-        const int fr_before = (int)t->alarm[e].friction;
         ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
         ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
-        /*
-         * GAME.TXT @INDIANCOMMENT thin: first cross into mid friction →
-         * overuse concern status (dialog widgets PARKED).
-         */
-        if (fr_before < 40 && (int)t->alarm[e].friction >= 40) {
-          char comment_fb[AI_POPUP_BODY_LEN];
-          snprintf(
-            comment_fb,
-            sizeof(comment_fb),
-            "The %s are concerned about land use near their settlements.",
-            ai_contact_tribe_name(nation_id)
-          );
-          ai_contact_human_chrome(
-            ctx,
-            e,
-            AI_POPUP_TAG_CONTACT_MEET,
-            nation_id,
-            "Natives",
-            comment_fb
-          );
-        }
+        /* @INDIANCOMMENT chrome only when colonies exist (see colony block). */
       }
     }
   }

@@ -336,6 +336,7 @@ add_test(NAME smoke_new_game COMMAND smoke_new_game)
 add_executable(smoke_popup
   tests/smoke/test_popup.c
   src/core/popup.c
+  src/core/font.c
   src/core/ss.c
   src/core/madspack.c
   src/core/assets.c

@@ -1,4 +1,5 @@
 #include "core/howmuch_dialog.h"
+#include "core/name_entry_dialog.h"
 #include "core/options_dialog.h"
 #include "core/popup_msg.h"
 
@@ -59,6 +60,29 @@ int main(void) {
   options_dialog_apply_game(&od, &applied);
   if (!applied.autosave || !applied.end_of_turn) {
     return fail("options apply");
+  }
+
+  NameEntryDialog ne;
+  if (!name_entry_open(&ne, NAME_ENTRY_KIND_FOUND, "What shall we name this colony?", "Jamestown", 1)) {
+    return fail("name_entry found open");
+  }
+  if (strstr(ne.prompt, "Land Ho") != NULL) {
+    return fail("found colony must not use Land Ho prompt");
+  }
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ENTER;
+  name_entry_handle_input(&ne, &in);
+  if (!ne.has_result || ne.result_cancelled || strcmp(ne.result_name, "Jamestown") != 0) {
+    return fail("name_entry found confirm");
+  }
+  if (!name_entry_open(&ne, NAME_ENTRY_KIND_LANDHO, "Land Ho!", "New England", -1)) {
+    return fail("name_entry landho open");
+  }
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  name_entry_handle_input(&ne, &in);
+  if (!ne.has_result || !ne.result_cancelled || strcmp(ne.result_name, "New England") != 0) {
+    return fail("landho cancel should keep @COLONYNAME seed");
   }
 
   printf("smoke_popup_dialogs ok\n");
