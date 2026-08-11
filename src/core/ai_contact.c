@@ -3853,14 +3853,24 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           }
           /*
            * Successful raid friction/alarm escalate (fandom Alarm — raids raise
-           * tension): tribe friction + alarm_by_player +2 each (cap 100).
-           * Pocahontas halves bump (wiki/fandom half-rate). Cite:
-           * docs/fandom_col1994.md Pocahontas / Alarm; indian_raid_outcomes.md.
+           * tension). Thin 5fef_0f14 / 0d6c-shaped kind deltas (stores −4 → +4,
+           * burn −12 → +12, scalp −16 → +16, gold −8 → +8). Pocahontas / France
+           * half via alarm_bump_amount. Cite: indian_raid_loot.md; Series J.
            * Full 4528/2820 dialog PARKED; thin widgets Done (ai_popup).
            */
           if (kind != AI_RAID_NOTHING) {
+            int kind_delta = 4; /* STORES / default goods */
+            if (kind == AI_RAID_BURN || kind == AI_RAID_WREAK) {
+              kind_delta = 12;
+            } else if (kind == AI_RAID_SCALP) {
+              kind_delta = 16;
+            } else if (kind == AI_RAID_GOLD || kind == AI_RAID_SHIP) {
+              kind_delta = 8;
+            } else if (kind == AI_RAID_STORES) {
+              kind_delta = 4;
+            }
             const int fr_bump =
-              ai_contact_alarm_bump_amount(ctx->col1, target_euro, 2);
+              ai_contact_alarm_bump_amount(ctx->col1, target_euro, kind_delta);
             if (fr_bump > 0) {
               ai_contact_bump_u16_cap100(&ind->alarm_by_player[target_euro], fr_bump);
               for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {

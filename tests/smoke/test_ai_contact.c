@@ -2651,7 +2651,15 @@ int main(void) {
       ctx.status = status_burn_bd;
       ctx.status_size = sizeof(status_burn_bd);
       ctx.human_nation = 0;
+      /* Reset alarm after kind-scaled BURN bump so pop≤1 does not abandon (≥70). */
+      ind->alarm_by_player[0] = 65;
+      col1.tribe[0].alarm[0].friction = 65;
       c_bd->has_building[1] = true;
+      c_bd->population = 1;
+      c_bd->active = true;
+      brave->moves_left = 3;
+      brave->x = 5;
+      brave->y = 5;
       ai_contact_indian_raids(&ctx, 4);
       if (ai_contact_last_raid_kind() != AI_RAID_BURN || c_bd->has_building[1]) {
         return fail("BURN status probe needs building destroy");
@@ -2861,9 +2869,9 @@ int main(void) {
   }
 
   /*
-   * Raid friction/alarm escalate: successful loot → tribe friction +
-   * alarm_by_player +2; Pocahontas halves (+1). Cite: fandom Alarm /
-   * Pocahontas; indian_raid_outcomes.md §7.
+   * Raid friction/alarm escalate: successful loot → kind-scaled 0d6c-shaped
+   * bump (STORES +4, BURN/WREAK +12, SCALP +16, GOLD/SHIP +8); Pocahontas
+   * halves. Cite: indian_raid_loot.md; Series J; fandom Alarm / Pocahontas.
    */
   {
     for (int i = 0; i < 256; ++i) {
@@ -2896,24 +2904,40 @@ int main(void) {
     c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
     colonies.colony_count = 1;
     ai_contact_indian_raids(&ctx, 4);
-    if (ai_contact_last_raid_kind() == AI_RAID_NOTHING) {
+    const int raid_kind = ai_contact_last_raid_kind();
+    if (raid_kind == AI_RAID_NOTHING) {
       return fail("raid friction escalate needs successful loot kind");
     }
-    if (col1.tribe[0].alarm[0].friction != 52) {
-      fprintf(
-        stderr,
-        "smoke_ai_contact: raid friction=%u (want 52)\n",
-        (unsigned)col1.tribe[0].alarm[0].friction
-      );
-      return fail("successful raid should bump tribe friction by 2");
+    int want_bump = 4;
+    if (raid_kind == AI_RAID_BURN || raid_kind == AI_RAID_WREAK) {
+      want_bump = 12;
+    } else if (raid_kind == AI_RAID_SCALP) {
+      want_bump = 16;
+    } else if (raid_kind == AI_RAID_GOLD || raid_kind == AI_RAID_SHIP) {
+      want_bump = 8;
+    } else if (raid_kind == AI_RAID_STORES) {
+      want_bump = 4;
     }
-    if (ind->alarm_by_player[0] != 52) {
+    const unsigned want_fr = (unsigned)(50 + want_bump);
+    if (col1.tribe[0].alarm[0].friction != want_fr) {
       fprintf(
         stderr,
-        "smoke_ai_contact: raid alarm=%u (want 52)\n",
-        (unsigned)ind->alarm_by_player[0]
+        "smoke_ai_contact: raid friction=%u (want %u kind=%d)\n",
+        (unsigned)col1.tribe[0].alarm[0].friction,
+        want_fr,
+        raid_kind
       );
-      return fail("successful raid should bump alarm_by_player by 2");
+      return fail("successful raid should bump tribe friction by kind delta");
+    }
+    if (ind->alarm_by_player[0] != want_fr) {
+      fprintf(
+        stderr,
+        "smoke_ai_contact: raid alarm=%u (want %u kind=%d)\n",
+        (unsigned)ind->alarm_by_player[0],
+        want_fr,
+        raid_kind
+      );
+      return fail("successful raid should bump alarm_by_player by kind delta");
     }
 
     /*
@@ -2952,7 +2976,7 @@ int main(void) {
       col1.head.difficulty = 2;
     }
 
-    /* Same path with Pocahontas → half bump (+2 → +1). */
+    /* Same path with Pocahontas → half kind bump. */
     col1.head.founding_father[FF_POCAHONTAS] = 0;
     ind->alarm_by_player[0] = 50;
     col1.tribe[0].alarm[0].friction = 50;
@@ -2964,24 +2988,40 @@ int main(void) {
     brave->x = 5;
     brave->y = 5;
     ai_contact_indian_raids(&ctx, 4);
-    if (ai_contact_last_raid_kind() == AI_RAID_NOTHING) {
+    const int poca_kind = ai_contact_last_raid_kind();
+    if (poca_kind == AI_RAID_NOTHING) {
       return fail("Pocahontas raid escalate needs successful loot kind");
     }
-    if (col1.tribe[0].alarm[0].friction != 51) {
-      fprintf(
-        stderr,
-        "smoke_ai_contact: poca raid friction=%u (want 51)\n",
-        (unsigned)col1.tribe[0].alarm[0].friction
-      );
-      return fail("Pocahontas should halve raid friction bump to +1");
+    int poca_full = 4;
+    if (poca_kind == AI_RAID_BURN || poca_kind == AI_RAID_WREAK) {
+      poca_full = 12;
+    } else if (poca_kind == AI_RAID_SCALP) {
+      poca_full = 16;
+    } else if (poca_kind == AI_RAID_GOLD || poca_kind == AI_RAID_SHIP) {
+      poca_full = 8;
+    } else if (poca_kind == AI_RAID_STORES) {
+      poca_full = 4;
     }
-    if (ind->alarm_by_player[0] != 51) {
+    const unsigned want_poca = (unsigned)(50 + poca_full / 2);
+    if (col1.tribe[0].alarm[0].friction != want_poca) {
       fprintf(
         stderr,
-        "smoke_ai_contact: poca raid alarm=%u (want 51)\n",
-        (unsigned)ind->alarm_by_player[0]
+        "smoke_ai_contact: poca raid friction=%u (want %u kind=%d)\n",
+        (unsigned)col1.tribe[0].alarm[0].friction,
+        want_poca,
+        poca_kind
       );
-      return fail("Pocahontas should halve raid alarm bump to +1");
+      return fail("Pocahontas should halve raid friction kind bump");
+    }
+    if (ind->alarm_by_player[0] != want_poca) {
+      fprintf(
+        stderr,
+        "smoke_ai_contact: poca raid alarm=%u (want %u kind=%d)\n",
+        (unsigned)ind->alarm_by_player[0],
+        want_poca,
+        poca_kind
+      );
+      return fail("Pocahontas should halve raid alarm kind bump");
     }
     col1.head.founding_father[FF_POCAHONTAS] = -1;
   }

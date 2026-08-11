@@ -564,7 +564,7 @@ Long-form phases: Euro planner + Indian nation act together (shared `20e6` /
 Gates: `smoke_ai_turns` (early joint), `smoke_mapgen_seed100`, `smoke_ai_contact`,
 `smoke_ai_diplo`. Aggregate: **`smoke_ai_joint`** CMake target/test.
 Mid-turn scaffold: [`test-saves-ai/JOINT_MIDTURN.md`](../test-saves-ai/JOINT_MIDTURN.md)
-(`MID*.SAV` / `LATE*.SAV` capture still OPEN).
+(`MID01`/`MID02` Done; `LATE01` structural Done via `smoke_ai_late01` — not T2 field-diff).
 
 **Shared-surface PR policy:** any change to `20e6`, Indian×Euro `15b3`/sticky,
 raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
@@ -601,6 +601,7 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
   war cargo sail when stance≠0 + muskets/horses/mil pax.
 - Thin `4393` / `−0x5f24` work-queue haul peel (flag_b=1 colony shorts;
   distance-normalized pick before nearest-short).
+- Series I: mil unload requires continent stance ≠ 0 (prefer 4) after refresh.
 - Deep E–H / full nibble fidelity / remaining `5d04` / full `5b66` /
   full cargo matrix remain **OPEN**.
 
@@ -611,6 +612,8 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 - `2820`: hard-bargain 45..54; silver **and ore** primary extra trade-goods.
 - `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)
   + early-year demote smoke.
+- Series J: successful-raid friction/alarm kind-scaled (STORES +4, BURN/WREAK
+  +12, SCALP +16, GOLD/SHIP +8; Pocahontas/France half).
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 
 **Phase 5 (alarmed act + claims) — partial**
@@ -618,6 +621,10 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 - Alarmed escort MD≤4 / 2× colony weight at alarm≥55 + smoke asserts.
 - `MID01.SAV` + `MID02.SAV`: Linux-derived mid-war stamp + one joint turn pair
   compare via `smoke_ai_mid01` (wired into `smoke_ai_joint`).
+- `LATE01.SAV`: late-war stamp from MID02 + structural raid/hunt compare via
+  `smoke_ai_late01` (joint gate) — **not** T2 field-diff, **not** blanket T3.
+- Series I: mil unload stance-gate (`−0x6790` / `local_9c` 0x10-shaped).
+- Series J: `5fef` kind-scaled raid tension (0d6c-shaped deltas).
 - Quiet `14fe` dir picker unchanged. Full alarmed unit-act **PARKED**.
 
 **Per-module fidelity (honest — not blanket T3)**
@@ -631,7 +638,10 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 | Mid `0a60` / `5d04` / `5b66` | Thin / partial — **not T3** |
 | `2154` / `2820` / `4528` bodies | Thin / partial — **not T3** |
 | Alarmed Indian unit-act | Escort peel + smoke — **not T3** |
-| Mid joint golden | MID01+MID02 pair Done (Linux-derived) |### R6 — King / REF (`43f7`) (**partial structural port**)
+| Mid joint golden | MID01+MID02 pair Done (Linux-derived) |
+| Late joint golden | LATE01 structural Done — **not** T2 field-diff / blanket T3 |
+
+### R6 — King / REF (`43f7`) (**partial structural port**)
 
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
