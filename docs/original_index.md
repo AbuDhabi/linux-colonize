@@ -22,6 +22,7 @@ the deep detail.
 | Settlement building production / skills | [building_production.md](building_production.md) |
 | Difficulty level effects (0 Discoverer … 4 Viceroy) | [difficulty.md](difficulty.md) |
 | Sons of Liberty / rebel sentiment | [sons_of_liberty.md](sons_of_liberty.md) |
+| **Indians** (graphics / units / settlements / alarm / contact) | [indians.md](indians.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
@@ -242,7 +243,7 @@ screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`
 | Prefix / set | ~N | Purpose |
 |--------------|---:|---------|
 | `DEC*` | ~53 | Declaration / revolution art |
-| `IND*` | ~32 | Independence / native-related |
+| `IND*` | ~32 | Native nation art (`IND0A0`…`IND7A3`, 8×4); meet/VGA chrome — see [indians.md](indians.md) |
 | `CC-00`…`CC-24` | 25 | Founding Fathers portraits |
 | `SCORE*` | ~24 | Score / fame |
 | `OPEN*` | ~15 | Title / opening pieces |
