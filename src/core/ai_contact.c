@@ -1699,8 +1699,34 @@ static void ai_contact_gift_or_demand(
    */
   int neighborhood_rich = 0;
   if (ctx->map && ctx->col1->tribe) {
+    /*
+     * 2154 phase-1 cover mask: mark 5×5 work-rings around Euro colonies, then
+     * count tribe±2 forest/coast only on uncovered cells. Cite:
+     * indian_meet_scoring_2154.md phases 1–3.
+     */
+    uint8_t covered[72][58];
+    memset(covered, 0, sizeof(covered));
+    if (ctx->colonies) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        const ColonizeColony* c = &ctx->colonies->colonies[ci];
+        if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+          continue;
+        }
+        for (int dy = -2; dy <= 2; ++dy) {
+          for (int dx = -2; dx <= 2; ++dx) {
+            const int nx = c->x + dx;
+            const int ny = c->y + dy;
+            if (nx >= 0 && ny >= 0 && nx < 58 && ny < 72 && nx < ctx->map->width &&
+                ny < ctx->map->height) {
+              covered[ny][nx] = 1;
+            }
+          }
+        }
+      }
+    }
     int forest_n = 0;
     int coast_n = 0;
+    int food_n = 0;
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
       if ((int)t->nation_id != nation_id) {
@@ -1713,15 +1739,18 @@ static void ai_contact_gift_or_demand(
           if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
             continue;
           }
-          if (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny)) {
+          if (nx < 58 && ny < 72 && covered[ny][nx]) {
             continue;
           }
-          if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+          if (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny)) {
             continue;
           }
           const int pedia = map_pedia_terrain_index_at(ctx->map, nx, ny);
           if (pedia >= 8 && pedia <= 23) {
             forest_n++;
+          }
+          if (pedia >= 0 && pedia <= 7) {
+            food_n++; /* plains/grass foodish bucket */
           }
           if (map_tile_is_coastal(ctx->map, nx, ny)) {
             coast_n++;
@@ -1730,7 +1759,7 @@ static void ai_contact_gift_or_demand(
       }
       break; /* one tribe sample for thin port */
     }
-    neighborhood_rich = (forest_n + coast_n) >= 6;
+    neighborhood_rich = (forest_n + coast_n + food_n) >= 6;
   }
 
   /* Low friction gift / tribute (auto Large −10; Generous −20 when purse allows). */
@@ -2625,6 +2654,17 @@ static int ai_contact_auto_trade(
   if (use_colony) {
     ColonizeColony* c = &ctx->colonies->colonies[best_ci];
     c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+    /*
+     * Thin 2820 AI-buy price peel (2bbc-shaped): under hard-bargain tension,
+     * silver-primary nations charge one extra trade-goods when stock remains
+     * (harder price). Peace single-unit drain unchanged for CHOICE smokes.
+     * Deep nest PARKED. Cite: indian_trade_2820.md Open RE.
+     */
+    if (hard &&
+        ai_contact_nation_primary_sold_cargo(nation_id) == (uint8_t)COLONIZE_CARGO_SILVER &&
+        c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0) {
+      c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+    }
   } else {
     ColonizeUnit* ship = units_get(ctx->units, best_ship);
     if (!ship || best_hold < 0) {
@@ -3070,6 +3110,50 @@ static AiRaidKind ai_contact_pick_raid_kind(
   if (ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c) &&
       max_alarm >= 60) {
     return AI_RAID_BURN;
+  }
+  return AI_RAID_NOTHING;
+}
+
+/* Apply 5fef_0f14-shaped difficulty/year/building demote after primary pick. */
+static AiRaidKind ai_contact_raid_kind_demote(
+  ColonizeTurnContext* ctx,
+  ColonizeColony* c,
+  AiRaidKind kind
+) {
+  if (kind == AI_RAID_NOTHING || kind == AI_RAID_STORES) {
+    return kind;
+  }
+  int difficulty = 0;
+  int year = 1492;
+  if (ctx && ctx->col1_ok && ctx->col1) {
+    difficulty = (int)ctx->col1->head.difficulty;
+    year = (int)ctx->col1->head.year;
+  }
+  /*
+   * Demote harsh kinds on easy / early game, or when burn/scalp target missing:
+   * BURN/SCALP/GOLD/SHIP/WREAK → STORES if stock, else NOTHING.
+   * Cite: indian_raid_loot.md kind demote gates.
+   */
+  int demote = 0;
+  if (difficulty <= 0 &&
+      (kind == AI_RAID_SCALP || kind == AI_RAID_WREAK || kind == AI_RAID_GOLD)) {
+    demote = 1;
+  }
+  if (year < 1520 && kind == AI_RAID_WREAK) {
+    demote = 1;
+  }
+  if (kind == AI_RAID_BURN &&
+      !ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c)) {
+    demote = 1;
+  }
+  if (kind == AI_RAID_SCALP && (!c || c->population <= 1)) {
+    demote = 1;
+  }
+  if (!demote) {
+    return kind;
+  }
+  if (ai_contact_colony_has_stores(c)) {
+    return AI_RAID_STORES;
   }
   return AI_RAID_NOTHING;
 }
@@ -3736,7 +3820,9 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           continue;
         }
         if (brave->x == c->x && brave->y == c->y) {
-          const AiRaidKind kind = ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng);
+          const AiRaidKind kind = ai_contact_raid_kind_demote(
+            ctx, c, ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng)
+          );
           ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
           int abandoned = 0;
           char abandoned_name[40];

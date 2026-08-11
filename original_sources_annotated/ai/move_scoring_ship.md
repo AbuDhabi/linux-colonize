@@ -101,6 +101,8 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 | `06ae` unload | Founding peels / landfall table | Live call inside `3558` with `local_9c` mask |
 | Work-queue haul | Thin specialty_cargo / haul scores in planning | Full `4393` distance-normalized pick |
 | Atlantic / cruise tips | `ai_euro_ocean_3558_*` thin ports (latitude seeds) | Full cargo/colony matrix; seed-free tips |
+| Colony sail pick | Peace score pop/idle/docks; war cargo when stance≠0 | Full war `0x1b` / fort matrix |
+| `−0x6790` stance | Thin `{0,3,4,6}` from live tallies | Exact nation×continent nibble table |
 
 ## Related
 

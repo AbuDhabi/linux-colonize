@@ -831,14 +831,25 @@ target_link_libraries(smoke_ai_turns PRIVATE colonize_core)
 
 add_test(NAME smoke_ai_turns COMMAND smoke_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 # T2 early gate: full Euro dispatcher (TURN1→7). Fixture opt-in via AI_EURO_EARLY_FIXTURE=1 for bisect.
-# Joint Euro↔Indian harness (T3 roadmap Phase 0): early turns + mapgen + contact + diplo.
+
+add_executable(smoke_ai_mid01
+  tests/smoke/test_ai_mid01.c
+)
+target_include_directories(smoke_ai_mid01 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(smoke_ai_mid01 PRIVATE colonize_core)
+add_test(NAME smoke_ai_mid01 COMMAND smoke_ai_mid01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# Joint Euro↔Indian harness (T3 roadmap Phase 0 + Series D MID01):
 add_custom_target(smoke_ai_joint
-  COMMAND ${CMAKE_COMMAND} -E echo "smoke_ai_joint: mapgen + turns + contact + diplo"
+  COMMAND ${CMAKE_COMMAND} -E echo "smoke_ai_joint: mapgen + turns + contact + diplo + mid01"
   COMMAND $<TARGET_FILE:smoke_mapgen_seed100>
   COMMAND $<TARGET_FILE:smoke_ai_turns>
   COMMAND $<TARGET_FILE:smoke_ai_contact>
   COMMAND $<TARGET_FILE:smoke_ai_diplo>
-  DEPENDS smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo
+  COMMAND $<TARGET_FILE:smoke_ai_mid01>
+  DEPENDS smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo smoke_ai_mid01
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   COMMENT "Joint Euro↔Indian AI smokes (shared-surface gate)"
 )

@@ -576,9 +576,9 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
   first-meet baseline **96** (seed-100 TURN3+); `euro_diplo` OR `0x20` then PEACE
   `0x40` → 96; Euro-side unload welcome before Brave pulse moves contact away;
   peace-meet floor holds relation under hot alarm wobble.
-- Land `20e6`: thin combat toughness + FoW unseen explore bonus; ocean empty-hold
-  coastal cling. Full land/combat/explore arms + combat-resolve field fidelity
-  remain **OPEN**.
+- Land `20e6`: explore ring thin (continent match, FoW, LCR skip / Scout rumour);
+  combat prefers settlement-adjacent foes (`0x46`-shaped). Ocean empty-hold
+  coastal cling. Full arms + combat-resolve field fidelity remain **OPEN**.
 
 **Phase 2 (retire early Euro geometry) — Done (residual seeds)**
 
@@ -586,32 +586,32 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
   `ai_euro_post_beachhead_ship_waypoint` / `ai_euro_found_tile_from_landfall`.
 - Replaced by thin ports: `ai_euro_ocean_3558_first_leg_tip`,
   `ai_euro_ocean_3558_empty_cruise_tip`, `ai_euro_06ae_first_colony_from_landfall`.
-- TURN1→7 + Indian joint rows green. Residual: latitude-band **preferred seeds**
-  inside those ports until full `3558` cargo/colony matrix + multi-ring `06ae`.
+- First-colony resolve tries live `06ae` from coastal staging; keeps seed when
+  live ≠ Quebec/NA/Isabella. TURN1→7 + Indian joint rows green.
 
 **Phase 3 (Euro mid-planner) — partial**
 
-- `0a60` G: live `0492` continent balance soft-caps war MILITARY prio and bumps
-  secondary FOUND when under `continent_tally_b/12` (thin `−0x6790`).
-- `3558` empty-hold coastal cling in `ai_euro_ocean_score_step`.
-- Deep E–H / full `−0x6790` nibble table / remaining `5d04` / full `5b66` /
-  full cargo `3558` matrix remain **OPEN**.
+- `0a60` G: thin `−0x6790` stance nibbles `{0,3,4,6}` from live tallies
+  (`s_euro_continent_stance`); stance 3 soft-caps mil + bumps FOUND.
+- `3558` peace colony-sail score (pop/idle/docks) in short-coastal haul pick;
+  war cargo sail when stance≠0 + muskets/horses/mil pax.
+- Deep E–H / full nibble fidelity / remaining `5d04` / full `5b66` /
+  full cargo matrix remain **OPEN**. Latitude seeds not retired yet.
 
 **Phase 4 (Indian large bodies) — partial**
 
-- `2154`: tribe±2 forest/coast neighborhood modulates Generous gift floor
-  (gold≥30 when rich, else ≥40). Full `DS:0x9e*` table **OPEN**.
-- `2820`: hard-bargain tension band widened to alarm 45..54 (skip relation /
-  friction decay). Deep price `2b92`/`2bbc` nest **OPEN**.
-- `4528`: structural raids + alarmed escort deepen (below). Full ~3k body **OPEN**.
+- `2154`: colony 5×5 cover mask + forest/coast/food buckets; Generous at gold≥30
+  when rich (`smoke_ai_contact`).
+- `2820`: hard-bargain 45..54; silver-primary extra trade-goods under hard bargain.
+- `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING).
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 
 **Phase 5 (alarmed act + claims) — partial**
 
-- Alarmed escort (outside quiet `14fe`): when raid-gate alarm≥55, lead pick
-  allows MD≤4 and 2× weights colony-target distance. Quiet seed-100 pulse
-  unchanged. Full alarmed dir picker inside `14fe` **PARKED**.
-- Mid/late joint saves: scaffold only (`JOINT_MIDTURN.md`); no `MID*.SAV` yet.
+- Alarmed escort MD≤4 / 2× colony weight at alarm≥55 + smoke asserts.
+- `MID01.SAV`: Linux-derived mid-war stamp from TURN7 via `smoke_ai_mid01`
+  (wired into `smoke_ai_joint`). `MID02` pair compare still OPEN.
+- Quiet `14fe` dir picker unchanged. Full alarmed unit-act **PARKED**.
 
 **Per-module fidelity (honest — not blanket T3)**
 
@@ -623,7 +623,8 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 | Ocean `3558` / first-colony `06ae` | Thin ports + seeds — **not T3** |
 | Mid `0a60` / `5d04` / `5b66` | Thin / partial — **not T3** |
 | `2154` / `2820` / `4528` bodies | Thin / partial — **not T3** |
-| Alarmed Indian unit-act | Escort peel only — **not T3** |### R6 — King / REF (`43f7`) (**partial structural port**)
+| Alarmed Indian unit-act | Escort peel + smoke — **not T3** |
+| Mid joint golden | MID01 snapshot Done; MID02 OPEN |### R6 — King / REF (`43f7`) (**partial structural port**)
 
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +

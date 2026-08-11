@@ -101,8 +101,8 @@ When `281f_0b28(unit)==0` (not already tasked):
 
 | Behavior | Linux today | OPEN (this map) |
 |----------|-------------|-----------------|
-| Adjacent foe pick | `ai_euro_land_best_adjacent_foe` (fort% / vet) | Full `0x46` settlement scan + orders stamp |
-| Step toward goal | `ai_euro_score_move` distance | Explore ring `2912` score matrix |
+| Adjacent foe pick | `ai_euro_land_best_adjacent_foe` (+ settlement prefer) | Full `0x46` settlement scan + orders stamp |
+| Step toward goal | `ai_euro_score_move` + continent/FoW/LCR/rumour thin | Full explore ring `2912` score matrix |
 | Found / contact opcodes | Goals via `0a60` / peels | Live `0x42`/`0x65` writes inside `20e6` |
 | Missionary `0x4c` | Thin mission contact | Full `2a1f_059c` dir + tribe gate |
 | Debug `077e` | — | Ignore (AI debug overlay) |
