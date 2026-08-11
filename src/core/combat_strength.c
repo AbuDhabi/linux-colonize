@@ -194,6 +194,47 @@ int combat_unit_base_x8(
   return local_4;
 }
 
+static int combat_woi_active(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return 0;
+  }
+  /* game_options.woi (0x5382&1) or ai_king unknown46[0] stand-in. */
+  return col1->head.game_options.woi || col1->head.unknown46[0] != 0;
+}
+
+static int combat_ref_present(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return 0;
+  }
+  return col1->head.game_options.ref_present || col1->head.unknown46[1] != 0;
+}
+
+/*
+ * Crown / REF nation id (DOS DS:0x53d2). Match ai_king_crown_nation: peer of
+ * the human Euro slot (0↔1). Cite: king_ref.md; FUN_43f7_0218.
+ */
+static int combat_crown_nation(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return 1;
+  }
+  for (int i = 0; i < 4; ++i) {
+    if (col1->player[i].control == 0) {
+      return (i == 0) ? 1 : 0;
+    }
+  }
+  return 1;
+}
+
+static int combat_unit_on_colony(
+  const ColonizeCombatStrengthCtx* ctx,
+  const ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !u) {
+    return 0;
+  }
+  return colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
+}
+
 int combat_engagement_strength(
   const ColonizeCombatStrengthCtx* ctx,
   int unit_id,
@@ -214,7 +255,6 @@ int combat_engagement_strength(
 
   const int base = combat_unit_base_x8(ctx, unit_id, 0, out_flags);
   int local_1a = 0;
-  int terr_stashed = 0;
 
   /* A. Own-nation Euro colony on unit tile. */
   if (ctx->colonies && u->nation_id >= 0 && u->nation_id <= 3) {
@@ -241,16 +281,20 @@ int combat_engagement_strength(
     }
   }
 
-  /* C. Open terrain (FUN_157e_015e gates). */
+  /* C. Open terrain (FUN_157e_015e gates → local_1a or 0x8d04 stash). */
   if (ctx->map) {
     const int terr_class = map_dos_terr_class_at(ctx->map, u->x, u->y);
     const int terr_byte = map_dos_terr_found_score_byte(terr_class);
     const int unit_nat = u->nation_id & 0xf;
     const int foe_nat = foe ? (foe->nation_id & 0xf) : 0xf;
-    const int woi = (ctx->col1 && ctx->col1->head.game_options.woi) ? 1 : 0;
+    const int woi = combat_woi_active(ctx->col1);
 
+    /*
+     * Immediate apply (8d02|0x80): native defender, or Euro foe that is AI /
+     * pre-WoI (so normal defender terrain). Cite: viceroy 9015–9021.
+     */
     if (unit_nat > 3 ||
-        (foe_nat < 4 && (!woi || foe_nat > 3 || combat_nation_is_ai(ctx->col1, foe_nat)))) {
+        (foe_nat < 4 && (!woi || combat_nation_is_ai(ctx->col1, foe_nat)))) {
       local_1a = terr_byte;
       if (out_flags) {
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
@@ -259,6 +303,11 @@ int combat_engagement_strength(
       goto fortify;
     }
 
+    /*
+     * Else: Euro defender vs native, or vs human Euro under WoI.
+     * Village on either tile → still apply to defender. Fortified → deny both
+     * (no stash). Otherwise stash into 0x8d04 for attacker formula (ambush).
+     */
     int apply_now = 0;
     int skip_stash = 0;
     if (foe_nat < 4 && !combat_nation_is_ai(ctx->col1, foe_nat)) {
@@ -269,7 +318,7 @@ int combat_engagement_strength(
         apply_now = 1;
         skip_stash = 1;
       }
-    } else if (u->orders == UNITS_ORDER_FORTIFIED) {
+    } else if (u->orders == UNITS_ORDER_FORTIFIED || u->orders == UNITS_ORDER_FORTIFY) {
       skip_stash = 1;
     }
 
@@ -280,13 +329,14 @@ int combat_engagement_strength(
         out_flags->terrain_byte = terr_byte;
       }
     } else if (!skip_stash) {
-      terr_stashed = terr_byte;
+      /*
+       * Stash only — do not set COMBAT_FLAG_TERRAIN on defender (DOS writes
+       * 8d00|0x80 for the attacker analysis column). land_engage applies stash.
+       */
       if (out_flags) {
+        out_flags->terrain_stash = terr_byte;
         out_flags->terrain_byte = terr_byte;
-        /* Attacker-side stash bit lives on 0x8d00; expose on flags for UI. */
-        out_flags->flags |= COMBAT_FLAG_TERRAIN;
       }
-      (void)terr_stashed;
     }
   }
 
@@ -340,16 +390,6 @@ int combat_unit_is_combat_role(const ColonizeUnitPool* pool, int unit_id) {
   }
   /* FUN_5fef_0000: skip when type.attack (5236) == 0. */
   return t->attack > 0;
-}
-
-static int combat_unit_on_colony(
-  const ColonizeCombatStrengthCtx* ctx,
-  const ColonizeUnit* u
-) {
-  if (!ctx || !ctx->colonies || !u) {
-    return 0;
-  }
-  return colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
 }
 
 static int combat_colony_sol_at(
@@ -476,30 +516,51 @@ void combat_apply_1b0e_peels(
     }
   }
 
-  /* WoI SoL / REF popular-support peels (attacker Euro). */
-  if (ctx->col1 && ctx->col1->head.game_options.woi && atk_nat >= 0 && atk_nat <= 3 &&
-      land) {
-    if (ctx->col1->head.game_options.ref_present) {
-      io->atk_strength += io->atk_strength >> 1;
-      io->atk_flags.flags |= COMBAT_FLAG_REF;
-      io->atk_flags.flags_hi |= COMBAT_FLAG_REF;
-    }
-    int sol = combat_colony_sol_at(ctx, def->x, def->y);
-    if (sol <= 0 && atk_nat < 4) {
-      sol = (int)ctx->col1->nation[atk_nat].rebel_sentiment;
+  /*
+   * WoI popular-support peels (FUN_5fef_1b0e ~100494–100527).
+   * Gate: WoI + Euro attacker. Colony tile vs open-field branches differ.
+   * Cite: viceroy_unpacked.c; king_ref.md (0x53d2 = crown).
+   */
+  if (ctx->col1 && combat_woi_active(ctx->col1) && atk_nat >= 0 && atk_nat <= 3 && land) {
+    const int crown = combat_crown_nation(ctx->col1);
+    const int atk_is_crown = (atk_nat == crown);
+    if (!on_colony) {
+      /*
+       * Open field: crown attacker on land (not ocean) →
+       * atk += difficulty * atk / 20.
+       */
+      if (atk_is_crown && ctx->map && map_tile_is_land(ctx->map, def->x, def->y)) {
+        const int diff = (int)ctx->col1->head.difficulty;
+        io->atk_strength += (diff * io->atk_strength) / 20;
+      }
+    } else {
+      /* On colony: +50% if crown attacker OR ref_present (0x8d01|0x80). */
+      if (atk_is_crown || combat_ref_present(ctx->col1)) {
+        io->atk_strength += io->atk_strength >> 1;
+        io->atk_flags.flags |= COMBAT_FLAG_REF;
+        io->atk_flags.flags_hi |= COMBAT_FLAG_REF;
+      }
+      int sol = combat_colony_sol_at(ctx, def->x, def->y);
       if (sol < 0) {
         sol = 0;
       }
       if (sol > 100) {
         sol = 100;
       }
-    }
-    if (sol > 0) {
-      /* Rebel side uses Tory share (100−SoL); else SoL%. Thin: always SoL. */
-      const int add = (sol * io->atk_strength) / 100;
-      io->atk_strength += add;
-      io->atk_flags.flags2 |= COMBAT_FLAG_SOL;
-      io->atk_flags.sol_percent = sol;
+      int support = sol;
+      if (atk_is_crown) {
+        support = 100 - sol; /* Tory share for crown/REF */
+        if (support > 0) {
+          io->atk_flags.flags2 |= COMBAT_FLAG_TORIES;
+        }
+      } else if (support > 0) {
+        io->atk_flags.flags2 |= COMBAT_FLAG_REBELS;
+      }
+      if (support > 0) {
+        const int add = (support * io->atk_strength) / 100;
+        io->atk_strength += add;
+        io->atk_flags.sol_percent = support;
+      }
     }
   }
 
@@ -539,6 +600,21 @@ void combat_land_engage(
   out->atk_strength = combat_unit_base_x8(ctx, attacker_id, 1, &out->atk_flags);
   out->def_strength =
     combat_engagement_strength(ctx, defender_id, attacker_id, &out->def_flags);
+  /*
+   * FUN_5fef_1b0e attacker scale: ((0x8d04 + 4) * 004a >> 2) * 3 >> 1.
+   * 8d04 is 015e terrain stash (0 when defender absorbed terrain / colony /
+   * village). Always includes the ×3/2 attack factor; stash adds ambush terrain
+   * for Indian→Euro and human→AI-Euro under WoI (REF).
+   */
+  {
+    const int stash = out->def_flags.terrain_stash;
+    out->atk_strength = ((stash + 4) * out->atk_strength >> 2) * 3 >> 1;
+    if (stash > 0) {
+      out->atk_flags.flags |= COMBAT_FLAG_TERRAIN;
+      out->atk_flags.terrain_byte = stash;
+      out->atk_flags.terrain_stash = stash;
+    }
+  }
   if (out->atk_strength < 0) {
     out->atk_strength = 0;
   }

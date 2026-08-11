@@ -16,6 +16,13 @@
  * Dual-column Combat Analysis dialog (FUN_636c_0000-shaped).
  * Gated by game_options.combat_analysis when a human side is involved.
  * Cite: FUN_5fef_1b0e gate 0x5383&2; FUN_2a1f_0704 → FUN_636c_0000.
+ *
+ * Layout (DOS / LABELS.TXT):
+ *   1. Centered title "COMBAT ANALYSIS"
+ *   2. Atk chrome + strength … def strength + def chrome
+ *   3. Per-side modifier rows (empty cell when that side has no line)
+ *
+ * Shown after strengths are known, before the combat roll / outcome UI.
  */
 
 #define COMBAT_ANALYSIS_LINES_MAX 12
@@ -33,11 +40,19 @@ typedef struct ColonizeCombatEngagement {
   ColonizeCombatSideFlags def_flags;
 } ColonizeCombatEngagement;
 
+typedef struct CombatAnalysisSideChrome {
+  int sprite;
+  int display_type;
+  int nation_id;
+  int orders;
+  bool aboard;
+} CombatAnalysisSideChrome;
+
 typedef struct CombatAnalysisDialog {
   bool open;
   ColonizeCombatEngagement eng;
-  char atk_name[32];
-  char def_name[32];
+  CombatAnalysisSideChrome atk_chrome;
+  CombatAnalysisSideChrome def_chrome;
   char atk_lines[COMBAT_ANALYSIS_LINES_MAX][COMBAT_ANALYSIS_LINE_LEN];
   char def_lines[COMBAT_ANALYSIS_LINES_MAX][COMBAT_ANALYSIS_LINE_LEN];
   int atk_line_count;
@@ -59,8 +74,8 @@ bool combat_analysis_should_show(
 );
 
 /*
- * Open dual-column dialog from a rolled engagement. Names from unit types.
- * Returns false if dlg/pool missing.
+ * Open dialog from pre-roll engagement (strengths + flags only).
+ * Snapshots unit chrome so render stays valid if units later despawn.
  */
 bool combat_analysis_open(
   CombatAnalysisDialog* dlg,
@@ -74,6 +89,7 @@ void combat_analysis_render(
   CombatAnalysisDialog* dlg,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
+  const ColonizeSpriteSheet* unit_icons,
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
@@ -81,7 +97,7 @@ void combat_analysis_render(
 );
 
 /*
- * Optional presenter called from units_resolve_* after roll, before apply.
+ * Optional presenter called from units_resolve_* after strengths, before roll.
  * When NULL, analysis is skipped (tests / AI-only).
  */
 typedef void (*ColonizeCombatAnalysisPresenter)(const ColonizeCombatEngagement* eng, void* user);

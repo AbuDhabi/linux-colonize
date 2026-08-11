@@ -402,7 +402,8 @@ void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user);
 /*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
  * defender engagement (015e: colony/village/terrain/fortify). Probability =
- * atk/(atk+def). Optional Combat Analysis presenter after roll. Winner stays;
+ * atk/(atk+def). Optional Combat Analysis presenter after strengths, before
+ * roll. Winner stays;
  * loser despawned. Naval / mixed: no fight.
  * When col1 is non-NULL and winner nation owns Washington (PEDIA/wiki George
  * Washington; docs/fandom_col1994.md: non-veteran soldiers/dragoons who win
@@ -439,7 +440,7 @@ int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id
 /*
  * Naval combat: FUN_157e_004a for both sides (damage/holds/Drake). Same roll
  * shape as land; ships only. Winner keeps the tile; loser despawned after hold
- * plunder into winner. Optional Combat Analysis after roll.
+ * plunder into winner. Optional Combat Analysis after strengths, before roll.
  */
 bool units_resolve_naval_combat_ff(
   ColonizeUnitPool* pool,

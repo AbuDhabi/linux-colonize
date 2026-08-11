@@ -1387,6 +1387,7 @@ static void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
     return;
   }
   col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = on ? 1 : 0;
+  col1->head.game_options.ref_present = on ? 1 : 0;
 }
 
 static int ai_king_boycott_active(const ColonizeCol1Save* col1) {
@@ -1531,6 +1532,7 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
   }
   /* unknown46[0] = WoI flag (set once on declare; idempotent if already set). */
   col1->head.unknown46[AI_KING_WOI_BYTE] = on ? 1 : 0;
+  col1->head.game_options.woi = on ? 1 : 0;
   if (on) {
     col1->head.event.colony_burning = 1; /* chrome hint */
   }
@@ -3251,6 +3253,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) <= 0) {
     ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_WON;
     ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = 0;
+    ctx->col1->head.game_options.ref_present = 0;
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size,
                "Independence won! The Royal Expeditionary Force is defeated.");

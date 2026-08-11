@@ -2109,8 +2109,8 @@ int main(void) {
       fprintf(stderr, "Soldiers missing for fort-defense smoke\n");
       return 1;
     }
-    /* Deterministic: attack 3→×8=24 vs Stockade def base2→16 ×2=32 → loses. */
-    pool.types[soldier_ti].attack = 3;
+    /* Deterministic: attack 2→×8=16 →×3/2=24 vs Stockade def base2→16 ×2=32 → loses. */
+    pool.types[soldier_ti].attack = 2;
     pool.types[soldier_ti].defense = 2;
     const int atk_id = units_spawn_allow_stack(&pool, soldier_ti, 5, 5);
     const int def_id = units_spawn_allow_stack(&pool, soldier_ti, 5, 5);
@@ -2127,9 +2127,9 @@ int main(void) {
     col->has_building[1] = false;
     col->has_building[2] = false;
     units_set_combat_colonies(&colonies);
-    /* FUN_157e_015e Stockade local_1a=4 → ((4+4)*16)>>2=32 > atk 24. */
+    /* FUN_157e_015e Stockade local_1a=4 → ((4+4)*16)>>2=32 > atk ((0+4)*16>>2)*3>>1=24. */
     if (units_resolve_land_combat_ff(&pool, atk_id, def_id, NULL, NULL)) {
-      fprintf(stderr, "Stockade defense should beat attack 3 vs base 2\n");
+      fprintf(stderr, "Stockade defense should beat attack 2 vs base 2\n");
       return 1;
     }
     if (!units_get(&pool, def_id) || !units_get(&pool, def_id)->active) {
@@ -2969,6 +2969,308 @@ int main(void) {
       units_despawn(&pool, did);
       units_set_combat_colonies(NULL);
       fprintf(stderr, "smoke_units: Spanish ambush peel ok\n");
+    }
+
+    /* Terrain stash: Indian→Euro and human→AI-Euro under WoI (REF). */
+    {
+      ColonizeWorldMap tmap;
+      memset(&tmap, 0, sizeof(tmap));
+      tmap.width = 16;
+      tmap.height = 16;
+      tmap.terrain = calloc(256, 1);
+      tmap.layer2 = calloc(256, 1);
+      tmap.layer3 = calloc(256, 1);
+      if (!tmap.terrain || !tmap.layer2 || !tmap.layer3) {
+        fprintf(stderr, "terrain-stash map alloc failed\n");
+        return 1;
+      }
+      for (int i = 0; i < 256; ++i) {
+        tmap.terrain[i] = 8; /* forest class → found_score 2 */
+      }
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.head.difficulty = 4; /* Viceroy: difficulty peel adj=0 */
+      c1.player[0].control = 0; /* human */
+      c1.player[1].control = 1; /* AI Euro / REF-shaped */
+      const int sol = units_find_type(&pool, "Soldiers");
+      if (sol < 0) {
+        fprintf(stderr, "terrain-stash Soldiers missing\n");
+        free(tmap.terrain);
+        free(tmap.layer2);
+        free(tmap.layer3);
+        return 1;
+      }
+      pool.types[sol].attack = 2;
+      pool.types[sol].defense = 2;
+      ColonizeCombatStrengthCtx sctx;
+      memset(&sctx, 0, sizeof(sctx));
+      sctx.units = &pool;
+      sctx.map = &tmap;
+      sctx.col1 = &c1;
+
+      /* Indian attacks Euro: defender loses terrain; attacker absorbs stash. */
+      {
+        const int aid = units_spawn_allow_stack(&pool, sol, 5, 5);
+        const int did = units_spawn_allow_stack(&pool, sol, 5, 5);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "terrain-stash Indian spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 4;
+        d->nation_id = 0;
+        d->orders = UNITS_ORDER_NONE;
+        ColonizeCombatEngageResult er;
+        combat_land_engage(&sctx, aid, did, &er);
+        /* def base 16, local_1a=0 → 16; atk base 16 → ((2+4)*16>>2)*3>>1 = 36 */
+        if (er.def_strength != 16 || (er.def_flags.flags & COMBAT_FLAG_TERRAIN) != 0) {
+          fprintf(
+            stderr,
+            "Indian ambush: def want 16/no-terrain got %d flags=%x stash=%d\n",
+            er.def_strength,
+            er.def_flags.flags,
+            er.def_flags.terrain_stash
+          );
+          return 1;
+        }
+        if (er.def_flags.terrain_stash != 2) {
+          fprintf(stderr, "Indian ambush: stash want 2 got %d\n", er.def_flags.terrain_stash);
+          return 1;
+        }
+        if (er.atk_strength != 36 || (er.atk_flags.flags & COMBAT_FLAG_TERRAIN) == 0) {
+          fprintf(
+            stderr,
+            "Indian ambush: atk want 36+terrain got %d flags=%x\n",
+            er.atk_strength,
+            er.atk_flags.flags
+          );
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+
+      /* WoI: human attacks AI Euro (REF) — same stash path. */
+      {
+        c1.head.game_options.woi = 1;
+        const int aid = units_spawn_allow_stack(&pool, sol, 6, 6);
+        const int did = units_spawn_allow_stack(&pool, sol, 6, 6);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "terrain-stash WoI spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 0;
+        d->nation_id = 1;
+        d->orders = UNITS_ORDER_NONE;
+        ColonizeCombatEngageResult er;
+        combat_land_engage(&sctx, aid, did, &er);
+        if (er.def_flags.terrain_stash != 2 || (er.def_flags.flags & COMBAT_FLAG_TERRAIN) != 0) {
+          fprintf(
+            stderr,
+            "WoI REF ambush: def stash want 2/no-flag got stash=%d flags=%x\n",
+            er.def_flags.terrain_stash,
+            er.def_flags.flags
+          );
+          return 1;
+        }
+        if ((er.atk_flags.flags & COMBAT_FLAG_TERRAIN) == 0 || er.atk_strength != 36) {
+          fprintf(
+            stderr,
+            "WoI REF ambush: atk want 36+terrain got %d flags=%x\n",
+            er.atk_strength,
+            er.atk_flags.flags
+          );
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+
+      /* Control: Euro vs Euro pre-WoI — defender keeps terrain, stash 0. */
+      {
+        c1.head.game_options.woi = 0;
+        const int aid = units_spawn_allow_stack(&pool, sol, 7, 7);
+        const int did = units_spawn_allow_stack(&pool, sol, 7, 7);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "terrain-stash euro spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 1;
+        d->nation_id = 0;
+        d->orders = UNITS_ORDER_NONE;
+        ColonizeCombatEngageResult er;
+        combat_land_engage(&sctx, aid, did, &er);
+        /* def ((2+4)*16)>>2=24; atk ((0+4)*16>>2)*3>>1=24 */
+        if (er.def_strength != 24 || (er.def_flags.flags & COMBAT_FLAG_TERRAIN) == 0) {
+          fprintf(
+            stderr,
+            "euro terrain: def want 24+flag got %d flags=%x\n",
+            er.def_strength,
+            er.def_flags.flags
+          );
+          return 1;
+        }
+        if (er.def_flags.terrain_stash != 0 || er.atk_strength != 24) {
+          fprintf(
+            stderr,
+            "euro terrain: stash/atk want 0/24 got stash=%d atk=%d\n",
+            er.def_flags.terrain_stash,
+            er.atk_strength
+          );
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+
+      free(tmap.terrain);
+      free(tmap.layer2);
+      free(tmap.layer3);
+      fprintf(stderr, "smoke_units: terrain stash ambush ok\n");
+    }
+
+    /* WoI REF +50% / Tory-Rebel support — colony only (FUN_5fef_1b0e). */
+    {
+      ColonizeColonyPool cols;
+      colonies_init(&cols);
+      ColonizeColony* col = &cols.colonies[0];
+      col->id = 0;
+      col->active = true;
+      col->nation_id = 0;
+      col->x = 10;
+      col->y = 10;
+      cols.colony_count = 1;
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.head.difficulty = 4;
+      c1.head.game_options.woi = 1;
+      c1.head.game_options.ref_present = 1;
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+      /* Colony SoL 60% via col1 colony record. */
+      ColonizeCol1Colony cc;
+      memset(&cc, 0, sizeof(cc));
+      cc.x = 10;
+      cc.y = 10;
+      cc.rebel_dividend = 60;
+      cc.rebel_divisor = 100;
+      c1.colony = &cc;
+      c1.head.colony_count = 1;
+
+      const int sol = units_find_type(&pool, "Soldiers");
+      if (sol < 0) {
+        fprintf(stderr, "woi-ref Soldiers missing\n");
+        return 1;
+      }
+      pool.types[sol].attack = 2;
+      pool.types[sol].defense = 2;
+      ColonizeCombatStrengthCtx sctx;
+      memset(&sctx, 0, sizeof(sctx));
+      sctx.units = &pool;
+      sctx.colonies = &cols;
+      sctx.col1 = &c1;
+
+      /* Human rebel attacks on colony with ref_present → +50% REF. */
+      {
+        const int aid = units_spawn_allow_stack(&pool, sol, 10, 10);
+        const int did = units_spawn_allow_stack(&pool, sol, 10, 10);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "woi-ref rebel spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 0;
+        d->nation_id = 1;
+        ColonizeCombatEngageResult er;
+        combat_land_engage(&sctx, aid, did, &er);
+        /* atk base 16 → ×3/2=24; +50% REF → 36; +60% Rebels → 57 */
+        if ((er.atk_flags.flags & COMBAT_FLAG_REF) == 0) {
+          fprintf(stderr, "woi-ref rebel: REF flag missing\n");
+          return 1;
+        }
+        if ((er.atk_flags.flags2 & COMBAT_FLAG_REBELS) == 0 || er.atk_flags.sol_percent != 60) {
+          fprintf(
+            stderr,
+            "woi-ref rebel: Rebels want 60 got flags2=%x sol=%d\n",
+            er.atk_flags.flags2,
+            er.atk_flags.sol_percent
+          );
+          return 1;
+        }
+        if (er.atk_strength != 57) {
+          fprintf(stderr, "woi-ref rebel: atk want 57 got %d\n", er.atk_strength);
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+
+      /* Crown attacks same colony → +50% REF + Tory share 40%. */
+      {
+        const int aid = units_spawn_allow_stack(&pool, sol, 10, 10);
+        const int did = units_spawn_allow_stack(&pool, sol, 10, 10);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "woi-ref crown spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 1;
+        d->nation_id = 0;
+        ColonizeCombatEngageResult er;
+        combat_land_engage(&sctx, aid, did, &er);
+        /* 24 +50%=36; +40% Tories → 50 */
+        if ((er.atk_flags.flags & COMBAT_FLAG_REF) == 0) {
+          fprintf(stderr, "woi-ref crown: REF flag missing\n");
+          return 1;
+        }
+        if ((er.atk_flags.flags2 & COMBAT_FLAG_TORIES) == 0 || er.atk_flags.sol_percent != 40) {
+          fprintf(
+            stderr,
+            "woi-ref crown: Tories want 40 got flags2=%x sol=%d\n",
+            er.atk_flags.flags2,
+            er.atk_flags.sol_percent
+          );
+          return 1;
+        }
+        if (er.atk_strength != 50) {
+          fprintf(stderr, "woi-ref crown: atk want 50 got %d\n", er.atk_strength);
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+
+      /* Open field: no REF flag even with ref_present. */
+      {
+        c1.head.game_options.ref_present = 1;
+        const int aid = units_spawn_allow_stack(&pool, sol, 11, 11);
+        const int did = units_spawn_allow_stack(&pool, sol, 11, 11);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "woi-ref field spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 0;
+        d->nation_id = 1;
+        ColonizeCombatEngageResult er;
+        combat_land_engage(&sctx, aid, did, &er);
+        if ((er.atk_flags.flags & COMBAT_FLAG_REF) != 0) {
+          fprintf(stderr, "woi-ref field: REF must not apply off colony\n");
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+
+      fprintf(stderr, "smoke_units: WoI REF colony peels ok\n");
     }
 
     /* Best defender: Artillery preferred over Colonist on same tile. */
