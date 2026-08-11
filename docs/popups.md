@@ -80,9 +80,9 @@ fragment. Related sections are listed in the first column.
 | `@NATION0A`…`@NATION3B` | Nation lore | Done | Lore pages |
 | `@BUILD1`…`@BUILD10` | Sail-away captions | Done | Over `LEVN*.PIK` |
 | `@CUSTOM` / `@CLAND`…`@CCLIM` | Customize land/climate | Done | Image grid + `@MISC` labels |
-| `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Options checkboxes | Missing | Bits / sound API only |
-| `@DOS` / `@DOSYES` | Quit confirm | Missing | Exit ends process |
-| `@RETIRE` | Retire confirm | Partial | Opens F10 score then title |
+| `@GAMEOPTIONS` / `@COLONYOPTIONS` / `@SOUNDOPTIONS` | Options checkboxes | Done | [`options_dialog.c`](../src/core/options_dialog.c) |
+| `@DOS` / `@DOSYES` | Quit confirm | Done | Map/title confirm via `AI_POPUP_TAG_MAP_CONFIRM` |
+| `@RETIRE` | Retire confirm | Done | Confirm then F10 score |
 | `@MULTI*` | Multiplayer setup | Missing | — |
 
 ### 2. Save / load / music
@@ -99,9 +99,9 @@ fragment. Related sections are listed in the first column.
 |---------------------|------|--------|------|
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land with passengers | Done | `AI_POPUP_TAG_LANDFALL` |
 | Stack picker | Multi-unit tile click | Done | [`unit_stack.c`](../src/core/unit_stack.c) |
-| `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Missing | Immediate + status (Shift+D) |
-| `@FINDCITY` / `@NOCITY` | Find colony picker | Missing | Cycles colonies |
-| `@OVERBOARD` | Dump cargo confirm | Missing | Immediate + status |
+| `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Done | `AI_POPUP_TAG_MAP_CONFIRM` |
+| `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
+| `@OVERBOARD` | Dump cargo confirm | Done | Yes/No then dump first hold |
 | Order gates (`@ONLYPIO`, `@NEEDTOOLS`, `@NOPLOW`, …) | Illegal order | Partial | Status / bounce; no modal |
 
 ### 4. Colony screen
@@ -113,13 +113,13 @@ fragment. Related sections are listed in the first column.
 | Leave-as (eject) | Fence with colonist | Done | Role list |
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm |
 | `@KEEPSTOCKADE` / `@MORETHANTHREE` | Stockade min pop | Done | OK message (hardcoded English) |
-| `@LANDHO` / `@COLONY` / `@RENAMECOLONY` | Found / rename | Missing | **B** founds + status; no rename |
-| `@HOWMUCH1`… | Cargo amount | Missing | Drag / **=**/**+** |
-| `@WAREHOUSEFULL` | Warehouse overflow | Missing | Spoilage → status |
+| `@LANDHO` / `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; **R** rename in colony |
+| `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
+| `@WAREHOUSEFULL` | Warehouse overflow | Partial | Spoilage → `ai_popup` OK (`@SPOIL*`) |
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Missing | — |
-| Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Partial | Status only |
+| Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
 | Docked unit orders | Colony transport orders | Missing | Select/load only |
-| `@CARGOREADY*` | Ship build ready | Partial | Progress Done; dialog PARKED |
+| `@CARGOREADY*` | Ship build ready | Done | EOT `ai_popup` OK |
 
 ### 5. Europe
 
@@ -129,9 +129,9 @@ fragment. Related sections are listed in the first column.
 | `@PURCHASE` / `@REALLYBUY` | Buy ship/artillery | Done | ~PURCHASE |
 | `@SCHOOL1` / `@COLLEGE2` / `@UNIV3` | Train expert | Done | ~TRAIN |
 | Europe dock orders | Don’t board / Board / Move front | Done | `EUROPE_MENU_DOCK` |
-| `@HOWMUCH4`/`5` | Buy/sell amount | Missing | Fixed steps / drag |
+| `@HOWMUCH4`/`5` | Buy/sell amount | Done | Europe **L**/**U** → howmuch |
 | `@PRICEUP` / `@PRICEDOWN` | Price change notice | Partial | Status lines |
-| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Partial | Map `ai_popup` Accept/Refuse + dump-goods; bodies hardcoded |
+| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Partial | Map `ai_popup` Accept/Refuse + dump-goods; GAME.TXT bodies improving |
 
 ### 6. Indian contact / trade / raids
 
@@ -166,7 +166,7 @@ fragment. Related sections are listed in the first column.
 | Tax/boycott follow-up | After audience | Partial | `KING_TAX` OK |
 | Merc Hire/Decline (`@MERCENARIES`) | Continental mercs | Done | `KING_MERC` |
 | Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` |
-| `@INDEPENDENCE` letter | Rename / letter | Partial | `KING_LETTER` thin OK; cinematic PARKED |
+| `@INDEPENDENCE` letter | Rename / letter | Partial | `KING_LETTER` from `@INDEPENDENCE`; cinematic PARKED |
 | `@INVASION` / intervene | REF / ally arrival | Partial | `KING_ARRIVAL` OK |
 | Crown capture | REF takes colony | Partial | `KING_CAPTURE` OK |
 | Revolution win/lose | End WoI | Partial | `INFO` OK + latches |
@@ -189,7 +189,7 @@ fragment. Related sections are listed in the first column.
 |---------------------|------|--------|------|
 | `@LOSENOCOLONIES` / defeat | No colonies | Partial | Status; dialog PARKED |
 | `@SCORE` / `@SCORED` / retire | Retire / F10 | Partial | F10 score; HoF stub `HOF.TXT` |
-| `@LOSING*` / `@WARN*` / `@WINNING` | Anniversary / SoL chrome | Missing | Status-only PARKED |
+| `@LOSING*` / `@WARN*` / `@WINNING` | Anniversary / SoL chrome | Partial | Anniversary years enqueue `ai_popup` OK |
 | `@TIMECHANGE` | Calendar help | Partial | Calendar Done; no modal |
 | 1850 WoI win | Year≥1850 + no crown | Partial | Latch + INFO |
 
@@ -220,9 +220,9 @@ DEBUG sections: `MOTD`, `MOTD2`, `MEMORY`, `CREATE`, `CREATE2`, `CSHIP`,
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@TRADESELECT` route picker | TRADE Edit | Missing | Menu + status; auto last route |
+| `@TRADESELECT` route picker | TRADE Edit | Done | `cheat_list` TRADE_SELECT |
 | `@PICKACARGO` cargo picker | Edit unload/load | Partial | Multi-select via `cheat_list_open_trade_cargos` |
-| `@TRADEDELETE` / `@SUREDELETE` | Delete confirm | Missing | Immediate + status |
+| `@TRADEDELETE` / `@SUREDELETE` | Delete confirm | Done | Route picker + Yes/No |
 | VGA TRADE chrome | Full trade UI | Missing | PARKED |
 
 ---
@@ -233,10 +233,13 @@ DEBUG sections: `MOTD`, `MOTD2`, `MEMORY`, `CREATE`, `CREATE2`, `CSHIP`,
 
 | Status | Count |
 |--------|------:|
-| Done | 36 |
-| Partial | 25 |
-| Missing | 32 |
+| Done | ~50 |
+| Partial | ~20 |
+| Missing | ~23 |
 | **Total sites** | **93** |
+
+Counts shifted after 2026-08 feasible-popup pass (confirms, pickers, options,
+howmuch, EOT OK modals). Re-tally when the checklist is next audited in full.
 
 ### By `GAME.TXT` `@SECTION` (Appendix A)
 
@@ -258,18 +261,18 @@ work.
 
 | `@SECTION` | Status | Port note |
 |------------|--------|-----------|
-| `@DOS` | Missing | exit without confirm |
-| `@DOSYES` | Missing | exit without confirm |
-| `@RETIRE` | Partial | opens F10 score then title; not DOS dialog |
+| `@DOS` | Done | quit confirm (`AI_POPUP_TAG_MAP_CONFIRM`) |
+| `@DOSYES` | Done | quit confirm |
+| `@RETIRE` | Done | confirm then F10 score |
 | `@BEGINMENU` | Done | title menu (`game_loop.c`) |
 | `@AMERICA` | Done | new-game America / map pick (`new_game.c`) |
 | `@MAPTOLOAD` | Done | new-game America / map pick (`new_game.c`) |
 | `@MULTI` | Missing | no multiplayer UI |
 | `@MULTINEXT` | Missing | no multiplayer UI |
 | `@MULTIREV` | Missing | no multiplayer UI |
-| `@GAMEOPTIONS` | Missing | no wood options dialogs |
-| `@COLONYOPTIONS` | Missing | no wood options dialogs |
-| `@SOUNDOPTIONS` | Missing | no wood options dialogs |
+| `@GAMEOPTIONS` | Done | options_dialog |
+| `@COLONYOPTIONS` | Done | options_dialog |
+| `@SOUNDOPTIONS` | Done | options_dialog |
 | `@SAVEGAME` | Done | slot / music dialogs |
 | `@SAVEGOOD` | Partial | I/O feedback thin/status; slot dialog Done |
 | `@SAVEERROR` | Partial | I/O feedback thin/status; slot dialog Done |
@@ -282,13 +285,13 @@ work.
 | `@PICKNATION` | Done | new-game wizard |
 | `@DIFFICULTY` | Done | new-game wizard |
 | `@LEADERNAME` | Done | new-game wizard |
-| `@FINDCITY` | Missing | cycles colonies; no picker |
-| `@NOCITY` | Missing | cycles colonies; no picker |
+| `@FINDCITY` | Done | colony list picker |
+| `@NOCITY` | Done | OK when no colonies |
 | `@VICEROY` | Done | new-game wizard |
 | `@VICEROY2` | Done | new-game wizard |
-| `@LANDHO` | Missing | found immediate + status; no rename dialog |
-| `@COLONY` | Missing | found immediate + status; no rename dialog |
-| `@RENAMECOLONY` | Missing | found immediate + status; no rename dialog |
+| `@LANDHO` | Done | name entry after found |
+| `@COLONY` | Done | name entry after found |
+| `@RENAMECOLONY` | Done | colony **R** rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
 | `@LANDFALL2` | Partial | river landfall variant; port uses LANDFALL path |
 | `@ONLYPIO` | Partial | order/gate — status or bounce; no modal |
@@ -324,7 +327,7 @@ work.
 | `@COLLEGE2` | Done | purchase / train menus |
 | `@UNIV3` | Done | purchase / train menus |
 | `@NODOCKS` | Partial | Europe sail/market — partial status or auto |
-| `@CARGOREADY0` | Partial | ship-ready chrome PARKED |
+| `@CARGOREADY0` | Done | EOT ai_popup OK |
 | `@CARGOREADY1` | Partial | ship-ready chrome PARKED |
 | `@CARGOREADY2` | Partial | ship-ready chrome PARKED |
 | `@LUMBER` | Missing | production/EOT messages — status or silent; no modal |
@@ -337,10 +340,10 @@ work.
 | `@FOOD1` | Missing | production/EOT messages — status or silent; no modal |
 | `@FOOD2` | Missing | production/EOT messages — status or silent; no modal |
 | `@VANISH` | Missing | production/EOT messages — status or silent; no modal |
-| `@STARVE1` | Missing | production/EOT messages — status or silent; no modal |
+| `@STARVE1` | Done | EOT ai_popup OK |
 | `@STARVE2` | Missing | production/EOT messages — status or silent; no modal |
 | `@FOODLOW` | Missing | production/EOT messages — status or silent; no modal |
-| `@SPOIL1` | Missing | production/EOT messages — status or silent; no modal |
+| `@SPOIL1` | Done | EOT ai_popup OK |
 | `@SPOIL2` | Missing | production/EOT messages — status or silent; no modal |
 | `@SPOIL3` | Missing | production/EOT messages — status or silent; no modal |
 | `@SPOIL4` | Missing | production/EOT messages — status or silent; no modal |
@@ -496,9 +499,9 @@ work.
 | `@TRADENAME` | Missing | deep village trade 2820 PARKED |
 | `@TRADENONE` | Missing | deep village trade 2820 PARKED |
 | `@TRADENONE2` | Missing | deep village trade 2820 PARKED |
-| `@TRADESELECT` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
-| `@TRADEDELETE` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
-| `@SUREDELETE` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
+| `@TRADESELECT` | Done | route picker (`cheat_list`) |
+| `@TRADEDELETE` | Done | route picker |
+| `@SUREDELETE` | Done | delete Yes/No |
 | `@CARGOLOAD` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
 | `@CARGOUNLOAD` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
 | `@ROUTELOOP` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
@@ -662,11 +665,11 @@ work.
 | `@NOWARSDURINGREV` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@NOCOLONIESEITHER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@NOMAYORSDURINGREV` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HOWMUCH1` | Missing | amount dialogs missing (drag/=/+) |
-| `@HOWMUCH2` | Missing | amount dialogs missing (drag/=/+) |
-| `@HOWMUCH3` | Missing | amount dialogs missing (drag/=/+) |
-| `@HOWMUCH4` | Missing | amount dialogs missing (drag/=/+) |
-| `@HOWMUCH5` | Missing | amount dialogs missing (drag/=/+) |
+| `@HOWMUCH1` | Done | howmuch colony load |
+| `@HOWMUCH2` | Partial | unload still whole-hold |
+| `@HOWMUCH3` | Partial | move path thin |
+| `@HOWMUCH4` | Done | Europe buy amount |
+| `@HOWMUCH5` | Done | Europe sell amount |
 | `@AMBUSHHINT` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@CONSIDER` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@INTERVENTION` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
@@ -695,9 +698,9 @@ work.
 | `@EXTINCT` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@MERCENARIES` | Done | ai_popup CHOICE structural |
 | `@MERCS` | Done | ai_popup CHOICE structural |
-| `@OVERBOARD` | Missing | dump immediate + status |
+| `@OVERBOARD` | Done | dump Yes/No |
 | `@ALREADYREVOLUTION` | Done | ai_popup CHOICE structural |
-| `@SUREDISBAND` | Missing | disband immediate + status |
+| `@SUREDISBAND` | Done | disband Yes/No |
 | `@NEWCOLONIST` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@INEFFICIENT` | Missing | production/EOT messages — status or silent; no modal |
 | `@EFFICIENT` | Missing | production/EOT messages — status or silent; no modal |
@@ -743,7 +746,7 @@ work.
 | `@TUTNOSPACES` | Missing | tutorial hints missing |
 | `@KINGLOSE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGWIN` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@DISBANDSHIP` | Missing | disband immediate + status |
+| `@DISBANDSHIP` | Done | ship disband Yes/No |
 | `@NOMOREWAREHOUSE` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@NOMOREWAGONS` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@BUILD1` | Done | sail captions |
@@ -791,6 +794,7 @@ From [`ai_popup.h`](../src/core/ai_popup.h):
 | `DIPLO_BOYCOTT` | OK | Embargo / Tools lift | Partial |
 | `DIPLO_FA` | OK | Thin FA `3f41` | Partial |
 | `LANDFALL` | CHOICE | `@LANDFALL` | Done |
+| `MAP_CONFIRM` | CHOICE | Disband / overboard / quit / retire / trade-delete | Done |
 
 ---
 

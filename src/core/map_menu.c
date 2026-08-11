@@ -238,6 +238,15 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Pick Music") == 0) {
       return MAP_MENU_ACTION_PICK_MUSIC;
     }
+    if (strcmp(label, "Options") == 0) {
+      return MAP_MENU_ACTION_OPTIONS;
+    }
+    if (strcmp(label, "Colony Report Options") == 0) {
+      return MAP_MENU_ACTION_COLONY_OPTIONS;
+    }
+    if (strcmp(label, "Sound Options") == 0) {
+      return MAP_MENU_ACTION_SOUND_OPTIONS;
+    }
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
@@ -447,6 +456,9 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_RETIRE:
     case MAP_MENU_ACTION_EXIT:
     case MAP_MENU_ACTION_PICK_MUSIC:
+    case MAP_MENU_ACTION_OPTIONS:
+    case MAP_MENU_ACTION_COLONY_OPTIONS:
+    case MAP_MENU_ACTION_SOUND_OPTIONS:
     case MAP_MENU_ACTION_EUROPE:
     case MAP_MENU_ACTION_FIND_COLONY:
     case MAP_MENU_ACTION_CENTER_VIEW:
@@ -1502,6 +1514,12 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Exit to DOS";
     case MAP_MENU_ACTION_PICK_MUSIC:
       return "Pick Music";
+    case MAP_MENU_ACTION_OPTIONS:
+      return "Options";
+    case MAP_MENU_ACTION_COLONY_OPTIONS:
+      return "Colony Report Options";
+    case MAP_MENU_ACTION_SOUND_OPTIONS:
+      return "Sound Options";
     case MAP_MENU_ACTION_EUROPE:
       return "European Status";
     case MAP_MENU_ACTION_FIND_COLONY:

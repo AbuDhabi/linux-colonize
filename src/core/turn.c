@@ -1,3 +1,4 @@
+#include "core/popup_msg.h"
 #include "core/turn.h"
 
 #include <stdint.h>
@@ -293,7 +294,9 @@ static void turn_produce_one_colony(
   EuropeScreen* europe,
   int human_nation,
   ColonizeTurnResult* out,
-  ColonizeColonyProdDelta* delta
+  ColonizeColonyProdDelta* delta,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   if (delta) {
     memset(delta, 0, sizeof(*delta));
@@ -510,6 +513,16 @@ static void turn_produce_one_colony(
           snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
         } else {
           snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
+        }
+        if (ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          popup_msg_fill(
+            messages, "STARVE1", &tok, europe->status, body, sizeof(body)
+          );
+          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         }
       }
     }
@@ -876,6 +889,10 @@ static void turn_produce_one_colony(
       const char* wh =
         (colony->warehouse_level > 1u) ? "Expanded warehouse" : "Warehouse";
       const char* where = (colony->name[0]) ? colony->name : NULL;
+      const char* cargo_name = NULL;
+      if (first_spoil >= 0 && first_spoil < europe->cargo_count) {
+        cargo_name = europe->cargo[first_spoil].name;
+      }
       if (spoil_types > 1) {
         if (where) {
           snprintf(
@@ -895,10 +912,7 @@ static void turn_produce_one_colony(
             spoiled
           );
         }
-      } else if (
-        first_spoil >= 0 && first_spoil < europe->cargo_count &&
-        europe->cargo[first_spoil].name[0]
-      ) {
+      } else if (cargo_name && cargo_name[0]) {
         if (where) {
           snprintf(
             europe->status,
@@ -907,7 +921,7 @@ static void turn_produce_one_colony(
             wh,
             where,
             spoiled,
-            europe->cargo[first_spoil].name
+            cargo_name
           );
         } else {
           snprintf(
@@ -916,7 +930,7 @@ static void turn_produce_one_colony(
             "%s spoiled %d %s.",
             wh,
             spoiled,
-            europe->cargo[first_spoil].name
+            cargo_name
           );
         }
       } else {
@@ -927,6 +941,24 @@ static void turn_produce_one_colony(
           wh,
           spoiled
         );
+      }
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = where ? where : "colony";
+        tok.string1 = cargo_name && cargo_name[0] ? cargo_name : "goods";
+        tok.number0 = spoiled;
+        tok.has_number0 = true;
+        popup_msg_fill(
+          messages,
+          "SPOIL1",
+          &tok,
+          europe->status,
+          body,
+          sizeof(body)
+        );
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
     } else if (europe && colony->nation_id == human_nation) {
       /*
@@ -963,7 +995,9 @@ void turn_run_colony_production(
   ColonizeCol1Save* col1,
   EuropeScreen* europe,
   int human_nation,
-  ColonizeTurnResult* out
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   if (!pool) {
     return;
@@ -971,7 +1005,16 @@ void turn_run_colony_production(
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active) {
       turn_produce_one_colony(
-        pool, &pool->colonies[i], map, col1, europe, human_nation, out, NULL
+        pool,
+        &pool->colonies[i],
+        map,
+        col1,
+        europe,
+        human_nation,
+        out,
+        NULL,
+        ai_popups,
+        messages
       );
     }
   }
@@ -1003,7 +1046,7 @@ void turn_colony_free_production(
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
   turn_produce_one_colony(
-    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta
+    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL
   );
 }
 
@@ -1493,6 +1536,18 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
         (unsigned)year
       );
     }
+    if (ctx->ai_popups) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        ctx->messages,
+        year == 0x6feu ? "WARN1" : "WARN2",
+        NULL,
+        ctx->status,
+        body,
+        sizeof(body)
+      );
+      ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    }
   }
   /* Section E game-over years (0x708=1800, 0x73a=1850) — status; HoF PARKED. */
   if (!splash_done && (year == 0x708u || year == 0x73au) && ctx->status &&
@@ -1797,7 +1852,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1_ok ? ctx->col1 : NULL,
         ctx->europe,
         ctx->human_nation,
-        &proc->result
+        &proc->result,
+        ctx->ai_popups,
+        ctx->messages
       );
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
@@ -1918,7 +1975,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->status_size
         );
         int want_eu = 0;
-        (void)units_tick_ship_build_ready(
+        const int ships_ready = units_tick_ship_build_ready(
           ctx->units,
           ctx->colonies,
           ctx->human_nation,
@@ -1929,6 +1986,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         );
         if (want_eu) {
           proc->result.request_europe_open = true;
+        }
+        if (ships_ready > 0 && ctx->ai_popups && ctx->status && ctx->status[0]) {
+          char body[AI_POPUP_BODY_LEN];
+          popup_msg_fill(
+            ctx->messages, "CARGOREADY0", NULL, ctx->status, body, sizeof(body)
+          );
+          ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         }
         if (ctx->europe && ctx->col1_ok && ctx->col1) {
           (void)units_cortes_cash_coastal_treasures(

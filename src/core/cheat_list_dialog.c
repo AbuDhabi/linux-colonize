@@ -168,6 +168,66 @@ bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog
   return true;
 }
 
+static bool cheat_list_open_simple_list(
+  CheatListDialog* dlg,
+  CheatListKind kind,
+  const char* prompt,
+  const char* const* labels,
+  const int* ids,
+  int count,
+  int width
+) {
+  if (!dlg || !labels || !ids || count <= 0) {
+    return false;
+  }
+  if (count > CHEAT_LIST_MAX_OPTIONS) {
+    count = CHEAT_LIST_MAX_OPTIONS;
+  }
+  cheat_list_init(dlg);
+  dlg->has_result = false;
+  dlg->kind = kind;
+  dlg->width = width;
+  dlg->multi_select = false;
+  str_copy_trunc(
+    dlg->prompt, sizeof(dlg->prompt), prompt && prompt[0] ? prompt : "Select"
+  );
+  for (int i = 0; i < count; ++i) {
+    str_copy_trunc(
+      dlg->options[i],
+      sizeof(dlg->options[i]),
+      labels[i] && labels[i][0] ? labels[i] : "(unnamed)"
+    );
+    dlg->option_ids[i] = ids[i];
+  }
+  dlg->option_count = count;
+  dlg->open = true;
+  return true;
+}
+
+bool cheat_list_open_find_colony(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* colony_ids,
+  int count
+) {
+  return cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_FIND_COLONY, prompt, labels, colony_ids, count, 190
+  );
+}
+
+bool cheat_list_open_trade_select(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* route_ids,
+  int count
+) {
+  return cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_TRADE_SELECT, prompt, labels, route_ids, count, 190
+  );
+}
+
 bool cheat_list_open_trade_cargos(
   CheatListDialog* dlg,
   CheatListKind kind,
