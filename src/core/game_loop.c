@@ -262,7 +262,15 @@ static void game_open_trade_unload_picker(ColonizeGameState* game);
 static int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i);
 static void game_set_view_center(ColonizeGameState* game, int x, int y);
 static void game_open_found_name_entry(ColonizeGameState* game, int colony_id);
+static void game_open_landho_name_entry(ColonizeGameState* game);
+static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size);
+static void game_apply_name_entry_result(ColonizeGameState* game);
+static void game_try_prompt_landho(ColonizeGameState* game);
+static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input);
 static void game_apply_howmuch_result(ColonizeGameState* game);
+static void game_apply_save_load_result(ColonizeGameState* game);
+static void game_apply_cheat_list_result(ColonizeGameState* game);
+static void game_select_unit(ColonizeGameState* game, int unit_id);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 
@@ -793,9 +801,9 @@ static void game_open_found_name_entry(ColonizeGameState* game, int colony_id) {
   char prompt[AI_POPUP_BODY_LEN];
   popup_msg_fill(
     &game->messages,
-    "LANDHO",
+    "COLONY",
     NULL,
-    "Land Ho! What shall we call this new land?",
+    "What shall we name this colony?",
     prompt,
     sizeof(prompt)
   );
@@ -805,6 +813,217 @@ static void game_open_found_name_entry(ColonizeGameState* game, int colony_id) {
       )) {
     set_status(game, "Name entry failed", NULL);
   }
+}
+
+static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size) {
+  static const char* k_regions[4] = {
+    "New England", "New France", "New Spain", "New Netherlands"
+  };
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (!game) {
+    str_copy_trunc(out, out_size, "New England");
+    return;
+  }
+  /* Europe screen already loaded NAMES.TXT @COLONYNAME for the human nation. */
+  if (game->europe.colony_region[0]) {
+    str_copy_trunc(out, out_size, game->europe.colony_region);
+    return;
+  }
+  const int nation = game->human_nation;
+  if (game->names_ok && nation >= 0 && nation <= 3) {
+    const ColonizeMsgSection* reg = assets_msg_find(&game->names, "COLONYNAME");
+    if (reg && nation < reg->line_count) {
+      char line[COLONIZE_MSG_LINE_LEN];
+      snprintf(line, sizeof(line), "%s", reg->lines[nation]);
+      /* Trim trailing CR/spaces lightly. */
+      size_t n = strlen(line);
+      while (n > 0 && (line[n - 1] == '\r' || line[n - 1] == '\n' || line[n - 1] == ' ')) {
+        line[--n] = '\0';
+      }
+      if (line[0] && line[0] != ';') {
+        str_copy_trunc(out, out_size, line);
+        return;
+      }
+    }
+  }
+  if (nation >= 0 && nation <= 3) {
+    str_copy_trunc(out, out_size, k_regions[nation]);
+  } else {
+    str_copy_trunc(out, out_size, k_regions[0]);
+  }
+}
+
+static void game_open_landho_name_entry(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  char prompt[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    &game->messages,
+    "LANDHO",
+    NULL,
+    "Land Ho! What shall we call this new land, Your Excellency?",
+    prompt,
+    sizeof(prompt)
+  );
+  char seed[48];
+  game_landho_default_region(game, seed, sizeof(seed));
+  if (!name_entry_open(
+        &game->name_entry, NAME_ENTRY_KIND_LANDHO, prompt, seed, -1
+      )) {
+    /* Fallback: mark discovery so DOS woodcut one-shot does not re-fire. */
+    if (game->col1_ok) {
+      col1_bridge_mark_new_world_discovered(&game->col1, game->human_nation);
+    }
+    str_copy_trunc(game->europe.colony_region, sizeof(game->europe.colony_region), seed);
+    set_status(game, "Name entry failed", NULL);
+  }
+}
+
+static void game_apply_name_entry_result(ColonizeGameState* game) {
+  if (!game || !game->name_entry.has_result) {
+    return;
+  }
+  const NameEntryKind kind = game->name_entry.result_kind;
+  if (kind == NAME_ENTRY_KIND_LANDHO) {
+    char fallback[48];
+    game_landho_default_region(game, fallback, sizeof(fallback));
+    const char* name =
+      game->name_entry.result_name[0] ? game->name_entry.result_name : fallback;
+    str_copy_trunc(game->europe.colony_region, sizeof(game->europe.colony_region), name);
+    if (game->col1_ok) {
+      col1_bridge_mark_new_world_discovered(&game->col1, game->human_nation);
+    }
+    snprintf(game->status, sizeof(game->status), "New land: %s", name);
+  } else if (!game->name_entry.result_cancelled) {
+    ColonizeColony* col =
+      colonies_get_mut(&game->colonies, game->name_entry.result_colony_id);
+    if (col) {
+      str_copy_trunc(col->name, sizeof(col->name), game->name_entry.result_name);
+      snprintf(game->status, sizeof(game->status), "Colony: %s", col->name);
+      if (game->in_colony) {
+        colony_screen_set_status(&game->colony_screen, game->status);
+      }
+    }
+  }
+  game->name_entry.has_result = false;
+}
+
+static void game_try_prompt_landho(ColonizeGameState* game) {
+  if (!game || !game->col1_ok || !game->world_map_ok) {
+    return;
+  }
+  if (game->name_entry.open || game->in_menu) {
+    return;
+  }
+  if (game->human_nation < 0 || game->human_nation > 3) {
+    return;
+  }
+  if (game->col1.player[game->human_nation].named_new_world) {
+    return;
+  }
+  if (!col1_bridge_human_has_seen_land(&game->world_map, game->human_nation)) {
+    return;
+  }
+  game_open_landho_name_entry(game);
+}
+
+static void game_apply_options_result(ColonizeGameState* game) {
+  if (!game || !game->options_dlg.has_result) {
+    return;
+  }
+  if (!game->options_dlg.result_cancelled) {
+    if (game->options_dlg.result_kind == OPTIONS_KIND_GAME && game->col1_ok) {
+      options_dialog_apply_game(&game->options_dlg, &game->col1.head.game_options);
+      set_status(game, "Game options updated", NULL);
+    } else if (game->options_dlg.result_kind == OPTIONS_KIND_COLONY && game->col1_ok) {
+      options_dialog_apply_colony(
+        &game->options_dlg, &game->col1.head.colony_report_options
+      );
+      set_status(game, "Colony report options updated", NULL);
+    } else if (game->options_dlg.result_kind == OPTIONS_KIND_SOUND) {
+      bool bg = true, ev = true, sfx = true;
+      if (options_dialog_apply_sound(&game->options_dlg, &bg, &ev, &sfx)) {
+        ColonizeSoundOptions so = sound_get_options();
+        so.background_music = bg;
+        so.event_music = ev;
+        so.sound_effects = sfx;
+        sound_set_options(so);
+        if (game->col1_ok) {
+          game->col1.head.tut2.background_music = bg ? 1 : 0;
+          game->col1.head.tut2.event_music = ev ? 1 : 0;
+          game->col1.head.tut2.sound_effects = sfx ? 1 : 0;
+        }
+        set_status(game, "Sound options updated", NULL);
+      }
+    }
+  }
+  game->options_dlg.has_result = false;
+}
+
+/*
+ * Parent-view hotkeys must not fire while any wood modal is open (name entry,
+ * howmuch, options, ai_popup, lists, stack picker).
+ */
+static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input) {
+  if (!game || !input) {
+    return false;
+  }
+  if (game->pick_music.open) {
+    const ColonizeFont* pm_font = game->colony_font_ok ? &game->colony_font :
+                                  (game->menu_font_ok ? &game->menu_font : NULL);
+    pick_music_handle_input(
+      &game->pick_music, &game->messages, input, pm_font, game->status, sizeof(game->status)
+    );
+    return true;
+  }
+  if (game->save_load.open) {
+    save_load_handle_input(&game->save_load, input);
+    game_apply_save_load_result(game);
+    return true;
+  }
+  if (game->options_dlg.open) {
+    options_dialog_handle_input(&game->options_dlg, input);
+    game_apply_options_result(game);
+    return true;
+  }
+  if (game->name_entry.open) {
+    name_entry_handle_input(&game->name_entry, input);
+    game_apply_name_entry_result(game);
+    return true;
+  }
+  if (game->howmuch.open) {
+    howmuch_handle_input(&game->howmuch, input);
+    if (game->howmuch.has_result) {
+      if (!game->howmuch.result_cancelled && game->howmuch.result_amount > 0) {
+        game_apply_howmuch_result(game);
+      }
+      game->howmuch.has_result = false;
+    }
+    return true;
+  }
+  if (game->cheat_list.open) {
+    cheat_list_handle_input(&game->cheat_list, input);
+    game_apply_cheat_list_result(game);
+    return true;
+  }
+  if (game->ai_popups.open) {
+    ai_popup_handle_input(&game->ai_popups, input);
+    game_apply_ai_popup_result(game);
+    return true;
+  }
+  if (game->unit_stack.open) {
+    int select_id = -1;
+    unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
+    if (select_id >= 0) {
+      game_select_unit(game, select_id);
+    }
+    return true;
+  }
+  return false;
 }
 
 static void game_apply_howmuch_result(ColonizeGameState* game) {
@@ -3276,7 +3495,8 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
         map_reveal_radius(&game->world_map, c->x, c->y, game->human_nation, 2);
       }
       if (game->col1_ok) {
-        col1_bridge_sync_new_world_discovery(&game->col1, &game->world_map, game->human_nation);
+        /* Live play prompts @LANDHO; do not silent-mark on campaign start. */
+        game_try_prompt_landho(game);
       }
     }
     if (game->units.selected_id >= 0) {
@@ -3596,7 +3816,7 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
     map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
     if (game->col1_ok && u->nation_id == game->human_nation) {
-      col1_bridge_sync_new_world_discovery(&game->col1, &game->world_map, game->human_nation);
+      game_try_prompt_landho(game);
     }
   }
   /* Thin LCR: Scout on rumour clears (de Soto → reveal); no invented gold. */
@@ -5625,9 +5845,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (u && u->nation_id >= 0 && u->nation_id <= 3) {
           map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
           if (game->col1_ok && u->nation_id == game->human_nation) {
-            col1_bridge_sync_new_world_discovery(
-              &game->col1, &game->world_map, game->human_nation
-            );
+            game_try_prompt_landho(game);
           }
         }
       }
@@ -5693,6 +5911,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     );
   }
 
+  /* First-land @LANDHO before parent hotkeys; modal gate blocks E/Q/etc. */
+  game_try_prompt_landho(game);
+  if (game_handle_modal_input(game, input)) {
+    if (game->elapsed_ms == UINT32_MAX) {
+      return false;
+    }
+    return true;
+  }
+
   if (input->last_key == COLONIZE_KEY_Q) {
     game_enqueue_yes_no(
       game, GAME_MAP_CONFIRM_QUIT, -1, "DOS", "Exit to DOS?", NULL
@@ -5736,33 +5963,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     const ColonizeWorldMap* cmap = game->world_map_ok ? &game->world_map : NULL;
     if (colony && game->units_ok) {
       colony_screen_refresh_transports(csv, &game->units, colony);
-    }
-
-    if (game->howmuch.open) {
-      howmuch_handle_input(&game->howmuch, input);
-      if (game->howmuch.has_result) {
-        if (!game->howmuch.result_cancelled && game->howmuch.result_amount > 0) {
-          game_apply_howmuch_result(game);
-        }
-        game->howmuch.has_result = false;
-      }
-      return true;
-    }
-    if (game->name_entry.open) {
-      name_entry_handle_input(&game->name_entry, input);
-      if (game->name_entry.has_result) {
-        if (!game->name_entry.result_cancelled) {
-          ColonizeColony* col =
-            colonies_get_mut(&game->colonies, game->name_entry.result_colony_id);
-          if (col) {
-            str_copy_trunc(col->name, sizeof(col->name), game->name_entry.result_name);
-            snprintf(game->status, sizeof(game->status), "Colony: %s", col->name);
-            colony_screen_set_status(csv, game->status);
-          }
-        }
-        game->name_entry.has_result = false;
-      }
-      return true;
     }
 
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
@@ -6538,16 +6738,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     /* L / '=' : howmuch buy. U : sell howmuch / best hold. */
-    if (game->howmuch.open) {
-      howmuch_handle_input(&game->howmuch, input);
-      if (game->howmuch.has_result) {
-        if (!game->howmuch.result_cancelled && game->howmuch.result_amount > 0) {
-          game_apply_howmuch_result(game);
-        }
-        game->howmuch.has_result = false;
-      }
-      return true;
-    }
     if (input->last_key == COLONIZE_KEY_L) {
       if (eu->selected_harbor < 0) {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
@@ -6931,17 +7121,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (!game->ai_popups.open && !game->ai_popups.has_result) {
       ai_popup_try_present_next(&game->ai_popups);
     }
-    if (game->ai_popups.open) {
-      ai_popup_handle_input(&game->ai_popups, input);
-      game_apply_ai_popup_result(game);
-      if (game->elapsed_ms == UINT32_MAX) {
-        return false;
-      }
-      return true;
-    }
-    if (game->save_load.open) {
-      save_load_handle_input(&game->save_load, input);
-      game_apply_save_load_result(game);
+    if (game->ai_popups.open || game->save_load.open) {
+      /* Early modal gate should have consumed; keep status refresh only. */
       return true;
     }
     if (input->last_key == COLONIZE_KEY_ESCAPE) {
@@ -7004,106 +7185,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           game->ui_drag.hotspot_y = 0;
         }
       }
-    }
-
-    if (game->pick_music.open) {
-      const ColonizeFont* pm_font = game->colony_font_ok ? &game->colony_font :
-                                    (game->menu_font_ok ? &game->menu_font : NULL);
-      pick_music_handle_input(
-        &game->pick_music, &game->messages, input, pm_font, game->status, sizeof(game->status)
-      );
-      return true;
-    }
-
-    if (game->save_load.open) {
-      save_load_handle_input(&game->save_load, input);
-      game_apply_save_load_result(game);
-      return true;
-    }
-
-    if (game->options_dlg.open) {
-      options_dialog_handle_input(&game->options_dlg, input);
-      if (game->options_dlg.has_result) {
-        if (!game->options_dlg.result_cancelled) {
-          if (game->options_dlg.result_kind == OPTIONS_KIND_GAME && game->col1_ok) {
-            options_dialog_apply_game(&game->options_dlg, &game->col1.head.game_options);
-            set_status(game, "Game options updated", NULL);
-          } else if (game->options_dlg.result_kind == OPTIONS_KIND_COLONY && game->col1_ok) {
-            options_dialog_apply_colony(
-              &game->options_dlg, &game->col1.head.colony_report_options
-            );
-            set_status(game, "Colony report options updated", NULL);
-          } else if (game->options_dlg.result_kind == OPTIONS_KIND_SOUND) {
-            bool bg = true, ev = true, sfx = true;
-            if (options_dialog_apply_sound(&game->options_dlg, &bg, &ev, &sfx)) {
-              ColonizeSoundOptions so = sound_get_options();
-              so.background_music = bg;
-              so.event_music = ev;
-              so.sound_effects = sfx;
-              sound_set_options(so);
-              if (game->col1_ok) {
-                game->col1.head.tut2.background_music = bg ? 1 : 0;
-                game->col1.head.tut2.event_music = ev ? 1 : 0;
-                game->col1.head.tut2.sound_effects = sfx ? 1 : 0;
-              }
-              set_status(game, "Sound options updated", NULL);
-            }
-          }
-        }
-        game->options_dlg.has_result = false;
-      }
-      return true;
-    }
-
-    if (game->name_entry.open) {
-      name_entry_handle_input(&game->name_entry, input);
-      if (game->name_entry.has_result) {
-        if (!game->name_entry.result_cancelled) {
-          ColonizeColony* col =
-            colonies_get_mut(&game->colonies, game->name_entry.result_colony_id);
-          if (col) {
-            str_copy_trunc(col->name, sizeof(col->name), game->name_entry.result_name);
-            snprintf(game->status, sizeof(game->status), "Colony: %s", col->name);
-          }
-        }
-        game->name_entry.has_result = false;
-      }
-      return true;
-    }
-
-    if (game->howmuch.open) {
-      howmuch_handle_input(&game->howmuch, input);
-      if (game->howmuch.has_result) {
-        if (!game->howmuch.result_cancelled && game->howmuch.result_amount > 0) {
-          game_apply_howmuch_result(game);
-        }
-        game->howmuch.has_result = false;
-      }
-      return true;
-    }
-
-    if (game->cheat_list.open) {
-      cheat_list_handle_input(&game->cheat_list, input);
-      game_apply_cheat_list_result(game);
-      return true;
-    }
-
-    if (game->ai_popups.open) {
-      ai_popup_handle_input(&game->ai_popups, input);
-      game_apply_ai_popup_result(game);
-      if (game->elapsed_ms == UINT32_MAX) {
-        return false;
-      }
-      return true;
-    }
-
-    if (game->unit_stack.open) {
-      int select_id = -1;
-      unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
-      if (select_id >= 0) {
-        game_select_unit(game, select_id);
-      }
-      return true;
     }
 
     /* Drop selection if the active unit no longer has moves (e.g. after load). */

@@ -421,7 +421,7 @@ void options_dialog_render(
 
   int text_y = iy + pad_y;
   if (dlg->prompt[0] && font) {
-    font_draw_text(font, framebuffer, ix + pad_x, text_y, dlg->prompt, text_color);
+    popup_draw_text_shadowed(font, framebuffer, ix + pad_x, text_y, dlg->prompt, text_color);
     text_y += prompt_h;
   }
   dlg->list_y0 = text_y;
@@ -446,7 +446,7 @@ void options_dialog_render(
         dlg->values[i] ? "[x]" : "[ ]",
         dlg->labels[i]
       );
-      font_draw_text(font, framebuffer, ix + pad_x, row_y, row, text_color);
+      popup_draw_text_shadowed(font, framebuffer, ix + pad_x, row_y, row, text_color);
     }
   }
 }

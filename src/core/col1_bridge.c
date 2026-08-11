@@ -1660,6 +1660,25 @@ void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nat
   save->player[human_nation].named_new_world = 1;
 }
 
+bool col1_bridge_human_has_seen_land(const ColonizeWorldMap* map, int human_nation) {
+  if (!map || !map->terrain || !map->seen || human_nation < 0 || human_nation > 3) {
+    return false;
+  }
+  const int w = (int)map->width;
+  const int h = (int)map->height;
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      if (!map_tile_seen_by(map, x, y, human_nation)) {
+        continue;
+      }
+      if (map_tile_is_land(map, x, y)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void col1_bridge_sync_new_world_discovery(
   ColonizeCol1Save* save,
   const ColonizeWorldMap* map,
@@ -1672,22 +1691,10 @@ void col1_bridge_sync_new_world_discovery(
       save->player[human_nation].named_new_world) {
     return;
   }
-  if (!map || !map->terrain || !map->seen) {
+  if (!col1_bridge_human_has_seen_land(map, human_nation)) {
     return;
   }
-  const int w = (int)map->width;
-  const int h = (int)map->height;
-  for (int y = 0; y < h; ++y) {
-    for (int x = 0; x < w; ++x) {
-      if (!map_tile_seen_by(map, x, y, human_nation)) {
-        continue;
-      }
-      if (map_tile_is_land(map, x, y)) {
-        col1_bridge_mark_new_world_discovered(save, human_nation);
-        return;
-      }
-    }
-  }
+  col1_bridge_mark_new_world_discovered(save, human_nation);
 }
 
 bool col1_contact_adjacent_tribe(

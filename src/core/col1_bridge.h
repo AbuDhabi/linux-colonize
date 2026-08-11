@@ -123,9 +123,12 @@ bool col1_contact_adjacent_tribe(
  */
 void col1_bridge_mark_new_world_discovered(ColonizeCol1Save* save, int human_nation);
 
+/* True if human has any seen land tile (candidate for @LANDHO). */
+bool col1_bridge_human_has_seen_land(const ColonizeWorldMap* map, int human_nation);
+
 /*
  * If human has seen any land tile and discovery flags are still clear, set them.
- * Used after reveal and as capture safety net for mid-campaign Linux saves.
+ * Capture / mid-campaign load safety net — live play opens @LANDHO instead.
  */
 void col1_bridge_sync_new_world_discovery(
   ColonizeCol1Save* save,

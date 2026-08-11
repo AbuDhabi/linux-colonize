@@ -253,11 +253,7 @@ static void ai_popup_draw_shadowed(
   const char* text,
   uint8_t color
 ) {
-  if (!font || !text || !text[0]) {
-    return;
-  }
-  font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
-  font_draw_text_unbold(font, fb, x, y, text, color);
+  popup_draw_text_shadowed(font, fb, x, y, text, color);
 }
 
 /*

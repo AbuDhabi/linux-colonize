@@ -455,7 +455,8 @@ skips tribe friction decay **Done** thin.
 Harbor `@RAIDSHIP` hold-cargo dump + status **Done** thin.
 `@INDIANWAGONS` demand tools-from-wagon hold **Done** thin.
 `@INDIANSCONVERT` colony-name convert status **Done** thin.
-`@INDIANCOMMENT` encroachment mid-cross status **Done** thin.
+`@INDIANCOMMENT` encroachment mid-cross chrome **Done** thin (colony encroachment
+only — unit bumps still apply without popup).
 WELCOME Accept clears alarm/friction; Reject floors friction ≥80 + attacks++ **Done** thin.
 Missionary flee status (established mission) **Done** thin.
 Teach/gift/demand/raid/convert/trade-refuse status tribe naming **Done** thin.
@@ -495,6 +496,7 @@ Military score weights + colony-gap Tools embargo + war/peace `_ctx` status chro
 matrix helpers / native-hostility status **Done**.
 Wartime Cloth/Coats boycott bits; sticky→0 status "Native tensions ease.";
 `break_alliance_ctx` human chrome **Done**. Privateer **unit** spawn **Done**
+(commission status line only; no invented INFO OK popup).
 (8g treasury prize null-units only — PARK).
 
 **Still PARKED:** FA `3f41` full body/UI; deep privateer cargo-raid loot; exact DS
