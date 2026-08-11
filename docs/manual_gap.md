@@ -59,6 +59,8 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 
 ### Units and map orders
 
+Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
+
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
@@ -200,6 +202,7 @@ chrome, Congress UI, and full 1:1 AI bodies remain.
 ## See also
 
 - [original_index.md](original_index.md) — decomp / data navigation
+- [unit_orders.md](unit_orders.md) — unit order mechanics + port status
 - [decomp_inventory.md](decomp_inventory.md) — bring-up and parked RE
 - [ai_transcription.md](ai_transcription.md) — AI FUN_* inventory and 1:1 roadmap
 - [assets.md](assets.md) — formats and UI wiring
