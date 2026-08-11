@@ -313,7 +313,7 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 Playability mirror: [manual_gap.md](manual_gap.md). Thin maps under
 `original_sources_annotated/ai/` mark structural `ai_popup` work **Done** and
 reserve **PARKED** / **OPEN** for the still-deferred column (deep bodies, VGA,
-leftover FF hooks, deep `20e6`).
+leftover FF KINGGALLEON2, deep `20e6`).
 
 ### R0 — Fidelity debt and doc hygiene (**partial**)
 

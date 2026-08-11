@@ -71,8 +71,8 @@ int main(int argc, char** argv) {
     cli.window_scale,
     cli.no_sound ? "yes" : "no");
   diag_info(
-    "NOTE: UI now uses GAME.TXT @BEGINMENU + VICEROY.PAL. "
-    "Map/menu art from MADSPACK .PIK/.SS is not decoded yet; map view is still a placeholder."
+    "NOTE: UI uses GAME.TXT @BEGINMENU + VICEROY.PAL; "
+    "MADSPACK .PIK/.SS art and the MAPEDIT-faithful map compositor are live."
   );
 
   ColonizePlatformConfig platform_cfg = {

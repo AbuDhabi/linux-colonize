@@ -167,7 +167,7 @@ When the worker’s **skill matches** the job, an additive resource bonus is its
 
 Examples (free colonist, no other mods):
 
-| Tile | Port (stale) | DOS |
+| Tile | Port (current) | DOS |
 |------|-------------:|----:|
 | Plains + Prime Cotton (cotton) | 6 | 4 (double of 2) |
 | Hills + Minerals (ore) | 4 | 4+3 = 7 |

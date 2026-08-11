@@ -36,11 +36,11 @@ save/load, basic units / naval passengers, founding a colony, and Europe
 buy/sell/recruit/hire**. Structural Indian contact (including player dialogs),
 Euro/Indian diplomacy, king/REF (audience/confirm/merc), FF election, trade
 routes (Create/Edit/Begin), and early Euro AI (seed-100 T2 + thin expand/war)
-are in. Next playability work is leftover **FF hooks**, deep mid-planner
-`20e6`, production / combat depth, and endgame polish — not waiting on missing
-combat/capture prerequisites. VGA dialog chrome, Congress UI, COLDIG SFX, and
-full 1:1 AI bodies remain later. Snapshot source:
-[manual_gap.md](manual_gap.md) takeaway.
+are in (Sepulveda/Cortes/de Witt effects **Done**). Next playability work is
+leftover **FF** KINGGALLEON2, deep mid-planner `20e6`, production / combat depth,
+and endgame polish — not waiting on missing combat/capture prerequisites. VGA
+dialog chrome, Congress UI, COLDIG SFX, and full 1:1 AI bodies remain later.
+Snapshot source: [manual_gap.md](manual_gap.md) takeaway.
 
 **Maintained (not blocking):** Col1 save RE P0–P6 is **Done**
 ([save_format_map.md](save_format_map.md)); keep interop green. VICEROY light
