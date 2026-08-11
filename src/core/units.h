@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "core/assets.h"
+#include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -50,6 +51,26 @@ void units_set_combat_colonies(const ColonizeColonyPool* colonies);
  * Pass -1 to clear. game_loop / turn set this alongside units_set_ff_col1.
  */
 void units_set_combat_human_nation(int human_nation);
+
+/*
+ * Optional GAME.TXT + ai_popup for structural combat outcome modals
+ * (@EUROPEWIN/LOSE, @LOOT*, @SHIP*, @DEMOTE, …). Pass NULL to clear.
+ */
+void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt);
+
+/*
+ * FUN_5fef_0000: pick best defender on tile for engagement toughness.
+ * Skips non-combat roles (type.attack==0). Artillery vs Indian attacker ×2.
+ * Returns unit id or -1. except_id skips the attacker / mover.
+ */
+int units_best_defender_at(
+  const ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int x,
+  int y,
+  int attacker_id,
+  int except_id
+);
 
 /*
  * Destroy native village Col1 record at (x,y) if present. Clears map owner

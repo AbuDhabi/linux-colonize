@@ -315,3 +315,259 @@ int combat_unit_toughness(
   /* Always use 015e so colony/village/fortify apply; foe_id may be -1. */
   return combat_engagement_strength(ctx, unit_id, foe_id, NULL);
 }
+
+int combat_type_is_artillery_name(const char* name) {
+  return name && name[0] &&
+         (strstr(name, "Artillery") != NULL || strstr(name, "Cannon") != NULL);
+}
+
+int combat_type_is_scout_name(const char* name) {
+  return name && name[0] && strstr(name, "Scout") != NULL;
+}
+
+int combat_unit_is_combat_role(const ColonizeUnitPool* pool, int unit_id) {
+  if (!pool) {
+    return 0;
+  }
+  const ColonizeUnitType* t = NULL;
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active) {
+    return 0;
+  }
+  t = units_type(pool, u->type_index);
+  if (!t) {
+    return 0;
+  }
+  /* FUN_5fef_0000: skip when type.attack (5236) == 0. */
+  return t->attack > 0;
+}
+
+static int combat_unit_on_colony(
+  const ColonizeCombatStrengthCtx* ctx,
+  const ColonizeUnit* u
+) {
+  if (!ctx || !ctx->colonies || !u) {
+    return 0;
+  }
+  return colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
+}
+
+static int combat_colony_sol_at(
+  const ColonizeCombatStrengthCtx* ctx,
+  int x,
+  int y
+) {
+  if (!ctx || !ctx->colonies || !ctx->col1) {
+    return 0;
+  }
+  const int cid = colonies_id_at(ctx->colonies, x, y);
+  if (cid < 0) {
+    return 0;
+  }
+  const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+  if (!c) {
+    return 0;
+  }
+  /* Inline colony_prod_sol_percent to avoid linking colony_production into smokes. */
+  if (ctx->col1->colony) {
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* cc = &ctx->col1->colony[i];
+      if ((int)cc->x != c->x || (int)cc->y != c->y) {
+        continue;
+      }
+      if (cc->rebel_divisor == 0) {
+        break;
+      }
+      int sol = (int)((cc->rebel_dividend * 100u) / cc->rebel_divisor);
+      if (sol < 0) {
+        sol = 0;
+      }
+      if (sol > 100) {
+        sol = 100;
+      }
+      return sol;
+    }
+  }
+  if (c->nation_id >= 0 && c->nation_id < 4) {
+    int sol = (int)ctx->col1->nation[c->nation_id].liberty_bells_total / 4;
+    if (sol > 100) {
+      sol = 100;
+    }
+    if (sol < 0) {
+      sol = 0;
+    }
+    return sol;
+  }
+  return 0;
+}
+
+/*
+ * FUN_5fef_1b0e peels after 157e base strengths.
+ * Cite: viceroy_unpacked.c ~100459–100576 (artillery/ambush/SoL/diff/Scout).
+ */
+void combat_apply_1b0e_peels(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  ColonizeCombatEngageResult* io
+) {
+  if (!ctx || !ctx->units || !io) {
+    return;
+  }
+  const ColonizeUnit* atk = units_get_const(ctx->units, attacker_id);
+  const ColonizeUnit* def = units_get_const(ctx->units, defender_id);
+  if (!atk || !def) {
+    return;
+  }
+  const ColonizeUnitType* at = units_type(ctx->units, atk->type_index);
+  const ColonizeUnitType* dt = units_type(ctx->units, def->type_index);
+  if (!at || !dt) {
+    return;
+  }
+
+  const int atk_nat = atk->nation_id;
+  const int def_nat = def->nation_id;
+  const int atk_ship = combat_type_is_ship(ctx->units, attacker_id);
+  const int def_ship = combat_type_is_ship(ctx->units, defender_id);
+  const int on_colony = combat_unit_on_colony(ctx, def);
+  const int land = !atk_ship && !def_ship;
+
+  /* Difficulty: human Euro side strength -= (difficulty - 4). */
+  if (ctx->col1) {
+    const int diff = (int)ctx->col1->head.difficulty;
+    const int adj = diff - 4;
+    if (atk_nat >= 0 && atk_nat <= 3 && !combat_nation_is_ai(ctx->col1, atk_nat)) {
+      io->atk_strength -= adj;
+    }
+    if (def_nat >= 0 && def_nat <= 3 && !combat_nation_is_ai(ctx->col1, def_nat)) {
+      io->def_strength -= adj;
+    }
+  }
+
+  /* Artillery open-field >>2 when combat tile is not a colony. */
+  if (land) {
+    const int atk_arty = combat_type_is_artillery_name(at->name);
+    const int def_arty = combat_type_is_artillery_name(dt->name);
+    const int atk_fort =
+      atk->orders == UNITS_ORDER_FORTIFIED || atk->orders == UNITS_ORDER_FORTIFY;
+    const int def_fort =
+      def->orders == UNITS_ORDER_FORTIFIED || def->orders == UNITS_ORDER_FORTIFY;
+    if (!on_colony) {
+      if (atk_arty && (!atk_fort || def_nat > 3)) {
+        io->atk_strength >>= 2;
+        io->atk_flags.flags |= COMBAT_FLAG_ARTILLERY;
+        io->atk_flags.flags_hi |= COMBAT_FLAG_ARTILLERY;
+      }
+      if (def_arty && (!def_fort || atk_nat > 3)) {
+        io->def_strength >>= 2;
+        io->def_flags.flags |= COMBAT_FLAG_ARTILLERY;
+        io->def_flags.flags_hi |= COMBAT_FLAG_ARTILLERY;
+      }
+    } else if (def_arty && atk_nat > 3) {
+      /* Artillery defender vs native attacker on colony → ×2. */
+      io->def_strength <<= 1;
+      io->def_flags.flags2 |= COMBAT_FLAG_ARTY_COLONY;
+    }
+    /* Spanish ambush +50% vs Indians on colony. */
+    if (atk_nat == 2 && def_nat > 3 && on_colony) {
+      io->atk_strength += io->atk_strength >> 1;
+      io->atk_flags.flags |= COMBAT_FLAG_AMBUSH;
+      io->atk_flags.flags_hi |= COMBAT_FLAG_AMBUSH;
+    }
+  }
+
+  /* WoI SoL / REF popular-support peels (attacker Euro). */
+  if (ctx->col1 && ctx->col1->head.game_options.woi && atk_nat >= 0 && atk_nat <= 3 &&
+      land) {
+    if (ctx->col1->head.game_options.ref_present) {
+      io->atk_strength += io->atk_strength >> 1;
+      io->atk_flags.flags |= COMBAT_FLAG_REF;
+      io->atk_flags.flags_hi |= COMBAT_FLAG_REF;
+    }
+    int sol = combat_colony_sol_at(ctx, def->x, def->y);
+    if (sol <= 0 && atk_nat < 4) {
+      sol = (int)ctx->col1->nation[atk_nat].rebel_sentiment;
+      if (sol < 0) {
+        sol = 0;
+      }
+      if (sol > 100) {
+        sol = 100;
+      }
+    }
+    if (sol > 0) {
+      /* Rebel side uses Tory share (100−SoL); else SoL%. Thin: always SoL. */
+      const int add = (sol * io->atk_strength) / 100;
+      io->atk_strength += add;
+      io->atk_flags.flags2 |= COMBAT_FLAG_SOL;
+      io->atk_flags.sol_percent = sol;
+    }
+  }
+
+  /* Discoverer damper: human attacker vs AI Euro, difficulty 0 → −25%. */
+  if (ctx->col1 && ctx->col1->head.difficulty == 0 && atk_nat >= 0 && atk_nat <= 3 &&
+      !combat_nation_is_ai(ctx->col1, atk_nat) && def_nat >= 0 && def_nat <= 3 &&
+      combat_nation_is_ai(ctx->col1, def_nat)) {
+    io->atk_strength -= io->atk_strength >> 2;
+  }
+
+  /* Scout vs Artillery: force defender win (Indian scout / human arty thin). */
+  if (land && combat_type_is_scout_name(at->name) &&
+      combat_type_is_artillery_name(dt->name)) {
+    io->force_defender_wins = true;
+  }
+
+  if (io->atk_strength < 0) {
+    io->atk_strength = 0;
+  }
+  if (io->def_strength < 0) {
+    io->def_strength = 0;
+  }
+}
+
+void combat_land_engage(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  ColonizeCombatEngageResult* out
+) {
+  if (!out) {
+    return;
+  }
+  memset(out, 0, sizeof(*out));
+  combat_side_flags_clear(&out->atk_flags);
+  combat_side_flags_clear(&out->def_flags);
+  out->atk_strength = combat_unit_base_x8(ctx, attacker_id, 1, &out->atk_flags);
+  out->def_strength =
+    combat_engagement_strength(ctx, defender_id, attacker_id, &out->def_flags);
+  if (out->atk_strength < 0) {
+    out->atk_strength = 0;
+  }
+  if (out->def_strength < 0) {
+    out->def_strength = 0;
+  }
+  combat_apply_1b0e_peels(ctx, attacker_id, defender_id, out);
+}
+
+void combat_naval_engage(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  ColonizeCombatEngageResult* out
+) {
+  if (!out) {
+    return;
+  }
+  memset(out, 0, sizeof(*out));
+  combat_side_flags_clear(&out->atk_flags);
+  combat_side_flags_clear(&out->def_flags);
+  out->atk_strength = combat_unit_base_x8(ctx, attacker_id, 1, &out->atk_flags);
+  out->def_strength = combat_unit_base_x8(ctx, defender_id, 0, &out->def_flags);
+  if (out->atk_strength < 0) {
+    out->atk_strength = 0;
+  }
+  if (out->def_strength < 0) {
+    out->def_strength = 0;
+  }
+  /* Naval: difficulty peel only (artillery/ambush/SoL are land). */
+  combat_apply_1b0e_peels(ctx, attacker_id, defender_id, out);
+}
