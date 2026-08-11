@@ -82,10 +82,10 @@ FR ship home sail / pioneer→Soldier / DU cruise leg3). **`FUN_521d_0492` porte
 First-colony / Atlantic tips live in thin **`LAB_521d_3558` / `06ae` ports**
 (`ai_euro_ocean_3558_first_leg_tip`, `ai_euro_ocean_3558_empty_cruise_tip`,
 `ai_euro_06ae_first_colony_from_landfall`) — separate latitude stand-in helpers
-**retired**. Residual: ports still **seed** latitude-band preferred candidates
-until full cargo/colony `3558` matrix and multi-ring live `06ae` match goldens
-without seeds (adj `06ae` still prefers some inland higher DS:0x2f77).
-**`FUN_521d_20e6` section-mapped** (band table in `move_scoring.md`); Europe-exit
+**retired**. Soft tip (Quebec/NA/Isabella) remains a **prior inside** the live
+`06ae` landfall port when foundable; mid empty-cruise tip is scored (no caller
+`fx+2,fy+6`). Full cargo/colony `3558` matrix and multi-ring live `06ae` still
+OPEN. **`FUN_521d_20e6` section-mapped** (band table in `move_scoring.md`); Europe-exit
 uses `units_spiral_place_hs_near` (`48d3_048e`); ocean score adds
 leave-HS-into-ocean + Chebyshev + empty-hold coastal cling. Post-found SW cruise
 legs are geometric from tip (`−4,+2` / `−6,+3` / `−11,+6`) plus SP tip−1→NE berth.
@@ -368,8 +368,8 @@ leftover FF hooks, deep `20e6`).
   leg3 `(37,19)→(32,22)`; Isabella stale zero-hammer bip clear. **Found /
   sail (Phase 2):** Atlantic / cruise / first-town live in thin `3558`/`06ae`
   ports (`ai_euro_ocean_3558_*`, `ai_euro_06ae_first_colony_from_landfall`);
-  latitude stand-in helpers retired; ports still seed preferred candidates
-  (mid FR tip uses `fx+2,fy+6` when cruise tip returns 0). `FUN_521d_06ae` +
+  latitude stand-in helpers retired; soft tip prior inside live `06ae` port;
+  mid empty-cruise tip scored (no caller `fx+2,fy+6`). `FUN_521d_06ae` +
   `0492` ported; adj `06ae` still misses some coastal first towns. `48d3_048e`
   spiral place + `20e6` band map Done. Full `LAB_521d_3558` cargo/colony sail
   OPEN.
@@ -580,37 +580,44 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
   combat prefers settlement-adjacent foes (`0x46`-shaped). Ocean empty-hold
   coastal cling. Full arms + combat-resolve field fidelity remain **OPEN**.
 
-**Phase 2 (retire early Euro geometry) — Done (residual seeds)**
+**Phase 2 (retire early Euro geometry) — Done (soft-tip prior)**
 
 - Deleted stand-ins `ai_euro_atlantic_approach_tile` /
   `ai_euro_post_beachhead_ship_waypoint` / `ai_euro_found_tile_from_landfall`.
 - Replaced by thin ports: `ai_euro_ocean_3558_first_leg_tip`,
-  `ai_euro_ocean_3558_empty_cruise_tip`, `ai_euro_06ae_first_colony_from_landfall`.
-- First-colony resolve tries live `06ae` from coastal staging; keeps seed when
-  live ≠ Quebec/NA/Isabella. TURN1→7 + Indian joint rows green.
+  `ai_euro_ocean_3558_empty_cruise_tip` (mid tip scored — no caller `fx+2,fy+6`),
+  `ai_euro_06ae_first_colony_from_landfall` (live west-box + coastal bias;
+  latitude soft tip wins when foundable — prior inside the port, not a separate
+  resolve seed branch).
+- First-colony resolve prefers the live landfall port; adj 06ae staging last.
+  TURN1→7 + Indian joint rows green. Full DOS multi-ring 06ae still OPEN.
 
 **Phase 3 (Euro mid-planner) — partial**
 
 - `0a60` G: thin `−0x6790` stance nibbles `{0,3,4,6}` from live tallies
-  (`s_euro_continent_stance`); stance 3 soft-caps mil + bumps FOUND.
+  (`s_euro_continent_stance`); sticky≥2 → peacetime military nibble; stance 3
+  soft-caps mil + bumps FOUND.
 - `3558` peace colony-sail score (pop/idle/docks) in short-coastal haul pick;
   war cargo sail when stance≠0 + muskets/horses/mil pax.
+- Thin `4393` / `−0x5f24` work-queue haul peel (flag_b=1 colony shorts;
+  distance-normalized pick before nearest-short).
 - Deep E–H / full nibble fidelity / remaining `5d04` / full `5b66` /
-  full cargo matrix remain **OPEN**. Latitude seeds not retired yet.
+  full cargo matrix remain **OPEN**.
 
 **Phase 4 (Indian large bodies) — partial**
 
-- `2154`: colony 5×5 cover mask + forest/coast/food buckets; Generous at gold≥30
-  when rich (`smoke_ai_contact`).
-- `2820`: hard-bargain 45..54; silver-primary extra trade-goods under hard bargain.
-- `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING).
+- `2154`: colony 5×5 cover mask + forest/coast/food/ore buckets; Generous at
+  gold≥30 when rich; cover suppresses rich floor (`smoke_ai_contact`).
+- `2820`: hard-bargain 45..54; silver **and ore** primary extra trade-goods.
+- `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)
+  + early-year demote smoke.
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 
 **Phase 5 (alarmed act + claims) — partial**
 
 - Alarmed escort MD≤4 / 2× colony weight at alarm≥55 + smoke asserts.
-- `MID01.SAV`: Linux-derived mid-war stamp from TURN7 via `smoke_ai_mid01`
-  (wired into `smoke_ai_joint`). `MID02` pair compare still OPEN.
+- `MID01.SAV` + `MID02.SAV`: Linux-derived mid-war stamp + one joint turn pair
+  compare via `smoke_ai_mid01` (wired into `smoke_ai_joint`).
 - Quiet `14fe` dir picker unchanged. Full alarmed unit-act **PARKED**.
 
 **Per-module fidelity (honest — not blanket T3)**
@@ -620,11 +627,11 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 | Early Euro TURN1→7 (`6d8e` path) | **T2** (joint fields) |
 | Quiet Brave / tribes seed-100 | **T2** |
 | Indian×Euro `15b3` / sticky / meet floor 96 | **T2**-shaped partial |
-| Ocean `3558` / first-colony `06ae` | Thin ports + seeds — **not T3** |
+| Ocean `3558` / first-colony `06ae` | Thin ports + soft-tip prior — **not T3** |
 | Mid `0a60` / `5d04` / `5b66` | Thin / partial — **not T3** |
 | `2154` / `2820` / `4528` bodies | Thin / partial — **not T3** |
 | Alarmed Indian unit-act | Escort peel + smoke — **not T3** |
-| Mid joint golden | MID01 snapshot Done; MID02 OPEN |### R6 — King / REF (`43f7`) (**partial structural port**)
+| Mid joint golden | MID01+MID02 pair Done (Linux-derived) |### R6 — King / REF (`43f7`) (**partial structural port**)
 
 **Linux:** [`ai_king.c`](../src/core/ai_king.c) — `2424`-shaped peace (SoL → `1d42`
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +

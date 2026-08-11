@@ -1249,6 +1249,31 @@ int main(void) {
               (unsigned)col1.nation[0].gold);
       return fail("rich neighborhood should Generous at gold 30–39 (−20)");
     }
+    /*
+     * 2154 cover mask: Euro colony 5×5 over the forest ring suppresses rich
+     * floor → Large (−10) not Generous at gold 35. Cite: Series G1.
+     */
+    {
+      ColonizeColony* cov = &colonies.colonies[0];
+      cov->id = 0;
+      cov->active = true;
+      cov->nation_id = 0;
+      cov->x = 5;
+      cov->y = 5;
+      cov->population = 2;
+      colonies.colony_count = 1;
+      col1.nation[0].gold = 35;
+      ind->alarm_by_player[0] = 10;
+      col1.tribe[0].alarm[0].friction = 10;
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (col1.nation[0].gold != 25u) {
+        fprintf(stderr, "smoke_ai_contact: cover gift gold=%u (want 25 Large)\n",
+                (unsigned)col1.nation[0].gold);
+        return fail("colony 5×5 cover should suppress rich Generous floor");
+      }
+      cov->active = false;
+      colonies.colony_count = 0;
+    }
     for (int i = 0; i < 256; ++i) {
       map.terrain[i] = 1;
     }
@@ -2891,6 +2916,42 @@ int main(void) {
       return fail("successful raid should bump alarm_by_player by 2");
     }
 
+    /*
+     * 5fef demote: year<1520 + WREAK-eligible → STORES (or NOTHING). Structural
+     * smoke for Series G3; keep colony approach gate ≥70 elsewhere.
+     */
+    {
+      col1.head.year = 1505;
+      col1.head.difficulty = 0;
+      ind->alarm_by_player[0] = 90;
+      col1.tribe[0].alarm[0].friction = 90;
+      c_fr->population = 3;
+      c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
+      c_fr->stock[COLONIZE_CARGO_TOOLS] = 10;
+      /* Force many rolls; accept demote when WREAK would have fired. */
+      int saw_demote = 0;
+      for (int attempt = 0; attempt < 40; ++attempt) {
+        c_fr->stock[COLONIZE_CARGO_FOOD] = 20;
+        c_fr->stock[COLONIZE_CARGO_TOOLS] = 10;
+        c_fr->population = 3;
+        ind->alarm_by_player[0] = 90;
+        col1.tribe[0].alarm[0].friction = 90;
+        ai_contact_indian_raids(&ctx, 4);
+        const int k = ai_contact_last_raid_kind();
+        if (k == AI_RAID_WREAK) {
+          return fail("year<1520 should demote WREAK away");
+        }
+        if (k == AI_RAID_STORES || k == AI_RAID_NOTHING) {
+          saw_demote = 1;
+        }
+      }
+      if (!saw_demote) {
+        return fail("early-year demote path should yield STORES/NOTHING in samples");
+      }
+      col1.head.year = 1492;
+      col1.head.difficulty = 2;
+    }
+
     /* Same path with Pocahontas → half bump (+2 → +1). */
     col1.head.founding_father[FF_POCAHONTAS] = 0;
     ind->alarm_by_player[0] = 50;
@@ -3169,6 +3230,39 @@ int main(void) {
         return fail("hard-bargain should set hard-bargain status");
       }
       ind->alarm_by_player[0] = 10; /* restore peaceful for later arms */
+    }
+
+    /*
+     * Hard-bargain ore peel (Aztec primary): same 2bbc-shaped extra goods drain.
+     * Cite: indian_trade_2820.md; Series G2.
+     */
+    {
+      ColonizeCol1Indian* az = &col1.indian[1];
+      az->euro_diplo[0] = 1;
+      az->alarm_by_player[0] = 47;
+      col1.nation[0].relation_by_indian[1] = 80; /* Aztec×Euro meet floor */
+      col1.tribe[0].nation_id = 5; /* Aztec ore */
+      col1.tribe[0].alarm[0].friction = 20;
+      c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] = 3;
+      const int goods_ore = c_pop->stock[COLONIZE_CARGO_TRADE_GOODS];
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 5;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_ore - 2) {
+        fprintf(stderr, "smoke_ai_contact: ore hard-bargain goods %d→%d\n", goods_ore,
+                c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
+        return fail("hard-bargain ore peel should drain 2 trade goods");
+      }
+      col1.tribe[0].nation_id = 4; /* restore Inca */
+      ind->alarm_by_player[0] = 10;
+      az->alarm_by_player[0] = 10;
+      pop.result_nation_b = 4;
     }
 
     /*

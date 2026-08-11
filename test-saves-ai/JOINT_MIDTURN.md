@@ -12,13 +12,13 @@ Aggregate CI gate: `cmake --build build --target smoke_ai_joint`
 | Save | Role | Status |
 |------|------|--------|
 | `MID01.SAV` | Linux-derived mid-war stamp from TURN7 (sticky≥2, alarm, year≥1505) | **Done** via `smoke_ai_mid01` (regenerates + self-checks) |
-| `MID02.SAV` | Follow-on turn after MID01 | Scaffold — pair compare OPEN |
+| `MID02.SAV` | One joint turn after MID01 (Euro dispatcher + Indian nation act) | **Done** via `smoke_ai_mid01` (write + pair compare) |
 | `LATE01.SAV` | Late war + Indian raid + Euro hunt same sequence | Scaffold |
 
 `smoke_ai_mid01` loads `TURN7.SAV`, stamps joint mid-war fields, writes
-`MID01.SAV`, reloads and asserts Euro+Brave units, tribes, sticky, year.
-Until `MID02.SAV` exists there is no turn-to-turn golden diff — only snapshot
-self-consistency.
+`MID01.SAV`, runs one `turn_end`, captures `MID02.SAV`, then pair-compares
+calendar / Euro+Brave / tribes / colonies / sticky surfaces (same joint list
+spirit as `smoke_ai_turns`). Exact unit XY is Linux-derived each run.
 
 Each pair should encode:
 

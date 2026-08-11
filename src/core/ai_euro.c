@@ -54,6 +54,7 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
     }
   }
   const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  const int sticky = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
   for (int cid = 0; cid <= 15; ++cid) {
     const unsigned target =
       (unsigned)ctx->col1->post_map.continent_tally_b[cid] / 12u;
@@ -64,6 +65,12 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
       s_euro_continent_stance[nation_id][cid] = 3; /* expand */
     } else if (at_war && have > 0) {
       s_euro_continent_stance[nation_id][cid] = 4; /* military */
+    } else if (have > 0 && sticky >= 2) {
+      /*
+       * Peacetime −0x6790==4 stand-in: high Indian sticky → military nibble for
+       * mil unload / war cargo arms. Cite: move_scoring_ship.md; Series F1.
+       */
+      s_euro_continent_stance[nation_id][cid] = 4;
     } else if (have > 0 && (unsigned)have < target) {
       s_euro_continent_stance[nation_id][cid] = 3;
     } else if (have > 0) {
@@ -252,10 +259,12 @@ static int ai_euro_ocean_3558_first_leg_tip(
 
 /*
  * LAB_521d_3558 / 457e-shaped empty-ship coastal cruise tip after first town.
- * Seeds latitude-band candidates; mid-band returns 0 so caller uses fx+2,fy+6.
- * Cite: test-saves-ai/TURN3–4; move_scoring_ship.md.
+ * Latitude soft tips scored onto water/HS. Mid returns Quebec coast tip so
+ * callers need not hardcode fx+2,fy+6; pre-found FR empty-transport still
+ * holds south of found (see unload_settle). Cite: TURN3–6; move_scoring_ship.md.
  *   southern found (y<30): (−6,+2) → Isabella (49,14)→(43,16)
  *   northern found (y≥50): (+1,−2) → New Amsterdam (45,52)→(46,50)
+ *   mid:               (+2,+6) → Quebec (50,37)→(52,43)
  */
 static int ai_euro_ocean_3558_empty_cruise_tip(
   const ColonizeWorldMap* map,
@@ -276,7 +285,8 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
     tx = found_x + 1;
     ty = found_y - 2;
   } else {
-    return 0;
+    tx = found_x + 2;
+    ty = found_y + 6;
   }
   if (map) {
     if (tx < 0) {
@@ -318,9 +328,9 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
 
 /*
  * FUN_521d_06ae / 0a60 first-colony FOUND from Atlantic landfall.
- * Live adj 06ae from ship still prefers inland higher DS:0x2f77; this path
- * seeds the seed-100 coastal town (Quebec/NA/Isabella) then validates
- * foundable. Full multi-ring 06ae OPEN. Cite: euro_goals.c; TURN3–6.
+ * Live port: latitude soft tip (Quebec/NA/Isabella) when foundable — soft tip
+ * is a prior inside this function, not a separate resolve seed branch.
+ * Full multi-ring 06ae OPEN. Cite: euro_goals.c; TURN3–6; Series E.
  * Gate: eastern rim landfall (x≥53; mid x≥55 so approach tip is not landfall).
  *   southern (y<30): (−4, 0) → Isabella (53,14)→(49,14)
  *   northern (y≥50): (−8,−4) → New Amsterdam (53,56)→(45,52)
@@ -714,19 +724,11 @@ static int ai_euro_try_post_found_coast_cruise(
   }
   int tip_x = 0;
   int tip_y = 0;
-  const int tip_from_table =
-    ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tip_x, &tip_y);
-  if (!tip_from_table) {
-    /* FR post-found coast tip (Quebec → 52,43). Cite: TURN5. */
-    tip_x = fx + 2;
-    tip_y = fy + 6;
-    if (tip_x < 0 || tip_y < 0 || tip_x >= (int)ctx->map->width ||
-        tip_y >= (int)ctx->map->height ||
-        (!map_tile_is_water(ctx->map, tip_x, tip_y) &&
-         !map_tile_is_high_seas(ctx->map, tip_x, tip_y))) {
-      return 0;
-    }
+  if (!ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tip_x, &tip_y)) {
+    return 0;
   }
+  /* Mid-band tip is scored (no longer caller-hardcoded). FR leg1 home uses mid. */
+  const int tip_from_table = !(fy >= 30 && fy < 50);
   /* On tip or SW cruise legs — not SP one-west tip (45,50). */
   const int on_tip = (u->x == tip_x && u->y == tip_y);
   const int on_leg1 = (u->x == tip_x - 4 && u->y == tip_y + 2);
@@ -811,8 +813,9 @@ static int ai_euro_try_post_found_coast_cruise(
     return 0; /* do not latch tip before pioneer arrives */
   }
   /*
-   * FR geometric tip (no beachhead table): after SW leg1, sail home to tip with
-   * colony goto (TURN6→7 48,45→52,43 g=Quebec). Cite: test-saves-ai/TURN7.
+   * FR mid-band: after SW leg1, sail home to tip with colony goto
+   * (TURN6→7 48,45→52,43 g=Quebec). tip_from_table is false for mid.
+   * Cite: test-saves-ai/TURN7; Series E3.
    */
   if (on_leg1 && !tip_from_table) {
     if (u->moves_left <= 0 || units_orders_skip_turn(u)) {
@@ -2631,7 +2634,8 @@ static int ai_euro_pick_founding_tile(
   int* out_x,
   int* out_y
 ) {
-  (void)colony_count;
+  /* First colony: coastal≥40 + west bias in goals; later towns coastal=10. */
+  const int coastal = (colony_count <= 0) ? 40 : 10;
   return ai_goals_pick_founding_tile_ex(
     map,
     colonies,
@@ -2641,7 +2645,7 @@ static int ai_euro_pick_founding_tile(
     y,
     /*score_extras=*/1,
     /*wagon_filter=*/0,
-    /*coastal_bonus=*/10,
+    /*coastal_bonus=*/coastal,
     out_x,
     out_y
   );
@@ -4372,6 +4376,48 @@ static int ai_euro_haul_load_amount(const ColonizeColony* c, int cargo_type) {
  * when cargo_type < 0). Cite: euro_unit_act §2d wagon haul; 5cf6 shortage
  * tallies; Colonization.pdf Wagon Train.
  */
+static int ai_euro_4393_work_queue_haul_pick(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (!ctx || !ctx->colonies || !out_x || !out_y || nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  int best_score = -999999;
+  int have = 0;
+  int bx = 0;
+  int by = 0;
+  for (int i = 0; i < AI_WORK_SLOTS; ++i) {
+    const AiWorkSlot* w = ai_goals_work(i);
+    if (!w || w->id < 0 || w->flag_b != 1) {
+      continue; /* haul slots only (CONTACT uses flag_b=0) */
+    }
+    const ColonizeColony* c = colonies_get(ctx->colonies, (int)w->id);
+    if (!c || !c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const int d = abs(c->x - from_x) + abs(c->y - from_y);
+    /* Distance-normalized −0x5f24 score (thin 4393). */
+    const int score = (int)w->score - d * 4;
+    if (!have || score > best_score) {
+      have = 1;
+      best_score = score;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (!have) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
 static int ai_euro_nearest_haul_short_colony(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -4552,8 +4598,13 @@ static int ai_euro_try_wagon_haul(
   }
   int tx = 0;
   int ty = 0;
-  if (!ai_euro_nearest_haul_short_colony(
-        ctx, nation_id, wagon->x, wagon->y, prefer_cargo, &tx, &ty)) {
+  /* Thin 4393: work-queue haul when specialty/idle (prefer_cargo set or empty). */
+  if ((prefer_cargo >= 0 || has_cap) &&
+      ai_euro_4393_work_queue_haul_pick(ctx, nation_id, wagon->x, wagon->y, &tx, &ty)) {
+    /* use work-queue tip */
+  } else if (!ai_euro_nearest_haul_short_colony(
+               ctx, nation_id, wagon->x, wagon->y, prefer_cargo, &tx, &ty
+             )) {
     return 0;
   }
   if (wagon->x == tx && wagon->y == ty) {
@@ -7508,6 +7559,30 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
         }
       }
+      /*
+       * Thin 4393 / −0x5f24 work-queue haul peel: short colonies get a scored
+       * work slot (idle*8 + specialty bump). Ship/wagon haul picks distance-
+       * normalize. Full 16×6 matrix OPEN. Cite: move_scoring_ship.md; Series F2.
+       */
+      {
+        const int haul_short =
+          ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_TOOLS) ||
+          ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_LUMBER) ||
+          ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_ORE) ||
+          ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_MUSKETS) ||
+          ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_HORSES) ||
+          ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_FOOD);
+        if (haul_short) {
+          int wscore = (int)c->cargo_idle_turns * 8;
+          uint8_t flag_a = 0xff;
+          if (c->specialty_cargo != 0xff &&
+              (int)c->specialty_cargo < COLONIZE_CARGO_COUNT) {
+            wscore += 16;
+            flag_a = c->specialty_cargo;
+          }
+          ai_goals_upsert_work(c->id, wscore, flag_a, /*haul=*/1);
+        }
+      }
     }
   }
 
@@ -8640,7 +8715,9 @@ static int ai_euro_try_ship_trade_haul(
 
   int cx = 0;
   int cy = 0;
-  if (!ai_euro_nearest_short_coastal_colony(ctx, nation_id, ship->x, ship->y, &cx, &cy)) {
+  /* Thin 4393 work-queue haul peel before peace colony-sail short pick. */
+  if (!ai_euro_4393_work_queue_haul_pick(ctx, nation_id, ship->x, ship->y, &cx, &cy) &&
+      !ai_euro_nearest_short_coastal_colony(ctx, nation_id, ship->x, ship->y, &cx, &cy)) {
     return 0;
   }
   int wx = 0;
@@ -9952,7 +10029,9 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       }
     }
 
-    /* Found-approach: pioneer still aboard after soldier beachhead. */
+    /* Found-approach: pioneer still aboard after soldier beachhead.
+     * Thin local_9c founder bit (0x40): land-adj unload toward 06ae found
+     * (found / found+N) — not a new tip table. Cite: move_scoring_ship.md. */
     if (pioneer && pioneer->aboard_ship_id == ship->id && soldier_ashore && have_found) {
       const int hold_x = found_x;
       const int hold_y = found_y + 2;
@@ -9978,15 +10057,19 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       return;
     }
 
-    /* Empty transport after beachhead: cruise to found-coast waypoint. */
+    /* Empty transport after beachhead: cruise to found-coast waypoint.
+     * Mid-band (FR) still holds south of found — mid empty-cruise tip is for
+     * post-found coast cruise only. Cite: TURN3–4; Series E3. */
     if (!pioneer && !soldier && (pioneer_ashore || soldier_ashore) && have_found) {
       int wx = 0;
       int wy = 0;
-      if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, found_x, found_y, &wx, &wy)) {
+      if (found_y >= 30 && found_y < 50) {
+        ai_euro_set_goto(ship, UNITS_ORDER_AI_MOVE, found_x, found_y + 2);
+        ship->moves_left = 0;
+      } else if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, found_x, found_y, &wx, &wy)) {
         ai_euro_set_goto(ship, UNITS_ORDER_AI_MOVE, wx, wy);
         /* Sail spends MP in the case 0x0b loop after this returns. */
       } else {
-        /* FR-style: hold south of found, do not enter. */
         ai_euro_set_goto(ship, UNITS_ORDER_AI_MOVE, found_x, found_y + 2);
         ship->moves_left = 0;
       }
@@ -10273,9 +10356,9 @@ static int ai_euro_nation_pioneer_aboard(ColonizeTurnContext* ctx, int nation_id
  */
 /*
  * Resolve first-colony found XY.
- * Prefer primary FOUND; try live 06ae from coastal staging (local_9c/unload
- * shaped); landfall seed when live misses Quebec/NA/Isabella; adj 06ae last.
- * Cite: move_scoring.md §06ae; move_scoring_ship.md local_9c.
+ * Prefer primary FOUND; live 06ae landfall port (soft tip prior inside); adj
+ * 06ae from coastal staging last. No separate "prefer seed over live" branch —
+ * landfall port is the live path. Cite: §06ae; Series E4.
  */
 static int ai_euro_resolve_first_found_tile(
   ColonizeTurnContext* ctx,
@@ -10297,14 +10380,16 @@ static int ai_euro_resolve_first_found_tile(
       return 1;
     }
   }
-  int seed_x = 0;
-  int seed_y = 0;
-  const int have_seed =
-    lf_x >= 0 &&
-    ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &seed_x, &seed_y);
   int live_x = 0;
   int live_y = 0;
-  int have_live = 0;
+  if (lf_x >= 0 &&
+      ai_euro_06ae_first_colony_from_landfall(
+        ctx->map, ctx->colonies, lf_x, lf_y, &live_x, &live_y
+      )) {
+    *out_x = live_x;
+    *out_y = live_y;
+    return 1;
+  }
   if (lf_x >= 0 && ctx->map && ctx->colonies) {
     int sx = lf_x;
     int sy = lf_y;
@@ -10314,34 +10399,22 @@ static int ai_euro_resolve_first_found_tile(
         sx = u->x;
         sy = u->y;
       }
-      have_live = ai_euro_pick_founding_tile(
-        ctx->map,
-        ctx->colonies,
-        ctx->col1_ok ? ctx->col1 : NULL,
-        nation_id,
-        sx,
-        sy,
-        0,
-        &live_x,
-        &live_y
-      );
+      if (ai_euro_pick_founding_tile(
+            ctx->map,
+            ctx->colonies,
+            ctx->col1_ok ? ctx->col1 : NULL,
+            nation_id,
+            sx,
+            sy,
+            0,
+            &live_x,
+            &live_y
+          )) {
+        *out_x = live_x;
+        *out_y = live_y;
+        return 1;
+      }
     }
-  }
-  /* Prefer live when it matches seed (path to seed retirement). */
-  if (have_live && have_seed && live_x == seed_x && live_y == seed_y) {
-    *out_x = live_x;
-    *out_y = live_y;
-    return 1;
-  }
-  if (have_seed) {
-    *out_x = seed_x;
-    *out_y = seed_y;
-    return 1;
-  }
-  if (have_live) {
-    *out_x = live_x;
-    *out_y = live_y;
-    return 1;
   }
   return ai_goals_pick_founding_tile(
     ctx->map,
@@ -11213,36 +11286,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       if (cid >= 0 &&
           ((u->goto_x == fx && u->goto_y == fy + 2) ||
            (u->x == fx && u->y == fy + 2))) {
-        int tx = fx + 2;
-        int ty = fy + 6;
-        if (tx < 0) {
-          tx = 0;
+        int tx = 0;
+        int ty = 0;
+        if (ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tx, &ty)) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
         }
-        if (ty < 0) {
-          ty = 0;
-        }
-        if (tx >= (int)ctx->map->width) {
-          tx = (int)ctx->map->width - 1;
-        }
-        if (ty >= (int)ctx->map->height) {
-          ty = (int)ctx->map->height - 1;
-        }
-        /* Nudge onto water if the geometric tip is land. */
-        if (!map_tile_is_water(ctx->map, tx, ty) && !map_tile_is_high_seas(ctx->map, tx, ty)) {
-          for (int d = 0; d < 8; ++d) {
-            static const int kdx[] = {1, 0, -1, 0, 1, 1, -1, -1};
-            static const int kdy[] = {0, 1, 0, -1, 1, -1, 1, -1};
-            const int nx = tx + kdx[d];
-            const int ny = ty + kdy[d];
-            if (nx >= 0 && ny >= 0 && nx < (int)ctx->map->width && ny < (int)ctx->map->height &&
-                (map_tile_is_water(ctx->map, nx, ny) || map_tile_is_high_seas(ctx->map, nx, ny))) {
-              tx = nx;
-              ty = ny;
-              break;
-            }
-          }
-        }
-        ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tx, ty);
       }
     }
 
@@ -11617,7 +11665,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       if (fx >= 0 &&
           ai_euro_ocean_3558_empty_cruise_tip(ctx->map, fx, fy, &tip_x, &tip_y) &&
           u->x <= tip_x && abs(u->y - tip_y) <= 4 &&
-          ai_euro_chebyshev(u->x, u->y, tip_x, tip_y) <= 8) {
+          ai_euro_chebyshev(u->x, u->y, tip_x, tip_y) <= 8 &&
+          /* Do not yank FR mid tip→colony SAIL (TURN6→7 g=Quebec). */
+          !(u->goto_x == fx && u->goto_y == fy)) {
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
       }
     }
