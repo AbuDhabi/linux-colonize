@@ -460,8 +460,8 @@ work.
 | `@TOONEAR` | Partial | order/gate — status or bounce; no modal |
 | `@TOONEARBUILD` | Partial | order/gate — status or bounce; no modal |
 | `@TOOMOUNTAIN` | Partial | order/gate — status or bounce; no modal |
-| `@DONTKNOWSHIPS` | Missing | extort/ship anger dialogs missing |
-| `@MADATSHIPS` | Missing | extort/ship anger dialogs missing |
+| `@DONTKNOWSHIPS` | Done | Ship→unmet village: `ai_contact_try_ship_village` OK |
+| `@MADATSHIPS` | Done | Ship→met village (rel≥75 / friction≥64): same |
 | `@MADATWAGONS` | Missing | extort/ship anger dialogs missing |
 | `@GRUDGEWAGONS` | Missing | extort/ship anger dialogs missing |
 | `@CONFISCATE` | Missing | extort/ship anger dialogs missing |

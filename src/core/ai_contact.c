@@ -730,6 +730,73 @@ int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int i
   return 1;
 }
 
+/*
+ * FUN_4d56_4528 ship head (ASM): unmet met-bit 0x20 → @DONTKNOWSHIPS abort;
+ * relation≥0x4b or friction≥0x40 → @MADATSHIPS abort; else fall through to
+ * village meet. Ship never enters the tile. Cite: indian_settlement_4528.md.
+ */
+int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || euro_nation < 0 ||
+      euro_nation > 3) {
+    return 0;
+  }
+  ai_contact_bind_names(ctx);
+
+  const ColonizeCol1Tribe* tribe = NULL;
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
+      tribe = t;
+      break;
+    }
+  }
+  if (!tribe) {
+    return 0;
+  }
+
+  const int indian_nation = (int)tribe->nation_id;
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  const uint8_t diplo = ind->euro_diplo[euro_nation];
+
+  /* Unmet (DOS met bit 0x20 clear) → must contact on land first. */
+  if ((diplo & 0x20u) == 0) {
+    const char* body = "We must contact the Indians on land first, Excellency.";
+    ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
+    if (!ai_contact_euro_is_human(ctx, euro_nation)) {
+      ai_contact_set_status(ctx, body);
+    }
+    return 1;
+  }
+
+  const int rel = (int)ai_diplo_indian_relation(ctx->col1, indian_nation, euro_nation);
+  const int friction = (int)tribe->alarm[euro_nation].friction;
+  /* ASM: relation >= 0x4b OR friction >= 0x40 → MADAT (peace floor 96 hits this). */
+  if (rel >= 0x4b || friction >= 0x40 || ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
+    const char* tribe_name = ai_contact_tribe_name(indian_nation);
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(
+      body,
+      sizeof(body),
+      "The %s people do not trust the men in your ships. Therefore, we do not "
+      "wish to trade with you at this time. If you approach our shoreline we "
+      "shall punish you.",
+      tribe_name
+    );
+    ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
+    if (!ai_contact_euro_is_human(ctx, euro_nation)) {
+      ai_contact_set_status(ctx, body);
+    }
+    return 1;
+  }
+
+  /* Narrow mid-relation window: thin Meet CHOICE (land path stand-in). */
+  if (ai_contact_try_village_meet(ctx, euro_nation, indian_nation)) {
+    return 1;
+  }
+  ai_contact_set_status(ctx, "The village will not receive our ships.");
+  return 1;
+}
+
 /* Isolated from quiet-pulse LCG (seed-100 TURN goldens). */
 static void ai_contact_local_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* out) {
   uint32_t seed = 0xC07Au ^ (uint32_t)(nation_id * 97);

@@ -76,6 +76,14 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
  */
 int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
 
+/*
+ * Ship ordered onto a native village tile (FUN_4d56_4528 ship head). Never
+ * landfall. Unmet (euro_diplo met bit 0x20 clear) → @DONTKNOWSHIPS; met and
+ * (relation≥75 or tribe friction≥64) → @MADATSHIPS; else thin village Meet.
+ * Ship does not enter the tile. Returns 1 if (x,y) is a village and handled.
+ */
+int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
+
 /* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
 

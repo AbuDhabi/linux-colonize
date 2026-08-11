@@ -29,9 +29,11 @@ FUN_4d56_4528(unit, ?, ?, ?)
     BGM 04ac
 
   if unit is ship (type 0xd..0x12):
-    if !(flags & 0x20): dialog flush → LAB_4d56_4bf2 (abort)
-    if relation>0x4a || friction>0x3f:
-      nation-name dialog → 4bf2 abort
+    if !(euro_diplo & 0x20): @DONTKNOWSHIPS → LAB_4d56_4bf2 (abort)
+    if relation≥0x4b (75) || friction≥0x40 (64):
+      @MADATSHIPS → 4bf2 abort
+    else: fall through toward village meet (narrow mid-relation window;
+      peace floor 96 normally hits MADAT)
 
   if human Euro:
     discovery 0524
@@ -62,9 +64,11 @@ ids until string table peel.
 
 ### Early exits → `LAB_4d56_4bf2`
 
-- Ship without flag `0x20`
-- Ship with high relation/friction (dialog then abort)
+- Ship without met bit `0x20` → `@DONTKNOWSHIPS`
+- Ship with relation ≥ 75 or friction ≥ 64 → `@MADATSHIPS`
 - Human cancels CHOICE (`291f_0182==0`)
+
+Linux: `COLONIZE_ENTER_VILLAGE_SHIP` + `ai_contact_try_ship_village` (no landfall).
 
 ## Decomp contamination note
 
@@ -83,7 +87,7 @@ real `LAB_4d56_*` continuity.
 |---------------|----------------------------------|
 | Relation / friction gates | Alarm/friction ≥40 (Spain ≥35); war prefer |
 | Human warn CHOICE | Status chrome thinned; `ai_popup` raid OK Done; VGA PARKED |
-| Ship abort | N/A (raids are land Braves) |
+| Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`) |
 | Post-head combat / loot | Adjacent combat + `@RAID*` kinds + `5fef`-shaped loot (sibling) |
 | Capture / burn | High band + tiny pop → `colonies_capture` |
 

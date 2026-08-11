@@ -19,6 +19,8 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | `OK` | Enter / stack; charge MP |
 | `DOCK` | Ship onto own (or de Witt peace) colony land |
 | `LANDFALL` | Ship → bare coastal land → unload passengers (ship stays) |
+| `BOARD` | Land → ocean/HS with own ship that has room → embark |
+| `VILLAGE_SHIP` | Ship → native village → `@DONTKNOWSHIPS` / `@MADATSHIPS` (not landfall) |
 | `COMBAT_LAND` | Resolve land combat then enter if attacker wins |
 | `COMBAT_NAVAL` | Resolve naval combat then enter if attacker wins |
 | `BOUNCE` | Deny; foreign non-combat / peace gate (no fight) |
@@ -33,12 +35,13 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | DOS `terr_cost` table via `map_move_cost_*` (NAMES MP scale; Brave keeps `*3`); road/river pair→1; full-MP + `range(1,cost)` | Partial (`*3` unit-MP scale PARK) |
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
 | Land | River both + cardinal | Cost **1** | Both river + axis → 1; else dest river still halves | Done |
-| Land | Ocean / HS (25/26) | Domain deny; ocean↔land force-max if no Euro settlement | Domain deny | Done |
+| Land | Ocean / HS (25/26) | Embark if own ship has room (`4720`); else domain deny | `BOARD` via `units_find_boardable_ship`; else domain deny | Done |
 | Ship | Ocean / HS | OK (`4720`); HS eastward without sail → reason **5** | Water OK; HS east without goto/sail → deny | Done |
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
 | Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
 | Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay With Ships / Make Landfall | Done |
+| Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---
 
@@ -53,6 +56,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Foreign ship | Naval fight path | Naval on move | Done |
 | Ship | Foreign land | Block / landfall | Block / landfall | Done |
 | Any | Empty | Enter | Enter | Done |
+| Ship leaves tile | Same-tile Sentry land | Auto-board to capacity | `units_board_sentries_from_tile` on ship move | Done |
 
 ---
 

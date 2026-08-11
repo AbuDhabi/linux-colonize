@@ -3729,6 +3729,18 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       const ColonizeEnterReason landfall = units_enter_probe(
         &game->units, selected->type_index, &game->world_map, dest_x, dest_y, sid, colonies
       );
+      /* Native village: FUN_4d56_4528 ship abort — never @LANDFALL. */
+      if (landfall == COLONIZE_ENTER_VILLAGE_SHIP) {
+        if (game->col1_ok) {
+          ColonizeTurnContext ctx;
+          game_fill_turn_context(game, &ctx);
+          if (ai_contact_try_ship_village(&ctx, selected->nation_id, dest_x, dest_y)) {
+            return true;
+          }
+        }
+        set_status(game, units_enter_reason_status(landfall), NULL);
+        return false;
+      }
       if (landfall != COLONIZE_ENTER_LANDFALL) {
         set_status(game, units_enter_reason_status(landfall), NULL);
         return false;
@@ -3791,6 +3803,11 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
         set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
       }
       return false;
+    }
+    if (units_last_enter_reason() == COLONIZE_ENTER_BOARD) {
+      set_status(game, "Boarded ship", NULL);
+      game_after_unit_action(game);
+      return true;
     }
     if (units_last_combat_outcome() > 0) {
       snprintf(game->status, sizeof(game->status), "Combat won at (%d,%d)", dest_x, dest_y);
@@ -6208,50 +6225,50 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
 
     if (csv->jobs_open) {
-      if (input->last_key == COLONIZE_KEY_UP && csv->jobs_selection > 0) {
+      if (colonize_key_up(input->last_key) && csv->jobs_selection > 0) {
         csv->jobs_selection--;
         return true;
       }
-      if (input->last_key == COLONIZE_KEY_DOWN && csv->jobs_selection < csv->job_count) {
+      if (colonize_key_down(input->last_key) && csv->jobs_selection < csv->job_count) {
         csv->jobs_selection++;
         return true;
       }
     } else if (csv->message_kind != COLONY_MSG_NONE) {
       const int max_sel = (csv->message_kind == COLONY_MSG_CONFIRM) ? 1 : 0;
-      if (input->last_key == COLONIZE_KEY_UP && csv->message_selection > 0) {
+      if (colonize_key_up(input->last_key) && csv->message_selection > 0) {
         csv->message_selection--;
         return true;
       }
-      if (input->last_key == COLONIZE_KEY_DOWN && csv->message_selection < max_sel) {
+      if (colonize_key_down(input->last_key) && csv->message_selection < max_sel) {
         csv->message_selection++;
         return true;
       }
     } else if (csv->eject_open) {
-      if (input->last_key == COLONIZE_KEY_UP && csv->eject_selection > 0) {
+      if (colonize_key_up(input->last_key) && csv->eject_selection > 0) {
         csv->eject_selection--;
         return true;
       }
-      if (input->last_key == COLONIZE_KEY_DOWN &&
+      if (colonize_key_down(input->last_key) &&
           csv->eject_selection + 1 < csv->eject_role_count) {
         csv->eject_selection++;
         return true;
       }
     } else if (csv->construction_open) {
       const int max_sel = csv->buildable_count;
-      if (input->last_key == COLONIZE_KEY_UP && csv->construction_selection > 0) {
+      if (colonize_key_up(input->last_key) && csv->construction_selection > 0) {
         csv->construction_selection--;
         return true;
       }
-      if (input->last_key == COLONIZE_KEY_DOWN && csv->construction_selection < max_sel) {
+      if (colonize_key_down(input->last_key) && csv->construction_selection < max_sel) {
         csv->construction_selection++;
         return true;
       }
     } else {
-      if (input->last_key == COLONIZE_KEY_UP && colony && csv->selected_colonist > 0) {
+      if (colonize_key_up(input->last_key) && colony && csv->selected_colonist > 0) {
         game_colony_select_colonist(game, csv->selected_colonist - 1);
         return true;
       }
-      if (input->last_key == COLONIZE_KEY_DOWN && colony &&
+      if (colonize_key_down(input->last_key) && colony &&
           csv->selected_colonist + 1 < colony->colonist_count) {
         game_colony_select_colonist(game, csv->selected_colonist + 1);
         return true;
@@ -6685,9 +6702,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         default:
           break;
       }
-      if (input->last_key == COLONIZE_KEY_UP && eu->menu_selection > 0) {
+      if (colonize_key_up(input->last_key) && eu->menu_selection > 0) {
         eu->menu_selection--;
-      } else if (input->last_key == COLONIZE_KEY_DOWN && eu->menu_selection < max_sel) {
+      } else if (colonize_key_down(input->last_key) && eu->menu_selection < max_sel) {
         eu->menu_selection++;
       } else if (input->last_key == COLONIZE_KEY_ENTER) {
         europe_menu_confirm(eu);
@@ -7131,9 +7148,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       );
       return true;
     }
-    if (input->last_key == COLONIZE_KEY_UP && game->menu_selection > 0) {
+    if (colonize_key_up(input->last_key) && game->menu_selection > 0) {
       game->menu_selection--;
-    } else if (input->last_key == COLONIZE_KEY_DOWN &&
+    } else if (colonize_key_down(input->last_key) &&
                game->menu_selection + 1 < game->menu_option_count) {
       game->menu_selection++;
     } else if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {

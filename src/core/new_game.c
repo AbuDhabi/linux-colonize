@@ -800,6 +800,7 @@ static void new_game_difficul_nav(NewGameWizard* ng, ColonizeKey key) {
   }
   switch (key) {
     case COLONIZE_KEY_LEFT:
+    case COLONIZE_KEY_KP4:
       if (s == 1) {
         s = 0;
       } else if (s == 3) {
@@ -809,6 +810,7 @@ static void new_game_difficul_nav(NewGameWizard* ng, ColonizeKey key) {
       }
       break;
     case COLONIZE_KEY_RIGHT:
+    case COLONIZE_KEY_KP6:
       if (s == 0) {
         s = 1;
       } else if (s == 2) {
@@ -818,6 +820,7 @@ static void new_game_difficul_nav(NewGameWizard* ng, ColonizeKey key) {
       }
       break;
     case COLONIZE_KEY_UP:
+    case COLONIZE_KEY_KP8:
       if (s == 2) {
         s = 0;
       } else if (s == 3) {
@@ -827,6 +830,7 @@ static void new_game_difficul_nav(NewGameWizard* ng, ColonizeKey key) {
       }
       break;
     case COLONIZE_KEY_DOWN:
+    case COLONIZE_KEY_KP2:
       if (s == 0) {
         s = 3;
       } else if (s == 1) {
@@ -850,21 +854,25 @@ static void new_game_nation_nav(NewGameWizard* ng, ColonizeKey key) {
   }
   switch (key) {
     case COLONIZE_KEY_LEFT:
+    case COLONIZE_KEY_KP4:
       if (s == 1 || s == 3) {
         s--;
       }
       break;
     case COLONIZE_KEY_RIGHT:
+    case COLONIZE_KEY_KP6:
       if (s == 0 || s == 2) {
         s++;
       }
       break;
     case COLONIZE_KEY_UP:
+    case COLONIZE_KEY_KP8:
       if (s >= 2) {
         s -= 2;
       }
       break;
     case COLONIZE_KEY_DOWN:
+    case COLONIZE_KEY_KP2:
       if (s < 2) {
         s += 2;
       }
@@ -970,20 +978,20 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
 
   /* CUSTOMIZE: 4×3 param grid (FUN_733a_0270). */
   if (ng->phase == NEW_GAME_PHASE_CUSTOMIZE) {
-    if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_BACKSPACE) {
+    if (colonize_key_left(input->last_key) || input->last_key == COLONIZE_KEY_BACKSPACE) {
       ng->customize_focus = (ng->customize_focus + 3) % 4;
       return true;
     }
-    if (input->last_key == COLONIZE_KEY_RIGHT) {
+    if (colonize_key_right(input->last_key)) {
       ng->customize_focus = (ng->customize_focus + 1) % 4;
       return true;
     }
-    if (input->last_key == COLONIZE_KEY_UP) {
+    if (colonize_key_up(input->last_key)) {
       int v = new_game_gen_param_value(&ng->gen_params, ng->customize_focus);
       new_game_set_gen_param_value(&ng->gen_params, ng->customize_focus, (v + 2) % 3);
       return true;
     }
-    if (input->last_key == COLONIZE_KEY_DOWN || input->last_key == COLONIZE_KEY_SPACE) {
+    if (colonize_key_down(input->last_key) || input->last_key == COLONIZE_KEY_SPACE) {
       int v = new_game_gen_param_value(&ng->gen_params, ng->customize_focus);
       new_game_set_gen_param_value(&ng->gen_params, ng->customize_focus, (v + 1) % 3);
       return true;
@@ -1015,8 +1023,8 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
       (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? k_difficul_rects : k_nation_rects;
     const int count = (ng->phase == NEW_GAME_PHASE_DIFFICULTY) ? 5 : 4;
 
-    if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_RIGHT ||
-        input->last_key == COLONIZE_KEY_UP || input->last_key == COLONIZE_KEY_DOWN) {
+    if (colonize_key_left(input->last_key) || colonize_key_right(input->last_key) ||
+        colonize_key_up(input->last_key) || colonize_key_down(input->last_key)) {
       if (ng->phase == NEW_GAME_PHASE_DIFFICULTY) {
         new_game_difficul_nav(ng, input->last_key);
       } else {
@@ -1098,11 +1106,11 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
   }
 
   /* Remaining list dialogs (America / map pick). */
-  if (input->last_key == COLONIZE_KEY_UP && ng->selection > 0) {
+  if (colonize_key_up(input->last_key) && ng->selection > 0) {
     ng->selection--;
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_DOWN && ng->selection + 1 < ng->option_count) {
+  if (colonize_key_down(input->last_key) && ng->selection + 1 < ng->option_count) {
     ng->selection++;
     return true;
   }

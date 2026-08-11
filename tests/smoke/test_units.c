@@ -2686,6 +2686,177 @@ int main(void) {
     }
   }
 
+  /* Land → ocean with own ship → BOARD; sentry auto-load when ship leaves. */
+  {
+    int lx = -1, ly = -1, wx = -1, wy = -1, wx2 = -1, wy2 = -1;
+    for (int y = 1; y < (int)map.height - 1 && lx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && lx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y)) {
+          continue;
+        }
+        static const int kdx[4] = {1, -1, 0, 0};
+        static const int kdy[4] = {0, 0, 1, -1};
+        for (int d = 0; d < 4; ++d) {
+          const int nx = x + kdx[d];
+          const int ny = y + kdy[d];
+          if (!map_tile_is_water(&map, nx, ny) || units_id_at(&pool, x, y) >= 0 ||
+              units_id_at(&pool, nx, ny) >= 0) {
+            continue;
+          }
+          /* Need a second adjacent water tile for the ship to leave to. */
+          int ox = -1, oy = -1;
+          for (int e = 0; e < 8; ++e) {
+            static const int edx[8] = {1, -1, 0, 0, 1, 1, -1, -1};
+            static const int edy[8] = {0, 0, 1, -1, 1, -1, 1, -1};
+            const int tx = nx + edx[e];
+            const int ty = ny + edy[e];
+            if (map_tile_is_water(&map, tx, ty) && (tx != x || ty != y) &&
+                units_id_at(&pool, tx, ty) < 0) {
+              ox = tx;
+              oy = ty;
+              break;
+            }
+          }
+          if (ox < 0) {
+            continue;
+          }
+          lx = x;
+          ly = y;
+          wx = nx;
+          wy = ny;
+          wx2 = ox;
+          wy2 = oy;
+          break;
+        }
+      }
+    }
+    if (lx < 0) {
+      fprintf(stderr, "board-enter: no land/water/water triple\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    const int land_id = units_spawn(&pool, pioneer, lx, ly);
+    const int ship_id = units_spawn(&pool, units_find_type(&pool, "Caravel"), wx, wy);
+    ColonizeUnit* land = units_get(&pool, land_id);
+    ColonizeUnit* ship = units_get(&pool, ship_id);
+    if (!land || !ship) {
+      fprintf(stderr, "board-enter spawn failed\n");
+      return 1;
+    }
+    land->nation_id = 0;
+    ship->nation_id = 0;
+    land->moves_left = 3;
+    ship->moves_left = 4;
+
+    const ColonizeEnterReason br =
+      units_enter_probe(&pool, land->type_index, &map, wx, wy, land_id, NULL);
+    if (br != COLONIZE_ENTER_BOARD) {
+      fprintf(stderr, "board-enter probe expected BOARD got %d\n", (int)br);
+      return 1;
+    }
+    if (units_can_enter(&pool, land->type_index, &map, wx, wy, land_id, NULL)) {
+      fprintf(stderr, "board-enter can_enter should stay false (goto)\n");
+      return 1;
+    }
+    if (!units_try_move(&pool, land_id, &map, wx, wy, NULL, NULL)) {
+      fprintf(stderr, "board-enter try_move failed\n");
+      return 1;
+    }
+    land = units_get(&pool, land_id);
+    ship = units_get(&pool, ship_id);
+    if (!land || !ship || land->aboard_ship_id != ship_id || ship->cargo_count != 1) {
+      fprintf(stderr, "board-enter state wrong cargo=%d aboard=%d\n",
+              ship ? ship->cargo_count : -1, land ? land->aboard_ship_id : -1);
+      return 1;
+    }
+    /* Unload onto land for sentry auto-board test. */
+    if (!units_unload_passenger(&pool, ship_id, land_id, &map, lx, ly, NULL)) {
+      fprintf(stderr, "board-enter unload failed\n");
+      return 1;
+    }
+    land = units_get(&pool, land_id);
+    ship = units_get(&pool, ship_id);
+    if (!land || !ship) {
+      fprintf(stderr, "board-enter after unload missing\n");
+      return 1;
+    }
+    /* Ocean sentry orphan on ship tile; ship departs → auto-board. */
+    land->x = wx;
+    land->y = wy;
+    land->orders = UNITS_ORDER_SENTRY;
+    land->moves_left = 0;
+    ship->x = wx;
+    ship->y = wy;
+    ship->moves_left = 4;
+    if (!units_try_move(&pool, ship_id, &map, wx2, wy2, NULL, NULL)) {
+      fprintf(stderr, "sentry-board ship move failed reason=%d\n", (int)units_last_enter_reason());
+      return 1;
+    }
+    land = units_get(&pool, land_id);
+    ship = units_get(&pool, ship_id);
+    if (!land || !ship || land->aboard_ship_id != ship_id || ship->cargo_count < 1) {
+      fprintf(stderr, "sentry-board expected auto-load aboard=%d cargo=%d\n",
+              land ? land->aboard_ship_id : -1, ship ? ship->cargo_count : -1);
+      return 1;
+    }
+    units_despawn(&pool, ship_id); /* also clears cargo */
+
+    /* Ship → village tile (HAS_CITY, no colony) → VILLAGE_SHIP not LANDFALL. */
+    {
+      int vx = -1, vy = -1, sx = -1, sy = -1;
+      for (int y = 1; y < (int)map.height - 1 && vx < 0; ++y) {
+        for (int x = 1; x < (int)map.width - 1 && vx < 0; ++x) {
+          if (!map_tile_is_land(&map, x, y) || !map.layer2) {
+            continue;
+          }
+          static const int dx4[4] = {1, -1, 0, 0};
+          static const int dy4[4] = {0, 0, 1, -1};
+          for (int d = 0; d < 4; ++d) {
+            const int nx = x + dx4[d];
+            const int ny = y + dy4[d];
+            if (map_tile_is_water(&map, nx, ny) && units_id_at(&pool, nx, ny) < 0) {
+              vx = x;
+              vy = y;
+              sx = nx;
+              sy = ny;
+              break;
+            }
+          }
+        }
+      }
+      if (vx < 0) {
+        fprintf(stderr, "village-ship: no coastal land\n");
+        return 1;
+      }
+      const size_t idx = (size_t)vy * (size_t)map.width + (size_t)vx;
+      map.layer2[idx] = (uint8_t)(map.layer2[idx] | MAP_OCCUPANCY_HAS_CITY);
+      const int sid = units_spawn(&pool, units_find_type(&pool, "Caravel"), sx, sy);
+      ColonizeUnit* boat = units_get(&pool, sid);
+      if (!boat) {
+        fprintf(stderr, "village-ship spawn failed\n");
+        return 1;
+      }
+      boat->nation_id = 0;
+      boat->moves_left = 4;
+      /* Loaded or empty: village must not become landfall. */
+      const ColonizeEnterReason vr =
+        units_enter_probe(&pool, boat->type_index, &map, vx, vy, sid, NULL);
+      if (vr != COLONIZE_ENTER_VILLAGE_SHIP) {
+        fprintf(stderr, "village-ship expected VILLAGE_SHIP got %d\n", (int)vr);
+        return 1;
+      }
+      if (units_try_move(&pool, sid, &map, vx, vy, NULL, NULL)) {
+        fprintf(stderr, "village-ship try_move should deny\n");
+        return 1;
+      }
+      map.layer2[idx] = (uint8_t)(map.layer2[idx] & (uint8_t)~MAP_OCCUPANCY_HAS_CITY);
+      units_despawn(&pool, sid);
+    }
+  }
+
   fprintf(
     stderr,
     "units tests ok (types=%d pioneer@%d,%d caravel_icon=%d edge=%d,%d)\n",
