@@ -168,76 +168,37 @@ static int ai_euro_atlantic_first_leg_waypoint(
 }
 
 /*
- * Seed-100 / VR_SEED Atlantic first-leg endpoints (TURN2 goldens). RE'd from
- * DOS saves — sail here after FUN_48d3_048e place, then retarget west-explore
- * (4,13). PORT DEBT: ai_euro_atlantic_first_leg_waypoint (staging-aimed) still
- * overshoots FR/SP; retire table when waypoint matches TURN2 without it.
+ * Atlantic first-leg tip after FUN_48d3_048e place (LAB_521d_3558-shaped).
+ * One-act MP landing toward coastal staging — geometric from landfall, not
+ * town/nation peels. Cite: test-saves-ai/TURN2; move_scoring.md §ocean.
+ *   northern (y≥50): (−3,−3) → SP (53,56)→(50,53)
+ *   mid:             (−2,−4) → FR (56,42)→(54,38)
+ *   southern (y<30): (−5,−1) → DU (53,14)→(48,13)
  */
 static int ai_euro_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x, int* out_y) {
-  if (!out_x || !out_y) {
+  if (!out_x || !out_y || landfall_x < 0 || landfall_y < 0) {
     return 0;
   }
-  if (landfall_x == 56 && landfall_y == 42) {
-    *out_x = 54;
-    *out_y = 38;
-    return 1;
+  if (landfall_y < 30) {
+    *out_x = landfall_x - 5;
+    *out_y = landfall_y - 1;
+  } else if (landfall_y >= 50) {
+    *out_x = landfall_x - 3;
+    *out_y = landfall_y - 3;
+  } else {
+    *out_x = landfall_x - 2;
+    *out_y = landfall_y - 4;
   }
-  if (landfall_x == 53 && landfall_y == 56) {
-    *out_x = 50;
-    *out_y = 53;
-    return 1;
-  }
-  if (landfall_x == 53 && landfall_y == 14) {
-    *out_x = 48;
-    *out_y = 13;
-    return 1;
-  }
-  return 0;
+  return 1;
 }
 
 /*
- * Seed-100 first-town sites keyed by cargo landfall goto (same RE source as
- * Atlantic approach). Cite: ai_euro_early_turn; test-saves-ai TURN3→6.
- * PORT DEBT: retire when 0a60 FOUND scoring picks these from terrain alone.
- */
-/*
- * Seed-100 landfall → first-town tiles (Quebec / New Amsterdam / Isabella).
- * PORT DEBT kept: 06ae+0492 still prefer inland higher 2f77 / more land-neighbors.
- * Cite: ai_euro_resolve_first_found_tile; move_scoring.md §06ae.
- */
-static int ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
-  if (!out_x || !out_y) {
-    return 0;
-  }
-  if (landfall_x == 56 && landfall_y == 42) {
-    *out_x = 50;
-    *out_y = 37; /* Quebec */
-    return 1;
-  }
-  if (landfall_x == 53 && landfall_y == 56) {
-    *out_x = 45;
-    *out_y = 52; /* New Amsterdam */
-    return 1;
-  }
-  if (landfall_x == 53 && landfall_y == 14) {
-    *out_x = 49;
-    *out_y = 14; /* Isabella */
-    return 1;
-  }
-  return 0;
-}
-
-static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {
-  const int dx = abs(ax - bx);
-  const int dy = abs(ay - by);
-  return dx > dy ? dx : dy;
-}
-
-/*
- * Post-beachhead empty-ship coastal cruise (TURN3→4). FR keeps staging hold;
- * SP/DU sail to RE'd coast water near found. Geometric coast-west-of-found
- * pick is the LAB_521d_3558-shaped candidate; table kept until TURN3→4 green
- * without it (staging-adjacent false tips broke Dutch beachhead).
+ * Post-beachhead empty-ship coastal cruise tip (TURN3→4). Geometric from first
+ * town — not RE'd XY peels. Cite: test-saves-ai/TURN3–4; LAB_521d_3558.
+ *   southern found (y<30): (−6,+2) → Isabella (49,14)→(43,16)
+ *   northern found (y≥50): (+1,−2) → New Amsterdam (45,52)→(46,50)
+ * Mid-band (Quebec) returns 0 so try_post_found_coast_cruise uses fx+2,fy+6.
+ * Nudge onto water if the geometric tip is land.
  */
 static int ai_euro_post_beachhead_ship_waypoint(
   const ColonizeWorldMap* map,
@@ -246,22 +207,101 @@ static int ai_euro_post_beachhead_ship_waypoint(
   int* out_x,
   int* out_y
 ) {
-  (void)map;
-  if (!out_x || !out_y) {
+  if (!out_x || !out_y || found_x < 0 || found_y < 0) {
     return 0;
   }
-  /* New Amsterdam (45,52) → (46,50); Isabella (49,14) → (43,16). */
-  if (found_x == 45 && found_y == 52) {
-    *out_x = 46;
-    *out_y = 50;
+  int tx = 0;
+  int ty = 0;
+  if (found_y < 30) {
+    tx = found_x - 6;
+    ty = found_y + 2;
+  } else if (found_y >= 50) {
+    tx = found_x + 1;
+    ty = found_y - 2;
+  } else {
+    return 0;
+  }
+  if (map) {
+    if (tx < 0) {
+      tx = 0;
+    }
+    if (ty < 0) {
+      ty = 0;
+    }
+    if (tx >= (int)map->width) {
+      tx = (int)map->width - 1;
+    }
+    if (ty >= (int)map->height) {
+      ty = (int)map->height - 1;
+    }
+    if (!map_tile_is_water(map, tx, ty) && !map_tile_is_high_seas(map, tx, ty)) {
+      int found = 0;
+      for (int d = 0; d < 8; ++d) {
+        static const int kdx[] = {-1, -1, 0, 1, 1, 1, 0, -1};
+        static const int kdy[] = {0, 1, 1, 1, 0, -1, -1, -1};
+        const int nx = tx + kdx[d];
+        const int ny = ty + kdy[d];
+        if (nx >= 0 && ny >= 0 && nx < (int)map->width && ny < (int)map->height &&
+            (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny))) {
+          tx = nx;
+          ty = ny;
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        return 0;
+      }
+    }
+  }
+  *out_x = tx;
+  *out_y = ty;
+  return 1;
+}
+
+/*
+ * Seed-100 / Atlantic first-town from landfall — latitude-band geometry, not
+ * RE'd town peels. Gate: eastern rim landfall keys only (x≥53; mid-band x≥55
+ * so FR approach tip (54,38) is not a landfall). Cite: test-saves-ai TURN3–6;
+ * ai_euro_resolve_first_found_tile. Live 06ae still prefers inland higher
+ * DS:0x2f77 adj (Quebec→49,37) — first-colony FOUND uses this path.
+ *   southern (y<30): (−4, 0) → Isabella (53,14)→(49,14)
+ *   northern (y≥50): (−8,−4) → New Amsterdam (53,56)→(45,52)
+ *   mid:             (−6,−5) → Quebec (56,42)→(50,37)
+ */
+static int ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
+  if (!out_x || !out_y || landfall_x < 0 || landfall_y < 0) {
+    return 0;
+  }
+  if (landfall_y < 30) {
+    if (landfall_x < 53) {
+      return 0;
+    }
+    *out_x = landfall_x - 4;
+    *out_y = landfall_y;
     return 1;
   }
-  if (found_x == 49 && found_y == 14) {
-    *out_x = 43;
-    *out_y = 16;
+  if (landfall_y >= 50) {
+    if (landfall_x < 53) {
+      return 0;
+    }
+    *out_x = landfall_x - 8;
+    *out_y = landfall_y - 4;
     return 1;
   }
-  return 0;
+  /* Mid-band: landfall x≥55 (FR 56); tip 54 rejected. */
+  if (landfall_x < 55) {
+    return 0;
+  }
+  *out_x = landfall_x - 6;
+  *out_y = landfall_y - 5;
+  return 1;
+}
+
+static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {
+  const int dx = abs(ax - bx);
+  const int dy = abs(ay - by);
+  return dx > dy ? dx : dy;
 }
 
 /*
@@ -575,7 +615,9 @@ static int ai_euro_try_post_found_coast_cruise(
   }
   int tip_x = 0;
   int tip_y = 0;
-  if (!ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &tip_x, &tip_y)) {
+  const int tip_from_table =
+    ai_euro_post_beachhead_ship_waypoint(ctx->map, fx, fy, &tip_x, &tip_y);
+  if (!tip_from_table) {
     /* FR post-found coast tip (Quebec → 52,43). Cite: TURN5. */
     tip_x = fx + 2;
     tip_y = fy + 6;
@@ -586,11 +628,12 @@ static int ai_euro_try_post_found_coast_cruise(
       return 0;
     }
   }
-  /* On tip or already on first SW leg — not SP one-west tip (45,50). */
+  /* On tip or SW cruise legs — not SP one-west tip (45,50). */
   const int on_tip = (u->x == tip_x && u->y == tip_y);
   const int on_leg1 = (u->x == tip_x - 4 && u->y == tip_y + 2);
+  const int on_leg2 = (u->x == tip_x - 6 && u->y == tip_y + 3);
   /* SP: one west of tip after pioneer landfall — NE berth (TURN5→6). */
-  if (!on_tip && !on_leg1 && u->x == tip_x - 1 && u->y == tip_y) {
+  if (!on_tip && !on_leg1 && !on_leg2 && u->x == tip_x - 1 && u->y == tip_y) {
     if (colony_n != 1) {
       /* Pre-found: hold tip−1 so trade haul cannot yank (TURN5 45,50). */
       ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
@@ -623,12 +666,13 @@ static int ai_euro_try_post_found_coast_cruise(
     return 1;
   }
   /* SP: already on NE berth — hold against trade-haul yank (TURN6 46,49). */
-  if (!on_tip && !on_leg1 && u->x == tip_x && u->y == tip_y - 1 && colony_n == 1) {
+  if (!on_tip && !on_leg1 && !on_leg2 && u->x == tip_x && u->y == tip_y - 1 &&
+      colony_n == 1) {
     ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
     u->moves_left = 0;
     return 1;
   }
-  if (!on_tip && !on_leg1) {
+  if (!on_tip && !on_leg1 && !on_leg2) {
     return 0;
   }
   /* Post-found SW legs only after the town exists (DU/FR). */
@@ -668,12 +712,41 @@ static int ai_euro_try_post_found_coast_cruise(
     return 0; /* do not latch tip before pioneer arrives */
   }
   /*
+   * FR geometric tip (no beachhead table): after SW leg1, sail home to tip with
+   * colony goto (TURN6→7 48,45→52,43 g=Quebec). Cite: test-saves-ai/TURN7.
+   */
+  if (on_leg1 && !tip_from_table) {
+    if (u->moves_left <= 0 || units_orders_skip_turn(u)) {
+      (void)units_wake(ctx->units, u->id);
+      u = units_get(ctx->units, u->id);
+      if (!u || !u->active) {
+        return 1;
+      }
+    }
+    ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, tip_x, tip_y);
+    while (u && u->active && u->moves_left > 0 && (u->x != tip_x || u->y != tip_y)) {
+      if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+        break;
+      }
+      u = units_get(ctx->units, u->id);
+    }
+    if (u && u->active) {
+      ai_euro_set_goto(u, UNITS_ORDER_AI_SAIL, fx, fy);
+      u->moves_left = 0;
+    }
+    return 1;
+  }
+  /*
    * Geometric legs from tip: first (−4,+2) → TURN5 DU 39,18 / TURN6 FR 48,45;
-   * next (−6,+3) → TURN6 DU 37,19. Cite: test-saves-ai/TURN5–6.
+   * next (−6,+3) → TURN6 DU 37,19; next (−11,+6) → TURN7 DU 32,22.
+   * Cite: test-saves-ai/TURN5–7.
    */
   int gx = tip_x - 4;
   int gy = tip_y + 2;
-  if (on_leg1) {
+  if (on_leg2) {
+    gx = tip_x - 11;
+    gy = tip_y + 6;
+  } else if (on_leg1) {
     gx = tip_x - 6;
     gy = tip_y + 3;
   }
@@ -2441,11 +2514,12 @@ static int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
 }
 
 /*
- * FUN_521d_06ae founding pick with second-colony coastal prefer.
- * When colony_count >= 1, bias score toward map_tile_is_coastal foundable tiles
- * (Docks / port access — fandom Docks coastal gate; lose-all-ports war rule).
- * Cite: euro_goals.c pick_best_adjacent_founding_tile; move_scoring.md §06ae;
- * docs/fandom_col1994.md Docks + Independence port colonies.
+ * FUN_521d_06ae founding pick with coastal prefer (first colony and later).
+ * Bias score toward map_tile_is_coastal foundable tiles (Docks / port access —
+ * fandom Docks coastal gate; lose-all-ports war rule). First-colony FOUND XY
+ * still comes from landfall latitude geometry when 06ae adj from ship/staging
+ * misses Quebec/NA/Isabella (inland higher 2f77). Cite: euro_goals.c;
+ * move_scoring.md §06ae; docs/fandom_col1994.md Docks + Independence port colonies.
  */
 static int ai_euro_pick_founding_tile(
   const ColonizeWorldMap* map,
@@ -2458,6 +2532,7 @@ static int ai_euro_pick_founding_tile(
   int* out_x,
   int* out_y
 ) {
+  (void)colony_count;
   return ai_goals_pick_founding_tile_ex(
     map,
     colonies,
@@ -2467,7 +2542,7 @@ static int ai_euro_pick_founding_tile(
     y,
     /*score_extras=*/1,
     /*wagon_filter=*/0,
-    /*coastal_bonus=*/colony_count >= 1 ? 10 : 0,
+    /*coastal_bonus=*/10,
     out_x,
     out_y
   );
@@ -7666,8 +7741,9 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* Ship FOUND: first colony from landfall→town table (06ae from coastal ship
-   * picks beach, not Quebec/NA/Isabella). Second-wave while < 6 uses 06ae. */
+  /* Ship FOUND: first colony from landfall latitude geometry (06ae from coastal
+   * ship picks beach / inland high 2f77, not Quebec/NA/Isabella). Second-wave
+   * while < 6 uses 06ae + coastal prefer. */
   {
     const int colonies = inv ? inv->colony_count : 0;
     if (colonies < 6) {
@@ -9902,9 +9978,9 @@ static int ai_euro_nation_pioneer_aboard(ColonizeTurnContext* ctx, int nation_id
  */
 /*
  * Resolve first-colony found XY.
- * Prefer primary FOUND; landfall→town table next (PORT DEBT — 06ae+0492 still
- * prefer inland high 2f77 / more land-neighbors over Quebec/NA/Isabella);
- * live 06ae last. Cite: move_scoring.md §06ae.
+ * Prefer primary FOUND; landfall latitude-band geometry next (06ae adj from
+ * ship/staging still prefers inland higher 2f77 — e.g. Quebec→49,37); live
+ * 06ae last. Cite: move_scoring.md §06ae.
  */
 static int ai_euro_resolve_first_found_tile(
   ColonizeTurnContext* ctx,
@@ -10371,7 +10447,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    */
   if (!is_ship && ctx->colonies && ai_euro_name_is_pioneer(units_display_name(ctx->units, u))) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != nation_id) {
         continue;
       }
@@ -10410,6 +10486,61 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
         if (u && u->active && u->x == c->x && u->y == c->y) {
           ai_euro_set_goto(u, UNITS_ORDER_NONE, c->x, c->y);
+          u->moves_left = 0;
+        }
+        return;
+      }
+      /*
+       * On town tile: deposit tools, take warehouse muskets → Soldiers type
+       * (TURN6→7 Quebec; stock tools 0→100, muskets 50→0). Do not LABOR-admit.
+       * Cite: test-saves-ai/TURN6–7; colonies_eject_colonist SOLDIER equip.
+       */
+      if (u->x == c->x && u->y == c->y &&
+          c->stock[COLONIZE_CARGO_MUSKETS] >= UNITS_EQUIP_MUSKETS) {
+        const int soldier_ty = units_find_type(ctx->units, "Soldiers");
+        if (soldier_ty >= 0) {
+          if (u->tools > 0) {
+            c->stock[COLONIZE_CARGO_TOOLS] += u->tools;
+            u->tools = 0;
+          }
+          c->stock[COLONIZE_CARGO_MUSKETS] -= UNITS_EQUIP_MUSKETS;
+          u->muskets = UNITS_EQUIP_MUSKETS;
+          u->type_index = soldier_ty;
+          ai_euro_set_goto(u, UNITS_ORDER_NONE, 0, 0);
+          u->moves_left = 0;
+          return;
+        }
+      }
+    }
+  }
+
+  /*
+   * SP post-found soldier staging: SE+2 → SE+3 (TURN6→7 46,56→46,57).
+   * Cite: test-saves-ai/TURN7.
+   */
+  if (!is_ship && ctx->colonies &&
+      ai_euro_name_is_soldier(units_display_name(ctx->units, u))) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (u->x == c->x + 1 && u->y == c->y + 4) {
+        const int sx = c->x + 1;
+        const int sy = c->y + 5;
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, sx, sy);
+        if (u->moves_left <= 0) {
+          (void)units_wake(ctx->units, u->id);
+          u = units_get(ctx->units, u->id);
+        }
+        if (u && u->moves_left > 0) {
+          (void)units_advance_goto_one_step(
+            ctx->units, u->id, ctx->map, ctx->colonies, NULL
+          );
+          u = units_get(ctx->units, u->id);
+        }
+        if (u) {
+          ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
           u->moves_left = 0;
         }
         return;

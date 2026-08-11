@@ -1144,29 +1144,35 @@ static bool ai_atlantic_approach_tile(int landfall_x, int landfall_y, int* out_x
 }
 
 /*
- * Seed-100 first-town sites keyed by cargo landfall goto (same RE source as
- * Atlantic approach). Prefer this over per-turn XY lists when founding.
+ * Seed-100 / Atlantic first-town from landfall — latitude-band geometry (same
+ * gate as ai_euro.c). Cite: test-saves-ai TURN3–6.
  */
 static bool ai_euro_found_tile_from_landfall(int landfall_x, int landfall_y, int* out_x, int* out_y) {
-  if (!out_x || !out_y) {
+  if (!out_x || !out_y || landfall_x < 0 || landfall_y < 0) {
     return false;
   }
-  if (landfall_x == 56 && landfall_y == 42) {
-    *out_x = 50;
-    *out_y = 37; /* Quebec */
+  if (landfall_y < 30) {
+    if (landfall_x < 53) {
+      return false;
+    }
+    *out_x = landfall_x - 4;
+    *out_y = landfall_y;
     return true;
   }
-  if (landfall_x == 53 && landfall_y == 56) {
-    *out_x = 45;
-    *out_y = 52; /* New Amsterdam */
+  if (landfall_y >= 50) {
+    if (landfall_x < 53) {
+      return false;
+    }
+    *out_x = landfall_x - 8;
+    *out_y = landfall_y - 4;
     return true;
   }
-  if (landfall_x == 53 && landfall_y == 14) {
-    *out_x = 49;
-    *out_y = 14; /* Isabella */
-    return true;
+  if (landfall_x < 55) {
+    return false;
   }
-  return false;
+  *out_x = landfall_x - 6;
+  *out_y = landfall_y - 5;
+  return true;
 }
 
 /* True if (x,y) is water/HS with at least one land neighbour. */

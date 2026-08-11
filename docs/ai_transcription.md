@@ -70,30 +70,25 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 | `ai_indian_nation_turn` | `1816` phases: prelude → growth → relation → pulse → meet/raids |
 | `ai_king_nation_turn` | Replaces king stub in EOT FINISH |
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
-| [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`; `AI_EURO_EARLY_FIXTURE=1`) |
+| [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`; full dispatcher; fixture optional) |
 
 **Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
-`smoke_ai_turns` **TURN1→6** matches under the full dispatcher (Europe exit →
+`smoke_ai_turns` **TURN1→7** matches under the full dispatcher (Europe exit →
 Atlantic approach → west-explore → coastal beachhead unload → found-approach /
-Isabella → Quebec found → SP New Amsterdam found + post-found coast cruise).
-**TURN6→7** still diverges (FR ship home sail, Quebec pop, Dutch cruise leg,
-Indian unit). **`FUN_521d_0492` ported**
+Isabella → Quebec found → SP New Amsterdam found + post-found coast cruise →
+FR ship home sail / pioneer→Soldier / DU cruise leg3). **`FUN_521d_0492` ported**
 (`ai_goals_colony_balance_flags`: live nation×continent counts +
 `post_map.continent_tally_b/12`; wired into `06ae` as `0492*16 + explore`).
-Seed-100 first towns still need `ai_euro_found_tile_from_landfall` — live `06ae`
-prefers inland higher DS:0x2f77 / more land-neighbor tiles over coastal Quebec /
-New Amsterdam / Isabella (same-continent `0492` does not break the tie). Resolve
-prefers primary FOUND (first-colony ship FOUND written from landfall table) then
-table then `06ae`. **`FUN_521d_20e6` section-mapped** (band table in
-`move_scoring.md`); Europe-exit uses `units_spiral_place_hs_near` (`48d3_048e`);
-ocean score adds leave-HS-into-ocean + Chebyshev + staging-aimed first-leg
-waypoint (DU matches TURN2 tip; FR/SP still need approach table). Approach /
-post-beachhead cruise XY tables **kept** — retire when `LAB_521d_3558`
-cargo/colony sail pick matches TURN2–4 without them. Post-found SW cruise legs
-are geometric from tip (`−4,+2` / `−6,+3`) plus SP tip−1→NE berth — not new
-nation peels. Do **not** grow tip/join peels. CI / bisect:
-`AI_EURO_EARLY_FIXTURE=1` still matches TURN1→7; leave CI on fixture until
-full-dispatch ceiling is TURN1→7 or an explicit dual gate.
+First-colony sites use landfall **latitude-band geometry** (not RE'd town peels);
+live adj `06ae` still prefers some inland higher DS:0x2f77 neighbors (e.g.
+Quebec→49,37) so ship FOUND / resolve keep the geometric path ahead of 06ae.
+**`FUN_521d_20e6` section-mapped** (band table in `move_scoring.md`); Europe-exit
+uses `units_spiral_place_hs_near` (`48d3_048e`); ocean score adds
+leave-HS-into-ocean + Chebyshev + staging-aimed first-leg waypoint. Atlantic
+approach + post-beachhead cruise tips are **latitude-band geometry** (retired
+XY peels). Post-found SW cruise legs are geometric from tip (`−4,+2` / `−6,+3` /
+`−11,+6`) plus SP tip−1→NE berth — not nation peels. Do **not** grow tip/join
+peels. CI runs full dispatcher; `AI_EURO_EARLY_FIXTURE=1` remains for bisect.
 
 **Claims (Full T0/T1):** Euro dispatcher (goals/hire/act/combat/capture), diplomacy
 state, Indian meet/trade/missions/raids, king tax/REF/independence war loop —
@@ -365,22 +360,21 @@ leftover FF hooks, deep `20e6`).
   `(43,16)→(39,18)`; Isabella soldier LABOR admit + unused Stockade bip clear.
   **TURN5→6 green:** SP founds New Amsterdam; ship tip−1→NE berth `(46,49)`;
   soldier SE+2; FR/DU geometric cruise legs; Dutch pop≥2 banks hammers with
-  bip `0xFF` (no Warehouse/craft re-queue). **TURN6→7 OPEN**. **Found-tile
-  debt:** `FUN_521d_06ae` +
-  `FUN_521d_0492` ported (`ai_goals_pick_founding_tile` / DS:0x2f77 + live
-  continent balance). Landfall→town table **kept** — `06ae` still picks inland
-  higher class_score neighbors (e.g. Isabella base 2 vs (48,15) base 6). Retire
-  table only when TURN1→4 green without it. Approach / post-beachhead ship XY
-  still PORT DEBT: approach/cruise XY kept (thin ocean leave-HS misses FR
-  `(54,38)`; full `LAB_521d_3558` cargo/colony sail OPEN). `48d3_048e` spiral
-  place + `20e6` band map Done.
+  bip `0xFF` (no Warehouse/craft re-queue). **TURN6→7 green:** FR ship home
+  from SW leg1 → tip `(52,43)` AI_SAIL goto Quebec; pioneer at town → Soldier
+  (tools deposit / muskets equip; pop stays 1); SP soldier SE+3; DU cruise
+  leg3 `(37,19)→(32,22)`; Isabella stale zero-hammer bip clear. **Found /
+  sail geometry (no XY peels):** Atlantic approach + post-beachhead tips +
+  first-town from landfall are latitude-band offsets (mid FR tip uses
+  `fx+2,fy+6` when beachhead helper returns 0). `FUN_521d_06ae` + `0492`
+  ported; adj `06ae` still misses some coastal first towns (inland higher
+  class_score) — first-colony FOUND keeps landfall geometry ahead of live
+  06ae. `48d3_048e` spiral place + `20e6` band map Done. Thin `LAB_521d_3558`
+  cargo/colony sail OPEN (geometry covers TURN1→7 without tip peels).
 - **Euro early path (fixture, bisect only):** T2 coastal ship gotos from
-  `ai_coastal_staging_from_landfall`; found tiles from
-  `ai_euro_found_tile_from_landfall` (Quebec / New Amsterdam / Isabella; T3–T6
-  SP pioneer + FR found peels). Dutch join uses first nation colony. Atlantic
-  approach table + T3–T6 **ship** coastal waypoints still fixture (west-explore
-  `spend_goto` misses golden coastal XY by 1–2 tiles until ocean `20e6`).
-  T3 FR ship/unload peeled via found tile (`hold = found+(0,+2)`).
+  `ai_coastal_staging_from_landfall`; found tiles from landfall latitude
+  geometry (Quebec / New Amsterdam / Isabella). Dutch join uses first nation
+  colony. Opt-in via `AI_EURO_EARLY_FIXTURE=1` only.
 - Keep this file and [original_index.md](original_index.md) status rows aligned
   when slices land.
 

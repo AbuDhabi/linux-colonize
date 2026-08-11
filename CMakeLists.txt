@@ -830,9 +830,7 @@ target_include_directories(smoke_ai_turns PRIVATE
 target_link_libraries(smoke_ai_turns PRIVATE colonize_core)
 
 add_test(NAME smoke_ai_turns COMMAND smoke_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-# T2 early gate uses retired seed-100 fixture (TURN1→7). Full dispatcher claims TURN1→4 only.
-set_tests_properties(smoke_ai_turns PROPERTIES ENVIRONMENT "AI_EURO_EARLY_FIXTURE=1")
-
+# T2 early gate: full Euro dispatcher (TURN1→7). Fixture opt-in via AI_EURO_EARLY_FIXTURE=1 for bisect.
 add_executable(smoke_sound
   tests/smoke/test_sound.c
   src/core/sound.c
