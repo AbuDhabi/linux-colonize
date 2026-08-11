@@ -1193,6 +1193,13 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     return;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_RANSOM) {
+    if (game->col1_ok) {
+      (void)units_combat_apply_ransom_popup(&game->col1, &game->ai_popups);
+    }
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
   ColonizeTurnContext ctx;
   game_fill_turn_context(game, &ctx);
   ai_king_apply_popup_result(&ctx, &game->ai_popups);

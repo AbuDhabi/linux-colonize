@@ -8381,7 +8381,18 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
     if (cid >= 0) {
       ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
       if (c && c->nation_id != u->nation_id && c->nation_id >= 0 && c->nation_id < 4) {
-        colonies_capture(ctx->colonies, cid, u->nation_id);
+        int plunder = 0;
+        for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+          if (c->stock[i] > 0) {
+            plunder += c->stock[i];
+          }
+        }
+        ColonizeColony snap = *c;
+        if (colonies_capture(ctx->colonies, cid, u->nation_id)) {
+          units_combat_notify_colony_captured(
+            ctx->col1_ok ? ctx->col1 : NULL, &snap, u->nation_id, plunder
+          );
+        }
       }
     }
   }
@@ -12603,7 +12614,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       if (cid >= 0) {
         ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
         if (c && c->nation_id != nation_id) {
-          colonies_capture(ctx->colonies, cid, nation_id);
+          int plunder = 0;
+          for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+            if (c->stock[i] > 0) {
+              plunder += c->stock[i];
+            }
+          }
+          ColonizeColony snap = *c;
+          if (colonies_capture(ctx->colonies, cid, nation_id)) {
+            units_combat_notify_colony_captured(
+              ctx->col1_ok ? ctx->col1 : NULL, &snap, nation_id, plunder
+            );
+          }
           return;
         }
       }

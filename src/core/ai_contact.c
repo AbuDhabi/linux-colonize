@@ -4253,14 +4253,10 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             const char* tribe = ai_contact_tribe_name(nation_id);
             if (abandoned && abandoned_name[0]) {
               if (kind == AI_RAID_SCALP || kind == AI_RAID_BURN) {
-                /* GAME.TXT @INDIANBURNCOLONY thin. */
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "The %s burn %s to the ground!",
-                  tribe,
-                  abandoned_name
+                units_combat_notify_colony_burned(
+                  ctx->col1, abandoned_name, target_euro, tribe
                 );
+                raid_body = NULL; /* @BURNED covers human chrome */
               } else {
                 snprintf(
                   raid_line,
@@ -4269,8 +4265,8 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                   tribe,
                   abandoned_name
                 );
+                raid_body = raid_line;
               }
-              raid_body = raid_line;
             } else if (kind == AI_RAID_NOTHING) {
               /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}!" */
               if (c->name[0]) {

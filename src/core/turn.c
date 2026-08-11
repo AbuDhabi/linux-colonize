@@ -1844,6 +1844,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     return false;
   }
 
+  /* AI combat involving the human can enqueue outcome modals. */
+  units_set_combat_popups(ctx->ai_popups, ctx->messages);
+  units_set_combat_human_nation(ctx->human_nation);
+
   switch (proc->step) {
     case TURN_PROC_SETUP: {
       proc->show_indicator = false;
