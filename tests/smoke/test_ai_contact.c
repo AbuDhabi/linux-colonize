@@ -1171,16 +1171,18 @@ int main(void) {
   }
 
   /*
-   * Gift stand-in (AI Euro silent path via Brave adjacency; humans do not
-   * auto-gift on meet pulse — village Meet CHOICE):
-   * low friction + gold ≥40 → Generous −20 / friction −3; gold 20..39 → Large −10/−2.
+   * Auto gift (2154 tables + 5bfb gates): gold≥20 Large; Generous needs
+   * ask[0]-bid[0]≥1, gold≥0x4b, and delta≥RNG. Cite: indian_meet_scoring_2154.md.
    */
   col1.tribe[0].nation_id = 4;
+  col1.tribe[0].population = 4;
   ind->euro_diplo[0] = 1;
   ind->alarm_by_player[0] = 10;
+  ind->tech = 0;
   col1.tribe[0].alarm[0].friction = 10;
   col1.tribe[0].state.learned = 1;
-  col1.nation[0].gold = 50;
+  col1.tribe[0].state.capital = 0;
+  col1.nation[0].gold = 50; /* ≥20 Large; <0x4b no Generous */
   col1.nation[0].relation_by_indian[0] = 80;
   euro->x = 6;
   euro->y = 5;
@@ -1193,14 +1195,13 @@ int main(void) {
   ctx.status = status;
   ctx.status_size = sizeof(status);
   ai_contact_indian_meet_trade(&ctx, 4);
-  if (col1.nation[0].gold != 30u) {
-    return fail("AI gift gold≥40 should cost Euro 20 gold (Generous)");
+  if (col1.nation[0].gold != 40u) {
+    fprintf(stderr, "smoke_ai_contact: gift gold50→%u (want Large 40)\n",
+            (unsigned)col1.nation[0].gold);
+    return fail("AI gift gold 20..74 should cost Euro 10 gold (Large)");
   }
-  if (col1.tribe[0].alarm[0].friction != 7) {
-    return fail("Generous AI gift should reduce tribe friction by 3");
-  }
-  if (ind->alarm_by_player[0] != 7) {
-    return fail("Generous AI gift should reduce alarm_by_player by 3");
+  if (col1.tribe[0].alarm[0].friction != 8) {
+    return fail("Large AI gift should reduce tribe friction by 2");
   }
   if (status[0] != '\0') {
     return fail("AI gift stand-in should not set human chrome status");
@@ -1217,8 +1218,8 @@ int main(void) {
     return fail("Large AI gift should reduce tribe friction by 2");
   }
   /*
-   * 2154 rich neighborhood: forest tiles around tribe → Generous at gold 30–39.
-   * Cite: indian_meet_scoring_2154.md; ai_contact gift floor.
+   * 2154 Generous: sparse neighborhood (arctic pad → high ask−bid) + gold≥75.
+   * Dense forest raises bid and can suppress delta. Cite: FUN_4d56_2154.
    */
   {
     for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
@@ -1230,42 +1231,69 @@ int main(void) {
         const int nx = 5 + dx;
         const int ny = 5 + dy;
         if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-          map.terrain[ny * 16 + nx] = 8; /* forest pedia band */
+          map.terrain[ny * 16 + nx] = 24; /* arctic unscored */
         }
       }
     }
-    col1.nation[0].gold = 35;
+    /* Capital doubles ask after clamp → delta≥100 beats RNG 1..100. */
+    col1.tribe[0].state.capital = 1;
+    col1.nation[0].gold = 80;
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
     ind->euro_diplo[0] = 1;
     ctx.human_nation = 1;
+    ctx.rng_seed = 1;
     euro->x = 6;
     euro->y = 5;
     brave->x = 5;
     brave->y = 5;
     brave->nation_id = 4;
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 15u) {
-      fprintf(stderr, "smoke_ai_contact: rich gift gold=%u (want 15)\n",
+    if (col1.nation[0].gold != 60u) {
+      fprintf(stderr, "smoke_ai_contact: sparse gift gold=%u (want 60 Generous)\n",
               (unsigned)col1.nation[0].gold);
-      return fail("rich neighborhood should Generous at gold 30–39 (−20)");
+      return fail("sparse capital + gold≥75 should Generous (−20)");
     }
-    /*
-     * Series P: S≥8 floor → Generous at gold 25–29 (−20).
-     * Cite: indian_meet_scoring_2154.md; bucket-scaled floors.
-     */
-    col1.nation[0].gold = 27;
+    if (col1.tribe[0].alarm[0].friction != 7) {
+      return fail("Generous AI gift should reduce tribe friction by 3");
+    }
+    /* Gold 40 alone must not Generous (needs ≥0x4b). */
+    col1.tribe[0].state.capital = 1;
+    col1.nation[0].gold = 40;
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 7u) {
-      fprintf(stderr, "smoke_ai_contact: S>=8 gift gold=%u (want 7)\n",
+    if (col1.nation[0].gold != 30u) {
+      fprintf(stderr, "smoke_ai_contact: gold40 gift=%u (want Large 30)\n",
               (unsigned)col1.nation[0].gold);
-      return fail("S>=8 neighborhood should Generous at gold 25–29 (−20)");
+      return fail("gold <0x4b must Large even with positive delta");
     }
     /*
-     * 2154 cover mask: Euro colony 5×5 over the forest ring suppresses rich
-     * floor → Large (−10) not Generous at gold 35. Cite: Series G1.
+     * Dense forest + high tons[0] → ask crushed, delta≤0 → Large at gold 80.
+     */
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        const int nx = 5 + dx;
+        const int ny = 5 + dy;
+        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
+          map.terrain[ny * 16 + nx] = 8; /* forest class */
+        }
+      }
+    }
+    ind->tons[0] = 2500; /* phase-5 tons mix suppresses ask[0] */
+    col1.tribe[0].state.capital = 0;
+    col1.nation[0].gold = 80;
+    ind->alarm_by_player[0] = 10;
+    col1.tribe[0].alarm[0].friction = 10;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != 70u) {
+      fprintf(stderr, "smoke_ai_contact: forest gift gold=%u (want Large 70)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("dense forest + tons should suppress Generous (Large −10)");
+    }
+    ind->tons[0] = 0;
+    /*
+     * Cover clears forest buckets + capital → Generous at gold 80.
      */
     {
       ColonizeColony* cov = &colonies.colonies[0];
@@ -1276,17 +1304,19 @@ int main(void) {
       cov->y = 5;
       cov->population = 2;
       colonies.colony_count = 1;
-      col1.nation[0].gold = 35;
+      col1.tribe[0].state.capital = 1;
+      col1.nation[0].gold = 80;
       ind->alarm_by_player[0] = 10;
       col1.tribe[0].alarm[0].friction = 10;
       ai_contact_indian_meet_trade(&ctx, 4);
-      if (col1.nation[0].gold != 25u) {
-        fprintf(stderr, "smoke_ai_contact: cover gift gold=%u (want 25 Large)\n",
+      if (col1.nation[0].gold != 60u) {
+        fprintf(stderr, "smoke_ai_contact: cover gift gold=%u (want Generous 60)\n",
                 (unsigned)col1.nation[0].gold);
-        return fail("colony 5×5 cover should suppress rich Generous floor");
+        return fail("colony cover + capital should Generous");
       }
       cov->active = false;
       colonies.colony_count = 0;
+      col1.tribe[0].state.capital = 0;
     }
     for (int i = 0; i < 256; ++i) {
       map.terrain[i] = 1;
@@ -1294,53 +1324,52 @@ int main(void) {
   }
 
   /*
-   * Series S: capital village +2 neighborhood → Generous at gold 28 when
-   * base S=6 (floor 30 → Large without capital). Cite: indian_meet_scoring_2154.md.
+   * Capital mix doubles ask[0..7] → Generous at gold 80 where non-capital
+   * + tons crush stays Large. Cite: 2154 capital phase-5.
    */
   {
     for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
       colonies.colonies[ci].active = false;
     }
     colonies.colony_count = 0;
-    /* Arctic pad (pedia 24, unscored) + 3 forest → S=6; no coast. */
     for (int dy = -2; dy <= 2; ++dy) {
       for (int dx = -2; dx <= 2; ++dx) {
         const int nx = 5 + dx;
         const int ny = 5 + dy;
         if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
-          map.terrain[ny * 16 + nx] = 24;
+          map.terrain[ny * 16 + nx] = 24; /* arctic sparse */
         }
       }
     }
-    map.terrain[5 * 16 + 5] = 8;
-    map.terrain[5 * 16 + 6] = 8;
-    map.terrain[5 * 16 + 4] = 8;
     col1.tribe[0].state.capital = 0;
-    col1.nation[0].gold = 28;
+    ind->tons[0] = 2500;
+    col1.nation[0].gold = 80;
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
     ind->euro_diplo[0] = 1;
     ctx.human_nation = 1;
+    ctx.rng_seed = 1;
     euro->x = 6;
     euro->y = 5;
     brave->x = 5;
     brave->y = 5;
     brave->nation_id = 4;
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 18u) {
-      fprintf(stderr, "smoke_ai_contact: non-capital S=6 gift gold=%u (want 18 Large)\n",
+    if (col1.nation[0].gold != 70u) {
+      fprintf(stderr, "smoke_ai_contact: non-capital sparse+tons gift=%u (want Large 70)\n",
               (unsigned)col1.nation[0].gold);
-      return fail("non-capital S=6 should Large at gold 28 (−10)");
+      return fail("non-capital + tons should Large at gold 80");
     }
     col1.tribe[0].state.capital = 1;
-    col1.nation[0].gold = 28;
+    ind->tons[0] = 0;
+    col1.nation[0].gold = 80;
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
     ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.nation[0].gold != 8u) {
-      fprintf(stderr, "smoke_ai_contact: capital S=8 gift gold=%u (want 8 Generous)\n",
+    if (col1.nation[0].gold != 60u) {
+      fprintf(stderr, "smoke_ai_contact: capital sparse gift=%u (want Generous 60)\n",
               (unsigned)col1.nation[0].gold);
-      return fail("capital +2 should Generous at gold 28 (−20)");
+      return fail("capital mix should Generous at gold 80 on sparse land");
     }
     col1.tribe[0].state.capital = 0;
     for (int i = 0; i < 256; ++i) {
@@ -2088,6 +2117,54 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction != (uint8_t)(fr_g - 3) ||
         ind->alarm_by_player[0] != (uint16_t)(al_g - 3)) {
       return fail("demand gold path should decay friction by 3");
+    }
+  }
+
+  /*
+   * 2154 demand preference: ask[0] < bid[0] → gold-first when both payable.
+   * High tons[0] crushes ask; forest raises bid. Cite: LAB_5bfb_096c.
+   */
+  {
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        const int nx = 5 + dx;
+        const int ny = 5 + dy;
+        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
+          map.terrain[ny * 16 + nx] = 8;
+        }
+      }
+    }
+    ind->tons[0] = 2500;
+    col1.tribe[0].state.capital = 0;
+    euro->x = 6;
+    euro->y = 5;
+    euro->active = true;
+    euro->tools = 5;
+    brave->x = 5;
+    brave->y = 5;
+    brave->nation_id = 4;
+    col1.tribe[0].alarm[0].friction = 45;
+    ind->euro_diplo[0] = 1;
+    ind->alarm_by_player[0] = 20;
+    col1.nation[0].gold = 60;
+    c->active = true;
+    c->nation_id = 0;
+    c->x = 5;
+    c->y = 5;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* tools also payable */
+    ctx.human_nation = 1;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != 45u) {
+      fprintf(stderr, "smoke_ai_contact: ask<bid demand gold=%u (want 45)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("ask[0]<bid[0] should prefer gold demand when both payable");
+    }
+    if (c->stock[COLONIZE_CARGO_TOOLS] != 40) {
+      return fail("gold-first demand must not take tools when gold pays");
+    }
+    ind->tons[0] = 0;
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
     }
   }
 

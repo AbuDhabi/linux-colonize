@@ -38,12 +38,25 @@ for gift/demand price tables (`DS:0x9e*`), not a raid action body.
 | `0x8d4a` | Bound tribe |
 | `0x8d4e` / `0x8d52` | Tribe / Indian-nation side data |
 | `0x8542` | Bound colony (inside colony walk) |
-| `0x9e58`…`0x9e96` | Meet economics outputs |
+| `0x9e58`…`0x9e76` | Ask table (16×int16) — Ghidra `-25000` |
+| `0x9e78`…`0x9e96` | Bid table (16×int16) — Ghidra `-0x6188` |
 
-## Linux
+## Linux — **Done** (scorer + consumers)
 
-Meet gift/demand uses thin relation/alarm stand-ins in `ai_contact` /
-`ai_diplo`. **Partial `2154`:** colony 5×5 cover mask + tribe±2 forest/coast/food/ore
-buckets → score `S=forest*2+coast+food+ore` (+2 capital village) maps Generous
-floors (S≥8→25, S≥6→30, else 40; cover suppresses). Full `0x9e*` table still
-**OPEN**. Cite: Series P / Series S.
+Port: `ai_contact_meet_economics_2154` in [`ai_contact.c`](../../src/core/ai_contact.c).
+
+| Phase | Linux |
+|-------|-------|
+| 1 Cover | Tribe-local 25-cell mask from colony↔tribe relative overlap (full ring; `281f_0ce0` work-slot **OPEN**) |
+| 2–3 Buckets | `map_dos_terr_class_at` class arms (`0x1b`/`0x1c`/`0x18`/plains/forest) |
+| 4 Write | Decomp formulas → `ask[16]` / `bid[16]` from `tech`, `population+1`, buckets, `muskets` / `horse_herds` / `horse_breeding` / `tons[]` |
+| 5 Clamp/mix | Ask clamp 0..0x32; capital doubles ask[0..7] + bumps; tons mix; bid/ask half-cross |
+| Divisor | `*(0x8d52 + −0x69d6)` → `head.difficulty` (0..4; min 1) |
+| Debug | `0x894&4` dump **PARKED** (VGA) |
+
+**Consumers (`ai_contact_gift_or_demand`):**
+
+- Gift Generous (−20/−3) when `ask[0]−bid[0] ≥ 1`, nation gold ≥ `0x4b`, and delta ≥ thin RNG (`281f_04d4` stand-in 1..100); else Large (−10/−2) when gold ≥ 20.
+- Demand: `ask[0] < bid[0]` → gold-first; else tools-first (same drains).
+
+Series P/S scalar `S` floors **retired**. Smokes: `smoke_ai_contact`. Not blanket Indian T3 (`2820`/`4528` remain partial).
