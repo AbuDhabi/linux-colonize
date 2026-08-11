@@ -7002,8 +7002,9 @@ static int smoke_unload_military_threatened(void) {
   c->nation_id = nation;
   c->x = 4;
   c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  /* Full colony so unload stays as field unit (no admit after mil unload). */
+  c->population = 8;
+  c->colonist_count = 8;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
@@ -7201,8 +7202,9 @@ static int smoke_unload_dragoon_threatened(void) {
   c->nation_id = nation;
   c->x = 4;
   c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  /* Full colony so unload stays as field unit (no admit after mil unload). */
+  c->population = 8;
+  c->colonist_count = 8;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
@@ -7371,8 +7373,9 @@ static int smoke_unload_regular_threatened(void) {
   c->nation_id = nation;
   c->x = 4;
   c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  /* Full colony so unload stays as field unit (no admit after mil unload). */
+  c->population = 8;
+  c->colonist_count = 8;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
@@ -7549,8 +7552,9 @@ static int smoke_unload_continental_army_threatened(void) {
   c->nation_id = nation;
   c->x = 4;
   c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  /* Full colony so unload stays as field unit (no admit after mil unload). */
+  c->population = 8;
+  c->colonist_count = 8;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;
@@ -7722,8 +7726,9 @@ static int smoke_unload_continental_cavalry_threatened(void) {
   c->nation_id = nation;
   c->x = 4;
   c->y = 4;
-  c->population = 2;
-  c->colonist_count = 2;
+  /* Full colony so unload stays as field unit (no admit after mil unload). */
+  c->population = 8;
+  c->colonist_count = 8;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
   c->stock[COLONIZE_CARGO_TOOLS] = 40;
   c->building_in_production = -1;

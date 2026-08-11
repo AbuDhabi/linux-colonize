@@ -5,7 +5,7 @@ That smoke compares **both** Euro and Indian fields (units/Braves, tribes,
 colonies, `euro_relation[]`, `relation_by_indian[]`, `indian_hostility_sticky`).
 
 Aggregate CI gate: `cmake --build build --target smoke_ai_joint`
-(includes `smoke_ai_mid01`).
+(includes `smoke_ai_mid01` + `smoke_ai_late01`).
 
 ## Mid-game series
 
@@ -13,12 +13,17 @@ Aggregate CI gate: `cmake --build build --target smoke_ai_joint`
 |------|------|--------|
 | `MID01.SAV` | Linux-derived mid-war stamp from TURN7 (sticky≥2, alarm, year≥1505) | **Done** via `smoke_ai_mid01` (regenerates + self-checks) |
 | `MID02.SAV` | One joint turn after MID01 (Euro dispatcher + Indian nation act) | **Done** via `smoke_ai_mid01` (write + pair compare) |
-| `LATE01.SAV` | Late war + Indian raid + Euro hunt same sequence | Scaffold |
+| `LATE01.SAV` | Late-war stamp from MID02 + one joint turn; structural raid/hunt signals | **Done** via `smoke_ai_late01` (not TURN XY field-diff; not blanket T3) |
 
 `smoke_ai_mid01` loads `TURN7.SAV`, stamps joint mid-war fields, writes
 `MID01.SAV`, runs one `turn_end`, captures `MID02.SAV`, then pair-compares
 calendar / Euro+Brave / tribes / colonies / sticky surfaces (same joint list
 spirit as `smoke_ai_turns`). Exact unit XY is Linux-derived each run.
+
+`smoke_ai_late01` loads `MID02.SAV`, stamps late-war (year≥1550, sticky≥2,
+alarm/friction hot), writes `LATE01.SAV`, runs one `turn_end`, captures
+`LATE01_POST.SAV` for debug, and asserts structural raid-side + hunt-side
+mutation signals (not locked XY goldens).
 
 Each pair should encode:
 

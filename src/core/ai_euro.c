@@ -9093,11 +9093,10 @@ static int ai_euro_colony_threatened_by_war(
  * At war: ship with military cargo adjacent to own threatened coastal colony →
  * unload one passenger onto the colony tile (reinforce). Prefer Soldier, else
  * Regular/Continental Army, else Dragoon/Continental Cavalry, else
- * Artillery/Cannon — mirror king MoW unload ladder + board list. Complements
- * board + war-transport sail-to-threatened-port. Cite: Colonization.pdf naval
- * transport / Defending a Colony; euro_unit_act §2b2; king_ref MoW unload
- * Regular-prefer else Dragoon; units_unload_passenger. Returns 1 if a military
- * passenger was unloaded.
+ * Artillery/Cannon — mirror king MoW unload ladder + board list.
+ * Thin −0x6790 / local_9c 0x10: require continent stance ≠ 0; prefer stance==4.
+ * Cite: move_scoring_ship.md; Series I. Returns 1 if a military passenger was
+ * unloaded.
  */
 static int ai_euro_try_unload_military_threatened(
   ColonizeTurnContext* ctx,
@@ -9116,6 +9115,7 @@ static int ai_euro_try_unload_military_threatened(
   if (ship->cargo_count <= 0) {
     return 0;
   }
+  ai_euro_refresh_continent_stance(ctx, nation_id);
   /* Prefer Soldier > Regular/Cont.Army > Dragoon/Cont.Cav > Artillery. */
   int pax_id = -1;
   int pax_rank = 0; /* 4=Soldier, 3=Regular/Army, 2=Dragoon/Cav, 1=Artillery */
@@ -9150,9 +9150,11 @@ static int ai_euro_try_unload_military_threatened(
   if (pax_id < 0) {
     return 0;
   }
-  /* Adjacent/same-tile own coastal colony threatened by war-peer. */
+  /* Adjacent/same-tile own coastal colony threatened by war-peer; stance≠0. */
   int dest_x = -1;
   int dest_y = -1;
+  int any_x = -1;
+  int any_y = -1;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* col = &ctx->colonies->colonies[i];
     if (!col->active || col->nation_id != nation_id) {
@@ -9167,9 +9169,23 @@ static int ai_euro_try_unload_military_threatened(
     if (!ai_euro_colony_threatened_by_war(ctx, nation_id, col)) {
       continue;
     }
-    dest_x = col->x;
-    dest_y = col->y;
-    break;
+    const int cid = map_continent_id_at(ctx->map, col->x, col->y);
+    const int st = ai_euro_continent_stance_at(nation_id, cid);
+    if (st == 0) {
+      continue; /* −0x6790 none: no mil unload bit */
+    }
+    if (any_x < 0) {
+      any_x = col->x;
+      any_y = col->y;
+    }
+    if (st == 4 && dest_x < 0) {
+      dest_x = col->x;
+      dest_y = col->y;
+    }
+  }
+  if (dest_x < 0) {
+    dest_x = any_x;
+    dest_y = any_y;
   }
   if (dest_x < 0) {
     return 0;
