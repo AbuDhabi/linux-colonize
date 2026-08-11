@@ -23,9 +23,61 @@ static int s_sticky_count = 0;
 static uint8_t s_deferred_found[COLONIZE_UNITS_MAX];
 /* Colony ids founded this dispatcher_turn — keep auto-Stockade bip one turn. */
 static uint8_t s_founded_colony_turn[COLONIZE_COLONIES_MAX];
+/*
+ * Thin −0x6790 nation×continent stance ∈ {0,3,4,6}:
+ * 0 none / 3 expand / 4 military / 6 develop. Filled from live colony tallies.
+ */
+static uint8_t s_euro_continent_stance[4][16];
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
+static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
+
+static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  memset(s_euro_continent_stance[nation_id], 0, sizeof(s_euro_continent_stance[nation_id]));
+  if (!ctx->map || !ctx->colonies || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  int nation_cont[16];
+  memset(nation_cont, 0, sizeof(nation_cont));
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const int cid = map_continent_id_at(ctx->map, c->x, c->y);
+    if (cid >= 0 && cid <= 15) {
+      nation_cont[cid]++;
+    }
+  }
+  const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  for (int cid = 0; cid <= 15; ++cid) {
+    const unsigned target =
+      (unsigned)ctx->col1->post_map.continent_tally_b[cid] / 12u;
+    const int have = nation_cont[cid];
+    if (have <= 0 && target == 0) {
+      s_euro_continent_stance[nation_id][cid] = 0;
+    } else if (have == 0 && target > 0) {
+      s_euro_continent_stance[nation_id][cid] = 3; /* expand */
+    } else if (at_war && have > 0) {
+      s_euro_continent_stance[nation_id][cid] = 4; /* military */
+    } else if (have > 0 && (unsigned)have < target) {
+      s_euro_continent_stance[nation_id][cid] = 3;
+    } else if (have > 0) {
+      s_euro_continent_stance[nation_id][cid] = 6; /* develop */
+    }
+  }
+}
+
+static int ai_euro_continent_stance_at(int nation_id, int continent_id) {
+  if (nation_id < 0 || nation_id >= 4 || continent_id < 0 || continent_id > 15) {
+    return 0;
+  }
+  return (int)s_euro_continent_stance[nation_id][continent_id];
+}
 
 /*
  * Thin FUN_5952 pioneer gate: DOS requires improve_timer >= terr@0x2f78 + 2
@@ -7662,12 +7714,12 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
   /*
    * G continent stance — mid-game pressure once established (≥2 colonies).
-   * At war MILITARY primary prio: own≥2 → 6, ≥3 → 7, ≥4 → 8; modulated by live
-   * FUN_521d_0492 continent balance (thin −0x6790 stand-in via continent_tally_b/12).
-   * Under-colonized continents (bal&1) soft-cap mil prio (−1) and bump FOUND.
-   * Full nation×continent nibble table (−0x6790 ∈ {0,3,4,6}) still OPEN.
+   * Refresh thin −0x6790 stance nibbles {0,3,4,6} from live tallies, then at war
+   * MILITARY primary prio: own≥2 → 6, ≥3 → 7, ≥4 → 8; stance==3 soft-caps hunt
+   * and bumps FOUND; stance==4 keeps mil ladder. Cite: euro_dispatcher.c G.
    */
   {
+    ai_euro_refresh_continent_stance(ctx, nation_id);
     const int own =
       inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
     if (own >= 2 && ctx->colonies) {
@@ -7719,13 +7771,11 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
             mil_prio = 7;
           }
           int under_cont = 0;
-          if (ctx->map && ctx->col1_ok && ctx->col1) {
+          if (ctx->map) {
             const int cid = map_continent_id_at(ctx->map, target->x, target->y);
-            const int bal = ai_goals_colony_balance_flags(
-              ctx->map, ctx->colonies, ctx->col1, nation_id, cid
-            );
-            /* bal&1: below continent_tally_b/12 target — soft-cap hunt, expand. */
-            if (bal & 1) {
+            const int stance = ai_euro_continent_stance_at(nation_id, cid);
+            /* stance 3 expand / bal under-target: soft-cap hunt, bump FOUND. */
+            if (stance == 3) {
               under_cont = 1;
               if (mil_prio > 6) {
                 mil_prio--;
@@ -8073,11 +8123,36 @@ static int ai_euro_score_move(
     }
     const int dist = abs(goal_x - nx) + abs(goal_y - ny);
     int score = 1000 - dist * 10;
-    /* Explore arm of land 20e6 (thin): prefer tiles not yet seen by this nation. */
-    if (ctx->map->seen && !map_tile_seen_by(ctx->map, nx, ny, u->nation_id)) {
-      score += 6;
+    /*
+     * Explore ring (LAB_521d_2912→2a59 thin): continent match, FoW unseen
+     * nibble, skip LCR (rumour / terr class 0x1b) for non-Scouts; Scouts prefer
+     * rumour tiles. Cite: move_scoring_land.md §explore ring.
+     */
+    {
+      const int unit_cid = map_continent_id_at(ctx->map, u->x, u->y);
+      const int step_cid = map_continent_id_at(ctx->map, nx, ny);
+      if (unit_cid > 0 && step_cid == unit_cid) {
+        score += 4;
+      }
+      const int unseen =
+        ctx->map->seen && !map_tile_seen_by(ctx->map, nx, ny, u->nation_id) ? 1 : 0;
+      if (unseen) {
+        score += 6;
+      }
+      const int rum = map_tile_has_rumour(ctx->map, nx, ny);
+      const int lcr_class = map_dos_terr_class_at(ctx->map, nx, ny) == 0x1b;
+      const char* nm = units_display_name(ctx->units, u);
+      const int is_scout = nm && strstr(nm, "Scout") != NULL;
+      if (is_scout && rum) {
+        score += 12;
+      } else if (!is_scout && (rum || lcr_class)) {
+        score -= 20; /* non-scout skip LCR / rumour */
+      }
     }
-    /* Thin land combat 20e6: prefer closing on weaker adjacent war foes. */
+    /*
+     * Land combat 20e6 (thin→structured): prefer closing on weaker adjacent war
+     * foes; prefer foreign Euro settlement tiles (orders 0x46 settlement scan).
+     */
     if (at_war) {
       for (int ad = 0; ad < 8; ++ad) {
         const int ax = nx + dx[ad];
@@ -8099,6 +8174,10 @@ static int ai_euro_score_move(
           score += 14;
         } else if (ft > own_tough) {
           score -= 6;
+        }
+        if (f->nation_id >= 0 && f->nation_id <= 3 && ctx->colonies &&
+            colonies_id_at(ctx->colonies, f->x, f->y) >= 0) {
+          score += 8; /* settlement-adjacent foe (0x46-shaped) */
         }
       }
     }
@@ -8281,9 +8360,42 @@ static int ai_euro_is_cargo_ship_name(const char* name) {
 }
 
 /*
+ * LAB_521d_3558 peace colony-sail score (~89614–89711 thin):
+ * prefer higher pop, nearer ship, docks present, hungrier idle timer.
+ * Cite: move_scoring_ship.md; euro_ocean_scoring.c.
+ */
+static int ai_euro_ocean_colony_sail_score(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int from_x,
+  int from_y,
+  const ColonizeColony* c,
+  int at_war_cargo
+) {
+  if (!ctx || !ctx->map || !c || !c->active || c->nation_id != nation_id) {
+    return -999999;
+  }
+  if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+    return -999999;
+  }
+  const int d = abs(c->x - from_x) + abs(c->y - from_y);
+  int score = (int)c->population * 8 - d * 4 + (int)c->cargo_idle_turns * 8;
+  const int docks_id = colonies_find_building(ctx->colonies, "Docks");
+  if (docks_id >= 0 && c->has_building[docks_id]) {
+    score += 16; /* dock flag 0x1b&0x10 stand-in */
+  }
+  if (at_war_cargo) {
+    const int fort = ai_euro_colony_fort_bonus_at(ctx->colonies, c->x, c->y, nation_id);
+    score += fort / 5;
+    score += 14; /* war human-presence / fort peel thin */
+  }
+  return score;
+}
+
+/*
  * Nearest own coastal colony that is tools-short (stock[TOOLS]<20) or
- * food-short (stock[FOOD] < pop*2). Cite: euro_unit_act §2d / 5cf6 tallies;
- * sail destination for cargo-ship haul — no invented cargo types.
+ * food-short (stock[FOOD] < pop*2). Peace path uses 3558 colony-sail score;
+ * war cargo path boosts fort/idle. Cite: euro_unit_act §2d / 5cf6; 3558.
  */
 static int ai_euro_nearest_short_coastal_colony(
   ColonizeTurnContext* ctx,
@@ -8297,7 +8409,10 @@ static int ai_euro_nearest_short_coastal_colony(
       nation_id >= 4) {
     return 0;
   }
-  int best = -1;
+  const int at_war =
+    ctx->col1_ok && ctx->col1 && ai_euro_at_war_any_peer(ctx->col1, nation_id);
+  int best_score = -999999;
+  int have = 0;
   int bx = 0;
   int by = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -8319,14 +8434,16 @@ static int ai_euro_nearest_short_coastal_colony(
         !food_short) {
       continue;
     }
-    const int d = abs(c->x - from_x) + abs(c->y - from_y);
-    if (best < 0 || d < best) {
-      best = d;
+    const int score =
+      ai_euro_ocean_colony_sail_score(ctx, nation_id, from_x, from_y, c, at_war);
+    if (!have || score > best_score) {
+      have = 1;
+      best_score = score;
       bx = c->x;
       by = c->y;
     }
   }
-  if (best < 0) {
+  if (!have) {
     return 0;
   }
   *out_cx = bx;
@@ -8643,6 +8760,91 @@ static int ai_euro_try_ship_europe_export(
     return 1;
   }
   ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, ex, ey);
+  return 1;
+}
+
+/*
+ * War cargo colony-sail (3558 thin, needs −0x6790 stance ≠ 0): ship with
+ * muskets/horses or military pax sails to best fortified own coastal colony.
+ * Cite: move_scoring_ship.md war cargo; euro_ocean_scoring.c.
+ */
+static int ai_euro_try_ship_war_cargo_sail(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship || !ship->active) {
+    return 0;
+  }
+  if (ai_euro_in_europe(ship->x, ship->y)) {
+    return 0;
+  }
+  if (!ctx->col1_ok || !ctx->col1 || !ai_euro_at_war_any_peer(ctx->col1, nation_id)) {
+    return 0;
+  }
+  ai_euro_refresh_continent_stance(ctx, nation_id);
+  int any_stance = 0;
+  for (int cid = 0; cid <= 15; ++cid) {
+    if (ai_euro_continent_stance_at(nation_id, cid) != 0) {
+      any_stance = 1;
+      break;
+    }
+  }
+  if (!any_stance) {
+    return 0;
+  }
+  const int has_muskets =
+    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_MUSKETS);
+  const int has_horses =
+    ai_euro_wagon_has_cargo_type(ctx->units, ship, COLONIZE_CARGO_HORSES);
+  int has_mil_pax = 0;
+  for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
+    const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[c]);
+    if (!pax || !pax->active) {
+      continue;
+    }
+    if (ai_euro_is_military_name(units_display_name(ctx->units, pax))) {
+      has_mil_pax = 1;
+      break;
+    }
+  }
+  if (!has_muskets && !has_horses && !has_mil_pax) {
+    return 0;
+  }
+  int best_score = -999999;
+  int bx = 0;
+  int by = 0;
+  int have = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const int cid = map_continent_id_at(ctx->map, c->x, c->y);
+    if (ai_euro_continent_stance_at(nation_id, cid) == 0) {
+      continue;
+    }
+    const int score =
+      ai_euro_ocean_colony_sail_score(ctx, nation_id, ship->x, ship->y, c, /*at_war=*/1);
+    if (!have || score > best_score) {
+      have = 1;
+      best_score = score;
+      bx = c->x;
+      by = c->y;
+    }
+  }
+  if (!have) {
+    return 0;
+  }
+  int wx = 0;
+  int wy = 0;
+  if (!ai_euro_coastal_water_near(ctx->map, bx, by, ship->x, ship->y, &wx, &wy)) {
+    return 0;
+  }
+  if (ship->x == wx && ship->y == wy) {
+    return 1;
+  }
+  ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, wx, wy);
   return 1;
 }
 
@@ -9557,6 +9759,12 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
         : 0;
     const int tough = ai_euro_land_foe_toughness(ctx, ctx->units, f);
     const int treasure = ai_euro_is_treasure_name(units_display_name(ctx->units, f));
+    /* Prefer foes already on a foreign Euro settlement (0x46 settlement scan). */
+    const int on_settle =
+      (f->nation_id >= 0 && f->nation_id <= 3 && ctx->colonies &&
+       colonies_id_at(ctx->colonies, f->x, f->y) >= 0)
+        ? 1
+        : 0;
     if (siege) {
       if (best_id < 0 || fort > best_fort || (fort == best_fort && tough < best_tough)) {
         best_id = foe;
@@ -9566,7 +9774,8 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
       }
     } else if (
       best_id < 0 || tough < best_tough ||
-      (tough == best_tough && treasure && !best_treasure)
+      (tough == best_tough && treasure && !best_treasure) ||
+      (tough == best_tough && treasure == best_treasure && on_settle)
     ) {
       best_id = foe;
       best_tough = tough;
@@ -10064,9 +10273,9 @@ static int ai_euro_nation_pioneer_aboard(ColonizeTurnContext* ctx, int nation_id
  */
 /*
  * Resolve first-colony found XY.
- * Prefer primary FOUND; landfall latitude-band geometry next (06ae adj from
- * ship/staging still prefers inland higher 2f77 — e.g. Quebec→49,37); live
- * 06ae last. Cite: move_scoring.md §06ae.
+ * Prefer primary FOUND; try live 06ae from coastal staging (local_9c/unload
+ * shaped); landfall seed when live misses Quebec/NA/Isabella; adj 06ae last.
+ * Cite: move_scoring.md §06ae; move_scoring_ship.md local_9c.
  */
 static int ai_euro_resolve_first_found_tile(
   ColonizeTurnContext* ctx,
@@ -10088,7 +10297,50 @@ static int ai_euro_resolve_first_found_tile(
       return 1;
     }
   }
-  if (lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, out_x, out_y)) {
+  int seed_x = 0;
+  int seed_y = 0;
+  const int have_seed =
+    lf_x >= 0 &&
+    ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &seed_x, &seed_y);
+  int live_x = 0;
+  int live_y = 0;
+  int have_live = 0;
+  if (lf_x >= 0 && ctx->map && ctx->colonies) {
+    int sx = lf_x;
+    int sy = lf_y;
+    if (ai_euro_coastal_staging_from_landfall(ctx->map, lf_x, lf_y, &sx, &sy) ||
+        ai_euro_tile_is_coast_water(ctx->map, u->x, u->y)) {
+      if (!ai_euro_tile_is_coast_water(ctx->map, sx, sy)) {
+        sx = u->x;
+        sy = u->y;
+      }
+      have_live = ai_euro_pick_founding_tile(
+        ctx->map,
+        ctx->colonies,
+        ctx->col1_ok ? ctx->col1 : NULL,
+        nation_id,
+        sx,
+        sy,
+        0,
+        &live_x,
+        &live_y
+      );
+    }
+  }
+  /* Prefer live when it matches seed (path to seed retirement). */
+  if (have_live && have_seed && live_x == seed_x && live_y == seed_y) {
+    *out_x = live_x;
+    *out_y = live_y;
+    return 1;
+  }
+  if (have_seed) {
+    *out_x = seed_x;
+    *out_y = seed_y;
+    return 1;
+  }
+  if (have_live) {
+    *out_x = live_x;
+    *out_y = live_y;
     return 1;
   }
   return ai_goals_pick_founding_tile(
@@ -11035,6 +11287,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (at_war && !ai_euro_in_europe(u->x, u->y) && !treasure_aboard) {
       /* Drop Soldier at threatened own coastal colony before hunt sail. */
       (void)ai_euro_try_unload_military_threatened(ctx, nation_id, u);
+      /* War cargo → fortified own coast when −0x6790 stance ≠ 0. */
+      if (ai_euro_try_ship_war_cargo_sail(ctx, nation_id, u)) {
+        /* fall through to hunt only if still idle after course set */
+      }
       /* Leave enemy Fort/Fortress battery tiles before hunt/attack. */
       if (ai_euro_naval_try_flee_fort_fire(ctx, u)) {
         u = units_get(ctx->units, u->id);

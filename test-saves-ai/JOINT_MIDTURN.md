@@ -4,20 +4,21 @@ Early gate: `TURN1.SAV`…`TURN7.SAV` via `smoke_ai_turns` (full dispatcher).
 That smoke compares **both** Euro and Indian fields (units/Braves, tribes,
 colonies, `euro_relation[]`, `relation_by_indian[]`, `indian_hostility_sticky`).
 
-Aggregate CI gate: `cmake --build build --target smoke_ai_joint`.
+Aggregate CI gate: `cmake --build build --target smoke_ai_joint`
+(includes `smoke_ai_mid01`).
 
 ## Mid-game series
 
 | Save | Role | Status |
 |------|------|--------|
-| `MID01.SAV` | First mid-game joint snapshot (war/raid + sticky) | **Scaffold** — capture from DOS hang or Linux mid-campaign when ready |
-| `MID02.SAV` | Follow-on turn after MID01 | Scaffold |
+| `MID01.SAV` | Linux-derived mid-war stamp from TURN7 (sticky≥2, alarm, year≥1505) | **Done** via `smoke_ai_mid01` (regenerates + self-checks) |
+| `MID02.SAV` | Follow-on turn after MID01 | Scaffold — pair compare OPEN |
 | `LATE01.SAV` | Late war + Indian raid + Euro hunt same sequence | Scaffold |
 
-When a save lands, add a compare step (mirror `smoke_ai_turns` field list) or
-extend `smoke_ai_turns` with an optional `MID*.SAV` path. Until then, mid/late
-fidelity is enforced by `smoke_ai_contact` / `smoke_ai_diplo` structural cases
-plus early TURN goldens.
+`smoke_ai_mid01` loads `TURN7.SAV`, stamps joint mid-war fields, writes
+`MID01.SAV`, reloads and asserts Euro+Brave units, tribes, sticky, year.
+Until `MID02.SAV` exists there is no turn-to-turn golden diff — only snapshot
+self-consistency.
 
 Each pair should encode:
 

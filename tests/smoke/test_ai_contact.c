@@ -1215,6 +1215,44 @@ int main(void) {
   if (col1.tribe[0].alarm[0].friction != 8) {
     return fail("Large AI gift should reduce tribe friction by 2");
   }
+  /*
+   * 2154 rich neighborhood: forest tiles around tribe → Generous at gold 30–39.
+   * Cite: indian_meet_scoring_2154.md; ai_contact gift floor.
+   */
+  {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      colonies.colonies[ci].active = false;
+    }
+    colonies.colony_count = 0;
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        const int nx = 5 + dx;
+        const int ny = 5 + dy;
+        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
+          map.terrain[ny * 16 + nx] = 8; /* forest pedia band */
+        }
+      }
+    }
+    col1.nation[0].gold = 35;
+    ind->alarm_by_player[0] = 10;
+    col1.tribe[0].alarm[0].friction = 10;
+    ind->euro_diplo[0] = 1;
+    ctx.human_nation = 1;
+    euro->x = 6;
+    euro->y = 5;
+    brave->x = 5;
+    brave->y = 5;
+    brave->nation_id = 4;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != 15u) {
+      fprintf(stderr, "smoke_ai_contact: rich gift gold=%u (want 15)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("rich neighborhood should Generous at gold 30–39 (−20)");
+    }
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+  }
 
   /*
    * Gift refuse when Euro gold < 10: no gold change. Human adjacency: no
@@ -2754,6 +2792,47 @@ int main(void) {
     units_despawn(&units, far2);
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
+
+    /*
+     * Alarmed escort MD≤4: at alarm≥55 lead at Chebyshev/MD 4 is eligible
+     * (peace escort max MD 3). Cite: ai_contact_escort_pick_lead.
+     */
+    ind->alarm_by_player[0] = 55;
+    col1.tribe[0].alarm[0].friction = 55;
+    col1.nation[0].relation_by_indian[0] = 40;
+    c_tgt->active = true;
+    c_tgt->nation_id = 0;
+    c_tgt->x = 12;
+    c_tgt->y = 5;
+    colonies.colony_count = 1;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->orders = UNITS_ORDER_NONE;
+    const int md4 = units_spawn_allow_stack(&units, 0, 9, 5); /* MD=4 from (5,5) */
+    ColonizeUnit* md4_lead = units_get(&units, md4);
+    if (!md4_lead) {
+      return fail("alarmed escort MD4 lead spawn");
+    }
+    md4_lead->nation_id = 4;
+    md4_lead->moves_left = 0;
+    md4_lead->orders = UNITS_ORDER_AI_MOVE;
+    md4_lead->goto_x = 12;
+    md4_lead->goto_y = 5;
+    ai_contact_indian_raids(&ctx, 4);
+    brave = units_get(&units, brave_id);
+    if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md4) {
+      fprintf(stderr, "smoke_ai_contact: alarmed MD4 follow=%d\n",
+              brave ? brave->follow_unit_id : -1);
+      return fail("alarm≥55 escort should reach lead at MD=4");
+    }
+    units_despawn(&units, md4);
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+    c_tgt->active = false;
+    colonies.colony_count = 0;
+    ind->alarm_by_player[0] = 0;
+    col1.tribe[0].alarm[0].friction = 0;
   }
 
   /*
@@ -3070,8 +3149,11 @@ int main(void) {
       pop.result_nation_b = 4;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
-      if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_hb - 1) {
-        return fail("hard-bargain should still drain trade goods");
+      /* Inca silver + hard-bargain → 2bbc peel drains 2 trade goods. */
+      if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_hb - 2) {
+        fprintf(stderr, "smoke_ai_contact: hard-bargain goods %d→%d\n", goods_hb,
+                c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
+        return fail("hard-bargain silver peel should drain 2 trade goods");
       }
       if (col1.nation[0].relation_by_indian[0] != rel_hb) {
         return fail("hard-bargain should skip relation bump");
