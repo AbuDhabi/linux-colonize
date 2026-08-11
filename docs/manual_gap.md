@@ -90,7 +90,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Warehouse drag load/unload to ships / wagons | Done | Drag cargo↔hold (icon cursor); **L**/**U**/**=**/**+**; empty holds use `ICONS` **#122** |
 | SoL / Tory display | Partial | Col1 rebel_dividend/divisor when present; else nation liberty_bells/4 stand-in (`colony_prod_sol_percent`); Tory right-aligned; people row includes fence units — [sons_of_liberty.md](sons_of_liberty.md) |
 | Leave colony / abandon | Partial | Leave-as popup; Stockade+ keeps ≥3; last colonist confirms abandon (cargo lost) |
-| Fortification defense bonuses | Done | Land +100/150/200%; coastal Fort/Fortress fire EOT (`units_coastal_fort_fire_pulse`). Fence/docks art separate |
+| Fortification defense bonuses | Done | Live land via `157e` `local_1a` (Stockade/Fort ×2, Fortress ×3); coastal Fort/Fortress fire EOT. Fence/docks art separate — [combat.md](combat.md) |
 
 ### Europe
 
@@ -133,9 +133,9 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Partial | Land/naval: `FUN_157e` + `1b0e` peels, best-defender, promote/demote, capture/naval-damage, Combat Analysis + structural outcome popups. Village `4528`/`20e6` / VGA chrome PARKED — [move_enter.md](move_enter.md) |
-| Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons |
-| Stockade / fort / fortress defense % | Done | Land combat: +100%/+150%/+200% via `colonies_fortification_defense_bonus_percent`; coastal Fort/Fortress naval fire `units_coastal_fort_fire_pulse` (FUN_364b_03f6). PARK: ship-slow formula |
+| Land / naval attack | Partial | Land/naval: `FUN_157e` + `1b0e` peels, best-defender, promote/demote, capture/naval-damage, Combat Analysis + structural outcome popups. Village `4528`/`20e6` / VGA chrome PARKED — [combat.md](combat.md); enter gates [move_enter.md](move_enter.md) |
+| Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
+| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a` (Stockade/Fort ×2, Fortress ×3); helper `colonies_fortification_defense_bonus_percent` 100/150/200 for AI/UI; coastal Fort/Fortress naval fire `units_coastal_fort_fire_pulse` (FUN_364b_03f6). PARK: ship-slow formula — [combat.md](combat.md) |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
 
 ### Founding Fathers and independence
@@ -177,7 +177,7 @@ is the historical bring-up order (early manual chapters first), then the
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE stop nibble honor Done (Edit UI thin)
 5. **Fog of war / exploration**
-6. **Combat** (land first; colony defense) — Phase-2 peels/outcome/popups in; village `4528` / ship-slow bit7 / deep `20e6` still PARKED
+6. **Combat** (land first; colony defense) — Phase-2 peels/outcome/popups in; village `4528` / ship-slow bit7 / deep `20e6` still PARKED — [combat.md](combat.md)
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
    `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
    `FUN_5bfb_022e` / `0182`; thin land-grant purchased+owner on occupied tile);

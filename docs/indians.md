@@ -254,6 +254,7 @@ encroachment and ambush chrome thin-Done. Capital destroy →
 `ai_diplo_indian_capital_surrender` (reset hostility once; no new capital).
 Loot detail: [indian_raid_outcomes.md](../original_sources_annotated/ai/indian_raid_outcomes.md),
 [indian_raid_loot.md](../original_sources_annotated/ai/indian_raid_loot.md).
+Odds / resolve: [combat.md](combat.md).
 
 ### Ship → village
 

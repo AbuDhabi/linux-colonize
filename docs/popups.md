@@ -180,6 +180,8 @@ fragment. Related sections are listed in the first column.
 
 ### 9. Combat / loot / capture
 
+Deep mechanics: [combat.md](combat.md).
+
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | Combat Analysis (options bit) | After combat roll, human side | Done | Dual-column wood `combat_analysis.c` (`636c`-shaped); gated by `combat_analysis` |

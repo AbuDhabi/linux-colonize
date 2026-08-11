@@ -91,13 +91,11 @@ Village raid `4528`/`2820` VGA, full `465b` foreign diplo/war UI, Euro mid-plann
 `20e6`, coastal fort ship-slow bit7/repair, VGA-identical combat chrome, full
 treasure ransom CHOICE.
 
-Combat strength `FUN_157e_004a`/`015e` + `1b0e` peels (artillery/ambush/SoL/REF/
-difficulty) + best-defender `0000` + promote/demote + outcome apply `0352`/
-naval damage + structural `@EUROPEWIN`/`@LOOT*`/`@SHIP*`/`@DEMOTE` popups are
-wired. Combat Analysis (`636c`) Done.
+Strength / peels / outcomes / Combat Analysis / coastal fort: [combat.md](combat.md).
 
 ## See also
 
+- [combat.md](combat.md) — odds, peels, promote/demote, coastal fort
 - [manual_gap.md](manual_gap.md) — Units / Combat rows
 - [assets.md](assets.md) — map keys, landfall note
 - [ai_transcription.md](ai_transcription.md) — AI move / combat

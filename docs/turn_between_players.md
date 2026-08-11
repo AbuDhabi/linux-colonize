@@ -198,7 +198,8 @@ Linux runs; Linux is Euro AI then Indians.
   (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
   **Done** thin; AI fog PARKED (T2).
 - **Deep-map pass (docs):** `0688` F–H/K/O–P, `5e52`/`0058` interiors,
-  [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md),
+  [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md)
+  ([combat.md](combat.md) player-facing summary),
   [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md),
   [`europe_finish_bridge.md`](../original_sources_annotated/turn/europe_finish_bridge.md).
 - **Unparked this session (port):** C1 REF pool + calendar_latch + `53c2`;

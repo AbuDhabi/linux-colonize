@@ -10,7 +10,8 @@ the deep detail.
 | **Catalog peel ranking** (what to label next) | [catalog_peel_ranking.md](catalog_peel_ranking.md) |
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
-| Move-into-tile authority (enter / combat / landfall) | [move_enter.md](move_enter.md) |
+| Move-into-tile authority (enter / landfall) | [move_enter.md](move_enter.md) |
+| Combat mechanics (odds / peels / outcomes / coastal fort) | [combat.md](combat.md) |
 | Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
 | Project goals / acceptance order | [project_goals.md](project_goals.md) |
 | **Whole-project roadmap** (phases / what’s next) | [roadmap.md](roadmap.md) |

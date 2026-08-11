@@ -784,3 +784,5 @@ planner arms.
 - [data_vs_hardcoded.md](data_vs_hardcoded.md) — bake-into-C rule for AI
 - [savegame.md](savegame.md) — Col1 nation / tribe / unit blobs
 - [fandom_col1994.md](fandom_col1994.md) — unverified natives / combat wiki digest
+- [combat.md](combat.md) — land/naval odds / peels / resolve (AI callers)
+- [move_enter.md](move_enter.md) — enter fight gates
