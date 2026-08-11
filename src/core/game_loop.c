@@ -1121,17 +1121,18 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       const int dest_y = game->ai_popups.result_payload;
       const int choice = game->ai_popups.result_choice_id;
       ColonizeUnit* ship = units_get(&game->units, ship_id);
-      /* choice 0 = Stay With Ships; 1 = Make Landfall (unload all ashore). */
+      /* choice 0 = Stay With Ships; 1 = Make Landfall (one passenger ashore). */
       if (ship && units_is_sea(&game->units, ship_id) && choice == 1) {
-        const int n = units_landfall_unload_all(
-          &game->units, ship_id, &game->world_map, dest_x, dest_y, &game->colonies
-        );
-        if (n > 0) {
-          const int first = units_id_at(&game->units, dest_x, dest_y);
-          if (first >= 0) {
-            game->units.selected_id = first;
-          }
-          snprintf(game->status, sizeof(game->status), "Landfall: %d ashore", n);
+        int pax_id = units_first_cargo_with_moves(&game->units, ship_id);
+        if (pax_id < 0 && ship->cargo_count > 0) {
+          pax_id = ship->cargo_ids[0];
+        }
+        if (pax_id >= 0 &&
+            units_unload_passenger(
+              &game->units, ship_id, pax_id, &game->world_map, dest_x, dest_y, &game->colonies
+            )) {
+          game->units.selected_id = pax_id;
+          snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
           game_after_unit_action(game);
         } else {
           set_status(game, "Landfall failed", NULL);

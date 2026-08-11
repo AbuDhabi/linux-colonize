@@ -73,7 +73,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Pillage | Partial | ORDERS: military loots foreign Euro colony stock or clears plow/road; thin vs full `2b5a` body |
 | Colony auto-disembark when ship enters settlement | Done | Dock + `units_disembark_all` |
 | Sentry auto-board when ship leaves tile | Done | Same-tile Sentry land → departing ship to capacity (colony + ocean stack) |
-| Landfall confirm + activate-all ashore | Done | Ship→bare land: `@LANDFALL` Stay With Ships / Make Landfall (`AI_POPUP_TAG_LANDFALL`); Make Landfall unloads all; ship stays at sea — [move_enter.md](move_enter.md) |
+| Landfall confirm (one unit ashore) | Done | Ship→bare land: `@LANDFALL` Stay With Ships / Make Landfall (`AI_POPUP_TAG_LANDFALL`); Make Landfall unloads **one** passenger (prefer moves left); ship stays at sea — [move_enter.md](move_enter.md) |
 | Ship→native village | Done | `@DONTKNOWSHIPS` / `@MADATSHIPS` (not landfall); [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
 | Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; stop service honors Col1 load/unload nibbles when counts>0 (else unload-all / surplus ladder); Edit autofill + thin cargo picker (unload→load multi-select); Europe sell on 999; VGA TRADE chrome PARKED |
