@@ -18,6 +18,7 @@ the deep detail.
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
 | Terrain / field / town-commons yields | [terrain_yields.md](terrain_yields.md) |
 | Settlement building production / skills | [building_production.md](building_production.md) |
+| Difficulty level effects (0 Discoverer … 4 Viceroy) | [difficulty.md](difficulty.md) |
 | Fandom wiki digest (1994 Col only; tier-3) | [fandom_col1994.md](fandom_col1994.md) |
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |

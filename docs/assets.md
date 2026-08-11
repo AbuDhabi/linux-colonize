@@ -451,9 +451,10 @@ human turn.
 
 A starter **Caravel** (Dutch: **Merchantman**) with a Pioneer and Soldier aboard
 spawns on the western rim of the eastern high seas when finishing the new-game wizard.
-Skills follow classic COL1 rules: on Discoverer/Explorer both are experts (Hardy Pioneer,
-Veteran Soldier); on harder difficulties only the French keep a Hardy Pioneer and only
-the Spanish a Veteran Soldier. Rival Europeans spawn the same way. Europe keeps dock
+Skills follow classic COL1 rules: Hardy Pioneer is **French-only** on every difficulty;
+Discoverer/Explorer grant Veteran Soldier to all nations; on harder difficulties only
+the Spanish keep Veteran Soldier. See [difficulty.md](difficulty.md). Rival Europeans
+spawn the same way. Europe keeps dock
 immigrants until deployed with **D**. Press **B** with a land unit on a land tile to found
 a colony (unit becomes a Town Hall colonist; name comes from `COLONY.TXT @ENGLISH`).
 Ships move on water and may enter **own-nation colony** land tiles (dock). Land units
