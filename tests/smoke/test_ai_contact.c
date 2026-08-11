@@ -1294,6 +1294,61 @@ int main(void) {
   }
 
   /*
+   * Series S: capital village +2 neighborhood → Generous at gold 28 when
+   * base S=6 (floor 30 → Large without capital). Cite: indian_meet_scoring_2154.md.
+   */
+  {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      colonies.colonies[ci].active = false;
+    }
+    colonies.colony_count = 0;
+    /* Arctic pad (pedia 24, unscored) + 3 forest → S=6; no coast. */
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        const int nx = 5 + dx;
+        const int ny = 5 + dy;
+        if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
+          map.terrain[ny * 16 + nx] = 24;
+        }
+      }
+    }
+    map.terrain[5 * 16 + 5] = 8;
+    map.terrain[5 * 16 + 6] = 8;
+    map.terrain[5 * 16 + 4] = 8;
+    col1.tribe[0].state.capital = 0;
+    col1.nation[0].gold = 28;
+    ind->alarm_by_player[0] = 10;
+    col1.tribe[0].alarm[0].friction = 10;
+    ind->euro_diplo[0] = 1;
+    ctx.human_nation = 1;
+    euro->x = 6;
+    euro->y = 5;
+    brave->x = 5;
+    brave->y = 5;
+    brave->nation_id = 4;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != 18u) {
+      fprintf(stderr, "smoke_ai_contact: non-capital S=6 gift gold=%u (want 18 Large)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("non-capital S=6 should Large at gold 28 (−10)");
+    }
+    col1.tribe[0].state.capital = 1;
+    col1.nation[0].gold = 28;
+    ind->alarm_by_player[0] = 10;
+    col1.tribe[0].alarm[0].friction = 10;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.nation[0].gold != 8u) {
+      fprintf(stderr, "smoke_ai_contact: capital S=8 gift gold=%u (want 8 Generous)\n",
+              (unsigned)col1.nation[0].gold);
+      return fail("capital +2 should Generous at gold 28 (−20)");
+    }
+    col1.tribe[0].state.capital = 0;
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+  }
+
+  /*
    * Gift refuse when Euro gold < 10: no gold change. Human adjacency: no
    * spontaneous chrome (village dialog PARKED).
    */
@@ -4395,6 +4450,94 @@ int main(void) {
     if (col1.tribe[0].state.capital != 0) {
       return fail("capital surrender should clear capital bit on remaining tribes");
     }
+  }
+
+  /*
+   * Series T: 4528 ship-village mid-relation wary band.
+   * rel 60 → wary INFO + Meet CHOICE; rel 80 → MADAT (no wary); friction≥64 mad.
+   * Cite: indian_settlement_4528.md; ai_contact_try_ship_village.
+   */
+  {
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    char st_ship[128];
+    st_ship[0] = '\0';
+    ctx.status = st_ship;
+    ctx.status_size = sizeof(st_ship);
+    ctx.human_nation = 0;
+    ctx.ai_popups = &pop;
+    col1.player[0].control = 0; /* human */
+    col1.tribe[0].x = 5;
+    col1.tribe[0].y = 5;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].alarm[0].friction = 10;
+    ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | 0x01u | 0x40u);
+    col1.nation[0].relation_by_indian[0] = 60; /* mid band */
+    ind->alarm_by_player[0] = 10;
+    st_ship[0] = '\0';
+    ai_popup_clear(&pop);
+    if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
+      return fail("ship mid-band should handle village tile");
+    }
+    int wary_ok = 0;
+    int meet_ok = 0;
+    for (int qi = 0; qi < pop.queue_count; ++qi) {
+      if (pop.queue[qi].tag == AI_POPUP_TAG_INFO &&
+          pop.queue[qi].body[0] &&
+          strstr(pop.queue[qi].body, "wary of ships") != NULL) {
+        wary_ok = 1;
+      }
+      if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET &&
+          pop.queue[qi].kind == AI_POPUP_KIND_CHOICE) {
+        meet_ok = 1;
+      }
+    }
+    if (!wary_ok) {
+      return fail("ship mid-band should enqueue wary INFO");
+    }
+    if (!meet_ok) {
+      return fail("ship mid-band should still enqueue Meet CHOICE");
+    }
+
+    /* Relation 80 (≥75) → MADAT; no wary. */
+    ai_popup_clear(&pop);
+    st_ship[0] = '\0';
+    col1.nation[0].relation_by_indian[0] = 80;
+    col1.tribe[0].alarm[0].friction = 10;
+    if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
+      return fail("ship rel80 should handle village");
+    }
+    for (int qi = 0; qi < pop.queue_count; ++qi) {
+      if (pop.queue[qi].body[0] && strstr(pop.queue[qi].body, "wary of ships") != NULL) {
+        return fail("ship rel80 MADAT must not set wary");
+      }
+      if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET) {
+        return fail("ship rel80 MADAT must not enqueue Meet");
+      }
+    }
+    if (strstr(st_ship, "trust") == NULL && strstr(st_ship, "ships") == NULL) {
+      fprintf(stderr, "smoke_ai_contact: MADAT status '%s'\n", st_ship);
+      return fail("ship rel80 should set MADATSHIPS status");
+    }
+
+    /* Friction mad path still aborts. */
+    ai_popup_clear(&pop);
+    st_ship[0] = '\0';
+    col1.nation[0].relation_by_indian[0] = 60;
+    col1.tribe[0].alarm[0].friction = 64;
+    if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
+      return fail("ship friction mad should handle village");
+    }
+    for (int qi = 0; qi < pop.queue_count; ++qi) {
+      if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_MEET) {
+        return fail("ship friction mad must not enqueue Meet");
+      }
+      if (pop.queue[qi].body[0] && strstr(pop.queue[qi].body, "wary of ships") != NULL) {
+        return fail("ship friction mad must not set wary");
+      }
+    }
+    col1.tribe[0].alarm[0].friction = 10;
+    ctx.ai_popups = NULL;
   }
 
   free(map.terrain);

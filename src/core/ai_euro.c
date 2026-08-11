@@ -4381,6 +4381,7 @@ static int ai_euro_4393_work_queue_haul_pick(
   int nation_id,
   int from_x,
   int from_y,
+  const ColonizeUnit* hauler,
   int* out_x,
   int* out_y
 ) {
@@ -4402,7 +4403,12 @@ static int ai_euro_4393_work_queue_haul_pick(
     }
     const int d = abs(c->x - from_x) + abs(c->y - from_y);
     /* Distance-normalized −0x5f24 score (thin 4393). */
-    const int score = (int)w->score - d * 4;
+    int score = (int)w->score - d * 4;
+    /* Specialty flag_a match: hauler hold matches colony specialty. Cite: Series R. */
+    if (hauler && w->flag_a != 0xffu &&
+        ai_euro_wagon_has_cargo_type(ctx->units, hauler, (int)w->flag_a)) {
+      score += 32;
+    }
     if (!have || score > best_score) {
       have = 1;
       best_score = score;
@@ -4600,7 +4606,9 @@ static int ai_euro_try_wagon_haul(
   int ty = 0;
   /* Thin 4393: work-queue haul when specialty/idle (prefer_cargo set or empty). */
   if ((prefer_cargo >= 0 || has_cap) &&
-      ai_euro_4393_work_queue_haul_pick(ctx, nation_id, wagon->x, wagon->y, &tx, &ty)) {
+      ai_euro_4393_work_queue_haul_pick(
+        ctx, nation_id, wagon->x, wagon->y, wagon, &tx, &ty
+      )) {
     /* use work-queue tip */
   } else if (!ai_euro_nearest_haul_short_colony(
                ctx, nation_id, wagon->x, wagon->y, prefer_cargo, &tx, &ty
@@ -8728,7 +8736,9 @@ static int ai_euro_try_ship_trade_haul(
   int cx = 0;
   int cy = 0;
   /* Thin 4393 work-queue haul peel before peace colony-sail short pick. */
-  if (!ai_euro_4393_work_queue_haul_pick(ctx, nation_id, ship->x, ship->y, &cx, &cy) &&
+  if (!ai_euro_4393_work_queue_haul_pick(
+        ctx, nation_id, ship->x, ship->y, ship, &cx, &cy
+      ) &&
       !ai_euro_nearest_short_coastal_colony(ctx, nation_id, ship->x, ship->y, &cx, &cy)) {
     return 0;
   }
