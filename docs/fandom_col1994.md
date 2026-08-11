@@ -187,7 +187,7 @@ missions/alarm Partial
 
 | Claim (wiki) | Source |
 |--------------|--------|
-| King raises tax periodically; difficulty sets first tax year + interval (Discoverer 1536/22 … Viceroy 1534/14 — **verify**; Viceroy first year looking odd vs progression) | [Tax rate (Col)](https://civilization.fandom.com/wiki/Tax_rate_(Col)) |
+| King raises tax periodically; difficulty sets first tax year + interval (Discoverer 1536/22 … Viceroy **1532**/14 — wiki’s 1534 is wrong; see [difficulty.md](difficulty.md)) | [Tax rate (Col)](https://civilization.fandom.com/wiki/Tax_rate_(Col)) |
 | On hike: accept; or boycott (throw named goods) — rate does not rise this time, but goods blocked in Europe until penalty paid or Fugger | [Boycott (Col)](https://civilization.fandom.com/wiki/Boycott_(Col)), Tax rate |
 | Boycott buy-back ≈ cost of **500 tons** of that good at current price | Tax rate (cites StrategyWiki) |
 | Max tax **75%** | Tax rate |
@@ -223,9 +223,9 @@ Port: all Missing except thin score schedule.
 | Stockade+ min voluntary population | Below **3** | Port eject keeps ≥**3** | Aligned with wiki |
 | Factory efficiency | “1.5 goods per raw” | Port / EXE tier table framed as **6→9** hammers-style throughput | Same intent; keep decomp numbers |
 | Fur Factory min pop | Adam Smith page says factories need pop **8** | [`building_production.md`](building_production.md) lists Fur Factory min **6** from `NAMES` | Prefer `NAMES` / code |
-| Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Looks inconsistent with Discoverer→Governor progression | Verify in decomp / difficulty tables |
+| Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Decomp/port `1536-diff` → Viceroy **1532** | **Resolved** — [difficulty.md](difficulty.md) |
 | Custom House sell thresholds (100/50) | Strategy section on Custom House page | Decomp `FUN_364b_0688` (`stock>99` → leave 50) | **Done** structural autosell |
-| SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Manual qualitative ±1 | Verify thresholds in code |
+| SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Decomp `10-diff` + manual | **Resolved** — [difficulty.md](difficulty.md); production −1 still PARK |
 | Fort/Fortress coastal bombardment strengths | Strategy sections (4+4 art / 8+8 art) | Not in `NAMES` building rows | Combat RE |
 
 ---

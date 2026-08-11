@@ -242,13 +242,13 @@ Bold entries on the manual chart = free at colony founding. **`**`** = requires 
 
 ## Production modifiers (sentiment & difficulty)
 
-Documented in manual ch. independence / colony people view; applied in EOT production (field/craft/hammers/bells/crosses). SoL % via `colony_prod_sol_percent` (Col1 rebel fields, else nation liberty_bells/4).
+Documented in manual ch. independence / colony people view; applied in EOT production (field/craft/hammers/bells/crosses). SoL % via `colony_prod_sol_percent` (Col1 rebel fields, else nation liberty_bells/4). Full difficulty catalog: [difficulty.md](difficulty.md).
 
 | Condition | Effect on **all** colony production |
 |-----------|--------------------------------------|
 | Sons of Liberty ≥ **50%** | **+1** to each production unit (field + manufacturing + bells/crosses) | Field, hammers, craft, bells/crosses wired (`colony_prod_sol_bonus`); Tory −1 PARK |
 | Sons of Liberty = **100%** | **+1** again (total **+2** at full SoL) | Same |
-| Tory share above threshold | **−1** to all production; threshold depends on difficulty (**10** Discoverer … **6** Viceroy) | PARK |
+| Tory share above threshold | **−1** to all production; threshold `10-difficulty` (**10** Discoverer … **6** Viceroy) | PARK |
 
 River / road / plow on **field** tiles add up to **+4** food/resources (manual Terrain Chart footnote) — see [terrain_yields.md](terrain_yields.md).
 
