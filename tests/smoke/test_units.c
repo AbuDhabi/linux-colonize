@@ -3042,6 +3042,19 @@ int main(void) {
         fprintf(stderr, "phase2 Colonists should be captured\n");
         return 1;
       }
+      {
+        int found = 0;
+        for (int i = 0; i < pops.queue_count; ++i) {
+          if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_CAPTURE) {
+            found = 1;
+            break;
+          }
+        }
+        if (!found) {
+          fprintf(stderr, "phase2 COLONISTCAPTURE popup missing\n");
+          return 1;
+        }
+      }
       units_despawn(&pool, aid);
       units_despawn(&pool, did);
       fprintf(stderr, "smoke_units: capture-alive ok\n");
@@ -3124,6 +3137,206 @@ int main(void) {
         units_despawn(&pool, did);
       }
       fprintf(stderr, "smoke_units: combat outcome popup enqueue ok\n");
+    }
+
+    /* Treasure ransom Accept credits gold; Refuse does not. */
+    {
+      ai_popup_clear(&pops);
+      units_set_combat_popups(&pops, NULL);
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+      c1.nation[0].gold = 10;
+      int use_ti = units_find_type(&pool, "Treasure");
+      const int sol = units_find_type(&pool, "Soldiers");
+      if (use_ti < 0 || sol < 0) {
+        fprintf(stderr, "ransom types missing\n");
+        return 1;
+      }
+      const int aid = units_spawn_allow_stack(&pool, sol, 55, 55);
+      const int did = units_spawn_allow_stack(&pool, use_ti, 55, 55);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      a->nation_id = 0;
+      d->nation_id = 1;
+      d->hold_goods_amount[0] = 100 & 0xff;
+      d->hold_goods_amount[1] = 0;
+      pool.types[sol].attack = 8;
+      pool.types[use_ti].defense = 1;
+      if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+        fprintf(stderr, "ransom combat should win\n");
+        return 1;
+      }
+      if (c1.nation[0].gold != 10) {
+        fprintf(stderr, "ransom should defer gold until Accept (got %u)\n", c1.nation[0].gold);
+        return 1;
+      }
+      int ransom_q = -1;
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_RANSOM) {
+          ransom_q = i;
+          break;
+        }
+      }
+      if (ransom_q < 0) {
+        fprintf(stderr, "ransom CHOICE not enqueued\n");
+        return 1;
+      }
+      /* Simulate Refuse. */
+      pops.has_result = true;
+      pops.result_tag = AI_POPUP_TAG_COMBAT_RANSOM;
+      pops.result_nation_a = 0;
+      pops.result_payload = 100;
+      pops.result_choice_id = 0;
+      pops.result_cancelled = false;
+      (void)units_combat_apply_ransom_popup(&c1, &pops);
+      if (c1.nation[0].gold != 10) {
+        fprintf(stderr, "ransom Refuse should not credit\n");
+        return 1;
+      }
+      pops.result_choice_id = 1;
+      (void)units_combat_apply_ransom_popup(&c1, &pops);
+      if (c1.nation[0].gold != 110) {
+        fprintf(stderr, "ransom Accept want gold 110 got %u\n", c1.nation[0].gold);
+        return 1;
+      }
+      units_despawn(&pool, aid);
+      fprintf(stderr, "smoke_units: treasure ransom Accept/Refuse ok\n");
+    }
+
+    /* Colony capture notify @CAPTURED*. */
+    {
+      ai_popup_clear(&pops);
+      units_set_combat_popups(&pops, NULL);
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      ColonizeColony col;
+      memset(&col, 0, sizeof(col));
+      col.active = true;
+      col.nation_id = 1;
+      snprintf(col.name, sizeof(col.name), "Jamestown");
+      col.stock[COLONIZE_CARGO_FOOD] = 40;
+      units_combat_notify_colony_captured(&c1, &col, 0, 40);
+      int found = 0;
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_COLONY) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        fprintf(stderr, "colony CAPTURED popup missing\n");
+        return 1;
+      }
+      fprintf(stderr, "smoke_units: colony CAPTURED popup ok\n");
+    }
+
+    /* Privateer seizure tag. */
+    {
+      ai_popup_clear(&pops);
+      units_set_combat_popups(&pops, NULL);
+      const int priv = units_find_type(&pool, "Privateer");
+      const int car = units_find_type(&pool, "Caravel");
+      if (priv < 0 || car < 0) {
+        fprintf(stderr, "seizure types missing\n");
+        return 1;
+      }
+      pool.types[priv].attack = 16;
+      pool.types[priv].defense = 8;
+      pool.types[car].attack = 2;
+      pool.types[car].defense = 2;
+      const int aid = units_spawn_allow_stack(&pool, priv, 4, 4);
+      const int did = units_spawn_allow_stack(&pool, car, 5, 4);
+      ColonizeUnit* a = units_get(&pool, aid);
+      ColonizeUnit* d = units_get(&pool, did);
+      a->nation_id = 0;
+      d->nation_id = 1;
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+      if (!units_resolve_naval_combat_ff(&pool, aid, did, NULL, &c1)) {
+        fprintf(stderr, "seizure naval should win\n");
+        return 1;
+      }
+      int found = 0;
+      for (int i = 0; i < pops.queue_count; ++i) {
+        if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_SEIZURE) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        fprintf(stderr, "SEIZURE popup missing (queue=%d)\n", pops.queue_count);
+        return 1;
+      }
+      units_despawn(&pool, aid);
+      if (units_get(&pool, did) && units_get(&pool, did)->active) {
+        units_despawn(&pool, did);
+      }
+      fprintf(stderr, "smoke_units: privateer SEIZURE popup ok\n");
+    }
+
+    /* Fort fire MP-slow leaves bit7 clear. */
+    {
+      ColonizeColonyPool colonies;
+      colonies_init(&colonies);
+      snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
+      colonies.building_type_count = 3;
+      /* Reuse map coastal pair from earlier fort-fire smoke when possible. */
+      int cx = 1, cy = 1, wx = 2, wy = 1;
+      for (int y = 1; y < map.height - 1; ++y) {
+        for (int x = 1; x < map.width - 1; ++x) {
+          if (!map_tile_is_land(&map, x, y)) {
+            continue;
+          }
+          static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+          static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+          for (int d = 0; d < 8; ++d) {
+            if (map_tile_is_water(&map, x + dx8[d], y + dy8[d])) {
+              cx = x;
+              cy = y;
+              wx = x + dx8[d];
+              wy = y + dy8[d];
+              goto found_coast;
+            }
+          }
+        }
+      }
+    found_coast:
+      ColonizeColony* col = &colonies.colonies[0];
+      col->active = true;
+      col->nation_id = 0;
+      col->x = cx;
+      col->y = cy;
+      col->has_building[1] = true;
+      colonies.colony_count = 1;
+      const int car = units_find_type(&pool, "Caravel");
+      const int sid = units_spawn_allow_stack(&pool, car, wx, wy);
+      ColonizeUnit* ship = units_get(&pool, sid);
+      ship->nation_id = 1;
+      ship->moves_left = 4;
+      ship->col1_unknown15 = 0;
+      pool.types[car].attack = 99;
+      pool.types[car].defense = 99;
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      ai_diplo_declare_war(&c1, 0, 1);
+      char st[64];
+      (void)units_coastal_fort_fire_pulse(
+        &pool, &colonies, &map, &c1, NULL, -1, st, sizeof(st)
+      );
+      ship = units_get(&pool, sid);
+      if (ship && ship->active && (ship->col1_unknown15 & 0x80u) != 0) {
+        fprintf(stderr, "fort fire must not set ship-build bit7\n");
+        return 1;
+      }
+      if (ship && ship->active) {
+        units_despawn(&pool, sid);
+      }
+      fprintf(stderr, "smoke_units: fort fire bit7 clear ok\n");
     }
 
     units_set_combat_popups(NULL, NULL);

@@ -59,6 +59,33 @@ void units_set_combat_human_nation(int human_nation);
 void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt);
 
 /*
+ * Apply pending treasure ransom CHOICE (AI_POPUP_TAG_COMBAT_RANSOM).
+ * Accept (choice_id==1) credits payload gold to nation_a; Refuse credits 0.
+ * Returns true if the tag was handled.
+ */
+bool units_combat_apply_ransom_popup(
+  ColonizeCol1Save* col1,
+  const AiPopupState* popups
+);
+
+/*
+ * Human-facing colony capture / burn GAME.TXT OKs (@CAPTURED* / @BURNED*).
+ * plunder_gold: known cargo sum or 0 (uses CAPTURED3 / CAPTURED2 when 0).
+ */
+void units_combat_notify_colony_captured(
+  const ColonizeCol1Save* col1,
+  const ColonizeColony* colony,
+  int capturer_nation,
+  int plunder_gold
+);
+void units_combat_notify_colony_burned(
+  const ColonizeCol1Save* col1,
+  const char* colony_name,
+  int victim_nation,
+  const char* burner_label
+);
+
+/*
  * FUN_5fef_0000: pick best defender on tile for engagement toughness.
  * Skips non-combat roles (type.attack==0). Artillery vs Indian attacker ×2.
  * Returns unit id or -1. except_id skips the attacker / mover.

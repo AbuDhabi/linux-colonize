@@ -88,10 +88,10 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 ## PARKED (not this track)
 
 Village raid `4528`/`2820` VGA, full `465b` foreign diplo/war UI, Euro mid-planner
-`20e6`, coastal fort ship-slow bit7/repair, VGA-identical combat chrome, full
-treasure ransom CHOICE.
+`20e6`, coastal fort **damaged bit7 / Drydock repair**, VGA-identical combat chrome.
 
-Strength / peels / outcomes / Combat Analysis / coastal fort: [combat.md](combat.md).
+**Playable combat bar Done** — see [combat.md](combat.md) (ransom CHOICE, `@CAPTURED*`/
+`@BURNED*`, unit capture / seizure popups, MP ship-slow).
 
 ## See also
 

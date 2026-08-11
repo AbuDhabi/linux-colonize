@@ -185,11 +185,12 @@ Deep mechanics: [combat.md](combat.md).
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | Combat Analysis (options bit) | After combat roll, human side | Done | Dual-column wood `combat_analysis.c` (`636c`-shaped); gated by `combat_analysis` |
-| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | Structural OK via `units_set_combat_popups`; ransom CHOICE PARKED |
-| `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Partial | Capture + ship damage/sunk OK; burn colony chrome thin/PARK |
+| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | `@LOOTCAPTURE` ransom Accept/Refuse Done; village `@LOOT`/`@NOLOOT` thin; `@LOOTCASH` is Europe fleet (not combat) |
+| `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`/`@BURNED*`; ship damage/sunk Done |
+| `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups |
 | `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | Structural `AI_POPUP_TAG_COMBAT_EUROPE` |
 | `@DEMOTE` | Specialty strip / demote | Partial | Enqueued when demote lands human-facing |
-| `@SEIZURE*` | Privateer / seizure | Missing | — |
+| `@SEIZURE*` | Privateer / seizure | Partial | Privateer win → `@SEIZURESEA`; Royal Navy text still thin |
 | Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Partial | Raid OK/status; Spanish ambush peel enqueues `@INDIANWIN1` |
 
 ### 10. Year-end / victory / HoF / retire
@@ -420,16 +421,16 @@ work.
 | `@NOLOOT` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@LOOT` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@LOOT2` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@LOOTCASH` | Partial | structural combat popup (`COMBAT_LOOT`); ransom PARKED |
+| `@LOOTCASH` | Partial | Europe treasure fleet (not combat); combat uses `@LOOTCAPTURE` ransom |
 | `@LOOTFOREIGN` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@LOOTCAPTURE` | Partial | structural combat popup on treasure capture |
-| `@WAGONCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@COLONISTCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@COLONISTCAPTURE2` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@CARGOCAPTURE` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@LOOTCAPTURE` | Done | treasure ransom Accept/Refuse + OK path |
+| `@WAGONCAPTURE` | Done | wagon nation-flip capture |
+| `@COLONISTCAPTURE` | Done | non-combat Euro capture-alive |
+| `@COLONISTCAPTURE2` | Done | capture + demote path |
+| `@CARGOCAPTURE` | Done | wagon holds present |
 | `@DEMOTE` | Partial | structural when demote lands human-facing |
-| `@SHIPDAMAGE` | Partial | naval/arty damage-not-sink path |
-| `@SHIPSUNK` | Partial | naval sink after plunder |
+| `@SHIPDAMAGE` | Done | naval/arty damage-not-sink path |
+| `@SHIPSUNK` | Done | naval sink after plunder |
 | `@RAIDNOTHING` | Partial | CONTACT_RAID OK thin |
 | `@RAIDWREAK` | Partial | CONTACT_RAID OK thin |
 | `@RAIDSTORES` | Partial | CONTACT_RAID OK thin |
@@ -453,10 +454,10 @@ work.
 | `@INDIANBURNCOLONY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANBURNCOLONY2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANSURPRISE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@CAPTURED` | Partial | capture-alive non-combat Euro (`CAPTURED0`) |
-| `@CAPTURED2` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@CAPTURED3` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@BURNED` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@CAPTURED` | Done | Euro colony conquest with plunder |
+| `@CAPTURED2` | Done | spies report (AI capturer) |
+| `@CAPTURED3` | Done | conquest without plunder amount |
+| `@BURNED` | Done | Indian raid abandon burn → `units_combat_notify_colony_burned` |
 | `@BURNED2` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@BURNED3` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@EUROPEWIN` | Done | structural combat outcome popup |
@@ -652,7 +653,7 @@ work.
 | `@WELLSEASONED` | Missing | production/EOT messages — status or silent; no modal |
 | `@KINGBUY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@SEIZURE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@SEIZURESEA` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@SEIZURESEA` | Partial | Privateer naval win enqueues `@SEIZURESEA`; Royal Navy wording thin |
 | `@SEIZURELAND` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@INDEPENDENCE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@INVASION` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |

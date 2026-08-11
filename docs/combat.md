@@ -166,14 +166,16 @@ fights whoever stands on the tile via normal land combat.
 
 ### Land win (`units_resolve_land_combat_ff`)
 
-- Treasure: LE16 hold gold → treasury (`FUN_5fef_1908`); `@LOOTCAPTURE` — ransom CHOICE **PARKED**
+- Treasure: LE16 hold gold (`FUN_5fef_1908`); human → Accept/Refuse ransom CHOICE
+  (`AI_POPUP_TAG_COMBAT_RANSOM`) before credit; AI → silent full credit + `@LOOTCAPTURE`
 - Loser: `units_apply_land_loss_outcome` (`FUN_5fef_0352`)
   - Artillery: first loss → damage bit7; second → despawn
-  - Euro non-combat (`attack==0`, not Treasure/Wagon) → nation flip + demote
+  - Euro Wagon → nation flip + `@WAGONCAPTURE` / `@CARGOCAPTURE`
+  - Euro non-combat (`attack==0`, not Treasure) → nation flip + `@COLONISTCAPTURE*`
   - else despawn
 - `units_sweep_stack_after_loss` (`FUN_5fef_0ec0`) capture leftover non-combat
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
-- Native def: settlement fallout (`FUN_5fef_31ea`) when fallout context set
+- Native def: settlement fallout (`FUN_5fef_31ea`) + thin `@LOOT` / `@NOLOOT`
 
 ### Land loss
 
@@ -189,12 +191,14 @@ human-facing.
 - Close fight (`loser_str * 2 > winner_str`) + weaker type attack + undamaged →
   damage bit7 + escape (`@SHIPDAMAGE`)
 - else `units_plunder_ship_holds` (`FUN_5fef_016c`) then despawn (`@SHIPSUNK`)
+- Privateer winner + human → `@SEIZURESEA`
 
 ### Colony capture
 
-After successful enter: `units_try_capture_foreign_colony` → `colonies_capture`.
-Euro→Euro: nation swap. Indian capturer: `colonies_abandon`. Also AI euro /
-king REF / raid paths.
+After successful enter: `units_try_capture_foreign_colony` → `colonies_capture` +
+`units_combat_notify_colony_captured` (`@CAPTURED` / `2` / `3`). Euro→Euro: nation
+swap. Indian capturer: `colonies_abandon` + `@BURNED` on raid burn paths. Also AI
+euro / king REF / raid paths.
 
 ---
 
@@ -229,8 +233,8 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 
 Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md).
 
-**PARKED:** damaged bit7 / deep ship-slow formula (bit7 shared with ship-build);
-DOS temp-attacker + chrome.
+**PARKED:** damaged bit7 from fort fire / Drydock repair (bit7 shared with
+ship-build); DOS temp-attacker + chrome. **MP ship-slow Done** (`moves_left=0`).
 
 ---
 
@@ -253,11 +257,11 @@ DOS temp-attacker + chrome.
 | Best defender | Done | `units_best_defender_at` |
 | Colony / village / terrain / fortify site | Done | `015e` |
 | `1b0e` peels | Done | SoL Tory-share branch thin |
-| Promote / demote / capture / treasure | Partial | Structural; ransom CHOICE PARKED |
-| Naval damage / sink / plunder | Done | Close-fight escape path Done |
+| Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
+| Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
 | Combat Analysis | Done | Options-gated dual column |
-| Coastal fort fire | Done | Ship-slow thin; bit7 PARKED |
-| Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` | Partial | Structural; full `@LOOT*` / burn matrix Missing — [popups.md](popups.md) |
+| Coastal fort fire | Done | MP ship-slow Done thin; bit7/repair PARKED |
+| Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
 | Village settlement battle `4528` | PARKED | Enter / Indian docs |
 | Euro mid combat scoring `20e6` | PARKED / OPEN | [ai_transcription.md](ai_transcription.md) |
 | VGA-identical combat chrome | PARKED | — |
@@ -282,9 +286,7 @@ DOS temp-attacker + chrome.
 |-----|-------|
 | Village raid / settlement `4528` / `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
 | Deep Euro combat scoring `20e6` | `ai_euro.c` |
-| Treasure ransom CHOICE | `units_resolve_land_combat_ff` |
-| Full `@LOOT*` / capture / burn chrome matrix | [popups.md](popups.md) |
-| Coastal fort bit7 damage / repair | `units_fort_vs_ship` |
+| Coastal fort bit7 damage / Drydock repair | `units_fort_vs_ship` |
 | SoL Tory-share branch | `combat_apply_1b0e_peels` |
 | VGA-identical combat chrome | — |
 

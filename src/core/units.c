@@ -907,6 +907,45 @@ static int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, 
   return a_h || b_h;
 }
 
+static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id) {
+  static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
+  if (nation_id >= 0 && nation_id <= 3) {
+    if (col1 && col1->player[nation_id].country_name[0]) {
+      return col1->player[nation_id].country_name;
+    }
+    return k_euro[nation_id];
+  }
+  return "enemy";
+}
+
+static void units_combat_enqueue_tok(
+  AiPopupTag tag,
+  const char* section,
+  int nation_a,
+  int nation_b,
+  int payload,
+  const PopupMsgTokens* tok,
+  const char* fallback
+) {
+  if (!g_units_combat_popups || !section) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens local;
+  memset(&local, 0, sizeof(local));
+  if (tok) {
+    local = *tok;
+  }
+  if (g_units_combat_game_txt) {
+    popup_msg_fill(g_units_combat_game_txt, section, &local, fallback, body, sizeof(body));
+  } else {
+    snprintf(body, sizeof(body), "%s", fallback ? fallback : section);
+  }
+  (void)ai_popup_enqueue_ok_ctx(
+    g_units_combat_popups, tag, nation_a, nation_b, payload, NULL, body
+  );
+}
+
 static void units_combat_enqueue_section(
   AiPopupTag tag,
   const char* section,
@@ -916,20 +955,116 @@ static void units_combat_enqueue_section(
   const char* string1,
   const char* fallback
 ) {
-  if (!g_units_combat_popups || !section) {
-    return;
-  }
-  char body[AI_POPUP_BODY_LEN];
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = string0;
   tok.string1 = string1;
-  if (g_units_combat_game_txt) {
-    popup_msg_fill(g_units_combat_game_txt, section, &tok, fallback, body, sizeof(body));
-  } else {
-    snprintf(body, sizeof(body), "%s", fallback ? fallback : section);
+  units_combat_enqueue_tok(tag, section, nation_a, nation_b, 0, &tok, fallback);
+}
+
+bool units_combat_apply_ransom_popup(ColonizeCol1Save* col1, const AiPopupState* popups) {
+  if (!popups || popups->result_tag != AI_POPUP_TAG_COMBAT_RANSOM) {
+    return false;
   }
-  (void)ai_popup_enqueue_ok_ctx(g_units_combat_popups, tag, nation_a, nation_b, 0, NULL, body);
+  if (!col1 || popups->result_cancelled || popups->result_choice_id != 1) {
+    return true; /* Refuse / cancel: no gold */
+  }
+  const int nation = popups->result_nation_a;
+  const int gold = popups->result_payload;
+  if (nation < 0 || nation > 3 || gold <= 0) {
+    return true;
+  }
+  const uint32_t g = col1->nation[nation].gold;
+  const uint32_t add = (uint32_t)gold;
+  col1->nation[nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
+  return true;
+}
+
+void units_combat_notify_colony_captured(
+  const ColonizeCol1Save* col1,
+  const ColonizeColony* colony,
+  int capturer_nation,
+  int plunder_gold
+) {
+  if (!colony || !colony->active) {
+    return;
+  }
+  if (!units_combat_human_involved(col1, capturer_nation, colony->nation_id)) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = units_combat_nation_label(col1, capturer_nation);
+  tok.string2 = colony->name[0] ? colony->name : "colony";
+  if (plunder_gold > 0) {
+    tok.number0 = plunder_gold;
+    tok.has_number0 = true;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_COLONY,
+      "CAPTURED",
+      capturer_nation,
+      colony->nation_id,
+      plunder_gold,
+      &tok,
+      "Colony captured."
+    );
+  } else if (
+    capturer_nation >= 0 && capturer_nation <= 3 && col1 &&
+    col1->player[capturer_nation].control != 0
+  ) {
+    /* AI capturer vs human: spies report. */
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_COLONY,
+      "CAPTURED2",
+      capturer_nation,
+      colony->nation_id,
+      0,
+      &tok,
+      "Colony captured."
+    );
+  } else {
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_COLONY,
+      "CAPTURED3",
+      capturer_nation,
+      colony->nation_id,
+      0,
+      &tok,
+      "Colony captured."
+    );
+  }
+}
+
+void units_combat_notify_colony_burned(
+  const ColonizeCol1Save* col1,
+  const char* colony_name,
+  int victim_nation,
+  const char* burner_label
+) {
+  if (!colony_name || !colony_name[0]) {
+    return;
+  }
+  const int human =
+    (victim_nation >= 0 && victim_nation <= 3 && col1 &&
+     col1->player[victim_nation].control == 0) ||
+    (g_units_combat_human_nation >= 0 && victim_nation == g_units_combat_human_nation);
+  if (!human) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = burner_label && burner_label[0] ? burner_label : "Enemies";
+  tok.string1 = units_combat_nation_label(col1, victim_nation);
+  tok.string3 = colony_name;
+  units_combat_enqueue_tok(
+    AI_POPUP_TAG_COMBAT_COLONY,
+    "BURNED",
+    victim_nation,
+    -1,
+    0,
+    &tok,
+    "Colony burned."
+  );
 }
 
 /*
@@ -1179,26 +1314,78 @@ static int units_apply_land_loss_outcome(
     }
   }
 
-  /* Capture-alive: Euro non-combat (attack==0), not Treasure/Wagon. */
+  /* Capture-alive: Euro non-combat (attack==0), not Treasure (handled above). */
   if (lose->nation_id >= 0 && lose->nation_id <= 3 && lt && lt->attack == 0) {
     const int is_treasure = lt->name[0] && strstr(lt->name, "Treasure") != NULL;
     const int is_wagon = lt->name[0] && strstr(lt->name, "Wagon") != NULL;
-    if (!is_treasure && !is_wagon) {
+    if (is_treasure) {
+      /* Treasure gold handled in resolve; despawn below. */
+    } else if (is_wagon) {
       const int from_nat = lose->nation_id;
+      /* Thin: capture wagon (change nation) + cargo popup if holds present. */
+      int cargo_amt = 0;
+      for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+        if (lose->hold_goods_amount[i] > 0 && lose->hold_goods_amount[i] < 255) {
+          cargo_amt += lose->hold_goods_amount[i];
+        }
+      }
       units_set_nation(lose, win->nation_id);
       lose->orders = UNITS_ORDER_NONE;
       lose->moves_left = 0;
-      (void)units_demote_on_loss(pool, lose, col1, human);
       if (human) {
-        units_combat_enqueue_section(
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, from_nat);
+        tok.string1 = units_combat_nation_label(col1, win->nation_id);
+        units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_CAPTURE,
-          "CAPTURED0",
+          "WAGONCAPTURE",
           win->nation_id,
           from_nat,
-          lt->name,
-          wt ? wt->name : NULL,
-          "Unit captured."
+          0,
+          &tok,
+          "Wagon captured."
         );
+        if (cargo_amt > 0) {
+          tok.number0 = cargo_amt;
+          tok.has_number0 = true;
+          tok.string1 = "goods";
+          tok.string2 = units_combat_nation_label(col1, win->nation_id);
+          tok.string3 = wt && wt->name[0] ? wt->name : "forces";
+          units_combat_enqueue_tok(
+            AI_POPUP_TAG_COMBAT_CAPTURE,
+            "CARGOCAPTURE",
+            win->nation_id,
+            from_nat,
+            cargo_amt,
+            &tok,
+            "Cargo captured."
+          );
+        }
+      }
+      return 1;
+    } else {
+      const int from_nat = lose->nation_id;
+      const int demoted = units_demote_on_loss(pool, lose, col1, 0);
+      units_set_nation(lose, win->nation_id);
+      lose->orders = UNITS_ORDER_NONE;
+      lose->moves_left = 0;
+      if (human) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, from_nat);
+        tok.string1 = units_combat_nation_label(col1, win->nation_id);
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_CAPTURE,
+          demoted ? "COLONISTCAPTURE2" : "COLONISTCAPTURE",
+          win->nation_id,
+          from_nat,
+          0,
+          &tok,
+          "Colonists captured."
+        );
+      } else {
+        (void)demoted;
       }
       return 1;
     }
@@ -1305,7 +1492,6 @@ static void units_combat_outcome_popups(
   int def_nation,
   int is_naval,
   int ambush,
-  int loot_gold,
   const ColonizeCol1Save* col1
 ) {
   if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
@@ -1331,13 +1517,6 @@ static void units_combat_outcome_popups(
     if (ambush && atk_wins) {
       units_combat_enqueue_section(
         AI_POPUP_TAG_COMBAT_AMBUSH, "INDIANWIN1", atk_nation, def_nation, wn, ln, "Ambush!"
-      );
-    }
-    if (loot_gold > 0 && atk_wins) {
-      char fb[64];
-      snprintf(fb, sizeof(fb), "Looted %d gold.", loot_gold);
-      units_combat_enqueue_section(
-        AI_POPUP_TAG_COMBAT_LOOT, "LOOTCASH", atk_nation, def_nation, wn, ln, fb
       );
     }
   }
@@ -1691,7 +1870,43 @@ bool units_try_native_settlement_fallout(
     }
     if (gold > 0) {
       (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
+      if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
+        tok.string1 = "native";
+        tok.string2 = "village";
+        tok.number0 = gold;
+        tok.has_number0 = true;
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_LOOT, "LOOT", attacker_nation_id, defender_nation_id, gold, &tok,
+          "Treasure recovered from ruins."
+        );
+      }
+    } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+      units_combat_enqueue_section(
+        AI_POPUP_TAG_COMBAT_LOOT,
+        "NOLOOT",
+        attacker_nation_id,
+        defender_nation_id,
+        units_combat_nation_label(col1, attacker_nation_id),
+        NULL,
+        "No treasure in the ruins."
+      );
     }
+  } else if (
+    units_combat_human_involved(col1, attacker_nation_id, defender_nation_id) &&
+    attacker_nation_id >= 0 && attacker_nation_id < 4
+  ) {
+    units_combat_enqueue_section(
+      AI_POPUP_TAG_COMBAT_LOOT,
+      "NOLOOT",
+      attacker_nation_id,
+      defender_nation_id,
+      units_combat_nation_label(col1, attacker_nation_id),
+      NULL,
+      "No treasure in the ruins."
+    );
   }
   return true;
 }
@@ -1814,7 +2029,6 @@ bool units_resolve_land_combat_ff(
   units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
   const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
-  int loot_gold = 0;
 
   if (eng.atk_wins) {
     const int def_x = def->x;
@@ -1822,33 +2036,66 @@ bool units_resolve_land_combat_ff(
     const int def_nation = def->nation_id;
     const int atk_nation = atk->nation_id;
     /*
-     * Treasure capture: credit LE16 hold gold to Euro winner treasury, then
-     * apply outcome. Cite: FUN_5fef_1908; GAME.TXT @LOOTCAPTURE —
-     * amount from unit only (no invented ransom). PARK: ransom dialog chrome.
+     * Treasure capture (FUN_5fef_1908): LE16 gold from unit. Human → ransom
+     * Accept/Refuse CHOICE before credit; AI → silent full credit.
      */
     if (col1 && atk_nation >= 0 && atk_nation <= 3 && dt->name[0] &&
         strstr(dt->name, "Treasure") != NULL) {
       const unsigned lo = (unsigned)(def->hold_goods_amount[0] & 0xff);
       const unsigned hi = (unsigned)(def->hold_goods_amount[1] & 0xff);
-      loot_gold = (int)(lo | (hi << 8));
+      const int loot_gold = (int)(lo | (hi << 8));
       if (loot_gold > 0) {
-        ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
-        const uint32_t g = mut->nation[atk_nation].gold;
-        const uint32_t add = (uint32_t)loot_gold;
-        mut->nation[atk_nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
-        units_combat_enqueue_section(
-          AI_POPUP_TAG_COMBAT_LOOT,
-          "LOOTCAPTURE",
-          atk_nation,
-          def_nation,
-          at->name,
-          dt->name,
-          "Treasure captured."
-        );
+        const int human = units_combat_human_involved(col1, atk_nation, def_nation);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, def_nation);
+        tok.string1 = units_combat_nation_label(col1, atk_nation);
+        tok.number0 = loot_gold;
+        tok.has_number0 = true;
+        if (human && g_units_combat_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          if (g_units_combat_game_txt) {
+            popup_msg_fill(
+              g_units_combat_game_txt, "LOOTCAPTURE", &tok, "Treasure captured.", body, sizeof(body)
+            );
+          } else {
+            snprintf(body, sizeof(body), "Treasure worth %d — Accept ransom?", loot_gold);
+          }
+          const char* choices[2] = {"Refuse", "Accept"};
+          const int ids[2] = {0, 1};
+          (void)ai_popup_enqueue_choice_ctx(
+            g_units_combat_popups,
+            AI_POPUP_TAG_COMBAT_RANSOM,
+            atk_nation,
+            def_nation,
+            loot_gold,
+            NULL,
+            body,
+            choices,
+            ids,
+            2
+          );
+        } else {
+          ColonizeCol1Save* mut = (ColonizeCol1Save*)col1;
+          const uint32_t g = mut->nation[atk_nation].gold;
+          const uint32_t add = (uint32_t)loot_gold;
+          mut->nation[atk_nation].gold = g > UINT32_MAX - add ? UINT32_MAX : g + add;
+          if (human) {
+            units_combat_enqueue_tok(
+              AI_POPUP_TAG_COMBAT_LOOT,
+              "LOOTCAPTURE",
+              atk_nation,
+              def_nation,
+              loot_gold,
+              &tok,
+              "Treasure captured."
+            );
+          }
+        }
       }
     }
     units_combat_outcome_popups(
-      pool, attacker_id, defender_id, 1, atk_nation, def_nation, 0, ambush, loot_gold, col1
+      pool, attacker_id, defender_id, 1, atk_nation, def_nation, 0, ambush, col1
     );
     (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
     units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, col1);
@@ -1878,7 +2125,7 @@ bool units_resolve_land_combat_ff(
     return true;
   }
   units_combat_outcome_popups(
-    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 0, ambush, 0, col1
+    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 0, ambush, col1
   );
   {
     const int atk_x = atk->x;
@@ -2005,8 +2252,27 @@ bool units_resolve_naval_combat_ff(
 
   if (eng.atk_wins) {
     units_combat_outcome_popups(
-      pool, attacker_id, defender_id, 1, atk->nation_id, def->nation_id, 1, 0, 0, col1
+      pool, attacker_id, defender_id, 1, atk->nation_id, def->nation_id, 1, 0, col1
     );
+    {
+      const ColonizeUnitType* wt = units_type(pool, atk->type_index);
+      const int is_priv = wt && wt->name[0] && strstr(wt->name, "Privateer") != NULL;
+      const int human = units_combat_human_involved(col1, atk->nation_id, def->nation_id);
+      if (is_priv && human) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = dt->name;
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_SEIZURE,
+          "SEIZURESEA",
+          atk->nation_id,
+          def->nation_id,
+          0,
+          &tok,
+          "Ship seized at sea."
+        );
+      }
+    }
     (void)units_apply_naval_loss_outcome(
       pool, defender_id, attacker_id, eng.def_strength, eng.atk_strength, 1, col1
     );
@@ -2014,7 +2280,7 @@ bool units_resolve_naval_combat_ff(
     return true;
   }
   units_combat_outcome_popups(
-    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 1, 0, 0, col1
+    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 1, 0, col1
   );
   (void)units_apply_naval_loss_outcome(
     pool, attacker_id, defender_id, eng.atk_strength, eng.def_strength, 1, col1
@@ -2274,6 +2540,19 @@ static bool units_village_squat_illegal(
   return !missionary && !combatish;
 }
 
+static int units_colony_plunder_stock_sum(const ColonizeColony* col) {
+  if (!col) {
+    return 0;
+  }
+  int sum = 0;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    if (col->stock[i] > 0) {
+      sum += col->stock[i];
+    }
+  }
+  return sum;
+}
+
 static void units_try_capture_foreign_colony(
   ColonizeUnitPool* pool,
   ColonizeColonyPool* colonies,
@@ -2295,7 +2574,14 @@ static void units_try_capture_foreign_colony(
   if (units_foreign_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
     return;
   }
-  (void)colonies_capture(colonies, cid, u->nation_id);
+  const int plunder = units_colony_plunder_stock_sum(col);
+  const int old_nat = col->nation_id;
+  ColonizeColony snap = *col;
+  if (!colonies_capture(colonies, cid, u->nation_id)) {
+    return;
+  }
+  (void)old_nat;
+  units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
 }
 
 /* Boarding helpers are defined later; enter_probe needs the embark probe. */
