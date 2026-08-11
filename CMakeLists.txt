@@ -546,6 +546,7 @@ add_executable(smoke_units
   src/core/ai_diplo.c
   src/core/ai_popup.c
   src/core/popup.c
+  src/core/popup_msg.c
   src/core/map_menu.c
   src/core/europe.c
   src/core/pik.c

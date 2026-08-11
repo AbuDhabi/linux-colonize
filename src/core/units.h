@@ -698,6 +698,7 @@ bool units_pick_landfall_tile(
 /*
  * Unload every passenger onto dest (must be enterable land adjacent/same).
  * Wakes sentry cargo. Does not change pool->selected_id. Returns count unloaded.
+ * AI beachhead helper — human @LANDFALL Make Landfall unloads one unit only.
  */
 int units_landfall_unload_all(
   ColonizeUnitPool* pool,

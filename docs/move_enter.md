@@ -18,7 +18,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 |------|---------|
 | `OK` | Enter / stack; charge MP |
 | `DOCK` | Ship onto own (or de Witt peace) colony land |
-| `LANDFALL` | Ship → bare coastal land → unload passengers (ship stays) |
+| `LANDFALL` | Ship → bare coastal land → unload **one** passenger (ship stays) |
 | `BOARD` | Land → ocean/HS with own ship that has room → embark |
 | `VILLAGE_SHIP` | Ship → native village → `@DONTKNOWSHIPS` / `@MADATSHIPS` (not landfall) |
 | `COMBAT_LAND` | Resolve land combat then enter if attacker wins |
@@ -40,7 +40,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
 | Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
-| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay With Ships / Make Landfall | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit) | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---
