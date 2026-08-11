@@ -165,6 +165,8 @@ Port: combat Missing; Europe buy/sell Partial; equip Partial.
 
 ## Natives
 
+Port / decomp hub: [indians.md](indians.md).
+
 [Indians (Col)](https://civilization.fandom.com/wiki/Indians_(Col)) — qualitative checklist (all Unverified vs DOS):
 
 | Topic | Wiki summary |

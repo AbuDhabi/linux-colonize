@@ -120,6 +120,8 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 
 ### Indians
 
+Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.md).
+
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [ai_transcription.md](ai_transcription.md) |
