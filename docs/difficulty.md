@@ -53,7 +53,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | AI colony food | `+= difficulty>>1` | **PARK** |
 | Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
 | End-game score→gold rebate | `FUN_41f2_0b70` difficulty multiplier | **PARK** |
-| Combat strength | — | Unaffected |
+| Combat strength (human Euro) | `str -= (diff-4)`; Discoverer −25% vs AI Euro | Wired — [combat.md](combat.md) |
 | SoL declare gate (50%) | — | Unaffected |
 | Victory / defeat calendar | Chrome names difficulty only | Chrome |
 
@@ -287,9 +287,11 @@ Tory floor **PARK**.
 
 ## Not affected
 
-- Combat unit strengths / odds (no difficulty read in combat path)
 - SoL ≥ 50% independence declare gate
 - Victory / defeat calendar years (chrome may **name** the difficulty)
+
+Combat odds **are** difficulty-sensitive for human Euro sides
+(`str -= difficulty-4` + Discoverer −25% vs AI Euro) — [combat.md](combat.md).
 
 ---
 

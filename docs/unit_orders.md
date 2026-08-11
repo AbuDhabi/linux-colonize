@@ -34,7 +34,7 @@ from `NAMES.TXT` (fallback table in `unit_chrome.c`: `- S T G L F F B P R`).
 | 3 | Go To | `G` | yes | Human pathing; clears on arrival or player cancel |
 | 4 | Live In Village | `L` | data only | Unused in port (no `UNITS_ORDER_*`) |
 | 5 | Fortify | `F` | yes | In progress; overnight → 6 |
-| 6 | Fortified | `F` | yes | Skip selection until woken; combat defense is context-dependent (combat docs) |
+| 6 | Fortified | `F` | yes | Skip selection until woken; combat defense is context-dependent ([combat.md](combat.md)) |
 | 7 | Build Colony | `B` | macro only | Founding is **immediate**; byte never assigned |
 | 8 | Clear/Plow | `P` | yes | Pioneer multi-turn |
 | 9 | Build Road | `R` | yes | Pioneer multi-turn |
@@ -140,7 +140,7 @@ stateDiagram-v2
 |---------|------|----------------|-------|--------|
 | Fortify (land) | ORDERS / **F**; `FUN_2b5a_1112` | Order 5; exhaust MP; overnight → 6 (`479b_0b6c`) | `units_order_fortify` + refresh | Done |
 | Anchor (ship) | 2nd Fortify menu / `@SHIPOPTIONS` | Sea unit at own colony or adjacent sea → fortify path | `units_order_anchor` | Done |
-| Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → combat docs) | Done |
+| Fortified | Overnight | Skip selection until woken; combat defense context-dependent | Skip via `units_orders_skip_turn` (bonus → [combat.md](combat.md)) | Done |
 | Sentry | ORDERS / **S** | Order 1; exhaust MP; skip until wake | `units_order_sentry` | Done |
 | Sentry auto-board | Ship leaves tile | Same-tile Sentry land board to capacity | `units_board_sentries_from_tile` | Done |
 | Wake | Activate / stack / replace | Clear order; restore MP | `units_wake` | Done |
@@ -254,6 +254,7 @@ orders UI, unused Live In Village byte, and TRADE chrome polish.
 
 - [manual_gap.md](manual_gap.md) — Units and map orders checklist
 - [move_enter.md](move_enter.md) — enter / board / landfall / combat on move
+- [combat.md](combat.md) — fortify defense / odds / peels
 - [assets.md](assets.md) — map keys, Go-To draw, orders chrome
 - [popups.md](popups.md) — order gates and confirms
 - [turn_between_players.md](turn_between_players.md) — EOT / human finish orders

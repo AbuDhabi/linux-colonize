@@ -108,7 +108,7 @@ PARKED deep/VGA bodies.
 
 **Now:**
 
-- Combat depth beyond T0 (ship-slow, deeper `5fef`) — [move_enter.md](move_enter.md)
+- Combat depth beyond T0 (ship-slow, deeper `5fef`) — [combat.md](combat.md)
 - Production / EOT formula fidelity (food, spoilage, bells/crosses) —
   [manual_gap.md](manual_gap.md), [turn_between_players.md](turn_between_players.md)
 - Fog / exploration leftovers (VIEW modes stay Missing → phase 5)
@@ -170,7 +170,8 @@ Do not prioritize over gameplay/determinism.
 | Save codec / interop notes | [savegame.md](savegame.md) |
 | Light catalog peel queue | [catalog_peel_ranking.md](catalog_peel_ranking.md) |
 | Acceptance order / fidelity bar | [project_goals.md](project_goals.md) |
-| Move-enter / combat authority | [move_enter.md](move_enter.md) |
+| Move-enter authority | [move_enter.md](move_enter.md) |
+| Combat mechanics | [combat.md](combat.md) |
 | EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 

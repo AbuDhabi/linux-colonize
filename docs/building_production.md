@@ -171,9 +171,9 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 
 | Building | Ham | Tools | Min pop | Effect (summary) |
 |----------|----:|------:|--------:|------------------|
-| Stockade | 64 | 0 | 3 | Defense ×2 (`157e` local_1a=4); +fortify → ×2.5 |
-| Fort | 120 | 100 | 3 | Same Stockade ladder in `015e` (wiki +150% ≈ fortified) |
-| Fortress | 320 | 200 | 8 | Defense ×3 (`local_1a=8`); fortify does not stack |
+| Stockade | 64 | 0 | 3 | Defense ×2 (`157e` local_1a=4); +fortify → ×2.5 — [combat.md](combat.md) |
+| Fort | 120 | 100 | 3 | Same Stockade ladder in `015e` (wiki +150% ≈ fortified) — [combat.md](combat.md) |
+| Fortress | 320 | 200 | 8 | Defense ×3 (`local_1a=8`); fortify does not stack — [combat.md](combat.md) |
 | Armory | 52 | 0 | 1 | Tools → muskets; artillery |
 | Magazine | 120 | 50 | 8 | Doubles musket production |
 | Arsenal | 240 | 100 | 8 | Factory muskets (**Adam Smith**) |
