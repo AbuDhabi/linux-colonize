@@ -87,7 +87,7 @@ real `LAB_4d56_*` continuity.
 |---------------|----------------------------------|
 | Relation / friction gates | Alarm/friction ≥40 (Spain ≥35); war prefer |
 | Human warn CHOICE | Status chrome thinned; `ai_popup` raid OK Done; VGA PARKED |
-| Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`) |
+| Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`; mid-band 50..74 wary + Meet, Series T) |
 | Post-head combat / loot | Adjacent combat + `@RAID*` kinds + `5fef`-shaped loot (sibling) |
 | Capture / burn | High band + tiny pop → `colonies_capture` |
 

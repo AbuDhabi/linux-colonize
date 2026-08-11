@@ -801,10 +801,29 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
   }
 
   /* Narrow mid-relation window: thin Meet CHOICE (land path stand-in). */
+  /* Mid band ≥0x32..<0x4b: cooler ship voice, still fall through (Series T). */
+  int mid_wary = 0;
+  if (rel >= 0x32 && rel < 0x4b && friction < 0x40) {
+    char wary[AI_POPUP_BODY_LEN];
+    snprintf(
+      wary,
+      sizeof(wary),
+      "The %s are wary of ships.",
+      ai_contact_tribe_name(indian_nation)
+    );
+    ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", wary);
+    if (!ai_contact_euro_is_human(ctx, euro_nation)) {
+      ai_contact_set_status(ctx, wary);
+    }
+    mid_wary = 1;
+  }
+
   if (ai_contact_try_village_meet(ctx, euro_nation, indian_nation)) {
     return 1;
   }
-  ai_contact_set_status(ctx, "The village will not receive our ships.");
+  if (!mid_wary) {
+    ai_contact_set_status(ctx, "The village will not receive our ships.");
+  }
   return 1;
 }
 
@@ -1807,10 +1826,14 @@ static void ai_contact_gift_or_demand(
     int coast_n = 0;
     int food_n = 0;
     int ore_n = 0; /* silverish/ore score-word stand-in (2154 local_a0) */
+    int capital_ask = 0;
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
       if ((int)t->nation_id != nation_id) {
         continue;
+      }
+      if (t->state.capital) {
+        capital_ask = 1;
       }
       for (int dy = -2; dy <= 2; ++dy) {
         for (int dx = -2; dx <= 2; ++dx) {
@@ -1849,6 +1872,10 @@ static void ai_contact_gift_or_demand(
       break; /* one tribe sample for thin port */
     }
     neighborhood_score = forest_n * 2 + coast_n + food_n + ore_n;
+    /* Capital village ask stand-in (2154 tribe-level bit). Cite: Series S. */
+    if (capital_ask) {
+      neighborhood_score += 2;
+    }
   }
 
   /* Low friction gift / tribute (auto Large −10; Generous −20 when purse allows). */

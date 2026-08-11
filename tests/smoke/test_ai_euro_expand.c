@@ -7387,6 +7387,141 @@ static int smoke_specialty_cargo_haul_prefer(void) {
   return 0;
 }
 
+/*
+ * Series R: 4393 specialty flag_a match — equal-distance haul shorts with
+ * distinct specialty; wagon holds only one type → goto matching colony.
+ * Cite: move_scoring_ship.md thin 4393; Series R.
+ */
+static int smoke_specialty_flag_a_haul_match(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("flag_a alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
+  units.types[0].movement = 2;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  /* Equal MD=4 from wagon at (4,4). Inventory refreshes specialty from surplus:
+   * A tools-short + lumber surplus → flag_a=LUMBER; B lumber-short + tools
+   * surplus → flag_a=TOOLS. Wagon holds TOOLS → +32 picks B. */
+  ColonizeColony* a = &colonies.colonies[0];
+  a->id = 0;
+  a->active = true;
+  a->nation_id = nation;
+  a->x = 8;
+  a->y = 4;
+  a->population = 3;
+  a->colonist_count = 3;
+  a->stock[COLONIZE_CARGO_TOOLS] = 0; /* short */
+  a->stock[COLONIZE_CARGO_LUMBER] = 50; /* surplus → specialty LUMBER (under warehouse) */
+  a->stock[COLONIZE_CARGO_FOOD] = 10; /* not FOOD surplus (avoids specialty overwrite) */
+  a->building_in_production = -1;
+  a->cargo_idle_turns = 0;
+  a->specialty_cargo = 0xff;
+
+  ColonizeColony* b = &colonies.colonies[1];
+  b->id = 1;
+  b->active = true;
+  b->nation_id = nation;
+  b->x = 4;
+  b->y = 8;
+  b->population = 3;
+  b->colonist_count = 3;
+  b->stock[COLONIZE_CARGO_LUMBER] = 0; /* short */
+  b->stock[COLONIZE_CARGO_TOOLS] = 50; /* surplus → specialty TOOLS (under warehouse) */
+  b->stock[COLONIZE_CARGO_FOOD] = 10; /* not FOOD surplus (avoids specialty overwrite) */
+  b->building_in_production = -1;
+  b->cargo_idle_turns = 0;
+  b->specialty_cargo = 0xff;
+  colonies.colony_count = 2;
+  colonies.next_id = 2;
+
+  const int wid = units_spawn(&units, 0, 4, 4);
+  ColonizeUnit* wagon = units_get(&units, wid);
+  if (!wagon) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("flag_a spawn wagon");
+  }
+  wagon->nation_id = nation;
+  wagon->moves_left = 2;
+  wagon->orders = 0;
+  if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("flag_a load tools");
+  }
+
+  ai_goals_reset();
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.nation[nation].gold = 200;
+
+  uint32_t turn = 62;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  wagon = units_get(&units, wid);
+  if (!wagon || !wagon->active || !units_orders_follow_goto(wagon->orders) ||
+      wagon->goto_x != 4 || wagon->goto_y != 8) {
+    fprintf(
+      stderr,
+      "smoke_ai_euro_expand: flag_a goto=(%d,%d) orders=%d specA=%u specB=%u\n",
+      wagon ? wagon->goto_x : -1,
+      wagon ? wagon->goto_y : -1,
+      wagon ? wagon->orders : -1,
+      (unsigned)colonies.colonies[0].specialty_cargo,
+      (unsigned)colonies.colonies[1].specialty_cargo
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected wagon goto specialty-matching tools short");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "smoke_ai_euro_expand: specialty flag_a haul match ok\n");
+  return 0;
+}
 
 /*
  * Col1 +0x8f cargo_idle_turns: haul prefers short colony with higher idle*8
@@ -20956,6 +21091,10 @@ static int smoke_seasoned_sticky_fog_deepen(void) {
 
 int main(void) {
   if (smoke_second_wave() != 0) {
+    return 1;
+  }
+  /* Series R before known Seasoned+sticky early-exit (pre-existing). */
+  if (smoke_specialty_flag_a_haul_match() != 0) {
     return 1;
   }
   if (smoke_second_colony_coastal_prefer() != 0) {

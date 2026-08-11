@@ -608,22 +608,24 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 - Series L: peacetime sticky≥2 + stance==4 mil unload vs Indian Brave MD≤3
   (war path unchanged); ship act invokes unload when sticky≥2 even if `!at_war`.
 - Series O: war cargo colony-sail `0x1b` defense ladder (Stockade/Fort/Fortress).
+- Series R: `4393` specialty `flag_a` haul match (+32 when hold matches).
 - Deep E–H / full nibble fidelity / remaining `5d04` / full `5b66` /
   full cargo matrix remain **OPEN**.
 
 **Phase 4 (Indian large bodies) — partial**
 
 - `2154`: colony 5×5 cover mask + forest/coast/food/ore buckets; bucket score
-  maps Generous floors (S≥8→25 / S≥6→30 / else 40); cover suppresses
-  (`smoke_ai_contact`).
+  maps Generous floors (S≥8→25 / S≥6→30 / else 40); capital village +2;
+  cover suppresses (`smoke_ai_contact`).
 - `2820`: hard-bargain 45..54; primary extra trade-goods for all non-`0xff`
   teach primaries (silver/ore/tobacco/cotton/furs/sugar; Arawak fish single).
 - `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)
-  + early-year demote smoke.
+  + early-year demote smoke; ship mid-band wary+Meet (Series T).
 - Series J: successful-raid friction/alarm kind-scaled (STORES +4, BURN/WREAK
   +12, SCALP +16, GOLD/SHIP +8; Pocahontas/France half).
 - Series M: `2820` hard-bargain primary extras beyond silver/ore.
 - Series P: `2154` bucket-scaled Generous floors (S≥8→25 / S≥6→30 / else 40).
+- Series S: `2154` capital-village `+2` neighborhood before gift floors.
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 
 **Phase 5 (alarmed act + claims) — partial**
@@ -638,6 +640,8 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 - Series J: `5fef` kind-scaled raid tension (0d6c-shaped deltas).
 - Series N: alarm≥80 escort deepen (outside quiet `14fe`) — **not** blanket T3.
 - Series Q: alarm≥80 raid approach MD≤8 + gold-before-tools — **not** blanket T3.
+- Series T: `4528` ship-village mid-relation (50..74) wary status then Meet —
+  **not** blanket T3 / LATE XY field-diff.
 - Quiet `14fe` dir picker unchanged. Full alarmed unit-act **PARKED**.
 
 **Per-module fidelity (honest — not blanket T3)**

@@ -320,6 +320,8 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   quiet `14fe` still PARKED. Cite: indian_raid_outcomes.md §1; Series N.
 - **Done (thin):** alarm≥80 colony approach MD≤8 + gold-before-tools at equal
   distance (mil still first); mid alarm keeps tools-before-gold. Cite: Series Q.
+- **Done (thin):** ship→village mid-relation (50..74) wary status then Meet
+  fall-through (`ai_contact_try_ship_village`). Cite: Series T; indian_settlement_4528.md.
 - **Done (thin village Meet CHOICE):** already-met human Euro on exact tribe tile
   → `ai_contact_try_village_meet` enqueues Trade/Gift/Demand/Teach/Leave via
   `game_after_unit_action`. Unmet still WELCOME-only. Deep `2820` PARKED.
