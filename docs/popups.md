@@ -182,6 +182,7 @@ fragment. Related sections are listed in the first column.
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
+| Combat Analysis (options bit) | After combat roll, human side | Done | Dual-column wood `combat_analysis.c` (`636c`-shaped); gated by `combat_analysis` |
 | `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Missing | Gold may apply silently; ransom PARKED |
 | `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Missing | — |
 | `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Missing | — |

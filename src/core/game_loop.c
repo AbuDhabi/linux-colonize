@@ -49,6 +49,7 @@
 #include "core/unit_chrome.h"
 #include "core/unit_stack.h"
 #include "core/units.h"
+#include "core/combat_analysis.h"
 #include "core/version.h"
 #include "platform/diagnostics.h"
 
@@ -89,6 +90,7 @@ struct ColonizeGameState {
   HowmuchDialog howmuch;
   NameEntryDialog name_entry;
   OptionsDialog options_dlg;
+  CombatAnalysisDialog combat_analysis;
   GameMapConfirm map_confirm;
   int map_confirm_payload; /* unit id / trade route slot / … */
   int trade_select_mode; /* 0=idle, 1=begin route, 2=edit, 3=delete */
@@ -205,7 +207,50 @@ struct ColonizeGameState {
   uint8_t menu_col_select;
   ColonizePopupColors menu_popup_colors;
   char status[128];
+  /* Set from main each frame; used by Combat Analysis nested present loop. */
+  ColonizePlatform* platform;
 };
+
+static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, void* user) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  if (!game || !eng || !game->units_ok) {
+    return;
+  }
+  if (!combat_analysis_open(&game->combat_analysis, &game->units, eng)) {
+    return;
+  }
+  /* Headless / no platform: auto-dismiss (tests never set presenter). */
+  if (!game->platform) {
+    combat_analysis_close(&game->combat_analysis);
+    return;
+  }
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  memset(pixels, 0, sizeof(pixels));
+  while (game->combat_analysis.open) {
+    ColonizeInputState input = {0};
+    if (!platform_poll_input(game->platform, &input) || input.quit_requested) {
+      combat_analysis_close(&game->combat_analysis);
+      break;
+    }
+    (void)combat_analysis_handle_input(&game->combat_analysis, &input);
+    game_render(game, &fb, &pal);
+    if (!platform_present(game->platform, &fb, &pal)) {
+      combat_analysis_close(&game->combat_analysis);
+      break;
+    }
+    platform_sleep_ms(16);
+  }
+}
+
+static void game_bind_combat_analysis(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  combat_analysis_set_presenter(game_combat_analysis_present, game);
+  units_set_combat_human_nation(game->human_nation);
+}
 
 static void game_refresh_orders_menu(ColonizeGameState* game) {
   if (!game) {
@@ -988,6 +1033,10 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
   if (game->options_dlg.open) {
     options_dialog_handle_input(&game->options_dlg, input);
     game_apply_options_result(game);
+    return true;
+  }
+  if (game->combat_analysis.open) {
+    combat_analysis_handle_input(&game->combat_analysis, input);
     return true;
   }
   if (game->name_entry.open) {
@@ -2888,6 +2937,9 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   howmuch_init(&game->howmuch);
   name_entry_init(&game->name_entry);
   options_dialog_init(&game->options_dlg);
+  combat_analysis_close(&game->combat_analysis);
+  game->platform = NULL;
+  game_bind_combat_analysis(game);
   game->map_confirm = GAME_MAP_CONFIRM_NONE;
   game->map_confirm_payload = -1;
   game->trade_select_mode = 0;
@@ -3259,10 +3311,20 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   return game;
 }
 
+void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform) {
+  if (!game) {
+    return;
+  }
+  game->platform = platform;
+  units_set_combat_human_nation(game->human_nation);
+}
+
 void game_destroy(ColonizeGameState* game) {
   if (!game) {
     return;
   }
+  combat_analysis_set_presenter(NULL, NULL);
+  combat_analysis_close(&game->combat_analysis);
   pik_free(&game->menu_bg);
   pik_free(&game->pedia_wood);
   europe_free(&game->europe);
@@ -3681,6 +3743,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   }
   /* FF + native settlement fallout for human combat (same as turn_refresh). */
   units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+  units_set_combat_human_nation(game->human_nation);
   units_set_occupancy_map(&game->world_map);
   units_set_native_fallout_context(
     game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
@@ -8774,6 +8837,22 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         framebuffer
       );
     }
+    if (game->combat_analysis.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      const ColonizeFont* popup_font =
+        game->intro_font_ok ? &game->intro_font
+        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      combat_analysis_render(
+        (CombatAnalysisDialog*)&game->combat_analysis,
+        popup_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
     if (game->name_entry.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
@@ -8913,6 +8992,7 @@ void game_apply_mouse_cursor(
     return;
   }
 
+  game->platform = platform;
   game->debug_mouse_x = mouse_x;
   game->debug_mouse_y = mouse_y;
 

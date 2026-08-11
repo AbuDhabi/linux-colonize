@@ -40,10 +40,16 @@ void units_set_native_fallout_context(
 
 /*
  * Optional colony pool for land combat fortification defense
- * (Stockade/Fort/Fortress). Pass NULL to clear. Pointer is not owned.
- * units_try_move sets this from its colonies arg before combat.
+ * (Stockade/Fort/Fortress via FUN_157e_015e). Pass NULL to clear. Pointer is
+ * not owned. units_try_move sets this from its colonies arg before combat.
  */
 void units_set_combat_colonies(const ColonizeColonyPool* colonies);
+
+/*
+ * Human nation id for Combat Analysis gate (FUN_5fef_1b0e 0x5383&2 path).
+ * Pass -1 to clear. game_loop / turn set this alongside units_set_ff_col1.
+ */
+void units_set_combat_human_nation(int human_nation);
 
 /*
  * Destroy native village Col1 record at (x,y) if present. Clears map owner
@@ -328,10 +334,10 @@ bool units_try_move(
 );
 
 /*
- * T0 land combat: attack vs defense (+ fortified ×2, or colony fortification
- * +100%/+150%/+200% when units_set_combat_colonies / try_move colonies set —
- * fortification replaces fortify ×2 on that tile). Probability =
- * attack/(attack+defense). Winner stays; loser despawned. Naval / mixed: no fight.
+ * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
+ * defender engagement (015e: colony/village/terrain/fortify). Probability =
+ * atk/(atk+def). Optional Combat Analysis presenter after roll. Winner stays;
+ * loser despawned. Naval / mixed: no fight.
  * When col1 is non-NULL and winner nation owns Washington (PEDIA/wiki George
  * Washington; docs/fandom_col1994.md: non-veteran soldiers/dragoons who win
  * always upgrade), promote winner name/type like 1eca. col1 may be NULL (no FF
@@ -365,11 +371,9 @@ bool units_resolve_land_combat(
 int units_plunder_ship_holds(ColonizeUnitPool* pool, int winner_id, int loser_id);
 
 /*
- * T0 naval combat: same attack/defense roll as land; ships only.
- * Winner keeps the tile; loser despawned after hold plunder into winner.
- * When col1 is non-NULL and a side is Privateer whose nation owns Drake
- * (PEDIA/wiki: privateer combat strength +50%), that side's attack or defense
- * is multiplied by 3/2. col1 may be NULL (no Drake bonus).
+ * Naval combat: FUN_157e_004a for both sides (damage/holds/Drake). Same roll
+ * shape as land; ships only. Winner keeps the tile; loser despawned after hold
+ * plunder into winner. Optional Combat Analysis after roll.
  */
 bool units_resolve_naval_combat_ff(
   ColonizeUnitPool* pool,

@@ -7,6 +7,7 @@
 #include "core/colony_yield.h"
 #include "core/colony_production.h"
 #include "core/col1_save.h"
+#include "core/combat_strength.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -9502,30 +9503,8 @@ static int ai_euro_war_transport_target(
 }
 
 /*
- * Occupied goods holds — Col1 unit+0x0c / DS:0x3150 holds_occupied.
- * FUN_157e_004a subtracts this from ship combat×8 for type 0x0d..0x12.
- */
-static int ai_euro_ship_holds_occupied(const ColonizeUnit* u) {
-  if (!u) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    const int amt = u->hold_goods_amount[i];
-    if (amt > 0 && amt < 255) {
-      ++n;
-    }
-  }
-  return n;
-}
-
-/*
  * Effective defense for thin 20e6 naval adjacent-foe pick.
- * FUN_157e_004a peels:
- *   - Privateer (type 0x0b) + ship_damaged (0x3148 bit7 / col1_unknown15 bit7) → −2
- *   - ship band: subtract holds_occupied (0x3150)
- *   - Drake Privateer +50% (×3/2) when FF owned — mirrors units_drake_scale_strength
- * Cite: FUNCTION_CATALOG FUN_157e_004a; fandom Drake; col1_save.h ship_damaged.
+ * Shared FUN_157e_004a via combat_unit_base_x8 (damage/holds/Drake).
  */
 static int ai_euro_naval_foe_toughness(
   ColonizeTurnContext* ctx,
@@ -9535,28 +9514,13 @@ static int ai_euro_naval_foe_toughness(
   if (!units || !f) {
     return 9999;
   }
-  const ColonizeUnitType* t = units_type(units, f->type_index);
-  int def = t ? t->defense : 0;
-  if (def < 0) {
-    def = 0;
-  }
-  /* FUN_157e_004a: type==0x0b Privateer + damaged bit → base −2 before ×8. */
-  if (t && strstr(t->name, "Privateer") != NULL && (f->col1_unknown15 & 0x80u) != 0) {
-    def -= 2;
-    if (def < 0) {
-      def = 0;
-    }
-  }
-  /* FUN_157e_004a: ship type band subtracts holds_occupied (0x3150). */
-  def -= ai_euro_ship_holds_occupied(f);
-  if (def < 0) {
-    def = 0;
-  }
-  if (t && strstr(t->name, "Privateer") != NULL && ctx && ctx->col1_ok && ctx->col1 &&
-      founding_fathers_nation_has(ctx->col1, f->nation_id, FF_FRANCIS_DRAKE)) {
-    def = (def * 3) / 2;
-  }
-  return def;
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = units;
+  sctx.map = ctx ? ctx->map : NULL;
+  sctx.colonies = ctx ? ctx->colonies : NULL;
+  sctx.col1 = (ctx && ctx->col1_ok) ? ctx->col1 : NULL;
+  const int tough = combat_unit_base_x8(&sctx, f->id, 0, NULL);
+  return tough > 0 ? tough : 0;
 }
 
 /* Combat ships for Frigate hunt prefer (complement Privateer cargo prey). */
@@ -9827,11 +9791,8 @@ static int ai_euro_land_war_hunt_target(
 
 /*
  * Effective defense for thin 20e6 adjacent-foe pick.
- * Matches units_resolve_land_combat_ff fort%: own-colony Stockade/Fort/Fortress
- * percent bonus replaces fortified ×2 when present.
- * FUN_157e_004a peel: Soldier/Dragoon with profession 0x15 (UNITS_JOB_SOLDIER)
- * → +50% (×3/2). Cite: building_production.md; FUN_157e_004a; fandom Washington
- * veteran. PARK: combat×8 table scale / damage-byte (land N/A).
+ * Shared FUN_157e_015e via combat_engagement_strength (colony/village/terrain/
+ * fortify + vet). Cite: combat_strength.c; FUN_157e_004a / 015e.
  */
 static int ai_euro_land_foe_toughness(
   ColonizeTurnContext* ctx,
@@ -9841,26 +9802,13 @@ static int ai_euro_land_foe_toughness(
   if (!units || !f) {
     return 9999;
   }
-  const ColonizeUnitType* t = units_type(units, f->type_index);
-  int def = t ? t->defense : 0;
-  if (def < 0) {
-    def = 0;
-  }
-  int fort_bonus = 0;
-  if (ctx && ctx->colonies && f->nation_id >= 0 && f->nation_id <= 3) {
-    fort_bonus = ai_euro_colony_fort_bonus_at(ctx->colonies, f->x, f->y, f->nation_id);
-  }
-  if (fort_bonus > 0) {
-    def = def + (def * fort_bonus) / 100;
-  } else if (ai_euro_land_is_fortified(f)) {
-    def *= 2;
-  }
-  if (t && f->profession == UNITS_JOB_SOLDIER &&
-      (strstr(t->name, "Soldier") != NULL || strstr(t->name, "Dragoon") != NULL ||
-       strstr(t->name, "Continental") != NULL)) {
-    def = (def * 3) / 2;
-  }
-  return def;
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = units;
+  sctx.map = ctx ? ctx->map : NULL;
+  sctx.colonies = ctx ? ctx->colonies : NULL;
+  sctx.col1 = (ctx && ctx->col1_ok) ? ctx->col1 : NULL;
+  const int tough = combat_unit_toughness(&sctx, f->id, -1);
+  return tough > 0 ? tough : 0;
 }
 
 /*

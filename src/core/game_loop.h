@@ -15,6 +15,8 @@ typedef struct ColonizeGameState ColonizeGameState;
 
 ColonizeGameState* game_create(const ColonizeGameConfig* config);
 void game_destroy(ColonizeGameState* game);
+/* Platform for nested Combat Analysis present loop (set each frame from main). */
+void game_set_platform(ColonizeGameState* game, ColonizePlatform* platform);
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms);
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette);
 const char* game_status_text(const ColonizeGameState* game);

@@ -3283,13 +3283,13 @@ static int smoke_dragoon_hunt_prefer_open(void) {
   colonies_init(&colonies);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_type_count = 1;
-  /* Near Stockade (8,5); open at (10,5) — Dragoon should take open within slack. */
+  /* Stockade off the eastbound path (8,8); open at (10,5) — prefer open within slack. */
   ColonizeColony* stock_col = &colonies.colonies[0];
   stock_col->id = 0;
   stock_col->active = true;
   stock_col->nation_id = foe_nat;
   stock_col->x = 8;
-  stock_col->y = 5;
+  stock_col->y = 8;
   stock_col->population = 2;
   stock_col->colonist_count = 2;
   stock_col->has_building[0] = true;
@@ -8176,9 +8176,11 @@ static int smoke_garrison_quota_one_fortify(void) {
   c = &colonies.colonies[0];
   int fortified = 0;
   int idle = 0;
+  int joined = 0;
   for (int i = 0; i < 2; ++i) {
     const ColonizeUnit* s = (i == 0) ? s0 : s1;
     if (!s || !s->active) {
+      joined++; /* admit-as-colonist when quota exhausted */
       continue;
     }
     if (s->orders == UNITS_ORDER_FORTIFY || s->orders == UNITS_ORDER_FORTIFIED) {
@@ -8187,12 +8189,17 @@ static int smoke_garrison_quota_one_fortify(void) {
       idle++;
     }
   }
-  if (fortified != 1 || idle != 1 || c->garrison_quota != 0) {
+  /*
+   * One fortify consumes quota; the other stays idle or joins the colony
+   * (no-slot admit path — Dutch Isabella). Cite: euro_unit_act fortify+quota.
+   */
+  if (fortified != 1 || c->garrison_quota != 0 || (idle + joined) != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: garrison_quota fortified=%d idle=%d quota=%u\n",
+      "smoke_ai_euro_war: garrison_quota fortified=%d idle=%d joined=%d quota=%u\n",
       fortified,
       idle,
+      joined,
       (unsigned)c->garrison_quota
     );
     free(map.terrain);

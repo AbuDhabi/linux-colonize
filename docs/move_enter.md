@@ -50,10 +50,10 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Mover | Occupant | DOS (`465b`) | Linux | Status |
 |-------|----------|--------------|-------|--------|
 | Any | Same nation | Stack | Stack | Done |
-| Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | T0 land combat | Partial |
+| Land combat (`5236≠0` / attack>0) | Foreign land unit | Fight → `5fef_1b0e` | `157e` strength + combat analysis | Partial |
 | Land non-combat (`5236==0`) | Foreign unit | Bounce (+ optional dialog) | Bounce via probe | Done |
 | Land | Foreign unit at peace | Diplo/war UI tails | Bounce if `!ai_diplo_at_war` | Partial |
-| Ship | Foreign ship | Naval fight path | Naval on move | Done |
+| Ship | Foreign ship | Naval fight path | Naval `157e_004a` + analysis | Done |
 | Ship | Foreign land | Block / landfall | Block / landfall | Done |
 | Any | Empty | Enter | Enter | Done |
 | Ship leaves tile | Same-tile Sentry land | Auto-board to capacity | `units_board_sentries_from_tile` on ship move | Done |
@@ -87,8 +87,12 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## PARKED (not this track)
 
-Deep `FUN_5fef_1b0e`, ship-slow formula, village raid `4528`/`2820` VGA,
-full `465b` foreign diplo/war UI, Euro mid-planner `20e6`.
+Deep `FUN_5fef_1b0e` engagement extras (artillery/ambush/SoL/REF), ship-slow
+formula, village raid `4528`/`2820` VGA, full `465b` foreign diplo/war UI,
+Euro mid-planner `20e6`.
+
+Combat strength `FUN_157e_004a`/`015e` + Combat Analysis (`636c`) are wired;
+outcome `@EUROPEWIN`/`@LOOT*` modals still Missing.
 
 ## See also
 
