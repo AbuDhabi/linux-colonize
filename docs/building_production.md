@@ -1,18 +1,20 @@
 # Settlement building production
 
-Reference for what colonists produce **inside** colony buildings (settlement / town-commons view), which `@JOB` skills apply, and how that relates to the Production tab and worker badges. Field / area yields are documented separately in [terrain_yields.md](terrain_yields.md).
+Reference for what colonists produce **inside** colony buildings (settlement view), which `@JOB` skills apply, and how that relates to the Production tab. Field / area yields: [terrain_yields.md](terrain_yields.md). Sentiment: [sons_of_liberty.md](sons_of_liberty.md).
 
 ## Sources
 
 | Source | Role |
 |--------|------|
-| [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Manual ch. 6 (colonies, pp. 37–58): workplace rules, Production view, shortfalls, Sons of Liberty production bonus/penalty; player-aid **Skills Chart** and **Building Chart** (back cover) |
-| [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@BUILDING`, `@JOB` | Building costs / min population; colonist profession names and school tier |
-| [`COLONIZE/VICEROY.EXE`](../COLONIZE/VICEROY.EXE) | Embedded tier table **`3, 6, 8`** (file offset **0x16103**) — house / shop / factory manufacturing throughput per worker (before colonist-class and skill multipliers) |
+| [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@BUILDING`, `@JOB` | **Authoritative** construction hammers / tools×10 / min_colony; profession names and school tier |
+| `FUN_15eb_1d4c` (building/manufacturing yield) + `FUN_15eb_15c6` (upgrade depth 0/1/2) | **Authoritative** DOS manufacturing composer — decomp of `1d4c` is messy; tier rates below are **provisional** until a clean peel |
+| [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Manual ch. 6 workplace rules, Production view, shortfalls; Building Chart **effects** (prefer NAMES for costs) |
 | [`COLONIZE/README.TXT`](../COLONIZE/README.TXT) | Colony **Space** = one free production cycle; Cathedral min pop **8** (v3 fix) |
-| Community reverse-engineering (NamuWiki, StrategyWiki) | Cross-check for per-building **6→9** factory efficiency and church / town-hall self-production numbers where the manual gives prose but not a table |
+| [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | EOT phase order (`FUN_364b_0688`) |
 
-When the manual player-aid chart disagrees with `NAMES.TXT` on **construction** costs (e.g. Carpenter’s Shop hammers), prefer **`NAMES.TXT`** for hammer/tool **costs** and the manual chart for **gameplay effects**.
+**Removed:** earlier claim that `VICEROY.EXE` @ `0x16103` embeds tier bytes `3,6,8` — that offset is **not** a rate table (false cite).
+
+When the manual Building Chart disagrees with `NAMES.TXT` on **construction** costs or min population, prefer **`NAMES.TXT`**.
 
 ---
 
@@ -20,105 +22,84 @@ When the manual player-aid chart disagrees with `NAMES.TXT` on **construction** 
 
 | Location | View | Produces |
 |----------|------|----------|
-| **Area** (8 surround tiles + town commons) | Area view | Raw commodities: food, sugar, tobacco, cotton, furs, lumber, ore, silver — see [terrain_yields.md](terrain_yields.md) |
-| **Buildings** (town commons) | Settlement view | Processed goods, hammers, muskets, crosses, liberty bells, teaching, etc. |
+| **Area** (8 surround tiles + town commons) | Area view | Raw commodities — [terrain_yields.md](terrain_yields.md) |
+| **Buildings** | Settlement view | Processed goods, hammers, muskets, crosses, liberty bells, teaching |
 
-Up to **three** colonists may work the same building at once (school/college/university are special: teachers + students).
+Up to **three** colonists may work the same building (schools: teachers + students).
 
-The printed manual says converts are “unwilling to work inside manufacturing concerns” (p. 33); that is **misleading**. Converts **can** be assigned to buildings — they are simply very bad at manufacturing (same floor rate as petty criminals). On **tiles** they are better than free colonists (see field note below).
+The printed manual says converts are “unwilling to work inside manufacturing concerns” (p. 33); that is **misleading**. Converts **can** be assigned to buildings — same manufacturing floor as petty criminals. On **tiles** they can be better than free colonists (job whitelist) — [terrain_yields.md](terrain_yields.md).
 
 ---
 
 ## Turn order (settlement production)
 
-Classic order (manual Production view; `README.TXT` “Space = free production”):
+Aligns with [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) / manual Production view:
 
-1. **Harvest** — town-commons auto-yield + assigned field workers add to warehouse (same turn).
-2. **Food** — each colonist eats **2 food**; surplus accumulates toward growth (**200**
-   food → new free colonist — **Done** in `turn_produce_one_colony`). Starvation
-   latch + second-turn colonist loss (**Done**; last colonist preserved).
-3. **Manufacturing** — workers in processing buildings convert **input cargo → output cargo** from warehouse stock (including goods harvested this turn). Unmet input demand creates **shortfalls** (grey / “X” icons in Production view).
-4. **Hammers** — carpenters at Carpenter’s Shop / Lumber Mill consume **lumber** toward `building_in_production`.
-5. **Crosses / liberty bells** — accumulated into immigration / independence counters (not normal warehouse cargo).
+1. **Harvest** — town-commons auto-yield + assigned field workers → warehouse.
+2. **Food** — each colonist eats **2** food; surplus toward growth (**200** → new free colonist). Starvation latch + loss on later turns.
+3. **Manufacturing** — processing buildings convert **input → output** from warehouse (including same-turn harvest). Unmet input → **shortfalls**.
+4. **Hammers** — carpenters consume **lumber** toward `building_in_production`.
+5. **Crosses / liberty bells** — immigration / independence counters (not warehouse cargo).
 
-Manufacturing runs **before** carpenters spend lumber so ore→tools and cotton→cloth happen in the same pass as field ore/cotton arriving.
+Manufacturing before hammers so ore→tools and cotton→cloth see same-turn field intake.
 
 ---
 
 ## Worker output: colonist class
 
-For **manufacturing** jobs (settlement buildings). Rates below are the **free-colonist equivalent** before building-tier tables; criminals / converts / servants use a reduced floor instead of the free-colonist “3” baseline.
+For **manufacturing** jobs. Free-colonist house baseline is **3** (provisional / port).
 
-| Colonist type | `@JOB` index | Manufactured units / worker / turn (house / base tier) |
-|---------------|-------------:|-------------------------------------------------------:|
-| Petty criminal | 26 | **1** |
-| Indian convert | 27 | **1** (same floor as criminal; **can** work buildings) |
-| Indentured servant | 25 | **2** |
+| Colonist type | `@JOB` index | House-tier units / worker (port) |
+|---------------|-------------:|---------------------------------:|
+| Petty criminal | 26 | **1** (`tier/3`) |
+| Indian convert | 27 | **1** (`tier/3`; **can** work buildings) |
+| Indentured servant | 25 | **2** (`tier*2/3`) |
 | Free colonist (unskilled) | 19 | **3** |
 
-Higher building tiers scale the same way for free colonists (3 → 6 → 9); criminals / converts stay at the low manufacturing floor (**1** at house tier — confirm shop/factory scaling against DOS when implementing).
+At shop/factory tiers the port scales the same way: criminal/convert → **2 / 3**; indentured → **4 / 6**; free → **6 / 9**. **DOS class scaling inside `FUN_15eb_1d4c` not fully re-peeled** — treat shop/factory criminal floors as port behavior until confirmed.
 
 ### Matching skill vs wrong job
 
-A colonist’s specialty applies **only** when working the matching job:
-
 | Situation | Production treated as |
 |-----------|------------------------|
-| Skill matches workplace / field job (e.g. Master Blacksmith in a smithy; Expert Fisherman on ocean) | Expert / Master rates (**×2** manufacturing; field experts double tile yield) |
-| Skill does **not** match (e.g. Master Sugar Planter in a Lumber Mill; Elder Statesman as Fisherman; Master Blacksmith in a Tobacconist’s House) | **Free colonist** for that assignment — no specialty bonus |
+| Skill matches workplace (e.g. Master Blacksmith in a smithy) | Expert / Master — **×2** manufacturing output and input |
+| Skill does **not** match | **Free colonist** rates for that assignment |
 
-So a mismatched expert is not worse than a free colonist; they simply lose the expert multiplier until reassigned to their trade.
-
-| Skill tier (when matched) | Multiplier on manufacturing output (and input) |
-|---------------------------|-----------------------------------------------|
-| No matching skill / wrong building | ×1 (free-colonist baseline) |
-| Master / Expert / Elder / Firebrand in matching role | **×2** |
-
-Examples:
-
-- Miner **3** ore + free blacksmith **3** tools → balanced.
-- Same miner + **Master Blacksmith** wanting **6** tools → **shortfall 3** unless ore is in stock.
-- Elder Statesman fishing → free-colonist fisherman yield (no statesman bonus, no fisherman expert bonus).
-
-### Field (area) note — converts
-
-On **tiles**, Indian converts produce **1 more** than a free colonist of the same job on that terrain (before expert multipliers / SoL). Details belong with area yields in [terrain_yields.md](terrain_yields.md); kept here so settlement vs field class rules stay consistent.
+Field experts: food/fish **+2**, other jobs **×2** — [terrain_yields.md](terrain_yields.md) (not blanket ×2).
 
 ---
 
 ## Building tier throughput (free colonist, per worker)
 
-`VICEROY.EXE` stores three manufacturing rates **`3 / 6 / 8`**. In practice these align with the player-aid **Building Chart** “increases production” tiers and with observed **3 / 6 / (6→9)** processing:
+**Provisional** rates used by the port and consistent with Building Chart “doubles” / factory **1.5×** efficiency. DOS upgrade depth is `FUN_15eb_15c6` → **0 / 1 / 2** (house / shop / factory). Exact byte table in the EXE is **not** at `0x16103`.
 
-| Tier | Building level (examples) | Free-colonist **output** / worker | Typical **input** / worker |
-|------|---------------------------|----------------------------------:|---------------------------:|
-| **1 — House / base** | `*'s House`, Carpenter’s Shop, Armory, Town Hall (bells), Church (crosses) | **3** | **3** (1:1) |
-| **2 — Shop / mill** | `*'s Shop`, Lumber Mill, Rum Distillery, Fur Trading Post, Magazine | **6** | **6** (1:1) |
-| **3 — Factory** | `* Factory`, Textile Mill, Iron Works, Arsenal (**Adam Smith** required) | **9** | **6** (1.5× output efficiency) |
+| Tier | Depth | Building level (examples) | Free **output** / worker | Typical **input** / worker |
+|------|------:|---------------------------|-------------------------:|---------------------------:|
+| **1 — House / base** | 0 | `*'s House`, Carpenter’s Shop, Armory, Town Hall (bells), Church | **3** | **3** (1:1) |
+| **2 — Shop / mill** | 1 | `*'s Shop`, Lumber Mill, Rum Distillery, Fur Trading Post, Magazine | **6** | **6** (1:1) |
+| **3 — Factory** | 2 | `* Factory`, Textile Mill, Iron Works, Arsenal (**Adam Smith**) | **9** | **6** (1.5× — `input = (out*6+8)/9` in port) |
 
 **Exceptions / special cases**
 
 | Building | Notes |
 |----------|--------|
-| **Lumber Mill** | Manual: **doubles** hammer output vs Carpenter’s Shop (3→**6**); still consumes lumber 1:1. |
-| **Magazine** | Manual: **doubles** musket output vs Armory (3→**6** tools→muskets). |
-| **Arsenal** | Manual: needs **half the tools** of Magazine/Armory to make the same muskets at factory tier; data tables use **9 muskets ← 9 tools** per worker (same 1:1 ratio as other factories, but half the tools Magazine would need for 9 muskets). |
-| **Iron Works / luxury factories** | **6** raw → **9** finished (ore→tools, cotton→cloth, …). |
-| **Printing Press** | **+50%** liberty bell production colony-wide (manual p. 58). |
-| **Newspaper** | **+100%** liberty bell production colony-wide. |
-| **Church / Cathedral** | Building provides **passive** crosses; workers add more (data: Church **+2** passive + **3**/worker; Cathedral **+3** + **6**/worker). Colony also generates **1** cross/turn base (manual p. 35). |
-| **Town Hall** | Passive **+1** bell + **3**/worker (data); **Elder Statesman** ×2. |
-| **Dock** | Enables fishermen on ocean/lake area tiles (no processing). |
-| **Schoolhouse / College / University** | Teach skills (faculty 1 / 2 / 3); see Skills table below. |
+| **Lumber Mill** | Manual: **doubles** hammers vs Carpenter’s Shop (3→**6**); lumber 1:1. |
+| **Magazine** | Manual: **doubles** muskets vs Armory (3→**6**). |
+| **Arsenal** | Factory-tier muskets; port uses same **9 out / 6 in** factory rule as other factories (not 9←9). Manual “half the tools” prose aligns with **6** tools → **9** muskets vs Magazine’s 6←6. |
+| **Iron Works / luxury factories** | **6** raw → **9** finished. |
+| **Printing Press** | **+50%** liberty bells colony-wide (manual). |
+| **Newspaper** | **+100%** liberty bells colony-wide. |
+| **Church / Cathedral** | Passive + worker crosses — port: Church passive **+2** + **3**/worker; Cathedral **+3** + **6**/worker; colony base **+1** cross/turn. Marked **port / manual-aligned; deep peel pending**. |
+| **Town Hall** | Port: passive **+1** bell + **3**/worker; Elder Statesman ×2. |
+| **Docks** | Enables fishermen on ocean/lake surrounds (no processing). |
+| **Schoolhouse / College / University** | Teach (faculty 1 / 2 / 3). |
 
 ---
 
 ## Processing chains (input → output)
 
-Each row is one **recipe**; higher building tiers replace lower ones in the same chain (only the **best built** building of a slot chain is shown in the settlement view, but workers are assigned to a specific `building_type`).
-
-| Output | Input | Tier-1 building | Tier-2 | Tier-3 (needs **Adam Smith**) |
-|--------|-------|-------------------|--------|--------------------------------|
+| Output | Input | Tier-1 | Tier-2 | Tier-3 (**Adam Smith**) |
+|--------|-------|--------|--------|-------------------------|
 | **Hammers** | Lumber | Carpenter’s Shop | Lumber Mill | — |
 | **Tools** | Ore | Blacksmith’s House | Blacksmith’s Shop | Iron Works |
 | **Muskets** | Tools | Armory | Magazine | Arsenal |
@@ -127,130 +108,126 @@ Each row is one **recipe**; higher building tiers replace lower ones in the same
 | **Rum** | Sugar | Rum Distiller’s House | Rum Distillery | Rum Factory |
 | **Coats** | Furs | Fur Trader’s House | Fur Trading Post | Fur Factory |
 | **Crosses** | — | Church | — | Cathedral |
-| **Liberty bells** | — | Town Hall (+ Printing Press / Newspaper bonuses) | — | — |
+| **Liberty bells** | — | Town Hall (+ Press / Newspaper) | — | — |
 
-**Starter colonies** receive tier-1 free manufacturing: Town Hall, Carpenter’s Shop, Blacksmith’s House, Weaver’s / Tobacconist’s / Distiller’s / Fur Trader’s **House** (`colonies_grant_starters`).
+**Starter colonies** receive tier-1 free manufacturing: Town Hall, Carpenter’s Shop, Blacksmith’s House, Weaver’s / Tobacconist’s / Distiller’s / Fur Trader’s **House**.
 
 ---
 
 ## Skills chart (`@JOB` → workplace)
 
-Indices match [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@JOB` order and Col1 `profession` bytes.
+Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 
-### Outdoorsmen (area view only)
+### Outdoorsmen (area view)
 
-| @JOB | Index | Expert name | Produces | Teach school |
-|------|------:|-------------|----------|--------------|
-| Farmer | 0 | Expert Farmer | Food | S* |
-| Sugar Planter | 1 | Master Sugar Planter | Sugar | C* |
-| Tobacco Planter | 2 | Master Tobacco Planter | Tobacco | C* |
-| Cotton Planter | 3 | Master Cotton Planter | Cotton | C* |
-| Fur Trapper | 4 | Expert Fur Trapper | Furs | S* |
-| Lumberjack | 5 | Expert Lumberjack | Lumber | S |
-| Ore Miner | 6 | Expert Ore Miner | Ore | S |
-| Silver Miner | 7 | Expert Silver Miner | Silver | S |
-| Fisherman | 8 | Expert Fisherman | Food (fish) | S* |
+| @JOB | Index | Expert name | Teach |
+|------|------:|-------------|-------|
+| Farmer | 0 | Expert Farmers | S* |
+| Sugar Planter | 1 | Master Sugar Planters | C* |
+| Tobacco Planter | 2 | Master Tobacco Planters | C* |
+| Cotton Planter | 3 | Master Cotton Planters | C* |
+| Fur Trapper | 4 | Expert Fur Trappers | S* |
+| Lumberjack | 5 | Expert Lumberjacks | S |
+| Ore Miner | 6 | Expert Ore Miners | S |
+| Silver Miner | 7 | Expert Silver Miners | S |
+| Fisherman | 8 | Expert Fishermen | S* |
 
-\* = may also be learned from natives (manual Skills Chart).
+\* may also be learned from natives (manual). School: **S** Schoolhouse, **C** College, **U** University. NAMES school field **1–4** (4 = unlearnable).
 
-School codes: **S** = Schoolhouse, **C** = College, **U** = University (manual player-aid footnote).
+### Craftsmen (settlement)
 
-### Craftsmen (settlement buildings)
+| @JOB | Index | Title | Buildings | Converts |
+|------|------:|-------|-----------|----------|
+| Distiller | 9 | Master Distiller | Rum Distiller’s House / Distillery / Factory | Sugar → Rum |
+| Tobacconist | 10 | Master Tobacconist | Tobacconist’s House / Shop / Cigar Factory | Tobacco → Cigars |
+| Weaver | 11 | Master Weaver | Weaver’s House / Shop / Textile Mill | Cotton → Cloth |
+| Fur Trader | 12 | Master Fur Trader | Fur Trader’s House / Trading Post / Factory | Furs → Coats |
+| Carpenter | 13 | Master Carpenter | Carpenter’s Shop, Lumber Mill | Lumber → Hammers |
+| Blacksmith | 14 | Master Blacksmith | Blacksmith’s House / Shop / Iron Works | Ore → Tools |
+| Gunsmith | 15 | Master Gunsmith | Armory, Magazine, Arsenal | Tools → Muskets |
 
-| @JOB | Index | Master / expert title | Workplace buildings | Converts |
-|------|------:|----------------------|---------------------|----------|
-| Carpenter | 13 | Master Carpenter | Carpenter’s Shop, Lumber Mill | Lumber → **Hammers** |
-| Blacksmith | 14 | Master Blacksmith | Blacksmith’s House/Shop, Iron Works | Ore → **Tools** |
-| Gunsmith | 15 | Master Gunsmith | Armory, Magazine, Arsenal | Tools → **Muskets** |
-| Distiller | 9 | Master Distiller | Rum Distiller’s House/Distillery/Factory | Sugar → **Rum** |
-| Tobacconist | 10 | Master Tobacconist | Tobacconist’s House/Shop, Cigar Factory | Tobacco → **Cigars** |
-| Weaver | 11 | Master Weaver | Weaver’s House/Shop, Textile Mill | Cotton → **Cloth** |
-| Fur Trader | 12 | Master Fur Trader | Fur Trader’s House, Trading Post, Factory | Furs → **Coats** |
-
-Wrong-building assignment → free colonist rates (see [Matching skill vs wrong job](#matching-skill-vs-wrong-job)).
-
-### Political / religious (settlement)
+### Political / religious
 
 | @JOB | Index | Title | Building | Produces |
 |------|------:|-------|----------|----------|
-| Preacher | 16 | Firebrand Preacher | Church, Cathedral | **Crosses** (×2 when skilled) |
-| Statesman | 17 | Elder Statesman | Town Hall | **Liberty bells** (×2 when skilled) |
-| Teacher | 18 | Expert Teacher | Schoolhouse, College, University | Trains other colonists (not cargo) |
+| Preacher | 16 | Firebrand Preacher | Church, Cathedral | Crosses (×2 skilled) |
+| Statesman | 17 | Elder Statesman | Town Hall | Liberty bells (×2 skilled) |
+| Teacher | 18 | Expert Teacher | Schoolhouse / College / University | Trains colonists |
 
 ### Not manufacturing
 
 | @JOB | Index | Role |
 |------|------:|------|
-| Colonist | 19 | Free colonist — generic worker |
-| Pioneer / Soldier / Scout / Dragoon | 20–23 | Map units (Hardy Pioneer, Veteran Soldier, …) |
-| Missionary | 24 | Missions (Church helps create missionaries) |
-| Ind. Servant / Criminal / Convert | 25–27 | Class rates: servant **2**, criminal/convert **1** in buildings; convert **+1** vs free on tiles |
+| Colonist | 19 | Free colonist |
+| Pioneer … Dragoon | 20–23 | Map units |
+| Missionary | 24 | Missions |
+| Ind. Servant / Criminal / Convert | 25–27 | Class rates above; convert field rules in [terrain_yields.md](terrain_yields.md) |
 
 ---
 
-## Building chart (construction)
+## Building chart (construction) — from `@BUILDING`
 
-From manual player-aid **Building Chart** + [`NAMES.TXT`](../COLONIZE/NAMES.TXT) `@BUILDING`.  
-**Ham** = hammers to complete; **Tools** = tools to finish. `NAMES.TXT` stores `tools(*10)` (e.g. `2` → **20** tools); the port multiplies by 10 on load.
+**Ham** = hammers; **Tools** = `tools(*10)` from NAMES ×10 on load (e.g. `2` → **20**). **Min pop** = `min_colony`. Synced from [`NAMES.TXT`](../COLONIZE/NAMES.TXT) `@BUILDING`.
 
 | Building | Ham | Tools | Min pop | Effect (summary) |
 |----------|----:|------:|--------:|------------------|
-| **Town Hall** | 0 | 0 | 1 | Liberty bells |
-| **Carpenter’s Shop** | 0† | 0 | 1 | Lumber → hammers |
-| **Lumber Mill** | 52 | 0 | 3 | Doubles hammer production |
-| **Blacksmith’s House** | 0† | 0 | 1 | Ore → tools |
-| **Blacksmith’s Shop** | 64 | 20 | 4 | Increases tool production |
-| **Iron Works** | 240 | 100 | 8 | Factory tool production (**Adam Smith**) |
-| **Weaver’s House** | 0† | 0 | 1 | Cotton → cloth |
-| **Weaver’s Shop** | 64 | 20 | 4 | Increases cloth production |
-| **Textile Mill** | 160 | 100 | 8 | Factory cloth (**Adam Smith**) |
-| **Tobacconist’s House** | 0† | 0 | 1 | Tobacco → cigars |
-| **Tobacconist’s Shop** | 64 | 20 | 4 | Increases cigar production |
-| **Cigar Factory** | 160 | 100 | 8 | Factory cigars (**Adam Smith**) |
-| **Rum Distiller’s House** | 0† | 0 | 1 | Sugar → rum |
-| **Rum Distillery** | 64 | 20 | 4 | Increases rum production |
-| **Rum Factory** | 160 | 100 | 8 | Factory rum (**Adam Smith**) |
-| **Fur Trader’s House** | 0† | 0 | 1 | Furs → coats |
-| **Fur Trading Post** | 56 | 20 | 3 | Increases coat production |
-| **Fur Factory** | 160 | 100 | 6 | Factory coats (**Adam Smith**) |
-| **Armory** | 52 | 0 | 1 | Tools → muskets; enables artillery |
-| **Magazine** | 120 | 50 | 8 | Doubles musket production |
-| **Arsenal** | 240 | 100 | 8 | Factory muskets (**Adam Smith**) |
-| **Stockade** | 64 | 0 | 3 | Defense +100% |
-| **Fort** | 120 | 100 | 4 | Defense +150%; upgrade stockade |
-| **Fortress** | 320 | 200 | 8 | Defense +200%; upgrade fort |
-| **Dock** | 52 | 0 | 1 | Fishing on sea/lake tiles |
-| **Drydock** | 80 | 50 | 6 | Ship repair |
-| **Shipyard** | 240 | 100 | 8 | Ship construction |
-| **Schoolhouse** | 64 | 0 | 4 | Teach (faculty 1) |
-| **College** | 160 | 50 | 8 | Teach (faculty 2) |
-| **University** | 200 | 100 | 10 | Teach all skills (faculty 3) |
-| **Warehouse** | 80 | 0 | 1 | +100 storage |
-| **Warehouse Expansion** | 80 | 20 | 1 | +100 storage |
-| **Stable** | 64 | 0 | 1 | Horse breeding (≥2 horses + food surplus; Stable raises cap) |
-| **Church** | 52 | 0 | 3 | Crosses; missionaries |
-| **Cathedral** | 176 | 100 | 8 | More crosses |
-| **Printing Press** | 52 | 20 | 1 | +50% liberty bells |
-| **Newspaper** | 120 | 50 | 4 | +100% liberty bells |
-| **Custom House** | 160 | 50 | 0 | Auto-sell (**Peter Stuyvesant**) — `europe_custom_house_autosell` |
+| Stockade | 64 | 0 | 3 | Defense +100% |
+| Fort | 120 | 100 | 3 | Defense +150% |
+| Fortress | 320 | 200 | 8 | Defense +200% |
+| Armory | 52 | 0 | 1 | Tools → muskets; artillery |
+| Magazine | 120 | 50 | 8 | Doubles musket production |
+| Arsenal | 240 | 100 | 8 | Factory muskets (**Adam Smith**) |
+| Docks | 52 | 0 | 1 | Fishing on sea/lake tiles |
+| Drydock | 80 | 50 | 4 | Ship repair |
+| Shipyard | 240 | 100 | 8 | Ship construction |
+| Town Hall | 64 | 0 | 1 | Liberty bells |
+| Town Hall (row 2) | 64 | 50 | 4 | Upgrade chain (NAMES) |
+| Town Hall (row 3) | 120 | 100 | 8 | Upgrade chain (NAMES) |
+| Schoolhouse | 64 | 0 | 4 | Teach (faculty 1) |
+| College | 160 | 50 | 8 | Teach (faculty 2) |
+| University | 200 | 100 | 10 | Teach (faculty 3) |
+| Warehouse | 80 | 0 | 1 | +100 storage |
+| Warehouse Expansion | 80 | 20 | 1 | +100 storage |
+| Stable | 64 | 0 | 1 | Horse breeding |
+| Custom House | 160 | 50 | 1 | Auto-sell (**Peter Stuyvesant**) |
+| Printing Press | 52 | 20 | 1 | +50% liberty bells |
+| Newspaper | 120 | 50 | 4 | +100% liberty bells |
+| Weaver’s House | 64 | 0 | 1 | Cotton → cloth |
+| Weaver’s Shop | 64 | 20 | 1 | Increases cloth |
+| Textile Mill | 160 | 100 | 8 | Factory cloth (**Adam Smith**) |
+| Tobacconist’s House | 64 | 0 | 1 | Tobacco → cigars |
+| Tobacconist’s Shop | 64 | 20 | 1 | Increases cigars |
+| Cigar Factory | 160 | 100 | 8 | Factory cigars (**Adam Smith**) |
+| Rum Distiller’s House | 64 | 0 | 1 | Sugar → rum |
+| Rum Distillery | 64 | 20 | 1 | Increases rum |
+| Rum Factory | 160 | 100 | 8 | Factory rum (**Adam Smith**) |
+| Capitol | 400 | 100 | 16 | Late-game capitol |
+| Capitol Expansion | 400 | 100 | 16 | Capitol upgrade |
+| Fur Trader’s House | 56 | 0 | 1 | Furs → coats |
+| Fur Trading Post | 56 | 20 | 1 | Increases coats |
+| Fur Factory | 160 | 100 | 6 | Factory coats (**Adam Smith**) |
+| Carpenter’s Shop | 39 | 0 | 1 | Lumber → hammers |
+| Lumber Mill | 52 | 0 | 3 | Doubles hammers |
+| Church | 64 | 0 | 3 | Crosses; missionaries |
+| Cathedral | 176 | 100 | 8 | More crosses |
+| Blacksmith’s House | 64 | 0 | 1 | Ore → tools |
+| Blacksmith’s Shop | 64 | 20 | 1 | Increases tools |
+| Iron Works | 240 | 100 | 8 | Factory tools (**Adam Smith**) |
 
-† Starter “free” buildings: **0** hammer cost to appear at founding; Carpenter’s Shop is **39** hammers in `NAMES.TXT` if built later.
+Starter colonies grant several houses / Carpenter’s Shop / Town Hall without spending the chart cost at founding; `NAMES` costs apply if rebuilt later.
 
-Bold entries on the manual chart = free at colony founding. **`**`** = requires **Adam Smith** in Congress.
+Manual chart often listed shop min-pop **4** and Church hammers **52** — **wrong vs NAMES** (shops min-pop **1**; Church **64**).
 
 ---
 
-## Production modifiers (sentiment & difficulty)
+## Production modifiers (sentiment)
 
-Documented in manual ch. independence / colony people view; applied in EOT production (field/craft/hammers/bells/crosses). SoL % via `colony_prod_sol_percent` (Col1 rebel fields, else nation liberty_bells/4). Full SoL catalog: [sons_of_liberty.md](sons_of_liberty.md). Difficulty Tory thresh: [difficulty.md](difficulty.md).
+Full catalog: [sons_of_liberty.md](sons_of_liberty.md). Tory thresh by difficulty: [difficulty.md](difficulty.md).
 
-| Condition | Effect on **all** colony production |
-|-----------|--------------------------------------|
-| Sons of Liberty ≥ **50%** | **+1** to each production unit (field + manufacturing + bells/crosses) | Field, hammers, craft, bells/crosses wired (`colony_prod_sol_bonus`); Tory floor PARK |
-| Sons of Liberty = **100%** | **+1** again (total **+2** at full SoL) | Same |
-| Tory count vs threshold | DOS: `−⌊tories / (10−difficulty)⌋` then +sol latches (not a flat −1); thresh **10** Discoverer … **6** Viceroy | PARK — see [sons_of_liberty.md](sons_of_liberty.md) |
-
-River / road / plow on **field** tiles add up to **+4** food/resources (manual Terrain Chart footnote) — see [terrain_yields.md](terrain_yields.md).
+| Condition | Effect | Port |
+|-----------|--------|------|
+| SoL ≥ **50%** / **100%** | +1 / +2 per production unit | Wired (`colony_prod_sol_bonus`); EOT + preview |
+| Tory floor | `−⌊tories/(10−diff)⌋` + sol latches | **PARK** |
 
 ---
 
@@ -258,19 +235,32 @@ River / road / plow on **field** tiles add up to **+4** food/resources (manual T
 
 | UI element | Should show | Linux port today |
 |------------|-------------|------------------|
-| **Production tab** (multipurpose pane) | Every cargo good / shortfall this turn, plus hammers; slot grid fills the pane as type count changes (no crosses or bells) | Preview from [`colony_preview.c`](../src/core/colony_preview.c) via [`colony_production.c`](../src/core/colony_production.c); crosses/bells → people meters |
-| **Production strip** above building colonists | Icon strip spanning the building = **sum** of assigned workers' output | Full building width; amount via `colony_prod_worker_building_output()` summed per workplace |
-| **Construction Change list** | Buildable projects with upgrade chains, min population (`NAMES.TXT` min_colony), coastal docks, **Adam Smith** factories, **Peter Stuyvesant** Custom House | [`colonies_list_buildable()`](../src/core/colony.c) |
+| **Production tab** | Every cargo good / shortfall + hammers | [`colony_preview.c`](../src/core/colony_preview.c) via [`colony_production.c`](../src/core/colony_production.c); crosses/bells → people meters |
+| **Production strip** | Sum of assigned workers’ output | `colony_prod_worker_building_output()` |
+| **Construction Change list** | Buildable projects, min-pop, coastal docks, Adam Smith, Stuyvesant | [`colonies_list_buildable()`](../src/core/colony.c) |
 
-To fix badge/preview mismatches, both paths should share one function — implemented as **`colony_production.c`**:
+Shared formula (port):
 
 ```
 effective_class = (profession matches recipe) ? skilled : free_colonist
-output(worker, building) = tier_rate(building) × class_factor(effective_class) × sentiment_bonus(colony)
-input(worker, building)  = output(...) × (factory ? 6/9 : 1)   // 1:1 except factory 6→9
+output(worker, building) = tier_rate(building) × class_factor(effective_class) + sentiment
+input(worker, building)  = output × (factory ? 6/9 : 1)
 ```
 
-`class_factor`: criminal/convert → manufacturing floor **1**; indentured → **2/3** of tier rate; free (and unmatched experts) → tier baseline; matched Master/Expert → ×2 on class-scaled baseline. **SoL sentiment** (+1/+2 per worker) applied in EOT craft/hammers/fields; preview craft may omit until Col1 bridged. Shortfalls appear when Σ input demand > warehouse stock + same-turn field intake for that cargo.
+`class_factor`: criminal/convert → `tier/3`; indentured → `tier*2/3`; free → tier; matched Master → ×2 after class scale. Sentiment applied in EOT and preview.
+
+---
+
+## Port status (manufacturing)
+
+| Rule | Status |
+|------|--------|
+| Tier rates 3 / 6 / 9 | Port wired; DOS cite = `15eb_15c6` depth + `15eb_1d4c` (peel incomplete) |
+| Factory input 6→9 | Port wired; provisional vs DOS |
+| Class /3 and *2/3 | Port wired; DOS unconfirmed |
+| Construction costs / min_pop | Loaded from NAMES — matches table above |
+| Church / TH passives | Port wired; deep peel pending |
+| False `0x16103` EXE table | **Retracted** |
 
 ---
 
@@ -278,12 +268,11 @@ input(worker, building)  = output(...) × (factory ? 6/9 : 1)   // 1:1 except fa
 
 | Concern | Module |
 |---------|--------|
-| Shared production rules | [`src/core/colony_production.c`](../src/core/colony_production.c) |
-| Manufacturing recipes | [`src/core/colony_craft.c`](../src/core/colony_craft.c) |
-| Turn production + hammers | [`src/core/turn.c`](../src/core/turn.c) |
-| Production tab preview | [`src/core/colony_preview.c`](../src/core/colony_preview.c) |
-| Settlement production strips | [`colony_screen_building_production_badge()`](../src/core/colony_screen.c) (one strip per building, full width) |
-| Profession / skill storage | [`ColonizeColonist.profession`](../src/core/colony.h), [`UNITS_JOB_*`](../src/core/units.h) |
+| Shared production rules | [`colony_production.c`](../src/core/colony_production.c) |
+| Manufacturing recipes | [`colony_craft.c`](../src/core/colony_craft.c) |
+| Turn production + hammers | [`turn.c`](../src/core/turn.c) |
+| Production tab preview | [`colony_preview.c`](../src/core/colony_preview.c) |
+| Settlement strips | [`colony_screen.c`](../src/core/colony_screen.c) |
 | Building definitions | [`colonies_load_buildings()`](../src/core/colony.c) ← `NAMES.TXT` |
 
 ---
@@ -291,6 +280,6 @@ input(worker, building)  = output(...) × (factory ? 6/9 : 1)   // 1:1 except fa
 ## See also
 
 - [terrain_yields.md](terrain_yields.md) — area / town-commons field production
-- [manual_gap.md](manual_gap.md) — feature checklist vs manual
-- [decomp_inventory.md](decomp_inventory.md) — EOT colony production pipeline
-- [assets.md](assets.md) — colony screen layout and Production tab keys
+- [sons_of_liberty.md](sons_of_liberty.md) — SoL / Tory production mod
+- [manual_gap.md](manual_gap.md) — feature checklist
+- [colony_eot_production.md](../original_sources_annotated/turn/colony_eot_production.md) — EOT phases

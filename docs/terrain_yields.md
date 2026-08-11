@@ -1,17 +1,18 @@
 # Terrain field yields (colony area / town commons)
 
-Reference for what a map square can produce when worked as a field job (or, for the colony center, as the automatic **town commons** harvest). Sentiment / Sons of Liberty bonuses are **out of scope** here.
+Reference for what a map square can produce when worked as a field job (or, for the colony center, as the automatic **town commons** harvest). Sons of Liberty / Tory modifiers are summarized under [Field composition order](#field-composition-order-fun_15eb_18ec); full sentiment catalog: [sons_of_liberty.md](sons_of_liberty.md).
 
 ## Sources
 
 | Source | Role |
 |--------|------|
-| [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@UNFORESTED` / `@FORESTED` / `@OTHER` / `@RESOURCE` / `@JOB` | **Authoritative game data** loaded by the DOS binary and by [`src/core/colony_yield.c`](../src/core/colony_yield.c) |
-| [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Manual prose (Town Commons, Special Resources, Clear/Plow/Road) and the printed **Terrain Chart** (player-aid style). Numbers in that chart **do not always match** `NAMES.TXT` — prefer `NAMES.TXT` when they disagree |
-| MAPEDIT resource class table (`mapedit_resource_type_by_terrain` in [`src/core/map.c`](../src/core/map.c)) | Which special resource **type** a terrain class is allowed to roll |
-| Community town-square notes (e.g. peyre ForestTypes) | Useful cross-check for **center-tile dual production**; not shipped data |
+| [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@UNFORESTED` / `@FORESTED` / `@OTHER` / `@RESOURCE` / `@JOB` | **Authoritative** base yield grids and resource **catalog values** |
+| `FUN_15eb_17fa` / `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11717–11991) | **Authoritative** special-resource effect, expert/convert, lumber ×2, plow/road/river stacking, SoL ± on fields |
+| [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Qualitative rules (commons dual-produce, Prime Timber exception, plow/road/river intent). Printed Terrain Chart often **≠** `NAMES` — prefer `NAMES` + decomp |
+| MAPEDIT resource class table (`mapedit_resource_type_by_terrain` in [`map.c`](../src/core/map.c)) | Which special resource **type** a terrain class may roll |
+| Col1 fixtures / [`test_colony_yield.c`](../tests/smoke/test_colony_yield.c) | Town-commons dual-produce — **empirically calibrated**, peel pending |
 
-Pedia / map indices: cleared land **0–7**, forests **8–23** (type = `index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills treated as resource classes **27 / 28** (hill/mountain bits on the terrain byte).
+Pedia / map indices: cleared land **0–7**, forests **8–23** (type = `index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills as classes **27 / 28**.
 
 ---
 
@@ -31,13 +32,13 @@ Order matches `NAMES.TXT` yield columns and `@JOB`:
 | 7 | Silver Miner | Silver |
 | 8 | Fisherman | Food (fish) |
 
-A **0** in a yield cell means that job produces nothing on that terrain (worker should not be assigned that job).
+A **0** in a yield cell means that job produces nothing on that terrain.
 
 ---
 
 ## Base yields — unforested land (`@UNFORESTED`)
 
-Cleared / never-forested tiles. Columns: Farmer … Fisherman.
+Cleared / never-forested tiles. Columns: Farmer … Fisherman. Synced from `NAMES.TXT`.
 
 | Terrain | Idx | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
 |---------|----:|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
@@ -54,7 +55,7 @@ Cleared / never-forested tiles. Columns: Farmer … Fisherman.
 
 ## Base yields — forested (`@FORESTED`)
 
-Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …, Rain→Swamp). Clearing removes lumber/fur potential and cannot be undone (manual).
+Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …, Rain→Swamp).
 
 | Forest | Cleared becomes | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
 |--------|-----------------|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
@@ -67,11 +68,11 @@ Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …,
 | Wetland | Marsh | 1 | 0 | 1 | 0 | 2 | 2 | 1 | 0 | 0 |
 | Rain | Swamp | 1 | 1 | 0 | 0 | 1 | 2 | 1 | 0 | 0 |
 
+**Lumberjack note:** DOS always doubles lumber after other field mods (`local_14 == 5` → `<<1` in `FUN_15eb_18ec`). So Mixed forest lumber **3** in NAMES becomes **6** in play — matching the printed Terrain Chart. **Port:** [`colony_yield.c`](../src/core/colony_yield.c) does **not** apply this ×2 yet (**divergent**).
+
 ---
 
 ## Base yields — other (`@OTHER`)
-
-These cannot be forested (except hills/mountains as elevation features on land).
 
 | Terrain | Pedia-ish | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
 |---------|-----------|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
@@ -79,43 +80,19 @@ These cannot be forested (except hills/mountains as elevation features on land).
 | Ocean | 25 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | Sea Lane | 26 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | Mountains | — | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 1 | 0 |
-| Hills | — | 2 | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
+| Hills | — | **1** | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 
-Hills Farmer is **2** (Terrain Chart / FreeCol / live Col1 center). `NAMES.TXT` lists **1**; the port follows the chart for hills food.
+**Hills food:** `NAMES.TXT` lists Farmer **1**. Prefer that. The port / some Col1 center fixtures use **2** (chart / FreeCol-shaped override) — **divergent**; document overrides as such, do not silently “fix” NAMES.
 
-Colonies cannot be founded on mountains (manual). Fishing on ocean/sea lane needs a colony **Dock** (and coastal access) before fishermen can work those surrounds — that gate is building logic, not a terrain yield cell.
-
----
-
-## Plow (unforested only)
-
-Manual: pioneers **clear** forests or **plow** non-forest; clearing raises crop potential and ends timber/fur; plowing improves fields. Player-aid note: plowing / road / river increase output.
-
-Engine convention (also used in [`colony_yield.c`](../src/core/colony_yield.c)):
-
-- **+1** to Farmer, Sugar Planter, Tobacco Planter, Cotton Planter when the tile is **plowed**.
-- Forests cannot be plowed until cleared.
-- Hills / mountains / ocean are not plow targets in normal play.
-
-Example: Plains food 4 → **5** when plowed; Prairie cotton 3 → **4** when plowed.
-
----
-
-## Roads (not requested in the breakdown, brief)
-
-Manual: roads raise productivity of **ore, fur, and timber**; on mountains, road does **not** raise silver unless a silver deposit is present.
-
-Engine convention: **+1** to Fur Trapper, Lumberjack, Ore Miner, Silver Miner when a road is present (silver-on-mountain nuance may still be incomplete).
-
-Rivers also enhance production (manual); magnitudes are under [Rivers (and roads)](#rivers-and-roads) below.
+Colonies cannot be founded on mountains (manual). Fishing on ocean/sea lane needs a colony **Docks** before fishermen can work those surrounds (`FUN_15eb_18ec` zeros fish jobs &gt;7 without dock building).
 
 ---
 
 ## Special resources
 
-### Values (`NAMES.TXT` `@RESOURCE`)
+### Catalog values (`NAMES.TXT` `@RESOURCE`)
 
-Index is the MAPEDIT / PHYS0 resource type (`PHYS0` sprite ≈ `89 + type`).
+These numbers are **data labels**, not the field-yield effect. Effect is `FUN_15eb_17fa` (below).
 
 | Type | Name | Value |
 |-----:|------|------:|
@@ -136,7 +113,7 @@ Index is the MAPEDIT / PHYS0 resource type (`PHYS0` sprite ≈ `89 + type`).
 
 ### Allowed terrain class → resource type (MAPEDIT)
 
-One preferred resource type per terrain class (procedural roll may still yield none). Class = `terrain & 0x1f`, except mountain → **27**, hill → **28**. Table value `0` remaps to type **6** (Minerals); `-1` = never.
+Class = `terrain & 0x1f`, except mountain → **27**, hill → **28**. Table value `0` remaps to type **6** (Minerals); `-1` = never.
 
 | Class | Terrain | Allowed resource |
 |------:|---------|------------------|
@@ -156,129 +133,145 @@ One preferred resource type per terrain class (procedural roll may still yield n
 | 13 | Tropical | Prime Timber (10) |
 | 14 | Wetland | Minerals (6) |
 | 15 | Rain | Minerals (6) |
-| 16–23 | (forest alt indices) | same as `index & 7` rows above |
+| 16–23 | (forest alt) | same as `index & 7` |
 | 24 | Arctic | none |
 | 25 | Ocean | Fishery (7) |
 | 26 | Sea Lane | none |
 | 27 | Mountains | Silver Deposit (12) |
 | 28 | Hills | Ore Deposit (13) |
 
-### Effect on a matching job
+### Effect on a matching job (`FUN_15eb_17fa`)
 
-Manual: special icons mark an **especially abundant** source of the related produce. Town commons: specials apply **except Prime Timber**.
+Hardcoded **(resource, job) → bonus**. Return **−1** means **double** the current yield; otherwise **add** the value. Not `max(@RESOURCE, base)`.
 
-Field tiles (`colony_yield_for_tile`):
+| Resource | Job | Effect |
+|----------|-----|--------|
+| Oasis (1) | Farmer (0) | +2 |
+| Wheat (2) | Farmer (0) | +2 |
+| Game (9) | Farmer (0) | +2 |
+| Game (9) | Fur Trapper (4) | +2 |
+| Beaver (8) | Fur Trapper (4) | +3 |
+| Prime Cotton (3) | Cotton Planter (3) | **double** |
+| Prime Tobacco (4) | Tobacco Planter (2) | **double** |
+| Prime Sugar (5) | Sugar Planter (1) | **double** |
+| Prime Timber (10) | Lumberjack (5) | +2 |
+| Minerals (6) | Ore Miner (6) | +3 |
+| Ore Deposit (13) | Ore Miner (6) | +2 |
+| Minerals (6) | Silver Miner (7) | +1 |
+| Silver Deposit (12) | Silver Miner (7) | +2 |
+| Fishery (7) | Fisherman (8) | +3 |
 
-1. Start from base terrain yield for the job.
-2. If the tile’s resource prefers that job:
-   - if `@RESOURCE` value **>** base yield → use the resource value;
-   - else → **base + 2**.
-3. Then apply plow / road-or-river modifiers.
+When the worker’s **skill matches** the job, an additive resource bonus is itself **×2** before being added (`18ec` ~11909–11912). Double (`−1`) path does `yield <<= 1`.
 
-Town commons use **additive +2** for Oasis/Wheat/Game (food) and for a matching secondary special (not the absolute `@RESOURCE` value).
+**Port:** still uses absolute `@RESOURCE` / base+2 (**divergent**).
 
-Resource → preferred job mapping in the port:
+Examples (free colonist, no other mods):
 
-| Resource | Preferred job |
-|----------|---------------|
-| Oasis, Wheat | Farmer |
-| Prime Cotton | Cotton Planter |
-| Prime Tobacco | Tobacco Planter |
-| Prime Sugar | Sugar Planter |
-| Minerals, Ore Deposit | Ore Miner |
-| Fishery | Fisherman |
-| Beaver, Game | Fur Trapper |
-| Prime Timber | Lumberjack |
-| Silver Deposit | Silver Miner |
-
-Game also boosts **food** on the town commons (+2). Surround field jobs still route Game through the fur column only.
+| Tile | Port (stale) | DOS |
+|------|-------------:|----:|
+| Plains + Prime Cotton (cotton) | 6 | 4 (double of 2) |
+| Hills + Minerals (ore) | 4 | 4+3 = 7 |
+| Ocean + Fishery (fish) | 5 | 3+3 = 6 |
+| Mountain + Silver Deposit | 12 | 1+2 = 3 (then other mods) |
 
 ---
 
-## Rivers (and roads)
+## Field composition order (`FUN_15eb_18ec`)
 
-Minor river bonuses (major = **2×**):
+Simplified pipeline for one surround work-plot (authoritative order):
 
-| Jobs | Bonus |
-|------|------:|
-| Farmer, Sugar / Tobacco / Cotton Planter | +1 |
-| Fur Trapper, Lumberjack | +2 |
-| Ore Miner, Silver Miner | +1 |
+1. Base from terrain×job table at DS `0x2f7b` (NAMES-loaded).
+2. Early terrain/FA tweaks (incl. fur-specific road/river nibbles).
+3. Clamp negative → 0.
+4. **SoL / Tory mod** if `mod > 0`: `yield += mod` (see [sons_of_liberty.md](sons_of_liberty.md)).
+5. **Expert:** food/fish → `yield += 2` (and re-add positive SoL); other jobs → `yield <<= 1`.
+6. **Special resource** via `17fa` (double or add; expert doubles additive).
+7. **Lumberjack:** `yield <<= 1`.
+8. **Plow / road / river** stack (below).
+9. Fish without Docks → 0; Hudson FF may double furs.
+10. **Convert** +1 on allowed jobs.
+11. If SoL/Tory `mod < 0`: `yield += mod` (floor at 0).
 
-Road bonus (fields): **+1** to Fur / Lumber / Ore / Silver. **Road and river do not stack** — the larger applies once.
+### Expert / convert
+
+| Worker | Rule | Port |
+|--------|------|------|
+| Matching expert, food or fish | **+2** (not ×2) | **Divergent** (uses ×2 for all) |
+| Matching expert, other field jobs | **×2** | Wired |
+| Mismatched skill | Free-colonist yield | Wired |
+| Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **Divergent** (always +1) |
+
+### Plow / road / river stacking
+
+Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else `u = 1`. Bonuses **add** (they stack):
+
+| Condition | Jobs | Add |
+|-----------|------|----:|
+| Farmer path (job 0) | Farmer | +`u` (plow-shaped; see decomp ~11950) |
+| `layer2 & 0x0a` (FA / plow-road mask) | job &gt; 3 (fur, lumber, ore, silver) | +`u` |
+| `layer2 & 0x40` (river) | job &lt; 4 (food + cash crops) | +`u` |
+| Terrain river bit `0x40` | (adds again) | +`u` |
+| Major river (`0x40|0x80`) when only one unit so far | | +`u` again |
+
+**Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver; river magnitudes FreeCol-shaped; **road and river do not stack** (max of one) — **divergent** from DOS stacking.
+
+Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
 ---
 
 ## Town commons (colony center tile)
 
-Manual (*Colonies* / Town Commons): the settlement square **always produces some food and one other commodity**, depending on terrain; special resources apply **except Prime Timber**. Surround tiles need assigned workers; the center does not take a field colonist in the usual way.
+Manual: settlement square **always produces some food and one other commodity**; specials apply **except Prime Timber**.
 
-That is **not** the same as “best two jobs from the yield table”:
-
-- Forested commons show **food + furs** (rain → food + sugar), not lumber (Prime Timber excluded).
-- Cleared commons show **food + cash crop / ore**.
-
-### Formula (live Col1–calibrated)
+**Status:** formula below is **Col1-fixture calibrated** (not a NAMES row; full DOS commons composer peel pending). Keep as empirical until re-peeled.
 
 **Food base** (before plow / river / specials):
 
-- Forested: `@UNFORESTED` Farmer of the cleared parent (`pedia & 7`) **+ 2**  
-  (Scrub→Desert → 3; Broadleaf→Prairie → 4)
-- Cleared / hills: Farmer **+ 2** (Prairie → 4; Hills Farmer 2 → 4)
+- Forested: `@UNFORESTED` Farmer of cleared parent (`pedia & 7`) **+ 2**
+- Cleared / hills: Farmer **+ 2** (with port Hills Farmer 2 → commons food 4)
 
-**Secondary:** terrain-fixed job; amount = `NAMES[job] + 1` (implicit center bump).
+**Secondary:** terrain-fixed job; amount = `NAMES[job] + 1`.
 
-**Then:**
+Then plow (+1 food on cleared), river (same magnitudes as port field table), Oasis/Wheat/Game **+2** food, matching secondary special **+2**.
 
-- Plow: +1 food on cleared land only (not on secondary).
-- River: same magnitudes as above (food + secondary).
-- Oasis / Wheat / Game: **+2** food; matching secondary special: **+2** (not absolute 6).
-
-Live Col1 checks:
-
-| Tile | Food | Secondary |
-|------|-----:|-----------|
+| Tile (fixtures) | Food | Secondary |
+|-----------------|-----:|-----------|
 | Scrub Forest | 3 | 3 furs |
 | Hills | 4 | 5 ore |
 | Broadleaf Forest | 4 | 3 furs |
 | Prairie + minor river | 5 | 5 cotton |
 | Broadleaf + Game | 6 | 5 furs |
 
-Yields still see specials when `layer2` marks settlement ownership (`map_resource_type_for_yield`); sprites stay hidden via `map_resource_type_at`.
-
 ---
 
 ## Manual Terrain Chart vs `NAMES.TXT`
 
-The printed chart uses forested/non-forested pairs per land name (e.g. Plains FD `3/4`, lumber `6/0`). Examples of mismatch with `@FORESTED` Mixed / `@UNFORESTED` Plains:
+Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6** = NAMES Mixed **3** × DOS lumberjack ×2). Prefer **NAMES + `18ec`**, not the chart, for implementation.
 
-| | Manual Plains forested | `NAMES` Mixed | Manual Plains clear | `NAMES` Plains |
-|--|------------------------|---------------|---------------------|----------------|
-| Food | 3 | 2 | 4 | 4 |
-| Lumber | 6 | 3 | 0 | 0 |
-| Cotton | 1 | 1 | 2 | 2 |
-
-**Implementation rule:** drive field job grids from `NAMES.TXT` (and MAPEDIT resource classes), except **Hills Farmer = 2** (chart / FreeCol / Col1 center). Town-commons dual-produce uses the formula above (not a TXT row). Use the manual for qualitative rules (dual produce, plow/road/river intent, Prime Timber exception).
+| | Manual Plains forested | `NAMES` Mixed | After DOS lumber ×2 |
+|--|------------------------|---------------|---------------------|
+| Food | 3 | 2 | 2 |
+| Lumber | 6 | 3 | **6** |
+| Cotton | 1 | 1 | 1 |
 
 ---
 
-## Colonist class / skill on tiles
+## Port status (field yields)
 
-| Worker | Field yield |
-|--------|-------------|
-| Free colonist (unskilled) | Base terrain / resource / plow/road/river yield |
-| Expert / Master whose **skill matches** the assigned field job | Expert bonus (typically **×2** base; see [building_production.md](building_production.md)) |
-| Expert / Master on a **mismatched** job (e.g. Elder Statesman as Fisherman; Sugar Planter as Lumberjack) | Same as **free colonist** — no specialty bonus |
-| Indian convert | **Free-colonist yield + 1** (before expert multipliers / SoL) |
-| Indentured / criminal | Weaker than free on manufacturing; field rates TBD vs DOS (convert exception is the known +1) |
-
-Building manufacturing rates and convert-in-building (**1**, like criminals) are in [building_production.md](building_production.md).
+| Rule | DOS | [`colony_yield.c`](../src/core/colony_yield.c) |
+|------|-----|-----------------------------------------------|
+| Base NAMES grids | Wired | Wired (Hills food override **2**) |
+| Resource effect `17fa` | Additive / double | Absolute `@RESOURCE` / +2 — **divergent** |
+| Lumberjack ×2 | Yes | **Missing** |
+| Expert food/fish +2 | Yes | Uses ×2 — **divergent** |
+| Convert job whitelist | Yes | Always +1 — **divergent** |
+| Plow/road/river stack | Add | Max(road, river) — **divergent** |
+| Town commons | Peel pending | Fixture formula |
 
 ---
 
 ## Explicitly excluded here
 
-- Sons of Liberty / Tory production ±1 (manual production bonus/penalty)
-- Full Expert / Master arithmetic beyond the matching-skill rule above
-- Building gates (Dock for fishing, etc.) beyond noting them
+- Full SoL / Tory production math — [sons_of_liberty.md](sons_of_liberty.md)
+- Building manufacturing — [building_production.md](building_production.md)
 - Combat / movement columns from the Terrain Chart

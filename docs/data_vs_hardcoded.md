@@ -129,10 +129,10 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | Map tile compositor (masks, draw order) | MAPEDIT `FUN_1a47_*` | `src/core/map.c` |
 | Resource / rumour procedural placement | MAPEDIT `FUN_12ab_*` | `map.c` |
 | Turn / calendar mechanics beyond `@TIMECHANGE` copy | VICEROY + saves | `src/core/turn.c` |
-| Colony manufacturing **tier rates** `3 / 6 / 8` (port uses `3 / 6 / 9` factory output) | VICEROY file offset **0x16103** (and manual Building Chart) | `src/core/colony_production.c` |
-| Craft recipes (ore→tools, …), SoL ±1, shortfall rules | Manual + decomp; not in `NAMES.TXT` | `colony_craft.c` / `colony_production.c` |
-| Town-commons dual-produce rules | Manual + community RE; not a yield-table row | `colony_yield.c` |
-| Plow / road / river yield modifiers | Manual conventions + decomp | `colony_yield.c` |
+| Colony manufacturing **tier rates** `3 / 6 / 9` (provisional; DOS via `FUN_15eb_15c6` depth + `FUN_15eb_1d4c`) | Decomp (peel incomplete) + manual Building Chart effects — **not** EXE `@ 0x16103` | `src/core/colony_production.c` |
+| Craft recipes (ore→tools, …), SoL ±, shortfall rules | Manual + decomp; not in `NAMES.TXT` | `colony_craft.c` / `colony_production.c` — see [building_production.md](building_production.md), [sons_of_liberty.md](sons_of_liberty.md) |
+| Town-commons dual-produce rules | Manual + Col1 fixtures; not a yield-table row | `colony_yield.c` — see [terrain_yields.md](terrain_yields.md) |
+| Plow / road / river yield modifiers | `FUN_15eb_18ec` (stacking) | `colony_yield.c` (port still max(road,river) — divergent) |
 | UI layout coordinates, hit-rects, wizard image regions | Decomp + DOSBox captures | `new_game.c`, `colony_screen.c`, … |
 | Sound ID ranges, ~60 Hz tick, opcode map | Inside `GSOUND.COL` MZ + VICEROY gating | `src/core/sound.c` |
 | Col1 save binary layout | Saves + RE | `src/core/col1_save.h` |
@@ -143,7 +143,7 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 |-------|--------|------------|
 | Terrain meta, tile display, river transition, feature sprite bases, connectivity | `VICEROY.EXE` DS tables | `src/data/viceroy_tables.c` via `scripts/extract_viceroy_tables.py` — see [viceroy_tables.md](viceroy_tables.md) |
 | Resource type by terrain class (29 ints) | MAPEDIT DS `0x4de` | Currently hardcoded in `map.c` (`mapedit_resource_type_by_terrain`) — same “extract once” class |
-| Manufacturing tier bytes `3,6,8` | `VICEROY.EXE` `@ 0x16103` | Mirrored as constants in `colony_production.c` |
+| Manufacturing free-colonist rates `3/6/9` | Port constants; DOS `FUN_15eb_1d4c` / `15eb_15c6` (no valid `0x16103` table) | `colony_production.c` — see [building_production.md](building_production.md) |
 
 **Note:** World-map **feature art** follows **MAPEDIT**, not the VICEROY connectivity tables (those are retained for pedia / residual paths).
 
@@ -179,8 +179,8 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | Map gen, RNG, AI, combat formulas | VICEROY decomp | **Bake algorithm** |
 | Coast/forest/hill/river blit rules | MAPEDIT decomp | **Bake algorithm** |
 | Resource class → type table | MAPEDIT binary | **Bake table** |
-| Manufacturing 3/6/9 tiers, class multipliers | VICEROY + manual | **Bake constants** |
-| Town commons / plow / road / SoL modifiers | Manual + decomp | **Bake rules** (not in TXT) |
+| Manufacturing 3/6/9 tiers, class multipliers | Port constants; DOS `15eb_1d4c` peel incomplete | **Bake constants** (cite [building_production.md](building_production.md)) |
+| Town commons / plow / road / SoL modifiers | Manual + `15eb_18ec` / SoL docs | **Bake rules** (not in TXT) — see [terrain_yields.md](terrain_yields.md) |
 | Screen chrome coordinates | Decomp + dumps | **Bake constants** |
 | Save format | `.SAV` + RE | **Bake structs**; R/W files |
 | Installer, CONFIG samples, VR tools, dumps | — | **Ignore at runtime** |
