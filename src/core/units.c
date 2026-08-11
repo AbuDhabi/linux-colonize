@@ -649,9 +649,16 @@ static const ColonizeColonyPool* g_units_combat_colonies = NULL;
 static int g_units_combat_human_nation = -1;
 static AiPopupState* g_units_combat_popups = NULL;
 static const ColonizeMsgCatalog* g_units_combat_game_txt = NULL;
+static ColonizeUnitsMoveWatchFn g_units_move_watch = NULL;
+static void* g_units_move_watch_user = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
   g_units_ff_col1 = col1;
+}
+
+void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user) {
+  g_units_move_watch = fn;
+  g_units_move_watch_user = user;
 }
 
 void units_set_combat_human_nation(int human_nation) {
@@ -3059,6 +3066,19 @@ bool units_try_move(
 
   g_units_last_enter_reason =
     (reason == COLONIZE_ENTER_DOCK) ? COLONIZE_ENTER_DOCK : COLONIZE_ENTER_OK;
+  if (g_units_move_watch && units_is_on_map(unit)) {
+    g_units_move_watch(
+      g_units_move_watch_user,
+      pool,
+      map,
+      colonies,
+      unit_id,
+      ox,
+      oy,
+      unit->x,
+      unit->y
+    );
+  }
   return true;
 }
 

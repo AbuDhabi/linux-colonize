@@ -136,6 +136,7 @@ int main(void) {
   /* REPORTS items are enabled (open report screens). */
   bool found_save = false;
   bool found_pick_music = false;
+  bool found_game_options = false;
   bool found_report = false;
   for (int i = 0; i < bar.menus[game_i].item_count; ++i) {
     if (bar.menus[game_i].items[i].action == MAP_MENU_ACTION_SAVE &&
@@ -146,6 +147,11 @@ int main(void) {
         bar.menus[game_i].items[i].enabled) {
       found_pick_music = true;
     }
+    if (bar.menus[game_i].items[i].action == MAP_MENU_ACTION_OPTIONS &&
+        strcmp(bar.menus[game_i].items[i].label, "Game Options") == 0 &&
+        bar.menus[game_i].items[i].enabled) {
+      found_game_options = true;
+    }
   }
   const int reports_i = find_section(&bar, "REPORTS");
   for (int i = 0; i < bar.menus[reports_i].item_count; ++i) {
@@ -154,10 +160,12 @@ int main(void) {
       found_report = true;
     }
   }
-  if (!found_save || !found_pick_music || !found_report) {
+  if (!found_save || !found_pick_music || !found_game_options || !found_report) {
     fprintf(
       stderr,
-      "expected enabled Save + Pick Music + Reports Congress (save=%d pick=%d report=%d)\n",
+      "expected enabled Game Options + Save + Pick Music + Reports Congress "
+      "(options=%d save=%d pick=%d report=%d)\n",
+      found_game_options ? 1 : 0,
       found_save ? 1 : 0,
       found_pick_music ? 1 : 0,
       found_report ? 1 : 0
