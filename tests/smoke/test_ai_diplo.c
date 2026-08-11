@@ -2493,17 +2493,9 @@ int main(void) {
         fprintf(stderr, "smoke_ai_diplo: peace refuse status '%s'\n", status_w2);
         return fail("R2 peace: Refuse should status Peace refused");
       }
-      /* Marathon2 R5: peace Refuse status chrome also enqueues OK. */
-      if (pop_w2.queue_count != 1) {
-        return fail("M2R5 peace Refuse: should enqueue follow-up OK");
-      }
-      if (pop_w2.queue[0].tag != AI_POPUP_TAG_DIPLO_PEACE ||
-          pop_w2.queue[0].kind != AI_POPUP_KIND_OK) {
-        return fail("M2R5 peace Refuse: follow-up should be DIPLO_PEACE OK");
-      }
-      if (strcmp(pop_w2.queue[0].body, "Peace refused with France") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: peace refuse OK '%s'\n", pop_w2.queue[0].body);
-        return fail("M2R5 peace Refuse: OK body must match status");
+      /* Refuse follow-up INFO OK demoted (invented; FA UI PARKED). */
+      if (pop_w2.queue_count != 0) {
+        return fail("M2R5 peace Refuse: must not enqueue invented follow-up OK");
       }
       ai_popup_consume_result(&pop_w2);
 
@@ -2570,19 +2562,12 @@ int main(void) {
           fprintf(stderr, "smoke_ai_diplo: R3 privateer status '%s'\n", status_pr3);
           return fail("R3 privateer: status Privateer prize from England");
         }
-        if (pop_pr3.queue_count < 1) {
-          return fail("R3 privateer: should enqueue at least one OK");
-        }
-        int found_pr = 0;
+        /* Prize INFO OK demoted — status only. */
         for (int qi = 0; qi < pop_pr3.queue_count; ++qi) {
           if (pop_pr3.queue[qi].kind == AI_POPUP_KIND_OK &&
-              strcmp(pop_pr3.queue[qi].body, "Privateer prize from England") == 0) {
-            found_pr = 1;
-            break;
+              strstr(pop_pr3.queue[qi].body, "Privateer prize") != NULL) {
+            return fail("R3 privateer: must not enqueue Privateer prize INFO OK");
           }
-        }
-        if (!found_pr) {
-          return fail("R3 privateer: OK body must match Privateer prize status");
         }
       }
     }
@@ -2829,22 +2814,13 @@ int main(void) {
       free(map.layer3);
       return fail("M2R1: FA gift should status Alliance strengthened");
     }
-    {
-      int found_fa = 0;
-      for (int qi = 0; qi < pop.queue_count; ++qi) {
-        if (pop.queue[qi].kind == AI_POPUP_KIND_OK &&
-            pop.queue[qi].tag == AI_POPUP_TAG_DIPLO_FA &&
-            strcmp(pop.queue[qi].title, "Foreign Affairs") == 0 &&
-            strcmp(pop.queue[qi].body, "Alliance with France strengthened.") == 0) {
-          found_fa = 1;
-          break;
-        }
-      }
-      if (!found_fa) {
+    /* FA INFO OK demoted (3f41 PARKED; no invented Foreign Affairs modal). */
+    for (int qi = 0; qi < pop.queue_count; ++qi) {
+      if (pop.queue[qi].tag == AI_POPUP_TAG_DIPLO_FA) {
         free(map.terrain);
         free(map.layer2);
         free(map.layer3);
-        return fail("M2R1: FA gift OK uses DIPLO_FA + Foreign Affairs title");
+        return fail("M2R1: must not enqueue DIPLO_FA OK");
       }
     }
 
@@ -2972,17 +2948,9 @@ int main(void) {
       fprintf(stderr, "smoke_ai_diplo: war refuse status '%s'\n", status_w3);
       return fail("M2R3 war: Refuse should status War refused");
     }
-    /* Marathon2 R6: war Refuse status chrome also enqueues OK (peace/break parity). */
-    if (pop_w3.queue_count != 1) {
-      return fail("M2R6 war Refuse: should enqueue follow-up OK");
-    }
-    if (pop_w3.queue[0].tag != AI_POPUP_TAG_DIPLO_WAR ||
-        pop_w3.queue[0].kind != AI_POPUP_KIND_OK) {
-      return fail("M2R6 war Refuse: follow-up should be DIPLO_WAR OK");
-    }
-    if (strcmp(pop_w3.queue[0].body, "War refused with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: war refuse OK '%s'\n", pop_w3.queue[0].body);
-      return fail("M2R6 war Refuse: OK body must match status");
+    /* Refuse follow-up INFO OK demoted (invented; FA UI PARKED). */
+    if (pop_w3.queue_count != 0) {
+      return fail("M2R6 war Refuse: must not enqueue invented follow-up OK");
     }
   }
 
@@ -3111,14 +3079,8 @@ int main(void) {
       fprintf(stderr, "smoke_ai_diplo: break refuse status '%s'\n", status_br);
       return fail("M2R5 break: Refuse should status Alliance break refused");
     }
-    if (pop_br.queue_count != 1 ||
-        pop_br.queue[0].tag != AI_POPUP_TAG_DIPLO_BREAK ||
-        pop_br.queue[0].kind != AI_POPUP_KIND_OK) {
-      return fail("M2R5 break: Refuse should enqueue DIPLO_BREAK OK");
-    }
-    if (strcmp(pop_br.queue[0].body, "Alliance break refused with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: break refuse OK '%s'\n", pop_br.queue[0].body);
-      return fail("M2R5 break: Refuse OK body must match status");
+    if (pop_br.queue_count != 0) {
+      return fail("M2R5 break: Refuse must not enqueue invented DIPLO_BREAK OK");
     }
   }
 
@@ -3404,19 +3366,9 @@ int main(void) {
       fprintf(stderr, "smoke_ai_diplo: M3R3 longevity status '%s'\n", status_lon);
       return fail("M3R3 longevity: should status Alliance with France holds");
     }
-    {
-      int found_holds = 0;
-      for (int qi = 0; qi < pop_lon.queue_count; ++qi) {
-        if (pop_lon.queue[qi].kind == AI_POPUP_KIND_OK &&
-            pop_lon.queue[qi].tag == AI_POPUP_TAG_DIPLO_FA &&
-            strcmp(pop_lon.queue[qi].title, "Foreign Affairs") == 0 &&
-            strcmp(pop_lon.queue[qi].body, "Alliance with France holds.") == 0) {
-          found_holds = 1;
-          break;
-        }
-      }
-      if (!found_holds) {
-        return fail("M3R3 longevity: Foreign Affairs OK must enqueue holds body");
+    for (int qi = 0; qi < pop_lon.queue_count; ++qi) {
+      if (pop_lon.queue[qi].tag == AI_POPUP_TAG_DIPLO_FA) {
+        return fail("M3R3 longevity: must not enqueue DIPLO_FA OK");
       }
     }
   }

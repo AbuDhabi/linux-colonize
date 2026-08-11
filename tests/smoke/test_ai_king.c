@@ -4512,7 +4512,8 @@ int main(void) {
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
             pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "join the Continental")) {
+            (strstr(pop.queue[i].body, "mercenaries arrive") != NULL ||
+             strstr(pop.queue[i].body, "Mercenaries arrive") != NULL)) {
           found_hire_ok = 1;
           break;
         }
@@ -4574,18 +4575,11 @@ int main(void) {
         fprintf(stderr, "smoke_ai_king: Decline status: '%s'\n", status);
         return fail("apply Decline should write Mercenaries declined. status");
       }
-      {
-        int found_decline_ok = 0;
-        for (int i = 0; i < pop.queue_count; ++i) {
-          if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
-              pop.queue[i].kind == AI_POPUP_KIND_OK &&
-              strstr(pop.queue[i].body, "declined")) {
-            found_decline_ok = 1;
-            break;
-          }
-        }
-        if (!found_decline_ok) {
-          return fail("apply Decline should enqueue merc declined follow-up OK");
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
+            pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "declined")) {
+          return fail("apply Decline must not enqueue invented declined OK");
         }
       }
     }

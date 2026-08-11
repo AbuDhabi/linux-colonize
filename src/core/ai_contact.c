@@ -7,6 +7,7 @@
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/units.h"
 
 #include <stdio.h>
@@ -760,7 +761,15 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
 
   /* Unmet (DOS met bit 0x20 clear) → must contact on land first. */
   if ((diplo & 0x20u) == 0) {
-    const char* body = "We must contact the Indians on land first, Excellency.";
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      ctx->messages,
+      "DONTKNOWSHIPS",
+      NULL,
+      "We must contact the Indians on land first, Excellency.",
+      body,
+      sizeof(body)
+    );
     ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
     if (!ai_contact_euro_is_human(ctx, euro_nation)) {
       ai_contact_set_status(ctx, body);
@@ -772,15 +781,17 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
   const int friction = (int)tribe->alarm[euro_nation].friction;
   /* ASM: relation >= 0x4b OR friction >= 0x40 → MADAT (peace floor 96 hits this). */
   if (rel >= 0x4b || friction >= 0x40 || ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
-    const char* tribe_name = ai_contact_tribe_name(indian_nation);
     char body[AI_POPUP_BODY_LEN];
-    snprintf(
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ai_contact_tribe_name(indian_nation);
+    popup_msg_fill(
+      ctx->messages,
+      "MADATSHIPS",
+      &tok,
+      "The people do not trust the men in your ships.",
       body,
-      sizeof(body),
-      "The %s people do not trust the men in your ships. Therefore, we do not "
-      "wish to trade with you at this time. If you approach our shoreline we "
-      "shall punish you.",
-      tribe_name
+      sizeof(body)
     );
     ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
     if (!ai_contact_euro_is_human(ctx, euro_nation)) {
@@ -2422,22 +2433,18 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
         ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
         if (fr_before < 40 && (int)t->alarm[e].friction >= 40) {
           char comment_fb[AI_POPUP_BODY_LEN];
-          if (c->name[0]) {
-            snprintf(
-              comment_fb,
-              sizeof(comment_fb),
-              "The %s are concerned that %s encroaches on lands near their settlements.",
-              ai_contact_tribe_name(nation_id),
-              c->name
-            );
-          } else {
-            snprintf(
-              comment_fb,
-              sizeof(comment_fb),
-              "The %s are concerned about land use near their settlements.",
-              ai_contact_tribe_name(nation_id)
-            );
-          }
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = ai_contact_tribe_name(nation_id);
+          tok.string1 = c->name[0] ? c->name : "our colonies";
+          popup_msg_fill(
+            ctx->messages,
+            "INDIANCOMMENT",
+            &tok,
+            "Natives are concerned that your colonies are beginning to overuse the lands near their settlements.",
+            comment_fb,
+            sizeof(comment_fb)
+          );
           ai_contact_human_chrome(
             ctx,
             e,

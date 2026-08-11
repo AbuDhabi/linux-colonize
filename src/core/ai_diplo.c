@@ -1692,12 +1692,9 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        */
       if (!war_upkeep_status_done && gold_before_upkeep > 0 &&
           ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0) {
+        /* Status only — no GAME.TXT war-upkeep dialog. */
         snprintf(ctx->status, ctx->status_size, "War upkeep costs gold.");
         war_upkeep_status_done = 1;
-        /* FUN_5bfb_153e upkeep chrome → OK popup (INFO); status kept. */
-        ai_diplo_popup_ok(
-          ctx, AI_POPUP_TAG_INFO, nation_id, peer, "War", ctx->status
-        );
       }
       /*
        * Wartime Privateer: spawn-only when ctx->units is set (unknown26[9] gate;
@@ -1717,12 +1714,8 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
           );
         }
       } else if (ai_diplo_war_privateer_prize(ctx->col1, nation_id, peer)) {
+        /* Status only — no GAME.TXT Privateer prize dialog. */
         ai_diplo_status_human_pair(ctx, nation_id, peer, "Privateer prize from %s");
-        if (ctx->status && ctx->status[0] != '\0') {
-          ai_diplo_popup_ok(
-            ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Privateer", ctx->status
-          );
-        }
       }
       /*
        * War-fatigue peace: near-parity (ally-eligible band) while at war AND
@@ -1815,19 +1808,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
             fa_chrome = 1;
           }
           /*
-           * Thin FA report OK (gift/longevity). AI_POPUP_TAG_DIPLO_FA presentation
-           * tag; full 3f41 F2–F9 UI PARKED.
+           * Thin FA report status (gift/longevity). Full 3f41 F2–F9 UI PARKED;
+           * no invented INFO OK modal.
            */
-          if (fa_chrome && ctx->status[0] != '\0') {
-            ai_diplo_popup_ok(
-              ctx,
-              AI_POPUP_TAG_DIPLO_FA,
-              nation_id,
-              peer,
-              "Foreign Affairs",
-              ctx->status
-            );
-          }
+          (void)fa_chrome;
         }
       }
     }
@@ -1945,11 +1929,9 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
         if (sticky_now == AI_DIPLO_STICKY_DEEP) {
           if (ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0 &&
               ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
+            /* Status only — no GAME.TXT native-unrest dialog. */
             snprintf(ctx->status, ctx->status_size,
                      "Native unrest precludes new alliances.");
-            ai_diplo_popup_ok(
-              ctx, AI_POPUP_TAG_INFO, nation_id, peer, "Natives", ctx->status
-            );
           }
         } else if (stored == 0) {
           /*
@@ -2095,18 +2077,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
           popup->result_nation_b,
           "Peace refused with %s"
         );
-        /* Marathon2 R5: refuse status chrome also enqueues OK (Accept path
-         * already gets OK via make_peace_ctx). Cite FUN_15b3 / 5bfb. */
-        if (ctx->status[0] != '\0') {
-          ai_diplo_popup_ok(
-            ctx,
-            AI_POPUP_TAG_DIPLO_PEACE,
-            popup->result_nation_a,
-            popup->result_nation_b,
-            "Peace",
-            ctx->status
-          );
-        }
+        /* Status only — refuse follow-up INFO OK was invented (FA UI PARKED). */
       }
     }
     return;
@@ -2122,18 +2093,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
           popup->result_nation_b,
           "War refused with %s"
         );
-        /* Marathon2 R6: refuse status chrome also enqueues OK (Accept path
-         * already gets OK via declare_war_ctx). Cite FUN_15b3 / 5bfb. */
-        if (ctx->status[0] != '\0') {
-          ai_diplo_popup_ok(
-            ctx,
-            AI_POPUP_TAG_DIPLO_WAR,
-            popup->result_nation_a,
-            popup->result_nation_b,
-            "War",
-            ctx->status
-          );
-        }
+        /* Status only — refuse follow-up INFO OK was invented (FA UI PARKED). */
       }
     }
     return;
@@ -2149,16 +2109,7 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
           popup->result_nation_b,
           "Alliance break refused with %s"
         );
-        if (ctx->status[0] != '\0') {
-          ai_diplo_popup_ok(
-            ctx,
-            AI_POPUP_TAG_DIPLO_BREAK,
-            popup->result_nation_a,
-            popup->result_nation_b,
-            "Alliance",
-            ctx->status
-          );
-        }
+        /* Status only — refuse follow-up INFO OK was invented (FA UI PARKED). */
       }
     }
   }

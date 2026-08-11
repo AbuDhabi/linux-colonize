@@ -3752,16 +3752,35 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       }
       {
         /* GAME.TXT @LANDFALL: Stay With Ships / Make Landfall. */
-        const char* labels[] = {"Stay With Ships", "Make Landfall"};
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          &game->messages,
+          "LANDFALL",
+          NULL,
+          "Shall we make landfall, Your Excellency, and leave the ships behind?",
+          body,
+          sizeof(body)
+        );
+        char choice_buf[AI_POPUP_CHOICE_MAX][48];
+        const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "LANDFALL");
+        int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+        const char* labels[2];
         const int ids[] = {0, 1};
+        if (nch >= 2) {
+          labels[0] = choice_buf[0];
+          labels[1] = choice_buf[1];
+        } else {
+          labels[0] = "Stay With Ships";
+          labels[1] = "Make Landfall";
+        }
         if (!ai_popup_enqueue_choice_ctx(
               &game->ai_popups,
               AI_POPUP_TAG_LANDFALL,
               sid,
               dest_x,
               dest_y,
-              "Landfall",
-              "Shall we make landfall, Your Excellency,\nand leave the ships behind?",
+              NULL,
+              body,
               labels,
               ids,
               2
@@ -4212,13 +4231,56 @@ static bool game_colony_request_eject(
    * drop below 3 (port previously kept ≥2 — docs/fandom_col1994.md Conflicts). */
   if (colonies_has_fortification(&game->colonies, colony) && colony->colonist_count <= 3) {
     colony_screen_close_eject(csv);
-    colony_screen_open_message_ok(
-      csv, "A colony with a Stockade must keep at least 3 colonists."
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages,
+      "KEEPSTOCKADE",
+      NULL,
+      "We cannot voluntarily reduce below three the population of a colony that has a stockade, fort, or fortress.",
+      body,
+      sizeof(body)
     );
+    colony_screen_open_message_ok(csv, body);
     return true;
   }
   if (colony->colonist_count <= 1) {
-    colony_screen_open_abandon_confirm(csv, colonist_index, role);
+    char body[AI_POPUP_BODY_LEN];
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = colony->name[0] ? colony->name : "this";
+    const char* section = "ABANDON";
+    if (game->col1_ok && game->col1.head.year >= 1600) {
+      /* After 1600, last colony warn — @ABANDON2. */
+      int human_cols = 0;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &game->colonies.colonies[i];
+        if (c->active && c->nation_id == game->human_nation) {
+          human_cols++;
+        }
+      }
+      if (human_cols <= 1) {
+        section = "ABANDON2";
+      }
+    }
+    popup_msg_fill(
+      &game->messages,
+      section,
+      &tok,
+      "Shall we indeed abandon our colony, Your Excellency?",
+      body,
+      sizeof(body)
+    );
+    char choices[AI_POPUP_CHOICE_MAX][48];
+    const ColonizeMsgSection* sec = assets_msg_find(&game->messages, section);
+    int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
+    colony_screen_open_abandon_confirm(
+      csv,
+      colonist_index,
+      role,
+      body,
+      nch >= 1 ? choices[0] : "Yes",
+      nch >= 2 ? choices[1] : "No"
+    );
     return true;
   }
   colony_screen_close_eject(csv);

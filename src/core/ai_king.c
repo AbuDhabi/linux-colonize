@@ -1,10 +1,12 @@
 #include "core/ai_king.h"
 
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
+#include "core/strutil.h"
 #include "core/units.h"
 
 #include <stdio.h>
@@ -1857,15 +1859,45 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
    * (FUN_43f7_38fd_5be8 audience CHOICE). payload = current tax_rate.
    */
   if (ai_king_human_popups(ctx)) {
-    const char* labels[] = {"Accept", "Refuse"};
-    const int ids[] = {AI_KING_CHOICE_ACCEPT, AI_KING_CHOICE_REFUSE};
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.number0 = 1;
+    tok.has_number0 = true;
+    tok.number1 = (int)(nat->tax_rate + 1u);
+    tok.has_number1 = true;
+    tok.string3 = "Tea";
     char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body),
-             "The King demands taxes rise from %u%% to %u%%. Accept or refuse?",
-             nat->tax_rate, (unsigned)(nat->tax_rate + 1u));
+    popup_msg_fill(
+      ctx->messages,
+      "KINGTAX",
+      &tok,
+      "The King demands a tax increase. Kiss pinky ring or hold a tea party?",
+      body,
+      sizeof(body)
+    );
+    char choice_buf[AI_POPUP_CHOICE_MAX][48];
+    const ColonizeMsgSection* taxopt = assets_msg_find(ctx->messages, "TAXOPTIONS");
+    int nch = 0;
+    if (taxopt) {
+      /* Fill choice labels with STRING3 for Hold '{Tea Party}'. */
+      char raw_choices[AI_POPUP_CHOICE_MAX][48];
+      nch = popup_msg_choices(taxopt, raw_choices, AI_POPUP_CHOICE_MAX);
+      for (int i = 0; i < nch; ++i) {
+        popup_msg_apply_tokens(choice_buf[i], 48, raw_choices[i], &tok);
+      }
+    }
+    const char* labels[2];
+    const int ids[] = {AI_KING_CHOICE_ACCEPT, AI_KING_CHOICE_REFUSE};
+    if (nch >= 2) {
+      labels[0] = choice_buf[0];
+      labels[1] = choice_buf[1];
+    } else {
+      labels[0] = "Kiss pinky ring.";
+      labels[1] = "Hold 'Tea Party.'";
+    }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_AUDIENCE, human,
                                     ai_king_crown_nation(human), (int)nat->tax_rate,
-                                    "Royal Audience", body, labels, ids, 2)) {
+                                    NULL, body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,
                  "Audience: the King demands a tax increase to %u%%.",
@@ -2465,14 +2497,20 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
     snprintf(ctx->status, ctx->status_size,
              "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
   }
-  /* FUN_43f7_2244 Hire success follow-up OK (cannot-afford already OK on offer). */
+  /* GAME.TXT @MERCS arrival OK. */
   if (ai_king_human_popups(ctx)) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = "the colonies";
+    tok.string1 = "Trained";
     char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body),
-             "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
+    popup_msg_fill(
+      ctx->messages, "MERCS", &tok,
+      "Mercenaries arrive.", body, sizeof(body)
+    );
     (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                   ai_king_crown_nation(human),
-                                  ai_king_merc_payload(hx, hy), "Mercenaries", body);
+                                  ai_king_merc_payload(hx, hy), NULL, body);
   }
   return 1;
 }
@@ -2521,34 +2559,54 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
     }
-    if (ai_king_human_popups(ctx)) {
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human, ai_king_crown_nation(human),
-        ai_king_merc_payload(hx, hy), "Mercenaries", "Cannot afford mercenaries."
-      );
-    }
+    /* Status only — no GAME.TXT "cannot afford" dialog. */
     return;
   }
   if (ai_king_human_popups(ctx)) {
-    const char* labels[] = {"Hire", "Decline"};
-    const int ids[] = {AI_KING_CHOICE_HIRE, AI_KING_CHOICE_DECLINE};
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = "Europe"; /* king nation stand-in */
+    tok.string1 = "Regulars";
+    tok.number0 = AI_KING_MERC_COST;
+    tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body),
-             "European mercenaries offer to join for %d gold. Hire them?",
-             AI_KING_MERC_COST);
+    popup_msg_fill(
+      ctx->messages,
+      "MERCENARIES",
+      &tok,
+      "The King has offered to send mercenaries in exchange for gold.",
+      body,
+      sizeof(body)
+    );
+    char choice_buf[AI_POPUP_CHOICE_MAX][48];
+    const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
+    int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+    for (int i = 0; i < nch; ++i) {
+      char filled[48];
+      popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
+      str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
+    }
+    /* GAME.TXT: No thank you. / Pay $ — map to Decline / Hire. */
+    const char* labels[2];
+    const int ids[] = {AI_KING_CHOICE_DECLINE, AI_KING_CHOICE_HIRE};
+    if (nch >= 2) {
+      labels[0] = choice_buf[0];
+      labels[1] = choice_buf[1];
+    } else {
+      labels[0] = "No thank you.";
+      labels[1] = "Pay";
+    }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                     ai_king_crown_nation(human),
-                                    ai_king_merc_payload(hx, hy), "Mercenaries", body,
+                                    ai_king_merc_payload(hx, hy), NULL, body,
                                     labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,
                  "Mercenaries offer to join the Continental cause (−%d gold).",
                  AI_KING_MERC_COST);
       }
-      /* Defer unknown46[3] until Hire/Decline apply (re-offer if Esc cancel). */
       return;
     }
-    /* Queue full — fall through to auto hire. */
   }
   (void)ai_king_do_merc_hire_at(ctx, human, hx, hy);
 }
@@ -3235,14 +3293,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
                  "The colonial era ends (%d). Retire to see your score.",
                  AI_KING_PEACE_YEAR_CAP);
       }
-      if (ai_king_human_popups(ctx)) {
-        (void)ai_popup_enqueue_ok_ctx(
-          ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation,
-          ai_king_crown_nation(ctx->human_nation), AI_KING_PEACE_YEAR_CAP,
-          "Colonial Era Ends",
-          "The year 1800 arrives. Retire to record your Colonization Score."
-        );
-      }
+      /* Status only — no GAME.TXT "Colonial Era Ends" dialog. */
     }
     /*
      * Thin pre-declare SoL chrome:
@@ -3333,18 +3384,12 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
           }
         }
       } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
-        /* FUN_43f7_2244 Decline: gate once/war + follow-up OK (Hire already OK). */
+        /* FUN_43f7_2244 Decline: gate once/war; status only (no invented OK). */
         if (ctx->col1_ok && ctx->col1) {
           ai_king_set_merc_hired(ctx->col1, 1);
         }
         if (ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
-        }
-        if (ai_king_human_popups(ctx)) {
-          (void)ai_popup_enqueue_ok_ctx(
-            ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human, ai_king_crown_nation(human),
-            popup->result_payload, "Mercenaries", "Mercenaries declined."
-          );
         }
       }
       break;
