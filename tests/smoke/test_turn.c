@@ -732,7 +732,7 @@ int main(void) {
     eu.tax_percent = 0;
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL);
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 700) {
       fprintf(
         stderr,
@@ -955,7 +955,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
     if (prod.food_shortages < 1 || strstr(eu.status, "Food shortage") == NULL) {
       fprintf(
         stderr,
@@ -1053,7 +1053,7 @@ int main(void) {
     col1.nation[1].gold = 0;
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL);
     if (ai->stock[COLONIZE_CARGO_TOBACCO] != 100 || ai->stock[COLONIZE_CARGO_HORSES] != 100) {
       fprintf(
         stderr,
@@ -1270,7 +1270,7 @@ int main(void) {
       col->population = 1;
       col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid food-shortage overwrite */
       memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod);
+      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
       if (strstr(eu.status, "No students") == NULL) {
         fprintf(stderr, "education no-students want status got '%s'\n", eu.status);
         return 1;
@@ -1314,7 +1314,7 @@ int main(void) {
       col->stock[COLONIZE_CARGO_FOOD] = 500;
       ColonizeTurnResult prod;
       memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod);
+      turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
       if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
         discovered = 1;
         break;
@@ -1547,7 +1547,7 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     const int h0 = col->stock[COLONIZE_CARGO_HORSES];
-    turn_run_colony_production(&pool, &map, NULL, NULL, 0, &prod);
+    turn_run_colony_production(&pool, &map, NULL, NULL, 0, &prod, NULL, NULL);
     if (col->stock[COLONIZE_CARGO_HORSES] <= h0) {
       fprintf(
         stderr,
@@ -1902,7 +1902,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 100) {
       fprintf(stderr, "spoilage clamp tobacco=%d want 100\n", col->stock[COLONIZE_CARGO_TOBACCO]);
       return 1;
@@ -1949,7 +1949,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, NULL, NULL);
     if (strstr(eu.status, "Stockpile") == NULL || !tipcol.head.tut3.nr6) {
       fprintf(
         stderr,
@@ -1964,7 +1964,7 @@ int main(void) {
     col->stock[COLONIZE_CARGO_LUMBER] = 99;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, NULL, NULL);
     if (strstr(eu.status, "Stockpile") != NULL) {
       fprintf(stderr, "century tip latch must suppress second tip got '%s'\n", eu.status);
       return 1;
@@ -2128,7 +2128,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
     if (strstr(eu.status, "hammers") == NULL) {
       fprintf(stderr, "build advisory K want hammers status got '%s'\n", eu.status);
       return 1;
@@ -2146,7 +2146,7 @@ int main(void) {
     col->has_building[0] = true;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
     if (strstr(eu.status, "tools") == NULL) {
       fprintf(stderr, "build advisory K tools want status got '%s'\n", eu.status);
       return 1;
@@ -2163,7 +2163,7 @@ int main(void) {
     col->colonists[0].profession = UNITS_JOB_COLONIST;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &kcol, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, &kcol, &eu, 0, &prod, NULL, NULL);
     if (strstr(eu.status, "hammers") != NULL) {
       fprintf(stderr, "5384 gate want suppress hammers got '%s'\n", eu.status);
       return 1;
@@ -2183,7 +2183,7 @@ int main(void) {
     col->colonists[0].profession = UNITS_JOB_COLONIST;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &cloth_col, &eu, 0, &prod);
+    turn_run_colony_production(&pool, NULL, &cloth_col, &eu, 0, &prod, NULL, NULL);
     if (strstr(eu.status, "cloth") == NULL) {
       fprintf(stderr, "build advisory K cloth want status got '%s'\n", eu.status);
       return 1;

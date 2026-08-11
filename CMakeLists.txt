@@ -47,10 +47,14 @@ add_library(colonize_core STATIC
   src/core/map_menu.c
   src/core/map_panel.c
   src/core/popup.c
+  src/core/popup_msg.c
   src/core/ui_button.c
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/cheat_list_dialog.c
+  src/core/howmuch_dialog.c
+  src/core/name_entry_dialog.c
+  src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
@@ -216,6 +220,10 @@ add_executable(smoke_game_flow
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/cheat_list_dialog.c
+  src/core/popup_msg.c
+  src/core/howmuch_dialog.c
+  src/core/name_entry_dialog.c
+  src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
@@ -272,6 +280,10 @@ add_executable(smoke_new_game
   src/core/ui_drag.c
   src/core/pick_music.c
   src/core/cheat_list_dialog.c
+  src/core/popup_msg.c
+  src/core/howmuch_dialog.c
+  src/core/name_entry_dialog.c
+  src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
   src/core/unit_chrome.c
@@ -349,6 +361,15 @@ target_include_directories(smoke_ai_popup PRIVATE
 target_link_libraries(smoke_ai_popup PRIVATE colonize_core)
 
 add_test(NAME smoke_ai_popup COMMAND smoke_ai_popup WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(smoke_popup_dialogs
+  tests/smoke/test_popup_dialogs.c
+)
+target_include_directories(smoke_popup_dialogs PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(smoke_popup_dialogs PRIVATE colonize_core)
+add_test(NAME smoke_popup_dialogs COMMAND smoke_popup_dialogs WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_pick_music
   tests/smoke/test_pick_music.c

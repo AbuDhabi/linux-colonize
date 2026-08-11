@@ -4,6 +4,7 @@
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/units.h"
 
 #include <stdio.h>
@@ -1940,12 +1941,24 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   }
   if (ai_king_human_popups(ctx)) {
     /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED — KING_LETTER tag). */
-    /* FUN_43f7_160a + GAME.TXT @INDEPENDENCE (letter-anim cinematic PARKED). */
-    (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_KING_LETTER, human, ai_king_crown_nation(human), 0,
-      "Declaration of Independence",
+    char letter[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      ctx->messages,
+      "INDEPENDENCE",
+      NULL,
       "Continental Congress signs Declaration of Independence! "
-      "Abuses and usurpations cited! The colonies are renamed the United Colonies."
+      "Abuses and usurpations cited! The colonies are renamed the United Colonies.",
+      letter,
+      sizeof(letter)
+    );
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups,
+      AI_POPUP_TAG_KING_LETTER,
+      human,
+      ai_king_crown_nation(human),
+      0,
+      "Declaration of Independence",
+      letter
     );
     /* FUN_43f7_1a26 / 2564: WoI begins OK after Confirm/auto declare. */
     (void)ai_popup_enqueue_ok_ctx(

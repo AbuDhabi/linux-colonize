@@ -24,7 +24,9 @@ typedef enum CheatListKind {
   CHEAT_LIST_KIND_SETVIEW,
   CHEAT_LIST_KIND_KILL_INDIANS,
   CHEAT_LIST_KIND_TRADE_UNLOAD,
-  CHEAT_LIST_KIND_TRADE_LOAD
+  CHEAT_LIST_KIND_TRADE_LOAD,
+  CHEAT_LIST_KIND_FIND_COLONY,
+  CHEAT_LIST_KIND_TRADE_SELECT
 } CheatListKind;
 
 typedef struct CheatListDialog {
@@ -74,6 +76,27 @@ bool cheat_list_open_trade_cargos(
   CheatListDialog* dlg,
   CheatListKind kind,
   uint16_t initial_mask
+);
+
+/*
+ * Find Colony picker (@FINDCITY). labels[i] = colony name; option_ids = colony id.
+ * Caller supplies up to CHEAT_LIST_MAX_OPTIONS entries.
+ */
+bool cheat_list_open_find_colony(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* colony_ids,
+  int count
+);
+
+/* Trade route picker (@TRADESELECT). option_ids = route slot index. */
+bool cheat_list_open_trade_select(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* route_ids,
+  int count
 );
 
 /*

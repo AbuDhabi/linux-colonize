@@ -25,7 +25,7 @@
 
 #define AI_POPUP_QUEUE_MAX 16
 #define AI_POPUP_CHOICE_MAX 6
-#define AI_POPUP_BODY_LEN 240
+#define AI_POPUP_BODY_LEN 512
 #define AI_POPUP_TITLE_LEN 64
 #define AI_POPUP_CHOICE_LEN 48
 
@@ -60,7 +60,9 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_DIPLO_BREAK = 23,
   AI_POPUP_TAG_DIPLO_BOYCOTT = 24,
   AI_POPUP_TAG_DIPLO_FA = 25, /* thin FA 3f41 report / gift chrome (F2–F9 PARKED) */
-  AI_POPUP_TAG_LANDFALL = 26 /* ship→bare land: Stay With Ships / Make Landfall */
+  AI_POPUP_TAG_LANDFALL = 26, /* ship→bare land: Stay With Ships / Make Landfall */
+  /* Map confirm gates (disband / overboard / quit / retire / trade-delete). */
+  AI_POPUP_TAG_MAP_CONFIRM = 27
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

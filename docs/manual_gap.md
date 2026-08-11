@@ -63,7 +63,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
 | Terrain move costs (forest >1 MP, roads, rivers) | Partial | DOS `terr_cost` table + full-MP / partial overspend; road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). PARK: unit MP `*3` scale (Brave already `table*3`) |
-| Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
+| Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D with Yes/No). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Multi-turn FUN_479b: clear/plow = `terr_cost+2`, road = `terr_cost`, Hardy halves; −20 tools on complete; clear and plow are separate jobs |
 | Board / unload passengers | Done | **O** / **U**; hold icons |
@@ -78,7 +78,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump |
+| Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump; name-entry `@LANDHO` |
 | Join colony | Done | ORDERS Join Colony admits selected land unit on owned colony tile; else opens colony screen |
 | Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
@@ -154,7 +154,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Quit / Exit | Done | |
-| Retire → score / HoF | Partial | Retire opens F10 score then title; last score persists via `HOF.TXT` |
+| Retire → score / HoF | Partial | `@RETIRE` confirm → F10 score then title; last score persists via `HOF.TXT` |
 | Revolution victory / failure | Partial | Thin: lose all coastal ports (after REF present); win year≥1850 + no crown units (`unknown46[4]`) |
 | Auto-end 1800 / 1850 | Partial | Peacetime year≥1800 latch + popup; WoI win at 1850+no crown; forced retire UI still thin |
 
@@ -178,7 +178,7 @@ Aligned with early manual chapters (short playable loop first), then the
    PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + thin cargo picker **Done**; VGA TRADE chrome PARKED
+10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + cargo picker + route select/delete confirms **Done**; VGA TRADE chrome PARKED
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---

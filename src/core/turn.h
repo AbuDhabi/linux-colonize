@@ -144,7 +144,9 @@ void turn_run_colony_production(
   ColonizeCol1Save* col1,
   EuropeScreen* europe,
   int human_nation,
-  ColonizeTurnResult* out
+  ColonizeTurnResult* out,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 
 /*
