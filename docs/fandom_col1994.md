@@ -200,7 +200,7 @@ missions/alarm Partial
 | Taxes paid accumulate toward expanding the REF | Tax rate / REF |
 | Custom House bypasses boycotts; during Revolution can bypass tax (wiki) | Tax rate, Custom House |
 
-Port: tax on sales Partial; king events / boycotts / volume prices Missing.
+Port: tax on sales Partial; king events / boycotts Partial structural; volume-price T0 Done thin (pressure chrome PARKED) — [manual_gap.md](manual_gap.md).
 
 Europe screen: recruit (3-slot pool), train, buy ships/artillery, buy/sell goods — [Europe (Col)](https://civilization.fandom.com/wiki/Europe_(Col)).
 
@@ -218,7 +218,7 @@ Europe screen: recruit (3-slot pool), train, buy ships/artillery, buy/sell goods
 - Lose all **port** colonies → lose war. Defeat REF + recapture lost colonies by **1850** → win.
 - REF AI (wiki strategy): prioritizes weakest-defended ports; man-o-war with 6 units; seizes occupied landing tiles; always attacks adjacent uncaptured colony rather than marching past.
 
-Port: all Missing except thin score schedule.
+Port: declare / REF / win-lose latches Partial structural; HoF / letter cinematic / deep siege polish later — [manual_gap.md](manual_gap.md).
 
 ---
 

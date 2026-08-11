@@ -128,7 +128,8 @@ port I/O in the native build.
   left-click selects unit/tile/colony, right-click selects tile; pan-only while a unit is
   selected; blinking white tile outline in tile-select mode; `CURSOR.SS` #0 is the OS
   pointer over the 320×200 frame on all screens; Colonizopedia category lists from `PEDIA.TXT`
-  (`src/core/pedia.c`); pull-down divider after Terrain Types; trade menu entries stubbed
+  (`src/core/pedia.c`); pull-down divider after Terrain Types; TRADE Create/Edit/Begin
+  structural (VGA TRADE chrome PARKED)
 - **New-game wizard** (`src/core/new_game.c`): `@BEGINMENU` → NEW WORLD / AMERICA /
   CUSTOMIZE → difficulty (`DIFFICUL.PIK`) → nation (`NATIONS.PIK`) → leader name /
   `@NATION{n}A/B` on `WOODPANL.PIK` → king audience → `LEVN0001`–`0010` sail → map.
@@ -182,7 +183,8 @@ Ordered pipeline recovered for the Linux port:
    `README.TXT` “free turn”)
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election via `founding_fathers_tick` (manual-aligned effects;
-   Sepulveda/Cortes hooks still open — see [ai_transcription.md](ai_transcription.md))
+   Sepulveda/Cortes/de Witt **Done**; KINGGALLEON2 leftover — see
+   [ai_transcription.md](ai_transcription.md) unpark #3)
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    `ai_euro_nation_turn` (`src/core/ai.c` → `ai_euro.c`): reseed from VR_SEED timer word, tick AI crosses,
    `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `smoke_ai_turns`;
@@ -294,7 +296,6 @@ Forest canopy via `map_phys0_forest_sprite_at`; hills/mountains/rivers/resources
 ### Remaining gaps
 
 - Fog-of-war: dedicated `map.seen` is Partial (reveal + black paint); MAPEDIT static view still has no fog by design
-- Roads
 - Coast animation frames; per-tile texture-variation overlays from DOS RAM buffers
 - Resource seed from live game RNG (static map view uses MAPEDIT default seed 100)
 

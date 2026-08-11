@@ -202,7 +202,7 @@ exactly. `all_unit_counts` / `unit_type_counts` track euro units but can lag
 
 ## References
 
-- [save_format_map.md](save_format_map.md) — field atlas + RE roadmap (P0–P4)
+- [save_format_map.md](save_format_map.md) — field atlas + RE roadmap (P0–P6 Done)
 - [nawagers/Colonization-SAV-files `Format.md`](https://github.com/nawagers/Colonization-SAV-files) (upstream of hegemogy fork)
 - [hegemogy/viceroy `savegame.h`](https://github.com/hegemogy/viceroy)
 - [pavelbel/smcol_saves_utility](https://github.com/pavelbel/smcol_saves_utility) (`smcol_sav_struct.json`, `supplemental-info.md`) — community oracle; see atlas **Smcol audit** / **Nawagers audit**

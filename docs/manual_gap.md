@@ -173,7 +173,7 @@ is the historical bring-up order (early manual chapters first), then the
 **unparked queue** in [ai_transcription.md](ai_transcription.md) (prereqs met):
 
 1. **Colony economy UI** — phases 1–4 (workplaces, fields, craft, warehouse↔ship) done
-2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; boycotts / volume prices later
+2. **Europe commodity trade** — recruit/train/purchase + multi-turn sail + buy/sell done; volume-price T0 **Done thin**; boycotts **Partial** structural; pressure/bid chrome PARKED
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE stop nibble honor Done (Edit UI thin)
 5. **Fog of war / exploration**
@@ -195,12 +195,13 @@ is the historical bring-up order (early manual chapters first), then the
 The port is strong on **shell, map art, navigation, reports / pedia, save, basic
 units / naval passengers, founding a colony, and Europe buy/sell/recruit/hire**.
 **Structural** Indian contact (incl. player dialogs), Euro/Indian diplomacy,
-king/REF (incl. audience/confirm/merc), FF elect, and early Euro AI (seed-100 T2
-+ thin expand/war) are in; next playability work is leftover **FF hooks**
-(Sepulveda/Cortes), deep mid-planner `20e6`, and VGA / deep AI bodies — not
-waiting on missing combat/capture prerequisites. TRADE Create/Edit/Begin
-aim+cycle + stop nibble honor + Edit autofill + thin cargo picker are in; VGA TRADE
-chrome, Congress UI, and full 1:1 AI bodies remain.
+king/REF (incl. audience/confirm/merc), FF elect (Sepulveda/Cortes/de Witt
+effects **Done**), and early Euro AI (seed-100 T2 + thin expand/war) are in;
+next playability work is leftover **FF** KINGGALLEON2, deep mid-planner `20e6`,
+production / combat depth, and VGA / deep AI bodies — not waiting on missing
+combat/capture prerequisites. TRADE Create/Edit/Begin aim+cycle + stop nibble
+honor + Edit autofill + thin cargo picker are in; VGA TRADE chrome, Congress UI,
+and full 1:1 AI bodies remain.
 
 ## See also
 
@@ -211,4 +212,4 @@ chrome, Congress UI, and full 1:1 AI bodies remain.
 - [ai_transcription.md](ai_transcription.md) — AI FUN_* inventory and 1:1 roadmap
 - [assets.md](assets.md) — formats and UI wiring
 - [savegame.md](savegame.md) — `COLONY##.SAV` layout / interop
-- [save_format_map.md](save_format_map.md) — opaque field atlas + RE roadmap (P0–P4)
+- [save_format_map.md](save_format_map.md) — opaque field atlas + RE roadmap (P0–P6 Done)

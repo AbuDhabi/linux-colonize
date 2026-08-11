@@ -369,7 +369,7 @@ Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship move
 | **U** / `-` / `_` | Sell best hold / all / some |
 | `]` / `[` | Cheat +1000 gold / −1% tax |
 
-Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-driven prices and boycotts not implemented yet.
+Market bid/ask from `NAMES.TXT` `@CARGO` (ask = bid + burden + 1). Sale proceeds `floor(bid × amount × (100 − tax) / 100)`. Volume-price T0 via `europe_apply_volume_price` (**Done thin**; EOT attrition + half `price_group_state`); boycotts **Partial** structural; pressure/bid chrome PARKED — [manual_gap.md](manual_gap.md).
 
 ### Colony screen bring-up
 
