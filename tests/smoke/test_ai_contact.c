@@ -2862,6 +2862,52 @@ int main(void) {
     units_despawn(&units, md4);
     brave->orders = UNITS_ORDER_NONE;
     brave->follow_unit_id = -1;
+
+    /*
+     * Series N: alarm≥80 escort MD≤5 (alarm 55 still caps at 4).
+     * Cite: ai_contact_escort_pick_lead hot deepen.
+     */
+    ind->alarm_by_player[0] = 55;
+    col1.tribe[0].alarm[0].friction = 55;
+    col1.nation[0].relation_by_indian[0] = 40;
+    c_tgt->active = true;
+    c_tgt->nation_id = 0;
+    c_tgt->x = 12;
+    c_tgt->y = 5;
+    colonies.colony_count = 1;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->orders = UNITS_ORDER_NONE;
+    const int md5 = units_spawn_allow_stack(&units, 0, 10, 5); /* MD=5 from (5,5) */
+    ColonizeUnit* md5_lead = units_get(&units, md5);
+    if (!md5_lead) {
+      return fail("hot escort MD5 lead spawn");
+    }
+    md5_lead->nation_id = 4;
+    md5_lead->moves_left = 0;
+    md5_lead->orders = UNITS_ORDER_AI_MOVE;
+    md5_lead->goto_x = 12;
+    md5_lead->goto_y = 5;
+    ai_contact_indian_raids(&ctx, 4);
+    brave = units_get(&units, brave_id);
+    if (brave && brave->orders == UNITS_ORDER_FOLLOW && brave->follow_unit_id == md5) {
+      return fail("alarm 55 escort must not reach lead at MD=5");
+    }
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
+    ind->alarm_by_player[0] = 80;
+    col1.tribe[0].alarm[0].friction = 80;
+    ai_contact_indian_raids(&ctx, 4);
+    brave = units_get(&units, brave_id);
+    if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md5) {
+      fprintf(stderr, "smoke_ai_contact: hot MD5 follow=%d\n",
+              brave ? brave->follow_unit_id : -1);
+      return fail("alarm≥80 escort should reach lead at MD=5");
+    }
+    units_despawn(&units, md5);
+    brave->orders = UNITS_ORDER_NONE;
+    brave->follow_unit_id = -1;
     c_tgt->active = false;
     colonies.colony_count = 0;
     ind->alarm_by_player[0] = 0;
@@ -3302,6 +3348,50 @@ int main(void) {
       col1.tribe[0].nation_id = 4; /* restore Inca */
       ind->alarm_by_player[0] = 10;
       az->alarm_by_player[0] = 10;
+      pop.result_nation_b = 4;
+    }
+
+    /*
+     * Series M: hard-bargain primary extras for tobacco/cotton (+ one furs).
+     * Non-0xff teach primaries drain 2 TG under alarm 45..54. Arawak 0xff stays 1.
+     */
+    {
+      struct {
+        int nation_b;
+        int tribe_nation;
+        const char* label;
+      } cases[] = {
+        {8, 8, "tobacco"}, /* Cherokee */
+        {9, 9, "cotton"},  /* Apache */
+        {7, 7, "furs"},    /* Iroquois */
+      };
+      for (int ci = 0; ci < 3; ++ci) {
+        ColonizeCol1Indian* ind_m = &col1.indian[cases[ci].tribe_nation - 4];
+        ind_m->euro_diplo[0] = 1;
+        ind_m->alarm_by_player[0] = 47;
+        col1.nation[0].relation_by_indian[cases[ci].tribe_nation - 4] = 80;
+        col1.tribe[0].nation_id = (uint8_t)cases[ci].tribe_nation;
+        col1.tribe[0].alarm[0].friction = 20;
+        c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] = 3;
+        const int goods_m = c_pop->stock[COLONIZE_CARGO_TRADE_GOODS];
+        ai_popup_clear(&pop);
+        pop.has_result = true;
+        pop.result_cancelled = false;
+        pop.result_choice_id = 1;
+        pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+        pop.result_nation_a = 0;
+        pop.result_nation_b = cases[ci].nation_b;
+        st_pop[0] = '\0';
+        ai_contact_apply_popup_result(&ctx, &pop);
+        if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_m - 2) {
+          fprintf(stderr, "smoke_ai_contact: %s hard-bargain goods %d→%d\n",
+                  cases[ci].label, goods_m, c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
+          return fail("hard-bargain primary peel should drain 2 trade goods");
+        }
+        ind_m->alarm_by_player[0] = 10;
+      }
+      col1.tribe[0].nation_id = 4;
+      ind->alarm_by_player[0] = 10;
       pop.result_nation_b = 4;
     }
 

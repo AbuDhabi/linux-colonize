@@ -602,6 +602,8 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 - Thin `4393` / `−0x5f24` work-queue haul peel (flag_b=1 colony shorts;
   distance-normalized pick before nearest-short).
 - Series I: mil unload requires continent stance ≠ 0 (prefer 4) after refresh.
+- Series L: peacetime sticky≥2 + stance==4 mil unload vs Indian Brave MD≤3
+  (war path unchanged); ship act invokes unload when sticky≥2 even if `!at_war`.
 - Deep E–H / full nibble fidelity / remaining `5d04` / full `5b66` /
   full cargo matrix remain **OPEN**.
 
@@ -609,22 +611,26 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 
 - `2154`: colony 5×5 cover mask + forest/coast/food/ore buckets; Generous at
   gold≥30 when rich; cover suppresses rich floor (`smoke_ai_contact`).
-- `2820`: hard-bargain 45..54; silver **and ore** primary extra trade-goods.
+- `2820`: hard-bargain 45..54; primary extra trade-goods for all non-`0xff`
+  teach primaries (silver/ore/tobacco/cotton/furs/sugar; Arawak fish single).
 - `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)
   + early-year demote smoke.
 - Series J: successful-raid friction/alarm kind-scaled (STORES +4, BURN/WREAK
   +12, SCALP +16, GOLD/SHIP +8; Pocahontas/France half).
+- Series M: `2820` hard-bargain primary extras beyond silver/ore.
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 
 **Phase 5 (alarmed act + claims) — partial**
 
-- Alarmed escort MD≤4 / 2× colony weight at alarm≥55 + smoke asserts.
+- Alarmed escort: MD≤4 / 2× at alarm≥55; MD≤5 / 3× at alarm≥80 + smoke.
 - `MID01.SAV` + `MID02.SAV`: Linux-derived mid-war stamp + one joint turn pair
   compare via `smoke_ai_mid01` (wired into `smoke_ai_joint`).
 - `LATE01.SAV`: late-war stamp from MID02 + structural raid/hunt compare via
   `smoke_ai_late01` (joint gate) — **not** T2 field-diff, **not** blanket T3.
 - Series I: mil unload stance-gate (`−0x6790` / `local_9c` 0x10-shaped).
+- Series L: peacetime sticky mil unload (Brave MD≤3 / stance==4).
 - Series J: `5fef` kind-scaled raid tension (0d6c-shaped deltas).
+- Series N: alarm≥80 escort deepen (outside quiet `14fe`) — **not** blanket T3.
 - Quiet `14fe` dir picker unchanged. Full alarmed unit-act **PARKED**.
 
 **Per-module fidelity (honest — not blanket T3)**
