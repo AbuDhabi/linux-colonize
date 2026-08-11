@@ -332,11 +332,11 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
     options_finish(dlg, true);
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_UP && dlg->selection > 0) {
+  if (colonize_key_up(input->last_key) && dlg->selection > 0) {
     dlg->selection--;
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_DOWN && dlg->selection + 1 < dlg->option_count) {
+  if (colonize_key_down(input->last_key) && dlg->selection + 1 < dlg->option_count) {
     dlg->selection++;
     return true;
   }

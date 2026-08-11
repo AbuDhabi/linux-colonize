@@ -184,11 +184,11 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
     save_load_cancel(dlg);
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_UP) {
+  if (colonize_key_up(input->last_key)) {
     save_load_move_selection(dlg, -1);
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_DOWN) {
+  if (colonize_key_down(input->last_key)) {
     save_load_move_selection(dlg, 1);
     return true;
   }

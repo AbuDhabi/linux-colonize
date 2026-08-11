@@ -96,9 +96,9 @@ bool howmuch_handle_input(HowmuchDialog* dlg, const ColonizeInputState* input) {
   }
 
   int delta = 0;
-  if (input->last_key == COLONIZE_KEY_UP) {
+  if (colonize_key_up(input->last_key)) {
     delta = input->shift_held ? 10 : 1;
-  } else if (input->last_key == COLONIZE_KEY_DOWN) {
+  } else if (colonize_key_down(input->last_key)) {
     delta = input->shift_held ? -10 : -1;
   }
   if (delta != 0) {

@@ -89,11 +89,11 @@ bool unit_stack_handle_input(
     unit_stack_close(dlg);
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_UP && dlg->selection > 0) {
+  if (colonize_key_up(input->last_key) && dlg->selection > 0) {
     dlg->selection--;
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_DOWN && dlg->selection + 1 < dlg->count) {
+  if (colonize_key_down(input->last_key) && dlg->selection + 1 < dlg->count) {
     dlg->selection++;
     return true;
   }

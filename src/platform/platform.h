@@ -78,6 +78,20 @@ typedef struct ColonizeInputState {
   int text_input_len;
 } ColonizeInputState;
 
+/* Arrow keys and numpad 8/2/4/6 — list / choice UI navigation (map still uses KP*). */
+static inline bool colonize_key_up(ColonizeKey k) {
+  return k == COLONIZE_KEY_UP || k == COLONIZE_KEY_KP8;
+}
+static inline bool colonize_key_down(ColonizeKey k) {
+  return k == COLONIZE_KEY_DOWN || k == COLONIZE_KEY_KP2;
+}
+static inline bool colonize_key_left(ColonizeKey k) {
+  return k == COLONIZE_KEY_LEFT || k == COLONIZE_KEY_KP4;
+}
+static inline bool colonize_key_right(ColonizeKey k) {
+  return k == COLONIZE_KEY_RIGHT || k == COLONIZE_KEY_KP6;
+}
+
 typedef struct ColonizePalette {
   uint8_t rgb[256][3];
 } ColonizePalette;

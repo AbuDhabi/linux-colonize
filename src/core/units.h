@@ -271,7 +271,9 @@ typedef enum ColonizeEnterReason {
   COLONIZE_ENTER_BLOCKED_HS_SAIL = 9, /* 4720 reason 5: HS east without sail */
   COLONIZE_ENTER_VILLAGE_ILLEGAL = 10,
   COLONIZE_ENTER_NO_MP = 11,
-  COLONIZE_ENTER_BLOCKED = 12
+  COLONIZE_ENTER_BLOCKED = 12,
+  COLONIZE_ENTER_BOARD = 13, /* land → ocean tile with own ship that has room */
+  COLONIZE_ENTER_VILLAGE_SHIP = 14 /* ship → native village (not landfall); 4528 abort */
 } ColonizeEnterReason;
 
 ColonizeEnterReason units_enter_probe(
@@ -647,6 +649,16 @@ bool units_find_eastern_high_seas_tile(
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /* Board without adjacency check (COL1 import; passenger already stacked on ship tile). */
 bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
+/*
+ * Own ship on (x,y) with free passenger capacity, or -1.
+ * Cite: FUN_4720_0006 / 015c land→ocean embark probe.
+ */
+int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int nation_id);
+/*
+ * Board same-nation on-map land units with Sentry on (x,y) onto ship until full.
+ * Used when a ship leaves a colony or stacked ocean tile. Returns count boarded.
+ */
+int units_board_sentries_from_tile(ColonizeUnitPool* pool, int ship_id, int x, int y);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
 bool units_unload(
   ColonizeUnitPool* pool,

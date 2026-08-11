@@ -765,6 +765,10 @@ const char* units_enter_reason_status(ColonizeEnterReason reason) {
     return "Need sail order for high seas";
   case COLONIZE_ENTER_VILLAGE_ILLEGAL:
     return "Illegal entry into village";
+  case COLONIZE_ENTER_BOARD:
+    return "Boarded ship";
+  case COLONIZE_ENTER_VILLAGE_SHIP:
+    return "Village";
   case COLONIZE_ENTER_NO_MP:
     return "No moves left";
   case COLONIZE_ENTER_BLOCKED:
@@ -1804,6 +1808,9 @@ static void units_try_capture_foreign_colony(
   (void)colonies_capture(colonies, cid, u->nation_id);
 }
 
+/* Boarding helpers are defined later; enter_probe needs the embark probe. */
+int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int nation_id);
+
 ColonizeEnterReason units_enter_probe(
   const ColonizeUnitPool* pool,
   int type_index,
@@ -1903,6 +1910,21 @@ ColonizeEnterReason units_enter_probe(
       }
     }
     if (land) {
+      /*
+       * Native village (HAS_CITY, no Euro colony): ship abort path in
+       * FUN_4d56_4528 — not landfall. Cite: indian_settlement_4528.md.
+       */
+      if (map->layer2) {
+        const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+        if (idx < (size_t)map->width * (size_t)map->height &&
+            (map->layer2[idx] & MAP_OCCUPANCY_HAS_CITY) != 0) {
+          const int cid = colonies ? colonies_id_at(colonies, x, y) : -1;
+          if (cid < 0) {
+            g_units_last_enter_reason = COLONIZE_ENTER_VILLAGE_SHIP;
+            return g_units_last_enter_reason;
+          }
+        }
+      }
       g_units_last_enter_reason = COLONIZE_ENTER_LANDFALL;
       return g_units_last_enter_reason;
     }
@@ -1911,6 +1933,14 @@ ColonizeEnterReason units_enter_probe(
   }
 
   if (!land) {
+    /*
+     * Land → ocean/HS: embark if own ship on dest has room (FUN_4720_015c /
+     * 0006). Otherwise domain deny.
+     */
+    if (mover_nation >= 0 && units_find_boardable_ship(pool, x, y, mover_nation) >= 0) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+      return g_units_last_enter_reason;
+    }
     g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
     return g_units_last_enter_reason;
   }
@@ -2103,11 +2133,33 @@ bool units_try_move(
     units_enter_probe(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies);
   g_units_last_enter_reason = reason;
 
+  if (reason == COLONIZE_ENTER_BOARD) {
+    const int ship_id = units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id);
+    if (ship_id < 0) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
+      return false;
+    }
+    if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+        unit->orders == UNITS_ORDER_FORTIFIED) {
+      unit->orders = UNITS_ORDER_NONE;
+    }
+    const int ox = unit->x;
+    const int oy = unit->y;
+    if (!units_board(pool, unit_id, ship_id)) {
+      g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED;
+      return false;
+    }
+    units_occupancy_refresh_tile(pool, ox, oy, unit_id);
+    units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+    g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
+    return true;
+  }
+
   if (reason == COLONIZE_ENTER_BOUNCE_FOREIGN || reason == COLONIZE_ENTER_BOUNCE_PEACE ||
       reason == COLONIZE_ENTER_BLOCKED_DOMAIN || reason == COLONIZE_ENTER_BLOCKED_EDGE ||
       reason == COLONIZE_ENTER_BLOCKED_HS_SAIL || reason == COLONIZE_ENTER_VILLAGE_ILLEGAL ||
-      reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_NO_MP ||
-      reason == COLONIZE_ENTER_BLOCKED) {
+      reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_VILLAGE_SHIP ||
+      reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED) {
     return false;
   }
 
@@ -2211,6 +2263,11 @@ bool units_try_move(
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+
+  /* Sentry land units on the departure tile auto-board (colony / ocean stack). */
+  if (units_is_sea(pool, unit_id)) {
+    (void)units_board_sentries_from_tile(pool, unit_id, ox, oy);
+  }
 
   /* Wagon / ship-stack on Euro settlement: DOS 465b:08f8 exhaust MP. */
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0 &&
@@ -3595,6 +3652,54 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
   land->orders = 1; /* sentry aboard */
   ship->cargo_ids[ship->cargo_count++] = land_unit_id;
   return true;
+}
+
+int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int nation_id) {
+  if (!pool || nation_id < 0) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* ship = &pool->units[i];
+    if (!ship->active || ship->nation_id != nation_id) {
+      continue;
+    }
+    if (!units_is_sea(pool, ship->id) || !units_is_on_map(ship)) {
+      continue;
+    }
+    if (ship->x != x || ship->y != y) {
+      continue;
+    }
+    const int cap = units_ship_capacity(pool, ship->id);
+    if (cap > 0 && ship->cargo_count < cap) {
+      return ship->id;
+    }
+  }
+  return -1;
+}
+
+int units_board_sentries_from_tile(ColonizeUnitPool* pool, int ship_id, int x, int y) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!pool || !ship || !units_is_sea(pool, ship_id)) {
+    return 0;
+  }
+  int boarded = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* land = &pool->units[i];
+    if (!land->active || !units_is_on_map(land) || units_is_sea(pool, land->id)) {
+      continue;
+    }
+    if (land->nation_id != ship->nation_id || land->x != x || land->y != y) {
+      continue;
+    }
+    if (land->orders != UNITS_ORDER_SENTRY) {
+      continue;
+    }
+    if (!units_board_stacked(pool, land->id, ship_id)) {
+      break; /* full or reject — stop filling */
+    }
+    boarded++;
+  }
+  return boarded;
 }
 
 static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {

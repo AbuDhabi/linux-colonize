@@ -182,11 +182,11 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     ai_popup_finish(st, true, -1);
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_UP && st->selection > 0) {
+  if (colonize_key_up(input->last_key) && st->selection > 0) {
     st->selection--;
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_DOWN &&
+  if (colonize_key_down(input->last_key) &&
       st->selection + 1 < st->current.choice_count) {
     st->selection++;
     return true;
