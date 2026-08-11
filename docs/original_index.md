@@ -11,6 +11,7 @@ the deep detail.
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
 | Move-into-tile authority (enter / combat / landfall) | [move_enter.md](move_enter.md) |
+| Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
 | Project goals / acceptance order | [project_goals.md](project_goals.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | **Between player turns** (full EOT map + Layer D `130d`/`3844`) | [turn_between_players.md](turn_between_players.md) |
