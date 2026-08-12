@@ -563,6 +563,7 @@ static void turn_produce_one_colony(
     }
   }
 
+  colony_prod_tick_rebel_accumulators(pool, colony, col1);
   colony_prod_refresh_sol_flags(colony, col1);
 
   /*

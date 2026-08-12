@@ -207,6 +207,7 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | B cargo apply | `turn_produce_one_colony` + craft/yield — **Partial** (AI food `difficulty>>1` **Done**) |
 | B Custom House | `europe_custom_house_autosell` **Done** |
 | C/D SoL flags | `colony_prod_refresh_sol_flags` (sol_50/100); food starve reshape |
+| C SoL accumulators | `colony_prod_tick_rebel_accumulators` **Done** (shrink÷64 + pop×2 + bells; WoI crown half-negative) |
 | L hammers | `colony_prod_colony_hammers` + complete |
 | O spoilage trim | `colonies_apply_warehouse_spoilage` |
 | O AI dump-sell | `europe_ai_colony_dump_sell` **Done** thin |

@@ -58,8 +58,10 @@ Each colony end-of-turn (DOS):
 5. Under War of Independence + crown-occupied colony: bells feed Tory
    (`bells = -(bells >> 1)` before the add)
 
-**Port:** accumulator tick **PARK** — SoL only moves when Col1 fields already
-have values (loaded save) or Bolivar bumps dividend on elect.
+**Port:** [`colony_prod_tick_rebel_accumulators`](../src/core/colony_production.c)
+**Wired** — called from `turn_produce_one_colony` before sol flag refresh.
+Jefferson/Paine FF applied to bells; WoI via `head.unknown46[0]`; crown =
+human peer (0↔1).
 
 ### Nation / “overall” SoL (`FUN_43f7_0004`)
 
@@ -107,7 +109,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
 | Cont. Army muster by colony SoL | Declare-turn muster; &lt;50% = 0 | **PARK** |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |
-| Rebel accumulator EOT | Grow dividend/divisor from bells | **PARK** |
+| Rebel accumulator EOT | Grow dividend/divisor from bells | **Wired** (`colony_prod_tick_rebel_accumulators`) |
 
 ---
 
@@ -207,7 +209,6 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 
 | Effect | Source |
 |--------|--------|
-| Rebel dividend/divisor EOT tick | `FUN_364b_0688` Phase C |
 | DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 |
 | Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
 | Continental Army muster by colony SoL | Manual |
