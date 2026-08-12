@@ -647,7 +647,7 @@ static void game_request_noport_found_confirm(ColonizeGameState* game, int uid) 
 
 /*
  * Human FOUND (B key / Orders → Build Colony).
- * @SEACOLONY on water; @NOPORT CHOICE when land is not coastal.
+ * @SEACOLONY on water; @TOOMOUNTAIN on mountains; @NOPORT CHOICE when land is not coastal.
  */
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
   if (!game || !game->world_map_ok) {
@@ -662,6 +662,20 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
       "SEACOLONY",
       NULL,
       "Colonies cannot be built at sea.",
+      body,
+      sizeof(body)
+    );
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
+  if (map_pedia_terrain_index_at(&game->world_map, cx, cy) == 27) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages,
+      "TOOMOUNTAIN",
+      NULL,
+      "Colonies cannot be built in the mountains.",
       body,
       sizeof(body)
     );

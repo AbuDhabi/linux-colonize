@@ -172,7 +172,7 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Build Colony (**B**) | Land founder off colony | `479b_076e` found body; name `@COLONY` | Immediate found; `@SEACOLONY` on water; `@NOPORT` CHOICE inland; order 7 unused | Done |
+| Build Colony (**B**) | Land founder off colony | `479b_076e` found body; name `@COLONY` | Immediate found; `@SEACOLONY` on water; `@TOOMOUNTAIN` on mountains; `@NOPORT` CHOICE inland; order 7 unused | Done |
 | Join Colony (**B**) | On own colony tile | Admit / open colony | Admit selected land unit; `@FULL` if at POP_MAX; else open colony | Done |
 | Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **O**/**U**; gated off-settlement | Done |
 | Return to Europe | Ship on High Seas | Sail home lane | Despawn → Europe Expected | Done |

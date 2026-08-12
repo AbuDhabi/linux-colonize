@@ -106,9 +106,10 @@ Cite: **68558–68620**.
 cap 4000; non-human `((8−diff)*score)>>3`; nation0 `*2/3`. Out-delta `*param_2`
 defaults to **+2** (treasure can force −2 — PARKED).
 
-**Port:** score + AI/diff scale + nation0×2/3 + **+2/tick** **Done** thin
-(`europe_tick_immigration_pressure`). Human with colony pop 0 skips accrue/spawn
-(crosses own early immigration). Spawn chrome: `@UNREST` popup, not auto-Europe.
+**Port:** score → `needed_crosses`; idle **+2/tick** → `current_crosses` until
+first dock immigrant (TURN5–7 stay 0 without churches); church crosses add to
+`current` before the tick; spawn when `current > needed`. Separate
+`immigration_pressure` fields are mirrors only.
 
 ### Phase 5 — dock immigrant vs Recruit
 

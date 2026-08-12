@@ -711,11 +711,13 @@ static void turn_produce_one_colony(
   const int food_surplus_turn = field_food - consumed;
   /*
    * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
-   * Kill only if already latched last turn and still short (DOS 0x8e5a path
-   * warns then removes; AI soft-skips mild deficit). Cite: ~57623–57694.
+   * Phase J kills when still short after this turn *and* food was already 0
+   * at turn start (local_6c==0 / local_12e); pop==kills → @VANISH + abandon.
+   * Easy-difficulty no-kill RNG PARKED. Cite: ~57623–57694.
    */
   {
     const int need = pop * TURN_FOOD_PER_COLONIST;
+    const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
     const int was_starving =
       (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0;
     int starved_this_tick = 0;
@@ -768,13 +770,19 @@ static void turn_produce_one_colony(
     }
 
     /*
-     * Phase J — starve-kill one colonist on second consecutive shortfall.
-     * Never remove the last colonist (fandom: commons feeds ≥1; La Salle
-     * edge cases PARKED). Cite: ~57623–57694; docs/fandom_col1994.md.
+     * Phase J — starve-kill when still short and started the turn at 0 food.
+     * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
      */
-    if (was_starving &&
-        (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0 &&
-        colony->colonist_count > 1) {
+    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0 &&
+        food_at_start == 0 && colony->colonist_count > 0) {
+      const int colony_id = colony->id;
+      char vanish_name[COLONIZE_COLONY_NAME_MAX];
+      snprintf(
+        vanish_name,
+        sizeof(vanish_name),
+        "%s",
+        colony->name[0] ? colony->name : "colony"
+      );
       const int kill_i = colony->colonist_count - 1;
       for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
         if ((int)colony->tiles[ti] == kill_i) {
@@ -792,6 +800,26 @@ static void turn_produce_one_colony(
       colony->colonist_count--;
       colony->population = colony->colonist_count;
       starved_this_tick = 1;
+      if (colony->colonist_count <= 0) {
+        if (europe && colony->nation_id == human_nation) {
+          snprintf(
+            europe->status,
+            sizeof(europe->status),
+            "Colony %s vanished.",
+            vanish_name
+          );
+          if (ai_popups) {
+            char body[AI_POPUP_BODY_LEN];
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            tok.string0 = vanish_name;
+            popup_msg_fill(messages, "VANISH", &tok, europe->status, body, sizeof(body));
+            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          }
+        }
+        (void)colonies_abandon(pool, colony_id);
+        return;
+      }
       if (europe && colony->nation_id == human_nation) {
         if (colony->name[0]) {
           snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
@@ -1672,21 +1700,6 @@ static void turn_notify_dock_immigrant(
   ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, "Immigration", body);
 }
 
-static void turn_push_dock_immigrant(EuropeScreen* europe, ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
-  if (!europe) {
-    return;
-  }
-  if (!europe_immigrant_from_pool(europe)) {
-    return;
-  }
-  europe->open_on_dock = false; /* popup only — player opens Europe when ready */
-  const char* name = "";
-  if (europe->dock_count > 0) {
-    name = europe->dock[europe->dock_count - 1].name;
-  }
-  turn_notify_dock_immigrant(ctx, out, name);
-}
-
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   if (!ctx) {
     return;
@@ -1701,18 +1714,10 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
     if (ctx->europe->needed_crosses == 0) {
       ctx->europe->needed_crosses = TURN_DEFAULT_NEEDED_CROSSES;
     }
-    /* Deferred needed+1 one turn after first immigrant (TURN5→TURN6 goldens). */
-    if (ctx->europe->crosses_pending_needed_bump) {
-      unsigned need = (unsigned)ctx->europe->needed_crosses + 1u;
-      if (need > 65535u) {
-        need = 65535u;
-      }
-      ctx->europe->needed_crosses = (uint16_t)need;
-      ctx->europe->crosses_pending_needed_bump = false;
-    }
     /*
-     * Crosses only from colony churches / missions — no free idle +2.
-     * Cite: manual immigration via crosses; idle +2 was a golden-era hack.
+     * Church / colony crosses accrue into current_crosses, then 584a sets
+     * needed and adds idle +2 until the first dock immigrant.
+     * Cite: Phase M + 5e52; TURN1–7 goldens.
      */
     ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
     {
@@ -1728,30 +1733,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         cur = 65535u;
       }
       ctx->europe->current_crosses = (uint16_t)cur;
-    }
-    while (ctx->europe->needed_crosses > 0 &&
-           ctx->europe->current_crosses >= ctx->europe->needed_crosses) {
-      /* Discard remainder; needed bumps on the following turn. */
-      ctx->europe->current_crosses = 0;
-      ctx->europe->crosses_immigrant_seen = true;
-      ctx->europe->crosses_pending_needed_bump = true;
-      turn_push_dock_immigrant(ctx->europe, ctx, out);
-      /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
-      if (ctx->units && ctx->europe->dock_count > 0) {
-        const EuropeDockImmigrant* d = &ctx->europe->dock[ctx->europe->dock_count - 1];
-        const int tid = units_find_type(ctx->units, "Colonists");
-        const int type_index = tid >= 0 ? tid : 0;
-        const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
-        ColonizeUnit* u = units_get(ctx->units, id);
-        if (u) {
-          units_set_nation(u, ctx->human_nation);
-          u->orders = UNITS_ORDER_SENTRY;
-          u->profession = d->profession;
-          u->goto_x = 0;
-          u->goto_y = 0;
-          u->moves_left = 0;
-        }
-      }
     }
     if (europe_tick_immigration_pressure(
           ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation
@@ -1817,21 +1798,24 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         nat->current_crosses = (uint16_t)cur;
       }
       /*
-       * AI Euro crosses: +2 /turn here (was ai_euro_nation_turn); churches in nc.
-       * Threshold → Europe Free Colonist is PARKED — seed-100 TURN6→7 goldens sit
-       * at needed (14/14) without convert; human dock path above stays Done.
-       * Cite: nation_ticks_bells_ff.md; test-saves-ai/TURN7; smoke_ai_turns.
+       * AI Euro: same 584a needed +2 as human (Free Colonist spawn PARKED).
+       * Cite: nation_ticks_bells_ff.md; TURN1–7 goldens (needed≈14 early).
        */
       if (n != ctx->human_nation) {
+        const int score = europe_compute_immigration_score(
+          ctx->colonies, ctx->units, ctx->col1, n
+        );
+        int need = score > 0 ? score : TURN_AI_DEFAULT_NEEDED_CROSSES;
+        if (need > 65535) {
+          need = 65535;
+        }
+        nat->needed_crosses = (uint16_t)need;
         {
           unsigned cur = (unsigned)nat->current_crosses + 2u;
           if (cur > 65535u) {
             cur = 65535u;
           }
           nat->current_crosses = (uint16_t)cur;
-        }
-        if (nat->needed_crosses == 0) {
-          nat->needed_crosses = TURN_AI_DEFAULT_NEEDED_CROSSES;
         }
       }
       /* Human Europe screen is authoritative for human nation counters. */

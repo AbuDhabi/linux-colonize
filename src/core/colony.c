@@ -250,9 +250,16 @@ bool colonies_can_found(
   if (!map_tile_is_land(map, x, y)) {
     return false;
   }
-  /* Arctic (pedia 24) is not colonizable — classic Col1 / manual. */
-  if (map_pedia_terrain_index_at(map, x, y) == 24) {
-    return false;
+  /*
+   * Arctic (pedia 24) and mountains (pedia 27) are not colonizable.
+   * Hills (28) are valid. Cite: Colonization.pdf; GAME.TXT @TOOMOUNTAIN;
+   * docs/terrain_yields.md.
+   */
+  {
+    const int pedia = map_pedia_terrain_index_at(map, x, y);
+    if (pedia == 24 || pedia == 27) {
+      return false;
+    }
   }
   if (colonies_id_at(pool, x, y) >= 0) {
     return false;

@@ -576,10 +576,9 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->gold = 1000;
   eu->tax_percent = 0;
   eu->current_crosses = 0;
-  /* Match new-game Col1 human needed (ai.c / COLONY00–01); no free starter docks. */
+  /* Match new-game Col1 human needed seed (COLONY00); first EOT overwrites via 584a. */
   eu->needed_crosses = 9;
   eu->crosses_immigrant_seen = false;
-  eu->crosses_pending_needed_bump = false;
   eu->liberty_bells_total = 0;
   eu->liberty_bells_last_turn = 0;
   eu->harbor_ships = 0;
@@ -1543,19 +1542,18 @@ void europe_tick_market_prices(
   }
 }
 
-int europe_tick_immigration_pressure(
-  EuropeScreen* eu,
+int europe_compute_immigration_score(
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,
   int nation_id
 ) {
   /*
-   * FUN_38fd_584a thin: score ≈ colony pop sum + unit count; <<1 if <4000; +8;
+   * FUN_38fd_584a: score ≈ colony pop sum + unit count; <<1 if <4000; +8;
    * cap 4000; AI/non-human ((8-diff)*score)>>3; nation0 *2/3.
-   * Write +0x30; accumulate +0x2e. Cite: europe_nation_eot.md phase 4; ~68248.
+   * Cite: europe_nation_eot.md phase 4; ~68248.
    */
-  if (!eu || nation_id < 0 || nation_id > 3) {
+  if (nation_id < 0 || nation_id > 3) {
     return 0;
   }
   int pop = 0;
@@ -1584,7 +1582,6 @@ int europe_tick_immigration_pressure(
   if (score > 4000) {
     score = 4000;
   }
-  int is_human = 0;
   if (col1) {
     const int control =
       (nation_id < 4) ? (int)col1->player[nation_id].control : 1;
@@ -1597,41 +1594,59 @@ int europe_tick_immigration_pressure(
         diff = 8;
       }
       score = ((8 - diff) * score) >> 3;
-    } else {
-      is_human = 1;
     }
     if (nation_id == 0) {
       score = (score << 1) / 3;
     }
   }
-  eu->immigration_score = (int16_t)score;
+  return score;
+}
+
+int europe_tick_immigration_pressure(
+  EuropeScreen* eu,
+  const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
+  int nation_id
+) {
   /*
-   * DOS FUN_38fd_584a: *param_2 starts at +2 each tick (treasure can force −2;
-   * PARKED). Human with no colony pop: do not accrue — early game is crosses/
-   * churches only (idle +2 crosses was a port fiction). AI always accrues.
+   * DOS: +0x30 = 584a score (needed_crosses); +0x2e += 2 (and church crosses
+   * already applied by caller); spawn when score < pressure. Cite: 5e52 ~68558.
    */
-  if (!(is_human && pop <= 0)) {
-    const int delta = 2;
-    int press = (int)eu->immigration_pressure + delta;
-    if (press > 32767) {
-      press = 32767;
-    }
-    if (press < 0) {
-      press = 0;
-    }
-    eu->immigration_pressure = (int16_t)press;
-  } else {
-    eu->immigration_pressure = 0;
-  }
-  /*
-   * Phase 5 gate: score < pressure → dock immigrant. Chrome: caller shows
-   * @UNREST — do not auto-open Europe (DS:0x14c is optional / ship-arrival).
-   */
-  if (is_human && pop <= 0) {
+  if (!eu || nation_id < 0 || nation_id > 3) {
     return 0;
   }
-  if (eu->immigration_score > 0 && eu->immigration_score < eu->immigration_pressure) {
+  const int score = europe_compute_immigration_score(colonies, units, col1, nation_id);
+  int need = score;
+  if (need < 0) {
+    need = 0;
+  }
+  if (need > 65535) {
+    need = 65535;
+  }
+  eu->needed_crosses = (uint16_t)need;
+  eu->immigration_score = (int16_t)(need > 32767 ? 32767 : need);
+
+  /*
+   * Idle +2 (584a *param_2 default) until the first dock immigrant; afterward
+   * only church/mission crosses (caller) accrue. Seed-100 TURN5–7 stay 0/10
+   * with no churches. Cite: test-saves-ai/TURN1–7; 5e52 ~68558.
+   */
+  unsigned cur = (unsigned)eu->current_crosses;
+  if (!eu->crosses_immigrant_seen) {
+    cur += 2u;
+    if (cur > 65535u) {
+      cur = 65535u;
+    }
+  }
+  eu->current_crosses = (uint16_t)cur;
+  eu->immigration_pressure = (int16_t)(cur > 32767u ? 32767 : (int)cur);
+
+  /* Phase 5: needed < current → dock immigrant; clear current. */
+  if (need > 0 && (int)eu->current_crosses > need) {
+    eu->current_crosses = 0;
     eu->immigration_pressure = 0;
+    eu->crosses_immigrant_seen = true;
     if (europe_immigrant_from_pool(eu)) {
       eu->open_on_dock = false;
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");

@@ -106,7 +106,7 @@ fragment. Related sections are listed in the first column.
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm / ship cargo error | Done | Confirm `@SUREDISBAND`; `@DISBANDSHIP` OK when units aboard |
 | `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
 | `@OVERBOARD` | Dump cargo confirm | Done | Yes/No then dump first hold |
-| Order gates (`@ONLYPIO`, `@NEEDTOOLS`, `@NOPLOW`, …) | Illegal order | Partial | `@ONLYPIO`/`@NOPLOW`/`@NOROAD` Done thin; EOT `@NEEDTOOLS`/`@NEEDTOOLS0` Done thin; `@SEACOLONY`/`@NOPORT` found Done thin; other gates status |
+| Order gates (`@ONLYPIO`, `@NEEDTOOLS`, `@NOPLOW`, …) | Illegal order | Partial | `@ONLYPIO`/`@NOPLOW`/`@NOROAD` Done thin; EOT `@NEEDTOOLS`/`@NEEDTOOLS0` Done thin; `@SEACOLONY`/`@TOOMOUNTAIN`/`@NOPORT` found Done thin; other gates status |
 
 ### 4. Colony screen
 
@@ -327,6 +327,7 @@ work.
 | `@LANDFIRST` | Partial | order/gate — status or bounce; no modal |
 | `@SEACOLONY` | Done thin | Build Colony on water → ai_popup OK |
 | `@NOPORT` | Done thin | inland Build Colony → CHOICE cancel/proceed |
+| `@TOOMOUNTAIN` | Done thin | Build Colony on mountains → ai_popup OK |
 | `@BUILT` | Done thin | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
 | `@FULL` | Done thin | Join Colony at POP_MAX → ai_popup OK |
 | `@NOTEACHER` | Done thin | unskilled → school assign refuse + ai_popup OK |
@@ -365,7 +366,7 @@ work.
 | `@TOOLS` | Done thin | EOT Phase K empty tools+muskets + Armory ai_popup OK |
 | `@FOOD1` | Done thin | EOT first starvation latch ai_popup OK (`@FOOD1`); VGA PARKED |
 | `@FOOD2` | Done thin | EOT first latch + autumn → winter-soon (`@FOOD2`); VGA PARKED |
-| `@VANISH` | Missing | production/EOT messages — status or silent; no modal |
+| `@VANISH` | Done thin | EOT last-colonist starve-kill → ai_popup OK + abandon; VGA PARKED |
 | `@STARVE1` | Done thin | EOT starve-kill ai_popup OK; spring/default |
 | `@STARVE2` | Done thin | EOT starve-kill + autumn → winter-coming (`@STARVE2`) |
 | `@FOODLOW` | Done thin | EOT production shortfall (`8e32`) and stock &lt; shortfall×4 (`@FOODLOW`); no warn on surplus harvest; VGA PARKED |
@@ -486,7 +487,6 @@ work.
 | `@EXTORTNO` | Missing | extort/ship anger dialogs missing |
 | `@TOONEAR` | Partial | order/gate — status or bounce; no modal |
 | `@TOONEARBUILD` | Partial | order/gate — status or bounce; no modal |
-| `@TOOMOUNTAIN` | Partial | order/gate — status or bounce; no modal |
 | `@DONTKNOWSHIPS` | Done | Ship→unmet village: `ai_contact_try_ship_village` OK |
 | `@MADATSHIPS` | Done | Ship→met village (rel≥75 / friction≥64): same |
 | `@MADATWAGONS` | Missing | extort/ship anger dialogs missing |

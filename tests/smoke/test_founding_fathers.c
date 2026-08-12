@@ -1202,7 +1202,7 @@ int main(void) {
     }
   }
 
-  /* Arctic founding rejection. */
+  /* Arctic / mountain founding rejection. */
   {
     char err[64];
     ColonizeWorldMap map;
@@ -1214,11 +1214,21 @@ int main(void) {
       map.terrain[i] = 1;
     }
     map.terrain[3 * 8 + 3] = 24; /* arctic */
+    map.terrain[4 * 8 + 4] = (uint8_t)(2 | 0xa0); /* mountain */
+    map.terrain[5 * 8 + 5] = (uint8_t)(2 | 0x20); /* hill */
     ColonizeColonyPool pool;
     colonies_init(&pool);
     if (colonies_can_found(&pool, &map, 3, 3)) {
       map_free(&map);
       return fail("can_found allowed arctic");
+    }
+    if (colonies_can_found(&pool, &map, 4, 4)) {
+      map_free(&map);
+      return fail("can_found allowed mountain");
+    }
+    if (!colonies_can_found(&pool, &map, 5, 5)) {
+      map_free(&map);
+      return fail("can_found rejected hill");
     }
     if (!colonies_can_found(&pool, &map, 2, 2)) {
       map_free(&map);
@@ -1326,7 +1336,21 @@ int main(void) {
     EuropeScreen peu;
     memset(&peu, 0, sizeof(peu));
     peu.needed_crosses = 100;
-    peu.crosses_immigrant_seen = true; /* no base +2 */
+    peu.crosses_immigrant_seen = true; /* no idle +2 after first immigrant */
+
+    /* Keep 584a needed above Penn's 13 so the meter is not cleared by a spawn. */
+    ColonizeUnitPool punits;
+    memset(&punits, 0, sizeof(punits));
+    units_reset(&punits);
+    punits.type_count = 1;
+    snprintf(punits.types[0].name, sizeof(punits.types[0].name), "Colonists");
+    for (int ui = 0; ui < 20; ++ui) {
+      const int id = units_spawn_allow_stack(&punits, 0, 1, 1);
+      ColonizeUnit* uu = units_get(&punits, id);
+      if (uu) {
+        units_set_nation(uu, 0);
+      }
+    }
 
     ColonizeTurnContext pctx;
     memset(&pctx, 0, sizeof(pctx));
@@ -1335,6 +1359,7 @@ int main(void) {
     pctx.col1_ok = true;
     pctx.colonies = &pool;
     pctx.europe = &peu;
+    pctx.units = &punits;
 
     founding_fathers_tick(&pctx);
     if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_JEFFERSON)) {
@@ -1359,7 +1384,7 @@ int main(void) {
     pnat->liberty_bells_total = 0;
     pnat->current_crosses = 0;
     turn_run_nation_ticks(&pctx, NULL);
-    /* Jefferson+Paine: 12 bells; Penn: 13 crosses. */
+    /* Jefferson+Paine: 12 bells; Penn: 13 church crosses (no idle +2). */
     if (peu.liberty_bells_last_turn != 12) {
       return fail("turn Jefferson+Paine bells last_turn");
     }

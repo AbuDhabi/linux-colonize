@@ -960,7 +960,6 @@ bool col1_bridge_apply(
     europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
     /* Restore immigrant-crosses FSM from save (dock unit / spent crosses). */
     europe->crosses_immigrant_seen = false;
-    europe->crosses_pending_needed_bump = false;
     for (int ui = 0; ui < (int)save->head.unit_count; ++ui) {
       const ColonizeCol1Unit* uu = &save->unit[ui];
       if (uu->nation_id == (uint8_t)local.human_nation && col1_coord_is_europe(uu->x, uu->y) &&
@@ -968,10 +967,6 @@ bool col1_bridge_apply(
         europe->crosses_immigrant_seen = true;
         break;
       }
-    }
-    if (europe->crosses_immigrant_seen && europe->needed_crosses == 9 &&
-        europe->current_crosses == 0) {
-      europe->crosses_pending_needed_bump = true;
     }
     col1_copy_name24(europe->nation_name, sizeof(europe->nation_name),
                      save->player[local.human_nation].country_name);
