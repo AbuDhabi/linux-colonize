@@ -30,8 +30,11 @@ int main(void) {
   if (strcmp(st.current.body, "Hello body") != 0) {
     return fail("body mismatch");
   }
+  if (st.current.choice_count != 0) {
+    return fail("info dialog must not invent OK choice rows");
+  }
 
-  /* Simulate OK confirm via finishing path: Enter on selection 0. */
+  /* Body-only dismiss: Enter (any click / Esc / Space same path). */
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ENTER;
@@ -39,7 +42,7 @@ int main(void) {
     return fail("handle_input should consume");
   }
   if (st.open || !st.has_result || st.result_cancelled || st.result_choice_id != 0) {
-    return fail("OK result expected");
+    return fail("info dismiss result expected");
   }
   if (st.result_tag != AI_POPUP_TAG_INFO) {
     return fail("tag mismatch");
