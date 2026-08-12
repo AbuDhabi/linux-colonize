@@ -86,6 +86,17 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
  */
 void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Save* col1);
 
+/*
+ * FUN_364b_0688 Phase C: shrink rebel pairs ≈÷64, divisor += pop*2,
+ * dividend += bells (WoI + crown-occupied: bells = -(bells>>1)), clamp.
+ * No-op without matching Col1 colony at (x,y). See sons_of_liberty.md.
+ */
+void colony_prod_tick_rebel_accumulators(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  ColonizeCol1Save* col1
+);
+
 int colony_prod_crosses_worker(const char* building_name, int profession);
 int colony_prod_bells_worker(const char* building_name, int profession);
 int colony_prod_hammers_worker(const char* building_name, int profession);

@@ -957,6 +957,98 @@ int main(void) {
     fprintf(stderr, "AI colony food difficulty>>1 ok\n");
   }
 
+  /*
+   * FUN_364b_0688 Phase C: rebel dividend/divisor EOT tick.
+   * Cite: sons_of_liberty.md; colony_prod_tick_rebel_accumulators.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+    pool.building_type_count = 1;
+
+    ColonizeColony* c = &pool.colonies[0];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->id = 1;
+    c->x = 10;
+    c->y = 12;
+    c->nation_id = 0; /* human */
+    c->building_in_production = -1;
+    c->has_building[0] = true;
+    c->stock[COLONIZE_CARGO_FOOD] = 50;
+    c->colonists[0].active = true;
+    c->colonists[0].building_type = 0;
+    c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+    c->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      c->tiles[t] = -1;
+    }
+    c->colonist_count = 1;
+    c->population = 1;
+    pool.colony_count = 1;
+
+    ColonizeCol1Colony col1c;
+    memset(&col1c, 0, sizeof(col1c));
+    col1c.x = 10;
+    col1c.y = 12;
+    col1c.nation_id = 0;
+    /* Pre-shrink 50%/100 so >>6 restores 50/100. */
+    col1c.rebel_dividend = 50u << 6;
+    col1c.rebel_divisor = 100u << 6;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.colony = &col1c;
+    col1.head.colony_count = 1;
+    col1.player[0].control = 0;
+    col1.player[1].control = 1;
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      col1.head.founding_father[i] = -1;
+    }
+
+    /* Town Hall +1 + Statesman 6 = 7 bells. */
+    const int expect_bells = colony_prod_colony_bells(&pool, c);
+    if (expect_bells != 7) {
+      fprintf(stderr, "Phase C setup bells want 7 got %d\n", expect_bells);
+      return 1;
+    }
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
+    /* >>6 → 50/100; divisor+=2 → 102; dividend+=7 → 57. */
+    if (col1c.rebel_dividend != 57u || col1c.rebel_divisor != 102u) {
+      fprintf(
+        stderr,
+        "Phase C human tick want 57/102 got %u/%u\n",
+        (unsigned)col1c.rebel_dividend,
+        (unsigned)col1c.rebel_divisor
+      );
+      return 1;
+    }
+
+    /* WoI + crown-occupied: bells = -(7>>1) = -3 → dividend 50-3=47. */
+    col1c.rebel_dividend = 50u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->nation_id = 1; /* crown peer of human 0 */
+    col1c.nation_id = 1;
+    col1.head.unknown46[0] = 1;
+    c->stock[COLONIZE_CARGO_FOOD] = 50;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
+    if (col1c.rebel_dividend != 47u || col1c.rebel_divisor != 102u) {
+      fprintf(
+        stderr,
+        "Phase C WoI crown tick want 47/102 got %u/%u\n",
+        (unsigned)col1c.rebel_dividend,
+        (unsigned)col1c.rebel_divisor
+      );
+      return 1;
+    }
+    fprintf(stderr, "SoL Phase C rebel accumulator ok\n");
+  }
+
   /* FUN_364b_0688 starve-kill: second consecutive STARVATION turn → lose one. */
   {
     ColonizeColonyPool starve_pool;

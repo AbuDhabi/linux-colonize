@@ -4,6 +4,7 @@
 
 #include "core/col1_save.h"
 #include "core/colony_yield.h"
+#include "core/founding_fathers.h"
 
 static bool colony_prod_name_has(const char* name, const char* needle) {
   return name && needle && strstr(name, needle) != NULL;
@@ -248,6 +249,88 @@ void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Sav
     colony->colony_flags = (uint8_t)(colony->colony_flags &
                                      (uint8_t)~(COLONIZE_COLONY_FLAG_SOL_50 |
                                                 COLONIZE_COLONY_FLAG_SOL_100));
+  }
+}
+
+/*
+ * Crown / REF peer of human Euro slot (0↔1). Match ai_king / combat_strength.
+ */
+static int colony_prod_crown_nation(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    return 1;
+  }
+  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
+    if (col1->player[i].control == 0) {
+      return (i == 0) ? 1 : 0;
+    }
+  }
+  return 1;
+}
+
+void colony_prod_tick_rebel_accumulators(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  ColonizeCol1Save* col1
+) {
+  if (!pool || !colony || !colony->active || !col1 || !col1->colony) {
+    return;
+  }
+  ColonizeCol1Colony* cc = NULL;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->x == colony->x && (int)c->y == colony->y) {
+      cc = c;
+      break;
+    }
+  }
+  if (!cc) {
+    return;
+  }
+
+  int pop = colony->population > 0 ? colony->population : colony->colonist_count;
+  if (pop < 0) {
+    pop = 0;
+  }
+
+  const int nation_id = colony->nation_id;
+  const int statesmen_pct =
+    (nation_id >= 0 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON))
+      ? 50
+      : 0;
+  const int paine_tax_pct =
+    (nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+     founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
+      ? (int)col1->nation[nation_id].tax_rate
+      : 0;
+  int bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct);
+
+  /* WoI + crown-occupied: bells feed Tory (negative half). */
+  const int woi = col1->head.unknown46[0] != 0;
+  if (woi && nation_id == colony_prod_crown_nation(col1)) {
+    bells = -(bells >> 1);
+  }
+
+  cc->rebel_dividend >>= 6;
+  cc->rebel_divisor >>= 6;
+  cc->rebel_divisor += (uint32_t)(pop * 2);
+
+  if (bells >= 0) {
+    if (cc->rebel_dividend < 0xffffffffu - (uint32_t)bells) {
+      cc->rebel_dividend += (uint32_t)bells;
+    } else {
+      cc->rebel_dividend = 0xffffffffu;
+    }
+  } else {
+    const uint32_t sub = (uint32_t)(-bells);
+    if (cc->rebel_dividend > sub) {
+      cc->rebel_dividend -= sub;
+    } else {
+      cc->rebel_dividend = 0;
+    }
+  }
+
+  if (cc->rebel_dividend > cc->rebel_divisor) {
+    cc->rebel_dividend = cc->rebel_divisor;
   }
 }
 
