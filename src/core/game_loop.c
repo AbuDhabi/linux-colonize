@@ -622,7 +622,7 @@ static void game_request_noport_found_confirm(ColonizeGameState* game, int uid) 
     body,
     sizeof(body)
   );
-  char choice_buf[AI_POPUP_CHOICE_MAX][48];
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "NOPORT");
   int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
   const char* labels[2];
@@ -913,15 +913,45 @@ static void game_request_disband_confirm(ColonizeGameState* game) {
   const ColonizeUnit* u = units_get_const(&game->units, uid);
   const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
   const char* uname = (ut && ut->name[0]) ? ut->name : "unit";
+
+  /* @DISBANDSHIP is an error OK (no Yes/No) when a ship still carries units. */
+  if (units_is_sea(&game->units, uid)) {
+    int has_pax = 0;
+    if (u && u->cargo_count > 0) {
+      has_pax = 1;
+    } else {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* p = &game->units.units[i];
+        if (p->active && p->aboard_ship_id == uid) {
+          has_pax = 1;
+          break;
+        }
+      }
+    }
+    if (has_pax) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        &game->messages,
+        "DISBANDSHIP",
+        NULL,
+        "We cannot disband a ship at sea while it is carrying units.",
+        body,
+        sizeof(body)
+      );
+      ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      set_status(game, "Cannot disband ship with units aboard", NULL);
+      return;
+    }
+  }
+
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = uname;
-  const char* sec = units_is_sea(&game->units, uid) ? "DISBANDSHIP" : "SUREDISBAND";
   game_enqueue_yes_no(
     game,
     GAME_MAP_CONFIRM_DISBAND,
     uid,
-    sec,
+    "SUREDISBAND",
     "Really disband this unit?",
     &tok
   );
@@ -1005,7 +1035,7 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     game->europe.gold
   );
   popup_msg_fill(&game->messages, "BUYME1", &tok, fallback, body, sizeof(body));
-  char choice_buf[AI_POPUP_CHOICE_MAX][48];
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "BUYME1");
   int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
   const char* labels[2];
@@ -4209,7 +4239,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
           body,
           sizeof(body)
         );
-        char choice_buf[AI_POPUP_CHOICE_MAX][48];
+        char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
         const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "LANDFALL");
         int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
         const char* labels[2];
@@ -4750,7 +4780,7 @@ static bool game_colony_request_eject(
       body,
       sizeof(body)
     );
-    char choices[AI_POPUP_CHOICE_MAX][48];
+    char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
     const ColonizeMsgSection* sec = assets_msg_find(&game->messages, section);
     int nch = popup_msg_choices(sec, choices, AI_POPUP_CHOICE_MAX);
     colony_screen_open_abandon_confirm(

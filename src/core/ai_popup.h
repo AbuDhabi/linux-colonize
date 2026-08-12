@@ -27,7 +27,8 @@
 #define AI_POPUP_CHOICE_MAX 6
 #define AI_POPUP_BODY_LEN 512
 #define AI_POPUP_TITLE_LEN 64
-#define AI_POPUP_CHOICE_LEN 48
+/* Keep ≥ POPUP_MSG_CHOICE_LEN (GAME.TXT @DECLARE Never… is 53 chars). */
+#define AI_POPUP_CHOICE_LEN 64
 
 typedef enum AiPopupKind {
   AI_POPUP_KIND_OK = 0,

@@ -197,8 +197,8 @@ Peacetime before the declare gate: if SoL is **40..49**
 (`AI_KING_RESTLESS_SOL_MIN` .. `AI_KING_DECLARE_SOL_MIN-1`) and `ctx->status`
 is present, write `"Sons of Liberty grow restless (%d%%)."`. When `tax_rate`
 is already in the refuse band (≥20), append `" Tax is at %u%%."` (reads
-existing rate — no invented tax formula). With `ai_popups`, also enqueue INFO
-OK (same body). Must **not** overwrite an existing 1d42 audience / tax-hike
+existing rate — no invented tax formula). Status only (no invented wood OK).
+Must **not** overwrite an existing 1d42 audience / tax-hike
 status line. Does **not** set WoI/`unknown46[0]` or congress/`unknown46[5]`.
 Auto-declare still requires SoL≥**50**
 (`AI_KING_DECLARE_SOL_MIN` = FUN_43f7_2564 / fandom total SoL ≥ 50%; no new %)
@@ -222,9 +222,9 @@ Intervene **nation pick**: prefer the non-human / non-crown Euro with the most
 colonies; tie-break by on-map land unit count (`backup_force` is a shared pool).
 If both Regular (`backup[0]`) and Dragoon (`backup[1]`) are > 0, prefer that
 mix (one of each). Otherwise drain available pool types in order
-(MoW pool still lands a Regular stand-in). When landings > 0: status +
-`KING_ARRIVAL` OK **once** per beat (`Foreign troops have landed!`; 1528-shaped).
-Deep economy / merc hire / VGA arrival chrome remain PARKED.
+(MoW pool still lands a Regular stand-in). When landings > 0: status + `@INTERVENTION` then `@INTERVENE`
+`KING_ARRIVAL` OKs per beat (1528-shaped). Deep economy / merc hire / VGA
+arrival chrome remain PARKED.
 
 ### REF land hunt + colony capture (war act)
 
@@ -250,7 +250,8 @@ adjacent colony; adjacent fortified still wins). Adjacent
 human unit → `units_resolve_land_combat`; attack win → occupy tile. Ending on
 (or already standing on) a human colony tile → `colonies_capture` (conquest;
 no gold fiction); thin human status
-`"The King's forces have captured %s!"` (colony name; conquest chrome PARKED);
+`"The King's forces have captured %s!"` status; human `@CAPTURED3` OK
+(`popup_msg_fill`; conquest VGA PARKED);
 then **fortify up to two garrison** units on the tile via `units_order_fortify`:
 prefer Regular (capturer if Regular, else another crown Regular on tile); if
 none, one **Dragoon or Cont. Cav**; second slot when another idle garrison on
@@ -313,7 +314,7 @@ dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 
 ## PORT DEBT
 
-- **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `@TEAPARTY` refuse/dump follow-up OK (thin `3dc8` stock dump + tokens); `2564` congress `@DECLARE` CHOICE Never/Yes; `2244` merc CHOICE Hire/Decline + cannot-afford OK + Hire success follow-up OK + Decline follow-up OK; `1528` REF `@INVASION` arrival OK; `10f0` intervene landing ARRIVAL once (invent); capture OK; tax hike OK on Accept apply; revolution end `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` Done thin (`unknown46[4]` latch); mid-war `@WARN1`–`3` Done thin (`unknown46[6]`/`[7]`/`[10]`); peacetime 1800 `@SCORED` CHOICE + `@RETIRING` on That's all Done thin (`KING_SCORED` → retire score); `@SOONRETIRING0`/`1` Done thin (1790/1840; `unknown46[8]`/`[9]`); declare `@HOWTOWIN` Done thin (invent WoI-begins demoted)
+- **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `@TEAPARTY` refuse/dump follow-up OK (thin `3dc8` stock dump + tokens); `2564` congress `@DECLARE` CHOICE Never/Yes; `2244` merc CHOICE Hire/Decline + cannot-afford OK + Hire success follow-up OK + Decline follow-up OK; `1528` REF `@INVASION` arrival OK; `10f0` `@INTERVENTION`+`@INTERVENE` ARRIVAL; REF `@CAPTURED3` capture OK; tax hike OK on Accept apply; revolution end `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` Done thin (`unknown46[4]` latch); mid-war `@WARN1`–`3` Done thin (`unknown46[6]`/`[7]`/`[10]`); peacetime 1800 `@SCORED` CHOICE + `@RETIRING` on That's all Done thin (`KING_SCORED` → retire score); `@SOONRETIRING0`/`1` Done thin (1790/1840; `unknown46[8]`/`[9]`); declare `@HOWTOWIN` Done thin (invent WoI-begins demoted); restless status-only (invent OK demoted)
 - **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); **Cont. capital-rally** (nearest human colony + founding-capital MD slack; hold on colony tile; **Cont. Army/Cav fortify on founding capital cap 2**); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
 - **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods `38fd_3dc8` **CHOICE prompt** invent English (picker Done; `@TEAPARTY` after apply Done thin); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)

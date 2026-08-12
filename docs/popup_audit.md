@@ -20,7 +20,7 @@ choices from data where a real `@SECTION` exists.
 |------|------|---------|---------|--------|
 | Quit / title exit | `game_enqueue_yes_no` | `@DOS` | Authentic | — |
 | Retire | same | `@RETIRE` | Authentic | — |
-| Disband land/ship | same | `@SUREDISBAND` / `@DISBANDSHIP` | Authentic | — |
+| Disband land/ship | same | `@SUREDISBAND` / `@DISBANDSHIP` | Authentic | `@DISBANDSHIP` = cargo-blocked error OK; confirm always `@SUREDISBAND` |
 | Overboard | same | `@OVERBOARD` | Authentic | — |
 | Trade delete | same | `@SUREDELETE` | Authentic | — |
 | Find colony / trade select | `cheat_list` + `popup_msg_fill` | `@FINDCITY` / `@TRADE` | Authentic | — |
@@ -42,7 +42,7 @@ choices from data where a real `@SECTION` exists.
 
 | Site | Section | Verdict | Action |
 |------|---------|---------|--------|
-| Welcome Yes/No | `@INDIANWELCOME` | Authentic | — |
+| Welcome Yes/No | `@INDIANWELCOME` | Authentic | `popup_msg_fill` tribe/pop/braves tokens |
 | Peace / come / shun OK | `@INDIANPEACE` / `@INDIANCOME` / `@INDIANSHUN` | Authentic | — |
 | Ship unmet | `@DONTKNOWSHIPS` | Authentic | — |
 | Ship mad | `@MADATSHIPS` | Authentic | — |
@@ -80,7 +80,9 @@ choices from data where a real `@SECTION` exists.
 | Peacetime retire prose | `@RETIRING` | Authentic | That's all apply → estate near richest colony |
 | Anniversary soon-retire (1790) | `@SOONRETIRING0` | Authentic | Spring peacetime; `unknown46[8]` |
 | Anniversary soon-retire (1840) | `@SOONRETIRING1` | Authentic | wartime WoI; `unknown46[9]` |
-| WoI begins / capture / restless | various | Invented / Mismatch | Demote invents; wire clear sections only |
+| WoI begins / restless | various | Invented → status | Restless demoted to status-only |
+| REF capture | `@CAPTURED3` | Authentic | REF take without plunder |
+| Foreign intervene | `@INTERVENTION` / `@INTERVENE` | Authentic | declare + landing ARRIVAL |
 | Declare war briefing | `@HOWTOWIN` | Authentic | after `@INDEPENDENCE` letter; invent WoI-begins demoted |
 | Revolution win | `@WINNING` | Authentic | year≥1850 + no crown |
 | Revolution stalemate (1850) | `@RETIRING2` | Authentic | year≥1850 + crown still alive |
