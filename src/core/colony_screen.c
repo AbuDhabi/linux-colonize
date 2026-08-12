@@ -7,6 +7,7 @@
 #include "core/colony_preview.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/popup_msg.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/unit_chrome.h"
@@ -50,6 +51,11 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->eject_unit_id = -1;
   view->eject_selection = 0;
   view->eject_role_count = 0;
+  view->dock_orders_open = false;
+  view->dock_orders_unit_id = -1;
+  view->dock_orders_selection = 0;
+  view->dock_orders_count = 0;
+  view->dock_orders_title[0] = '\0';
   view->message_kind = COLONY_MSG_NONE;
   view->message_text[0] = '\0';
   view->message_selection = 0;
@@ -199,6 +205,7 @@ void colony_screen_open_construction(
   colony_screen_close_jobs(view);
   colony_screen_close_eject(view);
   colony_screen_close_message(view);
+  colony_screen_close_dock_orders(view);
   view->buildable_count = colonies_list_buildable(
     pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
   );
@@ -240,6 +247,16 @@ void colony_screen_close_message(ColonyScreenView* view) {
   view->pending_eject_role = COLONIZE_EJECT_COLONIST;
 }
 
+void colony_screen_close_dock_orders(ColonyScreenView* view) {
+  if (!view) {
+    return;
+  }
+  view->dock_orders_open = false;
+  view->dock_orders_unit_id = -1;
+  view->dock_orders_selection = 0;
+  view->dock_orders_count = 0;
+}
+
 void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   if (!view) {
     return;
@@ -247,6 +264,7 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   colony_screen_close_jobs(view);
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
+  colony_screen_close_dock_orders(view);
   view->message_kind = COLONY_MSG_OK;
   snprintf(view->message_text, sizeof(view->message_text), "%s", text ? text : "");
   view->message_choice0[0] = '\0';
@@ -269,6 +287,7 @@ void colony_screen_open_abandon_confirm(
   colony_screen_close_jobs(view);
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
+  colony_screen_close_dock_orders(view);
   view->message_kind = COLONY_MSG_CONFIRM;
   snprintf(
     view->message_text,
@@ -305,6 +324,7 @@ void colony_screen_open_eject(
   colony_screen_close_jobs(view);
   colony_screen_close_construction(view);
   colony_screen_close_message(view);
+  colony_screen_close_dock_orders(view);
   view->eject_colonist_index = colonist_index;
   view->eject_unit_id = -1;
   view->eject_role_count = colonies_list_eject_roles(
@@ -329,6 +349,7 @@ void colony_screen_open_jobs(
   }
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
+  colony_screen_close_dock_orders(view);
   view->jobs_tile_index = tile_index;
   view->job_count = 0;
   int dx = 0;
@@ -346,6 +367,127 @@ void colony_screen_open_jobs(
   }
   view->jobs_open = true;
   view->jobs_selection = 0;
+}
+
+void colony_screen_open_dock_orders(
+  ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  const ColonizeMsgCatalog* messages,
+  int unit_id
+) {
+  if (!view || !units) {
+    return;
+  }
+  const ColonizeUnit* u = units_get_const(units, unit_id);
+  if (!u) {
+    return;
+  }
+  colony_screen_close_jobs(view);
+  colony_screen_close_construction(view);
+  colony_screen_close_eject(view);
+  colony_screen_close_message(view);
+
+  const ColonizeUnitType* type = units_type(units, u->type_index);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = (type && type->name[0]) ? type->name : "Transport";
+  tok.string1 = "";
+  popup_msg_fill(
+    messages,
+    "COLONYUNIT",
+    &tok,
+    "Options for %STRING0%STRING1:",
+    view->dock_orders_title,
+    sizeof(view->dock_orders_title)
+  );
+
+  const bool sea = units_is_sea(units, unit_id);
+  const ColonizeMsgSection* opts =
+    messages ? assets_msg_find(messages, sea ? "SHIPOPTIONS" : "UNITOPTIONS") : NULL;
+
+  /* GAME.TXT @SHIPOPTIONS / @UNITOPTIONS verbatim, if the catalog is missing. */
+  static const char* const k_fallback_ship[] = {
+    "Move to front.",
+    "Clear orders.",
+    "Sentry.",
+    "Anchor in harbor (\"Fortify\").",
+    "Unload all cargo.",
+    "No changes."
+  };
+  static const char* const k_fallback_land[] = {
+    "Move to front.", "Clear orders.", "Sentry / Board ship.", "Fortify.", "No changes."
+  };
+  const char* const* fallback = sea ? k_fallback_ship : k_fallback_land;
+  const int fallback_count = sea ? 6 : 5;
+  const int cancel_index = sea ? 5 : 4;
+
+  bool has_goods = false;
+  const int holds = units_goods_hold_count(units, unit_id);
+  for (int i = 0; i < holds; ++i) {
+    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
+      has_goods = true;
+      break;
+    }
+  }
+
+  view->dock_orders_count = 0;
+  const int line_count = (opts && opts->line_count > 0) ? opts->line_count : fallback_count;
+  for (int i = 0; i < line_count && view->dock_orders_count < COLONY_DOCK_ORDERS_MAX; ++i) {
+    const char* label = (opts && i < opts->line_count) ? opts->lines[i] : fallback[i];
+    if (popup_msg_is_directive(label)) {
+      continue;
+    }
+    ColonyDockOrderAction action = COLONY_DOCK_ORDER_CANCEL;
+    bool enabled = true;
+    if (i < cancel_index) {
+      switch (i) {
+      case 0:
+        action = COLONY_DOCK_ORDER_ACTIVATE;
+        enabled = (unit_id != view->transport_unit_id);
+        break;
+      case 1:
+        action = COLONY_DOCK_ORDER_CLEAR;
+        enabled = (u->orders != UNITS_ORDER_NONE);
+        break;
+      case 2:
+        action = COLONY_DOCK_ORDER_SENTRY;
+        enabled = (u->orders != UNITS_ORDER_SENTRY);
+        break;
+      case 3:
+        action = COLONY_DOCK_ORDER_FORTIFY;
+        enabled = (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED);
+        break;
+      case 4: /* sea only (cancel_index==5): "Unload all cargo" */
+        action = COLONY_DOCK_ORDER_UNLOAD_ALL;
+        enabled = has_goods;
+        break;
+      default:
+        break;
+      }
+    }
+    if (!enabled) {
+      /* DOS FUN_2f2b_5746 omits ineligible rows rather than graying them. */
+      continue;
+    }
+    view->dock_orders_actions[view->dock_orders_count] = action;
+    snprintf(
+      view->dock_orders_labels[view->dock_orders_count],
+      sizeof(view->dock_orders_labels[view->dock_orders_count]),
+      "%s",
+      label
+    );
+    view->dock_orders_count++;
+  }
+  if (view->dock_orders_count <= 0) {
+    view->dock_orders_actions[0] = COLONY_DOCK_ORDER_CANCEL;
+    snprintf(
+      view->dock_orders_labels[0], sizeof(view->dock_orders_labels[0]), "%s", "No changes."
+    );
+    view->dock_orders_count = 1;
+  }
+  view->dock_orders_unit_id = unit_id;
+  view->dock_orders_selection = 0;
+  view->dock_orders_open = true;
 }
 
 void colony_screen_minimap_origin(int* out_x, int* out_y) {
@@ -2521,6 +2663,70 @@ static void colony_screen_draw_eject_popup(
   }
 }
 
+static void colony_screen_draw_dock_orders_popup(
+  ColonyScreenView* view,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !view->dock_orders_open || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const int rows = view->dock_orders_count;
+  const int line_h = font ? (font->max_height + 2) : 8;
+  const int pad = 4;
+  int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + rows * line_h + pad;
+  if (dialog_h > framebuffer->height - 8) {
+    dialog_h = framebuffer->height - 8;
+  }
+  int dialog_w = 190;
+  if (dialog_w > framebuffer->width - 8) {
+    dialog_w = framebuffer->width - 8;
+  }
+  const int dialog_x = (framebuffer->width - dialog_w) / 2;
+  const int dialog_y = 28;
+
+  ColonizePopupColors colors;
+  popup_colors_from_ui(&colors);
+  int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
+  popup_draw(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_w,
+    dialog_h,
+    view->wood_tile_ok ? &view->wood_tile : NULL,
+    &colors,
+    &inner_x,
+    &inner_y,
+    &inner_w,
+    &inner_h
+  );
+  view->dock_orders_dialog_x = dialog_x;
+  view->dock_orders_dialog_y = dialog_y;
+  view->dock_orders_dialog_w = dialog_w;
+  view->dock_orders_dialog_h = dialog_h;
+  view->dock_orders_line_h = line_h;
+
+  if (font && inner_w > 0) {
+    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, view->dock_orders_title, 15);
+  }
+  const int list_y0 = inner_y + pad + line_h;
+  view->dock_orders_list_y0 = list_y0;
+
+  for (int i = 0; i < rows; ++i) {
+    const int row_y = list_y0 + i * line_h;
+    const bool selected = (i == view->dock_orders_selection);
+    if (selected) {
+      colony_screen_fill_rect(
+        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
+      );
+    }
+    if (font) {
+      font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, view->dock_orders_labels[i], 15);
+    }
+  }
+}
+
 static void colony_screen_draw_message_popup(
   ColonyScreenView* view,
   const ColonizeFont* font,
@@ -2661,6 +2867,24 @@ ColonyScreenHitResult colony_screen_hit_test(
       const int idx = (my - view->eject_list_y0) / view->eject_line_h;
       if (idx >= 0 && idx < view->eject_role_count) {
         hit.kind = COLONY_HIT_EJECT_ROW;
+        hit.index = idx;
+        return hit;
+      }
+    }
+    return hit;
+  }
+
+  if (view->dock_orders_open) {
+    if (mx < view->dock_orders_dialog_x || my < view->dock_orders_dialog_y ||
+        mx >= view->dock_orders_dialog_x + view->dock_orders_dialog_w ||
+        my >= view->dock_orders_dialog_y + view->dock_orders_dialog_h) {
+      hit.kind = COLONY_HIT_DOCK_ORDERS_OUTSIDE;
+      return hit;
+    }
+    if (view->dock_orders_line_h > 0 && my >= view->dock_orders_list_y0) {
+      const int idx = (my - view->dock_orders_list_y0) / view->dock_orders_line_h;
+      if (idx >= 0 && idx < view->dock_orders_count) {
+        hit.kind = COLONY_HIT_DOCK_ORDERS_ROW;
         hit.index = idx;
         return hit;
       }
@@ -3107,6 +3331,9 @@ void colony_screen_render(
   }
   if (view && view->eject_open) {
     colony_screen_draw_eject_popup(view, font, framebuffer);
+  }
+  if (view && view->dock_orders_open) {
+    colony_screen_draw_dock_orders_popup(view, font, framebuffer);
   }
   if (view && view->message_kind != COLONY_MSG_NONE) {
     colony_screen_draw_message_popup(view, font, framebuffer);
