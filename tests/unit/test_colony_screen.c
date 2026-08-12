@@ -64,10 +64,139 @@ static int unit_buyme1_tokens(void) {
   return 0;
 }
 
+/*
+ * Docked-unit orders popup (DOS FUN_2f2b_5746; GAME.TXT @COLONYUNIT +
+ * @SHIPOPTIONS / @UNITOPTIONS). Ineligible rows are omitted, not grayed —
+ * mirror that gating and the sea/land option-list split.
+ */
+static int unit_dock_orders_menu(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "dock_orders: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "dock_orders: GAME.TXT load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  if (!units_load_types(&units, &names)) {
+    fprintf(stderr, "dock_orders: units_load_types failed\n");
+    assets_msg_free(&names);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  const int caravel_type = units_find_type(&units, "Caravel");
+  const int wagon_type = units_find_type(&units, "Wagon Train");
+  if (caravel_type < 0 || wagon_type < 0) {
+    fprintf(stderr, "dock_orders: Caravel/Wagon Train type missing\n");
+    assets_msg_free(&names);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  const int ship_id = units_spawn(&units, caravel_type, 5, 5);
+  const int wagon_id = units_spawn_allow_stack(&units, wagon_type, 5, 5);
+  if (ship_id < 0 || wagon_id < 0) {
+    fprintf(stderr, "dock_orders: spawn failed\n");
+    assets_msg_free(&names);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  view.transport_unit_id = -1;
+
+  int rc = 0;
+
+  /* Fresh ship, no cargo, not yet selected: Clear orders (already none) and
+   * Unload all cargo (nothing aboard) are omitted. */
+  colony_screen_open_dock_orders(&view, &units, &game_txt, ship_id);
+  if (!view.dock_orders_open || view.dock_orders_count != 4) {
+    fprintf(
+      stderr,
+      "dock_orders: fresh ship expected 4 rows got %d (open=%d)\n",
+      view.dock_orders_count,
+      view.dock_orders_open
+    );
+    rc = 1;
+  } else if (
+    view.dock_orders_actions[0] != COLONY_DOCK_ORDER_ACTIVATE ||
+    view.dock_orders_actions[1] != COLONY_DOCK_ORDER_SENTRY ||
+    view.dock_orders_actions[2] != COLONY_DOCK_ORDER_FORTIFY ||
+    view.dock_orders_actions[3] != COLONY_DOCK_ORDER_CANCEL
+  ) {
+    fprintf(stderr, "dock_orders: fresh ship action order wrong\n");
+    rc = 1;
+  } else if (strstr(view.dock_orders_title, "Caravel") == NULL) {
+    fprintf(stderr, "dock_orders: title missing type name '%s'\n", view.dock_orders_title);
+    rc = 1;
+  }
+
+  /* Loaded + already-selected + sentried: Activate/Sentry omitted (already
+   * true), but Clear orders is now eligible (orders != NONE) and Unload
+   * appears (cargo aboard). */
+  if (rc == 0) {
+    units_load_goods(&units, ship_id, COLONIZE_CARGO_SUGAR, 50);
+    units_order_sentry(&units, ship_id);
+    view.transport_unit_id = ship_id;
+    colony_screen_open_dock_orders(&view, &units, &game_txt, ship_id);
+    if (view.dock_orders_count != 4 ||
+        view.dock_orders_actions[0] != COLONY_DOCK_ORDER_CLEAR ||
+        view.dock_orders_actions[1] != COLONY_DOCK_ORDER_FORTIFY ||
+        view.dock_orders_actions[2] != COLONY_DOCK_ORDER_UNLOAD_ALL ||
+        view.dock_orders_actions[3] != COLONY_DOCK_ORDER_CANCEL) {
+      fprintf(
+        stderr,
+        "dock_orders: loaded+selected+sentried expected [Clear, Fortify, Unload, Cancel] got %d rows\n",
+        view.dock_orders_count
+      );
+      rc = 1;
+    }
+  }
+
+  /* Land wagon uses @UNITOPTIONS: never offers Unload all cargo. */
+  if (rc == 0) {
+    colony_screen_open_dock_orders(&view, &units, &game_txt, wagon_id);
+    if (view.dock_orders_count != 4 ||
+        view.dock_orders_actions[0] != COLONY_DOCK_ORDER_ACTIVATE ||
+        view.dock_orders_actions[1] != COLONY_DOCK_ORDER_SENTRY ||
+        view.dock_orders_actions[2] != COLONY_DOCK_ORDER_FORTIFY ||
+        view.dock_orders_actions[3] != COLONY_DOCK_ORDER_CANCEL) {
+      fprintf(
+        stderr, "dock_orders: fresh wagon expected 4 rows got %d\n", view.dock_orders_count
+      );
+      rc = 1;
+    }
+    for (int i = 0; rc == 0 && i < view.dock_orders_count; ++i) {
+      if (view.dock_orders_actions[i] == COLONY_DOCK_ORDER_UNLOAD_ALL) {
+        fprintf(stderr, "dock_orders: land unit must never offer Unload all cargo\n");
+        rc = 1;
+      }
+    }
+  }
+
+  assets_msg_free(&names);
+  assets_msg_free(&game_txt);
+  if (rc == 0) {
+    fprintf(stderr, "unit_colony_screen: dock orders menu ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
   if (unit_buyme1_tokens() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_dock_orders_menu() != 0) {
     diag_shutdown();
     return 1;
   }

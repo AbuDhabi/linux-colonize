@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_preview.h"
@@ -107,6 +108,24 @@ typedef enum ColonyMultiMode {
   COLONY_MULTI_CONSTRUCTION = 2
 } ColonyMultiMode;
 
+/*
+ * Docked-unit orders popup (DOS FUN_2f2b_5746; GAME.TXT @COLONYUNIT title +
+ * @UNITOPTIONS land / @SHIPOPTIONS sea options). Second click on an already-
+ * selected docked transport opens this (matches the port's existing
+ * select-then-click assignment convention).
+ */
+#define COLONY_DOCK_ORDERS_MAX 6
+#define COLONY_DOCK_ORDER_LABEL_LEN COLONIZE_MSG_LINE_LEN
+
+typedef enum ColonyDockOrderAction {
+  COLONY_DOCK_ORDER_ACTIVATE = 0, /* "Move to front" — select as the colony's active transport */
+  COLONY_DOCK_ORDER_CLEAR,        /* "Clear orders" */
+  COLONY_DOCK_ORDER_SENTRY,
+  COLONY_DOCK_ORDER_FORTIFY,      /* land Fortify / sea "Anchor in harbor" */
+  COLONY_DOCK_ORDER_UNLOAD_ALL,   /* sea only: unload all goods holds to warehouse */
+  COLONY_DOCK_ORDER_CANCEL        /* "No changes" */
+} ColonyDockOrderAction;
+
 typedef enum ColonyScreenHit {
   COLONY_HIT_NONE = 0,
   COLONY_HIT_COLONIST,
@@ -132,6 +151,8 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_PEOPLE_COLONIST,
   COLONY_HIT_EJECT_ROW,
   COLONY_HIT_EJECT_OUTSIDE,
+  COLONY_HIT_DOCK_ORDERS_ROW,
+  COLONY_HIT_DOCK_ORDERS_OUTSIDE,
   COLONY_HIT_MESSAGE_YES,
   COLONY_HIT_MESSAGE_NO,
   COLONY_HIT_MESSAGE_OK,
@@ -206,6 +227,20 @@ typedef struct ColonyScreenView {
   int eject_list_y0;
   int eject_line_h;
 
+  bool dock_orders_open;
+  int dock_orders_unit_id;
+  int dock_orders_selection;
+  ColonyDockOrderAction dock_orders_actions[COLONY_DOCK_ORDERS_MAX];
+  char dock_orders_labels[COLONY_DOCK_ORDERS_MAX][COLONY_DOCK_ORDER_LABEL_LEN];
+  int dock_orders_count;
+  char dock_orders_title[COLONY_DOCK_ORDER_LABEL_LEN];
+  int dock_orders_dialog_x;
+  int dock_orders_dialog_y;
+  int dock_orders_dialog_w;
+  int dock_orders_dialog_h;
+  int dock_orders_list_y0;
+  int dock_orders_line_h;
+
   ColonyMessageKind message_kind;
   char message_text[240];
   char message_choice0[48];
@@ -262,6 +297,17 @@ void colony_screen_open_eject(
   int colonist_index
 );
 void colony_screen_close_eject(ColonyScreenView* view);
+
+/* GAME.TXT @COLONYUNIT title + @UNITOPTIONS (land) / @SHIPOPTIONS (sea) —
+ * only currently-legal actions are listed (DOS FUN_2f2b_5746 omits, not
+ * grays, ineligible rows), so dock_orders_count varies. */
+void colony_screen_open_dock_orders(
+  ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  const ColonizeMsgCatalog* messages,
+  int unit_id
+);
+void colony_screen_close_dock_orders(ColonyScreenView* view);
 
 void colony_screen_open_message_ok(ColonyScreenView* view, const char* text);
 void colony_screen_open_abandon_confirm(

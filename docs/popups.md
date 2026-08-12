@@ -124,7 +124,7 @@ fragment. Related sections are listed in the first column.
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Partial | EOT train + `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` assign Done thin |
 | `@FULL` | Join at population cap | Done thin | `colonies_emit_full_chrome` → ai_popup OK |
 | Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
-| Docked unit orders | Colony transport orders | Missing | Select/load only |
+| Docked unit orders | `@COLONYUNIT` + `@SHIPOPTIONS`/`@UNITOPTIONS`, 2nd click on selected dock icon | Done thin | `colony_screen_open_dock_orders`; ineligible rows omitted (`2f2b_5746`); VGA chrome PARKED |
 | `@CARGOREADY*` | Century tip / ship-ready | Done thin | EOT century `@CARGOREADY0`–`2`; ship FINISH still thin |
 
 ### 5. Europe
@@ -569,9 +569,9 @@ work.
 | `@EUROPEARM` | Done | Europe dock / arm chrome |
 | `@EUROPESHIPCLICK` | Done | Europe dock / arm chrome |
 | `@ARMOPTIONS` | Partial | unit/ship option chrome thin or menu-driven |
-| `@COLONYUNIT` | Partial | unit/ship option chrome thin or menu-driven |
-| `@UNITOPTIONS` | Partial | unit/ship option chrome thin or menu-driven |
-| `@SHIPOPTIONS` | Partial | unit/ship option chrome thin or menu-driven |
+| `@COLONYUNIT` | Done | colony dock-orders popup title (`colony_screen_open_dock_orders`) |
+| `@UNITOPTIONS` | Done thin | colony dock-orders popup, land transport; chrome thin |
+| `@SHIPOPTIONS` | Done thin | colony dock-orders popup, sea transport; chrome thin |
 | `@EUROPESHIPOPTIONS` | Done | Europe dock / arm chrome |
 | `@KINGFRIGATE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGGALLEON2` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |

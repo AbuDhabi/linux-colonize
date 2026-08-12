@@ -5320,6 +5320,95 @@ static bool game_colony_apply_outside_role(
   return true;
 }
 
+/* GAME.TXT @SHIPOPTIONS "Unload all cargo": drain every goods hold into the
+ * viewed colony's warehouse (same path as the single-hold drag/drop). */
+static void game_colony_unload_all_cargo(ColonizeGameState* game, int unit_id) {
+  if (!game || !game->units_ok || game->colony_view_id < 0) {
+    return;
+  }
+  const int holds = units_goods_hold_count(&game->units, unit_id);
+  int total = 0;
+  bool any_full = false;
+  int last_full_type = -1;
+  for (int i = 0; i < holds; ++i) {
+    int peek_type = -1;
+    const ColonizeUnit* tu = units_get_const(&game->units, unit_id);
+    if (tu && i < COLONIZE_UNIT_CARGO_MAX) {
+      peek_type = tu->hold_goods_type[i];
+    }
+    bool full = false;
+    const int moved = colonies_transfer_from_unit(
+      &game->colonies, game->colony_view_id, &game->units, unit_id, i, &full
+    );
+    total += moved;
+    if (full) {
+      any_full = true;
+      last_full_type = peek_type;
+    }
+  }
+  if (total > 0 && any_full) {
+    snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", total);
+    game_emit_warehouse_full(game, game->colony_view_id, last_full_type);
+  } else if (total > 0) {
+    snprintf(game->status, sizeof(game->status), "Unloaded %d", total);
+  } else if (any_full) {
+    set_status(game, "Warehouse full", NULL);
+    game_emit_warehouse_full(game, game->colony_view_id, last_full_type);
+  } else {
+    set_status(game, "No cargo to unload", NULL);
+  }
+}
+
+/*
+ * Colony docked-unit orders popup apply (DOS FUN_2f2b_5746). "Move to front"
+ * ports as (re)select the colony's active docked transport — the port has no
+ * persistent dock queue for a literal front-of-line reorder.
+ */
+static void game_colony_apply_dock_order(
+  ColonizeGameState* game,
+  ColonyScreenView* csv,
+  ColonyDockOrderAction action
+) {
+  if (!game || !csv || !game->units_ok) {
+    return;
+  }
+  const int uid = csv->dock_orders_unit_id;
+  if (!units_get(&game->units, uid)) {
+    colony_screen_close_dock_orders(csv);
+    return;
+  }
+  switch (action) {
+  case COLONY_DOCK_ORDER_ACTIVATE:
+    csv->transport_unit_id = uid;
+    set_status(game, "Transport selected", NULL);
+    break;
+  case COLONY_DOCK_ORDER_CLEAR:
+    units_wake(&game->units, uid);
+    set_status(game, "Orders cleared", NULL);
+    break;
+  case COLONY_DOCK_ORDER_SENTRY:
+    units_order_sentry(&game->units, uid);
+    set_status(game, "Sentry", NULL);
+    break;
+  case COLONY_DOCK_ORDER_FORTIFY:
+    if (units_is_sea(&game->units, uid)) {
+      units_order_anchor(&game->units, uid, &game->colonies);
+    } else {
+      units_order_fortify(&game->units, uid);
+    }
+    set_status(game, "Fortify", NULL);
+    break;
+  case COLONY_DOCK_ORDER_UNLOAD_ALL:
+    game_colony_unload_all_cargo(game, uid);
+    break;
+  case COLONY_DOCK_ORDER_CANCEL:
+  default:
+    break;
+  }
+  colony_screen_close_dock_orders(csv);
+  colony_screen_set_status(csv, game->status);
+}
+
 static void game_center_on_selected_unit(ColonizeGameState* game) {
   const ColonizeUnit* selected = units_get_const(&game->units, game->units.selected_id);
   if (!selected || !selected->active) {
@@ -6744,6 +6833,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         colony_screen_close_eject(csv);
         return true;
       }
+      if (csv->dock_orders_open) {
+        colony_screen_close_dock_orders(csv);
+        return true;
+      }
       if (csv->construction_open) {
         colony_screen_close_construction(csv);
         return true;
@@ -6787,6 +6880,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           } else {
             game_colony_request_eject(game, csv->eject_colonist_index, role);
           }
+        }
+        return true;
+      }
+      if (csv->dock_orders_open) {
+        if (csv->dock_orders_selection >= 0 && csv->dock_orders_selection < csv->dock_orders_count) {
+          game_colony_apply_dock_order(
+            game, csv, csv->dock_orders_actions[csv->dock_orders_selection]
+          );
+        } else {
+          colony_screen_close_dock_orders(csv);
         }
         return true;
       }
@@ -7010,6 +7113,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         csv->eject_selection++;
         return true;
       }
+    } else if (csv->dock_orders_open) {
+      if (colonize_key_up(input->last_key) && csv->dock_orders_selection > 0) {
+        csv->dock_orders_selection--;
+        return true;
+      }
+      if (colonize_key_down(input->last_key) &&
+          csv->dock_orders_selection + 1 < csv->dock_orders_count) {
+        csv->dock_orders_selection++;
+        return true;
+      }
     } else if (csv->construction_open) {
       const int max_sel = csv->buildable_count;
       if (colonize_key_up(input->last_key) && csv->construction_selection > 0) {
@@ -7208,9 +7321,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       case COLONY_HIT_TRANSPORT:
         if (hit.index >= 0 && hit.index < csv->docked_transport_count) {
-          csv->transport_unit_id = csv->docked_transport_ids[hit.index];
-          {
-            const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+          const int uid = csv->docked_transport_ids[hit.index];
+          if (uid == csv->transport_unit_id && game->units_ok) {
+            /* Second click on the already-selected transport: docked-unit
+             * orders (DOS FUN_2f2b_5746 / @COLONYUNIT), same select-then-
+             * click-assigns convention used elsewhere in the colony screen. */
+            colony_screen_open_dock_orders(csv, &game->units, &game->messages, uid);
+          } else {
+            csv->transport_unit_id = uid;
+            const ColonizeUnit* tu = units_get_const(&game->units, uid);
             const ColonizeUnitType* tt = tu ? units_type(&game->units, tu->type_index) : NULL;
             snprintf(
               game->status,
@@ -7218,8 +7337,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               "%s",
               tt && tt->name[0] ? tt->name : "Transport selected"
             );
+            colony_screen_set_status(csv, game->status);
           }
-          colony_screen_set_status(csv, game->status);
         }
         break;
       case COLONY_HIT_CARGO_SLOT:
@@ -7269,6 +7388,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
       case COLONY_HIT_EJECT_OUTSIDE:
         colony_screen_close_eject(csv);
+        break;
+      case COLONY_HIT_DOCK_ORDERS_ROW:
+        if (hit.index >= 0 && hit.index < csv->dock_orders_count) {
+          game_colony_apply_dock_order(game, csv, csv->dock_orders_actions[hit.index]);
+        }
+        break;
+      case COLONY_HIT_DOCK_ORDERS_OUTSIDE:
+        colony_screen_close_dock_orders(csv);
         break;
       case COLONY_HIT_MESSAGE_OK:
       case COLONY_HIT_MESSAGE_NO:

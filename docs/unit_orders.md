@@ -72,7 +72,7 @@ flowchart TD
   Mouse --> Apply
   Stack --> Apply
   AI --> Byte
-  ColonyDock -.->|"Missing stub"| Apply
+  ColonyDock --> Apply
   EuropeDock --> Apply
   Apply --> Byte
 ```
@@ -87,9 +87,9 @@ flowchart TD
 | Go to Place / Port | Click dest / next owned colony | Place mode + `units_set_goto` | Done |
 | Activate / Wait | Stack picker / next unit with MP | `unit_stack` + Wait | Done |
 | AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done (structural) |
-| Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Status stub only | Missing |
+| Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on selected dock icon → wood popup (`colony_screen_open_dock_orders`) | Done thin |
 | Europe dock | Don’t board / Board / Move front (`@EUROPESHIPOPTIONS` / dock) | `EUROPE_MENU_DOCK` | Done |
-| Ship options chrome | `@SHIPOPTIONS` (anchor / sentry / unload) | Menu-driven; chrome thin | Partial |
+| Ship options chrome | `@SHIPOPTIONS` (anchor / sentry / unload) | Colony dock popup wired (sea); land uses `@UNITOPTIONS`; VGA-identical chrome PARKED | Done thin |
 
 ---
 
@@ -222,8 +222,8 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | `@DISBANDSHIP` | Ship carrying units | OK (error) | `AI_POPUP_TAG_INFO` | Done |
 | `@OVERBOARD` | Dump cargo confirm | Yes/No | Same | Done |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
-| `@SHIPOPTIONS` | Ship option list | Anchor / sentry / unload / … | Menu-driven; chrome thin | Partial |
-| Docked unit orders | Colony transport pane | Sentry / fortify / … (`2f2b_5746`) | Stub status line | Missing |
+| `@SHIPOPTIONS` / `@UNITOPTIONS` | Colony dock icon, 2nd click | Move to front / Clear orders / Sentry / Fortify (+ ship-only Unload all cargo) / No changes | `colony_screen_open_dock_orders`; ineligible rows omitted (matches `2f2b_5746`) | Done thin |
+| `@COLONYUNIT` | Title for the above | "Options for {unit}:" | `popup_msg_fill` | Done |
 
 ---
 
@@ -240,14 +240,14 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | Trade Route begin / aim / cycle / stop service | Partial (structural Done; Edit UI / VGA PARKED) |
 | Pillage | Partial (thin API; ORDERS item hidden like DOS `0b34`) |
 | Order-gate modals (`@ONLYPIO`, `@NOPLOW`, …) | Done thin (`@ONLYPIO`/`@NOPLOW`/`@NOROAD`; EOT `@NEEDTOOLS`/`@NEEDTOOLS0`; pioneer `@NEEDTOOLS` still Partial) |
-| Colony docked-unit orders popup | Missing |
+| Colony docked-unit orders popup | Done thin (`@COLONYUNIT`/`@SHIPOPTIONS`/`@UNITOPTIONS`; VGA chrome PARKED) |
 | `@ORDERS` index 4 Live In Village | Missing |
 | Order byte 7 as lasting Build Colony | Unused (founding immediate — acceptable) |
 | AI MOVE / SAIL / FOLLOW / fortify / pioneer | Done (structural) |
 
 **Bottom line:** Map ORDERS for the human player are substantially ported. Remaining
-order gaps are thin Pillage depth, non-modal order gates, missing colony docked-unit
-orders UI, unused Live In Village byte, and TRADE chrome polish.
+order gaps are thin Pillage depth, non-modal order gates, unused Live In Village byte,
+and TRADE chrome polish.
 
 ---
 
