@@ -1357,15 +1357,11 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
       if (taught_scout) {
-        char line[96];
-        snprintf(
-          line,
-          sizeof(line),
-          "The %s teach Seasoned Scout.",
-          ai_contact_tribe_name(nation_id)
-        );
+        char body[AI_POPUP_BODY_LEN];
+        const char* fb = "Our Scouts have improved to Seasoned status.";
+        popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, fb, body, sizeof(body));
         ai_contact_human_chrome(
-          ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", line
+          ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body
         );
       } else {
         char line[96];

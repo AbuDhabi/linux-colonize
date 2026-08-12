@@ -159,11 +159,508 @@ static int smoke_clearcut_lumber(void) {
     assets_msg_free(&names);
     return 1;
   }
+  int found_deforest = 0;
+  for (int i = 0; i < pops.queue_count; ++i) {
+    if (strstr(pops.queue[i].body, "Deforestation") != NULL ||
+        strstr(pops.queue[i].body, "deforestation") != NULL ||
+        (strstr(pops.queue[i].body, "Timber") != NULL && i > 0)) {
+      found_deforest = 1;
+      break;
+    }
+  }
+  if (!found_deforest) {
+    fprintf(
+      stderr,
+      "clearcut: DEFOREST popup missing q=%d last='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[pops.queue_count - 1].body : ""
+    );
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
 
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_units: CLEARCUT lumber + popup ok\n");
+  fprintf(stderr, "smoke_units: CLEARCUT+DEFOREST chrome ok\n");
+  return 0;
+}
+
+/* Helper: tools=20 road complete → Colonists + @USEDUPTOOLS. */
+static int smoke_useduptools(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "usedup: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "usedup: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  const int colonist = units_find_type(&pool, "Colonists");
+  if (pioneer < 0 || colonist < 0) {
+    fprintf(stderr, "usedup: missing types\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "usedup: map_alloc failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2; /* plains — road terr_cost 1 → one tick */
+  }
+  const int x = 3;
+  const int y = 3;
+  map_tile_set_road(&map, x, y, false);
+
+  const int pid = units_spawn(&pool, pioneer, x, y);
+  ColonizeUnit* u = units_get(&pool, pid);
+  if (!u || !units_is_pioneer(&pool, pid)) {
+    fprintf(stderr, "usedup: pioneer spawn failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  u->nation_id = 0;
+  u->tools = 20;
+  u->moves_left = 1;
+  u->profession = UNITS_JOB_NONE;
+  u->orders = UNITS_ORDER_BUILD_ROAD;
+  u->turns_worked = 0;
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "usedup: GAME.TXT load failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+
+  char msg[96];
+  msg[0] = '\0';
+  if (!units_pioneer_work_tick(
+        &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
+      )) {
+    fprintf(stderr, "usedup: work tick failed (%s)\n", msg);
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (!map_tile_has_road(&map, x, y) || u->type_index != colonist || u->tools != 0) {
+    fprintf(
+      stderr,
+      "usedup: want road+Colonists tools=0 got road=%d type=%d tools=%d (%s)\n",
+      (int)map_tile_has_road(&map, x, y),
+      u->type_index,
+      u->tools,
+      msg
+    );
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "tools") == NULL &&
+       strstr(pops.queue[0].body, "colonist") == NULL &&
+       strstr(pops.queue[0].body, "Colonist") == NULL)) {
+    fprintf(
+      stderr,
+      "usedup: USEDUPTOOLS popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  map_free(&map);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_units: USEDUPTOOLS demotion + popup ok\n");
+  return 0;
+}
+
+/* Helper: Drydock repair emits @REFIT. */
+static int smoke_refit_drydock(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "refit: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "refit: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int caravel = units_find_type(&pool, "Caravel");
+  if (caravel < 0) {
+    fprintf(stderr, "refit: no Caravel\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Drydock");
+  colonies.building_type_count = 1;
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 2;
+  col->y = 2;
+  col->has_building[0] = true;
+  snprintf(col->name, sizeof(col->name), "Harbor");
+  colonies.colony_count = 1;
+
+  const int sid = units_spawn_allow_stack(&pool, caravel, 2, 2);
+  ColonizeUnit* ship = units_get(&pool, sid);
+  if (!ship) {
+    fprintf(stderr, "refit: ship spawn failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ship->nation_id = 0;
+  ship->col1_unknown15 = 0x80u;
+  ship->turns_worked = 99; /* past construction thresh */
+  pool.types[caravel].defense = 4;
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "refit: GAME.TXT load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  char st[96];
+  st[0] = '\0';
+  const int repaired = units_tick_drydock_repair(
+    &pool, &colonies, 0, 0, st, sizeof(st), &pops, &game_txt
+  );
+  ship = units_get(&pool, sid);
+  if (repaired != 1 || !ship || (ship->col1_unknown15 & 0x80u) != 0) {
+    fprintf(stderr, "refit: repair failed repaired=%d bit7=%02x\n", repaired,
+            ship ? (unsigned)ship->col1_unknown15 : 0xffu);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "repair") == NULL &&
+       strstr(pops.queue[0].body, "Harbor") == NULL &&
+       strstr(pops.queue[0].body, "Caravel") == NULL)) {
+    fprintf(
+      stderr,
+      "refit: REFIT popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_units: REFIT Drydock popup ok\n");
+  return 0;
+}
+
+/* Helper: full warehouse unload → @WAREHOUSEFULL. */
+static int smoke_warehouse_full(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "whfull: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "whfull: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int caravel = units_find_type(&pool, "Caravel");
+  if (caravel < 0) {
+    fprintf(stderr, "whfull: no Caravel\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 1;
+  col->y = 1;
+  col->warehouse_level = 0; /* cap 100 */
+  col->stock[COLONIZE_CARGO_LUMBER] = 100;
+  snprintf(col->name, sizeof(col->name), "Packed");
+  colonies.colony_count = 1;
+
+  const int sid = units_spawn_allow_stack(&pool, caravel, 1, 1);
+  ColonizeUnit* ship = units_get(&pool, sid);
+  if (!ship) {
+    fprintf(stderr, "whfull: ship spawn failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ship->nation_id = 0;
+  if (units_load_goods(&pool, sid, COLONIZE_CARGO_LUMBER, 20) <= 0) {
+    fprintf(stderr, "whfull: load lumber failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  bool full = false;
+  const int moved = colonies_transfer_from_unit(&colonies, 1, &pool, sid, 0, &full);
+  if (moved != 0 || !full) {
+    fprintf(stderr, "whfull: want moved=0 full=1 got moved=%d full=%d\n", moved, (int)full);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "whfull: GAME.TXT load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  colonies_emit_warehouse_full_chrome(
+    &colonies, col, COLONIZE_CARGO_LUMBER, "Lumber", &pops, &game_txt
+  );
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "warehouse") == NULL &&
+       strstr(pops.queue[0].body, "Warehouse") == NULL &&
+       strstr(pops.queue[0].body, "Packed") == NULL)) {
+    fprintf(
+      stderr,
+      "whfull: WAREHOUSEFULL popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "Lumber") == NULL &&
+      strstr(pops.queue[0].body, "lumber") == NULL &&
+      strstr(pops.queue[0].body, "100") == NULL) {
+    fprintf(stderr, "whfull: popup missing cargo/cap '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_units: WAREHOUSEFULL popup ok\n");
+  return 0;
+}
+
+/* Pioneer order-gate @ONLYPIO / @NOPLOW / @NOROAD. */
+static int smoke_pioneer_order_gates(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "ordgate: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "ordgate: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  const int colonist = units_find_type(&pool, "Colonists");
+  if (pioneer < 0 || colonist < 0) {
+    fprintf(stderr, "ordgate: missing types\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "ordgate: map_alloc failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "ordgate: GAME.TXT load failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  char msg[96];
+  AiPopupState pops;
+
+  /* 1) Non-pioneer → ONLYPIO */
+  {
+    const int cid = units_spawn(&pool, colonist, 2, 2);
+    ColonizeUnit* cu = units_get(&pool, cid);
+    if (!cu) {
+      fprintf(stderr, "ordgate: colonist spawn failed\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    cu->nation_id = 0;
+    cu->moves_left = 1;
+    ai_popup_init(&pops);
+    msg[0] = '\0';
+    if (units_pioneer_plow(
+          &pool, cid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
+        )) {
+      fprintf(stderr, "ordgate: non-pioneer plow should fail\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (pops.queue_count < 1 || strstr(pops.queue[0].body, "pioneer") == NULL) {
+      fprintf(
+        stderr,
+        "ordgate: ONLYPIO weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, cid);
+  }
+
+  /* 2) Pioneer on plowed → NOPLOW */
+  {
+    map_tile_set_plowed(&map, 3, 3, true);
+    map_tile_set_road(&map, 3, 3, false);
+    const int pid = units_spawn(&pool, pioneer, 3, 3);
+    ColonizeUnit* pu = units_get(&pool, pid);
+    if (!pu) {
+      fprintf(stderr, "ordgate: pioneer spawn failed\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pu->nation_id = 0;
+    pu->tools = 100;
+    pu->moves_left = 1;
+    ai_popup_init(&pops);
+    msg[0] = '\0';
+    if (units_pioneer_plow(
+          &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
+        )) {
+      fprintf(stderr, "ordgate: plowed plow should fail\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "plow") == NULL &&
+         strstr(pops.queue[0].body, "plowed") == NULL)) {
+      fprintf(
+        stderr,
+        "ordgate: NOPLOW weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, pid);
+  }
+
+  /* 3) Pioneer on road → NOROAD */
+  {
+    map_tile_set_plowed(&map, 4, 4, false);
+    map_tile_set_road(&map, 4, 4, true);
+    const int pid = units_spawn(&pool, pioneer, 4, 4);
+    ColonizeUnit* pu = units_get(&pool, pid);
+    if (!pu) {
+      fprintf(stderr, "ordgate: pioneer2 spawn failed\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pu->nation_id = 0;
+    pu->tools = 100;
+    pu->moves_left = 1;
+    ai_popup_init(&pops);
+    msg[0] = '\0';
+    if (units_pioneer_road(&pool, pid, &map, msg, sizeof(msg), &pops, &game_txt)) {
+      fprintf(stderr, "ordgate: existing road should fail\n");
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (pops.queue_count < 1 || strstr(pops.queue[0].body, "road") == NULL) {
+      fprintf(
+        stderr,
+        "ordgate: NOROAD weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_despawn(&pool, pid);
+  }
+
+  assets_msg_free(&game_txt);
+  map_free(&map);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_units: pioneer order-gate popups ok\n");
   return 0;
 }
 
@@ -171,6 +668,22 @@ int main(void) {
   diag_init(0, NULL);
 
   if (smoke_clearcut_lumber() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (smoke_useduptools() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (smoke_refit_drydock() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (smoke_warehouse_full() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (smoke_pioneer_order_gates() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -1110,7 +1623,7 @@ int main(void) {
     char pmsg[64];
     pu3->moves_left = 1;
     /* Plains road: terr_cost 1 → completes on first work-tick. */
-    if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg)) ||
+    if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL) ||
         !map_tile_has_road(&tmap, px, py) || pu3->tools != 80 || pu3->moves_left != 0) {
       fprintf(
         stderr,
@@ -3850,7 +4363,7 @@ int main(void) {
       ship->nation_id = 0;
       col->has_building[3] = true;
       const int repaired = units_tick_drydock_repair(
-        &pool, &colonies, 0, 0, st, sizeof(st)
+        &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL
       );
       ship = units_get(&pool, sid_hit);
       if (repaired != 1 || !ship || (ship->col1_unknown15 & 0x80u) != 0) {

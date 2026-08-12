@@ -14,6 +14,7 @@ typedef struct ColonizeFont ColonizeFont;
 typedef struct ColonizeCol1Save ColonizeCol1Save;
 typedef struct ColonizeCol1TradeStop ColonizeCol1TradeStop;
 typedef struct ColonizeUnitPool ColonizeUnitPool;
+typedef struct AiPopupState AiPopupState;
 
 #define COLONIZE_COLONIES_MAX 32
 #define COLONIZE_COLONY_NAME_MAX 28
@@ -270,12 +271,51 @@ ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
 
-/* Assign colonist to a built workplace (@BUILDING index). Clears any field tile. */
+/* Assign colonist to a built workplace (@BUILDING index). Clears any field tile.
+ * Schoolhouse/College/University refuse Free/Indentured/Criminal/Convert (@NOTEACHER). */
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
   int colonist_index,
   int building_type
+);
+
+/* True if building name is Schoolhouse / College / University. */
+bool colonies_is_school_building(
+  const ColonizeColonyPool* pool,
+  int building_type
+);
+
+/* False for Free / Indentured / Criminal / Convert / unset — cannot teach. */
+bool colonies_profession_may_teach(int profession);
+
+/* NAMES @JOB school field (1 Schoolhouse … 3 University); 0 if unknown. */
+int colonies_job_school_tier(int profession);
+
+/* School building tier 1/2/3, or 0 if not a school. */
+int colonies_school_building_tier(
+  const ColonizeColonyPool* pool,
+  int building_type
+);
+
+/*
+ * Required school tier (2 or 3) if profession needs a higher school than
+ * building_tier; else 0.
+ */
+int colonies_school_tier_shortfall(int profession, int building_tier);
+
+/* Human school assign chrome: GAME.TXT @NOTEACHER. No-op if ai_popups NULL. */
+void colonies_emit_noteacher_chrome(
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+
+/* @NEEDCOLLEGE / @NEEDUNIVERSITY when profession tier exceeds school building. */
+void colonies_emit_need_school_chrome(
+  int profession,
+  int building_tier,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 /* Assign colonist to a surround tile with a field @JOB. Clears workplace. */
 bool colonies_assign_field(
@@ -410,6 +450,40 @@ int colonies_warehouse_capacity(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int cargo_type
+);
+
+/*
+ * Human unload chrome: GAME.TXT @WAREHOUSEFULL when warehouse has no room.
+ * cargo_name optional (fallback "cargo"). No-op if ai_popups NULL.
+ */
+void colonies_emit_warehouse_full_chrome(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type,
+  const char* cargo_name,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+
+/*
+ * Human Join Colony chrome: GAME.TXT @FULL when colony is at population cap.
+ * No-op if ai_popups NULL.
+ */
+void colonies_emit_full_chrome(
+  const ColonizeColony* colony,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+
+/*
+ * Human construction refuse: @ALREADYHAVE, or @NOMOREWAREHOUSE for Warehouse
+ * Expansion. building_name optional (fallback "building"). No-op if ai_popups NULL.
+ */
+void colonies_emit_already_have_chrome(
+  const ColonizeColony* colony,
+  const char* building_name,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 
 /*

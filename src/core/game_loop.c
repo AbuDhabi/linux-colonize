@@ -63,7 +63,9 @@ typedef enum GameMapConfirm {
   GAME_MAP_CONFIRM_QUIT,
   GAME_MAP_CONFIRM_RETIRE,
   GAME_MAP_CONFIRM_TRADE_DELETE,
-  GAME_MAP_CONFIRM_TITLE_EXIT
+  GAME_MAP_CONFIRM_TITLE_EXIT,
+  GAME_MAP_CONFIRM_BUY_CONSTRUCTION,
+  GAME_MAP_CONFIRM_FOUND_INLAND
 } GameMapConfirm;
 
 struct ColonizeGameState {
@@ -373,6 +375,8 @@ static char game_key_letter(ColonizeKey key) {
 }
 
 static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
+static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid);
+static void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
@@ -395,6 +399,8 @@ static void game_apply_cheat_list_result(ColonizeGameState* game);
 static void game_select_unit(ColonizeGameState* game, int unit_id);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
+static void game_do_buy_construction(ColonizeGameState* game, int colony_id);
+static void game_request_buy_construction_confirm(ColonizeGameState* game);
 
 typedef struct BeginMenuLayout {
   int dialog_x;
@@ -481,25 +487,42 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
   snprintf(game->status, sizeof(game->status), "%.64s: %.60s", prefix, detail);
 }
 
+/* @WAREHOUSEFULL when ship→colony unload hits capacity. */
+static void game_emit_warehouse_full(
+  ColonizeGameState* game,
+  int colony_id,
+  int cargo_type
+) {
+  if (!game) {
+    return;
+  }
+  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
+  if (!col) {
+    return;
+  }
+  const char* cargo_name = "cargo";
+  if (cargo_type >= 0 && cargo_type < COLONIZE_CARGO_COUNT &&
+      game->europe.cargo[cargo_type].name[0]) {
+    cargo_name = game->europe.cargo[cargo_type].name;
+  }
+  colonies_emit_warehouse_full_chrome(
+    &game->colonies, col, cargo_type, cargo_name, &game->ai_popups, &game->messages
+  );
+}
+
 /*
- * Human FOUND (B key / Orders → Build Colony).
+ * Complete human FOUND at founder unit tile (after gates / @NOPORT confirm).
  * FUN_4cc6_07c2 Indian homeland purchase via colonies_found_with_indian_land —
  * same charge/Minuit-free gate as AI euro FOUND. Cite: Colonization.pdf Indian
  * Land / Peter Minuit (FF 2). smoke_game_flow has no tribe fixture; covered by
  * smoke_founding_fathers + smoke_ai_euro_expand indian-land cases.
  */
-static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
-  if (!game || !game->world_map_ok) {
+static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
+  if (!game || !game->world_map_ok || uid < 0) {
     return false;
   }
-  const int cx = game->map_cursor_x;
-  const int cy = game->map_cursor_y;
-  if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
-    set_status(game, "Cannot found colony here", NULL);
-    return false;
-  }
-  const int uid = units_id_at(&game->units, cx, cy);
-  if (uid < 0) {
+  const ColonizeUnit* founder = units_get_const(&game->units, uid);
+  if (!founder || !founder->active || !units_is_on_map(founder)) {
     set_status(game, "No unit at cursor to found colony", NULL);
     return false;
   }
@@ -507,10 +530,15 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     set_status(game, "Ships cannot found colonies", NULL);
     return false;
   }
+  const int cx = founder->x;
+  const int cy = founder->y;
+  if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
 
-  ColonizeUnit* founder = units_get(&game->units, uid);
-  const int type_index = founder ? founder->type_index : -1;
-  const int profession = founder ? founder->profession : UNITS_JOB_NONE;
+  const int type_index = founder->type_index;
+  const int profession = founder->profession;
   int tools = 0;
   int muskets = 0;
   int horses = 0;
@@ -576,6 +604,89 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
   }
   game_open_found_name_entry(game, cid);
   return true;
+}
+
+/* @NOPORT CHOICE when founding inland (no ocean access). */
+static void game_request_noport_found_confirm(ColonizeGameState* game, int uid) {
+  if (!game || uid < 0) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    &game->messages,
+    "NOPORT",
+    &tok,
+    "This square does not have access to the ocean.",
+    body,
+    sizeof(body)
+  );
+  char choice_buf[AI_POPUP_CHOICE_MAX][48];
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "NOPORT");
+  int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  const char* labels[2];
+  const int ids[] = {0, 1}; /* forgot / proceed */
+  if (nch >= 2) {
+    labels[0] = choice_buf[0];
+    labels[1] = choice_buf[1];
+  } else {
+    labels[0] = "Oh, I forgot about that.";
+    labels[1] = "And that is exactly what I had in mind.";
+  }
+  game->map_confirm = GAME_MAP_CONFIRM_FOUND_INLAND;
+  game->map_confirm_payload = uid;
+  if (!ai_popup_enqueue_choice(
+        &game->ai_popups, AI_POPUP_TAG_MAP_CONFIRM, NULL, body, labels, ids, 2
+      )) {
+    game->map_confirm = GAME_MAP_CONFIRM_NONE;
+    game->map_confirm_payload = -1;
+    set_status(game, "Dialog queue full", NULL);
+  }
+}
+
+/*
+ * Human FOUND (B key / Orders → Build Colony).
+ * @SEACOLONY on water; @NOPORT CHOICE when land is not coastal.
+ */
+static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
+  if (!game || !game->world_map_ok) {
+    return false;
+  }
+  const int cx = game->map_cursor_x;
+  const int cy = game->map_cursor_y;
+  if (!map_tile_is_land(&game->world_map, cx, cy)) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages,
+      "SEACOLONY",
+      NULL,
+      "Colonies cannot be built at sea.",
+      body,
+      sizeof(body)
+    );
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
+  if (!colonies_can_found(&game->colonies, &game->world_map, cx, cy)) {
+    set_status(game, "Cannot found colony here", NULL);
+    return false;
+  }
+  const int uid = units_id_at(&game->units, cx, cy);
+  if (uid < 0) {
+    set_status(game, "No unit at cursor to found colony", NULL);
+    return false;
+  }
+  if (units_is_sea(&game->units, uid)) {
+    set_status(game, "Ships cannot found colonies", NULL);
+    return false;
+  }
+  if (!map_tile_is_coastal(&game->world_map, cx, cy)) {
+    game_request_noport_found_confirm(game, uid);
+    return true;
+  }
+  return game_do_found_colony_at_unit(game, uid);
 }
 
 static void game_enqueue_yes_no(
@@ -779,6 +890,12 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
     case GAME_MAP_CONFIRM_TRADE_DELETE:
       game_do_trade_delete_slot(game, payload);
       break;
+    case GAME_MAP_CONFIRM_BUY_CONSTRUCTION:
+      game_do_buy_construction(game, payload);
+      break;
+    case GAME_MAP_CONFIRM_FOUND_INLAND:
+      (void)game_do_found_colony_at_unit(game, payload);
+      break;
     default:
       break;
   }
@@ -808,6 +925,107 @@ static void game_request_disband_confirm(ColonizeGameState* game) {
     "Really disband this unit?",
     &tok
   );
+}
+
+static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
+  if (!game || !game->in_colony) {
+    return;
+  }
+  ColonizeColony* colony = colonies_get_mut(&game->colonies, colony_id);
+  ColonyScreenView* csv = &game->colony_screen;
+  if (!colony || colony->building_in_production < 0) {
+    set_status(game, "No project", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  const int gold_before = game->europe.gold;
+  const ColonizeBuildingType* bt =
+    colonies_building_type(&game->colonies, colony->building_in_production);
+  const int tools = bt ? bt->tools_cost : 0;
+  if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
+    set_status(game, "Need tools", NULL);
+  } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
+    set_status(game, "Need gold", NULL);
+  } else if (colonies_buy_construction(&game->colonies, colony_id, &game->europe.gold)) {
+    snprintf(
+      game->status,
+      sizeof(game->status),
+      "Bought %s (-%d$, -%d tools)",
+      bt ? bt->name : "building",
+      gold_before - game->europe.gold,
+      tools
+    );
+    colony_screen_close_construction(csv);
+  } else {
+    set_status(game, "Cannot buy", NULL);
+  }
+  colony_screen_set_status(csv, game->status);
+}
+
+static void game_request_buy_construction_confirm(ColonizeGameState* game) {
+  if (!game || !game->in_colony) {
+    return;
+  }
+  ColonizeColony* colony = colonies_get_mut(&game->colonies, game->colony_view_id);
+  ColonyScreenView* csv = &game->colony_screen;
+  if (!colony || colony->building_in_production < 0) {
+    set_status(game, "No project", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
+    set_status(game, "Need tools", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  const int gold_cost = colonies_construction_gold_cost(&game->colonies, colony);
+  if (game->europe.gold < gold_cost) {
+    set_status(game, "Need gold", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  const ColonizeBuildingType* bt =
+    colonies_building_type(&game->colonies, colony->building_in_production);
+  const char* bname = (bt && bt->name[0]) ? bt->name : "building";
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = bname;
+  tok.number0 = gold_cost;
+  tok.has_number0 = true;
+  tok.number1 = game->europe.gold;
+  tok.has_number1 = true;
+  char body[AI_POPUP_BODY_LEN];
+  char fallback[160];
+  snprintf(
+    fallback,
+    sizeof(fallback),
+    "Cost to complete %s: %d$. Treasury: %d$.",
+    bname,
+    gold_cost,
+    game->europe.gold
+  );
+  popup_msg_fill(&game->messages, "BUYME1", &tok, fallback, body, sizeof(body));
+  char choice_buf[AI_POPUP_CHOICE_MAX][48];
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "BUYME1");
+  int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  const char* labels[2];
+  const int ids[] = {0, 1}; /* Never mind / Complete it */
+  if (nch >= 2) {
+    labels[0] = choice_buf[0];
+    labels[1] = choice_buf[1];
+  } else {
+    labels[0] = "Never mind";
+    labels[1] = "Complete it";
+  }
+  game->map_confirm = GAME_MAP_CONFIRM_BUY_CONSTRUCTION;
+  game->map_confirm_payload = game->colony_view_id;
+  if (!ai_popup_enqueue_choice(
+        &game->ai_popups, AI_POPUP_TAG_MAP_CONFIRM, NULL, body, labels, ids, 2
+      )) {
+    game->map_confirm = GAME_MAP_CONFIRM_NONE;
+    set_status(game, "Dialog queue full", NULL);
+    colony_screen_set_status(csv, game->status);
+  }
 }
 
 static void game_request_overboard_confirm(ColonizeGameState* game) {
@@ -1185,17 +1403,31 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
       return;
     }
     bool full = false;
+    const int hold = game->howmuch.result_payload;
+    int peek_type = -1;
+    {
+      const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+      if (tu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) {
+        peek_type = tu->hold_goods_type[hold];
+      }
+    }
     const int moved = colonies_transfer_from_unit(
       &game->colonies,
       game->colony_view_id,
       &game->units,
       csv->transport_unit_id,
-      game->howmuch.result_payload,
+      hold,
       &full
     );
     (void)amt;
-    if (moved > 0) {
+    if (moved > 0 && full) {
+      snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
+      game_emit_warehouse_full(game, game->colony_view_id, peek_type);
+    } else if (moved > 0) {
       snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
+    } else if (full) {
+      set_status(game, "Warehouse full", NULL);
+      game_emit_warehouse_full(game, game->colony_view_id, peek_type);
     } else {
       set_status(game, "Cannot unload", NULL);
     }
@@ -4341,6 +4573,11 @@ static void game_join_colony_order(ColonizeGameState* game) {
     const int cid = colonies_id_at(&game->colonies, u->x, u->y);
     const ColonizeColony* col = colonies_get(&game->colonies, cid);
     if (col && col->nation_id == game->human_nation) {
+      if (col->colonist_count >= COLONIZE_COLONY_POP_MAX) {
+        set_status(game, "Colony full", NULL);
+        colonies_emit_full_chrome(col, &game->ai_popups, &game->messages);
+        return;
+      }
       const int ci = colonies_admit_unit(&game->colonies, cid, &game->units, sid);
       if (ci >= 0) {
         game->units.selected_id = -1;
@@ -4679,7 +4916,28 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
         game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : "building"
       );
     } else {
-      set_status(game, "Cannot assign here", NULL);
+      const ColonizeColony* col = colonies_get(&game->colonies, game->colony_view_id);
+      const ColonizeColonist* c =
+        (col && ci >= 0 && ci < col->colonist_count) ? &col->colonists[ci] : NULL;
+      const int school_tier =
+        colonies_school_building_tier(&game->colonies, building_index);
+      if (c && school_tier > 0 && !colonies_profession_may_teach(c->profession)) {
+        set_status(game, "Need a skilled teacher", NULL);
+        colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
+      } else if (
+        c && school_tier > 0 &&
+        colonies_school_tier_shortfall(c->profession, school_tier) != 0
+      ) {
+        const int need = colonies_school_tier_shortfall(c->profession, school_tier);
+        set_status(
+          game, need >= 3 ? "Need a university" : "Need a college", NULL
+        );
+        colonies_emit_need_school_chrome(
+          c->profession, school_tier, &game->ai_popups, &game->messages
+        );
+      } else {
+        set_status(game, "Cannot assign here", NULL);
+      }
     }
   }
   colony_screen_set_status(csv, game->status);
@@ -4787,6 +5045,13 @@ static bool game_colony_drag_drop(
         (hit.kind == COLONY_HIT_NONE && my >= COLONY_CARGO_STRIP_Y)) {
       if (csv->transport_unit_id >= 0 && game->units_ok) {
         bool full = false;
+        int peek_type = -1;
+        {
+          const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+          if (tu && drag->index >= 0 && drag->index < COLONIZE_UNIT_CARGO_MAX) {
+            peek_type = tu->hold_goods_type[drag->index];
+          }
+        }
         const int moved = colonies_transfer_from_unit(
           &game->colonies,
           game->colony_view_id,
@@ -4797,10 +5062,12 @@ static bool game_colony_drag_drop(
         );
         if (moved > 0 && full) {
           snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
+          game_emit_warehouse_full(game, game->colony_view_id, peek_type);
         } else if (moved > 0) {
           snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
         } else if (full) {
           set_status(game, "Warehouse full", NULL);
+          game_emit_warehouse_full(game, game->colony_view_id, peek_type);
         } else {
           set_status(game, "Hold empty", NULL);
         }
@@ -5756,7 +6023,15 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       char msg[96];
       msg[0] = '\0';
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_road(&game->units, sid, &game->world_map, msg, sizeof(msg))) {
+          !units_pioneer_road(
+            &game->units,
+            sid,
+            &game->world_map,
+            msg,
+            sizeof(msg),
+            &game->ai_popups,
+            &game->messages
+          )) {
         set_status(game, msg[0] ? msg : "Cannot build road", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -6401,6 +6676,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
                 "Building %s",
                 bt ? bt->name : "project"
               );
+            } else {
+              const ColonizeColony* col_ref =
+                colonies_get(&game->colonies, game->colony_view_id);
+              if (col_ref && bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX &&
+                  col_ref->has_building[bid]) {
+                const ColonizeBuildingType* bt =
+                  colonies_building_type(&game->colonies, bid);
+                set_status(game, "Already built", NULL);
+                colonies_emit_already_have_chrome(
+                  col_ref, bt ? bt->name : NULL, &game->ai_popups, &game->messages
+                );
+              }
             }
           }
         }
@@ -6591,30 +6878,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     /* B = buy remaining construction with gold + warehouse tools. */
     if (input->last_key == COLONIZE_KEY_B && colony &&
         colony->building_in_production >= 0) {
-      const int gold_before = game->europe.gold;
-      const ColonizeBuildingType* bt =
-        colonies_building_type(&game->colonies, colony->building_in_production);
-      const int tools = bt ? bt->tools_cost : 0;
-      if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
-        set_status(game, "Need tools", NULL);
-      } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
-        set_status(game, "Need gold", NULL);
-      } else if (colonies_buy_construction(
-                   &game->colonies, game->colony_view_id, &game->europe.gold
-                 )) {
-        snprintf(
-          game->status,
-          sizeof(game->status),
-          "Bought %s (-%d$, -%d tools)",
-          bt ? bt->name : "building",
-          gold_before - game->europe.gold,
-          tools
-        );
-        colony_screen_close_construction(csv);
-      } else {
-        set_status(game, "Cannot buy", NULL);
-      }
-      colony_screen_set_status(csv, game->status);
+      game_request_buy_construction_confirm(game);
       return true;
     }
 
@@ -6656,6 +6920,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             set_status(game, "Hold empty", NULL);
           } else {
             bool full = false;
+            int peek_type = -1;
+            {
+              const ColonizeUnit* tu = units_get_const(&game->units, csv->transport_unit_id);
+              if (tu && hold >= 0 && hold < COLONIZE_UNIT_CARGO_MAX) {
+                peek_type = tu->hold_goods_type[hold];
+              }
+            }
             const int moved = colonies_transfer_from_unit(
               &game->colonies,
               game->colony_view_id,
@@ -6666,10 +6937,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             );
             if (moved > 0 && full) {
               snprintf(game->status, sizeof(game->status), "Unloaded %d (Warehouse full)", moved);
+              game_emit_warehouse_full(game, game->colony_view_id, peek_type);
             } else if (moved > 0) {
               snprintf(game->status, sizeof(game->status), "Unloaded %d", moved);
             } else if (full) {
               set_status(game, "Warehouse full", NULL);
+              game_emit_warehouse_full(game, game->colony_view_id, peek_type);
             } else {
               set_status(game, "Cannot unload", NULL);
             }
@@ -6879,34 +7152,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         break;
       case COLONY_HIT_MULTI_BUY: {
-        if (!colony || colony->building_in_production < 0) {
-          set_status(game, "No project", NULL);
-        } else {
-          const int gold_before = game->europe.gold;
-          const ColonizeBuildingType* bt = colonies_building_type(
-            &game->colonies, colony->building_in_production
-          );
-          const int tools = bt ? bt->tools_cost : 0;
-          if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
-            set_status(game, "Need tools", NULL);
-          } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
-            set_status(game, "Need gold", NULL);
-          } else if (colonies_buy_construction(
-                       &game->colonies, game->colony_view_id, &game->europe.gold
-                     )) {
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "Bought %s (-%d$, -%d tools)",
-              bt ? bt->name : "building",
-              gold_before - game->europe.gold,
-              tools
-            );
-          } else {
-            set_status(game, "Cannot buy", NULL);
-          }
-        }
-        colony_screen_set_status(csv, game->status);
+        game_request_buy_construction_confirm(game);
         break;
       }
       case COLONY_HIT_MULTI_CHANGE:
@@ -6961,6 +7207,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             snprintf(
               game->status, sizeof(game->status), "Building %s", bt ? bt->name : "project"
             );
+          } else {
+            const ColonizeColony* col_ref =
+              colonies_get(&game->colonies, game->colony_view_id);
+            if (col_ref && bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX &&
+                col_ref->has_building[bid]) {
+              const ColonizeBuildingType* bt =
+                colonies_building_type(&game->colonies, bid);
+              set_status(game, "Already built", NULL);
+              colonies_emit_already_have_chrome(
+                col_ref, bt ? bt->name : NULL, &game->ai_popups, &game->messages
+              );
+            }
           }
         }
         colony_screen_close_construction(csv);
@@ -7435,7 +7693,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       const ColonizeUnit* su = units_get_const(&game->units, sid);
       if (su && units_is_pioneer(&game->units, sid) && su->moves_left > 0) {
         char msg[96];
-        units_pioneer_road(&game->units, sid, &game->world_map, msg, sizeof(msg));
+        units_pioneer_road(
+          &game->units,
+          sid,
+          &game->world_map,
+          msg,
+          sizeof(msg),
+          &game->ai_popups,
+          &game->messages
+        );
         set_status(game, msg, NULL);
         return true;
       }

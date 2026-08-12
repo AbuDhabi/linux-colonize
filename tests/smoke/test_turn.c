@@ -209,8 +209,600 @@ static int smoke_eot_fog_reveal(void) {
   return 0;
 }
 
+/* Phase K @NEEDTOOLS0 when construction blocked on tools=0. */
+static int smoke_needtools0(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "needtools0: buildings load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+  const int press = colonies_find_building(&pool, "Printing Press");
+  if (carpenter < 0 || press < 0) {
+    fprintf(stderr, "needtools0: missing Carpenter/Printing Press\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const ColonizeBuildingType* bt = colonies_building_type(&pool, press);
+  if (!bt || bt->tools_cost <= 0 || bt->hammers <= 0) {
+    fprintf(stderr, "needtools0: Printing Press should need tools\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Boston");
+  col->has_building[carpenter] = true;
+  col->building_in_production = press;
+  col->hammers = bt->hammers;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->stock[COLONIZE_CARGO_LUMBER] = 50;
+  col->stock[COLONIZE_CARGO_TOOLS] = 0;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = carpenter;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "needtools0: GAME.TXT load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  if (col->has_building[press]) {
+    fprintf(stderr, "needtools0: should not complete without tools\n");
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (strstr(eu.status, "tools") == NULL && strstr(eu.status, "Tools") == NULL) {
+    fprintf(stderr, "needtools0: status want Need tools got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "tools") == NULL &&
+       strstr(pops.queue[0].body, "Boston") == NULL &&
+       strstr(pops.queue[0].body, "Printing") == NULL)) {
+    fprintf(
+      stderr,
+      "needtools0: NEEDTOOLS0 popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_turn: NEEDTOOLS0 chrome ok\n");
+  return 0;
+}
+
+/* Phase K @NEEDTOOLS when construction blocked on tools>0 but short. */
+static int smoke_needtools(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+      !colonies_load_buildings(&pool, &names)) {
+    fprintf(stderr, "needtools: buildings load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+  const int press = colonies_find_building(&pool, "Printing Press");
+  if (carpenter < 0 || press < 0) {
+    fprintf(stderr, "needtools: missing Carpenter/Printing Press\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const ColonizeBuildingType* bt = colonies_building_type(&pool, press);
+  if (!bt || bt->tools_cost < 2 || bt->hammers <= 0) {
+    fprintf(stderr, "needtools: Printing Press should need >=2 tools\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int have = bt->tools_cost / 2;
+  if (have < 1 || have >= bt->tools_cost) {
+    fprintf(stderr, "needtools: bad partial tools have=%d cost=%d\n", have, bt->tools_cost);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Boston");
+  col->has_building[carpenter] = true;
+  col->building_in_production = press;
+  col->hammers = bt->hammers;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->stock[COLONIZE_CARGO_LUMBER] = 50;
+  col->stock[COLONIZE_CARGO_TOOLS] = have;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = carpenter;
+  col->colonists[0].field_job = -1;
+  for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+    col->tiles[t] = -1;
+  }
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "needtools: GAME.TXT load failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  if (col->has_building[press]) {
+    fprintf(stderr, "needtools: should not complete with short tools\n");
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (strstr(eu.status, "tools") == NULL && strstr(eu.status, "Tools") == NULL) {
+    fprintf(stderr, "needtools: status want Need tools got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      strstr(pops.queue[0].body, "tools") == NULL ||
+      (strstr(pops.queue[0].body, "Boston") == NULL &&
+       strstr(pops.queue[0].body, "Printing") == NULL) ||
+      (strstr(pops.queue[0].body, "Only") == NULL &&
+       strstr(pops.queue[0].body, "only") == NULL)) {
+    fprintf(
+      stderr,
+      "needtools: NEEDTOOLS popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_turn: NEEDTOOLS chrome ok\n");
+  return 0;
+}
+
+/* Phase G @TRAINFAIL when ready teacher has no eligible students. */
+static int smoke_trainfail(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Roanoke");
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "trainfail: GAME.TXT load failed\n");
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "No students") == NULL) {
+    fprintf(stderr, "trainfail: status want No students got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Roanoke") == NULL &&
+       strstr(pops.queue[0].body, "teacher") == NULL &&
+       strstr(pops.queue[0].body, "specialty") == NULL &&
+       strstr(pops.queue[0].body, "students") == NULL)) {
+    fprintf(
+      stderr,
+      "trainfail: TRAINFAIL popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_turn: TRAINFAIL chrome ok\n");
+  return 0;
+}
+
+/* Phase G @TRAINPROFESSION when school graduation assigns a specialty. */
+static int smoke_trainprofession(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Plymouth");
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].building_type = 0;
+  col->colonists[1].field_job = -1;
+  col->colonists[1].turns_in_job = 0;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "trainprof: GAME.TXT load failed\n");
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  if (col->colonists[1].profession != COLONIZE_JOB_FARMER) {
+    fprintf(
+      stderr,
+      "trainprof: student want Farmer(%d) got %d\n",
+      COLONIZE_JOB_FARMER,
+      col->colonists[1].profession
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(eu.status, "graduate") == NULL) {
+    fprintf(stderr, "trainprof: status want graduate got '%s'\n", eu.status);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Plymouth") == NULL &&
+       strstr(pops.queue[0].body, "Farmer") == NULL &&
+       strstr(pops.queue[0].body, "profession") == NULL &&
+       strstr(pops.queue[0].body, "learned") == NULL)) {
+    fprintf(
+      stderr,
+      "trainprof: TRAINPROFESSION popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_turn: TRAINPROFESSION chrome ok\n");
+  return 0;
+}
+
+/* Phase G ladder: Criminal → Indentured + @TRAINCRIMINAL. */
+static int smoke_traincriminal(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Boston");
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 3;
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_CRIMINAL;
+  col->colonists[1].building_type = 0;
+  col->colonists[1].field_job = -1;
+  col->colonists[1].turns_in_job = 0;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "traincriminal: GAME.TXT load failed\n");
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  if (col->colonists[1].profession != COLONIZE_PROF_INDENTURED) {
+    fprintf(
+      stderr,
+      "traincriminal: want Indentured(%d) got %d\n",
+      COLONIZE_PROF_INDENTURED,
+      col->colonists[1].profession
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Boston") == NULL &&
+       strstr(pops.queue[0].body, "criminal") == NULL &&
+       strstr(pops.queue[0].body, "Criminal") == NULL &&
+       strstr(pops.queue[0].body, "indentured") == NULL)) {
+    fprintf(
+      stderr,
+      "traincriminal: TRAINCRIMINAL popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_turn: TRAINCRIMINAL chrome ok\n");
+  return 0;
+}
+
+/* Phase G ladder: Indentured → Free + @TRAININDENTURED. */
+static int smoke_trainindentured(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Salem");
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 3;
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_INDENTURED;
+  col->colonists[1].building_type = 0;
+  col->colonists[1].field_job = -1;
+  col->colonists[1].turns_in_job = 0;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "trainindentured: GAME.TXT load failed\n");
+    return 1;
+  }
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  if (col->colonists[1].profession != COLONIZE_PROF_FREE_COLONIST) {
+    fprintf(
+      stderr,
+      "trainindentured: want Free(%d) got %d\n",
+      COLONIZE_PROF_FREE_COLONIST,
+      col->colonists[1].profession
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Salem") == NULL &&
+       strstr(pops.queue[0].body, "indentured") == NULL &&
+       strstr(pops.queue[0].body, "free") == NULL &&
+       strstr(pops.queue[0].body, "Free") == NULL)) {
+    fprintf(
+      stderr,
+      "trainindentured: TRAININDENTURED popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_turn: TRAININDENTURED chrome ok\n");
+  return 0;
+}
+
+/* Phase H @TRAINPROFESSION when Free Colonist discovers field skill. */
+static int smoke_phase_h_trainprofession(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Concord");
+  col->building_in_production = -1;
+  col->stock[COLONIZE_CARGO_FOOD] = 500;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+  col->colonist_count = 1;
+  col->population = 1;
+  col->tiles[0] = 0;
+  pool.colony_count = 1;
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "phaseh: GAME.TXT load failed\n");
+    return 1;
+  }
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.year = 1492;
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  int discovered = 0;
+  for (unsigned t = 0; t < 5000u; ++t) {
+    col1.head.turn = (uint16_t)(t & 0xffffu);
+    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+    col->stock[COLONIZE_CARGO_FOOD] = 500;
+    eu.status[0] = '\0';
+    ai_popup_init(&pops);
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
+      discovered = 1;
+      if (pops.queue_count < 1 ||
+          (strstr(pops.queue[0].body, "Concord") == NULL &&
+           strstr(pops.queue[0].body, "Farmer") == NULL &&
+           strstr(pops.queue[0].body, "learned") == NULL &&
+           strstr(pops.queue[0].body, "profession") == NULL)) {
+        fprintf(
+          stderr,
+          "phaseh: TRAINPROFESSION popup weak q=%d body='%s' status='%s'\n",
+          pops.queue_count,
+          pops.queue_count > 0 ? pops.queue[0].body : "",
+          eu.status
+        );
+        assets_msg_free(&game_txt);
+        return 1;
+      }
+      break;
+    }
+  }
+  assets_msg_free(&game_txt);
+  if (!discovered) {
+    fprintf(stderr, "phaseh: no field skill discover in 5000 ticks\n");
+    return 1;
+  }
+  fprintf(stderr, "smoke_turn: Phase H TRAINPROFESSION chrome ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (smoke_needtools0() != 0) {
+    return 1;
+  }
+  if (smoke_needtools() != 0) {
+    return 1;
+  }
+  if (smoke_trainfail() != 0) {
+    return 1;
+  }
+  if (smoke_trainprofession() != 0) {
+    return 1;
+  }
+  if (smoke_traincriminal() != 0) {
+    return 1;
+  }
+  if (smoke_trainindentured() != 0) {
+    return 1;
+  }
+  if (smoke_phase_h_trainprofession() != 0) {
+    return 1;
+  }
 
   if (expect_date(1492, 0, "Spring 1492") != 0 || expect_date(1600, 1, "Autumn 1600") != 0) {
     return 1;

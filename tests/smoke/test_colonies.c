@@ -2,12 +2,14 @@
 #include <string.h>
 
 #include "core/assets.h"
+#include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -112,6 +114,379 @@ static int smoke_warehouse_capitol_levels(void) {
     return 1;
   }
   fprintf(stderr, "smoke_colonies: warehouse/capitol levels ok\n");
+  return 0;
+}
+
+/* Helper: @SEACOLONY / @NOPORT GAME.TXT + inland vs coastal found tiles. */
+static int smoke_found_chrome(void) {
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "found: GAME.TXT load failed\n");
+    return 1;
+  }
+  char body[512];
+  popup_msg_fill(
+    &game_txt,
+    "SEACOLONY",
+    NULL,
+    "Colonies cannot be built at sea.",
+    body,
+    sizeof(body)
+  );
+  if (strstr(body, "sea") == NULL && strstr(body, "Sea") == NULL) {
+    fprintf(stderr, "found: SEACOLONY body weak '%s'\n", body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  popup_msg_fill(
+    &game_txt,
+    "NOPORT",
+    NULL,
+    "This square does not have access to the ocean.",
+    body,
+    sizeof(body)
+  );
+  if ((strstr(body, "ocean") == NULL && strstr(body, "Ocean") == NULL) ||
+      (strstr(body, "port") == NULL && strstr(body, "Port") == NULL &&
+       strstr(body, "wagon") == NULL && strstr(body, "Wagon") == NULL)) {
+    fprintf(stderr, "found: NOPORT body weak '%s'\n", body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  char choices[4][48];
+  const ColonizeMsgSection* sec = assets_msg_find(&game_txt, "NOPORT");
+  const int nch = popup_msg_choices(sec, choices, 4);
+  if (nch < 2) {
+    fprintf(stderr, "found: NOPORT want 2 choices got %d\n", nch);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(choices[0], "forgot") == NULL) {
+    fprintf(stderr, "found: NOPORT choice0 unexpected '%s'\n", choices[0]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(choices[1], "mind") == NULL && strstr(choices[1], "exactly") == NULL) {
+    fprintf(stderr, "found: NOPORT choice1 unexpected '%s'\n", choices[1]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char map_err[256];
+  if (!map_load_mp("COLONIZE/AMER2.MP", &map, map_err, sizeof(map_err))) {
+    fprintf(stderr, "found: AMER2 load failed: %s\n", map_err);
+    return 1;
+  }
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+
+  int water = 0, inland = 0, coastal = 0;
+  for (int y = 0; y < (int)map.height; ++y) {
+    for (int x = 0; x < (int)map.width; ++x) {
+      if (!map_tile_is_land(&map, x, y)) {
+        water++;
+        continue;
+      }
+      if (!colonies_can_found(&pool, &map, x, y)) {
+        continue;
+      }
+      if (map_tile_is_coastal(&map, x, y)) {
+        coastal++;
+      } else {
+        inland++;
+      }
+    }
+  }
+  map_free(&map);
+  if (water < 1 || inland < 1 || coastal < 1) {
+    fprintf(
+      stderr,
+      "found: tile classes water=%d inland=%d coastal=%d\n",
+      water,
+      inland,
+      coastal
+    );
+    return 1;
+  }
+  fprintf(
+    stderr,
+    "smoke_colonies: found chrome ok (water=%d inland=%d coastal=%d)\n",
+    water,
+    inland,
+    coastal
+  );
+  return 0;
+}
+
+/* Helper: @FULL chrome when colony is at population cap. */
+static int smoke_full_chrome(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Jamestown");
+  col->colonist_count = COLONIZE_COLONY_POP_MAX;
+  col->population = COLONIZE_COLONY_POP_MAX;
+  pool.colony_count = 1;
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "full: GAME.TXT load failed\n");
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  colonies_emit_full_chrome(col, &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Jamestown") == NULL &&
+       strstr(pops.queue[0].body, "crowded") == NULL &&
+       strstr(pops.queue[0].body, "immigrants") == NULL)) {
+    fprintf(
+      stderr,
+      "full: FULL popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_colonies: FULL chrome ok\n");
+  return 0;
+}
+
+/* Helper: @ALREADYHAVE / @NOMOREWAREHOUSE when construction already owned. */
+static int smoke_alreadyhave_chrome(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Williamsburg");
+  pool.colony_count = 1;
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "alreadyhave: GAME.TXT load failed\n");
+    return 1;
+  }
+
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  colonies_emit_already_have_chrome(col, "Printing Press", &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Williamsburg") == NULL &&
+       strstr(pops.queue[0].body, "already") == NULL &&
+       strstr(pops.queue[0].body, "Printing") == NULL)) {
+    fprintf(
+      stderr,
+      "alreadyhave: ALREADYHAVE popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  ai_popup_init(&pops);
+  colonies_emit_already_have_chrome(col, "Warehouse Expansion", &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "Williamsburg") == NULL &&
+       strstr(pops.queue[0].body, "expansion") == NULL &&
+       strstr(pops.queue[0].body, "Expansion") == NULL &&
+       strstr(pops.queue[0].body, "one") == NULL &&
+       strstr(pops.queue[0].body, "One") == NULL)) {
+    fprintf(
+      stderr,
+      "alreadyhave: NOMOREWAREHOUSE popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_colonies: ALREADYHAVE/NOMOREWAREHOUSE chrome ok\n");
+  return 0;
+}
+
+/* Helper: unskilled school assign → @NOTEACHER; Teacher may assign. */
+static int smoke_noteacher_chrome(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Harvard");
+  col->has_building[0] = true;
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = -1;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  if (colonies_assign_workplace(&pool, 1, 0, 0)) {
+    fprintf(stderr, "noteacher: Free Colonist should not assign to Schoolhouse\n");
+    return 1;
+  }
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "noteacher: GAME.TXT load failed\n");
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  colonies_emit_noteacher_chrome(&pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "mastered") == NULL &&
+       strstr(pops.queue[0].body, "teach") == NULL &&
+       strstr(pops.queue[0].body, "profession") == NULL)) {
+    fprintf(
+      stderr,
+      "noteacher: NOTEACHER popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+
+  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  if (!colonies_assign_workplace(&pool, 1, 0, 0)) {
+    fprintf(stderr, "noteacher: Teacher should assign to Schoolhouse\n");
+    return 1;
+  }
+  if (col->colonists[0].building_type != 0) {
+    fprintf(stderr, "noteacher: Teacher building_type want 0 got %d\n", col->colonists[0].building_type);
+    return 1;
+  }
+
+  fprintf(stderr, "smoke_colonies: NOTEACHER chrome ok\n");
+  return 0;
+}
+
+/* Helper: school tier gates @NEEDCOLLEGE / @NEEDUNIVERSITY. */
+static int smoke_needschool_chrome(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
+  snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "College");
+  snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "University");
+  pool.building_type_count = 3;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Yale");
+  col->has_building[0] = true; /* Schoolhouse only */
+  col->colonists[0].active = true;
+  col->colonists[0].profession = COLONIZE_PROF_BLACKSMITH;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = -1;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  if (colonies_assign_workplace(&pool, 1, 0, 0)) {
+    fprintf(stderr, "needschool: Blacksmith should not assign to Schoolhouse\n");
+    return 1;
+  }
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "needschool: GAME.TXT load failed\n");
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  colonies_emit_need_school_chrome(COLONIZE_PROF_BLACKSMITH, 1, &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "college") == NULL &&
+       strstr(pops.queue[0].body, "College") == NULL &&
+       strstr(pops.queue[0].body, "Blacksmith") == NULL)) {
+    fprintf(
+      stderr,
+      "needschool: NEEDCOLLEGE popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /* College only — Preacher needs University. */
+  col->has_building[0] = false;
+  col->has_building[1] = true;
+  col->colonists[0].profession = COLONIZE_PROF_PREACHER;
+  col->colonists[0].building_type = -1;
+  if (colonies_assign_workplace(&pool, 1, 0, 1)) {
+    fprintf(stderr, "needschool: Preacher should not assign to College-only\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  ai_popup_init(&pops);
+  colonies_emit_need_school_chrome(COLONIZE_PROF_PREACHER, 2, &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "university") == NULL &&
+       strstr(pops.queue[0].body, "University") == NULL &&
+       strstr(pops.queue[0].body, "Preacher") == NULL)) {
+    fprintf(
+      stderr,
+      "needschool: NEEDUNIVERSITY popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+
+  /* University + Preacher OK. */
+  col->has_building[1] = false;
+  col->has_building[2] = true;
+  col->colonists[0].building_type = -1;
+  if (!colonies_assign_workplace(&pool, 1, 0, 2)) {
+    fprintf(stderr, "needschool: Preacher should assign to University\n");
+    return 1;
+  }
+
+  /* Schoolhouse + Farmer OK. */
+  col->has_building[2] = false;
+  col->has_building[0] = true;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER;
+  col->colonists[0].building_type = -1;
+  if (!colonies_assign_workplace(&pool, 1, 0, 0)) {
+    fprintf(stderr, "needschool: Farmer should assign to Schoolhouse\n");
+    return 1;
+  }
+
+  fprintf(stderr, "smoke_colonies: NEEDCOLLEGE/NEEDUNIVERSITY chrome ok\n");
   return 0;
 }
 
@@ -1001,6 +1376,21 @@ int main(void) {
 
   if (failures == 0) {
     printf("smoke_colonies: all checks passed\n");
+    if (smoke_found_chrome() != 0) {
+      return 1;
+    }
+    if (smoke_full_chrome() != 0) {
+      return 1;
+    }
+    if (smoke_alreadyhave_chrome() != 0) {
+      return 1;
+    }
+    if (smoke_noteacher_chrome() != 0) {
+      return 1;
+    }
+    if (smoke_needschool_chrome() != 0) {
+      return 1;
+    }
     if (smoke_hammers_purchased_buy() != 0) {
       return 1;
     }

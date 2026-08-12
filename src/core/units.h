@@ -280,7 +280,8 @@ int units_tick_ship_build_ready(
 /*
  * Drydock repair: clear combat-damage bit7 for finished ships on own Drydock
  * colony. Construction (turns_worked < defense thresh) stays on ship-build tick.
- * Returns ships repaired. Cite: building_production.md; combat.md fort bit7.
+ * Returns ships repaired. ai_popups/messages optional — human repair emits @REFIT.
+ * Cite: building_production.md; combat.md fort bit7.
  */
 int units_tick_drydock_repair(
   ColonizeUnitPool* pool,
@@ -288,7 +289,9 @@ int units_tick_drydock_repair(
   int nation_id,
   int human_nation,
   char* status,
-  size_t status_size
+  size_t status_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 /*
  * Cortes free king galleon stand-in: each Treasure of nation on an own coastal
@@ -678,7 +681,9 @@ bool units_pioneer_road(
   int unit_id,
   ColonizeWorldMap* map,
   char* err,
-  size_t err_size
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 /* One work-tick for CLEAR_PLOW / BUILD_ROAD orders. Returns true if unit still
  * has that order (in progress or just started). colonies/ai_popups/messages

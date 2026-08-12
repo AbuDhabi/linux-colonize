@@ -5210,10 +5210,14 @@ static int ai_euro_try_pioneer_improve(
           )) {
         worked = 1;
       } else if (ai_euro_pioneer_tile_can_road(ctx->map, tx, ty) &&
-                 units_pioneer_road(ctx->units, u->id, ctx->map, err, sizeof(err))) {
+                 units_pioneer_road(
+                   ctx->units, u->id, ctx->map, err, sizeof(err), NULL, NULL
+                 )) {
         worked = 1;
       }
-    } else if (units_pioneer_road(ctx->units, u->id, ctx->map, err, sizeof(err))) {
+    } else if (units_pioneer_road(
+                 ctx->units, u->id, ctx->map, err, sizeof(err), NULL, NULL
+               )) {
       worked = 1;
     }
     if (worked && ctx->colonies) {
