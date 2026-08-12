@@ -3881,15 +3881,23 @@ int main(void) {
     }
     fprintf(stderr, "build advisory K ok\n");
 
-    /* K tools crumb: hammers flow, tools empty, project queued. */
-    col->building_in_production = 0;
+    /* K tools crumb: hammers banked + this-tick carpenter flow, tools short. */
+    pool.building_type_count = 2;
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+    pool.building_types[0].hammers = 0;
+    pool.building_types[0].tools_cost = 0;
+    snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Printing Press");
+    pool.building_types[1].hammers = 10;
+    pool.building_types[1].tools_cost = 4;
+    col->building_in_production = 1;
+    col->has_building[0] = true;
+    col->has_building[1] = false;
+    col->hammers = 10;
     col->stock[COLONIZE_CARGO_TOOLS] = 0;
     col->stock[COLONIZE_CARGO_LUMBER] = 20;
+    col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid Food shortage overwriting */
     col->colonists[0].building_type = 0;
     col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    pool.building_type_count = 1;
-    col->has_building[0] = true;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);

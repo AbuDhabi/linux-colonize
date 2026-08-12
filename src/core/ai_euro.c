@@ -4605,15 +4605,21 @@ static int ai_euro_try_wagon_haul(
   }
   int tx = 0;
   int ty = 0;
-  /* Thin 4393: work-queue haul when specialty/idle (prefer_cargo set or empty). */
+  /* Thin 4393: work-queue haul when specialty/idle (prefer_cargo set or empty).
+   * Skip a tip on the wagon's own tile after a surplus load — fall through to
+   * nearest short colony so load+haul completes same beat. */
+  int have_tip = 0;
   if ((prefer_cargo >= 0 || has_cap) &&
       ai_euro_4393_work_queue_haul_pick(
         ctx, nation_id, wagon->x, wagon->y, wagon, &tx, &ty
+      ) &&
+      !(tx == wagon->x && ty == wagon->y)) {
+    have_tip = 1;
+  }
+  if (!have_tip &&
+      !ai_euro_nearest_haul_short_colony(
+        ctx, nation_id, wagon->x, wagon->y, prefer_cargo, &tx, &ty
       )) {
-    /* use work-queue tip */
-  } else if (!ai_euro_nearest_haul_short_colony(
-               ctx, nation_id, wagon->x, wagon->y, prefer_cargo, &tx, &ty
-             )) {
     return 0;
   }
   if (wagon->x == tx && wagon->y == ty) {

@@ -1155,7 +1155,15 @@ static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int huma
         continue; /* Other colony tiles are not REF coastal landings. */
       }
     } else {
-      /* Foundable or coastal land next to a human colony. */
+      /*
+       * Soft coastal / foundable land next to a human colony — only when the
+       * ship is already adjacent to that colony (port water). One tile shy of
+       * the port must not dump onto foundable tiles (MD-early soft coast);
+       * sail onto coast water first, then unload (prefer colony tile above).
+       */
+      if (!ai_king_adjacent_human_colony(ctx, human, ship->x, ship->y)) {
+        continue;
+      }
       const int foundable =
           ctx->colonies && colonies_can_found(ctx->colonies, ctx->map, nx, ny);
       const int coastal = map_tile_is_coastal(ctx->map, nx, ny);
