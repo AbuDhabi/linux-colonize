@@ -651,12 +651,12 @@ work.
 | `@UNFORTUNATE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@MERCENARY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@SUCCESSION` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@REBELMAJORITY` | Partial | SoL / veteran chrome — status or silent |
-| `@REBELUNANIMOUS` | Partial | SoL / veteran chrome — status or silent |
-| `@TORYMINORITY` | Partial | SoL / veteran chrome — status or silent |
-| `@TORYMAJORITY` | Partial | SoL / veteran chrome — status or silent |
-| `@SONSUP` | Partial | SoL / veteran chrome — status or silent |
-| `@SONSDOWN` | Partial | SoL / veteran chrome — status or silent |
+| `@REBELMAJORITY` | Done thin | EOT Phase D ai_popup OK (`turn_emit_sol_phase_d_chrome`); VGA PARKED |
+| `@REBELUNANIMOUS` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
+| `@TORYMINORITY` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
+| `@TORYMAJORITY` | Done thin | EOT Phase D ai_popup OK; VGA PARKED |
+| `@SONSUP` | Done thin | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
+| `@SONSDOWN` | Done thin | EOT Phase D decade chrome ai_popup OK; VGA PARKED |
 | `@REBELUP` | Partial | SoL / veteran chrome — status or silent |
 | `@REBELUP50` | Partial | SoL / veteran chrome — status or silent |
 | `@REBELDOWN` | Partial | SoL / veteran chrome — status or silent |
@@ -724,9 +724,9 @@ work.
 | `@OVERBOARD` | Done | dump Yes/No |
 | `@ALREADYREVOLUTION` | Done | ai_popup CHOICE structural |
 | `@SUREDISBAND` | Done | disband Yes/No |
-| `@NEWCOLONIST` | Missing | no colony modal (FULL/SIEGE may status) |
-| `@INEFFICIENT` | Missing | production/EOT messages — status or silent; no modal |
-| `@EFFICIENT` | Missing | production/EOT messages — status or silent; no modal |
+| `@NEWCOLONIST` | Done thin | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |
+| `@INEFFICIENT` | Done thin | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
+| `@EFFICIENT` | Done thin | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
 | `@CLEARCUT` | Missing | production/EOT messages — status or silent; no modal |
 | `@REALLYBUY` | Done | purchase / train menus |
 | `@INDIANWARPATH` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |

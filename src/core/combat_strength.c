@@ -422,6 +422,7 @@ static int combat_colony_sol_at(
       if (sol < 0) {
         sol = 0;
       }
+      sol += founding_fathers_bolivar_sol_bonus(ctx->col1, c->nation_id);
       if (sol > 100) {
         sol = 100;
       }
@@ -430,6 +431,7 @@ static int combat_colony_sol_at(
   }
   if (c->nation_id >= 0 && c->nation_id < 4) {
     int sol = (int)ctx->col1->nation[c->nation_id].liberty_bells_total / 4;
+    sol += founding_fathers_bolivar_sol_bonus(ctx->col1, c->nation_id);
     if (sol > 100) {
       sol = 100;
     }

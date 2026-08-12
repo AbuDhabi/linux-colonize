@@ -69,6 +69,7 @@ int colony_yield_for_worker(
  * Colony SoL % for display / production (capped 0..100).
  * Prefer Col1 rebel_dividend/divisor at colony tile; else nation
  * liberty_bells_total/4 (FUN_43f7_0004-shaped stand-in when rebel fields empty).
+ * FUN_15eb_0274: +20 while Bolivar held and colony nation is human.
  */
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
@@ -82,7 +83,8 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /*
- * Latch Col1 +0x1c sol_50 / sol_100 from colony SoL % (FUN_364b_0688).
+ * One-step latch Col1 +0x1c sol_50 / sol_100 from colony SoL % (FUN_364b_0688
+ * Phase D). Majority then unanimous take separate ticks.
  */
 void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Save* col1);
 

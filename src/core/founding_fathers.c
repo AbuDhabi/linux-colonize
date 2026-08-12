@@ -25,7 +25,7 @@
 
 #define FF_CORONADO_REVEAL_RADIUS 2
 #define FF_DESOTO_REVEAL_RADIUS 1
-#define FF_BOLIVAR_SOL_PERCENT 20u
+#define FF_BOLIVAR_SOL_BONUS 20
 #define FF_LA_SALLE_STOCKADE_POP 3
 
 unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation) {
@@ -65,6 +65,20 @@ unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation)
     need >>= 1;
   }
   return need;
+}
+
+int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation) {
+  /* FUN_15eb_0274: FF 0x12 + owner < 4 + player[owner].control == 0 → +20. */
+  if (!col1 || nation < 0 || nation >= 4) {
+    return 0;
+  }
+  if (col1->player[nation].control != 0) {
+    return 0;
+  }
+  if (!founding_fathers_nation_has(col1, nation, FF_SIMON_BOLIVAR)) {
+    return 0;
+  }
+  return FF_BOLIVAR_SOL_BONUS;
 }
 
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index) {
@@ -500,34 +514,8 @@ static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id
   return touched;
 }
 
-/* Bolivar: +20% SoL via Col1 rebel_dividend on owned colonies. */
-static int effect_bolivar_rebel(ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || !col1->colony || col1->head.colony_count == 0) {
-    return 0;
-  }
-  int touched = 0;
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    ColonizeCol1Colony* c = &col1->colony[i];
-    if ((int)c->nation_id != nation_id) {
-      continue;
-    }
-    const uint32_t div = c->rebel_divisor > 0 ? c->rebel_divisor : 100u;
-    uint32_t bump = (div * FF_BOLIVAR_SOL_PERCENT) / 100u;
-    if (bump == 0) {
-      bump = 1;
-    }
-    if (c->rebel_dividend < 0xffffffffu - bump) {
-      c->rebel_dividend += bump;
-    } else {
-      c->rebel_dividend = 0xffffffffu;
-    }
-    if (c->rebel_dividend > div) {
-      c->rebel_dividend = div;
-    }
-    touched++;
-  }
-  return touched;
-}
+/* Bolivar: SoL +20% is display-time via founding_fathers_bolivar_sol_bonus
+ * (FUN_15eb_0274). Elect records FF only — no rebel_dividend mutation. */
 
 /*
  * Brewster: no Petty Criminals / Indentured Servants in Europe recruit pool
@@ -844,8 +832,8 @@ static void apply_effect(
        * Ownership bit; applied in colony_prod_colony_bells_ff via turn nation ticks. */
       break;
     case FF_SIMON_BOLIVAR:
-      /* Manual/wiki: SoL membership in all colonies +20%. */
-      (void)effect_bolivar_rebel(col1, nation_id);
+      /* FUN_15eb_0274: SoL +20% on every read while owned (human).
+       * Display-time via founding_fathers_bolivar_sol_bonus — no storage bump. */
       break;
     case FF_BENJAMIN_FRANKLIN:
       /* docs/fandom_col1994.md: king's European wars no longer affect NW

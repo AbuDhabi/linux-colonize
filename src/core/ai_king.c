@@ -4,6 +4,7 @@
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/strutil.h"
@@ -1460,27 +1461,44 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4) {
     return 0;
   }
-  /* FUN_43f7_0004: prefer Col1 rebel_dividend/divisor; else liberty bells. */
+  /*
+   * FUN_43f7_0004: pop-weighted colony SoL via FUN_15eb_0274 (incl. Bolivar).
+   * Prefer Col1 rebel_dividend/divisor + display boost; else liberty bells.
+   */
   if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
-    uint64_t div_sum = 0;
-    uint64_t num_sum = 0;
+    uint64_t pop_sum = 0;
+    uint64_t sol_sum = 0;
     for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
       const ColonizeCol1Colony* c = &ctx->col1->colony[i];
       if ((int)c->nation_id != nation_id) {
         continue;
       }
-      num_sum += (uint64_t)c->rebel_dividend * (uint64_t)(c->population > 0 ? c->population : 1);
-      div_sum += (uint64_t)(c->rebel_divisor > 0 ? c->rebel_divisor : 1) *
-                 (uint64_t)(c->population > 0 ? c->population : 1);
+      const uint64_t pop = (uint64_t)(c->population > 0 ? c->population : 1);
+      int sol = 0;
+      if (c->rebel_divisor > 0) {
+        sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+      } else {
+        sol = (int)ctx->col1->nation[nation_id].liberty_bells_total / 4;
+      }
+      if (sol < 0) {
+        sol = 0;
+      }
+      sol += founding_fathers_bolivar_sol_bonus(ctx->col1, nation_id);
+      if (sol > 100) {
+        sol = 100;
+      }
+      sol_sum += (uint64_t)sol * pop;
+      pop_sum += pop;
     }
-    if (div_sum > 0) {
-      return (int)((num_sum * 100ull) / div_sum);
+    if (pop_sum > 0) {
+      return (int)(sol_sum / pop_sum);
     }
   }
   if (ctx->col1_ok && ctx->col1) {
     const ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
     const int bells = (int)nat->liberty_bells_total;
     int sol = bells / 4;
+    sol += founding_fathers_bolivar_sol_bonus(ctx->col1, nation_id);
     if (sol > 100) {
       sol = 100;
     }
@@ -1508,7 +1526,16 @@ static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, 
         continue;
       }
       const uint32_t div = c->rebel_divisor > 0 ? c->rebel_divisor : 1;
-      return (int)(((uint64_t)c->rebel_dividend * 100ull) / (uint64_t)div);
+      int sol = (int)(((uint64_t)c->rebel_dividend * 100ull) / (uint64_t)div);
+      if (sol < 0) {
+        sol = 0;
+      }
+      /* FUN_15eb_0274 Bolivar display boost (same as colony_prod_sol_percent). */
+      sol += founding_fathers_bolivar_sol_bonus(ctx->col1, nation_id);
+      if (sol > 100) {
+        sol = 100;
+      }
+      return sol;
     }
   }
   return ai_king_sol_percent(ctx, nation_id);

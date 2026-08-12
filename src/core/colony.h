@@ -162,6 +162,11 @@ typedef struct ColonizeColony {
    * (FUN_364b_0114). Bridged; deeper use stays thin.
    */
   uint8_t capitol_level;
+  /*
+   * Port-only EOT latch for inefficient-government chrome (DOS +0x1c bit3 /
+   * FUN_364b_0688). Col1 bit3 stays starvation — do not bridge this field.
+   */
+  uint8_t inefficient_gov;
 } ColonizeColony;
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u

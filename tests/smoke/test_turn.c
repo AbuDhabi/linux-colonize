@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/ai_diplo.h"
+#include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony.h"
@@ -855,8 +856,10 @@ int main(void) {
     memset(b, 0, sizeof(*b));
     b->active = true;
     b->id = 1;
+    b->nation_id = 0;
     b->building_in_production = -1;
-    b->stock[COLONIZE_CARGO_FOOD] = 202; /* eat 2 → 200 → birth → 0 */
+    snprintf(b->name, sizeof(b->name), "Plymouth");
+    b->stock[COLONIZE_CARGO_FOOD] = 250; /* eat 2 → 248 → birth −200 → 48 */
     b->colonists[0].active = true;
     b->colonists[0].unit_type_index = 0;
     b->colonists[0].profession = UNITS_JOB_NONE;
@@ -868,21 +871,51 @@ int main(void) {
     b->colonist_count = 1;
     b->population = 1;
     birth_pool.colony_count = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
     ColonizeTurnResult br;
     memset(&br, 0, sizeof(br));
-    turn_colony_free_production(&birth_pool, b, NULL, &br, NULL);
+    turn_run_colony_production(&birth_pool, NULL, NULL, &eu, 0, &br, &pops, &game_txt);
     if (!b->active || b->colonist_count != 2) {
       fprintf(stderr, "birth: colonist_count want 2 got %d\n", b->colonist_count);
+      assets_msg_free(&game_txt);
       return 1;
     }
-    if (b->stock[COLONIZE_CARGO_FOOD] != 0) {
-      fprintf(stderr, "birth: food want 0 got %d\n", b->stock[COLONIZE_CARGO_FOOD]);
+    if (b->stock[COLONIZE_CARGO_FOOD] != 48) {
+      fprintf(stderr, "birth: food want 48 got %d\n", b->stock[COLONIZE_CARGO_FOOD]);
+      assets_msg_free(&game_txt);
       return 1;
     }
     if (b->colonists[1].profession != UNITS_JOB_COLONIST) {
       fprintf(stderr, "birth: newborn should be Free Colonist job\n");
+      assets_msg_free(&game_txt);
       return 1;
     }
+    if (strstr(eu.status, "Birth") == NULL && strstr(eu.status, "Plymouth") == NULL) {
+      fprintf(stderr, "birth: status want Birth/Plymouth got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1) {
+      fprintf(stderr, "birth: expected NEWCOLONIST popup\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(pops.queue[0].body, "Population increase") == NULL &&
+        strstr(pops.queue[0].body, "Plymouth") == NULL &&
+        strstr(pops.queue[0].body, "Birth") == NULL) {
+      fprintf(stderr, "birth: popup body weak: '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
     fprintf(stderr, "colony birth food≥200 ok\n");
   }
 
@@ -1047,6 +1080,272 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "SoL Phase C rebel accumulator ok\n");
+  }
+
+  /*
+   * FUN_364b_0688 Phase D: REBELMAJORITY / SONSUP chrome + report gates.
+   * Cite: colony_eot_production.md; sons_of_liberty.md; GAME.TXT @REBELMAJORITY.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+    pool.building_type_count = 1;
+
+    ColonizeColony* c = &pool.colonies[0];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->id = 1;
+    c->x = 10;
+    c->y = 12;
+    c->nation_id = 0;
+    c->building_in_production = -1;
+    c->has_building[0] = true;
+    snprintf(c->name, sizeof(c->name), "Jamestown");
+    c->stock[COLONIZE_CARGO_FOOD] = 80;
+    c->colonists[0].active = true;
+    c->colonists[0].building_type = 0;
+    c->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+    c->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      c->tiles[t] = -1;
+    }
+    c->colonist_count = 1;
+    c->population = 1;
+    pool.colony_count = 1;
+
+    ColonizeCol1Colony col1c;
+    memset(&col1c, 0, sizeof(col1c));
+    col1c.x = 10;
+    col1c.y = 12;
+    col1c.nation_id = 0;
+    /* Pre-shrink 45%/100 → after tick +7 bells → ~50%. */
+    col1c.rebel_dividend = 45u << 6;
+    col1c.rebel_divisor = 100u << 6;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.colony = &col1c;
+    col1.head.colony_count = 1;
+    col1.player[0].control = 0;
+    snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      col1.head.founding_father[i] = -1;
+    }
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
+      fprintf(stderr, "Phase D majority: sol_50 latch missing\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
+      fprintf(stderr, "Phase D majority: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count >= 1 &&
+        strstr(pops.queue[0].body, "majority") == NULL &&
+        strstr(pops.queue[0].body, "SoL") == NULL &&
+        strstr(eu.status, "up to") == NULL) {
+      fprintf(stderr, "Phase D majority body/status weak: '%s' / '%s'\n", pops.queue[0].body, eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
+    /* Suppress rebel-majority reports. */
+    c->colony_flags = 0;
+    col1c.rebel_dividend = 45u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 80;
+    col1.head.colony_report_options.report_rebel_majorities = 1;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
+      fprintf(
+        stderr,
+        "Phase D suppress rebel maj: want quiet got q=%d '%s'\n",
+        pops.queue_count,
+        eu.status
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
+    /* Decade up (@SONSUP): sol_50 already, 58%→~63%. */
+    col1.head.colony_report_options.report_rebel_majorities = 0;
+    c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
+    col1c.rebel_dividend = 58u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 80;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
+      fprintf(stderr, "Phase D SONSUP: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    /* Suppress sons membership reports. */
+    c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
+    col1c.rebel_dividend = 58u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 80;
+    col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
+      fprintf(
+        stderr,
+        "Phase D suppress sons: want quiet got q=%d '%s'\n",
+        pops.queue_count,
+        eu.status
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "SoL Phase D membership chrome ok\n");
+  }
+
+  /*
+   * FUN_364b_0688 Phase D Tory pressure: @INEFFICIENT / @EFFICIENT.
+   * Cite: colony_eot_production.md; difficulty.md; GAME.TXT @INEFFICIENT.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* c = &pool.colonies[0];
+    memset(c, 0, sizeof(*c));
+    c->active = true;
+    c->id = 1;
+    c->x = 8;
+    c->y = 8;
+    c->nation_id = 0;
+    c->building_in_production = -1;
+    snprintf(c->name, sizeof(c->name), "Roanoke");
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    for (int i = 0; i < 12; ++i) {
+      c->colonists[i].active = true;
+      c->colonists[i].building_type = -1;
+      c->colonists[i].field_job = -1;
+      c->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    }
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      c->tiles[t] = -1;
+    }
+    c->colonist_count = 12;
+    c->population = 12;
+    pool.colony_count = 1;
+
+    ColonizeCol1Colony col1c;
+    memset(&col1c, 0, sizeof(col1c));
+    col1c.x = 8;
+    col1c.y = 8;
+    col1c.nation_id = 0;
+    col1c.rebel_dividend = 0u << 6;
+    col1c.rebel_divisor = 100u << 6;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.colony = &col1c;
+    col1.head.colony_count = 1;
+    col1.head.difficulty = 0; /* Discoverer thresh 10 */
+    col1.player[0].control = 0;
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      col1.head.founding_father[i] = -1;
+    }
+    /* Quiet SoL latch/decade chrome for this fixture. */
+    col1.head.colony_report_options.report_rebel_majorities = 1;
+    col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (c->inefficient_gov == 0) {
+      fprintf(stderr, "INEFFICIENT: latch not set (sol low, pop 12)\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(eu.status, "inefficient") == NULL && pops.queue_count < 1) {
+      fprintf(stderr, "INEFFICIENT: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
+    /* Raise SoL → tories 0 → @EFFICIENT. */
+    col1c.rebel_dividend = 100u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    c->colony_flags = (uint8_t)(COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100);
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (c->inefficient_gov != 0) {
+      fprintf(stderr, "EFFICIENT: latch still set\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(eu.status, "efficien") == NULL && pops.queue_count < 1) {
+      fprintf(stderr, "EFFICIENT: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
+    /* Suppress reports: edge up silent but latch still sets. */
+    c->inefficient_gov = 0;
+    col1c.rebel_dividend = 0u << 6;
+    col1c.rebel_divisor = 100u << 6;
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    c->colony_flags = 0;
+    col1.head.colony_report_options.report_inefficient_government = 1;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (c->inefficient_gov == 0) {
+      fprintf(stderr, "INEFFICIENT suppress: latch should still set\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count != 0 || strstr(eu.status, "inefficient") != NULL) {
+      fprintf(
+        stderr,
+        "INEFFICIENT suppress: want quiet got q=%d '%s'\n",
+        pops.queue_count,
+        eu.status
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "inefficient government chrome ok\n");
   }
 
   /* FUN_364b_0688 starve-kill: second consecutive STARVATION turn → lose one. */

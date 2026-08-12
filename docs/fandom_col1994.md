@@ -129,7 +129,7 @@ Full catalog: [`sons_of_liberty.md`](sons_of_liberty.md).
 
 Liberty bells also feed FF election, then after independence feed [foreign intervention](#independence--win). Details: [Liberty Bell (Col)](https://civilization.fandom.com/wiki/Liberty_bell_(Col)) (long strategy page).
 
-Simon Bolivar wiki “+20% SoL”: DOS adds +20 on every SoL **read** while elected; port applies a one-shot dividend bump — [sons_of_liberty.md](sons_of_liberty.md).
+Simon Bolivar wiki “+20% SoL”: DOS/port add +20 on every SoL **read** while elected (human) — [sons_of_liberty.md](sons_of_liberty.md).
 
 Terrain / field yields: see [`terrain_yields.md`](terrain_yields.md) — do not re-dump from wiki.
 
