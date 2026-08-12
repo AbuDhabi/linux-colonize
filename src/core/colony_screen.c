@@ -70,6 +70,7 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   memset(view->docked_transport_ids, 0, sizeof(view->docked_transport_ids));
   view->outside_unit_count = 0;
   memset(view->outside_unit_ids, 0, sizeof(view->outside_unit_ids));
+  view->multi_unit_selected_id = -1;
 }
 
 void colony_screen_refresh_transports(
@@ -126,6 +127,7 @@ void colony_screen_refresh_outside(
   view->outside_unit_count = 0;
   if (!units || !colony) {
     view->selected_outside_unit = -1;
+    view->multi_unit_selected_id = -1;
     return;
   }
   int stack[COLONIZE_UNITS_MAX];
@@ -151,6 +153,24 @@ void colony_screen_refresh_outside(
     }
     if (!still) {
       view->selected_outside_unit = -1;
+    }
+  }
+  if (view->multi_unit_selected_id >= 0) {
+    bool still = false;
+    for (int i = 0; i < view->outside_unit_count; ++i) {
+      if (view->outside_unit_ids[i] == view->multi_unit_selected_id) {
+        still = true;
+        break;
+      }
+    }
+    for (int i = 0; !still && i < view->docked_transport_count; ++i) {
+      if (view->docked_transport_ids[i] == view->multi_unit_selected_id) {
+        still = true;
+        break;
+      }
+    }
+    if (!still) {
+      view->multi_unit_selected_id = -1;
     }
   }
 }
@@ -1589,22 +1609,57 @@ static int colony_screen_outside_display_sprite(
   return sprite;
 }
 
-static bool colony_screen_is_military_unit(
+int colony_screen_multi_units_layout(
+  const ColonyScreenView* view,
   const ColonizeUnitPool* units,
-  const ColonizeUnit* u
+  int px,
+  int py,
+  int pane_w,
+  int pane_h,
+  ColonyMultiUnitSlot* out,
+  int max
 ) {
-  if (!units || !u) {
-    return false;
+  if (!view || !units || !out || max <= 0 || pane_w <= 0 || pane_h <= 0) {
+    return 0;
   }
-  int tools = 0;
-  int muskets = 0;
-  int horses = 0;
-  units_founder_loot(units, u->id, &tools, &muskets, &horses);
-  if (muskets > 0) {
-    return true;
+  /* Land units only (colonist-class + Artillery); ships/wagons stay on the
+   * Transport strip. outside_unit_ids already excludes units_is_transport. */
+  int ids[COLONY_MULTI_UNITS_SLOT_MAX];
+  int n = 0;
+  for (int i = 0; i < view->outside_unit_count && n < COLONY_MULTI_UNITS_SLOT_MAX; ++i) {
+    ids[n++] = view->outside_unit_ids[i];
   }
-  const ColonizeUnitType* type = units_type(units, u->type_index);
-  return type && (strstr(type->name, "Artillery") != NULL || strstr(type->name, "Cannon") != NULL);
+
+  const int row_h = 16;
+  int x = px;
+  int y = py;
+  int count = 0;
+  for (int i = 0; i < n && count < max; ++i) {
+    const ColonizeUnit* u = units_get_const(units, ids[i]);
+    const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
+    if (sprite < 0) {
+      continue;
+    }
+    const ColonizeSprite* sp =
+      (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite] : NULL;
+    const int iw = (sp && sp->width > 0) ? sp->width : 12;
+    const int slot_w = iw + UNIT_CHROME_SPRITE_DX + 2;
+    if (x + slot_w > px + pane_w && x > px) {
+      x = px;
+      y += row_h;
+    }
+    if (y + row_h > py + pane_h) {
+      break;
+    }
+    out[count].unit_id = ids[i];
+    out[count].x = x;
+    out[count].y = y;
+    out[count].w = slot_w;
+    out[count].h = row_h;
+    count++;
+    x += slot_w;
+  }
+  return count;
 }
 
 static int colony_screen_building_production_badge(
@@ -2294,41 +2349,33 @@ static void colony_screen_draw_multifunction(
       }
     }
   } else if (view->multi_mode == COLONY_MULTI_UNITS && units) {
-    /* Troops along the bottom of the pane. */
-    int x = px;
-    const int y = COLONY_CARGO_STRIP_Y - 18;
-    for (int i = 0; i < view->outside_unit_count; ++i) {
-      const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      if (!u || !colony_screen_is_military_unit(units, u)) {
+    /* Land units at the colony (soldiers, colonists, scouts, artillery, …);
+     * ships/wagons stay on the Transport strip — see
+     * colony_screen_multi_units_layout. */
+    ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
+    const int slot_count =
+      colony_screen_multi_units_layout(view, units, px, py, pane_w, pane_h, slots, COLONY_MULTI_UNITS_SLOT_MAX);
+    for (int i = 0; i < slot_count; ++i) {
+      const ColonizeUnit* u = units_get_const(units, slots[i].unit_id);
+      const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
+      if (!u || sprite < 0) {
         continue;
       }
-      const int sprite = colony_screen_outside_display_sprite(units, u);
-      if (sprite >= 0) {
-        const ColonizeSprite* sp =
-          (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite]
-                                                               : NULL;
-        const int iw = sp && sp->width > 0 ? sp->width : 12;
-        unit_chrome_blit_unit(
-          framebuffer,
-          font,
-          &view->icons,
-          sprite,
-          x,
-          y,
-          units_display_type_index(units, u->id),
-          u->nation_id,
-          u->orders,
-          false,
-          u->aboard_ship_id >= 0
-        );
-        if (view->selected_outside_unit == u->id) {
-          colony_screen_draw_chrome_selection(view, framebuffer, sprite, x, y);
-        }
-        /* Pitch accounts for sprite shift so chrome units do not overlap. */
-        x += iw + UNIT_CHROME_SPRITE_DX + 2;
-      }
-      if (x > px + pane_w - 14) {
-        break;
+      unit_chrome_blit_unit(
+        framebuffer,
+        font,
+        &view->icons,
+        sprite,
+        slots[i].x,
+        slots[i].y,
+        units_display_type_index(units, u->id),
+        u->nation_id,
+        u->orders,
+        false,
+        u->aboard_ship_id >= 0
+      );
+      if (view->multi_unit_selected_id == u->id) {
+        colony_screen_draw_chrome_selection(view, framebuffer, sprite, slots[i].x, slots[i].y);
       }
     }
   } else if (view->multi_mode == COLONY_MULTI_CONSTRUCTION && colony && pool) {
@@ -2957,6 +3004,28 @@ ColonyScreenHitResult colony_screen_hit_test(
       hit.kind = COLONY_HIT_MULTI_BTN;
       hit.index = idx;
       return hit;
+    }
+  }
+
+  /* Units-tab unit icons (checked before the generic multi-pane catch-all
+   * below; hit.index is the unit id, not an array index — callers act on it
+   * directly without recomputing the layout). */
+  if (view->multi_mode == COLONY_MULTI_UNITS && units && mx >= COLONY_MULTI_X &&
+      mx < COLONY_MULTI_BTN_X && my >= COLONY_PANEL_CONTENT_Y && my < COLONY_CARGO_STRIP_Y) {
+    ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
+    const int px = COLONY_MULTI_X + 2;
+    const int pane_w = COLONY_MULTI_W - 19;
+    const int py = COLONY_PANEL_CONTENT_Y;
+    const int pane_h = COLONY_PANEL_CONTENT_H;
+    const int slot_count =
+      colony_screen_multi_units_layout(view, units, px, py, pane_w, pane_h, slots, COLONY_MULTI_UNITS_SLOT_MAX);
+    for (int i = 0; i < slot_count; ++i) {
+      if (mx >= slots[i].x && mx < slots[i].x + slots[i].w && my >= slots[i].y &&
+          my < slots[i].y + slots[i].h) {
+        hit.kind = COLONY_HIT_MULTI_UNIT_ICON;
+        hit.index = slots[i].unit_id;
+        return hit;
+      }
     }
   }
 

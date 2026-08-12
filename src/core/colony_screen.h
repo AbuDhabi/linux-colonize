@@ -144,6 +144,7 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_HOLD,
   COLONY_HIT_MULTI_BTN,
   COLONY_HIT_MULTI_PANE,
+  COLONY_HIT_MULTI_UNIT_ICON,
   COLONY_HIT_MULTI_BUY,
   COLONY_HIT_MULTI_CHANGE,
   COLONY_HIT_OUTSIDE_UNIT,
@@ -169,6 +170,25 @@ typedef struct ColonyScreenHitResult {
   ColonyScreenHit kind;
   int index;
 } ColonyScreenHitResult;
+
+/*
+ * Multifunction "Units" tab roster: land units at the colony (colonist-class
+ * + Artillery) — DOS FUN_2f2b_1e46 does not list ships/wagons, those stay on
+ * the Transport strip. Not an armed-only subset either (unarmed colonists,
+ * scouts, missionaries, pioneers all belong). Click handler FUN_2f2b_59a0
+ * double-click opens the same docked-unit orders popup, FUN_2f2b_5746, as
+ * the Transport strip. Wraps rows within the pane instead of DOS's paged
+ * 3-column grid (thin — no paging/scroll).
+ */
+#define COLONY_MULTI_UNITS_SLOT_MAX COLONY_OUTSIDE_MAX
+
+typedef struct ColonyMultiUnitSlot {
+  int unit_id;
+  int x;
+  int y;
+  int w;
+  int h;
+} ColonyMultiUnitSlot;
 
 typedef struct ColonyScreenView {
   ColonizePikImage frame;
@@ -266,6 +286,10 @@ typedef struct ColonyScreenView {
 
   int outside_unit_ids[COLONY_OUTSIDE_MAX];
   int outside_unit_count;
+
+  /* Multifunction "Units" tab selection (docked transport or outside unit id;
+   * -1 none). Second click on the already-selected id opens dock orders. */
+  int multi_unit_selected_id;
 } ColonyScreenView;
 
 bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err, size_t err_size);
@@ -349,6 +373,19 @@ ColonyScreenHitResult colony_screen_hit_test(
   const ColonizeUnitPool* units,
   int mx,
   int my
+);
+
+/* Shared by the Units-tab draw and hit-test paths so geometry never drifts
+ * apart; exposed for tests. Returns the slot count written to out (<= max). */
+int colony_screen_multi_units_layout(
+  const ColonyScreenView* view,
+  const ColonizeUnitPool* units,
+  int px,
+  int py,
+  int pane_w,
+  int pane_h,
+  ColonyMultiUnitSlot* out,
+  int max
 );
 
 void colony_screen_render(

@@ -7416,16 +7416,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           csv->multi_mode = (ColonyMultiMode)hit.index;
         }
         break;
+      case COLONY_HIT_MULTI_UNIT_ICON:
+        /* hit.index is the unit id (see colony_screen_hit_test). Same
+         * select-then-click convention as the Transport strip: second click
+         * on the already-selected unit opens its docked/stationed-unit
+         * orders (DOS FUN_2f2b_59a0 double-click → FUN_2f2b_5746). */
+        if (hit.index >= 0 && game->units_ok) {
+          if (hit.index == csv->multi_unit_selected_id) {
+            colony_screen_open_dock_orders(csv, &game->units, &game->messages, hit.index);
+          } else {
+            csv->multi_unit_selected_id = hit.index;
+            const ColonizeUnit* tu = units_get_const(&game->units, hit.index);
+            const ColonizeUnitType* tt = tu ? units_type(&game->units, tu->type_index) : NULL;
+            snprintf(
+              game->status, sizeof(game->status), "%s", tt && tt->name[0] ? tt->name : "Unit selected"
+            );
+            colony_screen_set_status(csv, game->status);
+          }
+        }
+        break;
       case COLONY_HIT_MULTI_PANE:
         if (csv->multi_mode == COLONY_MULTI_PRODUCTION) {
           csv->show_production_numbers = !csv->show_production_numbers;
-        } else if (csv->multi_mode == COLONY_MULTI_UNITS) {
-          if (csv->selected_outside_unit >= 0) {
-            set_status(game, "Orders: Clear / Sentry / Fortify (stub)", NULL);
-          } else {
-            set_status(game, "Select an outside unit", NULL);
-          }
-          colony_screen_set_status(csv, game->status);
         } else if (csv->multi_mode == COLONY_MULTI_CONSTRUCTION) {
           {
             ColoniesBuildableOpts bopts = game_colony_buildable_opts(game);
