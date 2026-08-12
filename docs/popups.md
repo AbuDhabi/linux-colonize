@@ -124,7 +124,7 @@ fragment. Related sections are listed in the first column.
 | Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Missing | — |
 | Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
 | Docked unit orders | Colony transport orders | Missing | Select/load only |
-| `@CARGOREADY*` | Ship build ready | Done | EOT `ai_popup` OK |
+| `@CARGOREADY*` | Century tip / ship-ready | Done thin | EOT century `@CARGOREADY0`–`2`; ship FINISH still thin |
 
 ### 5. Europe
 
@@ -321,7 +321,7 @@ work.
 | `@LANDFIRST` | Partial | order/gate — status or bounce; no modal |
 | `@SEACOLONY` | Partial | order/gate — status or bounce; no modal |
 | `@NOPORT` | Partial | order/gate — status or bounce; no modal |
-| `@BUILT` | Missing | no colony modal (FULL/SIEGE may status) |
+| `@BUILT` | Done thin | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
 | `@FULL` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@NOTEACHER` | Missing | colony train fail dialogs missing |
 | `@NEEDCOLLEGE` | Missing | colony train fail dialogs missing |
@@ -347,30 +347,30 @@ work.
 | `@COLLEGE2` | Done | purchase / train menus |
 | `@UNIV3` | Done | purchase / train menus |
 | `@NODOCKS` | Partial | Europe sail/market — partial status or auto |
-| `@CARGOREADY0` | Done | EOT ai_popup OK |
-| `@CARGOREADY1` | Partial | ship-ready chrome PARKED |
-| `@CARGOREADY2` | Partial | ship-ready chrome PARKED |
-| `@LUMBER` | Missing | production/EOT messages — status or silent; no modal |
-| `@COTTON` | Missing | production/EOT messages — status or silent; no modal |
-| `@TOBACCO` | Missing | production/EOT messages — status or silent; no modal |
-| `@CANESUGAR` | Missing | production/EOT messages — status or silent; no modal |
-| `@FURS` | Missing | production/EOT messages — status or silent; no modal |
-| `@ORE` | Missing | production/EOT messages — status or silent; no modal |
-| `@TOOLS` | Missing | production/EOT messages — status or silent; no modal |
-| `@FOOD1` | Missing | production/EOT messages — status or silent; no modal |
-| `@FOOD2` | Missing | production/EOT messages — status or silent; no modal |
+| `@CARGOREADY0` | Done thin | Phase P century tip ai_popup OK; ship-ready also uses this section |
+| `@CARGOREADY1` | Done thin | Century tip at warehouse cap (basic); ship PARKED |
+| `@CARGOREADY2` | Done thin | Century tip at warehouse cap (expanded); ship PARKED |
+| `@LUMBER` | Done thin | EOT Phase K empty lumber + Carpenter ai_popup OK |
+| `@COTTON` | Done thin | EOT Phase K empty cotton + Weaver ai_popup OK |
+| `@TOBACCO` | Done thin | EOT Phase K empty tobacco + Tobacconist ai_popup OK |
+| `@CANESUGAR` | Done thin | EOT Phase K empty sugar + Distiller ai_popup OK |
+| `@FURS` | Done thin | EOT Phase K empty furs + Fur Trader ai_popup OK |
+| `@ORE` | Done thin | EOT Phase K empty ore + Blacksmith ai_popup OK |
+| `@TOOLS` | Done thin | EOT Phase K empty tools+muskets + Armory ai_popup OK |
+| `@FOOD1` | Done thin | EOT first starvation latch ai_popup OK (`@FOOD1`); VGA PARKED |
+| `@FOOD2` | Done thin | EOT first latch + autumn → winter-soon (`@FOOD2`); VGA PARKED |
 | `@VANISH` | Missing | production/EOT messages — status or silent; no modal |
-| `@STARVE1` | Done | EOT ai_popup OK |
-| `@STARVE2` | Missing | production/EOT messages — status or silent; no modal |
-| `@FOODLOW` | Missing | production/EOT messages — status or silent; no modal |
-| `@SPOIL1` | Done | EOT ai_popup OK |
-| `@SPOIL2` | Missing | production/EOT messages — status or silent; no modal |
-| `@SPOIL3` | Missing | production/EOT messages — status or silent; no modal |
-| `@SPOIL4` | Missing | production/EOT messages — status or silent; no modal |
+| `@STARVE1` | Done thin | EOT starve-kill ai_popup OK; spring/default |
+| `@STARVE2` | Done thin | EOT starve-kill + autumn → winter-coming (`@STARVE2`) |
+| `@FOODLOW` | Done thin | EOT stock &lt; need×4 ai_popup OK (`@FOODLOW`); VGA PARKED |
+| `@SPOIL1` | Done thin | EOT ai_popup OK; tip warehouse, single cargo |
+| `@SPOIL2` | Done thin | EOT multi-cargo tip warehouse (`spoil_types>1`) |
+| `@SPOIL3` | Done thin | EOT expanded warehouse single (`warehouse_level>1`) |
+| `@SPOIL4` | Done thin | EOT expanded warehouse multi |
 | `@BUYME0` | Missing | production/EOT messages — status or silent; no modal |
 | `@BUYME1` | Missing | production/EOT messages — status or silent; no modal |
 | `@DEFOREST` | Missing | production/EOT messages — status or silent; no modal |
-| `@DEPLETION` | Missing | production/EOT messages — status or silent; no modal |
+| `@DEPLETION` | Done thin | EOT ore/silver wrap ai_popup OK (`@DEPLETION`); VGA PARKED |
 | `@UNITFLAG` | Partial | Col1 flag bits; not dialogs |
 | `@COLONYFLAG` | Partial | Col1 flag bits; not dialogs |
 | `@LOSTCITY0` | Missing | Lost City / burial dialogs missing |
@@ -727,7 +727,7 @@ work.
 | `@NEWCOLONIST` | Done thin | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |
 | `@INEFFICIENT` | Done thin | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
 | `@EFFICIENT` | Done thin | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
-| `@CLEARCUT` | Missing | production/EOT messages — status or silent; no modal |
+| `@CLEARCUT` | Done thin | pioneer clear-forest → lumber to nearest colony + ai_popup OK; Hardy×2 / terrain×20 PARKED |
 | `@REALLYBUY` | Done | purchase / train menus |
 | `@INDIANWARPATH` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANWARPATH2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |

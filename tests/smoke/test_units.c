@@ -19,8 +19,161 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+/* Helper: clear-forest grants lumber + @CLEARCUT (avoids main stack pressure). */
+static int smoke_clearcut_lumber(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "clearcut: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "clearcut: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  if (pioneer < 0) {
+    fprintf(stderr, "clearcut: no Pioneers type\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "clearcut: map_alloc failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  const int fx = 3;
+  const int fy = 3;
+  map.terrain[fy * map.width + fx] = 10; /* mixed forest */
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->x = 2;
+  col->y = 3;
+  col->warehouse_level = 0;
+  col->stock[COLONIZE_CARGO_LUMBER] = 5;
+  snprintf(col->name, sizeof(col->name), "Timber");
+  colonies.colony_count = 1;
+
+  const int pid = units_spawn(&pool, pioneer, fx, fy);
+  ColonizeUnit* u = units_get(&pool, pid);
+  if (!u || !units_is_pioneer(&pool, pid)) {
+    fprintf(stderr, "clearcut: pioneer spawn failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  u->nation_id = 0;
+  u->tools = 100;
+  u->moves_left = 1;
+  u->profession = UNITS_JOB_NONE;
+  u->orders = UNITS_ORDER_NONE;
+  u->turns_worked = 0;
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "clearcut: GAME.TXT load failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+
+  char msg[96];
+  msg[0] = '\0';
+  if (!units_pioneer_plow(
+        &pool, pid, &map, msg, sizeof(msg), &colonies, &pops, &game_txt
+      )) {
+    fprintf(stderr, "clearcut: plow start failed (%s)\n", msg);
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  int guard = 0;
+  while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 16) {
+    u->moves_left = 1;
+    if (!units_pioneer_work_tick(
+          &pool, pid, &map, msg, sizeof(msg), &colonies, &pops, &game_txt
+        )) {
+      fprintf(stderr, "clearcut: work tick failed (%s)\n", msg);
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+  if (u->orders == UNITS_ORDER_CLEAR_PLOW) {
+    fprintf(stderr, "clearcut: never completed clear\n");
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pedia = map_pedia_terrain_index_at(&map, fx, fy);
+  if (pedia >= 8 && pedia <= 23) {
+    fprintf(stderr, "clearcut: forest still present pedia=%d\n", pedia);
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (col->stock[COLONIZE_CARGO_LUMBER] != 25) {
+    fprintf(
+      stderr,
+      "clearcut: lumber want 25 got %d\n",
+      col->stock[COLONIZE_CARGO_LUMBER]
+    );
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "lumber") == NULL &&
+       strstr(pops.queue[0].body, "Lumber") == NULL &&
+       strstr(pops.queue[0].body, "Timber") == NULL)) {
+    fprintf(
+      stderr,
+      "clearcut: CLEARCUT popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  assets_msg_free(&game_txt);
+  map_free(&map);
+  assets_msg_free(&names);
+  fprintf(stderr, "smoke_units: CLEARCUT lumber + popup ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (smoke_clearcut_lumber() != 0) {
+    diag_shutdown();
+    return 1;
+  }
 
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
@@ -978,7 +1131,9 @@ int main(void) {
     pu3->turns_worked = 0;
     const int farm_base = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
     /* Plains plow: terr_cost+2 = 3 turns for non-Hardy; drive ticks to completion. */
-    if (!units_pioneer_plow(&pool, pid3, &tmap, pmsg, sizeof(pmsg))) {
+    if (!units_pioneer_plow(
+          &pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL
+        )) {
       fprintf(stderr, "phase7 plow start failed (%s)\n", pmsg);
       map_free(&tmap);
       map_free(&map);
@@ -986,7 +1141,9 @@ int main(void) {
       return 1;
     }
     while (pu3->orders == UNITS_ORDER_CLEAR_PLOW) {
-      if (!units_pioneer_work_tick(&pool, pid3, &tmap, pmsg, sizeof(pmsg))) {
+      if (!units_pioneer_work_tick(
+            &pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL
+          )) {
         fprintf(stderr, "phase7 plow tick failed (%s)\n", pmsg);
         map_free(&tmap);
         map_free(&map);

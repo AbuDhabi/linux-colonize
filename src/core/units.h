@@ -668,7 +668,10 @@ bool units_pioneer_plow(
   int unit_id,
   ColonizeWorldMap* map,
   char* err,
-  size_t err_size
+  size_t err_size,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 bool units_pioneer_road(
   ColonizeUnitPool* pool,
@@ -678,13 +681,17 @@ bool units_pioneer_road(
   size_t err_size
 );
 /* One work-tick for CLEAR_PLOW / BUILD_ROAD orders. Returns true if unit still
- * has that order (in progress or just started). */
+ * has that order (in progress or just started). colonies/ai_popups/messages
+ * optional — clear-forest completion grants lumber + @CLEARCUT when set. */
 bool units_pioneer_work_tick(
   ColonizeUnitPool* pool,
   int unit_id,
   ColonizeWorldMap* map,
   char* err,
-  size_t err_size
+  size_t err_size,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 
 /* True for high-seas / sea-lane tiles (terrain index 26). */

@@ -50,6 +50,165 @@ static int expect_cal(
   return 0;
 }
 
+/* Phase P century tip chrome (helper keeps large locals off main's stack). */
+static int smoke_century_cargoready(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  pool.building_type_count = 1;
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Salem");
+  col->building_in_production = -1;
+  col->warehouse_level = 5; /* cap 300; 100 cross → CARGOREADY0 */
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_LUMBER] = 99;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  col->colonists[0].active = true;
+  col->colonists[0].building_type = -1;
+  col->colonists[0].field_job = -1;
+  col->colonist_count = 1;
+  col->population = 1;
+  pool.colony_count = 1;
+
+  EuropeScreen eu;
+  memset(&eu, 0, sizeof(eu));
+  eu.cargo_count = COLONIZE_CARGO_COUNT;
+  for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+    eu.cargo[i].bid = 1;
+  }
+  snprintf(eu.cargo[COLONIZE_CARGO_LUMBER].name, sizeof(eu.cargo[0].name), "Lumber");
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "century tip: GAME.TXT load failed\n");
+    return 1;
+  }
+
+  ColonizeCol1Save tipcol;
+  memset(&tipcol, 0, sizeof(tipcol));
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "Stockpile") == NULL || !tipcol.head.tut3.nr6) {
+    fprintf(
+      stderr,
+      "century tip want Stockpile+latch lumber=%d latch=%u '%s'\n",
+      col->stock[COLONIZE_CARGO_LUMBER],
+      (unsigned)tipcol.head.tut3.nr6,
+      eu.status
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "ready") == NULL &&
+       strstr(pops.queue[0].body, "Salem") == NULL &&
+       strstr(pops.queue[0].body, "Lumber") == NULL)) {
+    fprintf(
+      stderr,
+      "century CARGOREADY0 weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(pops.queue[0].body, "storage capacity") != NULL) {
+    fprintf(stderr, "century tip not at cap must be CARGOREADY0 got '%s'\n", pops.queue[0].body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  /* Second crossing while latched → no tip. */
+  col->stock[COLONIZE_CARGO_LUMBER] = 99;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
+  if (strstr(eu.status, "Stockpile") != NULL || pops.queue_count > 0) {
+    fprintf(stderr, "century tip latch must suppress second tip got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  fprintf(stderr, "warehouse century tip ok\n");
+
+  /* At exact basic warehouse cap → @CARGOREADY1. */
+  tipcol.head.tut3.nr6 = 0;
+  col->warehouse_level = 0; /* cap 100 */
+  col->stock[COLONIZE_CARGO_LUMBER] = 99;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
+  if (col->stock[COLONIZE_CARGO_LUMBER] != 100) {
+    fprintf(stderr, "century CARGOREADY1 lumber want 100 got %d\n", col->stock[COLONIZE_CARGO_LUMBER]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (pops.queue_count < 1 || strstr(pops.queue[0].body, "storage capacity") == NULL) {
+    fprintf(
+      stderr,
+      "century CARGOREADY1 want storage capacity q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "warehouse century CARGOREADY1 ok\n");
+  return 0;
+}
+
+static int smoke_eot_fog_reveal(void) {
+  ColonizeWorldMap map;
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "fog map_alloc: %s\n", err);
+    return 1;
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+  const int id = units_spawn(&units, 0, 3, 3);
+  ColonizeUnit* u = units_get(&units, id);
+  if (!u) {
+    fprintf(stderr, "fog unit spawn failed\n");
+    map_free(&map);
+    return 1;
+  }
+  units_set_nation(u, 0);
+  map_reveal_radius(&map, u->x, u->y, 0, 1);
+  if (!map_tile_seen_by(&map, 3, 3, 0) || !map_tile_seen_by(&map, 2, 3, 0) ||
+      !map_tile_seen_by(&map, 4, 4, 0)) {
+    fprintf(stderr, "fog reveal radius-1 missed neighbour\n");
+    map_free(&map);
+    return 1;
+  }
+  if (map_tile_seen_by(&map, 7, 7, 0) || map_tile_seen_by(&map, 3, 3, 1)) {
+    fprintf(stderr, "fog reveal leaked to far tile or other nation\n");
+    map_free(&map);
+    return 1;
+  }
+  map_reveal_radius(&map, 1, 1, 0, 2);
+  if (!map_tile_seen_by(&map, 1, 1, 0) || !map_tile_seen_by(&map, 0, 0, 0)) {
+    fprintf(stderr, "fog colony radius-2 missed\n");
+    map_free(&map);
+    return 1;
+  }
+  map_free(&map);
+  fprintf(stderr, "EOT fog reveal ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -268,9 +427,12 @@ int main(void) {
     memset(col, 0, sizeof(*col));
     col->active = true;
     col->id = 1;
+    col->nation_id = 0;
+    snprintf(col->name, sizeof(col->name), "Jamestown");
     col->has_building[carpenter] = true;
     col->building_in_production = stockade;
     col->stock[COLONIZE_CARGO_FOOD] = 100; /* under food cap 199; no birth mid-build */
+    col->stock[COLONIZE_CARGO_LUMBER] = 200;
     col->colonists[0].active = true;
     col->colonists[0].unit_type_index = 0;
     col->colonists[0].building_type = carpenter;
@@ -282,6 +444,14 @@ int main(void) {
     col->population = 1;
     pool.colony_count = 1;
 
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
     const ColonizeBuildingType* bt = colonies_building_type(&pool, stockade);
     const int need = bt ? bt->hammers : 64;
     ColonizeColonyProdDelta delta;
@@ -289,9 +459,32 @@ int main(void) {
     for (int t = 0; t < need + 8; ++t) {
       ColonizeTurnResult prod;
       memset(&prod, 0, sizeof(prod));
-      turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-      if (delta.building_completed || col->has_building[stockade]) {
+      memset(&delta, 0, sizeof(delta));
+      ai_popup_clear(&pops);
+      eu.status[0] = '\0';
+      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+      if (prod.buildings_completed > 0 || col->has_building[stockade]) {
         completed = true;
+        if (strstr(eu.status, "Stockade") == NULL && strstr(eu.status, "completed") == NULL) {
+          fprintf(stderr, "BUILT: status want Stockade completed got '%s'\n", eu.status);
+          assets_msg_free(&game_txt);
+          assets_msg_free(&names);
+          return 1;
+        }
+        if (pops.queue_count < 1) {
+          fprintf(stderr, "BUILT: expected popup on complete\n");
+          assets_msg_free(&game_txt);
+          assets_msg_free(&names);
+          return 1;
+        }
+        if (strstr(pops.queue[0].body, "Jamestown") == NULL &&
+            strstr(pops.queue[0].body, "Stockade") == NULL &&
+            strstr(pops.queue[0].body, "produces") == NULL) {
+          fprintf(stderr, "BUILT: popup body weak: '%s'\n", pops.queue[0].body);
+          assets_msg_free(&game_txt);
+          assets_msg_free(&names);
+          return 1;
+        }
         break;
       }
     }
@@ -302,11 +495,13 @@ int main(void) {
         col->hammers,
         need
       );
+      assets_msg_free(&game_txt);
       assets_msg_free(&names);
       return 1;
     }
     if (col->building_in_production >= 0) {
       fprintf(stderr, "expected cleared building_in_production after complete\n");
+      assets_msg_free(&game_txt);
       assets_msg_free(&names);
       return 1;
     }
@@ -317,22 +512,25 @@ int main(void) {
     col->has_building[stockade] = false;
     {
       ColonizeTurnResult prod;
-      ColonizeColonyProdDelta delta;
+      ColonizeColonyProdDelta delta2;
       memset(&prod, 0, sizeof(prod));
-      memset(&delta, 0, sizeof(delta));
-      turn_colony_free_production(&pool, col, NULL, &prod, &delta);
-      if (delta.hammers_added != 0 || col->hammers != 0) {
+      memset(&delta2, 0, sizeof(delta2));
+      turn_colony_free_production(&pool, col, NULL, &prod, &delta2);
+      if (delta2.hammers_added != 0 || col->hammers != 0) {
         fprintf(
           stderr,
           "expected no hammers without carpenter got delta=%d stock=%d\n",
-          delta.hammers_added,
+          delta2.hammers_added,
           col->hammers
         );
+        assets_msg_free(&game_txt);
         assets_msg_free(&names);
         return 1;
       }
     }
+    assets_msg_free(&game_txt);
     assets_msg_free(&names);
+    fprintf(stderr, "BUILT building chrome ok\n");
   }
   {
     ColonizeColonyPool pool;
@@ -809,16 +1007,26 @@ int main(void) {
     col->building_in_production = -1;
     col->stock[COLONIZE_CARGO_FOOD] = 100;
     col->depletion_counter = 0x31; /* one INC wraps */
+    snprintf(col->name, sizeof(col->name), "Potosi");
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
     ColonizeTurnResult prod;
-    ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));
-    turn_colony_free_production(&pool, col, &map, &prod, &delta);
+    turn_run_colony_production(&pool, &map, NULL, &eu, 0, &prod, &pops, &game_txt);
     if (col->depletion_counter != 0) {
       fprintf(
         stderr,
         "depletion_counter wrap got %u want 0\n",
         (unsigned)col->depletion_counter
       );
+      assets_msg_free(&game_txt);
       assets_msg_free(&names);
       map_free(&map);
       return 1;
@@ -833,17 +1041,36 @@ int main(void) {
         fy,
         after_l2
       );
+      assets_msg_free(&game_txt);
       assets_msg_free(&names);
       map_free(&map);
       return 1;
     }
-    if (delta.ore <= 0 && delta.goods[COLONIZE_CARGO_SILVER] <= 0) {
-      fprintf(stderr, "depletion: expected ore/silver yield\n");
+    if (col->stock[COLONIZE_CARGO_ORE] <= 0 && col->stock[COLONIZE_CARGO_SILVER] <= 0) {
+      fprintf(stderr, "depletion: expected ore/silver yield in stock\n");
+      assets_msg_free(&game_txt);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    if (strstr(eu.status, "depleted") == NULL && pops.queue_count < 1) {
+      fprintf(stderr, "depletion: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
+      assets_msg_free(&game_txt);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    if (pops.queue_count >= 1 &&
+        strstr(pops.queue[0].body, "depleted") == NULL &&
+        strstr(pops.queue[0].body, "Potosi") == NULL) {
+      fprintf(stderr, "depletion: popup body weak: '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
       assets_msg_free(&names);
       map_free(&map);
       return 1;
     }
     fprintf(stderr, "depletion_counter wrap+suppress ok\n");
+    assets_msg_free(&game_txt);
     assets_msg_free(&names);
     map_free(&map);
   }
@@ -1391,7 +1618,115 @@ int main(void) {
     fprintf(stderr, "colony starve-kill ok\n");
   }
 
-  /* Food shortage status for human. */
+  /* Starve-kill chrome: @STARVE1 (spring) / @STARVE2 (autumn). */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* s = &pool.colonies[0];
+    memset(s, 0, sizeof(*s));
+    s->active = true;
+    s->id = 1;
+    s->nation_id = 0;
+    s->building_in_production = -1;
+    snprintf(s->name, sizeof(s->name), "Roanoke");
+    s->stock[COLONIZE_CARGO_FOOD] = 0;
+    s->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
+    for (int i = 0; i < 2; ++i) {
+      s->colonists[i].active = true;
+      s->colonists[i].unit_type_index = 0;
+      s->colonists[i].profession = UNITS_JOB_NONE;
+      s->colonists[i].building_type = -1;
+      s->colonists[i].field_job = -1;
+    }
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      s->tiles[t] = -1;
+    }
+    s->colonist_count = 2;
+    s->population = 2;
+    pool.colony_count = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult sr;
+    memset(&sr, 0, sizeof(sr));
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &sr, &pops, &game_txt);
+    if (s->colonist_count != 1) {
+      fprintf(stderr, "starve1: colonist_count want 1 got %d\n", s->colonist_count);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "Roanoke") == NULL &&
+         strstr(pops.queue[0].body, "starv") == NULL)) {
+      fprintf(
+        stderr,
+        "starve1: popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(pops.queue[0].body, "coming soon") != NULL) {
+      fprintf(stderr, "starve1: spring must not use STARVE2 got '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    fprintf(stderr, "starve1 chrome ok\n");
+
+    /* Reset for autumn → STARVE2. */
+    memset(s, 0, sizeof(*s));
+    s->active = true;
+    s->id = 1;
+    s->nation_id = 0;
+    s->building_in_production = -1;
+    snprintf(s->name, sizeof(s->name), "Roanoke");
+    s->stock[COLONIZE_CARGO_FOOD] = 0;
+    s->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
+    for (int i = 0; i < 2; ++i) {
+      s->colonists[i].active = true;
+      s->colonists[i].unit_type_index = 0;
+      s->colonists[i].profession = UNITS_JOB_NONE;
+      s->colonists[i].building_type = -1;
+      s->colonists[i].field_job = -1;
+    }
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      s->tiles[t] = -1;
+    }
+    s->colonist_count = 2;
+    s->population = 2;
+    pool.colony_count = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.autumn = 1;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&sr, 0, sizeof(sr));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &sr, &pops, &game_txt);
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "coming soon") == NULL &&
+         strstr(pops.queue[0].body, "worse") == NULL)) {
+      fprintf(
+        stderr,
+        "starve2: want winter-coming q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "starve2 chrome ok\n");
+  }
+
+  /* Food shortage status for human (production deficit; stock stays ≥ need*4). */
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
@@ -1401,7 +1736,8 @@ int main(void) {
     col->id = 1;
     col->nation_id = 0;
     col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_FOOD] = 1;
+    /* Eat 4 → 16 left (= need*4); avoids @FOODLOW overwriting shortage status. */
+    col->stock[COLONIZE_CARGO_FOOD] = 20;
     col->colonists[0].active = true;
     col->colonists[1].active = true;
     col->colonist_count = 2;
@@ -1428,6 +1764,181 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "food shortage status ok\n");
+  }
+
+  /* DOS 0xe5e @FOODLOW: post-eat stock < need*4, no starve-kill. */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    snprintf(col->name, sizeof(col->name), "Jamestown");
+    /* 2 pop need 4; start 10 → after eat 6 (< need*4=16, ≥ need). */
+    col->stock[COLONIZE_CARGO_FOOD] = 10;
+    col->colonists[0].active = true;
+    col->colonists[1].active = true;
+    col->colonist_count = 2;
+    col->population = 2;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    pool.colony_count = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    if (col->stock[COLONIZE_CARGO_FOOD] != 6) {
+      fprintf(stderr, "foodlow: stock want 6 got %d\n", col->stock[COLONIZE_CARGO_FOOD]);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(eu.status, "Food low") == NULL && strstr(eu.status, "Jamestown") == NULL) {
+      fprintf(stderr, "foodlow: status want Food low/Jamestown got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1) {
+      fprintf(stderr, "foodlow: expected FOODLOW popup\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(pops.queue[0].body, "Jamestown") == NULL &&
+        strstr(pops.queue[0].body, "food") == NULL &&
+        strstr(pops.queue[0].body, "Food") == NULL) {
+      fprintf(stderr, "foodlow: popup body weak: '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "foodlow chrome ok\n");
+  }
+
+  /* @FOOD1: first starvation latch (stock after eat < need, no prior latch). */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    snprintf(col->name, sizeof(col->name), "Plymouth");
+    /* 2 pop need 4; start 3 → after eat 0 (< need); no prior STARVATION. */
+    col->stock[COLONIZE_CARGO_FOOD] = 3;
+    col->colonists[0].active = true;
+    col->colonists[1].active = true;
+    col->colonist_count = 2;
+    col->population = 2;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    pool.colony_count = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    if ((col->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
+      fprintf(stderr, "food1: want STARVATION latch\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(eu.status, "depleted") == NULL && strstr(eu.status, "Plymouth") == NULL) {
+      fprintf(stderr, "food1: status want depleted/Plymouth got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "depleted") == NULL &&
+         strstr(pops.queue[0].body, "Plymouth") == NULL)) {
+      fprintf(
+        stderr,
+        "food1: popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(pops.queue[0].body, "Winter") != NULL) {
+      fprintf(stderr, "food1: spring must not use FOOD2 got '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "food1 chrome ok\n");
+  }
+
+  /* @FOOD2: same latch with Col1 autumn → winter-soon wording. */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    snprintf(col->name, sizeof(col->name), "Plymouth");
+    col->stock[COLONIZE_CARGO_FOOD] = 3;
+    col->colonists[0].active = true;
+    col->colonists[1].active = true;
+    col->colonist_count = 2;
+    col->population = 2;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    pool.colony_count = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.autumn = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "Winter") == NULL &&
+         strstr(pops.queue[0].body, "starve") == NULL)) {
+      fprintf(
+        stderr,
+        "food2: want Winter/starve q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "food2 chrome ok\n");
   }
 
   /*
@@ -2330,7 +2841,7 @@ int main(void) {
   }
 
   /*
-   * Phase P thin: human warehouse spoilage → Europe status.
+   * Phase P: human warehouse spoilage → Europe status + SPOIL1–4 section pick.
    */
   {
     ColonizeColonyPool pool;
@@ -2341,6 +2852,7 @@ int main(void) {
     col->id = 1;
     col->nation_id = 0;
     col->building_in_production = -1;
+    snprintf(col->name, sizeof(col->name), "Roanoke");
     col->warehouse_level = 0;
     col->stock[COLONIZE_CARGO_TOBACCO] = 150;
     col->stock[COLONIZE_CARGO_FOOD] = 20;
@@ -2356,40 +2868,58 @@ int main(void) {
       eu.cargo[i].bid = 1;
     }
     snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 100) {
       fprintf(stderr, "spoilage clamp tobacco=%d want 100\n", col->stock[COLONIZE_CARGO_TOBACCO]);
+      assets_msg_free(&game_txt);
       return 1;
     }
     if (strstr(eu.status, "spoiled") == NULL || strstr(eu.status, "Tobacco") == NULL) {
       fprintf(stderr, "spoilage status want Tobacco spoiled got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
       return 1;
     }
+    if (pops.queue_count < 1) {
+      fprintf(stderr, "spoilage: expected SPOIL1 popup\n");
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (strstr(pops.queue[0].body, "Roanoke") == NULL ||
+        (strstr(pops.queue[0].body, "Tobacco") == NULL &&
+         strstr(pops.queue[0].body, "thrown away") == NULL) ||
+        strstr(pops.queue[0].body, "warehouse") == NULL) {
+      fprintf(stderr, "spoilage SPOIL1 body weak: '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
     fprintf(stderr, "warehouse spoilage status ok\n");
   }
 
-  /* Phase P century tip: lumber 99→100 via carpenter invent; latch tut3.nr6. */
+  /* Phase P: multi-type spoil → @SPOIL2. */
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
-    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
-    pool.building_type_count = 1;
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
     col->id = 1;
     col->nation_id = 0;
     col->building_in_production = -1;
-    col->warehouse_level = 5;
-    col->has_building[0] = true;
-    col->stock[COLONIZE_CARGO_LUMBER] = 99;
-    col->stock[COLONIZE_CARGO_FOOD] = 50;
+    snprintf(col->name, sizeof(col->name), "Roanoke");
+    col->warehouse_level = 0;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 150;
+    col->stock[COLONIZE_CARGO_SUGAR] = 140;
+    col->stock[COLONIZE_CARGO_FOOD] = 20;
     col->colonists[0].active = true;
-    col->colonists[0].building_type = -1;
-    col->colonists[0].field_job = -1;
     col->colonist_count = 1;
     col->population = 1;
     pool.colony_count = 1;
@@ -2400,80 +2930,102 @@ int main(void) {
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
       eu.cargo[i].bid = 1;
     }
-
-    ColonizeCol1Save tipcol;
-    memset(&tipcol, 0, sizeof(tipcol));
+    snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
+    snprintf(eu.cargo[COLONIZE_CARGO_SUGAR].name, sizeof(eu.cargo[0].name), "Sugar");
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "Stockpile") == NULL || !tipcol.head.tut3.nr6) {
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    if (pops.queue_count < 1 || strstr(pops.queue[0].body, "Some of our cargo") == NULL) {
       fprintf(
         stderr,
-        "century tip want Stockpile+latch lumber=%d latch=%u '%s'\n",
-        col->stock[COLONIZE_CARGO_LUMBER],
-        (unsigned)tipcol.head.tut3.nr6,
-        eu.status
+        "spoilage SPOIL2 want 'Some of our cargo' q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
       );
+      assets_msg_free(&game_txt);
       return 1;
     }
-    /* Second crossing while latched → no tip. */
-    col->stock[COLONIZE_CARGO_LUMBER] = 99;
-    eu.status[0] = '\0';
-    memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "Stockpile") != NULL) {
-      fprintf(stderr, "century tip latch must suppress second tip got '%s'\n", eu.status);
+    if (strstr(pops.queue[0].body, "warehouse") == NULL) {
+      fprintf(stderr, "spoilage SPOIL2 want warehouse tip got '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
       return 1;
     }
-    fprintf(stderr, "warehouse century tip ok\n");
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "warehouse spoilage SPOIL2 ok\n");
   }
 
-  /*
-   * EOT fog reveal: TURN_PROC_EURO / FINISH call turn_reveal_fog_for_nation
-   * (radius 1). Exercise via map_reveal_radius same as helper.
-   */
+  /* Phase P: expanded warehouse single → @SPOIL3 (no larger-warehouse tip). */
   {
-    ColonizeWorldMap map;
-    char err[128];
-    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
-      fprintf(stderr, "fog map_alloc: %s\n", err);
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    snprintf(col->name, sizeof(col->name), "Roanoke");
+    col->warehouse_level = 2; /* cap 300 */
+    col->stock[COLONIZE_CARGO_TOBACCO] = 350;
+    col->stock[COLONIZE_CARGO_FOOD] = 20;
+    col->colonists[0].active = true;
+    col->colonist_count = 1;
+    col->population = 1;
+    pool.colony_count = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    eu.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+      eu.cargo[i].bid = 1;
+    }
+    snprintf(eu.cargo[COLONIZE_CARGO_TOBACCO].name, sizeof(eu.cargo[0].name), "Tobacco");
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    if (col->stock[COLONIZE_CARGO_TOBACCO] != 300) {
+      fprintf(stderr, "spoilage SPOIL3 clamp tobacco=%d want 300\n", col->stock[COLONIZE_CARGO_TOBACCO]);
+      assets_msg_free(&game_txt);
       return 1;
     }
-    ColonizeUnitPool units;
-    memset(&units, 0, sizeof(units));
-    units_reset(&units);
-    snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
-    units.type_count = 1;
-    const int id = units_spawn(&units, 0, 3, 3);
-    ColonizeUnit* u = units_get(&units, id);
-    if (!u) {
-      fprintf(stderr, "fog unit spawn failed\n");
-      map_free(&map);
+    if (pops.queue_count < 1) {
+      fprintf(stderr, "spoilage: expected SPOIL3 popup\n");
+      assets_msg_free(&game_txt);
       return 1;
     }
-    units_set_nation(u, 0);
-    map_reveal_radius(&map, u->x, u->y, 0, 1);
-    if (!map_tile_seen_by(&map, 3, 3, 0) || !map_tile_seen_by(&map, 2, 3, 0) ||
-        !map_tile_seen_by(&map, 4, 4, 0)) {
-      fprintf(stderr, "fog reveal radius-1 missed neighbour\n");
-      map_free(&map);
+    if (strstr(pops.queue[0].body, "Tobacco") == NULL ||
+        strstr(pops.queue[0].body, "thrown away") == NULL) {
+      fprintf(stderr, "spoilage SPOIL3 body weak: '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
       return 1;
     }
-    if (map_tile_seen_by(&map, 7, 7, 0) || map_tile_seen_by(&map, 3, 3, 1)) {
-      fprintf(stderr, "fog reveal leaked to far tile or other nation\n");
-      map_free(&map);
+    if (strstr(pops.queue[0].body, "larger") != NULL) {
+      fprintf(stderr, "spoilage SPOIL3 must omit warehouse tip got '%s'\n", pops.queue[0].body);
+      assets_msg_free(&game_txt);
       return 1;
     }
-    /* Colony radius-2 crumb (FINISH human). */
-    map_reveal_radius(&map, 1, 1, 0, 2);
-    if (!map_tile_seen_by(&map, 1, 1, 0) || !map_tile_seen_by(&map, 0, 0, 0)) {
-      fprintf(stderr, "fog colony radius-2 missed\n");
-      map_free(&map);
-      return 1;
-    }
-    map_free(&map);
-    fprintf(stderr, "EOT fog reveal ok\n");
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "warehouse spoilage SPOIL3 ok\n");
+  }
+
+  if (smoke_century_cargoready() != 0) {
+    return 1;
+  }
+
+  if (smoke_eot_fog_reveal() != 0) {
+    return 1;
   }
 
   /*
@@ -2625,14 +3177,17 @@ int main(void) {
       fprintf(stderr, "5384 gate want suppress hammers got '%s'\n", eu.status);
       return 1;
     }
-    /* K craft crumbs: Weaver with empty cloth (suppress food-shortage crumb). */
+    /* K craft crumbs: Weaver with empty cotton (suppress food-shortage crumb). */
     ColonizeCol1Save cloth_col;
     memset(&cloth_col, 0, sizeof(cloth_col));
     cloth_col.head.colony_report_options.report_food_shortages = 1;
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
     col->has_building[0] = true;
     col->building_in_production = -1;
-    col->stock[COLONIZE_CARGO_CLOTH] = 0;
+    col->stock[COLONIZE_CARGO_COTTON] = 0;
+    col->stock[COLONIZE_CARGO_SUGAR] = 5;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+    col->stock[COLONIZE_CARGO_FURS] = 5;
     col->stock[COLONIZE_CARGO_FOOD] = 20;
     col->stock[COLONIZE_CARGO_LUMBER] = 5;
     col->stock[COLONIZE_CARGO_ORE] = 5;
@@ -2641,11 +3196,176 @@ int main(void) {
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &cloth_col, &eu, 0, &prod, NULL, NULL);
-    if (strstr(eu.status, "cloth") == NULL) {
-      fprintf(stderr, "build advisory K cloth want status got '%s'\n", eu.status);
+    if (strstr(eu.status, "cotton") == NULL) {
+      fprintf(stderr, "build advisory K cotton want status got '%s'\n", eu.status);
       return 1;
     }
-    fprintf(stderr, "build advisory K cloth ok\n");
+    fprintf(stderr, "build advisory K cotton ok\n");
+
+    /* Phase K @LUMBER / @ORE / @TOOLS chrome. */
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeCol1Save food_gate;
+    memset(&food_gate, 0, sizeof(food_gate));
+    food_gate.head.colony_report_options.report_food_shortages = 1;
+
+    snprintf(col->name, sizeof(col->name), "Boston");
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+    col->has_building[0] = true;
+    /* Invent +1 lumber then carpenter hammers burn it so stock ends at 0. */
+    col->building_in_production = 0;
+    col->hammers = 0;
+    col->stock[COLONIZE_CARGO_LUMBER] = 0;
+    col->stock[COLONIZE_CARGO_ORE] = 5;
+    col->stock[COLONIZE_CARGO_FOOD] = 40;
+    col->stock[COLONIZE_CARGO_TOOLS] = 5;
+    col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    if (strstr(eu.status, "lumber") == NULL) {
+      fprintf(stderr, "K LUMBER status want lumber got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "lumber") == NULL &&
+         strstr(pops.queue[0].body, "Boston") == NULL)) {
+      fprintf(
+        stderr,
+        "K LUMBER popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    fprintf(stderr, "Phase K LUMBER chrome ok\n");
+
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
+    col->building_in_production = -1;
+    col->colonists[0].building_type = -1;
+    col->colonists[0].profession = UNITS_JOB_COLONIST;
+    col->stock[COLONIZE_CARGO_LUMBER] = 5;
+    col->stock[COLONIZE_CARGO_ORE] = 0;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    if (strstr(eu.status, "ore") == NULL) {
+      fprintf(stderr, "K ORE status want ore got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "ore") == NULL && strstr(pops.queue[0].body, "Boston") == NULL)) {
+      fprintf(
+        stderr,
+        "K ORE popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    fprintf(stderr, "Phase K ORE chrome ok\n");
+
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Armory");
+    col->stock[COLONIZE_CARGO_ORE] = 5;
+    col->stock[COLONIZE_CARGO_TOOLS] = 0;
+    col->stock[COLONIZE_CARGO_MUSKETS] = 0;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    if (strstr(eu.status, "tools") == NULL) {
+      fprintf(stderr, "K TOOLS status want tools got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "tools") == NULL &&
+         strstr(pops.queue[0].body, "Boston") == NULL)) {
+      fprintf(
+        stderr,
+        "K TOOLS popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "Phase K TOOLS chrome ok\n");
+
+    /* Phase K @COTTON / @TOBACCO craft-raw chrome. */
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
+    col->building_in_production = -1;
+    col->colonists[0].building_type = -1;
+    col->stock[COLONIZE_CARGO_COTTON] = 0;
+    col->stock[COLONIZE_CARGO_SUGAR] = 5;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+    col->stock[COLONIZE_CARGO_FURS] = 5;
+    col->stock[COLONIZE_CARGO_LUMBER] = 5;
+    col->stock[COLONIZE_CARGO_ORE] = 5;
+    col->stock[COLONIZE_CARGO_TOOLS] = 5;
+    col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    if (strstr(eu.status, "cotton") == NULL) {
+      fprintf(stderr, "K COTTON status want cotton got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "cotton") == NULL &&
+         strstr(pops.queue[0].body, "Boston") == NULL)) {
+      fprintf(
+        stderr,
+        "K COTTON popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    fprintf(stderr, "Phase K COTTON chrome ok\n");
+
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Tobacconist's House");
+    col->stock[COLONIZE_CARGO_COTTON] = 5;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 0;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    if (strstr(eu.status, "tobacco") == NULL) {
+      fprintf(stderr, "K TOBACCO status want tobacco got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "tobacco") == NULL &&
+         strstr(pops.queue[0].body, "Boston") == NULL)) {
+      fprintf(
+        stderr,
+        "K TOBACCO popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "Phase K TOBACCO chrome ok\n");
   }
 
   fprintf(stderr, "turn tests ok\n");

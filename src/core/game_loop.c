@@ -5734,7 +5734,16 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       char msg[96];
       msg[0] = '\0';
       if (!game->world_map_ok || !game->units_ok ||
-          !units_pioneer_plow(&game->units, sid, &game->world_map, msg, sizeof(msg))) {
+          !units_pioneer_plow(
+            &game->units,
+            sid,
+            &game->world_map,
+            msg,
+            sizeof(msg),
+            &game->colonies,
+            &game->ai_popups,
+            &game->messages
+          )) {
         set_status(game, msg[0] ? msg : "Cannot plow", NULL);
       } else {
         set_status(game, msg, NULL);
@@ -7401,7 +7410,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       const ColonizeUnit* su = units_get_const(&game->units, sid);
       if (su && units_is_pioneer(&game->units, sid) && su->moves_left > 0) {
         char msg[96];
-        units_pioneer_plow(&game->units, sid, &game->world_map, msg, sizeof(msg));
+        units_pioneer_plow(
+          &game->units,
+          sid,
+          &game->world_map,
+          msg,
+          sizeof(msg),
+          &game->colonies,
+          &game->ai_popups,
+          &game->messages
+        );
         set_status(game, msg, NULL);
         return true;
       }

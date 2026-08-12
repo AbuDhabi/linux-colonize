@@ -4220,7 +4220,10 @@ bool units_pioneer_work_tick(
   int unit_id,
   ColonizeWorldMap* map,
   char* err,
-  size_t err_size
+  size_t err_size,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !map || !u->active || !units_is_on_map(u)) {
@@ -4308,14 +4311,85 @@ bool units_pioneer_work_tick(
     if (clearing) {
       map_tile_clear_forest(map, u->x, u->y);
       units_pioneer_wear_tools(pool, u);
+      /*
+       * FUN_479b_01a6 clear: lumber → nearest same-nation colony + @CLEARCUT.
+       * Thin add=20 (terrain×20 / Hardy×2 PARKED). Cite: CLEARCUT GAME.TXT.
+       */
+      int lumber_add = 0;
+      ColonizeColony* near = NULL;
+      if (colonies) {
+        int best_md = -1;
+        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+          ColonizeColony* c = &colonies->colonies[i];
+          if (!c->active || c->nation_id != u->nation_id) {
+            continue;
+          }
+          const int md = abs(c->x - u->x) + abs(c->y - u->y);
+          if (best_md < 0 || md < best_md) {
+            best_md = md;
+            near = c;
+          }
+        }
+        if (near) {
+          const int cap = colonies_warehouse_capacity(colonies, near, COLONIZE_CARGO_LUMBER);
+          int room = cap - near->stock[COLONIZE_CARGO_LUMBER];
+          if (room < 0) {
+            room = 0;
+          }
+          lumber_add = 20;
+          if (lumber_add > room) {
+            lumber_add = room;
+          }
+          if (lumber_add > 0) {
+            int next = near->stock[COLONIZE_CARGO_LUMBER] + lumber_add;
+            if (next < 0) {
+              next = 0;
+            }
+            if (next > 65535) {
+              next = 65535;
+            }
+            near->stock[COLONIZE_CARGO_LUMBER] = next;
+          }
+        }
+      }
       if (err && err_size) {
-        snprintf(
-          err,
-          err_size,
-          "Forest cleared (-%d tools, %d left)",
-          UNITS_PIONEER_TOOL_COST,
-          u->tools
+        if (lumber_add > 0 && near && near->name[0]) {
+          snprintf(
+            err,
+            err_size,
+            "Forest cleared (+%d lumber to %s)",
+            lumber_add,
+            near->name
+          );
+        } else if (lumber_add > 0) {
+          snprintf(err, err_size, "Forest cleared (+%d lumber)", lumber_add);
+        } else {
+          snprintf(
+            err,
+            err_size,
+            "Forest cleared (-%d tools, %d left)",
+            UNITS_PIONEER_TOOL_COST,
+            u->tools
+          );
+        }
+      }
+      if (lumber_add > 0 && near && ai_popups &&
+          (g_units_combat_human_nation < 0 || u->nation_id == g_units_combat_human_nation)) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = near->name[0] ? near->name : "colony";
+        tok.number0 = lumber_add;
+        tok.has_number0 = true;
+        popup_msg_fill(
+          messages,
+          "CLEARCUT",
+          &tok,
+          err && err[0] ? err : "Forest cleared.",
+          body,
+          sizeof(body)
         );
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
     } else {
       map_tile_set_plowed(map, u->x, u->y, true);
@@ -4339,7 +4413,10 @@ bool units_pioneer_plow(
   int unit_id,
   ColonizeWorldMap* map,
   char* err,
-  size_t err_size
+  size_t err_size,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !map || !units_is_pioneer(pool, unit_id)) {
@@ -4370,7 +4447,9 @@ bool units_pioneer_plow(
     u->turns_worked = 0;
     u->orders = UNITS_ORDER_CLEAR_PLOW;
   }
-  return units_pioneer_work_tick(pool, unit_id, map, err, err_size);
+  return units_pioneer_work_tick(
+    pool, unit_id, map, err, err_size, colonies, ai_popups, messages
+  );
 }
 
 bool units_pioneer_road(
@@ -4415,7 +4494,7 @@ bool units_pioneer_road(
     u->turns_worked = 0;
     u->orders = UNITS_ORDER_BUILD_ROAD;
   }
-  return units_pioneer_work_tick(pool, unit_id, map, err, err_size);
+  return units_pioneer_work_tick(pool, unit_id, map, err, err_size, NULL, NULL, NULL);
 }
 
 static bool units_adjacent(int ax, int ay, int bx, int by) {
