@@ -73,13 +73,15 @@ static void combat_analysis_push_line(
 }
 
 /*
- * Modifier lines only (FUN_636c_0000 flag walk). Labels match LABELS.TXT @MISC
- * Combat Analysis block (Veteran / Ambush→Spain Bonus / Artillery In Open / …).
+ * Modifier lines only (FUN_636c_0000 flag walk). Labels match LABELS.TXT
+ * Combat Analysis block (Attack Bonus / Veteran / Spain Bonus / …).
+ * land_attack_bonus: land engage applied ×3/2 (show Attack Bonus +50%).
  */
 static void combat_analysis_fill_mods(
   char lines[][COMBAT_ANALYSIS_LINE_LEN],
   int* count,
-  const ColonizeCombatSideFlags* flags
+  const ColonizeCombatSideFlags* flags,
+  int land_attack_bonus
 ) {
   char buf[COMBAT_ANALYSIS_LINE_LEN];
   *count = 0;
@@ -87,6 +89,10 @@ static void combat_analysis_fill_mods(
     return;
   }
 
+  /* LABELS "Attack Bonus" — land ×3/2 (FUN_5fef_1b0e / FUN_636c bit0 walk). */
+  if (land_attack_bonus) {
+    combat_analysis_push_line(lines, count, "Attack Bonus +50%");
+  }
   if (flags->flags & COMBAT_FLAG_VETERAN) {
     combat_analysis_push_line(lines, count, "Veteran +50%");
   }
@@ -122,7 +128,7 @@ static void combat_analysis_fill_mods(
     combat_analysis_push_line(lines, count, "Artillery In Open -75%");
   }
   if (flags->flags2 & COMBAT_FLAG_ARTY_COLONY) {
-    combat_analysis_push_line(lines, count, "Artillery vs natives +100%");
+    combat_analysis_push_line(lines, count, "Artillery Vs. Raid +100%");
   }
   if (flags->flags & COMBAT_FLAG_AMBUSH) {
     combat_analysis_push_line(lines, count, "Spain Bonus +50%");
@@ -178,8 +184,10 @@ bool combat_analysis_open(
 
   combat_analysis_snap_chrome(&dlg->atk_chrome, pool, eng->attacker_id);
   combat_analysis_snap_chrome(&dlg->def_chrome, pool, eng->defender_id);
-  combat_analysis_fill_mods(dlg->atk_lines, &dlg->atk_line_count, &eng->atk_flags);
-  combat_analysis_fill_mods(dlg->def_lines, &dlg->def_line_count, &eng->def_flags);
+  /* Land attacker always gets ×3/2 standing attack factor — list as Attack Bonus. */
+  const int atk_bonus = !eng->is_naval && (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK);
+  combat_analysis_fill_mods(dlg->atk_lines, &dlg->atk_line_count, &eng->atk_flags, atk_bonus);
+  combat_analysis_fill_mods(dlg->def_lines, &dlg->def_line_count, &eng->def_flags, 0);
   return true;
 }
 
@@ -280,13 +288,14 @@ void combat_analysis_render(
   combat_analysis_blit_side(framebuffer, font, unit_icons, &dlg->atk_chrome, atk_icon_x, y_hdr);
   combat_analysis_blit_side(framebuffer, font, unit_icons, &dlg->def_chrome, def_icon_x, y_hdr);
 
-  snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_strength);
+  /* Header numbers = NAMES baseline (0x8d06 / -0x72fa), not roll weights. */
+  snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_flags.base_combat);
   {
     const int sx = atk_icon_x + icon_w + UNIT_CHROME_SPRITE_DX + 6;
     const int sy = y_hdr + (icon_h - line_h) / 2 + 2;
     popup_draw_text_shadowed(font, framebuffer, sx, sy, str_buf, text_color);
   }
-  snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_strength);
+  snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_flags.base_combat);
   {
     const int sw = font_text_width(font, str_buf);
     const int sx = def_icon_x - 6 - sw;

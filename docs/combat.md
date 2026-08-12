@@ -139,7 +139,7 @@ Mirror DOS `0x8d00` / `0x8d02` / high / `a156` for Combat Analysis.
 
 | Flag | Word | Meaning |
 |------|------|---------|
-| `COMBAT_FLAG_MODE_ATK` | `flags` | `004a` attack mode |
+| `COMBAT_FLAG_MODE_ATK` | `flags` | `004a` attack mode; land Analysis lists Attack Bonus +50% |
 | `COMBAT_FLAG_VETERAN` | `flags` | Veteran +50% |
 | `COMBAT_FLAG_HOLDS` | `flags` | Cargo holds penalty |
 | `COMBAT_FLAG_COLONY` | `flags` | Defending on own colony |
@@ -192,10 +192,15 @@ fights whoever stands on the tile via normal land combat.
   (`AI_POPUP_TAG_COMBAT_RANSOM`) before credit; AI → silent full credit + `@LOOTCAPTURE`
 - Loser: `units_apply_land_loss_outcome` (`FUN_5fef_0352`)
   - Artillery: first loss → damage bit7; second → despawn
-  - Euro Wagon → nation flip + `@WAGONCAPTURE` / `@CARGOCAPTURE`
-  - Euro non-combat (`attack==0`, not Treasure) → nation flip + `@COLONISTCAPTURE*`
-  - else despawn
-- `units_sweep_stack_after_loss` (`FUN_5fef_0ec0`) capture leftover non-combat
+  - **Capture** (Euro winner only, `attack>0`): Colonists / Wagon → nation flip +
+    `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE`. Veteran Colonist
+    specialty stripped → `@COLONISTCAPTURE2`. **Natives never capture.**
+  - **Type demote** (keep nation): Dragoon→Soldier, Soldier→Colonist,
+    Cont.Cav→Cont.Army, Cavalry→Regulars, Cont.Army→Colonist (+ Jesuit →
+    Missionary); `@DEMOTE` if human-facing
+  - else despawn (Pioneers, Missionaries, Scouts, Regulars, …)
+- `units_sweep_stack_after_loss` (`FUN_5fef_0ec0`) apply loss to leftover
+  non-combat same-nation stackmates (skips the primary loser already resolved)
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure) /
   `@LOOT2` (burn, no treasure)
@@ -204,10 +209,10 @@ fights whoever stands on the tile via normal land combat.
 
 Same loss apply on attacker; defender may promote.
 
-### Demote (`FUN_5fef_16ea`)
+### Demote (`FUN_5fef_0352` type table; `FUN_5fef_16ea` promote-path specialty)
 
-Profession remap / strip Soldier→Free Colonist under WoI; `@DEMOTE` if
-human-facing.
+Combat loss remaps **unit type** (not merely profession). Cite:
+`viceroy_unpacked.c` `FUN_5fef_0352` demote arm.
 
 ### Naval (`units_apply_naval_loss_outcome`)
 
@@ -234,14 +239,17 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   `0x5383&2`)
 - Layout:
   1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
-  2. Attacker chrome + strength … defender strength + chrome (orders/allegiance)
+  2. Attacker chrome + **baseline** strength … defender baseline + chrome
+     (`NAMES` attack/defense byte from `base_combat` / DOS `-0x72fa` — not the
+     post-×8 roll weight)
   3. Modifier rows per side (empty cell when that side has no matching flag)
-- Flag lines (LABELS-shaped): Veteran, Drake, Cargo, Terrain, Village,
-  Colony/Stockade/Fortress, Fortified, Artillery In Open, Spain Bonus,
-  Expeditionary Force, Tories/Rebels (WoI support %). No unit-name dump, no
-  “Combat N”, no roll, no Victory/Defeat.
-- Strength numbers are the post-modifier odds weights (`atk` / `def` in
-  `roll 1..(atk+def)`).
+- Flag lines (LABELS-shaped): **Attack Bonus +50%** (land ×3/2), Veteran,
+  Drake, Cargo, Terrain, Village, Colony/Stockade/Fortress, Fortified,
+  Artillery In Open, Artillery Vs. Raid, Spain Bonus, Expeditionary Force,
+  Tories/Rebels (WoI support %). No unit-name dump, no “Combat N”, no roll,
+  no Victory/Defeat.
+- Roll still uses post-modifier odds weights (`atk` / `def` in
+  `roll 1..(atk+def)`); those values are not printed in the header.
 - Input: Esc / Enter / Space / click dismiss
 - Presenter hook: tests / AI skip when unset (`combat_analysis_set_presenter`)
 

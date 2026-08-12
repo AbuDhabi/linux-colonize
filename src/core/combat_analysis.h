@@ -19,8 +19,9 @@
  *
  * Layout (DOS / LABELS.TXT):
  *   1. Centered title "COMBAT ANALYSIS"
- *   2. Atk chrome + strength … def strength + def chrome
- *   3. Per-side modifier rows (empty cell when that side has no line)
+ *   2. Atk chrome + baseline strength … def baseline + def chrome
+ *      (NAMES attack/defense byte — not post-×8 roll weights)
+ *   3. Per-side modifier rows (Attack Bonus, Veteran, Terrain, …)
  *
  * Shown after strengths are known, before the combat roll / outcome UI.
  */

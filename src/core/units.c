@@ -1213,25 +1213,103 @@ static void units_washington_promote_on_win(
   }
 }
 
-/* FUN_5fef_16ea: demote profession remap. */
-static int units_demote_profession_remap(int profession, int woi) {
-  if (woi && profession == UNITS_JOB_SOLDIER) {
-    return -1; /* strip type instead */
+/*
+ * FUN_5fef_0352 type demote table (NAMES @UNIT indices):
+ * Dragoon→Soldier, Soldier→Colonist, Cont.Cav→Cont.Army, Cavalry→Regulars,
+ * Cont.Army→Colonist; Jesuit profession on Colonist demote → Missionary.
+ * Returns new type_index or -1 if no demote (destroy path).
+ */
+static int units_combat_demote_type_index(ColonizeUnitPool* pool, const ColonizeUnit* loser) {
+  if (!pool || !loser) {
+    return -1;
   }
-  if (profession == 26) { /* DOS 0x1a → 0x19 */
-    return 25;
+  const ColonizeUnitType* lt = units_type(pool, loser->type_index);
+  if (!lt || !lt->name[0]) {
+    return -1;
   }
-  if (profession == 25) { /* DOS 0x19 → 0x1c NONE */
-    return UNITS_JOB_NONE;
+  const char* n = lt->name;
+  const char* dest = NULL;
+  if (strstr(n, "Cont") != NULL && strstr(n, "Cav") != NULL) {
+    dest = "Cont. Army";
+  } else if (strstr(n, "Cavalry") != NULL) {
+    dest = "Regulars";
+  } else if (strstr(n, "Cont") != NULL && strstr(n, "Army") != NULL) {
+    dest = (loser->profession == UNITS_JOB_MISSIONARY) ? "Missionaries" : "Colonists";
+  } else if (strstr(n, "Dragoon") != NULL) {
+    dest = "Soldiers";
+  } else if (strstr(n, "Soldier") != NULL) {
+    dest = (loser->profession == UNITS_JOB_MISSIONARY) ? "Missionaries" : "Colonists";
   }
-  if (profession == UNITS_JOB_SCOUT || profession == UNITS_JOB_PIONEER ||
-      profession == UNITS_JOB_DRAGOON || profession == UNITS_JOB_MISSIONARY) {
-    return UNITS_JOB_NONE;
+  if (!dest) {
+    return -1;
   }
-  if (profession == UNITS_JOB_SOLDIER) {
-    return UNITS_JOB_NONE;
+  return units_find_type(pool, dest);
+}
+
+/* Align tools/muskets/horses with post-demote type (spawn-shaped). */
+static void units_sync_equip_after_type_change(ColonizeUnit* u, const ColonizeUnitType* t) {
+  if (!u || !t) {
+    return;
   }
-  return profession;
+  u->tools = 0;
+  u->muskets = 0;
+  u->horses = 0;
+  if (strstr(t->name, "Pioneer") != NULL) {
+    u->tools = UNITS_EQUIP_TOOLS_MAX;
+  } else if (strstr(t->name, "Dragoon") != NULL || strstr(t->name, "Cavalry") != NULL) {
+    u->muskets = UNITS_EQUIP_MUSKETS;
+    u->horses = UNITS_EQUIP_HORSES;
+  } else if (
+    strstr(t->name, "Soldier") != NULL || strstr(t->name, "Regular") != NULL ||
+    strstr(t->name, "Army") != NULL
+  ) {
+    u->muskets = UNITS_EQUIP_MUSKETS;
+  } else if (strstr(t->name, "Scout") != NULL) {
+    u->horses = UNITS_EQUIP_HORSES;
+  }
+}
+
+/*
+ * FUN_5fef_0352 land demote: change type, @DEMOTE if human-facing.
+ * Returns 1 if demoted (unit survives), 0 if no demote mapping.
+ */
+static int units_demote_combat_type(
+  ColonizeUnitPool* pool,
+  ColonizeUnit* loser,
+  const ColonizeCol1Save* col1,
+  int human_facing
+) {
+  if (!pool || !loser || !loser->active) {
+    return 0;
+  }
+  const int tgt = units_combat_demote_type_index(pool, loser);
+  if (tgt < 0 || tgt == loser->type_index) {
+    return 0;
+  }
+  const ColonizeUnitType* old_ty = units_type(pool, loser->type_index);
+  const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "unit";
+  loser->type_index = tgt;
+  const ColonizeUnitType* nt = units_type(pool, tgt);
+  units_sync_equip_after_type_change(loser, nt);
+  loser->orders = UNITS_ORDER_NONE;
+  loser->moves_left = 0;
+  if (human_facing) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, loser->nation_id);
+    tok.string1 = old_name;
+    tok.string2 = nt && nt->name[0] ? nt->name : "colonist";
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_DEMOTE,
+      "DEMOTE",
+      loser->nation_id,
+      -1,
+      0,
+      &tok,
+      "Unit demoted."
+    );
+  }
+  return 1;
 }
 
 /*
@@ -1316,61 +1394,11 @@ static int units_chance_promote_on_win(
   return 1;
 }
 
-/* Strip specialty / demote on loss when unit survives (capture path). */
-static int units_demote_on_loss(
-  ColonizeUnitPool* pool,
-  ColonizeUnit* loser,
-  const ColonizeCol1Save* col1,
-  int human_facing
-) {
-  if (!pool || !loser || !loser->active) {
-    return 0;
-  }
-  const int woi = col1 && col1->head.game_options.woi;
-  const int old_prof = loser->profession;
-  const ColonizeUnitType* old_ty = units_type(pool, loser->type_index);
-  const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "unit";
-  const int mapped = units_demote_profession_remap(old_prof, woi);
-  int changed = 0;
-  const char* new_status = old_name;
-  if (mapped < 0) {
-    /* Strip soldier type toward Free Colonist. */
-    const int tgt = units_find_type(pool, "Free Colonist");
-    if (tgt >= 0) {
-      loser->type_index = tgt;
-    }
-    loser->profession = UNITS_JOB_NONE;
-    new_status = "Free Colonist";
-    changed = 1;
-  } else if (mapped != old_prof) {
-    loser->profession = mapped;
-    changed = 1;
-    const ColonizeUnitType* nt = units_type(pool, loser->type_index);
-    new_status = nt && nt->name[0] ? nt->name : "colonist";
-  }
-  if (changed && human_facing) {
-    /* GAME.TXT @DEMOTE: "{nation unit} routed! Unit demoted to {status}." */
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = units_combat_nation_label(col1, loser->nation_id);
-    tok.string1 = old_name;
-    tok.string2 = new_status;
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_COMBAT_DEMOTE,
-      "DEMOTE",
-      loser->nation_id,
-      -1,
-      0,
-      &tok,
-      "Unit demoted."
-    );
-  }
-  return changed;
-}
-
 /*
- * FUN_5fef_0352 thin: capture-alive non-combat Euro units; artillery damage bit;
- * else despawn. Returns 1 if unit still active (captured/damaged), 0 if gone.
+ * FUN_5fef_0352: artillery damage; Euro-only Colonist/Wagon capture; type demote;
+ * else despawn. Natives never capture (winner nation must be 0..3). Pioneers /
+ * Missionaries / Scouts are not capture types → destroy. Returns 1 if unit still
+ * active (captured/damaged/demoted), 0 if gone.
  */
 static int units_apply_land_loss_outcome(
   ColonizeUnitPool* pool,
@@ -1388,6 +1416,9 @@ static int units_apply_land_loss_outcome(
   const ColonizeUnitType* wt = units_type(pool, win->type_index);
   const int human =
     show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
+  const int win_euro = win->nation_id >= 0 && win->nation_id <= 3;
+  const int win_can_capture = win_euro && wt && wt->attack > 0;
+  const int loser_euro = lose->nation_id >= 0 && lose->nation_id <= 3;
 
   /* Artillery: first loss → damaged bit7; already damaged → sink. */
   if (lt && combat_type_is_artillery_name(lt->name)) {
@@ -1405,20 +1436,23 @@ static int units_apply_land_loss_outcome(
           "Artillery damaged."
         );
       }
-      (void)units_demote_on_loss(pool, lose, col1, human);
       return 1;
     }
   }
 
-  /* Capture-alive: Euro non-combat (attack==0), not Treasure (handled above). */
-  if (lose->nation_id >= 0 && lose->nation_id <= 3 && lt && lt->attack == 0) {
-    const int is_treasure = lt->name[0] && strstr(lt->name, "Treasure") != NULL;
-    const int is_wagon = lt->name[0] && strstr(lt->name, "Wagon") != NULL;
+  /*
+   * Capture-alive (DOS type ∈ {Colonists, Wagon}; Treasure handled in resolve).
+   * Winner must be Euro with attack>0 — natives destroy, never nation-flip.
+   */
+  if (loser_euro && lt && lt->name[0] && win_can_capture) {
+    const int is_treasure = strstr(lt->name, "Treasure") != NULL;
+    const int is_wagon = strstr(lt->name, "Wagon") != NULL;
+    const int is_colonist =
+      strstr(lt->name, "Colonist") != NULL && !is_treasure && !is_wagon;
     if (is_treasure) {
       /* Treasure gold handled in resolve; despawn below. */
     } else if (is_wagon) {
       const int from_nat = lose->nation_id;
-      /* Thin: capture wagon (change nation) + cargo popup if holds present. */
       int cargo_amt = 0;
       for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
         if (lose->hold_goods_amount[i] > 0 && lose->hold_goods_amount[i] < 255) {
@@ -1460,9 +1494,13 @@ static int units_apply_land_loss_outcome(
         }
       }
       return 1;
-    } else {
+    } else if (is_colonist) {
       const int from_nat = lose->nation_id;
-      const int demoted = units_demote_on_loss(pool, lose, col1, 0);
+      /* DOS: Veteran specialty (0x15) → NONE + @COLONISTCAPTURE2. */
+      const int stripped_vet = (lose->profession == UNITS_JOB_SOLDIER);
+      if (stripped_vet) {
+        lose->profession = UNITS_JOB_NONE;
+      }
       units_set_nation(lose, win->nation_id);
       lose->orders = UNITS_ORDER_NONE;
       lose->moves_left = 0;
@@ -1473,18 +1511,21 @@ static int units_apply_land_loss_outcome(
         tok.string1 = units_combat_nation_label(col1, win->nation_id);
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_CAPTURE,
-          demoted ? "COLONISTCAPTURE2" : "COLONISTCAPTURE",
+          stripped_vet ? "COLONISTCAPTURE2" : "COLONISTCAPTURE",
           win->nation_id,
           from_nat,
           0,
           &tok,
           "Colonists captured."
         );
-      } else {
-        (void)demoted;
       }
       return 1;
     }
+  }
+
+  /* Type demote (Soldier→Colonist, Dragoon→Soldier, …); keep nation. */
+  if (units_demote_combat_type(pool, lose, col1, human)) {
+    return 1;
   }
 
   units_despawn(pool, loser_id);
@@ -1498,6 +1539,7 @@ static void units_sweep_stack_after_loss(
   int y,
   int loser_nation,
   int winner_id,
+  int primary_loser_id,
   const ColonizeCol1Save* col1
 ) {
   if (!pool || loser_nation < 0) {
@@ -1512,7 +1554,7 @@ static void units_sweep_stack_after_loss(
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
     }
-    if (u->nation_id != loser_nation || u->id == winner_id) {
+    if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
       continue;
     }
     const ColonizeUnitType* t = units_type(pool, u->type_index);
@@ -2242,7 +2284,7 @@ bool units_resolve_land_combat_ff(
       pool, attacker_id, defender_id, 1, atk_nation, def_nation, 0, ambush, col1
     );
     (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
-    units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, col1);
+    units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, defender_id, col1);
     atk = units_get(pool, attacker_id);
     if (atk) {
       units_washington_promote_on_win(pool, atk, col1);
@@ -2276,7 +2318,7 @@ bool units_resolve_land_combat_ff(
     const int atk_y = atk->y;
     const int atk_nation = atk->nation_id;
     (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1);
-    units_sweep_stack_after_loss(pool, atk_x, atk_y, atk_nation, defender_id, col1);
+    units_sweep_stack_after_loss(pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1);
   }
   def = units_get(pool, defender_id);
   if (def) {

@@ -439,10 +439,10 @@ work.
 | `@LOOTFOREIGN` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@LOOTCAPTURE` | Done | treasure ransom Accept/Refuse + OK path |
 | `@WAGONCAPTURE` | Done | wagon nation-flip capture |
-| `@COLONISTCAPTURE` | Done | non-combat Euro capture-alive |
-| `@COLONISTCAPTURE2` | Done | capture + demote path |
+| `@COLONISTCAPTURE` | Done | Euro winner captures Colonists only (not Pioneer) |
+| `@COLONISTCAPTURE2` | Done | capture + strip Veteran specialty |
 | `@CARGOCAPTURE` | Done | wagon holds present |
-| `@DEMOTE` | Done | nation + unit + demoted status tokens |
+| `@DEMOTE` | Done | type demote (Soldier→Colonist, …) nation + unit + status |
 | `@SEIZURE` | Partial | king/REF — structural; VGA PARKED |
 | `@SEIZURESEA` | Done | Crown naval → Royal Navy; Privateer uses custom body |
 | `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
