@@ -2865,6 +2865,62 @@ int main(void) {
         fprintf(stderr, "analysis should skip AI-only fight\n");
         return 1;
       }
+      /* Header = baseline; Attack Bonus listed for land attacker. */
+      {
+        ColonizeCombatEngagement eng;
+        memset(&eng, 0, sizeof(eng));
+        eng.attacker_id = 0;
+        eng.defender_id = 0;
+        eng.atk_strength = 24;
+        eng.def_strength = 16;
+        eng.is_naval = false;
+        eng.atk_flags.base_combat = 2;
+        eng.atk_flags.flags = COMBAT_FLAG_MODE_ATK | COMBAT_FLAG_VETERAN;
+        eng.def_flags.base_combat = 1;
+        CombatAnalysisDialog dlg;
+        memset(&dlg, 0, sizeof(dlg));
+        if (!combat_analysis_open(&dlg, &pool, &eng)) {
+          fprintf(stderr, "combat_analysis_open failed\n");
+          return 1;
+        }
+        if (dlg.eng.atk_flags.base_combat != 2 || dlg.eng.def_flags.base_combat != 1) {
+          fprintf(stderr, "analysis should keep baseline combat bytes\n");
+          return 1;
+        }
+        int found_atk_bonus = 0;
+        int found_vet = 0;
+        for (int i = 0; i < dlg.atk_line_count; ++i) {
+          if (strstr(dlg.atk_lines[i], "Attack Bonus")) {
+            found_atk_bonus = 1;
+          }
+          if (strstr(dlg.atk_lines[i], "Veteran")) {
+            found_vet = 1;
+          }
+        }
+        if (!found_atk_bonus || !found_vet) {
+          fprintf(stderr, "land analysis missing Attack Bonus/Veteran lines\n");
+          return 1;
+        }
+        for (int i = 0; i < dlg.def_line_count; ++i) {
+          if (strstr(dlg.def_lines[i], "Attack Bonus")) {
+            fprintf(stderr, "defender must not list Attack Bonus\n");
+            return 1;
+          }
+        }
+        combat_analysis_close(&dlg);
+        eng.is_naval = true;
+        if (!combat_analysis_open(&dlg, &pool, &eng)) {
+          fprintf(stderr, "naval combat_analysis_open failed\n");
+          return 1;
+        }
+        for (int i = 0; i < dlg.atk_line_count; ++i) {
+          if (strstr(dlg.atk_lines[i], "Attack Bonus")) {
+            fprintf(stderr, "naval analysis must not list land Attack Bonus\n");
+            return 1;
+          }
+        }
+        combat_analysis_close(&dlg);
+      }
       fprintf(stderr, "smoke_units: combat analysis gate ok\n");
     }
 
@@ -3822,6 +3878,9 @@ int main(void) {
       c1.head.game_options.ref_present = 1;
       c1.player[0].control = 0;
       c1.player[1].control = 1;
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        c1.head.founding_father[i] = -1; /* unclaimed — memset 0 would look like nation 0 owns FF */
+      }
       /* Colony SoL 60% via col1 colony record. */
       ColonizeCol1Colony cc;
       memset(&cc, 0, sizeof(cc));
@@ -4030,6 +4089,81 @@ int main(void) {
       units_despawn(&pool, aid);
       units_despawn(&pool, did);
       fprintf(stderr, "smoke_units: capture-alive ok\n");
+    }
+
+    /* Native win: Pioneer destroyed (not captured); Soldier demoted to Colonist. */
+    {
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.head.difficulty = 2;
+      c1.player[0].control = 0;
+      const int pio = units_find_type(&pool, "Pioneers");
+      const int sol = units_find_type(&pool, "Soldiers");
+      const int col_ti = units_find_type(&pool, "Colonists");
+      const int brave = units_find_type(&pool, "Braves");
+      if (pio < 0 || sol < 0 || col_ti < 0 || brave < 0) {
+        fprintf(stderr, "phase2 native-outcome types missing\n");
+        return 1;
+      }
+      pool.types[brave].attack = 8;
+      pool.types[brave].defense = 8;
+      pool.types[pio].attack = 0;
+      pool.types[pio].defense = 1;
+      pool.types[sol].attack = 2;
+      pool.types[sol].defense = 1;
+      {
+        const int aid = units_spawn_allow_stack(&pool, brave, 42, 42);
+        const int did = units_spawn_allow_stack(&pool, pio, 42, 42);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "phase2 native-pioneer spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 4;
+        d->nation_id = 0;
+        if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+          fprintf(stderr, "phase2 native should beat pioneer\n");
+          return 1;
+        }
+        d = units_get(&pool, did);
+        if (d && d->active) {
+          fprintf(stderr, "phase2 native win should destroy pioneer (not capture)\n");
+          return 1;
+        }
+        units_despawn(&pool, aid);
+      }
+      {
+        const int aid = units_spawn_allow_stack(&pool, brave, 43, 43);
+        const int did = units_spawn_allow_stack(&pool, sol, 43, 43);
+        ColonizeUnit* a = units_get(&pool, aid);
+        ColonizeUnit* d = units_get(&pool, did);
+        if (!a || !d) {
+          fprintf(stderr, "phase2 native-soldier spawn failed\n");
+          return 1;
+        }
+        a->nation_id = 4;
+        d->nation_id = 0;
+        if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
+          fprintf(stderr, "phase2 native should beat soldier\n");
+          return 1;
+        }
+        d = units_get(&pool, did);
+        if (!d || !d->active || d->nation_id != 0 || d->type_index != col_ti) {
+          fprintf(
+            stderr,
+            "phase2 soldier should demote to Colonist same nation (active=%d nat=%d ti=%d want %d)\n",
+            d && d->active,
+            d ? d->nation_id : -1,
+            d ? d->type_index : -1,
+            col_ti
+          );
+          return 1;
+        }
+        units_despawn(&pool, aid);
+        units_despawn(&pool, did);
+      }
+      fprintf(stderr, "smoke_units: native destroy-pioneer / demote-soldier ok\n");
     }
 
     /* Naval damage-not-always-sink: weaker ship escapes damaged when close. */
