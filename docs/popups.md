@@ -116,7 +116,8 @@ fragment. Related sections are listed in the first column.
 | Field jobs | Assign colonist to field | Done | Job list popup |
 | Leave-as (eject) | Fence with colonist | Done | Role list |
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
-| `@KEEPSTOCKADE` / `@MORETHANTHREE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
+| `@KEEPSTOCKADE` | Stockade min pop | Done | OK from `@KEEPSTOCKADE` |
+| `@MORETHANTHREE` | Assign 4th colonist to a full building | Done | `colonies_assign_workplace` caps at `COLONIZE_BUILDING_MAX_WORKERS` (3); `colonies_emit_more_than_three_chrome` OK. Was previously misdocumented as a `@KEEPSTOCKADE` alias — the two sections are unrelated |
 | `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; **R** rename in colony |
 | `@LANDHO` | First land sight | Done | Name New World (`colony_region`); seed from NAMES `@COLONYNAME` per nation |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
@@ -147,7 +148,7 @@ fragment. Related sections are listed in the first column.
 | Meet Trade/Gift/Demand/Teach/Leave | Village meet | Done | `CONTACT_MEET` |
 | Gift amount | Gift gold | Done | Small/Large/Generous CHOICE |
 | Demand tools/gold | Tribute | Done | `CONTACT_DEMAND` |
-| Teach (`@LEARN*`) | Teach skill result | Partial | `CONTACT_TEACH` OK; Scout→Seasoned uses `@WELLSEASONED` |
+| Teach (`@LEARN*`) | Teach skill result | Partial | `CONTACT_TEACH` OK; Scout→Seasoned uses `@WELLSEASONED`; refuse uses `@LEARNMAD`; already-expert learner uses `@LEARNMASTER` (no one-shot burn) |
 | Mission / convert (`@MISSION*`, `@INDIANSCONVERT`) | Missionary | Partial | `CONTACT_CONVERT` OK |
 | `@RAID*` outcomes | Raid / ambush | Partial | `CONTACT_RAID` OK; deep `4528` PARKED |
 | Village attitude / HELLO | Enter settlement | Partial | Thin snippets / status |
@@ -224,7 +225,7 @@ Cycling and Tutorial Hints remain persisted flags only until final polish.
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@LOSTCITY0`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Missing | — |
+| `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done thin | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE auto-resolves as Search (interactive CHOICE PARKED); native-attack combat resolve on `@SCREWED` PARKED (50/50 despawn stand-in) |
 | `@TUTORIAL1`…`19`, `@TUT*` | Tutorial hints option | Missing | — |
 | `WOODCUT.TXT` captions | Discovery woodcut scenes | Missing | Pedia uses woodcut art only |
 
@@ -380,24 +381,24 @@ work.
 | `@DEPLETION` | Done thin | EOT ore/silver wrap ai_popup OK (`@DEPLETION`); VGA PARKED |
 | `@UNITFLAG` | Partial | Col1 flag bits; not dialogs |
 | `@COLONYFLAG` | Partial | Col1 flag bits; not dialogs |
-| `@LOSTCITY0` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY1` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY2` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY3` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY4` | Missing | Lost City / burial dialogs missing |
-| `@SCREWED` | Missing | Lost City / burial dialogs missing |
-| `@BURIAL1` | Missing | Lost City / burial dialogs missing |
-| `@BURIAL2` | Missing | Lost City / burial dialogs missing |
-| `@BURIAL3` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY5` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY6` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY7` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY8` | Missing | Lost City / burial dialogs missing |
-| `@LOSTCITY9` | Missing | Lost City / burial dialogs missing |
+| `@LOSTCITY0` | n/a | Not an LCR outcome — reused recruit-menu text ("Which of the following individuals shall we recruit?"), unrelated section number |
+| `@LOSTCITY1` | Done thin | Fountain of Youth — 8 dock immigrants (human only; AI has no EuropeScreen pool) |
+| `@LOSTCITY2` | Done thin | Seven Cities of Cibola — big treasure train (needs Galleon home) |
+| `@LOSTCITY3` | Done thin | Ruins gold, credited direct to nation |
+| `@LOSTCITY4` | Done thin | Burial mounds — auto-resolves as Search (Stay-clear CHOICE PARKED) → `@BURIAL1`/`2`/`3`/`@SCREWED` |
+| `@SCREWED` | Done thin | Hostile burial-ground natives — relation malus; 50/50 expedition lost (full combat resolve PARKED) |
+| `@BURIAL1` | Done thin | Burial search — nothing found |
+| `@BURIAL2` | Done thin | Burial search — trinkets (small gold) |
+| `@BURIAL3` | Done thin | Burial search — incredible treasure train (needs Galleon home) |
+| `@LOSTCITY5` | Done thin | Expedition vanishes — Scout despawns |
+| `@LOSTCITY6` | Done thin | Nothing but rumors |
+| `@LOSTCITY7` | Done thin | Friendly tribe's chief gift (small gold) |
+| `@LOSTCITY8` | Done thin | Trespassing near shrines — native relation malus, no combat |
+| `@LOSTCITY9` | Done thin | Survivors of a former colony join (free Colonist spawns) |
 | `@SNEAK` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural |
-| `@SIGNTREATY` | Done | DIPLO_* CHOICE structural |
-| `@DECLAREWAR` | Done | DIPLO_* CHOICE structural |
+| `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
+| `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override) |
 | `@HAVETREATY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@WHACKINDIANS` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@VILLAGEHAPPY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
@@ -513,10 +514,10 @@ work.
 | `@BUY0` | Missing | deep village trade 2820 PARKED |
 | `@BUY1` | Missing | deep village trade 2820 PARKED |
 | `@NOTENOUGH` | Missing | deep village trade 2820 PARKED |
-| `@LEARNMASTER` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
+| `@LEARNMASTER` | Done thin | Already-expert learner refuse; `popup_msg_fill`; does not consume village one-shot |
 | `@LEARNCRIMINAL` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNALREADY` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
-| `@LEARNMAD` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
+| `@LEARNMAD` | Done thin | Alarm/friction ≥40 refuse (both mid and hostile bands); `popup_msg_fill` |
 | `@LEARNSLOW` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNSTAY` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNLATER` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
@@ -751,7 +752,7 @@ work.
 | `@TEACHCONVERT` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@SOMEBOYCOTT` | Partial | Europe sail/market — partial status or auto |
 | `@KEEPSTOCKADE` | Done | stockade min-pop OK message |
-| `@MORETHANTHREE` | Done | stockade min-pop OK message |
+| `@MORETHANTHREE` | Done | building-slot-full OK (§4; not stockade min-pop — that's `@KEEPSTOCKADE`) |
 | `@LOOTWAGONS` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@TUTORIAL1` | Missing | tutorial hints missing |
 | `@TUTORIAL2` | Missing | tutorial hints missing |

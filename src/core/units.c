@@ -2303,18 +2303,81 @@ bool units_try_native_settlement_fallout(
   return true;
 }
 
+/*
+ * FUN_65dd_0004 outcome kinds (GAME.TXT @LOSTCITY1..9 / @BURIAL1..3 /
+ * @SCREWED). Exact DOS weight table not RE'd — the buckets below are our own
+ * choice (PARK), tuned so common finds dominate and rare ones (Cibola,
+ * vanish) are uncommon; order matters only in that bucket 0 is what
+ * dos_rng_range(NULL, ...) deterministically lands on (tests pass rng=NULL).
+ */
+typedef enum ColonizeLcrOutcome {
+  COLONIZE_LCR_NOTHING = 0,     /* @LOSTCITY6 */
+  COLONIZE_LCR_SMALL_TREASURE,  /* @LOSTCITY3 */
+  COLONIZE_LCR_CHIEFS_GIFT,     /* @LOSTCITY7 */
+  COLONIZE_LCR_BURIAL_MOUNDS,   /* @LOSTCITY4 → @BURIAL1/2/3 / @SCREWED */
+  COLONIZE_LCR_TRESPASS_ANGER,  /* @LOSTCITY8 */
+  COLONIZE_LCR_SURVIVORS_JOIN,  /* @LOSTCITY9 */
+  COLONIZE_LCR_FOUNTAIN_OF_YOUTH, /* @LOSTCITY1 */
+  COLONIZE_LCR_VANISHES,        /* @LOSTCITY5 */
+  COLONIZE_LCR_CIBOLA           /* @LOSTCITY2 */
+} ColonizeLcrOutcome;
+
+/* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. */
+static int units_lcr_nearest_tribe_nation(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->tribe) {
+    return -1;
+  }
+  int best = -1;
+  int best_d = 0x7fffffff;
+  for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* tr = &col1->tribe[i];
+    const int dx = x - (int)tr->x;
+    const int dy = y - (int)tr->y;
+    const int d = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+    if (d < best_d) {
+      best_d = d;
+      best = tr->nation_id;
+    }
+  }
+  return best;
+}
+
+/* Credits both the persisted Col1 nation gold and the live Europe screen
+ * cache (only the latter is what the human player can spend mid-session). */
+static void units_lcr_credit_gold(
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
+  int nation,
+  int amount
+) {
+  if (!col1 || amount <= 0 || nation < 0 || nation >= 4) {
+    return;
+  }
+  col1->nation[nation].gold += (uint32_t)amount;
+  if (europe && nation == human_nation) {
+    europe->gold += amount;
+  }
+}
+
 bool units_resolve_lcr_rumour(
   ColonizeUnitPool* pool,
   int unit_id,
   ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
-  ColonizeDosRng* rng
+  ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  EuropeScreen* europe,
+  int human_nation
 ) {
   /*
-   * Thin FUN_65dd_0004 scaffold: Scout on procedural rumour tile clears it.
-   * With de Soto (FF 7): always-positive branch = reveal radius (no invented
-   * treasure / Fountain of Youth). Without de Soto: clear only; full RNG table
-   * PARKED (negative outcomes omitted).
+   * FUN_65dd_0004 thin transcription: Scout on a procedural rumour tile
+   * clears it and rolls one of the manual-documented outcomes (treasure /
+   * Fountain of Youth / Cibola / survivors join / burial mounds / vanish /
+   * nothing). de Soto (FF 7) keeps its "always positive" framing — extended
+   * sight is a separate always-on FF effect (see founding_fathers.h); here
+   * it restricts the draw to the non-hostile subset instead of a bare
+   * reveal-only shortcut. Deep DOS RNG weights / native-attack combat
+   * resolution stay PARKed — see per-outcome comments below.
    */
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !map || !units_is_on_map(u)) {
@@ -2332,17 +2395,188 @@ bool units_resolve_lcr_rumour(
   if (!map_clear_rumour(map, u->x, u->y)) {
     return false;
   }
-  if (col1 && u->nation_id >= 0 && u->nation_id < 4 &&
-      founding_fathers_de_soto_lcr_always_positive(col1, u->nation_id)) {
-    map_reveal_radius(map, u->x, u->y, u->nation_id, 1);
-    (void)rng;
-    return true;
+  const int x = u->x;
+  const int y = u->y;
+  const int nation = u->nation_id;
+  const bool de_soto = col1 && nation >= 0 && nation < 4 &&
+    founding_fathers_de_soto_lcr_always_positive(col1, nation);
+  if (de_soto) {
+    map_reveal_radius(map, x, y, nation, 1);
   }
-  /*
-   * PARK: FUN_65dd_0004 full lost-city RNG table (treasure gold, FoY, hostile
-   * natives, …) — rumour cleared; outcomes beyond de Soto reveal not ported.
-   */
-  (void)rng;
+
+  ColonizeLcrOutcome outcome;
+  if (de_soto) {
+    /* Positive-only draw: treasure / gift / FoY / Cibola / survivors. */
+    static const ColonizeLcrOutcome k_positive[] = {
+      COLONIZE_LCR_SMALL_TREASURE,
+      COLONIZE_LCR_CHIEFS_GIFT,
+      COLONIZE_LCR_SURVIVORS_JOIN,
+      COLONIZE_LCR_FOUNTAIN_OF_YOUTH,
+      COLONIZE_LCR_CIBOLA
+    };
+    const int n = (int)(sizeof(k_positive) / sizeof(k_positive[0]));
+    outcome = k_positive[dos_rng_range(rng, 1, n) - 1];
+  } else {
+    /* Weighted 1..100 draw; bucket 0 (1..25) is what rng==NULL always picks. */
+    const int roll = dos_rng_range(rng, 1, 100);
+    if (roll <= 25) {
+      outcome = COLONIZE_LCR_NOTHING;
+    } else if (roll <= 45) {
+      outcome = COLONIZE_LCR_SMALL_TREASURE;
+    } else if (roll <= 60) {
+      outcome = COLONIZE_LCR_CHIEFS_GIFT;
+    } else if (roll <= 72) {
+      outcome = COLONIZE_LCR_BURIAL_MOUNDS;
+    } else if (roll <= 82) {
+      outcome = COLONIZE_LCR_TRESPASS_ANGER;
+    } else if (roll <= 90) {
+      outcome = COLONIZE_LCR_SURVIVORS_JOIN;
+    } else if (roll <= 95) {
+      outcome = COLONIZE_LCR_FOUNTAIN_OF_YOUTH;
+    } else if (roll <= 98) {
+      outcome = COLONIZE_LCR_VANISHES;
+    } else {
+      outcome = COLONIZE_LCR_CIBOLA;
+    }
+  }
+
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  switch (outcome) {
+  case COLONIZE_LCR_NOTHING:
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY6", nation, -1, 0, &tok, "You find nothing but rumors."
+    );
+    break;
+  case COLONIZE_LCR_SMALL_TREASURE: {
+    const int gold = dos_rng_range(rng, 3, 24) * 10; /* ~30..240 */
+    units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
+    tok.has_number0 = true;
+    tok.number0 = gold;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY3", nation, -1, gold, &tok,
+      "You find the ruins of a lost civilization."
+    );
+    break;
+  }
+  case COLONIZE_LCR_CHIEFS_GIFT: {
+    const int gold = dos_rng_range(rng, 1, 20) * 4; /* ~4..80 */
+    units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
+    tok.has_number0 = true;
+    tok.number0 = gold;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY7", nation, -1, gold, &tok,
+      "A small, friendly tribe offers you a gift."
+    );
+    break;
+  }
+  case COLONIZE_LCR_FOUNTAIN_OF_YOUTH:
+    /* 8 free dock immigrants (FUN_65dd_0004 8x FUN_291f_0d2c). Human only —
+     * AI nations have no modeled EuropeScreen recruit pool (PARK). */
+    if (europe && nation == human_nation) {
+      for (int i = 0; i < 8; ++i) {
+        (void)europe_immigrant_from_pool(europe);
+      }
+    }
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY1", nation, -1, 0, &tok,
+      "You have discovered a Fountain of Youth!"
+    );
+    break;
+  case COLONIZE_LCR_CIBOLA: {
+    /* Seven Cities of Cibola: big find, needs a Galleon home (treasure
+     * train, same mechanic as Cortes conquest treasure). */
+    const int gold =
+      (dos_rng_range(rng, 1, 6) + (col1 ? col1->head.difficulty : 0) + 5) * 100;
+    (void)units_spawn_treasure_train(pool, x, y, nation, gold);
+    tok.has_number1 = true;
+    tok.number1 = gold;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY2", nation, -1, gold, &tok,
+      "You have found one of the Seven Cities of Cibola!"
+    );
+    break;
+  }
+  case COLONIZE_LCR_SURVIVORS_JOIN: {
+    /* "Desperate survivors... swear allegiance" — a free colonist joins. */
+    const int ct = units_find_type(pool, "Colonists");
+    if (ct >= 0) {
+      const int nid = units_spawn_allow_stack(pool, ct, x, y);
+      ColonizeUnit* nu = units_get(pool, nid);
+      if (nu) {
+        units_set_nation(nu, nation);
+      }
+    }
+    tok.string0 = units_combat_nation_label(col1, nation);
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY9", nation, -1, 0, &tok,
+      "Desperate survivors of a former colony join you."
+    );
+    break;
+  }
+  case COLONIZE_LCR_TRESPASS_ANGER: {
+    const int tribe = units_lcr_nearest_tribe_nation(col1, x, y);
+    if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
+      ai_diplo_indian_relation_delta(col1, tribe, nation, -15);
+    }
+    tok.string0 = units_combat_nation_label(col1, tribe);
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY8", nation, -1, 0, &tok,
+      "You are trespassing near sacred native shrines."
+    );
+    break;
+  }
+  case COLONIZE_LCR_VANISHES:
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "LOSTCITY5", nation, -1, 0, &tok,
+      "Your expedition has vanished without a trace!"
+    );
+    units_despawn(pool, unit_id);
+    break;
+  case COLONIZE_LCR_BURIAL_MOUNDS: {
+    /* @LOSTCITY4 (Search / Stay clear) auto-resolves as Search — full
+     * interactive CHOICE + native-attack combat resolve PARKED. */
+    const int tribe = units_lcr_nearest_tribe_nation(col1, x, y);
+    const int sub = dos_rng_range(rng, 1, 100);
+    if (sub <= 40) {
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "The mounds are cold and empty."
+      );
+    } else if (sub <= 70) {
+      const int gold = dos_rng_range(rng, 2, 12) * 10;
+      units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
+      tok.has_number0 = true;
+      tok.number0 = gold;
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "Within, you find trinkets."
+      );
+    } else if (sub <= 80) {
+      const int gold = (dos_rng_range(rng, 1, 6) + 8) * 100;
+      (void)units_spawn_treasure_train(pool, x, y, nation, gold);
+      tok.has_number1 = true;
+      tok.number1 = gold;
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_INFO, "BURIAL3", nation, -1, gold, &tok,
+        "Within, you find incredible treasure!"
+      );
+    } else {
+      if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
+        ai_diplo_indian_relation_delta(col1, tribe, nation, -25);
+      }
+      tok.string0 = units_combat_nation_label(col1, tribe);
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &tok,
+        "These are sacred burial grounds! You must die!"
+      );
+      /* Thin "you must die": 50/50 the expedition is lost outright rather
+       * than resolving full native-attack combat (PARK). */
+      if (dos_rng_range(rng, 1, 2) == 1) {
+        units_despawn(pool, unit_id);
+      }
+    }
+    break;
+  }
+  }
   return true;
 }
 

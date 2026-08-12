@@ -1881,7 +1881,7 @@ int main(void) {
       map_free(&lmap);
       return fail("de Soto LCR fixture tile should have rumour");
     }
-    if (!units_resolve_lcr_rumour(&upool, uid, &lmap, &gcol1, NULL)) {
+    if (!units_resolve_lcr_rumour(&upool, uid, &lmap, &gcol1, NULL, NULL, -1)) {
       map_free(&lmap);
       return fail("units_resolve_lcr_rumour de Soto path");
     }

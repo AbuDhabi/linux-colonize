@@ -4,6 +4,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
+#include "core/colony_yield.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -1095,6 +1096,21 @@ static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const 
   return strstr(name, "Free Colonist") != NULL || strstr(name, "Scout") != NULL;
 }
 
+/* @LEARNMASTER %STRING1: skill name of an already-expert learner (field job
+ * noun when set; else equipment-based display name for Scout/Pioneer/…). */
+static const char* ai_contact_learner_skill_name(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u
+) {
+  if (!u) {
+    return "colonist";
+  }
+  if (u->profession >= 0 && u->profession < COLONIZE_FIELD_JOB_COUNT) {
+    return colony_yield_job_name(u->profession);
+  }
+  return units_display_name(units, u);
+}
+
 /* Warehouse cargo → outdoor @JOB (indices align food..silver). -1 unmapped. */
 static int ai_contact_profession_from_cargo(int cargo) {
   switch (cargo) {
@@ -1267,16 +1283,42 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       }
       const int e = other->nation_id;
       /*
+       * @LEARNMASTER: "We can only teach new skills to colonists who do not
+       * yet have one" — a colonist (or already-Seasoned Scout) that already
+       * carries an expert skill cannot be re-taught. Refuse without consuming
+       * the village's one-shot (state.learned stays clear for a future
+       * unskilled colonist). Previously this fell through and silently
+       * burned the teach + showed a misleading "taught outdoor skills" line.
+       */
+      if (other->profession != UNITS_JOB_NONE) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string1 = ai_contact_learner_skill_name(ctx->units, other);
+        popup_msg_fill(
+          ctx->messages,
+          "LEARNMASTER",
+          &tok,
+          "We can only teach new skills to colonists who do not yet have one.",
+          body,
+          sizeof(body)
+        );
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+        break; /* one pulse per tribe per call */
+      }
+      /*
        * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
-       * high alarm/friction → refuse teach (status thinned; ai_popup Done).
+       * high alarm/friction → refuse teach (@LEARNMAD; ai_popup Done).
        */
       if (ind->alarm_by_player[e] >= 55 || t->alarm[e].friction >= 55) {
         char refuse_fb[AI_POPUP_BODY_LEN];
-        snprintf(
+        popup_msg_fill(
+          ctx->messages,
+          "LEARNMAD",
+          NULL,
+          "Your ill manners infuriate us. We doubt you will ever learn anything from us.",
           refuse_fb,
-          sizeof(refuse_fb),
-          "The %s refuse to teach.",
-          ai_contact_tribe_name(nation_id)
+          sizeof(refuse_fb)
         );
         ai_contact_human_chrome(
           ctx,
@@ -1290,16 +1332,18 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       }
       /*
        * Mid-alarm refuse polish (40..54): teach is peaceful-band only
-       * (<40). Same refuse chrome as ≥55 (no invented gold). Cite: fandom
-       * Alarm / Teach; indian_contact.md teach-skill pulse.
+       * (<40). Same @LEARNMAD refuse chrome as ≥55 (no invented gold).
+       * Cite: fandom Alarm / Teach; indian_contact.md teach-skill pulse.
        */
       if (ind->alarm_by_player[e] >= 40 || t->alarm[e].friction >= 40) {
         char refuse_fb[AI_POPUP_BODY_LEN];
-        snprintf(
+        popup_msg_fill(
+          ctx->messages,
+          "LEARNMAD",
+          NULL,
+          "Your ill manners infuriate us. We doubt you will ever learn anything from us.",
           refuse_fb,
-          sizeof(refuse_fb),
-          "The %s refuse to teach.",
-          ai_contact_tribe_name(nation_id)
+          sizeof(refuse_fb)
         );
         ai_contact_human_chrome(
           ctx,

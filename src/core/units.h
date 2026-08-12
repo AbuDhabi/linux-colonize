@@ -179,16 +179,22 @@ bool units_try_native_settlement_fallout(
 );
 
 /*
- * Thin FUN_65dd_0004 scaffold: Scout on rumour tile clears it via map_clear_rumour.
- * With de Soto: reveal radius (positive-only, no invented gold). Without de Soto:
- * clear only; full RNG outcome table PARKED.
+ * FUN_65dd_0004 thin transcription: Scout on rumour tile clears it via
+ * map_clear_rumour, then rolls one of the manual-documented outcomes
+ * (nothing / small treasure / chief's gift / burial mounds / trespass anger
+ * / survivors join / Fountain of Youth / vanish / Cibola). de Soto (FF 7)
+ * restricts the draw to the non-hostile subset (always positive) plus its
+ * own reveal-radius bonus. europe/human_nation are optional (NULL/-1 to
+ * skip the Fountain-of-Youth Europe-dock sync — AI nations have none).
  */
 bool units_resolve_lcr_rumour(
   ColonizeUnitPool* pool,
   int unit_id,
   ColonizeWorldMap* map,
-  const ColonizeCol1Save* col1,
-  ColonizeDosRng* rng
+  ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  EuropeScreen* europe,
+  int human_nation
 );
 
 /* Original COLONY.SAV can hold well over 64 map units (natives + Europeans). */

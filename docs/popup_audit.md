@@ -30,7 +30,7 @@ choices from data where a real `@SECTION` exists.
 | Landfall CHOICE | `game_loop` LANDFALL | `@LANDFALL` / `@LANDFALL2` | Authentic | — |
 | Stockade min-pop OK | `game_loop` colony | `@KEEPSTOCKADE` | Authentic | — |
 | Abandon confirm | `colony_screen` | `@ABANDON` / `@ABANDON2` | Authentic | — |
-| Building slot max | (if shown) | `@MORETHANTHREE` | MissingWire | Wire when shown |
+| Building slot max | `colony.c` / `game_loop` | `@MORETHANTHREE` | Authentic | Assign-to-building now caps at 3 workers and shows this |
 | EOT starve/spoil/ship/warn | `turn.c` | `@STARVE1` / `@SPOIL1` / `@CARGOREADY0` / `@WARN*` | Authentic | — |
 | Pick music | `pick_music` | `@PICKMUSIC` | Authentic | — |
 | Save/load title | `save_load_dialog` | — | Invented title strings | Keep UI; titles cosmetic |
@@ -48,7 +48,9 @@ choices from data where a real `@SECTION` exists.
 | Ship mad | `@MADATSHIPS` | Authentic | — |
 | Colony encroachment OK | `@INDIANCOMMENT` | Authentic | Tribe/colony tokens |
 | Meet / gift / demand CHOICE | (deep HELLO/trade PARKED) | PARKED / Invented body | Keep structural CHOICE; no new invent |
-| Teach / convert / raid OK | `@LEARN*` / `@RAID*` / … | MissingWire / PARKED | Prefer msg_body where clear; else status |
+| Teach refuse OK | `@LEARNMAD` | Authentic | Both mid (40-54) and hostile (≥55) alarm bands |
+| Teach already-expert OK | `@LEARNMASTER` | Authentic | Refuses without consuming the village's one-shot teach |
+| Teach / convert / raid OK (remainder) | `@LEARNCRIMINAL`/`@LEARNALREADY`/`@RAID*` / … | MissingWire / PARKED | Prefer msg_body where clear; else status |
 
 ## Diplo (`ai_diplo.c`)
 
@@ -61,7 +63,9 @@ choices from data where a real `@SECTION` exists.
 | Privateer commission | — | Invented (status only) | Status-only |
 | Privateer prize INFO OK | — | Invented → status | Demoted |
 | FA gift/longevity INFO OK | — | Invented → status | Demoted |
-| `@DECLAREWAR` OK | `@DECLAREWAR` | MissingWire | Optional wire later |
+| `@DECLAREWAR` OK | `@DECLAREWAR` | Authentic | Base war-declared line now `popup_msg_fill("DECLAREWAR", …)`; boycott/hostility chrome may still override with a more specific status |
+| `@SIGNTREATY` OK | `@SIGNTREATY` | Authentic | Base peace-concluded line now `popup_msg_fill("SIGNTREATY", …)`; Tools-embargo-lift chrome may still override |
+| `@CANCELPEACE` OK | `@CANCELPEACE` | MissingWire | Directional "{%STRING0} cancel peace treaty with {%STRING1}" — no clear single call site yet (declare-war-from-peace vs. break-alliance); needs more investigation before wiring |
 
 ## King (`ai_king.c`)
 
@@ -96,7 +100,7 @@ choices from data where a real `@SECTION` exists.
 ## Remediation completed in this pass
 
 - Choice extraction: recognize LANDFALL / ABANDON / MERCENARIES / TAXOPTIONS labels; `%%` → `%`
-- Wired: `@LANDFALL`, `@ABANDON`/`@ABANDON2`, `@KEEPSTOCKADE`, `@DONTKNOWSHIPS`, `@MADATSHIPS`, `@INDIANCOMMENT`, `@WHICHFREEDOM`, `@FREEDOM`, `@KINGTAX`+`@TAXOPTIONS`, `@MERCENARIES`, `@MERCS`
+- Wired: `@LANDFALL`, `@ABANDON`/`@ABANDON2`, `@KEEPSTOCKADE`, `@MORETHANTHREE`, `@DONTKNOWSHIPS`, `@MADATSHIPS`, `@INDIANCOMMENT`, `@WHICHFREEDOM`, `@FREEDOM`, `@KINGTAX`+`@TAXOPTIONS`, `@MERCENARIES`, `@MERCS`, `@LOSTCITY1`-`9`/`@BURIAL1`-`3`/`@SCREWED`, `@DECLAREWAR`, `@SIGNTREATY`, `@LEARNMAD`, `@LEARNMASTER`
 - Demoted invented INFO OKs: Privateer prize, war upkeep, FA gift/holds, diplo refuse follow-ups, colonial-era end, merc decline/cannot-afford
 
 Still Partial/PARKED: diplo Accept/Refuse CHOICE bodies (FA `3f41`), many contact teach/raid OKs, some king WoI chrome.

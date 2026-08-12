@@ -271,8 +271,17 @@ ColonizeColony* colonies_get_mut(ColonizeColonyPool* pool, int colony_id);
 int colonies_id_at(const ColonizeColonyPool* pool, int x, int y);
 const ColonizeBuildingType* colonies_building_type(const ColonizeColonyPool* pool, int type_index);
 
+/* Manual ch. 6 "Colonies" / building_production.md: at most 3 colonists per
+ * building (schools: teachers + students share the cap). GAME.TXT @MORETHANTHREE. */
+#define COLONIZE_BUILDING_MAX_WORKERS 3
+
+/* Active colonists currently working building_type in this colony. */
+int colonies_building_worker_count(const ColonizeColony* colony, int building_type);
+
 /* Assign colonist to a built workplace (@BUILDING index). Clears any field tile.
- * Schoolhouse/College/University refuse Free/Indentured/Criminal/Convert (@NOTEACHER). */
+ * Schoolhouse/College/University refuse Free/Indentured/Criminal/Convert (@NOTEACHER).
+ * Refuses past COLONIZE_BUILDING_MAX_WORKERS (@MORETHANTHREE) unless the
+ * colonist is already working that building (no-op reassignment). */
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -482,6 +491,13 @@ void colonies_emit_full_chrome(
 void colonies_emit_already_have_chrome(
   const ColonizeColony* colony,
   const char* building_name,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+);
+
+/* Human building-slot-full refuse: @MORETHANTHREE (COLONIZE_BUILDING_MAX_WORKERS). */
+void colonies_emit_more_than_three_chrome(
+  const ColonizeColony* colony,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );

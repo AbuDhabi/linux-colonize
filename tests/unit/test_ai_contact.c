@@ -1164,7 +1164,8 @@ int main(void) {
 
   /*
    * Mid-alarm teach refuse (40..54): Free Colonist at tribe → no learned;
-   * status "The %s refuse to teach." Cite: indian_contact.md mid refuse.
+   * status @LEARNMAD ("ill manners infuriate us … learn anything from us").
+   * Cite: indian_contact.md mid refuse; GAME.TXT @LEARNMAD.
    */
   {
     char status_mt[128];
@@ -1188,12 +1189,51 @@ int main(void) {
     if (col1.tribe[0].state.learned) {
       return fail("mid-alarm teach refuse should not set learned");
     }
-    if (strstr(status_mt, "refuse") == NULL || strstr(status_mt, "teach") == NULL) {
+    if (strstr(status_mt, "infuriate") == NULL || strstr(status_mt, "learn") == NULL) {
       fprintf(stderr, "unit_ai_contact: mid-teach status '%s'\n", status_mt);
-      return fail("mid-alarm teach should set refuse-to-teach status");
+      return fail("mid-alarm teach should set @LEARNMAD refuse status");
     }
     col1.tribe[0].alarm[0].friction = 10;
     ind->alarm_by_player[0] = 10;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
+  /*
+   * @LEARNMASTER: an already-expert colonist (peaceful band, would otherwise
+   * teach) is refused without consuming the village's one-shot teach — a
+   * later unskilled colonist may still learn. Cite: GAME.TXT @LEARNMASTER.
+   */
+  {
+    char status_lm[128];
+    status_lm[0] = '\0';
+    ctx.status = status_lm;
+    ctx.status_size = sizeof(status_lm);
+    ctx.human_nation = 0;
+    euro->x = 6;
+    euro->y = 5;
+    euro->active = true;
+    euro->profession = COLONIZE_JOB_FARMER; /* already a master */
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 5;
+    ind->euro_diplo[0] = 1;
+    ind->alarm_by_player[0] = 5;
+    col1.nation[0].gold = 0;
+    col1.nation[0].relation_by_indian[0] = 80;
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].state.learned) {
+      return fail("LEARNMASTER refuse should not consume the village one-shot");
+    }
+    if (euro->profession != COLONIZE_JOB_FARMER) {
+      return fail("LEARNMASTER refuse should not touch the learner's profession");
+    }
+    if (strstr(status_lm, "teach new skills") == NULL) {
+      fprintf(stderr, "unit_ai_contact: LEARNMASTER status '%s'\n", status_lm);
+      return fail("already-expert learner should set @LEARNMASTER refuse status");
+    }
+    euro->profession = UNITS_JOB_NONE;
     ctx.status = NULL;
     ctx.status_size = 0;
   }
@@ -1798,7 +1838,7 @@ int main(void) {
 
   /*
    * Alarmed teach refuse (≥55 refuse-talk gate): Free Colonist at tribe + high
-   * alarm → no state.learned; human status "The %s refuse to teach."
+   * alarm → no state.learned; human status @LEARNMAD.
    */
   {
     for (int i = 0; i < 256; ++i) {
@@ -1824,9 +1864,9 @@ int main(void) {
     if (col1.tribe[0].state.learned) {
       return fail("alarmed teach refuse should not set tribe.state.learned");
     }
-    if (strstr(status, "refuse") == NULL || strstr(status, "teach") == NULL) {
+    if (strstr(status, "infuriate") == NULL || strstr(status, "learn") == NULL) {
       fprintf(stderr, "unit_ai_contact: teach-refuse status '%s'\n", status);
-      return fail("alarmed teach should set refuse-to-teach status");
+      return fail("alarmed teach should set @LEARNMAD refuse status");
     }
   }
 
@@ -4349,9 +4389,9 @@ int main(void) {
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TEACH) {
         return fail("Teach refuse should enqueue CONTACT_TEACH OK");
       }
-      if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "teach") == NULL) {
+      if (strstr(st_pop, "infuriate") == NULL || strstr(st_pop, "learn") == NULL) {
         fprintf(stderr, "unit_ai_contact: teach-refuse OK status '%s'\n", st_pop);
-        return fail("Teach refuse should set refuse-to-teach status");
+        return fail("Teach refuse should set @LEARNMAD refuse status");
       }
     }
 

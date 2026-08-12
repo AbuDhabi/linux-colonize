@@ -11792,8 +11792,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   int missionary_contacted = 0;
 
   /*
-   * Thin LCR (FUN_65dd_0004 scaffold): Scout standing on rumour clears it;
-   * de Soto → reveal radius only. No invented gold / FoY / hostile table.
+   * LCR (FUN_65dd_0004 thin transcription): Scout standing on rumour clears
+   * it and rolls a manual outcome; de Soto keeps outcomes positive. AI
+   * nations have no modeled EuropeScreen recruit pool, so Fountain of Youth
+   * is a no-op for them (see units_resolve_lcr_rumour).
    * Cite: units_resolve_lcr_rumour; Colonization.pdf Lost City Rumours.
    */
   if (is_scout && ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
@@ -11802,9 +11804,15 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           u->id,
           ctx->map,
           ctx->col1_ok ? ctx->col1 : NULL,
-          ctx->rng
+          ctx->rng,
+          NULL,
+          -1
         )) {
       scout_explored = 1;
+    }
+    /* Vanish / hostile-burial outcomes may have despawned the scout. */
+    if (!u->active) {
+      return;
     }
   }
 

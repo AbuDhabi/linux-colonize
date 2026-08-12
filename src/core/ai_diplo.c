@@ -4,6 +4,7 @@
 #include "core/colony.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/units.h"
 
 #include <stdio.h>
@@ -1239,6 +1240,62 @@ static void ai_diplo_status_human_pair(
   snprintf(ctx->status, ctx->status_size, fmt, ai_diplo_rival_name(ctx->col1, rival));
 }
 
+/*
+ * @DECLAREWAR base line ("The {%STRING0} and {%STRING1} are now at war.") —
+ * authentic GAME.TXT text for the war-declared OK popup body. Boycott/
+ * hostility chrome in ai_diplo_declare_war_ctx may override this default
+ * with a more specific status line when applicable (thin 102a/1092 stand-in;
+ * full FA 3f41 dialog remains PARKED).
+ */
+static void ai_diplo_status_declare_war(
+  ColonizeTurnContext* ctx,
+  int nation_a,
+  int nation_b
+) {
+  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0) {
+    return;
+  }
+  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
+    return;
+  }
+  PopupMsgTokens tok = {0};
+  tok.string0 = ai_diplo_rival_name(ctx->col1, nation_a);
+  tok.string1 = ai_diplo_rival_name(ctx->col1, nation_b);
+  popup_msg_fill(
+    ctx->messages, "DECLAREWAR", &tok,
+    "The %STRING0 and %STRING1 are now at war.",
+    ctx->status, ctx->status_size
+  );
+}
+
+/*
+ * @SIGNTREATY base line ("The {%STRING0} and {%STRING1} have signed a peace
+ * treaty.") — authentic GAME.TXT text for the peace-concluded OK popup body.
+ * Tools-embargo-lift chrome in ai_diplo_make_peace_ctx may override this
+ * default with the more specific line when applicable (thin 102a/1092
+ * stand-in; full FA 3f41 dialog remains PARKED).
+ */
+static void ai_diplo_status_sign_treaty(
+  ColonizeTurnContext* ctx,
+  int nation_a,
+  int nation_b
+) {
+  if (!ctx || !ctx->col1 || !ctx->status || ctx->status_size == 0) {
+    return;
+  }
+  if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
+    return;
+  }
+  PopupMsgTokens tok = {0};
+  tok.string0 = ai_diplo_rival_name(ctx->col1, nation_a);
+  tok.string1 = ai_diplo_rival_name(ctx->col1, nation_b);
+  popup_msg_fill(
+    ctx->messages, "SIGNTREATY", &tok,
+    "The %STRING0 and %STRING1 have signed a peace treaty.",
+    ctx->status, ctx->status_size
+  );
+}
+
 /* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */
 static const char* ai_diplo_cargo_name(int cargo_idx) {
   static const char* const names[COLONIZE_CARGO_COUNT] = {
@@ -1283,7 +1340,7 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
   /* Franklin may no-op declare — only chrome when WAR actually stuck. */
   const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   if (!already && now_war) {
-    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "War declared with %s");
+    ai_diplo_status_declare_war(ctx, nation_a, nation_b);
     /*
      * Wartime boycott human chrome (102a/1092 stand-in): prefer Sugar/Tobacco/
      * Tools combined lines when those bits are newly OR'd; else name the first
@@ -1390,7 +1447,7 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
   }
   ai_diplo_make_peace(ctx->col1, nation_a, nation_b);
   if (was_war) {
-    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Peace concluded with %s");
+    ai_diplo_status_sign_treaty(ctx, nation_a, nation_b);
     /*
      * Tools embargo lift chrome when human had Tools bit and peace cleared it
      * (no remaining Euro wars). Prefer Tools line over peace when applicable.
