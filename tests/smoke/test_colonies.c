@@ -720,6 +720,49 @@ int main(void) {
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & (COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100)) == 0,
             "SoL flags clear when SoL drops");
+
+      /*
+       * Tory floor: −⌊tories/thresh⌋ + sol latches.
+       * Cite: sons_of_liberty.md; difficulty.md; decomp ~11880.
+       */
+      {
+        const int pop_saved = c->population;
+        const int count_saved = c->colonist_count;
+        const uint8_t flags_saved = c->colony_flags;
+        c->population = 12;
+        c->colonist_count = 12;
+        c->colony_flags = 0;
+        col1.head.difficulty = 0; /* Discoverer → human thresh 10 */
+        col1.player[c->nation_id].control = 0; /* human */
+        col1c.rebel_dividend = 0;
+        col1c.rebel_divisor = 100; /* sol% = 0 */
+        col1.nation[c->nation_id].liberty_bells_total = 0;
+        /* tories=(12*100+50)/100=12; floor(12/10)=1 → mod=-1 */
+        CHECK(colony_prod_sol_bonus(&col1, c) == -1, "Tory floor −1 pop12 sol0 Discoverer");
+
+        col1.head.difficulty = 4; /* Viceroy → thresh 6 */
+        /* floor(12/6)=2 → mod=-2 */
+        CHECK(colony_prod_sol_bonus(&col1, c) == -2, "Tory floor −2 pop12 sol0 Viceroy");
+
+        col1.player[c->nation_id].control = 1; /* AI → thresh 10 always */
+        CHECK(colony_prod_sol_bonus(&col1, c) == -1, "Tory floor AI thresh 10 at Viceroy");
+
+        /* sol 50 + latch: tories=(12*50+50)/100=6; floor(6/10)=0; +1 → 1 */
+        col1.player[c->nation_id].control = 0;
+        col1.head.difficulty = 0;
+        col1c.rebel_dividend = 50;
+        col1c.rebel_divisor = 100;
+        c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
+        CHECK(colony_prod_sol_bonus(&col1, c) == 1, "Tory floor 0 + sol_50 latch");
+
+        c->population = pop_saved;
+        c->colonist_count = count_saved;
+        c->colony_flags = flags_saved;
+        col1.head.difficulty = 0;
+        col1.player[c->nation_id].control = 0;
+        col1c.rebel_dividend = 0;
+        col1c.rebel_divisor = 0;
+      }
     }
   }
 

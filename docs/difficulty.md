@@ -49,7 +49,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Indian land purchase | Harder → costlier for human, cheaper for AI | Wired |
 | Conquest treasure | Difficulty bands 0..3 (Gov+Vic share band 3) | Wired |
 | Score villages burned | `-(diff+1)*burned` | Wired |
-| Tory / inefficient gov | Thresh `10-diff`; full mod `−⌊tories/thresh⌋` + sol latches | **PARK** floor — see [sons_of_liberty.md](sons_of_liberty.md) |
+| Tory / inefficient gov | Thresh `10-diff`; full mod `−⌊tories/thresh⌋` + sol latches | **Wired** — see [sons_of_liberty.md](sons_of_liberty.md) |
 | AI colony food | `+= difficulty>>1` | **PARK** |
 | Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
 | End-game score→gold rebate | `FUN_41f2_0b70` difficulty multiplier | **PARK** |
@@ -269,8 +269,9 @@ threshold = 10 - difficulty   // Discoverer 10 … Viceroy 6
 Production penalty is **not** a flat −1 at the threshold. DOS uses
 `−⌊tory_count / threshold⌋`, then adds +1/+2 from SoL latches — full formula and
 port status in [sons_of_liberty.md](sons_of_liberty.md). DOS also latches colony
-flag bit `0x08` on the inefficient path. Port: SoL +1/+2 only (`colony_prod_sol_bonus`);
-Tory floor **PARK**.
+flag bit `0x08` on the inefficient path (port repurposes `0x08` for starvation).
+Port: full net mod in `colony_prod_sol_bonus` (Tory floor + sol latches / live
+SoL stand-in).
 
 ---
 
@@ -281,7 +282,7 @@ Tory floor **PARK**.
 | AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | Not in `src/` |
 | Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
 | Score→gold rebate `FUN_41f2_0b70` | FUNCTION_CATALOG | PARK |
-| Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | PARK |
+| Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | **Wired** (`colony_prod_sol_bonus`) |
 
 ---
 
@@ -322,4 +323,4 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 | Land purchase | [`colony.c`](../src/core/colony.c) |
 | Conquest treasure | [`units.c`](../src/core/units.c) |
 | Score | [`reports.c`](../src/core/reports.c) |
-| SoL / Tory production | [`colony_production.c`](../src/core/colony_production.c) (Tory PARK) |
+| SoL / Tory production | [`colony_production.c`](../src/core/colony_production.c) (`colony_prod_sol_bonus`) |

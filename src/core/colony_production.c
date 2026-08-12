@@ -173,14 +173,56 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
 }
 
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  if (!colony) {
+    return 0;
+  }
   const int sol = colony_prod_sol_percent(col1, colony);
+  int pop = colony->population > 0 ? colony->population : colony->colonist_count;
+  if (pop < 0) {
+    pop = 0;
+  }
+  /* Round half-up Tory share (decomp ~11880). */
+  const int tories = (pop * (100 - sol) + 50) / 100;
+
+  int thresh = 10;
+  if (col1 && colony->nation_id >= 0 &&
+      colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT) {
+    /* control 0 = human; AI / withdrawn use fixed thresh 10. */
+    if (col1->player[colony->nation_id].control == 0) {
+      int diff = (int)col1->head.difficulty;
+      if (diff < 0) {
+        diff = 0;
+      }
+      if (diff > 4) {
+        diff = 4;
+      }
+      thresh = 10 - diff;
+    }
+  }
+  if (thresh < 1) {
+    thresh = 1;
+  }
+
+  int mod = -(tories / thresh);
+
+  /* Latch bits (hysteresis) or live SoL stand-in; take the larger so a
+   * stale sol_50-only flag cannot under-count after SoL rises to 100, while
+   * sol_100 hysteresis (95..99) still beats live. */
+  int from_latch = 0;
+  if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
+    from_latch += 1;
+  }
+  if ((colony->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+    from_latch += 1;
+  }
+  int from_live = 0;
   if (sol >= 100) {
-    return 2;
+    from_live = 2;
+  } else if (sol >= 50) {
+    from_live = 1;
   }
-  if (sol >= 50) {
-    return 1;
-  }
-  return 0;
+  mod += (from_latch > from_live) ? from_latch : from_live;
+  return mod;
 }
 
 /*

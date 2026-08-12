@@ -227,7 +227,7 @@ Full catalog: [sons_of_liberty.md](sons_of_liberty.md). Tory thresh by difficult
 | Condition | Effect | Port |
 |-----------|--------|------|
 | SoL ≥ **50%** / **100%** | +1 / +2 per production unit | Wired (`colony_prod_sol_bonus`); EOT + preview |
-| Tory floor | `−⌊tories/(10−diff)⌋` + sol latches | **PARK** |
+| Tory floor | `−⌊tories/(10−diff)⌋` + sol latches | **Wired** (same helper; AI thresh 10) |
 
 ---
 

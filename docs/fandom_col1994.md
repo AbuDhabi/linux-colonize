@@ -121,7 +121,7 @@ Full catalog: [`sons_of_liberty.md`](sons_of_liberty.md).
 |--------------|--------------|
 | Factory ≈ **1.5×** goods per raw (Adam Smith) | Aligns with port framing **6→9** throughput in [`building_production.md`](building_production.md); verify in decomp |
 | SoL **50%** / **100%** productivity bumps; can exceed 100% internally but display caps at 100% | [Sons of Liberty (Col)](https://civilization.fandom.com/wiki/Sons_of_Liberty_(Col)); port: `colony_prod_sol_bonus`; DOS caps 100 after Bolivar |
-| “Inefficient government”: too many Tory colonists (wiki: ≥10 easiest / ≥6 hardest) → **−1** on all production | Thresh `10-diff` correct; magnitude is DOS `−⌊tories/thresh⌋` + sol latches — not a flat −1 ([sons_of_liberty.md](sons_of_liberty.md)); effect PARK |
+| “Inefficient government”: too many Tory colonists (wiki: ≥10 easiest / ≥6 hardest) → **−1** on all production | Thresh `10-diff` correct; magnitude is DOS `−⌊tories/thresh⌋` + sol latches — not a flat −1 ([sons_of_liberty.md](sons_of_liberty.md)); **Wired** |
 | Printing Press +50% / Newspaper +100% liberty bells from town-hall workers | Partial construction; multipliers Missing |
 | Jefferson ×1.5 on statesmen; Paine adds tax-rate factor (wiki: multiplicative with press/newspaper) | FF Missing |
 | Church raises passive crosses; Penn +50% crosses | Crosses → dock Partial; full formulas Missing |
@@ -231,7 +231,7 @@ Port: declare / REF / win-lose latches Partial structural; HoF / letter cinemati
 | Fur Factory min pop | Adam Smith page says factories need pop **8** | [`building_production.md`](building_production.md) lists Fur Factory min **6** from `NAMES` | Prefer `NAMES` / code |
 | Tax first-year table (Viceroy 1534) | Listed on Tax rate page | Decomp/port `1536-diff` → Viceroy **1532** | **Resolved** — [difficulty.md](difficulty.md) |
 | Custom House sell thresholds (100/50) | Strategy section on Custom House page | Decomp `FUN_364b_0688` (`stock>99` → leave 50) | **Done** structural autosell |
-| SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Decomp `10-diff` + `−⌊tories/thresh⌋` | **Resolved** — [sons_of_liberty.md](sons_of_liberty.md); production floor still PARK |
+| SoL inefficient-government Tory caps (10 / 6) | Sons of Liberty page | Decomp `10-diff` + `−⌊tories/thresh⌋` | **Resolved** — [sons_of_liberty.md](sons_of_liberty.md); production floor **Wired** |
 | Fort/Fortress coastal bombardment strengths | Strategy sections (4+4 art / 8+8 art) | Not in `NAMES` building rows | Combat RE |
 
 ---

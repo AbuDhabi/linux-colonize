@@ -73,9 +73,11 @@ int colony_yield_for_worker(
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /*
- * Sons of Liberty production bonus (manual / building_production.md):
- * SoL ≥50% → +1 per production unit; SoL =100% → +2 total. 0 if unknown.
- * PARK: Tory −1 difficulty caps.
+ * DOS net production mod per unit (field/craft/hammers/bells/crosses):
+ *   tories = (pop * (100 - sol%) + 50) / 100
+ *   thresh = human ? (10 - difficulty) : 10
+ *   mod    = -floor(tories / thresh) + max(sol latches, live SoL ≥50/≥100)
+ * See sons_of_liberty.md / difficulty.md.
  */
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
