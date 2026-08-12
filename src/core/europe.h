@@ -370,9 +370,10 @@ void europe_tick_market_prices(
 );
 /*
  * FUN_38fd_584a / 5e52 phase 4 thin: immigration_score from colony pop + units;
- * accumulate into immigration_pressure. Cite: europe_nation_eot.md.
+ * accumulate into immigration_pressure. Returns 1 if a dock immigrant spawned.
+ * Cite: europe_nation_eot.md.
  */
-void europe_tick_immigration_pressure(
+int europe_tick_immigration_pressure(
   EuropeScreen* eu,
   const struct ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,

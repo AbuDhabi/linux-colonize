@@ -33,6 +33,7 @@ void combat_analysis_close(CombatAnalysisDialog* dlg) {
     return;
   }
   dlg->open = false;
+  dlg->arm_input = 0;
   dlg->atk_line_count = 0;
   dlg->def_line_count = 0;
   memset(&dlg->atk_chrome, 0, sizeof(dlg->atk_chrome));
@@ -181,6 +182,8 @@ bool combat_analysis_open(
   /* Pre-roll: ignore any roll/victor the caller may have left set. */
   dlg->eng.roll = 0;
   dlg->eng.atk_wins = false;
+  /* Village Attack CHOICE click must not dismiss analysis on the same press. */
+  dlg->arm_input = 0;
 
   combat_analysis_snap_chrome(&dlg->atk_chrome, pool, eng->attacker_id);
   combat_analysis_snap_chrome(&dlg->def_chrome, pool, eng->defender_id);
@@ -194,6 +197,17 @@ bool combat_analysis_open(
 bool combat_analysis_handle_input(CombatAnalysisDialog* dlg, const ColonizeInputState* input) {
   if (!dlg || !dlg->open || !input) {
     return false;
+  }
+  /*
+   * Arm after mouse buttons are up and no edge click/key this frame — so the
+   * Attack CHOICE click that opened village combat cannot dismiss analysis.
+   */
+  if (!dlg->arm_input) {
+    if (!input->mouse_left_down && !input->mouse_right_down && !input->mouse_left_clicked &&
+        !input->mouse_right_clicked && input->last_key == 0) {
+      dlg->arm_input = 1;
+    }
+    return true;
   }
   if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER ||
       input->last_key == COLONIZE_KEY_SPACE) {

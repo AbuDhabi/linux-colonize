@@ -2437,6 +2437,21 @@ int main(void) {
       fprintf(stderr, "conquer combat: attacker should win\n");
       return 1;
     }
+    /* Killing a map Brave does not destroy the dwelling (FUN_5fef_1b0e). */
+    if (col1.head.tribe_count != 1) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer: tribe should remain after map Brave death\n");
+      return 1;
+    }
+    if (!units_try_native_settlement_fallout(
+          &col1, &pool, &tmap, 0, 4, 10, 10, -1, &crng
+        )) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer: fallout should destroy empty dwelling\n");
+      return 1;
+    }
     if (col1.head.tribe_count != 0) {
       free(tmap.layer3);
       free(col1.tribe);
@@ -2517,6 +2532,14 @@ int main(void) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "conquer combat2 failed\n");
+      return 1;
+    }
+    if (!units_try_native_settlement_fallout(
+          &col1, &pool, &tmap, 0, 4, 11, 10, 500, NULL
+        )) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "conquer fallout2 failed\n");
       return 1;
     }
     int treasure_id = -1;
@@ -2623,6 +2646,14 @@ int main(void) {
       free(tmap.layer3);
       free(col1.tribe);
       fprintf(stderr, "convert-join combat: attacker should win\n");
+      return 1;
+    }
+    if (!units_try_native_settlement_fallout(
+          &col1, &pool, &tmap, 2, 5, 12, 12, -1, &crng
+        )) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "convert-join fallout failed\n");
       return 1;
     }
     int convert_id = -1;
@@ -2899,6 +2930,34 @@ int main(void) {
         }
         if (!found_atk_bonus || !found_vet) {
           fprintf(stderr, "land analysis missing Attack Bonus/Veteran lines\n");
+          return 1;
+        }
+        /* Village Attack same-click: unarmed until mouse up / idle frame. */
+        {
+          ColonizeInputState in;
+          memset(&in, 0, sizeof(in));
+          in.mouse_left_down = true;
+          in.mouse_left_clicked = true;
+          (void)combat_analysis_handle_input(&dlg, &in);
+          if (!dlg.open || dlg.arm_input) {
+            fprintf(stderr, "analysis should stay open unarmed while click held\n");
+            return 1;
+          }
+          memset(&in, 0, sizeof(in));
+          (void)combat_analysis_handle_input(&dlg, &in);
+          if (!dlg.arm_input || !dlg.open) {
+            fprintf(stderr, "analysis should arm after idle frame\n");
+            return 1;
+          }
+          in.mouse_left_clicked = true;
+          (void)combat_analysis_handle_input(&dlg, &in);
+          if (dlg.open) {
+            fprintf(stderr, "analysis should dismiss on armed click\n");
+            return 1;
+          }
+        }
+        if (!combat_analysis_open(&dlg, &pool, &eng)) {
+          fprintf(stderr, "combat_analysis_open re-open failed\n");
           return 1;
         }
         for (int i = 0; i < dlg.def_line_count; ++i) {
@@ -4205,10 +4264,17 @@ int main(void) {
     /* Outcome popups enqueued for human side. */
     {
       ai_popup_clear(&pops);
-      units_set_combat_popups(&pops, NULL);
+      ColonizeMsgCatalog game_txt;
+      assets_msg_init(&game_txt);
+      if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+        fprintf(stderr, "phase2 popup GAME.TXT load failed\n");
+        return 1;
+      }
+      units_set_combat_popups(&pops, &game_txt);
       const int sol = units_find_type(&pool, "Soldiers");
       if (sol < 0) {
         fprintf(stderr, "phase2 popup types missing\n");
+        assets_msg_free(&game_txt);
         return 1;
       }
       const int aid = units_spawn_allow_stack(&pool, sol, 50, 50);
@@ -4225,24 +4291,183 @@ int main(void) {
       c1.player[1].control = 1;
       if (!units_resolve_land_combat_ff(&pool, aid, did, NULL, &c1)) {
         fprintf(stderr, "phase2 popup combat should win\n");
+        assets_msg_free(&game_txt);
         return 1;
       }
       int found = 0;
       for (int i = 0; i < pops.queue_count; ++i) {
         if (pops.queue[i].tag == AI_POPUP_TAG_COMBAT_EUROPE) {
           found = 1;
+          /* @EUROPEWIN: "{atk} defeat {def unit} near {place}!" */
+          if (!strstr(pops.queue[i].body, "defeat") || !strstr(pops.queue[i].body, "English") ||
+              !strstr(pops.queue[i].body, "French") || !strstr(pops.queue[i].body, "Soldiers") ||
+              !strstr(pops.queue[i].body, "Wilderness")) {
+            fprintf(
+              stderr,
+              "phase2 EUROPEWIN body tokens wrong: [%s]\n",
+              pops.queue[i].body
+            );
+            assets_msg_free(&game_txt);
+            return 1;
+          }
           break;
         }
       }
       if (!found) {
         fprintf(stderr, "phase2 expected EUROPEWIN popup enqueue (queue=%d)\n", pops.queue_count);
+        assets_msg_free(&game_txt);
         return 1;
       }
       units_despawn(&pool, aid);
       if (units_get(&pool, did) && units_get(&pool, did)->active) {
         units_despawn(&pool, did);
       }
+      units_set_combat_popups(&pops, NULL);
+      assets_msg_free(&game_txt);
       fprintf(stderr, "smoke_units: combat outcome popup enqueue ok\n");
+    }
+
+    /*
+     * Village Attack empty tile: FUN_5fef_1b0e temp Brave + population drain.
+     * pop>=2 survives (pop--); pop<2 destroys. Not nearby-Brave pull.
+     */
+    {
+      const int soldier = units_find_type(&pool, "Soldiers");
+      const int brave = units_find_type(&pool, "Braves");
+      if (soldier < 0 || brave < 0) {
+        fprintf(stderr, "village-temp types missing\n");
+        return 1;
+      }
+      int vx = -1, vy = -1;
+      for (int y = 2; y < (int)map.height - 3 && vx < 0; ++y) {
+        for (int x = 2; x < (int)map.width - 3 && vx < 0; ++x) {
+          if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 1, y)) {
+            vx = x + 1;
+            vy = y;
+          }
+        }
+      }
+      if (vx < 0) {
+        fprintf(stderr, "village-temp no land pair\n");
+        return 1;
+      }
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.head.tribe_count = 1;
+      c1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+      if (!c1.tribe) {
+        fprintf(stderr, "village-temp tribe alloc\n");
+        return 1;
+      }
+      c1.tribe[0].x = (uint8_t)vx;
+      c1.tribe[0].y = (uint8_t)vy;
+      c1.tribe[0].nation_id = 4;
+      c1.tribe[0].population = 3;
+      c1.player[0].control = 0;
+      c1.head.game_options.combat_analysis = 1;
+
+      const int aid = units_spawn(&pool, soldier, vx - 1, vy);
+      ColonizeUnit* a = units_get(&pool, aid);
+      if (!a) {
+        free(c1.tribe);
+        fprintf(stderr, "village-temp soldier spawn failed\n");
+        return 1;
+      }
+      a->nation_id = 0;
+      a->moves_left = 3;
+      pool.types[soldier].attack = 8;
+      pool.types[brave].attack = 1;
+      pool.types[brave].defense = 1;
+
+      units_set_ff_col1(&c1);
+      units_set_combat_human_nation(0);
+      units_set_native_fallout_context(&c1, &map, -1);
+      units_set_occupancy_map(&map);
+
+      /* First empty-village attack: temp Brave, pop 3→2, dwelling remains. */
+      if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL)) {
+        fprintf(
+          stderr,
+          "village-temp try_move should engage (enter=%d combat=%d)\n",
+          (int)units_last_enter_reason(),
+          units_last_combat_outcome()
+        );
+        free(c1.tribe);
+        return 1;
+      }
+      if (units_last_combat_outcome() <= 0) {
+        fprintf(stderr, "village-temp expected combat win\n");
+        free(c1.tribe);
+        return 1;
+      }
+      if (c1.head.tribe_count != 1 || c1.tribe[0].population != 2) {
+        fprintf(
+          stderr,
+          "village-temp after win want pop=2 count=1 got pop=%u count=%u\n",
+          c1.tribe[0].population,
+          c1.head.tribe_count
+        );
+        free(c1.tribe);
+        return 1;
+      }
+
+      /* Drain to pop=1 then destroy on next temp fight. */
+      a = units_get(&pool, aid);
+      if (!a || !a->active) {
+        free(c1.tribe);
+        fprintf(stderr, "village-temp soldier should survive\n");
+        return 1;
+      }
+      /* DOS: fight from adjacent and stay — do not enter the village tile. */
+      if (a->x != vx - 1 || a->y != vy) {
+        fprintf(
+          stderr,
+          "village-temp after win should stay at (%d,%d) got (%d,%d)\n",
+          vx - 1,
+          vy,
+          a->x,
+          a->y
+        );
+        free(c1.tribe);
+        return 1;
+      }
+      a->moves_left = 3;
+      if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL) ||
+          units_last_combat_outcome() <= 0) {
+        fprintf(stderr, "village-temp second attack failed\n");
+        free(c1.tribe);
+        return 1;
+      }
+      if (c1.tribe[0].population != 1) {
+        fprintf(stderr, "village-temp want pop=1 got %u\n", c1.tribe[0].population);
+        free(c1.tribe);
+        return 1;
+      }
+      a = units_get(&pool, aid);
+      if (!a || a->x != vx - 1 || a->y != vy) {
+        fprintf(stderr, "village-temp second attack should leave soldier adjacent\n");
+        free(c1.tribe);
+        return 1;
+      }
+      a->moves_left = 3;
+      if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL) ||
+          units_last_combat_outcome() <= 0) {
+        fprintf(stderr, "village-temp destroy attack failed\n");
+        free(c1.tribe);
+        return 1;
+      }
+      if (c1.head.tribe_count != 0) {
+        fprintf(stderr, "village-temp pop<2 should destroy dwelling\n");
+        free(c1.tribe);
+        return 1;
+      }
+
+      units_despawn(&pool, aid);
+      units_set_ff_col1(NULL);
+      units_set_combat_human_nation(-1);
+      units_set_native_fallout_context(NULL, NULL, -1);
+      free(c1.tribe);
+      fprintf(stderr, "smoke_units: village temp Brave + pop drain ok\n");
     }
 
     /* Treasure ransom Accept credits gold; Refuse does not. */

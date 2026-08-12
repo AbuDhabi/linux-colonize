@@ -119,7 +119,10 @@ playable nations — cosmetic / scenario pool, not additional `indian[8]` slots.
 
 Initial village population = **`3 + 2*tech`**. Growth `FUN_4d56_152e` /
 `ai_grow_villages`: accumulates on **capitals only**; threshold accum **> 19**;
-pop cap **15**.
+pop cap **15**. Empty-tile Attack (`FUN_5fef_1b0e`): temp Brave fight from the
+**adjacent** tile (attacker stays put), then **`population--`**, or **destroy**
+when `population < 2` (so a pop-3 camp survives two successful raids). Map Braves
+that patrol nearby are separate — killing one does not burn the dwelling.
 
 Homeland purchase radius (manual Indian Land): non-capital **1**, capital
 **2** (`colony.c`).

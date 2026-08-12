@@ -42,9 +42,9 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
 2. **Adjacent combat** — `units_resolve_land_combat` vs target-nation land unit;
    on Brave win, snapshot foe `muskets`/`horses` and transfer onto Brave
    (muskets prefer, else horses — GAME.TXT `@INDIANWIN1` / `@INDIANWIN2`);
-   human thin status **"The %s ambush your units!"** (+ **"Muskets/Horses seized
-   by braves!"** when gear seized) / **"Your units defeat a %s ambush."**
-   (`@INDIANWIN0` / `@INDIANLOSE`).
+   human status **"The %s ambush {%nation %unit} near %place!"** (+ **"Muskets/Horses seized
+   by %s braves!"** when gear seized) / **"{%nation %unit} {defeat} {%tribe} near %place!"**
+   (`@INDIANWIN0` / `@INDIANLOSE` GAME.TXT tokens).
 3. **Colony approach** — Chebyshev walk toward colony ≤6 **only when**
    friction/alarm **≥70** (capture band). Mid gate 40..69 keeps on-tile loot /
    combat but must not march (seed-100 TURN4→5 already at-war for some tribes).

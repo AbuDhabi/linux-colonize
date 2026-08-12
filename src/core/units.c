@@ -979,6 +979,130 @@ int units_best_defender_at(
   return best_id;
 }
 
+int units_spawn_village_temp_defender(
+  ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int village_x,
+  int village_y,
+  int indian_nation,
+  int attacker_id
+) {
+  if (!pool || !col1 || indian_nation < 4 || indian_nation > 11) {
+    return -1;
+  }
+  /* Real map foe already on the settlement — fight them; no phantom. */
+  if (units_best_defender_at(pool, col1, village_x, village_y, attacker_id, attacker_id) >= 0) {
+    return -1;
+  }
+
+  int tribe_index = -1;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if ((int)t->x == village_x && (int)t->y == village_y &&
+          (int)t->nation_id == indian_nation) {
+        tribe_index = (int)ti;
+        break;
+      }
+    }
+  }
+  if (tribe_index < 0) {
+    return -1;
+  }
+
+  /*
+   * FUN_5fef_1b0e empty-village arm: type 0x13 Brave; muskets→0x14 Armed;
+   * horse_breeding > 0x18 → +2 (Mtd. Braves / Mtd. Warriors).
+   */
+  const ColonizeCol1Indian* ind = &col1->indian[indian_nation - 4];
+  const char* type_name = "Braves";
+  if (ind->muskets != 0 && ind->horse_breeding > 0x18) {
+    type_name = "Mtd. Warriors";
+  } else if (ind->muskets != 0) {
+    type_name = "Armed Braves";
+  } else if (ind->horse_breeding > 0x18) {
+    type_name = "Mtd. Braves";
+  }
+  int ti = units_find_type(pool, type_name);
+  if (ti < 0) {
+    ti = units_find_type(pool, "Braves");
+  }
+  if (ti < 0) {
+    return -1;
+  }
+  const int id = units_spawn_allow_stack(pool, ti, village_x, village_y);
+  ColonizeUnit* u = units_get(pool, id);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = indian_nation;
+  u->home_tribe_id = tribe_index;
+  u->moves_left = 0;
+  return id;
+}
+
+void units_finish_village_temp_defender(
+  ColonizeUnitPool* pool,
+  ColonizeCol1Save* col1,
+  ColonizeWorldMap* map,
+  int temp_id,
+  int attacker_won,
+  int attacker_nation,
+  int village_x,
+  int village_y,
+  ColonizeDosRng* rng
+) {
+  if (!pool || temp_id < 0) {
+    return;
+  }
+  /* FUN_291f_0a06-shaped: always undo the phantom if it survived the roll. */
+  ColonizeUnit* temp = units_get(pool, temp_id);
+  if (temp && temp->active) {
+    units_despawn(pool, temp_id);
+  }
+  if (!attacker_won || !col1 || !col1->tribe) {
+    return;
+  }
+  ColonizeCol1Tribe* tribe = NULL;
+  int indian_nation = -1;
+  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &col1->tribe[ti];
+    if ((int)t->x == village_x && (int)t->y == village_y && t->nation_id >= 4 &&
+        t->nation_id <= 11) {
+      tribe = t;
+      indian_nation = (int)t->nation_id;
+      break;
+    }
+  }
+  if (!tribe || indian_nation < 4) {
+    return;
+  }
+  /*
+   * FUN_5fef_1b0e: if population < 2 → destroy dwelling; else population--.
+   * Cite: *(tribe+4) check before DEC; FUN_291f_0248 destroy; 31ea fallout.
+   */
+  if (tribe->population < 2) {
+    (void)units_try_native_settlement_fallout(
+      col1, pool, map, attacker_nation, indian_nation, village_x, village_y, -1, rng
+    );
+  } else {
+    tribe->population--;
+  }
+}
+
+static int units_tribe_nation_at(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->tribe) {
+    return -1;
+  }
+  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &col1->tribe[ti];
+    if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
+      return (int)t->nation_id;
+    }
+  }
+  return -1;
+}
+
 static int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, int nat_b) {
   if (!col1) {
     return g_units_combat_human_nation >= 0 &&
@@ -995,13 +1119,68 @@ static int units_combat_human_involved(const ColonizeCol1Save* col1, int nat_a, 
 
 static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id) {
   static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
+  static const char* k_tribe[8] = {
+    "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
+  };
   if (nation_id >= 0 && nation_id <= 3) {
     if (col1 && col1->player[nation_id].country_name[0]) {
       return col1->player[nation_id].country_name;
     }
     return k_euro[nation_id];
   }
+  if (nation_id >= 4 && nation_id <= 11) {
+    return k_tribe[nation_id - 4];
+  }
   return "enemy";
+}
+
+/* Colony name, else village tribe, else LABELS "Wilderness". */
+static const char* units_combat_place_label(
+  const ColonizeCol1Save* col1,
+  int x,
+  int y
+) {
+  if (g_units_combat_colonies) {
+    const int cid = colonies_id_at(g_units_combat_colonies, x, y);
+    const ColonizeColony* col = colonies_get(g_units_combat_colonies, cid);
+    if (col && col->active && col->name[0]) {
+      return col->name;
+    }
+  }
+  if (col1 && col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
+        return units_combat_nation_label(col1, (int)t->nation_id);
+      }
+    }
+  }
+  return "Wilderness";
+}
+
+static const char* units_combat_unit_label(
+  const ColonizeUnitPool* pool,
+  const ColonizeUnit* u
+) {
+  if (!u) {
+    return "unit";
+  }
+  const ColonizeUnitType* t = units_type(pool, u->type_index);
+  if (t && t->name[0]) {
+    return t->name;
+  }
+  return "unit";
+}
+
+/*
+ * LABELS.TXT "defeat" / "defeats". Nation subjects use "defeat"; unit subjects
+ * with type_index ≥ 7 (Cont. Cav.+) use "defeats" (FUN_5fef_1b0e).
+ */
+static const char* units_combat_defeat_verb(int subject_is_nation_only, int unit_type_index) {
+  if (subject_is_nation_only) {
+    return "defeat";
+  }
+  return (unit_type_index >= 0 && unit_type_index < 7) ? "defeat" : "defeats";
 }
 
 static void units_combat_enqueue_tok(
@@ -1639,36 +1818,64 @@ static void units_combat_outcome_popups(
   int ambush,
   const ColonizeCol1Save* col1
 ) {
+  (void)ambush; /* Indian ambush chrome is owned by ai_contact (@INDIANWIN*). */
   if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
     return;
   }
   const ColonizeUnit* win = units_get_const(pool, winner_id);
   const ColonizeUnit* lose = units_get_const(pool, loser_id);
-  const ColonizeUnitType* wt = win ? units_type(pool, win->type_index) : NULL;
-  const ColonizeUnitType* lt = lose ? units_type(pool, lose->type_index) : NULL;
-  const char* wn = wt && wt->name[0] ? wt->name : "Unit";
-  const char* ln = lt && lt->name[0] ? lt->name : "Unit";
+  if (!win || !lose) {
+    return;
+  }
 
   if (!is_naval) {
-    if (atk_wins) {
-      units_combat_enqueue_section(
-        AI_POPUP_TAG_COMBAT_EUROPE, "EUROPEWIN", atk_nation, def_nation, wn, ln, "Victory!"
-      );
-    } else {
-      units_combat_enqueue_section(
-        AI_POPUP_TAG_COMBAT_EUROPE, "EUROPELOSE", atk_nation, def_nation, wn, ln, "Defeat."
-      );
-    }
-    if (ambush && atk_wins) {
-      units_combat_enqueue_section(
-        AI_POPUP_TAG_COMBAT_AMBUSH, "INDIANWIN1", atk_nation, def_nation, wn, ln, "Ambush!"
-      );
+    /*
+     * Native attacker: INDIANWIN/LOSE owned by ai_contact ambush chrome.
+     * Euro attacker (incl. vs natives): @EUROPEWIN / @EUROPELOSE.
+     * Cite: FUN_5fef_1b0e both-euro gate; indian raid ambush fill.
+     */
+    if (atk_nation < 4) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      const int place_x = atk_wins ? lose->x : win->x;
+      const int place_y = atk_wins ? lose->y : win->y;
+      tok.string0 = units_combat_nation_label(col1, atk_nation);
+      tok.string1 = units_combat_nation_label(col1, def_nation);
+      {
+        const ColonizeUnit* def_u = atk_wins ? lose : win;
+        tok.string2 = units_combat_unit_label(pool, def_u);
+      }
+      tok.string3 = units_combat_place_label(col1, place_x, place_y);
+      if (atk_wins) {
+        tok.string4 = units_combat_defeat_verb(1, -1);
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_EUROPE,
+          "EUROPEWIN",
+          atk_nation,
+          def_nation,
+          0,
+          &tok,
+          "Victory!"
+        );
+      } else {
+        const ColonizeUnit* def_u = win;
+        tok.string4 = units_combat_defeat_verb(0, def_u->type_index);
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_EUROPE,
+          "EUROPELOSE",
+          atk_nation,
+          def_nation,
+          0,
+          &tok,
+          "Defeat."
+        );
+      }
     }
     /*
      * Crown / REF land win vs human → @SEIZURELAND (Royal Army). Privateer
      * naval path uses custom body; peer Euro uses @EUROPEWIN above.
      */
-    if (atk_wins && col1 && win && lose) {
+    if (atk_wins && col1 && atk_nation < 4) {
       int human = -1;
       for (int i = 0; i < 4; ++i) {
         if (col1->player[i].control == 0) {
@@ -1676,19 +1883,18 @@ static void units_combat_outcome_popups(
           break;
         }
       }
-      /* Match combat_crown_nation / ai_king: peer of human (0↔1). */
       const int crown = (human == 0) ? 1 : (human == 1) ? 0 : -1;
       if (crown >= 0 && win->nation_id == crown && lose->nation_id == human) {
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = ln;
+        PopupMsgTokens stok;
+        memset(&stok, 0, sizeof(stok));
+        stok.string0 = units_combat_unit_label(pool, lose);
         units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_SEIZURE,
           "SEIZURELAND",
           win->nation_id,
           lose->nation_id,
           0,
-          &tok,
+          &stok,
           "Unit captured by the Royal Army."
         );
       }
@@ -1960,10 +2166,11 @@ bool units_try_native_settlement_fallout(
   ColonizeDosRng* rng
 ) {
   /*
-   * Post-win stand-in for FUN_5fef_31ea (structural): destroy native village
-   * when the last same-nation Brave leaves the tribe tile after combat win.
-   * Convert-join (before destroy) when mission owned by attacker; Cortes
-   * treasure after. Non-Cortes unknown amount stays no-spawn.
+   * Post-win fallout for FUN_5fef_31ea (structural): destroy native village
+   * when explicitly conquering an empty dwelling (caller: village temp Brave
+   * arm when population < 2). Convert-join before destroy when mission owned
+   * by attacker; Cortes treasure after. Not triggered merely by killing a map
+   * Brave on the tile.
    */
   if (!col1 || !units || defender_nation_id < 4) {
     return false;
@@ -2294,19 +2501,12 @@ bool units_resolve_land_combat_ff(
         /* promoted */
       }
     }
-    if (def_nation >= 4 && g_units_fallout_col1 && g_units_fallout_map) {
-      (void)units_try_native_settlement_fallout(
-        g_units_fallout_col1,
-        pool,
-        g_units_fallout_map,
-        atk_nation,
-        def_nation,
-        def_x,
-        def_y,
-        g_units_conquest_gold,
-        rng
-      );
-    }
+    /*
+     * Village destroy / pop drain is NOT "no Brave left on tile". DOS only
+     * drains dwelling population when the empty-village temp Brave arm wins
+     * (units_finish_village_temp_defender). Killing a map Brave on the tile
+     * leaves the dwelling intact. Cite: FUN_5fef_1b0e bVar28 path.
+     */
     g_units_last_combat = 1;
     return true;
   }
@@ -3133,11 +3333,30 @@ bool units_try_move(
   /* Fortification defense uses defender's colony tile (set before combat). */
   units_set_combat_colonies(colonies);
 
+  /*
+   * Village Attack empty tile (FUN_5fef_1b0e): spawn a temporary Brave from
+   * dwelling stocks — do not drag nearby map Braves. Cite: 1b0e local_8a arm.
+   */
+  int village_temp = -1;
+  int village_nation = -1;
+  if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3) {
+    village_nation = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
+    if (village_nation >= 4) {
+      village_temp = units_spawn_village_temp_defender(
+        pool, g_units_ff_col1, dest_x, dest_y, village_nation, unit_id
+      );
+    }
+  }
+
   const ColonizeEnterReason reason =
     units_enter_probe(pool, unit->type_index, map, dest_x, dest_y, unit_id, colonies);
   g_units_last_enter_reason = reason;
 
   if (reason == COLONIZE_ENTER_BOARD) {
+    if (village_temp >= 0) {
+      units_despawn(pool, village_temp);
+      village_temp = -1;
+    }
     const int ship_id = units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id);
     if (ship_id < 0) {
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
@@ -3164,6 +3383,9 @@ bool units_try_move(
       reason == COLONIZE_ENTER_BLOCKED_HS_SAIL || reason == COLONIZE_ENTER_VILLAGE_ILLEGAL ||
       reason == COLONIZE_ENTER_LANDFALL || reason == COLONIZE_ENTER_VILLAGE_SHIP ||
       reason == COLONIZE_ENTER_NO_MP || reason == COLONIZE_ENTER_BLOCKED) {
+    if (village_temp >= 0) {
+      units_despawn(pool, village_temp);
+    }
     return false;
   }
 
@@ -3172,6 +3394,9 @@ bool units_try_move(
       pool, g_units_ff_col1, dest_x, dest_y, unit_id, unit_id
     );
     if (foe < 0) {
+      if (village_temp >= 0) {
+        units_despawn(pool, village_temp);
+      }
       return false;
     }
     bool won = false;
@@ -3180,6 +3405,24 @@ bool units_try_move(
     } else {
       won = units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
     }
+    if (village_temp >= 0 && foe == village_temp) {
+      ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;
+      units_finish_village_temp_defender(
+        pool,
+        mut,
+        g_units_fallout_map ? g_units_fallout_map : (ColonizeWorldMap*)map,
+        village_temp,
+        won ? 1 : 0,
+        unit->nation_id,
+        dest_x,
+        dest_y,
+        rng
+      );
+      village_temp = -1;
+    } else if (village_temp >= 0) {
+      units_despawn(pool, village_temp);
+      village_temp = -1;
+    }
     if (!won) {
       return false;
     }
@@ -3187,21 +3430,54 @@ bool units_try_move(
     if (!unit) {
       return false;
     }
+    /*
+     * Native village raid: fight from the adjacent tile and stay there (DOS
+     * FUN_4d56_4528 contact). Charge MP as if the step were spent; do not enter.
+     */
+    if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
+      const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
+      const int remaining = unit->moves_left;
+      const ColonizeUnitType* type = units_type(pool, unit->type_index);
+      const int max_mp = type && type->movement > 0 ? type->movement : 1;
+      if (cost > remaining && remaining < max_mp && rng) {
+        const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
+        if (roll > remaining) {
+          unit->moves_left = 0;
+          return false;
+        }
+      }
+      unit->moves_left = remaining - cost;
+      if (unit->moves_left < 0) {
+        unit->moves_left = 0;
+      }
+      if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+          unit->orders == UNITS_ORDER_FORTIFIED) {
+        unit->orders = UNITS_ORDER_NONE;
+      }
+      g_units_last_enter_reason = COLONIZE_ENTER_OK;
+      return true;
+    }
     /* After win, dest must be clear of foreigners for enter. */
     if (units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
       return false;
     }
-  } else if (colonies) {
-    /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
-     * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
-    if (!units_revere_defend_colony_tile(
-          pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
-        )) {
-      return false;
+  } else {
+    if (village_temp >= 0) {
+      units_despawn(pool, village_temp);
+      village_temp = -1;
     }
-    unit = units_get(pool, unit_id);
-    if (!unit) {
-      return false;
+    if (colonies) {
+      /* Paul Revere: empty foreign colony tile → auto-arm from muskets + fight.
+       * Cite: PEDIA / docs/fandom_col1994.md Paul Revere. */
+      if (!units_revere_defend_colony_tile(
+            pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
+          )) {
+        return false;
+      }
+      unit = units_get(pool, unit_id);
+      if (!unit) {
+        return false;
+      }
     }
   }
 

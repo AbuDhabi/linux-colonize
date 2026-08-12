@@ -2963,19 +2963,20 @@ int main(void) {
       fprintf(stderr, "immigration score want >0 got %d\n", (int)eu.immigration_score);
       return 1;
     }
-    if (eu.immigration_pressure <= 0) {
-      fprintf(stderr, "immigration pressure want >0 got %d\n", (int)eu.immigration_pressure);
+    if (eu.immigration_pressure != 2) {
+      fprintf(stderr, "immigration pressure want +2 got %d\n", (int)eu.immigration_pressure);
       return 1;
     }
-    /* Force phase5: pressure above score → dock + open Europe. */
+    /* Force phase5: pressure above score → dock; @UNREST popup owns chrome (no auto-Europe). */
     eu.immigration_pressure = (int16_t)(eu.immigration_score + 10);
     eu.dock_count = 0;
     eu.status[0] = '\0';
-    europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0);
-    if (!eu.open_on_dock || eu.dock_count < 1 || strstr(eu.status, "Immigrant") == NULL) {
+    eu.open_on_dock = false;
+    if (!europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0) || eu.open_on_dock ||
+        eu.dock_count < 1 || strstr(eu.status, "Immigrant") == NULL) {
       fprintf(
         stderr,
-        "phase5 want open+dock+status open=%d dock=%d '%s'\n",
+        "phase5 want dock+status no-open open=%d dock=%d '%s'\n",
         eu.open_on_dock ? 1 : 0,
         eu.dock_count,
         eu.status

@@ -193,10 +193,10 @@ Deep mechanics: [combat.md](combat.md).
 | `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | `@LOOT` treasure + `@LOOT2` burn Done; `@LOOTCAPTURE` ransom Done; `@LOOTCASH` Europe fleet |
 | `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`/`@BURNED*`; ship damage/sunk Done |
 | `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups |
-| `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | Structural `AI_POPUP_TAG_COMBAT_EUROPE` |
+| `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | `{atk} defeat {def nation unit} near {place}!` / reverse; LABELS defeat/defeats |
 | `@DEMOTE` | Specialty strip / demote | Done | `@DEMOTE` with nation/unit/status tokens |
 | `@SEIZURE*` | Privateer / seizure | Done | Privateer custom body; Crown `@SEIZURESEA` Royal Navy |
-| Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Done | `@INDIANWIN0/1/2` / `@INDIANLOSE` GAME.TXT fill |
+| Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Done | `{tribe} ambush {nation unit} near {place}!` (+ seized by tribe braves); LOSE `{nation unit} {defeat} {tribe} near {place}!` |
 
 ### 10. Year-end / victory / HoF / retire
 
@@ -343,7 +343,7 @@ work.
 | `@SAILAWAY` | Partial | Europe sail/market — partial status or auto |
 | `@SAILPORT` | Partial | Europe sail/market — partial status or auto |
 | `@TRAVELPLACE` | Partial | Europe sail/market — partial status or auto |
-| `@UNREST` | Partial | Europe sail/market — partial status or auto |
+| `@UNREST` | Done | Dock immigrant arrive ai_popup OK (`@UNREST`); no auto-open Europe |
 | `@RECRUIT` | Done | Europe recruit wood menu (structural) |
 | `@RECRUITCHOOSE` | Done | Europe recruit wood menu (structural) |
 | `@RECRUIT2` | Done | Europe recruit wood menu (structural) |
@@ -477,8 +477,8 @@ work.
 | `@BURNED` | Done | Indian raid abandon burn → `units_combat_notify_colony_burned` |
 | `@BURNED2` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@BURNED3` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@EUROPEWIN` | Done | structural combat outcome popup |
-| `@EUROPELOSE` | Done | structural combat outcome popup |
+| `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
+| `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
 | `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
 | `@EXTORTSTUFF` | Missing | extort/ship anger dialogs missing |
 | `@EXTORTPOOR` | Missing | extort/ship anger dialogs missing |

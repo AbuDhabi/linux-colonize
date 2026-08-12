@@ -1552,32 +1552,22 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
       units_set_occupancy_map(&game->world_map);
+      units_set_combat_colonies(&game->colonies);
       units_set_native_fallout_context(
         game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
       );
+      /*
+       * Empty village: FUN_5fef_1b0e temp Brave; try_move fights then stays
+       * adjacent (no enter). Population-- / destroy via finish helper.
+       */
       game->units.selected_id = unit_id;
       if (units_try_move(
             &game->units, unit_id, &game->world_map, dest_x, dest_y, &game->colonies, &game->move_rng
           )) {
-        u = units_get(&game->units, unit_id);
-        if (u && u->active && game->col1_ok) {
-          /* Empty village raid: no Brave left → settlement fallout loot. */
-          (void)units_try_native_settlement_fallout(
-            &game->col1,
-            &game->units,
-            &game->world_map,
-            euro,
-            indian_nation,
-            dest_x,
-            dest_y,
-            -1,
-            &game->move_rng
-          );
-        }
         if (units_last_combat_outcome() > 0) {
           snprintf(game->status, sizeof(game->status), "Village attacked (%d,%d)", dest_x, dest_y);
         } else {
-          snprintf(game->status, sizeof(game->status), "Entered village (%d,%d)", dest_x, dest_y);
+          snprintf(game->status, sizeof(game->status), "Village contact (%d,%d)", dest_x, dest_y);
         }
         game_after_unit_action(game);
       } else if (units_last_combat_outcome() < 0) {
@@ -4286,11 +4276,10 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
 
   /*
    * FUN_4d56_4528: combatish land unit → village tile gets Attack/Leave warn
-   * before enter (defers move). Non-combat → Meet after enter. Cite:
-   * indian_settlement_4528.md; ai_contact_try_village_raid_warn.
+   * before enter (defers move). Non-combat → Meet from adjacent (no enter).
+   * Cite: indian_settlement_4528.md; ai_contact_try_village_raid_warn.
    */
-  if (game->col1_ok && !units_is_sea(&game->units, sid) &&
-      combat_unit_is_combat_role(&game->units, sid) && game->col1.tribe) {
+  if (game->col1_ok && !units_is_sea(&game->units, sid) && game->col1.tribe) {
     for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &game->col1.tribe[ti];
       if ((int)t->x != dest_x || (int)t->y != dest_y) {
@@ -4301,10 +4290,22 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       }
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
-      if (ai_contact_try_village_raid_warn(
-            &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
-          )) {
+      if (combat_unit_is_combat_role(&game->units, sid)) {
+        if (ai_contact_try_village_raid_warn(
+              &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
+            )) {
+          set_status(game, "Village…", NULL);
+          return true;
+        }
+      } else if (ai_contact_try_village_meet(&ctx, selected->nation_id, (int)t->nation_id)) {
+        /* Peaceful Meet/Trade from adjacent — spend a step, stay put. */
+        const int cost = units_move_cost(&game->units, sid, &game->world_map, dest_x, dest_y);
+        selected->moves_left -= cost > 0 ? cost : 1;
+        if (selected->moves_left < 0) {
+          selected->moves_left = 0;
+        }
         set_status(game, "Village…", NULL);
+        game_after_unit_action(game);
         return true;
       }
       break;
@@ -4391,8 +4392,8 @@ static void game_after_unit_action(ColonizeGameState* game) {
       }
     }
     /*
-     * Already-met village enter → Meet CHOICE (Trade/Gift/Demand/Teach/Leave).
-     * Exact tribe tile only (not mere adjacency). Cite: indian_contact.md.
+     * Already-met village Meet is enqueued from adjacent step (no enter).
+     * Exact-tile Meet kept only if a unit somehow stands on the dwelling.
      */
     if (game->col1.tribe) {
       for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {

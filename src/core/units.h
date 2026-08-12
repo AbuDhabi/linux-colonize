@@ -100,6 +100,39 @@ int units_best_defender_at(
 );
 
 /*
+ * Village Attack empty-tile defense (FUN_5fef_1b0e): DOS spawns a temporary
+ * Brave (Armed / Mtd. by indian muskets / horse_breeding>24) on the settlement
+ * — not by dragging nearby map Braves. Returns temp defender id or -1.
+ * Caller must run combat then units_finish_village_temp_defender.
+ */
+int units_spawn_village_temp_defender(
+  ColonizeUnitPool* pool,
+  const ColonizeCol1Save* col1,
+  int village_x,
+  int village_y,
+  int indian_nation,
+  int attacker_id
+);
+
+/*
+ * After combat vs a village temp Brave (FUN_5fef_1b0e): always despawn the
+ * phantom if still alive; on attacker win, if tribe.population < 2 destroy
+ * (+ fallout treasure/convert), else population--. Map Braves on the tile are
+ * unrelated — killing them does not drain dwelling population.
+ */
+void units_finish_village_temp_defender(
+  ColonizeUnitPool* pool,
+  ColonizeCol1Save* col1,
+  ColonizeWorldMap* map,
+  int temp_id,
+  int attacker_won,
+  int attacker_nation,
+  int village_x,
+  int village_y,
+  ColonizeDosRng* rng
+);
+
+/*
  * Destroy native village Col1 record at (x,y) if present. Clears map owner
  * nibble to 0xf and remaps unit home_tribe_id. Returns tribe nation_id (>=4)
  * or -1. Does not invent treasure gold.

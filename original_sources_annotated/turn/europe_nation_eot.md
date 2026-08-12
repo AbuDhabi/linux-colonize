@@ -47,7 +47,7 @@ Bridge: [`between_turns.md`](between_turns.md) ·
 | DOS | Linux | Fidelity |
 |-----|-------|----------|
 | Phase 3 market | `europe_tick_market_prices` (FINISH) | **Partial** |
-| Pressure / recruit / tax / FF | dock immigrants + `europe_tick_immigration_pressure` (584a + phase5 pool→dock + open_on_dock) **Done** thin; king tax elsewhere | Recruit UI / atomic `5e52` chrome **PARKED** |
+| Pressure / recruit / tax / FF | dock immigrants + `europe_tick_immigration_pressure` (584a +2/tick + phase5 pool→dock; `@UNREST` not `open_on_dock`) **Done** thin; king tax elsewhere | Recruit UI / atomic `5e52` chrome **PARKED** |
 
 ---
 
@@ -103,9 +103,12 @@ Cite: **68558–68620**.
 | Write | `Europe+0x30 = score`; `Europe+0x2e += delta`; clamp `+0x2e ≥ 0` |
 
 `584a` (**68248–68300**): sum colony pops + unit count; `<<1` if &lt;4000; `+8`;
-cap 4000; non-human `((8−diff)*score)>>3`; nation0 `*2/3`.
+cap 4000; non-human `((8−diff)*score)>>3`; nation0 `*2/3`. Out-delta `*param_2`
+defaults to **+2** (treasure can force −2 — PARKED).
 
-**Port:** score + AI/diff scale + nation0×2/3 **Done** thin (`europe_tick_immigration_pressure`).
+**Port:** score + AI/diff scale + nation0×2/3 + **+2/tick** **Done** thin
+(`europe_tick_immigration_pressure`). Human with colony pop 0 skips accrue/spawn
+(crosses own early immigration). Spawn chrome: `@UNREST` popup, not auto-Europe.
 
 ### Phase 5 — dock immigrant vs Recruit
 
