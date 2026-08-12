@@ -15,11 +15,11 @@
 #include <string.h>
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_ai_euro_war: FAIL %s\n", msg);
+  fprintf(stderr, "unit_ai_euro_war: FAIL %s\n", msg);
   return 1;
 }
 
-static int smoke_mid_hire_mil(void) {
+static int unit_mid_hire_mil(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -179,14 +179,14 @@ static int smoke_mid_hire_mil(void) {
   const int mil_prio =
     ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
   if (mil_prio < 6) {
-    fprintf(stderr, "smoke_ai_euro_war: G stance mil_prio=%d (want ≥6)\n", mil_prio);
+    fprintf(stderr, "unit_ai_euro_war: G stance mil_prio=%d (want ≥6)\n", mil_prio);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
     return fail("expected G stance MILITARY prio ≥6 with own≥2 at war");
   }
   if (mil_prio >= 7) {
-    fprintf(stderr, "smoke_ai_euro_war: G stance mil_prio=%d (own=2 should be 6 not 7)\n", mil_prio);
+    fprintf(stderr, "unit_ai_euro_war: G stance mil_prio=%d (own=2 should be 6 not 7)\n", mil_prio);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
@@ -196,7 +196,7 @@ static int smoke_mid_hire_mil(void) {
   if (!mil_goto && !(soldier_boarded && gold_spent)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: mil_goto=%d boarded=%d gold %u→%u orders=%d goto=(%d,%d)\n",
+      "unit_ai_euro_war: mil_goto=%d boarded=%d gold %u→%u orders=%d goto=(%d,%d)\n",
       mil_goto,
       soldier_boarded,
       (unsigned)gold_before,
@@ -216,7 +216,7 @@ static int smoke_mid_hire_mil(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: mid-hire ok (mil_goto=%d boarded=%d gold_spent=%d mil_prio=%d)\n",
+    "unit_ai_euro_war: mid-hire ok (mil_goto=%d boarded=%d gold_spent=%d mil_prio=%d)\n",
     mil_goto,
     soldier_boarded,
     gold_spent,
@@ -226,7 +226,7 @@ static int smoke_mid_hire_mil(void) {
 }
 
 /* Two nations at war, idle ocean ships — expect AI_SAIL toward foe / closer / combat. */
-static int smoke_naval_war_hunt(void) {
+static int unit_naval_war_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 4;
@@ -340,7 +340,7 @@ static int smoke_naval_war_hunt(void) {
   if (!combat_done && !sail_toward && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: naval orders=%d goto=(%d,%d) pos=(%d,%d) foe_active=%d\n",
+      "unit_ai_euro_war: naval orders=%d goto=(%d,%d) pos=(%d,%d) foe_active=%d\n",
       warship ? warship->orders : -1,
       warship ? warship->goto_x : -1,
       warship ? warship->goto_y : -1,
@@ -359,7 +359,7 @@ static int smoke_naval_war_hunt(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: naval ok (sail=%d closer=%d combat=%d)\n",
+    "unit_ai_euro_war: naval ok (sail=%d closer=%d combat=%d)\n",
     sail_toward,
     moved_closer,
     combat_done
@@ -371,7 +371,7 @@ static int smoke_naval_war_hunt(void) {
  * Ship under enemy Fort battery flees to safe water (Marathon8 AI wire).
  * Cite: FUN_364b_03f6; ai_euro_naval_try_flee_fort_fire.
  */
-static int smoke_naval_flee_fort_fire(void) {
+static int unit_naval_flee_fort_fire(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -475,7 +475,7 @@ static int smoke_naval_flee_fort_fire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: naval flee fort fire ok (%d,%d)\n", ship->x, ship->y);
+  fprintf(stderr, "unit_ai_euro_war: naval flee fort fire ok (%d,%d)\n", ship->x, ship->y);
   return 0;
 }
 
@@ -484,7 +484,7 @@ static int smoke_naval_flee_fort_fire(void) {
  * re-aims AI_SAIL toward enemy sea (commerce raid). Cite: euro_unit_act §2b;
  * europe Privateer; fandom Drake Privateer.
  */
-static int smoke_privateer_war_hunt(void) {
+static int unit_privateer_war_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 4;
@@ -609,7 +609,7 @@ static int smoke_privateer_war_hunt(void) {
   if (!combat_done && !hunt && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: privateer orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: privateer orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       priv ? priv->orders : -1,
       priv ? priv->goto_x : -1,
       priv ? priv->goto_y : -1,
@@ -625,7 +625,7 @@ static int smoke_privateer_war_hunt(void) {
   if (!combat_done && moved_closer && spent < 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: privateer multi-step mp %d→%d pos=(%d,%d) goto=(%d,%d)\n",
+      "unit_ai_euro_war: privateer multi-step mp %d→%d pos=(%d,%d) goto=(%d,%d)\n",
       mp0,
       priv ? priv->moves_left : -1,
       priv ? priv->x : -1,
@@ -644,7 +644,7 @@ static int smoke_privateer_war_hunt(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: privateer hunt ok (hunt=%d closer=%d combat=%d mp_spent=%d)\n",
+    "unit_ai_euro_war: privateer hunt ok (hunt=%d closer=%d combat=%d mp_spent=%d)\n",
     hunt,
     moved_closer,
     combat_done,
@@ -658,7 +658,7 @@ static int smoke_privateer_war_hunt(void) {
  * euro_diplo wartime commission) → still re-aims hunt toward foe sea.
  * Cite: euro_diplo Privateer spawn; euro_unit_act §2b; is_privateer re-aim.
  */
-static int smoke_privateer_station_keep_hunt(void) {
+static int unit_privateer_station_keep_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 4;
@@ -773,7 +773,7 @@ static int smoke_privateer_station_keep_hunt(void) {
   if (!combat_done && !hunt && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: priv-sk orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: priv-sk orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       priv ? priv->orders : -1,
       priv ? priv->goto_x : -1,
       priv ? priv->goto_y : -1,
@@ -789,12 +789,12 @@ static int smoke_privateer_station_keep_hunt(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: privateer station-keep hunt ok\n");
+  fprintf(stderr, "unit_ai_euro_war: privateer station-keep hunt ok\n");
   return 0;
 }
 
 /* Two nations at war, idle land soldiers — expect AI_MOVE toward foe / closer / combat. */
-static int smoke_land_war_hunt(void) {
+static int unit_land_war_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 4;
@@ -908,7 +908,7 @@ static int smoke_land_war_hunt(void) {
   if (!combat_done && !move_toward && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: land orders=%d goto=(%d,%d) pos=(%d,%d) foe_active=%d\n",
+      "unit_ai_euro_war: land orders=%d goto=(%d,%d) pos=(%d,%d) foe_active=%d\n",
       soldier ? soldier->orders : -1,
       soldier ? soldier->goto_x : -1,
       soldier ? soldier->goto_y : -1,
@@ -927,7 +927,7 @@ static int smoke_land_war_hunt(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: land ok (move=%d closer=%d combat=%d)\n",
+    "unit_ai_euro_war: land ok (move=%d closer=%d combat=%d)\n",
     move_toward,
     moved_closer,
     combat_done
@@ -939,7 +939,7 @@ static int smoke_land_war_hunt(void) {
  * Indian×Euro war: Soldier hunts toward capital tribe over nearer non-capital.
  * Cite: ai_diplo_indian_at_war; tribe.state.capital; Cortes rich_capital path.
  */
-static int smoke_indian_war_capital_hunt(void) {
+static int unit_indian_war_capital_hunt(void) {
   const int nation = 1;
   const int indian = 4; /* Arawak */
 
@@ -1038,7 +1038,7 @@ static int smoke_indian_war_capital_hunt(void) {
   if (!toward_cap && !moved_east) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: indian-hunt orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: indian-hunt orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       soldier->orders,
       soldier->goto_x,
       soldier->goto_y,
@@ -1056,7 +1056,7 @@ static int smoke_indian_war_capital_hunt(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: indian capital hunt ok (goto_cap=%d east=%d)\n",
+    "unit_ai_euro_war: indian capital hunt ok (goto_cap=%d east=%d)\n",
     toward_cap,
     moved_east
   );
@@ -1068,7 +1068,7 @@ static int smoke_indian_war_capital_hunt(void) {
  * goal upsert — act-level hunt still advances two tiles toward foe in one act.
  * Cite: euro_unit_act §2c3; FUN_521d_20e6 thin multi-step combat deepen.
  */
-static int smoke_land_war_hunt_multistep(void) {
+static int unit_land_war_hunt_multistep(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 3;
@@ -1172,7 +1172,7 @@ static int smoke_land_war_hunt_multistep(void) {
   if (steps < 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: land-multistep dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
+      "unit_ai_euro_war: land-multistep dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
       dist0,
       dist1,
       steps,
@@ -1192,7 +1192,7 @@ static int smoke_land_war_hunt_multistep(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: land war-hunt multi-step ok (steps=%d)\n",
+    "unit_ai_euro_war: land war-hunt multi-step ok (steps=%d)\n",
     steps
   );
   return 0;
@@ -1202,7 +1202,7 @@ static int smoke_land_war_hunt_multistep(void) {
  * Thin land war hunt: Continental Army advances toward foe (same multi-step
  * arm as Soldier). Cite: euro_unit_act §2c; Defending a Colony army.
  */
-static int smoke_continental_army_land_hunt(void) {
+static int unit_continental_army_land_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 3;
@@ -1306,7 +1306,7 @@ static int smoke_continental_army_land_hunt(void) {
   if (steps < 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: cont-hunt dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
+      "unit_ai_euro_war: cont-hunt dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
       dist0,
       dist1,
       steps,
@@ -1326,7 +1326,7 @@ static int smoke_continental_army_land_hunt(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: Continental Army land war hunt ok (steps=%d)\n",
+    "unit_ai_euro_war: Continental Army land war hunt ok (steps=%d)\n",
     steps
   );
   return 0;
@@ -1336,7 +1336,7 @@ static int smoke_continental_army_land_hunt(void) {
  * Thin land war hunt: Continental Cavalry advances toward foe (same multi-step
  * arm as Soldier). Cite: euro_unit_act §2c; Defending a Colony cavalry.
  */
-static int smoke_continental_cavalry_land_hunt(void) {
+static int unit_continental_cavalry_land_hunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 3;
@@ -1440,7 +1440,7 @@ static int smoke_continental_cavalry_land_hunt(void) {
   if (steps < 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: cont-hunt dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
+      "unit_ai_euro_war: cont-hunt dist %d→%d steps=%d pos=(%d,%d) goto=(%d,%d)\n",
       dist0,
       dist1,
       steps,
@@ -1460,7 +1460,7 @@ static int smoke_continental_cavalry_land_hunt(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: Continental Cavalry land war hunt ok (steps=%d)\n",
+    "unit_ai_euro_war: Continental Cavalry land war hunt ok (steps=%d)\n",
     steps
   );
   return 0;
@@ -1470,7 +1470,7 @@ static int smoke_continental_cavalry_land_hunt(void) {
  * Sticky CONTACT re-hunt: fortified Soldier (hunter adjacent-attack skipped)
  * with moves left next to a war foe — sticky still try_attacks.
  */
-static int smoke_sticky_contact_rehunt(void) {
+static int unit_sticky_contact_rehunt(void) {
   const int nation = 1;
   const int foe = 2;
   const int own_x = 5;
@@ -1578,7 +1578,7 @@ static int smoke_sticky_contact_rehunt(void) {
   if (!combat_done) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: sticky soldier_active=%d foe_active=%d moves=%d orders=%d\n",
+      "unit_ai_euro_war: sticky soldier_active=%d foe_active=%d moves=%d orders=%d\n",
       soldier && soldier->active,
       foe_u && foe_u->active,
       soldier ? soldier->moves_left : -1,
@@ -1593,7 +1593,7 @@ static int smoke_sticky_contact_rehunt(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: sticky CONTACT re-hunt ok\n");
+  fprintf(stderr, "unit_ai_euro_war: sticky CONTACT re-hunt ok\n");
   return 0;
 }
 
@@ -1602,7 +1602,7 @@ static int smoke_sticky_contact_rehunt(void) {
  * continues onto adjacent foe B in the same act (drain moves_left). Cite:
  * euro_unit_act §2c multi-step combat; ai_euro_land_try_adjacent_attack chain.
  */
-static int smoke_land_adjacent_combat_chain(void) {
+static int unit_land_adjacent_combat_chain(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -1709,7 +1709,7 @@ static int smoke_land_adjacent_combat_chain(void) {
   if (!a_dead || !b_dead) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: chain soldier=%d,%d moves=%d a_dead=%d b_dead=%d\n",
+      "unit_ai_euro_war: chain soldier=%d,%d moves=%d a_dead=%d b_dead=%d\n",
       soldier ? soldier->x : -1,
       soldier ? soldier->y : -1,
       soldier ? soldier->moves_left : -1,
@@ -1725,7 +1725,7 @@ static int smoke_land_adjacent_combat_chain(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: land adjacent combat chain ok\n");
+  fprintf(stderr, "unit_ai_euro_war: land adjacent combat chain ok\n");
   return 0;
 }
 
@@ -1734,7 +1734,7 @@ static int smoke_land_adjacent_combat_chain(void) {
  * already aboard → prefer Artillery (Cannon name fallback). If Artillery/Cannon
  * type missing from pool, hire falls back to Soldier/Dragoon path (documented).
  */
-static int smoke_mid_hire_artillery(void) {
+static int unit_mid_hire_artillery(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -1782,7 +1782,7 @@ static int smoke_mid_hire_artillery(void) {
     free(map.layer3);
     fprintf(
       stderr,
-      "smoke_ai_euro_war: artillery type missing — skip (Soldier path fallback)\n"
+      "unit_ai_euro_war: artillery type missing — skip (Soldier path fallback)\n"
     );
     return 0;
   }
@@ -1910,7 +1910,7 @@ static int smoke_mid_hire_artillery(void) {
   if (!(art_boarded && gold_spent) && !(gold_spent && cargo_grew)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: art_boarded=%d gold %u→%u cargo %d→%d\n",
+      "unit_ai_euro_war: art_boarded=%d gold %u→%u cargo %d→%d\n",
       art_boarded,
       (unsigned)gold_before,
       (unsigned)col1.nation[nation].gold,
@@ -1928,7 +1928,7 @@ static int smoke_mid_hire_artillery(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: artillery mid-hire ok (boarded=%d gold_spent=%d)\n",
+    "unit_ai_euro_war: artillery mid-hire ok (boarded=%d gold_spent=%d)\n",
     art_boarded,
     gold_spent
   );
@@ -1940,7 +1940,7 @@ static int smoke_mid_hire_artillery(void) {
  * (N) and weak Free Colonist (S). Prefer the weaker/non-fortified target.
  * Old first-dir scan would hit N first.
  */
-static int smoke_land_adjacent_foe_prefer_weak(void) {
+static int unit_land_adjacent_foe_prefer_weak(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -2067,7 +2067,7 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
   if (!weak_dead || !strong_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: adj-foe own=%d weak_dead=%d strong_alive=%d\n",
+      "unit_ai_euro_war: adj-foe own=%d weak_dead=%d strong_alive=%d\n",
       own_alive,
       weak_dead,
       strong_alive
@@ -2081,7 +2081,7 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer-weak ok\n");
+  fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer-weak ok\n");
   return 0;
 }
 
@@ -2089,7 +2089,7 @@ static int smoke_land_adjacent_foe_prefer_weak(void) {
  * Thin 20e6 land adjacent-foe: equal toughness Scout (N, first dir) vs Treasure
  * (S) → prefer Treasure loot. Cite: Colonization.pdf Treasure Trains / @LOOTCASH.
  */
-static int smoke_land_adjacent_foe_prefer_treasure(void) {
+static int unit_land_adjacent_foe_prefer_treasure(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -2217,7 +2217,7 @@ static int smoke_land_adjacent_foe_prefer_treasure(void) {
   if (!treasure_dead || !scout_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: adj-treasure own=%d treasure_dead=%d scout_alive=%d\n",
+      "unit_ai_euro_war: adj-treasure own=%d treasure_dead=%d scout_alive=%d\n",
       own_alive,
       treasure_dead,
       scout_alive
@@ -2231,7 +2231,7 @@ static int smoke_land_adjacent_foe_prefer_treasure(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer Treasure ok\n");
+  fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer Treasure ok\n");
   return 0;
 }
 
@@ -2239,7 +2239,7 @@ static int smoke_land_adjacent_foe_prefer_treasure(void) {
  * Land war hunt: nearer Scout (MD=2) vs Treasure (MD=4, slack ≤3) → prefer
  * Treasure goto. Cite: Colonization.pdf Treasure Trains; euro_unit_act hunt.
  */
-static int smoke_land_hunt_prefer_treasure(void) {
+static int unit_land_hunt_prefer_treasure(void) {
   const int nation = 1;
   const int foe_nat = 2;
 
@@ -2367,7 +2367,7 @@ static int smoke_land_hunt_prefer_treasure(void) {
   if (!toward_treasure) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: hunt-treasure xy=(%d,%d) goto=(%d,%d) orders=%d\n",
+      "unit_ai_euro_war: hunt-treasure xy=(%d,%d) goto=(%d,%d) orders=%d\n",
       soldier->x,
       soldier->y,
       soldier->goto_x,
@@ -2383,7 +2383,7 @@ static int smoke_land_hunt_prefer_treasure(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: land hunt prefer Treasure ok\n");
+  fprintf(stderr, "unit_ai_euro_war: land hunt prefer Treasure ok\n");
   return 0;
 }
 
@@ -2391,7 +2391,7 @@ static int smoke_land_hunt_prefer_treasure(void) {
  * Land war hunt toughness: nearer Soldier (MD=2, def 8) vs farther Free Colonist
  * (MD=4, def 1, slack ≤3) → prefer weaker Colonist. Cite: thin 20e6 / euro_unit_act.
  */
-static int smoke_land_hunt_prefer_weak(void) {
+static int unit_land_hunt_prefer_weak(void) {
   const int nation = 1;
   const int foe_nat = 2;
 
@@ -2513,7 +2513,7 @@ static int smoke_land_hunt_prefer_weak(void) {
   if (!toward_weak) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: hunt-weak xy=(%d,%d) goto=(%d,%d) orders=%d\n",
+      "unit_ai_euro_war: hunt-weak xy=(%d,%d) goto=(%d,%d) orders=%d\n",
       soldier->x,
       soldier->y,
       soldier->goto_x,
@@ -2529,7 +2529,7 @@ static int smoke_land_hunt_prefer_weak(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: land hunt prefer weak ok\n");
+  fprintf(stderr, "unit_ai_euro_war: land hunt prefer weak ok\n");
   return 0;
 }
 
@@ -2538,7 +2538,7 @@ static int smoke_land_hunt_prefer_weak(void) {
  * Stockade colony tile (+100% defense). Cite: colonies_fortification_defense_bonus_percent;
  * units_resolve_land_combat_ff Stockade replace fortified ×2.
  */
-static int smoke_land_adjacent_foe_prefer_open_over_stockade(void) {
+static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -2669,7 +2669,7 @@ static int smoke_land_adjacent_foe_prefer_open_over_stockade(void) {
   if (!open_dead || !stock_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: adj-stockade own=%d open_dead=%d stock_alive=%d\n",
+      "unit_ai_euro_war: adj-stockade own=%d open_dead=%d stock_alive=%d\n",
       own_alive,
       open_dead,
       stock_alive
@@ -2683,7 +2683,7 @@ static int smoke_land_adjacent_foe_prefer_open_over_stockade(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer open over Stockade ok\n");
+  fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer open over Stockade ok\n");
   return 0;
 }
 
@@ -2692,7 +2692,7 @@ static int smoke_land_adjacent_foe_prefer_open_over_stockade(void) {
  * none) over Veteran (UNITS_JOB_SOLDIER → +50% toughness). Cite: FUN_157e_004a
  * type Soldier/Dragoon + profession 0x15.
  */
-static int smoke_land_adjacent_foe_prefer_non_veteran(void) {
+static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -2813,7 +2813,7 @@ static int smoke_land_adjacent_foe_prefer_non_veteran(void) {
   if (!plain_dead || !vet_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: adj-vet own=%d plain_dead=%d vet_alive=%d\n",
+      "unit_ai_euro_war: adj-vet own=%d plain_dead=%d vet_alive=%d\n",
       own_alive,
       plain_dead,
       vet_alive
@@ -2827,7 +2827,7 @@ static int smoke_land_adjacent_foe_prefer_non_veteran(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: adjacent-foe prefer non-veteran ok\n");
+  fprintf(stderr, "unit_ai_euro_war: adjacent-foe prefer non-veteran ok\n");
   return 0;
 }
 
@@ -2836,7 +2836,7 @@ static int smoke_land_adjacent_foe_prefer_non_veteran(void) {
  * Privateer without Drake (S) — prefer non-Drake (+50% toughness). Cite:
  * FUN_157e_004a type 0x10 + FF Drake; fandom Drake.
  */
-static int smoke_naval_adjacent_foe_prefer_non_drake(void) {
+static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   const int nation = 1;
   const int foe_drake = 2;
   const int foe_plain = 3;
@@ -2954,7 +2954,7 @@ static int smoke_naval_adjacent_foe_prefer_non_drake(void) {
   if (!plain_dead || !drake_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: adj-drake own=%d plain_dead=%d drake_alive=%d\n",
+      "unit_ai_euro_war: adj-drake own=%d plain_dead=%d drake_alive=%d\n",
       own_alive,
       plain_dead,
       drake_alive
@@ -2968,7 +2968,7 @@ static int smoke_naval_adjacent_foe_prefer_non_drake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: naval adjacent-foe prefer non-Drake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: naval adjacent-foe prefer non-Drake ok\n");
   return 0;
 }
 
@@ -2977,7 +2977,7 @@ static int smoke_naval_adjacent_foe_prefer_non_drake(void) {
  * (siege — opposite of non-Artillery prefer-open). Cite: king_ref Artillery
  * adjacent-fort; Colonization.pdf Artillery.
  */
-static int smoke_artillery_adjacent_prefer_stockade(void) {
+static int unit_artillery_adjacent_prefer_stockade(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -3108,7 +3108,7 @@ static int smoke_artillery_adjacent_prefer_stockade(void) {
   if (!stock_dead || !open_alive || !art_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: art-adj art=%d stock_dead=%d open_alive=%d\n",
+      "unit_ai_euro_war: art-adj art=%d stock_dead=%d open_alive=%d\n",
       art_alive,
       stock_dead,
       open_alive
@@ -3122,7 +3122,7 @@ static int smoke_artillery_adjacent_prefer_stockade(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Artillery adjacent prefer Stockade ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Artillery adjacent prefer Stockade ok\n");
   return 0;
 }
 
@@ -3130,7 +3130,7 @@ static int smoke_artillery_adjacent_prefer_stockade(void) {
  * Artillery off-colony siege hunt: prefer Stockade colony (farther) over nearer
  * open colony (MD slack ≤3). Cite: king_ref Artillery siege hunt.
  */
-static int smoke_artillery_siege_hunt_prefer_stockade(void) {
+static int unit_artillery_siege_hunt_prefer_stockade(void) {
   const int nation = 1;
   const int foe_nat = 2;
 
@@ -3231,7 +3231,7 @@ static int smoke_artillery_siege_hunt_prefer_stockade(void) {
   if (art->goto_x != 10 || art->goto_y != 5) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: art-hunt goto=(%d,%d) want Stockade (10,5)\n",
+      "unit_ai_euro_war: art-hunt goto=(%d,%d) want Stockade (10,5)\n",
       art->goto_x,
       art->goto_y
     );
@@ -3244,7 +3244,7 @@ static int smoke_artillery_siege_hunt_prefer_stockade(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Artillery siege hunt prefer Stockade ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Artillery siege hunt prefer Stockade ok\n");
   return 0;
 }
 
@@ -3252,7 +3252,7 @@ static int smoke_artillery_siege_hunt_prefer_stockade(void) {
  * Dragoon land hunt: prefer open colony over farther Stockade (MD slack ≤3).
  * Cite: king_ref Dragoon open bias; leave fortified ports to Artillery.
  */
-static int smoke_dragoon_hunt_prefer_open(void) {
+static int unit_dragoon_hunt_prefer_open(void) {
   const int nation = 1;
   const int foe_nat = 2;
 
@@ -3353,7 +3353,7 @@ static int smoke_dragoon_hunt_prefer_open(void) {
   if (drag->goto_x != 10 || drag->goto_y != 5) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: dragoon-hunt goto=(%d,%d) want open (10,5)\n",
+      "unit_ai_euro_war: dragoon-hunt goto=(%d,%d) want open (10,5)\n",
       drag->goto_x,
       drag->goto_y
     );
@@ -3366,7 +3366,7 @@ static int smoke_dragoon_hunt_prefer_open(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Dragoon hunt prefer open ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Dragoon hunt prefer open ok\n");
   return 0;
 }
 
@@ -3375,7 +3375,7 @@ static int smoke_dragoon_hunt_prefer_open(void) {
  * weak Caravel (S). Prefer weaker defense (old first-dir scan would hit N).
  * Cite: FUN_521d_20e6 naval combat thin; FUN_157e_004a holds/damage Done.
  */
-static int smoke_naval_adjacent_foe_prefer_weak(void) {
+static int unit_naval_adjacent_foe_prefer_weak(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -3489,7 +3489,7 @@ static int smoke_naval_adjacent_foe_prefer_weak(void) {
   if (!weak_dead || !strong_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: naval-adj own=%d weak_dead=%d strong_alive=%d\n",
+      "unit_ai_euro_war: naval-adj own=%d weak_dead=%d strong_alive=%d\n",
       own_alive,
       weak_dead,
       strong_alive
@@ -3503,7 +3503,7 @@ static int smoke_naval_adjacent_foe_prefer_weak(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: naval adjacent-foe prefer-weak ok\n");
+  fprintf(stderr, "unit_ai_euro_war: naval adjacent-foe prefer-weak ok\n");
   return 0;
 }
 
@@ -3511,7 +3511,7 @@ static int smoke_naval_adjacent_foe_prefer_weak(void) {
  * FUN_157e_004a holds_occupied (0x3150): equal Caravels N/S — loaded foe is
  * weaker (def − holds) so prefer attack on loaded. Cite: FUN_157e_004a.
  */
-static int smoke_naval_adjacent_foe_prefer_loaded(void) {
+static int unit_naval_adjacent_foe_prefer_loaded(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -3632,7 +3632,7 @@ static int smoke_naval_adjacent_foe_prefer_loaded(void) {
   if (!loaded_dead || !empty_alive || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: naval-holds own=%d loaded_dead=%d empty_alive=%d\n",
+      "unit_ai_euro_war: naval-holds own=%d loaded_dead=%d empty_alive=%d\n",
       own_alive,
       loaded_dead,
       empty_alive
@@ -3646,7 +3646,7 @@ static int smoke_naval_adjacent_foe_prefer_loaded(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: naval adjacent-foe prefer-loaded ok\n");
+  fprintf(stderr, "unit_ai_euro_war: naval adjacent-foe prefer-loaded ok\n");
   return 0;
 }
 
@@ -3655,7 +3655,7 @@ static int smoke_naval_adjacent_foe_prefer_loaded(void) {
  * (higher defense) → prefer Merchantman/Caravel cargo over warship.
  * Cite: euro_unit_act §2f; Europe Privateer commerce raid.
  */
-static int smoke_privateer_prefer_cargo_prey(void) {
+static int unit_privateer_prefer_cargo_prey(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -3780,7 +3780,7 @@ static int smoke_privateer_prefer_cargo_prey(void) {
   if (!merch_dead || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: priv-cargo own=%d merch_dead=%d frig_alive=%d\n",
+      "unit_ai_euro_war: priv-cargo own=%d merch_dead=%d frig_alive=%d\n",
       own_alive,
       merch_dead,
       frig_alive
@@ -3794,7 +3794,7 @@ static int smoke_privateer_prefer_cargo_prey(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: privateer prefer cargo prey ok\n");
+  fprintf(stderr, "unit_ai_euro_war: privateer prefer cargo prey ok\n");
   return 0;
 }
 
@@ -3803,7 +3803,7 @@ static int smoke_privateer_prefer_cargo_prey(void) {
  * (higher defense) → prefer warship over cargo (complement Privateer cargo prey).
  * Cite: euro_unit_act §2f; Europe Frigate purchase.
  */
-static int smoke_frigate_prefer_warship(void) {
+static int unit_frigate_prefer_warship(void) {
   const int nation = 1;
   const int foe_nat = 2;
   const int own_x = 5;
@@ -3928,7 +3928,7 @@ static int smoke_frigate_prefer_warship(void) {
   if (!priv_dead || !own_alive) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: frig-war own=%d priv_dead=%d merch_alive=%d\n",
+      "unit_ai_euro_war: frig-war own=%d priv_dead=%d merch_alive=%d\n",
       own_alive,
       priv_dead,
       merch_alive
@@ -3942,7 +3942,7 @@ static int smoke_frigate_prefer_warship(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: frigate prefer warship ok\n");
+  fprintf(stderr, "unit_ai_euro_war: frigate prefer warship ok\n");
   return 0;
 }
 
@@ -3950,7 +3950,7 @@ static int smoke_frigate_prefer_warship(void) {
  * Peace fortify Soldier on colony wakes when foreign Euro land unit enters MD≤2.
  * Cite: euro_unit_act §2d3 peace colony-defense wake; units_wake.
  */
-static int smoke_peace_fortify_border_wake(void) {
+static int unit_peace_fortify_border_wake(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4050,7 +4050,7 @@ static int smoke_peace_fortify_border_wake(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: peace-border wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: peace-border wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -4065,7 +4065,7 @@ static int smoke_peace_fortify_border_wake(void) {
   if (!woken || !hunting || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       soldier->orders,
       soldier->goto_x,
       soldier->goto_y,
@@ -4081,7 +4081,7 @@ static int smoke_peace_fortify_border_wake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace fortify border wake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace fortify border wake ok\n");
   return 0;
 }
 
@@ -4090,7 +4090,7 @@ static int smoke_peace_fortify_border_wake(void) {
  * MD≤2 (same as Soldier). Cite: Colonization.pdf Defending a Colony (fortify
  * soldiers, dragoons…); euro_unit_act §2d3; units_wake.
  */
-static int smoke_peace_dragoon_border_wake(void) {
+static int unit_peace_dragoon_border_wake(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4188,7 +4188,7 @@ static int smoke_peace_dragoon_border_wake(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: dragoon-border wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: dragoon-border wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -4203,7 +4203,7 @@ static int smoke_peace_dragoon_border_wake(void) {
   if (!woken || !hunting || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: dragoon-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: dragoon-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       dragoon->orders,
       dragoon->goto_x,
       dragoon->goto_y,
@@ -4219,7 +4219,7 @@ static int smoke_peace_dragoon_border_wake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Dragoon border wake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Dragoon border wake ok\n");
   return 0;
 }
 
@@ -4228,7 +4228,7 @@ static int smoke_peace_dragoon_border_wake(void) {
  * MD≤2 (same Soldier/Dragoon arm). Cite: Colonization.pdf Defending a Colony
  * (…or artillery); euro_unit_act §2d3; units_wake.
  */
-static int smoke_peace_artillery_border_wake(void) {
+static int unit_peace_artillery_border_wake(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4331,7 +4331,7 @@ static int smoke_peace_artillery_border_wake(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: peace Artillery border wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: peace Artillery border wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -4343,7 +4343,7 @@ static int smoke_peace_artillery_border_wake(void) {
   if (!woken || !hunting || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: arty-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: arty-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       arty->orders,
       arty->goto_x,
       arty->goto_y,
@@ -4359,7 +4359,7 @@ static int smoke_peace_artillery_border_wake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Artillery border wake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Artillery border wake ok\n");
   return 0;
 }
 
@@ -4367,7 +4367,7 @@ static int smoke_peace_artillery_border_wake(void) {
  * Peace fortified Regular on colony wakes when foreign Euro land unit enters
  * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
  */
-static int smoke_peace_regular_border_wake(void) {
+static int unit_peace_regular_border_wake(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4470,7 +4470,7 @@ static int smoke_peace_regular_border_wake(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: peace Regular border wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: peace Regular border wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -4482,7 +4482,7 @@ static int smoke_peace_regular_border_wake(void) {
   if (!woken || !hunting || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: regular-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: regular-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       reg->orders,
       reg->goto_x,
       reg->goto_y,
@@ -4498,7 +4498,7 @@ static int smoke_peace_regular_border_wake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Regular border wake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Regular border wake ok\n");
   return 0;
 }
 
@@ -4516,7 +4516,7 @@ static int smoke_peace_regular_border_wake(void) {
  * Peace fortified Continental Army on colony wakes when foreign Euro land unit enters
  * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
  */
-static int smoke_peace_continental_army_border_wake(void) {
+static int unit_peace_continental_army_border_wake(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4619,7 +4619,7 @@ static int smoke_peace_continental_army_border_wake(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: peace Continental Army border wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: peace Continental Army border wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -4631,7 +4631,7 @@ static int smoke_peace_continental_army_border_wake(void) {
   if (!woken || !hunting || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: carmy-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: carmy-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       army->orders,
       army->goto_x,
       army->goto_y,
@@ -4647,7 +4647,7 @@ static int smoke_peace_continental_army_border_wake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Continental Army border wake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Continental Army border wake ok\n");
   return 0;
 }
 
@@ -4660,7 +4660,7 @@ static int smoke_peace_continental_army_border_wake(void) {
  * Peace fortified Continental Cavalry on colony wakes when foreign Euro land unit enters
  * MD≤2. Cite: Colonization.pdf Defending a Colony; euro_unit_act §2d3.
  */
-static int smoke_peace_continental_cavalry_border_wake(void) {
+static int unit_peace_continental_cavalry_border_wake(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4763,7 +4763,7 @@ static int smoke_peace_continental_cavalry_border_wake(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: peace Continental Cavalry border wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: peace Continental Cavalry border wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -4775,7 +4775,7 @@ static int smoke_peace_continental_cavalry_border_wake(void) {
   if (!woken || !hunting || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: ccav-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: ccav-border orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       cav->orders,
       cav->goto_x,
       cav->goto_y,
@@ -4791,7 +4791,7 @@ static int smoke_peace_continental_cavalry_border_wake(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Continental Cavalry border wake ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Continental Cavalry border wake ok\n");
   return 0;
 }
 
@@ -4799,7 +4799,7 @@ static int smoke_peace_continental_cavalry_border_wake(void) {
  * 5d04 treasury: at war, prefer Artillery but gold < Europe purchase 500$ →
  * fall back to Soldier hire (hire_cost), not unpaid Artillery fiction.
  */
-static int smoke_artillery_treasury_fallback(void) {
+static int unit_artillery_treasury_fallback(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -4943,7 +4943,7 @@ static int smoke_artillery_treasury_fallback(void) {
   if (art_boarded || soldier_boarded < 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: art_treasury art=%d soldiers=%d cargo=%d gold=%u\n",
+      "unit_ai_euro_war: art_treasury art=%d soldiers=%d cargo=%d gold=%u\n",
       art_boarded,
       soldier_boarded,
       ship ? ship->cargo_count : -1,
@@ -4958,7 +4958,7 @@ static int smoke_artillery_treasury_fallback(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Artillery treasury fallback→Soldier ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Artillery treasury fallback→Soldier ok\n");
   return 0;
 }
 
@@ -4966,7 +4966,7 @@ static int smoke_artillery_treasury_fallback(void) {
  * At war + tools_short: prefer Soldier hire over Pioneer when gold covers
  * hire_cost (peace tools→Pioneer must not win). Cite: 5d04 war arm.
  */
-static int smoke_at_war_tools_prefer_soldier(void) {
+static int unit_at_war_tools_prefer_soldier(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5093,7 +5093,7 @@ static int smoke_at_war_tools_prefer_soldier(void) {
   if (!soldier_boarded || pioneer_boarded) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: war+tools soldier=%d pioneer=%d cargo=%d gold=%u\n",
+      "unit_ai_euro_war: war+tools soldier=%d pioneer=%d cargo=%d gold=%u\n",
       soldier_boarded,
       pioneer_boarded,
       ship ? ship->cargo_count : -1,
@@ -5108,7 +5108,7 @@ static int smoke_at_war_tools_prefer_soldier(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: at-war tools→Soldier (not Pioneer) ok\n");
+  fprintf(stderr, "unit_ai_euro_war: at-war tools→Soldier (not Pioneer) ok\n");
   return 0;
 }
 
@@ -5116,7 +5116,7 @@ static int smoke_at_war_tools_prefer_soldier(void) {
  * Idle fortified Soldier at war → wake (clear fortify) and hunt toward foe.
  * Cite: units_wake; euro_unit_act §2c sentry/fortify wake.
  */
-static int smoke_fortify_wake_hunt(void) {
+static int unit_fortify_wake_hunt(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5212,7 +5212,7 @@ static int smoke_fortify_wake_hunt(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    fprintf(stderr, "smoke_ai_euro_war: fortify-wake ok (combat despawn)\n");
+    fprintf(stderr, "unit_ai_euro_war: fortify-wake ok (combat despawn)\n");
     return 0;
   }
 
@@ -5223,7 +5223,7 @@ static int smoke_fortify_wake_hunt(void) {
   if (!woken || !hunting) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: wake orders=%d goto=(%d,%d) pos=(%d,%d) x0=%d\n",
+      "unit_ai_euro_war: wake orders=%d goto=(%d,%d) pos=(%d,%d) x0=%d\n",
       soldier->orders,
       soldier->goto_x,
       soldier->goto_y,
@@ -5240,7 +5240,7 @@ static int smoke_fortify_wake_hunt(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: fortify-wake hunt ok\n");
+  fprintf(stderr, "unit_ai_euro_war: fortify-wake hunt ok\n");
   return 0;
 }
 
@@ -5248,7 +5248,7 @@ static int smoke_fortify_wake_hunt(void) {
  * G stance deepen: own≥3 colonies + at war → MILITARY primary prio 7
  * (stand-in for −0x6790; no invented gold). Cite: euro_dispatcher G / decomp.
  */
-static int smoke_g_stance_own3_prio7(void) {
+static int unit_g_stance_own3_prio7(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5346,7 +5346,7 @@ static int smoke_g_stance_own3_prio7(void) {
   const int mil_prio =
     ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
   if (mil_prio < 7) {
-    fprintf(stderr, "smoke_ai_euro_war: G own≥3 mil_prio=%d (want ≥7)\n", mil_prio);
+    fprintf(stderr, "unit_ai_euro_war: G own≥3 mil_prio=%d (want ≥7)\n", mil_prio);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
@@ -5356,7 +5356,7 @@ static int smoke_g_stance_own3_prio7(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: G own≥3 prio7 ok (mil_prio=%d)\n", mil_prio);
+  fprintf(stderr, "unit_ai_euro_war: G own≥3 prio7 ok (mil_prio=%d)\n", mil_prio);
   return 0;
 }
 
@@ -5364,7 +5364,7 @@ static int smoke_g_stance_own3_prio7(void) {
  * G stance deepen: own≥4 colonies + at war → MILITARY primary prio 8
  * (stand-in for −0x6790; no invented gold). Cite: euro_dispatcher G / decomp.
  */
-static int smoke_g_stance_own4_prio8(void) {
+static int unit_g_stance_own4_prio8(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5462,7 +5462,7 @@ static int smoke_g_stance_own4_prio8(void) {
   const int mil_prio =
     ai_goals_max_primary_prio(nation, enemy->x, enemy->y, AI_GOAL_MILITARY);
   if (mil_prio < 8) {
-    fprintf(stderr, "smoke_ai_euro_war: G own≥4 mil_prio=%d (want ≥8)\n", mil_prio);
+    fprintf(stderr, "unit_ai_euro_war: G own≥4 mil_prio=%d (want ≥8)\n", mil_prio);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
@@ -5472,7 +5472,7 @@ static int smoke_g_stance_own4_prio8(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: G own≥4 prio8 ok (mil_prio=%d)\n", mil_prio);
+  fprintf(stderr, "unit_ai_euro_war: G own≥4 prio8 ok (mil_prio=%d)\n", mil_prio);
   return 0;
 }
 
@@ -5481,7 +5481,7 @@ static int smoke_g_stance_own4_prio8(void) {
  * scored ocean steps in one act (mirror land 2-step) and spends remaining MP.
  * Cite: euro_unit_act §2c4 / §2b Frigate war hunt.
  */
-static int smoke_naval_multistep_sail(void) {
+static int unit_naval_multistep_sail(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5570,7 +5570,7 @@ static int smoke_naval_multistep_sail(void) {
     free(map.layer2);
     free(map.layer3);
     /* Combat ate the ship — still proves hunt ran; accept. */
-    fprintf(stderr, "smoke_ai_euro_war: naval multi-step ok (combat)\n");
+    fprintf(stderr, "unit_ai_euro_war: naval multi-step ok (combat)\n");
     return 0;
   }
   const int advanced = warship->x - x0;
@@ -5581,7 +5581,7 @@ static int smoke_naval_multistep_sail(void) {
   if (advanced < 2 || spent < 2 || !hunting) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: naval multi-step x %d→%d mp %d→%d orders=%d goto=(%d,%d)\n",
+      "unit_ai_euro_war: naval multi-step x %d→%d mp %d→%d orders=%d goto=(%d,%d)\n",
       x0,
       warship->x,
       mp0,
@@ -5601,7 +5601,7 @@ static int smoke_naval_multistep_sail(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: Frigate war-hunt multi-step ok (x %d→%d mp spent %d)\n",
+    "unit_ai_euro_war: Frigate war-hunt multi-step ok (x %d→%d mp spent %d)\n",
     x0,
     warship->x,
     spent
@@ -5618,7 +5618,7 @@ static int smoke_naval_multistep_sail(void) {
  * Thin 5d04 mid-game: colonies ≥ 6 still hires wartime Soldier onto Europe ship.
  * Peace settle matrix stays gated <6. Cite: unpark #4 leftover mid 5d04.
  */
-static int smoke_mid_hire_mil_colonies_ge6(void) {
+static int unit_mid_hire_mil_colonies_ge6(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5737,7 +5737,7 @@ static int smoke_mid_hire_mil_colonies_ge6(void) {
   if (!soldier_boarded || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: mid-hire-ge6 boarded=%d gold_spent=%d gold=%u cargo=%d\n",
+      "unit_ai_euro_war: mid-hire-ge6 boarded=%d gold_spent=%d gold=%u cargo=%d\n",
       soldier_boarded,
       gold_spent,
       col1.nation[nation].gold,
@@ -5752,11 +5752,11 @@ static int smoke_mid_hire_mil_colonies_ge6(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: mid-hire colonies>=6 ok\n");
+  fprintf(stderr, "unit_ai_euro_war: mid-hire colonies>=6 ok\n");
   return 0;
 }
 
-static int smoke_mid_hire_dragoon_prefer(void) {
+static int unit_mid_hire_dragoon_prefer(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -5884,7 +5884,7 @@ static int smoke_mid_hire_dragoon_prefer(void) {
   if (!dragoon_aboard || soldier_aboard) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: dragoon=%d soldier=%d cargo=%d gold=%u\n",
+      "unit_ai_euro_war: dragoon=%d soldier=%d cargo=%d gold=%u\n",
       dragoon_aboard,
       soldier_aboard,
       ship ? ship->cargo_count : -1,
@@ -5899,7 +5899,7 @@ static int smoke_mid_hire_dragoon_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: mid-hire Dragoon prefer (≥3 colonies) ok\n");
+  fprintf(stderr, "unit_ai_euro_war: mid-hire Dragoon prefer (≥3 colonies) ok\n");
   return 0;
 }
 
@@ -5908,7 +5908,7 @@ static int smoke_mid_hire_dragoon_prefer(void) {
  * Veteran over plain Soldier. Cite: NAMES @JOB Soldier→Veteran Soldiers 2000$;
  * euro_unit_act mid-hire deepen.
  */
-static int smoke_mid_hire_veteran_prefer(void) {
+static int unit_mid_hire_veteran_prefer(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6040,7 +6040,7 @@ static int smoke_mid_hire_veteran_prefer(void) {
   if (!vet_aboard || soldier_aboard || gold_after >= 2500u) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: vet=%d soldier=%d cargo=%d gold=%u\n",
+      "unit_ai_euro_war: vet=%d soldier=%d cargo=%d gold=%u\n",
       vet_aboard,
       soldier_aboard,
       ship ? ship->cargo_count : -1,
@@ -6055,7 +6055,7 @@ static int smoke_mid_hire_veteran_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: mid-hire Veteran Soldier prefer (≥2) ok\n");
+  fprintf(stderr, "unit_ai_euro_war: mid-hire Veteran Soldier prefer (≥2) ok\n");
   return 0;
 }
 
@@ -6063,7 +6063,7 @@ static int smoke_mid_hire_veteran_prefer(void) {
  * At war: idle Soldier on coastal own colony boards empty transport with space.
  * Cite: Colonization.pdf naval transport; units_board.
  */
-static int smoke_soldier_board_empty_transport(void) {
+static int unit_soldier_board_empty_transport(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6186,7 +6186,7 @@ static int smoke_soldier_board_empty_transport(void) {
   if (!soldier || soldier->aboard_ship_id != sid) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: sboard aboard=%d want %d cargo=%d pos=(%d,%d) ship=(%d,%d) "
+      "unit_ai_euro_war: sboard aboard=%d want %d cargo=%d pos=(%d,%d) ship=(%d,%d) "
       "orders=%d active=%d\n",
       soldier ? soldier->aboard_ship_id : -1,
       sid,
@@ -6207,7 +6207,7 @@ static int smoke_soldier_board_empty_transport(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Soldier board empty transport ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Soldier board empty transport ok\n");
   return 0;
 }
 
@@ -6216,7 +6216,7 @@ static int smoke_soldier_board_empty_transport(void) {
  * Soldier embark path). Cite: Colonization.pdf naval transport / Defending a
  * Colony; euro_unit_act §2d3 ship board military.
  */
-static int smoke_dragoon_board_empty_transport(void) {
+static int unit_dragoon_board_empty_transport(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6338,7 +6338,7 @@ static int smoke_dragoon_board_empty_transport(void) {
   if (!dragoon || dragoon->aboard_ship_id != sid) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: dboard aboard=%d want %d cargo=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: dboard aboard=%d want %d cargo=%d pos=(%d,%d)\n",
       dragoon ? dragoon->aboard_ship_id : -1,
       sid,
       galleon ? galleon->cargo_count : -1,
@@ -6354,7 +6354,7 @@ static int smoke_dragoon_board_empty_transport(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Dragoon board empty transport ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Dragoon board empty transport ok\n");
   return 0;
 }
 
@@ -6362,7 +6362,7 @@ static int smoke_dragoon_board_empty_transport(void) {
  * At war: idle Regular on coastal own colony boards empty transport. Cite:
  * Defending a Colony army; euro_unit_act §2b2 / §2d3 ship board; king_ref Regular.
  */
-static int smoke_regular_board_empty_transport(void) {
+static int unit_regular_board_empty_transport(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6487,7 +6487,7 @@ static int smoke_regular_board_empty_transport(void) {
   if (!aboard || !cargo_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: rboard aboard=%d cargo=%d\n",
+      "unit_ai_euro_war: rboard aboard=%d cargo=%d\n",
       aboard,
       ship ? ship->cargo_count : -1
     );
@@ -6500,7 +6500,7 @@ static int smoke_regular_board_empty_transport(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Regular board empty transport ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Regular board empty transport ok\n");
   return 0;
 }
 
@@ -6508,7 +6508,7 @@ static int smoke_regular_board_empty_transport(void) {
  * At war: idle Continental Army on coastal own colony boards empty transport.
  * Cite: Defending a Colony army; euro_unit_act §2b2 / §2d3; king_ref Cont. Army.
  */
-static int smoke_continental_army_board_empty_transport(void) {
+static int unit_continental_army_board_empty_transport(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6633,7 +6633,7 @@ static int smoke_continental_army_board_empty_transport(void) {
   if (!aboard || !cargo_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: caboard aboard=%d cargo=%d\n",
+      "unit_ai_euro_war: caboard aboard=%d cargo=%d\n",
       aboard,
       ship ? ship->cargo_count : -1
     );
@@ -6646,7 +6646,7 @@ static int smoke_continental_army_board_empty_transport(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Continental Army board empty transport ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Continental Army board empty transport ok\n");
   return 0;
 }
 
@@ -6660,7 +6660,7 @@ static int smoke_continental_army_board_empty_transport(void) {
  * At war: idle Continental Cavalry on coastal own colony boards empty transport.
  * Cite: Defending a Colony army; euro_unit_act §2b2 / §2d3; king_ref Cont. Army.
  */
-static int smoke_continental_cavalry_board_empty_transport(void) {
+static int unit_continental_cavalry_board_empty_transport(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6785,7 +6785,7 @@ static int smoke_continental_cavalry_board_empty_transport(void) {
   if (!aboard || !cargo_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: ccavboard aboard=%d cargo=%d\n",
+      "unit_ai_euro_war: ccavboard aboard=%d cargo=%d\n",
       aboard,
       ship ? ship->cargo_count : -1
     );
@@ -6798,7 +6798,7 @@ static int smoke_continental_cavalry_board_empty_transport(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Continental Cavalry board empty transport ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Continental Cavalry board empty transport ok\n");
   return 0;
 }
 
@@ -6807,7 +6807,7 @@ static int smoke_continental_cavalry_board_empty_transport(void) {
  * Soldier/Dragoon embark path; before on-colony fortify). Cite: Colonization.pdf
  * naval transport / Defending a Colony; euro_unit_act §2d3 ship board military.
  */
-static int smoke_artillery_board_empty_transport(void) {
+static int unit_artillery_board_empty_transport(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -6927,7 +6927,7 @@ static int smoke_artillery_board_empty_transport(void) {
   if (!art || art->aboard_ship_id != sid) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: aboard art aboard=%d want %d cargo=%d orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: aboard art aboard=%d want %d cargo=%d orders=%d pos=(%d,%d)\n",
       art ? art->aboard_ship_id : -1,
       sid,
       galleon ? galleon->cargo_count : -1,
@@ -6944,7 +6944,7 @@ static int smoke_artillery_board_empty_transport(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Artillery board empty transport ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Artillery board empty transport ok\n");
   return 0;
 }
 
@@ -6953,7 +6953,7 @@ static int smoke_artillery_board_empty_transport(void) {
  * unloads Soldier onto colony. Cite: Colonization.pdf naval transport;
  * euro_unit_act §2b2; complements board + sail-to-threatened-port.
  */
-static int smoke_unload_military_threatened(void) {
+static int unit_unload_military_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -7099,7 +7099,7 @@ static int smoke_unload_military_threatened(void) {
   if (!soldier || !soldier->active || soldier->aboard_ship_id >= 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: munload aboard=%d want_sid=%d active=%d cargo=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: munload aboard=%d want_sid=%d active=%d cargo=%d pos=(%d,%d)\n",
       soldier ? soldier->aboard_ship_id : -99,
       sid,
       soldier ? (int)soldier->active : 0,
@@ -7117,7 +7117,7 @@ static int smoke_unload_military_threatened(void) {
   if (!near_colony) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: munload landfall=(%d,%d) want near colony (4,4)\n",
+      "unit_ai_euro_war: munload landfall=(%d,%d) want near colony (4,4)\n",
       soldier->x,
       soldier->y
     );
@@ -7138,7 +7138,7 @@ static int smoke_unload_military_threatened(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: military unload threatened colony ok (pos=(%d,%d))\n",
+    "unit_ai_euro_war: military unload threatened colony ok (pos=(%d,%d))\n",
     soldier->x,
     soldier->y
   );
@@ -7150,7 +7150,7 @@ static int smoke_unload_military_threatened(void) {
  * Seed very-low Indian relation so euro_balance hostility_sync keeps sticky=2.
  * Cite: move_scoring_ship.md −0x6790==4; ai_euro_try_unload_military_threatened.
  */
-static int smoke_unload_sticky_brave_threatened(void) {
+static int unit_unload_sticky_brave_threatened(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7293,7 +7293,7 @@ static int smoke_unload_sticky_brave_threatened(void) {
   if (!soldier || !soldier->active || soldier->aboard_ship_id >= 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: sticky munload aboard=%d active=%d cargo=%d\n",
+      "unit_ai_euro_war: sticky munload aboard=%d active=%d cargo=%d\n",
       soldier ? soldier->aboard_ship_id : -99,
       soldier ? (int)soldier->active : 0,
       galleon ? galleon->cargo_count : -1
@@ -7313,7 +7313,7 @@ static int smoke_unload_sticky_brave_threatened(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: sticky Brave mil unload ok\n");
+  fprintf(stderr, "unit_ai_euro_war: sticky Brave mil unload ok\n");
   return 0;
 }
 
@@ -7323,7 +7323,7 @@ static int smoke_unload_sticky_brave_threatened(void) {
  * very-low relation (sticky positive smoke) is required for peacetime unload.
  * Cite: ai_diplo_indian_hostility_sync; Series L.
  */
-static int smoke_unload_stance0_no_sticky(void) {
+static int unit_unload_stance0_no_sticky(void) {
   const int nation = 1;
 
   ColonizeCol1Save col1;
@@ -7380,7 +7380,7 @@ static int smoke_unload_stance0_no_sticky(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: stance0 sticky-clear skip mil path ok\n");
+  fprintf(stderr, "unit_ai_euro_war: stance0 sticky-clear skip mil path ok\n");
   return 0;
 }
 
@@ -7388,7 +7388,7 @@ static int smoke_unload_stance0_no_sticky(void) {
  * Threatened-port unload: Dragoon-only cargo → unload Dragoon (Soldier ladder
  * fallback). Cite: euro_unit_act §2b2; king_ref MoW unload else Dragoon.
  */
-static int smoke_unload_dragoon_threatened(void) {
+static int unit_unload_dragoon_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -7528,7 +7528,7 @@ static int smoke_unload_dragoon_threatened(void) {
   if (!drag || !drag->active || drag->aboard_ship_id >= 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: dunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: dunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
       drag ? drag->aboard_ship_id : -99,
       drag ? (int)drag->active : 0,
       galleon ? galleon->cargo_count : -1,
@@ -7551,7 +7551,7 @@ static int smoke_unload_dragoon_threatened(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Dragoon unload threatened colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Dragoon unload threatened colony ok\n");
   return 0;
 }
 
@@ -7559,7 +7559,7 @@ static int smoke_unload_dragoon_threatened(void) {
  * Threatened-port unload: Regular-only cargo → unload Regular. Cite: king_ref
  * MoW Regular-prefer; euro_unit_act §2b2.
  */
-static int smoke_unload_regular_threatened(void) {
+static int unit_unload_regular_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -7699,7 +7699,7 @@ static int smoke_unload_regular_threatened(void) {
   if (!reg || !reg->active || reg->aboard_ship_id >= 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: runload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: runload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
       reg ? reg->aboard_ship_id : -99,
       reg ? reg->active : 0,
       ship ? ship->cargo_count : -1,
@@ -7721,7 +7721,7 @@ static int smoke_unload_regular_threatened(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Regular unload threatened colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Regular unload threatened colony ok\n");
   return 0;
 }
 
@@ -7738,7 +7738,7 @@ static int smoke_unload_regular_threatened(void) {
  * Threatened-port unload: Continental Army-only cargo → unload Continental Army. Cite: king_ref
  * MoW Continental Army-prefer; euro_unit_act §2b2.
  */
-static int smoke_unload_continental_army_threatened(void) {
+static int unit_unload_continental_army_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -7878,7 +7878,7 @@ static int smoke_unload_continental_army_threatened(void) {
   if (!army || !army->active || army->aboard_ship_id >= 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: carmyunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: carmyunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
       army ? army->aboard_ship_id : -99,
       army ? army->active : 0,
       ship ? ship->cargo_count : -1,
@@ -7900,7 +7900,7 @@ static int smoke_unload_continental_army_threatened(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Continental Army unload threatened colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Continental Army unload threatened colony ok\n");
   return 0;
 }
 
@@ -7912,7 +7912,7 @@ static int smoke_unload_continental_army_threatened(void) {
  * Threatened-port unload: Continental Cavalry-only cargo → unload Continental Cavalry. Cite: king_ref
  * MoW Continental Cavalry-prefer; euro_unit_act §2b2.
  */
-static int smoke_unload_continental_cavalry_threatened(void) {
+static int unit_unload_continental_cavalry_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -8052,7 +8052,7 @@ static int smoke_unload_continental_cavalry_threatened(void) {
   if (!cav || !cav->active || cav->aboard_ship_id >= 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: ccavunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: ccavunload aboard=%d active=%d cargo=%d pos=(%d,%d)\n",
       cav ? cav->aboard_ship_id : -99,
       cav ? cav->active : 0,
       ship ? ship->cargo_count : -1,
@@ -8074,7 +8074,7 @@ static int smoke_unload_continental_cavalry_threatened(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: Continental Cavalry unload threatened colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: Continental Cavalry unload threatened colony ok\n");
   return 0;
 }
 
@@ -8086,7 +8086,7 @@ static int smoke_unload_continental_cavalry_threatened(void) {
  * Col1 +0x1e garrison_quota: with quota=1, only one of two idle Soldiers
  * fortifies (other stays idle). Cite: save_format_map.md; FUN_5952_035e DEC.
  */
-static int smoke_garrison_quota_one_fortify(void) {
+static int unit_garrison_quota_one_fortify(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8197,7 +8197,7 @@ static int smoke_garrison_quota_one_fortify(void) {
   if (fortified != 1 || c->garrison_quota != 0 || (idle + joined) != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: garrison_quota fortified=%d idle=%d joined=%d quota=%u\n",
+      "unit_ai_euro_war: garrison_quota fortified=%d idle=%d joined=%d quota=%u\n",
       fortified,
       idle,
       joined,
@@ -8212,11 +8212,11 @@ static int smoke_garrison_quota_one_fortify(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: garrison_quota one fortify ok\n");
+  fprintf(stderr, "unit_ai_euro_war: garrison_quota one fortify ok\n");
   return 0;
 }
 
-static int smoke_peace_soldier_fortify_colony(void) {
+static int unit_peace_soldier_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8308,7 +8308,7 @@ static int smoke_peace_soldier_fortify_colony(void) {
   if (sol->orders != UNITS_ORDER_FORTIFY && sol->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-fortify orders=%d pos=(%d,%d)\n",
       sol->orders,
       sol->x,
       sol->y
@@ -8322,7 +8322,7 @@ static int smoke_peace_soldier_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace soldier fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace soldier fortify colony ok\n");
   return 0;
 }
 
@@ -8330,7 +8330,7 @@ static int smoke_peace_soldier_fortify_colony(void) {
  * Peace Dragoon fortify: idle Dragoon on own colony → FORTIFY (same arm as
  * Soldier). Cite: euro_unit_act §2d3; Colonization.pdf Defending a Colony.
  */
-static int smoke_peace_dragoon_fortify_colony(void) {
+static int unit_peace_dragoon_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8421,7 +8421,7 @@ static int smoke_peace_dragoon_fortify_colony(void) {
   if (drag->orders != UNITS_ORDER_FORTIFY && drag->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-dragoon-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-dragoon-fortify orders=%d pos=(%d,%d)\n",
       drag->orders,
       drag->x,
       drag->y
@@ -8435,7 +8435,7 @@ static int smoke_peace_dragoon_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace dragoon fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace dragoon fortify colony ok\n");
   return 0;
 }
 
@@ -8443,7 +8443,7 @@ static int smoke_peace_dragoon_fortify_colony(void) {
  * Peace Regular fortify: idle Regular on own colony → FORTIFY. Cite:
  * euro_unit_act §2d3; Colonization.pdf Defending a Colony.
  */
-static int smoke_peace_regular_fortify_colony(void) {
+static int unit_peace_regular_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8534,7 +8534,7 @@ static int smoke_peace_regular_fortify_colony(void) {
   if (reg->orders != UNITS_ORDER_FORTIFY && reg->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-regular-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-regular-fortify orders=%d pos=(%d,%d)\n",
       reg->orders,
       reg->x,
       reg->y
@@ -8548,7 +8548,7 @@ static int smoke_peace_regular_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Regular fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Regular fortify colony ok\n");
   return 0;
 }
 
@@ -8556,7 +8556,7 @@ static int smoke_peace_regular_fortify_colony(void) {
  * Peace Continental Army fortify on own colony. Cite: Defending a Colony
  * ("…army, cavalry…"); euro_unit_act §2d3.
  */
-static int smoke_peace_continental_fortify_colony(void) {
+static int unit_peace_continental_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8647,7 +8647,7 @@ static int smoke_peace_continental_fortify_colony(void) {
   if (army->orders != UNITS_ORDER_FORTIFY && army->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-cont-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-cont-fortify orders=%d pos=(%d,%d)\n",
       army->orders,
       army->x,
       army->y
@@ -8661,7 +8661,7 @@ static int smoke_peace_continental_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Continental Army fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Continental Army fortify colony ok\n");
   return 0;
 }
 
@@ -8669,7 +8669,7 @@ static int smoke_peace_continental_fortify_colony(void) {
  * Peace Continental Cavalry fortify on own colony. Cite: Defending a Colony
  * ("…cavalry…"); euro_unit_act §2d3.
  */
-static int smoke_peace_continental_cavalry_fortify_colony(void) {
+static int unit_peace_continental_cavalry_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8760,7 +8760,7 @@ static int smoke_peace_continental_cavalry_fortify_colony(void) {
   if (cav->orders != UNITS_ORDER_FORTIFY && cav->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-cont-cav-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-cont-cav-fortify orders=%d pos=(%d,%d)\n",
       cav->orders,
       cav->x,
       cav->y
@@ -8774,7 +8774,7 @@ static int smoke_peace_continental_cavalry_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Continental Cavalry fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Continental Cavalry fortify colony ok\n");
   return 0;
 }
 
@@ -8782,7 +8782,7 @@ static int smoke_peace_continental_cavalry_fortify_colony(void) {
  * Peace Artillery fortify on own colony. Cite: Defending a Colony ("…or
  * artillery"); euro_unit_act §2d3.
  */
-static int smoke_peace_artillery_fortify_colony(void) {
+static int unit_peace_artillery_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8873,7 +8873,7 @@ static int smoke_peace_artillery_fortify_colony(void) {
   if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-art-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-art-fortify orders=%d pos=(%d,%d)\n",
       art->orders,
       art->x,
       art->y
@@ -8887,7 +8887,7 @@ static int smoke_peace_artillery_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Artillery fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Artillery fortify colony ok\n");
   return 0;
 }
 
@@ -8895,7 +8895,7 @@ static int smoke_peace_artillery_fortify_colony(void) {
  * Peace Cannon fortify on own colony (Artillery name alias). Cite: Defending a
  * Colony ("…or artillery"); ai_euro_is_artillery_name Cannon; euro_unit_act §2d3.
  */
-static int smoke_peace_cannon_fortify_colony(void) {
+static int unit_peace_cannon_fortify_colony(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8986,7 +8986,7 @@ static int smoke_peace_cannon_fortify_colony(void) {
   if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: peace-cannon-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: peace-cannon-fortify orders=%d pos=(%d,%d)\n",
       art->orders,
       art->x,
       art->y
@@ -9000,7 +9000,7 @@ static int smoke_peace_cannon_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: peace Cannon fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: peace Cannon fortify colony ok\n");
   return 0;
 }
 
@@ -9008,7 +9008,7 @@ static int smoke_peace_cannon_fortify_colony(void) {
  * Artillery fortify after siege: idle Artillery on own colony at war → FORTIFY.
  * Cite: euro_unit_act §2d3; Colonization.pdf fortify defense.
  */
-static int smoke_artillery_fortify_colony(void) {
+static int unit_artillery_fortify_colony(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -9108,7 +9108,7 @@ static int smoke_artillery_fortify_colony(void) {
   if (art->orders != UNITS_ORDER_FORTIFY && art->orders != UNITS_ORDER_FORTIFIED) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: art-fortify orders=%d pos=(%d,%d)\n",
+      "unit_ai_euro_war: art-fortify orders=%d pos=(%d,%d)\n",
       art->orders,
       art->x,
       art->y
@@ -9122,7 +9122,7 @@ static int smoke_artillery_fortify_colony(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: artillery fortify colony ok\n");
+  fprintf(stderr, "unit_ai_euro_war: artillery fortify colony ok\n");
   return 0;
 }
 
@@ -9130,7 +9130,7 @@ static int smoke_artillery_fortify_colony(void) {
  * War transport: idle Galleon with passenger space prefers threatened own
  * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
  */
-static int smoke_war_transport_threatened_colony(void) {
+static int unit_war_transport_threatened_colony(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -9284,7 +9284,7 @@ static int smoke_war_transport_threatened_colony(void) {
   if (!near_colony && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: wtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: wtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       galleon->orders,
       galleon->goto_x,
       galleon->goto_y,
@@ -9302,7 +9302,7 @@ static int smoke_war_transport_threatened_colony(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: war transport threatened colony ok (near=%d closer=%d)\n",
+    "unit_ai_euro_war: war transport threatened colony ok (near=%d closer=%d)\n",
     near_colony,
     moved_closer
   );
@@ -9313,7 +9313,7 @@ static int smoke_war_transport_threatened_colony(void) {
  * Series O: war cargo colony-sail prefers Fortress coastal over bare at equal
  * distance (0x1b defense ladder). Cite: move_scoring_ship.md; Series O.
  */
-static int smoke_war_cargo_fortress_prefer(void) {
+static int unit_war_cargo_fortress_prefer(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -9443,7 +9443,7 @@ static int smoke_war_cargo_fortress_prefer(void) {
   if (!prefer_fort && !moved_fort) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: wcargo orders=%d goto=(%d,%d) pos=(%d,%d) d_fort=%d d_bare=%d\n",
+      "unit_ai_euro_war: wcargo orders=%d goto=(%d,%d) pos=(%d,%d) d_fort=%d d_bare=%d\n",
       galleon->orders,
       galleon->goto_x,
       galleon->goto_y,
@@ -9461,7 +9461,7 @@ static int smoke_war_cargo_fortress_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_war: war cargo Fortress prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_war: war cargo Fortress prefer ok\n");
   return 0;
 }
 
@@ -9469,7 +9469,7 @@ static int smoke_war_cargo_fortress_prefer(void) {
  * War transport: idle Man-O-War with passenger space prefers threatened own
  * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
  */
-static int smoke_mow_war_transport_threatened(void) {
+static int unit_mow_war_transport_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -9623,7 +9623,7 @@ static int smoke_mow_war_transport_threatened(void) {
   if (!near_colony && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: mowtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: mowtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       mow->orders,
       mow->goto_x,
       mow->goto_y,
@@ -9641,7 +9641,7 @@ static int smoke_mow_war_transport_threatened(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: Man-O-War war transport threatened ok (near=%d closer=%d)\n",
+    "unit_ai_euro_war: Man-O-War war transport threatened ok (near=%d closer=%d)\n",
     near_colony,
     moved_closer
   );
@@ -9652,7 +9652,7 @@ static int smoke_mow_war_transport_threatened(void) {
  * War transport: idle Frigate with passenger space prefers threatened own
  * coastal colony water over distant foe sea. Cite: euro_unit_act §2b2.
  */
-static int smoke_frigate_war_transport_threatened(void) {
+static int unit_frigate_war_transport_threatened(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -9806,7 +9806,7 @@ static int smoke_frigate_war_transport_threatened(void) {
   if (!near_colony && !moved_closer) {
     fprintf(
       stderr,
-      "smoke_ai_euro_war: frigtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_war: frigtrans orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       frig->orders,
       frig->goto_x,
       frig->goto_y,
@@ -9824,7 +9824,7 @@ static int smoke_frigate_war_transport_threatened(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_war: Frigate war transport threatened ok (near=%d closer=%d)\n",
+    "unit_ai_euro_war: Frigate war transport threatened ok (near=%d closer=%d)\n",
     near_colony,
     moved_closer
   );
@@ -9832,210 +9832,210 @@ static int smoke_frigate_war_transport_threatened(void) {
 }
 
 int main(void) {
-  if (smoke_mid_hire_mil() != 0) {
+  if (unit_mid_hire_mil() != 0) {
     return 1;
   }
-  if (smoke_mid_hire_mil_colonies_ge6() != 0) {
+  if (unit_mid_hire_mil_colonies_ge6() != 0) {
     return 1;
   }
-  if (smoke_mid_hire_dragoon_prefer() != 0) {
+  if (unit_mid_hire_dragoon_prefer() != 0) {
     return 1;
   }
-  if (smoke_mid_hire_veteran_prefer() != 0) {
+  if (unit_mid_hire_veteran_prefer() != 0) {
     return 1;
   }
-  if (smoke_soldier_board_empty_transport() != 0) {
+  if (unit_soldier_board_empty_transport() != 0) {
     return 1;
   }
-  if (smoke_dragoon_board_empty_transport() != 0) {
+  if (unit_dragoon_board_empty_transport() != 0) {
     return 1;
   }
-  if (smoke_regular_board_empty_transport() != 0) {
+  if (unit_regular_board_empty_transport() != 0) {
     return 1;
   }
-  if (smoke_continental_army_board_empty_transport() != 0) {
+  if (unit_continental_army_board_empty_transport() != 0) {
     return 1;
   }
-  if (smoke_continental_cavalry_board_empty_transport() != 0) {
+  if (unit_continental_cavalry_board_empty_transport() != 0) {
     return 1;
   }
-  if (smoke_artillery_board_empty_transport() != 0) {
+  if (unit_artillery_board_empty_transport() != 0) {
     return 1;
   }
-  if (smoke_unload_military_threatened() != 0) {
+  if (unit_unload_military_threatened() != 0) {
     return 1;
   }
-  if (smoke_unload_sticky_brave_threatened() != 0) {
+  if (unit_unload_sticky_brave_threatened() != 0) {
     return 1;
   }
-  if (smoke_unload_stance0_no_sticky() != 0) {
+  if (unit_unload_stance0_no_sticky() != 0) {
     return 1;
   }
-  if (smoke_war_cargo_fortress_prefer() != 0) {
+  if (unit_war_cargo_fortress_prefer() != 0) {
     return 1;
   }
-  if (smoke_unload_dragoon_threatened() != 0) {
+  if (unit_unload_dragoon_threatened() != 0) {
     return 1;
   }
-  if (smoke_unload_regular_threatened() != 0) {
+  if (unit_unload_regular_threatened() != 0) {
     return 1;
   }
-  if (smoke_unload_continental_army_threatened() != 0) {
+  if (unit_unload_continental_army_threatened() != 0) {
     return 1;
   }
-  if (smoke_unload_continental_cavalry_threatened() != 0) {
+  if (unit_unload_continental_cavalry_threatened() != 0) {
     return 1;
   }
-  if (smoke_at_war_tools_prefer_soldier() != 0) {
+  if (unit_at_war_tools_prefer_soldier() != 0) {
     return 1;
   }
-  if (smoke_fortify_wake_hunt() != 0) {
+  if (unit_fortify_wake_hunt() != 0) {
     return 1;
   }
-  if (smoke_garrison_quota_one_fortify() != 0) {
+  if (unit_garrison_quota_one_fortify() != 0) {
     return 1;
   }
-  if (smoke_peace_soldier_fortify_colony() != 0) {
+  if (unit_peace_soldier_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_peace_dragoon_fortify_colony() != 0) {
+  if (unit_peace_dragoon_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_peace_regular_fortify_colony() != 0) {
+  if (unit_peace_regular_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_peace_continental_fortify_colony() != 0) {
+  if (unit_peace_continental_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_peace_continental_cavalry_fortify_colony() != 0) {
+  if (unit_peace_continental_cavalry_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_peace_artillery_fortify_colony() != 0) {
+  if (unit_peace_artillery_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_peace_cannon_fortify_colony() != 0) {
+  if (unit_peace_cannon_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_artillery_fortify_colony() != 0) {
+  if (unit_artillery_fortify_colony() != 0) {
     return 1;
   }
-  if (smoke_war_transport_threatened_colony() != 0) {
+  if (unit_war_transport_threatened_colony() != 0) {
     return 1;
   }
-  if (smoke_mow_war_transport_threatened() != 0) {
+  if (unit_mow_war_transport_threatened() != 0) {
     return 1;
   }
-  if (smoke_frigate_war_transport_threatened() != 0) {
+  if (unit_frigate_war_transport_threatened() != 0) {
     return 1;
   }
-  if (smoke_g_stance_own3_prio7() != 0) {
+  if (unit_g_stance_own3_prio7() != 0) {
     return 1;
   }
-  if (smoke_g_stance_own4_prio8() != 0) {
+  if (unit_g_stance_own4_prio8() != 0) {
     return 1;
   }
-  if (smoke_mid_hire_artillery() != 0) {
+  if (unit_mid_hire_artillery() != 0) {
     return 1;
   }
-  if (smoke_artillery_treasury_fallback() != 0) {
+  if (unit_artillery_treasury_fallback() != 0) {
     return 1;
   }
-  if (smoke_naval_war_hunt() != 0) {
+  if (unit_naval_war_hunt() != 0) {
     return 1;
   }
-  if (smoke_naval_flee_fort_fire() != 0) {
+  if (unit_naval_flee_fort_fire() != 0) {
     return 1;
   }
-  if (smoke_privateer_war_hunt() != 0) {
+  if (unit_privateer_war_hunt() != 0) {
     return 1;
   }
-  if (smoke_privateer_station_keep_hunt() != 0) {
+  if (unit_privateer_station_keep_hunt() != 0) {
     return 1;
   }
-  if (smoke_naval_multistep_sail() != 0) {
+  if (unit_naval_multistep_sail() != 0) {
     return 1;
   }
-  if (smoke_land_war_hunt() != 0) {
+  if (unit_land_war_hunt() != 0) {
     return 1;
   }
-  if (smoke_indian_war_capital_hunt() != 0) {
+  if (unit_indian_war_capital_hunt() != 0) {
     return 1;
   }
-  if (smoke_land_war_hunt_multistep() != 0) {
+  if (unit_land_war_hunt_multistep() != 0) {
     return 1;
   }
-  if (smoke_continental_army_land_hunt() != 0) {
+  if (unit_continental_army_land_hunt() != 0) {
     return 1;
   }
-  if (smoke_continental_cavalry_land_hunt() != 0) {
+  if (unit_continental_cavalry_land_hunt() != 0) {
     return 1;
   }
-  if (smoke_sticky_contact_rehunt() != 0) {
+  if (unit_sticky_contact_rehunt() != 0) {
     return 1;
   }
-  if (smoke_land_adjacent_combat_chain() != 0) {
+  if (unit_land_adjacent_combat_chain() != 0) {
     return 1;
   }
-  if (smoke_land_adjacent_foe_prefer_weak() != 0) {
+  if (unit_land_adjacent_foe_prefer_weak() != 0) {
     return 1;
   }
-  if (smoke_land_adjacent_foe_prefer_treasure() != 0) {
+  if (unit_land_adjacent_foe_prefer_treasure() != 0) {
     return 1;
   }
-  if (smoke_land_hunt_prefer_treasure() != 0) {
+  if (unit_land_hunt_prefer_treasure() != 0) {
     return 1;
   }
-  if (smoke_land_hunt_prefer_weak() != 0) {
+  if (unit_land_hunt_prefer_weak() != 0) {
     return 1;
   }
-  if (smoke_land_adjacent_foe_prefer_open_over_stockade() != 0) {
+  if (unit_land_adjacent_foe_prefer_open_over_stockade() != 0) {
     return 1;
   }
-  if (smoke_land_adjacent_foe_prefer_non_veteran() != 0) {
+  if (unit_land_adjacent_foe_prefer_non_veteran() != 0) {
     return 1;
   }
-  if (smoke_artillery_adjacent_prefer_stockade() != 0) {
+  if (unit_artillery_adjacent_prefer_stockade() != 0) {
     return 1;
   }
-  if (smoke_artillery_siege_hunt_prefer_stockade() != 0) {
+  if (unit_artillery_siege_hunt_prefer_stockade() != 0) {
     return 1;
   }
-  if (smoke_dragoon_hunt_prefer_open() != 0) {
+  if (unit_dragoon_hunt_prefer_open() != 0) {
     return 1;
   }
-  if (smoke_naval_adjacent_foe_prefer_weak() != 0) {
+  if (unit_naval_adjacent_foe_prefer_weak() != 0) {
     return 1;
   }
-  if (smoke_naval_adjacent_foe_prefer_loaded() != 0) {
+  if (unit_naval_adjacent_foe_prefer_loaded() != 0) {
     return 1;
   }
-  if (smoke_naval_adjacent_foe_prefer_non_drake() != 0) {
+  if (unit_naval_adjacent_foe_prefer_non_drake() != 0) {
     return 1;
   }
-  if (smoke_privateer_prefer_cargo_prey() != 0) {
+  if (unit_privateer_prefer_cargo_prey() != 0) {
     return 1;
   }
-  if (smoke_frigate_prefer_warship() != 0) {
+  if (unit_frigate_prefer_warship() != 0) {
     return 1;
   }
-  if (smoke_peace_fortify_border_wake() != 0) {
+  if (unit_peace_fortify_border_wake() != 0) {
     return 1;
   }
-  if (smoke_peace_dragoon_border_wake() != 0) {
+  if (unit_peace_dragoon_border_wake() != 0) {
     return 1;
   }
-  if (smoke_peace_artillery_border_wake() != 0) {
+  if (unit_peace_artillery_border_wake() != 0) {
     return 1;
   }
-  if (smoke_peace_regular_border_wake() != 0) {
+  if (unit_peace_regular_border_wake() != 0) {
     return 1;
   }
-  if (smoke_peace_continental_army_border_wake() != 0) {
+  if (unit_peace_continental_army_border_wake() != 0) {
     return 1;
   }
-  if (smoke_peace_continental_cavalry_border_wake() != 0) {
+  if (unit_peace_continental_cavalry_border_wake() != 0) {
     return 1;
   }
-  fprintf(stderr, "smoke_ai_euro_war: ok\n");
+  fprintf(stderr, "unit_ai_euro_war: ok\n");
   return 0;
 }

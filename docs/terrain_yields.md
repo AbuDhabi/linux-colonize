@@ -10,7 +10,7 @@ Reference for what a map square can produce when worked as a field job (or, for 
 | `FUN_15eb_17fa` / `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11717–11991) | **Authoritative** special-resource effect, expert/convert, lumber ×2, plow/road/river stacking, SoL ± on fields |
 | [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Qualitative rules (commons dual-produce, Prime Timber exception, plow/road/river intent). Printed Terrain Chart often **≠** `NAMES` — prefer `NAMES` + decomp |
 | MAPEDIT resource class table (`mapedit_resource_type_by_terrain` in [`map.c`](../src/core/map.c)) | Which special resource **type** a terrain class may roll |
-| Col1 fixtures / [`test_colony_yield.c`](../tests/smoke/test_colony_yield.c) | Town-commons dual-produce — **empirically calibrated**, peel pending |
+| Col1 fixtures / [`test_colony_yield.c`](../tests/unit/test_colony_yield.c) | Town-commons dual-produce — **empirically calibrated**, peel pending |
 
 Pedia / map indices: cleared land **0–7**, forests **8–23** (type = `index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills as classes **27 / 28**.
 

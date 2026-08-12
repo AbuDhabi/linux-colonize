@@ -414,7 +414,7 @@ Runtime `ColonizeColony.hammers_purchased` bridged from Col1.
 
 `colony_prod_refresh_sol_flags` sets sol_50 (0x04) / sol_100 (0x02) from
 `colony_prod_sol_percent` (≥50 / ≥100); clears on drop. Called from colony
-production and Euro planning. Cite: FUN_364b_0688 ~55373; smoke_colonies SoL
+production and Euro planning. Cite: FUN_364b_0688 ~55373; unit_colonies SoL
 flag checks.
 
 ### 2d15. Linux thin — Col1 `depletion_counter` (+0x97)

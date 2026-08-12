@@ -413,6 +413,6 @@ int main(void) {
       return 1;
     }
   }
-  printf("smoke_ai_turns: all TURN1→TURN7 steps ok\n");
+  printf("golden_ai_turns: all TURN1→TURN7 steps ok\n");
   return 0;
 }

@@ -18,6 +18,7 @@ chrome, Congress UI, COLDIG SFX, and full 1:1 AI remain later.
 Living status:
 
 - [docs/architecture.md](docs/architecture.md) — present / intended code architecture
+- [tests/README.md](tests/README.md) — smoke / unit / golden test layout
 - [docs/roadmap.md](docs/roadmap.md) — whole-project phases / what’s next
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/ai_transcription.md](docs/ai_transcription.md) — AI FUN inventory / unpark

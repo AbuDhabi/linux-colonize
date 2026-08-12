@@ -59,4 +59,4 @@ Port: `ai_contact_meet_economics_2154` in [`ai_contact.c`](../../src/core/ai_con
 - Gift Generous (−20/−3) when `ask[0]−bid[0] ≥ 1`, nation gold ≥ `0x4b`, and delta ≥ thin RNG (`281f_04d4` stand-in 1..100); else Large (−10/−2) when gold ≥ 20.
 - Demand: `ask[0] < bid[0]` → gold-first; else tools-first (same drains).
 
-Series P/S scalar `S` floors **retired**. Smokes: `smoke_ai_contact`. Not blanket Indian T3 (`2820`/`4528` remain partial).
+Series P/S scalar `S` floors **retired**. Unit: `unit_ai_contact`. Not blanket Indian T3 (`2820`/`4528` remain partial).

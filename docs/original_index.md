@@ -158,14 +158,14 @@ one exists.
 | `FUN_67bf_0000` | Continent flood-fill IDs | map_gen (IDs not written to layer2 in v1) |
 | `FUN_733a_0000` / `0270` / `0512` | CUSTOMIZE / difficulty-style UI | [new_game.c](../src/core/new_game.c) |
 | `FUN_281f_04d4` | Wrapped RNG (calls into libc) | `dos_rng` (`FUN_1d1d_0e04`) |
-| `FUN_1d1d_0e04` / `FUN_19ef_0032` | DOS LCG + range | [dos_rng.c](../src/core/dos_rng.c); golden via `smoke_mapgen_seed100` |
+| `FUN_1d1d_0e04` / `FUN_19ef_0032` | DOS LCG + range | [dos_rng.c](../src/core/dos_rng.c); golden via `golden_mapgen_seed100` |
 | `FUN_281f_0590` | Fill helper (turn box) | turn indicator draw |
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
 | `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [ai_transcription.md](ai_transcription.md) |
 | `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; deep `2820`/`4528` / VGA PARKED) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
-| `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `smoke_ai_turns`) |
+| `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `golden_ai_turns`) |
 | `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (T0 condensed; deep `20e6` OPEN — unpark #4) |
 | `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (quiet Brave + thin Euro; land/combat `20e6` OPEN) |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
@@ -372,7 +372,7 @@ Layout and bridge → [savegame.md](savegame.md). Field atlas / RE roadmap →
 | `scripts/extract_viceroy_tables.py` | Pull static tables from `VICEROY.EXE` → `src/data/viceroy_tables.c` ([viceroy_tables.md](viceroy_tables.md)) |
 | `scripts/gen_fun_catalog.py` | Regenerate light `FUN_*` catalog + module map ([FUNCTION_CATALOG.md](../original_sources_annotated/FUNCTION_CATALOG.md)) |
 | `data/soundfonts/` | FluidSynth bank for `GSOUND.COL` playback |
-| `test-assets*`, `test-saves*` | Minimal TXT/DB and save fixtures for smoke tests |
+| `test-assets*`, `test-saves*` | Minimal TXT/DB and save fixtures for automated tests |
 | `src/platform/dos_compat/` | DOS typedef stubs for incremental extraction — not a full runtime |
 
 ---

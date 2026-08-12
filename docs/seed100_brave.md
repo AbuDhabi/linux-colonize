@@ -1,6 +1,6 @@
 # Seed-100 Brave / early-AI notes
 
-Durable notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
+Durable notes for `golden_mapgen_seed100` + `golden_ai_turns` (VR_SEED=100).
 Companion status: [ai_transcription.md](ai_transcription.md),
 [`original_sources_annotated/ai/move_scoring.md`](../original_sources_annotated/ai/move_scoring.md).
 
@@ -18,7 +18,7 @@ Companion status: [ai_transcription.md](ai_transcription.md),
 | Hang EXEs | **Out of scope** this pass (policy); `VR_B465X` remains named last resort |
 | Force empiricism | `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` — emp residual set; **TURN2→3 currently red on HEAD** (Arawak xy; pre-existing, not this pass) |
 | Skip peels (audit) | `AI_NO_BRAVE_PEELS=1` — init/mid dir peels off (goldens fail; measures quiet gap) |
-| `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
+| `golden_mapgen_seed100` / `golden_ai_turns` | GREEN |
 
 ## Dump-free scoring pass (2026-08-12)
 
@@ -65,11 +65,11 @@ Quiet residual table: **2 rows** (both t2 spent-only).
 `cost=1` then another pick while `spent < 3`.
 
 ```bash
-./build/smoke_ai_turns
-AI_EMPIRICISM=1 ./build/smoke_ai_turns
-AI_STEP_AUDIT=1 ./build/smoke_ai_turns   # per-step paths
-AI_LCG_AUDIT=1 ./build/smoke_mapgen_seed100
-AI_NO_BRAVE_PEELS=1 ./build/smoke_mapgen_seed100  # expect 13 missing units
+./build/golden_ai_turns
+AI_EMPIRICISM=1 ./build/golden_ai_turns
+AI_STEP_AUDIT=1 ./build/golden_ai_turns   # per-step paths
+AI_LCG_AUDIT=1 ./build/golden_mapgen_seed100
+AI_NO_BRAVE_PEELS=1 ./build/golden_mapgen_seed100  # expect 13 missing units
 ./build/probe_sioux_spent                # T1/T2 cost-head + neighborhood oracle
 ```
 

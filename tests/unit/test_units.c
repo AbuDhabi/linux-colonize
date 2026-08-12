@@ -20,7 +20,7 @@
 #include "platform/platform.h"
 
 /* Helper: clear-forest grants lumber + @CLEARCUT (avoids main stack pressure). */
-static int smoke_clearcut_lumber(void) {
+static int unit_clearcut_lumber(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
@@ -184,12 +184,12 @@ static int smoke_clearcut_lumber(void) {
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_units: CLEARCUT+DEFOREST chrome ok\n");
+  fprintf(stderr, "unit_units: CLEARCUT+DEFOREST chrome ok\n");
   return 0;
 }
 
 /* Helper: tools=20 road complete → Colonists + @USEDUPTOOLS. */
-static int smoke_useduptools(void) {
+static int unit_useduptools(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
@@ -295,12 +295,12 @@ static int smoke_useduptools(void) {
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_units: USEDUPTOOLS demotion + popup ok\n");
+  fprintf(stderr, "unit_units: USEDUPTOOLS demotion + popup ok\n");
   return 0;
 }
 
 /* Helper: Drydock repair emits @REFIT. */
-static int smoke_refit_drydock(void) {
+static int unit_refit_drydock(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
@@ -386,12 +386,12 @@ static int smoke_refit_drydock(void) {
 
   assets_msg_free(&game_txt);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_units: REFIT Drydock popup ok\n");
+  fprintf(stderr, "unit_units: REFIT Drydock popup ok\n");
   return 0;
 }
 
 /* Helper: full warehouse unload → @WAREHOUSEFULL. */
-static int smoke_warehouse_full(void) {
+static int unit_warehouse_full(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
@@ -484,12 +484,12 @@ static int smoke_warehouse_full(void) {
 
   assets_msg_free(&game_txt);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_units: WAREHOUSEFULL popup ok\n");
+  fprintf(stderr, "unit_units: WAREHOUSEFULL popup ok\n");
   return 0;
 }
 
 /* Pioneer order-gate @ONLYPIO / @NOPLOW / @NOROAD. */
-static int smoke_pioneer_order_gates(void) {
+static int unit_pioneer_order_gates(void) {
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
@@ -660,30 +660,30 @@ static int smoke_pioneer_order_gates(void) {
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_units: pioneer order-gate popups ok\n");
+  fprintf(stderr, "unit_units: pioneer order-gate popups ok\n");
   return 0;
 }
 
 int main(void) {
   diag_init(0, NULL);
 
-  if (smoke_clearcut_lumber() != 0) {
+  if (unit_clearcut_lumber() != 0) {
     diag_shutdown();
     return 1;
   }
-  if (smoke_useduptools() != 0) {
+  if (unit_useduptools() != 0) {
     diag_shutdown();
     return 1;
   }
-  if (smoke_refit_drydock() != 0) {
+  if (unit_refit_drydock() != 0) {
     diag_shutdown();
     return 1;
   }
-  if (smoke_warehouse_full() != 0) {
+  if (unit_warehouse_full() != 0) {
     diag_shutdown();
     return 1;
   }
-  if (smoke_pioneer_order_gates() != 0) {
+  if (unit_pioneer_order_gates() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -2572,7 +2572,7 @@ int main(void) {
         fprintf(stderr, "rich_capital peel plain=%d rich=%d (want rich>plain>0)\n", plain, rich);
         return 1;
       }
-      fprintf(stderr, "smoke_units: Cortes rich_capital plain=%d rich=%d ok\n", plain, rich);
+      fprintf(stderr, "unit_units: Cortes rich_capital plain=%d rich=%d ok\n", plain, rich);
     }
 
     /* Known gold path: Cortes spawns treasure when caller supplies amount. */
@@ -2772,7 +2772,7 @@ int main(void) {
     units_set_native_fallout_context(NULL, NULL, -1);
     free(tmap.layer3);
     free(col1.tribe);
-    fprintf(stderr, "smoke_units: Sepulveda convert-join ok\n");
+    fprintf(stderr, "unit_units: Sepulveda convert-join ok\n");
   }
 
   /* FUN_3844_0004: Treasure outside colony despawns after >8 ticks. */
@@ -2827,7 +2827,7 @@ int main(void) {
       return 1;
     }
     units_despawn(&pool, tid);
-    fprintf(stderr, "smoke_units: treasure outside-colony 8-turn tick ok\n");
+    fprintf(stderr, "unit_units: treasure outside-colony 8-turn tick ok\n");
   }
 
   /* Stockade/Fort/Fortress defense bonus in land combat + Treasure capture loot. */
@@ -3041,7 +3041,7 @@ int main(void) {
         }
         combat_analysis_close(&dlg);
       }
-      fprintf(stderr, "smoke_units: combat analysis gate ok\n");
+      fprintf(stderr, "unit_units: combat analysis gate ok\n");
     }
 
     /* Treasure capture: winner gets LE16 gold into nation treasury. */
@@ -3087,7 +3087,7 @@ int main(void) {
       fprintf(stderr, "captured Treasure should despawn\n");
       return 1;
     }
-    fprintf(stderr, "smoke_units: fortification defense + treasure capture ok\n");
+    fprintf(stderr, "unit_units: fortification defense + treasure capture ok\n");
   }
 
   /* Coastal Fort/Fortress naval fire (FUN_364b_03f6). */
@@ -3274,7 +3274,7 @@ int main(void) {
     }
 
     pool.types[caravel_ti].defense = old_def;
-    fprintf(stderr, "smoke_units: coastal fort naval fire ok\n");
+    fprintf(stderr, "unit_units: coastal fort naval fire ok\n");
   }
 
   /* LCR rumour: clear + de Soto reveal path. */
@@ -3814,7 +3814,7 @@ int main(void) {
       units_despawn(&pool, aid);
       units_despawn(&pool, did);
       units_set_combat_colonies(NULL);
-      fprintf(stderr, "smoke_units: Spanish ambush peel ok\n");
+      fprintf(stderr, "unit_units: Spanish ambush peel ok\n");
     }
 
     /* Terrain stash: Indian→Euro and human→AI-Euro under WoI (REF). */
@@ -3977,7 +3977,7 @@ int main(void) {
       free(tmap.terrain);
       free(tmap.layer2);
       free(tmap.layer3);
-      fprintf(stderr, "smoke_units: terrain stash ambush ok\n");
+      fprintf(stderr, "unit_units: terrain stash ambush ok\n");
     }
 
     /* WoI REF +50% / Tory-Rebel support — colony only (FUN_5fef_1b0e). */
@@ -4119,7 +4119,7 @@ int main(void) {
         units_despawn(&pool, did);
       }
 
-      fprintf(stderr, "smoke_units: WoI REF colony peels ok\n");
+      fprintf(stderr, "unit_units: WoI REF colony peels ok\n");
     }
 
     /* Best defender: Artillery preferred over Colonist on same tile. */
@@ -4156,7 +4156,7 @@ int main(void) {
       units_despawn(&pool, atk);
       units_despawn(&pool, weak);
       units_despawn(&pool, strong);
-      fprintf(stderr, "smoke_units: best-defender pick ok\n");
+      fprintf(stderr, "unit_units: best-defender pick ok\n");
     }
 
     /* Capture-alive Colonists. */
@@ -4208,7 +4208,7 @@ int main(void) {
       }
       units_despawn(&pool, aid);
       units_despawn(&pool, did);
-      fprintf(stderr, "smoke_units: capture-alive ok\n");
+      fprintf(stderr, "unit_units: capture-alive ok\n");
     }
 
     /* Native win: Pioneer destroyed (not captured); Soldier demoted to Colonist. */
@@ -4283,7 +4283,7 @@ int main(void) {
         units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
-      fprintf(stderr, "smoke_units: native destroy-pioneer / demote-soldier ok\n");
+      fprintf(stderr, "unit_units: native destroy-pioneer / demote-soldier ok\n");
     }
 
     /* Naval damage-not-always-sink: weaker ship escapes damaged when close. */
@@ -4319,7 +4319,7 @@ int main(void) {
       }
       units_despawn(&pool, aid);
       units_despawn(&pool, did);
-      fprintf(stderr, "smoke_units: naval damage-escape ok\n");
+      fprintf(stderr, "unit_units: naval damage-escape ok\n");
     }
 
     /* Outcome popups enqueued for human side. */
@@ -4385,7 +4385,7 @@ int main(void) {
       }
       units_set_combat_popups(&pops, NULL);
       assets_msg_free(&game_txt);
-      fprintf(stderr, "smoke_units: combat outcome popup enqueue ok\n");
+      fprintf(stderr, "unit_units: combat outcome popup enqueue ok\n");
     }
 
     /*
@@ -4528,7 +4528,7 @@ int main(void) {
       units_set_combat_human_nation(-1);
       units_set_native_fallout_context(NULL, NULL, -1);
       free(c1.tribe);
-      fprintf(stderr, "smoke_units: village temp Brave + pop drain ok\n");
+      fprintf(stderr, "unit_units: village temp Brave + pop drain ok\n");
     }
 
     /* Treasure ransom Accept credits gold; Refuse does not. */
@@ -4594,7 +4594,7 @@ int main(void) {
         return 1;
       }
       units_despawn(&pool, aid);
-      fprintf(stderr, "smoke_units: treasure ransom Accept/Refuse ok\n");
+      fprintf(stderr, "unit_units: treasure ransom Accept/Refuse ok\n");
     }
 
     /* Colony capture notify @CAPTURED*. */
@@ -4622,7 +4622,7 @@ int main(void) {
         fprintf(stderr, "colony CAPTURED popup missing\n");
         return 1;
       }
-      fprintf(stderr, "smoke_units: colony CAPTURED popup ok\n");
+      fprintf(stderr, "unit_units: colony CAPTURED popup ok\n");
     }
 
     /* Privateer seizure tag. */
@@ -4668,7 +4668,7 @@ int main(void) {
       if (units_get(&pool, did) && units_get(&pool, did)->active) {
         units_despawn(&pool, did);
       }
-      fprintf(stderr, "smoke_units: privateer SEIZURE popup ok\n");
+      fprintf(stderr, "unit_units: privateer SEIZURE popup ok\n");
     }
 
     /* Fort fire: miss → MP slow only; hit close → bit7 damage; Drydock repairs. */
@@ -4791,7 +4791,7 @@ int main(void) {
         return 1;
       }
       units_despawn(&pool, sid_hit);
-      fprintf(stderr, "smoke_units: fort bit7 + Drydock repair ok\n");
+      fprintf(stderr, "unit_units: fort bit7 + Drydock repair ok\n");
     }
 
     units_set_combat_popups(NULL, NULL);

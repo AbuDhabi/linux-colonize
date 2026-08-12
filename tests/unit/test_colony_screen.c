@@ -12,7 +12,7 @@
 #include "platform/diagnostics.h"
 
 /* BUYME1 body tokens + Never mind / Complete it choices. */
-static int smoke_buyme1_tokens(void) {
+static int unit_buyme1_tokens(void) {
   ColonizeMsgCatalog game_txt;
   assets_msg_init(&game_txt);
   if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
@@ -60,14 +60,14 @@ static int smoke_buyme1_tokens(void) {
     return 1;
   }
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_colony_screen: BUYME1 tokens+choices ok\n");
+  fprintf(stderr, "unit_colony_screen: BUYME1 tokens+choices ok\n");
   return 0;
 }
 
 int main(void) {
   diag_init(0, NULL);
 
-  if (smoke_buyme1_tokens() != 0) {
+  if (unit_buyme1_tokens() != 0) {
     diag_shutdown();
     return 1;
   }

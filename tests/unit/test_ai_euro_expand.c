@@ -14,7 +14,7 @@
 #include <string.h>
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_ai_euro_expand: FAIL %s\n", msg);
+  fprintf(stderr, "unit_ai_euro_expand: FAIL %s\n", msg);
   return 1;
 }
 
@@ -29,7 +29,7 @@ static int count_nation_colonies(const ColonizeColonyPool* colonies, int nation_
 }
 
 /* Second-wave settle via ai_euro_dispatcher_turn (colony_count 1→2). */
-static int smoke_second_wave(void) {
+static int unit_second_wave(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -124,7 +124,7 @@ static int smoke_second_wave(void) {
   if (!ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: colonies=%d pioneer=(%d,%d) active=%d\n",
+      "unit_ai_euro_expand: colonies=%d pioneer=(%d,%d) active=%d\n",
       final_n,
       pioneer->active ? pioneer->x : -1,
       pioneer->active ? pioneer->y : -1,
@@ -139,7 +139,7 @@ static int smoke_second_wave(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: second-wave ok (colonies=%d)\n", final_n);
+  fprintf(stderr, "unit_ai_euro_expand: second-wave ok (colonies=%d)\n", final_n);
   return 0;
 }
 
@@ -148,7 +148,7 @@ static int smoke_second_wave(void) {
  * over richer inland (river) tile. Cite: ai_euro_pick_founding_tile coastal +6;
  * fandom Docks coastal gate.
  */
-static int smoke_second_colony_coastal_prefer(void) {
+static int unit_second_colony_coastal_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -253,7 +253,7 @@ static int smoke_second_colony_coastal_prefer(void) {
   if (found_x < 0 || !map_tile_is_coastal(&map, found_x, found_y)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: coastal FOUND got=(%d,%d) coastal=%d inland7=%d\n",
+      "unit_ai_euro_expand: coastal FOUND got=(%d,%d) coastal=%d inland7=%d\n",
       found_x,
       found_y,
       found_x >= 0 ? map_tile_is_coastal(&map, found_x, found_y) : 0,
@@ -268,7 +268,7 @@ static int smoke_second_colony_coastal_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: second-colony coastal FOUND ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: second-colony coastal FOUND ok\n");
   return 0;
 }
 
@@ -277,7 +277,7 @@ static int smoke_second_colony_coastal_prefer(void) {
  * tribe beyond adjacent → upsert CONTACT at Manhattan ring 2–4 around tribe;
  * Scout AI_MOVE toward that tile. Fog plane optional (prefer unseen when set).
  */
-static int smoke_scout_explore(void) {
+static int unit_scout_explore(void) {
   const int nation = 1;
   const int tribe_x = 12;
   const int tribe_y = 12;
@@ -396,7 +396,7 @@ static int smoke_scout_explore(void) {
   if (!ok_contact || (!ok_move && !ok_closer)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: scout orders=%d goto=(%d,%d) pos=(%d,%d) "
+      "unit_ai_euro_expand: scout orders=%d goto=(%d,%d) pos=(%d,%d) "
       "CONTACT=(%d,%d) ring_md=%d\n",
       scout ? scout->orders : -1,
       scout ? scout->goto_x : -1,
@@ -420,7 +420,7 @@ static int smoke_scout_explore(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: CONTACT scout-ring ok (goto=(%d,%d) pos=(%d,%d) ring_md=%d)\n",
+    "unit_ai_euro_expand: CONTACT scout-ring ok (goto=(%d,%d) pos=(%d,%d) ring_md=%d)\n",
     scout->goto_x,
     scout->goto_y,
     scout->x,
@@ -434,7 +434,7 @@ static int smoke_scout_explore(void) {
  * Thin Pioneer tools delivery (case 7 economy stand-in): colony tools low,
  * Pioneer on colony tile; dispatcher/act should bump stock[TOOLS].
  */
-static int smoke_pioneer_tools_delivery(void) {
+static int unit_pioneer_tools_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -506,7 +506,7 @@ static int smoke_pioneer_tools_delivery(void) {
   if (tools_after < tools_before + 10) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: tools before=%d after=%d (want +10)\n",
+      "unit_ai_euro_expand: tools before=%d after=%d (want +10)\n",
       tools_before,
       tools_after
     );
@@ -521,7 +521,7 @@ static int smoke_pioneer_tools_delivery(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: tools-delivery ok (tools %d→%d)\n",
+    "unit_ai_euro_expand: tools-delivery ok (tools %d→%d)\n",
     tools_before,
     tools_after
   );
@@ -534,7 +534,7 @@ static int smoke_pioneer_tools_delivery(void) {
  * with gold + free passenger slot → Pioneer hire; side effect is ship hold
  * +20 TOOLS and/or nearest-colony +15 tools stock.
  */
-static int smoke_tools_cargo_hire(void) {
+static int unit_tools_cargo_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -662,7 +662,7 @@ static int smoke_tools_cargo_hire(void) {
   if (!ok_side) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: tools-cargo boarded=%d pax_tools=%d ship_tools=%d "
+      "unit_ai_euro_expand: tools-cargo boarded=%d pax_tools=%d ship_tools=%d "
       "colony_tools=%d/%d/%d gold=%u\n",
       pioneer_boarded,
       pioneer_tools,
@@ -683,7 +683,7 @@ static int smoke_tools_cargo_hire(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: tools-cargo hire ok (boarded=%d ship_tools=%d "
+    "unit_ai_euro_expand: tools-cargo hire ok (boarded=%d ship_tools=%d "
     "colony=%d/%d/%d pax_tools=%d)\n",
     pioneer_boarded,
     ship_tools,
@@ -700,7 +700,7 @@ static int smoke_tools_cargo_hire(void) {
  * gets LUMBER cargo stand-in (not TOOLS). Cite: euro_unit_act §2d mid-5d04;
  * 5cf6 lumber_short.
  */
-static int smoke_lumber_cargo_hire(void) {
+static int unit_lumber_cargo_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -839,7 +839,7 @@ static int smoke_lumber_cargo_hire(void) {
   if (!boarded || ship_tools > 0 || !(ship_lumber >= 20 || colony_lumber_rose)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: lumber-cargo boarded=%d ship_lumber=%d ship_tools=%d "
+      "unit_ai_euro_expand: lumber-cargo boarded=%d ship_lumber=%d ship_tools=%d "
       "colony_lumber=%d/%d/%d dock=%d\n",
       boarded,
       ship_lumber,
@@ -858,7 +858,7 @@ static int smoke_lumber_cargo_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: lumber-cargo hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: lumber-cargo hire ok\n");
   return 0;
 }
 
@@ -866,7 +866,7 @@ static int smoke_lumber_cargo_hire(void) {
  * food_short high, tools/lumber stocked: after dock Expert Farmer hire, ship/colony
  * gets FOOD cargo stand-in. Cite: euro_unit_act §2d mid-5d04; 5cf6 food_short.
  */
-static int smoke_food_cargo_hire(void) {
+static int unit_food_cargo_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1004,7 +1004,7 @@ static int smoke_food_cargo_hire(void) {
   if (!boarded || ship_tools > 0 || !(ship_food >= 20 || colony_food_rose)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: food-cargo boarded=%d ship_food=%d ship_tools=%d "
+      "unit_ai_euro_expand: food-cargo boarded=%d ship_food=%d ship_tools=%d "
       "colony_food=%d/%d/%d\n",
       boarded,
       ship_food,
@@ -1022,7 +1022,7 @@ static int smoke_food_cargo_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: food-cargo hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: food-cargo hire ok\n");
   return 0;
 }
 
@@ -1030,7 +1030,7 @@ static int smoke_food_cargo_hire(void) {
  * horses_short high, other stocks full: after dock Seasoned Scout hire, ship/colony
  * gets HORSES cargo stand-in (+10). Cite: euro_unit_act §2d mid-5d04; horses_short.
  */
-static int smoke_horses_cargo_hire(void) {
+static int unit_horses_cargo_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1168,7 +1168,7 @@ static int smoke_horses_cargo_hire(void) {
   if (!boarded || ship_tools > 0 || !(ship_horses >= 10 || colony_horses_rose)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: horses-cargo boarded=%d ship_horses=%d ship_tools=%d "
+      "unit_ai_euro_expand: horses-cargo boarded=%d ship_horses=%d ship_tools=%d "
       "colony_horses=%d/%d/%d\n",
       boarded,
       ship_horses,
@@ -1186,7 +1186,7 @@ static int smoke_horses_cargo_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: horses-cargo hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: horses-cargo hire ok\n");
   return 0;
 }
 
@@ -1194,7 +1194,7 @@ static int smoke_horses_cargo_hire(void) {
  * muskets_short high, other stocks full: after dock Master Gunsmith hire,
  * ship/colony gets MUSKETS cargo stand-in (+10). Cite: euro_unit_act §2d mid-5d04.
  */
-static int smoke_muskets_cargo_hire(void) {
+static int unit_muskets_cargo_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1332,7 +1332,7 @@ static int smoke_muskets_cargo_hire(void) {
   if (!boarded || ship_tools > 0 || !(ship_muskets >= 10 || colony_muskets_rose)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: muskets-cargo boarded=%d ship_muskets=%d ship_tools=%d "
+      "unit_ai_euro_expand: muskets-cargo boarded=%d ship_muskets=%d ship_tools=%d "
       "colony_muskets=%d/%d/%d\n",
       boarded,
       ship_muskets,
@@ -1350,7 +1350,7 @@ static int smoke_muskets_cargo_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: muskets-cargo hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: muskets-cargo hire ok\n");
   return 0;
 }
 
@@ -1358,7 +1358,7 @@ static int smoke_muskets_cargo_hire(void) {
  * tools_short == 40 (2 colonies tools=0): threshold lowered from >40 to >20 —
  * still prefer Pioneer + tools cargo / colony +15 (no Wagon type in pool).
  */
-static int smoke_tools_mid_threshold_hire(void) {
+static int unit_tools_mid_threshold_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1481,7 +1481,7 @@ static int smoke_tools_mid_threshold_hire(void) {
   if (!ok_side) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: tools-mid boarded=%d pax_tools=%d ship_tools=%d "
+      "unit_ai_euro_expand: tools-mid boarded=%d pax_tools=%d ship_tools=%d "
       "colony_tools=%d/%d gold=%u\n",
       pioneer_boarded,
       pioneer_tools,
@@ -1501,7 +1501,7 @@ static int smoke_tools_mid_threshold_hire(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: tools-mid hire ok (boarded=%d ship_tools=%d "
+    "unit_ai_euro_expand: tools-mid hire ok (boarded=%d ship_tools=%d "
     "colony=%d/%d pax_tools=%d)\n",
     pioneer_boarded,
     ship_tools,
@@ -1521,7 +1521,7 @@ static int smoke_tools_mid_threshold_hire(void) {
  * Thin 5d04 mid-game peace: colonies ≥ 6 still hires Wagon once under
  * tools_short>30 (Free Colonist settle spam stays gated). Cite: unpark #4.
  */
-static int smoke_wagon_hire_once_colonies_ge6(void) {
+static int unit_wagon_hire_once_colonies_ge6(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1632,7 +1632,7 @@ static int smoke_wagon_hire_once_colonies_ge6(void) {
   if (!wagon_boarded || wagon_tools < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-ge6 boarded=%d tools=%d cargo=%d gold=%u\n",
+      "unit_ai_euro_expand: wagon-ge6 boarded=%d tools=%d cargo=%d gold=%u\n",
       wagon_boarded,
       wagon_tools,
       ship->cargo_count,
@@ -1647,11 +1647,11 @@ static int smoke_wagon_hire_once_colonies_ge6(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon-hire colonies>=6 ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon-hire colonies>=6 ok\n");
   return 0;
 }
 
-static int smoke_wagon_hire_once(void) {
+static int unit_wagon_hire_once(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1766,7 +1766,7 @@ static int smoke_wagon_hire_once(void) {
   if (!wagon_boarded || wagon_tools < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon first pass boarded=%d wagon_tools=%d "
+      "unit_ai_euro_expand: wagon first pass boarded=%d wagon_tools=%d "
       "cargo=%d gold=%u\n",
       wagon_boarded,
       wagon_tools,
@@ -1815,7 +1815,7 @@ static int smoke_wagon_hire_once(void) {
   if (wagon_count != 1 || !pioneer_boarded) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon once-guard wagons=%d pioneer=%d cargo=%d "
+      "unit_ai_euro_expand: wagon once-guard wagons=%d pioneer=%d cargo=%d "
       "first_uid=%d gold=%u\n",
       wagon_count,
       pioneer_boarded,
@@ -1834,7 +1834,7 @@ static int smoke_wagon_hire_once(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: wagon-hire once ok (wagon_tools=%d then Pioneer)\n",
+    "unit_ai_euro_expand: wagon-hire once ok (wagon_tools=%d then Pioneer)\n",
     wagon_tools
   );
   return 0;
@@ -1844,7 +1844,7 @@ static int smoke_wagon_hire_once(void) {
  * lumber_short>30 (tools plentiful) + Wagon Train → hire wagon once with LUMBER
  * aboard. Cite: euro_unit_act §2d / 5cf6 lumber_short; Colonization.pdf Wagon.
  */
-static int smoke_wagon_hire_lumber_once(void) {
+static int unit_wagon_hire_lumber_once(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -1962,7 +1962,7 @@ static int smoke_wagon_hire_lumber_once(void) {
   if (!wagon_boarded || wagon_lumber < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon lumber boarded=%d lumber=%d cargo=%d\n",
+      "unit_ai_euro_expand: wagon lumber boarded=%d lumber=%d cargo=%d\n",
       wagon_boarded,
       wagon_lumber,
       ship ? ship->cargo_count : -1
@@ -1978,7 +1978,7 @@ static int smoke_wagon_hire_lumber_once(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: wagon-hire lumber once ok (wagon_lumber=%d)\n",
+    "unit_ai_euro_expand: wagon-hire lumber once ok (wagon_lumber=%d)\n",
     wagon_lumber
   );
   return 0;
@@ -1988,7 +1988,7 @@ static int smoke_wagon_hire_lumber_once(void) {
  * ore_short>30 (tools/lumber plentiful) + Wagon Train → hire wagon once with ORE
  * aboard. Cite: euro_unit_act §2d / 5cf6 ore_short; Colonization.pdf Wagon.
  */
-static int smoke_wagon_hire_ore_once(void) {
+static int unit_wagon_hire_ore_once(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -2105,7 +2105,7 @@ static int smoke_wagon_hire_ore_once(void) {
   if (!wagon_boarded || wagon_ore < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon ore boarded=%d ore=%d cargo=%d\n",
+      "unit_ai_euro_expand: wagon ore boarded=%d ore=%d cargo=%d\n",
       wagon_boarded,
       wagon_ore,
       ship ? ship->cargo_count : -1
@@ -2119,7 +2119,7 @@ static int smoke_wagon_hire_ore_once(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon-hire ore once ok (wagon_ore=%d)\n", wagon_ore);
+  fprintf(stderr, "unit_ai_euro_expand: wagon-hire ore once ok (wagon_ore=%d)\n", wagon_ore);
   return 0;
 }
 
@@ -2127,7 +2127,7 @@ static int smoke_wagon_hire_ore_once(void) {
  * muskets_short>20 (tools/lumber/ore plentiful) + Wagon → hire with MUSKETS.
  * Tally caps at 10/colony so gate is >20 (not >30). Cite: euro_unit_act §2d.
  */
-static int smoke_wagon_hire_muskets_once(void) {
+static int unit_wagon_hire_muskets_once(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -2245,7 +2245,7 @@ static int smoke_wagon_hire_muskets_once(void) {
   if (!wagon_boarded || wagon_muskets < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon muskets boarded=%d muskets=%d cargo=%d\n",
+      "unit_ai_euro_expand: wagon muskets boarded=%d muskets=%d cargo=%d\n",
       wagon_boarded,
       wagon_muskets,
       ship ? ship->cargo_count : -1
@@ -2260,7 +2260,7 @@ static int smoke_wagon_hire_muskets_once(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(
-    stderr, "smoke_ai_euro_expand: wagon-hire muskets once ok (wagon_muskets=%d)\n", wagon_muskets
+    stderr, "unit_ai_euro_expand: wagon-hire muskets once ok (wagon_muskets=%d)\n", wagon_muskets
   );
   return 0;
 }
@@ -2268,7 +2268,7 @@ static int smoke_wagon_hire_muskets_once(void) {
 /*
  * horses_short>20 + Wagon → hire with HORSES. Cite: euro_unit_act §2d haul ladder.
  */
-static int smoke_wagon_hire_horses_once(void) {
+static int unit_wagon_hire_horses_once(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -2387,7 +2387,7 @@ static int smoke_wagon_hire_horses_once(void) {
   if (!wagon_boarded || wagon_horses < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon horses boarded=%d horses=%d cargo=%d\n",
+      "unit_ai_euro_expand: wagon horses boarded=%d horses=%d cargo=%d\n",
       wagon_boarded,
       wagon_horses,
       ship ? ship->cargo_count : -1
@@ -2402,7 +2402,7 @@ static int smoke_wagon_hire_horses_once(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(
-    stderr, "smoke_ai_euro_expand: wagon-hire horses once ok (wagon_horses=%d)\n", wagon_horses
+    stderr, "unit_ai_euro_expand: wagon-hire horses once ok (wagon_horses=%d)\n", wagon_horses
   );
   return 0;
 }
@@ -2410,7 +2410,7 @@ static int smoke_wagon_hire_horses_once(void) {
 /*
  * food_short>30 + Wagon → hire with FOOD. Cite: euro_unit_act §2d; 5cf6 food_short.
  */
-static int smoke_wagon_hire_food_once(void) {
+static int unit_wagon_hire_food_once(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -2529,7 +2529,7 @@ static int smoke_wagon_hire_food_once(void) {
   if (!wagon_boarded || wagon_food < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon food boarded=%d food=%d cargo=%d\n",
+      "unit_ai_euro_expand: wagon food boarded=%d food=%d cargo=%d\n",
       wagon_boarded,
       wagon_food,
       ship ? ship->cargo_count : -1
@@ -2543,7 +2543,7 @@ static int smoke_wagon_hire_food_once(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon-hire food once ok (wagon_food=%d)\n", wagon_food);
+  fprintf(stderr, "unit_ai_euro_expand: wagon-hire food once ok (wagon_food=%d)\n", wagon_food);
   return 0;
 }
 
@@ -2551,7 +2551,7 @@ static int smoke_wagon_hire_food_once(void) {
  * Fog-aware CONTACT rings: when map.seen exists, prefer an unseen ring tile
  * over a closer seen tile (FoW explore — map_tile_seen_by).
  */
-static int smoke_scout_fog_prefer_unseen(void) {
+static int unit_scout_fog_prefer_unseen(void) {
   const int nation = 1;
   const int tribe_x = 10;
   const int tribe_y = 10;
@@ -2687,7 +2687,7 @@ static int smoke_scout_fog_prefer_unseen(void) {
   if (!ok_ring || !ok_unseen) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fog CONTACT=(%d,%d) ring_md=%d seen=%d\n",
+      "unit_ai_euro_expand: fog CONTACT=(%d,%d) ring_md=%d seen=%d\n",
       contact_x,
       contact_y,
       ring_md,
@@ -2708,7 +2708,7 @@ static int smoke_scout_fog_prefer_unseen(void) {
   free(map.seen);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: fog CONTACT prefer-unseen ok (goto=(%d,%d))\n",
+    "unit_ai_euro_expand: fog CONTACT prefer-unseen ok (goto=(%d,%d))\n",
     contact_x,
     contact_y
   );
@@ -2719,7 +2719,7 @@ static int smoke_scout_fog_prefer_unseen(void) {
  * Thin multi-step land 20e6: Soldier with moves_left>=3 on MILITARY goto drains
  * scored steps in one dispatcher act when path is clear (MP full-drain).
  */
-static int smoke_multistep_military(void) {
+static int unit_multistep_military(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -2824,7 +2824,7 @@ static int smoke_multistep_military(void) {
   if (advanced < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: multistep x %d→%d (want ≥3) orders=%d goto=(%d,%d)\n",
+      "unit_ai_euro_expand: multistep x %d→%d (want ≥3) orders=%d goto=(%d,%d)\n",
       x0,
       soldier->x,
       soldier->orders,
@@ -2842,7 +2842,7 @@ static int smoke_multistep_military(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: MILITARY MP-drain ok (x %d→%d)\n",
+    "unit_ai_euro_expand: MILITARY MP-drain ok (x %d→%d)\n",
     x0,
     soldier->x
   );
@@ -2853,7 +2853,7 @@ static int smoke_multistep_military(void) {
  * Jan de Witt AI: Wagon on foreign Euro colony loads TRADE_GOODS surplus.
  * Cite: fandom Jan de Witt; colonies_de_witt_transfer_*; ai_euro_try_de_witt_foreign_trade.
  */
-static int smoke_de_witt_wagon_foreign_trade(void) {
+static int unit_de_witt_wagon_foreign_trade(void) {
   const int nation = 0;
   const int foreign = 1;
 
@@ -3052,7 +3052,7 @@ static int smoke_de_witt_wagon_foreign_trade(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: de Witt wagon foreign TRADE_GOODS + deliver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: de Witt wagon foreign TRADE_GOODS + deliver ok\n");
   return 0;
 }
 
@@ -3060,7 +3060,7 @@ static int smoke_de_witt_wagon_foreign_trade(void) {
  * Case-7 dock expert once: peace + tools_short high + Europe dock has
  * Hardy Pioneers → board that type (consume dock); do not invent if absent.
  */
-static int smoke_dock_expert_hire(void) {
+static int unit_dock_expert_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -3179,7 +3179,7 @@ static int smoke_dock_expert_hire(void) {
   if (!hardy_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock hardy=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock hardy=%d dock_count=%d gold %u→%u cargo=%d\n",
       hardy_boarded,
       europe.dock_count,
       (unsigned)gold_before,
@@ -3195,7 +3195,7 @@ static int smoke_dock_expert_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Hardy Pioneer hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Hardy Pioneer hire ok\n");
   return 0;
 }
 
@@ -3209,7 +3209,7 @@ static int smoke_dock_expert_hire(void) {
  * Thin 5d04 mid-game: colonies ≥ 6 still runs Europe ship-buy ladder (peace
  * early-settle hire matrix stays <6). Cite: euro_goals 03d0 <0x30; unpark #4.
  */
-static int smoke_5d04_buy_caravel_colonies_ge6(void) {
+static int unit_5d04_buy_caravel_colonies_ge6(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -3307,7 +3307,7 @@ static int smoke_5d04_buy_caravel_colonies_ge6(void) {
   if (caravel_n != 1 || !caravel_europe || any_pax || gold >= 200 || gold == 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: buy-caravel-ge6 n=%d europe=%d pax=%d gold=%u\n",
+      "unit_ai_euro_expand: buy-caravel-ge6 n=%d europe=%d pax=%d gold=%u\n",
       caravel_n,
       caravel_europe,
       any_pax,
@@ -3323,12 +3323,12 @@ static int smoke_5d04_buy_caravel_colonies_ge6(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(
-    stderr, "smoke_ai_euro_expand: 5d04 buy-caravel-colonies-ge6 ok (gold=%u)\n", gold
+    stderr, "unit_ai_euro_expand: 5d04 buy-caravel-colonies-ge6 ok (gold=%u)\n", gold
   );
   return 0;
 }
 
-static int smoke_5d04_buy_caravel_no_ship(void) {
+static int unit_5d04_buy_caravel_no_ship(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -3428,7 +3428,7 @@ static int smoke_5d04_buy_caravel_no_ship(void) {
   if (caravel_n != 1 || !caravel_europe || any_pax || gold >= 200 || gold == 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: buy-caravel n=%d europe=%d pax=%d gold=%u\n",
+      "unit_ai_euro_expand: buy-caravel n=%d europe=%d pax=%d gold=%u\n",
       caravel_n,
       caravel_europe,
       any_pax,
@@ -3444,7 +3444,7 @@ static int smoke_5d04_buy_caravel_no_ship(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(
-    stderr, "smoke_ai_euro_expand: 5d04 buy-caravel-no-ship ok (gold=%u)\n", gold
+    stderr, "unit_ai_euro_expand: 5d04 buy-caravel-no-ship ok (gold=%u)\n", gold
   );
   return 0;
 }
@@ -3453,7 +3453,7 @@ static int smoke_5d04_buy_caravel_no_ship(void) {
  * Thin 5d04 / 5c3c: no Europe ship + at war + gold ≥ 5000$ → prefer Frigate
  * over Galleon/Merchantman/Caravel. Cite: purchase.png Frigate 5000$; war hunt.
  */
-static int smoke_5d04_buy_frigate_at_war(void) {
+static int unit_5d04_buy_frigate_at_war(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -3565,7 +3565,7 @@ static int smoke_5d04_buy_frigate_at_war(void) {
   if (frig_n != 1 || other_ship != 0 || gold >= 200) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: buy-frigate f=%d other=%d gold=%u\n",
+      "unit_ai_euro_expand: buy-frigate f=%d other=%d gold=%u\n",
       frig_n,
       other_ship,
       gold
@@ -3579,7 +3579,7 @@ static int smoke_5d04_buy_frigate_at_war(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: 5d04 buy-frigate-at-war ok (gold=%u)\n", gold);
+  fprintf(stderr, "unit_ai_euro_expand: 5d04 buy-frigate-at-war ok (gold=%u)\n", gold);
   return 0;
 }
 
@@ -3587,7 +3587,7 @@ static int smoke_5d04_buy_frigate_at_war(void) {
  * Thin 5d04 / 5c3c: no Europe ship + at war + gold ≥ 3000$ → prefer Galleon
  * over Merchantman/Caravel. Cite: europe purchase.png Galleon 3000$; war transport.
  */
-static int smoke_5d04_buy_galleon_at_war(void) {
+static int unit_5d04_buy_galleon_at_war(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -3695,7 +3695,7 @@ static int smoke_5d04_buy_galleon_at_war(void) {
   if (galleon_n != 1 || other_ship != 0 || gold >= 200) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: buy-galleon g=%d other=%d gold=%u\n",
+      "unit_ai_euro_expand: buy-galleon g=%d other=%d gold=%u\n",
       galleon_n,
       other_ship,
       gold
@@ -3709,7 +3709,7 @@ static int smoke_5d04_buy_galleon_at_war(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: 5d04 buy-galleon-at-war ok (gold=%u)\n", gold);
+  fprintf(stderr, "unit_ai_euro_expand: 5d04 buy-galleon-at-war ok (gold=%u)\n", gold);
   return 0;
 }
 
@@ -3717,7 +3717,7 @@ static int smoke_5d04_buy_galleon_at_war(void) {
  * Thin 5d04 / 5c3c: no Europe ship + cargo pressure (tools_short) + gold ≥ 2000$
  * → prefer Merchantman over Caravel. Cite: europe purchase.png Merchantman 2000$.
  */
-static int smoke_5d04_buy_merchantman_cargo_pressure(void) {
+static int unit_5d04_buy_merchantman_cargo_pressure(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -3817,7 +3817,7 @@ static int smoke_5d04_buy_merchantman_cargo_pressure(void) {
   if (merchant_n != 1 || caravel_n != 0 || gold >= 200) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: buy-merchantman m=%d c=%d gold=%u\n",
+      "unit_ai_euro_expand: buy-merchantman m=%d c=%d gold=%u\n",
       merchant_n,
       caravel_n,
       gold
@@ -3832,7 +3832,7 @@ static int smoke_5d04_buy_merchantman_cargo_pressure(void) {
   free(map.layer2);
   free(map.layer3);
   fprintf(
-    stderr, "smoke_ai_euro_expand: 5d04 buy-merchantman-cargo ok (gold=%u)\n", gold
+    stderr, "unit_ai_euro_expand: 5d04 buy-merchantman-cargo ok (gold=%u)\n", gold
   );
   return 0;
 }
@@ -3841,7 +3841,7 @@ static int smoke_5d04_buy_merchantman_cargo_pressure(void) {
  * Thin 5d04 / 5c3c second transport: Europe Caravel already full + gold ≥ 1000$
  * → buy another Caravel; hire boards the new empty ship (not the full one).
  */
-static int smoke_5d04_buy_caravel_ship_full(void) {
+static int unit_5d04_buy_caravel_ship_full(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -3959,7 +3959,7 @@ static int smoke_5d04_buy_caravel_ship_full(void) {
   if (caravel_n < 2 || !empty_or_hired_new) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: buy-caravel-full n=%d hired_new=%d gold=%u full_cargo=%d\n",
+      "unit_ai_euro_expand: buy-caravel-full n=%d hired_new=%d gold=%u full_cargo=%d\n",
       caravel_n,
       empty_or_hired_new,
       (unsigned)col1.nation[nation].gold,
@@ -3974,14 +3974,14 @@ static int smoke_5d04_buy_caravel_ship_full(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: 5d04 buy-caravel-ship-full ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: 5d04 buy-caravel-ship-full ok\n");
   return 0;
 }
 
 /*
  * 5d04 treasury gate: gold below colonist hire_cost → no Europe hire / tools-cargo.
  */
-static int smoke_treasury_skip_hire(void) {
+static int unit_treasury_skip_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -4068,7 +4068,7 @@ static int smoke_treasury_skip_hire(void) {
   if (ship && ship->cargo_count > 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: treasury cargo=%d gold=%u\n",
+      "unit_ai_euro_expand: treasury cargo=%d gold=%u\n",
       ship->cargo_count,
       (unsigned)col1.nation[nation].gold
     );
@@ -4081,7 +4081,7 @@ static int smoke_treasury_skip_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: treasury skip-hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: treasury skip-hire ok\n");
   return 0;
 }
 
@@ -4089,7 +4089,7 @@ static int smoke_treasury_skip_hire(void) {
  * Ship TRADE_GOODS at Europe → europe_sell_unit_hold via AI act (no harbor UI).
  * Cite: europe_sell_unit_hold; Colonization.pdf Europe sell + tax.
  */
-static int smoke_transport_europe_sell_trade_goods(void) {
+static int unit_transport_europe_sell_trade_goods(void) {
   const int nation = 1;
   const int amt = 50;
   const int bid = 4;
@@ -4182,7 +4182,7 @@ static int smoke_transport_europe_sell_trade_goods(void) {
     return fail("eu-sell ship should remain");
   }
   if (ship->hold_goods_amount[0] != 0) {
-    fprintf(stderr, "smoke_ai_euro_expand: hold amt=%d after sell\n",
+    fprintf(stderr, "unit_ai_euro_expand: hold amt=%d after sell\n",
             ship->hold_goods_amount[0]);
     free(map.terrain);
     free(map.layer2);
@@ -4191,7 +4191,7 @@ static int smoke_transport_europe_sell_trade_goods(void) {
   }
   const uint32_t gold_after = col1.nation[nation].gold;
   if (gold_after < gold_before + (uint32_t)expect) {
-    fprintf(stderr, "smoke_ai_euro_expand: gold %u→%u want +%d\n",
+    fprintf(stderr, "unit_ai_euro_expand: gold %u→%u want +%d\n",
             (unsigned)gold_before, (unsigned)gold_after, expect);
     free(map.terrain);
     free(map.layer2);
@@ -4202,7 +4202,7 @@ static int smoke_transport_europe_sell_trade_goods(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: transport Europe sell ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: transport Europe sell ok\n");
   return 0;
 }
 
@@ -4211,7 +4211,7 @@ static int smoke_transport_europe_sell_trade_goods(void) {
  * dump-sell). Cite: units_is_transport Privateer holds; Colonization.pdf Europe
  * sell; euro_unit_act Privateer / dump-sell.
  */
-static int smoke_privateer_europe_sell_silver(void) {
+static int unit_privateer_europe_sell_silver(void) {
   const int nation = 1;
   const int amt = 40;
   const int bid = 10;
@@ -4303,7 +4303,7 @@ static int smoke_privateer_europe_sell_silver(void) {
     return fail("priv-eu-sell ship should remain");
   }
   if (ship->hold_goods_amount[0] != 0) {
-    fprintf(stderr, "smoke_ai_euro_expand: priv hold amt=%d after sell\n",
+    fprintf(stderr, "unit_ai_euro_expand: priv hold amt=%d after sell\n",
             ship->hold_goods_amount[0]);
     free(map.terrain);
     free(map.layer2);
@@ -4312,7 +4312,7 @@ static int smoke_privateer_europe_sell_silver(void) {
   }
   const uint32_t gold_after = col1.nation[nation].gold;
   if (gold_after < gold_before + (uint32_t)expect) {
-    fprintf(stderr, "smoke_ai_euro_expand: priv gold %u→%u want +%d\n",
+    fprintf(stderr, "unit_ai_euro_expand: priv gold %u→%u want +%d\n",
             (unsigned)gold_before, (unsigned)gold_after, expect);
     free(map.terrain);
     free(map.layer2);
@@ -4323,7 +4323,7 @@ static int smoke_privateer_europe_sell_silver(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Privateer Europe sell silver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Privateer Europe sell silver ok\n");
   return 0;
 }
 
@@ -4331,7 +4331,7 @@ static int smoke_privateer_europe_sell_silver(void) {
  * Ship multi-cargo (SUGAR + TOBACCO) at Europe → sell all holds via AI act.
  * Cite: europe_sell_unit_hold / europe_sell_proceeds; Colonization.pdf Europe sell + tax.
  */
-static int smoke_transport_europe_sell_multi_cargo(void) {
+static int unit_transport_europe_sell_multi_cargo(void) {
   const int nation = 1;
   const int sugar_amt = 30;
   const int tobacco_amt = 40;
@@ -4432,7 +4432,7 @@ static int smoke_transport_europe_sell_multi_cargo(void) {
   if (ship->hold_goods_amount[0] != 0 || ship->hold_goods_amount[1] != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: multi-sell holds %d/%d\n",
+      "unit_ai_euro_expand: multi-sell holds %d/%d\n",
       ship->hold_goods_amount[0],
       ship->hold_goods_amount[1]
     );
@@ -4445,7 +4445,7 @@ static int smoke_transport_europe_sell_multi_cargo(void) {
   if (gold_after < gold_before + (uint32_t)expect) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: multi-sell gold %u→%u want +%d\n",
+      "unit_ai_euro_expand: multi-sell gold %u→%u want +%d\n",
       (unsigned)gold_before,
       (unsigned)gold_after,
       expect
@@ -4459,7 +4459,7 @@ static int smoke_transport_europe_sell_multi_cargo(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: transport Europe multi-cargo sell ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: transport Europe multi-cargo sell ok\n");
   return 0;
 }
 
@@ -4468,7 +4468,7 @@ static int smoke_transport_europe_sell_multi_cargo(void) {
  * SUGAR boycotted + TOBACCO free → sell tobacco only; leave sugar hold.
  * Cite: fandom Boycott (Col); king refuse boycott_bitmap; no invented prices.
  */
-static int smoke_transport_europe_sell_skip_boycott(void) {
+static int unit_transport_europe_sell_skip_boycott(void) {
   const int nation = 1;
   const int sugar_amt = 30;
   const int tobacco_amt = 40;
@@ -4571,7 +4571,7 @@ static int smoke_transport_europe_sell_skip_boycott(void) {
       ship->hold_goods_type[0] != COLONIZE_CARGO_SUGAR) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: boycott sugar hold type=%d amt=%d\n",
+      "unit_ai_euro_expand: boycott sugar hold type=%d amt=%d\n",
       ship->hold_goods_type[0],
       ship->hold_goods_amount[0]
     );
@@ -4581,7 +4581,7 @@ static int smoke_transport_europe_sell_skip_boycott(void) {
     return fail("eu-boycott-sell must leave boycotted SUGAR hold");
   }
   if (ship->hold_goods_amount[1] != 0) {
-    fprintf(stderr, "smoke_ai_euro_expand: tobacco amt=%d after sell\n",
+    fprintf(stderr, "unit_ai_euro_expand: tobacco amt=%d after sell\n",
             ship->hold_goods_amount[1]);
     free(map.terrain);
     free(map.layer2);
@@ -4594,7 +4594,7 @@ static int smoke_transport_europe_sell_skip_boycott(void) {
   if (gold_after < gold_before + (uint32_t)expect_tobacco) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: boycott gold %u→%u want ≥+%d (tobacco)\n",
+      "unit_ai_euro_expand: boycott gold %u→%u want ≥+%d (tobacco)\n",
       (unsigned)gold_before,
       (unsigned)gold_after,
       expect_tobacco
@@ -4607,7 +4607,7 @@ static int smoke_transport_europe_sell_skip_boycott(void) {
   if (gold_after >= gold_before + (uint32_t)(expect_tobacco + expect_sugar)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: boycott gold %u→%u suggests sugar also sold (+%d)\n",
+      "unit_ai_euro_expand: boycott gold %u→%u suggests sugar also sold (+%d)\n",
       (unsigned)gold_before,
       (unsigned)gold_after,
       expect_tobacco + expect_sugar
@@ -4621,7 +4621,7 @@ static int smoke_transport_europe_sell_skip_boycott(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Europe sell skip boycott ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Europe sell skip boycott ok\n");
   return 0;
 }
 
@@ -4630,7 +4630,7 @@ static int smoke_transport_europe_sell_skip_boycott(void) {
  * Expert Farmers → board that type (consume dock). Cite: europe.c pool;
  * euro_unit_act §2e Expert Farmer food LABOR.
  */
-static int smoke_dock_farmer_hire(void) {
+static int unit_dock_farmer_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -4749,7 +4749,7 @@ static int smoke_dock_farmer_hire(void) {
   if (!farmer_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock farmer=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock farmer=%d dock_count=%d gold %u→%u cargo=%d\n",
       farmer_boarded,
       europe.dock_count,
       (unsigned)gold_before,
@@ -4765,7 +4765,7 @@ static int smoke_dock_farmer_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Farmer hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Expert Farmer hire ok\n");
   return 0;
 }
 
@@ -4775,7 +4775,7 @@ static int smoke_dock_farmer_hire(void) {
  * so Free Colonist fallback must not win. Cite: europe.c pool; building_production
  * Carpenter→Hammers; euro_unit_act §2e construction deepen.
  */
-static int smoke_dock_carpenter_hire(void) {
+static int unit_dock_carpenter_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -4905,7 +4905,7 @@ static int smoke_dock_carpenter_hire(void) {
   if (!carpenter_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock carpenter=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock carpenter=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       carpenter_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -4922,7 +4922,7 @@ static int smoke_dock_carpenter_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Carpenter hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Carpenter hire ok\n");
   return 0;
 }
 
@@ -4932,7 +4932,7 @@ static int smoke_dock_carpenter_hire(void) {
  * so Free Colonist fallback must not win. Cite: europe.c Expert Lumberjacks
  * pool; building_production Lumberjack→Lumber; euro_unit_act §2d lumber deepen.
  */
-static int smoke_dock_lumberjack_hire(void) {
+static int unit_dock_lumberjack_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5061,7 +5061,7 @@ static int smoke_dock_lumberjack_hire(void) {
   if (!lumberjack_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock lumberjack=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock lumberjack=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       lumberjack_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -5078,7 +5078,7 @@ static int smoke_dock_lumberjack_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Lumberjack hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Expert Lumberjack hire ok\n");
   return 0;
 }
 
@@ -5088,7 +5088,7 @@ static int smoke_dock_lumberjack_hire(void) {
  * so Free Colonist fallback must not win. Cite: europe.c Expert Ore Miners;
  * terrain_yields Ore; euro_unit_act Ore Miner field-assign.
  */
-static int smoke_dock_ore_miner_hire(void) {
+static int unit_dock_ore_miner_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5213,7 +5213,7 @@ static int smoke_dock_ore_miner_hire(void) {
   if (!ore_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock ore=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock ore=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       ore_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -5230,7 +5230,7 @@ static int smoke_dock_ore_miner_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Ore Miner hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Expert Ore Miner hire ok\n");
   return 0;
 }
 
@@ -5240,7 +5240,7 @@ static int smoke_dock_ore_miner_hire(void) {
  * Cite: europe.c Expert Fishermen; terrain_yields Fisherman; euro_unit_act
  * coastal food fallback.
  */
-static int smoke_dock_fisherman_hire(void) {
+static int unit_dock_fisherman_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5372,7 +5372,7 @@ static int smoke_dock_fisherman_hire(void) {
   if (!fisherman_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock fisherman=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock fisherman=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       fisherman_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -5389,7 +5389,7 @@ static int smoke_dock_fisherman_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Fisherman hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Expert Fisherman hire ok\n");
   return 0;
 }
 
@@ -5399,7 +5399,7 @@ static int smoke_dock_fisherman_hire(void) {
  * Free Colonist / Ore Miner must not win. Cite: europe.c Master Gunsmiths;
  * building_production Gunsmith→Muskets; euro_unit_act workplace assign.
  */
-static int smoke_dock_gunsmith_hire(void) {
+static int unit_dock_gunsmith_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5525,7 +5525,7 @@ static int smoke_dock_gunsmith_hire(void) {
   if (!gunsmith_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock gunsmith=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock gunsmith=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       gunsmith_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -5542,7 +5542,7 @@ static int smoke_dock_gunsmith_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Gunsmith hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Gunsmith hire ok\n");
   return 0;
 }
 
@@ -5551,7 +5551,7 @@ static int smoke_dock_gunsmith_hire(void) {
  * Master Blacksmiths (no Pioneer on dock) → board Blacksmith. Cite: europe.c
  * Master Blacksmiths; building_production Ore→Tools; euro_unit_act workplace.
  */
-static int smoke_dock_blacksmith_hire(void) {
+static int unit_dock_blacksmith_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5682,7 +5682,7 @@ static int smoke_dock_blacksmith_hire(void) {
       !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock blacksmith=%d free=%d pioneer=%d dock_count=%d gold %u→%u\n",
+      "unit_ai_euro_expand: dock blacksmith=%d free=%d pioneer=%d dock_count=%d gold %u→%u\n",
       blacksmith_boarded,
       free_colonist_boarded,
       pioneer_boarded,
@@ -5699,7 +5699,7 @@ static int smoke_dock_blacksmith_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Blacksmith hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Blacksmith hire ok\n");
   return 0;
 }
 
@@ -5708,7 +5708,7 @@ static int smoke_dock_blacksmith_hire(void) {
  * Scouts (no shortage priority) → board Scout. Cite: europe.c Seasoned Scouts;
  * euro_unit_act §2c2 fog/CONTACT.
  */
-static int smoke_dock_scout_hire(void) {
+static int unit_dock_scout_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5832,7 +5832,7 @@ static int smoke_dock_scout_hire(void) {
   if (!scout_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock scout=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock scout=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       scout_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -5849,7 +5849,7 @@ static int smoke_dock_scout_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Seasoned Scout hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Seasoned Scout hire ok\n");
   return 0;
 }
 
@@ -5858,7 +5858,7 @@ static int smoke_dock_scout_hire(void) {
  * Jesuit Missionaries → board Missionary (before Free Colonist). Cite: europe.c
  * Jesuit Missionaries; euro_unit_act §2c6 convert CONTACT.
  */
-static int smoke_dock_missionary_hire(void) {
+static int unit_dock_missionary_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -5995,7 +5995,7 @@ static int smoke_dock_missionary_hire(void) {
   if (!missionary_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock missionary=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock missionary=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       missionary_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6014,7 +6014,7 @@ static int smoke_dock_missionary_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Jesuit Missionary hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Jesuit Missionary hire ok\n");
   return 0;
 }
 
@@ -6023,7 +6023,7 @@ static int smoke_dock_missionary_hire(void) {
  * Statesmen → board Elder. Cite: europe.c Elder Statesmen; building_production
  * Elder→Liberty bells.
  */
-static int smoke_dock_elder_hire(void) {
+static int unit_dock_elder_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -6147,7 +6147,7 @@ static int smoke_dock_elder_hire(void) {
   if (!elder_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock elder=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock elder=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       elder_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6164,7 +6164,7 @@ static int smoke_dock_elder_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Elder Statesman hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Elder Statesman hire ok\n");
   return 0;
 }
 
@@ -6173,7 +6173,7 @@ static int smoke_dock_elder_hire(void) {
  * Firebrand Preachers → board Preacher. Cite: europe.c Firebrand Preachers;
  * building_production Preacher→Crosses.
  */
-static int smoke_dock_preacher_hire(void) {
+static int unit_dock_preacher_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -6300,7 +6300,7 @@ static int smoke_dock_preacher_hire(void) {
   if (!preacher_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock preacher=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock preacher=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       preacher_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6317,7 +6317,7 @@ static int smoke_dock_preacher_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Firebrand Preacher hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Firebrand Preacher hire ok\n");
   return 0;
 }
 
@@ -6327,7 +6327,7 @@ static int smoke_dock_preacher_hire(void) {
  * Expert Teachers pool; building_production.md Skills Chart job 18;
  * Colonization.pdf Education / Teacher.
  */
-static int smoke_dock_teacher_hire(void) {
+static int unit_dock_teacher_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -6454,7 +6454,7 @@ static int smoke_dock_teacher_hire(void) {
   if (!teacher_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock teacher=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock teacher=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       teacher_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6471,7 +6471,7 @@ static int smoke_dock_teacher_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Expert Teacher hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Expert Teacher hire ok\n");
   return 0;
 }
 
@@ -6480,7 +6480,7 @@ static int smoke_dock_teacher_hire(void) {
  * dock has Master Distiller → board Distiller. Cite: europe.c Master Distiller;
  * building_production Distiller Sugar→Rum; euro_unit_act workplace.
  */
-static int smoke_dock_distiller_hire(void) {
+static int unit_dock_distiller_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -6612,7 +6612,7 @@ static int smoke_dock_distiller_hire(void) {
   if (!distiller_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock distiller=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock distiller=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       distiller_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6629,7 +6629,7 @@ static int smoke_dock_distiller_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Distiller hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Distiller hire ok\n");
   return 0;
 }
 
@@ -6637,7 +6637,7 @@ static int smoke_dock_distiller_hire(void) {
  * Case-7 dock Master Weaver: peace + Weaver's House + cotton≥20 + Europe dock
  * has Master Weaver → board Weaver. Cite: europe.c; building_production Cloth.
  */
-static int smoke_dock_weaver_hire(void) {
+static int unit_dock_weaver_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -6765,7 +6765,7 @@ static int smoke_dock_weaver_hire(void) {
   if (!weaver_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock weaver=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock weaver=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       weaver_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6782,14 +6782,14 @@ static int smoke_dock_weaver_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Weaver hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Weaver hire ok\n");
   return 0;
 }
 
 /*
  * Case-7 dock Master Fur Trader: peace + Fur Trader's House + furs≥20.
  */
-static int smoke_dock_fur_trader_hire(void) {
+static int unit_dock_fur_trader_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -6921,7 +6921,7 @@ static int smoke_dock_fur_trader_hire(void) {
   if (!fur_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock fur=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock fur=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       fur_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -6938,14 +6938,14 @@ static int smoke_dock_fur_trader_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Fur Trader hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Fur Trader hire ok\n");
   return 0;
 }
 
 /*
  * Case-7 dock Master Tobacconist: peace + Tobacconist's House + tobacco≥20.
  */
-static int smoke_dock_tobacconist_hire(void) {
+static int unit_dock_tobacconist_hire(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7077,7 +7077,7 @@ static int smoke_dock_tobacconist_hire(void) {
   if (!tobac_boarded || free_colonist_boarded || !dock_cleared || !gold_spent) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: dock tobac=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
+      "unit_ai_euro_expand: dock tobac=%d free=%d dock_count=%d gold %u→%u cargo=%d\n",
       tobac_boarded,
       free_colonist_boarded,
       europe.dock_count,
@@ -7094,7 +7094,7 @@ static int smoke_dock_tobacconist_hire(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: dock Master Tobacconist hire ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: dock Master Tobacconist hire ok\n");
   return 0;
 }
 
@@ -7118,7 +7118,7 @@ static int smoke_dock_tobacconist_hire(void) {
  * Col1 +0x90 cargo_produced_mask: wagon surplus load prefers produced cargo
  * over default tools-first ladder. Cite: FUN_364b_0688; euro_unit_act §2d.
  */
-static int smoke_cargo_produced_mask_haul_prefer(void) {
+static int unit_cargo_produced_mask_haul_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7231,7 +7231,7 @@ static int smoke_cargo_produced_mask_haul_prefer(void) {
   }
   if (lumber_loaded < 20 || tools_loaded != 0) {
     fprintf(stderr,
-      "smoke_ai_euro_expand: produced lumber=%d tools=%d mask=0x%x\n",
+      "unit_ai_euro_expand: produced lumber=%d tools=%d mask=0x%x\n",
       lumber_loaded, tools_loaded, (unsigned)colonies.colonies[0].cargo_produced_mask);
     free(map.terrain);
     free(map.layer2);
@@ -7242,11 +7242,11 @@ static int smoke_cargo_produced_mask_haul_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: cargo_produced_mask haul prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: cargo_produced_mask haul prefer ok\n");
   return 0;
 }
 
-static int smoke_specialty_cargo_haul_prefer(void) {
+static int unit_specialty_cargo_haul_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7357,7 +7357,7 @@ static int smoke_specialty_cargo_haul_prefer(void) {
   if (lumber_loaded < 20) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: specialty lumber_loaded=%d specialty=%u tools=%d\n",
+      "unit_ai_euro_expand: specialty lumber_loaded=%d specialty=%u tools=%d\n",
       lumber_loaded,
       (unsigned)colonies.colonies[0].specialty_cargo,
       colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS]
@@ -7383,7 +7383,7 @@ static int smoke_specialty_cargo_haul_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: specialty_cargo haul prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: specialty_cargo haul prefer ok\n");
   return 0;
 }
 
@@ -7392,7 +7392,7 @@ static int smoke_specialty_cargo_haul_prefer(void) {
  * distinct specialty; wagon holds only one type → goto matching colony.
  * Cite: move_scoring_ship.md thin 4393; Series R.
  */
-static int smoke_specialty_flag_a_haul_match(void) {
+static int unit_specialty_flag_a_haul_match(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7503,7 +7503,7 @@ static int smoke_specialty_flag_a_haul_match(void) {
       wagon->goto_x != 4 || wagon->goto_y != 8) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: flag_a goto=(%d,%d) orders=%d specA=%u specB=%u\n",
+      "unit_ai_euro_expand: flag_a goto=(%d,%d) orders=%d specA=%u specB=%u\n",
       wagon ? wagon->goto_x : -1,
       wagon ? wagon->goto_y : -1,
       wagon ? wagon->orders : -1,
@@ -7519,7 +7519,7 @@ static int smoke_specialty_flag_a_haul_match(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: specialty flag_a haul match ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: specialty flag_a haul match ok\n");
   return 0;
 }
 
@@ -7527,7 +7527,7 @@ static int smoke_specialty_flag_a_haul_match(void) {
  * Col1 +0x8f cargo_idle_turns: haul prefers short colony with higher idle*8
  * score; inventory INC; goods unload clears. Cite: FUN_5952_035e; ~87677/~90249.
  */
-static int smoke_cargo_idle_turns_haul_prefer(void) {
+static int unit_cargo_idle_turns_haul_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7634,7 +7634,7 @@ static int smoke_cargo_idle_turns_haul_prefer(void) {
       wagon->goto_x != 4 || wagon->goto_y != 8) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: cargo-idle goto=(%d,%d) orders=%d idleA=%u idleB=%u\n",
+      "unit_ai_euro_expand: cargo-idle goto=(%d,%d) orders=%d idleA=%u idleB=%u\n",
       wagon ? wagon->goto_x : -1,
       wagon ? wagon->goto_y : -1,
       wagon ? wagon->orders : -1,
@@ -7667,7 +7667,7 @@ static int smoke_cargo_idle_turns_haul_prefer(void) {
   if (moved <= 0 || dest->cargo_idle_turns != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: unload moved=%d idle=%u\n",
+      "unit_ai_euro_expand: unload moved=%d idle=%u\n",
       moved,
       (unsigned)dest->cargo_idle_turns
     );
@@ -7680,11 +7680,11 @@ static int smoke_cargo_idle_turns_haul_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: cargo_idle_turns haul prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: cargo_idle_turns haul prefer ok\n");
   return 0;
 }
 
-static int smoke_labor_shortage_join(void) {
+static int unit_labor_shortage_join(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7771,7 +7771,7 @@ static int smoke_labor_shortage_join(void) {
   if (!joined || c->labor_shortage != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: labor_shortage joined=%d pop %d→%d shortage=%u\n",
+      "unit_ai_euro_expand: labor_shortage joined=%d pop %d→%d shortage=%u\n",
       joined,
       pop_before,
       c->population,
@@ -7786,11 +7786,11 @@ static int smoke_labor_shortage_join(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: labor_shortage join ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: labor_shortage join ok\n");
   return 0;
 }
 
-static int smoke_labor_bind_food_short(void) {
+static int unit_labor_bind_food_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -7884,7 +7884,7 @@ static int smoke_labor_bind_food_short(void) {
   if ((!joined && !at_colony) || !not_yanked) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: labor joined=%d at_col=%d goto=(%d,%d) pop %d→%d\n",
+      "unit_ai_euro_expand: labor joined=%d at_col=%d goto=(%d,%d) pop %d→%d\n",
       joined,
       at_colony,
       col ? col->goto_x : -1,
@@ -7902,7 +7902,7 @@ static int smoke_labor_bind_food_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: LABOR bind food-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: LABOR bind food-short ok\n");
   return 0;
 }
 
@@ -7910,7 +7910,7 @@ static int smoke_labor_bind_food_short(void) {
  * Wagon hire-once deepen: Wagon Train on tools-short colony with TOOLS hold
  * → colonies_transfer_from_unit into stock (no invented +10).
  */
-static int smoke_wagon_tools_delivery(void) {
+static int unit_wagon_tools_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8008,7 +8008,7 @@ static int smoke_wagon_tools_delivery(void) {
   if (tools_after < tools_before + 20 || hold_left != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-tools %d→%d hold_left=%d (want +20, hold 0)\n",
+      "unit_ai_euro_expand: wagon-tools %d→%d hold_left=%d (want +20, hold 0)\n",
       tools_before,
       tools_after,
       hold_left
@@ -8024,7 +8024,7 @@ static int smoke_wagon_tools_delivery(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: wagon-tools delivery ok (tools %d→%d)\n",
+    "unit_ai_euro_expand: wagon-tools delivery ok (tools %d→%d)\n",
     tools_before,
     tools_after
   );
@@ -8051,7 +8051,7 @@ static int smoke_wagon_tools_delivery(void) {
  * Col1 +0x1c colony_flags starvation: food < pop*2 latches bit3 → LABOR join.
  * Cite: FUN_364b_0688; save_format_map.md +0x1c.
  */
-static int smoke_colony_flags_starvation_labor(void) {
+static int unit_colony_flags_starvation_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8134,7 +8134,7 @@ static int smoke_colony_flags_starvation_labor(void) {
   c = &colonies.colonies[0];
   col = units_get(&units, uid);
   if ((c->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
-    fprintf(stderr, "smoke_ai_euro_expand: colony_flags=0x%02x food=%d\n",
+    fprintf(stderr, "unit_ai_euro_expand: colony_flags=0x%02x food=%d\n",
             (unsigned)c->colony_flags, c->stock[COLONIZE_CARGO_FOOD]);
     free(map.terrain);
     free(map.layer2);
@@ -8152,11 +8152,11 @@ static int smoke_colony_flags_starvation_labor(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: colony_flags starvation LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: colony_flags starvation LABOR ok\n");
   return 0;
 }
 
-static int smoke_colony_ai_flags_mow_colony_alt(void) {
+static int unit_colony_ai_flags_mow_colony_alt(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -8239,7 +8239,7 @@ static int smoke_colony_ai_flags_mow_colony_alt(void) {
 
   c = &colonies.colonies[0];
   if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) == 0) {
-    fprintf(stderr, "smoke_ai_euro_expand: ai_flags=0x%02x (want MoW bit)\n",
+    fprintf(stderr, "unit_ai_euro_expand: ai_flags=0x%02x (want MoW bit)\n",
             (unsigned)c->ai_flags);
     free(map.terrain);
     free(map.layer2);
@@ -8264,11 +8264,11 @@ static int smoke_colony_ai_flags_mow_colony_alt(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: colony ai_flags MoW COLONY_ALT ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: colony ai_flags MoW COLONY_ALT ok\n");
   return 0;
 }
 
-static int smoke_build_ai_flags_wants_construction(void) {
+static int unit_build_ai_flags_wants_construction(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8353,7 +8353,7 @@ static int smoke_build_ai_flags_wants_construction(void) {
   const int joined = (col == NULL || !col->active) && c->population == pop_before + 1;
   if (!joined) {
     fprintf(stderr,
-      "smoke_ai_euro_expand: build-ai joined=%d pop=%d→%d flags=0x%02x labor=%u active=%d\n",
+      "unit_ai_euro_expand: build-ai joined=%d pop=%d→%d flags=0x%02x labor=%u active=%d\n",
       joined, pop_before, c->population, (unsigned)c->build_ai_flags,
       (unsigned)c->labor_shortage, col && col->active);
     free(map.terrain);
@@ -8377,11 +8377,11 @@ static int smoke_build_ai_flags_wants_construction(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: build_ai_flags wants_construction ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: build_ai_flags wants_construction ok\n");
   return 0;
 }
 
-static int smoke_construction_labor_stockade(void) {
+static int unit_construction_labor_stockade(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8480,7 +8480,7 @@ static int smoke_construction_labor_stockade(void) {
   if (left_for_found || (!joined && !labor_stay)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: construction joined=%d labor_stay=%d left=%d "
+      "unit_ai_euro_expand: construction joined=%d labor_stay=%d left=%d "
       "pop %d→%d active=%d pos=(%d,%d) goto=(%d,%d) orders=%d labor_prio=%d\n",
       joined,
       labor_stay,
@@ -8506,7 +8506,7 @@ static int smoke_construction_labor_stockade(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: construction Stockade LABOR ok (joined=%d)\n",
+    "unit_ai_euro_expand: construction Stockade LABOR ok (joined=%d)\n",
     joined
   );
   return 0;
@@ -8517,7 +8517,7 @@ static int smoke_construction_labor_stockade(void) {
  * incomplete Stockade → stay/join LABOR (Stockade pattern). Cite: euro_unit_act
  * §2e; docs/building_production.md Carpenter→Hammers; Skills Chart.
  */
-static int smoke_master_carpenter_construction_labor(void) {
+static int unit_master_carpenter_construction_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8618,7 +8618,7 @@ static int smoke_master_carpenter_construction_labor(void) {
   if (left_for_found || (!joined && !labor_stay)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: carpenter joined=%d labor_stay=%d left=%d "
+      "unit_ai_euro_expand: carpenter joined=%d labor_stay=%d left=%d "
       "pop %d→%d active=%d pos=(%d,%d) goto=(%d,%d) orders=%d labor_prio=%d\n",
       joined,
       labor_stay,
@@ -8644,7 +8644,7 @@ static int smoke_master_carpenter_construction_labor(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: Master Carpenter construction LABOR ok (joined=%d)\n",
+    "unit_ai_euro_expand: Master Carpenter construction LABOR ok (joined=%d)\n",
     joined
   );
   return 0;
@@ -8656,7 +8656,7 @@ static int smoke_master_carpenter_construction_labor(void) {
  * Cite: euro_unit_act §2e; docs/building_production.md Lumberjack→Lumber;
  * Colonization.pdf Skills Chart.
  */
-static int smoke_lumberjack_warehouse_labor(void) {
+static int unit_lumberjack_warehouse_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -8757,7 +8757,7 @@ static int smoke_lumberjack_warehouse_labor(void) {
   if (left_for_found || (!joined && !labor_stay)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: lumberjack joined=%d labor_stay=%d left=%d "
+      "unit_ai_euro_expand: lumberjack joined=%d labor_stay=%d left=%d "
       "active=%d pop %d→%d orders=%d goto=(%d,%d) labor_prio=%d\n",
       joined,
       labor_stay,
@@ -8781,7 +8781,7 @@ static int smoke_lumberjack_warehouse_labor(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: Lumberjack Warehouse LABOR ok (joined=%d)\n",
+    "unit_ai_euro_expand: Lumberjack Warehouse LABOR ok (joined=%d)\n",
     joined
   );
   return 0;
@@ -8792,7 +8792,7 @@ static int smoke_lumberjack_warehouse_labor(void) {
  * incomplete Stockade + war-peer threat prefers LABOR over distant FOUND.
  * Cite: building_production.md Stockade; Colonization.pdf fortify defense.
  */
-static int smoke_stockade_threat_labor(void) {
+static int unit_stockade_threat_labor(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -8931,7 +8931,7 @@ static int smoke_stockade_threat_labor(void) {
   if (!labor || labor_prio < 6 || yanked_found || (!toward && !joined)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: threat-stockade labor=%d prio=%d toward=%d joined=%d "
+      "unit_ai_euro_expand: threat-stockade labor=%d prio=%d toward=%d joined=%d "
       "found_yank=%d pos=(%d,%d) orders=%d goto=(%d,%d)\n",
       labor,
       labor_prio,
@@ -8955,7 +8955,7 @@ static int smoke_stockade_threat_labor(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: threatened Stockade LABOR ok (prio=%d toward=%d joined=%d)\n",
+    "unit_ai_euro_expand: threatened Stockade LABOR ok (prio=%d toward=%d joined=%d)\n",
     labor_prio,
     toward,
     joined
@@ -8968,7 +8968,7 @@ static int smoke_stockade_threat_labor(void) {
  * Scout placed so md=4 is nearer scout than md=2 without sticky weight.
  * Cite: ai_diplo_indian_hostility_sticky / euro_diplo.md unknown26[8].
  */
-static int smoke_scout_sticky_closer_ring(void) {
+static int unit_scout_sticky_closer_ring(void) {
   const int nation = 1;
   const int tribe_x = 12;
   const int tribe_y = 12;
@@ -9090,7 +9090,7 @@ static int smoke_scout_sticky_closer_ring(void) {
   if (ring_md != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: sticky CONTACT=(%d,%d) ring_md=%d (want 2)\n",
+      "unit_ai_euro_expand: sticky CONTACT=(%d,%d) ring_md=%d (want 2)\n",
       contact_x,
       contact_y,
       ring_md
@@ -9106,7 +9106,7 @@ static int smoke_scout_sticky_closer_ring(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: sticky CONTACT closer-ring ok (goto=(%d,%d) md=%d)\n",
+    "unit_ai_euro_expand: sticky CONTACT closer-ring ok (goto=(%d,%d) md=%d)\n",
     contact_x,
     contact_y,
     ring_md
@@ -9119,7 +9119,7 @@ static int smoke_scout_sticky_closer_ring(void) {
  * → AI_MOVE to nearest unseen land within MD 8 (map_tile_seen_by). No CONTACT
  * upsert. Cite: Col1 FoW / euro_unit_act fog-explore.
  */
-static int smoke_scout_fog_explore_no_contact(void) {
+static int unit_scout_fog_explore_no_contact(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -9226,7 +9226,7 @@ static int smoke_scout_fog_explore_no_contact(void) {
   if (has_contact || !toward_unseen) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fog-explore orders=%d goto=(%d,%d) contact=%d\n",
+      "unit_ai_euro_expand: fog-explore orders=%d goto=(%d,%d) contact=%d\n",
       scout ? scout->orders : -1,
       scout ? scout->goto_x : -1,
       scout ? scout->goto_y : -1,
@@ -9245,7 +9245,7 @@ static int smoke_scout_fog_explore_no_contact(void) {
   free(map.seen);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: fog-explore no-CONTACT ok (goto=(%d,%d))\n",
+    "unit_ai_euro_expand: fog-explore no-CONTACT ok (goto=(%d,%d))\n",
     scout->goto_x,
     scout->goto_y
   );
@@ -9257,7 +9257,7 @@ static int smoke_scout_fog_explore_no_contact(void) {
  * Seasoned prefers the deeper fog target; plain Scout keeps nearest.
  * Cite: Colonization.pdf Seasoned Scout "Better at exploring"; no invented sight.
  */
-static int smoke_seasoned_scout_deeper_fog(void) {
+static int unit_seasoned_scout_deeper_fog(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -9368,7 +9368,7 @@ static int smoke_seasoned_scout_deeper_fog(void) {
   if (!deep) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: seasoned-fog orders=%d goto=(%d,%d) md=%d name=%s\n",
+      "unit_ai_euro_expand: seasoned-fog orders=%d goto=(%d,%d) md=%d name=%s\n",
       scout ? scout->orders : -1,
       scout ? scout->goto_x : -1,
       scout ? scout->goto_y : -1,
@@ -9386,7 +9386,7 @@ static int smoke_seasoned_scout_deeper_fog(void) {
   free(map.layer2);
   free(map.layer3);
   free(map.seen);
-  fprintf(stderr, "smoke_ai_euro_expand: Seasoned Scout deeper fog ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Seasoned Scout deeper fog ok\n");
   return 0;
 }
 
@@ -9396,7 +9396,7 @@ static int smoke_seasoned_scout_deeper_fog(void) {
  * procedural). Cite: Colonization.pdf Lost City Rumours / Seasoned Scout;
  * Pass5 LCR scaffold — resolve still on stand only.
  */
-static int smoke_scout_fog_prefer_rumour(void) {
+static int unit_scout_fog_prefer_rumour(void) {
   const int nation = 1;
   const int scout_x = 5;
   const int scout_y = 5;
@@ -9519,7 +9519,7 @@ static int smoke_scout_fog_prefer_rumour(void) {
   if (!ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: rumour-fog orders=%d goto=(%d,%d) want rumour=(%d,%d)\n",
+      "unit_ai_euro_expand: rumour-fog orders=%d goto=(%d,%d) want rumour=(%d,%d)\n",
       scout ? scout->orders : -1,
       scout ? scout->goto_x : -1,
       scout ? scout->goto_y : -1,
@@ -9537,7 +9537,7 @@ static int smoke_scout_fog_prefer_rumour(void) {
   free(map.layer2);
   free(map.layer3);
   free(map.seen);
-  fprintf(stderr, "smoke_ai_euro_expand: Scout fog prefer rumour ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Scout fog prefer rumour ok\n");
   return 0;
 }
 
@@ -9545,7 +9545,7 @@ static int smoke_scout_fog_prefer_rumour(void) {
  * Treasure train: idle Treasure inland → AI_MOVE toward own coastal colony.
  * Cite: Colonization.pdf Treasure Trains — park in coastal colony.
  */
-static int smoke_treasure_coast(void) {
+static int unit_treasure_coast(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -9644,7 +9644,7 @@ static int smoke_treasure_coast(void) {
       treasure->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: treasure orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: treasure orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       treasure->orders,
       treasure->goto_x,
       treasure->goto_y,
@@ -9662,7 +9662,7 @@ static int smoke_treasure_coast(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: treasure coast ok (goto=(%d,%d))\n",
+    "unit_ai_euro_expand: treasure coast ok (goto=(%d,%d))\n",
     treasure->goto_x,
     treasure->goto_y
   );
@@ -9674,7 +9674,7 @@ static int smoke_treasure_coast(void) {
  * europe_cash_treasure (tax cut) + despawn without boarding a ship.
  * Cite: fandom Hernan Cortes; GAME.TXT @KINGGALLEON3; founding_fathers_cortes_*.
  */
-static int smoke_cortes_king_galleon_cash(void) {
+static int unit_cortes_king_galleon_cash(void) {
   const int nation = 1;
   const int treasure_value = 1000;
   const int tax = 20;
@@ -9795,7 +9795,7 @@ static int smoke_cortes_king_galleon_cash(void) {
   if (!cash_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: cortes cash gone=%d gold mid=%u after=%u delta=%u want +%d\n",
+      "unit_ai_euro_expand: cortes cash gone=%d gold mid=%u after=%u delta=%u want +%d\n",
       treasure_gone,
       (unsigned)gold_mid,
       (unsigned)gold_after,
@@ -9813,7 +9813,7 @@ static int smoke_cortes_king_galleon_cash(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: Cortes king-galleon coastal cash ok (delta=%u credit=%d)\n",
+    "unit_ai_euro_expand: Cortes king-galleon coastal cash ok (delta=%u credit=%d)\n",
     delta,
     expect_credit
   );
@@ -9824,7 +9824,7 @@ static int smoke_cortes_king_galleon_cash(void) {
  * Missionary CONTACT: peace Jesuit/Missionary → CONTACT + AI_MOVE toward
  * nearest tribe without mission. Fleeing (Alarm≥55 adjacent) skips.
  */
-static int smoke_missionary_contact(void) {
+static int unit_missionary_contact(void) {
   const int nation = 1;
   const int tribe_x = 12;
   const int tribe_y = 12;
@@ -9939,7 +9939,7 @@ static int smoke_missionary_contact(void) {
   if (contact_x != tribe_x || contact_y != tribe_y) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: missionary CONTACT=(%d,%d) want (%d,%d)\n",
+      "unit_ai_euro_expand: missionary CONTACT=(%d,%d) want (%d,%d)\n",
       contact_x,
       contact_y,
       tribe_x,
@@ -9955,7 +9955,7 @@ static int smoke_missionary_contact(void) {
       (miss->goto_x != tribe_x || miss->goto_y != tribe_y)) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: missionary orders=%d goto=(%d,%d)\n",
+      "unit_ai_euro_expand: missionary orders=%d goto=(%d,%d)\n",
       miss ? miss->orders : -1,
       miss ? miss->goto_x : -1,
       miss ? miss->goto_y : -1
@@ -9973,7 +9973,7 @@ static int smoke_missionary_contact(void) {
   free(col1.tribe);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: missionary CONTACT ok (goto=(%d,%d))\n",
+    "unit_ai_euro_expand: missionary CONTACT ok (goto=(%d,%d))\n",
     miss->goto_x,
     miss->goto_y
   );
@@ -9983,7 +9983,7 @@ static int smoke_missionary_contact(void) {
 /*
  * Missionary flee gate: adjacent alarmed tribe (friction≥55) → no CONTACT.
  */
-static int smoke_missionary_flee_skip(void) {
+static int unit_missionary_flee_skip(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -10084,7 +10084,7 @@ static int smoke_missionary_flee_skip(void) {
     if (g && g->code == AI_GOAL_CONTACT) {
       fprintf(
         stderr,
-        "smoke_ai_euro_expand: flee skip got CONTACT=(%d,%d)\n",
+        "unit_ai_euro_expand: flee skip got CONTACT=(%d,%d)\n",
         g->x,
         g->y
       );
@@ -10100,7 +10100,7 @@ static int smoke_missionary_flee_skip(void) {
   free(map.layer2);
   free(map.layer3);
   free(col1.tribe);
-  fprintf(stderr, "smoke_ai_euro_expand: missionary flee-skip CONTACT ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: missionary flee-skip CONTACT ok\n");
   return 0;
 }
 
@@ -10108,7 +10108,7 @@ static int smoke_missionary_flee_skip(void) {
  * Food emergency: food_short high + Pioneer at MD 5 → LABOR goto toward hungry
  * colony (not only MD≤1 bind). Cite: 5cf6 food_short; manual 2 food/colonist.
  */
-static int smoke_food_emergency_labor(void) {
+static int unit_food_emergency_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -10207,7 +10207,7 @@ static int smoke_food_emergency_labor(void) {
   if (!labor || !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: food-emerg labor=%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: food-emerg labor=%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       labor,
       pioneer ? pioneer->orders : -1,
       pioneer ? pioneer->goto_x : -1,
@@ -10224,7 +10224,7 @@ static int smoke_food_emergency_labor(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: food-emergency LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: food-emergency LABOR ok\n");
   return 0;
 }
 
@@ -10233,7 +10233,7 @@ static int smoke_food_emergency_labor(void) {
  * at MD 5 + food_short → LABOR goto. Cite: building_production.md Farmer→Food;
  * euro_unit_act §2e Expert Farmer.
  */
-static int smoke_expert_farmer_food_labor(void) {
+static int unit_expert_farmer_food_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -10335,7 +10335,7 @@ static int smoke_expert_farmer_food_labor(void) {
   if (!labor_bound || !moving) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: expert-farmer orders=%d goto=(%d,%d) pos=(%d,%d) labor=%d\n",
+      "unit_ai_euro_expand: expert-farmer orders=%d goto=(%d,%d) pos=(%d,%d) labor=%d\n",
       farmer ? farmer->orders : -1,
       farmer ? farmer->goto_x : -1,
       farmer ? farmer->goto_y : -1,
@@ -10352,7 +10352,7 @@ static int smoke_expert_farmer_food_labor(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Expert Farmer food LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Expert Farmer food LABOR ok\n");
   return 0;
 }
 
@@ -10361,7 +10361,7 @@ static int smoke_expert_farmer_food_labor(void) {
  * food_short > 0 but < 4 (not emergency) → LABOR goto. Cite: euro_unit_act §2e
  * Free Colonist food LABOR; manual 2 food/colonist.
  */
-static int smoke_free_colonist_food_labor(void) {
+static int unit_free_colonist_food_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -10460,7 +10460,7 @@ static int smoke_free_colonist_food_labor(void) {
   if (!labor_bound || !moving) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fc-food orders=%d goto=(%d,%d) pos=(%d,%d) labor=%d\n",
+      "unit_ai_euro_expand: fc-food orders=%d goto=(%d,%d) pos=(%d,%d) labor=%d\n",
       col ? col->orders : -1,
       col ? col->goto_x : -1,
       col ? col->goto_y : -1,
@@ -10477,7 +10477,7 @@ static int smoke_free_colonist_food_labor(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Free Colonist food LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Free Colonist food LABOR ok\n");
   return 0;
 }
 
@@ -10485,7 +10485,7 @@ static int smoke_free_colonist_food_labor(void) {
  * Tools-short Pioneer deepen: peace Pioneer at MD 5 + tools_short colony →
  * LABOR goto (feeds on-tile tools delivery). Cite: euro_unit_act §2e.
  */
-static int smoke_tools_short_pioneer_labor(void) {
+static int unit_tools_short_pioneer_labor(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -10583,7 +10583,7 @@ static int smoke_tools_short_pioneer_labor(void) {
   if (!labor && !toward) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: tools-labor orders=%d goto=(%d,%d) pos=(%d,%d) "
+      "unit_ai_euro_expand: tools-labor orders=%d goto=(%d,%d) pos=(%d,%d) "
       "labor=%d\n",
       pioneer ? pioneer->orders : -1,
       pioneer ? pioneer->goto_x : -1,
@@ -10601,16 +10601,16 @@ static int smoke_tools_short_pioneer_labor(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: tools-short Pioneer LABOR ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: tools-short Pioneer LABOR ok\n");
   return 0;
 }
 
 /*
  * Treasure at coastal colony + adjacent ship with space → board + AI_SAIL
  * Europe (eastward). Cite: Colonization.pdf Treasure Trains.
- * Gold cash runs only at Europe / HS (separate smoke_treasure_europe_cash).
+ * Gold cash runs only at Europe / HS (separate unit_treasure_europe_cash).
  */
-static int smoke_treasure_board_sail(void) {
+static int unit_treasure_board_sail(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -10728,7 +10728,7 @@ static int smoke_treasure_board_sail(void) {
   if (treasure->aboard_ship_id != sid) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: treasure aboard=%d want ship %d pos=(%d,%d)\n",
+      "unit_ai_euro_expand: treasure aboard=%d want ship %d pos=(%d,%d)\n",
       treasure->aboard_ship_id,
       sid,
       treasure->x,
@@ -10742,7 +10742,7 @@ static int smoke_treasure_board_sail(void) {
   if (ship->orders != UNITS_ORDER_AI_SAIL || ship->goto_x <= ship->x) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: ship orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: ship orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -10761,7 +10761,7 @@ static int smoke_treasure_board_sail(void) {
   if (gold_delta > 80u) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: treasure gold %u→%u delta=%u (board/sail not Europe)\n",
+      "unit_ai_euro_expand: treasure gold %u→%u delta=%u (board/sail not Europe)\n",
       (unsigned)gold_before,
       (unsigned)gold_after,
       gold_delta
@@ -10777,7 +10777,7 @@ static int smoke_treasure_board_sail(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: treasure board+sail ok (ship AI_SAIL goto=(%d,%d) "
+    "unit_ai_euro_expand: treasure board+sail ok (ship AI_SAIL goto=(%d,%d) "
     "gold_delta=%u)\n",
     ship->goto_x,
     ship->goto_y,
@@ -10791,7 +10791,7 @@ static int smoke_treasure_board_sail(void) {
  * europe_cash_treasure credits nation gold (tax cut); Treasure despawned.
  * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH; europe.h.
  */
-static int smoke_treasure_europe_cash(void) {
+static int unit_treasure_europe_cash(void) {
   const int nation = 1;
   const int treasure_value = 800; /* LE16 in hold_goods_amount[0..1] */
   const int tax = 25;
@@ -10904,7 +10904,7 @@ static int smoke_treasure_europe_cash(void) {
   if (!cash_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: treasure_gone=%d gold %u→%u delta=%u want +%d (tax %d%%)\n",
+      "unit_ai_euro_expand: treasure_gone=%d gold %u→%u delta=%u want +%d (tax %d%%)\n",
       treasure_gone,
       (unsigned)gold_before,
       (unsigned)gold_after,
@@ -10923,7 +10923,7 @@ static int smoke_treasure_europe_cash(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: treasure Europe cash ok (gold %u→%u delta=%u credit=%d)\n",
+    "unit_ai_euro_expand: treasure Europe cash ok (gold %u→%u delta=%u credit=%d)\n",
     (unsigned)gold_before,
     (unsigned)gold_after,
     delta,
@@ -10936,7 +10936,7 @@ static int smoke_treasure_europe_cash(void) {
  * Idle Wagon with hold capacity → AI_MOVE toward tools-short colony.
  * Cite: euro_unit_act §2d wagon haul / tools delivery.
  */
-static int smoke_wagon_haul_tools_short(void) {
+static int unit_wagon_haul_tools_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11027,7 +11027,7 @@ static int smoke_wagon_haul_tools_short(void) {
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: wagon orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       wagon->orders,
       wagon->goto_x,
       wagon->goto_y,
@@ -11043,7 +11043,7 @@ static int smoke_wagon_haul_tools_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon haul tools-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon haul tools-short ok\n");
   return 0;
 }
 
@@ -11051,7 +11051,7 @@ static int smoke_wagon_haul_tools_short(void) {
  * Sticky + FoW: prefer deeper unseen ring (md=4) over closer seen (md=2).
  * Cite: euro_unit_act §2c2 sticky+fog deepen.
  */
-static int smoke_scout_sticky_fog_deeper_unseen(void) {
+static int unit_scout_sticky_fog_deeper_unseen(void) {
   const int nation = 1;
   const int tribe_x = 10;
   const int tribe_y = 10;
@@ -11186,7 +11186,7 @@ static int smoke_scout_sticky_fog_deeper_unseen(void) {
   if (!ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: sticky-fog CONTACT=(%d,%d) md=%d seen=%d\n",
+      "unit_ai_euro_expand: sticky-fog CONTACT=(%d,%d) md=%d seen=%d\n",
       contact_x,
       contact_y,
       ring_md,
@@ -11203,7 +11203,7 @@ static int smoke_scout_sticky_fog_deeper_unseen(void) {
   free(map.layer2);
   free(map.layer3);
   free(map.seen);
-  fprintf(stderr, "smoke_ai_euro_expand: sticky+fog deeper unseen ring ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: sticky+fog deeper unseen ring ok\n");
   return 0;
 }
 
@@ -11211,7 +11211,7 @@ static int smoke_scout_sticky_fog_deeper_unseen(void) {
  * Idle Caravel with goods-hold capacity → AI_SAIL toward tools-short coastal
  * colony water. Cite: euro_unit_act §2d2 cargo haul.
  */
-static int smoke_ship_trade_haul_tools_short(void) {
+static int unit_ship_trade_haul_tools_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11320,7 +11320,7 @@ static int smoke_ship_trade_haul_tools_short(void) {
   if (!sailed && !at_berth) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: ship orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: ship orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -11336,7 +11336,7 @@ static int smoke_ship_trade_haul_tools_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: ship trade haul tools-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: ship trade haul tools-short ok\n");
   return 0;
 }
 
@@ -11344,7 +11344,7 @@ static int smoke_ship_trade_haul_tools_short(void) {
  * Idle Caravel with MUSKETS cargo → AI_SAIL toward muskets-short coastal colony
  * (tools/food OK). Cite: euro_unit_act §2d2 ship haul muskets; wagon §2d.
  */
-static int smoke_ship_trade_haul_muskets_short(void) {
+static int unit_ship_trade_haul_muskets_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11453,7 +11453,7 @@ static int smoke_ship_trade_haul_muskets_short(void) {
   if (!sailed && !at_berth && !delivered) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: ship-muskets orders=%d goto=(%d,%d) pos=(%d,%d) muskets=%d\n",
+      "unit_ai_euro_expand: ship-muskets orders=%d goto=(%d,%d) pos=(%d,%d) muskets=%d\n",
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -11470,7 +11470,7 @@ static int smoke_ship_trade_haul_muskets_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: ship trade haul muskets-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: ship trade haul muskets-short ok\n");
   return 0;
 }
 
@@ -11479,7 +11479,7 @@ static int smoke_ship_trade_haul_muskets_short(void) {
  * is not haul-short → AI_SAIL Europe. Cite: FUN_364b_0636 / europe_cargo_export_eligible;
  * euro_unit_act §2d2 Europe export sail.
  */
-static int smoke_ship_europe_export_silver(void) {
+static int unit_ship_europe_export_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11590,7 +11590,7 @@ static int smoke_ship_europe_export_silver(void) {
   if (!sailed_east) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: ship-export orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: ship-export orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -11606,7 +11606,7 @@ static int smoke_ship_europe_export_silver(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: ship Europe export silver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: ship Europe export silver ok\n");
   return 0;
 }
 
@@ -11615,7 +11615,7 @@ static int smoke_ship_europe_export_silver(void) {
  * europe_cargo_export_eligible; ai_euro_try_privateer_europe_loot_sail;
  * euro_unit_act Privateer dump-sell.
  */
-static int smoke_privateer_europe_loot_sail(void) {
+static int unit_privateer_europe_loot_sail(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11700,7 +11700,7 @@ static int smoke_privateer_europe_loot_sail(void) {
   if (!sailed_east) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: priv-loot orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: priv-loot orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -11716,7 +11716,7 @@ static int smoke_privateer_europe_loot_sail(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Privateer Europe loot sail ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Privateer Europe loot sail ok\n");
   return 0;
 }
 
@@ -11724,7 +11724,7 @@ static int smoke_privateer_europe_loot_sail(void) {
  * Idle Caravel at coastal SILVER surplus (stock>99) with empty hold → load
  * excess (leave 50) then AI_SAIL Europe. Cite: FUN_364b_0688; euro_unit_act §2d2.
  */
-static int smoke_ship_europe_export_load_silver(void) {
+static int unit_ship_europe_export_load_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11835,7 +11835,7 @@ static int smoke_ship_europe_export_load_silver(void) {
   if (!loaded || !sailed_east) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: export-load silver=%d hold_t=%d hold_a=%d "
+      "unit_ai_euro_expand: export-load silver=%d hold_t=%d hold_a=%d "
       "orders=%d goto=(%d,%d)\n",
       c->stock[COLONIZE_CARGO_SILVER],
       ship->hold_goods_type[0],
@@ -11853,7 +11853,7 @@ static int smoke_ship_europe_export_load_silver(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: ship Europe export load silver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: ship Europe export load silver ok\n");
   return 0;
 }
 
@@ -11867,7 +11867,7 @@ static int smoke_ship_europe_export_load_silver(void) {
  * Idle Galleon at coastal SILVER surplus (stock>99) with empty hold → load
  * excess (leave 50) then AI_SAIL Europe. Cite: FUN_364b_0688; euro_unit_act §2d2.
  */
-static int smoke_galleon_europe_export_load_silver(void) {
+static int unit_galleon_europe_export_load_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -11978,7 +11978,7 @@ static int smoke_galleon_europe_export_load_silver(void) {
   if (!loaded || !sailed_east) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: export-load silver=%d hold_t=%d hold_a=%d "
+      "unit_ai_euro_expand: export-load silver=%d hold_t=%d hold_a=%d "
       "orders=%d goto=(%d,%d)\n",
       c->stock[COLONIZE_CARGO_SILVER],
       ship->hold_goods_type[0],
@@ -11996,7 +11996,7 @@ static int smoke_galleon_europe_export_load_silver(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: galleon Europe export load silver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: galleon Europe export load silver ok\n");
   return 0;
 }
 
@@ -12010,7 +12010,7 @@ static int smoke_galleon_europe_export_load_silver(void) {
  * Idle Merchantman at coastal SILVER surplus (stock>99) with empty hold → load
  * excess (leave 50) then AI_SAIL Europe. Cite: FUN_364b_0688; euro_unit_act §2d2.
  */
-static int smoke_merchantman_europe_export_load_silver(void) {
+static int unit_merchantman_europe_export_load_silver(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -12121,7 +12121,7 @@ static int smoke_merchantman_europe_export_load_silver(void) {
   if (!loaded || !sailed_east) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: export-load silver=%d hold_t=%d hold_a=%d "
+      "unit_ai_euro_expand: export-load silver=%d hold_t=%d hold_a=%d "
       "orders=%d goto=(%d,%d)\n",
       c->stock[COLONIZE_CARGO_SILVER],
       ship->hold_goods_type[0],
@@ -12139,7 +12139,7 @@ static int smoke_merchantman_europe_export_load_silver(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: merchantman Europe export load silver ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: merchantman Europe export load silver ok\n");
   return 0;
 }
 
@@ -12148,7 +12148,7 @@ static int smoke_merchantman_europe_export_load_silver(void) {
  * colony (same haul ladder as Merchantman). Cite: euro_unit_act §2d2; docs/assets.md
  * Europe purchase ladder (Merchantman cargo ship).
  */
-static int smoke_galleon_trade_haul_tools_short(void) {
+static int unit_galleon_trade_haul_tools_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -12253,7 +12253,7 @@ static int smoke_galleon_trade_haul_tools_short(void) {
   if (!sailed && !at_berth) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: galleon-haul orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: galleon-haul orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       ship->orders,
       ship->goto_x,
       ship->goto_y,
@@ -12269,7 +12269,7 @@ static int smoke_galleon_trade_haul_tools_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: galleon trade haul tools-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: galleon trade haul tools-short ok\n");
   return 0;
 }
 
@@ -12283,7 +12283,7 @@ static int smoke_galleon_trade_haul_tools_short(void) {
  * Col1 +0x8c improve_timer: pioneer plow gated until timer ≥ 2; inventory INC;
  * successful plow clears timer. Cite: FUN_5952 ~93663 / ~94546.
  */
-static int smoke_improve_timer_pioneer_gate(void) {
+static int unit_improve_timer_pioneer_gate(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -12429,11 +12429,11 @@ static int smoke_improve_timer_pioneer_gate(void) {
   free(map.layer2);
   free(map.layer3);
   free(map.improve);
-  fprintf(stderr, "smoke_ai_euro_expand: improve_timer pioneer gate ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: improve_timer pioneer gate ok\n");
   return 0;
 }
 
-static int smoke_pioneer_plow_improve(void) {
+static int unit_pioneer_plow_improve(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -12533,7 +12533,7 @@ static int smoke_pioneer_plow_improve(void) {
   if (!plowed && !tools_spent && !improving) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: plow=%d tools=%d→%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: plow=%d tools=%d→%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       plowed,
       tools0,
       pioneer ? pioneer->tools : -1,
@@ -12556,7 +12556,7 @@ static int smoke_pioneer_plow_improve(void) {
   free(map.improve);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: pioneer plow ok (plowed=%d tools_spent=%d improving=%d)\n",
+    "unit_ai_euro_expand: pioneer plow ok (plowed=%d tools_spent=%d improving=%d)\n",
     plowed,
     tools_spent,
     improving
@@ -12569,7 +12569,7 @@ static int smoke_pioneer_plow_improve(void) {
  * with free forest surround → admit + colonies_assign_field Lumberjack.
  * Cite: terrain_yields / building_production Lumberjack→Lumber; Skills Chart.
  */
-static int smoke_lumberjack_field_assign(void) {
+static int unit_lumberjack_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -12687,7 +12687,7 @@ static int smoke_lumberjack_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: lumber-field joined=%d field=%d pop %d→%d "
+      "unit_ai_euro_expand: lumber-field joined=%d field=%d pop %d→%d "
       "active=%d tile0=%d\n",
       joined,
       field_ok,
@@ -12705,7 +12705,7 @@ static int smoke_lumberjack_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Lumberjack forest field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Lumberjack forest field-assign ok\n");
   return 0;
 }
 
@@ -12717,7 +12717,7 @@ static int smoke_lumberjack_field_assign(void) {
  * stocked colony (COLONY not LABOR), discover its expand FOUND tile, park a
  * tribe on that tile (homeland), and stand the founder there.
  */
-static void smoke_indian_land_seed_colony(ColonizeColonyPool* colonies, int nation) {
+static void unit_indian_land_seed_colony(ColonizeColonyPool* colonies, int nation) {
   colonies_init(colonies);
   ColonizeColony* c = &colonies->colonies[0];
   c->id = 0;
@@ -12734,7 +12734,7 @@ static void smoke_indian_land_seed_colony(ColonizeColonyPool* colonies, int nati
   colonies->next_id = 1;
 }
 
-static int smoke_indian_land_found(void) {
+static int unit_indian_land_found(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -12774,7 +12774,7 @@ static int smoke_indian_land_found(void) {
   col1.nation[nation].gold = 200;
 
   ColonizeColonyPool colonies;
-  smoke_indian_land_seed_colony(&colonies, nation);
+  unit_indian_land_seed_colony(&colonies, nation);
 
   ColonizeUnitPool units;
   units_reset(&units);
@@ -12839,7 +12839,7 @@ static int smoke_indian_land_found(void) {
 
   /* Phase 1: enough gold → found + debit (planning treasury bump then charge). */
   {
-    smoke_indian_land_seed_colony(&colonies, nation);
+    unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
@@ -12872,7 +12872,7 @@ static int smoke_indian_land_found(void) {
     if (n != 2 || (founder && founder->active)) {
       fprintf(
         stderr,
-        "smoke_ai_euro_expand: indian-land pay n=%d active=%d gold %u→%u "
+        "unit_ai_euro_expand: indian-land pay n=%d active=%d gold %u→%u "
         "cost=%d FOUND=(%d,%d)\n",
         n,
         founder ? (int)founder->active : 0,
@@ -12893,7 +12893,7 @@ static int smoke_indian_land_found(void) {
       if (spent_and_bump < gold0 || spent_and_bump - gold0 > 80u) {
         fprintf(
           stderr,
-          "smoke_ai_euro_expand: indian-land gold before=%u after=%u cost=%d\n",
+          "unit_ai_euro_expand: indian-land gold before=%u after=%u cost=%d\n",
           gold0,
           col1.nation[nation].gold,
           cost
@@ -12910,7 +12910,7 @@ static int smoke_indian_land_found(void) {
    * Phase 1 stamped MAP_LAYER2_PURCHASED on (fx,fy); clear so charge still
    * applies (founding must not treat prior buy as free forever for this smoke). */
   {
-    smoke_indian_land_seed_colony(&colonies, nation);
+    unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
@@ -12964,7 +12964,7 @@ static int smoke_indian_land_found(void) {
       return fail("indian-land: PARK case gold unexpectedly covers cost");
     }
     if (strstr(status, "Not enough gold") == NULL) {
-      fprintf(stderr, "smoke_ai_euro_expand: indian-land status=%s\n", status);
+      fprintf(stderr, "unit_ai_euro_expand: indian-land status=%s\n", status);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -12977,7 +12977,7 @@ static int smoke_indian_land_found(void) {
 
   /* Phase 3: Minuit elect bit → free homeland found. */
   {
-    smoke_indian_land_seed_colony(&colonies, nation);
+    unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
@@ -13027,7 +13027,7 @@ static int smoke_indian_land_found(void) {
     if (col1.nation[nation].gold < gold0 || col1.nation[nation].gold > gold0 + 80u) {
       fprintf(
         stderr,
-        "smoke_ai_euro_expand: Minuit gold %u→%u (want bump-only)\n",
+        "unit_ai_euro_expand: Minuit gold %u→%u (want bump-only)\n",
         gold0,
         col1.nation[nation].gold
       );
@@ -13041,7 +13041,7 @@ static int smoke_indian_land_found(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: indian-land FOUND charge/Minuit ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: indian-land FOUND charge/Minuit ok\n");
   return 0;
 }
 
@@ -13050,7 +13050,7 @@ static int smoke_indian_land_found(void) {
  * with free hills surround → admit + colonies_assign_field Ore Miner.
  * Cite: terrain_yields Ore Miner; Skills Chart (parallel Lumberjack).
  */
-static int smoke_ore_miner_field_assign(void) {
+static int unit_ore_miner_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13152,7 +13152,7 @@ static int smoke_ore_miner_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: ore-field joined=%d field=%d pop %d→%d\n",
+      "unit_ai_euro_expand: ore-field joined=%d field=%d pop %d→%d\n",
       joined,
       field_ok,
       pop0,
@@ -13167,7 +13167,7 @@ static int smoke_ore_miner_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Ore Miner hills field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Ore Miner hills field-assign ok\n");
   return 0;
 }
 
@@ -13177,7 +13177,7 @@ static int smoke_ore_miner_field_assign(void) {
  * Miner. Cite: terrain_yields Silver Miner (mountains); Skills Chart; parallel
  * Ore Miner field-assign.
  */
-static int smoke_silver_miner_field_assign(void) {
+static int unit_silver_miner_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13286,7 +13286,7 @@ static int smoke_silver_miner_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Silver Miner mountains field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Silver Miner mountains field-assign ok\n");
   return 0;
 }
 
@@ -13295,7 +13295,7 @@ static int smoke_silver_miner_field_assign(void) {
  * plains surround → admit + colonies_assign_field Farmer. Cite: terrain_yields
  * Farmer; Skills Chart (parallel Lumberjack/Ore Miner).
  */
-static int smoke_farmer_field_assign(void) {
+static int unit_farmer_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13395,7 +13395,7 @@ static int smoke_farmer_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: farmer-field joined=%d field=%d pop %d→%d\n",
+      "unit_ai_euro_expand: farmer-field joined=%d field=%d pop %d→%d\n",
       joined,
       field_ok,
       pop0,
@@ -13410,7 +13410,7 @@ static int smoke_farmer_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Farmer food field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Farmer food field-assign ok\n");
   return 0;
 }
 
@@ -13419,7 +13419,7 @@ static int smoke_farmer_field_assign(void) {
  * tools on plowed no-road tile → units_pioneer_road (not leave to plow elsewhere).
  * Cite: Colonization.pdf Clear/Plow/Road sequence.
  */
-static int smoke_pioneer_road_on_plowed(void) {
+static int unit_pioneer_road_on_plowed(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13513,7 +13513,7 @@ static int smoke_pioneer_road_on_plowed(void) {
   if (!roaded || !tools_spent || !still_plowed) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: road=%d plow=%d tools=%d→%d orders=%d goto=(%d,%d)\n",
+      "unit_ai_euro_expand: road=%d plow=%d tools=%d→%d orders=%d goto=(%d,%d)\n",
       roaded,
       still_plowed,
       tools0,
@@ -13533,7 +13533,7 @@ static int smoke_pioneer_road_on_plowed(void) {
   free(map.layer2);
   free(map.layer3);
   free(map.improve);
-  fprintf(stderr, "smoke_ai_euro_expand: pioneer road-on-plowed ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: pioneer road-on-plowed ok\n");
   return 0;
 }
 
@@ -13543,7 +13543,7 @@ static int smoke_pioneer_road_on_plowed(void) {
  * free ocean surround → admit + colonies_assign_field Fisherman. Cite:
  * terrain_yields Ocean fish; Skills Chart (parallel Farmer field-assign).
  */
-static int smoke_fisherman_field_assign(void) {
+static int unit_fisherman_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13645,7 +13645,7 @@ static int smoke_fisherman_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fisherman-field joined=%d field=%d pop %d→%d ocean_pedia=%d\n",
+      "unit_ai_euro_expand: fisherman-field joined=%d field=%d pop %d→%d ocean_pedia=%d\n",
       joined,
       field_ok,
       pop0,
@@ -13661,7 +13661,7 @@ static int smoke_fisherman_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Fisherman coastal field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Fisherman coastal field-assign ok\n");
   return 0;
 }
 
@@ -13670,7 +13670,7 @@ static int smoke_fisherman_field_assign(void) {
  * with free savannah surround → admit + colonies_assign_field Sugar Planter.
  * Cite: terrain_yields Sugar Planter; Skills Chart (parallel Farmer).
  */
-static int smoke_sugar_planter_field_assign(void) {
+static int unit_sugar_planter_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13773,7 +13773,7 @@ static int smoke_sugar_planter_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: sugar-field joined=%d field=%d pop %d→%d\n",
+      "unit_ai_euro_expand: sugar-field joined=%d field=%d pop %d→%d\n",
       joined,
       field_ok,
       pop0,
@@ -13788,7 +13788,7 @@ static int smoke_sugar_planter_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Sugar Planter field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Sugar Planter field-assign ok\n");
   return 0;
 }
 
@@ -13797,7 +13797,7 @@ static int smoke_sugar_planter_field_assign(void) {
  * with free grassland surround → admit + colonies_assign_field Tobacco Planter.
  * Cite: terrain_yields Tobacco Planter; Skills Chart (parallel Sugar Planter).
  */
-static int smoke_tobacco_planter_field_assign(void) {
+static int unit_tobacco_planter_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -13900,7 +13900,7 @@ static int smoke_tobacco_planter_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: tobacco-field joined=%d field=%d pop %d→%d\n",
+      "unit_ai_euro_expand: tobacco-field joined=%d field=%d pop %d→%d\n",
       joined,
       field_ok,
       pop0,
@@ -13915,7 +13915,7 @@ static int smoke_tobacco_planter_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Tobacco Planter field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Tobacco Planter field-assign ok\n");
   return 0;
 }
 
@@ -13924,7 +13924,7 @@ static int smoke_tobacco_planter_field_assign(void) {
  * with free prairie surround → admit + colonies_assign_field Cotton Planter.
  * Cite: terrain_yields Cotton Planter; Skills Chart (parallel Tobacco).
  */
-static int smoke_cotton_planter_field_assign(void) {
+static int unit_cotton_planter_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14027,7 +14027,7 @@ static int smoke_cotton_planter_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: cotton-field joined=%d field=%d pop %d→%d\n",
+      "unit_ai_euro_expand: cotton-field joined=%d field=%d pop %d→%d\n",
       joined,
       field_ok,
       pop0,
@@ -14042,7 +14042,7 @@ static int smoke_cotton_planter_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Cotton Planter field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Cotton Planter field-assign ok\n");
   return 0;
 }
 
@@ -14051,7 +14051,7 @@ static int smoke_cotton_planter_field_assign(void) {
  * free mixed-forest surround → admit + colonies_assign_field Fur Trapper.
  * Cite: terrain_yields Fur Trapper (forested); Skills Chart (parallel Cotton).
  */
-static int smoke_fur_trapper_field_assign(void) {
+static int unit_fur_trapper_field_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14154,7 +14154,7 @@ static int smoke_fur_trapper_field_assign(void) {
   if (!joined || !field_ok) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fur-field joined=%d field=%d pop %d→%d\n",
+      "unit_ai_euro_expand: fur-field joined=%d field=%d pop %d→%d\n",
       joined,
       field_ok,
       pop0,
@@ -14169,7 +14169,7 @@ static int smoke_fur_trapper_field_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Fur Trapper field-assign ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Fur Trapper field-assign ok\n");
   return 0;
 }
 
@@ -14177,7 +14177,7 @@ static int smoke_fur_trapper_field_assign(void) {
  * Peace construction pick: idle queue → Stockade before Warehouse/Docks.
  * Cite: fandom Defense Stockade→Fort→Fortress; building_production Stockade 64h.
  */
-static int smoke_peace_construction_stockade(void) {
+static int unit_peace_construction_stockade(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14261,7 +14261,7 @@ static int smoke_peace_construction_stockade(void) {
   if (c->building_in_production != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace construct bip=%d (want Stockade=0)\n",
+      "unit_ai_euro_expand: peace construct bip=%d (want Stockade=0)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14273,7 +14273,7 @@ static int smoke_peace_construction_stockade(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace construction Stockade prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace construction Stockade prefer ok\n");
   return 0;
 }
 
@@ -14281,7 +14281,7 @@ static int smoke_peace_construction_stockade(void) {
  * Peace construction: Stockade owned → Fort before Warehouse/Docks.
  * Cite: fandom Defense Stockade→Fort→Fortress; building_production Fort 120h.
  */
-static int smoke_peace_construction_fort(void) {
+static int unit_peace_construction_fort(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14368,7 +14368,7 @@ static int smoke_peace_construction_fort(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fort prefer bip=%d (want Fort=1)\n",
+      "unit_ai_euro_expand: fort prefer bip=%d (want Fort=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14380,7 +14380,7 @@ static int smoke_peace_construction_fort(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace construction Fort prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace construction Fort prefer ok\n");
   return 0;
 }
 
@@ -14388,7 +14388,7 @@ static int smoke_peace_construction_fort(void) {
  * Peace construction: Fort owned → Fortress before Warehouse/Docks.
  * Cite: fandom Defense Stockade→Fort→Fortress; building_production Fortress 320h.
  */
-static int smoke_peace_construction_fortress(void) {
+static int unit_peace_construction_fortress(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14474,7 +14474,7 @@ static int smoke_peace_construction_fortress(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fortress prefer bip=%d (want Fortress=1)\n",
+      "unit_ai_euro_expand: fortress prefer bip=%d (want Fortress=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14486,7 +14486,7 @@ static int smoke_peace_construction_fortress(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace construction Fortress prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace construction Fortress prefer ok\n");
   return 0;
 }
 
@@ -14494,7 +14494,7 @@ static int smoke_peace_construction_fortress(void) {
  * Peace construction: Stockade owned → Warehouse before coastal Docks.
  * Cite: fandom Storage Warehouse; building_production Warehouse 80h.
  */
-static int smoke_peace_construction_warehouse(void) {
+static int unit_peace_construction_warehouse(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14578,7 +14578,7 @@ static int smoke_peace_construction_warehouse(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace warehouse bip=%d (want Warehouse=1)\n",
+      "unit_ai_euro_expand: peace warehouse bip=%d (want Warehouse=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14590,7 +14590,7 @@ static int smoke_peace_construction_warehouse(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace construction Warehouse prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace construction Warehouse prefer ok\n");
   return 0;
 }
 
@@ -14599,7 +14599,7 @@ static int smoke_peace_construction_warehouse(void) {
  * before Docks. Cite: euro_unit_act peace construction; FUN_15eb_0a50 spoilage;
  * building_production Warehouse Expansion 80h.
  */
-static int smoke_peace_construction_warehouse_expansion(void) {
+static int unit_peace_construction_warehouse_expansion(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14691,7 +14691,7 @@ static int smoke_peace_construction_warehouse_expansion(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Warehouse Expansion bip=%d (want Expansion=2)\n",
+      "unit_ai_euro_expand: Warehouse Expansion bip=%d (want Expansion=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14703,7 +14703,7 @@ static int smoke_peace_construction_warehouse_expansion(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace Warehouse Expansion prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace Warehouse Expansion prefer ok\n");
   return 0;
 }
 
@@ -14711,7 +14711,7 @@ static int smoke_peace_construction_warehouse_expansion(void) {
  * Peace construction: Stockade+Warehouse owned, coastal idle → Docks.
  * Cite: fandom Naval Docks→Drydock→Shipyard; building_production Dock 52h.
  */
-static int smoke_peace_construction_docks(void) {
+static int unit_peace_construction_docks(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14795,7 +14795,7 @@ static int smoke_peace_construction_docks(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace docks bip=%d (want Docks=2)\n",
+      "unit_ai_euro_expand: peace docks bip=%d (want Docks=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14807,7 +14807,7 @@ static int smoke_peace_construction_docks(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace construction Docks prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace construction Docks prefer ok\n");
   return 0;
 }
 
@@ -14816,7 +14816,7 @@ static int smoke_peace_construction_docks(void) {
  * → colonies_set_construction Drydock (list_buildable gated). Cite: fandom
  * Naval Docks→Drydock→Shipyard; building_production Drydock 80h.
  */
-static int smoke_coastal_drydock_prefer(void) {
+static int unit_coastal_drydock_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -14897,7 +14897,7 @@ static int smoke_coastal_drydock_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: drydock prefer bip=%d (want Drydock=1)\n",
+      "unit_ai_euro_expand: drydock prefer bip=%d (want Drydock=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -14909,7 +14909,7 @@ static int smoke_coastal_drydock_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: coastal Drydock prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: coastal Drydock prefer ok\n");
   return 0;
 }
 
@@ -14918,7 +14918,7 @@ static int smoke_coastal_drydock_prefer(void) {
  * construction → colonies_set_construction Shipyard (list_buildable gated).
  * Cite: fandom Naval Docks→Drydock→Shipyard; building_production Shipyard 240h.
  */
-static int smoke_coastal_shipyard_prefer(void) {
+static int unit_coastal_shipyard_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15000,7 +15000,7 @@ static int smoke_coastal_shipyard_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: shipyard prefer bip=%d (want Shipyard=1)\n",
+      "unit_ai_euro_expand: shipyard prefer bip=%d (want Shipyard=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15012,7 +15012,7 @@ static int smoke_coastal_shipyard_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: coastal Shipyard prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: coastal Shipyard prefer ok\n");
   return 0;
 }
 
@@ -15023,7 +15023,7 @@ static int smoke_coastal_shipyard_prefer(void) {
  * House; colony.c Custom House gate; founding_fathers elect comment. No
  * auto-sell gold/thresholds invented.
  */
-static int smoke_stuyvesant_custom_house_prefer(void) {
+static int unit_stuyvesant_custom_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15108,7 +15108,7 @@ static int smoke_stuyvesant_custom_house_prefer(void) {
   if (c->building_in_production != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: custom house prefer bip=%d (want Custom House=0)\n",
+      "unit_ai_euro_expand: custom house prefer bip=%d (want Custom House=0)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15120,7 +15120,7 @@ static int smoke_stuyvesant_custom_house_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Stuyvesant Custom House prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Stuyvesant Custom House prefer ok\n");
   return 0;
 }
 
@@ -15129,7 +15129,7 @@ static int smoke_stuyvesant_custom_house_prefer(void) {
  * → Church when buildable. Cite: building_production Church→Crosses;
  * euro_unit_act peace Church prefer.
  */
-static int smoke_peace_church_prefer(void) {
+static int unit_peace_church_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15212,7 +15212,7 @@ static int smoke_peace_church_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace Church bip=%d (want Church=2)\n",
+      "unit_ai_euro_expand: peace Church bip=%d (want Church=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15224,7 +15224,7 @@ static int smoke_peace_church_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace Church prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace Church prefer ok\n");
   return 0;
 }
 
@@ -15233,7 +15233,7 @@ static int smoke_peace_church_prefer(void) {
  * buildable (Church also buildable must not win — Armory runs after Church and
  * yanks when at war). Cite: building_production Armory; euro_unit_act Armory prefer.
  */
-static int smoke_war_armory_prefer(void) {
+static int unit_war_armory_prefer(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -15325,7 +15325,7 @@ static int smoke_war_armory_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: war Armory bip=%d (want Armory=2, Church would be 1)\n",
+      "unit_ai_euro_expand: war Armory bip=%d (want Armory=2, Church would be 1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15337,7 +15337,7 @@ static int smoke_war_armory_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: war Armory prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: war Armory prefer ok\n");
   return 0;
 }
 
@@ -15345,7 +15345,7 @@ static int smoke_war_armory_prefer(void) {
  * Peace Printing Press prefer: Stockade+Church owned, idle → Printing Press.
  * Cite: building_production Printing Press +50% bells; euro_unit_act.
  */
-static int smoke_peace_printing_press_prefer(void) {
+static int unit_peace_printing_press_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15428,7 +15428,7 @@ static int smoke_peace_printing_press_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace Press bip=%d (want Printing Press=2)\n",
+      "unit_ai_euro_expand: peace Press bip=%d (want Printing Press=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15440,7 +15440,7 @@ static int smoke_peace_printing_press_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace Printing Press prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace Printing Press prefer ok\n");
   return 0;
 }
 
@@ -15448,7 +15448,7 @@ static int smoke_peace_printing_press_prefer(void) {
  * Peace Schoolhouse prefer: Stockade+Church+Press owned, pop≥4 → Schoolhouse.
  * Cite: building_production Schoolhouse; euro_unit_act Education prefer.
  */
-static int smoke_peace_schoolhouse_prefer(void) {
+static int unit_peace_schoolhouse_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15535,7 +15535,7 @@ static int smoke_peace_schoolhouse_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace Schoolhouse bip=%d (want Schoolhouse=3)\n",
+      "unit_ai_euro_expand: peace Schoolhouse bip=%d (want Schoolhouse=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15547,7 +15547,7 @@ static int smoke_peace_schoolhouse_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace Schoolhouse prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace Schoolhouse prefer ok\n");
   return 0;
 }
 
@@ -15555,7 +15555,7 @@ static int smoke_peace_schoolhouse_prefer(void) {
  * Wartime Magazine prefer: at war + Armory owned → Magazine. Cite:
  * building_production Magazine; euro_unit_act wartime Magazine prefer.
  */
-static int smoke_war_magazine_prefer(void) {
+static int unit_war_magazine_prefer(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -15641,7 +15641,7 @@ static int smoke_war_magazine_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: war Magazine bip=%d (want Magazine=2)\n",
+      "unit_ai_euro_expand: war Magazine bip=%d (want Magazine=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15653,14 +15653,14 @@ static int smoke_war_magazine_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: war Magazine prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: war Magazine prefer ok\n");
   return 0;
 }
 
 /*
  * Peace Newspaper prefer: Printing Press owned → Newspaper.
  */
-static int smoke_peace_newspaper_prefer(void) {
+static int unit_peace_newspaper_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15743,7 +15743,7 @@ static int smoke_peace_newspaper_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace Newspaper bip=%d (want Newspaper=2)\n",
+      "unit_ai_euro_expand: peace Newspaper bip=%d (want Newspaper=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15755,14 +15755,14 @@ static int smoke_peace_newspaper_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace Newspaper prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace Newspaper prefer ok\n");
   return 0;
 }
 
 /*
  * Peace College prefer: Schoolhouse owned, pop≥8 → College.
  */
-static int smoke_peace_college_prefer(void) {
+static int unit_peace_college_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15845,7 +15845,7 @@ static int smoke_peace_college_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace College bip=%d (want College=2)\n",
+      "unit_ai_euro_expand: peace College bip=%d (want College=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15857,14 +15857,14 @@ static int smoke_peace_college_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace College prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace College prefer ok\n");
   return 0;
 }
 
 /*
  * Peace Cathedral prefer: Church owned, pop≥8 → Cathedral.
  */
-static int smoke_peace_cathedral_prefer(void) {
+static int unit_peace_cathedral_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -15947,7 +15947,7 @@ static int smoke_peace_cathedral_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace Cathedral bip=%d (want Cathedral=2)\n",
+      "unit_ai_euro_expand: peace Cathedral bip=%d (want Cathedral=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -15959,7 +15959,7 @@ static int smoke_peace_cathedral_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace Cathedral prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace Cathedral prefer ok\n");
   return 0;
 }
 
@@ -15968,7 +15968,7 @@ static int smoke_peace_cathedral_prefer(void) {
  * Cite: building_production Arsenal factory muskets; euro_unit_act wartime
  * Arsenal prefer.
  */
-static int smoke_war_arsenal_prefer(void) {
+static int unit_war_arsenal_prefer(void) {
   const int nation = 1;
   const int foe = 2;
 
@@ -16060,7 +16060,7 @@ static int smoke_war_arsenal_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: war Arsenal bip=%d (want Arsenal=3)\n",
+      "unit_ai_euro_expand: war Arsenal bip=%d (want Arsenal=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16072,14 +16072,14 @@ static int smoke_war_arsenal_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: war Arsenal prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: war Arsenal prefer ok\n");
   return 0;
 }
 
 /*
  * Peace University prefer: College owned, pop≥10 → University.
  */
-static int smoke_peace_university_prefer(void) {
+static int unit_peace_university_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16166,7 +16166,7 @@ static int smoke_peace_university_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: peace University bip=%d (want University=3)\n",
+      "unit_ai_euro_expand: peace University bip=%d (want University=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16178,14 +16178,14 @@ static int smoke_peace_university_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: peace University prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: peace University prefer ok\n");
   return 0;
 }
 
 /*
  * Stable prefer: Stockade owned → Stable. Cite: building_production Stable.
  */
-static int smoke_stable_prefer(void) {
+static int unit_stable_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16264,7 +16264,7 @@ static int smoke_stable_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Stable bip=%d (want Stable=1)\n",
+      "unit_ai_euro_expand: Stable bip=%d (want Stable=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16276,7 +16276,7 @@ static int smoke_stable_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Stable prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Stable prefer ok\n");
   return 0;
 }
 
@@ -16284,7 +16284,7 @@ static int smoke_stable_prefer(void) {
  * Carpenter's Shop prefer: Stockade owned, no Shop/Mill → Carpenter's Shop.
  * Cite: building_production; ai_euro_prefer_carpenters_shop.
  */
-static int smoke_carpenters_shop_prefer(void) {
+static int unit_carpenters_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16365,7 +16365,7 @@ static int smoke_carpenters_shop_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Carpenter's Shop bip=%d (want=1)\n",
+      "unit_ai_euro_expand: Carpenter's Shop bip=%d (want=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16377,14 +16377,14 @@ static int smoke_carpenters_shop_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Carpenter's Shop prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Carpenter's Shop prefer ok\n");
   return 0;
 }
 
 /*
  * Lumber Mill prefer: Carpenter's Shop owned → Lumber Mill.
  */
-static int smoke_lumber_mill_prefer(void) {
+static int unit_lumber_mill_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16469,7 +16469,7 @@ static int smoke_lumber_mill_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Lumber Mill bip=%d (want Lumber Mill=2)\n",
+      "unit_ai_euro_expand: Lumber Mill bip=%d (want Lumber Mill=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16481,7 +16481,7 @@ static int smoke_lumber_mill_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Lumber Mill prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Lumber Mill prefer ok\n");
   return 0;
 }
 
@@ -16489,7 +16489,7 @@ static int smoke_lumber_mill_prefer(void) {
  * Blacksmith's House prefer: ore≥20, no house → Blacksmith's House.
  * Cite: building_production Ore→Tools; ai_euro_prefer_blacksmiths_house.
  */
-static int smoke_blacksmiths_house_prefer(void) {
+static int unit_blacksmiths_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16571,7 +16571,7 @@ static int smoke_blacksmiths_house_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Blacksmith's House bip=%d (want=1)\n",
+      "unit_ai_euro_expand: Blacksmith's House bip=%d (want=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16583,7 +16583,7 @@ static int smoke_blacksmiths_house_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Blacksmith's House prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Blacksmith's House prefer ok\n");
   return 0;
 }
 
@@ -16591,7 +16591,7 @@ static int smoke_blacksmiths_house_prefer(void) {
  * Blacksmith's Shop prefer: Blacksmith's House owned → Blacksmith's Shop.
  * Cite: building_production Ore→Tools shop; ai_euro_prefer_blacksmiths_shop.
  */
-static int smoke_blacksmiths_shop_prefer(void) {
+static int unit_blacksmiths_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16678,7 +16678,7 @@ static int smoke_blacksmiths_shop_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Blacksmith's Shop bip=%d (want=2)\n",
+      "unit_ai_euro_expand: Blacksmith's Shop bip=%d (want=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16690,14 +16690,14 @@ static int smoke_blacksmiths_shop_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Blacksmith's Shop prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Blacksmith's Shop prefer ok\n");
   return 0;
 }
 
 /*
  * Iron Works prefer: Adam Smith + Blacksmith's Shop → Iron Works.
  */
-static int smoke_iron_works_prefer(void) {
+static int unit_iron_works_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16784,7 +16784,7 @@ static int smoke_iron_works_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Iron Works bip=%d (want Iron Works=2)\n",
+      "unit_ai_euro_expand: Iron Works bip=%d (want Iron Works=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16796,7 +16796,7 @@ static int smoke_iron_works_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Iron Works prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Iron Works prefer ok\n");
   return 0;
 }
 
@@ -16804,7 +16804,7 @@ static int smoke_iron_works_prefer(void) {
  * Craft Distiller's House prefer: sugar≥20, no house → Rum Distiller's House.
  * Cite: building_production craft chain; ai_euro_prefer_craft_upgrades house step.
  */
-static int smoke_craft_distillers_house_prefer(void) {
+static int unit_craft_distillers_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16888,7 +16888,7 @@ static int smoke_craft_distillers_house_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Distiller's House bip=%d (want=1)\n",
+      "unit_ai_euro_expand: Distiller's House bip=%d (want=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -16900,7 +16900,7 @@ static int smoke_craft_distillers_house_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Rum Distiller's House prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Rum Distiller's House prefer ok\n");
   return 0;
 }
 
@@ -16908,7 +16908,7 @@ static int smoke_craft_distillers_house_prefer(void) {
  * Craft Weaver's House prefer: cotton≥20, no house → Weaver's House.
  * Cite: building_production Weaver chain; ai_euro_prefer_craft_upgrades house step.
  */
-static int smoke_craft_weavers_house_prefer(void) {
+static int unit_craft_weavers_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -16988,7 +16988,7 @@ static int smoke_craft_weavers_house_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Weaver's House bip=%d (want=1)\n",
+      "unit_ai_euro_expand: Weaver's House bip=%d (want=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17000,14 +17000,14 @@ static int smoke_craft_weavers_house_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Weaver's House prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Weaver's House prefer ok\n");
   return 0;
 }
 
 /*
  * Craft Tobacconist's House prefer: tobacco≥20, no house → Tobacconist's House.
  */
-static int smoke_craft_tobacconists_house_prefer(void) {
+static int unit_craft_tobacconists_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17091,7 +17091,7 @@ static int smoke_craft_tobacconists_house_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Tobacconist's House bip=%d (want=1)\n",
+      "unit_ai_euro_expand: Tobacconist's House bip=%d (want=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17103,14 +17103,14 @@ static int smoke_craft_tobacconists_house_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Tobacconist's House prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Tobacconist's House prefer ok\n");
   return 0;
 }
 
 /*
  * Craft Fur Trader's House prefer: furs≥20, no house → Fur Trader's House.
  */
-static int smoke_craft_fur_traders_house_prefer(void) {
+static int unit_craft_fur_traders_house_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17192,7 +17192,7 @@ static int smoke_craft_fur_traders_house_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Fur Trader's House bip=%d (want=1)\n",
+      "unit_ai_euro_expand: Fur Trader's House bip=%d (want=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17204,14 +17204,14 @@ static int smoke_craft_fur_traders_house_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Fur Trader's House prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Fur Trader's House prefer ok\n");
   return 0;
 }
 
 /*
  * Craft Distillery prefer: Distiller's House + sugar≥20 → Rum Distillery.
  */
-static int smoke_craft_distillery_prefer(void) {
+static int unit_craft_distillery_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17301,7 +17301,7 @@ static int smoke_craft_distillery_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Rum Distillery bip=%d (want=2)\n",
+      "unit_ai_euro_expand: Rum Distillery bip=%d (want=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17313,7 +17313,7 @@ static int smoke_craft_distillery_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Rum Distillery prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Rum Distillery prefer ok\n");
   return 0;
 }
 
@@ -17321,7 +17321,7 @@ static int smoke_craft_distillery_prefer(void) {
  * Craft Weaver's Shop prefer: Weaver's House + cotton≥20 → Weaver's Shop.
  * Cite: building_production Weaver chain; euro_unit_act craft shop prefer.
  */
-static int smoke_craft_weavers_shop_prefer(void) {
+static int unit_craft_weavers_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17410,7 +17410,7 @@ static int smoke_craft_weavers_shop_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Weaver's Shop bip=%d (want=2)\n",
+      "unit_ai_euro_expand: Weaver's Shop bip=%d (want=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17422,7 +17422,7 @@ static int smoke_craft_weavers_shop_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Weaver's Shop prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Weaver's Shop prefer ok\n");
   return 0;
 }
 
@@ -17430,7 +17430,7 @@ static int smoke_craft_weavers_shop_prefer(void) {
  * Craft Tobacconist's Shop prefer: Tobacconist's House + tobacco≥20 → Shop.
  * Cite: building_production Tobacconist chain; euro_unit_act craft shop prefer.
  */
-static int smoke_craft_tobacconist_shop_prefer(void) {
+static int unit_craft_tobacconist_shop_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17523,7 +17523,7 @@ static int smoke_craft_tobacconist_shop_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Tobacconist's Shop bip=%d (want=2)\n",
+      "unit_ai_euro_expand: Tobacconist's Shop bip=%d (want=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17535,7 +17535,7 @@ static int smoke_craft_tobacconist_shop_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Tobacconist's Shop prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Tobacconist's Shop prefer ok\n");
   return 0;
 }
 
@@ -17543,7 +17543,7 @@ static int smoke_craft_tobacconist_shop_prefer(void) {
  * Craft Fur Trading Post prefer: Fur Trader's House + furs≥20 → Trading Post.
  * Cite: building_production Fur chain; euro_unit_act craft shop prefer.
  */
-static int smoke_craft_fur_trading_post_prefer(void) {
+static int unit_craft_fur_trading_post_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17636,7 +17636,7 @@ static int smoke_craft_fur_trading_post_prefer(void) {
   if (c->building_in_production != 2) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Fur Trading Post bip=%d (want=2)\n",
+      "unit_ai_euro_expand: Fur Trading Post bip=%d (want=2)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17648,14 +17648,14 @@ static int smoke_craft_fur_trading_post_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Fur Trading Post prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Fur Trading Post prefer ok\n");
   return 0;
 }
 
 /*
  * Craft Rum Factory prefer: Adam Smith + Distillery + sugar≥20 → Rum Factory.
  */
-static int smoke_craft_rum_factory_prefer(void) {
+static int unit_craft_rum_factory_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17751,7 +17751,7 @@ static int smoke_craft_rum_factory_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Rum Factory bip=%d (want=3)\n",
+      "unit_ai_euro_expand: Rum Factory bip=%d (want=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17763,7 +17763,7 @@ static int smoke_craft_rum_factory_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Rum Factory prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Rum Factory prefer ok\n");
   return 0;
 }
 
@@ -17771,7 +17771,7 @@ static int smoke_craft_rum_factory_prefer(void) {
  * Craft Textile Mill prefer: Adam Smith + Weaver's Shop + cotton≥20 → Textile Mill.
  * Cite: building_production craft chain; ai_euro_prefer_craft_upgrades.
  */
-static int smoke_craft_textile_mill_prefer(void) {
+static int unit_craft_textile_mill_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17861,7 +17861,7 @@ static int smoke_craft_textile_mill_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Textile Mill bip=%d (want=3)\n",
+      "unit_ai_euro_expand: Textile Mill bip=%d (want=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17873,14 +17873,14 @@ static int smoke_craft_textile_mill_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Textile Mill prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Textile Mill prefer ok\n");
   return 0;
 }
 
 /*
  * Craft Cigar Factory prefer: Adam Smith + Tobacconist's Shop + tobacco≥20.
  */
-static int smoke_craft_cigar_factory_prefer(void) {
+static int unit_craft_cigar_factory_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -17978,7 +17978,7 @@ static int smoke_craft_cigar_factory_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Cigar Factory bip=%d (want=3)\n",
+      "unit_ai_euro_expand: Cigar Factory bip=%d (want=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -17990,14 +17990,14 @@ static int smoke_craft_cigar_factory_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Cigar Factory prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Cigar Factory prefer ok\n");
   return 0;
 }
 
 /*
  * Craft Fur Factory prefer: Adam Smith + Fur Trading Post + furs≥20.
  */
-static int smoke_craft_fur_factory_prefer(void) {
+static int unit_craft_fur_factory_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18093,7 +18093,7 @@ static int smoke_craft_fur_factory_prefer(void) {
   if (c->building_in_production != 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Fur Factory bip=%d (want=3)\n",
+      "unit_ai_euro_expand: Fur Factory bip=%d (want=3)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -18105,14 +18105,14 @@ static int smoke_craft_fur_factory_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Fur Factory prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Fur Factory prefer ok\n");
   return 0;
 }
 
 /*
  * Capitol prefer: Stockade owned → Capitol.
  */
-static int smoke_capitol_prefer(void) {
+static int unit_capitol_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18191,7 +18191,7 @@ static int smoke_capitol_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Capitol bip=%d (want Capitol=1)\n",
+      "unit_ai_euro_expand: Capitol bip=%d (want Capitol=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -18203,7 +18203,7 @@ static int smoke_capitol_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Capitol prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Capitol prefer ok\n");
   return 0;
 }
 
@@ -18211,7 +18211,7 @@ static int smoke_capitol_prefer(void) {
  * Capitol Expansion prefer: Capitol owned → Capitol Expansion.
  * Cite: building_production.md Capitol Expansion; euro_unit_act Capitol prefer.
  */
-static int smoke_capitol_expansion_prefer(void) {
+static int unit_capitol_expansion_prefer(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18294,7 +18294,7 @@ static int smoke_capitol_expansion_prefer(void) {
   if (c->building_in_production != 1) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: Capitol Expansion bip=%d (want Expansion=1)\n",
+      "unit_ai_euro_expand: Capitol Expansion bip=%d (want Expansion=1)\n",
       c->building_in_production
     );
     free(map.terrain);
@@ -18306,7 +18306,7 @@ static int smoke_capitol_expansion_prefer(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Capitol Expansion prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Capitol Expansion prefer ok\n");
   return 0;
 }
 
@@ -18314,7 +18314,7 @@ static int smoke_capitol_expansion_prefer(void) {
  * Idle Wagon with MUSKETS cargo → AI_MOVE toward muskets-short colony
  * (tools stock OK). Cite: euro_unit_act §2d wagon haul muskets; COLONIZE_CARGO_MUSKETS.
  */
-static int smoke_wagon_haul_muskets_short(void) {
+static int unit_wagon_haul_muskets_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18412,7 +18412,7 @@ static int smoke_wagon_haul_muskets_short(void) {
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-muskets orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: wagon-muskets orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       wagon->orders,
       wagon->goto_x,
       wagon->goto_y,
@@ -18428,7 +18428,7 @@ static int smoke_wagon_haul_muskets_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon haul muskets-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon haul muskets-short ok\n");
   return 0;
 }
 
@@ -18436,7 +18436,7 @@ static int smoke_wagon_haul_muskets_short(void) {
  * Idle Wagon with LUMBER cargo → AI_MOVE toward lumber-short colony (tools OK).
  * Cite: euro_unit_act §2d wagon haul lumber; 5cf6 lumber_short; COLONIZE_CARGO_LUMBER.
  */
-static int smoke_wagon_haul_lumber_short(void) {
+static int unit_wagon_haul_lumber_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18533,7 +18533,7 @@ static int smoke_wagon_haul_lumber_short(void) {
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-lumber orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: wagon-lumber orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       wagon->orders,
       wagon->goto_x,
       wagon->goto_y,
@@ -18549,7 +18549,7 @@ static int smoke_wagon_haul_lumber_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon haul lumber-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon haul lumber-short ok\n");
   return 0;
 }
 
@@ -18557,7 +18557,7 @@ static int smoke_wagon_haul_lumber_short(void) {
  * Idle Wagon with ORE cargo → AI_MOVE toward ore-short colony (tools OK).
  * Cite: euro_unit_act §2d wagon haul ore; 5cf6 ore_short; COLONIZE_CARGO_ORE.
  */
-static int smoke_wagon_haul_ore_short(void) {
+static int unit_wagon_haul_ore_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18654,7 +18654,7 @@ static int smoke_wagon_haul_ore_short(void) {
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-ore orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: wagon-ore orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       wagon->orders,
       wagon->goto_x,
       wagon->goto_y,
@@ -18670,7 +18670,7 @@ static int smoke_wagon_haul_ore_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon haul ore-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon haul ore-short ok\n");
   return 0;
 }
 
@@ -18679,7 +18679,7 @@ static int smoke_wagon_haul_ore_short(void) {
  * nearest own coastal colony (Europe export feeder). Cite: FUN_364b_0688;
  * euro_unit_act §2d / §2d2 Europe export sail.
  */
-static int smoke_wagon_europe_export_feeder(void) {
+static int unit_wagon_europe_export_feeder(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18808,7 +18808,7 @@ static int smoke_wagon_europe_export_feeder(void) {
   if (!loaded || !toward_coast) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-export silver=%d hold_t=%d hold_a=%d "
+      "unit_ai_euro_expand: wagon-export silver=%d hold_t=%d hold_a=%d "
       "orders=%d goto=(%d,%d)\n",
       inland->stock[COLONIZE_CARGO_SILVER],
       wagon->hold_goods_type[0],
@@ -18826,7 +18826,7 @@ static int smoke_wagon_europe_export_feeder(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon Europe export feeder ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon Europe export feeder ok\n");
   return 0;
 }
 
@@ -18834,7 +18834,7 @@ static int smoke_wagon_europe_export_feeder(void) {
  * Wagon on coastal colony with SILVER hold → unload into stock (ship export
  * pickup). Cite: euro_unit_act §2d2 wagon export feeder unload.
  */
-static int smoke_wagon_europe_export_unload(void) {
+static int unit_wagon_europe_export_unload(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -18950,7 +18950,7 @@ static int smoke_wagon_europe_export_unload(void) {
   if (!unloaded || still_held) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-export-unload silver=%d still_held=%d\n",
+      "unit_ai_euro_expand: wagon-export-unload silver=%d still_held=%d\n",
       coast->stock[COLONIZE_CARGO_SILVER],
       still_held
     );
@@ -18963,7 +18963,7 @@ static int smoke_wagon_europe_export_unload(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon Europe export unload ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon Europe export unload ok\n");
   return 0;
 }
 
@@ -18972,7 +18972,7 @@ static int smoke_wagon_europe_export_unload(void) {
  * Cite: Colonization.pdf Wagon Train; euro_unit_act §2d; 5cf6 food_short
  * (stock < pop*TURN_FOOD_PER_COLONIST).
  */
-static int smoke_wagon_haul_food_short(void) {
+static int unit_wagon_haul_food_short(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19070,7 +19070,7 @@ static int smoke_wagon_haul_food_short(void) {
   if (wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-food orders=%d goto=(%d,%d) pos=(%d,%d)\n",
+      "unit_ai_euro_expand: wagon-food orders=%d goto=(%d,%d) pos=(%d,%d)\n",
       wagon->orders,
       wagon->goto_x,
       wagon->goto_y,
@@ -19086,7 +19086,7 @@ static int smoke_wagon_haul_food_short(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon haul food-short ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon haul food-short ok\n");
   return 0;
 }
 
@@ -19094,7 +19094,7 @@ static int smoke_wagon_haul_food_short(void) {
  * Wagon on food-short colony with FOOD hold → colonies_transfer_from_unit.
  * Cite: Colonization.pdf Wagon Train; 5cf6 food_short; transfer APIs.
  */
-static int smoke_wagon_food_delivery(void) {
+static int unit_wagon_food_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19189,7 +19189,7 @@ static int smoke_wagon_food_delivery(void) {
   if (food_after < food_before + 8 || hold_left != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: wagon-food %d→%d hold_left=%d (want +8, hold 0)\n",
+      "unit_ai_euro_expand: wagon-food %d→%d hold_left=%d (want +8, hold 0)\n",
       food_before,
       food_after,
       hold_left
@@ -19205,7 +19205,7 @@ static int smoke_wagon_food_delivery(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: wagon-food delivery ok (food %d→%d)\n",
+    "unit_ai_euro_expand: wagon-food delivery ok (food %d→%d)\n",
     food_before,
     food_after
   );
@@ -19217,7 +19217,7 @@ static int smoke_wagon_food_delivery(void) {
  * AI_MOVE toward short. Cite: Colonization.pdf Wagon Train; 5cf6 food_short
  * surplus = pop*4 (2× short floor).
  */
-static int smoke_wagon_food_load_haul(void) {
+static int unit_wagon_food_load_haul(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19327,7 +19327,7 @@ static int smoke_wagon_food_load_haul(void) {
       wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: food-load stock %d→%d aboard=%d orders=%d goto=(%d,%d)\n",
+      "unit_ai_euro_expand: food-load stock %d→%d aboard=%d orders=%d goto=(%d,%d)\n",
       stock_before,
       stock_after,
       food_aboard,
@@ -19346,7 +19346,7 @@ static int smoke_wagon_food_load_haul(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "smoke_ai_euro_expand: wagon food load+haul ok (aboard=%d)\n",
+    "unit_ai_euro_expand: wagon food load+haul ok (aboard=%d)\n",
     food_aboard
   );
   return 0;
@@ -19357,7 +19357,7 @@ static int smoke_wagon_food_load_haul(void) {
  * FOOD load first (not tools ladder). Cite: euro_unit_act §2d surplus FOOD
  * deepen; 5cf6 food_short.
  */
-static int smoke_wagon_food_prefer_over_tools(void) {
+static int unit_wagon_food_prefer_over_tools(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19467,7 +19467,7 @@ static int smoke_wagon_food_prefer_over_tools(void) {
   if (!wagon || !wagon->active || food_aboard <= 0 || tools_aboard > 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: food-prefer food=%d tools=%d orders=%d\n",
+      "unit_ai_euro_expand: food-prefer food=%d tools=%d orders=%d\n",
       food_aboard,
       tools_aboard,
       wagon ? wagon->orders : -1
@@ -19481,7 +19481,7 @@ static int smoke_wagon_food_prefer_over_tools(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: wagon food prefer over tools ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: wagon food prefer over tools ok\n");
   return 0;
 }
 
@@ -19490,7 +19490,7 @@ static int smoke_wagon_food_prefer_over_tools(void) {
  * colonies_transfer_from_unit. Cite: Colonization.pdf naval transport; §2d2;
  * 5cf6 food_short.
  */
-static int smoke_ship_food_delivery(void) {
+static int unit_ship_food_delivery(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19594,7 +19594,7 @@ static int smoke_ship_food_delivery(void) {
   if (food_after < food_before + 8 || hold_left != 0) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: ship-food %d→%d hold_left=%d\n",
+      "unit_ai_euro_expand: ship-food %d→%d hold_left=%d\n",
       food_before,
       food_after,
       hold_left
@@ -19608,7 +19608,7 @@ static int smoke_ship_food_delivery(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: ship food delivery ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: ship food delivery ok\n");
   return 0;
 }
 
@@ -19617,7 +19617,7 @@ static int smoke_ship_food_delivery(void) {
  * colonies_assign_workplace. Cite: Skills Chart / building_production
  * Blacksmith→Tools; colonies_assign_workplace.
  */
-static int smoke_blacksmith_workplace_assign(void) {
+static int unit_blacksmith_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19730,7 +19730,7 @@ static int smoke_blacksmith_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: blacksmith pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: blacksmith pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -19743,7 +19743,7 @@ static int smoke_blacksmith_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Blacksmith workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Blacksmith workplace ok\n");
   return 0;
 }
 
@@ -19752,7 +19752,7 @@ static int smoke_blacksmith_workplace_assign(void) {
  * colonies_assign_workplace. Cite: Skills Chart / building_production
  * Gunsmith→Muskets (Armory); colonies_assign_workplace.
  */
-static int smoke_gunsmith_workplace_assign(void) {
+static int unit_gunsmith_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19861,7 +19861,7 @@ static int smoke_gunsmith_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: gunsmith pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: gunsmith pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -19874,7 +19874,7 @@ static int smoke_gunsmith_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Gunsmith workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Gunsmith workplace ok\n");
   return 0;
 }
 
@@ -19883,7 +19883,7 @@ static int smoke_gunsmith_workplace_assign(void) {
  * colonies_assign_workplace. Cite: Skills Chart / building_production
  * Fur Trader→Coats; colonies_assign_workplace.
  */
-static int smoke_fur_trader_workplace_assign(void) {
+static int unit_fur_trader_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -19996,7 +19996,7 @@ static int smoke_fur_trader_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: fur-trader pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: fur-trader pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20009,7 +20009,7 @@ static int smoke_fur_trader_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Fur Trader workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Fur Trader workplace ok\n");
   return 0;
 }
 
@@ -20017,7 +20017,7 @@ static int smoke_fur_trader_workplace_assign(void) {
  * Master Distiller → Rum Distiller's House workplace.
  * Cite: building_production.md Skills Chart job 9; Colonization.pdf Distiller.
  */
-static int smoke_distiller_workplace_assign(void) {
+static int unit_distiller_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20131,7 +20131,7 @@ static int smoke_distiller_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: distiller pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: distiller pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20144,7 +20144,7 @@ static int smoke_distiller_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Distiller workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Distiller workplace ok\n");
   return 0;
 }
 
@@ -20152,7 +20152,7 @@ static int smoke_distiller_workplace_assign(void) {
  * Master Weaver → Weaver's House workplace.
  * Cite: building_production.md Skills Chart job 11; Colonization.pdf Weaver.
  */
-static int smoke_weaver_workplace_assign(void) {
+static int unit_weaver_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20264,7 +20264,7 @@ static int smoke_weaver_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: weaver pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: weaver pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20277,7 +20277,7 @@ static int smoke_weaver_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Weaver workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Weaver workplace ok\n");
   return 0;
 }
 
@@ -20285,7 +20285,7 @@ static int smoke_weaver_workplace_assign(void) {
  * Master Tobacconist → Tobacconist's House workplace.
  * Cite: building_production.md Skills Chart job 10; Colonization.pdf Tobacconist.
  */
-static int smoke_tobacconist_workplace_assign(void) {
+static int unit_tobacconist_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20399,7 +20399,7 @@ static int smoke_tobacconist_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: tobacconist pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: tobacconist pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20412,7 +20412,7 @@ static int smoke_tobacconist_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Tobacconist workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Tobacconist workplace ok\n");
   return 0;
 }
 
@@ -20420,7 +20420,7 @@ static int smoke_tobacconist_workplace_assign(void) {
  * Elder Statesman → Town Hall workplace. Cite: building_production.md Skills
  * Chart job 17; Colonization.pdf Elder Statesman → liberty bells.
  */
-static int smoke_statesman_workplace_assign(void) {
+static int unit_statesman_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20529,7 +20529,7 @@ static int smoke_statesman_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: statesman pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: statesman pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20542,7 +20542,7 @@ static int smoke_statesman_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Elder Statesman workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Elder Statesman workplace ok\n");
   return 0;
 }
 
@@ -20550,7 +20550,7 @@ static int smoke_statesman_workplace_assign(void) {
  * Firebrand Preacher → Church workplace (Cathedral preferred when owned).
  * Cite: building_production.md Skills Chart job 16; Colonization.pdf Preacher.
  */
-static int smoke_preacher_workplace_assign(void) {
+static int unit_preacher_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20659,7 +20659,7 @@ static int smoke_preacher_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: preacher pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: preacher pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20672,7 +20672,7 @@ static int smoke_preacher_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Firebrand Preacher workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Firebrand Preacher workplace ok\n");
   return 0;
 }
 
@@ -20680,7 +20680,7 @@ static int smoke_preacher_workplace_assign(void) {
  * Expert Teacher → Schoolhouse workplace (College/University when owned).
  * Cite: building_production.md Skills Chart job 18; Colonization.pdf Teacher.
  */
-static int smoke_teacher_workplace_assign(void) {
+static int unit_teacher_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20793,7 +20793,7 @@ static int smoke_teacher_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: teacher pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: teacher pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20806,7 +20806,7 @@ static int smoke_teacher_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Expert Teacher workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Expert Teacher workplace ok\n");
   return 0;
 }
 
@@ -20814,7 +20814,7 @@ static int smoke_teacher_workplace_assign(void) {
  * Master Carpenter → Carpenter's Shop workplace (Lumber Mill when owned).
  * Cite: building_production.md Skills Chart job 13; Colonization.pdf Carpenter.
  */
-static int smoke_carpenter_workplace_assign(void) {
+static int unit_carpenter_workplace_assign(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -20928,7 +20928,7 @@ static int smoke_carpenter_workplace_assign(void) {
   if (!found_wp || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: carpenter pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: carpenter pop=%d found_wp=%d\n",
       after->colonist_count,
       found_wp
     );
@@ -20941,7 +20941,7 @@ static int smoke_carpenter_workplace_assign(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "smoke_ai_euro_expand: Master Carpenter workplace ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Master Carpenter workplace ok\n");
   return 0;
 }
 
@@ -20950,7 +20950,7 @@ static int smoke_carpenter_workplace_assign(void) {
  * re-aims to deeper unseen (MD=7). Cite: euro_unit_act §2c2 Seasoned+sticky;
  * Colonization.pdf Seasoned Scout.
  */
-static int smoke_seasoned_sticky_fog_deepen(void) {
+static int unit_seasoned_sticky_fog_deepen(void) {
   const int nation = 1;
 
   ColonizeWorldMap map;
@@ -21067,7 +21067,7 @@ static int smoke_seasoned_sticky_fog_deepen(void) {
   if (!deep) {
     fprintf(
       stderr,
-      "smoke_ai_euro_expand: seasoned-sticky orders=%d goto=(%d,%d) name=%s sticky=%u\n",
+      "unit_ai_euro_expand: seasoned-sticky orders=%d goto=(%d,%d) name=%s sticky=%u\n",
       scout ? scout->orders : -1,
       scout ? scout->goto_x : -1,
       scout ? scout->goto_y : -1,
@@ -21085,489 +21085,489 @@ static int smoke_seasoned_sticky_fog_deepen(void) {
   free(map.layer2);
   free(map.layer3);
   free(map.seen);
-  fprintf(stderr, "smoke_ai_euro_expand: Seasoned+sticky fog deepen ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Seasoned+sticky fog deepen ok\n");
   return 0;
 }
 
 int main(void) {
-  if (smoke_second_wave() != 0) {
+  if (unit_second_wave() != 0) {
     return 1;
   }
   /* Series R before known Seasoned+sticky early-exit (pre-existing). */
-  if (smoke_specialty_flag_a_haul_match() != 0) {
+  if (unit_specialty_flag_a_haul_match() != 0) {
     return 1;
   }
-  if (smoke_second_colony_coastal_prefer() != 0) {
+  if (unit_second_colony_coastal_prefer() != 0) {
     return 1;
   }
-  if (smoke_scout_explore() != 0) {
+  if (unit_scout_explore() != 0) {
     return 1;
   }
-  if (smoke_scout_fog_prefer_unseen() != 0) {
+  if (unit_scout_fog_prefer_unseen() != 0) {
     return 1;
   }
-  if (smoke_scout_sticky_closer_ring() != 0) {
+  if (unit_scout_sticky_closer_ring() != 0) {
     return 1;
   }
-  if (smoke_scout_sticky_fog_deeper_unseen() != 0) {
+  if (unit_scout_sticky_fog_deeper_unseen() != 0) {
     return 1;
   }
-  if (smoke_scout_fog_explore_no_contact() != 0) {
+  if (unit_scout_fog_explore_no_contact() != 0) {
     return 1;
   }
-  if (smoke_seasoned_scout_deeper_fog() != 0) {
+  if (unit_seasoned_scout_deeper_fog() != 0) {
     return 1;
   }
-  if (smoke_scout_fog_prefer_rumour() != 0) {
+  if (unit_scout_fog_prefer_rumour() != 0) {
     return 1;
   }
-  if (smoke_seasoned_sticky_fog_deepen() != 0) {
+  if (unit_seasoned_sticky_fog_deepen() != 0) {
     return 1;
   }
-  if (smoke_treasure_coast() != 0) {
+  if (unit_treasure_coast() != 0) {
     return 1;
   }
-  if (smoke_treasure_board_sail() != 0) {
+  if (unit_treasure_board_sail() != 0) {
     return 1;
   }
-  if (smoke_treasure_europe_cash() != 0) {
+  if (unit_treasure_europe_cash() != 0) {
     return 1;
   }
-  if (smoke_cortes_king_galleon_cash() != 0) {
+  if (unit_cortes_king_galleon_cash() != 0) {
     return 1;
   }
-  if (smoke_missionary_contact() != 0) {
+  if (unit_missionary_contact() != 0) {
     return 1;
   }
-  if (smoke_missionary_flee_skip() != 0) {
+  if (unit_missionary_flee_skip() != 0) {
     return 1;
   }
-  if (smoke_pioneer_tools_delivery() != 0) {
+  if (unit_pioneer_tools_delivery() != 0) {
     return 1;
   }
-  if (smoke_tools_cargo_hire() != 0) {
+  if (unit_tools_cargo_hire() != 0) {
     return 1;
   }
-  if (smoke_lumber_cargo_hire() != 0) {
+  if (unit_lumber_cargo_hire() != 0) {
     return 1;
   }
-  if (smoke_food_cargo_hire() != 0) {
+  if (unit_food_cargo_hire() != 0) {
     return 1;
   }
-  if (smoke_horses_cargo_hire() != 0) {
+  if (unit_horses_cargo_hire() != 0) {
     return 1;
   }
-  if (smoke_muskets_cargo_hire() != 0) {
+  if (unit_muskets_cargo_hire() != 0) {
     return 1;
   }
-  if (smoke_tools_mid_threshold_hire() != 0) {
+  if (unit_tools_mid_threshold_hire() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_once() != 0) {
+  if (unit_wagon_hire_once() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_once_colonies_ge6() != 0) {
+  if (unit_wagon_hire_once_colonies_ge6() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_lumber_once() != 0) {
+  if (unit_wagon_hire_lumber_once() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_ore_once() != 0) {
+  if (unit_wagon_hire_ore_once() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_muskets_once() != 0) {
+  if (unit_wagon_hire_muskets_once() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_horses_once() != 0) {
+  if (unit_wagon_hire_horses_once() != 0) {
     return 1;
   }
-  if (smoke_wagon_hire_food_once() != 0) {
+  if (unit_wagon_hire_food_once() != 0) {
     return 1;
   }
-  if (smoke_wagon_tools_delivery() != 0) {
+  if (unit_wagon_tools_delivery() != 0) {
     return 1;
   }
-  if (smoke_wagon_haul_tools_short() != 0) {
+  if (unit_wagon_haul_tools_short() != 0) {
     return 1;
   }
-  if (smoke_wagon_haul_muskets_short() != 0) {
+  if (unit_wagon_haul_muskets_short() != 0) {
     return 1;
   }
-  if (smoke_wagon_haul_lumber_short() != 0) {
+  if (unit_wagon_haul_lumber_short() != 0) {
     return 1;
   }
-  if (smoke_wagon_haul_ore_short() != 0) {
+  if (unit_wagon_haul_ore_short() != 0) {
     return 1;
   }
-  if (smoke_wagon_europe_export_feeder() != 0) {
+  if (unit_wagon_europe_export_feeder() != 0) {
     return 1;
   }
-  if (smoke_wagon_europe_export_unload() != 0) {
+  if (unit_wagon_europe_export_unload() != 0) {
     return 1;
   }
-  if (smoke_wagon_haul_food_short() != 0) {
+  if (unit_wagon_haul_food_short() != 0) {
     return 1;
   }
-  if (smoke_wagon_food_delivery() != 0) {
+  if (unit_wagon_food_delivery() != 0) {
     return 1;
   }
-  if (smoke_wagon_food_load_haul() != 0) {
+  if (unit_wagon_food_load_haul() != 0) {
     return 1;
   }
-  if (smoke_wagon_food_prefer_over_tools() != 0) {
+  if (unit_wagon_food_prefer_over_tools() != 0) {
     return 1;
   }
-  if (smoke_ship_trade_haul_tools_short() != 0) {
+  if (unit_ship_trade_haul_tools_short() != 0) {
     return 1;
   }
-  if (smoke_ship_trade_haul_muskets_short() != 0) {
+  if (unit_ship_trade_haul_muskets_short() != 0) {
     return 1;
   }
-  if (smoke_ship_europe_export_silver() != 0) {
+  if (unit_ship_europe_export_silver() != 0) {
     return 1;
   }
-  if (smoke_privateer_europe_loot_sail() != 0) {
+  if (unit_privateer_europe_loot_sail() != 0) {
     return 1;
   }
-  if (smoke_ship_europe_export_load_silver() != 0) {
+  if (unit_ship_europe_export_load_silver() != 0) {
     return 1;
   }
-  if (smoke_galleon_europe_export_load_silver() != 0) {
+  if (unit_galleon_europe_export_load_silver() != 0) {
     return 1;
   }
-  if (smoke_merchantman_europe_export_load_silver() != 0) {
+  if (unit_merchantman_europe_export_load_silver() != 0) {
     return 1;
   }
-  if (smoke_galleon_trade_haul_tools_short() != 0) {
+  if (unit_galleon_trade_haul_tools_short() != 0) {
     return 1;
   }
-  if (smoke_ship_food_delivery() != 0) {
+  if (unit_ship_food_delivery() != 0) {
     return 1;
   }
-  if (smoke_cargo_produced_mask_haul_prefer() != 0) {
+  if (unit_cargo_produced_mask_haul_prefer() != 0) {
     return 1;
   }
-  if (smoke_specialty_cargo_haul_prefer() != 0) {
+  if (unit_specialty_cargo_haul_prefer() != 0) {
     return 1;
   }
-  if (smoke_cargo_idle_turns_haul_prefer() != 0) {
+  if (unit_cargo_idle_turns_haul_prefer() != 0) {
     return 1;
   }
-  if (smoke_labor_shortage_join() != 0) {
+  if (unit_labor_shortage_join() != 0) {
     return 1;
   }
-  if (smoke_labor_bind_food_short() != 0) {
+  if (unit_labor_bind_food_short() != 0) {
     return 1;
   }
-  if (smoke_food_emergency_labor() != 0) {
+  if (unit_food_emergency_labor() != 0) {
     return 1;
   }
-  if (smoke_expert_farmer_food_labor() != 0) {
+  if (unit_expert_farmer_food_labor() != 0) {
     return 1;
   }
-  if (smoke_free_colonist_food_labor() != 0) {
+  if (unit_free_colonist_food_labor() != 0) {
     return 1;
   }
-  if (smoke_tools_short_pioneer_labor() != 0) {
+  if (unit_tools_short_pioneer_labor() != 0) {
     return 1;
   }
-  if (smoke_colony_flags_starvation_labor() != 0) {
+  if (unit_colony_flags_starvation_labor() != 0) {
     return 1;
   }
-  if (smoke_colony_ai_flags_mow_colony_alt() != 0) {
+  if (unit_colony_ai_flags_mow_colony_alt() != 0) {
     return 1;
   }
-  if (smoke_build_ai_flags_wants_construction() != 0) {
+  if (unit_build_ai_flags_wants_construction() != 0) {
     return 1;
   }
-  if (smoke_construction_labor_stockade() != 0) {
+  if (unit_construction_labor_stockade() != 0) {
     return 1;
   }
-  if (smoke_master_carpenter_construction_labor() != 0) {
+  if (unit_master_carpenter_construction_labor() != 0) {
     return 1;
   }
-  if (smoke_lumberjack_warehouse_labor() != 0) {
+  if (unit_lumberjack_warehouse_labor() != 0) {
     return 1;
   }
-  if (smoke_lumberjack_field_assign() != 0) {
+  if (unit_lumberjack_field_assign() != 0) {
     return 1;
   }
-  if (smoke_ore_miner_field_assign() != 0) {
+  if (unit_ore_miner_field_assign() != 0) {
     return 1;
   }
-  if (smoke_silver_miner_field_assign() != 0) {
+  if (unit_silver_miner_field_assign() != 0) {
     return 1;
   }
-  if (smoke_farmer_field_assign() != 0) {
+  if (unit_farmer_field_assign() != 0) {
     return 1;
   }
-  if (smoke_fisherman_field_assign() != 0) {
+  if (unit_fisherman_field_assign() != 0) {
     return 1;
   }
-  if (smoke_sugar_planter_field_assign() != 0) {
+  if (unit_sugar_planter_field_assign() != 0) {
     return 1;
   }
-  if (smoke_tobacco_planter_field_assign() != 0) {
+  if (unit_tobacco_planter_field_assign() != 0) {
     return 1;
   }
-  if (smoke_cotton_planter_field_assign() != 0) {
+  if (unit_cotton_planter_field_assign() != 0) {
     return 1;
   }
-  if (smoke_fur_trapper_field_assign() != 0) {
+  if (unit_fur_trapper_field_assign() != 0) {
     return 1;
   }
-  if (smoke_blacksmith_workplace_assign() != 0) {
+  if (unit_blacksmith_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_gunsmith_workplace_assign() != 0) {
+  if (unit_gunsmith_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_fur_trader_workplace_assign() != 0) {
+  if (unit_fur_trader_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_distiller_workplace_assign() != 0) {
+  if (unit_distiller_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_weaver_workplace_assign() != 0) {
+  if (unit_weaver_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_tobacconist_workplace_assign() != 0) {
+  if (unit_tobacconist_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_statesman_workplace_assign() != 0) {
+  if (unit_statesman_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_preacher_workplace_assign() != 0) {
+  if (unit_preacher_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_teacher_workplace_assign() != 0) {
+  if (unit_teacher_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_carpenter_workplace_assign() != 0) {
+  if (unit_carpenter_workplace_assign() != 0) {
     return 1;
   }
-  if (smoke_peace_construction_stockade() != 0) {
+  if (unit_peace_construction_stockade() != 0) {
     return 1;
   }
-  if (smoke_peace_construction_fort() != 0) {
+  if (unit_peace_construction_fort() != 0) {
     return 1;
   }
-  if (smoke_peace_construction_fortress() != 0) {
+  if (unit_peace_construction_fortress() != 0) {
     return 1;
   }
-  if (smoke_peace_construction_warehouse() != 0) {
+  if (unit_peace_construction_warehouse() != 0) {
     return 1;
   }
-  if (smoke_peace_construction_warehouse_expansion() != 0) {
+  if (unit_peace_construction_warehouse_expansion() != 0) {
     return 1;
   }
-  if (smoke_peace_construction_docks() != 0) {
+  if (unit_peace_construction_docks() != 0) {
     return 1;
   }
-  if (smoke_coastal_drydock_prefer() != 0) {
+  if (unit_coastal_drydock_prefer() != 0) {
     return 1;
   }
-  if (smoke_coastal_shipyard_prefer() != 0) {
+  if (unit_coastal_shipyard_prefer() != 0) {
     return 1;
   }
-  if (smoke_stuyvesant_custom_house_prefer() != 0) {
+  if (unit_stuyvesant_custom_house_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_church_prefer() != 0) {
+  if (unit_peace_church_prefer() != 0) {
     return 1;
   }
-  if (smoke_war_armory_prefer() != 0) {
+  if (unit_war_armory_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_printing_press_prefer() != 0) {
+  if (unit_peace_printing_press_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_schoolhouse_prefer() != 0) {
+  if (unit_peace_schoolhouse_prefer() != 0) {
     return 1;
   }
-  if (smoke_war_magazine_prefer() != 0) {
+  if (unit_war_magazine_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_newspaper_prefer() != 0) {
+  if (unit_peace_newspaper_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_college_prefer() != 0) {
+  if (unit_peace_college_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_cathedral_prefer() != 0) {
+  if (unit_peace_cathedral_prefer() != 0) {
     return 1;
   }
-  if (smoke_war_arsenal_prefer() != 0) {
+  if (unit_war_arsenal_prefer() != 0) {
     return 1;
   }
-  if (smoke_peace_university_prefer() != 0) {
+  if (unit_peace_university_prefer() != 0) {
     return 1;
   }
-  if (smoke_stable_prefer() != 0) {
+  if (unit_stable_prefer() != 0) {
     return 1;
   }
-  if (smoke_carpenters_shop_prefer() != 0) {
+  if (unit_carpenters_shop_prefer() != 0) {
     return 1;
   }
-  if (smoke_lumber_mill_prefer() != 0) {
+  if (unit_lumber_mill_prefer() != 0) {
     return 1;
   }
-  if (smoke_blacksmiths_house_prefer() != 0) {
+  if (unit_blacksmiths_house_prefer() != 0) {
     return 1;
   }
-  if (smoke_blacksmiths_shop_prefer() != 0) {
+  if (unit_blacksmiths_shop_prefer() != 0) {
     return 1;
   }
-  if (smoke_iron_works_prefer() != 0) {
+  if (unit_iron_works_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_distillers_house_prefer() != 0) {
+  if (unit_craft_distillers_house_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_weavers_house_prefer() != 0) {
+  if (unit_craft_weavers_house_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_tobacconists_house_prefer() != 0) {
+  if (unit_craft_tobacconists_house_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_fur_traders_house_prefer() != 0) {
+  if (unit_craft_fur_traders_house_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_distillery_prefer() != 0) {
+  if (unit_craft_distillery_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_weavers_shop_prefer() != 0) {
+  if (unit_craft_weavers_shop_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_tobacconist_shop_prefer() != 0) {
+  if (unit_craft_tobacconist_shop_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_fur_trading_post_prefer() != 0) {
+  if (unit_craft_fur_trading_post_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_rum_factory_prefer() != 0) {
+  if (unit_craft_rum_factory_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_textile_mill_prefer() != 0) {
+  if (unit_craft_textile_mill_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_cigar_factory_prefer() != 0) {
+  if (unit_craft_cigar_factory_prefer() != 0) {
     return 1;
   }
-  if (smoke_craft_fur_factory_prefer() != 0) {
+  if (unit_craft_fur_factory_prefer() != 0) {
     return 1;
   }
-  if (smoke_capitol_prefer() != 0) {
+  if (unit_capitol_prefer() != 0) {
     return 1;
   }
-  if (smoke_capitol_expansion_prefer() != 0) {
+  if (unit_capitol_expansion_prefer() != 0) {
     return 1;
   }
-  if (smoke_indian_land_found() != 0) {
+  if (unit_indian_land_found() != 0) {
     return 1;
   }
-  if (smoke_improve_timer_pioneer_gate() != 0) {
+  if (unit_improve_timer_pioneer_gate() != 0) {
     return 1;
   }
-  if (smoke_pioneer_plow_improve() != 0) {
+  if (unit_pioneer_plow_improve() != 0) {
     return 1;
   }
-  if (smoke_pioneer_road_on_plowed() != 0) {
+  if (unit_pioneer_road_on_plowed() != 0) {
     return 1;
   }
-  if (smoke_stockade_threat_labor() != 0) {
+  if (unit_stockade_threat_labor() != 0) {
     return 1;
   }
-  if (smoke_multistep_military() != 0) {
+  if (unit_multistep_military() != 0) {
     return 1;
   }
-  if (smoke_de_witt_wagon_foreign_trade() != 0) {
+  if (unit_de_witt_wagon_foreign_trade() != 0) {
     return 1;
   }
-  if (smoke_dock_expert_hire() != 0) {
+  if (unit_dock_expert_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_farmer_hire() != 0) {
+  if (unit_dock_farmer_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_carpenter_hire() != 0) {
+  if (unit_dock_carpenter_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_lumberjack_hire() != 0) {
+  if (unit_dock_lumberjack_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_ore_miner_hire() != 0) {
+  if (unit_dock_ore_miner_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_fisherman_hire() != 0) {
+  if (unit_dock_fisherman_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_gunsmith_hire() != 0) {
+  if (unit_dock_gunsmith_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_blacksmith_hire() != 0) {
+  if (unit_dock_blacksmith_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_scout_hire() != 0) {
+  if (unit_dock_scout_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_missionary_hire() != 0) {
+  if (unit_dock_missionary_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_elder_hire() != 0) {
+  if (unit_dock_elder_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_preacher_hire() != 0) {
+  if (unit_dock_preacher_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_teacher_hire() != 0) {
+  if (unit_dock_teacher_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_distiller_hire() != 0) {
+  if (unit_dock_distiller_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_weaver_hire() != 0) {
+  if (unit_dock_weaver_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_fur_trader_hire() != 0) {
+  if (unit_dock_fur_trader_hire() != 0) {
     return 1;
   }
-  if (smoke_dock_tobacconist_hire() != 0) {
+  if (unit_dock_tobacconist_hire() != 0) {
     return 1;
   }
-  if (smoke_treasury_skip_hire() != 0) {
+  if (unit_treasury_skip_hire() != 0) {
     return 1;
   }
-  if (smoke_5d04_buy_caravel_colonies_ge6() != 0) {
+  if (unit_5d04_buy_caravel_colonies_ge6() != 0) {
     return 1;
   }
-  if (smoke_5d04_buy_caravel_no_ship() != 0) {
+  if (unit_5d04_buy_caravel_no_ship() != 0) {
     return 1;
   }
-  if (smoke_5d04_buy_merchantman_cargo_pressure() != 0) {
+  if (unit_5d04_buy_merchantman_cargo_pressure() != 0) {
     return 1;
   }
-  if (smoke_5d04_buy_galleon_at_war() != 0) {
+  if (unit_5d04_buy_galleon_at_war() != 0) {
     return 1;
   }
-  if (smoke_5d04_buy_frigate_at_war() != 0) {
+  if (unit_5d04_buy_frigate_at_war() != 0) {
     return 1;
   }
-  if (smoke_5d04_buy_caravel_ship_full() != 0) {
+  if (unit_5d04_buy_caravel_ship_full() != 0) {
     return 1;
   }
-  if (smoke_transport_europe_sell_trade_goods() != 0) {
+  if (unit_transport_europe_sell_trade_goods() != 0) {
     return 1;
   }
-  if (smoke_privateer_europe_sell_silver() != 0) {
+  if (unit_privateer_europe_sell_silver() != 0) {
     return 1;
   }
-  if (smoke_transport_europe_sell_multi_cargo() != 0) {
+  if (unit_transport_europe_sell_multi_cargo() != 0) {
     return 1;
   }
-  if (smoke_transport_europe_sell_skip_boycott() != 0) {
+  if (unit_transport_europe_sell_skip_boycott() != 0) {
     return 1;
   }
-  fprintf(stderr, "smoke_ai_euro_expand: ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: ok\n");
   return 0;
 }

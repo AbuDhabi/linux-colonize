@@ -24,7 +24,7 @@
 #define AI_LATE_VR_SEED 100u
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_ai_late01: FAIL %s\n", msg);
+  fprintf(stderr, "golden_ai_late01: FAIL %s\n", msg);
   return 1;
 }
 
@@ -67,7 +67,7 @@ static int write_late01_from_mid02(void) {
   col1_save_init(&save);
   if (!col1_save_read_file(MID02_PATH, &save, err, sizeof(err))) {
     fprintf(stderr, "read MID02: %s\n", err);
-    return fail("load MID02.SAV (run smoke_ai_mid01 first)");
+    return fail("load MID02.SAV (run golden_ai_mid01 first)");
   }
 
   /* Late-war stamp: calendar + sticky + alarm; keep Linux-derived geometry. */
@@ -331,7 +331,7 @@ static int run_late01_turn(ColonizeCol1Save* pre_snap) {
   if (!raid_signal) {
     fprintf(
       stderr,
-      "smoke_ai_late01: raid-side silent food %d→%d pop %d→%d atk %d→%d fr %d→%d rel %d→%d\n",
+      "golden_ai_late01: raid-side silent food %d→%d pop %d→%d atk %d→%d fr %d→%d rel %d→%d\n",
       pre_food,
       post_food,
       pre_pop,
@@ -400,7 +400,7 @@ int main(void) {
   }
 
   printf(
-    "smoke_ai_late01: ok (LATE01 stamp + turn + structural raid/hunt; %s)\n",
+    "golden_ai_late01: ok (LATE01 stamp + turn + structural raid/hunt; %s)\n",
     LATE01_PATH
   );
   return 0;

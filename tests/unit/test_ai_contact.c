@@ -16,7 +16,7 @@
 #include <string.h>
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_ai_contact: FAIL %s\n", msg);
+  fprintf(stderr, "unit_ai_contact: FAIL %s\n", msg);
   return 1;
 }
 
@@ -231,11 +231,11 @@ int main(void) {
       return fail("prelude should clear mission on alarm >= 80");
     }
     if (strstr(status_burn, "burn") == NULL || strstr(status_burn, "mission") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: mission-burn status '%s'\n", status_burn);
+      fprintf(stderr, "unit_ai_contact: mission-burn status '%s'\n", status_burn);
       return fail("prelude mission burn should set status");
     }
     if (strstr(status_burn, "Inca") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: mission-burn status '%s'\n", status_burn);
+      fprintf(stderr, "unit_ai_contact: mission-burn status '%s'\n", status_burn);
       return fail("mission burn should name tribe (@INDIANBURN)");
     }
     /* Friction ≥80 burn path (alarm alone low): clear mission + status. */
@@ -248,7 +248,7 @@ int main(void) {
       return fail("prelude should clear mission on friction >= 80");
     }
     if (strstr(status_burn, "burn") == NULL || strstr(status_burn, "mission") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: friction-burn status '%s'\n", status_burn);
+      fprintf(stderr, "unit_ai_contact: friction-burn status '%s'\n", status_burn);
       return fail("prelude friction>=80 mission burn should set status");
     }
     ctx.status = NULL;
@@ -298,7 +298,7 @@ int main(void) {
     if (strstr(st_amb, "Muskets") == NULL ||
         (strstr(st_amb, "ambush") == NULL && strstr(st_amb, "Ambush") == NULL) ||
         strstr(st_amb, "Soldier") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: ambush-WIN1 status '%s'\n", st_amb);
+      fprintf(stderr, "unit_ai_contact: ambush-WIN1 status '%s'\n", st_amb);
       return fail("ambush WIN1 should set Muskets seized status with unit name");
     }
     units_despawn(&units, sol_id);
@@ -322,7 +322,7 @@ int main(void) {
       return fail("ambush WIN2 should transfer foe horses onto Brave");
     }
     if (strstr(st_amb, "Horses") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: ambush-WIN2 status '%s'\n", st_amb);
+      fprintf(stderr, "unit_ai_contact: ambush-WIN2 status '%s'\n", st_amb);
       return fail("ambush WIN2 should set Horses seized status");
     }
     units_despawn(&units, sol2);
@@ -412,7 +412,7 @@ int main(void) {
       return fail("colony encroachment mid-cross should bump into ≥40");
     }
     if (strstr(st_col, "Roanoke") == NULL && strstr(st_col, "concerned") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: colony-encroach status '%s'\n", st_col);
+      fprintf(stderr, "unit_ai_contact: colony-encroach status '%s'\n", st_col);
       return fail("colony encroachment mid-cross should set concern status");
     }
     c->x = 5;
@@ -474,7 +474,7 @@ int main(void) {
     }
     if (st_cmt[0] != '\0' &&
         (strstr(st_cmt, "concerned") != NULL || strstr(st_cmt, "land use") != NULL)) {
-      fprintf(stderr, "smoke_ai_contact: unit-only comment status '%s'\n", st_cmt);
+      fprintf(stderr, "unit_ai_contact: unit-only comment status '%s'\n", st_cmt);
       return fail("unit encroachment must not fire @INDIANCOMMENT chrome");
     }
     ctx.status = NULL;
@@ -528,7 +528,7 @@ int main(void) {
     if (col1.tribe[0].alarm[1].friction != 11) {
       fprintf(
         stderr,
-        "smoke_ai_contact: FR friction=%u want 11\n",
+        "unit_ai_contact: FR friction=%u want 11\n",
         (unsigned)col1.tribe[0].alarm[1].friction
       );
       return fail("French should halve encroachment friction bump to +1");
@@ -562,7 +562,7 @@ int main(void) {
     if (col1.tribe[0].alarm[1].friction != 20) {
       fprintf(
         stderr,
-        "smoke_ai_contact: FR+Poca friction=%u want 20\n",
+        "unit_ai_contact: FR+Poca friction=%u want 20\n",
         (unsigned)col1.tribe[0].alarm[1].friction
       );
       return fail("French+Pocahontas should quarter encroachment bump to +0");
@@ -647,11 +647,11 @@ int main(void) {
     }
     if (strstr(status_ok, "accept") == NULL || strstr(status_ok, "conversion") == NULL ||
         strstr(status_ok, "The ") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: convert-ok status '%s'\n", status_ok);
+      fprintf(stderr, "unit_ai_contact: convert-ok status '%s'\n", status_ok);
       return fail("convert success should set tribe-named accept-conversion status");
     }
     if (strstr(status_ok, "Jamestown") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: convert-ok status '%s'\n", status_ok);
+      fprintf(stderr, "unit_ai_contact: convert-ok status '%s'\n", status_ok);
       return fail("convert success should name nearest colony (@INDIANSCONVERT)");
     }
     /*
@@ -674,7 +674,7 @@ int main(void) {
         return fail("convert-once should not re-decay alarm/friction");
       }
       if (strstr(status_ok, "accept") != NULL || strstr(status_ok, "conversion") != NULL) {
-        fprintf(stderr, "smoke_ai_contact: convert-once status '%s'\n", status_ok);
+        fprintf(stderr, "unit_ai_contact: convert-once status '%s'\n", status_ok);
         return fail("convert-once should skip accept-conversion status");
       }
     }
@@ -715,7 +715,7 @@ int main(void) {
       return fail("heresy success should bump crosses");
     }
     if (strstr(status_cv, "Heresy") == NULL && strstr(status_cv, "foreign") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: heresy-ok status '%s'\n", status_cv);
+      fprintf(stderr, "unit_ai_contact: heresy-ok status '%s'\n", status_cv);
       return fail("heresy success should set denounce status");
     }
 
@@ -746,13 +746,13 @@ int main(void) {
       if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 1) {
         fprintf(
           stderr,
-          "smoke_ai_contact: AI heresy mission=%u\n",
+          "unit_ai_contact: AI heresy mission=%u\n",
           (unsigned)col1.tribe[0].mission
         );
         return fail("AI heresy success should install French mission");
       }
       if (strstr(status_own, "burn your mission") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: heresy-owner status '%s'\n", status_own);
+        fprintf(stderr, "unit_ai_contact: heresy-owner status '%s'\n", status_own);
         return fail("heresy success should notify human foreign mission owner");
       }
       units_despawn(&units, fr_m);
@@ -777,7 +777,7 @@ int main(void) {
       return fail("heresy fail should despawn denouncer missionary");
     }
     if (strstr(status_cv, "stake") == NULL && strstr(status_cv, "burn") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: heresy-fail status '%s'\n", status_cv);
+      fprintf(stderr, "unit_ai_contact: heresy-fail status '%s'\n", status_cv);
       return fail("heresy fail should set burn-at-stake status");
     }
     ctx.rng = NULL;
@@ -806,7 +806,7 @@ int main(void) {
       return fail("alarmed convert refuse should not bump crosses");
     }
     if (strstr(status_cv, "refuse") == NULL || strstr(status_cv, "conversion") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: convert-refuse status '%s'\n", status_cv);
+      fprintf(stderr, "unit_ai_contact: convert-refuse status '%s'\n", status_cv);
       return fail("alarmed convert should set refuse-conversion status");
     }
     /* Restore peaceful band for later tests. */
@@ -846,7 +846,7 @@ int main(void) {
       return fail("plain Missionary mid-alarm should not bump crosses");
     }
     if (strstr(status_mid, "refuse") == NULL || strstr(status_mid, "conversion") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: mid-plain status '%s'\n", status_mid);
+      fprintf(stderr, "unit_ai_contact: mid-plain status '%s'\n", status_mid);
       return fail("plain Missionary mid should set refuse-conversion status");
     }
 
@@ -874,7 +874,7 @@ int main(void) {
       return fail("mid-range Jesuit convert should decay friction/alarm by 2");
     }
     if (strstr(status_mid, "accept") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: mid-jesuit status '%s'\n", status_mid);
+      fprintf(stderr, "unit_ai_contact: mid-jesuit status '%s'\n", status_mid);
       return fail("mid-range Jesuit convert should set accept status");
     }
     /* Restore type name for later Missionary flees. */
@@ -925,7 +925,7 @@ int main(void) {
       return fail("Brebeuf mid convert should decay friction/alarm by 2");
     }
     if (strstr(status_br, "accept") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: Brebeuf mid status '%s'\n", status_br);
+      fprintf(stderr, "unit_ai_contact: Brebeuf mid status '%s'\n", status_br);
       return fail("Brebeuf mid convert should set accept status");
     }
     /* Clear Brebeuf so later tests stay plain-Missionary gated. */
@@ -986,7 +986,7 @@ int main(void) {
       return fail("already-learned should not re-teach profession");
     }
     if (strstr(status_al, "teach") != NULL) {
-      fprintf(stderr, "smoke_ai_contact: already-learned status '%s'\n", status_al);
+      fprintf(stderr, "unit_ai_contact: already-learned status '%s'\n", status_al);
       return fail("already-learned should skip teach status");
     }
     ctx.status = NULL;
@@ -1062,7 +1062,7 @@ int main(void) {
       return fail("teach-skill Cherokee nation → Expert Tobacco Planter");
     }
     if (strstr(status_tch, "teach") == NULL || strstr(status_tch, "Cherokee") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: teach-ok status '%s'\n", status_tch);
+      fprintf(stderr, "unit_ai_contact: teach-ok status '%s'\n", status_tch);
       return fail("teach success should set Natives-teach-Cherokee status");
     }
     ctx.status = NULL;
@@ -1136,7 +1136,7 @@ int main(void) {
       return fail("teach-skill Scout → Seasoned Scout profession");
     }
     if (strstr(status_sc, "Seasoned") == NULL && strstr(status_sc, "Scouts") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: scout-teach status '%s'\n", status_sc);
+      fprintf(stderr, "unit_ai_contact: scout-teach status '%s'\n", status_sc);
       assets_msg_free(&game_txt);
       return fail("Scout teach should set WELLSEASONED status");
     }
@@ -1145,7 +1145,7 @@ int main(void) {
          strstr(pops.queue[0].body, "Scouts") == NULL)) {
       fprintf(
         stderr,
-        "smoke_ai_contact: WELLSEASONED popup weak q=%d body='%s'\n",
+        "unit_ai_contact: WELLSEASONED popup weak q=%d body='%s'\n",
         pops.queue_count,
         pops.queue_count > 0 ? pops.queue[0].body : ""
       );
@@ -1189,7 +1189,7 @@ int main(void) {
       return fail("mid-alarm teach refuse should not set learned");
     }
     if (strstr(status_mt, "refuse") == NULL || strstr(status_mt, "teach") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: mid-teach status '%s'\n", status_mt);
+      fprintf(stderr, "unit_ai_contact: mid-teach status '%s'\n", status_mt);
       return fail("mid-alarm teach should set refuse-to-teach status");
     }
     col1.tribe[0].alarm[0].friction = 10;
@@ -1224,7 +1224,7 @@ int main(void) {
   ctx.status_size = sizeof(status);
   ai_contact_indian_meet_trade(&ctx, 4);
   if (col1.nation[0].gold != 40u) {
-    fprintf(stderr, "smoke_ai_contact: gift gold50→%u (want Large 40)\n",
+    fprintf(stderr, "unit_ai_contact: gift gold50→%u (want Large 40)\n",
             (unsigned)col1.nation[0].gold);
     return fail("AI gift gold 20..74 should cost Euro 10 gold (Large)");
   }
@@ -1278,7 +1278,7 @@ int main(void) {
     brave->nation_id = 4;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != 60u) {
-      fprintf(stderr, "smoke_ai_contact: sparse gift gold=%u (want 60 Generous)\n",
+      fprintf(stderr, "unit_ai_contact: sparse gift gold=%u (want 60 Generous)\n",
               (unsigned)col1.nation[0].gold);
       return fail("sparse capital + gold≥75 should Generous (−20)");
     }
@@ -1292,7 +1292,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 10;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != 30u) {
-      fprintf(stderr, "smoke_ai_contact: gold40 gift=%u (want Large 30)\n",
+      fprintf(stderr, "unit_ai_contact: gold40 gift=%u (want Large 30)\n",
               (unsigned)col1.nation[0].gold);
       return fail("gold <0x4b must Large even with positive delta");
     }
@@ -1315,7 +1315,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 10;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != 70u) {
-      fprintf(stderr, "smoke_ai_contact: forest gift gold=%u (want Large 70)\n",
+      fprintf(stderr, "unit_ai_contact: forest gift gold=%u (want Large 70)\n",
               (unsigned)col1.nation[0].gold);
       return fail("dense forest + tons should suppress Generous (Large −10)");
     }
@@ -1338,7 +1338,7 @@ int main(void) {
       col1.tribe[0].alarm[0].friction = 10;
       ai_contact_indian_meet_trade(&ctx, 4);
       if (col1.nation[0].gold != 60u) {
-        fprintf(stderr, "smoke_ai_contact: cover gift gold=%u (want Generous 60)\n",
+        fprintf(stderr, "unit_ai_contact: cover gift gold=%u (want Generous 60)\n",
                 (unsigned)col1.nation[0].gold);
         return fail("colony cover + capital should Generous");
       }
@@ -1384,7 +1384,7 @@ int main(void) {
     brave->nation_id = 4;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != 70u) {
-      fprintf(stderr, "smoke_ai_contact: non-capital sparse+tons gift=%u (want Large 70)\n",
+      fprintf(stderr, "unit_ai_contact: non-capital sparse+tons gift=%u (want Large 70)\n",
               (unsigned)col1.nation[0].gold);
       return fail("non-capital + tons should Large at gold 80");
     }
@@ -1395,7 +1395,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 10;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != 60u) {
-      fprintf(stderr, "smoke_ai_contact: capital sparse gift=%u (want Generous 60)\n",
+      fprintf(stderr, "unit_ai_contact: capital sparse gift=%u (want Generous 60)\n",
               (unsigned)col1.nation[0].gold);
       return fail("capital mix should Generous at gold 80 on sparse land");
     }
@@ -1449,7 +1449,7 @@ int main(void) {
   }
   if (strstr(status, "peace") == NULL && strstr(status, "Peace") == NULL &&
       strstr(status, "visit") == NULL && strstr(status, "friendship") == NULL) {
-    fprintf(stderr, "smoke_ai_contact: first-meet status '%s'\n", status);
+    fprintf(stderr, "unit_ai_contact: first-meet status '%s'\n", status);
     return fail("meet should set human-facing peace-offer status");
   }
   if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
@@ -1564,7 +1564,7 @@ int main(void) {
       return fail("STORES primary should drain 1 muskets stock");
     }
     if (strstr(status, "stores") == NULL || strstr(status, "Roanoke") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: STORES status '%s'\n", status);
+      fprintf(stderr, "unit_ai_contact: STORES status '%s'\n", status);
       return fail("STORES raid should set @RAIDSTORES-shaped status");
     }
   }
@@ -1825,7 +1825,7 @@ int main(void) {
       return fail("alarmed teach refuse should not set tribe.state.learned");
     }
     if (strstr(status, "refuse") == NULL || strstr(status, "teach") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: teach-refuse status '%s'\n", status);
+      fprintf(stderr, "unit_ai_contact: teach-refuse status '%s'\n", status);
       return fail("alarmed teach should set refuse-to-teach status");
     }
   }
@@ -1887,7 +1887,7 @@ int main(void) {
     }
     if (strstr(status, "wiped") == NULL || strstr(status, "Roanoke") == NULL ||
         strstr(status, "Inca") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: NOTHING status '%s'\n", status);
+      fprintf(stderr, "unit_ai_contact: NOTHING status '%s'\n", status);
       return fail("empty raid NOTHING should set tribe+colony wiped-out status");
     }
   }
@@ -1927,7 +1927,7 @@ int main(void) {
       }
     } else if ((strstr(st_sur, "surprise") == NULL && strstr(st_sur, "denies") == NULL) ||
                strstr(st_sur, "Roanoke") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: surprise status '%s'\n", st_sur);
+      fprintf(stderr, "unit_ai_contact: surprise status '%s'\n", st_sur);
       return fail("non-war successful raid should set @INDIANSURPRISE near colony");
     }
 
@@ -1946,7 +1946,7 @@ int main(void) {
     }
     if (ai_contact_last_raid_kind() != AI_RAID_NOTHING &&
         strstr(st_sur, "WAR") == NULL && strstr(st_sur, "war") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: war-raid status '%s'\n", st_sur);
+      fprintf(stderr, "unit_ai_contact: war-raid status '%s'\n", st_sur);
       return fail("peace-breaking raid should set @INDIANWAR status");
     }
     ctx.status = NULL;
@@ -2183,7 +2183,7 @@ int main(void) {
     ctx.human_nation = 1;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.nation[0].gold != 45u) {
-      fprintf(stderr, "smoke_ai_contact: ask<bid demand gold=%u (want 45)\n",
+      fprintf(stderr, "unit_ai_contact: ask<bid demand gold=%u (want 45)\n",
               (unsigned)col1.nation[0].gold);
       return fail("ask[0]<bid[0] should prefer gold demand when both payable");
     }
@@ -2277,7 +2277,7 @@ int main(void) {
       return fail("missionary flee should set AI_MOVE orders");
     }
     if (strstr(status_flee, "flees") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: flee status '%s'\n", status_flee);
+      fprintf(stderr, "unit_ai_contact: flee status '%s'\n", status_flee);
       return fail("missionary flee should set flee status");
     }
     /* Chebyshev distance from tribe should be > 1 (was adjacent). */
@@ -2555,7 +2555,7 @@ int main(void) {
     if (ind->alarm_by_player[0] != 17) { /* 10 + 7 */
       fprintf(
         stderr,
-        "smoke_ai_contact: escalate alarm=%u (want 17)\n",
+        "unit_ai_contact: escalate alarm=%u (want 17)\n",
         (unsigned)ind->alarm_by_player[0]
       );
       return fail("prelude escalate should bump alarm by 7 at difficulty 2");
@@ -2574,7 +2574,7 @@ int main(void) {
     if (ind->alarm_by_player[0] != 13) { /* 10 + 3 */
       fprintf(
         stderr,
-        "smoke_ai_contact: poca escalate alarm=%u (want 13)\n",
+        "unit_ai_contact: poca escalate alarm=%u (want 13)\n",
         (unsigned)ind->alarm_by_player[0]
       );
       return fail("Pocahontas should halve prelude escalate bump to +3");
@@ -2830,7 +2830,7 @@ int main(void) {
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
       fprintf(
         stderr,
-        "smoke_ai_contact: burn-lumber kind=%d\n",
+        "unit_ai_contact: burn-lumber kind=%d\n",
         ai_contact_last_raid_kind()
       );
       return fail("lumber-only colony at alarm≥60 should pick AI_RAID_BURN");
@@ -2839,7 +2839,7 @@ int main(void) {
       return fail("BURN should drain lumber stock when no construction");
     }
     if (strstr(status, "burns buildings") == NULL || strstr(status, "Roanoke") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: BURN-lumber status '%s'\n", status);
+      fprintf(stderr, "unit_ai_contact: BURN-lumber status '%s'\n", status);
       return fail("BURN lumber should set @RAIDBURN-shaped buildings status");
     }
   }
@@ -2888,7 +2888,7 @@ int main(void) {
     colonies.colony_count = 1;
     ai_contact_indian_raids(&ctx, 4);
     if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
-      fprintf(stderr, "smoke_ai_contact: burn-building kind=%d\n",
+      fprintf(stderr, "unit_ai_contact: burn-building kind=%d\n",
               ai_contact_last_raid_kind());
       return fail("empty warehouse at alarm≥60 should pick AI_RAID_BURN");
     }
@@ -2920,7 +2920,7 @@ int main(void) {
       }
       if (strstr(status_burn_bd, "Warehouse") == NULL ||
           strstr(status_burn_bd, "burn") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: burn-building status '%s'\n",
+        fprintf(stderr, "unit_ai_contact: burn-building status '%s'\n",
                 status_burn_bd);
         return fail("BURN destroy should name building in status");
       }
@@ -2970,7 +2970,7 @@ int main(void) {
       return fail("escort follower must remain active");
     }
     if (brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != lead_id) {
-      fprintf(stderr, "smoke_ai_contact: escort orders=%d follow=%d\n", brave->orders,
+      fprintf(stderr, "unit_ai_contact: escort orders=%d follow=%d\n", brave->orders,
               brave->follow_unit_id);
       return fail("idle Brave should FOLLOW lead with AI_MOVE");
     }
@@ -3035,7 +3035,7 @@ int main(void) {
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
         brave->follow_unit_id != far_id) {
-      fprintf(stderr, "smoke_ai_contact: escort deepen follow=%d (want %d)\n",
+      fprintf(stderr, "unit_ai_contact: escort deepen follow=%d (want %d)\n",
               brave ? brave->follow_unit_id : -1, far_id);
       return fail("escort should prefer goto toward raid-gate Euro colony");
     }
@@ -3071,7 +3071,7 @@ int main(void) {
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW ||
         brave->follow_unit_id != near2) {
-      fprintf(stderr, "smoke_ai_contact: escort fallback follow=%d (want %d)\n",
+      fprintf(stderr, "unit_ai_contact: escort fallback follow=%d (want %d)\n",
               brave ? brave->follow_unit_id : -1, near2);
       return fail("escort without gate should pick nearest lead");
     }
@@ -3109,7 +3109,7 @@ int main(void) {
     ai_contact_indian_raids(&ctx, 4);
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md4) {
-      fprintf(stderr, "smoke_ai_contact: alarmed MD4 follow=%d\n",
+      fprintf(stderr, "unit_ai_contact: alarmed MD4 follow=%d\n",
               brave ? brave->follow_unit_id : -1);
       return fail("alarm≥55 escort should reach lead at MD=4");
     }
@@ -3155,7 +3155,7 @@ int main(void) {
     ai_contact_indian_raids(&ctx, 4);
     brave = units_get(&units, brave_id);
     if (!brave || brave->orders != UNITS_ORDER_FOLLOW || brave->follow_unit_id != md5) {
-      fprintf(stderr, "smoke_ai_contact: hot MD5 follow=%d\n",
+      fprintf(stderr, "unit_ai_contact: hot MD5 follow=%d\n",
               brave ? brave->follow_unit_id : -1);
       return fail("alarm≥80 escort should reach lead at MD=5");
     }
@@ -3222,7 +3222,7 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction != want_fr) {
       fprintf(
         stderr,
-        "smoke_ai_contact: raid friction=%u (want %u kind=%d)\n",
+        "unit_ai_contact: raid friction=%u (want %u kind=%d)\n",
         (unsigned)col1.tribe[0].alarm[0].friction,
         want_fr,
         raid_kind
@@ -3232,7 +3232,7 @@ int main(void) {
     if (ind->alarm_by_player[0] != want_fr) {
       fprintf(
         stderr,
-        "smoke_ai_contact: raid alarm=%u (want %u kind=%d)\n",
+        "unit_ai_contact: raid alarm=%u (want %u kind=%d)\n",
         (unsigned)ind->alarm_by_player[0],
         want_fr,
         raid_kind
@@ -3306,7 +3306,7 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction != want_poca) {
       fprintf(
         stderr,
-        "smoke_ai_contact: poca raid friction=%u (want %u kind=%d)\n",
+        "unit_ai_contact: poca raid friction=%u (want %u kind=%d)\n",
         (unsigned)col1.tribe[0].alarm[0].friction,
         want_poca,
         poca_kind
@@ -3316,7 +3316,7 @@ int main(void) {
     if (ind->alarm_by_player[0] != want_poca) {
       fprintf(
         stderr,
-        "smoke_ai_contact: poca raid alarm=%u (want %u kind=%d)\n",
+        "unit_ai_contact: poca raid alarm=%u (want %u kind=%d)\n",
         (unsigned)ind->alarm_by_player[0],
         want_poca,
         poca_kind
@@ -3517,11 +3517,11 @@ int main(void) {
       return fail("Trade apply should enqueue Trade accepted OK");
     }
     if (strstr(st_pop, "Trade") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: trade status '%s'\n", st_pop);
+      fprintf(stderr, "unit_ai_contact: trade status '%s'\n", st_pop);
       return fail("Trade apply should set Trade accepted status");
     }
     if (strstr(st_pop, "Jewelled Relics") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: trade flavor status '%s'\n", st_pop);
+      fprintf(stderr, "unit_ai_contact: trade flavor status '%s'\n", st_pop);
       return fail("Trade apply should name @TRIBES flavor good (Inca Jewelled Relics)");
     }
     if (col1.tribe[0].last_bought != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
@@ -3552,7 +3552,7 @@ int main(void) {
       ai_contact_apply_popup_result(&ctx, &pop);
       /* Inca silver + hard-bargain → 2bbc peel drains 2 trade goods. */
       if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_hb - 2) {
-        fprintf(stderr, "smoke_ai_contact: hard-bargain goods %d→%d\n", goods_hb,
+        fprintf(stderr, "unit_ai_contact: hard-bargain goods %d→%d\n", goods_hb,
                 c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
         return fail("hard-bargain silver peel should drain 2 trade goods");
       }
@@ -3566,7 +3566,7 @@ int main(void) {
         return fail("hard-bargain should still decay alarm_by_player by 1");
       }
       if (strstr(st_pop, "hard bargain") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: hard-bargain status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: hard-bargain status '%s'\n", st_pop);
         return fail("hard-bargain should set hard-bargain status");
       }
       ind->alarm_by_player[0] = 10; /* restore peaceful for later arms */
@@ -3595,7 +3595,7 @@ int main(void) {
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
       if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_ore - 2) {
-        fprintf(stderr, "smoke_ai_contact: ore hard-bargain goods %d→%d\n", goods_ore,
+        fprintf(stderr, "unit_ai_contact: ore hard-bargain goods %d→%d\n", goods_ore,
                 c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
         return fail("hard-bargain ore peel should drain 2 trade goods");
       }
@@ -3638,7 +3638,7 @@ int main(void) {
         st_pop[0] = '\0';
         ai_contact_apply_popup_result(&ctx, &pop);
         if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_m - 2) {
-          fprintf(stderr, "smoke_ai_contact: %s hard-bargain goods %d→%d\n",
+          fprintf(stderr, "unit_ai_contact: %s hard-bargain goods %d→%d\n",
                   cases[ci].label, goods_m, c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
           return fail("hard-bargain primary peel should drain 2 trade goods");
         }
@@ -3693,7 +3693,7 @@ int main(void) {
         return fail("sea-trade should bump relation like land trade");
       }
       if (strstr(st_pop, "Trade") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: sea-trade status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: sea-trade status '%s'\n", st_pop);
         return fail("sea-trade should set Trade accepted status");
       }
       units_despawn(&units, ship_id);
@@ -3763,7 +3763,7 @@ int main(void) {
       return fail("Leave CHOICE should enqueue Farewell OK");
     }
     if (strstr(st_pop, "Farewell") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: leave status '%s'\n", st_pop);
+      fprintf(stderr, "unit_ai_contact: leave status '%s'\n", st_pop);
       return fail("Leave CHOICE should set Farewell status");
     }
 
@@ -3790,7 +3790,7 @@ int main(void) {
         return fail("Trade fail follow-up should be CONTACT_MEET OK");
       }
       if (strstr(st_pop, "Trade concluded") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: trade-stub status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: trade-stub status '%s'\n", st_pop);
         return fail("Trade fail should set Trade concluded status");
       }
     }
@@ -3825,7 +3825,7 @@ int main(void) {
       }
       if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "trade") == NULL ||
           strstr(st_pop, "The ") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: trade-refuse status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: trade-refuse status '%s'\n", st_pop);
         return fail("Trade refuse should set tribe-named refuse-to-trade status");
       }
       /* FUN_4d56_2af6: abort clears last-goods flags. */
@@ -3879,7 +3879,7 @@ int main(void) {
         }
       }
       if (welcome_choices != 1) {
-        fprintf(stderr, "smoke_ai_contact: WELCOME CHOICE count=%d\n", welcome_choices);
+        fprintf(stderr, "unit_ai_contact: WELCOME CHOICE count=%d\n", welcome_choices);
         return fail("second Brave same pulse must not re-offer WELCOME");
       }
     }
@@ -3934,7 +3934,7 @@ int main(void) {
         return fail("WELCOME No should increment tribe attacks");
       }
       if (strstr(st_pop, "WAR") == NULL && strstr(st_pop, "War") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: reject status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: reject status '%s'\n", st_pop);
         return fail("WELCOME No should set Prepare for WAR status");
       }
     }
@@ -4298,7 +4298,7 @@ int main(void) {
         return fail("Demand refuse should enqueue CONTACT_DEMAND OK");
       }
       if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "demand") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: demand-refuse OK status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: demand-refuse OK status '%s'\n", st_pop);
         return fail("Demand refuse should set refuse-demands status");
       }
     }
@@ -4350,7 +4350,7 @@ int main(void) {
         return fail("Teach refuse should enqueue CONTACT_TEACH OK");
       }
       if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "teach") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: teach-refuse OK status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: teach-refuse OK status '%s'\n", st_pop);
         return fail("Teach refuse should set refuse-to-teach status");
       }
     }
@@ -4411,7 +4411,7 @@ int main(void) {
         return fail("Teach Aztec success should enqueue CONTACT_TEACH OK");
       }
       if (strstr(st_pop, "teach") == NULL || strstr(st_pop, "Aztec") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: teach-aztec status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: teach-aztec status '%s'\n", st_pop);
         return fail("Teach Aztec should set Natives-teach-Aztec status");
       }
       /* Restore tribe nation for later arms. */
@@ -4470,7 +4470,7 @@ int main(void) {
         return fail("convert success should enqueue CONTACT_CONVERT OK");
       }
       if (strstr(st_pop, "accept") == NULL || strstr(st_pop, "conversion") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: convert OK status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: convert OK status '%s'\n", st_pop);
         return fail("convert success should set accept-conversion status");
       }
     }
@@ -4494,7 +4494,7 @@ int main(void) {
         return fail("village Meet CHOICE should offer Trade/Gift/Demand/Teach/Leave");
       }
       if (strstr(st_pop, "welcomes") == NULL || strstr(st_pop, "worthy") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: village status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: village status '%s'\n", st_pop);
         return fail("cool village meet should set @INDIANHELLO1 worthy status");
       }
       /* Hot mid alarm → ruthless HELLO2. */
@@ -4505,7 +4505,7 @@ int main(void) {
         return fail("hot village meet should still enqueue");
       }
       if (strstr(st_pop, "ruthless") == NULL) {
-        fprintf(stderr, "smoke_ai_contact: hot village status '%s'\n", st_pop);
+        fprintf(stderr, "unit_ai_contact: hot village status '%s'\n", st_pop);
         return fail("hot village meet should set @INDIANHELLO2 ruthless status");
       }
       ind->alarm_by_player[0] = 10;
@@ -4602,7 +4602,7 @@ int main(void) {
     if (ind->alarm_by_player[0] < 80u) {
       return fail("Attack hostilities should raise alarm to burn band");
     }
-    fprintf(stderr, "smoke_ai_contact: village 4528 raid warn ok\n");
+    fprintf(stderr, "unit_ai_contact: village 4528 raid warn ok\n");
     ctx.ai_popups = NULL;
     ctx.status = NULL;
     ctx.status_size = 0;
@@ -4672,7 +4672,7 @@ int main(void) {
       }
     }
     if (strstr(st_ship, "trust") == NULL && strstr(st_ship, "ships") == NULL) {
-      fprintf(stderr, "smoke_ai_contact: MADAT status '%s'\n", st_ship);
+      fprintf(stderr, "unit_ai_contact: MADAT status '%s'\n", st_ship);
       return fail("ship rel80 should set MADATSHIPS status");
     }
 
@@ -4700,6 +4700,6 @@ int main(void) {
   free(map.layer2);
   free(map.layer3);
   col1_save_free(&col1);
-  fprintf(stderr, "smoke_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
+  fprintf(stderr, "unit_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
   return 0;
 }

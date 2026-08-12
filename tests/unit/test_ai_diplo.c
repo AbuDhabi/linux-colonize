@@ -57,7 +57,7 @@
    AI_DIPLO_SMOKE_MUSKETS_BIT)
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_ai_diplo: FAIL %s\n", msg);
+  fprintf(stderr, "unit_ai_diplo: FAIL %s\n", msg);
   return 1;
 }
 
@@ -302,7 +302,7 @@ int main(void) {
       return fail("euro_balance upkeep must not move gold when treasuries equal");
     }
     if (strcmp(status_up, "War upkeep costs gold.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: upkeep status '%s'\n", status_up);
+      fprintf(stderr, "unit_ai_diplo: upkeep status '%s'\n", status_up);
       return fail("euro_balance should status War upkeep costs gold for human");
     }
     /* AI-only: no upkeep status overwrite. */
@@ -457,7 +457,7 @@ int main(void) {
       col1.nation[1].unknown26[8] = 0;
       ai_diplo_euro_balance(&ctx_pr, 1);
       if (strcmp(status_pr, "Privateer prize from England") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: privateer status '%s'\n", status_pr);
+        fprintf(stderr, "unit_ai_diplo: privateer status '%s'\n", status_pr);
         return fail("euro_balance privateer should status when human is a party");
       }
       /* AI-only tick: no status overwrite. */
@@ -559,7 +559,7 @@ int main(void) {
       return fail("break_alliance_ctx should clear ALLY");
     }
     if (strcmp(status_ba, "Alliance broken with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: break status '%s'\n", status_ba);
+      fprintf(stderr, "unit_ai_diplo: break status '%s'\n", status_ba);
       return fail("break_alliance_ctx should status when human is a party");
     }
     /* Re-break: already not allied → no status overwrite. */
@@ -961,7 +961,7 @@ int main(void) {
     st.nation[0].gold = 30;
     ai_diplo_euro_balance(&ctx_st, 0);
     if (strcmp(status, "Natives grow hostile.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: indian sticky status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: indian sticky status '%s'\n", status);
       return fail("euro_balance should status when sticky rises for human");
     }
     /* Clear hostility → improve status. */
@@ -971,7 +971,7 @@ int main(void) {
     status[0] = '\0';
     ai_diplo_euro_balance(&ctx_st, 0);
     if (strcmp(status, "Native tensions ease.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: indian clear status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: indian clear status '%s'\n", status);
       return fail("euro_balance should status when sticky clears for human");
     }
     /* AI nation tick must not overwrite human status. */
@@ -1074,7 +1074,7 @@ int main(void) {
     }
     /* 400 − 100 sting − 25 trade = 275 */
     if (tw.nation[0].gold != 275) {
-      fprintf(stderr, "smoke_ai_diplo: rich gold after trade war %u (want 275)\n",
+      fprintf(stderr, "unit_ai_diplo: rich gold after trade war %u (want 275)\n",
               (unsigned)tw.nation[0].gold);
       free(tw.colony);
       return fail("colony-gap declare should drain extra 25 from richer");
@@ -1128,7 +1128,7 @@ int main(void) {
     /* soldier 2+2=4, ship 1+1+3=5, pop 4*2=8, gold 100/50=2 → 19 */
     const int score = ai_diplo_military_score(&ctx, 0);
     if (score != 19) {
-      fprintf(stderr, "smoke_ai_diplo: military_score %d (want 19)\n", score);
+      fprintf(stderr, "unit_ai_diplo: military_score %d (want 19)\n", score);
       return fail("unpark #5 military_score weights");
     }
   }
@@ -1163,7 +1163,7 @@ int main(void) {
       return fail("declare_war_ctx should set WAR");
     }
     if (strcmp(status, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: war status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: war status '%s'\n", status);
       return fail("declare_war_ctx should prefer Sugar/Tobacco/Tools boycott status for human");
     }
     /* Re-declare: no status rewrite. */
@@ -1179,7 +1179,7 @@ int main(void) {
     }
     /* Tools lift chrome preferred over Peace concluded when Tools cleared. */
     if (strcmp(status, "Tools embargo lifted.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: peace status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: peace status '%s'\n", status);
       return fail("make_peace_ctx should prefer Tools embargo lifted for human");
     }
 
@@ -1199,7 +1199,7 @@ int main(void) {
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
     if (strcmp(status, "Food boycott imposed.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: first-cargo status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: first-cargo status '%s'\n", status);
       return fail("declare_war_ctx should name first newly boycotted cargo (Food)");
     }
 
@@ -1215,7 +1215,7 @@ int main(void) {
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
     if (strcmp(status, "War declared with rival") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: rival status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: rival status '%s'\n", status);
       return fail("declare_war_ctx should fall back to rival when full wartime mask set");
     }
 
@@ -1234,7 +1234,7 @@ int main(void) {
       return fail("declare_war_ctx should still −5 Indian relations (smoke-verified)");
     }
     if (strcmp(status, "Natives grow hostile.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: indian war-hit status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: indian war-hit status '%s'\n", status);
       return fail("declare_war_ctx should status Natives grow hostile when sticky rises");
     }
 
@@ -1298,7 +1298,7 @@ int main(void) {
       return fail("sticky==2 should remain deep after matrix tick");
     }
     if (strcmp(status, "Natives remain hostile.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: remain status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: remain status '%s'\n", status);
       return fail("sticky==2 should status Natives remain hostile");
     }
     if (sp.nation[0].gold != 38) {
@@ -1335,7 +1335,7 @@ int main(void) {
       return fail("ally longevity should bump both timers +1 when gift fails");
     }
     if (strcmp(status, "Alliance with rival holds.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: longevity status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: longevity status '%s'\n", status);
       return fail("ally longevity should status Alliance with rival holds");
     }
     /* Gift success path still +2 (no double longevity). Peer ≥ half blocks aid. */
@@ -1353,7 +1353,7 @@ int main(void) {
       return fail("FA gift success should bump +2 only (no longevity stack)");
     }
     if (strcmp(status, "Alliance with France strengthened.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: FA gift status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: FA gift status '%s'\n", status);
       return fail("FA gift should status Alliance with country strengthened");
     }
 
@@ -1464,7 +1464,7 @@ int main(void) {
         peaced = 1;
         /* Tools always OR'd on declare → lift chrome preferred over Peace. */
         if (strcmp(status_wf, "Tools embargo lifted.") != 0) {
-          fprintf(stderr, "smoke_ai_diplo: war-fatigue status '%s'\n", status_wf);
+          fprintf(stderr, "unit_ai_diplo: war-fatigue status '%s'\n", status_wf);
           return fail("war-fatigue make_peace_ctx should status Tools embargo lifted for human");
         }
       }
@@ -1530,7 +1530,7 @@ int main(void) {
         if (!ai_diplo_at_war(&wf2, 0, 1)) {
           peaced_peer = 1;
           if (strcmp(status_peer, "Tools embargo lifted.") != 0) {
-            fprintf(stderr, "smoke_ai_diplo: war-fatigue peer status '%s'\n",
+            fprintf(stderr, "unit_ai_diplo: war-fatigue peer status '%s'\n",
                     status_peer);
             return fail("war-fatigue make_peace_ctx should status when human is peer");
           }
@@ -1546,7 +1546,7 @@ int main(void) {
       wf2.nation[1].boycott_bitmap = 0;
       ai_diplo_make_peace_ctx(&ctx_peer, 1, 0);
       if (strcmp(status_peer, "Peace concluded with France") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: Peace concluded status '%s'\n", status_peer);
+        fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_peer);
         return fail("make_peace_ctx should status Peace concluded when Tools already clear");
       }
     }
@@ -1585,7 +1585,7 @@ int main(void) {
       return fail("Tools status setup: colony-gap should set Tools bit");
     }
     if (strcmp(status, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: Tools set status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: Tools set status '%s'\n", status);
       free(ts.colony);
       return fail("declare_war_ctx should status Sugar/Tobacco/Tools boycott for human");
     }
@@ -1595,7 +1595,7 @@ int main(void) {
       return fail("make_peace_ctx should lift Tools bit");
     }
     if (strcmp(status, "Tools embargo lifted.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: Tools lift status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: Tools lift status '%s'\n", status);
       free(ts.colony);
       return fail("make_peace_ctx should status Tools embargo lifted for human");
     }
@@ -1806,7 +1806,7 @@ int main(void) {
     ai_diplo_euro_balance(&ctx_fg, 0);
     /* Harassment −2g while sticky deep / indian_at_war; FA gift must not move more. */
     if (fg.nation[0].gold != 118 || fg.nation[1].gold != 60) {
-      fprintf(stderr, "smoke_ai_diplo: sticky FA skip gold %u/%u\n",
+      fprintf(stderr, "unit_ai_diplo: sticky FA skip gold %u/%u\n",
               (unsigned)fg.nation[0].gold, (unsigned)fg.nation[1].gold);
       return fail("sticky==2 must skip FA gift gold transfer to peers");
     }
@@ -1839,7 +1839,7 @@ int main(void) {
       return fail("declare_war should OR Tools boycott even without colony gap");
     }
     if (strcmp(status_st, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: Sugar/Tobacco/Tools status '%s'\n", status_st);
+      fprintf(stderr, "unit_ai_diplo: Sugar/Tobacco/Tools status '%s'\n", status_st);
       return fail("declare_war_ctx should status Sugar/Tobacco/Tools boycott for human");
     }
   }
@@ -1981,7 +1981,7 @@ int main(void) {
         return fail("R8 feeler status setup should keep sticky clear");
       }
       if (strcmp(status_fl, "Native relations improve.") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: feeler status '%s'\n", status_fl);
+        fprintf(stderr, "unit_ai_diplo: feeler status '%s'\n", status_fl);
         return fail("euro_balance feeler nudge should status Native relations improve");
       }
       /* AI-only: no status. */
@@ -2064,7 +2064,7 @@ int main(void) {
         return fail("form_alliance_ctx should bump treaty timer to ≥8 when was 0");
       }
       if (strcmp(status_ag, "Alliance with France costs gold.") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: ally cost status '%s'\n", status_ag);
+        fprintf(stderr, "unit_ai_diplo: ally cost status '%s'\n", status_ag);
         return fail("form_alliance_ctx should prefer Alliance with country costs gold");
       }
       /* Bare form_alliance remains status-free. */
@@ -2098,7 +2098,7 @@ int main(void) {
         return fail("form_alliance_ctx should set ALLY when human gold already 0");
       }
       if (strcmp(status_ag, "Alliance formed with France") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: ally formed status '%s'\n", status_ag);
+        fprintf(stderr, "unit_ai_diplo: ally formed status '%s'\n", status_ag);
         return fail("form_alliance_ctx should status Alliance formed when gold already 0");
       }
       /* Re-form while already allied: no formed rewrite (was_ally gate). */
@@ -2160,7 +2160,7 @@ int main(void) {
       return fail("break_alliance should raise sticky on both sides");
     }
     if (strcmp(status_r10, "Natives grow hostile.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: R10 break sticky status '%s'\n", status_r10);
+      fprintf(stderr, "unit_ai_diplo: R10 break sticky status '%s'\n", status_r10);
       return fail("break_alliance_ctx should prefer Natives grow hostile when sticky rises");
     }
     /* Re-break: not allied → no second −5 / sticky deepen from this path. */
@@ -2217,7 +2217,7 @@ int main(void) {
       return fail("R13 timer expiry should break alliance");
     }
     if (strcmp(status_te, "Alliance broken with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: timer-expiry status '%s'\n", status_te);
+      fprintf(stderr, "unit_ai_diplo: timer-expiry status '%s'\n", status_te);
       return fail("timer expiry should status Alliance broken when human is a party");
     }
   }
@@ -2255,7 +2255,7 @@ int main(void) {
       return fail("popup smoke: declare_war_ctx should set WAR");
     }
     if (strcmp(status_pop, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: popup war status '%s'\n", status_pop);
+      fprintf(stderr, "unit_ai_diplo: popup war status '%s'\n", status_pop);
       return fail("popup smoke: status line must still prefer boycott chrome");
     }
     if (popups.queue_count != 1) {
@@ -2328,7 +2328,7 @@ int main(void) {
       return fail("popup smoke: Accept should form_alliance");
     }
     if (strcmp(status_pop, "Alliance formed with Spain") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: alliance Accept status '%s'\n", status_pop);
+      fprintf(stderr, "unit_ai_diplo: alliance Accept status '%s'\n", status_pop);
       return fail("R3 alliance Accept: status should be Alliance formed");
     }
     if (popups.queue_count != 1) {
@@ -2339,7 +2339,7 @@ int main(void) {
       return fail("R3 alliance Accept: follow-up should be DIPLO_ALLIANCE OK");
     }
     if (strcmp(popups.queue[0].body, "Alliance formed with Spain") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: alliance Accept OK '%s'\n", popups.queue[0].body);
+      fprintf(stderr, "unit_ai_diplo: alliance Accept OK '%s'\n", popups.queue[0].body);
       return fail("R3 alliance Accept: follow-up OK body Alliance formed");
     }
     /* M2R6: form_alliance_ctx Accept path bumps treaty timer (≥8 if was 0). */
@@ -2490,7 +2490,7 @@ int main(void) {
         return fail("R2 peace: Refuse must leave WAR");
       }
       if (strcmp(status_w2, "Peace refused with France") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: peace refuse status '%s'\n", status_w2);
+        fprintf(stderr, "unit_ai_diplo: peace refuse status '%s'\n", status_w2);
         return fail("R2 peace: Refuse should status Peace refused");
       }
       /* Refuse follow-up INFO OK demoted (invented; FA UI PARKED). */
@@ -2513,7 +2513,7 @@ int main(void) {
       ai_diplo_form_alliance(&w2, 0, 1);
       ai_diplo_break_alliance_ctx(&ctx_w2, 0, 1);
       if (strcmp(status_w2, "Natives grow hostile.") != 0) {
-        fprintf(stderr, "smoke_ai_diplo: R2 break sticky '%s'\n", status_w2);
+        fprintf(stderr, "unit_ai_diplo: R2 break sticky '%s'\n", status_w2);
         return fail("R2 break: sticky rise should status Natives grow hostile");
       }
       if (pop_w2.queue_count != 1) {
@@ -2559,7 +2559,7 @@ int main(void) {
         ctx_pr3.ai_popups = &pop_pr3;
         ai_diplo_euro_balance(&ctx_pr3, 1);
         if (strcmp(status_pr3, "Privateer prize from England") != 0) {
-          fprintf(stderr, "smoke_ai_diplo: R3 privateer status '%s'\n", status_pr3);
+          fprintf(stderr, "unit_ai_diplo: R3 privateer status '%s'\n", status_pr3);
           return fail("R3 privateer: status Privateer prize from England");
         }
         /* Prize INFO OK demoted — status only. */
@@ -2682,7 +2682,7 @@ int main(void) {
       return fail("M2R1: euro_balance at war should spawn one Privateer");
     }
     if (priv_x != 3 || priv_y != 4) {
-      fprintf(stderr, "smoke_ai_diplo: Privateer at (%d,%d) want (3,4)\n", priv_x, priv_y);
+      fprintf(stderr, "unit_ai_diplo: Privateer at (%d,%d) want (3,4)\n", priv_x, priv_y);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -2708,7 +2708,7 @@ int main(void) {
       return fail("M2R1: unknown26[9] peer bit should arm after spawn");
     }
     if (strcmp(status, "Privateer commissioned against France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: M2R1 spawn status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: M2R1 spawn status '%s'\n", status);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -2775,7 +2775,7 @@ int main(void) {
     ai_diplo_euro_balance(&ctx, 0);
     /* upkeep −5 only; no 8g prize while spawn path owns wartime Privateer. */
     if (pr.nation[0].gold != 195 || pr.nation[1].gold != 50) {
-      fprintf(stderr, "smoke_ai_diplo: M3R2 spawn-only gold %u/%u (want 195/50)\n",
+      fprintf(stderr, "unit_ai_diplo: M3R2 spawn-only gold %u/%u (want 195/50)\n",
               (unsigned)pr.nation[0].gold, (unsigned)pr.nation[1].gold);
       free(map.terrain);
       free(map.layer2);
@@ -2783,7 +2783,7 @@ int main(void) {
       return fail("M3R2: with units pool, euro_balance must skip PARKED 8g prize");
     }
     if (strstr(status, "Privateer prize") != NULL) {
-      fprintf(stderr, "smoke_ai_diplo: M3R2 prize status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: M3R2 prize status '%s'\n", status);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -2808,7 +2808,7 @@ int main(void) {
     ai_popup_clear(&pop);
     ai_diplo_euro_balance(&ctx, 0);
     if (strcmp(status, "Alliance with France strengthened.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: M2R1 FA status '%s'\n", status);
+      fprintf(stderr, "unit_ai_diplo: M2R1 FA status '%s'\n", status);
       free(map.terrain);
       free(map.layer2);
       free(map.layer3);
@@ -2945,7 +2945,7 @@ int main(void) {
       return fail("M2R3 war: Refuse must leave peace");
     }
     if (strcmp(status_w3, "War refused with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: war refuse status '%s'\n", status_w3);
+      fprintf(stderr, "unit_ai_diplo: war refuse status '%s'\n", status_w3);
       return fail("M2R3 war: Refuse should status War refused");
     }
     /* Refuse follow-up INFO OK demoted (invented; FA UI PARKED). */
@@ -3024,7 +3024,7 @@ int main(void) {
     }
     if (strcmp(status_br, "Alliance broken with France") != 0 &&
         strcmp(status_br, "Natives grow hostile.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: break Accept status '%s'\n", status_br);
+      fprintf(stderr, "unit_ai_diplo: break Accept status '%s'\n", status_br);
       return fail("M2R5 break: Accept should status Alliance broken (or sticky)");
     }
     ai_popup_consume_result(&pop_br);
@@ -3076,7 +3076,7 @@ int main(void) {
       return fail("M2R5 break: Refuse must leave ALLY");
     }
     if (strcmp(status_br, "Alliance break refused with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: break refuse status '%s'\n", status_br);
+      fprintf(stderr, "unit_ai_diplo: break refuse status '%s'\n", status_br);
       return fail("M2R5 break: Refuse should status Alliance break refused");
     }
     if (pop_br.queue_count != 0) {
@@ -3125,7 +3125,7 @@ int main(void) {
       return fail("M2R6 sticky deepen: sync should deepen sticky to 2");
     }
     if (strcmp(status_ns, "Natives remain hostile.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: sticky deepen status '%s'\n", status_ns);
+      fprintf(stderr, "unit_ai_diplo: sticky deepen status '%s'\n", status_ns);
       return fail("M2R6 sticky deepen: should status Natives remain hostile");
     }
     if (pop_ns.queue_count < 1) {
@@ -3230,13 +3230,13 @@ int main(void) {
      * 8g prize (null-units would otherwise transfer). Gold stays 400/50.
      */
     if (fr.nation[0].gold != 400 || fr.nation[1].gold != 50) {
-      fprintf(stderr, "smoke_ai_diplo: M3R4 Franklin gold %u/%u (want 400/50)\n",
+      fprintf(stderr, "unit_ai_diplo: M3R4 Franklin gold %u/%u (want 400/50)\n",
               (unsigned)fr.nation[0].gold, (unsigned)fr.nation[1].gold);
       return fail("M3R4 Franklin: at-war peace must skip upkeep and PARK prize");
     }
     /* Marathon3 R2: human chrome when Franklin concludes peace (make_peace_ctx). */
     if (strcmp(status_fr, "Peace concluded with France") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: M3R2 Franklin peace status '%s'\n", status_fr);
+      fprintf(stderr, "unit_ai_diplo: M3R2 Franklin peace status '%s'\n", status_fr);
       return fail("M3R2 Franklin: human party should status Peace concluded with France");
     }
 
@@ -3363,7 +3363,7 @@ int main(void) {
       return fail("M3R3 longevity: should bump both timers +1");
     }
     if (strcmp(status_lon, "Alliance with France holds.") != 0) {
-      fprintf(stderr, "smoke_ai_diplo: M3R3 longevity status '%s'\n", status_lon);
+      fprintf(stderr, "unit_ai_diplo: M3R3 longevity status '%s'\n", status_lon);
       return fail("M3R3 longevity: should status Alliance with France holds");
     }
     for (int qi = 0; qi < pop_lon.queue_count; ++qi) {
@@ -3373,6 +3373,6 @@ int main(void) {
     }
   }
 
-  fprintf(stderr, "smoke_ai_diplo: ok\n");
+  fprintf(stderr, "unit_ai_diplo: ok\n");
   return 0;
 }

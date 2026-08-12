@@ -190,7 +190,7 @@ Ordered pipeline recovered for the Linux port:
    [ai_transcription.md](ai_transcription.md) unpark #3)
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    `ai_euro_nation_turn` (`src/core/ai.c` → `ai_euro.c`): reseed from VR_SEED timer word, tick AI crosses,
-   `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `smoke_ai_turns`;
+   `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `golden_ai_turns`;
    landfall coastal staging + `ai_euro_06ae_first_colony_from_landfall`).
    Full-dispatch planner partial; deep land/ocean `20e6` still open — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
@@ -242,7 +242,7 @@ nation skip were stale.
 
 Procedural NEW WORLD maps live in **VICEROY**, not MAPEDIT. Entry: `FUN_684c_08c0` (dispatched via `FUN_2a1f_083e`); land blobs `FUN_684c_02a8` / form thunks; continent labeling `FUN_67bf_0000`. Customize UI: `FUN_733a_0270` on `CUSTOMIZ.PIK` (4 columns × 3 rows; defaults all mid/`1`). Linux port: `src/core/map_gen.c` (`map_generate` / `MapGenParams`) + `NEW_GAME_PHASE_CUSTOMIZE` in `src/core/new_game.c`. See [assets.md](assets.md) “Map generation (NEW WORLD)”.
 
-Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (2×2 masks 6/9) is ported. RNG is exact DOS `FUN_1d1d_0e04` / `FUN_19ef_0032` (`src/core/dos_rng.c`): NEW WORLD draws customize axes (`range(0,3)`) then reseeds before `map_generate`. Tribe placement (`FUN_6a09`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word) — it does **not** continue the post-mapgen stream or restore a post-axes LCG (stale “post-axes restore” docs were wrong for this path). Land mask, latitude/climate paint, forest wander, rivers, and arctic/HS tail bit-match seed 100 terrain. `FUN_6a09` capitals/satellites match SEED100; Braves spawn then take one post-`6a09` native pulse (`FUN_4d56_1816` path in `ai.c`) so coordinates/MP/`turns_worked` match the golden save (34 tribes / 46 units). Golden fidelity: `smoke_mapgen_seed100` vs `test-saves-mapgen/SEED100.SAV` (no seed-special runtime path).
+Continent flood-fill IDs (`FUN_67bf_0000`) are not written to layer2 in gen v1 (shipped AMER2 leaves layer2 zero); diagonal land cleanup (2×2 masks 6/9) is ported. RNG is exact DOS `FUN_1d1d_0e04` / `FUN_19ef_0032` (`src/core/dos_rng.c`): NEW WORLD draws customize axes (`range(0,3)`) then reseeds before `map_generate`. Tribe placement (`FUN_6a09`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word) — it does **not** continue the post-mapgen stream or restore a post-axes LCG (stale “post-axes restore” docs were wrong for this path). Land mask, latitude/climate paint, forest wander, rivers, and arctic/HS tail bit-match seed 100 terrain. `FUN_6a09` capitals/satellites match SEED100; Braves spawn then take one post-`6a09` native pulse (`FUN_4d56_1816` path in `ai.c`) so coordinates/MP/`turns_worked` match the golden save (34 tribes / 46 units). Golden fidelity: `golden_mapgen_seed100` vs `test-saves-mapgen/SEED100.SAV` (no seed-special runtime path).
 
 ## Map compositor (MAPEDIT)
 
@@ -273,7 +273,7 @@ masked ocean into palette-0 holes (`FUN_1a47_0676`) → resources / estuary. Fog
 
 Ocean tile with `terrain & 0xc0`: for each cardinal neighbour that is land with `terrain & 0x40`, blit MAPEDIT ID **`0x8d+q`** / **`0x91+q`** → indices **140–147**. Inland rivers unchanged.
 
-Fixtures: `amer2_coast_fixtures` / `amer2_river_estuary` in `tests/smoke/test_map.c`.
+Fixtures: `amer2_coast_fixtures` / `amer2_river_estuary` in `tests/unit/test_map.c`.
 
 ### Forest / hill / mountain / inland river connectivity
 

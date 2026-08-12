@@ -55,7 +55,7 @@ From [`CMakeLists.txt`](../CMakeLists.txt):
 |--------|----------|-------|
 | **`colonize_core`** (STATIC) | All `src/core/*.c`, `src/data/viceroy_tables.c`, `platform/diagnostics`, `platform/dos_compat` | `m`, `pthread`; optional FluidSynth |
 | **`colonize_linux`** (EXE) | `src/main.c` + `platform/linux_sdl2/sdl_runtime.c` | `colonize_core` + SDL2 |
-| **Smoke tests** | Mostly `tests/smoke/test_*.c` | Mostly `colonize_core` (headless); a few recompile subsets |
+| **Tests** | `tests/smoke/` (`smoke_*`), `tests/unit/` (`unit_*`), `tests/golden/` (`golden_*`) | Mostly `colonize_core` (headless); see [`tests/README.md`](../tests/README.md) |
 
 Include root is `src/` (`#include "core/…"`, `#include "platform/…"`).
 
@@ -221,8 +221,8 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 - **Col1** remains the interoperability path; remove or quarantine legacy COLZ
   when convenient, without blocking gameplay work.
-- Keep headless core smokes and the joint AI gate (`smoke_ai_joint`) as
-  architecture checks for simulation / AI regressions.
+- Keep headless smoke/unit suites and the joint AI golden gate
+  (`golden_ai_joint`) as architecture checks for simulation / AI regressions.
 
 ### Explicitly not intended (unless decided elsewhere)
 

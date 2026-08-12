@@ -301,6 +301,6 @@ int main(void) {
   }
 
   remove(hof_path);
-  printf("smoke_hall_of_fame ok\n");
+  printf("unit_hall_of_fame ok\n");
   return 0;
 }

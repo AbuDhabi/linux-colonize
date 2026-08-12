@@ -23,7 +23,7 @@ where the original burns RNG.
 |------|---------|-------------|
 | **T0 — Behavioral slice** | Looks like the original at a high level; RNG / edge cases may differ | Euro sail-to-goto, village growth |
 | **T1 — Save-diff** | Matches observable fields in original saves after the same setup | Rival fleets / crosses vs `COLONY00`→`01` |
-| **T2 — Golden / bit-faithful** | Matches a locked golden (e.g. seed-100) tile-for-tile / unit-for-unit | Tribe/Brave pulse + early AI TURN1→7 (`smoke_ai_turns`) |
+| **T2 — Golden / bit-faithful** | Matches a locked golden (e.g. seed-100) tile-for-tile / unit-for-unit | Tribe/Brave pulse + early AI TURN1→7 (`golden_ai_turns`) |
 | **T3 — 1:1 transcription** | Structured like the decomp (dispatcher → goals → scoring), all branches | **Not claimed** for any full planner |
 
 “Limited fashion” in the roadmap means ship a **T0/T1** slice first (e.g. unload
@@ -39,7 +39,7 @@ and nation-turn entry.
 ### Golden alignment (how to work)
 
 **Alignment means improving port fidelity to DOS**, not scripting special cases
-so `smoke_ai_turns` stays green. When Linux output disagrees with a golden:
+so `golden_ai_turns` stays green. When Linux output disagrees with a golden:
 
 1. Diff the field (unit xy/orders/goto, colony, tribe, diplo bytes).
 2. Trace the DOS FUN_* / annotated thin map that owns that mutation.
@@ -71,10 +71,10 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 | `ai_indian_nation_turn` | `1816` phases: prelude → growth → relation → pulse → meet/raids |
 | `ai_king_nation_turn` | Replaces king stub in EOT FINISH |
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
-| [`tests/smoke/test_ai_turns.c`](../tests/smoke/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`smoke_ai_turns`; full dispatcher; fixture optional) |
+| [`tests/golden/test_ai_turns.c`](../tests/golden/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`golden_ai_turns`; full dispatcher; fixture optional) |
 
 **Claims (T2 early AI / full dispatcher):** with VR_SEED=100 and idle human,
-`smoke_ai_turns` **TURN1→7** matches under the full dispatcher (Europe exit →
+`golden_ai_turns` **TURN1→7** matches under the full dispatcher (Europe exit →
 Atlantic approach → west-explore → coastal beachhead unload → found-approach /
 Isabella → Quebec found → SP New Amsterdam found + post-found coast cruise →
 FR ship home sail / pioneer→Soldier / DU cruise leg3). **`FUN_521d_0492` ported**
@@ -238,7 +238,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
 | `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a/2244; merc `ai_popup` **Done** structural; letter cinematic / VGA PARKED | **partial** |
 
-Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke: `smoke_ai_king`.
+Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit: `unit_ai_king`.
 
 ### Shared move / terrain helpers (AI-adjacent)
 
@@ -282,7 +282,7 @@ unannotated bodies.
 | Col1 AI fleets + landfall `goto` | `ai_spawn_euro_fleet` / `ai_pick_landfall` / `ai_sail_ship` / `ai_euro_unit_act` Europe exit | NEW WORLD: `map_gen_euro_landfall` (`FUN_684c` HS rim); Europe→map uses landfall goto not sentinel Y; T2 landings on VR_SEED=100 |
 | Landfall unload + first colony | `ai_euro_early_turn` / dispatcher unload | **T2** golden towns; T0 dispatcher for other seeds |
 | AI crosses tick | `turn_run_nation_ticks` | +2 / needed default 14; Europe Free Colonist on threshold **PARKED** (T2 TURN7) |
-| King / REF AI | `ai_king_nation_turn` | **Partial structural** `43f7` peace/war; `smoke_ai_king` |
+| King / REF AI | `ai_king_nation_turn` | **Partial structural** `43f7` peace/war; `unit_ai_king` |
 | Diplomacy | `ai_diplo_*` | **Partial structural** bilateral `15b3` + `10ec`/`13b0` balance |
 | Colony capture | `colonies_capture` | military / REF / Indian raid |
 | Naval combat | `units_resolve_naval_combat` | T0 ship vs ship |
@@ -319,7 +319,7 @@ leftover FF KINGGALLEON2, deep `20e6`).
 
 - **Init LCG burns (named helper):** `ai_native_post_first_brave_burns` —
   Inca=6 / Tupi=1 after first Brave step when `seed100_init_burns=true`
-  (`smoke_mapgen_seed100`). DOS CALL site still unlabeled (hang dumps B26/B27
+  (`golden_mapgen_seed100`). DOS CALL site still unlabeled (hang dumps B26/B27
   place the mover after `6a09` returns; exact inter-Brave burn not named). Not
   prelude-equivalent to mid-turn Inca=14 / Aztec=4.
 - **Mid-turn pulse:** always runs; prelude Inca=14 / Aztec=4; MP loop allows
@@ -388,15 +388,15 @@ leftover FF KINGGALLEON2, deep `20e6`).
 **T0 landed:** rivals unload at landfall and found a first colony
 (`ai_try_ship_unload` / settle helpers in `ai_euro_nation_turn`;
 `units_pick_landfall_tile` / `units_landfall_unload_all`). Optional fortify on
-leftover Soldier + Pioneer → Carpenter's Shop. Covered by `smoke_ai`.
+leftover Soldier + Pioneer → Carpenter's Shop. Covered by `unit_ai`.
 
 **T2 (fixture path):** seed-100 New Amsterdam / Quebec / Isabella via
-`ai_euro_early_turn` + `smoke_ai_turns` — not the generic planner.
+`ai_euro_early_turn` + `golden_ai_turns` — not the generic planner.
 
 **Second-wave settle (partial):** full-dispatch unload/found while
 `colony_count < 6`, light H-bind founders→FOUND, founders prefer FOUND over
-LABOR. Smoke: `smoke_ai_euro_expand`. **Mid-war:** Soldier/Dragoon Europe hire +
-one idle military → foreign MILITARY goal (`smoke_ai_euro_war`). Thin **G** stance
+LABOR. Unit: `unit_ai_euro_expand`. **Mid-war:** Soldier/Dragoon Europe hire +
+one idle military → foreign MILITARY goal (`unit_ai_euro_war`). Thin **G** stance
 (≥2 colonies: war MILITARY prio 6 / peace FOUND bump). Deep −0x6790 / mid-planner
 slices **OPEN** (unpark queue #4) — not T3.
 
@@ -427,7 +427,7 @@ prelude encroachment (+2 friction within 2) / mission pacify (−1);
 raid multi-loot (−5 muskets/horses; +tools drain if friction≥80).
 Thin maps: [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md),
 [`indian_raid_outcomes.md`](../original_sources_annotated/ai/indian_raid_outcomes.md).
-Smoke: `smoke_ai_contact`.
+Unit: `unit_ai_contact`.
 
 **Done (structural unpark #1):** real dialog **widgets** via `ai_popup`
 (`5bfb_022e` first-contact `@INDIANWELCOME` Yes/No on **land** only → `0182`
@@ -488,8 +488,8 @@ wartime Furs embargo bit on `boycott_bitmap` (lift on alliance if no wars left);
 `ai_diplo_make_peace` + rare near-parity balance peace; wartime privateer prize
 (8g richer→poorer after upkeep); thin FA `ai_diplo_fa_gift` (15g + timer+2 on
 expiring ally).
-Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Smoke:
-`smoke_ai_diplo`.
+Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md). Unit:
+`unit_ai_diplo`.
 
 **Done (structural unpark #5):** Indian×Euro thin `15b3` matrix helpers + fuller
 `153e` sting; war/peace / alliance **widgets** via `ai_popup`.
@@ -514,8 +514,8 @@ dispatcher is the default; opt into `ai_euro_early_turn` with
 `AI_EURO_EARLY_FIXTURE=1` (legacy `AI_FULL_DISPATCH=0` forces fixture off-path).
 
 **Second-wave:** unload/found + light H-bind while `colony_count < 6`
-(`smoke_ai_euro_expand`). **Mid-war hire/bind:** Soldier/Dragoon dock hire + one
-MILITARY goto (`smoke_ai_euro_war`). Thin G stance (≥2 colonies). Thin naval war
+(`unit_ai_euro_expand`). **Mid-war hire/bind:** Soldier/Dragoon dock hire + one
+MILITARY goto (`unit_ai_euro_war`). Thin G stance (≥2 colonies). Thin naval war
 hunt (AI_SAIL toward enemy ship/coast; adjacent naval combat). Thin land war hunt
 (AI_MOVE toward enemy land/colony; adjacent combat). Thin E scout explore (peaceful
 idle Scout → tribe FOUND). Thin mid-hire Artillery when at war with ≥2 colonies.
@@ -567,13 +567,13 @@ Long-form phases: Euro planner + Indian nation act together (shared `20e6` /
 | `euro_relation[4]` per Euro nation | Privateer 8g treasury fiction |
 | `relation_by_indian[8]` + `indian_hostility_sticky` | Hang dumps as primary path |
 
-Gates: `smoke_ai_turns` (early joint), `smoke_mapgen_seed100`, `smoke_ai_contact`,
-`smoke_ai_diplo`. Aggregate: **`smoke_ai_joint`** CMake target/test.
+Gates: `golden_ai_turns` (early joint), `golden_mapgen_seed100`, `unit_ai_contact`,
+`unit_ai_diplo`. Aggregate: **`golden_ai_joint`** CMake target/test.
 Mid-turn scaffold: [`test-saves-ai/JOINT_MIDTURN.md`](../test-saves-ai/JOINT_MIDTURN.md)
-(`MID01`/`MID02` Done; `LATE01` structural Done via `smoke_ai_late01` — not T2 field-diff).
+(`MID01`/`MID02` Done; `LATE01` structural Done via `golden_ai_late01` — not T2 field-diff).
 
 **Shared-surface PR policy:** any change to `20e6`, Indian×Euro `15b3`/sticky,
-raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
+raids, or FOUND must keep `golden_ai_joint` green (Euro **and** Indian fields).
 
 **Phase 1 (shared foundation) — partial**
 
@@ -619,7 +619,7 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 
 - `2154`: **Done** scorer — dual `ask[16]`/`bid[16]` (`0x9e58`/`0x9e78`) from
   terr_class buckets + tribe/indian fields + capital/tons mix; gift uses
-  ask−bid + gold≥0x4b + RNG; demand ask↔bid preference (`smoke_ai_contact`).
+  ask−bid + gold≥0x4b + RNG; demand ask↔bid preference (`unit_ai_contact`).
   `281f_0ce0` work-slot cover still OPEN one-liner.
 - `2820`: hard-bargain 45..54; primary extra trade-goods for all non-`0xff`
   teach primaries (silver/ore/tobacco/cotton/furs/sugar; Arawak fish single).
@@ -635,9 +635,9 @@ raids, or FOUND must keep `smoke_ai_joint` green (Euro **and** Indian fields).
 
 - Alarmed escort: MD≤4 / 2× at alarm≥55; MD≤5 / 3× at alarm≥80 + smoke.
 - `MID01.SAV` + `MID02.SAV`: Linux-derived mid-war stamp + one joint turn pair
-  compare via `smoke_ai_mid01` (wired into `smoke_ai_joint`).
+  compare via `golden_ai_mid01` (wired into `golden_ai_joint`).
 - `LATE01.SAV`: late-war stamp from MID02 + structural raid/hunt compare via
-  `smoke_ai_late01` (joint gate) — **not** T2 field-diff, **not** blanket T3.
+  `golden_ai_late01` (joint gate) — **not** T2 field-diff, **not** blanket T3.
 - Series I: mil unload stance-gate (`−0x6790` / `local_9c` 0x10-shaped).
 - Series L: peacetime sticky mil unload (Brave MD≤3 / stance==4).
 - Series J: `5fef` kind-scaled raid tension (0d6c-shaped deltas).
@@ -682,8 +682,8 @@ WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-pr
 `unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin Cont. Army
 in hunter check + capital rally after `1eca`; refuse clear when `boycott_bitmap==0`;
 second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
-[`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Smoke:
-`smoke_ai_king`.
+[`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit:
+`unit_ai_king`.
 
 **Done (structural unpark #2):** real `38fd_5be8` / `2564` / `2244` **modals** via
 `ai_popup` (status chrome Done). VGA-identical wood chrome still PARKED.
@@ -711,12 +711,12 @@ Status reflects the AI-port prerequisite work:
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
 | Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 / Congress UI PARKED |
-| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / merc via `ai_popup` **Done** structural; VGA chrome PARKED; `smoke_ai_king` |
+| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / merc via `ai_popup` **Done** structural; VGA chrome PARKED; `unit_ai_king` |
 
 Suggested manual order: finish leftover **unpark #3** KINGGALLEON2 (non-Cortes
 royal-galleon share) if evidence appears, and **unpark #4** deep land/ocean `20e6`, then deepen PARKED bodies
 (VGA dialog chrome, FA `3f41`, letter cinematic, full `2820`/`4528`). **R1 Euro
-settle (T0)** and **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial
+settle (T0)** and **seed-100 early T2** (`golden_ai_turns`) are in; R0 partial
 (quiet mid-turn default, **2** Brave spent-only residuals — call graph annotated
 (`brave_spent_callgraph.md`); post-ADD chrome does not write `0x3149`; overlays
 kept; hang **VR_B465X** parked; explore fog index axes corrected). Generic T1 Euro settle + unpark #4
@@ -728,10 +728,10 @@ mid-planner share the next Euro path.
 
 | Artifact | Use |
 |----------|-----|
-| `test-saves-mapgen/SEED100.SAV` | Golden tribes/Braves; `smoke_mapgen_seed100`; far-ocean probe |
+| `test-saves-mapgen/SEED100.SAV` | Golden tribes/Braves; `golden_mapgen_seed100`; far-ocean probe |
 | `tools/probe_far_ocean_4753.c` | Phase 8: far tiles Linux ↔ SAV ocean/land |
 | `tools/probe_sioux_spent.c` | T1/T2 Brave cost-head + neighborhood oracle (spent residuals) |
-| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 joint gate; `smoke_ai_turns` (Euro+Indian+diplo fields) |
+| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 joint gate; `golden_ai_turns` (Euro+Indian+diplo fields) |
 | `test-saves-ai/JOINT_MIDTURN.md` | Mid-game joint golden scaffold + field policy |
 | `original_saves/COLONY00.SAV` / `COLONY01.SAV` | Rival fleets, sail, AI crosses |
 | `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
@@ -741,26 +741,26 @@ mid-planner share the next Euro path.
 | [seed100_brave.md](seed100_brave.md) | Durable Brave fidelity notes / open LCG burns |
 | `COLONIZE/TRIBE.TXT`, `NAMES.TXT` `@TRIBES` / `@SCENARIO` | AMERICA villages / landfalls |
 | `GAME.TXT` `@RAID*` | Raid message tags → `AiRaidKind` loot picker in `ai_contact` |
-| `tests/smoke/test_ai.c` | Init + multi-turn smoke |
-| `tests/smoke/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
-| `tests/smoke/test_ai_turns.c` | T2 TURN1→7 joint field-diff (Euro+Indian+diplo) |
-| `tests/smoke/test_ai_contact.c` | Meet + raids multi-loot + teach + gift + 359c + prelude |
-| `tests/smoke/test_ai_diplo.c` | War/ally, make_peace, privateer, FA gift |
-| `tests/smoke/test_ai_king.c` | REF/MoW cargo×2 + 10f0/boycott/1528/160a/2244/1eca |
-| `tests/smoke/test_ai_euro_expand.c` | Second-wave + scout + tools delivery/cargo hire |
-| `tests/smoke/test_ai_euro_war.c` | Mid-war hire/Artillery + naval/land hunt |
-| `tests/smoke/test_founding_fathers.c` | Human+AI FF elect; manual-aligned effects; no gold fiction; arctic can_found |
+| `tests/unit/test_ai.c` | Init + multi-turn unit |
+| `tests/golden/test_mapgen_seed100.c` | T2 Brave/tribe fidelity |
+| `tests/golden/test_ai_turns.c` | T2 TURN1→7 joint field-diff (Euro+Indian+diplo) |
+| `tests/unit/test_ai_contact.c` | Meet + raids multi-loot + teach + gift + 359c + prelude |
+| `tests/unit/test_ai_diplo.c` | War/ally, make_peace, privateer, FA gift |
+| `tests/unit/test_ai_king.c` | REF/MoW cargo×2 + 10f0/boycott/1528/160a/2244/1eca |
+| `tests/unit/test_ai_euro_expand.c` | Second-wave + scout + tools delivery/cargo hire |
+| `tests/unit/test_ai_euro_war.c` | Mid-war hire/Artillery + naval/land hunt |
+| `tests/unit/test_founding_fathers.c` | Human+AI FF elect; manual-aligned effects; no gold fiction; arctic can_found |
 
-Smoke:
+Tests:
 
 ```bash
-cmake --build build --target smoke_ai_joint   # mapgen + turns + contact + diplo
-cmake --build build --target smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo
-./build/smoke_mapgen_seed100   # cwd = repo root
-./build/smoke_ai_turns         # TURN1→7 joint gate (Euro+Indian+diplo)
-./build/smoke_ai_contact       # Indian meet/raid structural
-./build/smoke_ai_diplo         # Euro bilateral diplo
-cmake --build build --target smoke_ai && ./build/smoke_ai
+cmake --build build --target golden_ai_joint   # mapgen + turns + contact + diplo
+cmake --build build --target golden_mapgen_seed100 golden_ai_turns unit_ai_contact unit_ai_diplo
+./build/golden_mapgen_seed100   # cwd = repo root
+./build/golden_ai_turns         # TURN1→7 joint gate (Euro+Indian+diplo)
+./build/unit_ai_contact       # Indian meet/raid structural
+./build/unit_ai_diplo         # Euro bilateral diplo
+cmake --build build --target unit_ai && ./build/unit_ai
 ```
 ---
 

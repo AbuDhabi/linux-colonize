@@ -51,7 +51,7 @@ static int expect_cal(
 }
 
 /* Phase P century tip chrome (helper keeps large locals off main's stack). */
-static int smoke_century_cargoready(void) {
+static int unit_century_cargoready(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
@@ -166,7 +166,7 @@ static int smoke_century_cargoready(void) {
   return 0;
 }
 
-static int smoke_eot_fog_reveal(void) {
+static int unit_eot_fog_reveal(void) {
   ColonizeWorldMap map;
   char err[128];
   if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
@@ -210,7 +210,7 @@ static int smoke_eot_fog_reveal(void) {
 }
 
 /* Phase K @NEEDTOOLS0 when construction blocked on tools=0. */
-static int smoke_needtools0(void) {
+static int unit_needtools0(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   ColonizeMsgCatalog names;
@@ -303,12 +303,12 @@ static int smoke_needtools0(void) {
 
   assets_msg_free(&game_txt);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_turn: NEEDTOOLS0 chrome ok\n");
+  fprintf(stderr, "unit_turn: NEEDTOOLS0 chrome ok\n");
   return 0;
 }
 
 /* Phase K @NEEDTOOLS when construction blocked on tools>0 but short. */
-static int smoke_needtools(void) {
+static int unit_needtools(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   ColonizeMsgCatalog names;
@@ -409,12 +409,12 @@ static int smoke_needtools(void) {
 
   assets_msg_free(&game_txt);
   assets_msg_free(&names);
-  fprintf(stderr, "smoke_turn: NEEDTOOLS chrome ok\n");
+  fprintf(stderr, "unit_turn: NEEDTOOLS chrome ok\n");
   return 0;
 }
 
 /* Phase G @TRAINFAIL when ready teacher has no eligible students. */
-static int smoke_trainfail(void) {
+static int unit_trainfail(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
@@ -473,12 +473,12 @@ static int smoke_trainfail(void) {
     return 1;
   }
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_turn: TRAINFAIL chrome ok\n");
+  fprintf(stderr, "unit_turn: TRAINFAIL chrome ok\n");
   return 0;
 }
 
 /* Phase G @TRAINPROFESSION when school graduation assigns a specialty. */
-static int smoke_trainprofession(void) {
+static int unit_trainprofession(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
@@ -552,12 +552,12 @@ static int smoke_trainprofession(void) {
     return 1;
   }
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_turn: TRAINPROFESSION chrome ok\n");
+  fprintf(stderr, "unit_turn: TRAINPROFESSION chrome ok\n");
   return 0;
 }
 
 /* Phase G ladder: Criminal → Indentured + @TRAINCRIMINAL. */
-static int smoke_traincriminal(void) {
+static int unit_traincriminal(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
@@ -626,12 +626,12 @@ static int smoke_traincriminal(void) {
     return 1;
   }
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_turn: TRAINCRIMINAL chrome ok\n");
+  fprintf(stderr, "unit_turn: TRAINCRIMINAL chrome ok\n");
   return 0;
 }
 
 /* Phase G ladder: Indentured → Free + @TRAININDENTURED. */
-static int smoke_trainindentured(void) {
+static int unit_trainindentured(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
@@ -700,12 +700,12 @@ static int smoke_trainindentured(void) {
     return 1;
   }
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_turn: TRAININDENTURED chrome ok\n");
+  fprintf(stderr, "unit_turn: TRAININDENTURED chrome ok\n");
   return 0;
 }
 
 /* Phase H @TRAINPROFESSION when Free Colonist discovers field skill. */
-static int smoke_phase_h_trainprofession(void) {
+static int unit_phase_h_trainprofession(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   ColonizeColony* col = &pool.colonies[0];
@@ -775,32 +775,32 @@ static int smoke_phase_h_trainprofession(void) {
     fprintf(stderr, "phaseh: no field skill discover in 5000 ticks\n");
     return 1;
   }
-  fprintf(stderr, "smoke_turn: Phase H TRAINPROFESSION chrome ok\n");
+  fprintf(stderr, "unit_turn: Phase H TRAINPROFESSION chrome ok\n");
   return 0;
 }
 
 int main(void) {
   diag_init(0, NULL);
 
-  if (smoke_needtools0() != 0) {
+  if (unit_needtools0() != 0) {
     return 1;
   }
-  if (smoke_needtools() != 0) {
+  if (unit_needtools() != 0) {
     return 1;
   }
-  if (smoke_trainfail() != 0) {
+  if (unit_trainfail() != 0) {
     return 1;
   }
-  if (smoke_trainprofession() != 0) {
+  if (unit_trainprofession() != 0) {
     return 1;
   }
-  if (smoke_traincriminal() != 0) {
+  if (unit_traincriminal() != 0) {
     return 1;
   }
-  if (smoke_trainindentured() != 0) {
+  if (unit_trainindentured() != 0) {
     return 1;
   }
-  if (smoke_phase_h_trainprofession() != 0) {
+  if (unit_phase_h_trainprofession() != 0) {
     return 1;
   }
 
@@ -3757,11 +3757,11 @@ int main(void) {
     fprintf(stderr, "warehouse spoilage SPOIL3 ok\n");
   }
 
-  if (smoke_century_cargoready() != 0) {
+  if (unit_century_cargoready() != 0) {
     return 1;
   }
 
-  if (smoke_eot_fog_reveal() != 0) {
+  if (unit_eot_fog_reveal() != 0) {
     return 1;
   }
 
