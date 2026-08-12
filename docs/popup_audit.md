@@ -68,15 +68,28 @@ choices from data where a real `@SECTION` exists.
 | Site | Section | Verdict | Action |
 |------|---------|---------|--------|
 | Tax audience CHOICE | `@KINGTAX` + `@TAXOPTIONS` | Authentic | Kiss pinky / Hold Tea Party |
-| Tea party / refuse OK | `@TEAPARTY` | MissingWire | Wire when dump/refuse fires |
+| Tea party / refuse OK | `@TEAPARTY` | Authentic | Wired on refuse (no dump CHOICE) + dump-goods apply; thin `3dc8` stock dump |
 | Independence letter | `@INDEPENDENCE` | Authentic | — |
-| Declare independence CHOICE | `@DECLARE` | MissingWire | Wire body+choices |
+| Declare independence CHOICE | `@DECLARE` | Authentic | Never / Yes; STRING0 = motherland |
 | Merc offer CHOICE | `@MERCENARIES` | Authentic | No thank you / Pay |
 | Merc arrive OK | `@MERCS` | Authentic | — |
-| REF arrival | `@INVASION` | MissingWire | Wire |
+| REF arrival | `@INVASION` | Authentic | REF `1528` wave; STRING0 = colony name |
 | Merc decline / cannot-afford OK | — | Invented → status | Demoted |
 | Colonial Era Ends OK | — | Invented → status | Demoted |
+| Peacetime 1800 score CHOICE | `@SCORED` | Authentic | That's all / Keep playing; retire on That's all |
+| Peacetime retire prose | `@RETIRING` | Authentic | That's all apply → estate near richest colony |
+| Anniversary soon-retire (1790) | `@SOONRETIRING0` | Authentic | Spring peacetime; `unknown46[8]` |
+| Anniversary soon-retire (1840) | `@SOONRETIRING1` | Authentic | wartime WoI; `unknown46[9]` |
 | WoI begins / capture / restless | various | Invented / Mismatch | Demote invents; wire clear sections only |
+| Declare war briefing | `@HOWTOWIN` | Authentic | after `@INDEPENDENCE` letter; invent WoI-begins demoted |
+| Revolution win | `@WINNING` | Authentic | year≥1850 + no crown |
+| Revolution stalemate (1850) | `@RETIRING2` | Authentic | year≥1850 + crown still alive |
+| Revolution lose (ports) | `@LOSING1` | Authentic | all coastal ports lost (inland may remain) |
+| Revolution lose (colonies) | `@LOSING2` | Authentic | all colonies lost |
+| Mid-war port warn | `@WARN1` | Authentic | one coastal port left; `unknown46[6]` episode |
+| Mid-war colony warn | `@WARN2` | Authentic | one colony left; `unknown46[7]` episode |
+| Mid-war pop warn | `@WARN3` | Authentic | crown pop share 50–89%; `unknown46[10]` |
+| Revolution lose (pop) | `@LOSING3` | Authentic | crown pop share ≥90% |
 
 ## Remediation completed in this pass
 

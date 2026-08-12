@@ -1572,6 +1572,12 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
   ColonizeTurnContext ctx;
   game_fill_turn_context(game, &ctx);
   ai_king_apply_popup_result(&ctx, &game->ai_popups);
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_SCORED &&
+      !game->ai_popups.result_cancelled &&
+      game->ai_popups.result_choice_id == 0) {
+    /* @SCORED "That's all." → open retire score (same path as Retire menu). */
+    game_open_retire_score(game);
+  }
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);
   ai_diplo_apply_popup_result(&ctx, &game->ai_popups);
   founding_fathers_apply_popup_result(&ctx, &game->ai_popups);

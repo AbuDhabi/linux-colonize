@@ -23,9 +23,10 @@
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
  * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience
  *   (status + ai_popup CHOICE Accept/Refuse when ctx->ai_popups; auto when NULL).
- *   Refuse apply/auto → Sugar follow-up OK (KING_TAX; lists all boycott_bitmap
- *   cargo names — Sugar + RNG second when ctx->rng). Boycott-holds status/OK
- *   also lists all bitmap cargo names (presentation; Fugger partial clear).
+ *   Refuse apply/auto → Sugar freeze + optional dump-goods second; follow-up
+ *   OK is GAME.TXT @TEAPARTY (KING_TAX; thin 3dc8 stock dump + tokens).
+ *   Dump-goods CHOICE apply → same @TEAPARTY for chosen cargo. Boycott-holds
+ *   status/OK lists all bitmap cargo names (presentation; Fugger partial clear).
  *   Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap clear → drop
  *   unknown46[2] refuse when bitmap==0 (king sync; do not touch FF).
  * Merc hired/refused this war: head.unknown46[3] + thin 2244 hire
@@ -36,10 +37,21 @@
  * 160a rename: player[human].country_name → "United Colonies"
  *   (letter cinematic PARKED — thin rename + KING_LETTER Done).
  *   unknown46[4] endgame latch: 0 none / 1 won / 2 lost.
- *   On declare + ai_popups: thin rename OK + "War of Independence begins" OK.
- * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE Confirm/Not yet
- *   when ctx->ai_popups; auto-declare when NULL; same-turn 1528 may overwrite status).
- * Revolution end: lose if 0 coastal ports; win if year≥1850 + no crown units.
+ *   On declare + ai_popups: thin rename OK + GAME.TXT @HOWTOWIN INFO
+ *   (invent "War of Independence begins!" demoted).
+ * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE from
+ *   GAME.TXT @DECLARE Never/Yes when ctx->ai_popups; auto-declare when NULL;
+ *   same-turn 1528 may overwrite status).
+ * Mid-war @WARN1 (one coastal port left): head.unknown46[6] episode latch;
+ *   clear when ports>1 so reclaim→lose-to-one can warn again.
+ * Mid-war @WARN2 (one colony left): head.unknown46[7] episode latch;
+ *   clear when colonies>1.
+ * Mid-war @WARN3 (crown pop share 50–89%): head.unknown46[10] episode latch;
+ *   clear when share <50%. @LOSING3 when share ≥90%.
+ * Calendar @SOONRETIRING0 (1790 spring peacetime): head.unknown46[8] once.
+ * Calendar @SOONRETIRING1 (1840 WoI): head.unknown46[9] once.
+ * Revolution end: lose if 0 colonies (@LOSING2) or 0 coastal ports (@LOSING1);
+ *   win if year≥1850 + no crown units; @RETIRING2 if year≥1850 + crown remains.
  * SoL restless chrome (40..49): status + INFO OK when human sees restless.
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
@@ -56,10 +68,24 @@
 #define AI_KING_ENDGAME_LOST 2
 #define AI_KING_ENDGAME_PEACE_1800 3
 #define AI_KING_CONGRESS_BYTE 5
+/* Mid-war @WARN1 once-per-episode (ports==1); clear when ports>1. */
+#define AI_KING_WARN1_BYTE 6
+/* Mid-war @WARN2 once-per-episode (colonies==1); clear when colonies>1. */
+#define AI_KING_WARN2_BYTE 7
+/* Peacetime Spring 1790 @SOONRETIRING0 once. */
+#define AI_KING_SOONRETIRE0_BYTE 8
+/* Wartime 1840 @SOONRETIRING1 once. */
+#define AI_KING_SOONRETIRE1_BYTE 9
+/* Mid-war @WARN3 once-per-episode (crown pop share 50–89%); clear when <50%. */
+#define AI_KING_WARN3_BYTE 10
 
 #define AI_KING_INDEP_COUNTRY "United Colonies"
 #define AI_KING_YEAR_CAP 1850
 #define AI_KING_PEACE_YEAR_CAP 1800
+#define AI_KING_SOONRETIRE0_YEAR 1790
+#define AI_KING_SOONRETIRE1_YEAR 1840
+#define AI_KING_WARN3_PCT_MIN 50
+#define AI_KING_LOSING3_PCT 90
 
 /* Structural refuse thresholds (exact DOS 38fd_5be8 gates still thin). */
 #define AI_KING_BOYCOTT_TAX_MIN 20
@@ -113,6 +139,8 @@
 #define AI_KING_CHOICE_DECLINE 2
 #define AI_KING_CHOICE_CONFIRM 1
 #define AI_KING_CHOICE_NOT_YET 2
+#define AI_KING_CHOICE_THATS_ALL 0
+#define AI_KING_CHOICE_KEEP_PLAYING 1
 
 static int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
@@ -225,6 +253,82 @@ static int ai_king_format_boycott_cargos(char* buf, size_t buf_size, uint16_t bi
 /* Human-facing map popup queue attached (game_loop); AI/auto path when NULL. */
 static int ai_king_human_popups(const ColonizeTurnContext* ctx) {
   return (ctx && ctx->ai_popups) ? 1 : 0;
+}
+
+/*
+ * GAME.TXT @TEAPARTY follow-up OK after refuse / dump-goods apply.
+ * Thin FUN_38fd_3dc8: dump min(100, stock) from richest human colony of cargo,
+ * then enqueue KING_TAX OK with authentic tokens. VGA chrome PARKED.
+ * Cite: GAME.TXT @TEAPARTY; popup_audit MissingWire → Done thin.
+ */
+static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int cargo) {
+  if (!ctx || !ai_king_human_popups(ctx) || human < 0 || human >= 4) {
+    return;
+  }
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+
+  ColonizeColony* best = NULL;
+  int best_stock = -1;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      const int st = c->stock[cargo];
+      if (st > best_stock) {
+        best_stock = st;
+        best = c;
+      }
+    }
+  }
+
+  int tons = 0;
+  if (best && best_stock > 0) {
+    tons = best_stock > 100 ? 100 : best_stock;
+    best->stock[cargo] -= tons;
+  }
+
+  const char* cargo_nm = ai_king_cargo_name(cargo);
+  const char* colony_nm =
+    (best && best->name[0]) ? best->name : "the colonies";
+
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cargo_nm;
+  tok.string1 = colony_nm;
+  tok.string2 = "Europe";
+  tok.string3 = "Tea";
+  tok.number0 = tons;
+  tok.has_number0 = true;
+
+  char fallback[AI_POPUP_BODY_LEN];
+  snprintf(
+    fallback,
+    sizeof(fallback),
+    "Tea Party! Sons of Liberty throw %d tons of %s into the sea at %s! "
+    "Colonists refuse to pay new tax. Parliament announces boycott of %s. "
+    "%s cannot be traded in Europe until boycott is lifted.",
+    tons,
+    cargo_nm,
+    colony_nm,
+    cargo_nm,
+    cargo_nm
+  );
+
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "TEAPARTY", &tok, fallback, body, sizeof(body));
+  (void)ai_popup_enqueue_ok_ctx(
+    ctx->ai_popups,
+    AI_POPUP_TAG_KING_TAX,
+    human,
+    ai_king_crown_nation(human),
+    ctx->col1 && ctx->col1_ok ? (int)ctx->col1->nation[human].tax_rate : 0,
+    "Tea Party",
+    body
+  );
 }
 
 /* Active colony count for a Euro nation (10f0 intervene nation pick). */
@@ -1597,8 +1701,8 @@ static void ai_king_tax_accept_hike(ColonizeTurnContext* ctx, int human) {
 /*
  * FUN_43f7_38fd_5be8 Refuse path: boycott stand-in + Sugar freeze + REF grow,
  * tax unchanged. Used by auto refuse and ai_king_apply_popup_result (Refuse).
- * Human queue: dump-goods CHOICE when eligible cargos remain, else follow-up
- * OK after Refuse (lists boycott_bitmap cargos).
+ * Human queue: dump-goods CHOICE when eligible cargos remain, else @TEAPARTY
+ * OK after Refuse (thin 3dc8 dump of narrative cargo).
  */
 static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
@@ -1694,12 +1798,14 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
                                : 0;
     }
   }
+  int teaparty_cargo = COLONIZE_CARGO_SUGAR;
   if (!dump_choice_enqueued && ctx->rng) {
     const int picked =
       ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids);
     if (picked >= 0 && picked < COLONIZE_CARGO_COUNT) {
       nat->boycott_bitmap =
         (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << picked));
+      teaparty_cargo = picked;
     }
   }
   ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
@@ -1725,37 +1831,9 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
       );
     }
   }
-  /* Follow-up OK when no dump CHOICE pending (auto / no eligible / queue full). */
+  /* @TEAPARTY when no dump CHOICE pending (auto / no eligible / queue full). */
   if (!dump_choice_enqueued && ai_king_human_popups(ctx)) {
-    char body[AI_POPUP_BODY_LEN];
-    char cargos[96];
-    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-      snprintf(
-        body,
-        sizeof(body),
-        "The colonies refuse the tax increase (stays at %u%%). "
-        "Boycotted in Europe: %s.",
-        nat->tax_rate,
-        cargos
-      );
-    } else {
-      snprintf(
-        body,
-        sizeof(body),
-        "The colonies refuse the tax increase (stays at %u%%). "
-        "Sugar is boycotted in Europe.",
-        nat->tax_rate
-      );
-    }
-    (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups,
-      AI_POPUP_TAG_KING_TAX,
-      human,
-      ai_king_crown_nation(human),
-      (int)nat->tax_rate,
-      "Royal Audience",
-      body
-    );
+    ai_king_enqueue_teaparty_ok(ctx, human, teaparty_cargo);
   }
 }
 
@@ -1779,35 +1857,9 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
       );
     }
   }
+  /* GAME.TXT @TEAPARTY for the chosen dump cargo (thin 3dc8 stock dump). */
   if (ai_king_human_popups(ctx)) {
-    char body[AI_POPUP_BODY_LEN];
-    char cargos[96];
-    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-      snprintf(
-        body,
-        sizeof(body),
-        "The colonies refuse the tax increase (stays at %u%%). "
-        "Boycotted in Europe: %s.",
-        nat->tax_rate,
-        cargos
-      );
-    } else {
-      snprintf(
-        body,
-        sizeof(body),
-        "The colonies refuse the tax increase (stays at %u%%).",
-        nat->tax_rate
-      );
-    }
-    (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups,
-      AI_POPUP_TAG_KING_TAX,
-      human,
-      ai_king_crown_nation(human),
-      (int)nat->tax_rate,
-      "Royal Audience",
-      body
-    );
+    ai_king_enqueue_teaparty_ok(ctx, human, cargo);
   }
 }
 
@@ -2021,18 +2073,31 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       "Declaration of Independence",
       letter
     );
-    /* FUN_43f7_1a26 / 2564: WoI begins OK after Confirm/auto declare. */
+    /* FUN_43f7_1a26 / 2564: @HOWTOWIN briefing after Confirm/auto declare. */
+    char how[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      ctx->messages,
+      "HOWTOWIN",
+      NULL,
+      "We have just won a glorious victory on the road to freedom, Your Excellency. "
+      "In order to defeat the King's forces and win our independence, we must "
+      "recapture all of our colonies from the King, and we must destroy most of "
+      "his ground forces in the New World.",
+      how,
+      sizeof(how)
+    );
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, AI_POPUP_TAG_INFO, human, ai_king_crown_nation(human), 1,
-      "War of Independence", "War of Independence begins!"
+      "Road to Freedom", how
     );
   }
 }
 
 /*
  * FUN_43f7_2564 gate (SoL≥AI_KING_DECLARE_SOL_MIN) + 1a26 declare.
- * Human + ctx->ai_popups → CHOICE Confirm / Not yet (effect in apply_popup_result).
- * Else auto-declare when SoL past 2564/fandom threshold and bells ≥ min.
+ * Human + ctx->ai_popups → CHOICE from GAME.TXT @DECLARE (Never / Yes;
+ * effect in apply_popup_result). Else auto-declare when SoL past 2564/fandom
+ * threshold and bells ≥ min.
  */
 static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -2054,11 +2119,43 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     return;
   }
   if (ai_king_human_popups(ctx)) {
-    const char* labels[] = {"Confirm independence", "Not yet"};
-    const int ids[] = {AI_KING_CHOICE_CONFIRM, AI_KING_CHOICE_NOT_YET};
+    const char* motherland = "the Crown";
+    if (ctx->col1->player[human].country_name[0] != '\0') {
+      motherland = ctx->col1->player[human].country_name;
+    } else if (ctx->europe && ctx->europe->nation_name[0] != '\0') {
+      motherland = ctx->europe->nation_name;
+    }
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = motherland;
     char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body),
-             "Continental Congress: Sons of Liberty at %d%%. Declare independence?", sol);
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "Shall we declare our independence from %s, Your Excellency? "
+      "This will end our turn and place us at war with our King!",
+      motherland
+    );
+    popup_msg_fill(ctx->messages, "DECLARE", &tok, fallback, body, sizeof(body));
+    char choice_buf[AI_POPUP_CHOICE_MAX][48];
+    const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "DECLARE");
+    int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+    for (int i = 0; i < nch; ++i) {
+      char filled[48];
+      popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
+      str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
+    }
+    /* GAME.TXT: Never… / Yes… — map to Not yet / Confirm. */
+    const char* labels[2];
+    const int ids[] = {AI_KING_CHOICE_NOT_YET, AI_KING_CHOICE_CONFIRM};
+    if (nch >= 2) {
+      labels[0] = choice_buf[0];
+      labels[1] = choice_buf[1];
+    } else {
+      labels[0] = "Never! That would be treasonous! God save the King!";
+      labels[1] = "Yes! Give me liberty or give me death!";
+    }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
                                     ai_king_crown_nation(human), sol, "Continental Congress",
                                     body, labels, ids, 2)) {
@@ -2373,20 +2470,40 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   /* Tax residual grow while at war (1d42 crumb). */
   force[0] += 1;
   /*
-   * Thin 1528 announce (arrival chrome / dialog PARKED).
+   * Thin 1528 announce — GAME.TXT @INVASION (VGA chrome PARKED).
    * Only overwrite when a unit actually spawned — leaves thin 2564 congress
    * status intact if the wave beat is empty.
    */
-  if (spawned && ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "The King's Expeditionary Force has arrived!");
-  }
-  /* FUN_43f7_1528 arrival OK popup when human queue attached. */
-  if (spawned && ai_king_human_popups(ctx)) {
-    (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, ctx->human_nation,
-      ai_king_crown_nation(ctx->human_nation), 0, "Royal Expeditionary Force",
-      "The King's Expeditionary Force has arrived!"
+  if (spawned) {
+    const char* colony_nm = "your colony";
+    if (ctx->colonies && cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
+      const ColonizeColony* c = &ctx->colonies->colonies[cid];
+      if (c->active && c->name[0] != '\0') {
+        colony_nm = c->name;
+      }
+    }
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = colony_nm;
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "Royal Expeditionary Force lands near %s!",
+      colony_nm
     );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "INVASION", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, ctx->human_nation,
+        ai_king_crown_nation(ctx->human_nation), 0, "Royal Expeditionary Force",
+        body
+      );
+    }
   }
 }
 
@@ -3226,7 +3343,7 @@ static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human
     return 0;
   }
   int n = 0;
-  if (ctx->colonies && ctx->map) {
+  if (ctx->colonies && ctx->map && ctx->colonies->colony_count > 0) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       const ColonizeColony* c = &ctx->colonies->colonies[i];
       if (!c->active || c->nation_id != human) {
@@ -3236,15 +3353,35 @@ static int ai_king_human_coastal_ports(const ColonizeTurnContext* ctx, int human
         ++n;
       }
     }
+    return n;
   }
   /* Col1 colony list (smoke / bridge) when runtime pool empty. */
-  if (n == 0 && ctx->col1_ok && ctx->col1 && ctx->map && ctx->col1->colony) {
+  if (ctx->col1_ok && ctx->col1 && ctx->map && ctx->col1->colony) {
     for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
       const ColonizeCol1Colony* c = &ctx->col1->colony[i];
       if ((int)c->nation_id != human) {
         continue;
       }
       if (map_tile_is_coastal(ctx->map, (int)c->x, (int)c->y)) {
+        ++n;
+      }
+    }
+  }
+  return n;
+}
+
+/* Active human colony count (runtime pool; Col1 only if pool empty). */
+static int ai_king_human_colonies(const ColonizeTurnContext* ctx, int human) {
+  if (!ctx || human < 0 || human > 3) {
+    return 0;
+  }
+  if (ctx->colonies && ctx->colonies->colony_count > 0) {
+    return ai_king_colony_count(ctx->colonies, human);
+  }
+  int n = 0;
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      if ((int)ctx->col1->colony[i].nation_id == human) {
         ++n;
       }
     }
@@ -3266,6 +3403,76 @@ static int ai_king_crown_units_alive(const ColonizeTurnContext* ctx, int crown) 
   return n;
 }
 
+/* Richest human colony name by population (estate stand-in for @RETIRING2). */
+static const char* ai_king_richest_colony_name(const ColonizeTurnContext* ctx, int human) {
+  if (!ctx || !ctx->colonies || human < 0) {
+    return "the colonies";
+  }
+  const ColonizeColony* best = NULL;
+  int best_pop = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != human) {
+      continue;
+    }
+    if ((int)c->population > best_pop) {
+      best_pop = (int)c->population;
+      best = c;
+    }
+  }
+  if (best && best->name[0] != '\0') {
+    return best->name;
+  }
+  return "the colonies";
+}
+
+/*
+ * Crown share of (human+crown) colony population during WoI.
+ * Used for @WARN3 / @LOSING3. Returns 0 if no counted population.
+ */
+static int ai_king_woi_pop_share_pct(
+  const ColonizeTurnContext* ctx,
+  int human,
+  int crown
+) {
+  if (!ctx || human < 0 || crown < 0) {
+    return 0;
+  }
+  int human_pop = 0;
+  int crown_pop = 0;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active) {
+        continue;
+      }
+      const int pop = c->population > 0 ? (int)c->population : 1;
+      if (c->nation_id == human) {
+        human_pop += pop;
+      } else if (c->nation_id == crown) {
+        crown_pop += pop;
+      }
+    }
+  }
+  if (human_pop == 0 && crown_pop == 0 && ctx->col1_ok && ctx->col1 &&
+      ctx->col1->colony) {
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+      const int pop = c->population > 0 ? (int)c->population : 1;
+      if ((int)c->nation_id == human) {
+        human_pop += pop;
+      } else if ((int)c->nation_id == crown) {
+        crown_pop += pop;
+      }
+    }
+  }
+  const int total = human_pop + crown_pop;
+  if (total <= 0) {
+    return 0;
+  }
+  return (crown_pop * 100) / total;
+}
+
 static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_already) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -3277,23 +3484,218 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     return; /* already resolved */
   }
   const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
   const int crown = ai_king_crown_nation(human);
   const int ports = ai_king_human_coastal_ports(ctx, human);
+  const ColonizeCol1Player* pl = &ctx->col1->player[human];
+  const char* country =
+    (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
+  const char* leader = (pl->name[0] != '\0') ? pl->name : "Your Excellency";
+  /* Reclaiming ports clears the mid-war warn episode so a later drop to one can re-fire. */
+  if (ports > 1) {
+    ctx->col1->head.unknown46[AI_KING_WARN1_BYTE] = 0;
+  }
   /*
-   * Lose: all coastal ports gone, and REF was already invading before this
-   * turn's wave (avoid clobbering same-turn 1528 declare/arrival chrome).
-   * Cite: docs/fandom_col1994.md Independence — lose all ports.
+   * Mid-war warn: exactly one coastal port left while REF already invading.
+   * GAME.TXT @WARN1. Once per episode (unknown46[6]); does not latch endgame.
    */
-  if (ports <= 0 && ref_already) {
-    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "The Revolution has failed — all port colonies lost.");
+  if (ports == 1 && ref_already &&
+      ctx->col1->head.unknown46[AI_KING_WARN1_BYTE] == 0) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.has_number0 = true;
+    tok.number0 = 1;
+    tok.string0 = country;
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "Your Excellency, the King's forces control all but 1 of the ports in %s!  "
+      "If we don't retain control of at least one port our commerce will be "
+      "choked and we will have to surrender!",
+      country
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "WARN1", &tok, fallback, body, sizeof(body));
+    /*
+     * Do not clobber same-turn wave/war_act status (1528 @INVASION, 2244 merc).
+     * Dedicated warn chrome still enqueues INFO OK; status when buffer empty.
+     */
+    if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed",
-        "The Revolution has failed. All port colonies are lost."
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Port Warning", body
+      );
+    }
+    ctx->col1->head.unknown46[AI_KING_WARN1_BYTE] = 1;
+  }
+  const int colonies = ai_king_human_colonies(ctx, human);
+  /* Reclaiming colonies clears the mid-war colony-warn episode. */
+  if (colonies > 1) {
+    ctx->col1->head.unknown46[AI_KING_WARN2_BYTE] = 0;
+  }
+  /*
+   * Mid-war warn: exactly one colony left while REF already invading.
+   * GAME.TXT @WARN2 (%NUMBER1). Once per episode (unknown46[7]); no endgame latch.
+   */
+  if (colonies == 1 && ref_already &&
+      ctx->col1->head.unknown46[AI_KING_WARN2_BYTE] == 0) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.has_number1 = true;
+    tok.number1 = 1;
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "Your Excellency, the King's forces control all but 1 of our colonies!  "
+      "We need to protect our remaining colonies, or we will lose the war!"
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "WARN2", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Colony Warning", body
+      );
+    }
+    ctx->col1->head.unknown46[AI_KING_WARN2_BYTE] = 1;
+  }
+  const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
+  /* Reclaiming population share clears the mid-war pop-warn episode. */
+  if (pop_pct < AI_KING_WARN3_PCT_MIN) {
+    ctx->col1->head.unknown46[AI_KING_WARN3_BYTE] = 0;
+  }
+  /*
+   * Mid-war warn: crown controls 50–89% of human+crown colony population.
+   * GAME.TXT @WARN3 (%NUMBER2). Once per episode (unknown46[10]).
+   */
+  if (ref_already && pop_pct >= AI_KING_WARN3_PCT_MIN &&
+      pop_pct < AI_KING_LOSING3_PCT &&
+      ctx->col1->head.unknown46[AI_KING_WARN3_BYTE] == 0) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.has_number2 = true;
+    tok.number2 = pop_pct;
+    tok.string0 = country;
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "Your Excellency, the King's forces control %d%% of the %s population.  "
+      "If he ever controls 90%%, the Continental Congress will be unable to "
+      "continue the war and we will have to surrender!",
+      pop_pct,
+      country
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "WARN3", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, pop_pct, "Population Warning",
+        body
+      );
+    }
+    ctx->col1->head.unknown46[AI_KING_WARN3_BYTE] = 1;
+  }
+  /*
+   * Lose: REF already invading (end_checks_armed). Prefer @LOSING2 when no
+   * colonies remain; else @LOSING1 when coastal ports are gone but inland
+   * colonies may still exist. Cite: docs/fandom_col1994.md Independence.
+   */
+  if (colonies <= 0 && ref_already) {
+    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = country;
+    tok.string1 = leader;
+    tok.string2 = "Europe";
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "King's Forces control all colonies in %s! Continental Congress capitulates. "
+      "%s, stripped of titles, escapes to exile in Europe.",
+      country,
+      leader
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "LOSING2", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed", body
+      );
+    }
+    return;
+  }
+  if (ports <= 0 && ref_already) {
+    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = country;
+    tok.string1 = leader;
+    tok.string2 = "Europe";
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "King's Forces control all ports in %s! Continental Congress capitulates. "
+      "%s, stripped of titles, escapes to exile in Europe.",
+      country,
+      leader
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "LOSING1", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed", body
+      );
+    }
+    return;
+  }
+  /*
+   * Lose: crown controls ≥90% of human+crown colony population.
+   * GAME.TXT @LOSING3.
+   */
+  if (pop_pct >= AI_KING_LOSING3_PCT && ref_already) {
+    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = country;
+    tok.string1 = leader;
+    tok.string2 = "Europe";
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "King's Forces control over 90%% of %s population! Continental Congress "
+      "capitulates. %s, stripped of titles, escapes to exile in Europe.",
+      country,
+      leader
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "LOSING3", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed", body
       );
     }
     return;
@@ -3303,14 +3705,72 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_WON;
     ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = 0;
     ctx->col1->head.game_options.ref_present = 0;
+    /* GAME.TXT @WINNING — STRING0 leader, STRING1 country. */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = leader;
+    tok.string1 =
+      (pl->country_name[0] != '\0') ? pl->country_name : "the United Colonies";
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "Royal Expeditionary Force annihilated! General %s accepts surrender of "
+      "all Tory forces. Parliament accepts independence of %s. Continental "
+      "Congress proclaims %s the first President of the new republic!",
+      leader,
+      tok.string1,
+      leader
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "WINNING", &tok, fallback, body, sizeof(body));
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size,
-               "Independence won! The Royal Expeditionary Force is defeated.");
+      snprintf(ctx->status, ctx->status_size, "%s", body);
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Independence",
-        "Independence is won! The Royal Expeditionary Force is no more."
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Independence", body
+      );
+    }
+    return;
+  }
+  /*
+   * Wartime calendar end (year_end_chrome 0x73a): year≥1850 with crown still
+   * alive → Congress sues for peace. GAME.TXT @RETIRING2.
+   */
+  if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) > 0) {
+    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = 0;
+    ctx->col1->head.game_options.ref_present = 0;
+    const char* estate = ai_king_richest_colony_name(ctx, human);
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = "Viceroy";
+    tok.string1 = leader;
+    tok.string2 = estate;
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "War-weary Continental Congress sues for peace!  King accepts surrender "
+      "from Viceroy %s, who retires to country estate near %s.",
+      leader,
+      estate
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "RETIRING2", &tok, fallback, body, sizeof(body));
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+    if (ai_king_human_popups(ctx)) {
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups,
+        AI_POPUP_TAG_INFO,
+        human,
+        crown,
+        2,
+        "Congress Sues for Peace",
+        body
       );
     }
   }
@@ -3324,6 +3784,16 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
    * FUN_43f7_2424-shaped:
    *   SoL → peacetime (1d42 tax, SoL chrome, 2564/1a26 declare) | wartime (2022 wave+act)
    */
+  /*
+   * Arm lose/@WARN1/@WARN2 only when WoI + REF were already set at turn entry.
+   * Declare same-turn seeds both; peacetime tax can set REF-present early
+   * via pool growth — so REF alone must not arm end checks (keeps 1528
+   * @INVASION status on the declare beat).
+   */
+  const int end_checks_armed =
+    ctx->col1_ok && ctx->col1 &&
+    ai_king_independence_declared(ctx->col1) &&
+    ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] != 0;
   /* External boycott clear (Fugger/diplo) → drop refuse even mid-war / off-tax years. */
   if (ctx->col1_ok && ctx->col1) {
     ai_king_sync_boycott_refuse(ctx->col1, ctx->human_nation);
@@ -3333,6 +3803,50 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
     ai_king_tax_event(ctx);
     /*
+     * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
+     * once before the 1800 @SCORED latch. Cite: turn/year_end_chrome.md.
+     */
+    if (ctx->col1_ok && ctx->col1 &&
+        ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
+        ctx->col1->head.unknown46[AI_KING_SOONRETIRE0_BYTE] == 0 &&
+        (int)ctx->col1->head.year == AI_KING_SOONRETIRE0_YEAR &&
+        !(ctx->game_autumn && *ctx->game_autumn != 0)) {
+      const int human = ctx->human_nation;
+      const char* leader =
+        (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
+          ? ctx->col1->player[human].name
+          : "Your Excellency";
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = "Viceroy";
+      tok.string1 = leader;
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(
+        fallback,
+        sizeof(fallback),
+        "Viceroy %s plans to retire in 1800!  A rumor circulates that he would "
+        "postpone his retirement were a War of Independence to begin.",
+        leader
+      );
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "SOONRETIRING0", &tok, fallback, body, sizeof(body));
+      if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+        snprintf(ctx->status, ctx->status_size, "%s", body);
+      }
+      if (ai_king_human_popups(ctx)) {
+        (void)ai_popup_enqueue_ok_ctx(
+          ctx->ai_popups,
+          AI_POPUP_TAG_INFO,
+          human,
+          ai_king_crown_nation(human),
+          AI_KING_SOONRETIRE0_YEAR,
+          "Retirement Rumors",
+          body
+        );
+      }
+      ctx->col1->head.unknown46[AI_KING_SOONRETIRE0_BYTE] = 1;
+    }
+    /*
      * Peacetime calendar end (manual pp.10–12 / 1800–1850): without WoI,
      * year≥1800 latches once. Cite: docs/manual_gap.md Auto-end.
      */
@@ -3340,12 +3854,47 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
         (int)ctx->col1->head.year >= AI_KING_PEACE_YEAR_CAP) {
       ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_PEACE_1800;
+      /* GAME.TXT @SCORED — peacetime calendar end (invent Colonial Era Ends demoted). */
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        ctx->messages,
+        "SCORED",
+        &tok,
+        "Scoring for this game is now complete.",
+        body,
+        sizeof(body)
+      );
       if (ctx->status && ctx->status_size) {
-        snprintf(ctx->status, ctx->status_size,
-                 "The colonial era ends (%d). Retire to see your score.",
-                 AI_KING_PEACE_YEAR_CAP);
+        snprintf(ctx->status, ctx->status_size, "%s", body);
       }
-      /* Status only — no GAME.TXT "Colonial Era Ends" dialog. */
+      if (ai_king_human_popups(ctx)) {
+        char choice_buf[AI_POPUP_CHOICE_MAX][48];
+        const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "SCORED");
+        int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+        const char* labels[2];
+        const int ids[] = {AI_KING_CHOICE_THATS_ALL, AI_KING_CHOICE_KEEP_PLAYING};
+        if (nch >= 2) {
+          labels[0] = choice_buf[0];
+          labels[1] = choice_buf[1];
+        } else {
+          labels[0] = "That's all.";
+          labels[1] = "Keep playing anyway.";
+        }
+        (void)ai_popup_enqueue_choice_ctx(
+          ctx->ai_popups,
+          AI_POPUP_TAG_KING_SCORED,
+          ctx->human_nation,
+          ai_king_crown_nation(ctx->human_nation),
+          AI_KING_PEACE_YEAR_CAP,
+          "Scoring Complete",
+          body,
+          labels,
+          ids,
+          2
+        );
+      }
     }
     /*
      * Thin pre-declare SoL chrome:
@@ -3385,13 +3934,53 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   }
 
   if (ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
-    const int ref_already =
-      ctx->col1_ok && ctx->col1 &&
-      ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] != 0;
+    /*
+     * Wartime 1840 anniversary (year_end_chrome 0x730): @SOONRETIRING1 once.
+     * Any season while WoI; does not latch endgame.
+     */
+    if (ctx->col1_ok && ctx->col1 &&
+        ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
+        ctx->col1->head.unknown46[AI_KING_SOONRETIRE1_BYTE] == 0 &&
+        (int)ctx->col1->head.year == AI_KING_SOONRETIRE1_YEAR) {
+      const int human = ctx->human_nation;
+      const char* leader =
+        (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
+          ? ctx->col1->player[human].name
+          : "Your Excellency";
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string1 = leader;
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(
+        fallback,
+        sizeof(fallback),
+        "\"General %s, the people are weary of this long war.  If we cannot "
+        "force a conclusion by 1850, the Continental Congress will sue for "
+        "peace and seek to swear renewed allegiance to the King.\"",
+        leader
+      );
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "SOONRETIRING1", &tok, fallback, body, sizeof(body));
+      if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+        snprintf(ctx->status, ctx->status_size, "%s", body);
+      }
+      if (ai_king_human_popups(ctx)) {
+        (void)ai_popup_enqueue_ok_ctx(
+          ctx->ai_popups,
+          AI_POPUP_TAG_INFO,
+          human,
+          ai_king_crown_nation(human),
+          AI_KING_SOONRETIRE1_YEAR,
+          "War Weariness",
+          body
+        );
+      }
+      ctx->col1->head.unknown46[AI_KING_SOONRETIRE1_BYTE] = 1;
+    }
     ai_king_ref_wave(ctx);
     ai_king_war_act(ctx);
-    /* Lose only after REF was already present (not same-turn declare/wave). */
-    ai_king_check_revolution_end(ctx, ref_already);
+    /* Lose/@WARN1 only when WoI+REF already armed at turn entry. */
+    ai_king_check_revolution_end(ctx, end_checks_armed);
   }
 
   if (ctx->active_turn_nation) {
@@ -3449,6 +4038,52 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       /* FUN_43f7_2564 / 1a26: Confirm → declare; Not yet → leave peacetime. */
       if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
         ai_king_do_declare(ctx, human);
+      }
+      break;
+    case AI_POPUP_TAG_KING_SCORED:
+      /* Peacetime @SCORED: That's all → @RETIRING then score UI; Keep playing → continue. */
+      if (popup->result_choice_id == AI_KING_CHOICE_THATS_ALL) {
+        const char* leader =
+          (ctx->col1_ok && ctx->col1 && human >= 0 && human < 4 &&
+           ctx->col1->player[human].name[0] != '\0')
+            ? ctx->col1->player[human].name
+            : "Your Excellency";
+        const char* estate = ai_king_richest_colony_name(ctx, human);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = "Viceroy";
+        tok.string1 = leader;
+        tok.string2 = estate;
+        char fallback[AI_POPUP_BODY_LEN];
+        snprintf(
+          fallback,
+          sizeof(fallback),
+          "Viceroy %s steps down after over 300 years of loyal service to the "
+          "Crown.  King knights aging Viceroy, who retires to country estate "
+          "near %s.",
+          leader,
+          estate
+        );
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(ctx->messages, "RETIRING", &tok, fallback, body, sizeof(body));
+        if (ctx->status && ctx->status_size) {
+          snprintf(ctx->status, ctx->status_size, "%s", body);
+        }
+        if (ai_king_human_popups(ctx)) {
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups,
+            AI_POPUP_TAG_INFO,
+            human,
+            ai_king_crown_nation(human),
+            0,
+            "Retirement",
+            body
+          );
+        }
+      } else if (popup->result_choice_id == AI_KING_CHOICE_KEEP_PLAYING) {
+        if (ctx->status && ctx->status_size) {
+          snprintf(ctx->status, ctx->status_size, "Continuing the campaign.");
+        }
       }
       break;
     default:

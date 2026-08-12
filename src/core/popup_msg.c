@@ -28,7 +28,8 @@ static bool popup_msg_is_choice_word(const char* line) {
       strncmp(line, "\"Oh, I forgot about that.", 25) == 0 ||
       strncmp(line, "\"And that is exactly what I had in mind.", 40) == 0 ||
       strcmp(line, "Cancel Action.") == 0 || strcmp(line, "Break Treaty.") == 0 ||
-      strcmp(line, "Accept") == 0 || strcmp(line, "Refuse") == 0) {
+      strcmp(line, "Accept") == 0 || strcmp(line, "Refuse") == 0 ||
+      strcmp(line, "That's all.") == 0 || strcmp(line, "Keep playing anyway.") == 0) {
     return true;
   }
   return false;
