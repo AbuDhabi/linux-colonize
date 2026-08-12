@@ -368,7 +368,7 @@ work.
 | `@VANISH` | Missing | production/EOT messages — status or silent; no modal |
 | `@STARVE1` | Done thin | EOT starve-kill ai_popup OK; spring/default |
 | `@STARVE2` | Done thin | EOT starve-kill + autumn → winter-coming (`@STARVE2`) |
-| `@FOODLOW` | Done thin | EOT stock &lt; need×4 ai_popup OK (`@FOODLOW`); VGA PARKED |
+| `@FOODLOW` | Done thin | EOT production shortfall (`8e32`) and stock &lt; shortfall×4 (`@FOODLOW`); no warn on surplus harvest; VGA PARKED |
 | `@SPOIL1` | Done thin | EOT ai_popup OK; tip warehouse, single cargo |
 | `@SPOIL2` | Done thin | EOT multi-cargo tip warehouse (`spoil_types>1`) |
 | `@SPOIL3` | Done thin | EOT expanded warehouse single (`warehouse_level>1`) |

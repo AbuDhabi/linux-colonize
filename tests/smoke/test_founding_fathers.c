@@ -1292,6 +1292,24 @@ int main(void) {
       return fail("Penn crosses +50%");
     }
 
+    /* Settlement badges: passive + workers; empty buildings still show free output. */
+    if (colony_prod_building_display_output(&pool, col, 0) != 7) {
+      return fail("Town Hall display should be passive1 + statesman6");
+    }
+    if (colony_prod_building_display_output(&pool, col, 1) != 8) {
+      return fail("Church display should be passive2 + preacher6");
+    }
+    col->colonists[0].active = false;
+    col->colonists[1].active = false;
+    if (colony_prod_building_display_output(&pool, col, 0) != 1) {
+      return fail("empty Town Hall should still show passive bell");
+    }
+    if (colony_prod_building_display_output(&pool, col, 1) != 2) {
+      return fail("empty Church should still show passive crosses");
+    }
+    col->colonists[0].active = true;
+    col->colonists[1].active = true;
+
     /* Turn path: elect Jefferson/Paine/Penn and accrue via nation ticks. */
     ColonizeCol1Save pcol1;
     col1_save_init(&pcol1);

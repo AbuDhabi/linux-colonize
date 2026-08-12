@@ -2358,7 +2358,7 @@ int main(void) {
     fprintf(stderr, "food shortage status ok\n");
   }
 
-  /* DOS 0xe5e @FOODLOW: post-eat stock < need*4, no starve-kill. */
+  /* DOS 0xe5e @FOODLOW: production shortfall 8e32; stock < 8e32×4; not starving. */
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
@@ -2369,7 +2369,7 @@ int main(void) {
     col->nation_id = 0;
     col->building_in_production = -1;
     snprintf(col->name, sizeof(col->name), "Jamestown");
-    /* 2 pop need 4; start 10 → after eat 6 (< need*4=16, ≥ need). */
+    /* 2 pop need 4; no field food → shortfall 4; start 10 → after eat 6 (< 16). */
     col->stock[COLONIZE_CARGO_FOOD] = 10;
     col->colonists[0].active = true;
     col->colonists[1].active = true;
@@ -2415,6 +2415,88 @@ int main(void) {
     }
     assets_msg_free(&game_txt);
     fprintf(stderr, "foodlow chrome ok\n");
+  }
+
+  /* Surplus harvest (8e32==0): no @FOODLOW even when stock < need×4. */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    snprintf(col->name, sizeof(col->name), "Plymouth");
+    col->stock[COLONIZE_CARGO_FOOD] = 12; /* after surplus net, still modest vs need×4 */
+    col->colonists[0].active = true;
+    col->colonists[0].field_job = COLONIZE_JOB_FARMER;
+    col->colonists[0].profession = COLONIZE_JOB_FARMER;
+    col->colonists[0].building_type = -1;
+    col->colonists[1].active = true;
+    col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+    col->colonists[1].profession = COLONIZE_JOB_FARMER;
+    col->colonists[1].building_type = -1;
+    col->colonist_count = 2;
+    col->population = 2;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->tiles[0] = 0;
+    col->tiles[1] = 1;
+    pool.colony_count = 1;
+
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[64];
+    if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+      fprintf(stderr, "foodlow-surplus: map_alloc %s\n", err);
+      return 1;
+    }
+    for (int i = 0; i < 64; ++i) {
+      map.terrain[i] = 1; /* plains */
+    }
+    col->x = 3;
+    col->y = 3;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, &map, NULL, &eu, 0, &prod, &pops, NULL);
+    if (prod.food_shortages != 0) {
+      fprintf(stderr, "foodlow-surplus: unexpected shortage %d\n", prod.food_shortages);
+      map_free(&map);
+      return 1;
+    }
+    if (strstr(eu.status, "Food low") != NULL) {
+      fprintf(stderr, "foodlow-surplus: must not warn on surplus '%s'\n", eu.status);
+      map_free(&map);
+      return 1;
+    }
+    for (int i = 0; i < pops.queue_count; ++i) {
+      if (strstr(pops.queue[i].body, "rapidly depleting") != NULL ||
+          strstr(pops.queue[i].body, "Food low") != NULL) {
+        fprintf(stderr, "foodlow-surplus: FOODLOW popup with surplus food\n");
+        map_free(&map);
+        return 1;
+      }
+    }
+    /* Sanity: stock should not be below one turn's need after a surplus turn. */
+    if (col->stock[COLONIZE_CARGO_FOOD] < 4) {
+      fprintf(
+        stderr,
+        "foodlow-surplus: expected surplus leave stock>=4 got %d\n",
+        col->stock[COLONIZE_CARGO_FOOD]
+      );
+      map_free(&map);
+      return 1;
+    }
+    map_free(&map);
+    fprintf(stderr, "foodlow surplus no-warn ok\n");
   }
 
   /* @FOOD1: first starvation latch (stock after eat < need, no prior latch). */
