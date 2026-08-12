@@ -351,6 +351,8 @@ Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc 
 Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship moves ≥6 — **Unverified vs DOS**):
 
 - **H** / Return to Europe on high seas → **Expected Soon** (not instant dock); docks when turns elapse (auto-opens Europe).
+- New dock immigrants (crosses threshold or immigration pressure) show `@UNREST` and do **not** auto-open Europe — open with **E** when ready.
+- New campaign: docks empty (recruit pool only); crosses start **0 / 9** (no idle free crosses).
 - **S** / Set sail from harbor → **Bound For** `@COLONYNAME` region; arrives at last exit sea lane (also drag Loading → Bound).
 - Drag Expected → Bound to reverse westbound (keeps remaining turns); drag Bound → Expected for the opposite reverse.
 

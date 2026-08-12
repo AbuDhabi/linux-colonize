@@ -62,6 +62,8 @@ typedef struct CombatAnalysisDialog {
   int dialog_y;
   int dialog_w;
   int dialog_h;
+  /* Ignore click/key dismiss until mouse released (village Attack same-click). */
+  int arm_input;
 } CombatAnalysisDialog;
 
 void combat_analysis_close(CombatAnalysisDialog* dlg);

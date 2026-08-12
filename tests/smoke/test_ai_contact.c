@@ -296,9 +296,10 @@ int main(void) {
       return fail("ambush WIN1 should transfer foe muskets onto Brave");
     }
     if (strstr(st_amb, "Muskets") == NULL ||
-        (strstr(st_amb, "ambush") == NULL && strstr(st_amb, "Ambush") == NULL)) {
+        (strstr(st_amb, "ambush") == NULL && strstr(st_amb, "Ambush") == NULL) ||
+        strstr(st_amb, "Soldier") == NULL) {
       fprintf(stderr, "smoke_ai_contact: ambush-WIN1 status '%s'\n", st_amb);
-      return fail("ambush WIN1 should set Muskets seized status");
+      return fail("ambush WIN1 should set Muskets seized status with unit name");
     }
     units_despawn(&units, sol_id);
     /* WIN2 horses arm */

@@ -68,7 +68,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Foreign Euro + defender | Combat | Combat | Partial |
 | Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done (thin) |
 | Land settler | Native village (no colony) | Illegal squat | Deny | Done |
-| Missionary / combatish | Native village | Meet / raid | Meet CHOICE; combatish Attack/Leave warn + raid | Done thin (`2820` VGA PARKED) |
+| Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put); combatish Attack/Leave warn → fight from adjacent (no enter) | Done thin (`2820` VGA PARKED) |
 | Wagon | Colony tile | Exhaust MP (`465b:08f8`) | Exhaust on enter | Done |
 
 ---

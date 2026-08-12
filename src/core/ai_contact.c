@@ -4150,9 +4150,42 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       if (!f || f->nation_id != target_euro || units_is_sea(ctx->units, foe)) {
         continue;
       }
-      /* Snapshot gear before combat despawn (GAME.TXT @INDIANWIN1/@INDIANWIN2). */
+      /* Snapshot before combat despawn (GAME.TXT @INDIANWIN1/@INDIANWIN2). */
       const int foe_muskets = f->muskets;
       const int foe_horses = f->horses;
+      const int foe_x = f->x;
+      const int foe_y = f->y;
+      const int foe_type = f->type_index;
+      char foe_unit_name[48];
+      {
+        const ColonizeUnitType* ft = units_type(ctx->units, foe_type);
+        snprintf(
+          foe_unit_name,
+          sizeof(foe_unit_name),
+          "%s",
+          ft && ft->name[0] ? ft->name : "units"
+        );
+      }
+      const char* foe_nation_label = "your";
+      if (ctx->col1 && target_euro >= 0 && target_euro <= 3 &&
+          ctx->col1->player[target_euro].country_name[0]) {
+        foe_nation_label = ctx->col1->player[target_euro].country_name;
+      }
+      const char* place = "Wilderness";
+      if (ctx->colonies) {
+        int best_d = 99;
+        for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+          const ColonizeColony* c = &ctx->colonies->colonies[ci];
+          if (!c->active || c->nation_id != target_euro || !c->name[0]) {
+            continue;
+          }
+          const int d = ai_contact_dist(foe_x, foe_y, c->x, c->y);
+          if (d < best_d) {
+            best_d = d;
+            place = c->name;
+          }
+        }
+      }
       const int brave_won =
         units_resolve_land_combat(ctx->units, brave->id, foe, rng) ? 1 : 0;
       int seized_muskets = 0;
@@ -4170,28 +4203,73 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         }
         units_try_move(ctx->units, brave->id, ctx->map, nx, ny, ctx->colonies, rng);
       }
-      /* GAME.TXT @INDIANWIN0 / WIN1 / WIN2 / @INDIANLOSE ambush chrome. */
+      /*
+       * GAME.TXT @INDIANWIN0/1/2 / @INDIANLOSE:
+       * WIN:  {%STRING0} ambush {%STRING1 %STRING2} near %STRING3!
+       *       (+ Muskets/Horses seized by %STRING4 braves! for WIN1/2)
+       * LOSE: {%STRING1 %STRING2} %STRING4 {%STRING0} near %STRING3!
+       */
       if (ai_contact_euro_is_human(ctx, target_euro)) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = ai_contact_tribe_name(nation_id);
-        tok.string1 = "your";
-        tok.string2 = "units";
-        tok.string3 = "the frontier";
-        tok.string4 = ai_contact_tribe_name(nation_id);
+        const char* tribe = ai_contact_tribe_name(nation_id);
+        tok.string0 = tribe;
+        tok.string1 = foe_nation_label;
+        tok.string2 = foe_unit_name;
+        tok.string3 = place;
+        tok.string4 = tribe;
         const char* sec = "INDIANLOSE";
-        const char* fb = "Your units defeat an ambush.";
+        char fb[AI_POPUP_BODY_LEN];
         if (brave_won) {
           if (seized_muskets) {
             sec = "INDIANWIN1";
-            fb = "Natives ambush your units! Muskets seized by braves!";
+            snprintf(
+              fb,
+              sizeof(fb),
+              "%s ambush %s %s near %s! Muskets seized by %s braves!",
+              tribe,
+              foe_nation_label,
+              foe_unit_name,
+              place,
+              tribe
+            );
           } else if (seized_horses) {
             sec = "INDIANWIN2";
-            fb = "Natives ambush your units! Horses seized by braves!";
+            snprintf(
+              fb,
+              sizeof(fb),
+              "%s ambush %s %s near %s! Horses seized by %s braves!",
+              tribe,
+              foe_nation_label,
+              foe_unit_name,
+              place,
+              tribe
+            );
           } else {
             sec = "INDIANWIN0";
-            fb = "Natives ambush your units!";
+            snprintf(
+              fb,
+              sizeof(fb),
+              "%s ambush %s %s near %s!",
+              tribe,
+              foe_nation_label,
+              foe_unit_name,
+              place
+            );
           }
+        } else {
+          /* LABELS defeat/defeats — unit subjects type_index ≥7 use "defeats". */
+          tok.string4 = (foe_type >= 0 && foe_type < 7) ? "defeat" : "defeats";
+          snprintf(
+            fb,
+            sizeof(fb),
+            "%s %s %s %s near %s!",
+            foe_nation_label,
+            foe_unit_name,
+            tok.string4,
+            tribe,
+            place
+          );
         }
         char ambush_body[AI_POPUP_BODY_LEN];
         if (ctx->messages) {

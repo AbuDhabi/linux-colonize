@@ -1628,17 +1628,58 @@ static int turn_count_bells_and_crosses_for_nation(
   return bells + crosses;
 }
 
-static void turn_push_dock_immigrant(EuropeScreen* europe, ColonizeTurnResult* out) {
+static void turn_notify_dock_immigrant(
+  ColonizeTurnContext* ctx,
+  ColonizeTurnResult* out,
+  const char* immigrant_name
+) {
+  if (!ctx || !ctx->europe) {
+    return;
+  }
+  if (out) {
+    out->immigrants_arrived++;
+    /* DOS: @UNREST dialog — do not auto-dump into Europe screen (DS:0x14c is optional). */
+  }
+  if (ctx->status && ctx->status_size > 0) {
+    snprintf(
+      ctx->status,
+      ctx->status_size,
+      "Immigrant arrives in Europe: %s",
+      immigrant_name && immigrant_name[0] ? immigrant_name : "Colonist"
+    );
+  }
+  if (!ctx->ai_popups) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.country = ctx->europe->nation_name[0] ? ctx->europe->nation_name : "Europe";
+  tok.string0 = "Europe";
+  tok.string1 = immigrant_name && immigrant_name[0] ? immigrant_name : "Colonists";
+  char body[AI_POPUP_BODY_LEN];
+  const char* fb =
+    "Religious unrest causes increased emigration. Colonists now available in Europe.";
+  if (ctx->messages) {
+    popup_msg_fill(ctx->messages, "UNREST", &tok, fb, body, sizeof(body));
+  } else {
+    snprintf(body, sizeof(body), "%s", fb);
+  }
+  ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, "Immigration", body);
+}
+
+static void turn_push_dock_immigrant(EuropeScreen* europe, ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   if (!europe) {
     return;
   }
-  if (europe_immigrant_from_pool(europe)) {
-    europe->open_on_dock = true; /* DS:0x14c after dock immigrant */
-    if (out) {
-      out->immigrants_arrived++;
-      out->request_europe_open = true;
-    }
+  if (!europe_immigrant_from_pool(europe)) {
+    return;
   }
+  europe->open_on_dock = false; /* popup only — player opens Europe when ready */
+  const char* name = "";
+  if (europe->dock_count > 0) {
+    name = europe->dock[europe->dock_count - 1].name;
+  }
+  turn_notify_dock_immigrant(ctx, out, name);
 }
 
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
@@ -1665,16 +1706,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->crosses_pending_needed_bump = false;
     }
     /*
-     * Base +2 crosses per turn until the first dock immigrant arrives; afterward
-     * only colony church crosses accumulate (idle human TURN5–7 stay at 0).
+     * Crosses only from colony churches / missions — no free idle +2.
+     * Cite: manual immigration via crosses; idle +2 was a golden-era hack.
      */
-    if (!ctx->europe->crosses_immigrant_seen) {
-      unsigned cur = (unsigned)ctx->europe->current_crosses + 2u;
-      if (cur > 65535u) {
-        cur = 65535u;
-      }
-      ctx->europe->current_crosses = (uint16_t)cur;
-    }
     ctx->europe->liberty_bells_last_turn = (uint16_t)(bells > 65535 ? 65535 : bells);
     {
       unsigned total = (unsigned)ctx->europe->liberty_bells_total + (unsigned)bells;
@@ -1696,7 +1730,32 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->current_crosses = 0;
       ctx->europe->crosses_immigrant_seen = true;
       ctx->europe->crosses_pending_needed_bump = true;
-      turn_push_dock_immigrant(ctx->europe, out);
+      turn_push_dock_immigrant(ctx->europe, ctx, out);
+      /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
+      if (ctx->units && ctx->europe->dock_count > 0) {
+        const EuropeDockImmigrant* d = &ctx->europe->dock[ctx->europe->dock_count - 1];
+        const int tid = units_find_type(ctx->units, "Colonists");
+        const int type_index = tid >= 0 ? tid : 0;
+        const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
+        ColonizeUnit* u = units_get(ctx->units, id);
+        if (u) {
+          units_set_nation(u, ctx->human_nation);
+          u->orders = UNITS_ORDER_SENTRY;
+          u->profession = d->profession;
+          u->goto_x = 0;
+          u->goto_y = 0;
+          u->moves_left = 0;
+        }
+      }
+    }
+    if (europe_tick_immigration_pressure(
+          ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation
+        )) {
+      const char* name = "";
+      if (ctx->europe->dock_count > 0) {
+        name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
+      }
+      turn_notify_dock_immigrant(ctx, out, name);
       /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
       if (ctx->units && ctx->europe->dock_count > 0) {
         const EuropeDockImmigrant* d = &ctx->europe->dock[ctx->europe->dock_count - 1];
@@ -1715,9 +1774,6 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
     }
     europe_tick_voyages(ctx->europe, ctx->units);
-    europe_tick_immigration_pressure(
-      ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation
-    );
   }
 
   /*

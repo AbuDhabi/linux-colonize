@@ -182,6 +182,7 @@ Higher difficulty → less free gold per tick, higher Europe-hire treasury gate.
 
 ```
 score = ((8-diff)*score) >> 3
+pressure += 2   /* DOS 584a *param_2 default; treasure −2 PARKED */
 ```
 
 | Diff | Scale |
@@ -192,7 +193,9 @@ score = ((8-diff)*score) >> 3
 | 3 | 62.5% |
 | 4 | 50% |
 
-Human English also `*2/3` (nation 0) independent of difficulty.
+Human English also `*2/3` (nation 0) independent of difficulty. Human with no
+colony population does not accrue pressure (port: crosses/churches own pre-colony
+immigration; idle +2 crosses/turn was removed).
 
 ---
 

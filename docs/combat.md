@@ -170,10 +170,13 @@ Also stored: `base_combat`, `local_1a`, `terrain_byte`, `village_n`,
 | Def strength | `015e` full | `004a` defense only | Village `local_1a` + fortify |
 | `1b0e` | Full land peels | Difficulty (+ Discoverer); no arty/ambush/SoL | Ambush if Spanish on colony |
 | Trigger | move-enter / AI adjacent | move-enter / AI / king | Fight units on tile |
-| Empty village | — | `ENTER_VILLAGE_SHIP` abort | Meet / raid (`4528`) — **not** this engage |
+| Empty village | — | `ENTER_VILLAGE_SHIP` abort | Temp Brave from dwelling (`1b0e`); fight from adjacent (no enter); pop drain |
 
-Village **attack** as a distinct settlement battle body is **PARKED**; Linux
-fights whoever stands on the tile via normal land combat.
+Village **attack** empty-tile defense is **Done** thin (`units_spawn_village_temp_defender`):
+DOS `FUN_5fef_1b0e` spawns a phantom Brave (Armed / Mtd. from nation muskets /
+`horse_breeding>24`), fights, undoes the phantom, then `population--` or destroy
+when `population < 2`. Killing a map Brave on the tile does **not** burn the
+dwelling. Deep `4528` mid-body / VGA still **PARKED**.
 
 ---
 
@@ -237,6 +240,11 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 
 - Gate: `game_options.combat_analysis` + human side (`FUN_5fef_1b0e` gate
   `0x5383&2`)
+- Input: armed after mouse-up so village Attack CHOICE click cannot dismiss
+  the dialog on the same press
+- Village Attack (empty tile): `FUN_5fef_1b0e` temp Brave spawn (not nearby
+  pull) so strengths / Analysis run before the roll; dwelling `population`
+  drains on win
 - Layout:
   1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
   2. Attacker chrome + **baseline** strength … defender baseline + chrome
@@ -304,7 +312,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | Combat Analysis | Done | Options-gated dual column |
 | Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair + `@REFIT` Done thin; temp unit/VGA PARKED |
 | Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
-| Village settlement battle `4528` | Done thin | Warn→Attack/Leave + fallout `@LOOT`/`@LOOT2`; deep `2820`/VGA PARKED |
+| Village settlement battle `4528` | Done thin | Warn→Attack/Leave; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED |
 | Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |
 | VGA-identical combat chrome | PARKED | — |
 

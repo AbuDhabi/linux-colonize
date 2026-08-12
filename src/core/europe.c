@@ -576,7 +576,8 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->gold = 1000;
   eu->tax_percent = 0;
   eu->current_crosses = 0;
-  eu->needed_crosses = 8;
+  /* Match new-game Col1 human needed (ai.c / COLONY00–01); no free starter docks. */
+  eu->needed_crosses = 9;
   eu->crosses_immigrant_seen = false;
   eu->crosses_pending_needed_bump = false;
   eu->liberty_bells_total = 0;
@@ -599,16 +600,9 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->menu_dock_index = -1;
   eu->last_exit_valid = false;
   eu->open_on_dock = false;
-  /* Two free colonists already waiting — matches screenshot dock feel. */
-  static const char* starters[] = {"Free Colonists", "Indentured Servants"};
-  static const int starter_jobs[] = {19, 25};
-  for (int i = 0; i < 2 && i < EUROPE_DOCK_MAX; ++i) {
-    snprintf(eu->dock[i].name, sizeof(eu->dock[i].name), "%s", starters[i]);
-    eu->dock[i].profession = starter_jobs[i];
-    eu->dock[i].present = true;
-    eu->dock[i].sentry = true;
-    eu->dock_count = i + 1;
-  }
+  eu->immigration_score = 0;
+  eu->immigration_pressure = 0;
+  /* DOS FUN_38fd_6024: recruit pool (+2..+4) filled; docks empty; pressure 0. */
   europe_set_status(eu, "Home port ready. Recruit / Purchase / Train / S Sail.");
 }
 
@@ -1549,7 +1543,7 @@ void europe_tick_market_prices(
   }
 }
 
-void europe_tick_immigration_pressure(
+int europe_tick_immigration_pressure(
   EuropeScreen* eu,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
@@ -1562,7 +1556,7 @@ void europe_tick_immigration_pressure(
    * Write +0x30; accumulate +0x2e. Cite: europe_nation_eot.md phase 4; ~68248.
    */
   if (!eu || nation_id < 0 || nation_id > 3) {
-    return;
+    return 0;
   }
   int pop = 0;
   if (colonies) {
@@ -1590,6 +1584,7 @@ void europe_tick_immigration_pressure(
   if (score > 4000) {
     score = 4000;
   }
+  int is_human = 0;
   if (col1) {
     const int control =
       (nation_id < 4) ? (int)col1->player[nation_id].control : 1;
@@ -1602,36 +1597,48 @@ void europe_tick_immigration_pressure(
         diff = 8;
       }
       score = ((8 - diff) * score) >> 3;
+    } else {
+      is_human = 1;
     }
     if (nation_id == 0) {
       score = (score << 1) / 3;
     }
   }
   eu->immigration_score = (int16_t)score;
-  int delta = score / 32;
-  if (delta < 1) {
-    delta = 1;
-  }
-  int press = (int)eu->immigration_pressure + delta;
-  if (press > 32767) {
-    press = 32767;
-  }
-  if (press < 0) {
-    press = 0;
-  }
-  eu->immigration_pressure = (int16_t)press;
   /*
-   * Phase 5 gate: score < pressure → dock immigrant crumb + clear accumulator.
-   * Full 46d4 profession roll / Recruit UI PARKED.
+   * DOS FUN_38fd_584a: *param_2 starts at +2 each tick (treasure can force −2;
+   * PARKED). Human with no colony pop: do not accrue — early game is crosses/
+   * churches only (idle +2 crosses was a port fiction). AI always accrues.
    */
+  if (!(is_human && pop <= 0)) {
+    const int delta = 2;
+    int press = (int)eu->immigration_pressure + delta;
+    if (press > 32767) {
+      press = 32767;
+    }
+    if (press < 0) {
+      press = 0;
+    }
+    eu->immigration_pressure = (int16_t)press;
+  } else {
+    eu->immigration_pressure = 0;
+  }
+  /*
+   * Phase 5 gate: score < pressure → dock immigrant. Chrome: caller shows
+   * @UNREST — do not auto-open Europe (DS:0x14c is optional / ship-arrival).
+   */
+  if (is_human && pop <= 0) {
+    return 0;
+  }
   if (eu->immigration_score > 0 && eu->immigration_score < eu->immigration_pressure) {
     eu->immigration_pressure = 0;
     if (europe_immigrant_from_pool(eu)) {
-      /* DOS human follow may set DS:0x14c — open Europe on dock. */
-      eu->open_on_dock = true;
+      eu->open_on_dock = false;
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
+      return 1;
     }
   }
+  return 0;
 }
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
