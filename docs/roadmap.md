@@ -56,7 +56,7 @@ MAPEDIT parked ([catalog_peel_ranking.md](catalog_peel_ranking.md)).
 | **0 Foundation** | Done | New game, map, menus, Col1 save/load round-trip, basic move/orders |
 | **1 Colony–Europe loop** | Mostly done | Found/assign/produce/sail/buy-sell/pioneer/trade-routes structural playable |
 | **2 Contact & conflict** | Partial | Land/naval combat + capture + Indian meet/trade/raid usable for a human game without deep PARK blockers |
-| **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `smoke_ai_joint` stays green |
+| **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` stays green |
 | **4 Independence & endgame** | Partial | FF depth leftovers, REF/WoI paths, retire/HoF/auto-end enough to finish a campaign |
 | **5 Fidelity & polish** | Later | VGA dialog chrome, COLDIG SFX, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies |
 
@@ -118,14 +118,14 @@ PARKED deep/VGA bodies.
 ### 3 — Mid-game AI (Partial / active)
 
 Euro rivals and natives must stay coherent through mid-game. Shared surfaces
-(`20e6`, Indian×Euro diplo/sticky, raids, FOUND) keep `smoke_ai_joint` green.
+(`20e6`, Indian×Euro diplo/sticky, raids, FOUND) keep `golden_ai_joint` green.
 
 **Now:**
 
 - Euro deep land `20e6` / remaining mid-planner (`5d04`) — unpark #4 / R5 Phase 3
   in [ai_transcription.md](ai_transcription.md)
 - Indian large bodies (`2154` / `2820` / `4528`) toward R5 Phase 4 — same doc
-- Joint mid/late goldens (`JOINT_MIDTURN`, `smoke_ai_joint`) — R5 in
+- Joint mid/late goldens (`JOINT_MIDTURN`, `golden_ai_joint`) — R5 in
   [ai_transcription.md](ai_transcription.md)
 - Seed-100 / early fidelity debt (R0) only as it blocks mid-planner claims —
   [seed100_brave.md](seed100_brave.md)

@@ -15,7 +15,7 @@
 #include <string.h>
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_founding_fathers: FAIL %s\n", msg);
+  fprintf(stderr, "unit_founding_fathers: FAIL %s\n", msg);
   return 1;
 }
 
@@ -304,7 +304,7 @@ int main(void) {
   }
 
   /* Pocahontas: reset native tension to content; no crosses fiction.
-   * Half-rate alarm growth wired in ai_contact (smoke_ai_contact). */
+   * Half-rate alarm growth wired in ai_contact (unit_ai_contact). */
   nat->liberty_bells_total = 881;
   nat->next_founding_father = 16;
   {
@@ -1440,7 +1440,7 @@ int main(void) {
     /* Human Discoverer, dist 1, tech/bought 0: ((0+3)*2+0+0)-1=5; 0x41*5=325; >>1=162. */
     if (cost_no != 162) {
       map_free(&mmap);
-      fprintf(stderr, "smoke_founding_fathers: cost_no=%d expected 162\n", cost_no);
+      fprintf(stderr, "unit_founding_fathers: cost_no=%d expected 162\n", cost_no);
       return fail("Minuit: FUN_4cc6_07c2 baseline gold");
     }
 
@@ -1814,7 +1814,7 @@ int main(void) {
     }
     units_set_ff_col1(NULL);
     map_free(&dmap);
-    fprintf(stderr, "smoke_founding_fathers: de Witt ship foreign dock enter ok\n");
+    fprintf(stderr, "unit_founding_fathers: de Witt ship foreign dock enter ok\n");
   }
 
   /* Sepulveda / de Soto LCR / de Witt — ownership gates; de Soto LCR wired. */
@@ -1994,7 +1994,7 @@ int main(void) {
     }
     free(ccol1.tribe);
     map_free(&cmap);
-    fprintf(stderr, "smoke_founding_fathers: Cortes AI treasure gold=%d ok\n", gold);
+    fprintf(stderr, "unit_founding_fathers: Cortes AI treasure gold=%d ok\n", gold);
   }
 
   /* Human + ai_popups: choose first (next < 0), accumulate, then elect. */
@@ -2032,7 +2032,7 @@ int main(void) {
     }
     if (pop.queue_count < 1 || pop.queue[0].kind != AI_POPUP_KIND_CHOICE ||
         pop.queue[0].tag != AI_POPUP_TAG_FF_CONGRESS || pop.queue[0].choice_count < 2) {
-      fprintf(stderr, "smoke_founding_fathers: debate queue_count=%d kind=%d choices=%d\n",
+      fprintf(stderr, "unit_founding_fathers: debate queue_count=%d kind=%d choices=%d\n",
               pop.queue_count,
               pop.queue_count > 0 ? (int)pop.queue[0].kind : -1,
               pop.queue_count > 0 ? pop.queue[0].choice_count : -1);
@@ -2064,9 +2064,9 @@ int main(void) {
     if (pop.queue_count > 0 && pop.queue[0].kind == AI_POPUP_KIND_CHOICE) {
       return fail("elect path must not re-open debate CHOICE");
     }
-    fprintf(stderr, "smoke_founding_fathers: Congress debate CHOICE ok\n");
+    fprintf(stderr, "unit_founding_fathers: Congress debate CHOICE ok\n");
   }
 
-  printf("smoke_founding_fathers: OK\n");
+  printf("unit_founding_fathers: OK\n");
   return 0;
 }

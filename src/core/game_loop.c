@@ -530,7 +530,7 @@ static void game_emit_warehouse_full(
  * FUN_4cc6_07c2 Indian homeland purchase via colonies_found_with_indian_land —
  * same charge/Minuit-free gate as AI euro FOUND. Cite: Colonization.pdf Indian
  * Land / Peter Minuit (FF 2). smoke_game_flow has no tribe fixture; covered by
- * smoke_founding_fathers + smoke_ai_euro_expand indian-land cases.
+ * unit_founding_fathers + unit_ai_euro_expand indian-land cases.
  */
 static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
   if (!game || !game->world_map_ok || uid < 0) {
@@ -5420,7 +5420,7 @@ static void game_europe_capture_pax_professions(
  * Manual verify (smoke_game_flow stays title-only; no CMake smoke hook here):
  * board Treasure with LE16 in hold_goods_amount[0..1], H / Return to Europe on
  * high seas → Expected.cargo_treasure_gold set → tick to Harbor → cash-in.
- * smoke_europe covers cash when cargo_treasure_gold is already set.
+ * unit_europe covers cash when cargo_treasure_gold is already set.
  */
 static int game_treasure_gold_from_unit(
   const ColonizeUnitPool* units,

@@ -4660,7 +4660,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * Approach march only in high-friction capture band (≥70). Mid gate
            * 40..69 keeps on-tile loot/combat but must not walk Braves — seed-100
            * TURN4→5 is already at-war for some tribes; approach broke the golden.
-           * Cite: indian_raid_outcomes.md; smoke_ai_turns.
+           * Cite: indian_raid_outcomes.md; golden_ai_turns.
            */
           int sdx = (c->x > brave->x) - (c->x < brave->x);
           int sdy = (c->y > brave->y) - (c->y < brave->y);

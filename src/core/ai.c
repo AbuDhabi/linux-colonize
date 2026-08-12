@@ -2100,7 +2100,7 @@ static bool ai_euro_early_turn(ColonizeTurnContext* ctx, int nation_id) {
   return true;
 }
 
-/* Opportunistic first-colony for non-seed100 (smoke_ai NEW_WORLD). */
+/* Opportunistic first-colony for non-seed100 (unit_ai NEW_WORLD). */
 static void ai_try_ship_unload(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->colonies || !ship) {
     return;

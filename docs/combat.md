@@ -356,11 +356,11 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 
 | File | Coverage |
 |------|----------|
-| `tests/smoke/test_units.c` | move-enter combat; naval; fort fire; analysis gate; land engage/colony; best defender; capture/loot; popups |
-| `tests/smoke/test_founding_fathers.c` | Washington promote; Drake naval; Revere; fallout |
-| `tests/smoke/test_ai_euro_war.c` | naval/land hunt; adjacent combat chain; Stockade note |
-| `tests/smoke/test_ai_king.c` | Cont. promote (king path) |
-| `tests/smoke/test_ai_contact.c` | raid resolve fallout |
+| `tests/unit/test_units.c` | move-enter combat; naval; fort fire; analysis gate; land engage/colony; best defender; capture/loot; popups |
+| `tests/unit/test_founding_fathers.c` | Washington promote; Drake naval; Revere; fallout |
+| `tests/unit/test_ai_euro_war.c` | naval/land hunt; adjacent combat chain; Stockade note |
+| `tests/unit/test_ai_king.c` | Cont. promote (king path) |
+| `tests/unit/test_ai_contact.c` | raid resolve fallout |
 
 ---
 

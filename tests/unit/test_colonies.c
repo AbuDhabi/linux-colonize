@@ -29,7 +29,7 @@ static int failures = 0;
 
 
 /* Col1 +0x98: BUY construction accumulates hammers_purchased remainder. */
-static int smoke_hammers_purchased_buy(void) {
+static int unit_hammers_purchased_buy(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stockade");
@@ -63,12 +63,12 @@ static int smoke_hammers_purchased_buy(void) {
     fprintf(stderr, "expected build_complete flag after BUY\n");
     return 1;
   }
-  fprintf(stderr, "smoke_colonies: hammers_purchased buy ok\n");
+  fprintf(stderr, "unit_colonies: hammers_purchased buy ok\n");
   return 0;
 }
 
 /* Col1 +0x95/+0x96: warehouse_level drives 100*(1+level); capitol INC on complete. */
-static int smoke_warehouse_capitol_levels(void) {
+static int unit_warehouse_capitol_levels(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Warehouse");
@@ -113,12 +113,12 @@ static int smoke_warehouse_capitol_levels(void) {
     fprintf(stderr, "Capitol complete capitol_level=%u\n", (unsigned)c->capitol_level);
     return 1;
   }
-  fprintf(stderr, "smoke_colonies: warehouse/capitol levels ok\n");
+  fprintf(stderr, "unit_colonies: warehouse/capitol levels ok\n");
   return 0;
 }
 
 /* Helper: @SEACOLONY / @NOPORT GAME.TXT + inland vs coastal found tiles. */
-static int smoke_found_chrome(void) {
+static int unit_found_chrome(void) {
   ColonizeMsgCatalog game_txt;
   assets_msg_init(&game_txt);
   if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
@@ -215,7 +215,7 @@ static int smoke_found_chrome(void) {
   }
   fprintf(
     stderr,
-    "smoke_colonies: found chrome ok (water=%d inland=%d coastal=%d)\n",
+    "unit_colonies: found chrome ok (water=%d inland=%d coastal=%d)\n",
     water,
     inland,
     coastal
@@ -224,7 +224,7 @@ static int smoke_found_chrome(void) {
 }
 
 /* Helper: @FULL chrome when colony is at population cap. */
-static int smoke_full_chrome(void) {
+static int unit_full_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   ColonizeColony* col = &pool.colonies[0];
@@ -260,12 +260,12 @@ static int smoke_full_chrome(void) {
     return 1;
   }
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_colonies: FULL chrome ok\n");
+  fprintf(stderr, "unit_colonies: FULL chrome ok\n");
   return 0;
 }
 
 /* Helper: @ALREADYHAVE / @NOMOREWAREHOUSE when construction already owned. */
-static int smoke_alreadyhave_chrome(void) {
+static int unit_alreadyhave_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   ColonizeColony* col = &pool.colonies[0];
@@ -319,12 +319,12 @@ static int smoke_alreadyhave_chrome(void) {
   }
 
   assets_msg_free(&game_txt);
-  fprintf(stderr, "smoke_colonies: ALREADYHAVE/NOMOREWAREHOUSE chrome ok\n");
+  fprintf(stderr, "unit_colonies: ALREADYHAVE/NOMOREWAREHOUSE chrome ok\n");
   return 0;
 }
 
 /* Helper: unskilled school assign → @NOTEACHER; Teacher may assign. */
-static int smoke_noteacher_chrome(void) {
+static int unit_noteacher_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
@@ -384,12 +384,12 @@ static int smoke_noteacher_chrome(void) {
     return 1;
   }
 
-  fprintf(stderr, "smoke_colonies: NOTEACHER chrome ok\n");
+  fprintf(stderr, "unit_colonies: NOTEACHER chrome ok\n");
   return 0;
 }
 
 /* Helper: school tier gates @NEEDCOLLEGE / @NEEDUNIVERSITY. */
-static int smoke_needschool_chrome(void) {
+static int unit_needschool_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
@@ -486,7 +486,7 @@ static int smoke_needschool_chrome(void) {
     return 1;
   }
 
-  fprintf(stderr, "smoke_colonies: NEEDCOLLEGE/NEEDUNIVERSITY chrome ok\n");
+  fprintf(stderr, "unit_colonies: NEEDCOLLEGE/NEEDUNIVERSITY chrome ok\n");
   return 0;
 }
 
@@ -1375,30 +1375,30 @@ int main(void) {
   }
 
   if (failures == 0) {
-    printf("smoke_colonies: all checks passed\n");
-    if (smoke_found_chrome() != 0) {
+    printf("unit_colonies: all checks passed\n");
+    if (unit_found_chrome() != 0) {
       return 1;
     }
-    if (smoke_full_chrome() != 0) {
+    if (unit_full_chrome() != 0) {
       return 1;
     }
-    if (smoke_alreadyhave_chrome() != 0) {
+    if (unit_alreadyhave_chrome() != 0) {
       return 1;
     }
-    if (smoke_noteacher_chrome() != 0) {
+    if (unit_noteacher_chrome() != 0) {
       return 1;
     }
-    if (smoke_needschool_chrome() != 0) {
+    if (unit_needschool_chrome() != 0) {
       return 1;
     }
-    if (smoke_hammers_purchased_buy() != 0) {
+    if (unit_hammers_purchased_buy() != 0) {
       return 1;
     }
-    if (smoke_warehouse_capitol_levels() != 0) {
+    if (unit_warehouse_capitol_levels() != 0) {
       return 1;
     }
     return 0;
   }
-  fprintf(stderr, "smoke_colonies: %d failure(s)\n", failures);
+  fprintf(stderr, "unit_colonies: %d failure(s)\n", failures);
   return 1;
 }

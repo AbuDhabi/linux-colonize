@@ -214,7 +214,7 @@ Linux runs; Linux is Euro AI then Indians.
 
 | Gate | Path |
 |------|------|
-| Calendar / production smoke | `tests/smoke/test_turn.c` |
-| Early AI T2 | `smoke_ai_turns` (`TURN1`…`TURN7`) |
-| King thin | `smoke_ai_king` |
+| Calendar / production unit | `tests/unit/test_turn.c` |
+| Early AI T2 | `golden_ai_turns` (`TURN1`…`TURN7`) |
+| King thin | `unit_ai_king` |
 | Saves / autosave fields | [savegame.md](savegame.md) |

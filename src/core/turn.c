@@ -1831,7 +1831,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
 
   /*
    * FUN_3844_00f2 §C rare immigrant Merchantman (every 8th turn, peacetime).
-   * Year≥1600 keeps smoke_ai_turns early T2 clean. Census/dialog PARKED.
+   * Year≥1600 keeps golden_ai_turns early T2 clean. Census/dialog PARKED.
    * Cite: nation_eot_ship_spawn.md §C.
    */
   if (ctx->units && ctx->game_year && ctx->turn_number && *ctx->game_year >= 1600u &&
@@ -2471,7 +2471,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       /*
-       * AI fog reveal (00f2 / 281f_07a0) PARKED for smoke_ai_turns T2 —
+       * AI fog reveal (00f2 / 281f_07a0) PARKED for golden_ai_turns T2 —
        * revealing rivals early changes found-tile / unit paths. Human FINISH
        * still reveals. Cite: nation_eot.c; turn_between_players.md.
        */

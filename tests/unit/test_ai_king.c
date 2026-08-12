@@ -40,7 +40,7 @@
 #include <string.h>
 
 static int fail(const char* msg) {
-  fprintf(stderr, "smoke_ai_king: FAIL %s\n", msg);
+  fprintf(stderr, "unit_ai_king: FAIL %s\n", msg);
   return 1;
 }
 
@@ -213,7 +213,7 @@ int main(void) {
 
   const int sol = ai_king_sol_percent(&ctx, 0);
   if (sol != 60) {
-    fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 60)\n", sol);
+    fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 60)\n", sol);
     return fail("SoL from rebel fields");
   }
 
@@ -236,7 +236,7 @@ int main(void) {
     char rate_buf[16];
     snprintf(rate_buf, sizeof(rate_buf), "%u", (unsigned)col1.nation[0].tax_rate);
     if (!strstr(status, "raises taxes") || !strstr(status, rate_buf)) {
-      fprintf(stderr, "smoke_ai_king: tax hike status: '%s' (want rate %s)\n", status,
+      fprintf(stderr, "unit_ai_king: tax hike status: '%s' (want rate %s)\n", status,
               rate_buf);
       return fail("1d42 tax hike should mention new rate in status");
     }
@@ -284,7 +284,7 @@ int main(void) {
   if (!strstr(status, "Audience") || !strstr(status, "refuse") ||
       !strstr(status, "tax increase") || !strstr(status, "Tax stays") ||
       !strstr(status, "20")) {
-    fprintf(stderr, "smoke_ai_king: refuse audience status: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: refuse audience status: '%s'\n", status);
     return fail("38fd_5be8 refuse should set Audience status with Tax stays rate");
   }
 
@@ -304,7 +304,7 @@ int main(void) {
     return fail("boycott flag should remain set");
   }
   if (!strstr(status, "boycott holds") && !strstr(status, "Audience")) {
-    fprintf(stderr, "smoke_ai_king: boycott hold status: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: boycott hold status: '%s'\n", status);
     return fail("active boycott should set hold-audience status");
   }
   /*
@@ -320,7 +320,7 @@ int main(void) {
     status[0] = '\0';
     ai_king_nation_turn(&ctx);
     if (!strstr(status, "Sugar") || !strstr(status, "Tobacco")) {
-      fprintf(stderr, "smoke_ai_king: boycott holds cargo list: '%s'\n", status);
+      fprintf(stderr, "unit_ai_king: boycott holds cargo list: '%s'\n", status);
       return fail("boycott holds status must list all boycott_bitmap cargo names");
     }
   }
@@ -344,7 +344,7 @@ int main(void) {
     {
       const int sol45a = ai_king_sol_percent(&ctx, 0);
       if (sol45a != 45) {
-        fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 45) for audience polish\n",
+        fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 45) for audience polish\n",
                 sol45a);
         return fail("audience+restless SoL setup");
       }
@@ -355,7 +355,7 @@ int main(void) {
     }
     if (!strstr(status, "Audience") || !strstr(status, "refuse") ||
         !strstr(status, "Tax stays")) {
-      fprintf(stderr, "smoke_ai_king: audience vs restless status: '%s'\n", status);
+      fprintf(stderr, "unit_ai_king: audience vs restless status: '%s'\n", status);
       return fail("refuse at SoL 40-49 must keep Audience status (not restless only)");
     }
     if (strstr(status, "Sons of Liberty") && !strstr(status, "refuse")) {
@@ -440,7 +440,7 @@ int main(void) {
       }
       if (tobacco_hits < trials / 2) {
         fprintf(stderr,
-                "smoke_ai_king: weighted dump-goods Tobacco hits=%d/%d\n",
+                "unit_ai_king: weighted dump-goods Tobacco hits=%d/%d\n",
                 tobacco_hits, trials);
         return fail("weighted dump-goods pick should favor high-bid Tobacco");
       }
@@ -462,7 +462,7 @@ int main(void) {
         const int p =
           ai_king_pick_dump_goods_cargo(sugar_only, all16, &z_rng, bids);
         if (p != COLONIZE_CARGO_FURS) {
-          fprintf(stderr, "smoke_ai_king: bid>0 eligibility pick=%d (want Furs)\n",
+          fprintf(stderr, "unit_ai_king: bid>0 eligibility pick=%d (want Furs)\n",
                   p);
           return fail("dump-goods with bids must only pick bid>0 cargos");
         }
@@ -517,7 +517,7 @@ int main(void) {
       }
     }
     if (bits != 1) {
-      fprintf(stderr, "smoke_ai_king: refuse dump-goods rest=0x%x bits=%d\n",
+      fprintf(stderr, "unit_ai_king: refuse dump-goods rest=0x%x bits=%d\n",
               (unsigned)rest, bits);
       return fail("rng refuse should set exactly one second dump-goods cargo");
     }
@@ -537,7 +537,7 @@ int main(void) {
         return fail("rng refuse second cargo index");
       }
       if (!strstr(status, "Sugar") || !strstr(status, cargo_names[second_c])) {
-        fprintf(stderr, "smoke_ai_king: refuse status (second=%s): '%s'\n",
+        fprintf(stderr, "unit_ai_king: refuse status (second=%s): '%s'\n",
                 cargo_names[second_c], status);
         return fail("rng refuse status must name Sugar and second boycott cargo");
       }
@@ -585,7 +585,7 @@ int main(void) {
                  ~(uint16_t)((1u << COLONIZE_CARGO_SUGAR) |
                              (1u << COLONIZE_CARGO_TOBACCO)));
     if (rest_bid != 0) {
-      fprintf(stderr, "smoke_ai_king: bid>0 refuse extra bits=0x%x\n",
+      fprintf(stderr, "unit_ai_king: bid>0 refuse extra bits=0x%x\n",
               (unsigned)rest_bid);
       return fail("bid>0 refuse must not boycott zero-bid cargos");
     }
@@ -639,7 +639,7 @@ int main(void) {
     {
       const int sol25 = ai_king_sol_percent(&ctx, 0);
       if (sol25 != 25) {
-        fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 25) for tax SoL gate\n",
+        fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 25) for tax SoL gate\n",
                 sol25);
         return fail("tax hike SoL gate setup");
       }
@@ -654,7 +654,7 @@ int main(void) {
       return fail("SoL<30 + tax≥20 should still hike (refuse needs SoL≥30)");
     }
     if (!strstr(status, "raises taxes")) {
-      fprintf(stderr, "smoke_ai_king: low-SoL hike status: '%s'\n", status);
+      fprintf(stderr, "unit_ai_king: low-SoL hike status: '%s'\n", status);
       return fail("SoL<30 tax year should hike with raises-taxes status");
     }
     /* Restore SoL for later declare path. */
@@ -675,7 +675,7 @@ int main(void) {
   {
     const int sol45 = ai_king_sol_percent(&ctx, 0);
     if (sol45 != 45) {
-      fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 45)\n", sol45);
+      fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 45)\n", sol45);
       return fail("SoL chrome setup");
     }
   }
@@ -687,7 +687,7 @@ int main(void) {
     return fail("SoL 45 should not set congress confirm unknown46[5]");
   }
   if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
-    fprintf(stderr, "smoke_ai_king: SoL chrome status: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: SoL chrome status: '%s'\n", status);
     return fail("SoL 40-49 should set restless status line");
   }
   /* unknown46 consistency: restless chrome must not set WoI or congress. */
@@ -697,7 +697,7 @@ int main(void) {
   /* Optional tax mention when tax_rate already in refuse band (≥20). */
   if (col1.nation[0].tax_rate >= 20 &&
       !strstr(status, "Tax is at") && !strstr(status, "tax")) {
-    fprintf(stderr, "smoke_ai_king: restless+high-tax status: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: restless+high-tax status: '%s'\n", status);
     return fail("SoL restless with high tax_rate should mention tax");
   }
 
@@ -716,7 +716,7 @@ int main(void) {
     {
       const int sol49 = ai_king_sol_percent(&ctx, 0);
       if (sol49 != 49) {
-        fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 49)\n", sol49);
+        fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 49)\n", sol49);
         return fail("SoL49 declare-gate setup");
       }
     }
@@ -758,7 +758,7 @@ int main(void) {
   /* Thin 160a: rename stand-in (letter cinematic PARKED). Status may be overwritten by 1528.
    * Thin 2564 congress: unknown46[5] + country_name prove confirm; wave may clobber status. */
   if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
-    fprintf(stderr, "smoke_ai_king: country_name after declare: '%s'\n",
+    fprintf(stderr, "unit_ai_king: country_name after declare: '%s'\n",
             col1.player[0].country_name);
     return fail("160a declare should rename player.country_name to United Colonies");
   }
@@ -789,7 +789,7 @@ int main(void) {
     const int crown_sea = count_nation_sea(&units, 1);
     const int crown_land = count_nation_land(&units, 1);
     if (crown_sea < 1 || crown_land < 6) {
-      fprintf(stderr, "smoke_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥6 land)\n",
+      fprintf(stderr, "unit_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥6 land)\n",
               crown_sea, crown_land);
       return fail("0982 MoW spawn should board ≥6 land into hold (or ship+land)");
     }
@@ -804,7 +804,7 @@ int main(void) {
         continue;
       }
       if (!map_tile_is_water(&map, u->x, u->y)) {
-        fprintf(stderr, "smoke_ai_king: MoW at (%d,%d) not on water\n", u->x, u->y);
+        fprintf(stderr, "unit_ai_king: MoW at (%d,%d) not on water\n", u->x, u->y);
         return fail("0982 MoW must spawn on water tile");
       }
       /* Adjacent to Jamestown (5,5). */
@@ -826,7 +826,7 @@ int main(void) {
    * Same-turn war_act may overwrite with capture or 2244 cannot-afford. */
   if (!strstr(status, "Expeditionary Force") && !strstr(status, "lands near") &&
       !strstr(status, "captured") && !strstr(status, "Cannot afford mercenaries")) {
-    fprintf(stderr, "smoke_ai_king: status after wave: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: status after wave: '%s'\n", status);
     return fail("0982 wave should set thin 1528 @INVASION (or same-turn capture/merc) status");
   }
   /* Pools seeded on declare then drained; still expect REF-present stand-in. */
@@ -843,7 +843,7 @@ int main(void) {
   }
   if (!strstr(status, "Cannot afford mercenaries") && !strstr(status, "captured") &&
       !strstr(status, "Expeditionary Force") && !strstr(status, "lands near")) {
-    fprintf(stderr, "smoke_ai_king: status after no-gold declare: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: status after no-gold declare: '%s'\n", status);
     return fail("no gold → 2244 should set cannot-afford (or same-turn wave/capture) status");
   }
   /* Capture may overwrite cannot-afford; force a clean refuse check next. */
@@ -876,7 +876,7 @@ int main(void) {
       return fail("2244 cannot-afford probe should set unknown46[3]");
     }
     if (!strstr(status, "Cannot afford mercenaries")) {
-      fprintf(stderr, "smoke_ai_king: cannot-afford status: '%s'\n", status);
+      fprintf(stderr, "unit_ai_king: cannot-afford status: '%s'\n", status);
       return fail("2244 gold-insufficient should write Cannot afford mercenaries.");
     }
     /* Second wartime turn: gate blocks refuse-status spam. */
@@ -950,7 +950,7 @@ int main(void) {
     return fail("10f0 should spawn intervention (nation 2) when REF empty");
   }
   if (intervene_spawned < 2 && backup_drained < 2) {
-    fprintf(stderr, "smoke_ai_king: 10f0 spawned=%d drained=%d (want >=2 either)\n",
+    fprintf(stderr, "unit_ai_king: 10f0 spawned=%d drained=%d (want >=2 either)\n",
             intervene_spawned, backup_drained);
     return fail("10f0 deepen should spawn >=2 units or drain backup by 2");
   }
@@ -989,7 +989,7 @@ int main(void) {
                             (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3]);
     if (intervene_spawned_lo > 2 || drained_lo > 2) {
       fprintf(stderr,
-              "smoke_ai_king: 10f0@diff1 spawned=%d drained=%d (want ≤2 each)\n",
+              "unit_ai_king: 10f0@diff1 spawned=%d drained=%d (want ≤2 each)\n",
               intervene_spawned_lo, drained_lo);
       return fail("10f0 difficulty<2 must not third-landing");
     }
@@ -1034,7 +1034,7 @@ int main(void) {
                               (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3];
     const int drained3 = backup_before3 - backup_after3;
     if (intervene_spawned3 < 3 && drained3 < 3) {
-      fprintf(stderr, "smoke_ai_king: 10f0@diff2 spawned=%d drained=%d (want >=3 either)\n",
+      fprintf(stderr, "unit_ai_king: 10f0@diff2 spawned=%d drained=%d (want >=3 either)\n",
               intervene_spawned3, drained3);
       return fail("10f0 difficulty≥2 should spawn/drain up to 3 landings");
     }
@@ -1042,7 +1042,7 @@ int main(void) {
     if (col1.head.backup_force[0] > reg_before3 - 1 ||
         col1.head.backup_force[1] > drg_before3 - 1) {
       fprintf(stderr,
-              "smoke_ai_king: 10f0@diff2 mix pools reg %u→%u drg %u→%u (want ≥1 each)\n",
+              "unit_ai_king: 10f0@diff2 mix pools reg %u→%u drg %u→%u (want ≥1 each)\n",
               (unsigned)reg_before3, (unsigned)col1.head.backup_force[0],
               (unsigned)drg_before3, (unsigned)col1.head.backup_force[1]);
       return fail("10f0@diff2 third landing should keep Regular+Dragoon mix");
@@ -1063,7 +1063,7 @@ int main(void) {
       }
       if (reg_land_after <= reg_land_before || drg_land_after <= drg_land_before) {
         fprintf(stderr,
-                "smoke_ai_king: 10f0@diff2 land types reg %d→%d drg %d→%d\n",
+                "unit_ai_king: 10f0@diff2 land types reg %d→%d drg %d→%d\n",
                 reg_land_before, reg_land_after, drg_land_before, drg_land_after);
         return fail("10f0@diff2 should spawn both Regular and Dragoon (mix)");
       }
@@ -1100,7 +1100,7 @@ int main(void) {
     const int n3_spawned = count_nation(&units, 3) - n3_before;
     const int n2_spawned = count_nation(&units, 2) - n2_before;
     if (n3_spawned < 1) {
-      fprintf(stderr, "smoke_ai_king: intervene nation pick n3=%d n2=%d\n", n3_spawned,
+      fprintf(stderr, "unit_ai_king: intervene nation pick n3=%d n2=%d\n", n3_spawned,
               n2_spawned);
       return fail("10f0 should intervene as Euro with most colonies (nation 3)");
     }
@@ -1173,7 +1173,7 @@ int main(void) {
     }
     /* Thin conquest status (full chrome PARKED): exact phrase + colony name. */
     if (!strstr(status, "The King's forces have captured") || !strstr(status, "Jamestown")) {
-      fprintf(stderr, "smoke_ai_king: capture status: '%s'\n", status);
+      fprintf(stderr, "unit_ai_king: capture status: '%s'\n", status);
       return fail("REF capture should set 'The King's forces have captured %s!' status");
     }
     {
@@ -1192,7 +1192,7 @@ int main(void) {
       }
       if (!fortified) {
         const ColonizeUnit* cu = units_get_const(&units, cap_id);
-        fprintf(stderr, "smoke_ai_king: post-capture cap orders=%d (want a FORTIFY Regular)\n",
+        fprintf(stderr, "unit_ai_king: post-capture cap orders=%d (want a FORTIFY Regular)\n",
                 cu ? cu->orders : -1);
         return fail("capture should fortify one Regular on colony tile");
       }
@@ -1249,7 +1249,7 @@ int main(void) {
         }
       }
       if (fortified != 2) {
-        fprintf(stderr, "smoke_ai_king: capture cap-2 fortified=%d (want 2)\n", fortified);
+        fprintf(stderr, "unit_ai_king: capture cap-2 fortified=%d (want 2)\n", fortified);
         return fail("capture with two Regulars should fortify both when second has moves");
       }
     }
@@ -1260,13 +1260,13 @@ int main(void) {
       }
       if (hunter->orders != UNITS_ORDER_AI_MOVE || hunter->goto_x != 12 ||
           hunter->goto_y != 5) {
-        fprintf(stderr, "smoke_ai_king: hunt goto=(%d,%d) orders=%d (want AI_MOVE→12,5)\n",
+        fprintf(stderr, "unit_ai_king: hunt goto=(%d,%d) orders=%d (want AI_MOVE→12,5)\n",
                 hunter->goto_x, hunter->goto_y, hunter->orders);
         return fail("REF Regular should AI_MOVE toward nearest human land unit");
       }
       /* One step east toward prey (10,5) → (11,5). */
       if (hunter->x != 11 || hunter->y != 5) {
-        fprintf(stderr, "smoke_ai_king: hunt pos=(%d,%d) (want 11,5)\n", hunter->x,
+        fprintf(stderr, "unit_ai_king: hunt pos=(%d,%d) (want 11,5)\n", hunter->x,
                 hunter->y);
         return fail("REF land hunt should step toward human land unit");
       }
@@ -1345,13 +1345,13 @@ int main(void) {
           return fail("REF stack extra Regular should remain active");
         }
         if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
-          fprintf(stderr, "smoke_ai_king: stack extra orders=%d (want FORTIFY cap-2)\n",
+          fprintf(stderr, "unit_ai_king: stack extra orders=%d (want FORTIFY cap-2)\n",
                   ex->orders);
           return fail("REF stack: second Regular with moves should fortify (cap 2)");
         }
       }
       if (fortified != 2) {
-        fprintf(stderr, "smoke_ai_king: fortified Regulars on colony=%d (want exactly 2)\n",
+        fprintf(stderr, "unit_ai_king: fortified Regulars on colony=%d (want exactly 2)\n",
                 fortified);
         return fail("REF stack should fortify two Regulars on colony when second has moves");
       }
@@ -1385,7 +1385,7 @@ int main(void) {
           return fail("REF stack: third Regular must hunt when two already fortified");
         }
         if (th->orders != UNITS_ORDER_AI_MOVE) {
-          fprintf(stderr, "smoke_ai_king: stack third orders=%d (want AI_MOVE hunt)\n",
+          fprintf(stderr, "unit_ai_king: stack third orders=%d (want AI_MOVE hunt)\n",
                   th->orders);
           return fail("REF stack third Regular should hunt, not fortify");
         }
@@ -1488,7 +1488,7 @@ int main(void) {
         }
         if (h->orders != UNITS_ORDER_AI_MOVE || h->goto_x != 12 || h->goto_y != 5) {
           fprintf(stderr,
-                  "smoke_ai_king: after-capture next goto=(%d,%d) orders=%d "
+                  "unit_ai_king: after-capture next goto=(%d,%d) orders=%d "
                   "(want next colony 12,5 not decoy 7,5)\n",
                   h->goto_x, h->goto_y, h->orders);
           return fail("after-capture idle extra should hunt next nearest human colony");
@@ -1564,7 +1564,7 @@ int main(void) {
         return fail("idle fortify Regular should remain active");
       }
       if (idle->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "smoke_ai_king: idle fortify orders=%d (want FORTIFY)\n",
+        fprintf(stderr, "unit_ai_king: idle fortify orders=%d (want FORTIFY)\n",
                 idle->orders);
         return fail("Regular on crown colony with no adjacent foe should fortify");
       }
@@ -1625,7 +1625,7 @@ int main(void) {
           return fail("idle fortify extras: extra Regular should remain active");
         }
         if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
-          fprintf(stderr, "smoke_ai_king: idle extras orders=%d (want FORTIFY cap-2)\n",
+          fprintf(stderr, "unit_ai_king: idle extras orders=%d (want FORTIFY cap-2)\n",
                   ex->orders);
           return fail("idle fortify extras: second Regular with moves should fortify");
         }
@@ -1643,7 +1643,7 @@ int main(void) {
           }
         }
         if (fortified != 2) {
-          fprintf(stderr, "smoke_ai_king: idle extras fortified=%d (want 2)\n", fortified);
+          fprintf(stderr, "unit_ai_king: idle extras fortified=%d (want 2)\n", fortified);
           return fail("idle fortify extras should fortify two Regulars when second has moves");
         }
       }
@@ -1677,7 +1677,7 @@ int main(void) {
           return fail("idle fortify third Regular must hunt when two already fortified");
         }
         if (th->orders != UNITS_ORDER_AI_MOVE) {
-          fprintf(stderr, "smoke_ai_king: idle third orders=%d (want AI_MOVE hunt)\n",
+          fprintf(stderr, "unit_ai_king: idle third orders=%d (want AI_MOVE hunt)\n",
                   th->orders);
           return fail("idle fortify third Regular should hunt");
         }
@@ -1738,7 +1738,7 @@ int main(void) {
           return fail("capital garrison Regular should remain active");
         }
         if (g->orders != UNITS_ORDER_FORTIFY) {
-          fprintf(stderr, "smoke_ai_king: capital garrison orders=%d (want FORTIFY)\n",
+          fprintf(stderr, "unit_ai_king: capital garrison orders=%d (want FORTIFY)\n",
                   g->orders);
           return fail("idle Regular on captured human capital should fortify");
         }
@@ -1774,7 +1774,7 @@ int main(void) {
           return fail("fortified capital garrison should remain active");
         }
         if (g->orders != UNITS_ORDER_FORTIFIED) {
-          fprintf(stderr, "smoke_ai_king: capital stay orders=%d (want FORTIFIED)\n",
+          fprintf(stderr, "unit_ai_king: capital stay orders=%d (want FORTIFIED)\n",
                   g->orders);
           return fail("already-FORTIFIED Regular on capital must stay garrisoned");
         }
@@ -1841,7 +1841,7 @@ int main(void) {
         return fail("Dragoon capturer should remain active");
       }
       if (d->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "smoke_ai_king: Dragoon capture orders=%d (want FORTIFY)\n",
+        fprintf(stderr, "unit_ai_king: Dragoon capture orders=%d (want FORTIFY)\n",
                 d->orders);
         return fail("capture with no Regular should fortify one Dragoon");
       }
@@ -1904,7 +1904,7 @@ int main(void) {
           return fail("idle Cont. Cav garrison should remain active");
         }
         if (cav->orders != UNITS_ORDER_FORTIFY) {
-          fprintf(stderr, "smoke_ai_king: Cont. Cav idle orders=%d (want FORTIFY)\n",
+          fprintf(stderr, "unit_ai_king: Cont. Cav idle orders=%d (want FORTIFY)\n",
                   cav->orders);
           return fail("idle Cont. Cav on crown colony with no Regular should fortify");
         }
@@ -1954,7 +1954,7 @@ int main(void) {
             return fail("cav stack: extra Dragoon should remain active");
           }
           if (ex->orders != UNITS_ORDER_FORTIFY && ex->orders != UNITS_ORDER_FORTIFIED) {
-            fprintf(stderr, "smoke_ai_king: cav stack extra orders=%d (want FORTIFY cap-2)\n",
+            fprintf(stderr, "unit_ai_king: cav stack extra orders=%d (want FORTIFY cap-2)\n",
                     ex->orders);
             return fail("cav stack: second Dragoon with moves should fortify (cap 2)");
           }
@@ -1971,7 +1971,7 @@ int main(void) {
           }
         }
         if (fortified != 2) {
-          fprintf(stderr, "smoke_ai_king: cav stack fortified=%d (want 2)\n", fortified);
+          fprintf(stderr, "unit_ai_king: cav stack fortified=%d (want 2)\n", fortified);
           return fail("cav stack should fortify two cavalry when second has moves");
         }
       }
@@ -2098,7 +2098,7 @@ int main(void) {
         return fail("Artillery capturer should remain active");
       }
       if (art->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "smoke_ai_king: Artillery after-capture orders=%d (want FORTIFY)\n",
+        fprintf(stderr, "unit_ai_king: Artillery after-capture orders=%d (want FORTIFY)\n",
                 art->orders);
         return fail("Artillery on newly captured colony should FORTIFY (Euro pattern)");
       }
@@ -2132,7 +2132,7 @@ int main(void) {
         return fail("idle Artillery on crown colony should remain active");
       }
       if (art->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "smoke_ai_king: idle Artillery orders=%d (want FORTIFY)\n",
+        fprintf(stderr, "unit_ai_king: idle Artillery orders=%d (want FORTIFY)\n",
                 art->orders);
         return fail("idle Artillery on crown colony should FORTIFY (Euro pattern)");
       }
@@ -2178,7 +2178,7 @@ int main(void) {
         return fail("fortified Artillery stay should remain active");
       }
       if (art->orders != UNITS_ORDER_FORTIFIED) {
-        fprintf(stderr, "smoke_ai_king: Artillery stay orders=%d (want FORTIFIED)\n",
+        fprintf(stderr, "unit_ai_king: Artillery stay orders=%d (want FORTIFIED)\n",
                 art->orders);
         return fail("already-FORTIFIED Artillery on crown colony must stay");
       }
@@ -2289,7 +2289,7 @@ int main(void) {
       /* Residual wartime force[0]+=1 only — no Regular land drain this beat. */
       if (col1.head.expeditionary_force[0] != reg_before_bias + 1) {
         fprintf(stderr,
-                "smoke_ai_king: fortified bias force[0] %u→%u (want residual +1 only)\n",
+                "unit_ai_king: fortified bias force[0] %u→%u (want residual +1 only)\n",
                 (unsigned)reg_before_bias, (unsigned)col1.head.expeditionary_force[0]);
         return fail("fortified Artillery bias must not drain Regular pool");
       }
@@ -2334,7 +2334,7 @@ int main(void) {
       /* Drain Regular then residual +1 → same pool count. */
       if (col1.head.expeditionary_force[0] != reg_before_open) {
         fprintf(stderr,
-                "smoke_ai_king: unfortified force[0] %u→%u (want drain+residual net 0)\n",
+                "unit_ai_king: unfortified force[0] %u→%u (want drain+residual net 0)\n",
                 (unsigned)reg_before_open, (unsigned)col1.head.expeditionary_force[0]);
         return fail("unfortified wave should drain Regular (net residual cancels)");
       }
@@ -2386,7 +2386,7 @@ int main(void) {
         return fail("Artillery hunter should remain active");
       }
       if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
-        fprintf(stderr, "smoke_ai_king: Artillery goto=(%d,%d) orders=%d (want fortified 5,5)\n",
+        fprintf(stderr, "unit_ai_king: Artillery goto=(%d,%d) orders=%d (want fortified 5,5)\n",
                 art->goto_x, art->goto_y, art->orders);
         return fail("Artillery should prefer fortified human colony over nearer unit");
       }
@@ -2444,7 +2444,7 @@ int main(void) {
         }
         if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
           fprintf(stderr,
-                  "smoke_ai_king: Artillery adj-fort goto=(%d,%d) orders=%d "
+                  "unit_ai_king: Artillery adj-fort goto=(%d,%d) orders=%d "
                   "(want fortified 5,5 not soft 10,5)\n",
                   art->goto_x, art->goto_y, art->orders);
           return fail("Artillery must not let adjacent unfortified override fortified hunt");
@@ -2521,7 +2521,7 @@ int main(void) {
       }
       if (drg->orders != UNITS_ORDER_AI_MOVE || drg->goto_x != 14 || drg->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: Dragoon goto=(%d,%d) orders=%d (want open unit 14,5 not fort 5,5)\n",
+                "unit_ai_king: Dragoon goto=(%d,%d) orders=%d (want open unit 14,5 not fort 5,5)\n",
                 drg->goto_x, drg->goto_y, drg->orders);
         return fail("Dragoon should prefer open land unit over nearer fortified colony");
       }
@@ -2592,7 +2592,7 @@ int main(void) {
       }
       if (cav->orders != UNITS_ORDER_AI_MOVE || cav->goto_x != 14 || cav->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: Cont. Cav goto=(%d,%d) orders=%d (want open 14,5 not fort 5,5)\n",
+                "unit_ai_king: Cont. Cav goto=(%d,%d) orders=%d (want open 14,5 not fort 5,5)\n",
                 cav->goto_x, cav->goto_y, cav->orders);
         return fail("Cont. Cav should prefer open land unit over nearer fortified colony");
       }
@@ -2653,7 +2653,7 @@ int main(void) {
         }
         if (army->orders != UNITS_ORDER_AI_MOVE || army->goto_x != 5 || army->goto_y != 5) {
           fprintf(stderr,
-                  "smoke_ai_king: Cont. Army goto=(%d,%d) orders=%d (want fort 5,5 not open 14,5)\n",
+                  "unit_ai_king: Cont. Army goto=(%d,%d) orders=%d (want fort 5,5 not open 14,5)\n",
                   army->goto_x, army->goto_y, army->orders);
           return fail("Cont. Army should stay nearest (fort colony), not open-land bias");
         }
@@ -2728,12 +2728,12 @@ int main(void) {
         return fail("MoW with cargo should remain active");
       }
       if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 4 || mow->goto_y != 5) {
-        fprintf(stderr, "smoke_ai_king: MoW goto=(%d,%d) orders=%d (want AI_SAIL→4,5)\n",
+        fprintf(stderr, "unit_ai_king: MoW goto=(%d,%d) orders=%d (want AI_SAIL→4,5)\n",
                 mow->goto_x, mow->goto_y, mow->orders);
         return fail("MoW with cargo should AI_SAIL toward water adjacent to human colony");
       }
       if (mow->x < 3) {
-        fprintf(stderr, "smoke_ai_king: MoW pos=(%d,%d) (want step toward coast)\n", mow->x,
+        fprintf(stderr, "unit_ai_king: MoW pos=(%d,%d) (want step toward coast)\n", mow->x,
                 mow->y);
         return fail("MoW with cargo should step toward human coast water");
       }
@@ -2781,7 +2781,7 @@ int main(void) {
         return fail("MoW should remain after coastal unload");
       }
       if (mow->cargo_count != cargo_before - expect_unload) {
-        fprintf(stderr, "smoke_ai_king: MoW cargo after unload %d (want %d)\n",
+        fprintf(stderr, "unit_ai_king: MoW cargo after unload %d (want %d)\n",
                 mow->cargo_count, cargo_before - expect_unload);
         return fail("MoW adjacent to human colony coast should unload ≤moves cargo");
       }
@@ -2895,7 +2895,7 @@ int main(void) {
         return fail("MoW should remain after multi-unload");
       }
       if (mow->cargo_count != 1) {
-        fprintf(stderr, "smoke_ai_king: multi-unload cargo=%d (want 1 leftover)\n",
+        fprintf(stderr, "unit_ai_king: multi-unload cargo=%d (want 1 leftover)\n",
                 mow->cargo_count);
         return fail("MoW multi-unload should dump 2 of 3 when moves_left=2");
       }
@@ -2908,7 +2908,7 @@ int main(void) {
         }
       }
       if (ashore_after < ashore_before + 2) {
-        fprintf(stderr, "smoke_ai_king: multi-unload ashore %d→%d (want +2)\n",
+        fprintf(stderr, "unit_ai_king: multi-unload ashore %d→%d (want +2)\n",
                 ashore_before, ashore_after);
         return fail("MoW multi-unload should place 2 crown land ashore");
       }
@@ -2937,7 +2937,7 @@ int main(void) {
         }
         if (fortified < 1 || fortified > 2 || fortified > regulars_on) {
           fprintf(stderr,
-                  "smoke_ai_king: multi-unload fortify count=%d on-colony Regulars=%d "
+                  "unit_ai_king: multi-unload fortify count=%d on-colony Regulars=%d "
                   "(want 1..2 FORTIFY per cap-2)\n",
                   fortified, regulars_on);
           return fail("multi-unload capture should fortify one or two Regulars (cap 2)");
@@ -3022,7 +3022,7 @@ int main(void) {
       }
       if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 13 || mow->goto_y != 14) {
         fprintf(stderr,
-                "smoke_ai_king: post-full-unload MoW goto=(%d,%d) orders=%d "
+                "unit_ai_king: post-full-unload MoW goto=(%d,%d) orders=%d "
                 "(want AI_SAIL→13,14 next coast)\n",
                 mow->goto_x, mow->goto_y, mow->orders);
         return fail("after full unload with moves left MoW should AI_SAIL to next human coast");
@@ -3100,7 +3100,7 @@ int main(void) {
         return fail("MoW should remain after post-sail unload");
       }
       if (mow->cargo_count != 0) {
-        fprintf(stderr, "smoke_ai_king: post-sail MoW cargo=%d (want 0 after adjacent unload)\n",
+        fprintf(stderr, "unit_ai_king: post-sail MoW cargo=%d (want 0 after adjacent unload)\n",
                 mow->cargo_count);
         return fail("after coast sail step MoW should unload when already adjacent");
       }
@@ -3110,7 +3110,7 @@ int main(void) {
           return fail("post-sail unload should put Regular ashore");
         }
         if (pax->x != 5 || pax->y != 5) {
-          fprintf(stderr, "smoke_ai_king: post-sail pax at (%d,%d) (want colony 5,5)\n",
+          fprintf(stderr, "unit_ai_king: post-sail pax at (%d,%d) (want colony 5,5)\n",
                   pax->x, pax->y);
           return fail("post-sail unload should prefer human colony tile");
         }
@@ -3195,7 +3195,7 @@ int main(void) {
         return fail("MoW should remain after Dragoon coastal unload");
       }
       if (mow->cargo_count != cargo_before - 1) {
-        fprintf(stderr, "smoke_ai_king: MoW cargo after Dragoon unload %d (want %d)\n",
+        fprintf(stderr, "unit_ai_king: MoW cargo after Dragoon unload %d (want %d)\n",
                 mow->cargo_count, cargo_before - 1);
         return fail("MoW with Dragoon-only cargo should unload one Dragoon");
       }
@@ -3264,12 +3264,12 @@ int main(void) {
       }
       if (mow->orders != UNITS_ORDER_AI_SAIL || mow->goto_x != 4 || mow->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: empty MoW goto=(%d,%d) orders=%d (want AI_SAIL→4,5)\n",
+                "unit_ai_king: empty MoW goto=(%d,%d) orders=%d (want AI_SAIL→4,5)\n",
                 mow->goto_x, mow->goto_y, mow->orders);
         return fail("idle empty MoW should AI_SAIL toward human coast water");
       }
       if (mow->x < 3) {
-        fprintf(stderr, "smoke_ai_king: empty MoW pos=(%d,%d) (want step toward coast)\n",
+        fprintf(stderr, "unit_ai_king: empty MoW pos=(%d,%d) (want step toward coast)\n",
                 mow->x, mow->y);
         return fail("idle empty MoW should step toward human coast water");
       }
@@ -3310,7 +3310,7 @@ int main(void) {
     return fail("2244 should set merc-hired unknown46[3]");
   }
   if (col1.nation[0].gold != gold_before - 300) {
-    fprintf(stderr, "smoke_ai_king: gold after merc %u (want %u)\n",
+    fprintf(stderr, "unit_ai_king: gold after merc %u (want %u)\n",
             (unsigned)col1.nation[0].gold, (unsigned)(gold_before - 300));
     return fail("2244 should spend 300 gold");
   }
@@ -3347,11 +3347,11 @@ int main(void) {
     }
   }
   if (!strstr(status, "Mercenaries join") || !strstr(status, "Continental cause")) {
-    fprintf(stderr, "smoke_ai_king: status after merc: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: status after merc: '%s'\n", status);
     return fail("2244 should set hire-dialog merc status line");
   }
   if (!strstr(status, "300") && !strstr(status, "gold")) {
-    fprintf(stderr, "smoke_ai_king: merc gold status: '%s'\n", status);
+    fprintf(stderr, "unit_ai_king: merc gold status: '%s'\n", status);
     return fail("2244 merc status should mention gold spent");
   }
   const int human_after = count_nation(&units, 0);
@@ -3402,17 +3402,17 @@ int main(void) {
     const ColonizeUnit* du = units_get_const(&units, did);
     const ColonizeUnit* ru = units_get_const(&units, rid);
     if (!su || !su->active || su->type_index != ty_cont_army) {
-      fprintf(stderr, "smoke_ai_king: Soldier type after 1eca: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: Soldier type after 1eca: %d (want %d)\n",
               su ? su->type_index : -1, ty_cont_army);
       return fail("1eca should promote Soldier → Continental Army");
     }
     if (!du || !du->active || du->type_index != ty_cont_cav) {
-      fprintf(stderr, "smoke_ai_king: Dragoon type after 1eca: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: Dragoon type after 1eca: %d (want %d)\n",
               du ? du->type_index : -1, ty_cont_cav);
       return fail("1eca should promote Dragoon → Continental Cavalry");
     }
     if (!ru || !ru->active || ru->type_index != ty_vet_soldier) {
-      fprintf(stderr, "smoke_ai_king: Regular type after 1eca: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: Regular type after 1eca: %d (want %d)\n",
               ru ? ru->type_index : -1, ty_vet_soldier);
       return fail("1eca SoL>50 should promote Regular → Veteran Soldier");
     }
@@ -3427,7 +3427,7 @@ int main(void) {
   {
     const int sol45w = ai_king_sol_percent(&ctx, 0);
     if (sol45w != 45) {
-      fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 45) for mid-band 1eca\n",
+      fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 45) for mid-band 1eca\n",
               sol45w);
       return fail("1eca mid-band SoL setup");
     }
@@ -3453,12 +3453,12 @@ int main(void) {
     const ColonizeUnit* su = units_get_const(&units, sid2);
     const ColonizeUnit* ru = units_get_const(&units, rid2);
     if (!su || !su->active || su->type_index != ty_vet_soldier) {
-      fprintf(stderr, "smoke_ai_king: Soldier type SoL45: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: Soldier type SoL45: %d (want %d)\n",
               su ? su->type_index : -1, ty_vet_soldier);
       return fail("1eca SoL 40-50 should promote Soldier → Veteran Soldier");
     }
     if (!ru || !ru->active || ru->type_index != ty_regular) {
-      fprintf(stderr, "smoke_ai_king: Regular type SoL45: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: Regular type SoL45: %d (want %d)\n",
               ru ? ru->type_index : -1, ty_regular);
       return fail("1eca SoL 40-50 should leave Regular unpromoted");
     }
@@ -3474,7 +3474,7 @@ int main(void) {
   {
     const int sol50 = ai_king_sol_percent(&ctx, 0);
     if (sol50 != 50) {
-      fprintf(stderr, "smoke_ai_king: unexpected SoL %d (want 50) for band edge\n", sol50);
+      fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 50) for band edge\n", sol50);
       return fail("1eca SoL=50 band-edge setup");
     }
   }
@@ -3519,21 +3519,21 @@ int main(void) {
       const ColonizeUnit* du = units_get_const(&units, did50);
       const ColonizeUnit* ca = units_get_const(&units, ca50);
       if (!su || !su->active || su->type_index != ty_vet_soldier) {
-        fprintf(stderr, "smoke_ai_king: Soldier type SoL50: %d (want %d)\n",
+        fprintf(stderr, "unit_ai_king: Soldier type SoL50: %d (want %d)\n",
                 su ? su->type_index : -1, ty_vet_soldier);
         snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
                  army_name_save);
         return fail("1eca SoL=50 should promote Soldier → Veteran Soldier (not Cont.)");
       }
       if (!du || !du->active || du->type_index != ty_dragoon) {
-        fprintf(stderr, "smoke_ai_king: Dragoon type SoL50: %d (want %d)\n",
+        fprintf(stderr, "unit_ai_king: Dragoon type SoL50: %d (want %d)\n",
                 du ? du->type_index : -1, ty_dragoon);
         snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
                  army_name_save);
         return fail("1eca SoL=50 mid-band should leave Dragoon unpromoted");
       }
       if (!ca || !ca->active || ca->type_index != ty_cont_army) {
-        fprintf(stderr, "smoke_ai_king: Cont. Army type SoL50: %d (want %d)\n",
+        fprintf(stderr, "unit_ai_king: Cont. Army type SoL50: %d (want %d)\n",
                 ca ? ca->type_index : -1, ty_cont_army);
         snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
                  army_name_save);
@@ -3577,7 +3577,7 @@ int main(void) {
     const int sol_nat = ai_king_sol_percent(&ctx, 0);
     /* (30*4 + 70*1)/5 = 38 — nation alone would not Continental-promote. */
     if (sol_nat != 38) {
-      fprintf(stderr, "smoke_ai_king: unexpected nation SoL %d (want 38) for colony-SoL\n",
+      fprintf(stderr, "unit_ai_king: unexpected nation SoL %d (want 38) for colony-SoL\n",
               sol_nat);
       return fail("1eca colony-SoL nation aggregate setup");
     }
@@ -3610,12 +3610,12 @@ int main(void) {
     const ColonizeUnit* hi = units_get_const(&units, sid_hi);
     const ColonizeUnit* lo = units_get_const(&units, sid_lo);
     if (!hi || !hi->active || hi->type_index != ty_cont_army) {
-      fprintf(stderr, "smoke_ai_king: high-SoL colony Soldier type: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: high-SoL colony Soldier type: %d (want %d)\n",
               hi ? hi->type_index : -1, ty_cont_army);
       return fail("1eca colony-SoL>50 at tile should promote Soldier → Continental Army");
     }
     if (!lo || !lo->active || lo->type_index != ty_soldier) {
-      fprintf(stderr, "smoke_ai_king: low-SoL colony Soldier type: %d (want %d)\n",
+      fprintf(stderr, "unit_ai_king: low-SoL colony Soldier type: %d (want %d)\n",
               lo ? lo->type_index : -1, ty_soldier);
       return fail("1eca low colony-SoL should leave Soldier unpromoted");
     }
@@ -3669,7 +3669,7 @@ int main(void) {
         return fail("Cont. Army should remain active");
       }
       if (ca->orders != UNITS_ORDER_AI_MOVE || ca->goto_x != 5 || ca->goto_y != 5) {
-        fprintf(stderr, "smoke_ai_king: Cont. Army goto=(%d,%d) orders=%d (want capital 5,5)\n",
+        fprintf(stderr, "unit_ai_king: Cont. Army goto=(%d,%d) orders=%d (want capital 5,5)\n",
                 ca->goto_x, ca->goto_y, ca->orders);
         return fail("Cont. Army should capital-rally toward founding capital");
       }
@@ -3677,7 +3677,7 @@ int main(void) {
         return fail("Cont. Cav should remain active");
       }
       if (cav->orders != UNITS_ORDER_AI_MOVE || cav->goto_x != 5 || cav->goto_y != 5) {
-        fprintf(stderr, "smoke_ai_king: Cont. Cav goto=(%d,%d) orders=%d (want capital 5,5)\n",
+        fprintf(stderr, "unit_ai_king: Cont. Cav goto=(%d,%d) orders=%d (want capital 5,5)\n",
                 cav->goto_x, cav->goto_y, cav->orders);
         return fail("Cont. Cav should capital-rally toward founding capital");
       }
@@ -3712,16 +3712,16 @@ int main(void) {
         return fail("Cont. Army on capital should remain active");
       }
       if (ca->x != 5 || ca->y != 5) {
-        fprintf(stderr, "smoke_ai_king: Cont. Army left capital to (%d,%d)\n", ca->x, ca->y);
+        fprintf(stderr, "unit_ai_king: Cont. Army left capital to (%d,%d)\n", ca->x, ca->y);
         return fail("Cont. Army already on founding capital should hold");
       }
       if (ca->orders == UNITS_ORDER_AI_MOVE && (ca->goto_x != 5 || ca->goto_y != 5)) {
-        fprintf(stderr, "smoke_ai_king: Cont. Army on capital goto=(%d,%d)\n", ca->goto_x,
+        fprintf(stderr, "unit_ai_king: Cont. Army on capital goto=(%d,%d)\n", ca->goto_x,
                 ca->goto_y);
         return fail("Cont. Army on capital must not AI_MOVE away from founding capital");
       }
       if (ca->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "smoke_ai_king: Cont. Army on capital orders=%d (want FORTIFY)\n",
+        fprintf(stderr, "unit_ai_king: Cont. Army on capital orders=%d (want FORTIFY)\n",
                 ca->orders);
         return fail("Cont. Army on founding capital should fortify (cap 2 pool)");
       }
@@ -3755,7 +3755,7 @@ int main(void) {
         return fail("Cont. Army must stay FORTIFY when Cav joins capital stack");
       }
       if (cav->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "smoke_ai_king: Cont. Cav cap-2 orders=%d (want FORTIFY)\n",
+        fprintf(stderr, "unit_ai_king: Cont. Cav cap-2 orders=%d (want FORTIFY)\n",
                 cav->orders);
         return fail("Cont. Cav with moves should fortify second slot on founding capital");
       }
@@ -3832,7 +3832,7 @@ int main(void) {
       }
       if (ca->orders != UNITS_ORDER_AI_MOVE || ca->goto_x != 5 || ca->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: Cont. Army MD slack goto=(%d,%d) orders=%d "
+                "unit_ai_king: Cont. Army MD slack goto=(%d,%d) orders=%d "
                 "(want capital 5,5 not distant 11,5)\n",
                 ca->goto_x, ca->goto_y, ca->orders);
         return fail("Cont. Army should prefer capital when MD comparable");
@@ -3842,7 +3842,7 @@ int main(void) {
       }
       if (cav->orders != UNITS_ORDER_AI_MOVE || cav->goto_x != 5 || cav->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: Cont. Cav MD slack goto=(%d,%d) orders=%d "
+                "unit_ai_king: Cont. Cav MD slack goto=(%d,%d) orders=%d "
                 "(want capital 5,5 not distant 11,5)\n",
                 cav->goto_x, cav->goto_y, cav->orders);
         return fail("Cont. Cav should prefer capital when MD comparable");
@@ -3920,7 +3920,7 @@ int main(void) {
       }
       if (h->orders != UNITS_ORDER_AI_MOVE || h->goto_x != 5 || h->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: capital MD bias goto=(%d,%d) orders=%d "
+                "unit_ai_king: capital MD bias goto=(%d,%d) orders=%d "
                 "(want capital 5,5 not distant 11,5)\n",
                 h->goto_x, h->goto_y, h->orders);
         return fail("REF idle hunter should prefer capital when MD comparable");
@@ -4003,7 +4003,7 @@ int main(void) {
       }
       if (art->orders != UNITS_ORDER_AI_MOVE || art->goto_x != 5 || art->goto_y != 5) {
         fprintf(stderr,
-                "smoke_ai_king: Artillery capital MD goto=(%d,%d) orders=%d "
+                "unit_ai_king: Artillery capital MD goto=(%d,%d) orders=%d "
                 "(want fortified capital 5,5 not distant 11,5)\n",
                 art->goto_x, art->goto_y, art->orders);
         return fail("Artillery siege should prefer fortified capital when MD slack");
@@ -4039,7 +4039,7 @@ int main(void) {
       ai_king_nation_turn(&ctx);
       const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
       if (sea_spawned != 1) {
-        fprintf(stderr, "smoke_ai_king: low-diff MoW sea_spawned=%d (want 1)\n",
+        fprintf(stderr, "unit_ai_king: low-diff MoW sea_spawned=%d (want 1)\n",
                 sea_spawned);
         return fail("diff<2 + force[2]≥2 must not spawn second MoW");
       }
@@ -4077,7 +4077,7 @@ int main(void) {
       ai_king_nation_turn(&ctx);
       const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
       if (sea_spawned < 2) {
-        fprintf(stderr, "smoke_ai_king: second MoW sea_spawned=%d (want ≥2)\n", sea_spawned);
+        fprintf(stderr, "unit_ai_king: second MoW sea_spawned=%d (want ≥2)\n", sea_spawned);
         return fail("diff≥2 + force[2]≥2 should spawn second MoW");
       }
     }
@@ -4139,12 +4139,12 @@ int main(void) {
       }
     }
     if (reg_after < reg_before + 1) {
-      fprintf(stderr, "smoke_ai_king: MoW hold Regular %d→%d (want +1)\n", reg_before,
+      fprintf(stderr, "unit_ai_king: MoW hold Regular %d→%d (want +1)\n", reg_before,
               reg_after);
       return fail("MoW hold should board Regular first when force[0]>0");
     }
     if (drg_after < drg_before + 2) {
-      fprintf(stderr, "smoke_ai_king: MoW hold Dragoon %d→%d (want +2)\n", drg_before,
+      fprintf(stderr, "unit_ai_king: MoW hold Dragoon %d→%d (want +2)\n", drg_before,
               drg_after);
       return fail("MoW hold should fill remaining slots with Dragoon from force[1]");
     }
@@ -4156,14 +4156,14 @@ int main(void) {
       const int embarked =
           (reg_after - reg_before) + (drg_after - drg_before);
       if (embarked != 3) {
-        fprintf(stderr, "smoke_ai_king: MoW hold embarked=%d (want 3 from force)\n",
+        fprintf(stderr, "unit_ai_king: MoW hold embarked=%d (want 3 from force)\n",
                 embarked);
         return fail("MoW hold Regular+Dragoon mix should embark exactly force total");
       }
     }
     /* force[1] fully drained; force[0] drained then tax residual +1 (1d42 crumb). */
     if (col1.head.expeditionary_force[1] != 0) {
-      fprintf(stderr, "smoke_ai_king: after mix unload force1=%u (want 0)\n",
+      fprintf(stderr, "unit_ai_king: after mix unload force1=%u (want 0)\n",
               (unsigned)col1.head.expeditionary_force[1]);
       return fail("MoW Regular+Dragoon unload should drain force[1] Dragoons");
     }
@@ -4215,7 +4215,7 @@ int main(void) {
     }
     const int land_spawned = count_nation_land(&units, 1) - land_before;
     if (land_spawned < 6) {
-      fprintf(stderr, "smoke_ai_king: MoW×6 land_spawned=%d (want ≥6)\n", land_spawned);
+      fprintf(stderr, "unit_ai_king: MoW×6 land_spawned=%d (want ≥6)\n", land_spawned);
       return fail("MoW×6 should board 6 land from force pools (capacity)");
     }
     int best_cargo = 0;
@@ -4235,12 +4235,12 @@ int main(void) {
     }
     /* Boarded 6; multi-unload ≤moves (4) may leave hold 2 + 4 ashore from hold. */
     if (best_cargo + ashore < 6 && land_spawned < 6) {
-      fprintf(stderr, "smoke_ai_king: MoW×6 cargo=%d ashore=%d land_spawned=%d\n",
+      fprintf(stderr, "unit_ai_king: MoW×6 cargo=%d ashore=%d land_spawned=%d\n",
               best_cargo, ashore, land_spawned);
       return fail("MoW×6 should fill cargo_ids via units_board (cap 6)");
     }
     if (land_spawned != 6) {
-      fprintf(stderr, "smoke_ai_king: MoW×6 land_spawned=%d (want 6; no invent)\n",
+      fprintf(stderr, "unit_ai_king: MoW×6 land_spawned=%d (want 6; no invent)\n",
               land_spawned);
       return fail("MoW×6 must board exactly force[] / capacity (no invent)");
     }
@@ -4408,7 +4408,7 @@ int main(void) {
         return fail("dump-goods CHOICE should OR chosen cargo boycott bit");
       }
       if (colonies.colonies[0].stock[pick] != stock_before - 75) {
-        fprintf(stderr, "smoke_ai_king: TEAPARTY stock got %d want %d\n",
+        fprintf(stderr, "unit_ai_king: TEAPARTY stock got %d want %d\n",
                 colonies.colonies[0].stock[pick], stock_before - 75);
         assets_msg_free(&game_txt);
         return fail("dump-goods @TEAPARTY should dump min(100,stock) from colony");
@@ -4468,7 +4468,7 @@ int main(void) {
       }
       if (!strstr(pop.queue[congress_qi].body, "independence from England") &&
           !strstr(pop.queue[congress_qi].body, "declare our independence")) {
-        fprintf(stderr, "smoke_ai_king: @DECLARE body: '%s'\n",
+        fprintf(stderr, "unit_ai_king: @DECLARE body: '%s'\n",
                 pop.queue[congress_qi].body);
         assets_msg_free(&game_txt);
         return fail("KING_CONGRESS body should use @DECLARE prose");
@@ -4555,7 +4555,7 @@ int main(void) {
         }
       }
       if (!found_invasion) {
-        fprintf(stderr, "smoke_ai_king: post-Confirm ARRIVAL queue_count=%d status='%s'\n",
+        fprintf(stderr, "unit_ai_king: post-Confirm ARRIVAL queue_count=%d status='%s'\n",
                 pop.queue_count, status);
         assets_msg_free(&game_txt);
         return fail("post-Confirm wave should enqueue @INVASION KING_ARRIVAL");
@@ -4686,7 +4686,7 @@ int main(void) {
         return fail("apply Decline must not spawn Continental merc");
       }
       if (!strstr(status, "Mercenaries declined")) {
-        fprintf(stderr, "smoke_ai_king: Decline status: '%s'\n", status);
+        fprintf(stderr, "unit_ai_king: Decline status: '%s'\n", status);
         return fail("apply Decline should write Mercenaries declined. status");
       }
       for (int i = 0; i < pop.queue_count; ++i) {
@@ -4733,7 +4733,7 @@ int main(void) {
         }
         if (arrival_ok != 2 || !found_intervention || !found_intervene) {
           fprintf(stderr,
-                  "smoke_ai_king: intervene ARRIVAL count=%d interv=%d arrive=%d\n",
+                  "unit_ai_king: intervene ARRIVAL count=%d interv=%d arrive=%d\n",
                   arrival_ok, found_intervention, found_intervene);
           return fail("10f0 intervene should enqueue @INTERVENTION + @INTERVENE once each");
         }
@@ -4767,7 +4767,7 @@ int main(void) {
         return fail("restless+ai_popups must leave WoI/congress clear");
       }
       if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
-        fprintf(stderr, "smoke_ai_king: restless+popups status: '%s'\n", status);
+        fprintf(stderr, "unit_ai_king: restless+popups status: '%s'\n", status);
         return fail("restless+ai_popups should still set restless status");
       }
       for (int i = 0; i < pop.queue_count; ++i) {
@@ -4849,7 +4849,7 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 2) {
-      fprintf(stderr, "smoke_ai_king: rev-lose2 endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: rev-lose2 endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
@@ -4858,7 +4858,7 @@ int main(void) {
       return fail("WoI + REF + no colonies should latch revolution lost");
     }
     if (!strstr(estatus, "control all colonies")) {
-      fprintf(stderr, "smoke_ai_king: rev-lose2 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: rev-lose2 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -4888,7 +4888,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution lose2 (no colonies) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution lose2 (no colonies) ok\n");
   }
 
   /* Revolution lose @LOSING1: WoI + REF + inland colony only (ports==0) → lost. */
@@ -4964,7 +4964,7 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 2) {
-      fprintf(stderr, "smoke_ai_king: rev-lose1 endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: rev-lose1 endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
@@ -4973,7 +4973,7 @@ int main(void) {
       return fail("WoI + REF + inland-only should latch revolution lost via ports");
     }
     if (!strstr(estatus, "control all ports") && !strstr(estatus, "ports in")) {
-      fprintf(stderr, "smoke_ai_king: rev-lose1 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: rev-lose1 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5003,7 +5003,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution lose1 (no ports, inland left) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution lose1 (no ports, inland left) ok\n");
   }
 
   /* Mid-war @WARN1/@WARN2: WoI + REF + exactly one coastal colony → INFO OKs;
@@ -5096,7 +5096,7 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 0) {
-      fprintf(stderr, "smoke_ai_king: warn1 endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: warn1 endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
@@ -5119,7 +5119,7 @@ int main(void) {
       return fail("warn2 should set unknown46[7] episode latch");
     }
     if (!strstr(estatus, "all but 1") || !strstr(estatus, "surrender")) {
-      fprintf(stderr, "smoke_ai_king: warn1 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: warn1 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5247,7 +5247,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution warn1/warn2 (one colony) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution warn1/warn2 (one colony) ok\n");
   }
 
   /* Mid-war @WARN3: crown pop share 50–89%; unknown46[10] episode. */
@@ -5450,7 +5450,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution warn3 (pop share) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution warn3 (pop share) ok\n");
   }
 
   /* Revolution lose @LOSING3: crown pop share ≥90%. */
@@ -5545,7 +5545,7 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 2) {
-      fprintf(stderr, "smoke_ai_king: lose3 endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: lose3 endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
@@ -5554,7 +5554,7 @@ int main(void) {
       return fail("crown pop ≥90% should latch revolution lost via @LOSING3");
     }
     if (!strstr(estatus, "over 90%") && !strstr(estatus, "90% of")) {
-      fprintf(stderr, "smoke_ai_king: lose3 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: lose3 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5584,7 +5584,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution lose3 (pop share) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution lose3 (pop share) ok\n");
   }
 
   /* Revolution win: WoI + year≥1850 + no crown units → unknown46[4]=1.
@@ -5662,7 +5662,7 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 1) {
-      fprintf(stderr, "smoke_ai_king: rev-win endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: rev-win endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
@@ -5673,7 +5673,7 @@ int main(void) {
     if (!strstr(estatus, "Expeditionary Force annihilated") &&
         !strstr(estatus, "accepts surrender") &&
         !strstr(estatus, "annihilated")) {
-      fprintf(stderr, "smoke_ai_king: rev-win status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: rev-win status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5704,7 +5704,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution win (1850) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution win (1850) ok\n");
   }
 
   /* Wartime 1850 stalemate: crown still alive → @RETIRING2 + unknown46[4]=2. */
@@ -5791,7 +5791,7 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 2) {
-      fprintf(stderr, "smoke_ai_king: retiring2 endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: retiring2 endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
@@ -5807,7 +5807,7 @@ int main(void) {
       return fail("@RETIRING2 should clear REF-present");
     }
     if (!strstr(estatus, "sues for peace") && !strstr(estatus, "War-weary")) {
-      fprintf(stderr, "smoke_ai_king: retiring2 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: retiring2 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5838,7 +5838,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution retiring2 (1850 stalemate) ok\n");
+    fprintf(stderr, "unit_ai_king: revolution retiring2 (1850 stalemate) ok\n");
   }
 
   /* Peacetime year≥1800: latch PEACE_1800 + @SCORED CHOICE; That's all → @RETIRING. */
@@ -5894,13 +5894,13 @@ int main(void) {
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 3) {
-      fprintf(stderr, "smoke_ai_king: scored endgame=%d status='%s'\n",
+      fprintf(stderr, "unit_ai_king: scored endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
       assets_msg_free(&game_txt);
       return fail("year≥1800 peacetime should latch PEACE_1800");
     }
     if (!strstr(estatus, "Scoring for this game")) {
-      fprintf(stderr, "smoke_ai_king: scored status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: scored status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       return fail("1800 end should set @SCORED status");
     }
@@ -5938,7 +5938,7 @@ int main(void) {
     ai_king_apply_popup_result(&ectx, &pop);
     if (!strstr(estatus, "steps down") || !strstr(estatus, "loyal service") ||
         !strstr(estatus, "Washington") || !strstr(estatus, "Jamestown")) {
-      fprintf(stderr, "smoke_ai_king: scored apply status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: scored apply status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       return fail("@SCORED That's all should set @RETIRING status");
     }
@@ -5958,7 +5958,7 @@ int main(void) {
       }
     }
     assets_msg_free(&game_txt);
-    fprintf(stderr, "smoke_ai_king: peacetime @SCORED/@RETIRING (1800) ok\n");
+    fprintf(stderr, "unit_ai_king: peacetime @SCORED/@RETIRING (1800) ok\n");
   }
 
   /* Peacetime Spring 1790: @SOONRETIRING0 once (unknown46[8]). */
@@ -6010,7 +6010,7 @@ int main(void) {
       return fail("1790 spring should set unknown46[8] @SOONRETIRING0 latch");
     }
     if (!strstr(estatus, "retire in 1800")) {
-      fprintf(stderr, "smoke_ai_king: soon0 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: soon0 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       return fail("1790 should set @SOONRETIRING0 status");
     }
@@ -6047,7 +6047,7 @@ int main(void) {
       }
     }
     assets_msg_free(&game_txt);
-    fprintf(stderr, "smoke_ai_king: peacetime @SOONRETIRING0 (1790) ok\n");
+    fprintf(stderr, "unit_ai_king: peacetime @SOONRETIRING0 (1790) ok\n");
   }
 
   /* Wartime 1840: @SOONRETIRING1 once (unknown46[9]). */
@@ -6140,7 +6140,7 @@ int main(void) {
       return fail("1840 WoI should set unknown46[9] @SOONRETIRING1 latch");
     }
     if (!strstr(estatus, "weary of this long war") && !strstr(estatus, "1850")) {
-      fprintf(stderr, "smoke_ai_king: soon1 status: '%s'\n", estatus);
+      fprintf(stderr, "unit_ai_king: soon1 status: '%s'\n", estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -6189,7 +6189,7 @@ int main(void) {
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: wartime @SOONRETIRING1 (1840) ok\n");
+    fprintf(stderr, "unit_ai_king: wartime @SOONRETIRING1 (1840) ok\n");
   }
 
   const uint8_t tax_final = col1.nation[0].tax_rate;
@@ -6202,7 +6202,7 @@ int main(void) {
   free(map.layer3);
   col1_save_free(&col1);
   fprintf(stderr,
-          "smoke_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d "
+          "unit_ai_king: ok (sol=%d tax=%u crown=%d intervene=%d boycott=%d merc=%d "
           "1eca=colony-SoL popups)\n",
           sol, tax_final, crown_final, intervene_final, boycott_final, merc_final);
   return 0;

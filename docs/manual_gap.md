@@ -153,7 +153,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; land `20e6` combat peels **Done** thin (unpark #4 settle/siege; deep −0x6790 PARKED) |
+| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`golden_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; land `20e6` combat peels **Done** thin (unpark #4 settle/siege; deep −0x6790 PARKED) |
 
 ### Win / end sequences
 

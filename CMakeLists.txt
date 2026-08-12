@@ -192,21 +192,21 @@ target_include_directories(smoke_savegame_incompatible PRIVATE
 
 add_test(NAME smoke_savegame_incompatible COMMAND smoke_savegame_incompatible)
 
-add_executable(smoke_col1_save
-  tests/smoke/test_col1_save.c
+add_executable(unit_col1_save
+  tests/unit/test_col1_save.c
 )
 
-target_include_directories(smoke_col1_save PRIVATE
+target_include_directories(unit_col1_save PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_col1_save PRIVATE colonize_core)
+target_link_libraries(unit_col1_save PRIVATE colonize_core)
 
-add_test(NAME smoke_col1_save COMMAND smoke_col1_save WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_col1_save COMMAND unit_col1_save WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
-  tests/smoke/platform_cursor_stubs.c
+  tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
   src/core/assets.c
   src/core/font.c
@@ -266,9 +266,9 @@ add_executable(smoke_game_flow
   src/platform/dos_compat/dos_compat.c
 )
 
-add_executable(smoke_new_game
-  tests/smoke/test_new_game.c
-  tests/smoke/platform_cursor_stubs.c
+add_executable(unit_new_game
+  tests/unit/test_new_game.c
+  tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
   src/core/assets.c
   src/core/font.c
@@ -328,20 +328,20 @@ add_executable(smoke_new_game
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(smoke_new_game PRIVATE
+target_include_directories(unit_new_game PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smoke_new_game PRIVATE m pthread)
+target_link_libraries(unit_new_game PRIVATE m pthread)
 if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(smoke_new_game PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(smoke_new_game PRIVATE ${FLUIDSYNTH_LIBRARIES})
-  target_compile_definitions(smoke_new_game PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+  target_include_directories(unit_new_game PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(unit_new_game PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(unit_new_game PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
 endif()
-add_test(NAME smoke_new_game COMMAND smoke_new_game)
+add_test(NAME unit_new_game COMMAND unit_new_game)
 
-add_executable(smoke_hall_of_fame
-  tests/smoke/test_hall_of_fame.c
-  tests/smoke/platform_cursor_stubs.c
+add_executable(unit_hall_of_fame
+  tests/unit/test_hall_of_fame.c
+  tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
   src/core/assets.c
   src/core/font.c
@@ -401,16 +401,16 @@ add_executable(smoke_hall_of_fame
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(smoke_hall_of_fame PRIVATE
+target_include_directories(unit_hall_of_fame PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smoke_hall_of_fame PRIVATE m pthread)
+target_link_libraries(unit_hall_of_fame PRIVATE m pthread)
 if(COLONIZE_HAS_FLUIDSYNTH)
-  target_include_directories(smoke_hall_of_fame PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(smoke_hall_of_fame PRIVATE ${FLUIDSYNTH_LIBRARIES})
-  target_compile_definitions(smoke_hall_of_fame PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+  target_include_directories(unit_hall_of_fame PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(unit_hall_of_fame PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(unit_hall_of_fame PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
 endif()
-add_test(NAME smoke_hall_of_fame COMMAND smoke_hall_of_fame)
+add_test(NAME unit_hall_of_fame COMMAND unit_hall_of_fame)
 
 add_executable(smoke_popup
   tests/smoke/test_popup.c
@@ -488,43 +488,43 @@ target_link_libraries(smoke_save_load_dialog PRIVATE colonize_core)
 
 add_test(NAME smoke_save_load_dialog COMMAND smoke_save_load_dialog WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_map
-  tests/smoke/test_map.c
+add_executable(unit_map
+  tests/unit/test_map.c
   src/core/map.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/core/strutil.c
 )
 
-target_include_directories(smoke_map PRIVATE
+target_include_directories(unit_map PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-add_test(NAME smoke_map COMMAND smoke_map WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_map COMMAND unit_map WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_map_gen
-  tests/smoke/test_map_gen.c
+add_executable(unit_map_gen
+  tests/unit/test_map_gen.c
 )
 
-target_include_directories(smoke_map_gen PRIVATE
+target_include_directories(unit_map_gen PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_map_gen PRIVATE colonize_core)
+target_link_libraries(unit_map_gen PRIVATE colonize_core)
 
-add_test(NAME smoke_map_gen COMMAND smoke_map_gen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_map_gen COMMAND unit_map_gen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_mapgen_seed100
-  tests/smoke/test_mapgen_seed100.c
+add_executable(golden_mapgen_seed100
+  tests/golden/test_mapgen_seed100.c
 )
 
-target_include_directories(smoke_mapgen_seed100 PRIVATE
+target_include_directories(golden_mapgen_seed100 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_mapgen_seed100 PRIVATE colonize_core)
+target_link_libraries(golden_mapgen_seed100 PRIVATE colonize_core)
 
-add_test(NAME smoke_mapgen_seed100 COMMAND smoke_mapgen_seed100 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME golden_mapgen_seed100 COMMAND golden_mapgen_seed100 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(probe_far_ocean_4753
   tools/probe_far_ocean_4753.c
@@ -557,8 +557,8 @@ target_include_directories(smoke_viceroy_tables PRIVATE
 
 add_test(NAME smoke_viceroy_tables COMMAND smoke_viceroy_tables)
 
-add_executable(smoke_pedia
-  tests/smoke/test_pedia.c
+add_executable(unit_pedia
+  tests/unit/test_pedia.c
   src/core/pedia.c
   src/core/assets.c
   src/core/pik.c
@@ -571,52 +571,52 @@ add_executable(smoke_pedia
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(smoke_pedia PRIVATE
+target_include_directories(unit_pedia PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-add_test(NAME smoke_pedia COMMAND smoke_pedia WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_pedia COMMAND unit_pedia WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_europe
-  tests/smoke/test_europe.c
-  tests/smoke/platform_cursor_stubs.c
+add_executable(unit_europe
+  tests/unit/test_europe.c
+  tests/common/platform_cursor_stubs.c
 )
 
-target_include_directories(smoke_europe PRIVATE
+target_include_directories(unit_europe PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_europe PRIVATE colonize_core)
+target_link_libraries(unit_europe PRIVATE colonize_core)
 
-add_test(NAME smoke_europe COMMAND smoke_europe WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_europe COMMAND unit_europe WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_colony_screen
-  tests/smoke/test_colony_screen.c
-  tests/smoke/platform_cursor_stubs.c
+add_executable(unit_colony_screen
+  tests/unit/test_colony_screen.c
+  tests/common/platform_cursor_stubs.c
 )
 
-target_include_directories(smoke_colony_screen PRIVATE
+target_include_directories(unit_colony_screen PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_colony_screen PRIVATE colonize_core)
+target_link_libraries(unit_colony_screen PRIVATE colonize_core)
 
-add_test(NAME smoke_colony_screen COMMAND smoke_colony_screen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_colony_screen COMMAND unit_colony_screen WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_map_panel
-  tests/smoke/test_map_panel.c
+add_executable(unit_map_panel
+  tests/unit/test_map_panel.c
 )
 
-target_include_directories(smoke_map_panel PRIVATE
+target_include_directories(unit_map_panel PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_map_panel PRIVATE colonize_core)
+target_link_libraries(unit_map_panel PRIVATE colonize_core)
 
-add_test(NAME smoke_map_panel COMMAND smoke_map_panel WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_map_panel COMMAND unit_map_panel WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_units
-  tests/smoke/test_units.c
+add_executable(unit_units
+  tests/unit/test_units.c
   src/core/units.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
@@ -644,27 +644,27 @@ add_executable(smoke_units
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(smoke_units PRIVATE
+target_include_directories(unit_units PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-add_test(NAME smoke_units COMMAND smoke_units WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_units COMMAND unit_units WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_colony_yield
-  tests/smoke/test_colony_yield.c
+add_executable(unit_colony_yield
+  tests/unit/test_colony_yield.c
   src/core/colony_yield.c
   src/core/map.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/core/strutil.c
 )
-target_include_directories(smoke_colony_yield PRIVATE
+target_include_directories(unit_colony_yield PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-add_test(NAME smoke_colony_yield COMMAND smoke_colony_yield WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_colony_yield COMMAND unit_colony_yield WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_colonies
-  tests/smoke/test_colonies.c
+add_executable(unit_colonies
+  tests/unit/test_colonies.c
   src/core/colony.c
   src/core/colony_craft.c
   src/core/colony_production.c
@@ -694,14 +694,14 @@ add_executable(smoke_colonies
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(smoke_colonies PRIVATE
+target_include_directories(unit_colonies PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-add_test(NAME smoke_colonies COMMAND smoke_colonies WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_colonies COMMAND unit_colonies WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_reports
-  tests/smoke/test_reports.c
+add_executable(unit_reports
+  tests/unit/test_reports.c
   src/core/reports.c
   src/core/col1_save.c
   src/core/colony.c
@@ -731,38 +731,38 @@ add_executable(smoke_reports
   src/platform/dos_compat/dos_compat.c
 )
 
-target_include_directories(smoke_reports PRIVATE
+target_include_directories(unit_reports PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-add_test(NAME smoke_reports COMMAND smoke_reports WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_reports COMMAND unit_reports WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_map_menu
-  tests/smoke/test_map_menu.c
+add_executable(unit_map_menu
+  tests/unit/test_map_menu.c
 )
 
-target_include_directories(smoke_map_menu PRIVATE
+target_include_directories(unit_map_menu PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_map_menu PRIVATE colonize_core)
+target_link_libraries(unit_map_menu PRIVATE colonize_core)
 
-add_test(NAME smoke_map_menu COMMAND smoke_map_menu WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_map_menu COMMAND unit_map_menu WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_turn
-  tests/smoke/test_turn.c
+add_executable(unit_turn
+  tests/unit/test_turn.c
 )
 
-target_include_directories(smoke_turn PRIVATE
+target_include_directories(unit_turn PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_turn PRIVATE colonize_core)
+target_link_libraries(unit_turn PRIVATE colonize_core)
 
-add_test(NAME smoke_turn COMMAND smoke_turn WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_turn COMMAND unit_turn WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ff
-  tests/smoke/test_ff.c
+add_executable(unit_ff
+  tests/unit/test_ff.c
   src/core/ff.c
   src/core/font.c
   src/core/madspack.c
@@ -770,11 +770,11 @@ add_executable(smoke_ff
   src/core/strutil.c
 )
 
-target_include_directories(smoke_ff PRIVATE
+target_include_directories(unit_ff PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-add_test(NAME smoke_ff COMMAND smoke_ff WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ff COMMAND unit_ff WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(smoke_ss
   tests/smoke/test_ss.c
@@ -822,161 +822,161 @@ target_include_directories(smoke_pik PRIVATE
 
 add_test(NAME smoke_pik COMMAND smoke_pik WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai
-  tests/smoke/test_ai.c
+add_executable(unit_ai
+  tests/unit/test_ai.c
 )
 
-target_include_directories(smoke_ai PRIVATE
+target_include_directories(unit_ai PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai PRIVATE colonize_core)
+target_link_libraries(unit_ai PRIVATE colonize_core)
 
-add_test(NAME smoke_ai COMMAND smoke_ai WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai COMMAND unit_ai WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_goals
-  tests/smoke/test_ai_goals.c
+add_executable(unit_ai_goals
+  tests/unit/test_ai_goals.c
 )
 
-target_include_directories(smoke_ai_goals PRIVATE
+target_include_directories(unit_ai_goals PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_goals PRIVATE colonize_core)
+target_link_libraries(unit_ai_goals PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_goals COMMAND smoke_ai_goals WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai_goals COMMAND unit_ai_goals WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_contact
-  tests/smoke/test_ai_contact.c
+add_executable(unit_ai_contact
+  tests/unit/test_ai_contact.c
 )
 
-target_include_directories(smoke_ai_contact PRIVATE
+target_include_directories(unit_ai_contact PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_contact PRIVATE colonize_core)
+target_link_libraries(unit_ai_contact PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_contact COMMAND smoke_ai_contact WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai_contact COMMAND unit_ai_contact WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_diplo
-  tests/smoke/test_ai_diplo.c
+add_executable(unit_ai_diplo
+  tests/unit/test_ai_diplo.c
 )
 
-target_include_directories(smoke_ai_diplo PRIVATE
+target_include_directories(unit_ai_diplo PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_diplo PRIVATE colonize_core)
+target_link_libraries(unit_ai_diplo PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_diplo COMMAND smoke_ai_diplo WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai_diplo COMMAND unit_ai_diplo WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_king
-  tests/smoke/test_ai_king.c
+add_executable(unit_ai_king
+  tests/unit/test_ai_king.c
 )
 
-target_include_directories(smoke_ai_king PRIVATE
+target_include_directories(unit_ai_king PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_king PRIVATE colonize_core)
+target_link_libraries(unit_ai_king PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_king COMMAND smoke_ai_king WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai_king COMMAND unit_ai_king WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_euro_expand
-  tests/smoke/test_ai_euro_expand.c
+add_executable(unit_ai_euro_expand
+  tests/unit/test_ai_euro_expand.c
 )
 
-target_include_directories(smoke_ai_euro_expand PRIVATE
+target_include_directories(unit_ai_euro_expand PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_euro_expand PRIVATE colonize_core)
+target_link_libraries(unit_ai_euro_expand PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_euro_expand COMMAND smoke_ai_euro_expand WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai_euro_expand COMMAND unit_ai_euro_expand WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_euro_war
-  tests/smoke/test_ai_euro_war.c
+add_executable(unit_ai_euro_war
+  tests/unit/test_ai_euro_war.c
 )
 
-target_include_directories(smoke_ai_euro_war PRIVATE
+target_include_directories(unit_ai_euro_war PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_euro_war PRIVATE colonize_core)
+target_link_libraries(unit_ai_euro_war PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_euro_war COMMAND smoke_ai_euro_war WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_ai_euro_war COMMAND unit_ai_euro_war WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_founding_fathers
-  tests/smoke/test_founding_fathers.c
+add_executable(unit_founding_fathers
+  tests/unit/test_founding_fathers.c
 )
 
-target_include_directories(smoke_founding_fathers PRIVATE
+target_include_directories(unit_founding_fathers PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_founding_fathers PRIVATE colonize_core)
+target_link_libraries(unit_founding_fathers PRIVATE colonize_core)
 
-add_test(NAME smoke_founding_fathers COMMAND smoke_founding_fathers WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_founding_fathers COMMAND unit_founding_fathers WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_kill_indians
-  tests/smoke/test_kill_indians.c
+add_executable(unit_kill_indians
+  tests/unit/test_kill_indians.c
 )
 
-target_include_directories(smoke_kill_indians PRIVATE
+target_include_directories(unit_kill_indians PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_kill_indians PRIVATE colonize_core)
+target_link_libraries(unit_kill_indians PRIVATE colonize_core)
 
-add_test(NAME smoke_kill_indians COMMAND smoke_kill_indians WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME unit_kill_indians COMMAND unit_kill_indians WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_turns
-  tests/smoke/test_ai_turns.c
+add_executable(golden_ai_turns
+  tests/golden/test_ai_turns.c
 )
 
-target_include_directories(smoke_ai_turns PRIVATE
+target_include_directories(golden_ai_turns PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(smoke_ai_turns PRIVATE colonize_core)
+target_link_libraries(golden_ai_turns PRIVATE colonize_core)
 
-add_test(NAME smoke_ai_turns COMMAND smoke_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME golden_ai_turns COMMAND golden_ai_turns WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 # T2 early gate: full Euro dispatcher (TURN1→7). Fixture opt-in via AI_EURO_EARLY_FIXTURE=1 for bisect.
 
-add_executable(smoke_ai_mid01
-  tests/smoke/test_ai_mid01.c
+add_executable(golden_ai_mid01
+  tests/golden/test_ai_mid01.c
 )
-target_include_directories(smoke_ai_mid01 PRIVATE
+target_include_directories(golden_ai_mid01 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smoke_ai_mid01 PRIVATE colonize_core)
-add_test(NAME smoke_ai_mid01 COMMAND smoke_ai_mid01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_link_libraries(golden_ai_mid01 PRIVATE colonize_core)
+add_test(NAME golden_ai_mid01 COMMAND golden_ai_mid01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-add_executable(smoke_ai_late01
-  tests/smoke/test_ai_late01.c
+add_executable(golden_ai_late01
+  tests/golden/test_ai_late01.c
 )
-target_include_directories(smoke_ai_late01 PRIVATE
+target_include_directories(golden_ai_late01 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smoke_ai_late01 PRIVATE colonize_core)
-add_test(NAME smoke_ai_late01 COMMAND smoke_ai_late01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_link_libraries(golden_ai_late01 PRIVATE colonize_core)
+add_test(NAME golden_ai_late01 COMMAND golden_ai_late01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Joint Euro↔Indian harness (T3 roadmap Phase 0 + Series D/H/K mid+late):
-add_custom_target(smoke_ai_joint
-  COMMAND ${CMAKE_COMMAND} -E echo "smoke_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"
-  COMMAND $<TARGET_FILE:smoke_mapgen_seed100>
-  COMMAND $<TARGET_FILE:smoke_ai_turns>
-  COMMAND $<TARGET_FILE:smoke_ai_contact>
-  COMMAND $<TARGET_FILE:smoke_ai_diplo>
-  COMMAND $<TARGET_FILE:smoke_ai_mid01>
-  COMMAND $<TARGET_FILE:smoke_ai_late01>
-  DEPENDS smoke_mapgen_seed100 smoke_ai_turns smoke_ai_contact smoke_ai_diplo smoke_ai_mid01 smoke_ai_late01
+add_custom_target(golden_ai_joint
+  COMMAND ${CMAKE_COMMAND} -E echo "golden_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"
+  COMMAND $<TARGET_FILE:golden_mapgen_seed100>
+  COMMAND $<TARGET_FILE:golden_ai_turns>
+  COMMAND $<TARGET_FILE:unit_ai_contact>
+  COMMAND $<TARGET_FILE:unit_ai_diplo>
+  COMMAND $<TARGET_FILE:golden_ai_mid01>
+  COMMAND $<TARGET_FILE:golden_ai_late01>
+  DEPENDS golden_mapgen_seed100 golden_ai_turns unit_ai_contact unit_ai_diplo golden_ai_mid01 golden_ai_late01
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  COMMENT "Joint Euro↔Indian AI smokes (shared-surface gate)"
+  COMMENT "Joint Euro↔Indian AI golden gate (shared-surface)"
 )
 add_test(
-  NAME smoke_ai_joint
-  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target smoke_ai_joint
+  NAME golden_ai_joint
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target golden_ai_joint
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 

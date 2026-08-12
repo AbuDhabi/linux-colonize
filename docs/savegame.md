@@ -20,7 +20,7 @@ round-trips of original 3.0 saves: every section is read into a packed struct
 mean a campaign save written after Linux play is DOS-safe.
 
 Layout sizes are enforced by `col1_save_check_layout()` (also in
-`smoke_col1_save`).
+`unit_col1_save`).
 
 **Header validation** mirrors DOS `FUN_75c2_0840` (slot probe / load):
 
@@ -188,7 +188,7 @@ colonies, warehouse/capitol/depletion/timer bounds, `tiles[8..19]==0xff`,
 nation tax/rebel sentiment, `prime_resource_seed`, connectivity planes).
 Lategame COLONY00 also re-checks `FUN_67f4_0088` plane rebuild byte-exact.
 
-Occupancy / export regression (`smoke_col1_save`):
+Occupancy / export regression (`unit_col1_save`):
 `tests-save-misc/unit flags error.sav` (apply→capture must clear stray
 `has_unit`), plus new-game template spawn→capture and `COLONY00` occupancy
 sanity. Those checks do **not** claim full DOS campaign parity.

@@ -366,7 +366,7 @@ int main(void) {
   }
 
   diag_info(
-    "smoke_mapgen_seed100 ok params=(%d,%d,%d,%d,%d) tribes=%d units=%d",
+    "golden_mapgen_seed100 ok params=(%d,%d,%d,%d,%d) tribes=%d units=%d",
     SEED100_LAND_MASS,
     SEED100_LAND_FORM,
     SEED100_TEMPERATURE,

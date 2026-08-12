@@ -16,7 +16,7 @@ No DS scratch needed — read `unit[12]` at `DS:3294` (x) / `3295` (y) from the 
 **Hang parked.** Coarse fog plane + goldens are the path:
 
 - Far ocean/land: `tools/probe_far_ocean_4753.c` → build target `probe_far_ocean_4753`
-- Score / coarse bytes: `AI_QUIET_ASM=1 AI_LCG_AUDIT=1 AI_ASM_STAY_SYNC=1 ./build/smoke_mapgen_seed100`
+- Score / coarse bytes: `AI_QUIET_ASM=1 AI_LCG_AUDIT=1 AI_ASM_STAY_SYNC=1 ./build/golden_mapgen_seed100`
 - Notes: [`init_20e6_4753.md`](init_20e6_4753.md) (optional last-resort recipe only)
 
 Spent: [`midturn_465b.md`](midturn_465b.md) — use rebuilt `VR_B465R` (force-max
