@@ -94,8 +94,8 @@ with SoL: the port maps `0x40` as **coastal**.
 
 | Gate | Effect | Port |
 |------|--------|------|
-| Colony SoL ≥ 50% / ≥ 100% | Production +1 / +2 (via sol latches in full DOS mod) | **Wired** as `colony_prod_sol_bonus` only |
-| Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **PARK** |
+| Colony SoL ≥ 50% / ≥ 100% | Production +1 / +2 (via sol latches in full DOS mod) | **Wired** (`colony_prod_sol_bonus`) |
+| Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **Wired** (same helper; AI thresh 10) |
 | Nation SoL ≥ 50% | May declare independence | **Structural Wired** (+ port bells≥100) |
 | Nation SoL 40..49 | Restless chrome | **Wired** thin |
 | Tax ≥20 and (SoL≥30 or bells≥80) | Tax refuse / boycott path | **Wired** structural |
@@ -134,9 +134,9 @@ if sol_100 latch (0x02): mod += 1
 Manual / fandom “−1 when Tory count ≥ threshold” is a **simplification**. Prefer
 the floor formula.
 
-**Port today:** [`colony_prod_sol_bonus`](../src/core/colony_production.c) returns
-+1 if SoL≥50, +2 if SoL≥100; applied in EOT field/craft/hammers/bells/crosses
-and preview. Tory floor **PARK**.
+**Port today:** [`colony_prod_sol_bonus`](../src/core/colony_production.c)
+implements the full net mod (Tory floor + sol latch / live SoL stand-in);
+applied in EOT field/craft/hammers/bells/crosses and preview.
 
 ---
 
@@ -208,7 +208,6 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 | Effect | Source |
 |--------|--------|
 | Rebel dividend/divisor EOT tick | `FUN_364b_0688` Phase C |
-| Tory floor `−⌊tories/thresh⌋` | decomp ~11880 |
 | DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 |
 | Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
 | Continental Army muster by colony SoL | Manual |
