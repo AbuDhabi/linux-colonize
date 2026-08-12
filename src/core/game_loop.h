@@ -35,4 +35,22 @@ int game_human_nation(const ColonizeGameState* game);
 int game_difficulty(const ColonizeGameState* game);
 const char* game_leader_name(const ColonizeGameState* game);
 
+/*
+ * Hall of Fame: read-only view of the ranked HOF.TXT table (desc by score).
+ * game_hof_entry returns false when index is out of [0, game_hof_count).
+ */
+typedef struct ColonizeHofEntryView {
+  char leader[32];
+  char nation[24];
+  int score;
+  int year;
+  int difficulty; /* 0 Discoverer .. 4 Viceroy */
+} ColonizeHofEntryView;
+
+int game_hof_count(const ColonizeGameState* game);
+bool game_hof_entry(const ColonizeGameState* game, int index, ColonizeHofEntryView* out);
+
+/* True while the title-menu "View Hall of Fame" screen is open (Esc/Enter closes it). */
+bool game_in_hall_of_fame(const ColonizeGameState* game);
+
 #endif

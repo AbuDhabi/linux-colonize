@@ -317,8 +317,15 @@ int main(void) {
     if (!step(game, COLONIZE_KEY_DOWN)) return 1;
   }
   if (!step(game, COLONIZE_KEY_ENTER)) return 1;
-  if (!game_in_menu(game) || game_in_new_game(game)) {
-    fprintf(stderr, "Hall of Fame should stay on menu\n");
+  /* Opens the Hall of Fame screen (see smoke_hall_of_fame), not a new game;
+   * Esc returns to the title menu. */
+  if (!game_in_hall_of_fame(game) || game_in_menu(game) || game_in_new_game(game)) {
+    fprintf(stderr, "Hall of Fame should open its own screen, not start a game\n");
+    return 1;
+  }
+  if (!step(game, COLONIZE_KEY_ESCAPE)) return 1;
+  if (game_in_hall_of_fame(game) || !game_in_menu(game)) {
+    fprintf(stderr, "Esc from Hall of Fame should return to title menu\n");
     return 1;
   }
 
