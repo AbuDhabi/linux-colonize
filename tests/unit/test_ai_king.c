@@ -3029,9 +3029,11 @@ int main(void) {
       }
     }
     /*
-     * After next-coast / coast sail step: MoW one tile from coast with cargo
-     * → sail onto coast water then prefer unload same beat if now adjacent
-     * (fandom man-o-war → ports). Ship at (3,5), coast (4,5), colony (5,5).
+     * Coast-adjacent unload prefers human colony tile over soft coastal land
+     * (fandom man-o-war → ports). Ship already on coast water (4,5) next to
+     * colony (5,5); soft land at (4,4)/(6,4) must not win (score 100 > 50/40).
+     * Sail-toward-coast from further out is covered by the MoW AI_SAIL case
+     * above; dest picker rejects soft-coast dumps when not yet port-adjacent.
      */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
@@ -3054,7 +3056,14 @@ int main(void) {
       map.terrain[5 * 16 + 4] = 25;
       map.terrain[4 * 16 + 4] = 1;
       map.terrain[6 * 16 + 4] = 1;
-      const int pax_sail = units_spawn_allow_stack(&units, ty_regular, 3, 5);
+      mow = units_get(&units, mow_id);
+      mow->x = 4;
+      mow->y = 5;
+      mow->moves_left = 3;
+      mow->orders = UNITS_ORDER_NONE;
+      mow->goto_x = UNITS_GOTO_NONE;
+      mow->goto_y = UNITS_GOTO_NONE;
+      const int pax_sail = units_spawn_allow_stack(&units, ty_regular, 4, 5);
       if (pax_sail < 0) {
         return fail("post-sail unload setup should spawn Regular cargo");
       }
@@ -3068,13 +3077,6 @@ int main(void) {
           return fail("post-sail unload should board Regular");
         }
       }
-      mow = units_get(&units, mow_id);
-      mow->x = 3;
-      mow->y = 5;
-      mow->moves_left = 3;
-      mow->orders = UNITS_ORDER_NONE;
-      mow->goto_x = -1;
-      mow->goto_y = -1;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &units.units[i];
         if (!u->active || u->id == mow_id || u->id == pax_sail) {

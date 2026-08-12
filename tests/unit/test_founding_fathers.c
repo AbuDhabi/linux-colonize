@@ -1897,8 +1897,10 @@ int main(void) {
   }
 
   /*
-   * Slice C: AI combat wrapper + fallout context + Cortes → treasure gold>0
-   * (FUN_5fef_31ea peel). Uses units_resolve_land_combat (g_units_ff_col1 path).
+   * Slice C: AI combat wrapper + empty-village fallout + Cortes → treasure
+   * gold>0 (FUN_5fef_31ea peel). Map Brave death does not destroy the dwelling;
+   * treasure comes from units_try_native_settlement_fallout after the tile is
+   * clear. turn_refresh arms g_units_ff_col1 for the combat wrapper.
    */
   {
     ColonizeCol1Save ccol1;
@@ -1913,6 +1915,7 @@ int main(void) {
     ccol1.tribe[0].x = 5;
     ccol1.tribe[0].y = 5;
     ccol1.tribe[0].nation_id = 4;
+    ccol1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
     ccol1.head.founding_father[FF_HERNAN_CORTES] = 0;
     ccol1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] |=
       (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
@@ -1967,13 +1970,20 @@ int main(void) {
 
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 7);
-    /* AI path: turn_refresh arms FF+fallout; land_combat wrapper uses g_units_ff_col1. */
     turn_refresh_moves_for_nation(&upool, 0, &ccol1, &cmap, NULL, NULL, NULL);
     units_set_native_fallout_context(&ccol1, &cmap, -1);
     if (!units_resolve_land_combat(&upool, sid, bid, &rng)) {
       free(ccol1.tribe);
       map_free(&cmap);
       return fail("Cortes AI combat should win");
+    }
+    /* Dwelling remains after map Brave death; empty-village fallout peels gold. */
+    if (!units_try_native_settlement_fallout(
+          &ccol1, &upool, &cmap, 0, 4, 5, 5, -1, &rng
+        )) {
+      free(ccol1.tribe);
+      map_free(&cmap);
+      return fail("Cortes AI fallout should destroy empty dwelling");
     }
     int gold = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {

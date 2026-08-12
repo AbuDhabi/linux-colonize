@@ -21034,7 +21034,13 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   col1.head.difficulty = 0;
   col1.head.tribe_count = 0;
   col1.tribe = NULL;
-  col1.nation[nation].unknown26[8] = 2; /* sticky very-low deepen */
+  /*
+   * Sticky deepen (unknown26[8]==2) only survives euro_balance hostility_sync
+   * when a contacted Indian slot is very-low (0 < relation < 40). Unmet r==0
+   * is cleared to sticky=0.
+   */
+  col1.nation[nation].relation_by_indian[0] = 20;
+  col1.nation[nation].indian_hostility_sticky = 2;
 
   ai_goals_reset();
 
