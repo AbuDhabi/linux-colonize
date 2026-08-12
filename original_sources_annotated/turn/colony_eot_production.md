@@ -212,11 +212,12 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | C SoL accumulators | `colony_prod_tick_rebel_accumulators` **Done** (shrink÷64 + pop×2 + bells; WoI crown half-negative) |
 | D SoL chrome | Latch + decade `@REBELMAJORITY`/`@REBELUNANIMOUS`/`@TORY*`/`@SONSUP`/`@SONSDOWN` **Done** thin (`turn_emit_sol_phase_d_chrome`); report_rebel_majorities / report_sons gates; VGA PARKED |
 | D Tory inefficient | `@INEFFICIENT`/`@EFFICIENT` **Done** thin (`turn_emit_inefficient_gov_chrome`); port-only `inefficient_gov` latch (Col1 bit3 = starvation); `report_inefficient_government` gate |
-| L hammers | `colony_prod_colony_hammers` + complete |
+| L hammers | `colony_prod_colony_hammers` + complete; `@BUILT` chrome **Done** thin |
 | O spoilage trim | `colonies_apply_warehouse_spoilage` |
 | O AI dump-sell | `europe_ai_colony_dump_sell` **Done** thin |
 | F–H education | `turn_produce_one_colony` **Done** thin |
 | Horse breed | `turn_produce_one_colony` **Done** thin (Stable cap) |
-| P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; dialogs PARKED |
-| K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; demand table PARKED |
-| I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin |
+| P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; `@SPOIL1`–`4` section matrix **Done** thin; century `@CARGOREADY0`–`2` (at-cap → 1/2) **Done** thin |
+| K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; `@LUMBER`/`@ORE`/`@TOOLS` + craft `@COTTON`/`@TOBACCO`/`@CANESUGAR`/`@FURS` chrome **Done** thin |
+| I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin; `@FOODLOW` (stock &lt; need×4, no starve-kill) **Done** thin; first-latch `@FOOD1`/`@FOOD2` (autumn→FOOD2) **Done** thin; kill `@STARVE1`/`@STARVE2` (autumn→STARVE2) **Done** thin |
+| Q depletion | wrap + `MAP_LAYER2_SUPPRESS` **Done**; `@DEPLETION` chrome **Done** thin |

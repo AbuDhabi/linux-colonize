@@ -565,7 +565,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
-    turn_refresh_moves_for_nation(&units, 0, &deep_col1, NULL);
+    turn_refresh_moves_for_nation(&units, 0, &deep_col1, NULL, NULL, NULL, NULL);
     if (caravel->moves_left != units.types[2].movement + 1) {
       free(deep_col1.colony);
       map_free(&map);
@@ -1925,7 +1925,7 @@ int main(void) {
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 7);
     /* AI path: turn_refresh arms FF+fallout; land_combat wrapper uses g_units_ff_col1. */
-    turn_refresh_moves_for_nation(&upool, 0, &ccol1, &cmap);
+    turn_refresh_moves_for_nation(&upool, 0, &ccol1, &cmap, NULL, NULL, NULL);
     units_set_native_fallout_context(&ccol1, &cmap, -1);
     if (!units_resolve_land_combat(&upool, sid, bid, &rng)) {
       free(ccol1.tribe);

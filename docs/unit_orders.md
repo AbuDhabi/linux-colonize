@@ -163,10 +163,10 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools | `units_pioneer_plow` clear path | Done |
+| Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest colony + `@CLEARCUT` | `units_pioneer_plow` clear path; +20 lumber thin + chrome | Done |
 | Plow Fields (**P**) | Pioneer on open land | Same order 8; separate job; refuse if already plowed | Plow path; hills/arctic deny | Done |
 | Build Road (**R**) | Pioneer | Order 9; `479b_0526`; turns = `terr_cost` (Hardy ÷2); −20 tools | `units_pioneer_road` | Done |
-| Work tick | Nation refresh | Progress; complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`) | `units_pioneer_work_tick` + type→Colonists | Done (popup Partial) |
+| Work tick | Nation refresh | Progress; complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`); clear grants lumber/`@CLEARCUT` | `units_pioneer_work_tick` + type→Colonists | Done (Hardy×2 / terrain×20 / road lumber PARKED) |
 
 ### Found / Join / cargo / Europe
 

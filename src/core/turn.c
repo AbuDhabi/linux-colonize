@@ -115,7 +115,10 @@ void turn_refresh_moves_for_nation(
   ColonizeUnitPool* pool,
   int nation_id,
   const ColonizeCol1Save* col1,
-  ColonizeWorldMap* map
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   if (!pool) {
     return;
@@ -153,7 +156,9 @@ void turn_refresh_moves_for_nation(
     /* Pioneer clear/plow/road: overnight work-tick (FUN_479b_01a6 / 0526). */
     if (map &&
         (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD)) {
-      (void)units_pioneer_work_tick(pool, u->id, map, NULL, 0);
+      (void)units_pioneer_work_tick(
+        pool, u->id, map, NULL, 0, colonies, ai_popups, messages
+      );
       u->moves_left = 0;
       continue;
     }
@@ -573,6 +578,7 @@ static void turn_produce_one_colony(
       }
     }
 
+    int mine_depleted = 0;
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       const int who = (int)colony->tiles[ti];
       if (who < 0 || who >= colony->colonist_count) {
@@ -621,6 +627,7 @@ static void turn_produce_one_colony(
       /*
        * Col1 +0x97: INC per ore/silver field yield; wrap at 50 →
        * MAP_LAYER2_SUPPRESS on worked tile (FUN_364b_033a feature 4).
+       * Chrome: GAME.TXT @DEPLETION (DOS 0xd75).
        */
       if (add > 0 &&
           (cargo == COLONIZE_CARGO_ORE || cargo == COLONIZE_CARGO_SILVER)) {
@@ -639,7 +646,20 @@ static void turn_produce_one_colony(
               true
             );
           }
+          mine_depleted = 1;
         }
+      }
+    }
+    if (mine_depleted && europe && colony->nation_id == human_nation) {
+      const char* cname = colony->name[0] ? colony->name : "colony";
+      snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = cname;
+        popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
     }
   }
@@ -698,6 +718,7 @@ static void turn_produce_one_colony(
     const int need = pop * TURN_FOOD_PER_COLONIST;
     const int was_starving =
       (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0;
+    int starved_this_tick = 0;
     if (colony->stock[COLONIZE_CARGO_FOOD] < need) {
       colony->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
     } else {
@@ -770,6 +791,7 @@ static void turn_produce_one_colony(
       );
       colony->colonist_count--;
       colony->population = colony->colonist_count;
+      starved_this_tick = 1;
       if (europe && colony->nation_id == human_nation) {
         if (colony->name[0]) {
           snprintf(europe->status, sizeof(europe->status), "Starvation in %s.", colony->name);
@@ -777,13 +799,56 @@ static void turn_produce_one_colony(
           snprintf(europe->status, sizeof(europe->status), "Colonist starved.");
         }
         if (ai_popups) {
+          const char* sec = (col1 && col1->head.autumn) ? "STARVE2" : "STARVE1";
           char body[AI_POPUP_BODY_LEN];
           PopupMsgTokens tok;
           memset(&tok, 0, sizeof(tok));
           tok.string0 = colony->name[0] ? colony->name : "colony";
-          popup_msg_fill(
-            messages, "STARVE1", &tok, europe->status, body, sizeof(body)
+          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        }
+      }
+    }
+
+    /*
+     * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
+     * Else DOS 0xe5e @FOODLOW when stock < need*4. Skip if starve-kill fired.
+     * Cite: ~57626–57686; autumn bit → winter-soon @FOOD2 thin.
+     */
+    if (!starved_this_tick && need > 0 && europe &&
+        colony->nation_id == human_nation && turn_report_ok_food(col1)) {
+      const int stock = colony->stock[COLONIZE_CARGO_FOOD];
+      if (stock < need && !was_starving) {
+        if (colony->name[0]) {
+          snprintf(
+            europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
           );
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Food stores depleted.");
+        }
+        if (ai_popups) {
+          const char* sec = (col1 && col1->head.autumn) ? "FOOD2" : "FOOD1";
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        }
+      } else if (stock < need * 4) {
+        if (colony->name[0]) {
+          snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "Food stores low.");
+        }
+        if (ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.number0 = stock;
+          tok.has_number0 = true;
+          popup_msg_fill(messages, "FOODLOW", &tok, europe->status, body, sizeof(body));
           ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         }
       }
@@ -1071,6 +1136,16 @@ static void turn_produce_one_colony(
             } else {
               snprintf(europe->status, sizeof(europe->status), "Building completed.");
             }
+            /* DOS @BUILT — "%STRING0 colony produces {%STRING1}." */
+            if (ai_popups) {
+              char body[AI_POPUP_BODY_LEN];
+              PopupMsgTokens tok;
+              memset(&tok, 0, sizeof(tok));
+              tok.string0 = colony->name[0] ? colony->name : "colony";
+              tok.string1 = (bname && bname[0]) ? bname : "building";
+              popup_msg_fill(messages, "BUILT", &tok, europe->status, body, sizeof(body));
+              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            }
           }
         } else if (
           colony->nation_id == human_nation && europe && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
@@ -1099,36 +1174,43 @@ static void turn_produce_one_colony(
   /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
   if (colony->nation_id == human_nation && europe && europe->status[0] == '\0' &&
       turn_report_ok_raw(col1)) {
+    const char* k_sec = NULL;
     if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 &&
         turn_building_name_has(pool, colony, "Carpenter")) {
       snprintf(europe->status, sizeof(europe->status), "Need lumber.");
+      k_sec = "LUMBER";
     } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 &&
                turn_building_name_has(pool, colony, "Blacksmith")) {
       snprintf(europe->status, sizeof(europe->status), "Need ore.");
+      k_sec = "ORE";
     } else if (
       colony->stock[COLONIZE_CARGO_FOOD] == 0 && colony->colonist_count > 0
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need food.");
     } else if (
-      colony->stock[COLONIZE_CARGO_RUM] == 0 &&
+      colony->stock[COLONIZE_CARGO_SUGAR] == 0 &&
       turn_building_name_has(pool, colony, "Distiller")
     ) {
-      snprintf(europe->status, sizeof(europe->status), "Need rum.");
+      snprintf(europe->status, sizeof(europe->status), "Need sugar.");
+      k_sec = "CANESUGAR";
     } else if (
-      colony->stock[COLONIZE_CARGO_CIGARS] == 0 &&
+      colony->stock[COLONIZE_CARGO_TOBACCO] == 0 &&
       turn_building_name_has(pool, colony, "Tobacconist")
     ) {
-      snprintf(europe->status, sizeof(europe->status), "Need cigars.");
+      snprintf(europe->status, sizeof(europe->status), "Need tobacco.");
+      k_sec = "TOBACCO";
     } else if (
-      colony->stock[COLONIZE_CARGO_CLOTH] == 0 &&
+      colony->stock[COLONIZE_CARGO_COTTON] == 0 &&
       turn_building_name_has(pool, colony, "Weaver")
     ) {
-      snprintf(europe->status, sizeof(europe->status), "Need cloth.");
+      snprintf(europe->status, sizeof(europe->status), "Need cotton.");
+      k_sec = "COTTON";
     } else if (
-      colony->stock[COLONIZE_CARGO_COATS] == 0 &&
+      colony->stock[COLONIZE_CARGO_FURS] == 0 &&
       turn_building_name_has(pool, colony, "Fur Trader")
     ) {
-      snprintf(europe->status, sizeof(europe->status), "Need coats.");
+      snprintf(europe->status, sizeof(europe->status), "Need furs.");
+      k_sec = "FURS";
     } else if (
       colony->stock[COLONIZE_CARGO_MUSKETS] == 0 && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
       (turn_building_name_has(pool, colony, "Armory") ||
@@ -1137,6 +1219,7 @@ static void turn_produce_one_colony(
     ) {
       /* 0x8e66 paired tools+muskets empty. */
       snprintf(europe->status, sizeof(europe->status), "Need tools for muskets.");
+      k_sec = "TOOLS";
     } else if (
       colony->stock[COLONIZE_CARGO_MUSKETS] == 0 &&
       (turn_building_name_has(pool, colony, "Armory") ||
@@ -1144,6 +1227,14 @@ static void turn_produce_one_colony(
        turn_building_name_has(pool, colony, "Arsenal"))
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need muskets.");
+    }
+    if (k_sec && ai_popups) {
+      char body[AI_POPUP_BODY_LEN];
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = colony->name[0] ? colony->name : "colony";
+      popup_msg_fill(messages, k_sec, &tok, europe->status, body, sizeof(body));
+      ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     }
   }
 
@@ -1225,6 +1316,11 @@ static void turn_produce_one_colony(
         );
       }
       if (ai_popups) {
+        /* Phase P: SPOIL1/2 tip warehouse; SPOIL3/4 if expanded. Multi → 2/4. */
+        const int expanded = colony->warehouse_level > 1u;
+        const char* spoil_sec =
+          (spoil_types > 1) ? (expanded ? "SPOIL4" : "SPOIL2")
+                           : (expanded ? "SPOIL3" : "SPOIL1");
         char body[AI_POPUP_BODY_LEN];
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -1234,7 +1330,7 @@ static void turn_produce_one_colony(
         tok.has_number0 = true;
         popup_msg_fill(
           messages,
-          "SPOIL1",
+          spoil_sec,
           &tok,
           europe->status,
           body,
@@ -1244,9 +1340,10 @@ static void turn_produce_one_colony(
       }
     } else if (europe && colony->nation_id == human_nation) {
       /*
-       * Phase P century tip thin: stock crosses a 100s boundary upward.
+       * Phase P century tip: stock crosses a 100s boundary upward → @CARGOREADY*.
+       * At exact warehouse cap → CARGOREADY1 (tip) / CARGOREADY2 (expanded).
        * Once-per-campaign latch DS:0x5387 bit1 → head.tut3.nr6.
-       * Cite: colony_eot_production.md Deep P; viceroy ~57915.
+       * Cite: colony_eot_production.md Deep P; viceroy ~57900–57930.
        */
       const int latched = col1 && col1->head.tut3.nr6;
       if (!latched && turn_report_ok_new_cargo(col1)) {
@@ -1262,6 +1359,26 @@ static void turn_produce_one_colony(
             );
             if (col1) {
               col1->head.tut3.nr6 = 1;
+            }
+            if (ai_popups) {
+              const int cap = colonies_warehouse_capacity(pool, colony, c);
+              const char* cargo_name = NULL;
+              if (c >= 0 && c < europe->cargo_count && europe->cargo[c].name[0]) {
+                cargo_name = europe->cargo[c].name;
+              }
+              const char* sec = "CARGOREADY0";
+              if (cap > 0 && after == cap) {
+                sec = (colony->warehouse_level > 1u) ? "CARGOREADY2" : "CARGOREADY1";
+              }
+              char body[AI_POPUP_BODY_LEN];
+              PopupMsgTokens tok;
+              memset(&tok, 0, sizeof(tok));
+              tok.string0 = colony->name[0] ? colony->name : "colony";
+              tok.string1 = cargo_name ? cargo_name : "cargo";
+              tok.number0 = cap > 0 ? cap : after;
+              tok.has_number0 = true;
+              popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
             }
             break;
           }
@@ -1746,7 +1863,15 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       continue; /* withdrawn */
     }
     turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
+    turn_refresh_moves_for_nation(
+      ctx->units,
+      n,
+      ctx->col1_ok ? ctx->col1 : NULL,
+      ctx->map,
+      ctx->colonies,
+      ctx->ai_popups,
+      ctx->messages
+    );
     (void)units_tick_treasure_outside_colony(
       ctx->units, ctx->colonies, n, ctx->status, ctx->status_size
     );
@@ -1769,7 +1894,15 @@ void turn_run_indian_stub(ColonizeTurnContext* ctx) {
   (void)show; /* animation TBD */
   for (int n = 4; n <= 11; ++n) {
     turn_set_active_nation(ctx, n);
-    turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
+    turn_refresh_moves_for_nation(
+      ctx->units,
+      n,
+      ctx->col1_ok ? ctx->col1 : NULL,
+      ctx->map,
+      ctx->colonies,
+      ctx->ai_popups,
+      ctx->messages
+    );
     ai_indian_nation_turn(ctx, n);
   }
 }
@@ -2189,7 +2322,15 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * still reveals. Cite: nation_eot.c; turn_between_players.md.
        */
       if (ctx->units) {
-        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
+        turn_refresh_moves_for_nation(
+          ctx->units,
+          n,
+          ctx->col1_ok ? ctx->col1 : NULL,
+          ctx->map,
+          ctx->colonies,
+          ctx->ai_popups,
+          ctx->messages
+        );
         if (n >= 0 && n < 4) {
           (void)units_tick_treasure_outside_colony(
             ctx->units,
@@ -2233,7 +2374,15 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
-        turn_refresh_moves_for_nation(ctx->units, n, ctx->col1_ok ? ctx->col1 : NULL, ctx->map);
+        turn_refresh_moves_for_nation(
+          ctx->units,
+          n,
+          ctx->col1_ok ? ctx->col1 : NULL,
+          ctx->map,
+          ctx->colonies,
+          ctx->ai_popups,
+          ctx->messages
+        );
       }
       ai_indian_nation_turn(ctx, n);
       if (n < 11) {
@@ -2256,7 +2405,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);
       turn_refresh_moves_for_nation(
-        ctx->units, ctx->human_nation, ctx->col1_ok ? ctx->col1 : NULL, ctx->map
+        ctx->units,
+        ctx->human_nation,
+        ctx->col1_ok ? ctx->col1 : NULL,
+        ctx->map,
+        ctx->colonies,
+        ctx->ai_popups,
+        ctx->messages
       );
       if (ctx->human_nation >= 0 && ctx->human_nation < 4) {
         (void)units_tick_treasure_outside_colony(

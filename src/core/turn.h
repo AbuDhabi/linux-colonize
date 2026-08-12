@@ -205,7 +205,10 @@ void turn_refresh_moves_for_nation(
   ColonizeUnitPool* pool,
   int nation_id,
   const ColonizeCol1Save* col1,
-  ColonizeWorldMap* map
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* colonies,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 );
 
 /* Select next human unit with moves_left > 0; centers not done here. */

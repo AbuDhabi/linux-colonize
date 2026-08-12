@@ -5205,7 +5205,9 @@ static int ai_euro_try_pioneer_improve(
     char err[64];
     int worked = 0;
     if (want_plow) {
-      if (units_pioneer_plow(ctx->units, u->id, ctx->map, err, sizeof(err))) {
+      if (units_pioneer_plow(
+            ctx->units, u->id, ctx->map, err, sizeof(err), ctx->colonies, NULL, NULL
+          )) {
         worked = 1;
       } else if (ai_euro_pioneer_tile_can_road(ctx->map, tx, ty) &&
                  units_pioneer_road(ctx->units, u->id, ctx->map, err, sizeof(err))) {

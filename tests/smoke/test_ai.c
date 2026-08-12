@@ -768,7 +768,7 @@ static int run_init_and_turns(
         assets_msg_free(&names);
         return 1;
       }
-      turn_refresh_moves_for_nation(&units, rival, NULL, NULL);
+      turn_refresh_moves_for_nation(&units, rival, NULL, NULL, NULL, NULL, NULL);
       ai_euro_nation_turn(&ctx, rival);
       if (units.selected_id != human_sel) {
         fprintf(
