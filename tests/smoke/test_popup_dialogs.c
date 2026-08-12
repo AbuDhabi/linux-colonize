@@ -132,19 +132,33 @@ int main(void) {
         return fail("popup_msg_fill must use GAME.TXT section");
       }
     }
-    char landfall_choices[4][48];
+    char landfall_choices[4][POPUP_MSG_CHOICE_LEN];
     const ColonizeMsgSection* landfall = assets_msg_find(&game_txt, "LANDFALL");
     int n = popup_msg_choices(landfall, landfall_choices, 4);
     if (n < 2) {
       assets_msg_free(&game_txt);
       return fail("LANDFALL must expose Stay/Landfall choices");
     }
-    char tax_choices[4][48];
+    char tax_choices[4][POPUP_MSG_CHOICE_LEN];
     const ColonizeMsgSection* taxopt = assets_msg_find(&game_txt, "TAXOPTIONS");
     n = popup_msg_choices(taxopt, tax_choices, 4);
     if (n < 2) {
       assets_msg_free(&game_txt);
       return fail("TAXOPTIONS must expose Kiss/Party choices");
+    }
+    /* @DECLARE Never… is 53 chars — must fit POPUP_MSG_CHOICE_LEN without cut. */
+    char declare_choices[4][POPUP_MSG_CHOICE_LEN];
+    const ColonizeMsgSection* decl = assets_msg_find(&game_txt, "DECLARE");
+    n = popup_msg_choices(decl, declare_choices, 4);
+    if (n < 2) {
+      assets_msg_free(&game_txt);
+      return fail("DECLARE must expose Never/Yes choices");
+    }
+    if (!strstr(declare_choices[0], "God save the King")) {
+      fprintf(stderr, "smoke_popup_dialogs: DECLARE Never truncated: '%s'\n",
+              declare_choices[0]);
+      assets_msg_free(&game_txt);
+      return fail("DECLARE Never choice must keep 'God save the King'");
     }
     assets_msg_free(&game_txt);
   }

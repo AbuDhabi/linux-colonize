@@ -219,80 +219,32 @@ void ai_contact_indian_capital_surrender(
 }
 
 /*
- * Pull quoted body lines from GAME.TXT @SECTION (skip @width / Yes / No).
+ * Pull GAME.TXT @SECTION body via popup_msg_fill (tokens expanded).
  * Falls back to fallback_body when catalog missing.
  */
 static void ai_contact_msg_body(
   const ColonizeMsgCatalog* messages,
   const char* section,
-  const char* tribe,
-  const char* euro,
+  const PopupMsgTokens* tok,
   const char* fallback_body,
   char* out,
   size_t out_size
 ) {
-  if (!out || out_size == 0) {
-    return;
+  popup_msg_fill(messages, section, tok, fallback_body, out, out_size);
+}
+
+static int ai_contact_nation_pop_total(const ColonizeTurnContext* ctx, int nation_id) {
+  int sum = 0;
+  if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
+    return 0;
   }
-  out[0] = '\0';
-  if (messages && section) {
-    const ColonizeMsgSection* sec = assets_msg_find(messages, section);
-    if (sec && sec->line_count > 0) {
-      size_t used = 0;
-      for (int i = 0; i < sec->line_count && used + 2 < out_size; ++i) {
-        const char* line = sec->lines[i];
-        if (!line || !line[0]) {
-          continue;
-        }
-        if (line[0] == '@') {
-          continue;
-        }
-        if (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0) {
-          continue;
-        }
-        /* Strip surrounding quotes and {%…} placeholders lightly. */
-        char buf[COLONIZE_MSG_LINE_LEN];
-        size_t bi = 0;
-        for (size_t c = 0; line[c] && bi + 1 < sizeof(buf); ++c) {
-          if (line[c] == '"' || line[c] == '{' || line[c] == '}') {
-            continue;
-          }
-          if (line[c] == '%') {
-            /* Skip %STRING0 / %NUMBER0 style tokens. */
-            while (line[c] && line[c] != ' ' && line[c] != '.' && line[c] != ',') {
-              ++c;
-            }
-            if (!line[c]) {
-              break;
-            }
-            --c;
-            continue;
-          }
-          buf[bi++] = line[c];
-        }
-        buf[bi] = '\0';
-        if (bi == 0) {
-          continue;
-        }
-        if (used > 0 && used + 1 < out_size) {
-          out[used++] = ' ';
-        }
-        const size_t n = strlen(buf);
-        if (used + n >= out_size) {
-          break;
-        }
-        memcpy(out + used, buf, n);
-        used += n;
-        out[used] = '\0';
-      }
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id == nation_id) {
+      sum += (int)t->population;
     }
   }
-  if (out[0] == '\0' && fallback_body) {
-    snprintf(out, out_size, "%s", fallback_body);
-  }
-  /* Prefer inserting tribe/euro names when placeholders were stripped empty. */
-  (void)tribe;
-  (void)euro;
+  return sum;
 }
 
 static int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id) {
@@ -465,6 +417,10 @@ static void ai_contact_apply_welcome_accept(
 
   const char* tribe = ai_contact_tribe_name(nation_id);
   const char* euro = ai_contact_euro_name(e);
+  PopupMsgTokens peace_tok;
+  memset(&peace_tok, 0, sizeof(peace_tok));
+  peace_tok.string0 = tribe;
+  peace_tok.string1 = euro;
   char peace_fb[AI_POPUP_BODY_LEN];
   snprintf(
     peace_fb,
@@ -476,12 +432,15 @@ static void ai_contact_apply_welcome_accept(
   );
   char peace_body[AI_POPUP_BODY_LEN];
   ai_contact_msg_body(
-    ctx->messages, "INDIANPEACE", tribe, euro, peace_fb, peace_body, sizeof(peace_body)
+    ctx->messages, "INDIANPEACE", &peace_tok, peace_fb, peace_body, sizeof(peace_body)
   );
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", peace_body);
 
   /* DOS FUN_5bfb_0182: @INDIANCOME when relation < 0x19 before/as friendly. */
   if (rel_before < 25u) {
+    PopupMsgTokens come_tok;
+    memset(&come_tok, 0, sizeof(come_tok));
+    come_tok.string0 = tribe;
     char come_fb[AI_POPUP_BODY_LEN];
     snprintf(
       come_fb,
@@ -492,7 +451,7 @@ static void ai_contact_apply_welcome_accept(
     );
     char come_body[AI_POPUP_BODY_LEN];
     ai_contact_msg_body(
-      ctx->messages, "INDIANCOME", tribe, euro, come_fb, come_body, sizeof(come_body)
+      ctx->messages, "INDIANCOME", &come_tok, come_fb, come_body, sizeof(come_body)
     );
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Peace", come_body);
   }
@@ -546,6 +505,9 @@ static void ai_contact_apply_welcome_reject(
   ai_diplo_indian_hostility_sync(ctx->col1, e);
 
   const char* tribe = ai_contact_tribe_name(nation_id);
+  PopupMsgTokens shun_tok;
+  memset(&shun_tok, 0, sizeof(shun_tok));
+  shun_tok.string0 = tribe;
   char shun_fb[AI_POPUP_BODY_LEN];
   snprintf(
     shun_fb,
@@ -555,7 +517,7 @@ static void ai_contact_apply_welcome_reject(
   );
   char shun_body[AI_POPUP_BODY_LEN];
   ai_contact_msg_body(
-    ctx->messages, "INDIANSHUN", tribe, ai_contact_euro_name(e), shun_fb, shun_body, sizeof(shun_body)
+    ctx->messages, "INDIANSHUN", &shun_tok, shun_fb, shun_body, sizeof(shun_body)
   );
   ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "War", shun_body);
 }
@@ -568,18 +530,27 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
     return;
   }
   const char* tribe = ai_contact_tribe_name(nation_id);
+  const int pop = ai_contact_nation_pop_total(ctx, nation_id);
+  PopupMsgTokens welcome_tok;
+  memset(&welcome_tok, 0, sizeof(welcome_tok));
+  welcome_tok.string0 = tribe;
+  welcome_tok.string1 = "braves";
+  welcome_tok.number0 = pop > 0 ? pop : 1;
+  welcome_tok.has_number0 = true;
   char fb[AI_POPUP_BODY_LEN];
   snprintf(
     fb,
     sizeof(fb),
-    "The %s tribe welcomes you. To celebrate our friendship, we generously offer "
-    "you the land you now occupy as a gift. Will you accept our treaty and live "
-    "with us in peace as brothers?",
-    tribe
+    "The %s tribe welcomes you. We are a glorious nation of %d braves. "
+    "To celebrate our friendship, we generously offer you the land you now "
+    "occupy as a gift. Will you accept our treaty and live with us in peace "
+    "as brothers?",
+    tribe,
+    welcome_tok.number0
   );
   char body[AI_POPUP_BODY_LEN];
   ai_contact_msg_body(
-    ctx->messages, "INDIANWELCOME", tribe, ai_contact_euro_name(e), fb, body, sizeof(body)
+    ctx->messages, "INDIANWELCOME", &welcome_tok, fb, body, sizeof(body)
   );
   char title[AI_POPUP_TITLE_LEN];
   snprintf(title, sizeof(title), "%s", tribe);

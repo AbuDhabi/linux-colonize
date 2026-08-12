@@ -177,7 +177,7 @@ stateDiagram-v2
 | Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **O**/**U**; gated off-settlement | Done |
 | Return to Europe | Ship on High Seas | Sail home lane | Despawn → Europe Expected | Done |
 | Dump Cargo Overboard | Transport with goods | Confirm `@OVERBOARD`; dump hold | Yes/No then first goods hold | Done |
-| Disband | Shift+D / ORDERS | Confirm `@SUREDISBAND` / `@DISBANDSHIP` | Confirm then `units_disband` | Done |
+| Disband | Shift+D / ORDERS | `@SUREDISBAND` confirm; `@DISBANDSHIP` OK if ship has units aboard | Confirm then `units_disband` | Done |
 
 ### Pillage / Live In Village
 
@@ -218,7 +218,8 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | `@NOPLOW` | Plow on already-plowed | Modal | `@NOPLOW` ai_popup OK | Done thin |
 | `@NOROAD` | Road where road exists | Modal | `@NOROAD` ai_popup OK | Done thin |
 | `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists + `@USEDUPTOOLS` ai_popup OK | Done thin |
-| `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Yes/No | `AI_POPUP_TAG_MAP_CONFIRM` | Done |
+| `@SUREDISBAND` | Disband confirm | Yes/No | `AI_POPUP_TAG_MAP_CONFIRM` | Done |
+| `@DISBANDSHIP` | Ship carrying units | OK (error) | `AI_POPUP_TAG_INFO` | Done |
 | `@OVERBOARD` | Dump cargo confirm | Yes/No | Same | Done |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
 | `@SHIPOPTIONS` | Ship option list | Anchor / sentry / unload / … | Menu-driven; chrome thin | Partial |

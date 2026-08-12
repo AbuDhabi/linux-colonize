@@ -52,7 +52,7 @@
  * Calendar @SOONRETIRING1 (1840 WoI): head.unknown46[9] once.
  * Revolution end: lose if 0 colonies (@LOSING2) or 0 coastal ports (@LOSING1);
  *   win if year≥1850 + no crown units; @RETIRING2 if year≥1850 + crown remains.
- * SoL restless chrome (40..49): status + INFO OK when human sees restless.
+ * SoL restless chrome (40..49): status only (no invented wood OK).
  * backup_force: DOS 0x53e2… foreign pools — 10f0 stand-in (seeded on declare).
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
@@ -1416,8 +1416,16 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
                  cname);
       }
       if (ai_king_human_popups(ctx)) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = "The King's forces";
+        tok.string2 = cname;
+        char fallback[AI_POPUP_BODY_LEN];
+        snprintf(fallback, sizeof(fallback), "The King's forces march into %s!", cname);
         char body[AI_POPUP_BODY_LEN];
-        snprintf(body, sizeof(body), "The King's forces have captured %s!", cname);
+        popup_msg_fill(
+          ctx->messages, "CAPTURED3", &tok, fallback, body, sizeof(body)
+        );
         (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CAPTURE, human,
                                       crown, cid, "Colony Captured", body);
       }
@@ -1956,15 +1964,15 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
       body,
       sizeof(body)
     );
-    char choice_buf[AI_POPUP_CHOICE_MAX][48];
+    char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
     const ColonizeMsgSection* taxopt = assets_msg_find(ctx->messages, "TAXOPTIONS");
     int nch = 0;
     if (taxopt) {
       /* Fill choice labels with STRING3 for Hold '{Tea Party}'. */
-      char raw_choices[AI_POPUP_CHOICE_MAX][48];
+      char raw_choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
       nch = popup_msg_choices(taxopt, raw_choices, AI_POPUP_CHOICE_MAX);
       for (int i = 0; i < nch; ++i) {
-        popup_msg_apply_tokens(choice_buf[i], 48, raw_choices[i], &tok);
+        popup_msg_apply_tokens(choice_buf[i], sizeof(choice_buf[i]), raw_choices[i], &tok);
       }
     }
     const char* labels[2];
@@ -2054,11 +2062,18 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   }
   if (ai_king_human_popups(ctx)) {
     /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED — KING_LETTER tag). */
+    const char* leader =
+      (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
+        ? ctx->col1->player[human].name
+        : "Washington";
+    PopupMsgTokens letter_tok;
+    memset(&letter_tok, 0, sizeof(letter_tok));
+    letter_tok.string0 = leader;
     char letter[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages,
       "INDEPENDENCE",
-      NULL,
+      &letter_tok,
       "Continental Congress signs Declaration of Independence! "
       "Abuses and usurpations cited! The colonies are renamed the United Colonies.",
       letter,
@@ -2138,11 +2153,11 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
       motherland
     );
     popup_msg_fill(ctx->messages, "DECLARE", &tok, fallback, body, sizeof(body));
-    char choice_buf[AI_POPUP_CHOICE_MAX][48];
+    char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
     const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "DECLARE");
     int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
     for (int i = 0; i < nch; ++i) {
-      char filled[48];
+      char filled[AI_POPUP_CHOICE_LEN];
       popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
       str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
     }
@@ -2585,15 +2600,74 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
     landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, k);
   }
 
-  /* Thin 10f0 announce once (multi-landing beat → single OK; VGA chrome PARKED). */
+  /* Authentic 10f0 announce once: @INTERVENTION then @INTERVENE (VGA PARKED). */
   if (landings > 0) {
+    static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
+    const int human = ctx->human_nation;
+    const int crown = ai_king_crown_nation(human);
+    const char* ally_name =
+      (ally >= 0 && ally < 4 && ctx->col1 && ctx->col1->player[ally].country_name[0])
+        ? ctx->col1->player[ally].country_name
+        : ((ally >= 0 && ally < 4) ? k_euro[ally] : "Foreign");
+    const char* crown_name =
+      (crown >= 0 && crown < 4 && ctx->col1 && ctx->col1->player[crown].country_name[0])
+        ? ctx->col1->player[crown].country_name
+        : ((crown >= 0 && crown < 4) ? k_euro[crown] : "the Crown");
+    const char* colony = "the colonies";
+    if (ctx->colonies) {
+      const int cid = colonies_id_at(ctx->colonies, hx, hy);
+      const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+      if (c && c->name[0]) {
+        colony = c->name;
+      }
+    }
+    char general[64];
+    snprintf(general, sizeof(general), "%s General", ally_name);
+
     if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "Foreign troops have landed!");
+      snprintf(ctx->status, ctx->status_size, "%s Intervention Force arrives in %s!",
+               ally_name, colony);
     }
     if (ai_king_human_popups(ctx)) {
+      PopupMsgTokens itok;
+      memset(&itok, 0, sizeof(itok));
+      itok.string0 = ally_name;
+      itok.string1 = crown_name;
+      itok.string2 = general;
+      itok.string3 = colony;
+      itok.string4 = ally_name;
+      char body[AI_POPUP_BODY_LEN];
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(
+        fallback,
+        sizeof(fallback),
+        "%s declares war on %s and joins the War of Independence on the Rebel side!",
+        ally_name,
+        crown_name
+      );
+      popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, ctx->human_nation, ally, landings,
-        "Foreign Intervention", "Foreign troops have landed!"
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally, landings,
+        "Foreign Intervention", body
+      );
+
+      PopupMsgTokens atok;
+      memset(&atok, 0, sizeof(atok));
+      atok.string0 = colony;
+      atok.string1 = ally_name;
+      snprintf(
+        fallback,
+        sizeof(fallback),
+        "%s Intervention Force arrives in %s! Local Rebel Army commander regales "
+        "%s admiral.",
+        ally_name,
+        colony,
+        ally_name
+      );
+      popup_msg_fill(ctx->messages, "INTERVENE", &atok, fallback, body, sizeof(body));
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally, landings,
+        "Foreign Intervention", body
       );
     }
   }
@@ -2724,11 +2798,11 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
       body,
       sizeof(body)
     );
-    char choice_buf[AI_POPUP_CHOICE_MAX][48];
+    char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
     const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "MERCENARIES");
     int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
     for (int i = 0; i < nch; ++i) {
-      char filled[48];
+      char filled[AI_POPUP_CHOICE_LEN];
       popup_msg_apply_tokens(filled, sizeof(filled), choice_buf[i], &tok);
       str_copy_trunc(choice_buf[i], sizeof(choice_buf[i]), filled);
     }
@@ -3870,7 +3944,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         snprintf(ctx->status, ctx->status_size, "%s", body);
       }
       if (ai_king_human_popups(ctx)) {
-        char choice_buf[AI_POPUP_CHOICE_MAX][48];
+        char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
         const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "SCORED");
         int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
         const char* labels[2];
@@ -3921,13 +3995,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         } else {
           snprintf(ctx->status, ctx->status_size, "Sons of Liberty grow restless (%d%%).", sol);
         }
-        /* FUN_43f7_0004 / peacetime chrome: restless OK when human queue attached. */
-        if (ai_king_human_popups(ctx)) {
-          (void)ai_popup_enqueue_ok_ctx(
-            ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation,
-            ai_king_crown_nation(ctx->human_nation), sol, "Sons of Liberty", ctx->status
-          );
-        }
+        /* Restless: status only (no invented wood OK). */
       }
     }
     ai_king_try_declare(ctx);

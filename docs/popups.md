@@ -103,7 +103,7 @@ fragment. Related sections are listed in the first column.
 |---------------------|------|--------|------|
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land with passengers | Done | `AI_POPUP_TAG_LANDFALL` + `popup_msg_fill` |
 | Stack picker | Multi-unit tile click | Done | [`unit_stack.c`](../src/core/unit_stack.c) |
-| `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Done | `AI_POPUP_TAG_MAP_CONFIRM` |
+| `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm / ship cargo error | Done | Confirm `@SUREDISBAND`; `@DISBANDSHIP` OK when units aboard |
 | `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
 | `@OVERBOARD` | Dump cargo confirm | Done | Yes/No then dump first hold |
 | Order gates (`@ONLYPIO`, `@NEEDTOOLS`, `@NOPLOW`, …) | Illegal order | Partial | `@ONLYPIO`/`@NOPLOW`/`@NOROAD` Done thin; EOT `@NEEDTOOLS`/`@NEEDTOOLS0` Done thin; `@SEACOLONY`/`@NOPORT` found Done thin; other gates status |
@@ -173,8 +173,8 @@ fragment. Related sections are listed in the first column.
 | Merc Hire/Decline (`@MERCENARIES`) | Continental mercs | Done | `KING_MERC` |
 | Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` body+choices via `popup_msg_fill` / `popup_msg_choices`; VGA PARKED |
 | `@INDEPENDENCE` letter | Rename / letter | Partial | `KING_LETTER` from `@INDEPENDENCE`; cinematic PARKED |
-| `@INVASION` / intervene | REF / ally arrival | Partial | REF `KING_ARRIVAL` via `@INVASION` Done thin; intervene invent Partial |
-| Crown capture | REF takes colony | Partial | `KING_CAPTURE` OK |
+| `@INVASION` / intervene | REF / ally arrival | Done thin | REF `@INVASION`; ally `@INTERVENTION`+`@INTERVENE` |
+| Crown capture | REF takes colony | Done thin | `KING_CAPTURE` via `@CAPTURED3` |
 | Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches; VGA PARKED |
 | Mid-war port warn | WoI | Done thin | `@WARN1` when exactly one coastal port left (`unknown46[6]` episode) |
 | Mid-war colony warn | WoI | Done thin | `@WARN2` when exactly one colony left (`unknown46[7]` episode) |
@@ -673,7 +673,8 @@ work.
 | `@SEIZURESEA` | Done | Crown naval → Royal Navy text; Privateer uses custom body |
 | `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
 | `@INDEPENDENCE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@INVASION` | Done thin | REF `1528` wave OK/status via `popup_msg_fill`; intervene invent remains; VGA PARKED |
+| `@INVASION` | Done thin | REF `1528` wave OK/status via `popup_msg_fill`; VGA PARKED |
+| `@INTERVENTION` / `@INTERVENE` | Done thin | `10f0` ally declare + landing ARRIVAL |
 | `@TOOTORY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
 | `@DEADCONVERTS` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
@@ -775,7 +776,7 @@ work.
 | `@TUTNOSPACES` | Missing | tutorial hints missing |
 | `@KINGLOSE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGWIN` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@DISBANDSHIP` | Done | ship disband Yes/No |
+| `@DISBANDSHIP` | Done | ship-with-cargo error OK (not Yes/No) |
 | `@NOMOREWAREHOUSE` | Done thin | Warehouse Expansion already owned → ai_popup OK |
 | `@NOMOREWAGONS` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@BUILD1` | Done | sail captions |
@@ -805,7 +806,7 @@ From [`ai_popup.h`](../src/core/ai_popup.h):
 | `KING_MERC` | CHOICE / OK | `@MERCENARIES` / `@MERCS` | Done |
 | `KING_CONGRESS` | CHOICE | `@DECLARE` body+choices / `43f7_2564` | Done thin |
 | `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Partial |
-| `KING_ARRIVAL` | OK | `@INVASION` REF `43f7_1528` Done thin; intervene `10f0` invent | Partial |
+| `KING_ARRIVAL` | OK | `@INVASION` REF `43f7_1528`; `@INTERVENTION`/`@INTERVENE` `10f0` | Done thin |
 | `KING_CAPTURE` | OK | REF colony capture | Partial |
 | `FF_CONGRESS` | CHOICE / OK | `@CONTINENTAL` / `4345_024a` | Done |
 | `CONTACT_WELCOME` | CHOICE | `@INDIANWELCOME` / `5bfb_022e` | Done |

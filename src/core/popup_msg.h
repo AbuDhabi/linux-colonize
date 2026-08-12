@@ -62,10 +62,13 @@ void popup_msg_fill(
   size_t out_size
 );
 
+/* Must fit longest GAME.TXT choice (@DECLARE Never… = 53 with quotes). */
+#define POPUP_MSG_CHOICE_LEN 64
+
 /* Extract Yes/No (or listed) choice labels from section; returns count (0..max). */
 int popup_msg_choices(
   const ColonizeMsgSection* section,
-  char out[][48],
+  char out[][POPUP_MSG_CHOICE_LEN],
   int max_choices
 );
 

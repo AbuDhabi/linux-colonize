@@ -41,7 +41,7 @@ static int smoke_buyme1_tokens(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  char choices[4][48];
+  char choices[4][POPUP_MSG_CHOICE_LEN];
   const ColonizeMsgSection* sec = assets_msg_find(&game_txt, "BUYME1");
   const int nch = popup_msg_choices(sec, choices, 4);
   if (nch < 2) {

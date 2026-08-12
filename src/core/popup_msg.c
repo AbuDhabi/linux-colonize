@@ -203,7 +203,11 @@ void popup_msg_fill(
   }
 }
 
-int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max_choices) {
+int popup_msg_choices(
+  const ColonizeMsgSection* section,
+  char out[][POPUP_MSG_CHOICE_LEN],
+  int max_choices
+) {
   if (!section || !out || max_choices <= 0) {
     return 0;
   }
@@ -220,7 +224,7 @@ int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max
     }
     if (popup_msg_is_choice_word(line)) {
       if (count < max_choices) {
-        str_copy_trunc(out[count], 48, line);
+        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
         count++;
       }
       continue;
@@ -229,7 +233,7 @@ int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max
      * (e.g. second landfall option if matcher missed one). */
     if (count > 0 && saw_prose) {
       if (count < max_choices) {
-        str_copy_trunc(out[count], 48, line);
+        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
         count++;
       }
       continue;
@@ -243,7 +247,7 @@ int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max
       if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
         continue;
       }
-      str_copy_trunc(out[count], 48, line);
+      str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
       count++;
     }
   }
@@ -251,7 +255,7 @@ int popup_msg_choices(const ColonizeMsgSection* section, char out[][48], int max
     for (int i = 0; i < section->line_count && count < max_choices; ++i) {
       const char* line = section->lines[i];
       if (line && (strcmp(line, "Yes") == 0 || strcmp(line, "No") == 0)) {
-        str_copy_trunc(out[count], 48, line);
+        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
         count++;
       }
     }

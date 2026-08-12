@@ -4699,7 +4699,7 @@ int main(void) {
     }
 
     /*
-     * R3: 10f0 intervene landing enqueues KING_ARRIVAL once (REF 1528 already OK).
+     * R3: 10f0 intervene landing enqueues @INTERVENTION + @INTERVENE ARRIVAL.
      * WoI + REF empty + backup; merc flag already set so no Hire CHOICE spam.
      */
     {
@@ -4715,27 +4715,36 @@ int main(void) {
       ai_king_nation_turn(&ctx);
       {
         int arrival_ok = 0;
+        int found_intervention = 0;
+        int found_intervene = 0;
         for (int i = 0; i < pop.queue_count; ++i) {
           if (pop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL &&
-              pop.queue[i].kind == AI_POPUP_KIND_OK &&
-              strstr(pop.queue[i].body, "Foreign troops")) {
+              pop.queue[i].kind == AI_POPUP_KIND_OK) {
             arrival_ok++;
+            if (strstr(pop.queue[i].body, "declares war") ||
+                strstr(pop.queue[i].body, "War of Independence")) {
+              found_intervention = 1;
+            }
+            if (strstr(pop.queue[i].body, "Intervention Force") ||
+                strstr(pop.queue[i].body, "regales")) {
+              found_intervene = 1;
+            }
           }
         }
-        if (arrival_ok != 1) {
-          fprintf(stderr, "smoke_ai_king: intervene ARRIVAL count=%d (want 1)\n",
-                  arrival_ok);
-          return fail("10f0 intervene should enqueue KING_ARRIVAL OK once");
+        if (arrival_ok != 2 || !found_intervention || !found_intervene) {
+          fprintf(stderr,
+                  "smoke_ai_king: intervene ARRIVAL count=%d interv=%d arrive=%d\n",
+                  arrival_ok, found_intervention, found_intervene);
+          return fail("10f0 intervene should enqueue @INTERVENTION + @INTERVENE once each");
         }
       }
       /* Same-turn capture may overwrite status (1528 pattern); popup is canonical. */
     }
 
     /*
-     * R2 new smoke: SoL restless chrome enqueues INFO OK when human queue attached.
-     * Autumn + SoL 45 + bells below declare; peacetime (clear WoI).
+     * Restless chrome: SoL 45 -> status only (invented wood OK demoted).
+     * Autumn + SoL 45 + taxes below declare; peacetime (clear WoI).
      * Force single-colony SoL (earlier 1eca block may leave colony_count=2).
-     * FUN_43f7_0004 / peacetime restless — must not set WoI/congress.
      */
     {
       col1.head.unknown46[0] = 0;
@@ -4761,19 +4770,12 @@ int main(void) {
         fprintf(stderr, "smoke_ai_king: restless+popups status: '%s'\n", status);
         return fail("restless+ai_popups should still set restless status");
       }
-      {
-        int found_restless = 0;
-        for (int i = 0; i < pop.queue_count; ++i) {
-          if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
-              (pop.queue[i].tag == AI_POPUP_TAG_INFO ||
-               pop.queue[i].tag == AI_POPUP_TAG_KING_TAX) &&
-              strstr(pop.queue[i].body, "restless")) {
-            found_restless = 1;
-            break;
-          }
-        }
-        if (!found_restless) {
-          return fail("restless chrome should enqueue INFO OK when ai_popups");
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            (pop.queue[i].tag == AI_POPUP_TAG_INFO ||
+             pop.queue[i].tag == AI_POPUP_TAG_KING_TAX) &&
+            strstr(pop.queue[i].body, "restless")) {
+          return fail("restless chrome must not enqueue invented INFO OK");
         }
       }
     }
