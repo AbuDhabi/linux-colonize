@@ -50,7 +50,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Conquest treasure | Difficulty bands 0..3 (Gov+Vic share band 3) | Wired |
 | Score villages burned | `-(diff+1)*burned` | Wired |
 | Tory / inefficient gov | Thresh `10-diff`; full mod `−⌊tories/thresh⌋` + sol latches | **Wired** — see [sons_of_liberty.md](sons_of_liberty.md) |
-| AI colony food | `+= difficulty>>1` | **PARK** |
+| AI colony food | `+= difficulty>>1` | **Wired** |
 | Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
 | End-game score→gold rebate | `FUN_41f2_0b70` difficulty multiplier | **PARK** |
 | Combat strength (human Euro) | `str -= (diff-4)`; Discoverer −25% vs AI Euro | Wired — [combat.md](combat.md) |
@@ -279,7 +279,7 @@ SoL stand-in).
 
 | Effect | Decomp cite | Port |
 |--------|-------------|------|
-| AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | Not in `src/` |
+| AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | **Wired** (`turn_produce_one_colony`) |
 | Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
 | Score→gold rebate `FUN_41f2_0b70` | FUNCTION_CATALOG | PARK |
 | Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | **Wired** (`colony_prod_sol_bonus`) |

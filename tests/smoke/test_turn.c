@@ -886,6 +886,77 @@ int main(void) {
     fprintf(stderr, "colony birth food≥200 ok\n");
   }
 
+  /*
+   * FUN_364b_0688 Phase B: AI Euro food += difficulty>>1.
+   * Cite: colony_eot_production.md; difficulty.md.
+   */
+  {
+    ColonizeColonyPool ai_pool;
+    colonies_init(&ai_pool);
+    ColonizeColony* a = &ai_pool.colonies[0];
+    memset(a, 0, sizeof(*a));
+    a->active = true;
+    a->id = 1;
+    a->nation_id = 1;
+    a->building_in_production = -1;
+    a->stock[COLONIZE_CARGO_FOOD] = 10;
+    a->colonists[0].active = true;
+    a->colonists[0].unit_type_index = 0;
+    a->colonists[0].building_type = -1;
+    a->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      a->tiles[t] = -1;
+    }
+    a->colonist_count = 1;
+    a->population = 1;
+    ai_pool.colony_count = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.player[0].control = 0;
+    col1.player[1].control = 1; /* AI */
+    col1.head.difficulty = 4; /* Viceroy → +2 */
+
+    ColonizeTurnResult ar;
+    memset(&ar, 0, sizeof(ar));
+    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL);
+    /* 10 + 2 AI food − 2 eat = 10 */
+    if (a->stock[COLONIZE_CARGO_FOOD] != 10) {
+      fprintf(
+        stderr,
+        "AI food bonus Viceroy: want 10 got %d\n",
+        a->stock[COLONIZE_CARGO_FOOD]
+      );
+      return 1;
+    }
+
+    a->stock[COLONIZE_CARGO_FOOD] = 10;
+    col1.head.difficulty = 0; /* Discoverer → +0 */
+    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL);
+    if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
+      fprintf(
+        stderr,
+        "AI food bonus Discoverer: want 8 got %d\n",
+        a->stock[COLONIZE_CARGO_FOOD]
+      );
+      return 1;
+    }
+
+    a->stock[COLONIZE_CARGO_FOOD] = 10;
+    a->nation_id = 0; /* human */
+    col1.head.difficulty = 4;
+    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL);
+    if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
+      fprintf(
+        stderr,
+        "human no AI food bonus: want 8 got %d\n",
+        a->stock[COLONIZE_CARGO_FOOD]
+      );
+      return 1;
+    }
+    fprintf(stderr, "AI colony food difficulty>>1 ok\n");
+  }
+
   /* FUN_364b_0688 starve-kill: second consecutive STARVATION turn → lose one. */
   {
     ColonizeColonyPool starve_pool;
@@ -1328,7 +1399,9 @@ int main(void) {
   }
 
   /*
-   * AI crosses threshold → Europe Free Colonist spawn (no dock UI).
+   * AI Euro crosses: +2 /turn; threshold → Free Colonist spawn PARKED
+   * (seed-100 TURN goldens sit at needed without convert).
+   * Cite: turn.c nation ticks; nation_ticks_bells_ff.md.
    */
   {
     ColonizeUnitPool units;
@@ -1354,32 +1427,25 @@ int main(void) {
     ColonizeTurnResult out;
     memset(&out, 0, sizeof(out));
     turn_run_nation_ticks(&ctx, &out);
-    if (out.immigrants_arrived < 1) {
-      fprintf(stderr, "AI immigrant: want ≥1 arrived got %d\n", out.immigrants_arrived);
-      return 1;
-    }
-    if (col1.nation[1].needed_crosses != 9 || col1.nation[1].current_crosses != 0) {
+    /* PARKED spawn: no immigrant; crosses still get AI +2 → 10/8. */
+    if (out.immigrants_arrived != 0) {
       fprintf(
         stderr,
-        "AI immigrant need/cur want 9/0 got %u/%u\n",
-        (unsigned)col1.nation[1].needed_crosses,
-        (unsigned)col1.nation[1].current_crosses
+        "AI immigrant PARKED: want 0 arrived got %d\n",
+        out.immigrants_arrived
       );
       return 1;
     }
-    int found = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1 && u->x == 236 && u->y == 236) {
-        found = 1;
-        break;
-      }
-    }
-    if (!found) {
-      fprintf(stderr, "AI immigrant: no Europe unit for nation 1\n");
+    if (col1.nation[1].needed_crosses != 8 || col1.nation[1].current_crosses != 10) {
+      fprintf(
+        stderr,
+        "AI crosses want 10/8 got %u/%u\n",
+        (unsigned)col1.nation[1].current_crosses,
+        (unsigned)col1.nation[1].needed_crosses
+      );
       return 1;
     }
-    fprintf(stderr, "AI crosses immigrant spawn ok\n");
+    fprintf(stderr, "AI crosses +2 (immigrant spawn PARKED) ok\n");
   }
 
   /* 5e52 phase 4 immigration pressure thin. */
