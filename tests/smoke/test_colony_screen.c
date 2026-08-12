@@ -6,12 +6,71 @@
 #include "core/colony_screen.h"
 #include "core/ff.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
+/* BUYME1 body tokens + Never mind / Complete it choices. */
+static int smoke_buyme1_tokens(void) {
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "buyme1: GAME.TXT load failed\n");
+    return 1;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = "Stockade";
+  tok.number0 = 42;
+  tok.has_number0 = true;
+  tok.number1 = 500;
+  tok.has_number1 = true;
+  char body[512];
+  popup_msg_fill(
+    &game_txt,
+    "BUYME1",
+    &tok,
+    "Cost to complete Stockade: 42$. Treasury: 500$.",
+    body,
+    sizeof(body)
+  );
+  if (strstr(body, "Stockade") == NULL || strstr(body, "42") == NULL ||
+      strstr(body, "500") == NULL) {
+    fprintf(stderr, "buyme1: body weak '%s'\n", body);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  char choices[4][48];
+  const ColonizeMsgSection* sec = assets_msg_find(&game_txt, "BUYME1");
+  const int nch = popup_msg_choices(sec, choices, 4);
+  if (nch < 2) {
+    fprintf(stderr, "buyme1: want 2 choices got %d\n", nch);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(choices[0], "Never") == NULL && strstr(choices[0], "mind") == NULL) {
+    fprintf(stderr, "buyme1: choice0 unexpected '%s'\n", choices[0]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  if (strstr(choices[1], "Complete") == NULL) {
+    fprintf(stderr, "buyme1: choice1 unexpected '%s'\n", choices[1]);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+  fprintf(stderr, "smoke_colony_screen: BUYME1 tokens+choices ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (smoke_buyme1_tokens() != 0) {
+    diag_shutdown();
+    return 1;
+  }
 
   ColonyScreenView view;
   char err[256];

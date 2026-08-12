@@ -2,6 +2,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -1116,18 +1117,43 @@ int main(void) {
     ctx.status_size = sizeof(status_sc);
     ctx.human_nation = 0;
     col1.nation[0].gold = 0;
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+    ctx.messages = &game_txt;
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ctx.ai_popups = &pops;
     ai_contact_indian_meet_trade(&ctx, 4);
     scout_t = units_get(&units, scout_teach_id);
     if (!col1.tribe[0].state.learned) {
+      assets_msg_free(&game_txt);
       return fail("teach-skill Scout should set tribe.state.learned");
     }
     if (!scout_t || scout_t->profession != UNITS_JOB_SCOUT) {
+      assets_msg_free(&game_txt);
       return fail("teach-skill Scout → Seasoned Scout profession");
     }
-    if (strstr(status_sc, "Seasoned Scout") == NULL) {
+    if (strstr(status_sc, "Seasoned") == NULL && strstr(status_sc, "Scouts") == NULL) {
       fprintf(stderr, "smoke_ai_contact: scout-teach status '%s'\n", status_sc);
-      return fail("Scout teach should set Seasoned Scout status");
+      assets_msg_free(&game_txt);
+      return fail("Scout teach should set WELLSEASONED status");
     }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "Seasoned") == NULL &&
+         strstr(pops.queue[0].body, "Scouts") == NULL)) {
+      fprintf(
+        stderr,
+        "smoke_ai_contact: WELLSEASONED popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return fail("Scout teach should enqueue WELLSEASONED popup");
+    }
+    ctx.messages = NULL;
+    ctx.ai_popups = NULL;
+    assets_msg_free(&game_txt);
     units_despawn(&units, scout_teach_id);
     euro->x = 6;
     euro->y = 5;

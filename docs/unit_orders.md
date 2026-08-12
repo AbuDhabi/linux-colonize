@@ -163,17 +163,17 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest colony + `@CLEARCUT` | `units_pioneer_plow` clear path; +20 lumber thin + chrome | Done |
+| Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest colony + `@CLEARCUT` / `@DEFOREST` | `units_pioneer_plow` clear path; +20 lumber thin + chrome | Done |
 | Plow Fields (**P**) | Pioneer on open land | Same order 8; separate job; refuse if already plowed | Plow path; hills/arctic deny | Done |
 | Build Road (**R**) | Pioneer | Order 9; `479b_0526`; turns = `terr_cost` (Hardy ÷2); −20 tools | `units_pioneer_road` | Done |
-| Work tick | Nation refresh | Progress; complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`); clear grants lumber/`@CLEARCUT` | `units_pioneer_work_tick` + type→Colonists | Done (Hardy×2 / terrain×20 / road lumber PARKED) |
+| Work tick | Nation refresh | Progress; complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`); clear grants lumber/`@CLEARCUT`/`@DEFOREST` | `units_pioneer_work_tick` + type→Colonists | Done (Hardy×2 / terrain×20 / road lumber PARKED) |
 
 ### Found / Join / cargo / Europe
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Build Colony (**B**) | Land founder off colony | `479b_076e` found body; name `@COLONY` | Immediate `game_try_found_colony_*`; order 7 unused | Done |
-| Join Colony (**B**) | On own colony tile | Admit / open colony | Admit selected land unit; else open colony | Done |
+| Build Colony (**B**) | Land founder off colony | `479b_076e` found body; name `@COLONY` | Immediate found; `@SEACOLONY` on water; `@NOPORT` CHOICE inland; order 7 unused | Done |
+| Join Colony (**B**) | On own colony tile | Admit / open colony | Admit selected land unit; `@FULL` if at POP_MAX; else open colony | Done |
 | Load / Unload Cargo | Transport on Euro settlement | Board/unload cargo UI | ORDERS + **O**/**U**; gated off-settlement | Done |
 | Return to Europe | Ship on High Seas | Sail home lane | Despawn → Europe Expected | Done |
 | Dump Cargo Overboard | Transport with goods | Confirm `@OVERBOARD`; dump hold | Yes/No then first goods hold | Done |
@@ -213,11 +213,11 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 
 | `@SECTION` | Trigger | Expected | Linux | Status |
 |------------|---------|----------|-------|--------|
-| `@ONLYPIO` | Non-pioneer tries pioneer order | Modal | Status / bounce | Partial |
-| `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony build tools shortage (related) | Modal | Status paths | Partial |
-| `@NOPLOW` | Plow on already-plowed | Modal | Status / bounce | Partial |
-| `@NOROAD` | Road where road exists | Modal | Status / bounce | Partial |
-| `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists; no modal | Partial |
+| `@ONLYPIO` | Non-pioneer tries pioneer order | Modal | `@ONLYPIO` ai_popup OK | Done thin |
+| `@NEEDTOOLS` / `@NEEDTOOLS0` | Colony build tools shortage (related) | Modal | EOT `@NEEDTOOLS`/`@NEEDTOOLS0` Done thin; pioneer Need tools status | Partial |
+| `@NOPLOW` | Plow on already-plowed | Modal | `@NOPLOW` ai_popup OK | Done thin |
+| `@NOROAD` | Road where road exists | Modal | `@NOROAD` ai_popup OK | Done thin |
+| `@USEDUPTOOLS` | Pioneer tools depleted | Modal | Type→Colonists + `@USEDUPTOOLS` ai_popup OK | Done thin |
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Yes/No | `AI_POPUP_TAG_MAP_CONFIRM` | Done |
 | `@OVERBOARD` | Dump cargo confirm | Yes/No | Same | Done |
 | `@LANDFALL` / `@LANDFALL2` | Ship→bare land | Stay / Make Landfall | Done — see [move_enter.md](move_enter.md) |
@@ -238,7 +238,7 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | Build / Join colony (immediate actions) | Done |
 | Trade Route begin / aim / cycle / stop service | Partial (structural Done; Edit UI / VGA PARKED) |
 | Pillage | Partial (thin API; ORDERS item hidden like DOS `0b34`) |
-| Order-gate modals (`@ONLYPIO`, `@NOPLOW`, …) | Partial (status/bounce) |
+| Order-gate modals (`@ONLYPIO`, `@NOPLOW`, …) | Done thin (`@ONLYPIO`/`@NOPLOW`/`@NOROAD`; EOT `@NEEDTOOLS`/`@NEEDTOOLS0`; pioneer `@NEEDTOOLS` still Partial) |
 | Colony docked-unit orders popup | Missing |
 | `@ORDERS` index 4 Live In Village | Missing |
 | Order byte 7 as lasting Build Colony | Unused (founding immediate — acceptable) |

@@ -150,11 +150,13 @@ specialty in `1..4` and nation skill-flag at `specialty−0x6bd0` clear:
 - On roll 0: set skill flag; `0cae` assign specialty; msg `0xe1f`.
 
 **Port:** F–G **Done** thin (`turns_in_job` + Teacher in Schoolhouse/College/
-University graduates Free/Indentured/Criminal/Convert → teacher `field_job`
-specialty if set, else Farmer or Carpenter); no-students status **Done** thin.
+University); ladder Criminal→Indentured (`@TRAINCRIMINAL`), Indentured→Free
+(`@TRAININDENTURED`); Free/Convert → teacher `field_job` specialty if set, else
+Farmer or Carpenter (`@TRAINPROFESSION`); no-students status + `@TRAINFAIL`
+chrome **Done** thin.
 H random field skill **Done** thin (Free Colonist on field 0..4, 1/100 → that
-profession). Nation skill-flags / deep school-job tables **PARKED**. `0x5384|0x80`
-gates education msgs.
+profession + `@TRAINPROFESSION` chrome). Nation skill-flags / deep school-job tables
+**PARKED**. `0x5384|0x80` gates education msgs.
 
 ## Deep — K build advisories (57696–57728)
 
@@ -218,6 +220,6 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | F–H education | `turn_produce_one_colony` **Done** thin |
 | Horse breed | `turn_produce_one_colony` **Done** thin (Stable cap) |
 | P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; `@SPOIL1`–`4` section matrix **Done** thin; century `@CARGOREADY0`–`2` (at-cap → 1/2) **Done** thin |
-| K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; `@LUMBER`/`@ORE`/`@TOOLS` + craft `@COTTON`/`@TOBACCO`/`@CANESUGAR`/`@FURS` chrome **Done** thin |
+| K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; `@LUMBER`/`@ORE`/`@TOOLS` + craft `@COTTON`/`@TOBACCO`/`@CANESUGAR`/`@FURS` chrome **Done** thin; tools-short `@NEEDTOOLS0` / partial `@NEEDTOOLS` **Done** thin |
 | I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin; `@FOODLOW` (stock &lt; need×4, no starve-kill) **Done** thin; first-latch `@FOOD1`/`@FOOD2` (autumn→FOOD2) **Done** thin; kill `@STARVE1`/`@STARVE2` (autumn→STARVE2) **Done** thin |
 | Q depletion | wrap + `MAP_LAYER2_SUPPRESS` **Done**; `@DEPLETION` chrome **Done** thin |

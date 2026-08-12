@@ -985,29 +985,89 @@ static void turn_produce_one_colony(
         if ((int)teacher->turns_in_job < need) {
           continue;
         }
-        /* Specialty: teacher field_job 0..8 if set; else Farmer / Carpenter. */
-        int skill = (school_tier >= 2) ? COLONIZE_PROF_CARPENTER : COLONIZE_JOB_FARMER;
-        if (teacher->field_job >= 0 && teacher->field_job < COLONIZE_FIELD_JOB_COUNT) {
-          skill = teacher->field_job;
-        }
         ColonizeColonist* student = &colony->colonists[students[n_stud - 1]];
-        student->profession = skill;
+        const int prev_prof = student->profession;
+        enum { GRAD_SPECIALTY = 0, GRAD_CRIMINAL, GRAD_INDENTURED } grad = GRAD_SPECIALTY;
+        const char* chrome_sec = "TRAINPROFESSION";
+        const char* skill_name = "profession";
+        if (prev_prof == COLONIZE_PROF_CRIMINAL) {
+          /* DOS 0x1a → 0x19 / @TRAINCRIMINAL. */
+          student->profession = COLONIZE_PROF_INDENTURED;
+          chrome_sec = "TRAINCRIMINAL";
+          grad = GRAD_CRIMINAL;
+        } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
+          /* DOS 0x19 → Free / @TRAININDENTURED. */
+          student->profession = COLONIZE_PROF_FREE_COLONIST;
+          chrome_sec = "TRAININDENTURED";
+          grad = GRAD_INDENTURED;
+        } else {
+          /* Specialty: teacher field_job 0..8 if set; else Farmer / Carpenter. */
+          int skill = (school_tier >= 2) ? COLONIZE_PROF_CARPENTER : COLONIZE_JOB_FARMER;
+          if (teacher->field_job >= 0 && teacher->field_job < COLONIZE_FIELD_JOB_COUNT) {
+            skill = teacher->field_job;
+          }
+          student->profession = skill;
+          if (skill >= 0 && skill < COLONIZE_FIELD_JOB_COUNT) {
+            skill_name = colony_yield_job_name(skill);
+          } else if (skill == COLONIZE_PROF_CARPENTER) {
+            skill_name = "Carpenter";
+          }
+        }
         student->turns_in_job = 0;
         teacher->turns_in_job = 0;
         n_stud--;
         if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
           const char* tier_name =
             (school_tier >= 3) ? "University" : (school_tier == 2) ? "College" : "Schoolhouse";
-          snprintf(europe->status, sizeof(europe->status), "%s graduate.", tier_name);
+          if (grad == GRAD_CRIMINAL) {
+            snprintf(europe->status, sizeof(europe->status), "Criminal educated.");
+          } else if (grad == GRAD_INDENTURED) {
+            snprintf(europe->status, sizeof(europe->status), "Indentured educated.");
+          } else {
+            snprintf(europe->status, sizeof(europe->status), "%s graduate.", tier_name);
+          }
+          if (ai_popups) {
+            const char* cname = colony->name[0] ? colony->name : "colony";
+            char body[AI_POPUP_BODY_LEN];
+            char fallback[160];
+            if (grad == GRAD_CRIMINAL) {
+              snprintf(
+                fallback, sizeof(fallback), "Criminal in %s became indentured.", cname
+              );
+            } else if (grad == GRAD_INDENTURED) {
+              snprintf(
+                fallback, sizeof(fallback), "Indentured in %s became free colonist.", cname
+              );
+            } else {
+              snprintf(fallback, sizeof(fallback), "%s learned %s.", cname, skill_name);
+            }
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            tok.string0 = cname;
+            tok.string1 = skill_name;
+            popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
+            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          }
         }
       }
-      /* Teacher ready but no students at start → DOS 0xde7 crumb. */
+      /* Teacher ready but no students at start → DOS 0xde7 / @TRAINFAIL. */
       if (students_at_start == 0 && europe && colony->nation_id == human_nation &&
           turn_report_ok_trained(col1)) {
         for (int t = 0; t < n_teach; ++t) {
           ColonizeColonist* teacher = &colony->colonists[teachers[t]];
           if ((int)teacher->turns_in_job >= need) {
             snprintf(europe->status, sizeof(europe->status), "No students to teach.");
+            if (ai_popups) {
+              const char* cname = colony->name[0] ? colony->name : "colony";
+              char body[AI_POPUP_BODY_LEN];
+              char fallback[160];
+              snprintf(fallback, sizeof(fallback), "No students to teach in %s.", cname);
+              PopupMsgTokens tok;
+              memset(&tok, 0, sizeof(tok));
+              tok.string0 = cname;
+              popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
+              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            }
             break;
           }
         }
@@ -1041,6 +1101,22 @@ static void turn_produce_one_colony(
         c->turns_in_job = 0;
         if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
           snprintf(europe->status, sizeof(europe->status), "Colonist learned a skill.");
+          if (ai_popups) {
+            const char* cname = colony->name[0] ? colony->name : "colony";
+            const char* skill_name = colony_yield_job_name(c->field_job);
+            if (!skill_name || !skill_name[0]) {
+              skill_name = "profession";
+            }
+            char body[AI_POPUP_BODY_LEN];
+            char fallback[160];
+            snprintf(fallback, sizeof(fallback), "%s learned %s.", cname, skill_name);
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            tok.string0 = cname;
+            tok.string1 = skill_name;
+            popup_msg_fill(messages, "TRAINPROFESSION", &tok, fallback, body, sizeof(body));
+            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          }
         }
       }
     }
@@ -1148,11 +1224,37 @@ static void turn_produce_one_colony(
             }
           }
         } else if (
-          colony->nation_id == human_nation && europe && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
+          colony->nation_id == human_nation && europe &&
           (!col1 || !col1->head.colony_report_options.report_tools_needed_for_production)
         ) {
-          /* K tools crumb (0x8e76 / 0xe8f); gate !(5384&0x10). */
-          snprintf(europe->status, sizeof(europe->status), "Need tools.");
+          /* K tools crumb (0x8e76 / 0xe8f); gate !(5384&0x10).
+           * Hammers ready but tools short: @NEEDTOOLS0 (0) / @NEEDTOOLS (some). */
+          const ColonizeBuildingType* bt =
+            (bip >= 0 && bip < pool->building_type_count) ? &pool->building_types[bip] : NULL;
+          const int tools_have = colony->stock[COLONIZE_CARGO_TOOLS];
+          const int tools_cost = bt ? bt->tools_cost : 0;
+          const bool hammers_ready =
+            bt && bt->hammers > 0 && colony->hammers >= bt->hammers;
+          if (hammers_ready && tools_cost > 0 && tools_have < tools_cost) {
+            snprintf(europe->status, sizeof(europe->status), "Need tools.");
+            if (ai_popups) {
+              char body[AI_POPUP_BODY_LEN];
+              PopupMsgTokens tok;
+              memset(&tok, 0, sizeof(tok));
+              tok.string0 = colony->name[0] ? colony->name : "colony";
+              tok.string1 = (bname && bname[0]) ? bname : "building";
+              tok.number0 = tools_cost;
+              tok.has_number0 = true;
+              const char* section = "NEEDTOOLS0";
+              if (tools_have > 0) {
+                section = "NEEDTOOLS";
+                tok.number1 = tools_have;
+                tok.has_number1 = true;
+              }
+              popup_msg_fill(messages, section, &tok, europe->status, body, sizeof(body));
+              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            }
+          }
         }
       }
     } else if (
@@ -1879,7 +1981,14 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size, NULL
     );
     (void)units_tick_drydock_repair(
-      ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size
+      ctx->units,
+      ctx->colonies,
+      n,
+      ctx->human_nation,
+      ctx->status,
+      ctx->status_size,
+      ctx->ai_popups,
+      ctx->messages
     );
     ai_euro_nation_turn(ctx, n);
   }
@@ -2350,7 +2459,14 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             &want_eu
           );
           (void)units_tick_drydock_repair(
-            ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size
+            ctx->units,
+            ctx->colonies,
+            n,
+            ctx->human_nation,
+            ctx->status,
+            ctx->status_size,
+            ctx->ai_popups,
+            ctx->messages
           );
           if (want_eu && n == ctx->human_nation) {
             proc->result.request_europe_open = true;
@@ -2437,7 +2553,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->human_nation,
           ctx->human_nation,
           ctx->status,
-          ctx->status_size
+          ctx->status_size,
+          ctx->ai_popups,
+          ctx->messages
         );
         if (want_eu) {
           proc->result.request_europe_open = true;

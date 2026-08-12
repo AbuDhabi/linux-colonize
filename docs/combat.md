@@ -258,7 +258,7 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 | Pulse | `units_coastal_fort_fire_pulse` — all Fort/Fortress colonies, 8 ocean dirs |
 | Hostile | at war (Euro/Indian) **or** Privateer |
 | Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake on Privateer); close win→`col1_unknown15` bit7 + MP drain; else win→sink (no plunder); miss→`moves_left=0` |
-| Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick) |
+| Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick); human `@REFIT` ai_popup OK |
 | Turn | `turn_run_coastal_fort_fire` after colony production |
 | AI | `ai_euro_tile_under_enemy_fort_fire` / flee |
 
@@ -294,7 +294,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
 | Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
 | Combat Analysis | Done | Options-gated dual column |
-| Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair Done; temp unit/VGA PARKED |
+| Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair + `@REFIT` Done thin; temp unit/VGA PARKED |
 | Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
 | Village settlement battle `4528` | Done thin | Warn→Attack/Leave + fallout `@LOOT`/`@LOOT2`; deep `2820`/VGA PARKED |
 | Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |

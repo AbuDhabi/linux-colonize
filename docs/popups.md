@@ -106,13 +106,13 @@ fragment. Related sections are listed in the first column.
 | `@SUREDISBAND` / `@DISBANDSHIP` | Disband confirm | Done | `AI_POPUP_TAG_MAP_CONFIRM` |
 | `@FINDCITY` / `@NOCITY` | Find colony picker | Done | `cheat_list` FIND_COLONY |
 | `@OVERBOARD` | Dump cargo confirm | Done | Yes/No then dump first hold |
-| Order gates (`@ONLYPIO`, `@NEEDTOOLS`, `@NOPLOW`, …) | Illegal order | Partial | Status / bounce; no modal |
+| Order gates (`@ONLYPIO`, `@NEEDTOOLS`, `@NOPLOW`, …) | Illegal order | Partial | `@ONLYPIO`/`@NOPLOW`/`@NOROAD` Done thin; EOT `@NEEDTOOLS`/`@NEEDTOOLS0` Done thin; `@SEACOLONY`/`@NOPORT` found Done thin; other gates status |
 
 ### 4. Colony screen
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| Construction CHANGE | CHANGE / **C** | Done | [`colony_screen.c`](../src/core/colony_screen.c) |
+| Construction CHANGE | CHANGE / **C** | Done | [`colony_screen.c`](../src/core/colony_screen.c); owned refuse `@ALREADYHAVE` / `@NOMOREWAREHOUSE` |
 | Field jobs | Assign colonist to field | Done | Job list popup |
 | Leave-as (eject) | Fence with colonist | Done | Role list |
 | `@ABANDON` / `@ABANDON2` | Last colonist leave | Done | Yes/No confirm from GAME.TXT |
@@ -120,8 +120,9 @@ fragment. Related sections are listed in the first column.
 | `@COLONY` / `@RENAMECOLONY` | Found / rename | Done | Name entry after found; **R** rename in colony |
 | `@LANDHO` | First land sight | Done | Name New World (`colony_region`); seed from NAMES `@COLONYNAME` per nation |
 | `@HOWMUCH1`… | Cargo amount | Done | [`howmuch_dialog.c`](../src/core/howmuch_dialog.c) (`=` colony / Europe **L**) |
-| `@WAREHOUSEFULL` | Warehouse overflow | Partial | Spoilage → `ai_popup` OK (`@SPOIL*`) |
-| Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Missing | — |
+| `@WAREHOUSEFULL` | Warehouse overflow | Done thin | Unload full → `ai_popup` OK; spoilage still `@SPOIL*` |
+| Train fails (`@NOTEACHER`, `@TRAINFAIL`, …) | School train | Partial | EOT train + `@NOTEACHER`/`@NEEDCOLLEGE`/`@NEEDUNIVERSITY` assign Done thin |
+| `@FULL` | Join at population cap | Done thin | `colonies_emit_full_chrome` → ai_popup OK |
 | Spoil / starve (`@SPOIL*`, `@STARVE*`, …) | EOT production | Done | `ai_popup` OK from turn production |
 | Docked unit orders | Colony transport orders | Missing | Select/load only |
 | `@CARGOREADY*` | Century tip / ship-ready | Done thin | EOT century `@CARGOREADY0`–`2`; ship FINISH still thin |
@@ -146,7 +147,7 @@ fragment. Related sections are listed in the first column.
 | Meet Trade/Gift/Demand/Teach/Leave | Village meet | Done | `CONTACT_MEET` |
 | Gift amount | Gift gold | Done | Small/Large/Generous CHOICE |
 | Demand tools/gold | Tribute | Done | `CONTACT_DEMAND` |
-| Teach (`@LEARN*`) | Teach skill result | Partial | `CONTACT_TEACH` OK |
+| Teach (`@LEARN*`) | Teach skill result | Partial | `CONTACT_TEACH` OK; Scout→Seasoned uses `@WELLSEASONED` |
 | Mission / convert (`@MISSION*`, `@INDIANSCONVERT`) | Missionary | Partial | `CONTACT_CONVERT` OK |
 | `@RAID*` outcomes | Raid / ambush | Partial | `CONTACT_RAID` OK; deep `4528` PARKED |
 | Village attitude / HELLO | Enter settlement | Partial | Thin snippets / status |
@@ -314,22 +315,22 @@ work.
 | `@RENAMECOLONY` | Done | colony **R** rename |
 | `@LANDFALL` | Done | AI_POPUP_TAG_LANDFALL |
 | `@LANDFALL2` | Partial | river landfall variant; port uses LANDFALL path |
-| `@ONLYPIO` | Partial | order/gate — status or bounce; no modal |
+| `@ONLYPIO` | Done thin | non-pioneer plow/road ai_popup OK |
 | `@ONLYCOL` | Partial | order/gate — status or bounce; no modal |
 | `@SHIPCOMBAT` | Partial | order/gate — status or bounce; no modal |
 | `@SHIPLAKE` | Partial | order/gate — status or bounce; no modal |
 | `@LANDFIRST` | Partial | order/gate — status or bounce; no modal |
-| `@SEACOLONY` | Partial | order/gate — status or bounce; no modal |
-| `@NOPORT` | Partial | order/gate — status or bounce; no modal |
+| `@SEACOLONY` | Done thin | Build Colony on water → ai_popup OK |
+| `@NOPORT` | Done thin | inland Build Colony → CHOICE cancel/proceed |
 | `@BUILT` | Done thin | EOT building complete ai_popup OK (`@BUILT`); VGA PARKED |
-| `@FULL` | Missing | no colony modal (FULL/SIEGE may status) |
-| `@NOTEACHER` | Missing | colony train fail dialogs missing |
-| `@NEEDCOLLEGE` | Missing | colony train fail dialogs missing |
-| `@NEEDUNIVERSITY` | Missing | colony train fail dialogs missing |
-| `@TRAINFAIL` | Missing | colony train fail dialogs missing |
-| `@TRAINCRIMINAL` | Missing | colony train fail dialogs missing |
-| `@TRAININDENTURED` | Missing | colony train fail dialogs missing |
-| `@TRAINPROFESSION` | Missing | colony train fail dialogs missing |
+| `@FULL` | Done thin | Join Colony at POP_MAX → ai_popup OK |
+| `@NOTEACHER` | Done thin | unskilled → school assign refuse + ai_popup OK |
+| `@NEEDCOLLEGE` | Done thin | school assign when job tier 2 > building → ai_popup OK |
+| `@NEEDUNIVERSITY` | Done thin | school assign when job tier 3 > building → ai_popup OK |
+| `@TRAINFAIL` | Done thin | EOT Phase G ready teacher + no students ai_popup OK |
+| `@TRAINCRIMINAL` | Done thin | EOT Phase G Criminal→Indentured ai_popup OK |
+| `@TRAININDENTURED` | Done thin | EOT Phase G Indentured→Free ai_popup OK |
+| `@TRAINPROFESSION` | Done thin | EOT Phase G graduate + Phase H field-skill discover ai_popup OK |
 | `@SIEGE` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@ABANDON` | Done | colony abandon Yes/No (`colony_screen`) |
 | `@ABANDON2` | Done | colony abandon Yes/No (`colony_screen`) |
@@ -367,9 +368,9 @@ work.
 | `@SPOIL2` | Done thin | EOT multi-cargo tip warehouse (`spoil_types>1`) |
 | `@SPOIL3` | Done thin | EOT expanded warehouse single (`warehouse_level>1`) |
 | `@SPOIL4` | Done thin | EOT expanded warehouse multi |
-| `@BUYME0` | Missing | production/EOT messages — status or silent; no modal |
-| `@BUYME1` | Missing | production/EOT messages — status or silent; no modal |
-| `@DEFOREST` | Missing | production/EOT messages — status or silent; no modal |
+| `@BUYME0` | Missing | info-only twin unused; cost lines live in `@BUYME1` confirm |
+| `@BUYME1` | Done thin | colony buy-construction CHOICE Never mind / Complete it |
+| `@DEFOREST` | Done thin | pioneer clear-forest near owned colony ai_popup OK |
 | `@DEPLETION` | Done thin | EOT ore/silver wrap ai_popup OK (`@DEPLETION`); VGA PARKED |
 | `@UNITFLAG` | Partial | Col1 flag bits; not dialogs |
 | `@COLONYFLAG` | Partial | Col1 flag bits; not dialogs |
@@ -422,8 +423,8 @@ work.
 | `@INDIANFOREST` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANFOREST2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANBRIBE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@NOPLOW` | Partial | order/gate — status or bounce; no modal |
-| `@NOROAD` | Partial | order/gate — status or bounce; no modal |
+| `@NOPLOW` | Done thin | plow on already-plowed ai_popup OK |
+| `@NOROAD` | Done thin | road where road exists ai_popup OK |
 | `@VIOLATE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@HALF` | Partial | order/gate — status or bounce; no modal |
 | `@NOLOOT` | Partial | alias unused; village burn uses `@LOOT2` |
@@ -473,7 +474,7 @@ work.
 | `@BURNED3` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@EUROPEWIN` | Done | structural combat outcome popup |
 | `@EUROPELOSE` | Done | structural combat outcome popup |
-| `@WAREHOUSEFULL` | Missing | no warehouse-full modal |
+| `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
 | `@EXTORTSTUFF` | Missing | extort/ship anger dialogs missing |
 | `@EXTORTPOOR` | Missing | extort/ship anger dialogs missing |
 | `@EXTORTLAUGH` | Missing | extort/ship anger dialogs missing |
@@ -571,7 +572,7 @@ work.
 | `@KINGGALLEON2` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGGALLEON3` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@CASHTREASURE` | Partial | Europe sail/market — partial status or auto |
-| `@USEDUPTOOLS` | Partial | order/gate — status or bounce; no modal |
+| `@USEDUPTOOLS` | Done thin | pioneer tools demotion ai_popup OK; VGA PARKED |
 | `@EVASIVE` | Partial | order/gate — status or bounce; no modal |
 | `@KINGMERCY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGNEWWAR` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
@@ -582,9 +583,9 @@ work.
 | `@KINGSTAMPACT` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@COUNTRIES` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@ORDINAL` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@NEEDTOOLS` | Partial | order/gate — status or bounce; no modal |
-| `@NEEDTOOLS0` | Partial | order/gate — status or bounce; no modal |
-| `@ALREADYHAVE` | Partial | order/gate — status or bounce; no modal |
+| `@NEEDTOOLS` | Done thin | EOT Phase K tools short but >0 construction ai_popup OK |
+| `@NEEDTOOLS0` | Done thin | EOT Phase K tools-short construction ai_popup OK |
+| `@ALREADYHAVE` | Done thin | construction set refused when already owned → ai_popup OK |
 | `@LOBOTOMIZE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@NATION0A` | Done | nation lore pages |
 | `@NATION0B` | Done | nation lore pages |
@@ -660,8 +661,8 @@ work.
 | `@REBELUP` | Partial | SoL / veteran chrome — status or silent |
 | `@REBELUP50` | Partial | SoL / veteran chrome — status or silent |
 | `@REBELDOWN` | Partial | SoL / veteran chrome — status or silent |
-| `@REFIT` | Missing | production/EOT messages — status or silent; no modal |
-| `@WELLSEASONED` | Missing | production/EOT messages — status or silent; no modal |
+| `@REFIT` | Done thin | Drydock repair ai_popup OK (`@REFIT`); VGA PARKED |
+| `@WELLSEASONED` | Done thin | Indian teach Scout→Seasoned `CONTACT_TEACH` + `@WELLSEASONED` |
 | `@KINGBUY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@SEIZURE` | Partial | king/REF — structural; VGA PARKED |
 | `@SEIZURESEA` | Done | Crown naval → Royal Navy text; Privateer uses custom body |
@@ -727,7 +728,7 @@ work.
 | `@NEWCOLONIST` | Done thin | EOT Phase I birth ai_popup OK (`@NEWCOLONIST`); VGA PARKED |
 | `@INEFFICIENT` | Done thin | EOT Tory-pressure ai_popup OK (`turn_emit_inefficient_gov_chrome`); VGA PARKED |
 | `@EFFICIENT` | Done thin | EOT Tory-pressure clear ai_popup OK; VGA PARKED |
-| `@CLEARCUT` | Done thin | pioneer clear-forest → lumber to nearest colony + ai_popup OK; Hardy×2 / terrain×20 PARKED |
+| `@CLEARCUT` | Done thin | pioneer clear-forest → lumber to nearest colony + ai_popup OK; also `@DEFOREST`; Hardy×2 / terrain×20 PARKED |
 | `@REALLYBUY` | Done | purchase / train menus |
 | `@INDIANWARPATH` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANWARPATH2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
@@ -770,7 +771,7 @@ work.
 | `@KINGLOSE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGWIN` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@DISBANDSHIP` | Done | ship disband Yes/No |
-| `@NOMOREWAREHOUSE` | Missing | no colony modal (FULL/SIEGE may status) |
+| `@NOMOREWAREHOUSE` | Done thin | Warehouse Expansion already owned → ai_popup OK |
 | `@NOMOREWAGONS` | Missing | no colony modal (FULL/SIEGE may status) |
 | `@BUILD1` | Done | sail captions |
 | `@BUILD2` | Done | sail captions |

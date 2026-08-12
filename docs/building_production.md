@@ -152,7 +152,7 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 |------|------:|-------|----------|----------|
 | Preacher | 16 | Firebrand Preacher | Church, Cathedral | Crosses (×2 skilled) |
 | Statesman | 17 | Elder Statesman | Town Hall | Liberty bells (×2 skilled) |
-| Teacher | 18 | Expert Teacher | Schoolhouse / College / University | Trains colonists |
+| Teacher | 18 | Expert Teacher | Schoolhouse / College / University | Trains colonists; unskilled → `@NOTEACHER`; job tier vs school → `@NEEDCOLLEGE`/`@NEEDUNIVERSITY` |
 
 ### Not manufacturing
 
@@ -178,7 +178,7 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 | Magazine | 120 | 50 | 8 | Doubles musket production |
 | Arsenal | 240 | 100 | 8 | Factory muskets (**Adam Smith**) |
 | Docks | 52 | 0 | 1 | Fishing on sea/lake tiles |
-| Drydock | 80 | 50 | 4 | Ship repair |
+| Drydock | 80 | 50 | 4 | Ship repair (`@REFIT` on combat bit7 clear) |
 | Shipyard | 240 | 100 | 8 | Ship construction |
 | Town Hall | 64 | 0 | 1 | Liberty bells |
 | Town Hall (row 2) | 64 | 50 | 4 | Upgrade chain (NAMES) |
@@ -237,7 +237,7 @@ Full catalog: [sons_of_liberty.md](sons_of_liberty.md). Tory thresh by difficult
 |------------|-------------|------------------|
 | **Production tab** | Every cargo good / shortfall + hammers | [`colony_preview.c`](../src/core/colony_preview.c) via [`colony_production.c`](../src/core/colony_production.c); crosses/bells → people meters |
 | **Production strip** | Sum of assigned workers’ output | `colony_prod_worker_building_output()` |
-| **Construction Change list** | Buildable projects, min-pop, coastal docks, Adam Smith, Stuyvesant | [`colonies_list_buildable()`](../src/core/colony.c) |
+| **Construction Change list** | Buildable projects, min-pop, coastal docks, Adam Smith, Stuyvesant; owned refuse `@ALREADYHAVE` / `@NOMOREWAREHOUSE` | [`colonies_list_buildable()`](../src/core/colony.c) + `colonies_emit_already_have_chrome` |
 
 Shared formula (port):
 

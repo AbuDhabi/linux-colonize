@@ -4,10 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/font.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
+#include "core/popup_msg.h"
+#include "core/colony_production.h"
+#include "core/colony_yield.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
@@ -682,6 +686,165 @@ static void colonies_clear_colonist_tile(ColonizeColony* col, int colonist_index
   }
 }
 
+bool colonies_is_school_building(const ColonizeColonyPool* pool, int building_type) {
+  return colonies_school_building_tier(pool, building_type) > 0;
+}
+
+/* NAMES.TXT @JOB school field (1..4), index-aligned. */
+static const uint8_t k_job_school_tier[28] = {
+  1, 2, 2, 2, 1, 1, 1, 1, 1, /* 0..8 field */
+  2, 2, 2, 2, 1, 2, 2,       /* 9..15 craft */
+  3, 3, 4, 4, 1, 2, 1, 2, 3, /* 16..24 civic/military */
+  4, 4, 4                    /* 25..27 servant/criminal/convert */
+};
+
+int colonies_job_school_tier(int profession) {
+  if (profession < 0 || profession >= (int)(sizeof(k_job_school_tier) / sizeof(k_job_school_tier[0]))) {
+    return 0;
+  }
+  return (int)k_job_school_tier[profession];
+}
+
+int colonies_school_building_tier(
+  const ColonizeColonyPool* pool,
+  int building_type
+) {
+  if (!pool || building_type < 0 || building_type >= pool->building_type_count) {
+    return 0;
+  }
+  const char* bn = pool->building_types[building_type].name;
+  if (!bn || !bn[0]) {
+    return 0;
+  }
+  if (strstr(bn, "University") != NULL) {
+    return 3;
+  }
+  if (strstr(bn, "College") != NULL) {
+    return 2;
+  }
+  if (strstr(bn, "Schoolhouse") != NULL) {
+    return 1;
+  }
+  return 0;
+}
+
+int colonies_school_tier_shortfall(int profession, int building_tier) {
+  if (building_tier <= 0) {
+    return 0;
+  }
+  const int need = colonies_job_school_tier(profession);
+  if (need != 2 && need != 3) {
+    return 0;
+  }
+  if (need > building_tier) {
+    return need;
+  }
+  return 0;
+}
+
+bool colonies_profession_may_teach(int profession) {
+  if (profession < 0) {
+    return false;
+  }
+  if (profession == COLONIZE_PROF_FREE_COLONIST || profession == COLONIZE_PROF_INDENTURED ||
+      profession == COLONIZE_PROF_CRIMINAL || profession == COLONIZE_PROF_CONVERT) {
+    return false;
+  }
+  return true;
+}
+
+static const char* colonies_profession_label(int profession) {
+  if (profession >= 0 && profession < COLONIZE_FIELD_JOB_COUNT) {
+    const char* n = colony_yield_job_name(profession);
+    if (n && n[0]) {
+      return n;
+    }
+  }
+  switch (profession) {
+  case COLONIZE_PROF_DISTILLER:
+    return "Distiller";
+  case COLONIZE_PROF_TOBACCONIST:
+    return "Tobacconist";
+  case COLONIZE_PROF_WEAVER:
+    return "Weaver";
+  case COLONIZE_PROF_FUR_TRADER:
+    return "Fur Trader";
+  case COLONIZE_PROF_CARPENTER:
+    return "Carpenter";
+  case COLONIZE_PROF_BLACKSMITH:
+    return "Blacksmith";
+  case COLONIZE_PROF_GUNSMITH:
+    return "Gunsmith";
+  case COLONIZE_PROF_PREACHER:
+    return "Preacher";
+  case COLONIZE_PROF_STATESMAN:
+    return "Statesman";
+  case COLONIZE_PROF_TEACHER:
+    return "Teacher";
+  case 20:
+    return "Pioneer";
+  case 21:
+    return "Soldier";
+  case 22:
+    return "Scout";
+  case 23:
+    return "Dragoon";
+  case 24:
+    return "Missionary";
+  default:
+    return "profession";
+  }
+}
+
+void colonies_emit_noteacher_chrome(
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    messages,
+    "NOTEACHER",
+    NULL,
+    "Only colonists who have mastered a profession may teach.",
+    body,
+    sizeof(body)
+  );
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+void colonies_emit_need_school_chrome(
+  int profession,
+  int building_tier,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups) {
+    return;
+  }
+  const int shortfall = colonies_school_tier_shortfall(profession, building_tier);
+  if (shortfall != 2 && shortfall != 3) {
+    return;
+  }
+  const char* section = (shortfall == 3) ? "NEEDUNIVERSITY" : "NEEDCOLLEGE";
+  const char* pname = colonies_profession_label(profession);
+  char body[AI_POPUP_BODY_LEN];
+  char fallback[160];
+  snprintf(
+    fallback,
+    sizeof(fallback),
+    shortfall == 3 ? "Need a university to teach %s." : "Need a college to teach %s.",
+    pname
+  );
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = pname;
+  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -704,6 +867,15 @@ bool colonies_assign_workplace(
   }
   if (!col->has_building[building_type]) {
     return false;
+  }
+  const int school_tier = colonies_school_building_tier(pool, building_type);
+  if (school_tier > 0) {
+    if (!colonies_profession_may_teach(c->profession)) {
+      return false;
+    }
+    if (colonies_school_tier_shortfall(c->profession, school_tier) != 0) {
+      return false;
+    }
   }
   colonies_clear_colonist_tile(col, colonist_index);
   c->field_job = -1;
@@ -1546,6 +1718,106 @@ int colonies_warehouse_capacity(
     level = 2;
   }
   return 100 * (1 + level);
+}
+
+void colonies_emit_warehouse_full_chrome(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int cargo_type,
+  const char* cargo_name,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups || !colony || !colony->active) {
+    return;
+  }
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return;
+  }
+  const int cap = colonies_warehouse_capacity(pool, colony, cargo_type);
+  const int stock = colony->stock[cargo_type];
+  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* gname = (cargo_name && cargo_name[0]) ? cargo_name : "cargo";
+  char body[AI_POPUP_BODY_LEN];
+  char fallback[160];
+  snprintf(
+    fallback,
+    sizeof(fallback),
+    "Warehouse full at %s (%d/%d %s).",
+    cname,
+    stock,
+    cap,
+    gname
+  );
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cname;
+  tok.string1 = gname;
+  tok.number0 = stock;
+  tok.has_number0 = true;
+  tok.number1 = cap;
+  tok.has_number1 = true;
+  popup_msg_fill(messages, "WAREHOUSEFULL", &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+void colonies_emit_full_chrome(
+  const ColonizeColony* colony,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups || !colony || !colony->active) {
+    return;
+  }
+  const char* cname = colony->name[0] ? colony->name : "colony";
+  char body[AI_POPUP_BODY_LEN];
+  char fallback[160];
+  snprintf(fallback, sizeof(fallback), "The colony of %s is far too crowded.", cname);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cname;
+  popup_msg_fill(messages, "FULL", &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+void colonies_emit_already_have_chrome(
+  const ColonizeColony* colony,
+  const char* building_name,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups || !colony || !colony->active) {
+    return;
+  }
+  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* bname =
+    (building_name && building_name[0]) ? building_name : "building";
+  const bool warehouse_exp = (strcmp(bname, "Warehouse Expansion") == 0);
+  const char* section = warehouse_exp ? "NOMOREWAREHOUSE" : "ALREADYHAVE";
+  char body[AI_POPUP_BODY_LEN];
+  char fallback[192];
+  if (warehouse_exp) {
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "%s cannot build another Warehouse Expansion.",
+      cname
+    );
+  } else {
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "%s already built a %s.",
+      cname,
+      bname
+    );
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cname;
+  tok.string1 = bname;
+  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 void colonies_specialty_cargo_update(

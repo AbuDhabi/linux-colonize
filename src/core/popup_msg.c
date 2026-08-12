@@ -25,6 +25,8 @@ static bool popup_msg_is_choice_word(const char* line) {
       strncmp(line, "Never! That would be folly", 26) == 0 ||
       strncmp(line, "\"Never! That would be treasonous", 32) == 0 ||
       strncmp(line, "\"Yes! Give me liberty", 21) == 0 ||
+      strncmp(line, "\"Oh, I forgot about that.", 25) == 0 ||
+      strncmp(line, "\"And that is exactly what I had in mind.", 40) == 0 ||
       strcmp(line, "Cancel Action.") == 0 || strcmp(line, "Break Treaty.") == 0 ||
       strcmp(line, "Accept") == 0 || strcmp(line, "Refuse") == 0) {
     return true;

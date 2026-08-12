@@ -425,7 +425,9 @@ int units_tick_drydock_repair(
   int nation_id,
   int human_nation,
   char* status,
-  size_t status_size
+  size_t status_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   if (!pool || !colonies || nation_id < 0 || nation_id > 3) {
     return 0;
@@ -456,9 +458,28 @@ int units_tick_drydock_repair(
     }
     u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
     repaired++;
-    if (nation_id == human_nation && status && status_size > 0) {
-      const char* name = (ty && ty->name[0]) ? ty->name : "Ship";
-      snprintf(status, status_size, "%s repaired at Drydock.", name);
+    if (nation_id == human_nation) {
+      const char* ship_name = (ty && ty->name[0]) ? ty->name : "Ship";
+      const char* col_name = (col->name[0]) ? col->name : "colony";
+      if (status && status_size > 0) {
+        snprintf(status, status_size, "%s repaired at Drydock.", ship_name);
+      }
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ship_name;
+        tok.string1 = col_name;
+        popup_msg_fill(
+          messages,
+          "REFIT",
+          &tok,
+          status && status[0] ? status : "Ship repaired.",
+          body,
+          sizeof(body)
+        );
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      }
     }
   }
   return repaired;
@@ -4196,8 +4217,8 @@ static bool units_pioneer_tile_can_clear_or_plow(
   return true;
 }
 
-static void units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
-  /* FUN_479b_0158: cargo_hold[5] / tools −20; type→Free Colonist when <20. */
+/* FUN_479b_0158: cargo_hold[5] / tools −20; type→Colonist when <20. */
+static bool units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
   if (u->tools >= UNITS_PIONEER_TOOL_COST) {
     u->tools -= UNITS_PIONEER_TOOL_COST;
   } else {
@@ -4212,7 +4233,57 @@ static void units_pioneer_wear_tools(ColonizeUnitPool* pool, ColonizeUnit* u) {
         u->type_index = colonist;
       }
     }
+    return true;
   }
+  return false;
+}
+
+/* @USEDUPTOOLS after demotion (human / unset-human only). */
+static void units_pioneer_emit_useduptools(
+  const ColonizeUnit* u,
+  char* err,
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (err && err_size) {
+    snprintf(err, err_size, "Tools used up — now a colonist");
+  }
+  if (!ai_popups || !u) {
+    return;
+  }
+  if (g_units_combat_human_nation >= 0 && u->nation_id != g_units_combat_human_nation) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    messages,
+    "USEDUPTOOLS",
+    NULL,
+    err && err[0] ? err : "Tools used up.",
+    body,
+    sizeof(body)
+  );
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+/* Order-gate OK chrome (human / unset-human). */
+static void units_pioneer_emit_order_gate(
+  const ColonizeUnit* u,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages,
+  const char* section,
+  const char* fallback
+) {
+  if (!ai_popups || !section) {
+    return;
+  }
+  if (u && g_units_combat_human_nation >= 0 && u->nation_id != g_units_combat_human_nation) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(messages, section, NULL, fallback ? fallback : section, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 bool units_pioneer_work_tick(
@@ -4295,8 +4366,10 @@ bool units_pioneer_work_tick(
   u->orders = UNITS_ORDER_NONE;
   if (road) {
     map_tile_set_road(map, u->x, u->y, true);
-    units_pioneer_wear_tools(pool, u);
-    if (err && err_size) {
+    const bool demoted = units_pioneer_wear_tools(pool, u);
+    if (demoted) {
+      units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
+    } else if (err && err_size) {
       snprintf(
         err,
         err_size,
@@ -4310,7 +4383,7 @@ bool units_pioneer_work_tick(
     (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
     if (clearing) {
       map_tile_clear_forest(map, u->x, u->y);
-      units_pioneer_wear_tools(pool, u);
+      const bool demoted = units_pioneer_wear_tools(pool, u);
       /*
        * FUN_479b_01a6 clear: lumber → nearest same-nation colony + @CLEARCUT.
        * Thin add=20 (terrain×20 / Hardy×2 PARKED). Cite: CLEARCUT GAME.TXT.
@@ -4391,10 +4464,28 @@ bool units_pioneer_work_tick(
         );
         ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
+      /* @DEFOREST tip when clear is near an owned colony (even if lumber=0). */
+      if (near && ai_popups &&
+          (g_units_combat_human_nation < 0 || u->nation_id == g_units_combat_human_nation)) {
+        const char* cname = near->name[0] ? near->name : "colony";
+        char body[AI_POPUP_BODY_LEN];
+        char fallback[96];
+        snprintf(fallback, sizeof(fallback), "Deforestation near %s.", cname);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = cname;
+        popup_msg_fill(messages, "DEFOREST", &tok, fallback, body, sizeof(body));
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      }
+      if (demoted) {
+        units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
+      }
     } else {
       map_tile_set_plowed(map, u->x, u->y, true);
-      units_pioneer_wear_tools(pool, u);
-      if (err && err_size) {
+      const bool demoted = units_pioneer_wear_tools(pool, u);
+      if (demoted) {
+        units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
+      } else if (err && err_size) {
         snprintf(
           err,
           err_size,
@@ -4423,6 +4514,7 @@ bool units_pioneer_plow(
     if (err && err_size) {
       snprintf(err, err_size, "Select a Pioneer");
     }
+    units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
     return false;
   }
   if (u->orders != UNITS_ORDER_CLEAR_PLOW && u->moves_left <= 0) {
@@ -4435,6 +4527,13 @@ bool units_pioneer_plow(
     if (err && err_size) {
       snprintf(err, err_size, "Need tools");
     }
+    return false;
+  }
+  if (map_tile_is_plowed(map, u->x, u->y)) {
+    if (err && err_size) {
+      snprintf(err, err_size, "Already plowed");
+    }
+    units_pioneer_emit_order_gate(u, ai_popups, messages, "NOPLOW", "Already plowed.");
     return false;
   }
   if (!units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, NULL)) {
@@ -4457,13 +4556,16 @@ bool units_pioneer_road(
   int unit_id,
   ColonizeWorldMap* map,
   char* err,
-  size_t err_size
+  size_t err_size,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !map || !units_is_pioneer(pool, unit_id)) {
     if (err && err_size) {
       snprintf(err, err_size, "Select a Pioneer");
     }
+    units_pioneer_emit_order_gate(u, ai_popups, messages, "ONLYPIO", "Only pioneers can do that.");
     return false;
   }
   if (u->orders != UNITS_ORDER_BUILD_ROAD && u->moves_left <= 0) {
@@ -4488,13 +4590,16 @@ bool units_pioneer_road(
     if (err && err_size) {
       snprintf(err, err_size, "Already a road");
     }
+    units_pioneer_emit_order_gate(u, ai_popups, messages, "NOROAD", "Already a road.");
     return false;
   }
   if (u->orders != UNITS_ORDER_BUILD_ROAD) {
     u->turns_worked = 0;
     u->orders = UNITS_ORDER_BUILD_ROAD;
   }
-  return units_pioneer_work_tick(pool, unit_id, map, err, err_size, NULL, NULL, NULL);
+  return units_pioneer_work_tick(
+    pool, unit_id, map, err, err_size, NULL, ai_popups, messages
+  );
 }
 
 static bool units_adjacent(int ax, int ay, int bx, int by) {
