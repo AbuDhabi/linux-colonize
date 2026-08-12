@@ -193,9 +193,10 @@ pressure += 2   /* DOS 584a *param_2 default; treasure −2 PARKED */
 | 3 | 62.5% |
 | 4 | 50% |
 
-Human English also `*2/3` (nation 0) independent of difficulty. Human with no
-colony population does not accrue pressure (port: crosses/churches own pre-colony
-immigration; idle +2 crosses/turn was removed).
+Human English also `*2/3` (nation 0) independent of difficulty. `needed_crosses`
+is this score each EOT (grows with pop/units). Idle **+2** into `current_crosses`
+until the first dock immigrant; afterward only church production — not a fixed
+9 with +1-per-immigrant bump.
 
 ---
 

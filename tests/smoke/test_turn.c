@@ -2167,7 +2167,7 @@ int main(void) {
     fprintf(stderr, "inefficient government chrome ok\n");
   }
 
-  /* FUN_364b_0688 starve-kill: second consecutive STARVATION turn → lose one. */
+  /* FUN_364b_0688 starve-kill: food_at_start==0 and still short → lose one. */
   {
     ColonizeColonyPool starve_pool;
     colonies_init(&starve_pool);
@@ -2177,7 +2177,6 @@ int main(void) {
     s->id = 1;
     s->building_in_production = -1;
     s->stock[COLONIZE_CARGO_FOOD] = 0; /* 2 pop need 4; stay starving */
-    s->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION; /* already warned */
     for (int i = 0; i < 2; ++i) {
       s->colonists[i].active = true;
       s->colonists[i].unit_type_index = 0;
@@ -2210,6 +2209,67 @@ int main(void) {
     fprintf(stderr, "colony starve-kill ok\n");
   }
 
+  /* Last colonist starve → @VANISH + abandon (DOS 0xe47). */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeColony* s = &pool.colonies[0];
+    memset(s, 0, sizeof(*s));
+    s->active = true;
+    s->id = 1;
+    s->nation_id = 0;
+    s->building_in_production = -1;
+    snprintf(s->name, sizeof(s->name), "Roanoke");
+    s->stock[COLONIZE_CARGO_FOOD] = 0;
+    s->colonists[0].active = true;
+    s->colonists[0].unit_type_index = 0;
+    s->colonists[0].profession = UNITS_JOB_NONE;
+    s->colonists[0].building_type = -1;
+    s->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      s->tiles[t] = -1;
+    }
+    s->colonist_count = 1;
+    s->population = 1;
+    pool.colony_count = 1;
+
+    EuropeScreen eu;
+    memset(&eu, 0, sizeof(eu));
+    AiPopupState pops;
+    ai_popup_init(&pops);
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+
+    ColonizeTurnResult sr;
+    memset(&sr, 0, sizeof(sr));
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &sr, &pops, &game_txt);
+    if (s->active || pool.colony_count != 0) {
+      fprintf(
+        stderr,
+        "vanish: want abandoned active=%d count=%d\n",
+        s->active,
+        pool.colony_count
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    if (pops.queue_count < 1 ||
+        (strstr(pops.queue[0].body, "vanished") == NULL &&
+         strstr(pops.queue[0].body, "Roanoke") == NULL)) {
+      fprintf(
+        stderr,
+        "vanish: popup weak q=%d body='%s'\n",
+        pops.queue_count,
+        pops.queue_count > 0 ? pops.queue[0].body : ""
+      );
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "colony vanish starve ok\n");
+  }
+
   /* Starve-kill chrome: @STARVE1 (spring) / @STARVE2 (autumn). */
   {
     ColonizeColonyPool pool;
@@ -2222,7 +2282,6 @@ int main(void) {
     s->building_in_production = -1;
     snprintf(s->name, sizeof(s->name), "Roanoke");
     s->stock[COLONIZE_CARGO_FOOD] = 0;
-    s->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
     for (int i = 0; i < 2; ++i) {
       s->colonists[i].active = true;
       s->colonists[i].unit_type_index = 0;
@@ -2280,7 +2339,6 @@ int main(void) {
     s->building_in_production = -1;
     snprintf(s->name, sizeof(s->name), "Roanoke");
     s->stock[COLONIZE_CARGO_FOOD] = 0;
-    s->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
     for (int i = 0; i < 2; ++i) {
       s->colonists[i].active = true;
       s->colonists[i].unit_type_index = 0;
@@ -2645,6 +2703,7 @@ int main(void) {
     human->building_in_production = -1;
     human->warehouse_level = 0;
     human->stock[COLONIZE_CARGO_TOBACCO] = 150;
+    human->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid Phase J vanish on 0 food */
     human->colonists[0].active = true;
     human->colonist_count = 1;
     human->population = 1;
@@ -3041,16 +3100,17 @@ int main(void) {
     memset(&units, 0, sizeof(units));
     units_reset(&units);
     europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0);
-    if (eu.immigration_score <= 0) {
-      fprintf(stderr, "immigration score want >0 got %d\n", (int)eu.immigration_score);
+    if (eu.needed_crosses <= 0) {
+      fprintf(stderr, "immigration needed want >0 got %u\n", (unsigned)eu.needed_crosses);
       return 1;
     }
-    if (eu.immigration_pressure != 2) {
-      fprintf(stderr, "immigration pressure want +2 got %d\n", (int)eu.immigration_pressure);
+    if (eu.current_crosses != 2) {
+      fprintf(stderr, "immigration current want +2 got %u\n", (unsigned)eu.current_crosses);
       return 1;
     }
-    /* Force phase5: pressure above score → dock; @UNREST popup owns chrome (no auto-Europe). */
-    eu.immigration_pressure = (int16_t)(eu.immigration_score + 10);
+    /* Force phase5: current > needed → dock; @UNREST popup owns chrome (no auto-Europe). */
+    eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
+    eu.immigration_pressure = (int16_t)eu.current_crosses;
     eu.dock_count = 0;
     eu.status[0] = '\0';
     eu.open_on_dock = false;
@@ -3074,13 +3134,15 @@ int main(void) {
       icol.player[0].control = 0;
       icol.player[1].control = 1;
       col->nation_id = 1;
+      eu.current_crosses = 0;
       eu.immigration_pressure = 0;
       europe_tick_immigration_pressure(&eu, &pool, &units, &icol, 1);
-      const int ai_score = (int)eu.immigration_score;
+      const int ai_score = (int)eu.needed_crosses;
       col->nation_id = 0;
+      eu.current_crosses = 0;
       eu.immigration_pressure = 0;
       europe_tick_immigration_pressure(&eu, &pool, &units, &icol, 0);
-      const int en_score = (int)eu.immigration_score;
+      const int en_score = (int)eu.needed_crosses;
       /* Base pop5 → ((5)<<1)+8=18; EN *2/3=12; AI half of 18=9. */
       if (ai_score != 9 || en_score != 12) {
         fprintf(stderr, "584a scale want AI9 EN12 got AI%d EN%d\n", ai_score, en_score);
