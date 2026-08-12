@@ -374,6 +374,19 @@ int units_tick_ship_build_ready(
     if ((u->col1_unknown15 & 0x80u) == 0) {
       continue;
     }
+    const ColonizeUnitType* ty = units_type(pool, u->type_index);
+    /*
+     * DOS type*0xe+0x5235 = NAMES @UNIT combat (Linux defense). Loader writes
+     * attack→5236 then combat→5235. Cite: viceroy ~121115; nation_eot_ship_spawn.md.
+     */
+    int threshold = ty && ty->defense > 0 ? ty->defense : 4;
+    /*
+     * Past construction threshold with bit7 still set = combat damage (fort/naval).
+     * Leave for units_tick_drydock_repair; do not auto-clear.
+     */
+    if (u->turns_worked >= threshold) {
+      continue;
+    }
     if (u->turns_worked < 255) {
       u->turns_worked++;
     }
@@ -384,12 +397,6 @@ int units_tick_ship_build_ready(
         u->turns_worked++;
       }
     }
-    const ColonizeUnitType* ty = units_type(pool, u->type_index);
-    /*
-     * DOS type*0xe+0x5235 = NAMES @UNIT combat (Linux defense). Loader writes
-     * attack→5236 then combat→5235. Cite: viceroy ~121115; nation_eot_ship_spawn.md.
-     */
-    int threshold = ty && ty->defense > 0 ? ty->defense : 4;
     if (u->turns_worked < threshold) {
       continue;
     }
@@ -404,6 +411,57 @@ int units_tick_ship_build_ready(
     }
   }
   return completed;
+}
+
+/*
+ * Drydock ship repair: clear combat-damage bit7 for nation ships on an own
+ * colony that has Drydock. Construction ships (turns_worked < defense thresh)
+ * stay on units_tick_ship_build_ready. Cite: building_production.md Drydock;
+ * combat.md coastal fort bit7.
+ */
+int units_tick_drydock_repair(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int human_nation,
+  char* status,
+  size_t status_size
+) {
+  if (!pool || !colonies || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  const int drydock = colonies_find_building(colonies, "Drydock");
+  if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {
+    return 0;
+  }
+  int repaired = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (!units_is_sea(pool, u->id) || (u->col1_unknown15 & 0x80u) == 0) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(pool, u->type_index);
+    const int threshold = ty && ty->defense > 0 ? ty->defense : 4;
+    /* Still under construction — ship-build tick owns bit7. */
+    if (u->turns_worked < threshold) {
+      continue;
+    }
+    const int cid = colonies_id_at(colonies, u->x, u->y);
+    const ColonizeColony* col = colonies_get(colonies, cid);
+    if (!col || !col->active || col->nation_id != nation_id || !col->has_building[drydock]) {
+      continue;
+    }
+    u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
+    repaired++;
+    if (nation_id == human_nation && status && status_size > 0) {
+      const char* name = (ty && ty->name[0]) ? ty->name : "Ship";
+      snprintf(status, status_size, "%s repaired at Drydock.", name);
+    }
+  }
+  return repaired;
 }
 
 int units_cortes_cash_coastal_treasures(
@@ -1249,30 +1307,40 @@ static int units_demote_on_loss(
   }
   const int woi = col1 && col1->head.game_options.woi;
   const int old_prof = loser->profession;
+  const ColonizeUnitType* old_ty = units_type(pool, loser->type_index);
+  const char* old_name = old_ty && old_ty->name[0] ? old_ty->name : "unit";
   const int mapped = units_demote_profession_remap(old_prof, woi);
   int changed = 0;
+  const char* new_status = old_name;
   if (mapped < 0) {
     /* Strip soldier type toward Free Colonist. */
     const int tgt = units_find_type(pool, "Free Colonist");
     if (tgt >= 0) {
       loser->type_index = tgt;
-      changed = 1;
     }
     loser->profession = UNITS_JOB_NONE;
+    new_status = "Free Colonist";
     changed = 1;
   } else if (mapped != old_prof) {
     loser->profession = mapped;
     changed = 1;
+    const ColonizeUnitType* nt = units_type(pool, loser->type_index);
+    new_status = nt && nt->name[0] ? nt->name : "colonist";
   }
   if (changed && human_facing) {
-    const ColonizeUnitType* t = units_type(pool, loser->type_index);
-    units_combat_enqueue_section(
+    /* GAME.TXT @DEMOTE: "{nation unit} routed! Unit demoted to {status}." */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, loser->nation_id);
+    tok.string1 = old_name;
+    tok.string2 = new_status;
+    units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_DEMOTE,
       "DEMOTE",
       loser->nation_id,
       -1,
-      t ? t->name : "Unit",
-      NULL,
+      0,
+      &tok,
       "Unit demoted."
     );
   }
@@ -1460,6 +1528,13 @@ static int units_apply_naval_loss_outcome(
   if (close && lose_atk < win_atk && (lose->col1_unknown15 & 0x80u) == 0) {
     lose->col1_unknown15 |= 0x80u;
     lose->moves_left = 0;
+    /* Finished ship: mark past construction thresh so Drydock (not build tick) repairs. */
+    {
+      const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
+      if (lose->turns_worked < thresh) {
+        lose->turns_worked = (uint8_t)thresh;
+      }
+    }
     if (human) {
       units_combat_enqueue_section(
         AI_POPUP_TAG_COMBAT_SHIP,
@@ -1525,6 +1600,35 @@ static void units_combat_outcome_popups(
       units_combat_enqueue_section(
         AI_POPUP_TAG_COMBAT_AMBUSH, "INDIANWIN1", atk_nation, def_nation, wn, ln, "Ambush!"
       );
+    }
+    /*
+     * Crown / REF land win vs human → @SEIZURELAND (Royal Army). Privateer
+     * naval path uses custom body; peer Euro uses @EUROPEWIN above.
+     */
+    if (atk_wins && col1 && win && lose) {
+      int human = -1;
+      for (int i = 0; i < 4; ++i) {
+        if (col1->player[i].control == 0) {
+          human = i;
+          break;
+        }
+      }
+      /* Match combat_crown_nation / ai_king: peer of human (0↔1). */
+      const int crown = (human == 0) ? 1 : (human == 1) ? 0 : -1;
+      if (crown >= 0 && win->nation_id == crown && lose->nation_id == human) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ln;
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_SEIZURE,
+          "SEIZURELAND",
+          win->nation_id,
+          lose->nation_id,
+          0,
+          &tok,
+          "Unit captured by the Royal Army."
+        );
+      }
     }
   }
 }
@@ -1891,28 +1995,39 @@ bool units_try_native_settlement_fallout(
         );
       }
     } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
-      units_combat_enqueue_section(
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
+      tok.string1 = "native";
+      tok.string2 = "village";
+      units_combat_enqueue_tok(
         AI_POPUP_TAG_COMBAT_LOOT,
-        "NOLOOT",
+        "LOOT2",
         attacker_nation_id,
         defender_nation_id,
-        units_combat_nation_label(col1, attacker_nation_id),
-        NULL,
-        "No treasure in the ruins."
+        0,
+        &tok,
+        "Village burned; natives flee."
       );
     }
   } else if (
     units_combat_human_involved(col1, attacker_nation_id, defender_nation_id) &&
     attacker_nation_id >= 0 && attacker_nation_id < 4
   ) {
-    units_combat_enqueue_section(
+    /* Burn without Cortes treasure — GAME.TXT @LOOT2 (not @NOLOOT). */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
+    tok.string1 = "native";
+    tok.string2 = "village";
+    units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_LOOT,
-      "NOLOOT",
+      "LOOT2",
       attacker_nation_id,
       defender_nation_id,
-      units_combat_nation_label(col1, attacker_nation_id),
-      NULL,
-      "No treasure in the ruins."
+      0,
+      &tok,
+      "Village burned; natives flee."
     );
   }
   return true;
@@ -2267,19 +2382,45 @@ bool units_resolve_naval_combat_ff(
       const ColonizeUnitType* wt = units_type(pool, atk->type_index);
       const int is_priv = wt && wt->name[0] && strstr(wt->name, "Privateer") != NULL;
       const int human = units_combat_human_involved(col1, atk->nation_id, def->nation_id);
-      if (is_priv && human) {
+      if (human) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
-        tok.string0 = dt->name;
-        units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_SEIZURE,
-          "SEIZURESEA",
-          atk->nation_id,
-          def->nation_id,
-          0,
-          &tok,
-          "Ship seized at sea."
-        );
+        tok.string0 = dt && dt->name[0] ? dt->name : "Ship";
+        if (is_priv) {
+          /*
+           * Privateer prize — not Crown. GAME.TXT @SEIZURE* is Royal Navy /
+           * Army wording; use Privateer fallback body with same tag.
+           */
+          char body[AI_POPUP_BODY_LEN];
+          snprintf(
+            body,
+            sizeof(body),
+            "%s captured at sea by a Privateer!",
+            tok.string0
+          );
+          if (g_units_combat_popups) {
+            ai_popup_enqueue_ok_ctx(
+              g_units_combat_popups,
+              AI_POPUP_TAG_COMBAT_SEIZURE,
+              atk->nation_id,
+              def->nation_id,
+              0,
+              "Seizure",
+              body
+            );
+          }
+        } else {
+          /* Crown / warship seizure → Royal Navy @SEIZURESEA. */
+          units_combat_enqueue_tok(
+            AI_POPUP_TAG_COMBAT_SEIZURE,
+            "SEIZURESEA",
+            atk->nation_id,
+            def->nation_id,
+            0,
+            &tok,
+            "Ship seized at sea by the Royal Navy."
+          );
+        }
       }
     }
     (void)units_apply_naval_loss_outcome(
@@ -2399,13 +2540,28 @@ static bool units_fort_vs_ship(
     atk_wins = roll <= attack_str;
   }
   if (atk_wins) {
+    /*
+     * Mirror naval loss (FUN_5fef_1b0e ship peel): close fight + undamaged →
+     * bit7 damage + MP drain; else sink. Cite: coastal_fort_fire.md; units_apply_naval_loss.
+     */
+    const int close = defense * 2 > attack_str && attack_str > 0;
+    if (close && (def->col1_unknown15 & 0x80u) == 0) {
+      def->col1_unknown15 |= 0x80u;
+      def->moves_left = 0;
+      {
+        const int thresh = dt->defense > 0 ? dt->defense : 4;
+        if (def->turns_worked < thresh) {
+          def->turns_worked = (uint8_t)thresh;
+        }
+      }
+      return false; /* ship survives damaged */
+    }
     units_despawn(pool, defender_id);
     return true;
   }
   /*
-   * Ship-slow thin: surviving ship loses remaining MP. Damaged bit7 shares
-   * under-construction latch for types 0xd..0x12 — leave bit clear here;
-   * deep damage/repair PARKED. Cite: coastal_fort_fire.md.
+   * Fort miss: surviving ship loses remaining MP. Damaged bit7 only on fort hit
+   * (damage-not-sink above). Cite: coastal_fort_fire.md.
    */
   def->moves_left = 0;
   return false;

@@ -536,10 +536,11 @@ Thin land adjacent combat chain (drain `moves_left` across foes) **Done**.
 Wagon surplus load prefers FOOD when `food_short>20` **Done**.
 Thin lumber/ore/muskets/horses/food cargo hire stand-in (mirror tools ship/colony)
 **Done**.
-**OPEN (unpark #4):** remaining deep combat scoring / ocean-naval `20e6`
-(**section-mapped** [`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md) /
-[`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md);
-port still OPEN);
+**OPEN (unpark #4):** full −0x6790 G table / explore-ring matrix still PARKED;
+land `20e6` settlement/siege peels + adjacent toughness **Done** thin
+([`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md));
+ocean-naval combat approach **Done** thin
+([`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md));
 leftover mid `5d04` matrix (colonies≥6 ship-buy + war/peace shortage hire **Done**; Free Colonist settle gated ≥6); deep −0x6790 G table (thin prio ladder Done). Thin ocean east-Europe HS bias
 **Done** (complement west-explore). Thin Europe ship buy ladder **Done**: Caravel (no ship / full / colonies≥6), Merchantman
 (cargo pressure), Galleon (at war), Frigate (at war, 5000$) —

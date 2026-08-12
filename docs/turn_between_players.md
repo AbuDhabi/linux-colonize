@@ -138,7 +138,8 @@ Major thunks (catalog):
 | SETUP fort fire | `364b_03f6` | `turn_run_coastal_fort_fire` | **Done** |
 | SETUP nation ticks | Europe/census crumbs | `turn_run_nation_ticks` | **Partial** — human+AI bells/crosses accrue; [`europe_nation_eot.md`](../original_sources_annotated/turn/europe_nation_eot.md), [`census_tally.md`](../original_sources_annotated/turn/census_tally.md), [`nation_ticks_bells_ff.md`](../original_sources_annotated/turn/nation_ticks_bells_ff.md) |
 | EURO treasure | `3844_0004` | `units_tick_treasure_outside_colony` | **Partial** |
-| EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear bit7 + threshold=`defense`/`0x5235` combat **Done** thin; dialog chrome PARKED |
+| EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
+| EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; after ship-build tick |
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Partial** — human FINISH **Done** thin; AI EURO PARKED (T2 golden) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
 | INDIAN | `4d56_1b3a` mid only; `1816` XREF open | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |

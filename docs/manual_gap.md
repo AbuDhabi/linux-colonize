@@ -133,9 +133,9 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Done | Playable bar: `157e`+`1b0e`, best-defender, promote/demote, capture/naval-damage, Analysis + ransom/`CAPTURED`/`BURNED`/`SEIZURE` popups. Village `4528`/`20e6`/VGA/bit7 repair PARKED — [combat.md](combat.md); enter gates [move_enter.md](move_enter.md) |
+| Land / naval attack | Done | Playable bar + fort bit7/Drydock + village `4528` warn + `20e6` combat peels Done thin. Deep −0x6790/VGA/`2820` PARKED — [combat.md](combat.md) |
 | Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
-| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse`. MP ship-slow Done thin; damaged bit7/Drydock repair PARKED — [combat.md](combat.md) |
+| Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse`. MP ship-slow + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
 
 ### Founding Fathers and independence
@@ -153,7 +153,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; deep land `20e6` **OPEN** (unpark #4) |
+| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`smoke_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; land `20e6` combat peels **Done** thin (unpark #4 settle/siege; deep −0x6790 PARKED) |
 
 ### Win / end sequences
 
@@ -177,7 +177,7 @@ is the historical bring-up order (early manual chapters first), then the
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE stop nibble honor Done (Edit UI thin)
 5. **Fog of war / exploration**
-6. **Combat** (land first; colony defense) — **Playable bar Done**; village `4528` / fort bit7-repair / deep `20e6` / VGA still PARKED — [combat.md](combat.md)
+6. **Combat** (land first; colony defense) — **Playable bar Done**; fort bit7/Drydock + village `4528` warn + `20e6` peels Done thin; deep −0x6790 / VGA / `2820` still PARKED — [combat.md](combat.md)
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
    `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
    `FUN_5bfb_022e` / `0182`; thin land-grant purchased+owner on occupied tile);

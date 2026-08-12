@@ -3006,7 +3006,8 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      * Capital MD bias: founding capital preferred over a nearer distant colony
      * when MD within AI_KING_CAPITAL_MD_SLACK (idle hunters). Prefer adjacent
      * uncaptured colony over marching past (Artillery: adjacent unfortified must
-     * not override a fortified hunt). Deeper multi-step combat scoring PARKED.
+     * not override a fortified hunt). Multi-step siege/hunt drains moves_left
+ * (combat/step/capture). Deeper DOS combat×8 scoring PARKED.
      *
      * After-capture extras: standing on a crown colony whose two fortify slots
      * are already taken (two Regular/Dragoon/Cont.Cav FORTIFY/FORTIFIED) →
@@ -3138,31 +3139,52 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       u->goto_y = ty;
     }
 
-    int tx = u->goto_x;
-    int ty = u->goto_y;
-    if (tx < 0 || ty < 0 || tx >= 255 || ty >= 255) {
-      continue;
-    }
-    const int sdx = (tx > u->x) - (tx < u->x);
-    const int sdy = (ty > u->y) - (ty < u->y);
-    const int nx = u->x + sdx;
-    const int ny = u->y + sdy;
-    const int foe = units_id_at(ctx->units, nx, ny);
-    if (foe >= 0) {
-      const ColonizeUnit* f = units_get_const(ctx->units, foe);
-      if (f && f->nation_id == human) {
-        if (units_is_sea(ctx->units, u->id)) {
-          units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
-        } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
-          /* Attack win → occupy tile; capture if it was a colony (conquest). */
-          units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
-          ai_king_try_capture_at(ctx, u, crown, human);
+    /*
+     * Multi-step siege / hunt (10f0 deepen): drain moves_left toward goto —
+     * combat if human on next tile, else step; capture on colony enter.
+     * Cap steps so a failed spend cannot spin. Cite: king_ref multi-step;
+     * ai_euro land_try_adjacent_attack mirror. Full DOS siege scoring PARKED.
+     */
+    for (int step = 0; step < 8 && u->active && u->moves_left > 0; ++step) {
+      int tx = u->goto_x;
+      int ty = u->goto_y;
+      if (tx < 0 || ty < 0 || tx >= 255 || ty >= 255) {
+        break;
+      }
+      if (u->x == tx && u->y == ty) {
+        ai_king_try_capture_at(ctx, u, crown, human);
+        break;
+      }
+      const int sdx = (tx > u->x) - (tx < u->x);
+      const int sdy = (ty > u->y) - (ty < u->y);
+      const int nx = u->x + sdx;
+      const int ny = u->y + sdy;
+      const int ml0 = u->moves_left;
+      const int foe = units_id_at(ctx->units, nx, ny);
+      if (foe >= 0) {
+        const ColonizeUnit* f = units_get_const(ctx->units, foe);
+        if (f && f->nation_id == human) {
+          if (units_is_sea(ctx->units, u->id)) {
+            units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
+          } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
+            units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+            ai_king_try_capture_at(ctx, u, crown, human);
+          }
+          if (!u->active || u->moves_left >= ml0) {
+            break;
+          }
+          continue;
         }
-        continue;
+        break; /* blocked by non-human stack */
+      }
+      if (!units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
+        break;
+      }
+      ai_king_try_capture_at(ctx, u, crown, human);
+      if (u->moves_left >= ml0) {
+        break;
       }
     }
-    units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
-    ai_king_try_capture_at(ctx, u, crown, human);
   }
 }
 

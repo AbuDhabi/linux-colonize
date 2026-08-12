@@ -1481,6 +1481,9 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
     (void)units_tick_ship_build_ready(
       ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size, NULL
     );
+    (void)units_tick_drydock_repair(
+      ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size
+    );
     ai_euro_nation_turn(ctx, n);
   }
 }
@@ -1933,6 +1936,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             ctx->status_size,
             &want_eu
           );
+          (void)units_tick_drydock_repair(
+            ctx->units, ctx->colonies, n, ctx->human_nation, ctx->status, ctx->status_size
+          );
           if (want_eu && n == ctx->human_nation) {
             proc->result.request_europe_open = true;
           }
@@ -1997,6 +2003,14 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->status,
           ctx->status_size,
           &want_eu
+        );
+        (void)units_tick_drydock_repair(
+          ctx->units,
+          ctx->colonies,
+          ctx->human_nation,
+          ctx->human_nation,
+          ctx->status,
+          ctx->status_size
         );
         if (want_eu) {
           proc->result.request_europe_open = true;

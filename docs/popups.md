@@ -184,14 +184,14 @@ Deep mechanics: [combat.md](combat.md).
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| Combat Analysis (options bit) | After strengths, before roll; human side | Done | Title + chrome/strength row + modifier columns (`636c`-shaped); gated by `combat_analysis` |
-| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | `@LOOTCAPTURE` ransom Accept/Refuse Done; village `@LOOT`/`@NOLOOT` thin; `@LOOTCASH` is Europe fleet (not combat) |
+| Combat Analysis (options bit) | After strengths, before roll; human side | Done | Title + chrome/strength row spacing + modifier columns (`636c`-shaped); gated by `combat_analysis` |
+| `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | `@LOOT` treasure + `@LOOT2` burn Done; `@LOOTCAPTURE` ransom Done; `@LOOTCASH` Europe fleet |
 | `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`/`@BURNED*`; ship damage/sunk Done |
 | `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups |
 | `@EUROPEWIN` / `@EUROPELOSE` | Euro combat outcome | Done | Structural `AI_POPUP_TAG_COMBAT_EUROPE` |
-| `@DEMOTE` | Specialty strip / demote | Partial | Enqueued when demote lands human-facing |
-| `@SEIZURE*` | Privateer / seizure | Partial | Privateer win → `@SEIZURESEA`; Royal Navy text still thin |
-| Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Partial | Raid OK/status; Spanish ambush peel enqueues `@INDIANWIN1` |
+| `@DEMOTE` | Specialty strip / demote | Done | `@DEMOTE` with nation/unit/status tokens |
+| `@SEIZURE*` | Privateer / seizure | Done | Privateer custom body; Crown `@SEIZURESEA` Royal Navy |
+| Ambush WIN/LOSE (`@INDIANWIN*`) | Indian ambush | Done | `@INDIANWIN0/1/2` / `@INDIANLOSE` GAME.TXT fill |
 
 ### 10. Year-end / victory / HoF / retire
 
@@ -426,9 +426,9 @@ work.
 | `@NOROAD` | Partial | order/gate — status or bounce; no modal |
 | `@VIOLATE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@HALF` | Partial | order/gate — status or bounce; no modal |
-| `@NOLOOT` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@LOOT` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@LOOT2` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@NOLOOT` | Partial | alias unused; village burn uses `@LOOT2` |
+| `@LOOT` | Done | Cortes/conquest treasure fallout |
+| `@LOOT2` | Done | village burn without treasure |
 | `@LOOTCASH` | Partial | Europe treasure fleet (not combat); combat uses `@LOOTCAPTURE` ransom |
 | `@LOOTFOREIGN` | Missing | combat/loot modals missing (effects may apply silently) |
 | `@LOOTCAPTURE` | Done | treasure ransom Accept/Refuse + OK path |
@@ -436,7 +436,10 @@ work.
 | `@COLONISTCAPTURE` | Done | non-combat Euro capture-alive |
 | `@COLONISTCAPTURE2` | Done | capture + demote path |
 | `@CARGOCAPTURE` | Done | wagon holds present |
-| `@DEMOTE` | Partial | structural when demote lands human-facing |
+| `@DEMOTE` | Done | nation + unit + demoted status tokens |
+| `@SEIZURE` | Partial | king/REF — structural; VGA PARKED |
+| `@SEIZURESEA` | Done | Crown naval → Royal Navy; Privateer uses custom body |
+| `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
 | `@SHIPDAMAGE` | Done | naval/arty damage-not-sink path |
 | `@SHIPSUNK` | Done | naval sink after plunder |
 | `@RAIDNOTHING` | Partial | CONTACT_RAID OK thin |
@@ -660,9 +663,9 @@ work.
 | `@REFIT` | Missing | production/EOT messages — status or silent; no modal |
 | `@WELLSEASONED` | Missing | production/EOT messages — status or silent; no modal |
 | `@KINGBUY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@SEIZURE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@SEIZURESEA` | Partial | Privateer naval win enqueues `@SEIZURESEA`; Royal Navy wording thin |
-| `@SEIZURELAND` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@SEIZURE` | Partial | king/REF — structural; VGA PARKED |
+| `@SEIZURESEA` | Done | Crown naval → Royal Navy text; Privateer uses custom body |
+| `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
 | `@INDEPENDENCE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@INVASION` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@TOOTORY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |

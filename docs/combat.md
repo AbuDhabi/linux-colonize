@@ -5,7 +5,8 @@ naval odds, fortification / terrain / peel modifiers, Combat Analysis, promote /
 demote / capture / loot, and coastal Fort/Fortress batteries.
 
 Move-into-tile fight-vs-bounce gates stay in [move_enter.md](move_enter.md).
-Village raid body `4528` and deep Euro AI scoring `20e6` stay Indian / AI docs.
+Village warn→Attack (`4528`) Done thin; Euro `20e6` combat peels Done thin;
+deep −0x6790 / `2820` VGA stay AI docs.
 
 Authority: [project_goals.md](project_goals.md) (decomp / `NAMES` → manual →
 fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Combat.
@@ -196,7 +197,8 @@ fights whoever stands on the tile via normal land combat.
   - else despawn
 - `units_sweep_stack_after_loss` (`FUN_5fef_0ec0`) capture leftover non-combat
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
-- Native def: settlement fallout (`FUN_5fef_31ea`) + thin `@LOOT` / `@NOLOOT`
+- Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure) /
+  `@LOOT2` (burn, no treasure)
 
 ### Land loss
 
@@ -255,14 +257,18 @@ even when the live multiplier comes from `local_1a` arithmetic above.
 | Strength | `units_coastal_fort_attack_strength` = `4 * tier * (1 + arty)`; Fort tier1, Fortress tier2 |
 | Pulse | `units_coastal_fort_fire_pulse` — all Fort/Fortress colonies, 8 ocean dirs |
 | Hostile | at war (Euro/Indian) **or** Privateer |
-| Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake on Privateer); win→sink (no plunder); lose→`moves_left=0` |
+| Resolve | `units_fort_vs_ship`: fort atk vs ship defense (Drake on Privateer); close win→`col1_unknown15` bit7 + MP drain; else win→sink (no plunder); miss→`moves_left=0` |
+| Repair | `units_tick_drydock_repair` clears combat bit7 for finished ships on own Drydock colony (EOT after ship-build tick) |
 | Turn | `turn_run_coastal_fort_fire` after colony production |
 | AI | `ai_euro_tile_under_enemy_fort_fire` / flee |
 
 Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md).
 
-**PARKED:** damaged bit7 from fort fire / Drydock repair (bit7 shared with
-ship-build); DOS temp-attacker + chrome. **MP ship-slow Done** (`moves_left=0`).
+**Bit7 collision:** same latch as ship construction. Distinguisher:
+`turns_worked < type.defense` → construction (`units_tick_ship_build_ready`);
+`>=` → combat damage (fort/naval), repaired only by Drydock.
+
+**PARKED:** DOS temp-attacker spawn + fort VGA chrome.
 
 ---
 
@@ -284,14 +290,14 @@ ship-build); DOS temp-attacker + chrome. **MP ship-slow Done** (`moves_left=0`).
 | Land / naval engage + roll | Done | `combat_*_engage` + resolve |
 | Best defender | Done | `units_best_defender_at` |
 | Colony / village / terrain / fortify site | Done | `015e` |
-| `1b0e` peels | Done | SoL Tory-share branch thin |
+| `1b0e` peels | Done | Colony REF +50%; Tory/Rebel support % Done |
 | Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
 | Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
 | Combat Analysis | Done | Options-gated dual column |
-| Coastal fort fire | Done | MP ship-slow Done thin; bit7/repair PARKED |
+| Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair Done; temp unit/VGA PARKED |
 | Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
-| Village settlement battle `4528` | PARKED | Enter / Indian docs |
-| Euro mid combat scoring `20e6` | PARKED / OPEN | [ai_transcription.md](ai_transcription.md) |
+| Village settlement battle `4528` | Done thin | Warn→Attack/Leave + fallout `@LOOT`/`@LOOT2`; deep `2820`/VGA PARKED |
+| Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |
 | VGA-identical combat chrome | PARKED | — |
 
 ---
@@ -304,7 +310,7 @@ ship-build); DOS temp-attacker + chrome. **MP ship-slow Done** (`moves_left=0`).
 | `colonies_fortification_defense_bonus_percent` | Live land combat | Helper returns 100/150/200 for AI/UI; **live land combat uses `combat_colony_local_1a`** |
 | Fandom “Port: combat Missing” | Stale Units row | Land/naval Partial — this hub + [manual_gap.md](manual_gap.md) |
 | Difficulty “combat unaffected” | Old [difficulty.md](difficulty.md) note | Human Euro `str -= (difficulty-4)` + Discoverer −25% in `1b0e` |
-| SoL popular support | Manual SoL/Tory share by side | Port thin: always adds SoL% ([sons_of_liberty.md](sons_of_liberty.md)) |
+| SoL popular support | Manual SoL/Tory share by side | **Done**: crown `+(100−SoL)%` (Tories), rebel `+SoL%` (Rebels) on colony — [sons_of_liberty.md](sons_of_liberty.md) |
 
 ---
 
@@ -312,10 +318,9 @@ ship-build); DOS temp-attacker + chrome. **MP ship-slow Done** (`moves_left=0`).
 
 | Gap | Where |
 |-----|-------|
-| Village raid / settlement `4528` / `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
-| Deep Euro combat scoring `20e6` | `ai_euro.c` |
-| Coastal fort bit7 damage / Drydock repair | `units_fort_vs_ship` |
-| SoL Tory-share branch | `combat_apply_1b0e_peels` |
+| Village raid / settlement deep `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
+| Deep Euro combat −0x6790 / full explore ring | `ai_euro.c` / [move_scoring_land.md](../original_sources_annotated/ai/move_scoring_land.md) |
+| Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse` |
 | VGA-identical combat chrome | — |
 
 ---
@@ -361,7 +366,7 @@ ship-build); DOS temp-attacker + chrome. **MP ship-slow Done** (`moves_left=0`).
 | `FUN_636c_0000` / `2a1f_0704` | Combat Analysis |
 | `FUN_364b_03f6` | coastal fort fire |
 | `FUN_465b_*` / `FUN_4720_*` | move-enter / combat trigger |
-| `FUN_4d56_4528` / `5fef_0f14` | village/raid (thin; body PARKED) |
+| `FUN_4d56_4528` / `5fef_0f14` | village warn→Attack + raid/fallout Done thin; deep `2820` PARKED |
 
 ---
 

@@ -68,7 +68,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Foreign Euro + defender | Combat | Combat | Partial |
 | Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done (thin) |
 | Land settler | Native village (no colony) | Illegal squat | Deny | Done |
-| Missionary / combatish | Native village | Meet / raid | Enter + Meet CHOICE | Partial (deep `4528` PARKED) |
+| Missionary / combatish | Native village | Meet / raid | Meet CHOICE; combatish Attack/Leave warn + raid | Done thin (`2820` VGA PARKED) |
 | Wagon | Colony tile | Exhaust MP (`465b:08f8`) | Exhaust on enter | Done |
 
 ---
@@ -87,8 +87,9 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 ## PARKED (not this track)
 
-Village raid `4528`/`2820` VGA, full `465b` foreign diplo/war UI, Euro mid-planner
-`20e6`, coastal fort **damaged bit7 / Drydock repair**, VGA-identical combat chrome.
+Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planner
+`20e6`, VGA-identical combat chrome. Coastal fort bit7 + Drydock Done; village
+`4528` warn→Attack Done thin — [combat.md](combat.md).
 
 **Playable combat bar Done** — see [combat.md](combat.md) (ransom CHOICE, `@CAPTURED*`/
 `@BURNED*`, unit capture / seizure popups, MP ship-slow).

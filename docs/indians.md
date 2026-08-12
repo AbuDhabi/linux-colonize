@@ -259,7 +259,7 @@ Odds / resolve: [combat.md](combat.md).
 ### Ship → village
 
 Not landfall: `@DONTKNOWSHIPS` / `@MADATSHIPS` ([move_enter.md](move_enter.md);
-settlement head `FUN_4d56_4528` mid-body **PARKED**).
+settlement head `FUN_4d56_4528` warn→Attack Done thin; deep `2820` **PARKED**).
 
 ### Nation turn shell
 
@@ -278,7 +278,7 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Widgets Done thin; deep `2820` / VGA **PARKED** |
 | Missions / convert / heresy | Partial | Structural; incite/WARPATH **PARKED** |
-| Alarm / raids / wars | Partial | Structural `@RAID*`; deep `4528` mid **PARKED** |
+| Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin; deep `2820` PARKED |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |
 | Indian×Euro diplo matrix | Done structural | Fuller `153e` unpark; FA UI **PARKED** |
 | `IND*.SS` meet chrome | Missing / PARKED | Ship data present; not loaded |
