@@ -53,7 +53,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_281f_0302` | `map_tile_in_bounds` | `ai/accessors.c` | map inset |
 | `FUN_281f_074a` / `0x168` | `tile_explore_mask` | `ai/accessors.c` | Euro-only +2; Indians skip |
 | DS:`0x9faa` / `−0x6056` | `VICEROY_DS_COARSE_FOG` (size `0x10e`) | `viceroy_globals.h` | Linux `s_ai_coarse_fog` |
-| explore `(x>>2)+(y>>2)*18` | `coarse_fog_explore_index` / `coarse_fog_unseen` | `ai/accessors.c` | +8 gate in quiet ASM |
+| explore `(y>>2)+(x>>2)*18` | `coarse_fog_explore_index` / `coarse_fog_unseen` | `ai/accessors.c` | +8 gate in quiet ASM (`521d:56d8`) |
 | tribe `(y/5)+(x/5)*18` | `coarse_fog_tribe_index` | `ai/accessors.c` | `ai_coarse_fog_mark_tribe` |
 | `FUN_281f_0682` / `0314` | `tile_owner_or_presence` | `ai/accessors.c` | **layer2 bit0** then owner |
 | `FUN_281f_06d2` / `0428` | `tile_tribe_or_presence` | `ai/accessors.c` | tribe else presence |

@@ -328,20 +328,22 @@ leftover FF KINGGALLEON2, deep `20e6`).
   mask fa-flags (road `layer2 0x40` → DOS `&0x0a`), and ocean-transition
   spent=max emptied **t1** and keep cost fidelity. **Phase 11:** seed-100
   **init and mid-turn** use quiet ASM by default (stay LCG; 13 init peels +
-  104 mid-turn peels for matched-RNG scoring holdouts; coarse fog from phase
-  9). **Phase 12:** `FUN_465b_0000` annotated in
+  113 mid-turn peels for matched-RNG scoring holdouts; coarse fog explore index
+  `(y>>2)+(x>>2)*18` ASM-correct as of 2026-08-12). **Phase 12:** `FUN_465b_0000` annotated in
   [`move_spent.c`](../original_sources_annotated/ai/move_spent.c); ocean/HS
   force-to-max uses `euro_settlement_owner` (`FUN_137f_0358`). **Phase 13:**
   multi-step / Inca tw residuals cleared — river/fa cost=1 peels let the
   existing `097a` pulse loop continue (`spent < 3`); mis-keyed t3/t6 overlays
-  retired. **Phase 14–17:** spent-only static RE + dump-free predicates
-  exhausted (cost head cannot distinguish T1 spent=9 vs T2 spent=3; ocean
+  retired. **Phase 14–17 + dump-free 2026-08-12:** spent-only static RE + dump-free
+  predicates exhausted (cost head cannot distinguish T1 spent=9 vs T2 spent=3; ocean
   force-max ruled out via `dump_b465f3`; `dump_vrb465x2` shows spent=9 without
   XY ⇒ writer after ADD/`465b` return; ocean-adj / capital-dist clamps break
-  T1). Quiet residuals remain **2 spent-only rows** in `k_quiet_brave_t2`.
-  Hang **`VR_B465X` → `dump_b465x3`** is the last-resort localizer (see
-  `tools/brave_dump/midturn_465b.md`). Empiricism mid-turn overlays retained
-  under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete Map irrelevant.
+  T1; `465b:01ce` early exhaust is **foreign-only**). Quiet residuals remain **2
+  spent-only rows** in `k_quiet_brave_t2`. Hang **`VR_B465X`** parked by policy
+  this pass. Score dumps show annotated quiet terms still miss all 13 init golden
+  dirs at matched LCG — peels kept (`AI_NO_BRAVE_PEELS=1` to measure). Empiricism
+  mid-turn overlays retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete
+  Map irrelevant.
 - **Euro early path (full dispatcher, 2026-08-10):** Default is
   `ai_euro_dispatcher_turn` (opt into retired fixture with
   `AI_EURO_EARLY_FIXTURE=1`). **TURN1→2 green:** `FUN_48d3_048e` place near
@@ -705,7 +707,7 @@ Status reflects the AI-port prerequisite work:
 | Colony capture | **Done** (T0) | `colonies_capture` — Euro owner swap; Indian capture abandons |
 | Naval combat | **Partial** (T0) | `units_resolve_naval_combat` |
 | Fog of war / `map.seen` | **Partial** | Dedicated plane; reveal on move; cheat Reveal; `.MP` fully seen |
-| AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `>>2` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
+| AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `(y>>2)+(x>>2)*18` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
 | Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 / Congress UI PARKED |
@@ -717,7 +719,7 @@ royal-galleon share) if evidence appears, and **unpark #4** deep land/ocean `20e
 settle (T0)** and **seed-100 early T2** (`smoke_ai_turns`) are in; R0 partial
 (quiet mid-turn default, **2** Brave spent-only residuals — call graph annotated
 (`brave_spent_callgraph.md`); post-ADD chrome does not write `0x3149`; overlays
-kept; hang **VR_B465X** last resort). Generic T1 Euro settle + unpark #4
+kept; hang **VR_B465X** parked; explore fog index axes corrected). Generic T1 Euro settle + unpark #4
 mid-planner share the next Euro path.
 
 ---

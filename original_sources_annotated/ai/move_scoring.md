@@ -30,7 +30,7 @@
 
 | Use | Index |
 |-----|-------|
-| Explore `+8` | `(x>>2) + (y>>2)*18` |
+| Explore `+8` | `(y>>2) + (x>>2)*18` (ASM `521d:56d8`) |
 | Tribe spacing | `(y/5) + (x/5)*18` |
 
 ## Init / mid peels

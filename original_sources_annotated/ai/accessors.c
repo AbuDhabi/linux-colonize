@@ -154,7 +154,8 @@ int tile_explore_mask(int x, int y) {
  * Ghidra: DS:-0x6056 / DS:0x9faa pitch 0x12 size 0x10e | coarse fog plane
  *
  * Dual index (ASM-confirmed; same 270-byte buffer):
- *   Explore +8 reader (521d:56d8…5730):  ix = (x>>2) + (y>>2)*0x12
+ *   Explore +8 reader (521d:56d8…5730):  ix = (y>>2) + (x>>2)*0x12
+ *     (BX = far_y>>2, SI = (far_x>>2)*18; CMP [BX+SI+0x9faa])
  *   Tribe spacing (6a09 IDIV 5):         ix = (y/5) + (x/5)*0x12
  * FUN_6a09 / FUN_521d_0a60 memset the plane to 0 (FUN_1d1d_0dae, cb=0x10e)
  * before writers run. Tribe marks write 1 at /5 cells; unit/euro paths OR
@@ -164,7 +165,7 @@ int tile_explore_mask(int x, int y) {
  * the formulas; Linux owns a real buffer in src/core/ai.c.
  */
 int coarse_fog_explore_index(int x, int y) {
-  return (x >> 2) + (y >> 2) * VICEROY_COARSE_FOG_PITCH;
+  return (y >> 2) + (x >> 2) * VICEROY_COARSE_FOG_PITCH;
 }
 
 int coarse_fog_tribe_index(int x, int y) {

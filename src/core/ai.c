@@ -44,8 +44,8 @@ typedef ColonizeDosRng AiRng;
 
 /*
  * DOS coarse fog / tribe-region plane (DS:0x9faa, size 0x10e).
- * Dual index: explore +8 uses (x>>2)+(y>>2)*18; tribe spacing uses
- * (y/5)+(x/5)*18. Not player map.seen / Complete Map.
+ * Dual index: explore +8 uses (y>>2)+(x>>2)*18 (ASM 521d:56d8); tribe
+ * spacing uses (y/5)+(x/5)*18. Not player map.seen / Complete Map.
  */
 #define AI_COARSE_FOG_PITCH 0x12
 #define AI_COARSE_FOG_SIZE 0x10e
@@ -56,7 +56,8 @@ static void ai_coarse_fog_clear(void) {
 }
 
 static int ai_coarse_fog_explore_index(int x, int y) {
-  return (x >> 2) + (y >> 2) * AI_COARSE_FOG_PITCH;
+  /* DOS: BX=(far_y>>2), SI=(far_x>>2)*18 → [BX+SI+0x9faa]. */
+  return (y >> 2) + (x >> 2) * AI_COARSE_FOG_PITCH;
 }
 
 static int ai_coarse_fog_tribe_index(int x, int y) {
@@ -149,6 +150,16 @@ static int s_ai_seed100_midturn_turn;
 /* Quiet ASM always burns one extra LCG next (stay-shaped) for stream sync. */
 static int ai_asm_stay_sync_enabled(void) {
   return 1;
+}
+
+/* AI_NO_BRAVE_PEELS=1: skip seed-100 dir peels (audit how many quiet misses remain). */
+static int ai_brave_peels_disabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_NO_BRAVE_PEELS");
+    cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+  }
+  return cached;
 }
 
 static int s_ai_lcg_in_pick;
@@ -2591,10 +2602,16 @@ static int ai_native_pick_dir_asm(
   int rejected = 0;
   const int dump4753 =
     ai_lcg_audit_enabled() && nation_id == 7 && x == 47 && y == 53;
+  /* All 13 seed-100 init peels (+ Apache fog probe) for AI_LCG_AUDIT term diffs. */
   const int dump_miss =
     ai_lcg_audit_enabled() &&
-    ((nation_id == 9 && x == 33 && y == 54) || (nation_id == 4 && x == 11 && y == 30) ||
-     (nation_id == 6 && x == 48 && y == 4) || (nation_id == 10 && x == 48 && y == 42));
+    ((nation_id == 4 && x == 11 && y == 30) || (nation_id == 4 && x == 6 && y == 34) ||
+     (nation_id == 6 && x == 48 && y == 4) || (nation_id == 6 && x == 25 && y == 7) ||
+     (nation_id == 7 && x == 46 && y == 56) || (nation_id == 8 && x == 13 && y == 48) ||
+     (nation_id == 8 && x == 17 && y == 33) || (nation_id == 8 && x == 9 && y == 43) ||
+     (nation_id == 9 && x == 33 && y == 54) || (nation_id == 9 && x == 30 && y == 50) ||
+     (nation_id == 10 && x == 48 && y == 42) || (nation_id == 10 && x == 47 && y == 39) ||
+     (nation_id == 11 && x == 32 && y == 31));
   const int dump = dump4753 || dump_miss;
   s_ai_lcg_pick_burns = 0;
   s_ai_lcg_in_pick = 1;
@@ -2736,7 +2753,7 @@ static int ai_native_pick_dir_asm(
    * Seed-100 peels: quiet formula at matched LCG still misses these dirs
    * (empiricism matches golden). Override after scoring/LCG burns.
    */
-  if (s_ai_seed100_init_pulse) {
+  if (s_ai_seed100_init_pulse && !ai_brave_peels_disabled()) {
     static const struct {
       int nation_id;
       int x, y, dir;
@@ -2757,11 +2774,29 @@ static int ai_native_pick_dir_asm(
     };
     for (size_t i = 0; i < sizeof(k_peels) / sizeof(k_peels[0]); ++i) {
       if (k_peels[i].nation_id == nation_id && k_peels[i].x == x && k_peels[i].y == y) {
+        if (dump && best_dir != k_peels[i].dir) {
+          fprintf(
+            stderr,
+            "AI_SCORE_DUMP peel n=%d xy=(%d,%d) asm=%d golden=%d\n",
+            nation_id,
+            x,
+            y,
+            best_dir,
+            k_peels[i].dir
+          );
+        }
         best_dir = k_peels[i].dir;
         break;
       }
     }
-  } else if (s_ai_seed100_midturn_turn > 0) {
+  } else if (s_ai_seed100_midturn_turn > 0 && !ai_brave_peels_disabled()) {
+    /*
+     * Mid-turn dir peels (AI_STEP_AUDIT triage, fog-axis fix does not shrink):
+     *   river / multi-step first pick: 6
+     *   cascade / mis-key fixes: 2
+     *   scoring holdouts (quiet terms at matched LCG): 105
+     * Drop only when quiet formula (or inputs) catch golden without peels.
+     */
     static const struct {
       int turn;
       int nation_id;

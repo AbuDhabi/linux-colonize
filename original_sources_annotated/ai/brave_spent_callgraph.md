@@ -33,6 +33,7 @@ Annotated sources:
 
 | Site | Function | Writes | Quiet T2 holdout? |
 |------|----------|--------|-------------------|
+| `465b:01ce` | early foreign remaining<3 → `0934` | yes | **cannot** (bVar4 foreign only) |
 | `465b:05f0` | ADD `local_40` | yes | fires (Sioux AL=9, Apache head=6) |
 | `465b:0628` | ocean force → `090c`/`065a` | yes | **cannot** (f3) |
 | `465b:08f8` | `0934`/`155e` if cargo/wagon + colony | yes | **cannot** (type 19) |
@@ -46,18 +47,21 @@ Annotated sources:
 
 **Ruled out (static + dumps):** cost-head caps from presence/ocean-adj/capital;
 ocean force; in-465b cargo exhaust; stay / act-spin exhaust; inventing
-`spent = max` when cost>max.
+`spent = max` when cost>max; **`465b:01ce` early exhaust** (requires
+`foreign_tile` / `bVar4` — quiet holdouts are friendly land).
 
 **Open:** writer that leaves ADD=9 (or head=6) then ends golden spent=3 **after**
-ADD / after `465b` returns. Hang target:
+ADD / after `465b` returns. Hang target (parked by policy this pass):
 
 - Recipe: [`tools/brave_dump/midturn_465b.md`](../../tools/brave_dump/midturn_465b.md) **VR_B465X**
 - Question: at `465b` RETF, is Sioux spent already 3 or still 9?
 - If still 9 → next CALL after return (likely conditional `0934`/`155e`).
 - If already 3 → unlabeled write inside late chrome missed by static table.
 
+Dump-free + static xref (2026-08-12): no new T1-safe rule. Keep overlays.
+
 ## Port status
 
-No T1-safe spent rule found from this annotation. Linux keeps
-`k_quiet_brave_t2` overlays in `src/core/ai.c`. Do not drop until hang X (or a
-proven predicate) closes the two residuals.
+No T1-safe spent rule from dump-free contrast or static xref (2026-08-12:
+`01ce` foreign-only). Linux keeps `k_quiet_brave_t2` overlays in `src/core/ai.c`.
+Do not drop until hang X (or a proven predicate) closes the two residuals.

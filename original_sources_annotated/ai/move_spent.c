@@ -44,7 +44,8 @@
  * Apache SE is 6.
  *
  * Dump-free predicates (ocean-adj dest, capital dist≤1) break T1 spent=9.
- * Keep Linux k_quiet_brave_t2 overlays. Hang VR_B465X last resort.
+ * `465b:01ce` early 0934 is foreign-tile only — not these holdouts.
+ * Keep Linux k_quiet_brave_t2 overlays. Hang VR_B465X parked (policy).
  */
 
 #include <stdint.h>

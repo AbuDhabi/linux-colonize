@@ -158,7 +158,7 @@ int quiet_score_military_minus10(
  * later for some Euro paths. NEW WORLD Indian quiet: treat as enabled.
  *
  * Far probe = unit + 4×dir.
- *   +8 if explore-index byte==0 (x>>2)+(y>>2)*18 && !ocean(far) && inset(far)
+ *   +8 if explore-index byte==0 (y>>2)+(x>>2)*18 && !ocean(far) && inset(far)
  *       — not the tribe /5 index; see accessors.c coarse_fog_* 
  *   +4 ship west-bias — skipped (local_34 ship flag; Braves N/A)
  * Neighbor loop around far (8 dirs):
