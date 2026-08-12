@@ -22,11 +22,11 @@
  * bias (+ Artillery siege capital when fortified MD slack), congress
  * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50
  * (bells≥100 alone insufficient), tax audience Accept→hike OK chain,
- * 2244 Decline follow-up OK, second MoW only @diff≥2. PARK:
- * 160a letter cinematic; dump-goods modal CHOICE (pick API + Europe bid>0
- * eligibility + weight Done; all bitmap cargo names in refuse/holds status/body
- * Done). */
+ * Refuse→dump CHOICE→@TEAPARTY OK (thin 3dc8 stock dump), 2244 Decline
+ * follow-up OK, second MoW only @diff≥2. PARK: 160a letter cinematic;
+ * dump-goods CHOICE prompt invent English (picker + Europe bid>0 Done). */
 #include "core/ai_king.h"
+#include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -822,12 +822,12 @@ int main(void) {
     /* Boarded 6 (crown_land≥6); multi-unload ≤moves may empty or shrink hold. */
     (void)mow_hold;
   }
-  /* Thin 1528: successful 0982 spawn writes arrival status (chrome PARKED).
+  /* Thin 1528: successful 0982 spawn writes @INVASION status (VGA PARKED).
    * Same-turn war_act may overwrite with capture or 2244 cannot-afford. */
-  if (!strstr(status, "Expeditionary Force") && !strstr(status, "arrived") &&
+  if (!strstr(status, "Expeditionary Force") && !strstr(status, "lands near") &&
       !strstr(status, "captured") && !strstr(status, "Cannot afford mercenaries")) {
     fprintf(stderr, "smoke_ai_king: status after wave: '%s'\n", status);
-    return fail("0982 wave should set thin 1528 arrival (or same-turn capture/merc) status");
+    return fail("0982 wave should set thin 1528 @INVASION (or same-turn capture/merc) status");
   }
   /* Pools seeded on declare then drained; still expect REF-present stand-in. */
   if (col1.head.unknown46[1] == 0) {
@@ -842,7 +842,7 @@ int main(void) {
     return fail("no gold → 2244 cannot-afford should set unknown46[3]");
   }
   if (!strstr(status, "Cannot afford mercenaries") && !strstr(status, "captured") &&
-      !strstr(status, "Expeditionary Force") && !strstr(status, "arrived")) {
+      !strstr(status, "Expeditionary Force") && !strstr(status, "lands near")) {
     fprintf(stderr, "smoke_ai_king: status after no-gold declare: '%s'\n", status);
     return fail("no gold → 2244 should set cannot-afford (or same-turn wave/capture) status");
   }
@@ -856,13 +856,22 @@ int main(void) {
     col1.head.backup_force[3] = 0;
     col1.head.unknown46[3] = 0; /* re-arm once-gate for refuse probe */
     colonies.colonies[0].nation_id = 0;
+    /* Keep end checks from latching lose if REF still sits on/re-enters the port. */
+    col1.head.unknown46[4] = 0;
+    const uint8_t ref_saved = col1.head.unknown46[1];
+    col1.head.unknown46[1] = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1) {
         u->moves_left = 0; /* park crown so capture does not clobber status */
+        if (u->x == 5 && u->y == 5) {
+          u->x = 4;
+          u->y = 5;
+        }
       }
     }
     ai_king_nation_turn(&ctx);
+    col1.head.unknown46[1] = ref_saved;
     if (col1.head.unknown46[3] == 0) {
       return fail("2244 cannot-afford probe should set unknown46[3]");
     }
@@ -872,7 +881,9 @@ int main(void) {
     }
     /* Second wartime turn: gate blocks refuse-status spam. */
     status[0] = '\0';
+    col1.head.unknown46[1] = 0; /* keep lose checks disarmed for merc spam probe */
     ai_king_nation_turn(&ctx);
+    col1.head.unknown46[1] = ref_saved;
     if (strstr(status, "Cannot afford mercenaries")) {
       return fail("merc unknown46[3] should block cannot-afford status spam");
     }
@@ -890,7 +901,9 @@ int main(void) {
       if (col1.head.unknown46[3] == 0) {
         return fail("refuse→later-hire probe needs unknown46[3] still set");
       }
+      col1.head.unknown46[1] = 0;
       ai_king_nation_turn(&ctx);
+      col1.head.unknown46[1] = ref_saved;
       if (col1.nation[0].gold != gold_refuse) {
         return fail("unknown46[3] refuse must block later 2244 spend when gold arrives");
       }
@@ -4236,11 +4249,26 @@ int main(void) {
   /*
    * ai_popup wire (human queue on turn ctx): tax audience CHOICE defers hike;
    * apply Accept finishes 1d42 effect. Without ai_popups, auto path unchanged.
+   * Refuse → dump-goods CHOICE → @TEAPARTY OK (thin 3dc8 stock dump).
    */
   {
     AiPopupState pop;
     ai_popup_init(&pop);
     ctx.ai_popups = &pop;
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      return fail("tax audience: GAME.TXT load failed");
+    }
+    ctx.messages = &game_txt;
+
+    /* Restore multi-cargo Europe bids so dump CHOICE has Furs/etc. */
+    europe.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
+      europe.cargo[ci].bid = 1;
+    }
+    ctx.europe = &europe;
 
     /* Peacetime tax audience: clear WoI so 1d42 runs; spring tax year. */
     col1.head.unknown46[0] = 0;
@@ -4259,10 +4287,12 @@ int main(void) {
     const uint8_t tax_before = col1.nation[0].tax_rate;
     ai_king_nation_turn(&ctx);
     if (col1.nation[0].tax_rate != tax_before) {
+      assets_msg_free(&game_txt);
       return fail("ai_popups tax audience must defer hike until apply");
     }
     if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_KING_AUDIENCE ||
         pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+      assets_msg_free(&game_txt);
       return fail("ai_popups should enqueue KING_AUDIENCE choice");
     }
     /* Simulate Accept result (game_loop path). */
@@ -4276,9 +4306,11 @@ int main(void) {
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
     if (col1.nation[0].tax_rate != tax_before + 1) {
+      assets_msg_free(&game_txt);
       return fail("apply Accept should hike tax (1d42)");
     }
     if (col1.head.unknown46[2] != 0) {
+      assets_msg_free(&game_txt);
       return fail("Accept hike must not set boycott refuse");
     }
     /* Tax audience chain: Accept apply → hike follow-up OK (FUN_43f7_1d42 / 38fd_5be8). */
@@ -4293,6 +4325,7 @@ int main(void) {
         }
       }
       if (!found_accept_ok) {
+        assets_msg_free(&game_txt);
         return fail("apply Accept should enqueue tax hike follow-up OK");
       }
     }
@@ -4308,6 +4341,7 @@ int main(void) {
     ai_popup_clear(&pop);
     ai_king_nation_turn(&ctx);
     if (col1.head.unknown46[2] != 0 || col1.nation[0].tax_rate != 20) {
+      assets_msg_free(&game_txt);
       return fail("ai_popups refuse choice must defer boycott until apply");
     }
     pop.has_result = true;
@@ -4320,12 +4354,15 @@ int main(void) {
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
     if (col1.head.unknown46[2] == 0) {
+      assets_msg_free(&game_txt);
       return fail("apply Refuse should set boycott unknown46[2]");
     }
     if (col1.nation[0].tax_rate != 20) {
+      assets_msg_free(&game_txt);
       return fail("apply Refuse must leave tax_rate unchanged");
     }
     if ((col1.nation[0].boycott_bitmap & (1u << 1)) == 0) {
+      assets_msg_free(&game_txt);
       return fail("apply Refuse should freeze Sugar boycott bit");
     }
     /* Dump-goods CHOICE after Refuse (Sugar set; second cargo player-picked). */
@@ -4341,6 +4378,7 @@ int main(void) {
         }
       }
       if (!found_dump) {
+        assets_msg_free(&game_txt);
         return fail("apply Refuse should enqueue KING_DUMP_GOODS CHOICE");
       }
       /* Pick Furs if offered, else first choice id. */
@@ -4351,6 +4389,11 @@ int main(void) {
           break;
         }
       }
+      /* Seed richest-colony stock for thin 3dc8 dump under @TEAPARTY. */
+      colonies.colonies[0].nation_id = 0;
+      colonies.colonies[0].active = true;
+      colonies.colonies[0].stock[pick] = 75;
+      const int stock_before = colonies.colonies[0].stock[pick];
       pop.has_result = true;
       pop.result_cancelled = false;
       pop.result_choice_id = pick;
@@ -4361,28 +4404,42 @@ int main(void) {
       ai_king_apply_popup_result(&ctx, &pop);
       ai_popup_consume_result(&pop);
       if ((col1.nation[0].boycott_bitmap & (1u << pick)) == 0) {
+        assets_msg_free(&game_txt);
         return fail("dump-goods CHOICE should OR chosen cargo boycott bit");
       }
-      int found_refuse_ok = 0;
+      if (colonies.colonies[0].stock[pick] != stock_before - 75) {
+        fprintf(stderr, "smoke_ai_king: TEAPARTY stock got %d want %d\n",
+                colonies.colonies[0].stock[pick], stock_before - 75);
+        assets_msg_free(&game_txt);
+        return fail("dump-goods @TEAPARTY should dump min(100,stock) from colony");
+      }
+      int found_teaparty = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX &&
             pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            (strstr(pop.queue[i].body, "Sugar") || strstr(pop.queue[i].body, "boycott"))) {
-          found_refuse_ok = 1;
+            strstr(pop.queue[i].body, "Sons of Liberty") &&
+            strstr(pop.queue[i].body, "throw") &&
+            strstr(pop.queue[i].body, "75")) {
+          found_teaparty = 1;
           break;
         }
       }
-      if (!found_refuse_ok) {
-        return fail("dump-goods apply should enqueue boycott follow-up OK");
+      if (!found_teaparty) {
+        assets_msg_free(&game_txt);
+        return fail("dump-goods apply should enqueue @TEAPARTY KING_TAX OK");
       }
     }
 
-    /* Congress CHOICE: gate met → enqueue, no WoI until Confirm. */
+    /* Keep GAME.TXT loaded for @DECLARE congress CHOICE (+ merc uses messages). */
+
+    /* Congress CHOICE: gate met → enqueue @DECLARE, no WoI until Confirm. */
     col1.head.unknown46[0] = 0;
     col1.head.unknown46[5] = 0;
     col1.colony[0].rebel_dividend = 60;
     col1.colony[0].rebel_divisor = 100;
     col1.nation[0].liberty_bells_total = 200;
+    snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
+    snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
     year = 1600;
     autumn = 0;
     status[0] = '\0';
@@ -4391,24 +4448,49 @@ int main(void) {
     year = 1537;
     ai_king_nation_turn(&ctx);
     if (col1.head.unknown46[0] != 0) {
+      assets_msg_free(&game_txt);
       return fail("ai_popups congress must defer WoI until Confirm");
     }
     {
       int found_congress = 0;
+      int congress_qi = -1;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_CONGRESS &&
             pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
           found_congress = 1;
+          congress_qi = i;
           break;
         }
       }
       if (!found_congress) {
+        assets_msg_free(&game_txt);
         return fail("ai_popups should enqueue KING_CONGRESS choice");
+      }
+      if (!strstr(pop.queue[congress_qi].body, "independence from England") &&
+          !strstr(pop.queue[congress_qi].body, "declare our independence")) {
+        fprintf(stderr, "smoke_ai_king: @DECLARE body: '%s'\n",
+                pop.queue[congress_qi].body);
+        assets_msg_free(&game_txt);
+        return fail("KING_CONGRESS body should use @DECLARE prose");
+      }
+      int found_never = 0;
+      int found_liberty = 0;
+      for (int ci = 0; ci < pop.queue[congress_qi].choice_count; ++ci) {
+        if (strstr(pop.queue[congress_qi].choices[ci], "Never")) {
+          found_never = 1;
+        }
+        if (strstr(pop.queue[congress_qi].choices[ci], "liberty")) {
+          found_liberty = 1;
+        }
+      }
+      if (!found_never || !found_liberty) {
+        assets_msg_free(&game_txt);
+        return fail("KING_CONGRESS choices should use @DECLARE Never/Yes labels");
       }
     }
     pop.has_result = true;
     pop.result_cancelled = false;
-    pop.result_choice_id = 1; /* Confirm */
+    pop.result_choice_id = 1; /* Confirm (AI_KING_CHOICE_CONFIRM) */
     pop.result_tag = AI_POPUP_TAG_KING_CONGRESS;
     pop.result_nation_a = 0;
     pop.result_nation_b = 1;
@@ -4416,36 +4498,68 @@ int main(void) {
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
     if (col1.head.unknown46[0] == 0 || col1.head.unknown46[5] == 0) {
+      assets_msg_free(&game_txt);
       return fail("apply Confirm should declare WoI + congress unknown46[5]");
     }
-    /* R2: Confirm chain → United Colonies rename OK + WoI begins OK (160a / 1a26). */
+    /* R2: Confirm chain → @INDEPENDENCE letter OK + @HOWTOWIN INFO (160a / 1a26). */
     {
       int found_rename = 0;
-      int found_woi = 0;
+      int found_how = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
           continue;
         }
-        if (strstr(pop.queue[i].body, "United Colonies") ||
-            strstr(pop.queue[i].title, "United Colonies")) {
-          if (pop.queue[i].tag != AI_POPUP_TAG_KING_LETTER) {
-            return fail("160a rename OK should use AI_POPUP_TAG_KING_LETTER");
-          }
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_LETTER &&
+            (strstr(pop.queue[i].body, "Declaration of Independence") ||
+             strstr(pop.queue[i].body, "Continental Congress signs"))) {
           found_rename = 1;
         }
-        if (strstr(pop.queue[i].body, "War of Independence")) {
-          found_woi = 1;
+        if (strstr(pop.queue[i].body, "road to freedom") ||
+            (strstr(pop.queue[i].body, "recapture") &&
+             strstr(pop.queue[i].body, "ground forces"))) {
+          found_how = 1;
         }
       }
       if (!found_rename) {
-        return fail("apply Confirm should enqueue United Colonies rename OK");
+        assets_msg_free(&game_txt);
+        return fail("apply Confirm should enqueue @INDEPENDENCE KING_LETTER OK");
       }
-      if (!found_woi) {
-        return fail("apply Confirm should enqueue War of Independence begins OK");
+      if (!found_how) {
+        assets_msg_free(&game_txt);
+        return fail("apply Confirm should enqueue @HOWTOWIN INFO OK");
       }
     }
     if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
+      assets_msg_free(&game_txt);
       return fail("apply Confirm must still rename country_name (choice apply)");
+    }
+
+    /*
+     * Same-turn after Confirm: wartime wave with seeded REF → @INVASION
+     * KING_ARRIVAL (colony still human; force not yet cleared for merc).
+     */
+    {
+      colonies.colonies[0].nation_id = 0;
+      snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Jamestown");
+      status[0] = '\0';
+      ai_popup_clear(&pop);
+      ai_king_nation_turn(&ctx);
+      int found_invasion = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL &&
+            pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "lands near") &&
+            strstr(pop.queue[i].body, "Jamestown")) {
+          found_invasion = 1;
+          break;
+        }
+      }
+      if (!found_invasion) {
+        fprintf(stderr, "smoke_ai_king: post-Confirm ARRIVAL queue_count=%d status='%s'\n",
+                pop.queue_count, status);
+        assets_msg_free(&game_txt);
+        return fail("post-Confirm wave should enqueue @INVASION KING_ARRIVAL");
+      }
     }
 
     /* Merc CHOICE: wartime + gold → enqueue Hire; apply spends/spawns. */
@@ -4664,10 +4778,12 @@ int main(void) {
       }
     }
 
+    assets_msg_free(&game_txt);
+    ctx.messages = NULL;
     ctx.ai_popups = NULL;
   }
 
-  /* Revolution lose: WoI + REF already present + zero coastal ports → unknown46[4]=2. */
+  /* Revolution lose @LOSING2: WoI + REF + zero colonies → unknown46[4]=2. */
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
@@ -4676,6 +4792,9 @@ int main(void) {
     end.head.unknown46[4] = 0;
     end.head.year = 1785;
     end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
     for (int n = 1; n < 4; ++n) {
       end.player[n].control = 2;
     }
@@ -4691,16 +4810,27 @@ int main(void) {
     emap.layer2 = calloc(256, 1);
     emap.layer3 = calloc(256, 1);
     if (!emap.terrain || !emap.layer2 || !emap.layer3) {
-      return fail("rev-end alloc");
+      return fail("rev-lose2 alloc");
     }
     for (int i = 0; i < 256; ++i) {
-      emap.terrain[i] = 1; /* all land — no coastal ports */
+      emap.terrain[i] = 1;
     }
 
     ColonizeUnitPool eu;
     units_reset(&eu);
 
-    char estatus[160];
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("rev-lose2: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
@@ -4712,29 +4842,751 @@ int main(void) {
     ectx.map = &emap;
     ectx.status = estatus;
     ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 2) {
-      fprintf(stderr, "smoke_ai_king: rev-lose endgame=%d status='%s'\n",
+      fprintf(stderr, "smoke_ai_king: rev-lose2 endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("WoI + REF + no coastal ports should latch revolution lost");
+      return fail("WoI + REF + no colonies should latch revolution lost");
     }
-    if (!strstr(estatus, "failed") && !strstr(estatus, "port")) {
+    if (!strstr(estatus, "control all colonies")) {
+      fprintf(stderr, "smoke_ai_king: rev-lose2 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("rev-lose should set failure status");
+      return fail("rev-lose2 should set @LOSING2 status");
     }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "control all colonies") &&
+            strstr(pop.queue[i].body, "United Colonies") &&
+            strstr(pop.queue[i].body, "Washington")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("rev-lose2 should enqueue @LOSING2 INFO OK");
+      }
+    }
+    assets_msg_free(&game_txt);
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
-    fprintf(stderr, "smoke_ai_king: revolution lose (no ports) ok\n");
+    fprintf(stderr, "smoke_ai_king: revolution lose2 (no colonies) ok\n");
   }
 
-  /* Revolution win: WoI + year≥1850 + no crown units → unknown46[4]=1. */
+  /* Revolution lose @LOSING1: WoI + REF + inland colony only (ports==0) → lost. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1; /* REF already invading */
+    end.head.unknown46[4] = 0;
+    end.head.year = 1785;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("rev-lose1 alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 1; /* all land — inland colony is non-coastal */
+    }
+    {
+      ColonizeColony* c = &cp.colonies[0];
+      memset(c, 0, sizeof(*c));
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      cp.colony_count = 1;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("rev-lose1: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 2) {
+      fprintf(stderr, "smoke_ai_king: rev-lose1 endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("WoI + REF + inland-only should latch revolution lost via ports");
+    }
+    if (!strstr(estatus, "control all ports") && !strstr(estatus, "ports in")) {
+      fprintf(stderr, "smoke_ai_king: rev-lose1 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("rev-lose1 should set @LOSING1 status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "control all ports") &&
+            strstr(pop.queue[i].body, "United Colonies") &&
+            strstr(pop.queue[i].body, "Washington")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("rev-lose1 should enqueue @LOSING1 INFO OK");
+      }
+    }
+    assets_msg_free(&game_txt);
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution lose1 (no ports, inland left) ok\n");
+  }
+
+  /* Mid-war @WARN1/@WARN2: WoI + REF + exactly one coastal colony → INFO OKs;
+   * unknown46[6] port episode + unknown46[7] colony episode; clear when >1. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1;
+    end.head.unknown46[4] = 0;
+    end.head.unknown46[6] = 0;
+    end.head.unknown46[7] = 0;
+    end.head.year = 1600;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("warn1 alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 25; /* ocean */
+    }
+    emap.terrain[5 + 5 * 16] = 1;
+    emap.terrain[6 + 5 * 16] = 25; /* coast neighbor for (5,5) */
+    emap.terrain[8 + 5 * 16] = 1;
+    emap.terrain[9 + 5 * 16] = 25; /* coast neighbor for (8,5) */
+    {
+      ColonizeColony* c = &cp.colonies[0];
+      memset(c, 0, sizeof(*c));
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      cp.colony_count = 1;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+    /* Keep a crown unit so year<<1850 win path cannot fire. */
+    {
+      ColonizeUnit* u = &eu.units[0];
+      memset(u, 0, sizeof(*u));
+      u->active = true;
+      u->nation_id = 1;
+      u->x = 0;
+      u->y = 0;
+      eu.unit_count = 1;
+    }
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn1: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 0) {
+      fprintf(stderr, "smoke_ai_king: warn1 endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn1 must not latch endgame");
+    }
+    if (end.head.unknown46[6] != 1) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn1 should set unknown46[6] episode latch");
+    }
+    if (end.head.unknown46[7] != 1) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn2 should set unknown46[7] episode latch");
+    }
+    if (!strstr(estatus, "all but 1") || !strstr(estatus, "surrender")) {
+      fprintf(stderr, "smoke_ai_king: warn1 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn1 should set @WARN1 status");
+    }
+    {
+      int found_port = 0;
+      int found_col = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
+          continue;
+        }
+        if (strstr(pop.queue[i].body, "all but 1") &&
+            strstr(pop.queue[i].body, "United Colonies") &&
+            strstr(pop.queue[i].body, "surrender")) {
+          found_port = 1;
+        }
+        if (strstr(pop.queue[i].body, "all but 1") &&
+            strstr(pop.queue[i].body, "colonies") &&
+            strstr(pop.queue[i].body, "lose the war")) {
+          found_col = 1;
+        }
+      }
+      if (!found_port) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn1 should enqueue @WARN1 INFO OK");
+      }
+      if (!found_col) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn2 should enqueue @WARN2 INFO OK");
+      }
+    }
+
+    /* Second turn with latches set: no second WARN1/WARN2 enqueue. */
+    {
+      const int q0 = pop.queue_count;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      if (end.head.unknown46[6] != 1 || end.head.unknown46[7] != 1) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn latches should remain while one colony/port left");
+      }
+      int rewarn = 0;
+      for (int i = q0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "all but 1")) {
+          rewarn = 1;
+          break;
+        }
+      }
+      if (rewarn) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn1/warn2 must not re-enqueue while latched");
+      }
+    }
+
+    /* Reclaim a second coastal colony → clear latches; drop to one → re-fire. */
+    {
+      ColonizeColony* c2 = &cp.colonies[1];
+      memset(c2, 0, sizeof(*c2));
+      c2->active = true;
+      c2->nation_id = 0;
+      c2->x = 8;
+      c2->y = 5;
+      cp.colony_count = 2;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      if (end.head.unknown46[6] != 0 || end.head.unknown46[7] != 0) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn latches should clear when ports/colonies>1");
+      }
+      c2->active = false;
+      cp.colony_count = 1;
+      const int q1 = pop.queue_count;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      if (end.head.unknown46[6] != 1 || end.head.unknown46[7] != 1) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn should re-latch after reclaim then drop to one");
+      }
+      int found_port = 0;
+      int found_col = 0;
+      for (int i = q1; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
+          continue;
+        }
+        if (strstr(pop.queue[i].body, "surrender") &&
+            strstr(pop.queue[i].body, "all but 1")) {
+          found_port = 1;
+        }
+        if (strstr(pop.queue[i].body, "lose the war") &&
+            strstr(pop.queue[i].body, "colonies")) {
+          found_col = 1;
+        }
+      }
+      if (!found_port || !found_col) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn1/warn2 should re-enqueue after reclaim episode");
+      }
+    }
+
+    assets_msg_free(&game_txt);
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution warn1/warn2 (one colony) ok\n");
+  }
+
+  /* Mid-war @WARN3: crown pop share 50–89%; unknown46[10] episode. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1;
+    end.head.unknown46[4] = 0;
+    end.head.unknown46[10] = 0;
+    end.head.year = 1600;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("warn3 alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 25;
+    }
+    /* Two human coastal colonies (avoid WARN1/WARN2) + one crown. */
+    emap.terrain[5 + 5 * 16] = 1;
+    emap.terrain[6 + 5 * 16] = 25;
+    emap.terrain[8 + 5 * 16] = 1;
+    emap.terrain[9 + 5 * 16] = 25;
+    emap.terrain[5 + 8 * 16] = 1;
+    emap.terrain[6 + 8 * 16] = 25;
+    {
+      ColonizeColony* c0 = &cp.colonies[0];
+      memset(c0, 0, sizeof(*c0));
+      c0->active = true;
+      c0->nation_id = 0;
+      c0->x = 5;
+      c0->y = 5;
+      c0->population = 20;
+      ColonizeColony* c1 = &cp.colonies[1];
+      memset(c1, 0, sizeof(*c1));
+      c1->active = true;
+      c1->nation_id = 0;
+      c1->x = 8;
+      c1->y = 5;
+      c1->population = 20;
+      ColonizeColony* ck = &cp.colonies[2];
+      memset(ck, 0, sizeof(*ck));
+      ck->active = true;
+      ck->nation_id = 1; /* crown */
+      ck->x = 5;
+      ck->y = 8;
+      ck->population = 60; /* 60% share */
+      cp.colony_count = 3;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+    {
+      ColonizeUnit* u = &eu.units[0];
+      memset(u, 0, sizeof(*u));
+      u->active = true;
+      u->nation_id = 1;
+      eu.unit_count = 1;
+    }
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn3: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 0) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn3 must not latch endgame");
+    }
+    if (end.head.unknown46[10] != 1) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn3 should set unknown46[10] episode latch");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "60%") &&
+            strstr(pop.queue[i].body, "population") &&
+            strstr(pop.queue[i].body, "United Colonies")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn3 should enqueue @WARN3 INFO OK");
+      }
+    }
+    {
+      const int q0 = pop.queue_count;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      int re = 0;
+      for (int i = q0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "60%") &&
+            strstr(pop.queue[i].body, "population")) {
+          re = 1;
+          break;
+        }
+      }
+      if (re) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn3 must not re-enqueue while latched");
+      }
+    }
+    /* Drop crown share below 50% → clear latch; raise again → re-fire. */
+    cp.colonies[2].population = 10; /* 10/50 = 20% */
+    estatus[0] = '\0';
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[10] != 0) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn3 latch should clear when pop share <50%");
+    }
+    cp.colonies[2].population = 60;
+    const int q1 = pop.queue_count;
+    estatus[0] = '\0';
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[10] != 1) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("warn3 should re-latch after share returns to 50–89%");
+    }
+    {
+      int found = 0;
+      for (int i = q1; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "population") &&
+            strstr(pop.queue[i].body, "60%")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("warn3 should re-enqueue after reclaim episode");
+      }
+    }
+    assets_msg_free(&game_txt);
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution warn3 (pop share) ok\n");
+  }
+
+  /* Revolution lose @LOSING3: crown pop share ≥90%. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1;
+    end.head.unknown46[4] = 0;
+    end.head.year = 1785;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("lose3 alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 25;
+    }
+    emap.terrain[5 + 5 * 16] = 1;
+    emap.terrain[6 + 5 * 16] = 25;
+    emap.terrain[8 + 5 * 16] = 1;
+    emap.terrain[9 + 5 * 16] = 25;
+    {
+      ColonizeColony* c0 = &cp.colonies[0];
+      memset(c0, 0, sizeof(*c0));
+      c0->active = true;
+      c0->nation_id = 0;
+      c0->x = 5;
+      c0->y = 5;
+      c0->population = 10;
+      ColonizeColony* ck = &cp.colonies[1];
+      memset(ck, 0, sizeof(*ck));
+      ck->active = true;
+      ck->nation_id = 1;
+      ck->x = 8;
+      ck->y = 5;
+      ck->population = 90; /* 90% */
+      cp.colony_count = 2;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+    {
+      ColonizeUnit* u = &eu.units[0];
+      memset(u, 0, sizeof(*u));
+      u->active = true;
+      u->nation_id = 1;
+      eu.unit_count = 1;
+    }
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("lose3: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 2) {
+      fprintf(stderr, "smoke_ai_king: lose3 endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("crown pop ≥90% should latch revolution lost via @LOSING3");
+    }
+    if (!strstr(estatus, "over 90%") && !strstr(estatus, "90% of")) {
+      fprintf(stderr, "smoke_ai_king: lose3 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("lose3 should set @LOSING3 status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "population") &&
+            strstr(pop.queue[i].body, "United Colonies") &&
+            strstr(pop.queue[i].body, "Washington")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("lose3 should enqueue @LOSING3 INFO OK");
+      }
+    }
+    assets_msg_free(&game_txt);
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution lose3 (pop share) ok\n");
+  }
+
+  /* Revolution win: WoI + year≥1850 + no crown units → unknown46[4]=1.
+   * GAME.TXT @WINNING when messages + ai_popups attached. */
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
@@ -4743,6 +5595,9 @@ int main(void) {
     end.head.unknown46[4] = 0;
     end.head.year = 1850;
     end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
@@ -4777,7 +5632,18 @@ int main(void) {
     units_reset(&eu);
     /* No crown units. */
 
-    char estatus[160];
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("rev-win: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
     estatus[0] = '\0';
     ColonizeTurnContext ectx;
     memset(&ectx, 0, sizeof(ectx));
@@ -4789,20 +5655,539 @@ int main(void) {
     ectx.map = &emap;
     ectx.status = estatus;
     ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
     if (end.head.unknown46[4] != 1) {
       fprintf(stderr, "smoke_ai_king: rev-win endgame=%d status='%s'\n",
               end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
       return fail("WoI + 1850 + no crown units should latch revolution won");
     }
+    if (!strstr(estatus, "Expeditionary Force annihilated") &&
+        !strstr(estatus, "accepts surrender") &&
+        !strstr(estatus, "annihilated")) {
+      fprintf(stderr, "smoke_ai_king: rev-win status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("rev-win should set @WINNING status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            (strstr(pop.queue[i].body, "Expeditionary Force annihilated") ||
+             strstr(pop.queue[i].body, "accepts surrender")) &&
+            strstr(pop.queue[i].body, "Washington") &&
+            strstr(pop.queue[i].body, "United Colonies")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("rev-win should enqueue @WINNING INFO OK");
+      }
+    }
+    assets_msg_free(&game_txt);
     free(emap.terrain);
     free(emap.layer2);
     free(emap.layer3);
     fprintf(stderr, "smoke_ai_king: revolution win (1850) ok\n");
+  }
+
+  /* Wartime 1850 stalemate: crown still alive → @RETIRING2 + unknown46[4]=2. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1;
+    end.head.unknown46[4] = 0;
+    end.head.year = 1850;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("retiring2 alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 25;
+    }
+    emap.terrain[5 + 5 * 16] = 1;
+    emap.terrain[6 + 5 * 16] = 25;
+    {
+      ColonizeColony* c = &cp.colonies[0];
+      memset(c, 0, sizeof(*c));
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      c->population = 8;
+      snprintf(c->name, sizeof(c->name), "Jamestown");
+      cp.colony_count = 1;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+    {
+      ColonizeUnit* u = &eu.units[0];
+      memset(u, 0, sizeof(*u));
+      u->active = true;
+      u->nation_id = 1; /* crown still in the field */
+      eu.unit_count = 1;
+    }
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("retiring2: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 2) {
+      fprintf(stderr, "smoke_ai_king: retiring2 endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("1850 + crown alive should latch revolution lost via @RETIRING2");
+    }
+    if (end.head.unknown46[1] != 0) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("@RETIRING2 should clear REF-present");
+    }
+    if (!strstr(estatus, "sues for peace") && !strstr(estatus, "War-weary")) {
+      fprintf(stderr, "smoke_ai_king: retiring2 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("1850 stalemate should set @RETIRING2 status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            (strstr(pop.queue[i].body, "sues for peace") ||
+             strstr(pop.queue[i].body, "War-weary")) &&
+            strstr(pop.queue[i].body, "Washington") &&
+            strstr(pop.queue[i].body, "Jamestown")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("1850 stalemate should enqueue @RETIRING2 INFO OK");
+      }
+    }
+    assets_msg_free(&game_txt);
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: revolution retiring2 (1850 stalemate) ok\n");
+  }
+
+  /* Peacetime year≥1800: latch PEACE_1800 + @SCORED CHOICE; That's all → @RETIRING. */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 0;
+    end.head.unknown46[1] = 0;
+    end.head.unknown46[4] = 0;
+    end.head.year = 1800;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    end.nation[0].liberty_bells_total = 0; /* no declare */
+    end.head.colony_count = 0;
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    {
+      ColonizeColony* c = &cp.colonies[0];
+      memset(c, 0, sizeof(*c));
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      c->population = 6;
+      snprintf(c->name, sizeof(c->name), "Jamestown");
+      cp.colony_count = 1;
+    }
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      return fail("scored: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[4] != 3) {
+      fprintf(stderr, "smoke_ai_king: scored endgame=%d status='%s'\n",
+              end.head.unknown46[4], estatus);
+      assets_msg_free(&game_txt);
+      return fail("year≥1800 peacetime should latch PEACE_1800");
+    }
+    if (!strstr(estatus, "Scoring for this game")) {
+      fprintf(stderr, "smoke_ai_king: scored status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      return fail("1800 end should set @SCORED status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind != AI_POPUP_KIND_CHOICE ||
+            pop.queue[i].tag != AI_POPUP_TAG_KING_SCORED) {
+          continue;
+        }
+        if (!strstr(pop.queue[i].body, "Scoring for this game")) {
+          continue;
+        }
+        if (pop.queue[i].choice_count < 2) {
+          continue;
+        }
+        if (!strstr(pop.queue[i].choices[0], "That's all") ||
+            !strstr(pop.queue[i].choices[1], "Keep playing")) {
+          continue;
+        }
+        found = 1;
+        break;
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        return fail("1800 end should enqueue @SCORED CHOICE");
+      }
+    }
+    const int q_before_apply = pop.queue_count;
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_tag = AI_POPUP_TAG_KING_SCORED;
+    pop.result_choice_id = 0; /* That's all */
+    pop.result_nation_a = 0;
+    ai_king_apply_popup_result(&ectx, &pop);
+    if (!strstr(estatus, "steps down") || !strstr(estatus, "loyal service") ||
+        !strstr(estatus, "Washington") || !strstr(estatus, "Jamestown")) {
+      fprintf(stderr, "smoke_ai_king: scored apply status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      return fail("@SCORED That's all should set @RETIRING status");
+    }
+    {
+      int found = 0;
+      for (int i = q_before_apply; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "steps down") &&
+            strstr(pop.queue[i].body, "Washington")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        return fail("@SCORED That's all should enqueue @RETIRING INFO OK");
+      }
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "smoke_ai_king: peacetime @SCORED/@RETIRING (1800) ok\n");
+  }
+
+  /* Peacetime Spring 1790: @SOONRETIRING0 once (unknown46[8]). */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 0;
+    end.head.unknown46[4] = 0;
+    end.head.unknown46[8] = 0;
+    end.head.year = 1790;
+    end.head.difficulty = 0;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    end.nation[0].liberty_bells_total = 0;
+    end.head.colony_count = 0;
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      return fail("soon0: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    uint16_t autumn = 0; /* spring */
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.game_autumn = &autumn;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[8] != 1) {
+      assets_msg_free(&game_txt);
+      return fail("1790 spring should set unknown46[8] @SOONRETIRING0 latch");
+    }
+    if (!strstr(estatus, "retire in 1800")) {
+      fprintf(stderr, "smoke_ai_king: soon0 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      return fail("1790 should set @SOONRETIRING0 status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "retire in 1800") &&
+            strstr(pop.queue[i].body, "Washington")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        return fail("1790 should enqueue @SOONRETIRING0 INFO OK");
+      }
+    }
+    {
+      const int q0 = pop.queue_count;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      int re = 0;
+      for (int i = q0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "retire in 1800")) {
+          re = 1;
+          break;
+        }
+      }
+      if (re) {
+        assets_msg_free(&game_txt);
+        return fail("@SOONRETIRING0 must not re-enqueue while latched");
+      }
+    }
+    assets_msg_free(&game_txt);
+    fprintf(stderr, "smoke_ai_king: peacetime @SOONRETIRING0 (1790) ok\n");
+  }
+
+  /* Wartime 1840: @SOONRETIRING1 once (unknown46[9]). */
+  {
+    ColonizeCol1Save end;
+    col1_save_init(&end);
+    end.head.unknown46[0] = 1;
+    end.head.unknown46[1] = 1;
+    end.head.unknown46[4] = 0;
+    end.head.unknown46[9] = 0;
+    end.head.year = 1840;
+    end.player[0].control = 0;
+    snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
+    snprintf(end.player[0].country_name, sizeof(end.player[0].country_name),
+             "United Colonies");
+    for (int n = 1; n < 4; ++n) {
+      end.player[n].control = 2;
+    }
+
+    ColonizeColonyPool cp;
+    colonies_init(&cp);
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("soon1 alloc");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 25;
+    }
+    emap.terrain[5 + 5 * 16] = 1;
+    emap.terrain[6 + 5 * 16] = 25;
+    {
+      ColonizeColony* c = &cp.colonies[0];
+      memset(c, 0, sizeof(*c));
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      cp.colony_count = 1;
+    }
+
+    ColonizeUnitPool eu;
+    units_reset(&eu);
+    {
+      ColonizeUnit* u = &eu.units[0];
+      memset(u, 0, sizeof(*u));
+      u->active = true;
+      u->nation_id = 1;
+      eu.unit_count = 1;
+    }
+
+    ColonizeMsgCatalog game_txt;
+    memset(&game_txt, 0, sizeof(game_txt));
+    if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("soon1: GAME.TXT load failed");
+    }
+    AiPopupState pop;
+    ai_popup_init(&pop);
+
+    char estatus[AI_POPUP_BODY_LEN];
+    estatus[0] = '\0';
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &end;
+    ectx.col1_ok = true;
+    ectx.human_nation = 0;
+    ectx.colonies = &cp;
+    ectx.units = &eu;
+    ectx.map = &emap;
+    ectx.status = estatus;
+    ectx.status_size = sizeof(estatus);
+    ectx.messages = &game_txt;
+    ectx.ai_popups = &pop;
+
+    ai_king_nation_turn(&ectx);
+    if (end.head.unknown46[9] != 1) {
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("1840 WoI should set unknown46[9] @SOONRETIRING1 latch");
+    }
+    if (!strstr(estatus, "weary of this long war") && !strstr(estatus, "1850")) {
+      fprintf(stderr, "smoke_ai_king: soon1 status: '%s'\n", estatus);
+      assets_msg_free(&game_txt);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("1840 should set @SOONRETIRING1 status");
+    }
+    {
+      int found = 0;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "weary of this long war") &&
+            strstr(pop.queue[i].body, "Washington")) {
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("1840 should enqueue @SOONRETIRING1 INFO OK");
+      }
+    }
+    {
+      const int q0 = pop.queue_count;
+      estatus[0] = '\0';
+      ai_king_nation_turn(&ectx);
+      int re = 0;
+      for (int i = q0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
+            strstr(pop.queue[i].body, "weary of this long war")) {
+          re = 1;
+          break;
+        }
+      }
+      if (re) {
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("@SOONRETIRING1 must not re-enqueue while latched");
+      }
+    }
+    assets_msg_free(&game_txt);
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    fprintf(stderr, "smoke_ai_king: wartime @SOONRETIRING1 (1840) ok\n");
   }
 
   const uint8_t tax_final = col1.nation[0].tax_rate;

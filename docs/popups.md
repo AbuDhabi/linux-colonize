@@ -137,7 +137,7 @@ fragment. Related sections are listed in the first column.
 | Europe dock orders | Don’t board / Board / Move front | Done | `EUROPE_MENU_DOCK` |
 | `@HOWMUCH4`/`5` | Buy/sell amount | Done | Europe **L**/**U** → howmuch |
 | `@PRICEUP` / `@PRICEDOWN` | Price change notice | Partial | Status lines |
-| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; Tea Party follow-up still Partial |
+| `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; `@TEAPARTY` Done thin (stock dump + tokens; VGA PARKED) |
 
 ### 6. Indian contact / trade / raids
 
@@ -171,13 +171,17 @@ fragment. Related sections are listed in the first column.
 | Dump-goods cargo | Refuse → boycott pick | Done | `KING_DUMP_GOODS` |
 | Tax/boycott follow-up | After audience | Partial | `KING_TAX` OK |
 | Merc Hire/Decline (`@MERCENARIES`) | Continental mercs | Done | `KING_MERC` |
-| Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` |
+| Declare (`@DECLARE`) | Independence confirm | Done | `KING_CONGRESS` body+choices via `popup_msg_fill` / `popup_msg_choices`; VGA PARKED |
 | `@INDEPENDENCE` letter | Rename / letter | Partial | `KING_LETTER` from `@INDEPENDENCE`; cinematic PARKED |
-| `@INVASION` / intervene | REF / ally arrival | Partial | `KING_ARRIVAL` OK |
+| `@INVASION` / intervene | REF / ally arrival | Partial | REF `KING_ARRIVAL` via `@INVASION` Done thin; intervene invent Partial |
 | Crown capture | REF takes colony | Partial | `KING_CAPTURE` OK |
-| Revolution win/lose | End WoI | Partial | `INFO` OK + latches |
+| Revolution win/lose | End WoI | Done thin | `@WINNING` / `@LOSING1` / `@LOSING2` / `@RETIRING2` via `popup_msg_fill`; latches; VGA PARKED |
+| Mid-war port warn | WoI | Done thin | `@WARN1` when exactly one coastal port left (`unknown46[6]` episode) |
+| Mid-war colony warn | WoI | Done thin | `@WARN2` when exactly one colony left (`unknown46[7]` episode) |
+| Mid-war pop warn | WoI | Done thin | `@WARN3` crown pop share 50–89% (`unknown46[10]`); `@LOSING3` at ≥90% |
 | `@CONTINENTAL` FF elect | Founding Father debate | Done | `FF_CONGRESS` |
-| 1800 peacetime end | Auto-end | Partial | Status only (no GAME.TXT dialog) |
+| 1800 peacetime end | Auto-end | Done thin | `@SCORED` CHOICE; That's all → `@RETIRING` + retire score; latch `unknown46[4]=3` |
+| Anniversary soon-retire | Calendar | Done thin | `@SOONRETIRING0` Spring 1790 peacetime; `@SOONRETIRING1` 1840 WoI |
 
 ### 9. Combat / loot / capture
 
@@ -199,10 +203,11 @@ Deep mechanics: [combat.md](combat.md).
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
 | `@LOSENOCOLONIES` / defeat | No colonies | Partial | Status; dialog PARKED |
-| `@SCORE` / `@SCORED` / retire | Retire / F10 | Partial | F10 score; HoF stub `HOF.TXT` |
-| `@LOSING*` / `@WARN*` / `@WINNING` | Anniversary / SoL chrome | Partial | Anniversary years enqueue `ai_popup` OK |
+| `@SCORE` / `@SCORED` / retire | Retire / F10 | Done thin | `@SCORED` + `@RETIRING` on peacetime 1800 That's all; F10 score; HoF stub `HOF.TXT` |
+| `@LOSING*` / `@WARN*` / `@WINNING` | WoI end / anniversary | Done thin | `@WINNING`/`@LOSING1`–`3`/`@RETIRING`/`@RETIRING2`/`@WARN1`–`3`/`@SOONRETIRING0`/`1` Done thin |
 | `@TIMECHANGE` | Calendar help | Partial | Calendar Done; no modal |
-| 1850 WoI win | Year≥1850 + no crown | Partial | Latch + INFO |
+| 1850 WoI win | Year≥1850 + no crown | Done thin | `@WINNING` latch + INFO |
+| 1850 WoI stalemate | Year≥1850 + crown alive | Done thin | `@RETIRING2` latch lost + INFO |
 
 See also [sons_of_liberty.md](sons_of_liberty.md),
 [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
@@ -547,7 +552,7 @@ work.
 | `@MERCANTILISM` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@PURCHASETAX` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@TAXOPTIONS` | Done | ai_popup CHOICE structural |
-| `@TEAPARTY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@TEAPARTY` | Done thin | king refuse/dump follow-up OK via `popup_msg_fill`; thin `3dc8` stock dump; VGA PARKED |
 | `@KISSUP` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KISSSORRY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@PRICEUP` | Partial | market price status lines |
@@ -668,9 +673,9 @@ work.
 | `@SEIZURESEA` | Done | Crown naval → Royal Navy text; Privateer uses custom body |
 | `@SEIZURELAND` | Done | Crown land win vs human → Royal Army text |
 | `@INDEPENDENCE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@INVASION` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@INVASION` | Done thin | REF `1528` wave OK/status via `popup_msg_fill`; intervene invent remains; VGA PARKED |
 | `@TOOTORY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@DECLARE` | Done | ai_popup CHOICE structural |
+| `@DECLARE` | Done thin | ai_popup CHOICE body+labels via `popup_msg_*`; VGA PARKED |
 | `@DEADCONVERTS` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@TOOMANYUNITS` | Partial | order/gate — status or bounce; no modal |
 | `@TOOMANYCOLONIES` | Partial | order/gate — status or bounce; no modal |
@@ -701,17 +706,17 @@ work.
 | `@INTERVENE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@EXPLOITS` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@SCORE` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@LOSING1` | Missing | anniversary / SoL year-end dialogs missing |
-| `@WARN1` | Missing | anniversary / SoL year-end dialogs missing |
-| `@LOSING2` | Missing | anniversary / SoL year-end dialogs missing |
-| `@WARN2` | Missing | anniversary / SoL year-end dialogs missing |
-| `@LOSING3` | Missing | anniversary / SoL year-end dialogs missing |
-| `@WARN3` | Missing | anniversary / SoL year-end dialogs missing |
-| `@WINNING` | Missing | anniversary / SoL year-end dialogs missing |
+| `@LOSING1` | Done thin | WoI lose all ports — `ai_king_check_revolution_end` |
+| `@WARN1` | Done thin | WoI one coastal port left — `ai_king_check_revolution_end` (`unknown46[6]`) |
+| `@LOSING2` | Done thin | WoI lose all colonies — `ai_king_check_revolution_end` |
+| `@WARN2` | Done thin | WoI one colony left — `ai_king_check_revolution_end` (`unknown46[7]`) |
+| `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_check_revolution_end` |
+| `@WARN3` | Done thin | WoI crown pop share 50–89% — `unknown46[10]` episode |
+| `@WINNING` | Done thin | WoI win year≥1850 + no crown — `ai_king_check_revolution_end` |
 | `@OTHERGRANTED` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@OTHERMIGHT` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@OTHERLESS` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@SCORED` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
+| `@SCORED` | Done thin | peacetime year≥1800 — `AI_POPUP_TAG_KING_SCORED`; That's all opens retire score |
 | `@TORYUPRISING` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@CANNOTATTACK` | Partial | order/gate — status or bounce; no modal |
 | `@TRADEMERCANTILISM` | Missing | deep village trade 2820 PARKED |
@@ -734,11 +739,11 @@ work.
 | `@INDIANWARPATH2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANWARFARE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@LOSENOCOLONIES` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@SOONRETIRING0` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@SOONRETIRING1` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@RETIRING` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@RETIRING2` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
-| `@HOWTOWIN` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
+| `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn` (`unknown46[8]`) |
+| `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn` (`unknown46[9]`) |
+| `@RETIRING` | Done thin | peacetime `@SCORED` That's all → `ai_king_apply_popup_result` |
+| `@RETIRING2` | Done thin | WoI year≥1850 + crown alive — `ai_king_check_revolution_end` |
+| `@HOWTOWIN` | Done thin | after declare — `ai_king_do_declare` INFO (invent WoI-begins demoted) |
 | `@ARTILLERY` | Partial | order/gate — status or bounce; no modal |
 | `@ARTILLERY2` | Partial | order/gate — status or bounce; no modal |
 | `@TIMECHANGE` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
@@ -796,11 +801,11 @@ From [`ai_popup.h`](../src/core/ai_popup.h):
 | `INFO` | OK | Generic notices (revolution, 1800, …) | Partial |
 | `KING_AUDIENCE` | CHOICE | `@TAXOPTIONS` / `38fd_5be8` | Done |
 | `KING_DUMP_GOODS` | CHOICE | Refuse dump cargo / `38fd_3dc8` | Done |
-| `KING_TAX` | CHOICE / OK | `@KINGTAX` + `@TAXOPTIONS`; Tea Party Partial | Done |
+| `KING_TAX` | CHOICE / OK | `@KINGTAX` + `@TAXOPTIONS`; `@TEAPARTY` Done thin | Done |
 | `KING_MERC` | CHOICE / OK | `@MERCENARIES` / `@MERCS` | Done |
-| `KING_CONGRESS` | CHOICE | `@DECLARE` / `43f7_2564` | Done |
+| `KING_CONGRESS` | CHOICE | `@DECLARE` body+choices / `43f7_2564` | Done thin |
 | `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Partial |
-| `KING_ARRIVAL` | OK | `@INVASION` / intervene `43f7_1528`/`10f0` | Partial |
+| `KING_ARRIVAL` | OK | `@INVASION` REF `43f7_1528` Done thin; intervene `10f0` invent | Partial |
 | `KING_CAPTURE` | OK | REF colony capture | Partial |
 | `FF_CONGRESS` | CHOICE / OK | `@CONTINENTAL` / `4345_024a` | Done |
 | `CONTACT_WELCOME` | CHOICE | `@INDIANWELCOME` / `5bfb_022e` | Done |

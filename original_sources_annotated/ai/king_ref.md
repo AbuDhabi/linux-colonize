@@ -31,12 +31,12 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 |--------|------|-------|
 | `0004` | Pop-weighted SoL | `ai_king_sol_percent` |
 | `1d42` | Tax→REF funding | `ai_king_tax_event` |
-| `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto when no `ai_popups`; else CHOICE Confirm/Not yet → `ai_king_apply_popup_result` / `ai_king_do_declare`; `unknown46[5]`) |
+| `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto when no `ai_popups`; else `@DECLARE` CHOICE Never/Yes → `ai_king_apply_popup_result` / `ai_king_do_declare`; `unknown46[5]`) |
 | `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
-| `1528` | REF arrival announce | thin status + `ai_popup` OK `KING_ARRIVAL` when queue attached |
+| `1528` | REF arrival announce | `@INVASION` status + `ai_popup` OK `KING_ARRIVAL` when queue attached |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
 | `2244` | Mercenary hire offer | auto-hire when no `ai_popups`; else CHOICE Hire/Decline → apply; cannot-afford OK; Hire/Decline follow-up OK |
 | `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; deep type-id table PARKED) |
@@ -50,7 +50,12 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
 | Tax boycott / refuse | `head.unknown46[2]` (structural + `38fd_5be8` audience; CHOICE when `ai_popups`) |
 | Merc hired/refused this war | `head.unknown46[3]` (`2244` hire/decline/cannot-afford; CHOICE when `ai_popups`) |
-| Independence rename | `player[human].country_name` → `"United Colonies"` (+ `europe.nation_name` if present); `unknown46[4]` unused (name field exists) |
+| Independence rename | `player[human].country_name` → `"United Colonies"` (+ `europe.nation_name` if present); `unknown46[4]` endgame latch (0 none / 1 won / 2 lost / peace-1800) |
+| Mid-war `@WARN1` episode | `head.unknown46[6]` — set when one coastal port left + REF; clear when ports>1 |
+| Mid-war `@WARN2` episode | `head.unknown46[7]` — set when one colony left + REF; clear when colonies>1 |
+| Mid-war `@WARN3` episode | `head.unknown46[10]` — crown pop share 50–89%; clear when share <50% |
+| `@SOONRETIRING0` once | `head.unknown46[8]` — peacetime Spring 1790 |
+| `@SOONRETIRING1` once | `head.unknown46[9]` — wartime 1840 |
 | Cargo boycott bits | `nation.boycott_bitmap` (EuropeScreen has none) |
 | REF pools `0x53da…` | `head.expeditionary_force[4]` |
 | Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
@@ -70,23 +75,28 @@ When a spring tax year would hike:
   when queue attached on apply path).
 
 While `unknown46[2]` is set, further tax years skip hikes (hold-audience
-status + OK when queue attached). Refuse apply/auto also enqueues a Sugar
-boycott follow-up OK (`KING_TAX`) when queue attached. Restless SoL chrome
-(40..49) must **not** clobber audience lines. Fugger/external
-`boycott_bitmap==0` clears `unknown46[2]`. Dump-goods / `38fd_3dc8` RNG
-second cargo: **Done** (OR bit via `ai_king_pick_dump_goods_cargo` when
-`ctx->rng`; status/OK list **all** `boycott_bitmap` cargo names — refuse
-Sugar + second, holds after partial clear). Europe bid eligibility +
-price-weight (`local_7a` stand-in via `ctx->europe` cargo bids): **Done** —
-when europe set, candidates require `bid > 0`, then roulette by bid; europe
-NULL → uniform among all non-boycotted. Dump-goods modal CHOICE — **Done**
-(`AI_POPUP_TAG_KING_DUMP_GOODS`; apply ORs chosen cargo then `KING_TAX` OK).
+status + OK when queue attached). Refuse apply/auto also enqueues `@TEAPARTY`
+follow-up OK (`KING_TAX`) when queue attached and no dump-goods CHOICE is
+pending (thin `FUN_38fd_3dc8` stock dump of narrative cargo from richest human
+colony, cap 100). Dump-goods CHOICE apply ORs the chosen cargo then enqueues
+the same `@TEAPARTY` OK. Restless SoL chrome (40..49) must **not** clobber
+audience lines. Fugger/external `boycott_bitmap==0` clears `unknown46[2]`.
+Dump-goods / `38fd_3dc8` RNG second cargo: **Done** (OR bit via
+`ai_king_pick_dump_goods_cargo` when `ctx->rng`; status lists **all**
+`boycott_bitmap` cargo names — refuse Sugar + second, holds after partial
+clear). Europe bid eligibility + price-weight (`local_7a` stand-in via
+`ctx->europe` cargo bids): **Done** — when europe set, candidates require
+`bid > 0`, then roulette by bid; europe NULL → uniform among all
+non-boycotted. Dump-goods modal CHOICE — **Done**
+(`AI_POPUP_TAG_KING_DUMP_GOODS`; apply ORs chosen cargo then `@TEAPARTY`).
 Auto / no-popups still RNG-picks via `ai_king_pick_dump_goods_cargo`.
+VGA `@TEAPARTY` chrome remains PARKED.
 
 ### Thin `1528` REF arrival announce
 
-When `0982` successfully spawns a ship or land unit, write a short arrival
-line to `ctx->status` (if present), enqueue `KING_ARRIVAL` OK when
+When `0982` successfully spawns a ship or land unit, write GAME.TXT `@INVASION`
+(`Royal Expeditionary Force lands near {%STRING0}!`, `STRING0` = weakest-port
+colony name) to `ctx->status` (if present), enqueue `KING_ARRIVAL` OK when
 `ai_popups` attached, and keep `unknown46[1]` REF-present.
 Same-turn `war_act` capture may overwrite with capture status.
 VGA arrival chrome remains PARKED.
@@ -161,14 +171,25 @@ deep rebel AI PARKED.
 
 ### Thin `160a` independence rename + `2564` congress
 
-Gate (SoL≥50 + bells≥100): human + `ai_popups` → `KING_CONGRESS` CHOICE
-Confirm/Not yet (Confirm → `ai_king_do_declare`); else auto-declare.
+Gate (SoL≥50 + bells≥100): human + `ai_popups` → `KING_CONGRESS` CHOICE from
+GAME.TXT `@DECLARE` (Never / Yes; Yes → `ai_king_do_declare`); else auto-declare.
 On declare: status `"Congress declares independence!"`; rename
 `country_name` → `"United Colonies"` (+ `europe.nation_name`); set
 `unknown46[5]`. With `ai_popups`: enqueue rename OK (`United Colonies`) then
-`"War of Independence begins!"` OK (`FUN_43f7_160a` / `1a26` chain). Same-turn
-wave may overwrite status. Letter-anim cinematic **PARKED**. `unknown46[4]`
-unused.
+`"Road to Freedom"` / `@HOWTOWIN` OK (`FUN_43f7_160a` / `1a26` chain; invent
+`"War of Independence begins!"` demoted). Same-turn
+wave may overwrite status. Letter-anim cinematic **PARKED**. Endgame latch
+`unknown46[4]` set by revolution win/lose / peace-1800 (not by declare).
+Peacetime year≥1800: latch `PEACE_1800` + GAME.TXT `@SCORED` CHOICE
+(`AI_POPUP_TAG_KING_SCORED`; That's all → `@RETIRING` + retire score via game_loop /
+Keep playing).
+Peacetime Spring 1790: `@SOONRETIRING0` once (`unknown46[8]`). Wartime 1840:
+`@SOONRETIRING1` once (`unknown46[9]`).
+Mid-war `@WARN1` (one coastal port + REF) uses `unknown46[6]` episode latch;
+`@WARN2` (one colony + REF) uses `unknown46[7]`. Armed only when WoI+REF
+already set at turn entry (peacetime tax may set REF early; declare beat keeps
+`@INVASION`). Status write skipped if buffer already non-empty (same-turn
+wave/merc).
 
 ### Thin pre-declare SoL chrome
 
@@ -188,7 +209,8 @@ Auto-declare still requires SoL≥**50**
 `ai_king_try_declare` fires only when `ai_king_sol_percent` is already
 **≥ `AI_KING_DECLARE_SOL_MIN` (50)** and liberty bells ≥ 100. Threshold is the
 existing 2564/fandom figure — do **not** invent a different SoL %. With
-`ai_popups`, Confirm choice applies declare; without, auto-declare.
+`ai_popups`, Confirm (`AI_KING_CHOICE_CONFIRM` / `@DECLARE` Yes) applies declare;
+without, auto-declare.
 
 ### Structural `10f0` foreign intervention (≤3 landings)
 
@@ -287,16 +309,16 @@ dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 
 1. SoL (`0004`)
 2. If !WoI: tax (`1d42`) → SoL 40–49 chrome (+ optional high-tax mention) → declare gate (`2564`/`1a26`; seeds REF + thin `backup_force` + thin `160a` rename + `unknown46[5]` congress)
-3. If WoI: wave (`0982` MoW on water adjacent + second MoW @diff≥2 if pool allows + board up to ship capacity into `cargo_ids` / `06a6` + thin `1528` status; Artillery prefer if target fortified) → war act (`10f0` ≤2 landings, third @diff≥2 if REF empty + backup, nation pick by colonies, REF Regular/Dragoon/Artillery/Cont. land hunt + capital MD bias + after-capture extras → next nearest human colony + Dragoon/Cont. Cav open bias + Artillery adjacent-fort tighten + capture + capture status + fortify **up to two** Regular else Dragoon/Cont.Cav (Defending a Colony cap 2; third+ hunt) + **Artillery FORTIFY after capture / idle on crown colony** (Euro pattern), idle Regular/Dragoon/Cont.Cav on crown/captured capital → fortify up to two (third+ hunt; already FORTIFY/FORTIFIED stay), MoW+cargo multi-unload-at-coast ≤moves/capacity (1 MP/pax; prefer colony tile; same-beat seize/fortify) else AI_SAIL→human coast; **full unload + moves left → AI_SAIL next human coast**, idle empty MoW AI_SAIL coastal patrol, thin `2244` merc hire **or** cannot-afford once, `1eca` colony-SoL promote + Cont. Army/**Cont. Cav capital-rally** → nearest colony + founding-capital MD slack + **Cont. Army/Cav fortify on founding capital (cap 2)**)
+3. If WoI: wave (`0982` …) → war act (…) → revolution end check (`@WARN1`/`@WARN2`/`@WARN3` / `@LOSING2`/`@LOSING1`/`@LOSING3` / `@WINNING` / `@RETIRING2`; `unknown46[4]`; warns use `unknown46[6]`/`[7]`/`[10]`)
 
 ## PORT DEBT
 
-- **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `2564` congress CHOICE Confirm/Not yet; `2244` merc CHOICE Hire/Decline + cannot-afford OK + Hire success follow-up OK + Decline follow-up OK; `1528` REF arrival OK; `10f0` intervene landing ARRIVAL once; capture OK; tax hike OK on Accept apply
+- **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `@TEAPARTY` refuse/dump follow-up OK (thin `3dc8` stock dump + tokens); `2564` congress `@DECLARE` CHOICE Never/Yes; `2244` merc CHOICE Hire/Decline + cannot-afford OK + Hire success follow-up OK + Decline follow-up OK; `1528` REF `@INVASION` arrival OK; `10f0` intervene landing ARRIVAL once (invent); capture OK; tax hike OK on Accept apply; revolution end `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` Done thin (`unknown46[4]` latch); mid-war `@WARN1`–`3` Done thin (`unknown46[6]`/`[7]`/`[10]`); peacetime 1800 `@SCORED` CHOICE + `@RETIRING` on That's all Done thin (`KING_SCORED` → retire score); `@SOONRETIRING0`/`1` Done thin (1790/1840; `unknown46[8]`/`[9]`); declare `@HOWTOWIN` Done thin (invent WoI-begins demoted)
 - **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); **Cont. capital-rally** (nearest human colony + founding-capital MD slack; hold on colony tile; **Cont. Army/Cav fortify on founding capital cap 2**); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
-- **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods `38fd_3dc8` **modal CHOICE** (Sugar + RNG second named in status/OK; Europe `bid>0` eligibility + weight Done — do **not** invent a fixed second refuse cargo); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
+- **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods `38fd_3dc8` **CHOICE prompt** invent English (picker Done; `@TEAPARTY` after apply Done thin); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)
 - Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias + SoL50 mid-band + Cont. abbrev skip Done above; deep type-id table still PARKED)
 - MoW hold fill + multi-unload — **Done** (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
 - REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison cap-2/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
-- Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status/OK) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE (`KING_DUMP_GOODS`) — **Done**; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
+- Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE (`KING_DUMP_GOODS`) — **Done**; `@TEAPARTY` follow-up OK + thin stock dump — **Done** thin; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
 - `160a` letter cinematic — **PARKED** (thin rename + OK chain Done)

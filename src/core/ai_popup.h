@@ -73,7 +73,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_COMBAT_AMBUSH = 33,
   AI_POPUP_TAG_COMBAT_RANSOM = 34, /* treasure Accept/Refuse before gold credit */
   AI_POPUP_TAG_COMBAT_COLONY = 35, /* @CAPTURED* / @BURNED* */
-  AI_POPUP_TAG_COMBAT_SEIZURE = 36 /* privateer @SEIZURE* */
+  AI_POPUP_TAG_COMBAT_SEIZURE = 36, /* privateer @SEIZURE* */
+  AI_POPUP_TAG_KING_SCORED = 37 /* peacetime 1800 @SCORED That's all / Keep playing */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

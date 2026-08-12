@@ -161,8 +161,8 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 |----------------|--------|-------|
 | Quit / Exit | Done | |
 | Retire → score / HoF | Partial | `@RETIRE` confirm → F10 score then title; last score persists via `HOF.TXT` |
-| Revolution victory / failure | Partial | Thin: lose all coastal ports (after REF present); win year≥1850 + no crown units (`unknown46[4]`) |
-| Auto-end 1800 / 1850 | Partial | Peacetime year≥1800 latch + popup; WoI win at 1850+no crown; forced retire UI still thin |
+| Revolution victory / failure | Done thin | `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` + latches; `@WARN1`–`3` Done thin |
+| Auto-end 1800 / 1850 | Done thin | Peacetime year≥1800 `@SCORED` → `@RETIRING` + retire score; `@SOONRETIRING0`/`1`; WoI `@WINNING` / `@RETIRING2` at 1850 |
 
 ---
 

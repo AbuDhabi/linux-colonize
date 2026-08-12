@@ -16,7 +16,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
 
 /*
  * Apply human choice from map AI popup:
- *   KING_AUDIENCE Accept/Refuse (38fd_5be8; Refuse → Sugar follow-up OK),
+ *   KING_AUDIENCE Accept/Refuse (38fd_5be8; Refuse → @TEAPARTY OK /
+ *     KING_DUMP_GOODS then @TEAPARTY),
  *   KING_MERC Hire/Decline (2244; Hire → success follow-up OK;
  *     Decline → declined follow-up OK),
  *   KING_CONGRESS Confirm (2564/1a26 → rename + WoI-begins OK chain).
