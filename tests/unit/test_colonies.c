@@ -388,6 +388,74 @@ static int unit_noteacher_chrome(void) {
   return 0;
 }
 
+/* GAME.TXT @MORETHANTHREE: at most 3 colonists per building; no-op
+ * reassignment (already working there) is exempt from the cap. */
+static int unit_more_than_three_chrome(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Plymouth");
+  col->has_building[0] = true;
+  for (int i = 0; i < 4; ++i) {
+    col->colonists[i].active = true;
+    col->colonists[i].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[i].field_job = -1;
+    col->colonists[i].building_type = (i < 3) ? 0 : -1;
+  }
+  col->colonist_count = 4;
+  col->population = 4;
+  pool.colony_count = 1;
+
+  if (colonies_building_worker_count(col, 0) != 3) {
+    fprintf(
+      stderr, "morethanthree: expected 3 workers, got %d\n", colonies_building_worker_count(col, 0)
+    );
+    return 1;
+  }
+  if (colonies_assign_workplace(&pool, 1, 3, 0)) {
+    fprintf(stderr, "morethanthree: 4th colonist should not fit in a full building\n");
+    return 1;
+  }
+  /* Already-there colonist reassigning to the same building is not capped. */
+  if (!colonies_assign_workplace(&pool, 1, 0, 0)) {
+    fprintf(stderr, "morethanthree: no-op reassignment should still succeed\n");
+    return 1;
+  }
+
+  ColonizeMsgCatalog game_txt;
+  assets_msg_init(&game_txt);
+  if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+    fprintf(stderr, "morethanthree: GAME.TXT load failed\n");
+    return 1;
+  }
+  AiPopupState pops;
+  ai_popup_init(&pops);
+  colonies_emit_more_than_three_chrome(col, &pops, &game_txt);
+  if (pops.queue_count < 1 ||
+      (strstr(pops.queue[0].body, "three") == NULL &&
+       strstr(pops.queue[0].body, "Three") == NULL)) {
+    fprintf(
+      stderr,
+      "morethanthree: MORETHANTHREE popup weak q=%d body='%s'\n",
+      pops.queue_count,
+      pops.queue_count > 0 ? pops.queue[0].body : ""
+    );
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  assets_msg_free(&game_txt);
+
+  fprintf(stderr, "unit_colonies: MORETHANTHREE chrome ok\n");
+  return 0;
+}
+
 /* Helper: school tier gates @NEEDCOLLEGE / @NEEDUNIVERSITY. */
 static int unit_needschool_chrome(void) {
   ColonizeColonyPool pool;
@@ -1386,6 +1454,9 @@ int main(void) {
       return 1;
     }
     if (unit_noteacher_chrome() != 0) {
+      return 1;
+    }
+    if (unit_more_than_three_chrome() != 0) {
       return 1;
     }
     if (unit_needschool_chrome() != 0) {

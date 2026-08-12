@@ -1214,10 +1214,41 @@ int main(void) {
     st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
-    if (strcmp(status, "War declared with rival") != 0) {
+    if (strcmp(status, "The rival and rival are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: rival status '%s'\n", status);
-      return fail("declare_war_ctx should fall back to rival when full wartime mask set");
+      return fail("declare_war_ctx should fall back to @DECLAREWAR war line when full wartime mask set");
     }
+
+    /* Same scenario with both country names set and the real GAME.TXT catalog
+     * loaded: authentic @DECLAREWAR %STRING0/1 substitution, not invented
+     * "War declared with" text. */
+    ai_diplo_make_peace(&st, 0, 2);
+    st.nation[0].gold = 200;
+    st.nation[2].gold = 200;
+    for (int i = 0; i < 8; ++i) {
+      st.nation[0].relation_by_indian[i] = 100;
+    }
+    st.nation[0].unknown26[8] = 0;
+    st.nation[0].boycott_bitmap = (uint16_t)AI_DIPLO_SMOKE_WARTIME_MASK;
+    snprintf(st.player[0].country_name, sizeof(st.player[0].country_name), "Spain");
+    snprintf(st.player[2].country_name, sizeof(st.player[2].country_name), "Holland");
+    status[0] = '\0';
+    {
+      ColonizeMsgCatalog game_txt;
+      memset(&game_txt, 0, sizeof(game_txt));
+      if (!assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT")) {
+        return fail("declare_war_ctx: GAME.TXT load failed");
+      }
+      ctx_st.messages = &game_txt;
+      ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
+      ctx_st.messages = NULL;
+    }
+    if (strcmp(status, "The Spain and Holland are now at war.") != 0) {
+      fprintf(stderr, "unit_ai_diplo: named war status '%s'\n", status);
+      return fail("declare_war_ctx should render authentic @DECLAREWAR with both country names");
+    }
+    st.player[0].country_name[0] = '\0';
+    st.player[2].country_name[0] = '\0';
 
     /* R6/R12: Indian −5 war-hit status when boycott chrome quiet and sticky rises. */
     ai_diplo_make_peace(&st, 0, 2);
@@ -1545,9 +1576,9 @@ int main(void) {
       wf2.nation[0].boycott_bitmap = 0;
       wf2.nation[1].boycott_bitmap = 0;
       ai_diplo_make_peace_ctx(&ctx_peer, 1, 0);
-      if (strcmp(status_peer, "Peace concluded with France") != 0) {
+      if (strcmp(status_peer, "The France and England have signed a peace treaty.") != 0) {
         fprintf(stderr, "unit_ai_diplo: Peace concluded status '%s'\n", status_peer);
-        return fail("make_peace_ctx should status Peace concluded when Tools already clear");
+        return fail("make_peace_ctx should status @SIGNTREATY when Tools already clear");
       }
     }
 
@@ -3235,9 +3266,9 @@ int main(void) {
       return fail("M3R4 Franklin: at-war peace must skip upkeep and PARK prize");
     }
     /* Marathon3 R2: human chrome when Franklin concludes peace (make_peace_ctx). */
-    if (strcmp(status_fr, "Peace concluded with France") != 0) {
+    if (strcmp(status_fr, "The England and France have signed a peace treaty.") != 0) {
       fprintf(stderr, "unit_ai_diplo: M3R2 Franklin peace status '%s'\n", status_fr);
-      return fail("M3R2 Franklin: human party should status Peace concluded with France");
+      return fail("M3R2 Franklin: human party should status @SIGNTREATY with France");
     }
 
     /*

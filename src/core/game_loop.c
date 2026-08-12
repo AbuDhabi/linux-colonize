@@ -4391,14 +4391,17 @@ static void game_after_unit_action(ColonizeGameState* game) {
       game_try_prompt_landho(game);
     }
   }
-  /* Thin LCR: Scout on rumour clears (de Soto → reveal); no invented gold. */
+  /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
+   * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */
   if (game->world_map_ok && units_is_on_map(u) && map_tile_has_rumour(&game->world_map, u->x, u->y)) {
     (void)units_resolve_lcr_rumour(
       &game->units,
       u->id,
       &game->world_map,
       game->col1_ok ? &game->col1 : NULL,
-      &game->move_rng
+      &game->move_rng,
+      game->europe_ok ? &game->europe : NULL,
+      game->human_nation
     );
   }
   /*
@@ -4988,7 +4991,11 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
         (col && ci >= 0 && ci < col->colonist_count) ? &col->colonists[ci] : NULL;
       const int school_tier =
         colonies_school_building_tier(&game->colonies, building_index);
-      if (c && school_tier > 0 && !colonies_profession_may_teach(c->profession)) {
+      if (c && c->building_type != building_index &&
+          colonies_building_worker_count(col, building_index) >= COLONIZE_BUILDING_MAX_WORKERS) {
+        set_status(game, "Building is full", NULL);
+        colonies_emit_more_than_three_chrome(col, &game->ai_popups, &game->messages);
+      } else if (c && school_tier > 0 && !colonies_profession_may_teach(c->profession)) {
         set_status(game, "Need a skilled teacher", NULL);
         colonies_emit_noteacher_chrome(&game->ai_popups, &game->messages);
       } else if (

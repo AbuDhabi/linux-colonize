@@ -9,6 +9,7 @@
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
 #include "core/col1_save.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
@@ -3297,7 +3298,7 @@ int main(void) {
       return 1;
     }
     scout->nation_id = 0;
-    if (!units_resolve_lcr_rumour(&pool, scid, &map, &lcol1, NULL)) {
+    if (!units_resolve_lcr_rumour(&pool, scid, &map, &lcol1, NULL, NULL, -1)) {
       fprintf(stderr, "LCR resolve without de Soto failed\n");
       return 1;
     }
@@ -3334,7 +3335,7 @@ int main(void) {
     const int scid2 = units_spawn_allow_stack(&pool, scout_ti, 8, 14);
     scout = units_get(&pool, scid2);
     scout->nation_id = 0;
-    if (!units_resolve_lcr_rumour(&pool, scid2, &lmap, &lcol1, NULL)) {
+    if (!units_resolve_lcr_rumour(&pool, scid2, &lmap, &lcol1, NULL, NULL, -1)) {
       map_free(&lmap);
       fprintf(stderr, "LCR resolve with de Soto failed\n");
       return 1;
@@ -3352,6 +3353,126 @@ int main(void) {
     units_despawn(&pool, scid);
     units_despawn(&pool, scid2);
     map_free(&lmap);
+  }
+
+  /*
+   * LCR outcome dispatch: real seeded RNG (not the rng==NULL fallback above)
+   * over every rumour tile on the map, one fresh Scout per tile. Confirms
+   * each real-effect branch actually fires at least once: gold credited,
+   * Fountain of Youth dock immigrants, a Treasure train spawned (Cibola /
+   * Burial3), a colonist joining (survivors), and a vanished scout.
+   */
+  {
+    EuropeScreen eu;
+    char eerr[256];
+    if (!europe_load(&eu, "COLONIZE", eerr, sizeof(eerr))) {
+      fprintf(stderr, "LCR dispatch: europe_load failed: %s\n", eerr);
+      return 1;
+    }
+    const int scout_ti = units_find_type(&pool, "Scouts");
+    if (scout_ti < 0) {
+      fprintf(stderr, "LCR dispatch: Scout type missing\n");
+      europe_free(&eu);
+      return 1;
+    }
+    ColonizeCol1Save dcol1;
+    memset(&dcol1, 0, sizeof(dcol1));
+    /* founding_father[]==0 would misread as "nation 0 elected FF 0" (the
+     * real sentinel is -1 = unrecruited) and force every trial down the de
+     * Soto positive-only branch. */
+    for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+      dcol1.head.founding_father[i] = -1;
+    }
+    bool saw_gold = false;
+    bool saw_fountain = false;
+    bool saw_treasure = false;
+    bool saw_survivor = false;
+    bool saw_vanish = false;
+    const int treasure_ti = units_find_type(&pool, "Treasure");
+    /* One persistent RNG advanced across every trial — reseeding per trial
+     * with sequential seeds would just resample the LCG's early outputs and
+     * skew the distribution, not exercise it. */
+    ColonizeDosRng drng;
+    dos_rng_seed(&drng, 12345);
+    int trials = 0;
+    for (int pass = 0; pass < 15 && trials < 400; ++pass) {
+      for (int y = 0; y < (int)map.height && trials < 400; ++y) {
+        for (int x = 0; x < (int)map.width && trials < 400; ++x) {
+          if (!map_tile_has_rumour(&map, x, y)) {
+            continue;
+          }
+          trials++;
+          const uint32_t gold_before = dcol1.nation[0].gold;
+          const int dock_before = eu.dock_count;
+          int treasure_before = 0;
+          int colonist_before = 0;
+          for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+            if (!pool.units[i].active) continue;
+            if (treasure_ti >= 0 && pool.units[i].type_index == treasure_ti) treasure_before++;
+            if (pool.units[i].type_index == colonist) colonist_before++;
+          }
+          const int sid = units_spawn_allow_stack(&pool, scout_ti, x, y);
+          ColonizeUnit* su = units_get(&pool, sid);
+          if (!su) {
+            continue;
+          }
+          su->nation_id = 0;
+          if (!units_resolve_lcr_rumour(&pool, sid, &map, &dcol1, &drng, &eu, 0)) {
+            fprintf(stderr, "LCR dispatch: resolve failed at (%d,%d)\n", x, y);
+            europe_free(&eu);
+            return 1;
+          }
+        if (dcol1.nation[0].gold > gold_before) {
+          saw_gold = true;
+        }
+        if (eu.dock_count >= dock_before + 8) {
+          saw_fountain = true;
+        }
+        int treasure_after = 0;
+        int colonist_after = 0;
+        bool scout_active = false;
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          if (!pool.units[i].active) continue;
+          if (treasure_ti >= 0 && pool.units[i].type_index == treasure_ti) treasure_after++;
+          if (pool.units[i].type_index == colonist) colonist_after++;
+          if (pool.units[i].id == sid) scout_active = true;
+        }
+        if (treasure_after > treasure_before) {
+          saw_treasure = true;
+        }
+        if (colonist_after > colonist_before) {
+          saw_survivor = true;
+        }
+        if (!scout_active) {
+          saw_vanish = true;
+        }
+        if (scout_active) {
+          units_despawn(&pool, sid);
+        }
+        /* Re-arm for the next pass over the same tile set (test-only). */
+        map.layer2[y * map.width + x] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
+        }
+      }
+    }
+    europe_free(&eu);
+    if (trials < 10) {
+      fprintf(stderr, "LCR dispatch: too few rumour tiles on AMER2 (%d)\n", trials);
+      return 1;
+    }
+    if (!saw_gold || !saw_fountain || !saw_treasure || !saw_survivor || !saw_vanish) {
+      fprintf(
+        stderr,
+        "LCR dispatch: missing outcome over %d trials (gold=%d fountain=%d treasure=%d survivor=%d vanish=%d)\n",
+        trials,
+        saw_gold,
+        saw_fountain,
+        saw_treasure,
+        saw_survivor,
+        saw_vanish
+      );
+      return 1;
+    }
+    fprintf(stderr, "unit_units: LCR outcome dispatch ok (%d trials)\n", trials);
   }
 
   /* Enter-probe matrix: bounce / domain / land combat / naval / capture. */

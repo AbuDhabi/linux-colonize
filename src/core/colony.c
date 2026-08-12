@@ -851,6 +851,20 @@ void colonies_emit_need_school_chrome(
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
+int colonies_building_worker_count(const ColonizeColony* colony, int building_type) {
+  if (!colony) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < colony->colonist_count; ++i) {
+    const ColonizeColonist* c = &colony->colonists[i];
+    if (c->active && c->building_type == building_type) {
+      n++;
+    }
+  }
+  return n;
+}
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -872,6 +886,12 @@ bool colonies_assign_workplace(
     return false;
   }
   if (!col->has_building[building_type]) {
+    return false;
+  }
+  /* @MORETHANTHREE: at most 3 colonists per building (manual ch. 6 / schools
+   * teacher+students). No-op reassignment (already working there) is fine. */
+  if (c->building_type != building_type &&
+      colonies_building_worker_count(col, building_type) >= COLONIZE_BUILDING_MAX_WORKERS) {
     return false;
   }
   const int school_tier = colonies_school_building_tier(pool, building_type);
@@ -1823,6 +1843,22 @@ void colonies_emit_already_have_chrome(
   tok.string0 = cname;
   tok.string1 = bname;
   popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+void colonies_emit_more_than_three_chrome(
+  const ColonizeColony* colony,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!ai_popups || !colony || !colony->active) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    messages, "MORETHANTHREE", NULL,
+    "We cannot put more than three colonists in any one building.", body, sizeof(body)
+  );
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
