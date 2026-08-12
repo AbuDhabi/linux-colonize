@@ -1525,14 +1525,16 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       ColonizeUnit* ship = units_get(&game->units, ship_id);
       /* choice 0 = Stay With Ships; 1 = Make Landfall (one passenger ashore). */
       if (ship && units_is_sea(&game->units, ship_id) && choice == 1) {
-        int pax_id = units_first_cargo_with_moves(&game->units, ship_id);
-        if (pax_id < 0 && ship->cargo_count > 0) {
-          pax_id = ship->cargo_ids[0];
-        }
+        /* DOS 4720: prefer cargo with moves; sentry cargo still eligible. */
+        const int pax_id = units_first_landfall_cargo(&game->units, ship_id);
         if (pax_id >= 0 &&
             units_unload_passenger(
               &game->units, ship_id, pax_id, &game->world_map, dest_x, dest_y, &game->colonies
             )) {
+          /* Ship spends the coastal order (1 MP); passenger charged in unload. */
+          if (ship->moves_left > 0) {
+            ship->moves_left--;
+          }
           game->units.selected_id = pax_id;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
           game_after_unit_action(game);
@@ -4227,8 +4229,8 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
         set_status(game, units_enter_reason_status(landfall), NULL);
         return false;
       }
-      const int pax_ready = units_first_cargo_with_moves(&game->units, sid);
-      if (pax_ready < 0 && selected->cargo_count <= 0) {
+      const int pax_ready = units_first_landfall_cargo(&game->units, sid);
+      if (pax_ready < 0) {
         set_status(game, "No unit ready to disembark", NULL);
         return false;
       }
@@ -4267,15 +4269,15 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
               ids,
               2
             )) {
-          if (pax_ready < 0) {
-            set_status(game, "No unit ready to disembark", NULL);
-            return false;
-          }
           if (!units_unload_passenger(
                 &game->units, sid, pax_ready, &game->world_map, dest_x, dest_y, colonies
               )) {
             set_status(game, "Move blocked", NULL);
             return false;
+          }
+          /* Ship spends the coastal order; passenger charged in unload. */
+          if (selected->moves_left > 0) {
+            selected->moves_left--;
           }
           game->units.selected_id = pax_ready;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);

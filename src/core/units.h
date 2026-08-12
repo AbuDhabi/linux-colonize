@@ -797,7 +797,7 @@ bool units_unload(
   int dest_y,
   const ColonizeColonyPool* colonies
 );
-/* Unload a specific passenger onto dest. */
+/* Unload a specific passenger onto dest; charges dest terrain MP (no gift). */
 bool units_unload_passenger(
   ColonizeUnitPool* pool,
   int ship_id,
@@ -809,6 +809,11 @@ bool units_unload_passenger(
 );
 /* First cargo with moves_left > 0, or -1. */
 int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id);
+/*
+ * Landfall passenger pick (FUN_4720_015c): prefer moves_left > 0, else oldest
+ * cargo (aboard sentry still landfall-eligible — DOS spent==0).
+ */
+int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id);
 /*
  * Pick an adjacent land tile the ship's passengers can enter (8-neighbour).
  * Prefers tiles nearer to (prefer_x, prefer_y) when prefer coords are valid;

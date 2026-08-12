@@ -1248,7 +1248,8 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    lf_cargo->moves_left = 1;
+    lf_cargo->moves_left = 3;
+    lf_boat->moves_left = 4;
     if (units_try_move(&pool, lf_ship, &map, lx, ly, NULL, NULL)) {
       fprintf(stderr, "ship must not enter plain land via try_move\n");
       map_free(&map);
@@ -1276,8 +1277,68 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* Shore step charges passenger MP (sentry 0 → allotment − cost). */
+    if (lf_cargo->moves_left >= 3) {
+      fprintf(
+        stderr,
+        "landfall must consume passenger MP got %d\n",
+        lf_cargo->moves_left
+      );
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    fprintf(stderr, "landfall unload MP ok (pax moves=%d)\n", lf_cargo->moves_left);
     units_despawn(&pool, lf_pax);
     units_despawn(&pool, lf_ship);
+
+    /* Sentry cargo (moves_left 0) must still landfall — DOS spent==0. */
+    {
+      const int lf_ship2 = units_spawn(&pool, caravel, bx, by);
+      const int lf_pax2 = units_spawn_allow_stack(&pool, pioneer, lx, ly);
+      if (lf_ship2 < 0 || lf_pax2 < 0 || !units_board(&pool, lf_pax2, lf_ship2)) {
+        fprintf(stderr, "landfall sentry setup failed\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      ColonizeUnit* sentry_pax = units_get(&pool, lf_pax2);
+      if (!sentry_pax || sentry_pax->moves_left != 0) {
+        fprintf(stderr, "landfall sentry should board with 0 MP\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (units_first_landfall_cargo(&pool, lf_ship2) != lf_pax2) {
+        fprintf(stderr, "landfall sentry cargo not eligible\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (!units_unload_passenger(&pool, lf_ship2, lf_pax2, &map, lx, ly, NULL)) {
+        fprintf(stderr, "landfall sentry unload failed\n");
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      sentry_pax = units_get(&pool, lf_pax2);
+      const ColonizeUnitType* pt = units_type(&pool, pioneer);
+      const int max_mp = pt && pt->movement > 0 ? pt->movement : 1;
+      if (!sentry_pax || sentry_pax->aboard_ship_id >= 0 || sentry_pax->moves_left >= max_mp) {
+        fprintf(
+          stderr,
+          "landfall sentry MP want < %d got %d\n",
+          max_mp,
+          sentry_pax ? sentry_pax->moves_left : -1
+        );
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      fprintf(stderr, "landfall sentry cargo MP ok (moves=%d)\n", sentry_pax->moves_left);
+      units_despawn(&pool, lf_pax2);
+      units_despawn(&pool, lf_ship2);
+    }
   }
 
   /* Colony dock: ship may enter own colony; disembark clears sentry. */

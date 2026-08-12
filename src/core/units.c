@@ -5209,9 +5209,23 @@ bool units_unload_passenger(
   pax->x = dest_x;
   pax->y = dest_y;
   pax->orders = 0;
-  const ColonizeUnitType* type = units_type(pool, pax->type_index);
-  if (pax->moves_left <= 0) {
-    pax->moves_left = type ? type->movement : 1;
+  /*
+   * Shore-step MP (FUN_465b ADD). Aboard sentry often has moves_left==0 as a
+   * skip-select flag while DOS spent is still 0 (full allotment) — restore
+   * type movement for the charge only, then spend dest terrain cost. Never
+   * leave a free full refill. Cite: 4720_015c; move_spent.c.
+   */
+  {
+    const ColonizeUnitType* type = units_type(pool, pax->type_index);
+    int remaining = pax->moves_left;
+    if (remaining <= 0) {
+      remaining = type && type->movement > 0 ? type->movement : 1;
+    }
+    int cost = map_move_cost_step(map, ship->x, ship->y, dest_x, dest_y);
+    if (cost < 1) {
+      cost = 1;
+    }
+    pax->moves_left = remaining > cost ? remaining - cost : 0;
   }
   diag_info("Unloaded unit %d from ship %d to (%d,%d)", pax_id, ship_id, dest_x, dest_y);
   return true;
@@ -5246,6 +5260,23 @@ int units_first_cargo_with_moves(const ColonizeUnitPool* pool, int ship_id) {
     }
   }
   return -1;
+}
+
+/*
+ * DOS FUN_4720_015c landfall pick: prefer cargo with remaining MP; else any
+ * passenger. Aboard sentry uses moves_left=0 as "skip select" but DOS spent
+ * is still 0 (full allotment) — they remain landfall-eligible.
+ */
+int units_first_landfall_cargo(const ColonizeUnitPool* pool, int ship_id) {
+  const int ready = units_first_cargo_with_moves(pool, ship_id);
+  if (ready >= 0) {
+    return ready;
+  }
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  if (!ship || ship->cargo_count <= 0) {
+    return -1;
+  }
+  return ship->cargo_ids[0];
 }
 
 bool units_pick_landfall_tile(
