@@ -51,7 +51,7 @@ flowchart LR
 |-------|----------|------|
 | Script source | `GAME.TXT` (+ `DEBUG.TXT` cheats) | `assets_msg_find` / hardcoded snippets |
 | Compositor | segment `6f74` (`FUN_6f74_36ca` / `3760` / `3848` …) | [`popup.c`](../src/core/popup.c) chrome |
-| Thin message box | `FUN_7aa1_003a` | often status line or `ai_popup` OK |
+| Thin message box | `FUN_7aa1_003a` | often status line or `ai_popup` KIND_OK (body only; no invent “OK” button — click/key dismiss) |
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
@@ -795,7 +795,9 @@ work.
 
 ## Appendix B — `AiPopupTag` map
 
-From [`ai_popup.h`](../src/core/ai_popup.h):
+From [`ai_popup.h`](../src/core/ai_popup.h). **Kind OK** means body-only wood
+(dismiss Enter/Space/Esc/any click; no invent “OK” label — GAME.TXT info
+sections have no response lines). **Kind CHOICE** lists authentic labels.
 
 | Tag | Kind | Typical `@` / FUN | Status |
 |-----|------|-------------------|--------|
@@ -807,7 +809,7 @@ From [`ai_popup.h`](../src/core/ai_popup.h):
 | `KING_CONGRESS` | CHOICE | `@DECLARE` body+choices / `43f7_2564` | Done thin |
 | `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Partial |
 | `KING_ARRIVAL` | OK | `@INVASION` REF `43f7_1528`; `@INTERVENTION`/`@INTERVENE` `10f0` | Done thin |
-| `KING_CAPTURE` | OK | REF colony capture | Partial |
+| `KING_CAPTURE` | OK | `@CAPTURED3` REF take | Done thin |
 | `FF_CONGRESS` | CHOICE / OK | `@CONTINENTAL` / `4345_024a` | Done |
 | `CONTACT_WELCOME` | CHOICE | `@INDIANWELCOME` / `5bfb_022e` | Done |
 | `CONTACT_MEET` | CHOICE | Meet Trade/Gift/Demand/Teach/Leave | Done |

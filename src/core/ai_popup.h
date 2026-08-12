@@ -12,15 +12,16 @@
 #include "platform/platform.h"
 
 /*
- * Map-level AI popup queue + wood dialog (text OK / text + choices).
+ * Map-level AI popup queue + wood dialog (body-only dismiss / text + choices).
  *
  * AI turn code enqueues requests onto ColonizeTurnContext.ai_popups; the game
  * loop presents them after the turn processor is idle (one at a time). Chrome
  * is popup_draw + WOODTILE; text matches nation-wizard wood dialogs: FONTINTR
  * unbold + black drop-shadow, @COLORS basic/select, default @width=190.
  *
- * Choice results: has_result + result_choice_id; caller/game_loop applies by tag.
- * Esc / click-outside / right-click cancels (result_cancelled).
+ * KIND_OK: GAME.TXT info sections have no response lines — dismiss with
+ * Enter/Space/Esc or any click (no invented "OK" button). KIND_CHOICE: pick
+ * a listed option; Esc / click-outside / right-click cancels (result_cancelled).
  */
 
 #define AI_POPUP_QUEUE_MAX 16

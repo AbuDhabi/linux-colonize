@@ -68,9 +68,8 @@ bool ai_popup_enqueue_ok_ctx(
 ) {
   AiPopupRequest req;
   ai_popup_fill_base(&req, AI_POPUP_KIND_OK, tag, nation_a, nation_b, payload, title, body);
-  req.choice_count = 1;
-  snprintf(req.choices[0], sizeof(req.choices[0]), "OK");
-  req.choice_ids[0] = 0;
+  /* DOS info wood: no choice rows in GAME.TXT — click/key dismisses. */
+  req.choice_count = 0;
   return ai_popup_enqueue(st, &req);
 }
 
@@ -178,20 +177,29 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
     return false;
   }
 
+  const int is_info = (st->current.kind == AI_POPUP_KIND_OK || st->current.choice_count <= 0);
+
   if (input->last_key == COLONIZE_KEY_ESCAPE) {
-    ai_popup_finish(st, true, -1);
+    /* Info: dismiss acknowledged (no invent OK button). Choice: cancel. */
+    ai_popup_finish(st, !is_info, is_info ? 0 : -1);
     return true;
   }
-  if (colonize_key_up(input->last_key) && st->selection > 0) {
-    st->selection--;
-    return true;
-  }
-  if (colonize_key_down(input->last_key) &&
-      st->selection + 1 < st->current.choice_count) {
-    st->selection++;
-    return true;
+  if (!is_info) {
+    if (colonize_key_up(input->last_key) && st->selection > 0) {
+      st->selection--;
+      return true;
+    }
+    if (colonize_key_down(input->last_key) &&
+        st->selection + 1 < st->current.choice_count) {
+      st->selection++;
+      return true;
+    }
   }
   if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
+    if (is_info) {
+      ai_popup_finish(st, false, 0);
+      return true;
+    }
     if (st->selection >= 0 && st->selection < st->current.choice_count) {
       ai_popup_finish(st, false, st->current.choice_ids[st->selection]);
     }
@@ -199,6 +207,11 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
   }
 
   if (input->mouse_left_clicked) {
+    if (is_info) {
+      /* Any click dismisses body-only dialogs (DOS message-box style). */
+      ai_popup_finish(st, false, 0);
+      return true;
+    }
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
     if (mx < st->dialog_x || my < st->dialog_y || mx >= st->dialog_x + st->dialog_w ||
@@ -215,7 +228,7 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
   }
 
   if (input->mouse_right_clicked) {
-    ai_popup_finish(st, true, -1);
+    ai_popup_finish(st, !is_info, is_info ? 0 : -1);
     return true;
   }
 
