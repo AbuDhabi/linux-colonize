@@ -17,6 +17,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_screen.h"
+#include "core/combat_strength.h"
 #include "core/debug_atlas.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -1265,6 +1266,66 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       } else if (choice == 0) {
         set_status(game, "Staying with ships", NULL);
       }
+    }
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
+  /*
+   * FUN_4d56_4528 village raid warn: Leave aborts; Attack opens hostilities then
+   * commits the deferred move (combat if Brave on tile; empty → fallout).
+   */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_VILLAGE_WARN) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int indian_nation = game->ai_popups.result_nation_b;
+    const int dest_x = game->ai_popups.result_payload & 0xff;
+    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
+    const int choice = game->ai_popups.result_choice_id;
+    if (!game->ai_popups.result_cancelled && choice == 1 /* Attack */) {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      ColonizeUnit* u = units_get(&game->units, unit_id);
+      const int euro = u ? u->nation_id : game->human_nation;
+      ai_contact_village_open_hostilities(&ctx, indian_nation, euro);
+      units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+      units_set_combat_human_nation(game->human_nation);
+      units_set_combat_popups(&game->ai_popups, &game->messages);
+      units_set_occupancy_map(&game->world_map);
+      units_set_native_fallout_context(
+        game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
+      );
+      game->units.selected_id = unit_id;
+      if (units_try_move(
+            &game->units, unit_id, &game->world_map, dest_x, dest_y, &game->colonies, &game->move_rng
+          )) {
+        u = units_get(&game->units, unit_id);
+        if (u && u->active && game->col1_ok) {
+          /* Empty village raid: no Brave left → settlement fallout loot. */
+          (void)units_try_native_settlement_fallout(
+            &game->col1,
+            &game->units,
+            &game->world_map,
+            euro,
+            indian_nation,
+            dest_x,
+            dest_y,
+            -1,
+            &game->move_rng
+          );
+        }
+        if (units_last_combat_outcome() > 0) {
+          snprintf(game->status, sizeof(game->status), "Village attacked (%d,%d)", dest_x, dest_y);
+        } else {
+          snprintf(game->status, sizeof(game->status), "Entered village (%d,%d)", dest_x, dest_y);
+        }
+        game_after_unit_action(game);
+      } else if (units_last_combat_outcome() < 0) {
+        set_status(game, "Combat lost", NULL);
+        game_after_unit_action(game);
+      } else {
+        set_status(game, "Attack failed", NULL);
+      }
+    } else {
+      set_status(game, "Left the village alone", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
     return;
@@ -3952,6 +4013,33 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       }
       set_status(game, "Landfall…", NULL);
       return true;
+    }
+  }
+
+  /*
+   * FUN_4d56_4528: combatish land unit → village tile gets Attack/Leave warn
+   * before enter (defers move). Non-combat → Meet after enter. Cite:
+   * indian_settlement_4528.md; ai_contact_try_village_raid_warn.
+   */
+  if (game->col1_ok && !units_is_sea(&game->units, sid) &&
+      combat_unit_is_combat_role(&game->units, sid) && game->col1.tribe) {
+    for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &game->col1.tribe[ti];
+      if ((int)t->x != dest_x || (int)t->y != dest_y) {
+        continue;
+      }
+      if (t->nation_id < 4 || t->nation_id > 11) {
+        continue;
+      }
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      if (ai_contact_try_village_raid_warn(
+            &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
+          )) {
+        set_status(game, "Village…", NULL);
+        return true;
+      }
+      break;
     }
   }
 

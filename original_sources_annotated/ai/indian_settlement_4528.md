@@ -12,8 +12,8 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 [`indian_raid_outcomes.md`](indian_raid_outcomes.md) (`FUN_5fef_0f14` / `016c` /
 `0352` / `0ec0`).
 
-**Port status:** mapped (head); Linux `ai_contact_indian_raids` structural;
-deep body **PARKED**.
+**Port status:** head warn CHOICE + ship abort + Linux raid/fallout arms
+**Done** thin; deep mid-body / VGA **PARKED**.
 
 ## Authentic head (~83699–84215)
 
@@ -86,9 +86,9 @@ real `LAB_4d56_*` continuity.
 | DOS head idea | Linux `ai_contact_indian_raids` |
 |---------------|----------------------------------|
 | Relation / friction gates | Alarm/friction ≥40 (Spain ≥35); war prefer |
-| Human warn CHOICE | Status chrome thinned; `ai_popup` raid OK Done; VGA PARKED |
+| Human warn CHOICE | `ai_contact_try_village_raid_warn` Attack/Leave; apply opens hostilities + deferred move |
 | Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`; mid-band 50..74 wary + Meet, Series T) |
-| Post-head combat / loot | Adjacent combat + `@RAID*` kinds + `5fef`-shaped loot (sibling) |
+| Post-head combat / loot | Adjacent combat + `@RAID*` kinds + fallout `@LOOT`/`@LOOT2` |
 | Capture / burn | High band + tiny pop → `colonies_capture` |
 
 ## Related authentic LABs (named in early span)

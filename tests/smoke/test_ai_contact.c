@@ -294,7 +294,8 @@ int main(void) {
     if (brave->muskets < 50) {
       return fail("ambush WIN1 should transfer foe muskets onto Brave");
     }
-    if (strstr(st_amb, "Muskets") == NULL || strstr(st_amb, "ambush") == NULL) {
+    if (strstr(st_amb, "Muskets") == NULL ||
+        (strstr(st_amb, "ambush") == NULL && strstr(st_amb, "Ambush") == NULL)) {
       fprintf(stderr, "smoke_ai_contact: ambush-WIN1 status '%s'\n", st_amb);
       return fail("ambush WIN1 should set Muskets seized status");
     }
@@ -4527,6 +4528,57 @@ int main(void) {
     if (col1.tribe[0].state.capital != 0) {
       return fail("capital surrender should clear capital bit on remaining tribes");
     }
+  }
+
+  /*
+   * Series U: 4528 human village raid warn CHOICE (Attack/Leave) + open
+   * hostilities. Cite: indian_settlement_4528.md; ai_contact_try_village_raid_warn.
+   */
+  {
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    char st_warn[128];
+    st_warn[0] = '\0';
+    ctx.status = st_warn;
+    ctx.status_size = sizeof(st_warn);
+    ctx.human_nation = 0;
+    ctx.ai_popups = &pop;
+    col1.player[0].control = 0;
+    ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | 0x40u);
+    col1.nation[0].relation_by_indian[0] = 60;
+    ind->alarm_by_player[0] = 10;
+    col1.tribe[0].alarm[0].friction = 10;
+    ai_popup_clear(&pop);
+    if (!ai_contact_try_village_raid_warn(&ctx, 0, 4, 7 /* unit id */, 5, 5)) {
+      return fail("village raid warn should enqueue Attack/Leave");
+    }
+    if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_VILLAGE_WARN) {
+      return fail("village warn tag missing");
+    }
+    if (pop.queue[0].choice_count < 2) {
+      return fail("village warn should offer Leave/Attack");
+    }
+    if (pop.queue[0].nation_a != 7 || pop.queue[0].nation_b != 4) {
+      return fail("village warn should store unit_id / indian nation");
+    }
+    if ((pop.queue[0].payload & 0xff) != 5 || ((pop.queue[0].payload >> 8) & 0xff) != 5) {
+      return fail("village warn should pack dest xy");
+    }
+    /* Leave path: no hostilities. */
+    ai_contact_village_open_hostilities(&ctx, 4, 0);
+    if (ai_contact_indian_has_peace(&col1, 4, 0)) {
+      return fail("Attack hostilities should clear peace");
+    }
+    if (!ai_diplo_indian_at_war(&col1, 0, 0)) {
+      return fail("Attack hostilities should put Indian at war");
+    }
+    if (ind->alarm_by_player[0] < 80u) {
+      return fail("Attack hostilities should raise alarm to burn band");
+    }
+    fprintf(stderr, "smoke_ai_contact: village 4528 raid warn ok\n");
+    ctx.ai_popups = NULL;
+    ctx.status = NULL;
+    ctx.status_size = 0;
   }
 
   /*

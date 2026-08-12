@@ -8234,10 +8234,28 @@ static int ai_euro_score_move(
       }
     }
     /*
-     * Land combat 20e6 (thin→structured): prefer closing on weaker adjacent war
-     * foes; prefer foreign Euro settlement tiles (orders 0x46 settlement scan).
+     * Land combat 20e6 (structured deepen): prefer closing on weaker adjacent war
+     * foes; prefer foreign Euro settlement tiles (orders 0x46 settlement scan);
+     * bonus for stepping onto a contested foreign colony tile.
+     * Cite: move_scoring_land.md LAB_521d_5183 / 0x46; unpark #4.
      */
     if (at_war) {
+      /* Destination is a foreign Euro colony → siege approach (0x46). */
+      if (ctx->colonies) {
+        const int cid = colonies_id_at(ctx->colonies, nx, ny);
+        if (cid >= 0) {
+          const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+          if (c && c->active && c->nation_id >= 0 && c->nation_id <= 3 &&
+              c->nation_id != u->nation_id &&
+              ai_diplo_at_war(ctx->col1, u->nation_id, c->nation_id)) {
+            score += 16;
+            if (ai_euro_is_artillery_name(units_display_name(ctx->units, u)) &&
+                colonies_has_fortification(ctx->colonies, c)) {
+              score += 10; /* Artillery siege prefer fortified port */
+            }
+          }
+        }
+      }
       for (int ad = 0; ad < 8; ++ad) {
         const int ax = nx + dx[ad];
         const int ay = ny + dy[ad];
@@ -8251,6 +8269,10 @@ static int ai_euro_score_move(
         }
         if (f->nation_id >= 0 && f->nation_id <= 3 &&
             !ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+          continue;
+        }
+        if (f->nation_id >= 4 && f->nation_id <= 11 &&
+            !ai_diplo_indian_at_war(ctx->col1, u->nation_id, f->nation_id - 4)) {
           continue;
         }
         const int ft = ai_euro_land_foe_toughness(ctx, ctx->units, f);
@@ -9831,10 +9853,9 @@ static int ai_euro_land_foe_toughness(
  * Non-siege: at equal toughness prefer Treasure (loot — Colonization.pdf
  * Treasure Trains / @LOOTCASH). Returns foe unit id or -1.
  *
- * PARK: deep FUN_521d_20e6 combat scoring (terrain/artillery tables,
- * multi-hex threat weights, −0x6790) — thin adjacent-toughness pick + 2-step
- * goto advance only. Vet/Drake from FUN_157e_004a Done above; no invented
- * combat×8 / damage-byte mods.
+ * PARK: full FUN_521d_20e6 −0x6790 / explore-ring matrix. Structured: adjacent
+ * toughness + Treasure prefer + settlement prefer + siege Artillery fort %;
+ * score_move settlement-tile / relative-strength peels Done thin.
  */
 static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
   if (!ctx || !ctx->units || !u || !u->active || units_is_sea(ctx->units, u->id)) {

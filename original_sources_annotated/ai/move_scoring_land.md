@@ -7,8 +7,9 @@ Section map for decomp **88975–89375** (`LAB_521d_5183` … mid-gate
 Parent: [`move_scoring.md`](move_scoring.md). Act entry: [`euro_unit_act.md`](euro_unit_act.md)
 (`5b66` → `2a1f_04f4` → `20e6`). Ship band: [`move_scoring_ship.md`](move_scoring_ship.md).
 
-**Port status:** mapped; Linux still thin (`ai_euro_score_move` /
-`ai_euro_land_best_adjacent_foe`). Deep body **PARKED**.
+**Port status:** mapped; Linux `ai_euro_score_move` settlement/siege peels +
+`ai_euro_land_best_adjacent_foe` Done thin. Deep −0x6790 / full explore ring
+**PARKED**.
 
 ## Entry into this band
 

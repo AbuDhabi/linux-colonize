@@ -58,6 +58,12 @@ enum {
   AI_CONTACT_CHOICE_LEAVE = 5
 };
 
+/* Village raid warn CHOICE ids (FUN_4d56_4528; Attack Village ACTIONS). */
+enum {
+  AI_CONTACT_VILLAGE_LEAVE = 0,
+  AI_CONTACT_VILLAGE_ATTACK = 1
+};
+
 /* Gift amount CHOICE ids (CONTACT_GIFT; FUN_5bfb_102a amount stand-in). */
 enum {
   AI_CONTACT_GIFT_SMALL = 1,    /* −5 gold, friction −1 */
@@ -729,6 +735,149 @@ int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int i
     return 0;
   }
   ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation);
+  return 1;
+}
+
+static int ai_contact_village_warn_pending(const AiPopupState* st, int unit_id) {
+  if (!st || unit_id < 0) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_VILLAGE_WARN &&
+        st->queue[i].kind == AI_POPUP_KIND_CHOICE && st->queue[i].nation_a == unit_id) {
+      return 1;
+    }
+  }
+  if (st->open && st->current.tag == AI_POPUP_TAG_CONTACT_VILLAGE_WARN &&
+      st->current.kind == AI_POPUP_KIND_CHOICE && st->current.nation_a == unit_id) {
+    return 1;
+  }
+  return 0;
+}
+
+void ai_contact_village_open_hostilities(
+  ColonizeTurnContext* ctx,
+  int indian_nation,
+  int euro_nation
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || indian_nation < 4 || indian_nation > 11 ||
+      euro_nation < 0 || euro_nation > 3) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  /* Same at-war floor as welcome reject (FUN_4cc6_00f2 thin). */
+  ai_contact_clear_peace(ctx->col1, indian_nation, euro_nation);
+  {
+    const uint8_t cur = ai_diplo_indian_relation(ctx->col1, indian_nation, euro_nation);
+    const int target = 1;
+    if ((int)cur != target) {
+      ai_diplo_indian_relation_delta(ctx->col1, indian_nation, euro_nation, target - (int)cur);
+    }
+  }
+  if (ind->alarm_by_player[euro_nation] < 80u) {
+    ind->alarm_by_player[euro_nation] = 80u;
+  }
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id != indian_nation) {
+        continue;
+      }
+      if (t->alarm[euro_nation].friction < 80u) {
+        t->alarm[euro_nation].friction = 80u;
+      }
+      t->alarm[euro_nation].attacks++;
+    }
+  }
+  ai_diplo_indian_hostility_sync(ctx->col1, euro_nation);
+}
+
+/*
+ * FUN_4d56_4528 human warn CHOICE before combatish village enter.
+ * Relation-banded body (0x1710…0x172e stand-in). Cite: indian_settlement_4528.md.
+ */
+int ai_contact_try_village_raid_warn(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int unit_id,
+  int dest_x,
+  int dest_y
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups) {
+    return 0;
+  }
+  if (euro_nation < 0 || euro_nation > 3 || indian_nation < 4 || indian_nation > 11) {
+    return 0;
+  }
+  if (unit_id < 0 || dest_x < 0 || dest_y < 0 || dest_x > 255 || dest_y > 255) {
+    return 0;
+  }
+  if (!ai_contact_euro_is_human(ctx, euro_nation)) {
+    return 0;
+  }
+  ai_contact_bind_names(ctx);
+  if (ai_contact_village_warn_pending(ctx->ai_popups, unit_id) ||
+      ai_contact_welcome_pending(ctx->ai_popups, euro_nation, indian_nation)) {
+    return 0;
+  }
+  const char* tribe = ai_contact_tribe_name(indian_nation);
+  const int rel = (int)ai_diplo_indian_relation(ctx->col1, indian_nation, euro_nation);
+  char body[AI_POPUP_BODY_LEN];
+  if (rel >= 0x4b) {
+    snprintf(
+      body,
+      sizeof(body),
+      "The %s welcome visitors, but armed entry insults their hospitality. "
+      "Attack the village, or leave in peace?",
+      tribe
+    );
+  } else if (rel >= 0x32) {
+    snprintf(
+      body,
+      sizeof(body),
+      "The %s eye your weapons with suspicion. Attack their village, or withdraw?",
+      tribe
+    );
+  } else if (rel >= 0x19) {
+    snprintf(
+      body,
+      sizeof(body),
+      "The %s shout warnings from the edge of camp. Attack, or leave before blood is shed?",
+      tribe
+    );
+  } else {
+    snprintf(
+      body,
+      sizeof(body),
+      "Hostile %s braves bar the path. Attack the village, or fall back?",
+      tribe
+    );
+  }
+  char title[AI_POPUP_TITLE_LEN];
+  snprintf(title, sizeof(title), "%s", tribe);
+  static const char* labels[] = {"Leave", "Attack"};
+  static const int ids[] = {AI_CONTACT_VILLAGE_LEAVE, AI_CONTACT_VILLAGE_ATTACK};
+  const int payload = dest_x | (dest_y << 8);
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups,
+        AI_POPUP_TAG_CONTACT_VILLAGE_WARN,
+        unit_id,
+        indian_nation,
+        payload,
+        title,
+        body,
+        labels,
+        ids,
+        2
+      )) {
+    return 0;
+  }
+  {
+    char st[96];
+    snprintf(st, sizeof(st), "Approaching %s village…", tribe);
+    ai_contact_set_status(ctx, st);
+  }
   return 1;
 }
 
@@ -4054,47 +4203,42 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
         }
         units_try_move(ctx->units, brave->id, ctx->map, nx, ny, ctx->colonies, rng);
       }
-      /* GAME.TXT @INDIANWIN0 / WIN1 / WIN2 / @INDIANLOSE thin ambush chrome. */
+      /* GAME.TXT @INDIANWIN0 / WIN1 / WIN2 / @INDIANLOSE ambush chrome. */
       if (ai_contact_euro_is_human(ctx, target_euro)) {
-        char ambush_fb[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ai_contact_tribe_name(nation_id);
+        tok.string1 = "your";
+        tok.string2 = "units";
+        tok.string3 = "the frontier";
+        tok.string4 = ai_contact_tribe_name(nation_id);
+        const char* sec = "INDIANLOSE";
+        const char* fb = "Your units defeat an ambush.";
         if (brave_won) {
           if (seized_muskets) {
-            snprintf(
-              ambush_fb,
-              sizeof(ambush_fb),
-              "The %s ambush your units! Muskets seized by braves!",
-              ai_contact_tribe_name(nation_id)
-            );
+            sec = "INDIANWIN1";
+            fb = "Natives ambush your units! Muskets seized by braves!";
           } else if (seized_horses) {
-            snprintf(
-              ambush_fb,
-              sizeof(ambush_fb),
-              "The %s ambush your units! Horses seized by braves!",
-              ai_contact_tribe_name(nation_id)
-            );
+            sec = "INDIANWIN2";
+            fb = "Natives ambush your units! Horses seized by braves!";
           } else {
-            snprintf(
-              ambush_fb,
-              sizeof(ambush_fb),
-              "The %s ambush your units!",
-              ai_contact_tribe_name(nation_id)
-            );
+            sec = "INDIANWIN0";
+            fb = "Natives ambush your units!";
           }
+        }
+        char ambush_body[AI_POPUP_BODY_LEN];
+        if (ctx->messages) {
+          popup_msg_fill(ctx->messages, sec, &tok, fb, ambush_body, sizeof(ambush_body));
         } else {
-          snprintf(
-            ambush_fb,
-            sizeof(ambush_fb),
-            "Your units defeat a %s ambush.",
-            ai_contact_tribe_name(nation_id)
-          );
+          snprintf(ambush_body, sizeof(ambush_body), "%s", fb);
         }
         ai_contact_human_chrome(
           ctx,
           target_euro,
-          AI_POPUP_TAG_CONTACT_RAID,
+          AI_POPUP_TAG_COMBAT_AMBUSH,
           nation_id,
-          "Raid",
-          ambush_fb
+          "Ambush",
+          ambush_body
         );
       }
       {

@@ -77,6 +77,31 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
 int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
 
 /*
+ * FUN_4d56_4528 human village-enter warn CHOICE (Attack / Leave) for combatish
+ * land units. Defers the move: nation_a=unit_id, nation_b=indian, payload=
+ * dest_x|(dest_y<<8). Cite: indian_settlement_4528.md head; game_loop apply.
+ * Returns 1 if CHOICE enqueued.
+ */
+int ai_contact_try_village_raid_warn(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int unit_id,
+  int dest_x,
+  int dest_y
+);
+
+/*
+ * Open hostilities for a village Attack choice (peace clear + at-war relation
+ * floor + alarm/friction burn band). Cite: welcome-reject / FUN_4cc6_00f2 thin.
+ */
+void ai_contact_village_open_hostilities(
+  ColonizeTurnContext* ctx,
+  int indian_nation,
+  int euro_nation
+);
+
+/*
  * Ship ordered onto a native village tile (FUN_4d56_4528 ship head). Never
  * landfall. Unmet (euro_diplo met bit 0x20 clear) → @DONTKNOWSHIPS; met and
  * (relation≥75 or tribe friction≥64) → @MADATSHIPS; met mid-band relation

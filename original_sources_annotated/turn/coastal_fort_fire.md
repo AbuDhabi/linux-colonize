@@ -8,10 +8,12 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 [`colony_eot_production.md`](colony_eot_production.md) ·
 [`docs/turn_between_players.md`](../../docs/turn_between_players.md).
 
-**Port:** **Done** thin — `units_coastal_fort_fire_pulse` /
-`turn_run_coastal_fort_fire`. Ship-slow on miss: `moves_left=0` **Done** thin;
-human sank/slowed status **Done** thin; damaged bit7 / deep DOS formula
-**PARKED** (bit7 vs ship-build).
+**Port:** **Done** — `units_coastal_fort_fire_pulse` /
+`turn_run_coastal_fort_fire`. Ship-slow on miss: `moves_left=0` **Done**;
+close fort win → `col1_unknown15` bit7 damage (not sink) **Done**; Drydock
+repair via `units_tick_drydock_repair` **Done** (bit7 shared with ship-build:
+`turns_worked < defense` = construction, else combat damage). Human
+sank/slowed status **Done** thin; DOS temp-attacker + VGA chrome **PARKED**.
 
 ## Call sites / reshape
 
@@ -53,7 +55,7 @@ Do not “fix” docs to nest fort fire inside Linux production.
 
 `units_coastal_fort_attack_strength`: Fortress → tier 2 else Fort → 1;
 `atk = 4 * tier * (1 + arty_on_colony_tile)`. Pulse: water neighbors; hostile =
-Euro/Indian at war **or** Privateer; `units_fort_vs_ship` roll; win → despawn
-ship; lose → **ship-slow thin** (`moves_left=0`; damaged bit7 PARKED — conflicts
-with ship-build latch). Deep DOS combat chrome still **PARKED**. AI flee/skip:
-`ai_euro.c` (Marathon8).
+Euro/Indian at war **or** Privateer; `units_fort_vs_ship` roll; close win →
+damage bit7 + MP drain (else sink); miss → **ship-slow** (`moves_left=0`).
+Combat bit7 repaired by Drydock EOT tick (not ship-build). Deep DOS combat
+chrome / temp attacker still **PARKED**. AI flee/skip: `ai_euro.c` (Marathon8).

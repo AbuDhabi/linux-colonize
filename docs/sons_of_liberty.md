@@ -210,7 +210,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 | Rebel dividend/divisor EOT tick | `FUN_364b_0688` Phase C |
 | Tory floor `−⌊tories/thresh⌋` | decomp ~11880 |
 | DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 |
-| Combat popular-support attack % = side’s SoL/Tory share | Manual — **thin Wired** in `combat_apply_1b0e_peels` — [combat.md](combat.md) |
+| Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
 | Continental Army muster by colony SoL | Manual |
 | Map population digit colors (white/green/blue) | Manual |
 | Decade SoL chrome messages | `colony_eot_production.md` |

@@ -278,6 +278,19 @@ int units_tick_ship_build_ready(
   int* want_europe_open
 );
 /*
+ * Drydock repair: clear combat-damage bit7 for finished ships on own Drydock
+ * colony. Construction (turns_worked < defense thresh) stays on ship-build tick.
+ * Returns ships repaired. Cite: building_production.md; combat.md fort bit7.
+ */
+int units_tick_drydock_repair(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int human_nation,
+  char* status,
+  size_t status_size
+);
+/*
  * Cortes free king galleon stand-in: each Treasure of nation on an own coastal
  * colony → europe_cash_treasure (tax = Crown share) + despawn. Cite: fandom
  * Hernan Cortes; GAME.TXT @KINGGALLEON3. Syncs col1 nation gold. Returns

@@ -3581,13 +3581,13 @@ int main(void) {
       fprintf(stderr, "smoke_units: privateer SEIZURE popup ok\n");
     }
 
-    /* Fort fire MP-slow leaves bit7 clear. */
+    /* Fort fire: miss → MP slow only; hit close → bit7 damage; Drydock repairs. */
     {
       ColonizeColonyPool colonies;
       colonies_init(&colonies);
       snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
-      colonies.building_type_count = 3;
-      /* Reuse map coastal pair from earlier fort-fire smoke when possible. */
+      snprintf(colonies.building_types[3].name, sizeof(colonies.building_types[3].name), "Drydock");
+      colonies.building_type_count = 4;
       int cx = 1, cy = 1, wx = 2, wy = 1;
       for (int y = 1; y < map.height - 1; ++y) {
         for (int x = 1; x < map.width - 1; ++x) {
@@ -3602,12 +3602,12 @@ int main(void) {
               cy = y;
               wx = x + dx8[d];
               wy = y + dy8[d];
-              goto found_coast;
+              goto found_coast_bit7;
             }
           }
         }
       }
-    found_coast:
+    found_coast_bit7:
       ColonizeColony* col = &colonies.colonies[0];
       col->active = true;
       col->nation_id = 0;
@@ -3616,29 +3616,92 @@ int main(void) {
       col->has_building[1] = true;
       colonies.colony_count = 1;
       const int car = units_find_type(&pool, "Caravel");
-      const int sid = units_spawn_allow_stack(&pool, car, wx, wy);
-      ColonizeUnit* ship = units_get(&pool, sid);
+      const int sid_miss = units_spawn_allow_stack(&pool, car, wx, wy);
+      ColonizeUnit* ship = units_get(&pool, sid_miss);
       ship->nation_id = 1;
       ship->moves_left = 4;
       ship->col1_unknown15 = 0;
-      pool.types[car].attack = 99;
+      ship->turns_worked = 0;
+      /* Fort atk=4 (tier1, 0 arty); ship defense 99 → fort miss, MP drain only. */
+      pool.types[car].attack = 2;
       pool.types[car].defense = 99;
       ColonizeCol1Save c1;
       memset(&c1, 0, sizeof(c1));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        c1.head.founding_father[i] = -1;
+      }
       ai_diplo_declare_war(&c1, 0, 1);
+      if (!ai_diplo_at_war(&c1, 0, 1)) {
+        fprintf(stderr, "fort bit7 smoke: declare_war failed\n");
+        return 1;
+      }
       char st[64];
       (void)units_coastal_fort_fire_pulse(
         &pool, &colonies, &map, &c1, NULL, -1, st, sizeof(st)
       );
-      ship = units_get(&pool, sid);
-      if (ship && ship->active && (ship->col1_unknown15 & 0x80u) != 0) {
-        fprintf(stderr, "fort fire must not set ship-build bit7\n");
+      ship = units_get(&pool, sid_miss);
+      if (!ship || !ship->active) {
+        fprintf(stderr, "fort miss should leave ship alive\n");
         return 1;
       }
-      if (ship && ship->active) {
-        units_despawn(&pool, sid);
+      if ((ship->col1_unknown15 & 0x80u) != 0) {
+        fprintf(stderr, "fort miss must not set damaged bit7\n");
+        return 1;
       }
-      fprintf(stderr, "smoke_units: fort fire bit7 clear ok\n");
+      if (ship->moves_left != 0) {
+        fprintf(stderr, "fort miss should drain moves_left (got %d)\n", ship->moves_left);
+        return 1;
+      }
+      units_despawn(&pool, sid_miss);
+
+      /* Close fort hit: defense*2 > atk and atk >= defense (null rng) → bit7. */
+      const int sid_hit = units_spawn_allow_stack(&pool, car, wx, wy);
+      ship = units_get(&pool, sid_hit);
+      ship->nation_id = 1;
+      ship->moves_left = 4;
+      ship->col1_unknown15 = 0;
+      ship->turns_worked = 0;
+      pool.types[car].defense = 3; /* fort atk 4 wins; 3*2 > 4 → damage-not-sink */
+      (void)units_coastal_fort_fire_pulse(
+        &pool, &colonies, &map, &c1, NULL, -1, st, sizeof(st)
+      );
+      ship = units_get(&pool, sid_hit);
+      if (!ship || !ship->active) {
+        fprintf(stderr, "close fort hit should damage not sink\n");
+        return 1;
+      }
+      if ((ship->col1_unknown15 & 0x80u) == 0) {
+        fprintf(stderr, "close fort hit must set damaged bit7\n");
+        return 1;
+      }
+      if (ship->turns_worked < 3) {
+        fprintf(stderr, "combat damage should mark past construction thresh\n");
+        return 1;
+      }
+      /* Ship-build tick must not clear combat damage. */
+      (void)units_tick_ship_build_ready(
+        &pool, &colonies, 1, -1, st, sizeof(st), NULL
+      );
+      ship = units_get(&pool, sid_hit);
+      if (!ship || (ship->col1_unknown15 & 0x80u) == 0) {
+        fprintf(stderr, "ship-build must leave combat bit7 set\n");
+        return 1;
+      }
+      /* Drydock at colony repairs finished damaged ship on dock. */
+      ship->x = cx;
+      ship->y = cy;
+      ship->nation_id = 0;
+      col->has_building[3] = true;
+      const int repaired = units_tick_drydock_repair(
+        &pool, &colonies, 0, 0, st, sizeof(st)
+      );
+      ship = units_get(&pool, sid_hit);
+      if (repaired != 1 || !ship || (ship->col1_unknown15 & 0x80u) != 0) {
+        fprintf(stderr, "Drydock should clear combat bit7 (repaired=%d)\n", repaired);
+        return 1;
+      }
+      units_despawn(&pool, sid_hit);
+      fprintf(stderr, "smoke_units: fort bit7 + Drydock repair ok\n");
     }
 
     units_set_combat_popups(NULL, NULL);

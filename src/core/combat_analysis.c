@@ -243,12 +243,13 @@ void combat_analysis_render(
   const int line_h = font ? (font->max_height > 0 ? font->max_height + 2 : 8) : 8;
   const int icon_h = 16;
   const int icon_w = 16;
-  const int header_h = icon_h + 4;
+  /* DOS-shaped: title, sprite/strength header with center gap, dual mod columns. */
+  const int header_h = icon_h + 8;
   const int mod_rows =
     dlg->atk_line_count > dlg->def_line_count ? dlg->atk_line_count : dlg->def_line_count;
-  const int title_h = line_h + 4;
-  const int body_h = header_h + mod_rows * line_h + 8;
-  const int w = 220;
+  const int title_h = line_h + 6;
+  const int body_h = header_h + mod_rows * line_h + 10;
+  const int w = 240;
   const int h = title_h + body_h + 12;
   const int x = (320 - w) / 2;
   const int y = (200 - h) / 2;
@@ -267,13 +268,13 @@ void combat_analysis_render(
   const char* title = "COMBAT ANALYSIS";
   const int tw = font_text_width(font, title);
   popup_draw_text_shadowed(
-    font, framebuffer, ix + (iw - tw) / 2, iy + 2, title, text_color
+    font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color
   );
 
   const int mid = ix + iw / 2;
   const int y_hdr = iy + title_h;
-  const int atk_icon_x = ix + 4;
-  const int def_icon_x = ix + iw - 4 - icon_w - UNIT_CHROME_SPRITE_DX;
+  const int atk_icon_x = ix + 6;
+  const int def_icon_x = ix + iw - 6 - icon_w - UNIT_CHROME_SPRITE_DX;
   char str_buf[16];
 
   combat_analysis_blit_side(framebuffer, font, unit_icons, &dlg->atk_chrome, atk_icon_x, y_hdr);
@@ -281,14 +282,14 @@ void combat_analysis_render(
 
   snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_strength);
   {
-    const int sx = atk_icon_x + icon_w + UNIT_CHROME_SPRITE_DX + 4;
+    const int sx = atk_icon_x + icon_w + UNIT_CHROME_SPRITE_DX + 6;
     const int sy = y_hdr + (icon_h - line_h) / 2 + 2;
     popup_draw_text_shadowed(font, framebuffer, sx, sy, str_buf, text_color);
   }
   snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_strength);
   {
     const int sw = font_text_width(font, str_buf);
-    const int sx = def_icon_x - 4 - sw;
+    const int sx = def_icon_x - 6 - sw;
     const int sy = y_hdr + (icon_h - line_h) / 2 + 2;
     popup_draw_text_shadowed(font, framebuffer, sx, sy, str_buf, text_color);
   }
@@ -296,12 +297,12 @@ void combat_analysis_render(
   const int y0 = y_hdr + header_h;
   for (int i = 0; i < dlg->atk_line_count; ++i) {
     popup_draw_text_shadowed(
-      font, framebuffer, ix + 4, y0 + i * line_h, dlg->atk_lines[i], text_color
+      font, framebuffer, ix + 6, y0 + i * line_h, dlg->atk_lines[i], text_color
     );
   }
   for (int i = 0; i < dlg->def_line_count; ++i) {
     popup_draw_text_shadowed(
-      font, framebuffer, mid + 2, y0 + i * line_h, dlg->def_lines[i], text_color
+      font, framebuffer, mid + 4, y0 + i * line_h, dlg->def_lines[i], text_color
     );
   }
 }
