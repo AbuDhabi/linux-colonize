@@ -428,6 +428,31 @@ static void turn_produce_one_colony(
     }
   }
 
+  /*
+   * FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 (DS 0x53a6).
+   * Cite: colony_eot_production.md; difficulty.md.
+   */
+  if (col1 && colony->nation_id >= 0 &&
+      colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+      col1->player[colony->nation_id].control != 0) {
+    int diff = (int)col1->head.difficulty;
+    if (diff < 0) {
+      diff = 0;
+    }
+    if (diff > 4) {
+      diff = 4;
+    }
+    const int ai_food = diff >> 1;
+    if (ai_food > 0) {
+      colony->stock[COLONIZE_CARGO_FOOD] =
+        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + ai_food);
+      field_food += ai_food;
+      if (delta) {
+        delta->goods[COLONIZE_CARGO_FOOD] += ai_food;
+      }
+    }
+  }
+
   const int consumed = pop * TURN_FOOD_PER_COLONIST;
   colony->stock[COLONIZE_CARGO_FOOD] =
     turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - consumed);

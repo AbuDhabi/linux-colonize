@@ -204,7 +204,7 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 |-----|-------|
 | A fort fire (nested) | Separate SETUP — [`coastal_fort_fire.md`](coastal_fort_fire.md) |
 | A bells/FF | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) |
-| B cargo apply | `turn_produce_one_colony` + craft/yield — **Partial** |
+| B cargo apply | `turn_produce_one_colony` + craft/yield — **Partial** (AI food `difficulty>>1` **Done**) |
 | B Custom House | `europe_custom_house_autosell` **Done** |
 | C/D SoL flags | `colony_prod_refresh_sol_flags` (sol_50/100); food starve reshape |
 | L hammers | `colony_prod_colony_hammers` + complete |
