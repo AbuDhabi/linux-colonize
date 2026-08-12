@@ -40,7 +40,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
 | Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
-| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit) | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger pays dest terrain MP from allotment; ship −1 MP on Make Landfall | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---
