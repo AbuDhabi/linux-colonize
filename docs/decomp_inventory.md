@@ -58,6 +58,9 @@ port I/O in the native build.
 
 ## Proposed Boundary: Core vs Platform
 
+Linux-side present layout and intended constraints (living):
+[architecture.md](architecture.md).
+
 ### Core Candidate (kept behavior-first)
 
 - Game state updates

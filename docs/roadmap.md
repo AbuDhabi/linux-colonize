@@ -164,6 +164,7 @@ Do not prioritize over gameplay/determinism.
 | Concern | Owner |
 |---------|-------|
 | Phase order / whole-project “what’s next” | **This file** |
+| Code architecture / layering (present + intended) | [architecture.md](architecture.md) |
 | Manual feature Done/Partial/Missing rows | [manual_gap.md](manual_gap.md) |
 | AI FUN_* inventory, unpark queue, R5 | [ai_transcription.md](ai_transcription.md) |
 | Col1 field atlas / save RE | [save_format_map.md](save_format_map.md) |
