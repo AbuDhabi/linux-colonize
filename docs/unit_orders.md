@@ -87,7 +87,7 @@ flowchart TD
 | Go to Place / Port | Click dest / next owned colony | Place mode + `units_set_goto` | Done |
 | Activate / Wait | Stack picker / next unit with MP | `unit_stack` + Wait | Done |
 | AI | Sets order bytes + goto / follow | `ai_euro` / `ai_king` / `ai_contact` | Done (structural) |
-| Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on selected dock icon → wood popup (`colony_screen_open_dock_orders`) | Done thin |
+| Colony docked units | `FUN_2f2b_5746` sentry/fortify/… popup | Second click on the selected icon → wood popup (`colony_screen_open_dock_orders`), from either the Transport strip (ships/wagons) or the Multifunction Units tab (land units + Artillery, DOS `FUN_2f2b_1e46`/`59a0`) | Done thin |
 | Europe dock | Don’t board / Board / Move front (`@EUROPESHIPOPTIONS` / dock) | `EUROPE_MENU_DOCK` | Done |
 | Ship options chrome | `@SHIPOPTIONS` (anchor / sentry / unload) | Colony dock popup wired (sea); land uses `@UNITOPTIONS`; VGA-identical chrome PARKED | Done thin |
 

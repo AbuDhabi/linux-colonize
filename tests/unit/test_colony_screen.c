@@ -189,6 +189,93 @@ static int unit_dock_orders_menu(void) {
   return rc;
 }
 
+/*
+ * Multifunction "Units" tab roster: land units at the colony (colonist-class
+ * + Artillery) — DOS FUN_2f2b_1e46 does not list ships/wagons, those stay on
+ * the Transport strip. Not an armed-only subset either: an unarmed colonist
+ * must appear alongside an armed soldier, and a docked ship must be absent.
+ */
+static int unit_multi_units_pane_roster(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "multi_units: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  if (!units_load_types(&units, &names)) {
+    fprintf(stderr, "multi_units: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int caravel_type = units_find_type(&units, "Caravel");
+  const int colonist_type = units_find_type(&units, "Colonists");
+  if (caravel_type < 0 || colonist_type < 0) {
+    fprintf(stderr, "multi_units: type lookup failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int ship_id = units_spawn(&units, caravel_type, 5, 5);
+  const int colonist_id = units_spawn_allow_stack(&units, colonist_type, 5, 5);
+  const int soldier_id = units_spawn_allow_stack(&units, colonist_type, 5, 5);
+  if (ship_id < 0 || colonist_id < 0 || soldier_id < 0) {
+    fprintf(stderr, "multi_units: spawn failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeUnit* soldier = units_get(&units, soldier_id);
+  if (soldier) {
+    soldier->muskets = 50; /* armed — must not be the only one shown */
+  }
+
+  ColonyScreenView view;
+  memset(&view, 0, sizeof(view));
+  /* Ship goes on the (separate) Transport strip list only — the Units-tab
+   * layout must not read docked_transport_ids at all. */
+  view.docked_transport_ids[0] = ship_id;
+  view.docked_transport_count = 1;
+  view.outside_unit_ids[0] = colonist_id;
+  view.outside_unit_ids[1] = soldier_id;
+  view.outside_unit_count = 2;
+
+  ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
+  const int n = colony_screen_multi_units_layout(
+    &view, &units, 0, 0, 200, 100, slots, COLONY_MULTI_UNITS_SLOT_MAX
+  );
+  bool saw_ship = false;
+  bool saw_colonist = false;
+  bool saw_soldier = false;
+  for (int i = 0; i < n; ++i) {
+    if (slots[i].unit_id == ship_id) {
+      saw_ship = true;
+    }
+    if (slots[i].unit_id == colonist_id) {
+      saw_colonist = true;
+    }
+    if (slots[i].unit_id == soldier_id) {
+      saw_soldier = true;
+    }
+  }
+  assets_msg_free(&names);
+  if (saw_ship) {
+    fprintf(stderr, "multi_units: ship must not appear in the Units-tab roster\n");
+    return 1;
+  }
+  if (!saw_colonist || !saw_soldier) {
+    fprintf(
+      stderr,
+      "multi_units: expected unarmed colonist + soldier in %d-slot roster (colonist=%d soldier=%d)\n",
+      n,
+      saw_colonist,
+      saw_soldier
+    );
+    return 1;
+  }
+  fprintf(stderr, "unit_colony_screen: multi units pane roster ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -197,6 +284,10 @@ int main(void) {
     return 1;
   }
   if (unit_dock_orders_menu() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_multi_units_pane_roster() != 0) {
     diag_shutdown();
     return 1;
   }
