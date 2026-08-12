@@ -278,6 +278,222 @@ static int turn_report_ok_food(const ColonizeCol1Save* col1) {
 static int turn_report_ok_new_cargo(const ColonizeCol1Save* col1) {
   return !col1 || !col1->head.colony_report_options.report_new_cargos_available;
 }
+/* DOS 0x5385 bit1 clear → show rebel majority / unanimous / tory chrome. */
+static int turn_report_ok_rebel_maj(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_rebel_majorities;
+}
+/* DOS 0x5385 bit0 clear → show @SONSUP / @SONSDOWN decade chrome. */
+static int turn_report_ok_sons(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_sons_of_liberty_membership;
+}
+/* DOS 0x5384 bit3 clear → show @INEFFICIENT / @EFFICIENT. */
+static int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
+  return !col1 || !col1->head.colony_report_options.report_inefficient_government;
+}
+
+/*
+ * FUN_364b_0688 Phase D Tory pressure: inefficient-gov chrome (0xdd1 / 0xddd).
+ * Port latch is colony->inefficient_gov (Col1 +0x1c bit3 = starvation).
+ */
+static void turn_emit_inefficient_gov_chrome(
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
+  int sol_after,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!colony || colony->nation_id != human_nation || !europe || !col1) {
+    return;
+  }
+  int pop = colony->population > 0 ? colony->population : colony->colonist_count;
+  if (pop < 0) {
+    pop = 0;
+  }
+  int sol = sol_after;
+  if (sol < 0) {
+    sol = 0;
+  }
+  if (sol > 100) {
+    sol = 100;
+  }
+  /* Decomp local_82: trunc tories (not half-up used in colony_prod_sol_bonus). */
+  const int tories = (pop * (100 - sol)) / 100;
+  int thresh = 10;
+  if (colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+      col1->player[colony->nation_id].control == 0) {
+    int diff = (int)col1->head.difficulty;
+    if (diff < 0) {
+      diff = 0;
+    }
+    if (diff > 4) {
+      diff = 4;
+    }
+    thresh = 10 - diff;
+  }
+  if (thresh < 1) {
+    thresh = 1;
+  }
+
+  const char* cname = colony->name[0] ? colony->name : "colony";
+  const char* section = NULL;
+  char status_buf[sizeof(europe->status)];
+  status_buf[0] = '\0';
+
+  if (tories < thresh) {
+    if (colony->inefficient_gov != 0) {
+      colony->inefficient_gov = 0;
+      if (turn_report_ok_inefficient(col1)) {
+        section = "EFFICIENT";
+        snprintf(
+          status_buf,
+          sizeof(status_buf),
+          "%s government efficiency improved.",
+          cname
+        );
+      }
+    }
+  } else {
+    if (colony->inefficient_gov == 0) {
+      colony->inefficient_gov = 1;
+      if (turn_report_ok_inefficient(col1)) {
+        section = "INEFFICIENT";
+        snprintf(
+          status_buf,
+          sizeof(status_buf),
+          "%s has inefficient government (%d+ tories).",
+          cname,
+          thresh
+        );
+      }
+    }
+  }
+
+  if (!status_buf[0]) {
+    return;
+  }
+  snprintf(europe->status, sizeof(europe->status), "%s", status_buf);
+  if (!ai_popups || !section) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cname;
+  tok.number0 = thresh;
+  tok.has_number0 = true;
+  popup_msg_fill(messages, section, &tok, status_buf, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
+
+/*
+ * FUN_364b_0688 Phase D: one SoL latch or decade chrome popup for the human.
+ * Match decomp nest: latch transitions before decade. Cite: colony_eot_production.md.
+ */
+static void turn_emit_sol_phase_d_chrome(
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  EuropeScreen* europe,
+  int human_nation,
+  int sol_before,
+  uint8_t flags_before,
+  int sol_after,
+  AiPopupState* ai_popups,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!colony || colony->nation_id != human_nation || !europe) {
+    return;
+  }
+  const char* section = NULL;
+  const char* fallback = NULL;
+  char status_buf[sizeof(europe->status)];
+  status_buf[0] = '\0';
+  const char* cname = colony->name[0] ? colony->name : "colony";
+  const int had50 = (flags_before & COLONIZE_COLONY_FLAG_SOL_50) != 0;
+  const int had100 = (flags_before & COLONIZE_COLONY_FLAG_SOL_100) != 0;
+
+  if ((sol_after < 50) || had50) {
+    if ((sol_after < 100) || had100) {
+      if (sol_after < 95 && had100) {
+        if (turn_report_ok_rebel_maj(col1)) {
+          section = "TORYMINORITY";
+          snprintf(
+            status_buf,
+            sizeof(status_buf),
+            "SoL in %s down from 100%% to %d%%.",
+            cname,
+            sol_after
+          );
+          fallback = status_buf;
+        }
+      } else if (sol_after < 50 && had50) {
+        if (turn_report_ok_rebel_maj(col1)) {
+          section = "TORYMAJORITY";
+          snprintf(
+            status_buf,
+            sizeof(status_buf),
+            "SoL in %s down to %d%%.",
+            cname,
+            sol_after
+          );
+          fallback = status_buf;
+        }
+      } else if (sol_before / 10 < sol_after / 10) {
+        if (turn_report_ok_sons(col1)) {
+          section = "SONSUP";
+          snprintf(
+            status_buf, sizeof(status_buf), "SoL in %s up to %d%%.", cname, sol_after
+          );
+          fallback = status_buf;
+        }
+      } else if ((sol_after + 4) / 10 < sol_before / 10) {
+        if (turn_report_ok_sons(col1)) {
+          section = "SONSDOWN";
+          snprintf(
+            status_buf, sizeof(status_buf), "SoL in %s down to %d%%.", cname, sol_after
+          );
+          fallback = status_buf;
+        }
+      }
+    } else if (turn_report_ok_rebel_maj(col1)) {
+      section = "REBELUNANIMOUS";
+      snprintf(status_buf, sizeof(status_buf), "SoL in %s up to 100%%.", cname);
+      fallback = status_buf;
+    }
+  } else if (turn_report_ok_rebel_maj(col1)) {
+    section = "REBELMAJORITY";
+    snprintf(
+      status_buf, sizeof(status_buf), "SoL in %s up to %d%%.", cname, sol_after
+    );
+    fallback = status_buf;
+  }
+
+  if (!fallback || !fallback[0]) {
+    return;
+  }
+  snprintf(europe->status, sizeof(europe->status), "%s", fallback);
+  if (!ai_popups || !section) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = cname;
+  if (col1 && colony->nation_id >= 0 &&
+      colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+      col1->player[colony->nation_id].country_name[0]) {
+    tok.string1 = col1->player[colony->nation_id].country_name;
+  } else if (europe->nation_name[0]) {
+    tok.string1 = europe->nation_name;
+  } else {
+    tok.string1 = "Europe";
+  }
+  tok.number0 = sol_after;
+  tok.has_number0 = true;
+  popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
+  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+}
 
 static int turn_count_field_job(const ColonizeColony* colony, int field_job) {
   if (!colony) {
@@ -511,10 +727,21 @@ static void turn_produce_one_colony(
       colony->colonist_count++;
       colony->population = colony->colonist_count;
       if (europe && colony->nation_id == human_nation) {
+        /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
         if (colony->name[0]) {
           snprintf(europe->status, sizeof(europe->status), "Birth in %s.", colony->name);
         } else {
           snprintf(europe->status, sizeof(europe->status), "Colony birth.");
+        }
+        if (ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          popup_msg_fill(
+            messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
+          );
+          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         }
       }
     }
@@ -563,8 +790,27 @@ static void turn_produce_one_colony(
     }
   }
 
-  colony_prod_tick_rebel_accumulators(pool, colony, col1);
-  colony_prod_refresh_sol_flags(colony, col1);
+  {
+    const int sol_before = colony_prod_sol_percent(col1, colony);
+    const uint8_t flags_before = colony->colony_flags;
+    colony_prod_tick_rebel_accumulators(pool, colony, col1);
+    const int sol_after = colony_prod_sol_percent(col1, colony);
+    colony_prod_refresh_sol_flags(colony, col1);
+    turn_emit_sol_phase_d_chrome(
+      colony,
+      col1,
+      europe,
+      human_nation,
+      sol_before,
+      flags_before,
+      sol_after,
+      ai_popups,
+      messages
+    );
+    turn_emit_inefficient_gov_chrome(
+      colony, col1, europe, human_nation, sol_after, ai_popups, messages
+    );
+  }
 
   /*
    * Horse breeding (manual / fandom): ≥2 horses + food surplus this turn →

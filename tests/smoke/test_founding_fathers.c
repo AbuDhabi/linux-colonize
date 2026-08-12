@@ -490,6 +490,8 @@ int main(void) {
       return fail("deep Col1 colony alloc");
     }
     deep_col1.colony[0].nation_id = 0;
+    deep_col1.colony[0].x = 5;
+    deep_col1.colony[0].y = 5;
     deep_col1.colony[0].population = 4;
     deep_col1.colony[0].rebel_dividend = 40;
     deep_col1.colony[0].rebel_divisor = 100;
@@ -722,11 +724,12 @@ int main(void) {
       return fail("deep La Salle Stockade missing");
     }
 
-    /* Bolivar: SoL +20% only (40→60), no bells fiction. */
+    /* Bolivar: display-time SoL +20 (40→60); storage unchanged; no bells fiction. */
     dnat->liberty_bells_total = 881;
     dnat->next_founding_father = 18;
     {
       const uint16_t b0 = dnat->liberty_bells_total;
+      const uint32_t div0 = deep_col1.colony[0].rebel_dividend;
       founding_fathers_tick(&deep_ctx);
       if (deep_col1.head.founding_father[18] != 0 || dnat->founding_father_count != 11) {
         free(deep_col1.colony);
@@ -738,10 +741,15 @@ int main(void) {
         map_free(&map);
         return fail("deep Bolivar must not invent bells");
       }
-      if (deep_col1.colony[0].rebel_dividend != 60u) {
+      if (deep_col1.colony[0].rebel_dividend != div0) {
         free(deep_col1.colony);
         map_free(&map);
-        return fail("deep Bolivar rebel_dividend +20 missing");
+        return fail("deep Bolivar must not mutate rebel_dividend");
+      }
+      if (colony_prod_sol_percent(&deep_col1, col) != 60) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("deep Bolivar display SoL want 60");
       }
     }
 

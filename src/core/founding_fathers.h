@@ -62,6 +62,12 @@ unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation)
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);
 
 /*
+ * FUN_15eb_0274 Bolivar display boost: +20 SoL when FF held and nation is
+ * human (player.control == 0). Else 0. Cap applied by caller.
+ */
+int founding_fathers_bolivar_sol_bonus(const ColonizeCol1Save* col1, int nation);
+
+/*
  * Benjamin Franklin gate (docs/fandom_col1994.md / PEDIA):
  * King's European wars no longer affect New World relations; Europeans in the
  * New World always offer peace in negotiations.

@@ -271,7 +271,9 @@ Production penalty is **not** a flat −1 at the threshold. DOS uses
 port status in [sons_of_liberty.md](sons_of_liberty.md). DOS also latches colony
 flag bit `0x08` on the inefficient path (port repurposes `0x08` for starvation).
 Port: full net mod in `colony_prod_sol_bonus` (Tory floor + sol latches / live
-SoL stand-in).
+SoL stand-in). Inefficient-government EOT chrome (`@INEFFICIENT` /
+`@EFFICIENT`) uses port-only `ColonizeColony.inefficient_gov` — Col1 `+0x1c`
+bit3 remains food starvation.
 
 ---
 

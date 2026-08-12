@@ -14,8 +14,8 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 **Port status:** Linux **Partial** — spine in `turn_run_colony_production` /
 `turn_produce_one_colony` (`src/core/turn.c`); shared rules in
 `colony_production.c` / `colony_craft.c`. **Birth + starve-kill Done** (I–J).
-**AI dump-sell Done** thin (O). **Education F–H Done** thin. K / P msgs
-**mapped**; port **PARKED**.
+**AI dump-sell Done** thin (O). **Education F–H Done** thin. **Phase D SoL chrome Done** thin. **Inefficient-gov chrome Done** thin.
+K / P msgs **mapped**; port **PARKED**.
 
 ## Sibling — `FUN_364b_03f6` (coastal fort fire)
 
@@ -108,10 +108,12 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | SoL &lt;95 with bit2 set | AND ~0x02 | `0xda7` |
 | SoL &lt;50 with bit4 set | AND ~0x04 | `0xdb4` |
 | Decade up / down | chrome only | `0xdc1` / `0xdc8` |
-| Tory pressure ≥ difficulty band | OR / clear **0x08** (starvation-named bit; DOS Tory path) | `0xdd1` / `0xddd` |
+| Tory pressure ≥ difficulty band | OR / clear **0x08** (starvation-named bit; DOS Tory path) | `0xdd1` / `0xddd` → port `@INEFFICIENT`/`@EFFICIENT` via `inefficient_gov` (not Col1 bit3) |
 
 Linux `COLONIZE_COLONY_FLAG_STARVATION` is a **food-vs-need reshape** of bit3,
-not the Tory latch above. `colony_prod_refresh_sol_flags` covers sol_50/100.
+not the Tory latch above. `colony_prod_refresh_sol_flags` covers sol_50/100
+**one-step** (majority then unanimous on separate ticks). Human chrome:
+`turn_emit_sol_phase_d_chrome` in `turn.c`.
 
 ## Deep — F / G / H education
 
@@ -206,8 +208,10 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | A bells/FF | [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) |
 | B cargo apply | `turn_produce_one_colony` + craft/yield — **Partial** (AI food `difficulty>>1` **Done**) |
 | B Custom House | `europe_custom_house_autosell` **Done** |
-| C/D SoL flags | `colony_prod_refresh_sol_flags` (sol_50/100); food starve reshape |
+| C/D SoL flags | `colony_prod_refresh_sol_flags` (one-step sol_50/100); food starve reshape |
 | C SoL accumulators | `colony_prod_tick_rebel_accumulators` **Done** (shrink÷64 + pop×2 + bells; WoI crown half-negative) |
+| D SoL chrome | Latch + decade `@REBELMAJORITY`/`@REBELUNANIMOUS`/`@TORY*`/`@SONSUP`/`@SONSDOWN` **Done** thin (`turn_emit_sol_phase_d_chrome`); report_rebel_majorities / report_sons gates; VGA PARKED |
+| D Tory inefficient | `@INEFFICIENT`/`@EFFICIENT` **Done** thin (`turn_emit_inefficient_gov_chrome`); port-only `inefficient_gov` latch (Col1 bit3 = starvation); `report_inefficient_government` gate |
 | L hammers | `colony_prod_colony_hammers` + complete |
 | O spoilage trim | `colonies_apply_warehouse_spoilage` |
 | O AI dump-sell | `europe_ai_colony_dump_sell` **Done** thin |
@@ -215,4 +219,4 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | Horse breed | `turn_produce_one_colony` **Done** thin (Stable cap) |
 | P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; dialogs PARKED |
 | K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; demand table PARKED |
-| I birth / J starve-kill | **Done** (`turn_produce_one_colony`) |
+| I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin |

@@ -31,7 +31,7 @@ Col1 fields: colony `rebel_dividend` / `rebel_divisor`; colony flags +0x1c
 
 ```
 pct = (rebel_dividend * 100) / rebel_divisor   // 0 if divisor invalid
-if Simon Bolivar elected and human pre-independence:
+if Simon Bolivar elected and colony nation is human (control==0):
   pct = min(100, pct + 20)
 ```
 
@@ -43,9 +43,10 @@ tory_count = pop - sol_count
 ```
 
 **Port:** [`colony_prod_sol_percent`](../src/core/colony_production.c) reads Col1
-pairs (clamp 0..100). If missing: stand-in `nation.liberty_bells_total / 4`
-(not the DOS colony formula). Bolivar is **not** applied at display time (see
-[Bolivar](#simon-bolivar) below).
+pairs (clamp 0..100), then applies Bolivar via
+[`founding_fathers_bolivar_sol_bonus`](../src/core/founding_fathers.c). If
+missing rebel fields: stand-in `nation.liberty_bells_total / 4` then the same
+Bolivar boost.
 
 ### EOT accumulator (`FUN_364b_0688` Phase C)
 
@@ -84,8 +85,13 @@ rebel points. **Port:** [`ai_king_sol_percent`](../src/core/ai_king.c) —
 | `0x08` | inefficient / Tory path (DOS) | Tory pressure ≥ band | DOS clears when below band |
 
 **Port:** [`colony_prod_refresh_sol_flags`](../src/core/colony_production.c)
-wires `sol_50` / `sol_100`. Bit `0x08` is **repurposed** as food-starvation in
-the Linux Col1 mapping — not the DOS inefficient-gov latch.
+wires `sol_50` / `sol_100` **one-step** per EOT (DOS nest: majority before
+unanimous). Bit `0x08` is **repurposed** as food-starvation in
+the Linux Col1 mapping — not the DOS inefficient-gov latch. Inefficient-gov
+chrome uses port-only `ColonizeColony.inefficient_gov` +
+`turn_emit_inefficient_gov_chrome`. Human latch /
+decade chrome: `turn_emit_sol_phase_d_chrome` (`@REBELMAJORITY` /
+`@REBELUNANIMOUS` / `@TORY*` / `@SONSUP` / `@SONSDOWN`).
 
 Do not confuse year-end “rebel colony” annotations that mention `0x1c & 0x40`
 with SoL: the port maps `0x40` as **coastal**.
@@ -103,7 +109,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Tax ≥20 and (SoL≥30 or bells≥80) | Tax refuse / boycott path | **Wired** structural |
 | Nation SoL **>** 50 (WoI) | Continental merc offer | **Wired** thin |
 | Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** thin |
-| Bolivar elected | +20 SoL (DOS display-time) | **Wired** one-shot dividend bump |
+| Bolivar elected | +20 SoL (DOS display-time) | **Wired** (`founding_fathers_bolivar_sol_bonus`) |
 | Rebel sentiment points | Score +1 per point | **Wired** |
 | Year-end C2 / D SoL chrome | Peace / pressure / rival dialogs | **Thin / PARK** |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
@@ -176,11 +182,10 @@ Muster” (counts by colony SoL on declare; &lt;50% colony contributes 0) is **P
 
 | Source | Mechanism |
 |--------|-----------|
-| **DOS** (`FUN_15eb_0274`) | While Bolivar is elected and human pre-independence: every SoL **read** adds **+20** then caps at 100 |
-| **Port** (`effect_bolivar_rebel`) | On elect: one-shot `rebel_dividend += 20% of divisor` (clamp ≤ divisor) on owned colonies |
+| **DOS** (`FUN_15eb_0274`) | While Bolivar is elected and colony owner is human (`control==0`): every SoL **read** adds **+20** then caps at 100 |
+| **Port** | Same: [`founding_fathers_bolivar_sol_bonus`](../src/core/founding_fathers.c) on colony / nation / combat SoL reads. Elect records FF only — no `rebel_dividend` mutation |
 
-Same player-visible intent (+20% membership); **different mechanism** — port does
-not re-apply +20 on every later read.
+Gate is human control (decomp), not WoI / independence.
 
 ---
 
@@ -209,12 +214,11 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 
 | Effect | Source |
 |--------|--------|
-| DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 |
+| DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 — port chrome via `inefficient_gov` (bit3 stays starvation) |
 | Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
 | Continental Army muster by colony SoL | Manual |
 | Map population digit colors (white/green/blue) | Manual |
-| Decade SoL chrome messages | `colony_eot_production.md` |
-| Bolivar display-time +20 every read | `FUN_15eb_0274` |
+| Decade SoL chrome messages | `colony_eot_production.md` — **Done** thin (`@SONSUP`/`@SONSDOWN`) |
 
 ---
 
@@ -224,7 +228,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 |-------|-------------------|---------------|
 | Tory penalty size | Manual/fandom “−1 if ≥ thresh” | `−⌊tories / (10−diff)⌋` then +sol latches |
 | Tory thresh 10…6 | — | Decomp + manual; also [difficulty.md](difficulty.md) |
-| Bolivar | Port dividend bump alone as “the” rule | DOS: +20 on every SoL compute while FF held |
+| Bolivar | Port dividend bump alone as “the” rule | DOS/port: +20 on every SoL compute while FF held (human) |
 | Declare gate | Port bells≥100 as original | Manual/decomp: SoL≥50 only — bells gate is port-extra |
 | +0x1c `0x08` | Port food starvation bit | DOS inefficient-gov latch |
 | `0x1c & 0x40` as “rebel” | Some year-end annotations | Port: coastal bit |
@@ -240,7 +244,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 | EOT apply | [`turn.c`](../src/core/turn.c) |
 | People SoL/Tory meters | [`colony_screen.c`](../src/core/colony_screen.c) |
 | Nation SoL, declare, restless, boycott, merc, promote | [`ai_king.c`](../src/core/ai_king.c) |
-| Bolivar elect bump | [`founding_fathers.c`](../src/core/founding_fathers.c) |
+| Bolivar elect / display +20 | [`founding_fathers.c`](../src/core/founding_fathers.c) `founding_fathers_bolivar_sol_bonus` |
 | Score rebel points | [`reports.c`](../src/core/reports.c) |
 | Year-end chrome | [`turn.c`](../src/core/turn.c) `turn_run_year_end_chrome` |
 | Col1 field layout | [`col1_save.h`](../src/core/col1_save.h), [save_format_map.md](save_format_map.md) |

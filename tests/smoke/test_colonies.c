@@ -6,6 +6,7 @@
 #include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/ss.h"
 #include "core/units.h"
@@ -685,6 +686,9 @@ int main(void) {
       memset(&col1c, 0, sizeof(col1c));
       col1.colony = &col1c;
       col1.head.colony_count = 1;
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        col1.head.founding_father[i] = -1;
+      }
       col1c.x = (uint8_t)c->x;
       col1c.y = (uint8_t)c->y;
       col1c.nation_id = (uint8_t)c->nation_id;
@@ -720,6 +724,31 @@ int main(void) {
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & (COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100)) == 0,
             "SoL flags clear when SoL drops");
+
+      /*
+       * FUN_15eb_0274 Bolivar: +20 display for human; AI control gets none; cap 100.
+       * Cite: sons_of_liberty.md; founding_fathers_bolivar_sol_bonus.
+       */
+      {
+        for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+          col1.head.founding_father[i] = -1;
+        }
+        col1.player[c->nation_id].control = 0;
+        col1c.rebel_dividend = 40;
+        col1c.rebel_divisor = 100;
+        CHECK(colony_prod_sol_percent(&col1, c) == 40, "SoL 40 without Bolivar");
+        col1.head.founding_father[FF_SIMON_BOLIVAR] = (int8_t)c->nation_id;
+        CHECK(colony_prod_sol_percent(&col1, c) == 60, "SoL Bolivar human 40+20");
+        col1c.rebel_dividend = 90;
+        CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL Bolivar caps at 100");
+        col1c.rebel_dividend = 40;
+        col1.player[c->nation_id].control = 1; /* AI */
+        CHECK(colony_prod_sol_percent(&col1, c) == 40, "SoL Bolivar skipped for AI");
+        col1.head.founding_father[FF_SIMON_BOLIVAR] = -1;
+        col1.player[c->nation_id].control = 0;
+        col1c.rebel_dividend = 50;
+        col1c.rebel_divisor = 100;
+      }
 
       /*
        * Tory floor: −⌊tories/thresh⌋ + sol latches.

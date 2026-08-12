@@ -140,6 +140,8 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
   if (!colony) {
     return 0;
   }
+  int sol = 0;
+  bool have = false;
   if (col1 && col1->colony) {
     for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
       const ColonizeCol1Colony* c = &col1->colony[i];
@@ -149,28 +151,28 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
       if (c->rebel_divisor == 0) {
         break; /* fall through to nation bells */
       }
-      int sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
-      if (sol < 0) {
-        sol = 0;
-      }
-      if (sol > 100) {
-        sol = 100;
-      }
-      return sol;
+      sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
+      have = true;
+      break;
     }
   }
   /* FUN_43f7_0004-shaped: liberty_bells_total/4 when rebel fields unavailable. */
-  if (col1 && colony->nation_id >= 0 && colony->nation_id < 4) {
-    int sol = (int)col1->nation[colony->nation_id].liberty_bells_total / 4;
-    if (sol > 100) {
-      sol = 100;
-    }
-    if (sol < 0) {
-      sol = 0;
-    }
-    return sol;
+  if (!have && col1 && colony->nation_id >= 0 && colony->nation_id < 4) {
+    sol = (int)col1->nation[colony->nation_id].liberty_bells_total / 4;
+    have = true;
   }
-  return 0;
+  if (!have) {
+    return 0;
+  }
+  if (sol < 0) {
+    sol = 0;
+  }
+  /* FUN_15eb_0274: Bolivar +20 for human nation (display-time, not storage). */
+  sol += founding_fathers_bolivar_sol_bonus(col1, colony->nation_id);
+  if (sol > 100) {
+    sol = 100;
+  }
+  return sol;
 }
 
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
@@ -227,25 +229,25 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
 }
 
 /*
- * FUN_364b_0688 thin: latch +0x1c sol_50 (0x04) / sol_100 (0x02) from SoL %.
- * DOS clears sol_100 below ~95 and sol_50 below 50 (hysteresis).
+ * FUN_364b_0688 Phase D: one-step latch +0x1c sol_50 (0x04) / sol_100 (0x02).
+ * Crossing 50 then 100 takes two ticks (majority then unanimous). Clears
+ * sol_100 below ~95 and sol_50 below 50 (hysteresis). Cite: decomp ~57415.
  */
 void colony_prod_refresh_sol_flags(ColonizeColony* colony, const ColonizeCol1Save* col1) {
   if (!colony || !colony->active) {
     return;
   }
   const int sol = colony_prod_sol_percent(col1, colony);
-  if (sol >= 100) {
+  const uint8_t f = colony->colony_flags;
+  if (sol >= 50 && (f & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
+    colony->colony_flags |= COLONIZE_COLONY_FLAG_SOL_50;
+  } else if (sol >= 100 && (f & COLONIZE_COLONY_FLAG_SOL_100) == 0) {
     colony->colony_flags |=
       (uint8_t)(COLONIZE_COLONY_FLAG_SOL_100 | COLONIZE_COLONY_FLAG_SOL_50);
-  } else if (sol >= 50) {
-    colony->colony_flags |= COLONIZE_COLONY_FLAG_SOL_50;
-    /* DOS: clear sol_100 only when SoL < 95 (keep latch at 95..99). */
-    if (sol < 95) {
-      colony->colony_flags =
-        (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SOL_100);
-    }
-  } else {
+  } else if (sol < 95 && (f & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+    colony->colony_flags =
+      (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_SOL_100);
+  } else if (sol < 50 && (f & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
     colony->colony_flags = (uint8_t)(colony->colony_flags &
                                      (uint8_t)~(COLONIZE_COLONY_FLAG_SOL_50 |
                                                 COLONIZE_COLONY_FLAG_SOL_100));
