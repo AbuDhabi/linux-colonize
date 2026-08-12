@@ -339,6 +339,79 @@ if(COLONIZE_HAS_FLUIDSYNTH)
 endif()
 add_test(NAME smoke_new_game COMMAND smoke_new_game)
 
+add_executable(smoke_hall_of_fame
+  tests/smoke/test_hall_of_fame.c
+  tests/smoke/platform_cursor_stubs.c
+  src/core/game_loop.c
+  src/core/assets.c
+  src/core/font.c
+  src/core/ff.c
+  src/core/map.c
+  src/core/map_gen.c
+  src/core/dos_rng.c
+  src/core/strutil.c
+  src/core/map_menu.c
+  src/core/map_panel.c
+  src/core/popup.c
+  src/core/ui_button.c
+  src/core/ui_drag.c
+  src/core/pick_music.c
+  src/core/cheat_list_dialog.c
+  src/core/popup_msg.c
+  src/core/howmuch_dialog.c
+  src/core/name_entry_dialog.c
+  src/core/options_dialog.c
+  src/core/save_load_dialog.c
+  src/core/unit_stack.c
+  src/core/unit_chrome.c
+  src/core/new_game.c
+  src/core/pedia.c
+  src/core/reports.c
+  src/core/europe.c
+  src/core/colony_screen.c
+  src/core/debug_atlas.c
+  src/core/units.c
+  src/core/colony.c
+  src/core/colony_yield.c
+  src/core/colony_production.c
+  src/core/colony_craft.c
+  src/core/colony_preview.c
+  src/core/combat_strength.c
+  src/core/combat_analysis.c
+  src/core/turn.c
+  src/core/founding_fathers.c
+  src/core/ai.c
+  src/core/ai_goals.c
+  src/core/ai_euro.c
+  src/core/ai_diplo.c
+  src/core/ai_contact.c
+  src/core/ai_king.c
+  src/core/ai_popup.c
+  src/core/sound.c
+  src/core/madspack.c
+  src/core/pik.c
+  src/core/ss.c
+  src/core/savegame.c
+  src/core/col1_save.c
+  src/core/col1_bridge.c
+  src/core/col1_post_map.c
+  src/core/col1_stuff_census.c
+  src/data/viceroy_tables.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(smoke_hall_of_fame PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(smoke_hall_of_fame PRIVATE m pthread)
+if(COLONIZE_HAS_FLUIDSYNTH)
+  target_include_directories(smoke_hall_of_fame PRIVATE ${FLUIDSYNTH_INCLUDE_DIRS})
+  target_link_libraries(smoke_hall_of_fame PRIVATE ${FLUIDSYNTH_LIBRARIES})
+  target_compile_definitions(smoke_hall_of_fame PRIVATE COLONIZE_HAS_FLUIDSYNTH=1)
+endif()
+add_test(NAME smoke_hall_of_fame COMMAND smoke_hall_of_fame)
+
 add_executable(smoke_popup
   tests/smoke/test_popup.c
   src/core/popup.c

@@ -68,6 +68,20 @@ typedef enum GameMapConfirm {
   GAME_MAP_CONFIRM_FOUND_INLAND
 } GameMapConfirm;
 
+/* Hall of Fame: ranked table of retired Colonization Scores, persisted to
+ * HOF.TXT (one line per entry, highest score first). No decomp evidence for
+ * the DOS table's exact size / on-disk layout; 10 entries is our own choice
+ * (COLONIZE_HOF_ROW_MAX, shared with the reports.c screen renderer). */
+#define COLONIZE_HOF_MAX COLONIZE_HOF_ROW_MAX
+
+typedef struct ColonizeHofEntry {
+  char leader[NEW_GAME_LEADER_NAME_MAX];
+  char nation[24];
+  int score;
+  int year;
+  int difficulty; /* 0 Discoverer .. 4 Viceroy */
+} ColonizeHofEntry;
+
 struct ColonizeGameState {
   ColonizeGameConfig config;
   char resolved_data_dir[512];
@@ -129,8 +143,9 @@ struct ColonizeGameState {
   bool reports_ok;
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
-  int hof_last_score; /* last Retire Colonization Score (session + HOF.TXT) */
-  bool hof_has_entry;
+  ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
+  int hof_count;
+  bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */
   ColonizeReportId report_id;
   EuropeScreen europe;
   bool europe_ok;
@@ -2142,6 +2157,9 @@ static const char* render_mode_name(const ColonizeGameState* game) {
   if (game->in_report) {
     return "report";
   }
+  if (game->in_hall_of_fame) {
+    return "hall-of-fame";
+  }
   if (game->in_pedia) {
     return "pedia";
   }
@@ -4025,13 +4043,9 @@ static void activate_menu_selection(ColonizeGameState* game) {
   }
 
   if (strstr(choice, "Hall of Fame") != NULL || strstr(choice, "HALL") != NULL) {
-    if (game->hof_has_entry) {
-      char line[96];
-      snprintf(line, sizeof(line), "Last retired score: %d", game->hof_last_score);
-      set_status(game, "Hall of Fame", line);
-    } else {
-      set_status(game, "Hall of Fame", "No retired scores yet");
-    }
+    game->in_menu = false;
+    game->in_hall_of_fame = true;
+    set_status(game, "Hall of Fame", NULL);
     return;
   }
 
@@ -5654,7 +5668,10 @@ static void game_wait_next_unit(ColonizeGameState* game) {
   snprintf(game->status, sizeof(game->status), "%s", "Continue turn.");
 }
 
-/* Thin persistent HoF: COLONIZE/HOF.TXT holds last retired score (one line). */
+/* Persistent Hall of Fame: COLONIZE/HOF.TXT holds a ranked table of retired
+ * Colonization Scores, one "score|leader|nation|year|difficulty" line per
+ * entry, highest score first. Older single-integer-per-line files (the prior
+ * thin stub) still load as a 1-entry table. */
 static void game_hof_path(const ColonizeGameState* game, char* out, size_t out_size) {
   if (!out || out_size == 0) {
     return;
@@ -5668,26 +5685,83 @@ static void game_hof_path(const ColonizeGameState* game, char* out, size_t out_s
   }
 }
 
+/* Insert into game->hof_entries, keeping desc-by-score order, capped at
+ * COLONIZE_HOF_MAX. */
+static void game_hof_insert(ColonizeGameState* game, const ColonizeHofEntry* entry) {
+  if (!game || !entry) {
+    return;
+  }
+  int count = game->hof_count;
+  if (count > COLONIZE_HOF_MAX) {
+    count = COLONIZE_HOF_MAX;
+  }
+  int pos = count;
+  if (count < COLONIZE_HOF_MAX) {
+    ++count;
+  } else if (count == 0 || entry->score <= game->hof_entries[count - 1].score) {
+    return; /* table full and this score does not make the cut */
+  } else {
+    pos = count - 1;
+  }
+  for (int i = pos; i > 0 && game->hof_entries[i - 1].score < entry->score; --i) {
+    game->hof_entries[i] = game->hof_entries[i - 1];
+    pos = i - 1;
+  }
+  game->hof_entries[pos] = *entry;
+  game->hof_count = count;
+}
+
 static void game_hof_load(ColonizeGameState* game) {
   if (!game) {
     return;
   }
+  game->hof_count = 0;
   char path[640];
   game_hof_path(game, path, sizeof(path));
   FILE* f = fopen(path, "r");
   if (!f) {
     return;
   }
-  int score = 0;
-  if (fscanf(f, "%d", &score) == 1 && score != 0) {
-    game->hof_last_score = score;
-    game->hof_has_entry = true;
+  char line[256];
+  int lines_read = 0;
+  /* Read (and re-rank via game_hof_insert) more lines than fit in the table
+   * so a hand-edited or unsorted file still yields the true top scores. */
+  while (lines_read < COLONIZE_HOF_MAX * 4 && fgets(line, sizeof(line), f)) {
+    ++lines_read;
+    line[strcspn(line, "\r\n")] = '\0';
+    if (line[0] == '\0') {
+      continue;
+    }
+    ColonizeHofEntry entry;
+    memset(&entry, 0, sizeof(entry));
+    char leader[NEW_GAME_LEADER_NAME_MAX];
+    char nation[sizeof(entry.nation)];
+    leader[0] = '\0';
+    nation[0] = '\0';
+    int score = 0;
+    int year = 0;
+    int difficulty = 0;
+    int parsed = sscanf(
+      line, "%d|%31[^|]|%23[^|]|%d|%d", &score, leader, nation, &year, &difficulty
+    );
+    if (parsed < 1 && sscanf(line, "%d", &score) != 1) {
+      continue; /* malformed line */
+    }
+    if (score == 0) {
+      continue;
+    }
+    entry.score = score;
+    snprintf(entry.leader, sizeof(entry.leader), "%s", parsed >= 2 ? leader : "Governor");
+    snprintf(entry.nation, sizeof(entry.nation), "%s", parsed >= 3 ? nation : "");
+    entry.year = parsed >= 4 ? year : 0;
+    entry.difficulty = parsed >= 5 ? difficulty : 0;
+    game_hof_insert(game, &entry);
   }
   fclose(f);
 }
 
 static void game_hof_save(const ColonizeGameState* game) {
-  if (!game || !game->hof_has_entry) {
+  if (!game || game->hof_count <= 0) {
     return;
   }
   char path[640];
@@ -5696,7 +5770,13 @@ static void game_hof_save(const ColonizeGameState* game) {
   if (!f) {
     return;
   }
-  fprintf(f, "%d\n", game->hof_last_score);
+  int count = game->hof_count > COLONIZE_HOF_MAX ? COLONIZE_HOF_MAX : game->hof_count;
+  for (int i = 0; i < count; ++i) {
+    const ColonizeHofEntry* e = &game->hof_entries[i];
+    fprintf(
+      f, "%d|%s|%s|%d|%d\n", e->score, e->leader, e->nation, e->year, e->difficulty
+    );
+  }
   fclose(f);
 }
 
@@ -6513,7 +6593,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           game->map_cursor_x = sel->x;
           game->map_cursor_y = sel->y;
           if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_report &&
-              !game->in_pedia && !game->in_debug_atlas) {
+              !game->in_pedia && !game->in_debug_atlas && !game->in_hall_of_fame) {
             game_set_view_center(game, sel->x, sel->y);
           }
           if (sel->moves_left <= 0) {
@@ -6591,14 +6671,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       diag_info("Left report screen.");
       if (game->report_exits_to_menu) {
         game->report_exits_to_menu = false;
-        /* Session HoF stub: record F10 total on Retire (FUN_41f2_0f56 thin). */
+        /* Record F10 total into the ranked Hall of Fame on Retire
+         * (FUN_41f2_0f56 thin). */
         if (game->col1_ok) {
           ColonizeScoreBreakdown sc;
           reports_compute_score(
             &sc, &game->col1, game->human_nation, &game->colonies, &game->europe
           );
-          game->hof_last_score = sc.total;
-          game->hof_has_entry = true;
+          ColonizeHofEntry entry;
+          memset(&entry, 0, sizeof(entry));
+          snprintf(
+            entry.leader,
+            sizeof(entry.leader),
+            "%s",
+            game->leader_name[0] ? game->leader_name : "Governor"
+          );
+          snprintf(
+            entry.nation, sizeof(entry.nation), "%s", new_game_nation_name(game->human_nation)
+          );
+          entry.score = sc.total;
+          entry.year = sc.year;
+          entry.difficulty = sc.difficulty;
+          game_hof_insert(game, &entry);
           game_hof_save(game);
         }
         game->in_menu = true;
@@ -6611,6 +6705,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     /* F-keys switch reports (F2–F10) or open terrain pedia (F1). */
     if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
       game_handle_report_fkey(game, input->last_key);
+    }
+    return true;
+  }
+
+  /* Title-menu Hall of Fame screen (reports_render_hall_of_fame). */
+  if (game->in_hall_of_fame) {
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER) {
+      game->in_hall_of_fame = false;
+      game->in_menu = true;
+      set_status(game, "Colonization Linux Port", NULL);
     }
     return true;
   }
@@ -7716,7 +7820,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_P) {
     if (!game->in_menu && !game->in_europe && !game->in_colony && !game->in_report &&
-        game->world_map_ok && game->units_ok) {
+        !game->in_hall_of_fame && game->world_map_ok && game->units_ok) {
       const int sid = game->units.selected_id;
       const ColonizeUnit* su = units_get_const(&game->units, sid);
       if (su && units_is_pioneer(&game->units, sid) && su->moves_left > 0) {
@@ -7741,7 +7845,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (input->last_key == COLONIZE_KEY_R) {
     if (!game->in_menu && !game->in_europe && !game->in_colony && !game->in_report &&
-        game->world_map_ok && game->units_ok) {
+        !game->in_hall_of_fame && game->world_map_ok && game->units_ok) {
       const int sid = game->units.selected_id;
       const ColonizeUnit* su = units_get_const(&game->units, sid);
       if (su && units_is_pioneer(&game->units, sid) && su->moves_left > 0) {
@@ -7817,7 +7921,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
 
-    if (game->menu_option_count > 0 && !game->ai_popups.open) {
+    /* Skip when activation above left the title menu (e.g. Hall of Fame,
+     * Customize/America/New World, LOAD dialog): that screen owns its own
+     * status now, and game_update runs every frame so this would otherwise
+     * clobber it one frame later even though in_menu is already false. */
+    if (game->in_menu && game->menu_option_count > 0 && !game->ai_popups.open) {
       snprintf(
         game->status,
         sizeof(game->status),
@@ -8798,7 +8906,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   }
 
   *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe &&
-              !game->in_colony && !game->in_report)
+              !game->in_colony && !game->in_report && !game->in_hall_of_fame)
     ? game->palette
     : (game->in_debug_atlas && debug_atlas_palette(&game->debug_atlas))
       ? *debug_atlas_palette(&game->debug_atlas)
@@ -8808,11 +8916,15 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         : (game->in_report && game->reports_ok && game->reports.background_ok[game->report_id] &&
            game->reports.backgrounds[game->report_id].has_palette)
           ? game->reports.backgrounds[game->report_id].palette
-          : (game->in_europe && game->europe_ok && game->europe.background.has_palette)
-            ? game->europe.background.palette
-            : (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette)
-              ? game->colony_screen.frame.palette
-              : (game->map_palette_ok ? game->map_palette : game->palette);
+          : (game->in_hall_of_fame && game->reports_ok &&
+             game->reports.background_ok[COLONIZE_REPORT_SCORE] &&
+             game->reports.backgrounds[COLONIZE_REPORT_SCORE].has_palette)
+            ? game->reports.backgrounds[COLONIZE_REPORT_SCORE].palette
+            : (game->in_europe && game->europe_ok && game->europe.background.has_palette)
+              ? game->europe.background.palette
+              : (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette)
+                ? game->colony_screen.frame.palette
+                : (game->map_palette_ok ? game->map_palette : game->palette);
 
   if (render_log_counter == 0) {
     diag_info(
@@ -8845,6 +8957,23 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->turn_number,
       font,
       framebuffer
+    );
+    goto render_log_sample;
+  }
+
+  if (game->in_hall_of_fame) {
+    const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
+    ColonizeHofRow rows[COLONIZE_HOF_ROW_MAX];
+    const int count = game->hof_count > COLONIZE_HOF_ROW_MAX ? COLONIZE_HOF_ROW_MAX : game->hof_count;
+    for (int i = 0; i < count; ++i) {
+      const ColonizeHofEntry* e = &game->hof_entries[i];
+      snprintf(rows[i].leader, sizeof(rows[i].leader), "%s", e->leader);
+      snprintf(rows[i].nation, sizeof(rows[i].nation), "%s", e->nation);
+      rows[i].score = e->score;
+      rows[i].year = e->year;
+    }
+    reports_render_hall_of_fame(
+      game->reports_ok ? &game->reports : NULL, rows, count, font, framebuffer
     );
     goto render_log_sample;
   }
@@ -9293,7 +9422,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   const ColonizeFont* hud_font = game->colony_font_ok ? &game->colony_font :
                                  (game->menu_font_ok ? &game->menu_font : NULL);
   if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_pedia &&
-      !game->in_debug_atlas && !game->in_report) {
+      !game->in_debug_atlas && !game->in_report && !game->in_hall_of_fame) {
     const ColonizeSpriteSheet* wood =
       (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
     map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
@@ -9564,6 +9693,10 @@ bool game_in_new_game(const ColonizeGameState* game) {
   return game && new_game_active(&game->new_game);
 }
 
+bool game_in_hall_of_fame(const ColonizeGameState* game) {
+  return game && game->in_hall_of_fame;
+}
+
 int game_human_nation(const ColonizeGameState* game) {
   return game ? game->human_nation : 0;
 }
@@ -9574,4 +9707,24 @@ int game_difficulty(const ColonizeGameState* game) {
 
 const char* game_leader_name(const ColonizeGameState* game) {
   return game ? game->leader_name : "";
+}
+
+int game_hof_count(const ColonizeGameState* game) {
+  if (!game) {
+    return 0;
+  }
+  return game->hof_count > COLONIZE_HOF_MAX ? COLONIZE_HOF_MAX : game->hof_count;
+}
+
+bool game_hof_entry(const ColonizeGameState* game, int index, ColonizeHofEntryView* out) {
+  if (!game || !out || index < 0 || index >= game_hof_count(game)) {
+    return false;
+  }
+  const ColonizeHofEntry* e = &game->hof_entries[index];
+  snprintf(out->leader, sizeof(out->leader), "%s", e->leader);
+  snprintf(out->nation, sizeof(out->nation), "%s", e->nation);
+  out->score = e->score;
+  out->year = e->year;
+  out->difficulty = e->difficulty;
+  return true;
 }

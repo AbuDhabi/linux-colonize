@@ -111,4 +111,28 @@ void reports_render(
   ColonizeFramebuffer8* framebuffer
 );
 
+/*
+ * Title-menu Hall of Fame screen: ranked retired-game scores, full-screen
+ * wood (shares COLONIZE_REPORT_SCORE's WOODPANL.PIK — DOS's HALLFAME.DAT
+ * writer also opens a WOODPANL screen; see viceroy_unpacked.asm string table
+ * around "HALLFAME.DAT" / "INDEPENDENT" / "NAMES"). LABELS.TXT #207
+ * "COLONIZATION HALL OF FAME" is the real DOS title string.
+ */
+#define COLONIZE_HOF_ROW_MAX 10
+
+typedef struct ColonizeHofRow {
+  char leader[32];
+  char nation[24];
+  int score;
+  int year;
+} ColonizeHofRow;
+
+void reports_render_hall_of_fame(
+  const ColonizeReportsView* view,
+  const ColonizeHofRow* entries,
+  int entry_count,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+);
+
 #endif

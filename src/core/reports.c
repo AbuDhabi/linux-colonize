@@ -1496,6 +1496,54 @@ static void reports_render_score(
   }
 }
 
+void reports_render_hall_of_fame(
+  const ColonizeReportsView* view,
+  const ColonizeHofRow* entries,
+  int entry_count,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb
+) {
+  if (!fb || !fb->pixels) {
+    return;
+  }
+  memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
+  if (view && view->background_ok[COLONIZE_REPORT_SCORE]) {
+    pik_blit(&view->backgrounds[COLONIZE_REPORT_SCORE], fb, 0, 0);
+  }
+
+  const int step = reports_line_step(font);
+  int y = 4;
+  reports_draw_line(font, fb, 8, y, "COLONIZATION HALL OF FAME", 15); /* LABELS.TXT #207 */
+  y += step;
+  reports_draw_line(font, fb, 8, y, "Esc / Enter returns to menu", 14);
+  y += step + 4;
+
+  reports_draw_line(font, fb, 8, y, "     Leader                    Nation      Score  A.D.", 15);
+  y += step;
+
+  char line[160];
+  if (entry_count <= 0) {
+    reports_draw_line(font, fb, 8, y, "  No retired games yet.", 14);
+    return;
+  }
+  const int shown = entry_count > COLONIZE_HOF_ROW_MAX ? COLONIZE_HOF_ROW_MAX : entry_count;
+  for (int i = 0; i < shown && y < 190; ++i) {
+    const ColonizeHofRow* e = &entries[i];
+    snprintf(
+      line,
+      sizeof(line),
+      "%2d.  %-24s %-10s %6d  %d",
+      i + 1,
+      e->leader,
+      e->nation,
+      e->score,
+      e->year
+    );
+    reports_draw_line(font, fb, 8, y, line, 15);
+    y += step;
+  }
+}
+
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,

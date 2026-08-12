@@ -44,7 +44,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 |----------------|--------|-------|
 | NEW WORLD / AMERICA / CUSTOMIZE | Done | `src/core/new_game.c`, `map_gen.c` |
 | Difficulty, nation, leader, king audience, sail | Done | Wizard flow functional |
-| Hall of Fame | Partial | Title shows last retired score; persists to `HOF.TXT` (thin table stub) |
+| Hall of Fame | Done thin | Dedicated title-menu screen (`reports_render_hall_of_fame`, shares Score's WOODPANL.PIK — DOS `HALLFAME.DAT` also opens a WOODPANL screen); ranked top-10 retired scores (leader/nation/year); persists to `HOF.TXT`. No decomp evidence for exact DOS layout/positions — 10-entry cap and column layout are a Linux-port choice; VGA-identical chrome PARKED |
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
 | Fog of war / unexplored blackness | Partial | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; units/tribes/colonies hidden in fog; Go-To reveals; cheat Reveal. Scenario `.MP` starts fully seen |
 | Zoom / hidden terrain VIEW modes | Missing | Menu stubs |
